@@ -51,7 +51,7 @@ browser-facing HTTP contract。
 - 但 proxy 后的 contract 必须保持与这里一致
 - Worker web surfaces 必须通过 `APP_API` Service Binding 调用 `app-api`；其中
   `https://app-api.internal` 只是内部 Request URL origin
-- `campus-api-staging.ayafeed.com` 如存在，只能作为 staging machine / ops ingress，
+- `api-staging.mucwiki-edge.link` 如存在，只能作为 staging machine / ops ingress，
   不是本文 browser-facing app contract
 - `official_web` collector command surface 与 app-owned run APIs 不属于本文范围，另见
   `docs/contracts/app-api-official-web-http.md`

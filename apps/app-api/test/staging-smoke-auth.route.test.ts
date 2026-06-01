@@ -23,7 +23,7 @@ const env: Env = {
 	APP_API_STAGING_SMOKE_AUTH_SECRET: "staging-smoke-secret",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://campus-chat-staging.ayafeed.com",
+	PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
 	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {

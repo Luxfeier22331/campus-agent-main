@@ -64,6 +64,7 @@ class RegistryCollectionRenameTargetResult:
     table_name: str
     target_names: tuple[str, ...]
     updated_row_count: int | None = None
+    remaining_legacy_row_count: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,18 +308,24 @@ def apply_registry_collection_rename_backfill(
     env: dict[str, str] | None = None,
 ) -> RegistryCollectionRenameApplyReport:
     targets = resolve_registry_collection_rename_targets(env)
-    results = tuple(
-        RegistryCollectionRenameTargetResult(
-            kind=target.kind,
-            legacy_row_count=_count_legacy_rows(target),
-            sample_rows=_sample_legacy_rows(target),
-            table_name=target.table_name,
-            target_names=target.target_names,
-            updated_row_count=_apply_legacy_row_backfill(target),
+    results: list[RegistryCollectionRenameTargetResult] = []
+    for target in targets:
+        legacy_row_count = _count_legacy_rows(target)
+        sample_rows = _sample_legacy_rows(target)
+        updated_row_count = _apply_legacy_row_backfill(target)
+        remaining_legacy_row_count = _count_legacy_rows(target)
+        results.append(
+            RegistryCollectionRenameTargetResult(
+                kind=target.kind,
+                legacy_row_count=legacy_row_count,
+                sample_rows=sample_rows,
+                table_name=target.table_name,
+                target_names=target.target_names,
+                updated_row_count=updated_row_count,
+                remaining_legacy_row_count=remaining_legacy_row_count,
+            )
         )
-        for target in targets
-    )
-    return RegistryCollectionRenameApplyReport(command="apply", targets=results)
+    return RegistryCollectionRenameApplyReport(command="apply", targets=tuple(results))
 
 
 __all__ = [

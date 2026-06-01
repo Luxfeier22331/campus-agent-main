@@ -8,9 +8,9 @@ export const CHAT_E2E_PROFILES = ["dev", "local-real-provider", "staging"] as co
 export type ChatE2eProfile = (typeof CHAT_E2E_PROFILES)[number];
 
 export const DEFAULT_CHAT_E2E_PROMPT = "中央民族大学本科学生国家奖学金评审办法";
-export const DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL = "https://campus-chat-staging.ayafeed.com";
+export const DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL = "https://chat-staging.mucwiki-edge.link";
 export const DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL =
-	"https://campus-api-staging.ayafeed.com/readyz";
+	"https://api-staging.mucwiki-edge.link/readyz";
 export const DEFAULT_STAGING_CHAT_E2E_EXEC_READYZ_URL: string | null = null;
 export const DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL = "http://127.0.0.1:27011";
 export const DEFAULT_LOCAL_CHAT_E2E_APP_API_READYZ_URL = "http://127.0.0.1:27031/readyz";

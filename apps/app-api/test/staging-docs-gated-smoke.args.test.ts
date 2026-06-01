@@ -27,7 +27,9 @@ describe("staging docs gated smoke args", () => {
 			email: "help_bot@outlook.com",
 			gatedReaderPath: null,
 			name: "Campus Agent Smoke",
-			publicDocsSyncManifestPath: expect.stringContaining("var/public-docs-sync-manifest.json"),
+			publicDocsSyncManifestPath: expect.stringContaining(
+				"var/public-docs-sync-manifest.staging.json",
+			),
 			smokeAuthSecret: "smoke-secret",
 		});
 	});
@@ -163,7 +165,9 @@ describe("staging docs gated smoke args", () => {
 			gatedCollectionNavigationUnauthenticatedStatus: 404,
 			gatedReaderPath: "/_gated-docs/corpus/collection/doc/version/reader.json",
 			name: "Smoke User",
-			publicDocsSyncManifestPath: expect.stringContaining("var/public-docs-sync-manifest.json"),
+			publicDocsSyncManifestPath: expect.stringContaining(
+				"var/public-docs-sync-manifest.staging.json",
+			),
 			smokeAuthSecret: "explicit-smoke-secret",
 		});
 	});

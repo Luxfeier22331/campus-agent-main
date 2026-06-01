@@ -11,10 +11,10 @@ service = "app-api"
 
 [env.staging.vars]
 APP_API_BASE_URL = "https://app-api.internal"
-PUBLIC_DOCS_HOSTNAME = "campus-docs-staging.ayafeed.com"
+PUBLIC_DOCS_HOSTNAME = "docs-staging.mucwiki-edge.link"
 
 [[env.staging.routes]]
-pattern = "campus-docs-staging.ayafeed.com"
+pattern = "docs-staging.mucwiki-edge.link"
 custom_domain = true
 
 [[env.staging.services]]

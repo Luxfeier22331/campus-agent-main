@@ -143,7 +143,7 @@
   独立 RAG release lane；新 target 尚未进入 RAG release / serving admission；
   public-chat citation 继续关闭。auth-dependent `file_release owner recovery` 仍由独立
   workstream 管理，不混入本线。
-- [ ] staging@ayafeed.com 的项目隔离一级子域部署基线已经成立；`campus-api-staging`、`campus-chat-staging`、`campus-panel-staging` 当前 truth 稳定，后续 release hardening 已收口为 Phase 1002 `Worker 部署与发布硬化收口`
+- [ ] staging@mucwiki-edge.link 的项目隔离一级子域部署基线正在切换；`api-staging`、`chat-staging`、`docs-staging`、`panel-staging`、`hub-staging` 与 `exec-staging` 是当前 staging hostname truth，后续 release hardening 继续沿 Phase 1002 `Worker 部署与发布硬化收口` 执行
 - [ ] `shared product surfaces acceptance / hardening` 已在 `Phase I` closeout 之后继续 reopen 到 `Phase J` Turnstile posture productization：固定方向是 always-on verification、Cloudflare-managed adaptive interactive challenge only on elevated risk，以及 local / staging / prod runtime posture seam；`Phase K` 的 mature auth shell local cutover 已完成，但 workstream 当前仍只剩 `Phase J` 真实 staging 浏览器 closeout blocker；它继续只覆盖 shared backend、public chat 与 protected panel，不改 panel Access model
 - [ ] `official_web/fresh_news` / `official_web/news_archive` 的 repo-level runtime opening criteria 已在 Phase 1003 冻结；后续 opening execution / acceptance 已下调到 backlog `999.4`，当前只保留 `stable_reference` 与 default-off news contract，不在 active implementation lane
 - [ ] 校内导航当前只打开 Go direct `place_lookup` 地点目录查询；地图实际上线后再从 backlog

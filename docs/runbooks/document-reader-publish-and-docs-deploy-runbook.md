@@ -226,13 +226,13 @@ pnpm --filter app-api docs:export-public-sync-manifest ../../var/public-docs-syn
 staging 使用：
 
 ```bash
-pnpm --filter app-api docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.json
+pnpm --filter app-api docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.staging.json
 ```
 
 该 manifest 也是 staging gated docs smoke 的默认目标来源：
 `pnpm --dir apps/app-api docs:gated:smoke:staging` 会读取
 `PUBLIC_DOCS_SYNC_MANIFEST_PATH`，未设置时使用 repo-root
-`var/public-docs-sync-manifest.json`，并据此选择 gated reader 与匿名 collection
+`var/public-docs-sync-manifest.staging.json`，并据此选择 gated reader 与匿名 collection
 navigation 期望状态。
 
 ### 4. 滚动检查并按需发布 public-docs

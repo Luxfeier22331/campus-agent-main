@@ -82,7 +82,7 @@ expectEqual(
 );
 expectEqual(
 	vars.HUB_WEB_HOSTNAME,
-	"hub-muc-wiki.ayafeed.com",
+	"hub-staging.mucwiki-edge.link",
 	"Built staging config must keep HUB_WEB_HOSTNAME fixed.",
 );
 expectEqual(
@@ -112,8 +112,10 @@ expectAbsent(
 );
 
 const hasRoute = routes.some(
-	(route) => route?.pattern === "hub-muc-wiki.ayafeed.com" && route?.custom_domain === true,
+	(route) => route?.pattern === "hub-staging.mucwiki-edge.link" && route?.custom_domain === true,
 );
 if (!hasRoute) {
-	fail("Missing required hub-muc-wiki.ayafeed.com custom domain route in built staging config.");
+	fail(
+		"Missing required hub-staging.mucwiki-edge.link custom domain route in built staging config.",
+	);
 }

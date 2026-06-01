@@ -31,7 +31,7 @@
 		"deploy:preflight:staging": "node ../../scripts/run-worker-staging-preflight.mjs --app apps/protected-panel-web",
 		"deploy:verify-config": "node ../../scripts/verify-worker-deploy-config.mjs dist/protected_panel_web/wrangler.json APP_API=app-api",
 		"deploy:staging": "pnpm deploy:preflight:staging && node ./scripts/deploy-staging.mjs",
-		"deploy:verify-config:staging": "node ../../scripts/verify-worker-deploy-config.mjs dist/protected_panel_web/wrangler.json SERVICE:APP_API=app-api-staging VAR:PANEL_RUNTIME_API_BASE_URL=https://app-api.internal VAR:SENTRY_ENVIRONMENT=staging VAR_ABSENT:SENTRY_RELEASE ROUTE:campus-panel-staging.ayafeed.com",
+		"deploy:verify-config:staging": "node ../../scripts/verify-worker-deploy-config.mjs dist/protected_panel_web/wrangler.json SERVICE:APP_API=app-api-staging VAR:PANEL_RUNTIME_API_BASE_URL=https://app-api.internal VAR:SENTRY_ENVIRONMENT=staging VAR_ABSENT:SENTRY_RELEASE ROUTE:panel-staging.mucwiki-edge.link",
 		"preview": "pnpm build && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite preview",
 		"test": "pnpm run test:node && pnpm run test:worker",
 		"test:node": "vitest run -c vitest.node.config.mts",

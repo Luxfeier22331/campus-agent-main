@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
+import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
 import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
@@ -11,7 +11,7 @@ const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
 const VALID_TURNSTILE_APPEARANCES = new Set(["always", "execute", "interaction-only"]);
 const VALID_TURNSTILE_EXECUTIONS = new Set(["render", "execute"]);
 
-loadRepoEnvFile(import.meta.url, "../../..");
+loadRepoStagingEnvFile(import.meta.url, "../../..");
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sentryRelease = resolveStagingSentryRelease("hub-web");
 const turnstileSiteKey = process.env.STAGING_HUB_AUTH_TURNSTILE_SITE_KEY?.trim();
@@ -65,7 +65,7 @@ function resolveTurnstileOption(name, rawValue, validValues, defaultValue) {
 
 if (!turnstileSiteKey) {
 	fail(
-		"STAGING_HUB_AUTH_TURNSTILE_SITE_KEY is required. Inject the real Turnstile sitekey admitted for hub-muc-wiki.ayafeed.com before deploying.",
+		"STAGING_HUB_AUTH_TURNSTILE_SITE_KEY is required. Inject the real Turnstile sitekey admitted for hub-staging.mucwiki-edge.link before deploying.",
 	);
 }
 

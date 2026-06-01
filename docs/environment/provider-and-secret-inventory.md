@@ -417,6 +417,18 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 1. 生成 access key / secret key。
 1. 填写 endpoint 与 bucket 名。
 
+当前 Cloudflare R2 staging baseline：
+
+- endpoint: `https://5943f31433be5dd57beb3bb92bd1c660.r2.cloudflarestorage.com`
+- source bucket: `campus-rag-source-staging`
+- derived bucket: `campus-rag-derived-staging`
+- runtime region/signing value: `auto`
+
+R2 API token 作为 S3 凭据时，Access Key ID 是 token id，Secret Access Key 是 token
+value 的 SHA-256。Secret Access Key 只在创建 token 时可派生一次；不得把 token value
+或派生后的 secret 写入 repo。`supervisor-api` staging 只读/读取 notice canonical body 时使用
+derived-only bucket-scoped 凭据，不能复用 `ayafeed-*` 或 public docs reader asset bucket。
+
 Worker gated reader 交付：
 
 - `apps/public-docs` 在 build/deploy 阶段把 `deliveryMode=gated_asset` 同步进

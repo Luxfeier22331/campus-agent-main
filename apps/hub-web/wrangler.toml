@@ -11,12 +11,12 @@ service = "app-api"
 
 [env.staging.vars]
 APP_API_BASE_URL = "https://app-api.internal"
-HUB_PUBLIC_CHAT_ORIGIN = "https://campus-chat-staging.ayafeed.com"
-HUB_WEB_HOSTNAME = "hub-muc-wiki.ayafeed.com"
+HUB_PUBLIC_CHAT_ORIGIN = "https://chat-staging.mucwiki-edge.link"
+HUB_WEB_HOSTNAME = "hub-staging.mucwiki-edge.link"
 SENTRY_ENVIRONMENT = "staging"
 
 [[env.staging.routes]]
-pattern = "hub-muc-wiki.ayafeed.com"
+pattern = "hub-staging.mucwiki-edge.link"
 custom_domain = true
 
 [[env.staging.services]]

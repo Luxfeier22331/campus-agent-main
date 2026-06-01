@@ -41,6 +41,9 @@ probe_http_url() {
 supervisor_api_staging_ensure_runtime_dirs
 supervisor_api_staging_acquire_lock 30
 supervisor_api_staging_load_env
+if (( strict_mode == 1 )); then
+  supervisor_api_staging_require_runtime_env
+fi
 supervisor_api_staging_adopt_existing_process \
   "cloudflared" \
   "${supervisor_api_staging_cloudflared_pid_file}" \
@@ -60,7 +63,7 @@ if (( strict_mode == 0 )); then
   echo
   echo "local readyz: ${supervisor_api_staging_local_readyz_url}"
   curl -sS -i \
-    -H "x-worker-origin-auth: ${SUPERVISOR_API_SHARED_SECRET:-supervisor-api-staging-placeholder}" \
+    -H "x-worker-origin-auth: ${SUPERVISOR_API_SHARED_SECRET:?SUPERVISOR_API_SHARED_SECRET is required}" \
     "${supervisor_api_staging_local_readyz_url}" || true
 
   echo
@@ -110,7 +113,7 @@ local_readyz_status="$(
     "${supervisor_api_staging_local_readyz_url}" \
     "${local_readyz_body}" \
     0 \
-    "${SUPERVISOR_API_SHARED_SECRET:-supervisor-api-staging-placeholder}" \
+    "${SUPERVISOR_API_SHARED_SECRET:?SUPERVISOR_API_SHARED_SECRET is required}" \
     "x-worker-origin-auth"
 )"
 if [[ "${local_readyz_status}" != "200" ]]; then

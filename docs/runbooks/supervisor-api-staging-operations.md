@@ -12,8 +12,8 @@ updated: 2026-05-08
 
 - 当前 repo-owned staging execution runtime 是 `otel-collector + supervisor-api + supervisor-agent-worker`
   三容器
-- `exec-staging.ayafeed.com` 继续通过 named tunnel 指回这台主机上的本地
-  `supervisor-api` runtime
+- `exec-staging.mucwiki-edge.link` 通过 Cloudflare remote-managed named tunnel 指向
+  `nc-arm-6c` 上的本地 `supervisor-api` runtime
 
 它不覆盖 browser smoke 证据采集；那部分统一看
 `supervisor-api-staging-smoke-runbook.md`。
@@ -32,54 +32,151 @@ updated: 2026-05-08
     - health check `13133`
   - `supervisor-api`
     - `trusted-worker`
-    - `127.0.0.1:27010`
+    - `127.0.0.1:27051`
     - `/healthz` `/readyz` `/metrics` `/api/v1/answer`
     - bounded in-process admission queue / backpressure / graceful drain
   - `supervisor-agent-worker`
     - private `/internal/bridge/*`
 - named tunnel：
   - tunnel name: `supervisor-api-staging`
-  - public hostname: `<https://exec-staging.ayafeed.com`>
-  - connector config 必须把该 hostname 指到本机 `http://127.0.0.1:27010`
+  - tunnel id: `7d0db8a7-53bd-417d-8028-548c35c8e30e`
+  - public hostname: `<https://exec-staging.mucwiki-edge.link`>
+  - Cloudflare remote config 必须把该 hostname 指到 connector 本机
+    `http://127.0.0.1:27051`
+  - DNS record:
+    `exec-staging.mucwiki-edge.link CNAME 7d0db8a7-53bd-417d-8028-548c35c8e30e.cfargotunnel.com`,
+    proxied
 - shared staging `app-api`：
-  - `<https://campus-api-staging.ayafeed.com`>
+  - `<https://api-staging.mucwiki-edge.link`>
+- canonical staging host：`nc-arm-6c`, repo path `/srv/apps/campus-agent`
 - 常驻机制：
-  - Windows scheduled task: `CampusAgent-SupervisorApiStaging`
-  - WSL-side lifecycle scripts: `infra/local/staging/start-supervisor-api-staging.sh`
+  - Docker Compose runtime: `infra/local/staging/start-supervisor-api-staging.sh`
+  - Cloudflare connector: systemd service
+    `cloudflared-supervisor-api-staging.service`
   - strict health check: `infra/local/staging/status-supervisor-api-staging.sh --check`
   - lifecycle lock: `.tmp/supervisor-api-staging/lifecycle.lock`
 
-以上是当前 staging host（WSL + Windows scheduler）特定形态，不代表通用 server runtime
-管理方式。
+以上是当前 `nc-arm-6c` staging host 特定形态，不代表 production substrate。
 
 ## 安装与重装
 
-首次安装或重装计划任务：
+### 1. 同步 repo
+
+在本机 release branch 上把仓库同步到 `nc-arm-6c`：
 
 ```bash
-infra/local/staging/install-supervisor-api-staging-task.sh
+rsync -a --delete --exclude .git --exclude .worktrees --exclude node_modules \
+  --exclude .venv --exclude .tmp \
+  ./ nc-arm-6c:/srv/apps/campus-agent/
 ```
 
-安装后核对：
+### 2. 写入 staging operator secret
+
+在 `nc-arm-6c:/srv/apps/campus-agent` 准备 ignored secret 文件：
+
+- repo-root `.env.staging.local`：Worker deploy/smoke 和 supervisor lifecycle 共享的
+  staging operator secret
+- `apps/app-api/.dev.vars`：`app-api` runtime secret 与 supervisor shared secret
+- 各 web app `.dev.vars`：只供 staging build/deploy secret presence gate 使用
+
+`infra/local/staging/start-supervisor-api-staging.sh` 会按顺序读取 `.env`、
+`.env.staging.local`、`apps/app-api/.dev.vars`，再把允许进入 runtime 的 key 注入
+Compose。
+
+`.env.staging.local` 必须包含：
+
+- `STAGING_SUPERVISOR_API_BASE_URL=https://exec-staging.mucwiki-edge.link`
+- `STAGING_INGESTION_SHARED_POSTGRES_URL=<staging shared Postgres URL>`；
+  如果使用 Supabase，必须是 session pooler `:5432` DSN，并包含 `sslmode=require`
+- `STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=<registry Postgres URL>`；
+  如果使用 Supabase，必须是 session pooler `:5432` DSN，并包含 `sslmode=require`
+- `STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=<raw registry Postgres URL>`；
+  如果使用 Supabase，必须是 session pooler `:5432` DSN，并包含 `sslmode=require`
+- `STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL=<staging operator Postgres URL>`；用于
+  one-time ingestion/registry 运维 CLI，不允许从 root `.env` 的本地 operator DSN 补齐
+- document registry operator URL:
+  `STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL`
+- raw asset registry operator URL:
+  `STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL`
+- `STAGING_INGESTION_OBJECT_STORE_ENDPOINT=<staging S3-compatible object store endpoint>`
+- `STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging`
+- `STAGING_INGESTION_OBJECT_STORE_REGION=auto`（Cloudflare R2 S3 endpoint）
+- `STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=<derived bucket access key>`
+- `STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=<derived bucket secret key>`
+- `STAGING_INGESTION_QDRANT_URL=<staging Qdrant REST URL>`；按 Qdrant Cloud
+  文档，已 provision 的 cluster 应该能通过 443 或 6333 的 REST API 访问；该 URL
+  必须让 `/readyz`、`/livez`、`/collections` 返回 `200`，不能填只返回
+  `404 page not found` 的 cluster 管理/错误 hostname
+- `STAGING_INGESTION_QDRANT_API_KEY=<staging Qdrant API key>`
+- `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
+  query-serving index release metadata 匹配
+- `STAGING_ACCESS_TEAM_DOMAIN=https://ayafeed.cloudflareaccess.com`
+- `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
+- `SUPERVISOR_API_METRICS_BEARER_TOKEN=<metrics bearer token>`
+- `SUPERVISOR_API_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token>`
+- `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>`
+- `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
+
+`STAGING_APP_API_OPERATOR_DATABASE_URL` 只用于 `app-api` staging schema/bootstrap/operator
+脚本；即使它物理上和 runtime shared Postgres 相同，也必须单独写入
+`STAGING_INGESTION_SHARED_POSTGRES_URL` /
+`STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL` /
+`STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL`。
+supervisor lifecycle 不会从 root `.env`、`apps/app-api/.dev.vars` 或
+`STAGING_APP_API_OPERATOR_DATABASE_URL` 猜测 retrieval runtime 数据面。缺任一
+`STAGING_INGESTION_*` 必填项时，`start-supervisor-api-staging.sh` 会 fail closed。
+
+Cloudflare R2 staging object store 固定为：
+
+- endpoint: `https://5943f31433be5dd57beb3bb92bd1c660.r2.cloudflarestorage.com`
+- source bucket: `campus-rag-source-staging`
+- derived bucket: `campus-rag-derived-staging`
+
+`supervisor-api` 在线 notice body runtime 只需要 derived bucket 凭据，因此 staging
+runtime 使用只限 `campus-rag-derived-staging` 的 R2 bucket-item token。按 Cloudflare R2
+文档，R2 S3 凭据不是普通 bearer token：Access Key ID 是 API token id，Secret Access
+Key 是 API token value 的 SHA-256。token value 只在创建时显示；创建后必须立即写入
+部署 secret 或 `/srv/apps/campus-agent/.env.staging.local`，不得进入 repo。
+
+如果 query-serving index 或 notice read-model 已引用 `campus-rag-derived` 的 object key
+内容，不能只创建空的 `campus-rag-derived-staging` bucket 后宣布 staging 可用；必须先执行
+受控对象迁移或重新发布 staging seed，使 DB/read-model 与 R2 bucket 内容一致。
+
+`apps/app-api/.dev.vars` 必须包含：
+
+- `SUPERVISOR_API_SHARED_SECRET`
+- `APP_API_INTERNAL_SHARED_SECRET`
+- app-api runtime secrets；retrieval data-plane、object-store 与 supervisor-agent-worker
+  query env 不放在这里，统一由 repo-root `.env.staging.local` 的
+  `STAGING_INGESTION_*` 投影进入 Compose runtime
+
+### 3. 安装 cloudflared systemd service
+
+在 `nc-arm-6c` 安装 `cloudflared` 到 `/usr/local/bin/cloudflared` 后执行：
 
 ```bash
-powershell.exe -NoProfile -Command \
-  "Get-ScheduledTask -TaskName 'CampusAgent-SupervisorApiStaging' | \
-  Format-List TaskName,Description,Triggers,Actions"
+cd /srv/apps/campus-agent
+sudo SUPERVISOR_API_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token> \
+  infra/local/staging/install-supervisor-api-staging-cloudflared-service.sh
 ```
 
-应看到：
+确认：
 
-- 任务名为 `CampusAgent-SupervisorApiStaging`
-- action 通过 `wsl.exe ... bash -lc` 进入当前 repo
-- action 会显式注入：
-  - `SUPERVISOR_API_STAGING_PORT=27010`
-  - `SUPERVISOR_API_STAGING_TUNNEL_NAME=supervisor-api-staging`
-  - `SUPERVISOR_API_STAGING_PUBLIC_BASE_URL=<https://exec-staging.ayafeed.com`>
-  - `SUPERVISOR_API_STAGING_APP_API_BASE_URL=<https://campus-api-staging.ayafeed.com`>
-- trigger 包含：
-  - 登录时执行一次
-  - 每 5 分钟重复执行一次
+- 非登录 SSH shell 必须能执行 `uv`，或在 `.env.staging.local` 显式设置
+  `SUPERVISOR_API_STAGING_UV_BIN=/home/deploy/.local/bin/uv`；staging lifecycle
+  不会跳过 `doctor_env`。
+
+```bash
+systemctl --no-pager --full status cloudflared-supervisor-api-staging.service
+```
+
+### 4. 启动 supervisor runtime
+
+```bash
+cd /srv/apps/campus-agent
+infra/local/staging/start-supervisor-api-staging.sh
+infra/local/staging/status-supervisor-api-staging.sh --check
+```
 
 ## 日常健康检查
 
@@ -99,12 +196,13 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 
 - `otel-collector`、`supervisor-api` 与
   `supervisor-agent-worker` 都在当前 compose project 中运行
-- 如果配置了 public execution origin，则 `cloudflared` 进程存在
-- 本地 `<http://127.0.0.1:27010/healthz`> 返回 `200`
-- 本地 `<http://127.0.0.1:27010/readyz`> 带 `x-worker-origin-auth` 返回 `200`
-- 本地 `<http://127.0.0.1:27010/metrics`> 带 bearer token 返回 `200`
-- `<https://campus-api-staging.ayafeed.com/readyz`> 返回 `200`
-- `campus-api-staging` 的 `auth`、`database`、`supervisorApi` 都是 `ready`
+- `cloudflared-supervisor-api-staging.service` 处于 active/running，且 Cloudflare
+  tunnel status 为 healthy
+- 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
+- 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
+- 本地 `<http://127.0.0.1:27051/metrics`> 带 bearer token 返回 `200`
+- `<https://api-staging.mucwiki-edge.link/readyz`> 返回 `200`
+- `api-staging` 的 `auth`、`database`、`supervisorApi` 都是 `ready`
 
 补充约束：
 
@@ -141,18 +239,62 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - staging profile 下，supervisor-api full `/readyz` 是内部 runtime probe；
   local lifecycle script 使用 `API_WORKER_SHARED_SECRET` 对本地 `/readyz` 加
   `x-worker-origin-auth`。public deploy / smoke closure 不直接要求
-  `exec-staging.ayafeed.com/readyz`，而是通过 `campus-api-staging /readyz`
+  `exec-staging.mucwiki-edge.link/readyz`，而是通过 `api-staging /readyz`
   证明 app-api 已用内部 shared secret 完成 supervisor readiness probe
 - `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有
   admission queue 已不可接收、runtime draining 或 bridge 不健康时才视为 execution
   runtime 不 ready
-- `supervisor-agent-worker` 必须同时拿到 query runtime env，包括 `QDRANT_URL`、
-  `QDRANT_API_KEY`、`QDRANT_TIMEOUT_SECONDS`、`DOCUMENT_REGISTRY_DATABASE_URL` 或
-  `CAMPUS_SHARED_POSTGRES_URL`、`EMBEDDING_*` 与 `SPARSE_*`
-- `infra/local/staging/start-supervisor-api-staging.sh` 会从 repo env 与 `apps/app-api/.dev.vars`
-  导入这些变量，再通过 `infra/local/docker-compose.supervisor-runtime.yml` 注入容器
-- 如果 registry Postgres URL 指向 `127.0.0.1` 或 `localhost`，启动脚本会为 Docker
-  orchestrator 改写成 `host.docker.internal`；compose 通过 `host-gateway` 解析回宿主机
+- `supervisor-agent-worker` 必须同时拿到 query runtime env，包括
+  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`、`QDRANT_URL`、`QDRANT_API_KEY`、
+  `QDRANT_TIMEOUT_SECONDS`、`DOCUMENT_REGISTRY_DATABASE_URL`、
+  `RAW_ASSET_REGISTRY_DATABASE_URL`、`CAMPUS_SHARED_POSTGRES_URL`、`EMBEDDING_*`
+  与 `SPARSE_*`
+- `infra/local/staging/start-supervisor-api-staging.sh` 会从 `.env`、
+  `.env.staging.local` 与 `apps/app-api/.dev.vars` 导入基础 secret，但 query/runtime
+  数据面只接受 repo-root `.env.staging.local` 中的 `STAGING_INGESTION_*`，再投影成
+  Compose 里的 `CAMPUS_SHARED_POSTGRES_URL`、`DOCUMENT_REGISTRY_DATABASE_URL`、
+  `RAW_ASSET_REGISTRY_DATABASE_URL`、`CAMPUS_SHARED_POSTGRES_OPERATOR_URL`、
+  `DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL`、`RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL`、
+  `OBJECT_STORE_*`、`QDRANT_*`、`EMBEDDING_*` 与 `SPARSE_*`
+- `CAMPUS_SHARED_POSTGRES_URL`、`DOCUMENT_REGISTRY_DATABASE_URL`、
+  `RAW_ASSET_REGISTRY_DATABASE_URL`、`OBJECT_STORE_ENDPOINT` 与 `QDRANT_URL`
+  不得在 staging supervisor runtime 指向 `127.0.0.1`、
+  `localhost` 或 `host.docker.internal`；这些值只允许存在于本机开发 `.env`，不会作为
+  staging runtime 数据面
+- staging runtime 启动前会执行 ingestion registry collection rename audit：
+  `campus_ingestion_worker.collection_rename_registry_backfill audit`。如果
+  `regulations/student_handbook` 或 `regulations/institutional_regulations` 仍残留在
+  `document_registry` / `raw_asset_registry` 的 `collection` 列或 `record.collection`，
+  `start-supervisor-api-staging.sh` 会 fail closed。先执行 apply：
+
+```bash
+cd /srv/apps/campus-agent
+source infra/local/staging/supervisor-api-staging-common.sh
+supervisor_api_staging_load_env >/dev/null
+uv run --all-packages python -m \
+  campus_ingestion_worker.collection_rename_registry_backfill audit
+uv run --all-packages python -m \
+  campus_ingestion_worker.collection_rename_registry_backfill apply
+uv run --all-packages python -m \
+  campus_ingestion_worker.collection_rename_registry_backfill audit
+```
+
+最后一轮 audit 必须显示所有 target 的 `legacy_row_count=0`，再启动 supervisor
+runtime。不要在 retrieval/read path 增加 `student_handbook` alias。
+
+- staging runtime 启动前还会执行 RAG runtime readiness probe：
+  `campus_ingestion_worker.probe_regulation_rag_release_runtime`，并显式检查
+  `regulations/student_rules`、`regulations/institutional_rules` 与
+  `curriculum/curriculum_plan`。
+  该 gate 会检查 Qdrant REST endpoint、serving alias、latest published release、alias
+  freshness 与 release metadata guard；任一 core query-serving surface 不 ready 时
+  `start-supervisor-api-staging.sh` 会 fail closed。典型 blocker：
+  - `qdrant_endpoint_not_ready`：`QDRANT_URL` 不是可用 REST endpoint，先从 Qdrant
+    Cloud cluster detail 复制正确 URL，再重跑 probe
+  - `alias_not_published`：对应 serving alias 未发布，先执行 release/publish 流程
+  - `stale_alias`：alias 指向旧 physical collection，先切换到 latest published release
+  - `release_metadata_guard_failed`：query runtime 的 embedding/sparse/profile 设置与
+    index release metadata 不一致，先修 env 或重新发布 index release
 - 当 compose project 尚未运行、启动脚本需要 `docker compose up -d --build` 时，
   `start-supervisor-api-staging.sh` 会先执行
   `infra/local/staging/preflight-supervisor-api-staging.sh`
@@ -172,12 +314,10 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   `SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY=1` 跳过 registry 检查；这只应作为本机
   环境绕过，不表示 registry 依赖已恢复
 
-计划任务层状态：
+systemd 层状态：
 
 ```bash
-powershell.exe -NoProfile -Command \
-  "Get-ScheduledTaskInfo -TaskName 'CampusAgent-SupervisorApiStaging' | \
-  Format-List LastRunTime,LastTaskResult,NextRunTime,NumberOfMissedRuns"
+systemctl --no-pager --full status cloudflared-supervisor-api-staging.service
 ```
 
 ## 冷启动恢复
@@ -185,19 +325,21 @@ powershell.exe -NoProfile -Command \
 当前 canonical 冷启动恢复流程：
 
 ```bash
+cd /srv/apps/campus-agent
 infra/local/staging/stop-supervisor-api-staging.sh
-powershell.exe -NoProfile -Command \
-  "Start-ScheduledTask -TaskName 'CampusAgent-SupervisorApiStaging'"
+sudo systemctl restart cloudflared-supervisor-api-staging.service
+infra/local/staging/start-supervisor-api-staging.sh
 until infra/local/staging/status-supervisor-api-staging.sh --check; do \
   sleep 2; done
 ```
 
 说明：
 
-- `Start-ScheduledTask` 会比 WSL 内部 `start-supervisor-api-staging.sh` 更早返回
-- 因此冷启动后第一下 `status --check` 可能只是任务尚未完全拉起；canonical 操作是轮询到 green
-- 如果旧的 dev-backed runtime 还在运行，`start-supervisor-api-staging.sh` 会直接 fail-fast，要求先停掉
-  legacy runtime，再启动 canonical runtime
+- `cloudflared` connector 和 Docker Compose runtime 是两个独立常驻单元
+- `status --check` 要同时证明本地 runtime、Cloudflare tunnel 和 shared `app-api`
+  readiness
+- 如果旧的 dev-backed runtime 还在运行，必须先停掉 legacy runtime，再启动 canonical
+  runtime
 
 ## 日志与轮转
 
@@ -236,7 +378,7 @@ infra/local/staging/preflight-supervisor-api-staging.sh
 ```bash
 cd <repo-root>
 COMPOSE_PROJECT_NAME=campus-supervisor-api-staging \
-SUPERVISOR_API_HOST_PORT=27010 \
+SUPERVISOR_API_HOST_PORT=27051 \
 docker compose -f infra/local/docker-compose.supervisor-runtime.yml ps
 ```
 
@@ -260,7 +402,7 @@ uv run --all-packages python -m scripts.doctor_env supervisor-api --json
 ```bash
 docker exec campus-supervisor-api-staging-supervisor-agent-worker-1 \
   sh -lc 'for k in QDRANT_URL DOCUMENT_REGISTRY_DATABASE_URL \
-  EMBEDDING_MODEL; do \
+  SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET EMBEDDING_MODEL; do \
   eval v=\${$k:-}; [ -n "$v" ] && echo "$k=set" || echo "$k=unset"; done'
 ```
 
@@ -270,7 +412,7 @@ execution audit 不出现在 panel 审计时间线
 - 再看 `/metrics`：
 
 ```bash
-curl -sS http://127.0.0.1:27010/metrics | grep execution_audit
+curl -sS http://127.0.0.1:27051/metrics | grep execution_audit
 ```
 
 - staging lifecycle 会优先读取显式 `SUPERVISOR_API_EXECUTION_AUDIT_*`
@@ -289,7 +431,11 @@ infra/local/staging/start-supervisor-api-staging.sh
 `status --check` 报 `public readyz returned HTTP ...`
 
 - 优先判断 named tunnel connector 是否掉线
-- 用 `cloudflared.log` 确认最近一次 connector 注册是否成功
+- 用 `systemctl status cloudflared-supervisor-api-staging.service` 与 Cloudflare tunnel
+  status 确认 connector 是否注册成功
+- 如果 systemd 运行但 tunnel 仍 down，确认
+  `/etc/campus-agent/supervisor-api-staging-cloudflared.env` 中的 `TUNNEL_TOKEN`
+  是否来自当前 `supervisor-api-staging` tunnel
 
 `status --check` 报 `app-api readyz ...`
 
@@ -297,7 +443,7 @@ infra/local/staging/start-supervisor-api-staging.sh
 - 直接检查：
 
 ```bash
-curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 ```
 
 - 如果只有 `supervisorApi` 失败，先回到这份 runbook 的冷启动恢复流程

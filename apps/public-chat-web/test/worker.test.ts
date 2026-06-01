@@ -492,15 +492,15 @@ describe("public chat web worker shell", () => {
 		expect(wranglerConfig).toContain("preview_urls = false");
 		expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
 		expect(wranglerConfig).toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('pattern = "campus-chat-staging.ayafeed.com"');
+		expect(wranglerConfig).toContain('pattern = "chat-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain("[[env.staging.services]]");
 		expect(wranglerConfig).toContain('binding = "APP_API"');
 		expect(wranglerConfig).toContain('service = "app-api-staging"');
 		expect(wranglerConfig).toContain("[env.staging.vars]");
-		expect(wranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "campus-chat-staging.ayafeed.com"');
+		expect(wranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "chat-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(wranglerConfig).toContain('HUB_WEB_BASE_URL = "https://hub-muc-wiki.ayafeed.com"');
+		expect(wranglerConfig).toContain('HUB_WEB_BASE_URL = "https://hub-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
@@ -528,7 +528,7 @@ describe("public chat web worker shell", () => {
 			"check_worker_secret_presence.py",
 		);
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
-		expect(deployStagingSource).toContain("loadRepoEnvFile");
+		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
 		expect(deployStagingSource).not.toContain("STAGING_AUTH_TURNSTILE_SITE_KEY");
 		expect(deployStagingSource).not.toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
@@ -540,7 +540,7 @@ describe("public chat web worker shell", () => {
 		expect(verifyStagingConfigSource).not.toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
 		expect(verifyStagingConfigSource).not.toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
 		expect(verifyStagingConfigSource).toContain("https://app-api.internal");
-		expect(verifyStagingConfigSource).not.toContain("https://campus-api-staging.ayafeed.com");
+		expect(verifyStagingConfigSource).not.toContain("https://api-staging.mucwiki-edge.link");
 		expect(verifyStagingConfigSource).toContain("custom_domain === true");
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",

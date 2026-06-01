@@ -48,13 +48,13 @@ describe("public docs worker shell", () => {
 		expect(wranglerConfig).toContain('binding = "APP_API"');
 		expect(wranglerConfig).toContain('service = "app-api"');
 		expect(wranglerConfig).toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('pattern = "campus-docs-staging.ayafeed.com"');
+		expect(wranglerConfig).toContain('pattern = "docs-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain("[[env.staging.services]]");
 		expect(wranglerConfig).toContain('service = "app-api-staging"');
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(wranglerConfig).toContain('PUBLIC_DOCS_HOSTNAME = "campus-docs-staging.ayafeed.com"');
+		expect(wranglerConfig).toContain('PUBLIC_DOCS_HOSTNAME = "docs-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("[assets]");
 		expect(wranglerConfig).toContain('directory = "./doc_build"');
 		expect(wranglerConfig).toContain('binding = "ASSETS"');
@@ -70,6 +70,7 @@ describe("public docs worker shell", () => {
 		expect(wranglerLocalSmokeConfig).toContain("[secrets]");
 		expect(wranglerLocalSmokeConfig).toContain("required = []");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
+		expect(packageManifest.scripts?.["deploy:staging"]).toBe("node ./scripts/deploy-staging.mjs");
 		expect(packageManifest.scripts?.["deploy:verify-config"]).toContain("verify-worker-config.mjs");
 	});
 

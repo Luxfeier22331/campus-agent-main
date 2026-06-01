@@ -39,16 +39,16 @@ describe("hub worker boundary", () => {
 			"verify-staging-config.mjs",
 		);
 		expect(packageManifest.scripts?.["build:staging"]).not.toContain("SENTRY_DSN");
-		expect(wranglerConfig).toContain('pattern = "hub-muc-wiki.ayafeed.com"');
+		expect(wranglerConfig).toContain('pattern = "hub-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain('service = "app-api-staging"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "hub-muc-wiki.ayafeed.com"');
+		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "hub-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain('[env.staging.secrets]\nrequired = ["SENTRY_DSN"]');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(deployStagingSource).toContain("STAGING_HUB_AUTH_TURNSTILE_SITE_KEY");
-		expect(deployStagingSource).toContain("hub-muc-wiki.ayafeed.com");
+		expect(deployStagingSource).toContain("hub-staging.mucwiki-edge.link");
 		expect(deployStagingSource).toContain('"pnpm"');
 		expect(deployStagingSource).toContain('"exec"');
 		expect(deployStagingSource).toContain('"wrangler"');

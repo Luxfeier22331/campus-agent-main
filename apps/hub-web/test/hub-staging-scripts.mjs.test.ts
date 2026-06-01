@@ -25,7 +25,7 @@ function createBuiltConfigFixture(vars: Record<string, string>) {
 	writeFileSync(
 		configPath,
 		JSON.stringify({
-			routes: [{ custom_domain: true, pattern: "hub-muc-wiki.ayafeed.com" }],
+			routes: [{ custom_domain: true, pattern: "hub-staging.mucwiki-edge.link" }],
 			services: [{ binding: "APP_API", service: "app-api-staging" }],
 			vars,
 		}),
@@ -39,7 +39,7 @@ describe("hub staging scripts", () => {
 	it("requires a real hub-scoped Turnstile sitekey for staging config verification", () => {
 		const { tempRoot } = createBuiltConfigFixture({
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_HOSTNAME: "hub-muc-wiki.ayafeed.com",
+			HUB_WEB_HOSTNAME: "hub-staging.mucwiki-edge.link",
 			SENTRY_ENVIRONMENT: "staging",
 		});
 		const scriptSource = readFileSync(join(appDir, "scripts", "verify-staging-config.mjs"), "utf8");
@@ -65,7 +65,7 @@ describe("hub staging scripts", () => {
 	it("accepts a built staging config with runtime-only Turnstile variables", () => {
 		const { tempRoot } = createBuiltConfigFixture({
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_HOSTNAME: "hub-muc-wiki.ayafeed.com",
+			HUB_WEB_HOSTNAME: "hub-staging.mucwiki-edge.link",
 			SENTRY_ENVIRONMENT: "staging",
 		});
 		const scriptSource = readFileSync(join(appDir, "scripts", "verify-staging-config.mjs"), "utf8");
@@ -91,12 +91,12 @@ describe("hub staging scripts", () => {
 	it("rejects a staging route that is not a custom domain", () => {
 		const { tempRoot } = createBuiltConfigFixture({
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_HOSTNAME: "hub-muc-wiki.ayafeed.com",
+			HUB_WEB_HOSTNAME: "hub-staging.mucwiki-edge.link",
 			SENTRY_ENVIRONMENT: "staging",
 		});
 		const configPath = join(tempRoot, "dist", "hub_web", "wrangler.json");
 		const builtConfig = JSON.parse(readFileSync(configPath, "utf8"));
-		builtConfig.routes = [{ pattern: "hub-muc-wiki.ayafeed.com" }];
+		builtConfig.routes = [{ pattern: "hub-staging.mucwiki-edge.link" }];
 		writeFileSync(configPath, JSON.stringify(builtConfig), "utf8");
 		const scriptSource = readFileSync(join(appDir, "scripts", "verify-staging-config.mjs"), "utf8");
 		const scriptPath = join(tempRoot, "scripts", "verify-staging-config.mjs");

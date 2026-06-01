@@ -22,18 +22,18 @@ const source = await readFile(configPath, "utf8");
 
 expectContains(
 	source,
-	'pattern = "campus-api-staging.ayafeed.com"',
+	'pattern = "api-staging.mucwiki-edge.link"',
 	"Missing staging custom domain route.",
 );
 expectContains(source, "custom_domain = true", "Missing staging custom domain route flag.");
 expectContains(
 	source,
-	'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
+	'PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"',
 	"Missing staging public chat origin.",
 );
 expectContains(
 	source,
-	'AUTH_SHELL_ORIGIN = "https://hub-muc-wiki.ayafeed.com"',
+	'AUTH_SHELL_ORIGIN = "https://hub-staging.mucwiki-edge.link"',
 	"Missing staging auth shell origin.",
 );
 expectContains(source, 'APP_API_ENVIRONMENT = "staging"', "Missing APP_API_ENVIRONMENT=staging.");

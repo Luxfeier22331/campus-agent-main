@@ -7,7 +7,7 @@ import { protectedPanelAuthProvider } from "../src/panel/auth-provider";
 function createAccessLoginHtmlResponse(): Response {
 	return {
 		headers: new Headers({
-			"cf-access-domain": "campus-panel-staging.ayafeed.com",
+			"cf-access-domain": "panel-staging.mucwiki-edge.link",
 			"content-type": "text/html; charset=utf-8",
 		}),
 		ok: true,
@@ -15,7 +15,7 @@ function createAccessLoginHtmlResponse(): Response {
 		status: 200,
 		statusText: "OK",
 		text: vi.fn().mockResolvedValue("<!DOCTYPE html><title>Sign in ・ Cloudflare Access</title>"),
-		url: "https://ayafeed.cloudflareaccess.com/cdn-cgi/access/login/campus-panel-staging.ayafeed.com",
+		url: "https://ayafeed.cloudflareaccess.com/cdn-cgi/access/login/panel-staging.mucwiki-edge.link",
 	} as unknown as Response;
 }
 
@@ -54,7 +54,7 @@ function createOverviewResponse(operatorContext: {
 				overview: "ready",
 				requests: "ready",
 			},
-			protected_hostname: "campus-panel-staging.ayafeed.com",
+			protected_hostname: "panel-staging.mucwiki-edge.link",
 			protection_envelope: "cloudflare-access",
 			runtime: "cloudflare-worker",
 			runtime_api_base_url: "https://app-api.internal",
@@ -134,7 +134,7 @@ describe("protected panel auth provider", () => {
 		vi.stubGlobal("window", {
 			location: {
 				assign,
-				origin: "https://campus-panel-staging.ayafeed.com",
+				origin: "https://panel-staging.mucwiki-edge.link",
 			},
 		});
 
@@ -147,12 +147,12 @@ describe("protected panel auth provider", () => {
 		vi.stubGlobal("window", {
 			location: {
 				assign,
-				origin: "https://campus-panel-staging.ayafeed.com",
+				origin: "https://panel-staging.mucwiki-edge.link",
 			},
 		});
 
 		await expect(protectedPanelAuthProvider.logout?.(null)).resolves.toBe(
-			"https://campus-panel-staging.ayafeed.com/cdn-cgi/access/logout",
+			"https://panel-staging.mucwiki-edge.link/cdn-cgi/access/logout",
 		);
 		expect(assign).not.toHaveBeenCalled();
 	});

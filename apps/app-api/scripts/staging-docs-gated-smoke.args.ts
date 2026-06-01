@@ -7,7 +7,7 @@ import {
 } from "./chat-e2e.args";
 import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./seed-request-smoke.args";
 
-export const DEFAULT_STAGING_DOCS_BASE_URL = "https://campus-docs-staging.ayafeed.com";
+export const DEFAULT_STAGING_DOCS_BASE_URL = "https://docs-staging.mucwiki-edge.link";
 export const DEFAULT_STAGING_DOCS_GATED_APP_API_READYZ_URL =
 	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL;
 export const DEFAULT_STAGING_DOCS_GATED_CHAT_BASE_URL = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
@@ -17,7 +17,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
 export const DEFAULT_PUBLIC_DOCS_SYNC_MANIFEST_PATH = resolve(
 	repoRoot,
-	"var/public-docs-sync-manifest.json",
+	"var/public-docs-sync-manifest.staging.json",
 );
 
 export interface StagingDocsGatedSmokeArgs {

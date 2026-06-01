@@ -27,9 +27,9 @@ execution origin 为准。
 
 - `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
-- 当前 repo-owned staging execution runtime 是
-  `supervisor-api + supervisor-agent-worker + named tunnel`
-- 如果继续复用 `<https://exec-staging.ayafeed.com`> 作为 execution origin，就不需要为了
+- 当前 repo-owned staging execution runtime 是 `nc-arm-6c` 上的
+  `otel-collector + supervisor-api + supervisor-agent-worker + named tunnel`
+- 如果继续复用 `<https://exec-staging.mucwiki-edge.link`> 作为 execution origin，就不需要为了
   runtime hard cut 重新 deploy `app-api-staging`
 - 只有当 execution upstream URL 本身变化时，才需要重新设置
   `STAGING_SUPERVISOR_API_BASE_URL` 并 redeploy `app-api`
@@ -49,7 +49,7 @@ execution origin 为准。
 
 ## Step 1. 启动 canonical supervisor-api staging runtime
 
-使用 repo-owned lifecycle 脚本：
+在 `nc-arm-6c:/srv/apps/campus-agent` 使用 repo-owned lifecycle 脚本：
 
 ```bash
 infra/local/staging/start-supervisor-api-staging.sh
@@ -60,20 +60,14 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 
 - `infra/local/staging/status-supervisor-api-staging.sh --check` 返回 `0`
 
-如果当前 host 是 WSL 且需要长期常驻，安装 Windows 计划任务：
-
-```bash
-infra/local/staging/install-supervisor-api-staging-task.sh
-```
-
-后续安装校验、冷启动恢复、日志轮转与故障分流统一进入
-`supervisor-api-staging-operations.md`。
+如果需要重装 Cloudflare connector systemd service，按
+`supervisor-api-staging-operations.md` 的 `安装与重装` 执行。
 
 ## Step 2. 判断是否需要重新 deploy app-api staging
 
 分两种情况：
 
-1. execution origin 继续使用 `<https://exec-staging.ayafeed.com`>
+1. execution origin 继续使用 `<https://exec-staging.mucwiki-edge.link`>
 
    - 不需要为了这次 hard cut 重新 deploy `app-api-staging`
    - 直接进入下一步做 health/smoke
@@ -90,8 +84,8 @@ pnpm --dir apps/app-api deploy:staging
 然后检查：
 
 ```bash
-curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/healthz
+curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 ```
 
 通过标准：
@@ -104,21 +98,21 @@ curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz
 确认三个 staging surface 在线：
 
 ```bash
-curl --noproxy '*' -sS -i https://campus-chat-staging.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://campus-chat-staging.ayafeed.com/readyz
-curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/healthz
+curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/readyz
+curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/healthz
+curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/readyz
 ```
 
 同时确认：
 
 ```bash
-curl --noproxy '*' -sS -i https://exec-staging.ayafeed.com/healthz
+curl --noproxy '*' -sS -i https://exec-staging.mucwiki-edge.link/healthz
 ```
 
 `exec-staging /readyz` 是 supervisor-api full runtime probe；staging profile 下它需要
 internal worker auth，不作为 public smoke gate。public smoke 通过
-`campus-api-staging /readyz` 间接验证 app-api 已经能带内部 shared secret 探测
+`api-staging /readyz` 间接验证 app-api 已经能带内部 shared secret 探测
 supervisor runtime readiness。
 
 ## Step 4. Authenticated Chat Smoke
@@ -147,7 +141,7 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 1. 通过部署态 `app-api-staging`
    `POST /api/internal/staging-smoke/auth/session` 铸造真实 staging session cookie
 1. 带着拿到的 session cookie 真实请求
-   `https://campus-chat-staging.ayafeed.com/api/chat/requests`
+   `https://chat-staging.mucwiki-edge.link/api/chat/requests`
 1. 再检查 `api/me` 与 `api/chat/conversations`，确认会话有效且新会话进入 history
 1. 默认要求 `request.resultKind = "answer"`；如果 supervisor 返回 typed
    error outcome，脚本会退出非零并在错误里带上 `requestId` 与 `traceId`
@@ -161,7 +155,7 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 - 预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`
 - agent 在真实浏览器里通过 Turnstile challenge
 
-如果需要追加人工 UI 验证，可在 automation 通过后再手工打开 `campus-chat-staging` 的
+如果需要追加人工 UI 验证，可在 automation 通过后再手工打开 `chat-staging` 的
 `/chat` 做 donor-shell 浏览器观察，但这不是 agent automation 的前置。
 
 推荐问题：
@@ -181,7 +175,7 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 `-- --expect-result-kind any`，该模式不作为 staging closeout gate。
 
 如果需要临时调试 execution tunnel，可以显式追加
-`-- --exec-readyz-url https://exec-staging.ayafeed.com/readyz`。该模式只用于
+`-- --exec-readyz-url https://exec-staging.mucwiki-edge.link/readyz`。该模式只用于
 transport debug；默认 staging closeout 不直接探 supervisor full `/readyz`。
 
 ## Step 5. 记录链路证据
@@ -189,10 +183,10 @@ transport debug；默认 staging closeout 不直接探 supervisor full `/readyz`
 至少记录：
 
 - `infra/local/staging/status-supervisor-api-staging.sh --check`
-- `https://exec-staging.ayafeed.com/healthz`
-- `https://campus-api-staging.ayafeed.com/readyz`
+- `https://exec-staging.mucwiki-edge.link/healthz`
+- `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
-- 当前 execution origin 是否复用了既有 `exec-staging.ayafeed.com`
+- 当前 execution origin 是否复用了既有 `exec-staging.mucwiki-edge.link`
 
 ## Rollback
 

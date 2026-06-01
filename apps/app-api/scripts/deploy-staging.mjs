@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
+import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
 import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
-loadRepoEnvFile(import.meta.url, "../../..");
+loadRepoStagingEnvFile(import.meta.url, "../../..");
 
 function fail(message) {
 	console.error(message);
@@ -13,7 +13,7 @@ function fail(message) {
 const upstream = process.env.STAGING_SUPERVISOR_API_BASE_URL?.trim();
 if (!upstream) {
 	fail(
-		"STAGING_SUPERVISOR_API_BASE_URL is required. Point it at the current dev-backed supervisor origin before deploying staging.",
+		"STAGING_SUPERVISOR_API_BASE_URL is required. Point it at the mucwiki-edge staging supervisor origin before deploying staging.",
 	);
 }
 

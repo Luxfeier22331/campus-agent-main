@@ -32,7 +32,7 @@ supervisor_api_staging_wait_for_http_ok \
   "${supervisor_api_staging_local_readyz_url}" \
   45 \
   2 \
-  "${SUPERVISOR_API_SHARED_SECRET:-supervisor-api-staging-placeholder}" \
+  "${SUPERVISOR_API_SHARED_SECRET:?SUPERVISOR_API_SHARED_SECRET is required}" \
   "x-worker-origin-auth"
 supervisor_api_staging_wait_for_http_ok \
   "${supervisor_api_staging_local_metrics_url}" \
@@ -46,6 +46,7 @@ if supervisor_api_staging_pid_is_running "${supervisor_api_staging_cloudflared_p
   echo "cloudflared already running (pid $(supervisor_api_staging_read_pid "${supervisor_api_staging_cloudflared_pid_file}"))"
 else
   setsid -f env \
+    "TUNNEL_TOKEN=${SUPERVISOR_API_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:?SUPERVISOR_API_STAGING_TUNNEL_TOKEN is required}}" \
     -u HTTP_PROXY \
     -u HTTPS_PROXY \
     -u ALL_PROXY \
@@ -53,11 +54,10 @@ else
     -u https_proxy \
     -u all_proxy \
     "${cloudflared_bin}" tunnel \
-    --config "${supervisor_api_staging_cloudflared_config_file}" \
     --no-autoupdate \
     --edge-ip-version "${supervisor_api_staging_cloudflared_edge_ip_version}" \
     --metrics "${supervisor_api_staging_cloudflared_metrics_address}" \
-    run "${supervisor_api_staging_tunnel_name}" \
+    run \
     9>&- \
     >>"${supervisor_api_staging_cloudflared_log_file}" 2>&1
 fi

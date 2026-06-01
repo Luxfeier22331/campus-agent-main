@@ -13,17 +13,16 @@ supervisor_api_staging_supervisor_agent_worker_log_file="${supervisor_api_stagin
 supervisor_api_staging_otel_collector_log_file="${supervisor_api_staging_log_dir}/otel-collector.log"
 
 supervisor_api_staging_host="${SUPERVISOR_API_STAGING_HOST:-127.0.0.1}"
-supervisor_api_staging_port="${SUPERVISOR_API_STAGING_PORT:-27010}"
+supervisor_api_staging_port="${SUPERVISOR_API_STAGING_PORT:-27051}"
 supervisor_api_staging_compose_file="${SUPERVISOR_API_STAGING_COMPOSE_FILE:-${supervisor_api_staging_repo_root}/infra/local/docker-compose.supervisor-runtime.yml}"
 supervisor_api_staging_compose_project_name="${SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME:-campus-supervisor-api-staging}"
 supervisor_api_staging_tunnel_name="${SUPERVISOR_API_STAGING_TUNNEL_NAME:-supervisor-api-staging}"
-supervisor_api_staging_public_base_url="${SUPERVISOR_API_STAGING_PUBLIC_BASE_URL:-https://exec-staging.ayafeed.com}"
-supervisor_api_staging_app_api_base_url="${SUPERVISOR_API_STAGING_APP_API_BASE_URL:-https://campus-api-staging.ayafeed.com}"
-supervisor_api_staging_cloudflared_config_file="${SUPERVISOR_API_STAGING_CLOUDFLARED_CONFIG_FILE:-${HOME}/.cloudflared/config.yml}"
+supervisor_api_staging_public_base_url="${SUPERVISOR_API_STAGING_PUBLIC_BASE_URL:-https://exec-staging.mucwiki-edge.link}"
+supervisor_api_staging_app_api_base_url="${SUPERVISOR_API_STAGING_APP_API_BASE_URL:-https://api-staging.mucwiki-edge.link}"
 supervisor_api_staging_cloudflared_metrics_address="${SUPERVISOR_API_STAGING_CLOUDFLARED_METRICS_ADDRESS:-127.0.0.1:20245}"
 supervisor_api_staging_cloudflared_edge_ip_version="${SUPERVISOR_API_STAGING_CLOUDFLARED_EDGE_IP_VERSION:-4}"
 supervisor_api_staging_lock_wait_seconds="${SUPERVISOR_API_STAGING_LOCK_WAIT_SECONDS:-180}"
-supervisor_api_staging_cloudflared_match_pattern="${SUPERVISOR_API_STAGING_CLOUDFLARED_MATCH_PATTERN:-cloudflared tunnel( .*)? run ${supervisor_api_staging_tunnel_name}}"
+supervisor_api_staging_cloudflared_match_pattern="${SUPERVISOR_API_STAGING_CLOUDFLARED_MATCH_PATTERN:-cloudflared tunnel .* run}"
 supervisor_api_staging_log_rotate_max_bytes=$((20 * 1024 * 1024))
 supervisor_api_staging_log_rotate_keep_count=5
 
@@ -53,7 +52,6 @@ supervisor_api_staging_runtime_globals_declared() {
     "${supervisor_api_staging_tunnel_name}" \
     "${supervisor_api_staging_public_base_url}" \
     "${supervisor_api_staging_app_api_base_url}" \
-    "${supervisor_api_staging_cloudflared_config_file}" \
     "${supervisor_api_staging_cloudflared_metrics_address}" \
     "${supervisor_api_staging_cloudflared_edge_ip_version}" \
     "${supervisor_api_staging_lock_wait_seconds}" \
@@ -96,15 +94,16 @@ supervisor_api_staging_require_command() {
 supervisor_api_staging_load_env() {
   local node_bin
   local repo_env_path="${supervisor_api_staging_repo_root}/.env"
+  local repo_staging_env_path="${supervisor_api_staging_repo_root}/.env.staging.local"
   local app_api_dev_vars="${supervisor_api_staging_repo_root}/apps/app-api/.dev.vars"
   local export_script
 
   node_bin="$(supervisor_api_staging_require_command node)"
   export_script="$(
-    "${node_bin}" - "${repo_env_path}" "${app_api_dev_vars}" <<'NODE'
-const [repoEnvPath, appApiDevVarsPath] = process.argv.slice(2);
+    "${node_bin}" - "${repo_env_path}" "${repo_staging_env_path}" "${app_api_dev_vars}" <<'NODE'
+const [repoEnvPath, repoStagingEnvPath, appApiDevVarsPath] = process.argv.slice(2);
 const loadedPaths = [];
-for (const filePath of [repoEnvPath, appApiDevVarsPath]) {
+for (const filePath of [repoEnvPath, repoStagingEnvPath, appApiDevVarsPath]) {
   if (!filePath) {
     continue;
   }
@@ -194,27 +193,8 @@ const keys = [
   "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
   "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
   "INTERNAL_NOTICE_READ_MODEL_TABLE",
-  "OBJECT_STORE_ENDPOINT",
-  "OBJECT_STORE_DERIVED_ACCESS_KEY",
-  "OBJECT_STORE_DERIVED_SECRET_KEY",
-  "OBJECT_STORE_ACCESS_KEY",
-  "OBJECT_STORE_SECRET_KEY",
-  "OBJECT_STORE_REGION",
-  "OBJECT_STORE_BUCKET_DERIVED",
-  "QDRANT_URL",
-  "QDRANT_API_KEY",
-  "QDRANT_TIMEOUT_SECONDS",
-  "DOCUMENT_REGISTRY_DATABASE_URL",
-  "CAMPUS_SHARED_POSTGRES_URL",
-  "EMBEDDING_PROVIDER",
-  "EMBEDDING_BASE_URL",
-  "EMBEDDING_API_KEY",
-  "EMBEDDING_MODEL",
-  "EMBEDDING_DIMENSIONS",
-  "SPARSE_PROVIDER",
-  "SPARSE_MODEL",
-  "SPARSE_TOKENIZER",
-  "SPARSE_LANGUAGE",
+  "SUPERVISOR_API_STAGING_UV_BIN",
+  "SUPERVISOR_API_STAGING_TUNNEL_TOKEN",
 ];
 
 function rewriteLocalhostForDocker(value) {
@@ -244,7 +224,6 @@ for (const key of keys) {
 const bridgeSharedSecret =
   process.env.SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET?.trim() ||
   process.env.SUPERVISOR_AGENT_WORKER_SHARED_SECRET?.trim() ||
-  process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||
   "";
 const bridgeBaseUrl =
   process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
@@ -252,12 +231,180 @@ const bridgeBaseUrl =
 resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 
+const stagingRequiredMappings = [
+  ["STAGING_INGESTION_SHARED_POSTGRES_URL", "CAMPUS_SHARED_POSTGRES_URL"],
+  ["STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL", "DOCUMENT_REGISTRY_DATABASE_URL"],
+  ["STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL", "RAW_ASSET_REGISTRY_DATABASE_URL"],
+  ["STAGING_INGESTION_OBJECT_STORE_ENDPOINT", "OBJECT_STORE_ENDPOINT"],
+  ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
+  ["STAGING_INGESTION_QDRANT_URL", "QDRANT_URL"],
+  ["STAGING_INGESTION_EMBEDDING_PROVIDER", "EMBEDDING_PROVIDER"],
+  ["STAGING_INGESTION_EMBEDDING_MODEL", "EMBEDDING_MODEL"],
+  ["STAGING_INGESTION_EMBEDDING_DIMENSIONS", "EMBEDDING_DIMENSIONS"],
+  ["STAGING_INGESTION_SPARSE_PROVIDER", "SPARSE_PROVIDER"],
+  ["STAGING_INGESTION_SPARSE_MODEL", "SPARSE_MODEL"],
+  ["STAGING_INGESTION_SPARSE_TOKENIZER", "SPARSE_TOKENIZER"],
+  ["STAGING_INGESTION_SPARSE_LANGUAGE", "SPARSE_LANGUAGE"],
+];
+const stagingOptionalMappings = [
+  ["STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL", "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"],
+  [
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+  ],
+  [
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+  ],
+  ["STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY", "OBJECT_STORE_ACCESS_KEY"],
+  ["STAGING_INGESTION_OBJECT_STORE_SECRET_KEY", "OBJECT_STORE_SECRET_KEY"],
+  ["STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_DERIVED_ACCESS_KEY"],
+  ["STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY", "OBJECT_STORE_DERIVED_SECRET_KEY"],
+  ["STAGING_INGESTION_OBJECT_STORE_REGION", "OBJECT_STORE_REGION"],
+  ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
+  ["STAGING_INGESTION_QDRANT_API_KEY", "QDRANT_API_KEY"],
+  ["STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS", "QDRANT_TIMEOUT_SECONDS"],
+  ["STAGING_INGESTION_EMBEDDING_BASE_URL", "EMBEDDING_BASE_URL"],
+  ["STAGING_INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"],
+];
+
+function envValue(key) {
+  return process.env[key]?.trim() || "";
+}
+
+function isLocalEndpoint(value) {
+  if (!value) {
+    return false;
+  }
+  try {
+    const parsed = new URL(value);
+    return ["127.0.0.1", "localhost", "host.docker.internal"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function validateStagingPostgresRuntimeUrl(errors, source, value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    errors.push(`${source} must be a valid postgres URL`);
+    return;
+  }
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
+    errors.push(`${source} must be a postgres URL`);
+    return;
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  const isSupabaseSessionPooler = hostname.endsWith(".pooler.supabase.com");
+  const isSupabaseDirectHost = hostname.endsWith(".supabase.co") && hostname.startsWith("db.");
+  if (isSupabaseSessionPooler) {
+    if (parsed.port && parsed.port !== "5432") {
+      errors.push(`${source} must use the Supabase session pooler on port 5432`);
+      return;
+    }
+    if (parsed.searchParams.get("sslmode") !== "require") {
+      errors.push(`${source} must include sslmode=require for Supabase session pooler`);
+    }
+    return;
+  }
+  if (isSupabaseDirectHost) {
+    errors.push(`${source} must use the Supabase session pooler, not direct connection`);
+  }
+}
+
+function hasPair(accessKeyName, secretKeyName) {
+  return Boolean(envValue(accessKeyName) && envValue(secretKeyName));
+}
+
+function requireCompletePair(errors, accessKeyName, secretKeyName) {
+  const hasAccessKey = Boolean(envValue(accessKeyName));
+  const hasSecretKey = Boolean(envValue(secretKeyName));
+  if (hasAccessKey === hasSecretKey) {
+    return;
+  }
+  errors.push(`${accessKeyName} and ${secretKeyName} must be configured together`);
+}
+
+const dataPlaneErrors = [];
+for (const [source, target] of stagingRequiredMappings) {
+  const value = envValue(source);
+  if (!value) {
+    dataPlaneErrors.push(`${source} is required for supervisor-api staging data plane`);
+    continue;
+  }
+  if (isLocalEndpoint(value)) {
+    dataPlaneErrors.push(`${source} must not point at localhost for supervisor-api staging`);
+    continue;
+  }
+  if (
+    source === "STAGING_INGESTION_SHARED_POSTGRES_URL" ||
+    source === "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL" ||
+    source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL"
+  ) {
+    validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
+  }
+  resolved.set(target, value);
+}
+for (const [source, target] of stagingOptionalMappings) {
+  const value = envValue(source);
+  if (value) {
+    if (
+      [
+        "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
+        "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
+        "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",
+        "STAGING_INGESTION_QDRANT_URL",
+      ].includes(source) &&
+      isLocalEndpoint(value)
+    ) {
+      dataPlaneErrors.push(`${source} must not point at localhost for supervisor-api staging`);
+      continue;
+    }
+    if (
+      [
+        "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL",
+        "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+        "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+      ].includes(source)
+    ) {
+      validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
+    }
+    resolved.set(target, value);
+  }
+}
+requireCompletePair(
+  dataPlaneErrors,
+  "STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY",
+  "STAGING_INGESTION_OBJECT_STORE_SECRET_KEY",
+);
+requireCompletePair(
+  dataPlaneErrors,
+  "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY",
+);
+if (
+  !(
+    hasPair(
+      "STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY",
+      "STAGING_INGESTION_OBJECT_STORE_SECRET_KEY",
+    ) ||
+    hasPair(
+      "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY",
+      "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY",
+    )
+  )
+) {
+  dataPlaneErrors.push(
+    "staging supervisor object-store credentials are required: configure shared or derived credential pair",
+  );
+}
+resolved.set("SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS", dataPlaneErrors.join("\n"));
+
 for (const [key, value] of resolved.entries()) {
   if (
-    key === "DOCUMENT_REGISTRY_DATABASE_URL" ||
-    key === "CAMPUS_SHARED_POSTGRES_URL" ||
-    key === "SUPERVISOR_API_EXECUTION_AUDIT_URL" ||
-    key === "OBJECT_STORE_ENDPOINT"
+    key === "SUPERVISOR_API_EXECUTION_AUDIT_URL"
   ) {
     process.stdout.write(`export ${key}=${JSON.stringify(rewriteLocalhostForDocker(value))}\n`);
     continue;
@@ -268,7 +415,7 @@ NODE
   )"
   eval "${export_script}"
 
-  supervisor_api_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-${SUPERVISOR_API_SHARED_SECRET:-}}"
+  supervisor_api_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-}"
   if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_URL:-}" && -n "${supervisor_api_staging_app_api_base_url}" ]]; then
     export SUPERVISOR_API_EXECUTION_AUDIT_URL="${supervisor_api_staging_app_api_base_url%/}/api/internal/execution/audit-events"
   fi
@@ -315,13 +462,23 @@ supervisor_api_staging_read_pid() {
 supervisor_api_staging_pid_is_running() {
   local pid_file="$1"
   local pid
+  local kill_output
 
   pid="$(supervisor_api_staging_read_pid "${pid_file}" 2>/dev/null || true)"
   if [[ -z "${pid}" ]]; then
     return 1
   fi
 
-  kill -0 "${pid}" 2>/dev/null
+  if kill -0 "${pid}" 2>/dev/null; then
+    return 0
+  fi
+
+  kill_output="$(kill -0 "${pid}" 2>&1 || true)"
+  if [[ "${kill_output}" == *"Operation not permitted"* ]]; then
+    return 0
+  fi
+
+  return 1
 }
 
 supervisor_api_staging_cleanup_stale_pidfile() {
@@ -486,8 +643,8 @@ supervisor_api_staging_compose() {
   local worker_shared_secret
   local bridge_shared_secret
   docker_bin="$(supervisor_api_staging_require_command docker)"
-  worker_shared_secret="${SUPERVISOR_API_SHARED_SECRET:-supervisor-api-staging-placeholder}"
-  bridge_shared_secret="${supervisor_api_staging_bridge_shared_secret:-${SUPERVISOR_API_SHARED_SECRET:-supervisor-agent-worker-staging-placeholder}}"
+  worker_shared_secret="${SUPERVISOR_API_SHARED_SECRET:?SUPERVISOR_API_SHARED_SECRET is required}"
+  bridge_shared_secret="${supervisor_api_staging_bridge_shared_secret:?SUPERVISOR_AGENT_WORKER_SHARED_SECRET is required}"
 
   (
     cd "${supervisor_api_staging_repo_root}" || exit
@@ -528,6 +685,16 @@ supervisor_api_staging_compose_project_running() {
 }
 
 supervisor_api_staging_require_runtime_env() {
+  if [[ -n "${SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS:-}" ]]; then
+    echo "supervisor-api staging data-plane env is invalid:" >&2
+    while IFS= read -r data_plane_error; do
+      if [[ -n "${data_plane_error}" ]]; then
+        echo "  - ${data_plane_error}" >&2
+      fi
+    done <<<"${SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS}"
+    return 1
+  fi
+
   if [[ -z "${SUPERVISOR_API_SHARED_SECRET:-}" ]]; then
     echo "SUPERVISOR_API_SHARED_SECRET is missing. Populate apps/app-api/.dev.vars first." >&2
     return 1
@@ -543,12 +710,39 @@ supervisor_api_staging_require_runtime_env() {
     return 1
   fi
 
-  if [[ ! -f "${supervisor_api_staging_cloudflared_config_file}" ]]; then
-    echo "Missing ${supervisor_api_staging_cloudflared_config_file}. Create the named tunnel config first." >&2
+  if [[ -z "${SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET:-}" ]]; then
+    echo "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET is required for supervisor-api staging structured query runtime." >&2
+    return 1
+  fi
+
+  if [[ -z "${CAMPUS_SHARED_POSTGRES_URL:-}" ]]; then
+    echo "CAMPUS_SHARED_POSTGRES_URL is required after STAGING_INGESTION_SHARED_POSTGRES_URL projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${DOCUMENT_REGISTRY_DATABASE_URL:-}" ]]; then
+    echo "DOCUMENT_REGISTRY_DATABASE_URL is required after staging data-plane projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${OBJECT_STORE_ENDPOINT:-}" ]]; then
+    echo "OBJECT_STORE_ENDPOINT is required after STAGING_INGESTION_OBJECT_STORE_ENDPOINT projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${QDRANT_URL:-}" ]]; then
+    echo "QDRANT_URL is required after STAGING_INGESTION_QDRANT_URL projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${SUPERVISOR_API_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:-}}" ]]; then
+    echo "SUPERVISOR_API_STAGING_TUNNEL_TOKEN is required for the remote-managed supervisor-api-staging tunnel." >&2
     return 1
   fi
 
   supervisor_api_staging_validate_axiom_collector_endpoint
+  supervisor_api_staging_require_registry_collection_rename_closed
+  supervisor_api_staging_require_rag_runtime_ready
 }
 
 supervisor_api_staging_validate_axiom_collector_endpoint() {
@@ -583,9 +777,182 @@ EOF
   fi
 }
 
+supervisor_api_staging_require_registry_collection_rename_closed() {
+  local uv_bin
+  local node_bin
+  local audit_json
+  local legacy_summary
+
+  uv_bin="$(supervisor_api_staging_resolve_uv_bin)"
+  node_bin="$(supervisor_api_staging_require_command node)"
+  if ! audit_json="$(
+    cd "${supervisor_api_staging_repo_root}" || exit
+    "${uv_bin}" run --all-packages python -m \
+      campus_ingestion_worker.collection_rename_registry_backfill audit
+  )"; then
+    echo "supervisor-api staging registry collection rename audit failed." >&2
+    return 1
+  fi
+
+  if ! legacy_summary="$(
+    REGISTRY_COLLECTION_RENAME_AUDIT_JSON="${audit_json}" "${node_bin}" <<'NODE'
+const payload = JSON.parse(process.env.REGISTRY_COLLECTION_RENAME_AUDIT_JSON || "{}");
+const targets = Array.isArray(payload.targets) ? payload.targets : [];
+const legacyLines = [];
+
+for (const target of targets) {
+  const count = Number(target.legacy_row_count || 0);
+  if (count <= 0) {
+    continue;
+  }
+  const targetNames = Array.isArray(target.target_names) ? target.target_names.join(",") : "";
+  const samples = Array.isArray(target.sample_rows)
+    ? target.sample_rows
+        .map((sample) => {
+          const identity = String(sample.identity || "");
+          const column = String(sample.column_collection || "");
+          const record = sample.record_collection == null ? "" : String(sample.record_collection);
+          return `${identity} column=${column} record=${record}`;
+        })
+        .filter(Boolean)
+        .join("; ")
+    : "";
+  legacyLines.push(
+    `${target.kind || "unknown"} ${target.table_name || "unknown"} (${targetNames}): ${count} legacy rows remain${samples ? `; samples: ${samples}` : ""}`,
+  );
+}
+
+if (legacyLines.length > 0) {
+  console.log(legacyLines.join("\n"));
+}
+NODE
+  )"; then
+    echo "supervisor-api staging registry collection rename audit returned invalid JSON." >&2
+    return 1
+  fi
+
+  if [[ -n "${legacy_summary}" ]]; then
+    echo "supervisor-api staging registry collection rename is incomplete:" >&2
+    echo "  - legacy collection names remain in ingestion registry; run collection_rename_registry_backfill apply before starting staging runtime." >&2
+    echo "  - required renames: student_handbook -> student_rules; institutional_regulations -> institutional_rules" >&2
+    while IFS= read -r legacy_line; do
+      if [[ -n "${legacy_line}" ]]; then
+        echo "  - ${legacy_line}" >&2
+      fi
+    done <<<"${legacy_summary}"
+    return 1
+  fi
+}
+
+supervisor_api_staging_require_rag_runtime_ready() {
+  local uv_bin
+  local node_bin
+  local readiness_json
+  local readiness_summary
+
+  uv_bin="$(supervisor_api_staging_resolve_uv_bin)"
+  node_bin="$(supervisor_api_staging_require_command node)"
+  if ! readiness_json="$(
+    cd "${supervisor_api_staging_repo_root}" || exit
+    "${uv_bin}" run --all-packages python -m \
+      campus_ingestion_worker.probe_regulation_rag_release_runtime \
+      --scope regulations/student_rules \
+      --scope regulations/institutional_rules \
+      --scope curriculum/curriculum_plan
+  )"; then
+    echo "supervisor-api staging RAG runtime readiness probe failed." >&2
+    return 1
+  fi
+
+  if ! readiness_summary="$(
+    RAG_RUNTIME_READINESS_JSON="${readiness_json}" "${node_bin}" <<'NODE'
+const payload = JSON.parse(process.env.RAG_RUNTIME_READINESS_JSON || "{}");
+const failures = [];
+if (payload.qdrant_ready !== "ready") {
+  const checks = payload.qdrant_checks && typeof payload.qdrant_checks === "object"
+    ? Object.entries(payload.qdrant_checks).map(([path, check]) => {
+        const status = check && typeof check === "object" ? check.status : "";
+        const body = check && typeof check === "object" ? String(check.body_prefix || "") : "";
+        return `${path} status=${status}${body ? ` body=${body.slice(0, 80)}` : ""}`;
+      }).join("; ")
+    : "";
+  failures.push(`qdrant_ready=${payload.qdrant_ready || "<missing>"}${checks ? `; ${checks}` : ""}`);
+}
+const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+for (const surface of surfaces) {
+  if (!surface || typeof surface !== "object") {
+    continue;
+  }
+  if (surface.readiness_status === "ready") {
+    continue;
+  }
+  const scope = String(surface.scope || "<unknown-scope>");
+  const blocker = String(surface.readiness_blocker || "<missing-blocker>");
+  const alias = String(surface.alias_name || "");
+  const aliasTarget = String(surface.alias_target || "");
+  const releaseStatus = String(surface.release_freshness_status || "");
+  const latestRelease = String(surface.release_family_latest_physical_collection_name || "");
+  const guardStatus = String(surface.release_metadata_guard_status || "");
+  const guardMessage = String(surface.release_metadata_guard_message || "");
+  const aliasGuardStatus = String(surface.alias_target_guard_status || "");
+  const aliasGuardMessage = String(surface.alias_target_guard_message || "");
+  failures.push(
+    `${scope}: ${blocker}; alias=${alias}${aliasTarget ? `->${aliasTarget}` : ""}; latest=${latestRelease}; release=${releaseStatus}; guard=${guardStatus}${guardMessage ? ` ${guardMessage}` : ""}; alias_guard=${aliasGuardStatus}${aliasGuardMessage ? ` ${aliasGuardMessage}` : ""}`,
+  );
+}
+if (failures.length > 0) {
+  console.log(failures.join("\n"));
+}
+NODE
+  )"; then
+    echo "supervisor-api staging RAG runtime readiness probe returned invalid JSON." >&2
+    return 1
+  fi
+
+  if [[ -n "${readiness_summary}" ]]; then
+    echo "supervisor-api staging RAG runtime is not ready:" >&2
+    while IFS= read -r readiness_line; do
+      if [[ -n "${readiness_line}" ]]; then
+        echo "  - ${readiness_line}" >&2
+      fi
+    done <<<"${readiness_summary}"
+    return 1
+  fi
+}
+
+supervisor_api_staging_resolve_uv_bin() {
+  local configured_uv_bin="${SUPERVISOR_API_STAGING_UV_BIN:-}"
+  local resolved_uv_bin
+  local user_uv_bin
+
+  if [[ -n "${configured_uv_bin}" ]]; then
+    if [[ ! -x "${configured_uv_bin}" ]]; then
+      echo "SUPERVISOR_API_STAGING_UV_BIN is not executable: ${configured_uv_bin}" >&2
+      return 1
+    fi
+    printf '%s\n' "${configured_uv_bin}"
+    return 0
+  fi
+
+  resolved_uv_bin="$(command -v uv || true)"
+  if [[ -n "${resolved_uv_bin}" ]]; then
+    printf '%s\n' "${resolved_uv_bin}"
+    return 0
+  fi
+
+  user_uv_bin="${HOME:-}/.local/bin/uv"
+  if [[ -x "${user_uv_bin}" ]]; then
+    printf '%s\n' "${user_uv_bin}"
+    return 0
+  fi
+
+  echo "Missing required command: uv. Set SUPERVISOR_API_STAGING_UV_BIN or install uv at ~/.local/bin/uv." >&2
+  return 1
+}
+
 supervisor_api_staging_run_doctor() {
   local uv_bin
-  uv_bin="$(supervisor_api_staging_require_command uv)"
+  uv_bin="$(supervisor_api_staging_resolve_uv_bin)"
   (
     cd "${supervisor_api_staging_repo_root}" || exit
     "${uv_bin}" run --all-packages python -m scripts.doctor_env supervisor-api --json >/dev/null

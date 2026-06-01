@@ -12,21 +12,13 @@ import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
+import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
 const repoRoot = resolve(scriptDir, "../../..");
 
-loadRepoEnvFile(import.meta.url, "../../..");
-
-try {
-	process.loadEnvFile(resolve(repoRoot, ".env.staging.local"));
-} catch (error) {
-	if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
-		throw error;
-	}
-}
+loadRepoStagingEnvFile(import.meta.url, "../../..");
 
 const [command, ...args] = process.argv.slice(2);
 if (!command) {

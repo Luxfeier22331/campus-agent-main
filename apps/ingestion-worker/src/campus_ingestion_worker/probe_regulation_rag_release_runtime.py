@@ -54,6 +54,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         path: _check_qdrant_endpoint(settings=settings, path=path)
         for path in ("/readyz", "/livez", "/collections")
     }
+    qdrant_ready = _all_checks_ready(checks)
     print(
         json.dumps(
             {
@@ -64,7 +65,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "qdrant_host": _url_part(settings.qdrant_url, "hostname"),
                 "qdrant_api_key_present": bool(settings.qdrant_api_key),
                 "qdrant_checks": checks,
-                "qdrant_ready": "ready" if _all_checks_ready(checks) else "not_ready",
+                "qdrant_ready": "ready" if qdrant_ready else "not_ready",
                 "object_store_status": object_store_status,
                 "object_store_error": object_store_error,
                 "object_store_bucket_derived": bucket_derived,
@@ -75,6 +76,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                         settings=settings,
                         object_store=object_store,
                         bucket_derived=bucket_derived,
+                        qdrant_endpoint_ready=qdrant_ready,
                     )
                     for scope in tuple(args.scope or DEFAULT_RAG_SURFACE_SCOPES)
                 ],
@@ -98,11 +100,26 @@ def _probe_surface(
     settings: RetrievalSettings,
     object_store,
     bucket_derived: str | None,
+    qdrant_endpoint_ready: bool,
 ) -> dict[str, object]:
     corpus, collection = _parse_scope(scope)
     profile = load_runtime_profile(corpus, collection)
     alias_name = profile.qdrant_index_binding.alias_name
-    alias_target = resolve_alias_target(qdrant_client=qdrant_client, alias_name=alias_name)
+    alias_target: str | None = None
+    alias_resolution_status = "not_checked"
+    alias_resolution_error = ""
+    collection_read_status = "not_checked"
+    collection_read_error = ""
+    latest_collection_read_status = "not_checked"
+    latest_collection_read_error = ""
+    if qdrant_endpoint_ready:
+        alias_target, alias_resolution_error = _resolve_alias_target_status(
+            qdrant_client=qdrant_client,
+            alias_name=alias_name,
+        )
+        alias_resolution_status = "resolved" if alias_target else "missing"
+        if alias_resolution_error:
+            alias_resolution_status = "error"
     release_family_status = "unavailable"
     release_family_error = ""
     release_manifests: tuple[dict[str, object], ...] = ()
@@ -126,35 +143,54 @@ def _probe_surface(
         release_manifests=release_manifests,
         collection_name=alias_target,
     )
-    collection_info = _read_collection_info(
-        qdrant_client=qdrant_client,
-        collection_name=alias_target,
-    )
-    latest_collection_info = _read_collection_info(
-        qdrant_client=qdrant_client,
-        collection_name=latest_collection_name,
-    )
-    latest_guard_status, latest_guard_message = _probe_release_metadata_guard(
-        qdrant_client=qdrant_client,
-        settings=settings,
-        profile=profile,
-        collection_name=latest_collection_name,
-    )
-    if alias_target and alias_target != latest_collection_name:
-        alias_guard_status, alias_guard_message = _probe_release_metadata_guard(
+    collection_info = None
+    latest_collection_info = None
+    latest_guard_status = "not_checked"
+    latest_guard_message = ""
+    alias_guard_status = "not_checked"
+    alias_guard_message = ""
+    if qdrant_endpoint_ready and alias_resolution_status == "resolved":
+        collection_info, collection_read_error = _read_collection_info_status(
+            qdrant_client=qdrant_client,
+            collection_name=alias_target,
+        )
+        collection_read_status = "available" if collection_info is not None else "missing"
+        if collection_read_error:
+            collection_read_status = "error"
+        latest_collection_info, latest_collection_read_error = _read_collection_info_status(
+            qdrant_client=qdrant_client,
+            collection_name=latest_collection_name,
+        )
+        latest_collection_read_status = (
+            "available" if latest_collection_info is not None else "missing"
+        )
+        if latest_collection_read_error:
+            latest_collection_read_status = "error"
+        latest_guard_status, latest_guard_message = _probe_release_metadata_guard(
             qdrant_client=qdrant_client,
             settings=settings,
             profile=profile,
-            collection_name=alias_target,
+            collection_name=latest_collection_name,
         )
-    else:
-        alias_guard_status, alias_guard_message = latest_guard_status, latest_guard_message
+        if alias_target and alias_target != latest_collection_name:
+            alias_guard_status, alias_guard_message = _probe_release_metadata_guard(
+                qdrant_client=qdrant_client,
+                settings=settings,
+                profile=profile,
+                collection_name=alias_target,
+            )
+        else:
+            alias_guard_status, alias_guard_message = latest_guard_status, latest_guard_message
     release_freshness_status, release_freshness_reason = _classify_release_freshness(
         alias_target=alias_target,
         latest_manifest=latest_manifest,
         alias_manifest=alias_manifest,
     )
     readiness_status, readiness_blocker = _classify_surface_readiness(
+        qdrant_endpoint_ready=qdrant_endpoint_ready,
+        alias_resolution_status=alias_resolution_status,
+        collection_read_status=collection_read_status,
+        latest_collection_read_status=latest_collection_read_status,
         release_freshness_status=release_freshness_status,
         latest_guard_status=latest_guard_status,
         alias_guard_status=alias_guard_status,
@@ -167,6 +203,8 @@ def _probe_surface(
         "query_enabled_by_default": profile.query_enabled_by_default,
         "alias_name": alias_name,
         "alias_target": alias_target,
+        "alias_resolution_status": alias_resolution_status,
+        "alias_resolution_error": alias_resolution_error,
         "release_family_status": release_family_status,
         "release_family_error": release_family_error,
         "release_family_manifest_count": len(release_manifests),
@@ -186,6 +224,8 @@ def _probe_surface(
         "vectors_count": getattr(collection_info, "vectors_count", None)
         if collection_info
         else None,
+        "collection_read_status": collection_read_status,
+        "collection_read_error": collection_read_error,
         "latest_release_points_count": (
             getattr(latest_collection_info, "points_count", None)
             if latest_collection_info
@@ -196,6 +236,8 @@ def _probe_surface(
             if latest_collection_info
             else None
         ),
+        "latest_collection_read_status": latest_collection_read_status,
+        "latest_collection_read_error": latest_collection_read_error,
         "release_metadata_guard_status": latest_guard_status,
         "release_metadata_guard_message": latest_guard_message,
         "release_metadata_guard_missing_fields": _release_metadata_missing_fields(
@@ -232,13 +274,25 @@ def _probe_release_metadata_guard(
     return "passed", ""
 
 
-def _read_collection_info(*, qdrant_client, collection_name: str | None):
-    if not collection_name:
-        return None
+def _resolve_alias_target_status(*, qdrant_client, alias_name: str) -> tuple[str | None, str]:
     try:
-        return qdrant_client.get_collection(collection_name)
+        return resolve_alias_target(qdrant_client=qdrant_client, alias_name=alias_name), ""
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _read_collection_info_status(*, qdrant_client, collection_name: str | None):
+    if not collection_name:
+        return None, ""
+    try:
+        return qdrant_client.get_collection(collection_name), ""
     except TypeError:
-        return qdrant_client.get_collection(collection_name=collection_name)
+        try:
+            return qdrant_client.get_collection(collection_name=collection_name), ""
+        except Exception as exc:
+            return None, f"{type(exc).__name__}: {exc}"
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
 
 
 def _build_release_object_store() -> tuple[str, str, object | None, str | None]:
@@ -335,12 +389,30 @@ def _classify_release_freshness(
 
 def _classify_surface_readiness(
     *,
+    qdrant_endpoint_ready: bool,
+    alias_resolution_status: str,
+    collection_read_status: str,
+    latest_collection_read_status: str,
     release_freshness_status: str,
     latest_guard_status: str,
     alias_guard_status: str,
 ) -> tuple[str, str]:
+    if not qdrant_endpoint_ready:
+        return "blocked", "qdrant_endpoint_not_ready"
+    if alias_resolution_status == "error":
+        return "blocked", "alias_resolution_failed"
+    if alias_resolution_status != "resolved":
+        return "blocked", "alias_not_published"
+    if collection_read_status == "error":
+        return "blocked", "alias_target_collection_read_failed"
+    if collection_read_status != "available":
+        return "blocked", "alias_target_collection_missing"
     if release_freshness_status != "current":
         return "blocked", release_freshness_status
+    if latest_collection_read_status == "error":
+        return "blocked", "latest_release_collection_read_failed"
+    if latest_collection_read_status != "available":
+        return "blocked", "latest_release_collection_missing"
     if latest_guard_status != "passed":
         return "blocked", "latest_release_metadata_guard_failed"
     if alias_guard_status != "passed":

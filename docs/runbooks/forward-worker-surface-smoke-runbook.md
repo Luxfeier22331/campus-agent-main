@@ -169,8 +169,8 @@ profile 语义：
   预置 smoke identity，启动或复用 `public-chat-web dev:live-smoke`，再通过
   `http://127.0.0.1:27011 -> service binding app-api -> http://127.0.0.1:27051`
   执行真实 public/chat 请求
-- `staging`：部署验收 profile，默认使用 `campus-chat-staging` /
-  `campus-api-staging` / `exec-staging`
+- `staging`：部署验收 profile，默认使用 `chat-staging` /
+  `api-staging` / `exec-staging`
 - `local-real-provider`：复用 `dev` 的 public/chat 产品路径编排，但强制启用
   `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=true` 并默认使用真实
   `PROMPT_RUNTIME_PROVIDER=openai-responses`。它用于验证

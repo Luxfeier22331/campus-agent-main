@@ -3,6 +3,7 @@ import stagingPreflightSource from "../../../scripts/run-worker-staging-prefligh
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
+import runWithStagingSmokeEnvSource from "../scripts/run-with-staging-smoke-env.mjs?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
@@ -139,14 +140,16 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[[env.local.hyperdrive]]");
 		expect(wranglerConfig).toContain('binding = "APP_API_DB"');
 		expect(wranglerConfig).toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('pattern = "campus-api-staging.ayafeed.com"');
+		expect(wranglerConfig).toContain('pattern = "api-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
-		expect(stagingVarsBlock).toContain('AUTH_SHELL_ORIGIN = "https://hub-muc-wiki.ayafeed.com"');
 		expect(stagingVarsBlock).toContain(
-			'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
+			'AUTH_SHELL_ORIGIN = "https://hub-staging.mucwiki-edge.link"',
+		);
+		expect(stagingVarsBlock).toContain(
+			'PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"',
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"');
 		expect(stagingVarsBlock).not.toContain("SUPERVISOR_API_BASE_URL");
@@ -171,7 +174,7 @@ describe("app-api worker foundation", () => {
 			"check_worker_secret_presence.py",
 		);
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
-		expect(deployStagingSource).toContain("loadRepoEnvFile");
+		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
 		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain(
 			"chat-e2e.ts --profile staging",
@@ -198,13 +201,17 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
-		expect(runWithStagingDbEnvSource).toContain("loadRepoEnvFile");
-		expect(runWithStagingDbEnvSource).toContain(".env.staging.local");
+		expect(runWithStagingDbEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(runWithStagingDbEnvSource).not.toContain("loadRepoEnvFile");
+		expect(runWithStagingDbEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingDbEnvSource).toContain("https://hub-muc-wiki.ayafeed.com");
-		expect(runWithStagingDbEnvSource).toContain("https://campus-chat-staging.ayafeed.com");
+		expect(runWithStagingSmokeEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
+		expect(runWithStagingDbEnvSource).toContain("https://hub-staging.mucwiki-edge.link");
+		expect(runWithStagingDbEnvSource).toContain("https://chat-staging.mucwiki-edge.link");
 		expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
+		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
 		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
 		expect(stagingPreflightSource).toContain("db:bootstrap:staging");

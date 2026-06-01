@@ -17,7 +17,7 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(wranglerConfig).toContain("preview_urls = false");
 		expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
 		expect(wranglerConfig).toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('pattern = "campus-panel-staging.ayafeed.com"');
+		expect(wranglerConfig).toContain('pattern = "panel-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain("[env.local.vars]");
 		expect(wranglerConfig).toContain('PANEL_RUNTIME_API_BASE_URL = "https://app-api.internal"');
@@ -70,6 +70,8 @@ export function registerWorkerRuntimeConfigSuite() {
 		);
 		expect(stagingAccessServiceTokenSmokeSource).toContain("STAGING_PANEL_ACCESS_CLIENT_ID");
 		expect(stagingAccessServiceTokenSmokeSource).toContain("STAGING_PANEL_ACCESS_CLIENT_SECRET");
+		expect(stagingAccessServiceTokenSmokeSource).toContain("loadRepoStagingEnvFile");
+		expect(stagingAccessServiceTokenSmokeSource).not.toContain("loadRepoEnvFile");
 		expect(stagingAccessServiceTokenSmokeSource).toContain("CF-Access-Client-Id");
 		expect(stagingAccessServiceTokenSmokeSource).toContain("Invalid Access JWT.");
 		expect(viteConfigSource).toContain("auxiliaryWorkers");
@@ -89,8 +91,8 @@ export function registerWorkerRuntimeConfigSuite() {
 			"check_worker_secret_presence.py",
 		);
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
-		expect(deployStagingSource).toContain("loadRepoEnvFile");
-		expect(deployStagingSource).toContain('loadRepoEnvFile(import.meta.url, "../../..")');
+		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
+		expect(deployStagingSource).toContain('loadRepoStagingEnvFile(import.meta.url, "../../..")');
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
@@ -110,7 +112,7 @@ export function registerWorkerRuntimeConfigSuite() {
 			"VAR_ABSENT:SENTRY_RELEASE",
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"ROUTE:campus-panel-staging.ayafeed.com",
+			"ROUTE:panel-staging.mucwiki-edge.link",
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"verify-worker-deploy-config.mjs",

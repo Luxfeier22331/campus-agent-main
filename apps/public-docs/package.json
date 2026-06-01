@@ -18,7 +18,7 @@
 		"check:published-reader-scheduled": "node ./scripts/run-with-local-env.mjs pnpm exec tsx scripts/run-published-reader-scheduled-check.ts",
 		"deploy:published-reader-scheduled": "node ./scripts/run-with-local-env.mjs pnpm exec tsx scripts/run-published-reader-deploy-pipeline.ts",
 		"deploy": "pnpm build:published-reader-assets && pnpm build:budget && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config wrangler.toml",
-		"deploy:staging": "CLOUDFLARE_ENV=staging pnpm run build:published-reader-assets && pnpm build:budget && pnpm deploy:verify-config:staging && node ../../scripts/run-wrangler-command.mjs deploy --env staging --config wrangler.toml",
+		"deploy:staging": "node ./scripts/deploy-staging.mjs",
 		"deploy:verify-config": "node ./scripts/verify-worker-config.mjs",
 		"deploy:verify-config:staging": "node ./scripts/verify-worker-config.mjs",
 		"ensure:docs-scaffold": "tsx scripts/ensure-docs-scaffold.ts",

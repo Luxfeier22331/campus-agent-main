@@ -56,7 +56,7 @@ document/index release`
 - hub / public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走 `APP_API`
   Service Binding；`https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
-- `campus-api-staging.ayafeed.com` 如存在，只表示 app-api staging machine / ops
+- `api-staging.mucwiki-edge.link` 如存在，只表示 app-api staging machine / ops
   ingress，不是 browser surface upstream
 - `apps/supervisor-api` 是 Go-owned internal execution engine，不是产品后端
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service

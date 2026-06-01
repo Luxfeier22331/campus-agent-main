@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
+import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
 import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
-loadRepoEnvFile(import.meta.url, "../../..");
+loadRepoStagingEnvFile(import.meta.url, "../../..");
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sentryRelease = resolveStagingSentryRelease("public-chat-web");
 

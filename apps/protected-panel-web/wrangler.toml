@@ -35,7 +35,7 @@ SENTRY_ENVIRONMENT = "staging"
 required = ["PANEL_APP_API_SHARED_SECRET", "SENTRY_DSN"]
 
 [[env.staging.routes]]
-pattern = "campus-panel-staging.ayafeed.com"
+pattern = "panel-staging.mucwiki-edge.link"
 custom_domain = true
 
 [[env.staging.services]]
