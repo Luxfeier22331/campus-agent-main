@@ -63,14 +63,19 @@ document/index release`
 - `apps/supervisor-api` 是当前 Docker execution ingress，负责 execution HTTP surface
   与 runtime hardening；Python `apps/supervisor-agent-worker` 只保留 private bridge worker
 - semantic delegate path 仍进入 Python private bridge；已打开的 deterministic
-  structured capability 可以在 Go `apps/supervisor-api` 的 non-stream answer path 与
-  lifecycle SSE answer path 直接完成
+  structured capability 当前按 `runtime_posture` 分流：
+  `typed_handoff_only` 的 payload 允许在 Go `apps/supervisor-api` 的 non-stream answer
+  path 与 lifecycle SSE answer path 直接完成，`sdk_adapter_admitted` 的 payload 则进入
+  Go-owned `single_handoff` plan，再由 Python worker 的 SDK-native agent runtime 执行
 - Python bridge 返回 private `AgentResponse`；public `SupervisorResponse`
   finalization 与 response observability projection 由 Go `apps/supervisor-api` 执行
 - online query path 与 offline data plane 持续分层
 - `apps/app-api` 不拥有 official-web selected-write / release task state machine；
   claim、lease、retry、dead-letter、materialize、publish 与失败状态属于
   `packages/ingestion-core` / `apps/ingestion-worker`
+- `wechat_official_account` 已进入 admitted source/data/control-plane truth：当前已有
+  source-truth schema、collector principal、run ledger 与 offline projection handoff
+  shape，但它不是默认 query-enabled surface，也不是近期已开放的 product runtime
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
 
 ## 当前 Serving Surface
@@ -173,6 +178,9 @@ document/index release`
 - 承接 authenticated notice processing 的 operator-safe projection ingest 与 list/detail
   query；不暴露 raw notice content、OCR payload、附件字节、对象存储路径或 queue mutation
   action
+- 承接 `wechat_official_account` source channel 的 command ingress、collector principal
+  admission、run ledger 与 source artifact registration；当前只拥有 source/data/control-plane
+  truth，不打开默认 product query/runtime serving
 - 当前代码侧以 route exposure inventory 固定每个 route 的 caller class 与 admission rule
 
 ### `apps/supervisor-api`
@@ -214,9 +222,12 @@ document/index release`
   answer path fail-safe
 - 拥有 private bridge `AgentResponse -> SupervisorResponse` finalization 与
   response-level observability projection
-- 对已打开的 `campus_services` / `notice` deterministic structured payload，
-  non-stream `/api/v1/answer` 与 lifecycle SSE `/api/v1/answer/stream` 可以直接执行
-  Go structured runtime 并返回 supervisor-style response
+- 对已打开的 deterministic structured payload，只有 ToolSpec
+  `runtime_posture=typed_handoff_only` 的 payload 才允许在 non-stream
+  `/api/v1/answer` 与 lifecycle SSE `/api/v1/answer/stream` 直接执行 Go structured
+  runtime 并返回 supervisor-style response；`runtime_posture=sdk_adapter_admitted` 的
+  payload 进入 Go-owned `single_handoff` plan，再由 Python worker 的 Agents SDK native
+  substrate 执行
 - 通过 private bridge 调用 Python `apps/supervisor-agent-worker`
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning

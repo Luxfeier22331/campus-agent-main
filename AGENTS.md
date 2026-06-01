@@ -5,12 +5,14 @@
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
 - 当前主路径是 `supervisor-api -> supervisor-agent-worker -> agent -> retrieval-core`
+- 当前 product entry surface 已收口到 `hub-web -> app launcher / account shell`，`public-chat-web`、
+  `public-docs`、`protected-panel-web` 作为并列 browser surface 进入 shared `app-api`
 - 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平
   tool
 - 当前 accepted merged truth 已具备 `regulations/student_rules`、
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
-  `official_web/stable_reference` 四条默认 query-enabled surface，以及
-  `public-chat-web`、`protected-panel-web`、`app-api` 三个 Worker app 的前向产品形态；
+  `official_web/stable_reference` 四条默认 query-enabled surface，以及 `hub-web`、
+  `public-chat-web`、`public-docs`、`protected-panel-web`、`app-api` 等前向产品形态；
   但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 选择尚未 repo-wide 冻结；当前已明确冻结 `apps/app-api = Worker`，以及
@@ -34,7 +36,9 @@
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
+- `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`
@@ -44,6 +48,9 @@
 - `docs/data/official-web-source-truth-schema.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/wechat-official-account-source-truth-schema.md`
+- `docs/contracts/campus-notice-runtime-contract.md`
+- `docs/reference/authenticated-notice-file-release-export-contract.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`

@@ -5,16 +5,23 @@
 ## Overview
 
 当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、`supervisor-led`
-的校园助理系统：公开聊天面、公开文档站、受保护运营面、共享 `app-api`、内部 `supervisor-api`，以及按能力边界拆分的 agent /
-retrieval / ingestion packages。
+的校园助理系统：`hub-web` 入口面、公开聊天面、公开文档站、受保护运营面、共享 `app-api`、内部
+`supervisor-api`，以及按能力边界拆分的 agent / retrieval / ingestion packages。
 
 当前 merged truth 的主路径为：
 
 ```text
-browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api
+browser -> hub-web -> app launcher / account shell
+
+hub-web same-site allowlisted /api/* -> app-api
+
+browser -> public-chat-web -> app-api -> supervisor-api
 -> supervisor-agent-worker -> agent
 
 browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
+
+browser -> protected-panel-web -> app-api
+-> request projection / operator read model
 ```
 
 当前正式 docs surface 为：
@@ -30,6 +37,8 @@ browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/supervisor-api` 是 Docker-first internal execution engine，不是产品后端
 - online query path 与 offline data plane 持续分层
+- `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
+  第二产品后端或 MediaWiki 替代物
 
 ## Status
 
@@ -51,8 +60,8 @@ browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 仓库按 runtime boundary 与 capability boundary 组织：
 
 - [`apps/`](./apps/)
-  - runtime shell 与 transport boundary，例如 `public-chat-web`、`public-docs`、`prote
-    cted-panel-web`、`app-api`、`supervisor-api`、`ingestion-worker`
+  - runtime shell 与 transport boundary，例如 `hub-web`、`public-chat-web`、`public-docs`、
+    `protected-panel-web`、`app-api`、`supervisor-api`、`ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
     `rag-agent`、`retrieval-core`、`ingestion-core`、`contracts`
@@ -69,6 +78,7 @@ browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 
 主链路相关目录：
 
+- [`apps/hub-web`](./apps/hub-web/)
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/public-docs`](./apps/public-docs/)
 - [`apps/supervisor-api`](./apps/supervisor-api/)

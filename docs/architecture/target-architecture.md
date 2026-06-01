@@ -116,16 +116,17 @@ raw/source-truth/projection/document/chunk/index`
   - invariant role name
   - current-truth runtime / package / contract label
   - forward family label
-- 当前 merged truth 已完成首轮 runtime/package label 收口：
+- 当前 merged truth 已完成首轮 current-truth runtime/package label 收口：
   - `rag-agent`
   - `navigation-agent`
-- 当前额外冻结的 forward family label 包括：
+- 当前同样已经进入 repo truth、但在 opening posture / runtime path / tool admission 上
+  采用不同约束的 capability family 包括：
   - `campus-services-agent`
   - `notice-agent`
 - 当长期新增稳定能力边界时，前向 family 命名默认采用 `<domain>-agent`
 - 早期实验性的 `availability-agent` 占位 capability 已退休；当前不再保留 `availability-agent`
   之类前向 alias
-- 对已完成收口的 capability family，不再维护 `*-agent` current-truth
+- 对已完成收口的 capability family，不再维护与 current-truth label 脱节的 synthetic
   alias；后续也不得继续无规则地新增混合命名
 - supervisor 负责 admission / guardrails、capability routing、handoff、response
   finalization
