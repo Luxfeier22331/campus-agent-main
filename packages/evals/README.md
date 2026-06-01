@@ -278,6 +278,43 @@ Evaluation helpers for campus-agent v2.
 
 eval coverage operator snapshot：
 
+RAGAS diagnostic runner：
+
+- 默认 `case-selection=preferred` 只跑 repo-owned preferred diagnostic cases，用于快速定位和
+  迭代，不代表 full denominator。
+- 全量 current-denominator RAGAS 必须显式使用
+  `--case-selection full-denominator`；它遍历当前 RAG consumption denominator 的 qrels
+  fixture，并只运行 answer-ready case。
+- full-denominator manifest 会把不适合 RAGAS 的 qrels 写入 `excluded_cases`，包括
+  authz denied、no-hit、unsupported empty result，以及没有 clause/chunk/version expected
+  source 的 doc-level article-number case；这些 case 继续留在 deterministic retrieval /
+  release gate，不静默丢弃。
+- 生成全量 manifest / report：
+
+```bash
+uv run --all-packages python -m campus_evals.ragas_diagnostic_runner \
+  --output-dir .tmp/evals/ragas-full-denominator/<run-id> \
+  --case-selection full-denominator \
+  --case-workers 2
+```
+
+- 如需分 metric 控制成本，可多次传 `--metric-name` 跑单 metric，再执行：
+
+```bash
+uv run --all-packages python -m campus_evals.ragas_diagnostic_runner \
+  --output-dir .tmp/evals/ragas-full-denominator/<run-id> \
+  --combine-existing-reports
+```
+
+- full-denominator 全量推荐按单 metric 生成 per-metric report；`--combine-existing-reports`
+  只消费 `ragas-diagnostic.<single-metric>.json`，不会读取 `ragas-diagnostic.all.json`、
+  `current`、`combined` 或 `summary`，避免旧的半截 all report 污染组合结果。
+- 单 metric 运行时，如果某个 case 对该 metric 显式 not applicable，runner 会写出
+  `diagnostic_reason=metric_not_applicable`、空 scores 与对应 `metric_applicability`，并且不触发
+  retrieval / scorer；这不是 fallback，而是该 metric 的显式不适用状态。
+- 低分 metric 必须从对应 per-metric report 合并出
+  `failure_attribution.metric_failures.<metric>`；缺少阶段归因时 combine fail closed。
+
 - `campus_evals.eval_coverage_snapshot` 负责把 current RAG denominator 的 qrels coverage、
   release acceptance、answer-quality、known-gap、last gate artifact 与 RAGAS
   diagnostic 汇总成 operator-safe snapshot
@@ -287,16 +324,62 @@ eval coverage operator snapshot：
 - gate artifact manifest schema 固定为 `eval-coverage-gate-artifacts.v1`；manifest 必须显式列出
   每个 current denominator surface 的 accepted gate artifact，不扫描 `.tmp`、
   `.planning` 或对象存储目录
+- manifest 由 `campus_evals.eval_coverage_gate_artifacts` 生成；每个 `--artifact`
+  必须是显式 JSON object，包含 `surface_key`、`profile_id`、`artifact_kind`、
+  `artifact_id` 与 `path`。当前支持的 `artifact_kind` 为 `profile_report`、
+  `formal_final_summary`、`formal_gate_report`、`composite_gate_report` 与
+  `release_acceptance_result`
 - RAGAS combined diagnostic schema 固定为 `ragas-diagnostic-combined-report.v1`；它只进入
   `ragasDiagnostic`，影响 panel 的 diagnostic attention 展示，不替代 deterministic readiness
 - low-score metric 必须有显式 stage attribution；snapshot 会保留
   `metrics`、`lowScoreCases[].failureStage` 与 `stageDistribution`，缺阶段归因时 fail
   closed
+- `.tmp/evals/eval-coverage-gate-artifacts.input.json` 示例结构：
+
+```json
+{
+  "artifacts": [
+    {
+      "artifact_id": "student-rules-release-acceptance-current",
+      "artifact_kind": "release_acceptance_result",
+      "path": ".tmp/rag-release-acceptance-current/student_rules_release_acceptance.v1.result.json",
+      "profile_id": "handbook",
+      "surface_key": "regulations/student_rules"
+    },
+    {
+      "artifact_id": "institutional-rules-release-acceptance-current",
+      "artifact_kind": "release_acceptance_result",
+      "path": ".tmp/rag-release-acceptance-current/institutional_rules_release_acceptance.v1.result.json",
+      "profile_id": "institutional-rules-release-baseline",
+      "surface_key": "regulations/institutional_rules"
+    },
+    {
+      "artifact_id": "curriculum-plan-release-acceptance-current",
+      "artifact_kind": "release_acceptance_result",
+      "path": ".tmp/rag-release-acceptance-current/curriculum_plan_release_acceptance.v1.result.json",
+      "profile_id": "curriculum",
+      "surface_key": "curriculum/curriculum_plan"
+    },
+    {
+      "artifact_id": "official-web-stable-reference-release-acceptance-current",
+      "artifact_kind": "release_acceptance_result",
+      "path": ".tmp/rag-release-acceptance-current/official_web_stable_reference_release_acceptance.v1.result.json",
+      "profile_id": "official-web-stable-reference",
+      "surface_key": "official_web/stable_reference"
+    }
+  ]
+}
+```
+
 - 生成本地快照：
 
 ```bash
+uv run --all-packages python -m campus_evals.eval_coverage_gate_artifacts \
+  --artifact-file .tmp/evals/eval-coverage-gate-artifacts.input.json \
+  --output .tmp/evals/eval-coverage-gate-artifacts.current.json
+
 uv run --all-packages python -m campus_evals.eval_coverage_snapshot \
-  --gate-artifacts <gate-artifacts.json> \
+  --gate-artifacts .tmp/evals/eval-coverage-gate-artifacts.current.json \
   --ragas-diagnostic <ragas-diagnostic.combined.json> \
   --source-git-head "$(git rev-parse HEAD)" \
   --output .tmp/evals/eval-coverage-snapshot.json

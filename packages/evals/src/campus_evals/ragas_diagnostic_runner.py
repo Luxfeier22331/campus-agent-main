@@ -25,6 +25,7 @@ from campus_evals.ragas_diagnostic_constants import (
     RAGAS_DIAGNOSTIC_SAMPLE_MANIFEST_SCHEMA_VERSION,
 )
 from campus_evals.ragas_diagnostic_manifest import (
+    RAGAS_DIAGNOSTIC_CASE_SELECTIONS,
     _empty_result_reasons,
     _load_case,
     _manifest_case,
@@ -70,6 +71,7 @@ def run_ragas_diagnostic(
     repo_root: str | Path | None = None,
     qdrant_collection_overrides: Mapping[str, str] | None = None,
     case_ids: tuple[str, ...] = (),
+    case_selection: str = "preferred",
 ) -> dict[str, object]:
     if case_workers <= 0:
         raise ValueError("case_workers must be greater than zero")
@@ -78,6 +80,7 @@ def run_ragas_diagnostic(
         sample_limit_per_surface=sample_limit_per_surface,
         metric_names=metric_names,
         case_ids=case_ids,
+        case_selection=case_selection,
         repo_root=root,
     )
     case_specs = tuple(dict(item) for item in manifest["cases"] if isinstance(item, dict))
@@ -88,6 +91,16 @@ def run_ragas_diagnostic(
         case = _load_case(root=root, surface_key=surface_key, case_id=str(case_spec["case_id"]))
         started_at = time.perf_counter()
         try:
+            metric_applicability = _metric_applicability_for_case(
+                case_spec,
+                metric_names=metric_names,
+            )
+            if not any(metric_applicability.get(metric_name, True) for metric_name in metric_names):
+                return _metric_not_applicable_case_result(
+                    case_spec=case_spec,
+                    metric_applicability=metric_applicability,
+                    duration_ms=_elapsed_ms(started_at),
+                )
             projection, projection_breakdown = _build_projection_with_breakdown(
                 case=case,
                 backend=backend,
@@ -105,16 +118,13 @@ def run_ragas_diagnostic(
                         duration_ms=_elapsed_ms(started_at),
                     ),
                 )
-            metric_applicability = _metric_applicability_for_case(
-                case_spec,
-                metric_names=metric_names,
-            )
             projection.metadata["metric_applicability"] = dict(metric_applicability)
             scorer_started_at = time.perf_counter()
             scores = _score_projection(
                 projection=projection,
                 scorer=scorer,
                 metric_names=metric_names,
+                metric_applicability=metric_applicability,
             )
             scorer_ms = _elapsed_ms(scorer_started_at)
             duration_ms = _elapsed_ms(started_at)
@@ -173,6 +183,7 @@ def run_ragas_diagnostic(
             "case_workers": case_workers,
             "qdrant_collection_overrides": dict(normalized_overrides),
             "case_ids": list(dict.fromkeys(case_ids)),
+            "case_selection": case_selection,
         },
         "sample_manifest": manifest,
         "summary": summary,
@@ -193,7 +204,7 @@ def combine_ragas_diagnostic_reports(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run small-sample RAGAS diagnostics for core RAG.")
+    parser = argparse.ArgumentParser(description="Run RAGAS diagnostics for core RAG.")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument(
         "--sample-limit-per-surface",
@@ -207,6 +218,15 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
         help="Run only the named qrels case. May be passed more than once.",
+    )
+    parser.add_argument(
+        "--case-selection",
+        choices=RAGAS_DIAGNOSTIC_CASE_SELECTIONS,
+        default="preferred",
+        help=(
+            "Select preferred diagnostic cases or every answer-ready qrels case in the "
+            "current RAG denominator."
+        ),
     )
     parser.add_argument(
         "--metric-name",
@@ -254,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
         sample_limit_per_surface=args.sample_limit_per_surface,
         metric_names=metric_names,
         case_ids=tuple(args.case_id),
+        case_selection=args.case_selection,
     )
     _write_json(output_dir / "sample-manifest.json", manifest)
     backend = build_retrieval_backend()
@@ -267,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
         case_workers=args.case_workers,
         qdrant_collection_overrides=qdrant_collection_overrides,
         case_ids=tuple(args.case_id),
+        case_selection=args.case_selection,
     )
     _write_json(output_dir / "ragas-diagnostic.current.json", report)
     _write_json(output_dir / metric_report_filename(metric_names), report)
@@ -322,9 +344,12 @@ def _score_projection(
     projection: RagasProjection,
     scorer: Callable[[RagasProjection], Mapping[str, float | None]],
     metric_names: tuple[str, ...],
+    metric_applicability: Mapping[str, bool],
 ) -> dict[str, float | None]:
     scores = dict(scorer(projection))
-    if "identity_grounding" in metric_names:
+    if "identity_grounding" in metric_names and metric_applicability.get(
+        "identity_grounding", True
+    ):
         scores["identity_grounding"] = identity_grounding_score(projection)
     return scores
 
@@ -410,6 +435,43 @@ def _denied_empty_result_case_result(
     }
 
 
+def _metric_not_applicable_case_result(
+    *,
+    case_spec: dict[str, object],
+    metric_applicability: Mapping[str, bool],
+    duration_ms: int,
+) -> dict[str, object]:
+    return {
+        **case_spec,
+        "status": "completed",
+        "answer_text": "",
+        "answer_shape": "",
+        "presentation_kind": "",
+        "presentation_path": "",
+        "diagnostic_reason": "metric_not_applicable",
+        "retrieval_intent_kind": "",
+        "retrieval_answer_kind": "",
+        "retrieved_context_count": 0,
+        "retrieved_context_ids": [],
+        "raw_retrieved_doc_ids": [],
+        "raw_retrieved_chunk_ids": [],
+        "selected_support_doc_ids": [],
+        "selected_support_chunk_ids": [],
+        "answer_used_context_ids": [],
+        "duration_ms": duration_ms,
+        "performance_breakdown": {
+            "retrieval_ms": 0,
+            "answer_ms": 0,
+            "scorer_ms": 0,
+            "diagnostic_ms": duration_ms,
+            "dependency_wait_ms": duration_ms,
+        },
+        "failure_attribution": {"primary_stage": "passed", "metric_failures": {}},
+        "metric_applicability": dict(metric_applicability),
+        "scores": {},
+    }
+
+
 def _diagnostic_reason_for_empty_result_case(case_spec: Mapping[str, object]) -> str:
     reason = str(case_spec.get("expected_empty_result_reason") or "").strip()
     if reason == "authz_denied":
@@ -430,6 +492,8 @@ def _metric_applicability_for_case(
     overrides = case_spec.get("supplemental_metric_overrides")
     if isinstance(overrides, dict):
         for metric_name, enabled in overrides.items():
+            if metric_name not in applicability:
+                continue
             applicability[str(metric_name)] = bool(enabled)
     return applicability
 

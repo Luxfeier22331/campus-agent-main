@@ -47,6 +47,43 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             "policy-title-scholarship",
         )
 
+    def test_build_full_denominator_manifest_selects_all_answer_ready_qrels_cases(self) -> None:
+        manifest = build_ragas_diagnostic_sample_manifest(case_selection="full-denominator")
+
+        cases = manifest["cases"]
+        excluded_cases = manifest["excluded_cases"]
+        case_ids = {case["case_id"] for case in cases}
+        excluded_by_id = {case["case_id"]: case for case in excluded_cases}
+
+        self.assertEqual(manifest["case_selection"], "full-denominator")
+        self.assertEqual(manifest["sample_limit_per_surface"], None)
+        self.assertEqual(len(cases), 152)
+        self.assertEqual(len(excluded_cases), 10)
+        self.assertIn("policy-title-loan", case_ids)
+        self.assertIn("institutional-title-exact-8f97b86c0e95", case_ids)
+        self.assertIn("hanyu-international-students-total-credits", case_ids)
+        self.assertIn("stable-reference-fee-disclosure", case_ids)
+        self.assertNotIn("no-hit-impossible-query", case_ids)
+        self.assertNotIn("institutional-student-association-management-authz-deny", case_ids)
+        self.assertNotIn("article-number-degree-procedure", case_ids)
+        self.assertNotIn("article-number-student-status", case_ids)
+        self.assertEqual(
+            excluded_by_id["article-number-degree-procedure"]["reason"],
+            "article_number_doc_level_not_answer_ready",
+        )
+        self.assertEqual(
+            excluded_by_id["article-number-student-status"]["reason"],
+            "article_number_doc_level_not_answer_ready",
+        )
+        self.assertEqual(
+            excluded_by_id["institutional-student-association-management-authz-deny"]["reason"],
+            "expected_empty_result:authz_denied",
+        )
+        self.assertEqual(
+            excluded_by_id["stable-reference-no-hit-fictional-service"]["reason"],
+            "expected_empty_result:no_hit",
+        )
+
     def test_build_sample_manifest_prioritizes_semantic_restricted_institutional_case(
         self,
     ) -> None:
@@ -158,6 +195,35 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         self.assertFalse(case["expected_no_hit"])
         self.assertFalse(case["supplemental_metric_overrides"].get("answer_relevancy", True))
 
+    def test_run_ragas_diagnostic_emits_metric_applicability_for_non_applicable_metric(
+        self,
+    ) -> None:
+        retrieval_calls = []
+
+        class FakeBackend:
+            def retrieve(self, request):
+                retrieval_calls.append(request)
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=request.query_text,
+                    sources=(_diagnostic_source_for_request(request),),
+                )
+
+        report = run_ragas_diagnostic(
+            backend=FakeBackend(),
+            scorer=lambda projection: {},
+            case_ids=("short-fact-attendance-discipline-threshold",),
+            metric_names=("identity_grounding",),
+        )
+
+        self.assertTrue(report["passed"])
+        case = report["cases"][0]
+        self.assertEqual(case["scores"], {})
+        self.assertEqual(case["metric_applicability"], {"identity_grounding": False})
+        self.assertEqual(case["diagnostic_reason"], "metric_not_applicable")
+        self.assertEqual(retrieval_calls, [])
+
     def test_run_ragas_diagnostic_passes_restricted_institutional_authorization_to_backend(
         self,
     ) -> None:
@@ -175,9 +241,9 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
 
         report = run_ragas_diagnostic(
             backend=FakeBackend(),
-            scorer=lambda projection: {"faithfulness": 1.0},
+            scorer=lambda projection: {},
             sample_limit_per_surface=1,
-            metric_names=("faithfulness",),
+            metric_names=("identity_grounding",),
         )
 
         institutional_request = next(

@@ -29,12 +29,13 @@ RAGAS_DIAGNOSTIC_FAILURE_STAGES = (
     "diagnostic",
 )
 
-_ALLOWED_GATE_ARTIFACT_KINDS = frozenset(
+EVAL_COVERAGE_GATE_ARTIFACT_KINDS = frozenset(
     {
         "composite_gate_report",
         "formal_final_summary",
         "formal_gate_report",
         "profile_report",
+        "release_acceptance_result",
     }
 )
 
@@ -189,7 +190,7 @@ def _load_gate_artifacts(path: Path) -> dict[str, dict[str, Any]]:
 def _load_gate_artifact(item: dict[str, Any], prefix: str) -> dict[str, Any]:
     artifact_id = _required_string(item, "artifact_id", prefix)
     artifact_kind = _required_string(item, "artifact_kind", prefix)
-    if artifact_kind not in _ALLOWED_GATE_ARTIFACT_KINDS:
+    if artifact_kind not in EVAL_COVERAGE_GATE_ARTIFACT_KINDS:
         raise ValueError(f"{prefix}.artifact_kind is unsupported")
     profile_id = _required_string(item, "profile_id", prefix)
     surface_key = _required_string(item, "surface_key", prefix)
@@ -252,6 +253,32 @@ def _parse_gate_payload(artifact_kind: str, payload: dict[str, Any]) -> dict[str
             "gitHead": str(payload.get("git_head") or ""),
             "passedCount": int(payload.get("passed_count") or 0),
             "reasons": [] if status == "passed" else ["gate_report_failed"],
+            "status": status,
+        }
+    if artifact_kind == "release_acceptance_result":
+        _required_string(payload, "fixture", "release_acceptance_result")
+        cases = payload.get("cases")
+        if not isinstance(cases, list):
+            raise ValueError("release_acceptance_result.cases must be a list")
+        failed_count = 0
+        passed_count = 0
+        for index, case in enumerate(cases):
+            if not isinstance(case, dict):
+                raise ValueError(f"release_acceptance_result.cases[{index}] must be an object")
+            status = str(case.get("status") or "").strip()
+            if status == "passed":
+                passed_count += 1
+            elif status == "failed":
+                failed_count += 1
+            else:
+                raise ValueError(f"release_acceptance_result.cases[{index}].status is unsupported")
+        status = "passed" if failed_count == 0 else "failed"
+        return {
+            "caseCount": len(cases),
+            "failedCount": failed_count,
+            "gitHead": "",
+            "passedCount": passed_count,
+            "reasons": [] if status == "passed" else ["release_acceptance_failed"],
             "status": status,
         }
     raise ValueError(f"unsupported gate artifact kind: {artifact_kind}")
@@ -378,6 +405,7 @@ def _normalize_timestamp(value: str) -> str:
 
 __all__ = [
     "EVAL_COVERAGE_GATE_ARTIFACTS_SCHEMA_VERSION",
+    "EVAL_COVERAGE_GATE_ARTIFACT_KINDS",
     "EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION",
     "RAGAS_DIAGNOSTIC_COMBINED_REPORT_SCHEMA_VERSION",
     "RAGAS_DIAGNOSTIC_FAILURE_STAGES",

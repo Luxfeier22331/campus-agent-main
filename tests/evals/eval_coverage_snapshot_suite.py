@@ -294,6 +294,139 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                     source_git_head="git-main",
                 )
 
+    def test_snapshot_accepts_release_acceptance_result_gate_artifact_kind(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            release_result = _write_json(
+                root / "student-release-result.json",
+                {
+                    "fixture": "student_rules_release_acceptance.v1.json",
+                    "cases": [
+                        {"case_id": "passed-case", "status": "passed"},
+                        {"case_id": "failed-case", "status": "failed"},
+                    ],
+                },
+            )
+            gate = _write_json(
+                root / "gate.json",
+                {
+                    "schema_version": 1,
+                    "gate_report": {"overall_verdict": "pass"},
+                    "deterministic": {
+                        "run_count": 1,
+                        "run_pass_counts": [1],
+                        "run_failed_counts": [0],
+                    },
+                },
+            )
+            manifest = _write_json(
+                root / "gate-artifacts.json",
+                {
+                    "schema_version": "eval-coverage-gate-artifacts.v1",
+                    "artifacts": [
+                        {
+                            "artifact_id": "student-release-acceptance",
+                            "artifact_kind": "release_acceptance_result",
+                            "path": str(release_result),
+                            "profile_id": "handbook",
+                            "surface_key": "regulations/student_rules",
+                        },
+                        _gate_artifact(
+                            "regulations/institutional_rules",
+                            "institutional-rules-release-baseline",
+                            "institutional-gate",
+                            gate,
+                        ),
+                        _gate_artifact(
+                            "curriculum/curriculum_plan",
+                            "curriculum",
+                            "curriculum-gate",
+                            gate,
+                        ),
+                        _gate_artifact(
+                            "official_web/stable_reference",
+                            "official-web-stable-reference",
+                            "official-gate",
+                            gate,
+                        ),
+                    ],
+                },
+            )
+
+            snapshot = build_eval_coverage_snapshot(
+                gate_artifacts_path=manifest, source_git_head="git-main"
+            )
+
+        by_surface = {surface["surfaceKey"]: surface for surface in snapshot["surfaces"]}
+        last_gate = by_surface["regulations/student_rules"]["lastGate"]
+        self.assertEqual(last_gate["artifactKind"], "release_acceptance_result")
+        self.assertEqual(last_gate["caseCount"], 2)
+        self.assertEqual(last_gate["passedCount"], 1)
+        self.assertEqual(last_gate["failedCount"], 1)
+        self.assertEqual(last_gate["status"], "failed")
+        self.assertEqual(last_gate["reasons"], ["release_acceptance_failed"])
+
+    def test_snapshot_rejects_release_acceptance_result_unknown_case_status(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            release_result = _write_json(
+                root / "student-release-result.json",
+                {
+                    "fixture": "student_rules_release_acceptance.v1.json",
+                    "cases": [{"case_id": "unknown-case", "status": "skipped"}],
+                },
+            )
+            gate = _write_json(
+                root / "gate.json",
+                {
+                    "schema_version": 1,
+                    "gate_report": {"overall_verdict": "pass"},
+                    "deterministic": {
+                        "run_count": 1,
+                        "run_pass_counts": [1],
+                        "run_failed_counts": [0],
+                    },
+                },
+            )
+            manifest = _write_json(
+                root / "gate-artifacts.json",
+                {
+                    "schema_version": "eval-coverage-gate-artifacts.v1",
+                    "artifacts": [
+                        {
+                            "artifact_id": "student-release-acceptance",
+                            "artifact_kind": "release_acceptance_result",
+                            "path": str(release_result),
+                            "profile_id": "handbook",
+                            "surface_key": "regulations/student_rules",
+                        },
+                        _gate_artifact(
+                            "regulations/institutional_rules",
+                            "institutional-rules-release-baseline",
+                            "institutional-gate",
+                            gate,
+                        ),
+                        _gate_artifact(
+                            "curriculum/curriculum_plan",
+                            "curriculum",
+                            "curriculum-gate",
+                            gate,
+                        ),
+                        _gate_artifact(
+                            "official_web/stable_reference",
+                            "official-web-stable-reference",
+                            "official-gate",
+                            gate,
+                        ),
+                    ],
+                },
+            )
+
+            with self.assertRaisesRegex(ValueError, "status is unsupported"):
+                build_eval_coverage_snapshot(
+                    gate_artifacts_path=manifest, source_git_head="git-main"
+                )
+
 
 def _gate_artifact(surface_key: str, profile_id: str, artifact_id: str, path: Path) -> dict:
     return {
