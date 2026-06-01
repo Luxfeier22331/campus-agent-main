@@ -66,7 +66,8 @@ updated: 2026-06-01
 
 ```bash
 rsync -a --delete --exclude .git --exclude .worktrees --exclude node_modules \
-  --exclude .venv --exclude .tmp \
+  --exclude .venv --exclude .tmp --exclude .env \
+  --exclude .env.staging.local --exclude .env.qdrant.local \
   ./ nc-arm-6c:/srv/apps/campus-agent/
 ```
 
