@@ -185,6 +185,43 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
         self.assertEqual(projected["SPARSE_PROVIDER"], "mock")
         self.assertEqual(projected["SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS"], "")
 
+    def test_staging_runtime_allows_same_host_self_hosted_qdrant(self) -> None:
+        result = _run_common_script_with_env(
+            repo_env="",
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
+                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+                STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
+                STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
+                STAGING_INGESTION_SPARSE_LANGUAGE=none
+                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                """
+            ).strip(),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        projected = json.loads(result.stdout)
+        self.assertEqual(projected["QDRANT_URL"], "http://127.0.0.1:6333")
+        self.assertEqual(projected["QDRANT_DOCKER_URL"], "http://host.docker.internal:6333/")
+        self.assertEqual(projected["SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS"], "")
+
     def test_staging_runtime_rejects_repo_local_data_plane_without_explicit_staging_env(
         self,
     ) -> None:
@@ -385,6 +422,7 @@ def _run_common_script_with_env(
             "OBJECT_STORE_DERIVED_ACCESS_KEY",
             "OBJECT_STORE_BUCKET_DERIVED",
             "QDRANT_URL",
+            "QDRANT_DOCKER_URL",
             "QDRANT_TIMEOUT_SECONDS",
             "EMBEDDING_MODEL",
             "SPARSE_PROVIDER",

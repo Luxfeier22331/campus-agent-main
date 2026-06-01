@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Protocol
 from urllib.parse import quote
 
@@ -16,7 +16,6 @@ from qdrant_client.http.models import SnapshotPriority
 
 from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
-from campus_ingestion_core.object_store import build_qdrant_backup_artifact_key
 from campus_ingestion_core.qdrant_backup_io import (
     ObjectExistenceProbeError,
 )
@@ -35,49 +34,10 @@ from campus_ingestion_core.qdrant_backup_io import (
 from campus_ingestion_core.qdrant_backup_manifest_helpers import (
     _build_gc_delete_report_key,
     _build_release_manifest_key,
-    _find_backup_manifest_for_release,
     _list_index_release_manifests,
     _load_index_release_manifest,
-    _load_snapshot_backup_manifest,
-    _remap_alias_bindings,
 )
-from campus_ingestion_core.qdrant_backup_models import SnapshotBackupManifest
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
-
-
-@dataclass(frozen=True, slots=True)
-class SnapshotBackupRequest:
-    corpus: str
-    collection: str
-    release_id: str
-    backup_reason: str
-    operator: str
-
-
-@dataclass(frozen=True, slots=True)
-class SnapshotRestoreRequest:
-    corpus: str
-    collection: str
-    release_id: str
-    backup_id: str
-    operator: str
-    apply_alias: bool = False
-    target_collection_name: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class SnapshotRestoreReport:
-    backup_id: str
-    corpus: str
-    collection: str
-    release_id: str
-    restored_collection_name: str
-    applied_alias_bindings: dict[str, str]
-    points_count: int | None
-    restored_at: str
-    restore_report_object_key: str
-    verification_status: str
-    verification_errors: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +45,7 @@ class CollectionGcCheckRequest:
     corpus: str
     collection: str
     release_id: str
+    backup_root: Path | None = None
     protected_physical_collection_names: tuple[str, ...] = ()
     manual_blockers: tuple[str, ...] = ()
 
@@ -98,7 +59,7 @@ class CollectionGcEligibilityReport:
     physical_collection_name: str
     role: str
     blockers: tuple[str, ...]
-    backup_manifest_object_key: str | None
+    backup_manifest_path: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +68,7 @@ class CollectionGcDeleteRequest:
     collection: str
     release_id: str
     operator: str
+    backup_root: Path | None = None
     protected_physical_collection_names: tuple[str, ...] = ()
     manual_blockers: tuple[str, ...] = ()
 
@@ -121,7 +83,7 @@ class CollectionGcDeleteReport:
     physical_collection_name: str
     role: str
     blockers: tuple[str, ...]
-    backup_manifest_object_key: str | None
+    backup_manifest_path: str | None
     delete_report_object_key: str | None
     deleted_at: str | None
     operator: str
@@ -151,6 +113,8 @@ class SnapshotQdrantAdmin(Protocol):
         snapshot_name: str,
         target_path: str,
     ) -> None: ...
+
+    def delete_collection_snapshot(self, *, collection_name: str, snapshot_name: str) -> None: ...
 
     def restore_collection_snapshot(
         self,
@@ -213,6 +177,13 @@ class QdrantSnapshotAdmin:
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
                         handle.write(chunk)
+
+    def delete_collection_snapshot(self, *, collection_name: str, snapshot_name: str) -> None:
+        self._client.delete_snapshot(
+            collection_name=collection_name,
+            snapshot_name=snapshot_name,
+            wait=True,
+        )
 
     def restore_collection_snapshot(
         self,
@@ -293,199 +264,6 @@ def default_backup_id(*, now: datetime | None = None) -> str:
     return runtime_now.strftime("b%Y%m%dT%H%M%SZ")
 
 
-def create_snapshot_backup(
-    *,
-    request: SnapshotBackupRequest,
-    env: dict[str, str] | None = None,
-    object_store: BackupObjectStore | None = None,
-    qdrant_admin: SnapshotQdrantAdmin | None = None,
-) -> SnapshotBackupManifest:
-    _require_operator(request.operator)
-    source = dict(env if env is not None else os.environ)
-    bucket_derived = resolve_object_store_bucket_names(source)[1]
-    runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
-    runtime_qdrant_admin = qdrant_admin or QdrantSnapshotAdmin(RetrievalSettings.from_env(source))
-    release_manifest = _load_index_release_manifest(
-        object_store=runtime_object_store,
-        bucket=bucket_derived,
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-    )
-    backup_id = default_backup_id()
-    snapshot_filename = f"{release_manifest.physical_collection_name}.snapshot"
-    snapshot_key = build_qdrant_backup_artifact_key(
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-        backup_id=backup_id,
-        filename=snapshot_filename,
-    )
-    with TemporaryDirectory(prefix="campus-qdrant-backup-") as tempdir:
-        snapshot_path = str(Path(tempdir) / snapshot_filename)
-        snapshot_name = runtime_qdrant_admin.create_collection_snapshot(
-            release_manifest.physical_collection_name
-        )
-        runtime_qdrant_admin.download_collection_snapshot(
-            collection_name=release_manifest.physical_collection_name,
-            snapshot_name=snapshot_name,
-            target_path=snapshot_path,
-        )
-        snapshot_sha256 = _sha256_file(snapshot_path)
-        runtime_object_store.upload_file(
-            bucket=bucket_derived,
-            key=snapshot_key,
-            file_path=snapshot_path,
-            content_type="application/octet-stream",
-        )
-    backup_manifest = SnapshotBackupManifest(
-        backup_id=backup_id,
-        backup_mode="qdrant_collection_snapshot_export",
-        captured_at=_utc_now_iso(),
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-        serving_alias=release_manifest.serving_alias,
-        physical_collection_name=release_manifest.physical_collection_name,
-        alias_bindings={release_manifest.serving_alias: release_manifest.physical_collection_name},
-        index_release_manifest_key=_build_release_manifest_key(
-            corpus=request.corpus,
-            collection=request.collection,
-            release_id=request.release_id,
-        ),
-        validation_summary_key=release_manifest.validation_summary_object_key,
-        snapshot_object_key=snapshot_key,
-        snapshot_sha256=snapshot_sha256,
-        backup_reason=request.backup_reason,
-        operator=request.operator,
-    )
-    backup_manifest_key = build_qdrant_backup_artifact_key(
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-        backup_id=backup_id,
-        filename="backup-manifest.json",
-    )
-    _write_json_object(
-        object_store=runtime_object_store,
-        bucket=bucket_derived,
-        key=backup_manifest_key,
-        payload=asdict(backup_manifest),
-    )
-    return backup_manifest
-
-
-def restore_snapshot_backup(
-    *,
-    request: SnapshotRestoreRequest,
-    env: dict[str, str] | None = None,
-    object_store: BackupObjectStore | None = None,
-    qdrant_admin: SnapshotQdrantAdmin | None = None,
-) -> SnapshotRestoreReport:
-    _require_operator(request.operator)
-    source = dict(env if env is not None else os.environ)
-    bucket_derived = resolve_object_store_bucket_names(source)[1]
-    runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
-    runtime_qdrant_admin = qdrant_admin or QdrantSnapshotAdmin(RetrievalSettings.from_env(source))
-    backup_manifest = _load_snapshot_backup_manifest(
-        object_store=runtime_object_store,
-        bucket=bucket_derived,
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-        backup_id=request.backup_id,
-    )
-    release_manifest = _load_index_release_manifest(
-        object_store=runtime_object_store,
-        bucket=bucket_derived,
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-    )
-    restored_collection_name = (
-        request.target_collection_name or backup_manifest.physical_collection_name
-    )
-    restore_report_key = build_qdrant_backup_artifact_key(
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-        backup_id=request.backup_id,
-        filename="restore-report.json",
-    )
-    with TemporaryDirectory(prefix="campus-qdrant-restore-") as tempdir:
-        snapshot_path = str(Path(tempdir) / Path(backup_manifest.snapshot_object_key).name)
-        runtime_object_store.download_file(
-            bucket=bucket_derived,
-            key=backup_manifest.snapshot_object_key,
-            file_path=snapshot_path,
-        )
-        runtime_checksum = _sha256_file(snapshot_path)
-        if runtime_checksum != backup_manifest.snapshot_sha256:
-            raise ValueError("snapshot sha256 mismatch")
-        runtime_qdrant_admin.restore_collection_snapshot(
-            collection_name=restored_collection_name,
-            snapshot_path=snapshot_path,
-            checksum=runtime_checksum,
-        )
-    verification_errors: list[str] = []
-    if restored_collection_name not in runtime_qdrant_admin.list_collections():
-        verification_errors.append("restored_collection_missing")
-    try:
-        points_count = runtime_qdrant_admin.get_collection_points_count(restored_collection_name)
-    except Exception:
-        points_count = None
-        verification_errors.append("points_count_unavailable")
-    else:
-        if points_count is None:
-            verification_errors.append("points_count_unavailable")
-        elif points_count != release_manifest.point_count:
-            verification_errors.append("points_count_mismatch")
-    try:
-        release_payload = runtime_qdrant_admin.get_release_payload(restored_collection_name)
-    except Exception:
-        release_payload = {}
-        verification_errors.append("payload_verification_unavailable")
-    if release_payload.get("index_release_id") != release_manifest.release_id:
-        verification_errors.append("payload_release_id_mismatch")
-    if release_payload.get("index_release_manifest_key") != _build_release_manifest_key(
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-    ):
-        verification_errors.append("payload_manifest_key_mismatch")
-    if release_payload.get("index_release_alias") != release_manifest.serving_alias:
-        verification_errors.append("payload_alias_mismatch")
-    applied_alias_bindings: dict[str, str] = {}
-    if request.apply_alias and not verification_errors:
-        applied_alias_bindings = _remap_alias_bindings(
-            alias_bindings=backup_manifest.alias_bindings,
-            original_collection_name=backup_manifest.physical_collection_name,
-            restored_collection_name=restored_collection_name,
-        )
-        runtime_qdrant_admin.apply_alias_bindings(applied_alias_bindings)
-    verification_status = "passed" if not verification_errors else "failed"
-    report = SnapshotRestoreReport(
-        backup_id=request.backup_id,
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-        restored_collection_name=restored_collection_name,
-        applied_alias_bindings=applied_alias_bindings,
-        points_count=points_count,
-        restored_at=_utc_now_iso(),
-        restore_report_object_key=restore_report_key,
-        verification_status=verification_status,
-        verification_errors=tuple(verification_errors),
-    )
-    _write_json_object(
-        object_store=runtime_object_store,
-        bucket=bucket_derived,
-        key=restore_report_key,
-        payload=asdict(report),
-    )
-    return report
-
-
 def check_snapshot_gc_eligibility(
     *,
     request: CollectionGcCheckRequest,
@@ -530,8 +308,7 @@ def check_snapshot_gc_eligibility(
         role = "preview_candidate"
     if target_manifest.physical_collection_name not in runtime_qdrant_admin.list_collections():
         blockers.append("missing_live_collection")
-    backup_manifest = None
-    backup_manifest_key = None
+    backup_manifest_path = None
     if role != "preview_candidate":
         if target_manifest.validation_summary_object_key is None:
             blockers.append("missing_validation_summary")
@@ -547,28 +324,20 @@ def check_snapshot_gc_eligibility(
             else:
                 if not validation_summary_exists:
                     blockers.append("missing_validation_summary")
-        backup_manifest, backup_manifest_key = _find_backup_manifest_for_release(
-            object_store=runtime_object_store,
-            bucket=bucket_derived,
+        backup_manifest_path, backup_errors = _find_native_snapshot_backup(
+            backup_root=request.backup_root,
             corpus=request.corpus,
             collection=request.collection,
             release_id=request.release_id,
             physical_collection_name=target_manifest.physical_collection_name,
+            serving_alias=target_manifest.serving_alias,
+            release_manifest_key=_build_release_manifest_key(
+                corpus=request.corpus,
+                collection=request.collection,
+                release_id=request.release_id,
+            ),
         )
-        if backup_manifest is None:
-            blockers.append("missing_snapshot_backup")
-        else:
-            try:
-                snapshot_object_exists = _object_exists(
-                    object_store=runtime_object_store,
-                    bucket=bucket_derived,
-                    key=backup_manifest.snapshot_object_key,
-                )
-            except ObjectExistenceProbeError:
-                blockers.append("snapshot_object_probe_failed")
-            else:
-                if not snapshot_object_exists:
-                    blockers.append("missing_snapshot_object")
+        blockers.extend(backup_errors)
     blockers.extend(request.manual_blockers)
     eligible = role in {"archive_candidate", "preview_candidate"} and not blockers
     return CollectionGcEligibilityReport(
@@ -579,7 +348,7 @@ def check_snapshot_gc_eligibility(
         physical_collection_name=target_manifest.physical_collection_name,
         role=role,
         blockers=tuple(blockers),
-        backup_manifest_object_key=backup_manifest_key,
+        backup_manifest_path=str(backup_manifest_path) if backup_manifest_path else None,
     )
 
 
@@ -600,6 +369,7 @@ def delete_gc_eligible_collection(
             corpus=request.corpus,
             collection=request.collection,
             release_id=request.release_id,
+            backup_root=request.backup_root,
             protected_physical_collection_names=request.protected_physical_collection_names,
             manual_blockers=request.manual_blockers,
         ),
@@ -617,7 +387,7 @@ def delete_gc_eligible_collection(
             physical_collection_name=eligibility.physical_collection_name,
             role=eligibility.role,
             blockers=eligibility.blockers,
-            backup_manifest_object_key=eligibility.backup_manifest_object_key,
+            backup_manifest_path=eligibility.backup_manifest_path,
             delete_report_object_key=None,
             deleted_at=None,
             operator=request.operator,
@@ -626,7 +396,7 @@ def delete_gc_eligible_collection(
     runtime_qdrant_admin.delete_collection(eligibility.physical_collection_name)
     deleted_at = _utc_now_iso()
     delete_report_key = _build_gc_delete_report_key(
-        backup_manifest_object_key=eligibility.backup_manifest_object_key,
+        backup_manifest_path=eligibility.backup_manifest_path,
         corpus=request.corpus,
         collection=request.collection,
         release_id=request.release_id,
@@ -640,7 +410,7 @@ def delete_gc_eligible_collection(
         physical_collection_name=eligibility.physical_collection_name,
         role=eligibility.role,
         blockers=eligibility.blockers,
-        backup_manifest_object_key=eligibility.backup_manifest_object_key,
+        backup_manifest_path=eligibility.backup_manifest_path,
         delete_report_object_key=delete_report_key,
         deleted_at=deleted_at,
         operator=request.operator,
@@ -657,3 +427,92 @@ def delete_gc_eligible_collection(
 def _require_operator(operator: str) -> None:
     if not str(operator or "").strip():
         raise ValueError("operator is required")
+
+
+def _find_native_snapshot_backup(
+    *,
+    backup_root: Path | None,
+    corpus: str,
+    collection: str,
+    release_id: str,
+    physical_collection_name: str,
+    serving_alias: str,
+    release_manifest_key: str,
+) -> tuple[Path | None, tuple[str, ...]]:
+    if backup_root is None:
+        return None, ("missing_native_snapshot_backup_root",)
+    release_dir = Path(backup_root) / corpus / collection / release_id
+    if not release_dir.is_dir():
+        return None, ("missing_native_snapshot_backup",)
+    manifests = sorted(release_dir.glob("*/backup-manifest.json"), reverse=True)
+    errors: list[str] = []
+    for manifest_path in manifests:
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except OSError:
+            errors.append("native_snapshot_manifest_read_failed")
+            continue
+        except json.JSONDecodeError:
+            errors.append("native_snapshot_manifest_invalid_json")
+            continue
+        if payload.get("physical_collection_name") != physical_collection_name:
+            continue
+        manifest_errors = _validate_native_snapshot_manifest(
+            manifest_path=manifest_path,
+            payload=payload,
+            corpus=corpus,
+            collection=collection,
+            release_id=release_id,
+            physical_collection_name=physical_collection_name,
+            serving_alias=serving_alias,
+            release_manifest_key=release_manifest_key,
+        )
+        if not manifest_errors:
+            return manifest_path, ()
+        errors.extend(manifest_errors)
+    return None, tuple(dict.fromkeys(errors or ["missing_native_snapshot_backup"]))
+
+
+def _validate_native_snapshot_manifest(
+    *,
+    manifest_path: Path,
+    payload: dict[str, object],
+    corpus: str,
+    collection: str,
+    release_id: str,
+    physical_collection_name: str,
+    serving_alias: str,
+    release_manifest_key: str,
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected = {
+        "corpus": corpus,
+        "collection": collection,
+        "release_id": release_id,
+        "physical_collection_name": physical_collection_name,
+        "serving_alias": serving_alias,
+        "index_release_manifest_key": release_manifest_key,
+    }
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            errors.append(f"native_snapshot_{key}_mismatch")
+    snapshot_file = payload.get("snapshot_file")
+    snapshot_sha256 = payload.get("snapshot_sha256")
+    if not isinstance(snapshot_file, str) or not snapshot_file:
+        errors.append("native_snapshot_file_missing")
+    if not isinstance(snapshot_sha256, str) or not snapshot_sha256:
+        errors.append("native_snapshot_sha256_missing")
+    if errors:
+        return tuple(errors)
+    snapshot_path = manifest_path.parent / snapshot_file
+    if not snapshot_path.is_file():
+        errors.append("missing_native_snapshot_file")
+        return tuple(errors)
+    if _sha256_file(str(snapshot_path)) != snapshot_sha256:
+        errors.append("native_snapshot_sha256_mismatch")
+    sha_path = manifest_path.parent / "sha256.txt"
+    if not sha_path.is_file():
+        errors.append("missing_native_snapshot_sha256_file")
+    elif f"{snapshot_sha256}  {snapshot_file}" not in sha_path.read_text(encoding="utf-8"):
+        errors.append("native_snapshot_sha256_file_mismatch")
+    return tuple(errors)

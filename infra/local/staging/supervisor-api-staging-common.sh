@@ -284,6 +284,17 @@ function isLocalEndpoint(value) {
   }
 }
 
+function acceptsSameHostStagingEndpoint(source) {
+  return source === "STAGING_INGESTION_QDRANT_URL";
+}
+
+function projectDataPlaneValue(source, value) {
+  if (acceptsSameHostStagingEndpoint(source)) {
+    return rewriteLocalhostForDocker(value);
+  }
+  return value;
+}
+
 function validateStagingPostgresRuntimeUrl(errors, source, value) {
   let parsed;
   try {
@@ -334,7 +345,7 @@ for (const [source, target] of stagingRequiredMappings) {
     dataPlaneErrors.push(`${source} is required for supervisor-api staging data plane`);
     continue;
   }
-  if (isLocalEndpoint(value)) {
+  if (isLocalEndpoint(value) && !acceptsSameHostStagingEndpoint(source)) {
     dataPlaneErrors.push(`${source} must not point at localhost for supervisor-api staging`);
     continue;
   }
@@ -346,6 +357,9 @@ for (const [source, target] of stagingRequiredMappings) {
     validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
   }
   resolved.set(target, value);
+  if (source === "STAGING_INGESTION_QDRANT_URL") {
+    resolved.set("QDRANT_DOCKER_URL", projectDataPlaneValue(source, value));
+  }
 }
 for (const [source, target] of stagingOptionalMappings) {
   const value = envValue(source);
@@ -355,7 +369,6 @@ for (const [source, target] of stagingOptionalMappings) {
         "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
         "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
         "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",
-        "STAGING_INGESTION_QDRANT_URL",
       ].includes(source) &&
       isLocalEndpoint(value)
     ) {
@@ -372,6 +385,9 @@ for (const [source, target] of stagingOptionalMappings) {
       validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
     }
     resolved.set(target, value);
+    if (source === "STAGING_INGESTION_QDRANT_URL") {
+      resolved.set("QDRANT_DOCKER_URL", projectDataPlaneValue(source, value));
+    }
   }
 }
 requireCompletePair(
@@ -654,6 +670,7 @@ supervisor_api_staging_compose() {
     API_AUTH_MODE=trusted-worker \
     API_WORKER_SHARED_SECRET="${worker_shared_secret}" \
     SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
+    QDRANT_URL="${QDRANT_DOCKER_URL:?QDRANT_DOCKER_URL is required}" \
     "${docker_bin}" compose -f "${supervisor_api_staging_compose_file}" "$@"
   )
 }

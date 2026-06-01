@@ -204,7 +204,7 @@ reptilian/code/campus-agent/docs/reference/student-handbook-eval-metrics.md)。
 
 - rebuild 时间
 - git commit / branch
-- Qdrant Cloud cluster 名称 / 区域
+- Qdrant endpoint / host 与 collection 名称
 - collection 名称
 - Inference 页 pricing snapshot 摘要
 - collection schema 摘要

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0019
 status: accepted
 created: 2026-03-31
-updated: 2026-03-31
+updated: 2026-06-01
 ---
 # ADR-0019 Qdrant Physical Collection Retention And Expiration
 
@@ -80,15 +80,14 @@ updated: 2026-03-31
 - 目标 collection 不是仍在保留窗口内的 `migration_baseline`
 - 当前没有 active incident、回归调查或手工验收仍依赖该 release
 - 对应 release 的 manifest 与 validation summary 已持久化在对象存储中
-- Qdrant Cloud backup 覆盖了这次 release 的恢复窗口；如当前环境没有足够的 cloud backup 覆盖，则先补充显式
-  snapshot / export，再允许删除
+- self-hosted Qdrant native snapshot 与 off-host archive 覆盖了这次 release 的恢复窗口
 
 ### 决策 4：physical collection 过期不等于文档历史版本删除
 
 - 文档历史版本保留规则继续以 `DocumentRegistry` 与 ADR-0014 为准
 - 删除旧 Qdrant physical collection，不得被解释为删除历史 `version_id`
 - 默认 current-serving 继续成立，但“历史版本必须保留”的语义属于 registry / object-store truth，不要求所有历史
-  release 的物理索引永久常驻 Qdrant Cloud
+  release 的物理索引永久常驻 Qdrant
 
 ### 决策 5：这套 retention 规则对 `query_serving` 与 `offline_preparation` collection 一致生效
 
@@ -113,8 +112,8 @@ updated: 2026-03-31
 
 - `docs/reference/runtime-serving-and-index-terms.md` 需要补充 retention role 定义
 - `docs/runbooks/index-release-runbook.md` 需要补充旧 collection 清理门禁与操作流程
-- `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transiti
-  on.md` 需要补充 Standard / Free tier 的恢复覆盖策略
+- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+  冻结当前 self-hosted native snapshot 恢复覆盖策略
 - 后续如果实现自动 GC / cleanup worker，必须严格遵守本 ADR 的角色与门禁，而不是重新发明 time-only policy
 
 明确不做：
@@ -130,6 +129,5 @@ updated: 2026-03-31
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/runbooks/index-release-runbook.md`
-- `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transiti
-  on.md`
+- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`

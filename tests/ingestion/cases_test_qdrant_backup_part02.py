@@ -37,48 +37,10 @@ class QdrantBackupTestPart02(unittest.TestCase):
             previous_physical_collection_name="student_rules__r20260330_120000",
             serving_alias="student_rules",
         )
-        backup_manifest = SnapshotBackupManifest(
-            backup_id="b20260401T010203Z",
-            backup_mode="qdrant_collection_snapshot_export",
-            captured_at="2026-04-01T01:02:03+00:00",
-            corpus="regulations",
-            collection="student_rules",
-            release_id="r20260328_095627",
-            serving_alias="student_rules",
-            physical_collection_name="student_rules__r20260328_095627",
-            alias_bindings={"student_rules": "student_rules__r20260331_120000"},
-            index_release_manifest_key=manifest_key,
-            validation_summary_key=validation_summary_key,
-            snapshot_object_key=build_qdrant_backup_artifact_key(
-                corpus="regulations",
-                collection="student_rules",
-                release_id="r20260328_095627",
-                backup_id="b20260401T010203Z",
-                filename="student_rules__r20260328_095627.snapshot",
-            ),
-            snapshot_sha256=hashlib.sha256(b"snapshot").hexdigest(),
-            backup_reason="pre-gc",
-            operator="tester",
-        )
-        backup_manifest_key = build_qdrant_backup_artifact_key(
-            corpus="regulations",
-            collection="student_rules",
-            release_id="r20260328_095627",
-            backup_id="b20260401T010203Z",
-            filename="backup-manifest.json",
-        )
         object_store.put_bytes(
             bucket=DERIVED_BUCKET,
-            key=backup_manifest.snapshot_object_key,
-            data=b"snapshot",
-            content_type="application/octet-stream",
-        )
-        object_store.put_bytes(
-            bucket=DERIVED_BUCKET,
-            key=backup_manifest_key,
-            data=(json.dumps(asdict(backup_manifest), ensure_ascii=False, indent=2) + "\n").encode(
-                "utf-8"
-            ),
+            key=validation_summary_key,
+            data=b"{}",
             content_type="application/json",
         )
         qdrant_admin.aliases["student_rules"] = "student_rules__r20260331_120000"
@@ -89,17 +51,30 @@ class QdrantBackupTestPart02(unittest.TestCase):
             }
         )
 
-        report = delete_gc_eligible_collection(
-            request=CollectionGcDeleteRequest(
+        with TemporaryDirectory() as temp_dir:
+            backup_manifest_path = _write_native_snapshot_bundle(
+                backup_root=Path(temp_dir),
                 corpus="regulations",
                 collection="student_rules",
                 release_id="r20260328_095627",
-                operator="tester",
-            ),
-            env={},
-            object_store=object_store,
-            qdrant_admin=qdrant_admin,
-        )
+                backup_id="b20260401T010203Z",
+                serving_alias="student_rules",
+                physical_collection_name="student_rules__r20260328_095627",
+                manifest_key=manifest_key,
+                validation_summary_key=validation_summary_key,
+            )
+            report = delete_gc_eligible_collection(
+                request=CollectionGcDeleteRequest(
+                    corpus="regulations",
+                    collection="student_rules",
+                    release_id="r20260328_095627",
+                    operator="tester",
+                    backup_root=Path(temp_dir),
+                ),
+                env={},
+                object_store=object_store,
+                qdrant_admin=qdrant_admin,
+            )
 
         self.assertTrue(report.eligible)
         self.assertTrue(report.deleted)
@@ -110,16 +85,11 @@ class QdrantBackupTestPart02(unittest.TestCase):
             ["student_rules__r20260328_095627"],
         )
         self.assertNotIn("student_rules__r20260328_095627", qdrant_admin.collections)
-        self.assertEqual(report.backup_manifest_object_key, backup_manifest_key)
+        self.assertEqual(report.backup_manifest_path, str(backup_manifest_path))
         self.assertEqual(
             report.delete_report_object_key,
-            build_qdrant_backup_artifact_key(
-                corpus="regulations",
-                collection="student_rules",
-                release_id="r20260328_095627",
-                backup_id="b20260401T010203Z",
-                filename="gc-delete-report.json",
-            ),
+            "regulations/operations/qdrant_gc_delete/"
+            "r20260328_095627/student_rules/gc-delete-report.json",
         )
         persisted = json.loads(
             object_store.get_bytes(
@@ -244,7 +214,7 @@ class QdrantBackupTestPart02(unittest.TestCase):
         self.assertTrue(report.deleted)
         self.assertEqual(report.role, "preview_candidate")
         self.assertEqual(report.blockers, ())
-        self.assertIsNone(report.backup_manifest_object_key)
+        self.assertIsNone(report.backup_manifest_path)
         self.assertEqual(
             qdrant_admin.deleted_collections,
             ["student_rules__r20260507_114855_751879_351c552d"],

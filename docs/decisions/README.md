@@ -57,9 +57,14 @@ updated: 2026-04-26
 - `adr-0007-phase1-retrieval-baseline-update.md`
 - `adr-0014-versioned-document-serving-and-history-query.md`
 - `adr-0019-qdrant-physical-collection-retention-and-expiration.md`
-- `adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
+- `adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
 - `adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `adr-0044-structured-projection-release-catalog-and-read-model.md`
+
+历史替代关系：
+
+- `adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md` 已被
+  `adr-0045-self-hosted-single-node-qdrant-and-native-backups.md` supersede。
 
 ## Navigation 与 institution semantics
 

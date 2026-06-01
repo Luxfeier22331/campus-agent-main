@@ -19,7 +19,8 @@ updated: 2026-04-27
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
 - `index-release-runbook.md`
-  - 包含 Qdrant backup retention audit；对象存储 snapshot bundle 不能按时间或体积直接删。
+  - 包含 Qdrant backup retention audit；当前 collection GC 需要 qdrant-native
+    filesystem snapshot evidence，历史对象存储 snapshot bundle 不能按时间或体积直接删。
 
 ## Collaboration / Workstream Claims
 
@@ -41,7 +42,7 @@ updated: 2026-04-27
 
 - `local-postgres-dev-recovery-runbook.md`
 - `supervisor-api-local-runtime-smoke.md`
-- `qdrant-cloud-backup-and-restore-runbook.md`
+- `self-hosted-qdrant-native-backup-runbook.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`
 
@@ -80,3 +81,6 @@ updated: 2026-04-27
 
 - `archive/README.md`
   - historical runbook、legacy path redirect 与已退出默认执行面的旧模板已统一下沉到 archive namespace
+- `qdrant-cloud-backup-and-restore-runbook.md`
+  - historical Qdrant Cloud / Free tier backup reference；当前默认方案已切换到
+    self-hosted single-node Qdrant native snapshots。

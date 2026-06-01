@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-27
+updated: 2026-06-01
 ---
 # Provider And Secret Inventory
 
@@ -63,8 +63,9 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   主要 env keys: `QDRANT_URL` `QDRANT_API_KEY`
   放置位置: root `.env`
   何时必需: retrieval / indexing
-  获取方式: 在 Qdrant Cloud 创建 cluster 并在 Cluster Detail 的 API Keys 页面创建 key；自托管则自配
-  URL + API key
+  获取方式: 当前 staging / early production 默认使用自托管单节点 Qdrant；按
+  `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md` 部署 container，并由 deploy
+  secret / env 提供 URL + API key
 
 - Provider / system: Shared Postgres
   作用: app-api shared DB、document/raw registry
@@ -321,21 +322,24 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 获取方式：
 
-1. 在 Qdrant Cloud 创建 cluster。
-1. 从 Cluster Detail 的 **API Keys** 页面创建数据库 API key。
-1. 把 cluster URL 写入 `QDRANT_URL`，把 key 写入 `QDRANT_API_KEY`。
+1. 在目标服务器按
+   [Self-Hosted Qdrant Native Backup Runbook](../runbooks/self-hosted-qdrant-native-backup-runbook.md)
+   部署 single-node Qdrant。
+1. 生成 deploy-scoped `QDRANT_API_KEY`，写入服务器本地 env 或 deploy secret store。
+1. 把本机或内网 Qdrant URL 写入 `QDRANT_URL`，例如 `http://127.0.0.1:6333`。
+1. 不把 `6333` / `6334` 直接暴露到公网。
 
 外部参考：
 
-- 创建 cluster：<https://qdrant.tech/documentation/cloud/create-cluster/>
-- Cloud API key：<https://qdrant.tech/documentation/cloud/authentication/>
-- 自托管安全与 API
-  key：<https://qdrant.tech/documentation/guides/security/#authentication>
+- self-hosted installation：<https://qdrant.tech/documentation/guides/installation/>
+- self-hosted security / API key：<https://qdrant.tech/documentation/operations/security/>
+- native snapshots：<https://qdrant.tech/documentation/operations/snapshots/>
 
 说明：
 
 - 本仓库默认不把 `:memory:` 当作真实开发 / staging retrieval backend，只把它视为测试姿态
-- 自托管 Qdrant 必须自己补 TLS、bind 限制和 API key；Qdrant 文档明确说明默认自托管实例并不安全
+- 当前不采用 Qdrant Cloud 作为 staging / early-production 默认方案；Cloud 相关旧方案已由
+  ADR-0045 supersede
 
 ## 4. Shared Postgres
 

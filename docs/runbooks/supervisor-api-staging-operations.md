@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-24
-updated: 2026-05-08
+updated: 2026-06-01
 ---
 # Supervisor API Staging Operations
 
@@ -103,10 +103,10 @@ Compose。
 - `STAGING_INGESTION_OBJECT_STORE_REGION=auto`（Cloudflare R2 S3 endpoint）
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=<derived bucket access key>`
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=<derived bucket secret key>`
-- `STAGING_INGESTION_QDRANT_URL=<staging Qdrant REST URL>`；按 Qdrant Cloud
-  文档，已 provision 的 cluster 应该能通过 443 或 6333 的 REST API 访问；该 URL
-  必须让 `/readyz`、`/livez`、`/collections` 返回 `200`，不能填只返回
-  `404 page not found` 的 cluster 管理/错误 hostname
+- `STAGING_INGESTION_QDRANT_URL=<staging self-hosted Qdrant REST URL>`；当前默认是
+  `nc-arm-6c` 上的 self-hosted single-node Qdrant，本机/同主机 runtime 通常填
+  `http://127.0.0.1:6333`。该 URL 必须让 `/readyz`、`/livez`、`/collections`
+  返回 `200`，不能填 cluster 管理页、错误 hostname 或公网未授权入口
 - `STAGING_INGESTION_QDRANT_API_KEY=<staging Qdrant API key>`
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
   query-serving index release metadata 匹配
@@ -257,10 +257,16 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   `DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL`、`RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL`、
   `OBJECT_STORE_*`、`QDRANT_*`、`EMBEDDING_*` 与 `SPARSE_*`
 - `CAMPUS_SHARED_POSTGRES_URL`、`DOCUMENT_REGISTRY_DATABASE_URL`、
-  `RAW_ASSET_REGISTRY_DATABASE_URL`、`OBJECT_STORE_ENDPOINT` 与 `QDRANT_URL`
+  `RAW_ASSET_REGISTRY_DATABASE_URL` 与 `OBJECT_STORE_ENDPOINT`
   不得在 staging supervisor runtime 指向 `127.0.0.1`、
   `localhost` 或 `host.docker.internal`；这些值只允许存在于本机开发 `.env`，不会作为
   staging runtime 数据面
+- `STAGING_INGESTION_QDRANT_URL` 允许在 `nc-arm-6c` 同机自托管部署中填写
+  `http://127.0.0.1:6333`。lifecycle 脚本会在 Docker compose 环境中投影成
+  `QDRANT_DOCKER_URL=http://host.docker.internal:6333/`，并在调用 compose 时把容器内
+  `QDRANT_URL` 设置为该 Docker 视角地址。host-side preflight 仍使用原始
+  `STAGING_INGESTION_QDRANT_URL`，保证 readiness probe 能直接验证同机 self-hosted
+  Qdrant，而不是旧 Qdrant Cloud endpoint
 - staging runtime 启动前会执行 ingestion registry collection rename audit：
   `campus_ingestion_worker.collection_rename_registry_backfill audit`。如果
   `regulations/student_handbook` 或 `regulations/institutional_regulations` 仍残留在
@@ -452,3 +458,43 @@ curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 
 当前 active recovery path 是重启 `supervisor-api + supervisor-agent-worker` 双容器 runtime。
 仓库不再维护 dev-backed Python public ingress fallback。
+
+## Staging RAG Release Manifest Recovery
+
+Use this path only when all of the following are true:
+
+1. self-hosted Qdrant is healthy;
+1. the serving alias points at the intended physical collection;
+1. a native snapshot bundle exists under
+   `/srv/backups/campus-agent/qdrant-snapshots`;
+1. runtime readiness is blocked because the derived object store lacks the
+   matching `index-release.json`.
+
+Run the dry-run reconstruction first:
+
+```bash
+uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
+  --backup-root /srv/backups/campus-agent/qdrant-snapshots \
+  --report-path var/staging-evidence/rag-release-manifest-reconstruction.json
+```
+
+If the report shows the expected four current surfaces and exact manifest keys,
+write the manifests:
+
+```bash
+uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
+  --backup-root /srv/backups/campus-agent/qdrant-snapshots \
+  --report-path var/staging-evidence/rag-release-reconstruction-write.json \
+  --write
+```
+
+Then verify readiness:
+
+```bash
+uv run --all-packages campus-ingestion-probe-regulation-rag-release-runtime
+infra/local/staging/status-supervisor-api-staging.sh --check
+```
+
+Do not use this command to bypass a failed ingestion release. If Qdrant payload
+metadata or the native snapshot sidecar is inconsistent, rebuild or restore the
+affected release instead.
