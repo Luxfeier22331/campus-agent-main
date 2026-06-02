@@ -65,7 +65,7 @@ function resolveTurnstileOption(name, rawValue, validValues, defaultValue) {
 
 if (!turnstileSiteKey) {
 	fail(
-		"STAGING_HUB_AUTH_TURNSTILE_SITE_KEY is required. Inject the real Turnstile sitekey admitted for hub-muc-wiki.ayafeed.com before deploying.",
+		"STAGING_HUB_AUTH_TURNSTILE_SITE_KEY is required. Inject the real Turnstile sitekey admitted for hub-staging.mucwiki-edge.link before deploying.",
 	);
 }
 

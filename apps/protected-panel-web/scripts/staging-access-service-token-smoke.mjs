@@ -2,7 +2,7 @@
 import process from "node:process";
 import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
 
-const DEFAULT_BASE_URL = "https://campus-panel-staging.ayafeed.com";
+const DEFAULT_BASE_URL = "https://panel-staging.mucwiki-edge.link";
 const EXPECTED_OPERATOR_API_ERROR = "Invalid Access JWT.";
 
 loadRepoEnvFile(import.meta.url, "../../..");

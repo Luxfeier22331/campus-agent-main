@@ -39,12 +39,12 @@ expectEqual(
 );
 expectEqual(
 	vars.PUBLIC_CHAT_HOSTNAME,
-	"campus-chat-staging.ayafeed.com",
+	"chat-staging.mucwiki-edge.link",
 	"Built staging config must keep PUBLIC_CHAT_HOSTNAME fixed.",
 );
 expectEqual(
 	vars.HUB_WEB_BASE_URL,
-	"https://hub-muc-wiki.ayafeed.com",
+	"https://hub-staging.mucwiki-edge.link",
 	"Built staging config must keep HUB_WEB_BASE_URL fixed.",
 );
 expectEqual(
@@ -74,10 +74,10 @@ expectAbsent(
 );
 
 const hasRoute = routes.some(
-	(route) => route?.pattern === "campus-chat-staging.ayafeed.com" && route?.custom_domain === true,
+	(route) => route?.pattern === "chat-staging.mucwiki-edge.link" && route?.custom_domain === true,
 );
 if (!hasRoute) {
 	fail(
-		"Missing required campus-chat-staging.ayafeed.com custom domain route in built staging config.",
+		"Missing required chat-staging.mucwiki-edge.link custom domain route in built staging config.",
 	);
 }

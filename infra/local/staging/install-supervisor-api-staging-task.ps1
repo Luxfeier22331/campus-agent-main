@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 $principalUserId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $logonUser = $principalUserId.Split("\")[-1]
 $wslExecutable = Join-Path $env:SystemRoot "System32\wsl.exe"
-$bashCommand = "cd '$RepoPath' && export SUPERVISOR_API_STAGING_PORT='27010' && export SUPERVISOR_API_STAGING_TUNNEL_NAME='supervisor-api-staging' && export SUPERVISOR_API_STAGING_PUBLIC_BASE_URL='https://exec-staging.ayafeed.com' && export SUPERVISOR_API_STAGING_APP_API_BASE_URL='https://campus-api-staging.ayafeed.com' && ./infra/local/staging/start-supervisor-api-staging.sh"
+$bashCommand = "cd '$RepoPath' && export SUPERVISOR_API_STAGING_PORT='27010' && export SUPERVISOR_API_STAGING_TUNNEL_NAME='supervisor-api-staging' && export SUPERVISOR_API_STAGING_PUBLIC_BASE_URL='https://exec-staging.mucwiki-edge.link' && export SUPERVISOR_API_STAGING_APP_API_BASE_URL='https://api-staging.mucwiki-edge.link' && ./infra/local/staging/start-supervisor-api-staging.sh"
 $actionArguments = "-d $WslDistroName -u $LinuxUser -- bash -lc `"$bashCommand`""
 
 $action = New-ScheduledTaskAction -Execute $wslExecutable -Argument $actionArguments

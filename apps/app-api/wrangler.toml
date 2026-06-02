@@ -34,13 +34,13 @@ required = [
 ]
 
 [[env.staging.routes]]
-pattern = "campus-api-staging.ayafeed.com"
+pattern = "api-staging.mucwiki-edge.link"
 custom_domain = true
 
 [env.staging.vars]
 APP_API_ENVIRONMENT = "staging"
-AUTH_SHELL_ORIGIN = "https://hub-muc-wiki.ayafeed.com"
-PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"
+AUTH_SHELL_ORIGIN = "https://hub-staging.mucwiki-edge.link"
+PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"

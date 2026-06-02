@@ -17,7 +17,7 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(wranglerConfig).toContain("preview_urls = false");
 		expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
 		expect(wranglerConfig).toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('pattern = "campus-panel-staging.ayafeed.com"');
+		expect(wranglerConfig).toContain('pattern = "panel-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain("[env.local.vars]");
 		expect(wranglerConfig).toContain('PANEL_RUNTIME_API_BASE_URL = "https://app-api.internal"');
@@ -110,7 +110,7 @@ export function registerWorkerRuntimeConfigSuite() {
 			"VAR_ABSENT:SENTRY_RELEASE",
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"ROUTE:campus-panel-staging.ayafeed.com",
+			"ROUTE:panel-staging.mucwiki-edge.link",
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"verify-worker-deploy-config.mjs",
