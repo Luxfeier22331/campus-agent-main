@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
+from scripts.check_sentry_lookup_access import fetch_json as default_fetch_json
 from scripts.check_sentry_lookup_access import load_sentry_api_token
 
 DEFAULT_DATASET = "spans"
@@ -86,7 +87,7 @@ def query_sentry_spans(
         per_page=per_page,
         query=query,
     )
-    query_impl = fetch_json_impl or fetch_json or globals()["fetch_json"]
+    query_impl = fetch_json_impl or fetch_json or default_fetch_json
     payload = query_impl(query_url, token)
     rows = payload.get("data", []) if isinstance(payload, Mapping) else []
     meta = payload.get("meta", {}) if isinstance(payload, Mapping) else {}
