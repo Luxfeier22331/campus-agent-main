@@ -4,14 +4,14 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     RegulationCategoryDefinition,
     RegulationDiscoveryConfig,
     RegulationPolicyObjectDefinition,
     load_regulation_discovery_config,
     regulation_categories_for_document,
 )
-from campus_shared.regulation_semantic_registry_predicates import (
+from campus_regulation_semantics.regulation_semantic_registry_predicates import (
     _looks_like_explicit_applicability_clause,
 )
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import campus_shared
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_CONDITION_GROUP_SUBJECTS,
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
     ANSWER_READY_INTERNAL_ATTRIBUTE_FIELDS,
@@ -9,7 +9,7 @@ from campus_shared.answer_ready_evidence_contract import (
     answer_ready_contract_rules_for_scope,
     validate_answer_ready_evidence_metadata,
 )
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     REGULATION_CONDITION_SUBJECT_DEFINITIONS,
     REGULATION_PROCEDURE_ACTION_DEFINITIONS,
 )

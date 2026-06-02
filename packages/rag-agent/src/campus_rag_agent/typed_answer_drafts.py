@@ -3,16 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts import ClaimSupport, EvidenceSource
-from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
 )
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     REGULATION_CONDITION_SUBJECT_DEFINITIONS,
     RegulationCategoryDefinition,
     load_regulation_discovery_config,
     regulation_categories_for_document,
 )
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 
 from campus_rag_agent.agent_answer_shape import AnswerShape
 from campus_rag_agent.answer_presentation_contract import (

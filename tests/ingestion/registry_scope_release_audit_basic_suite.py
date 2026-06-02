@@ -8,7 +8,7 @@ from campus_ingestion_core.registry_scope_release import audit_published_scope_r
 from campus_ingestion_core.registry_scope_release_support import (
     release_payload_mismatch_issues,
 )
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION,
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
 )

@@ -6,6 +6,9 @@ from typing import Any
 
 from campus_contracts import EvidenceSource
 from campus_ingestion_core.process_shared import IndexableChunk
+from campus_regulation_semantics.regulation_semantic_registry import (
+    canonical_regulation_condition_subject,
+)
 from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
 from campus_retrieval_core.evidence_attributes import (
     evidence_attributes_for_source,
@@ -15,7 +18,6 @@ from campus_retrieval_core.evidence_ranking import (
     prioritize_evidence_sources,
     select_supporting_evidence_sources,
 )
-from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
 from qdrant_client.http import models as qdrant_models
 
 from .retrieval_chunk_quality import build_chunk_quality_audit_report

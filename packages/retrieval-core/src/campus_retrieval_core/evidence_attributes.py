@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts import EvidenceSource
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_BASE_REQUIRED_FIELDS,
     ANSWER_READY_INTERNAL_ATTRIBUTE_FIELDS,
     answer_ready_contract_applies,
     answer_ready_contract_rules_for_scope,
 )
-from campus_shared.regulation_semantic_registry import condition_group_subject_from_group_id
+from campus_regulation_semantics.regulation_semantic_registry import (
+    condition_group_subject_from_group_id,
+)
 
 INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY = "_retrieval_evidence_attributes"
 

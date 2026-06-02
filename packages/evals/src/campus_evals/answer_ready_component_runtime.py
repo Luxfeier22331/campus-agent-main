@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 
 from campus_contracts import AgentResponse, ClaimSupport, EvidenceSource, RagResultPayload
 from campus_rag_agent.handbook_query_planning import plan_student_handbook_query
+from campus_regulation_semantics.regulation_semantic_registry import (
+    canonical_regulation_condition_subject,
+)
 from campus_retrieval_core.evidence_attributes import (
     evidence_attributes_for_source,
 )
@@ -12,7 +15,6 @@ from campus_retrieval_core.evidence_semantics import (
     infer_evidence_query_intent,
     query_requests_negative_polarity,
 )
-from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
 
 from .answer_ready_component_eval import (
     AnswerReadyComponentObservationSet,

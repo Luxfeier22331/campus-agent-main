@@ -297,8 +297,8 @@ def _load_institutional_rules_query_planning_config() -> dict[str, object]:
 
 def _load_student_rules_query_planning_config() -> dict[str, object]:
     # Preserve the historical facade patch point used by tests and callers that
-    # still target campus_shared.regulation_semantic_registry after the split.
-    from campus_shared import regulation_semantic_registry as registry
+    # still target campus_regulation_semantics.regulation_semantic_registry after the split.
+    from campus_regulation_semantics import regulation_semantic_registry as registry
 
     facade_loader = getattr(registry, "_load_student_rules_query_planning_config", None)
     if callable(facade_loader) and facade_loader is not _load_student_rules_query_planning_config:

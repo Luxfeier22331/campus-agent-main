@@ -5,7 +5,7 @@ from dataclasses import replace
 
 from campus_contracts import EvidenceBundle
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
-from campus_shared.answer_ready_evidence_contract import answer_ready_contract_applies
+from campus_regulation_semantics.answer_ready_evidence_contract import answer_ready_contract_applies
 
 from campus_retrieval_core.backend_qdrant_errors import RetrievalBackendError
 from campus_retrieval_core.evidence_attributes import evidence_contract_diagnostics_for_source

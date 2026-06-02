@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts import KnowledgeScope
-from campus_shared.regulation_semantic_registry import REGULATION_CONDITION_SUBJECT_DEFINITIONS
+from campus_regulation_semantics.regulation_semantic_registry import (
+    REGULATION_CONDITION_SUBJECT_DEFINITIONS,
+)
 
 from .retrieval_intent_classifiers import (
     _curriculum_semester_fact_target_document_ids,

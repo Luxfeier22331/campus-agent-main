@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from campus_ingestion_core.regulation_evidence_contract import infer_intro_target_roles
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     canonical_regulation_procedure_action,
     resolve_regulation_group_intro_kind,
     resolve_regulation_intro_list_role_hint,

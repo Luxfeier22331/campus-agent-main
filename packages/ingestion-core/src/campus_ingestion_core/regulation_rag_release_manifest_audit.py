@@ -4,7 +4,9 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Protocol
 
-from campus_shared.answer_ready_evidence_contract import ANSWER_READY_EVIDENCE_CONTRACT_VERSION
+from campus_regulation_semantics.answer_ready_evidence_contract import (
+    ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+)
 
 from campus_ingestion_core.index_release import load_index_release_manifest
 from campus_ingestion_core.regulation_rag_release_admission import (

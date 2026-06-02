@@ -4,7 +4,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from campus_shared.regulation_semantic_registry import resolve_regulation_action_type
+from campus_regulation_semantics.regulation_semantic_registry import resolve_regulation_action_type
 
 from campus_ingestion_core.regulation_semantics import (
     infer_negative_semantic_role,

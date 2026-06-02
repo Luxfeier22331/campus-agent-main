@@ -423,7 +423,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
         }
 
         with patch(
-            "campus_shared.regulation_semantic_registry._load_student_rules_query_planning_config",
+            "campus_regulation_semantics.regulation_semantic_registry._load_student_rules_query_planning_config",
             return_value=config,
         ):
             self.assertIsNone(

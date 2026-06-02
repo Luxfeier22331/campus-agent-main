@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     resolve_regulation_group_intro_kind,
     resolve_regulation_heading_role_hint,
     resolve_regulation_intro_list_role_hint,

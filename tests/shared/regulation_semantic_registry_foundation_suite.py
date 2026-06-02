@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_shared.regulation_semantic_patterns import (
+from campus_regulation_semantics.regulation_semantic_patterns import (
     RegulationSemanticsRegistry,
     infer_negative_semantic_role,
     infer_regulation_body_content_role,
@@ -12,7 +12,7 @@ from campus_shared.regulation_semantic_patterns import (
     starts_example_list,
     starts_procedure_list,
 )
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     REGULATION_CONDITION_SUBJECT_DEFINITIONS,
     REGULATION_PROCEDURE_ACTION_DEFINITIONS,
     REGULATION_PROCEDURE_ACTOR_DEFINITIONS,

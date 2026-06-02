@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     REGULATION_CONDITION_SUBJECT_DEFINITIONS,
     resolve_regulation_action_type,
     resolve_regulation_condition_subject,

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import re
 
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_CATEGORY_REGISTRY_VERSION,
     ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION,
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
     ANSWER_READY_PROCEDURAL_TIME_ACTION_MARKERS,
     ANSWER_READY_PROCEDURE_ACTION_TAXONOMY_VERSION,
 )
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     REGULATION_GROUPED_ANSWER_ROLES,
     build_regulation_condition_group_id,
     condition_group_subject_from_group_id,

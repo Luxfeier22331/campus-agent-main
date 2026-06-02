@@ -5,10 +5,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-from campus_retrieval_core.backend_qdrant_source_metadata import effective_payload_metadata
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
 )
+from campus_retrieval_core.backend_qdrant_source_metadata import effective_payload_metadata
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.answer_ready_contract_quality import (

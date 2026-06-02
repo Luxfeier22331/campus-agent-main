@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_shared.regulation_semantic_patterns import (
+from campus_regulation_semantics.regulation_semantic_patterns import (
     RegulationCategoryDefinition,
     RegulationDiscoveryConfig,
     RegulationPolicyObjectDefinition,

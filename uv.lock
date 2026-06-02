@@ -29,6 +29,7 @@ members = [
     "campus-official-web-core",
     "campus-public-chat-web",
     "campus-rag-agent",
+    "campus-regulation-semantics",
     "campus-retrieval-core",
     "campus-services-agent",
     "campus-shared",
@@ -301,6 +302,7 @@ source = { editable = "packages/evals" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx" },
     { name = "ragas" },
@@ -310,6 +312,7 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ragas", specifier = ">=0.4.3" },
@@ -322,6 +325,7 @@ source = { editable = "packages/ingestion-core" }
 dependencies = [
     { name = "boto3" },
     { name = "campus-contracts" },
+    { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx", extra = ["socks"] },
     { name = "llama-index-core" },
@@ -341,6 +345,7 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.35.0" },
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "llama-index-core", specifier = ">=0.14.18" },
@@ -426,6 +431,7 @@ source = { editable = "packages/rag-agent" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-regulation-semantics" },
     { name = "campus-retrieval-core" },
     { name = "campus-shared" },
 ]
@@ -434,9 +440,15 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
     { name = "campus-shared", editable = "packages/shared" },
 ]
+
+[[package]]
+name = "campus-regulation-semantics"
+version = "0.1.0"
+source = { editable = "packages/regulation-semantics" }
 
 [[package]]
 name = "campus-retrieval-core"
@@ -445,6 +457,7 @@ source = { editable = "packages/retrieval-core" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx", extra = ["socks"] },
     { name = "llama-index-core" },
@@ -456,6 +469,7 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "llama-index-core", specifier = ">=0.14.18" },
