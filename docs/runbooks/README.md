@@ -12,6 +12,9 @@ updated: 2026-04-27
 
 ## Core Deploy / Smoke / Release
 
+- `e2e-qa-release-runbook.md`
+  - 上线前真实 staging E2E QA 总入口；串联 repo preflight、runtime readiness、
+    public surfaces、chat、docs、panel、observability、data-plane sanity 与 evidence closeout。
 - `staging-worker-deploy-runbook.md`
 - `document-reader-publish-and-docs-deploy-runbook.md`
   - 包含 serving seed export / verify / restore，以及旧
@@ -35,6 +38,7 @@ updated: 2026-04-27
 - `supervisor-api-server-handoff.md`
 - `runtime-otel-collector-pipeline.md`
 - `worker-observability-smoke-runbook.md`
+- `templates/e2e-qa-release-artifact-template.md`
 - `templates/public-chat-staging-smoke-artifact-template.md`
 - `templates/worker-observability-smoke-artifact-template.md`
 

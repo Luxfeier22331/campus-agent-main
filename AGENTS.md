@@ -36,6 +36,7 @@
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/code-organization-and-decomposition-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/domains/navigation/architecture.md`
@@ -68,12 +69,17 @@
 工作规则：
 
 - `AGENTS.md` 只负责仓库入口约束、目录导航和工作协议，不重复深层设计文档
-- 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和 `docs/` 视为实现与架构的参考材料
+- 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和
+  `docs/` 视为实现与架构的参考材料
 - 产品定位、目标用户与产品边界以 `docs/architecture/product-positioning.md` 为准
 - 当前 accepted merged-truth topology 与已开放 serving surface 以
   `docs/architecture/current-architecture.md` 为准
 - 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应
   `docs/` 文档为准
+- 代码组织、目录分解、小区块、目录同构与不重复治理以
+  `docs/architecture/system/code-organization-and-decomposition-architecture.md`
+  为准；`pnpm decomposition:lint` 只是基础行数 / baseline gate，不等于完整架构
+  review
 - 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以
   `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应
   `.planning/workstreams/<slug>/` 为准
@@ -248,6 +254,9 @@
 - Node / Worker app 默认使用 `pnpm`，不再新增或维护 `package-lock.json`
 - 如果变更触及长期边界、当前 accepted retrieval/data-plane 约束或对象存储/ingestion 不变量，同步检查相关
   `docs/architecture` 或 `docs/decisions` 是否需要更新
+- 结构性改动必须遵守代码组织架构文档：按 owner / runtime boundary /
+  domain responsibility 切分，不用机械拆文件绕过 gate，不把 helper 做成跨 owner
+  垃圾桶，不把同一 DTO / schema / env projection / route exposure 跨层手写复制
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正
 - plain `codex` 默认用于讨论、review、问答与方案分析；只有真正进入某条 workstream
@@ -367,6 +376,10 @@ pnpm web:build:affected
 - 如果新增局部测试或检查命令，只记录仓库里真实存在、可重复执行的命令
 - 不要把“担心腐烂”当成替代验证证据的理由
 - 当提出某种设计风险时，应尽可能区分：文档事实、代码事实，以及你的推断
+- 上线前真实 staging E2E closeout 走
+  `docs/runbooks/e2e-qa-release-runbook.md`；该 runbook 是 release QA 总入口，
+  不替代 unit / typecheck / build，也不能用 fallback、兜底、
+  `--expect-result-kind any` 或跳过 Access / auth / readyz 的方式标绿
 
 ## Repo Map
 
@@ -381,6 +394,8 @@ pnpm web:build:affected
 - `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径
 - `packages/ingestion-core`: ingestion/data plane
   的逻辑消费层，负责去重、版本推进、解析、chunking、索引写入编排
+- `packages/regulation-semantics`: regulations 领域语义 owner；负责 answer-ready evidence
+  contract、answer role / condition / procedure taxonomy 与 regulation semantic registry
 - `packages/contracts`: supervisor -> agent handoff、evidence bundle 与共享
   schema；不要泄漏运行时或基础设施类型
 - `packages/evals`: 回归场景、基线与 smoke/eval 入口

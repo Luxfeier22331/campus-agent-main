@@ -12,6 +12,7 @@ execution、retrieval、data-plane、observability 等系统级边界。
 ## 当前文档
 
 - `product-runtime-architecture.md`
+- `code-organization-and-decomposition-architecture.md`
 - `capability-routing-and-admission-architecture.md`
 - `document-site-architecture.md`
 - `runtime-delivery-and-release-hardening-architecture.md`
