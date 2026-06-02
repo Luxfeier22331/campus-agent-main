@@ -13,7 +13,8 @@ import {
 	resolveSharedDbSslConfig,
 } from "./shared-db-integration-helpers";
 
-const RUN_INTEGRATION = process.env.RUN_APP_API_SHARED_DB_INTEGRATION === "1";
+const RUN_INTEGRATION = process.env.RUN_APP_API_OFFICIAL_WEB_SHARED_DB_INTEGRATION === "1";
+const INTEGRATION_CONTEXT_LABEL = "the app-api official-web shared DB integration test";
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envFilePath = resolve(appRoot, ".env");
 const devVarsFilePath = resolve(appRoot, ".dev.vars");
@@ -41,7 +42,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 	beforeAll(async () => {
 		const { managementConnectionString, runtimeConnectionString } =
 			await convergeSharedDbForAppApiIntegration({
-				contextLabel: "the app-api shared DB integration test",
+				contextLabel: INTEGRATION_CONTEXT_LABEL,
 				devVarsFilePath,
 				envFilePath,
 			});
@@ -52,7 +53,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 			overrides: {
 				APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: readRequiredSharedDbEnv(
 					"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN",
-					"the app-api shared DB integration test",
+					INTEGRATION_CONTEXT_LABEL,
 				),
 			},
 		});
@@ -105,7 +106,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 					triggerType: "scheduled",
 				}),
 				headers: {
-					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", INTEGRATION_CONTEXT_LABEL)}`,
 					"content-type": "application/json",
 				},
 				method: "POST",
@@ -135,7 +136,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 					sequence: 1,
 				}),
 				headers: {
-					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", INTEGRATION_CONTEXT_LABEL)}`,
 					"content-type": "application/json",
 				},
 				method: "POST",
@@ -173,7 +174,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 					terminalStatus: "completed",
 				}),
 				headers: {
-					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", INTEGRATION_CONTEXT_LABEL)}`,
 					"content-type": "application/json",
 				},
 				method: "POST",
@@ -257,7 +258,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 					triggerType: "scheduled",
 				}),
 				headers: {
-					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", INTEGRATION_CONTEXT_LABEL)}`,
 					"content-type": "application/json",
 				},
 				method: "POST",
@@ -308,7 +309,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 					terminalStatus: "completed",
 				}),
 				headers: {
-					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", INTEGRATION_CONTEXT_LABEL)}`,
 					"content-type": "application/json",
 				},
 				method: "POST",
@@ -331,7 +332,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 					triggerType: "scheduled",
 				}),
 				headers: {
-					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", INTEGRATION_CONTEXT_LABEL)}`,
 					"content-type": "application/json",
 				},
 				method: "POST",
@@ -382,7 +383,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 					terminalStatus: "completed",
 				}),
 				headers: {
-					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+					authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", INTEGRATION_CONTEXT_LABEL)}`,
 					"content-type": "application/json",
 				},
 				method: "POST",

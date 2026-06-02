@@ -162,6 +162,8 @@ pnpm web:test:integration
 - 它不属于默认 `pnpm web:test` 门禁
 - 该 lane 会显式检查 shared DB bootstrap / adoption 是否仍与 repo-owned snapshot 收敛；如果连接到的
   shared DB 已漂移，会 fail-close
+- 该 lane 不验证 `official_web` collector lifecycle，也不要求
+  `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
 - 当前 repo 的 repair 入口是 `pnpm --dir apps/app-api db:reconcile-shared-drift --
   --json`
 
@@ -177,6 +179,10 @@ pnpm web:test:integration
   - 显式 Worker runtime lane
 - `pnpm --dir apps/app-api test:shared-db-integration`
   - 显式 shared Postgres / Better Auth integration lane
+- `pnpm --dir apps/app-api test:official-web-shared-db-integration`
+  - 显式 `official_web` collector lifecycle shared DB lane；只有在
+    official-web collector control plane 进入本次 rollout / smoke 范围时运行
+  - 该 lane 需要 `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
 
 对应配置文件：
 
@@ -188,6 +194,8 @@ pnpm web:test:integration
   - Worker runtime lane
 - `apps/app-api/vitest.shared-db.config.mts`
   - shared DB integration lane
+- `apps/app-api/vitest.official-web-shared-db.config.mts`
+  - `official_web` collector lifecycle shared DB lane
 
 ## 单一 Worker app 语义
 

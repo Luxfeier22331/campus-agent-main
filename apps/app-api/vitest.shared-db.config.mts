@@ -9,7 +9,6 @@ export default defineProject({
 		testTimeout: 60_000,
 		include: [
 			"test/shared-product-db.integration.test.ts",
-			"test/official-web-shared-db.integration.test.ts",
 			"test/operator-observability-shared-db.integration.test.ts",
 		],
 	},
