@@ -94,7 +94,7 @@ describe("axiom runtime event sink", () => {
 		});
 	});
 
-	it("no-ops when the Axiom runtime config is incomplete", async () => {
+	it("does not emit when the Axiom runtime config is incomplete", async () => {
 		const fetchImplementation = vi.fn();
 		const sink = createAxiomRuntimeEventSink(
 			{},
@@ -202,7 +202,7 @@ describe("axiom runtime event sink", () => {
 		);
 	});
 
-	it("fails open when the Axiom ingest fetch exceeds the timeout budget", async () => {
+	it("records an Axiom ingest warning without failing the request path when fetch exceeds the timeout budget", async () => {
 		vi.useFakeTimers();
 
 		const logger = { warn: vi.fn() };
