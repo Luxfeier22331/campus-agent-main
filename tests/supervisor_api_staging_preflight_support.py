@@ -70,14 +70,14 @@ def run_common_script_with_env(
 ) -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         temp_root = Path(temp_dir)
-        common_path = temp_root / "infra" / "local" / "staging" / "supervisor-api-staging-common.sh"
-        common_path.parent.mkdir(parents=True)
-        common_path.write_text(
-            (ROOT / "infra/local/staging/supervisor-api-staging-common.sh").read_text(
-                encoding="utf-8"
-            ),
-            encoding="utf-8",
-        )
+        staging_dir = temp_root / "infra" / "local" / "staging"
+        staging_dir.mkdir(parents=True)
+        for source_path in (ROOT / "infra/local/staging").glob("supervisor-api-staging-*.sh"):
+            (staging_dir / source_path.name).write_text(
+                source_path.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+        common_path = staging_dir / "supervisor-api-staging-common.sh"
         (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
         (temp_root / ".env.staging.local").write_text(staging_env + "\n", encoding="utf-8")
         app_api_dir = temp_root / "apps" / "app-api"
