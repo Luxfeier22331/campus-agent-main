@@ -13,6 +13,15 @@ services:
     restart: unless-stopped
     volumes:
       - minio-data:/data
+    networks:
+      data-plane:
+        aliases:
+          - minio
+
+networks:
+  data-plane:
+    external: true
+    name: ${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}
 
 volumes:
   minio-data:

@@ -27,3 +27,12 @@ services:
       options:
         max-size: "20m"
         max-file: "5"
+    networks:
+      data-plane:
+        aliases:
+          - qdrant
+
+networks:
+  data-plane:
+    external: true
+    name: ${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}

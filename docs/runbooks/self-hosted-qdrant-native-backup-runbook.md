@@ -70,10 +70,14 @@ QDRANT_STORAGE_DIR=/srv/lib/campus-agent/qdrant/storage
 QDRANT_SNAPSHOTS_DIR=/srv/backups/campus-agent/qdrant-snapshots/native
 ```
 
-Start Qdrant:
+Start Qdrant. Create the shared Docker data-plane network first. Qdrant keeps
+host-side ports bound to loopback, while supervisor containers reach it through
+Docker service DNS `http://qdrant:6333` on `campus-agent-data-plane`:
 
 ```bash
 cd /srv/apps/campus-agent
+docker network inspect campus-agent-data-plane >/dev/null 2>&1 || \
+  docker network create campus-agent-data-plane >/dev/null
 docker compose --env-file .env.qdrant.local \
   -f infra/local/docker-compose.qdrant-single-node.yml up -d
 ```
@@ -93,11 +97,16 @@ node:
 ```bash
 STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
 STAGING_INGESTION_QDRANT_API_KEY=<admin-or-runtime-api-key>
+STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<read-only-api-key>
 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=30
 ```
 
-The staging lifecycle script projects these values into Compose as `QDRANT_*`.
-Missing Qdrant values fail closed.
+The staging lifecycle script keeps this value as the host-side Qdrant URL. It
+projects the container-side runtime URL to
+`QDRANT_DOCKER_URL=http://qdrant:6333`. When the URL is local, the lifecycle
+script starts repo-owned Qdrant with the configured admin and read-only keys.
+Missing Qdrant values or an unreachable container-side Qdrant endpoint fail
+closed.
 
 ## Create Current Collection Snapshots
 

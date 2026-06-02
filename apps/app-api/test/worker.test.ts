@@ -157,7 +157,7 @@ describe("app-api worker foundation", () => {
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
-		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "30000"');
+		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "95000"');
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');

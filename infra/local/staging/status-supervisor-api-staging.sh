@@ -43,6 +43,7 @@ supervisor_api_staging_acquire_lock 30
 supervisor_api_staging_load_env
 if (( strict_mode == 1 )); then
   supervisor_api_staging_require_runtime_env
+  supervisor_api_staging_require_data_plane_ready
 fi
 supervisor_api_staging_adopt_existing_process \
   "cloudflared" \
@@ -97,6 +98,8 @@ failures=()
 
 if ! supervisor_api_staging_compose_project_running; then
   failures+=("supervisor-api compose project is not fully running")
+elif ! supervisor_api_staging_require_container_qdrant_ready; then
+  failures+=("supervisor-agent-worker cannot reach Qdrant through container data-plane network")
 fi
 
 if [[ -n "${supervisor_api_staging_public_base_url}" ]] && ! supervisor_api_staging_pid_is_running "${supervisor_api_staging_cloudflared_pid_file}"; then

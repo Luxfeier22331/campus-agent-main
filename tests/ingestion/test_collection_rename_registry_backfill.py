@@ -90,6 +90,7 @@ class CollectionRenameRegistryBackfillTest(unittest.TestCase):
 
         with (
             _patched_postgres_runtime(),
+            _patched_registry_schema_bootstrap(),
             patch(
                 "campus_ingestion_core.collection_rename_registry_backfill.open_postgres_connection",
                 side_effect=store.open,
@@ -116,6 +117,45 @@ class CollectionRenameRegistryBackfillTest(unittest.TestCase):
         raw_target = next(item for item in report.targets if item.kind == "raw_asset_registry")
         self.assertEqual(raw_target.legacy_row_count, 0)
 
+    def test_audit_bootstraps_registry_tables_before_querying_targets(self) -> None:
+        store = _FakeRegistryStore(
+            {
+                "postgresql://document": [],
+                "postgresql://raw": [],
+            }
+        )
+
+        with (
+            _patched_postgres_runtime(),
+            patch(
+                "campus_ingestion_core.collection_rename_registry_backfill.PostgresDocumentRegistry",
+                create=True,
+            ) as document_registry,
+            patch(
+                "campus_ingestion_core.collection_rename_registry_backfill.PostgresRawAssetRegistry",
+                create=True,
+            ) as raw_asset_registry,
+            patch(
+                "campus_ingestion_core.collection_rename_registry_backfill.open_postgres_connection",
+                side_effect=store.open,
+            ),
+        ):
+            audit_registry_collection_rename_backfill(
+                {
+                    DOCUMENT_REGISTRY_ENV_KEY: "postgresql://document",
+                    RAW_ASSET_REGISTRY_ENV_KEY: "postgresql://raw",
+                }
+            )
+
+        document_registry.assert_called_once_with(
+            "postgresql://document",
+            table_name="ingestion_registry.document_registry_records",
+        )
+        raw_asset_registry.assert_called_once_with(
+            "postgresql://raw",
+            table_name="ingestion_registry.raw_asset_registry_records",
+        )
+
     def test_apply_rewrites_scalar_and_record_collection_and_reports_remaining_rows(self) -> None:
         store = _FakeRegistryStore(
             {
@@ -141,6 +181,7 @@ class CollectionRenameRegistryBackfillTest(unittest.TestCase):
 
         with (
             _patched_postgres_runtime(),
+            _patched_registry_schema_bootstrap(),
             patch(
                 "campus_ingestion_core.collection_rename_registry_backfill.open_postgres_connection",
                 side_effect=store.open,
@@ -170,6 +211,45 @@ class CollectionRenameRegistryBackfillTest(unittest.TestCase):
             ],
         )
 
+    def test_apply_bootstraps_registry_tables_before_querying_targets(self) -> None:
+        store = _FakeRegistryStore(
+            {
+                "postgresql://document": [],
+                "postgresql://raw": [],
+            }
+        )
+
+        with (
+            _patched_postgres_runtime(),
+            patch(
+                "campus_ingestion_core.collection_rename_registry_backfill.PostgresDocumentRegistry",
+                create=True,
+            ) as document_registry,
+            patch(
+                "campus_ingestion_core.collection_rename_registry_backfill.PostgresRawAssetRegistry",
+                create=True,
+            ) as raw_asset_registry,
+            patch(
+                "campus_ingestion_core.collection_rename_registry_backfill.open_postgres_connection",
+                side_effect=store.open,
+            ),
+        ):
+            apply_registry_collection_rename_backfill(
+                {
+                    DOCUMENT_REGISTRY_ENV_KEY: "postgresql://document",
+                    RAW_ASSET_REGISTRY_ENV_KEY: "postgresql://raw",
+                }
+            )
+
+        document_registry.assert_called_once_with(
+            "postgresql://document",
+            table_name="ingestion_registry.document_registry_records",
+        )
+        raw_asset_registry.assert_called_once_with(
+            "postgresql://raw",
+            table_name="ingestion_registry.raw_asset_registry_records",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -190,6 +270,15 @@ def _patched_postgres_runtime():
             "campus_ingestion_core.collection_rename_registry_backfill.normalize_postgres_connection_url",
             side_effect=lambda value: value,
         ),
+    ):
+        yield
+
+
+@contextmanager
+def _patched_registry_schema_bootstrap():
+    with (
+        patch("campus_ingestion_core.collection_rename_registry_backfill.PostgresDocumentRegistry"),
+        patch("campus_ingestion_core.collection_rename_registry_backfill.PostgresRawAssetRegistry"),
     ):
         yield
 

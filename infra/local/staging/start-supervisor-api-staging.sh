@@ -12,6 +12,9 @@ supervisor_api_staging_rotate_logs_if_needed
 supervisor_api_staging_load_env
 supervisor_api_staging_require_runtime_env
 supervisor_api_staging_run_doctor
+supervisor_api_staging_ensure_data_plane_network
+supervisor_api_staging_ensure_self_hosted_data_plane_dependencies
+supervisor_api_staging_require_data_plane_ready
 
 cloudflared_bin="$(supervisor_api_staging_require_command cloudflared)"
 
@@ -41,6 +44,7 @@ supervisor_api_staging_wait_for_http_ok \
   "${SUPERVISOR_API_METRICS_BEARER_TOKEN}" \
   "authorization"
 supervisor_api_staging_capture_compose_logs
+supervisor_api_staging_require_container_qdrant_ready
 
 if supervisor_api_staging_pid_is_running "${supervisor_api_staging_cloudflared_pid_file}"; then
   echo "cloudflared already running (pid $(supervisor_api_staging_read_pid "${supervisor_api_staging_cloudflared_pid_file}"))"

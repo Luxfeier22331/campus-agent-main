@@ -20,6 +20,8 @@ from campus_ingestion_core.registry import (
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
+from campus_ingestion_core.registry_document_postgres import PostgresDocumentRegistry
+from campus_ingestion_core.registry_raw_asset_postgres import PostgresRawAssetRegistry
 
 REGULATIONS_CORPUS = "regulations"
 COLLECTION_RENAME_MAP = {
@@ -224,6 +226,13 @@ def _count_legacy_rows(target: _RegistryBackfillTarget) -> int:
     return int(row[0] if row is not None else 0)
 
 
+def _ensure_registry_target_schema(target: _RegistryBackfillTarget) -> None:
+    if target.kind == "document_registry":
+        PostgresDocumentRegistry(target.database_url, table_name=target.table_name)
+        return
+    PostgresRawAssetRegistry(target.database_url, table_name=target.table_name)
+
+
 def _sample_legacy_rows(
     target: _RegistryBackfillTarget,
 ) -> tuple[RegistryCollectionRenameSample, ...]:
@@ -270,17 +279,19 @@ def audit_registry_collection_rename_backfill(
     env: dict[str, str] | None = None,
 ) -> RegistryCollectionRenameAuditReport:
     targets = resolve_registry_collection_rename_targets(env)
-    results = tuple(
-        RegistryCollectionRenameTargetResult(
-            kind=target.kind,
-            legacy_row_count=_count_legacy_rows(target),
-            sample_rows=_sample_legacy_rows(target),
-            table_name=target.table_name,
-            target_names=target.target_names,
+    results: list[RegistryCollectionRenameTargetResult] = []
+    for target in targets:
+        _ensure_registry_target_schema(target)
+        results.append(
+            RegistryCollectionRenameTargetResult(
+                kind=target.kind,
+                legacy_row_count=_count_legacy_rows(target),
+                sample_rows=_sample_legacy_rows(target),
+                table_name=target.table_name,
+                target_names=target.target_names,
+            )
         )
-        for target in targets
-    )
-    return RegistryCollectionRenameAuditReport(command="audit", targets=results)
+    return RegistryCollectionRenameAuditReport(command="audit", targets=tuple(results))
 
 
 def _apply_legacy_row_backfill(target: _RegistryBackfillTarget) -> int:
@@ -310,6 +321,7 @@ def apply_registry_collection_rename_backfill(
     targets = resolve_registry_collection_rename_targets(env)
     results: list[RegistryCollectionRenameTargetResult] = []
     for target in targets:
+        _ensure_registry_target_schema(target)
         legacy_row_count = _count_legacy_rows(target)
         sample_rows = _sample_legacy_rows(target)
         updated_row_count = _apply_legacy_row_backfill(target)

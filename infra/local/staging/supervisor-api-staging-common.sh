@@ -16,11 +16,18 @@ supervisor_api_staging_host="${SUPERVISOR_API_STAGING_HOST:-127.0.0.1}"
 supervisor_api_staging_port="${SUPERVISOR_API_STAGING_PORT:-27051}"
 supervisor_api_staging_compose_file="${SUPERVISOR_API_STAGING_COMPOSE_FILE:-${supervisor_api_staging_repo_root}/infra/local/docker-compose.supervisor-runtime.yml}"
 supervisor_api_staging_compose_project_name="${SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME:-campus-supervisor-api-staging}"
+supervisor_api_staging_postgres_compose_file="${SUPERVISOR_API_STAGING_POSTGRES_COMPOSE_FILE:-${supervisor_api_staging_repo_root}/infra/local/docker-compose.postgres.yml}"
+supervisor_api_staging_postgres_compose_project_name="${SUPERVISOR_API_STAGING_POSTGRES_COMPOSE_PROJECT_NAME:-campus-agent-local}"
+supervisor_api_staging_minio_compose_file="${SUPERVISOR_API_STAGING_MINIO_COMPOSE_FILE:-${supervisor_api_staging_repo_root}/infra/local/docker-compose.minio.yml}"
+supervisor_api_staging_minio_compose_project_name="${SUPERVISOR_API_STAGING_MINIO_COMPOSE_PROJECT_NAME:-campus-agent-local}"
+supervisor_api_staging_qdrant_compose_file="${SUPERVISOR_API_STAGING_QDRANT_COMPOSE_FILE:-${supervisor_api_staging_repo_root}/infra/local/docker-compose.qdrant-single-node.yml}"
+supervisor_api_staging_qdrant_compose_project_name="${SUPERVISOR_API_STAGING_QDRANT_COMPOSE_PROJECT_NAME:-local}"
 supervisor_api_staging_tunnel_name="${SUPERVISOR_API_STAGING_TUNNEL_NAME:-supervisor-api-staging}"
 supervisor_api_staging_public_base_url="${SUPERVISOR_API_STAGING_PUBLIC_BASE_URL:-https://exec-staging.mucwiki-edge.link}"
 supervisor_api_staging_app_api_base_url="${SUPERVISOR_API_STAGING_APP_API_BASE_URL:-https://api-staging.mucwiki-edge.link}"
 supervisor_api_staging_cloudflared_metrics_address="${SUPERVISOR_API_STAGING_CLOUDFLARED_METRICS_ADDRESS:-127.0.0.1:20245}"
 supervisor_api_staging_cloudflared_edge_ip_version="${SUPERVISOR_API_STAGING_CLOUDFLARED_EDGE_IP_VERSION:-4}"
+supervisor_api_staging_data_plane_network="${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}"
 supervisor_api_staging_lock_wait_seconds="${SUPERVISOR_API_STAGING_LOCK_WAIT_SECONDS:-180}"
 supervisor_api_staging_cloudflared_match_pattern="${SUPERVISOR_API_STAGING_CLOUDFLARED_MATCH_PATTERN:-cloudflared tunnel .* run}"
 supervisor_api_staging_log_rotate_max_bytes=$((20 * 1024 * 1024))
@@ -197,20 +204,35 @@ const keys = [
   "SUPERVISOR_API_STAGING_TUNNEL_TOKEN",
 ];
 
-function rewriteLocalhostForDocker(value) {
+function projectLoopbackUrlHost(value, dockerHost, dockerPort) {
   if (!value) {
     return value;
   }
   try {
     const parsed = new URL(value);
     if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") {
-      parsed.hostname = "host.docker.internal";
-      return parsed.toString();
+      parsed.hostname = dockerHost;
+      if (dockerPort) {
+        parsed.port = dockerPort;
+      }
+      return parsed.toString().replace(/\/$/, "");
     }
   } catch {
     return value;
   }
   return value;
+}
+
+function projectQdrantForDocker(value) {
+  return projectLoopbackUrlHost(value, "qdrant", "6333");
+}
+
+function projectPostgresForDocker(value) {
+  return projectLoopbackUrlHost(value, "postgres", "5432");
+}
+
+function projectObjectStoreForDocker(value) {
+  return projectLoopbackUrlHost(value, "minio", "9000");
 }
 
 const resolved = new Map();
@@ -230,6 +252,11 @@ const bridgeBaseUrl =
   "http://supervisor-agent-worker:27052";
 resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
+const workerSharedSecret =
+  process.env.API_WORKER_SHARED_SECRET?.trim() ||
+  process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||
+  "";
+resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
 
 const stagingRequiredMappings = [
   ["STAGING_INGESTION_SHARED_POSTGRES_URL", "CAMPUS_SHARED_POSTGRES_URL"],
@@ -263,6 +290,7 @@ const stagingOptionalMappings = [
   ["STAGING_INGESTION_OBJECT_STORE_REGION", "OBJECT_STORE_REGION"],
   ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
   ["STAGING_INGESTION_QDRANT_API_KEY", "QDRANT_API_KEY"],
+  ["STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY", "QDRANT_READ_ONLY_API_KEY"],
   ["STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS", "QDRANT_TIMEOUT_SECONDS"],
   ["STAGING_INGESTION_EMBEDDING_BASE_URL", "EMBEDDING_BASE_URL"],
   ["STAGING_INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"],
@@ -278,19 +306,79 @@ function isLocalEndpoint(value) {
   }
   try {
     const parsed = new URL(value);
-    return ["127.0.0.1", "localhost", "host.docker.internal"].includes(parsed.hostname);
+    return ["127.0.0.1", "localhost"].includes(parsed.hostname);
   } catch {
     return false;
   }
 }
 
+function isLocalPostgresEndpoint(value) {
+  if (!value) {
+    return false;
+  }
+  try {
+    const parsed = new URL(value);
+    return (
+      ["postgres:", "postgresql:"].includes(parsed.protocol) &&
+      ["127.0.0.1", "localhost"].includes(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function parseLocalPostgresConfig(source, value) {
+  if (!isLocalPostgresEndpoint(value)) {
+    return null;
+  }
+  const parsed = new URL(value);
+  return {
+    source,
+    database: decodeURIComponent(parsed.pathname.replace(/^\//, "")),
+    username: decodeURIComponent(parsed.username || ""),
+    password: decodeURIComponent(parsed.password || ""),
+    port: parsed.port || "5432",
+  };
+}
+
+function localPostgresConfigSignature(config) {
+  return JSON.stringify({
+    database: config.database,
+    username: config.username,
+    password: config.password,
+    port: config.port,
+  });
+}
+
 function acceptsSameHostStagingEndpoint(source) {
-  return source === "STAGING_INGESTION_QDRANT_URL";
+  return [
+    "STAGING_INGESTION_SHARED_POSTGRES_URL",
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
+    "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL",
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+    "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",
+    "STAGING_INGESTION_QDRANT_URL",
+  ].includes(source);
 }
 
 function projectDataPlaneValue(source, value) {
-  if (acceptsSameHostStagingEndpoint(source)) {
-    return rewriteLocalhostForDocker(value);
+  if (
+    source === "STAGING_INGESTION_SHARED_POSTGRES_URL" ||
+    source === "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL" ||
+    source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL" ||
+    source === "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL" ||
+    source === "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL" ||
+    source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL"
+  ) {
+    return projectPostgresForDocker(value);
+  }
+  if (source === "STAGING_INGESTION_OBJECT_STORE_ENDPOINT") {
+    return projectObjectStoreForDocker(value);
+  }
+  if (source === "STAGING_INGESTION_QDRANT_URL") {
+    return projectQdrantForDocker(value);
   }
   return value;
 }
@@ -357,8 +445,21 @@ for (const [source, target] of stagingRequiredMappings) {
     validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
   }
   resolved.set(target, value);
+  const dockerValue = projectDataPlaneValue(source, value);
+  if (source === "STAGING_INGESTION_SHARED_POSTGRES_URL") {
+    resolved.set("CAMPUS_SHARED_POSTGRES_DOCKER_URL", dockerValue);
+  }
+  if (source === "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL") {
+    resolved.set("DOCUMENT_REGISTRY_DOCKER_DATABASE_URL", dockerValue);
+  }
+  if (source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL") {
+    resolved.set("RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL", dockerValue);
+  }
+  if (source === "STAGING_INGESTION_OBJECT_STORE_ENDPOINT") {
+    resolved.set("OBJECT_STORE_DOCKER_ENDPOINT", dockerValue);
+  }
   if (source === "STAGING_INGESTION_QDRANT_URL") {
-    resolved.set("QDRANT_DOCKER_URL", projectDataPlaneValue(source, value));
+    resolved.set("QDRANT_DOCKER_URL", dockerValue);
   }
 }
 for (const [source, target] of stagingOptionalMappings) {
@@ -385,8 +486,21 @@ for (const [source, target] of stagingOptionalMappings) {
       validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
     }
     resolved.set(target, value);
+    const dockerValue = projectDataPlaneValue(source, value);
+    if (source === "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL") {
+      resolved.set("CAMPUS_SHARED_POSTGRES_OPERATOR_DOCKER_URL", dockerValue);
+    }
+    if (source === "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL") {
+      resolved.set("DOCUMENT_REGISTRY_OPERATOR_DOCKER_DATABASE_URL", dockerValue);
+    }
+    if (source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL") {
+      resolved.set("RAW_ASSET_REGISTRY_OPERATOR_DOCKER_DATABASE_URL", dockerValue);
+    }
+    if (source === "STAGING_INGESTION_OBJECT_STORE_ENDPOINT") {
+      resolved.set("OBJECT_STORE_DOCKER_ENDPOINT", dockerValue);
+    }
     if (source === "STAGING_INGESTION_QDRANT_URL") {
-      resolved.set("QDRANT_DOCKER_URL", projectDataPlaneValue(source, value));
+      resolved.set("QDRANT_DOCKER_URL", dockerValue);
     }
   }
 }
@@ -400,38 +514,135 @@ requireCompletePair(
   "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY",
   "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY",
 );
+const hasSharedObjectStorePair = hasPair(
+  "STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY",
+  "STAGING_INGESTION_OBJECT_STORE_SECRET_KEY",
+);
+const hasDerivedObjectStorePair = hasPair(
+  "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY",
+);
 if (
   !(
-    hasPair(
-      "STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY",
-      "STAGING_INGESTION_OBJECT_STORE_SECRET_KEY",
-    ) ||
-    hasPair(
-      "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY",
-      "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY",
-    )
+    hasSharedObjectStorePair ||
+    hasDerivedObjectStorePair
   )
 ) {
   dataPlaneErrors.push(
     "staging supervisor object-store credentials are required: configure shared or derived credential pair",
   );
 }
+const localPostgresConfigs = [
+  ["STAGING_INGESTION_SHARED_POSTGRES_URL", envValue("STAGING_INGESTION_SHARED_POSTGRES_URL")],
+  [
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
+    envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL"),
+  ],
+  [
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
+    envValue("STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL"),
+  ],
+  [
+    "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL",
+    envValue("STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL"),
+  ],
+  [
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+    envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL"),
+  ],
+  [
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+    envValue("STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL"),
+  ],
+]
+  .map(([source, value]) => parseLocalPostgresConfig(source, value))
+  .filter(Boolean);
+if (localPostgresConfigs.length > 0) {
+  const firstConfig = localPostgresConfigs[0];
+  const firstSignature = localPostgresConfigSignature(firstConfig);
+  const mismatchedSources = localPostgresConfigs
+    .filter((config) => localPostgresConfigSignature(config) !== firstSignature)
+    .map((config) => config.source);
+  if (mismatchedSources.length > 0) {
+    dataPlaneErrors.push(
+      `repo-owned local Postgres uses one database/user/password/port; mismatched local DSNs: ${mismatchedSources.join(", ")}`,
+    );
+  }
+  if (!firstConfig.database || !firstConfig.username || !firstConfig.password) {
+    dataPlaneErrors.push(
+      "repo-owned local Postgres requires database, username, and password in staging Postgres DSNs",
+    );
+  }
+  resolved.set("SUPERVISOR_API_STAGING_LOCAL_POSTGRES_DB", firstConfig.database);
+  resolved.set("SUPERVISOR_API_STAGING_LOCAL_POSTGRES_USER", firstConfig.username);
+  resolved.set("SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PASSWORD", firstConfig.password);
+  resolved.set("SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PORT", firstConfig.port);
+}
+if (isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT"))) {
+  if (hasSharedObjectStorePair && hasDerivedObjectStorePair) {
+    const sharedAccess = envValue("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY");
+    const sharedSecret = envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY");
+    const derivedAccess = envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY");
+    const derivedSecret = envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY");
+    if (sharedAccess !== derivedAccess || sharedSecret !== derivedSecret) {
+      dataPlaneErrors.push(
+        "repo-owned local MinIO uses one credential pair; shared and derived object-store credentials must match or only one pair may be set",
+      );
+    }
+  }
+  const localMinioAccess = hasSharedObjectStorePair
+    ? envValue("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY")
+    : envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY");
+  const localMinioSecret = hasSharedObjectStorePair
+    ? envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY")
+    : envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY");
+  resolved.set("SUPERVISOR_API_STAGING_LOCAL_MINIO_ACCESS_KEY", localMinioAccess);
+  resolved.set("SUPERVISOR_API_STAGING_LOCAL_MINIO_SECRET_KEY", localMinioSecret);
+}
+if (
+  isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) &&
+  !envValue("STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY")
+) {
+  dataPlaneErrors.push(
+    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY is required for repo-owned local Qdrant",
+  );
+}
 resolved.set("SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS", dataPlaneErrors.join("\n"));
+resolved.set(
+  "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_POSTGRES",
+  [
+    envValue("STAGING_INGESTION_SHARED_POSTGRES_URL"),
+    envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL"),
+    envValue("STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL"),
+    envValue("STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL"),
+    envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL"),
+    envValue("STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL"),
+  ].some(isLocalPostgresEndpoint)
+    ? "true"
+    : "false",
+);
+resolved.set(
+  "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_MINIO",
+  isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT")) ? "true" : "false",
+);
+resolved.set(
+  "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_QDRANT",
+  isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) ? "true" : "false",
+);
 
 for (const [key, value] of resolved.entries()) {
-  if (
-    key === "SUPERVISOR_API_EXECUTION_AUDIT_URL"
-  ) {
-    process.stdout.write(`export ${key}=${JSON.stringify(rewriteLocalhostForDocker(value))}\n`);
-    continue;
-  }
   process.stdout.write(`export ${key}=${JSON.stringify(value)}\n`);
 }
+
 NODE
   )"
   eval "${export_script}"
 
   supervisor_api_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-}"
+  if [[ -z "${API_WORKER_SHARED_SECRET:-}" ]]; then
+    echo "API_WORKER_SHARED_SECRET is required for supervisor-api staging trusted-worker auth; set API_WORKER_SHARED_SECRET or SUPERVISOR_API_SHARED_SECRET" >&2
+    return 1
+  fi
   if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_URL:-}" && -n "${supervisor_api_staging_app_api_base_url}" ]]; then
     export SUPERVISOR_API_EXECUTION_AUDIT_URL="${supervisor_api_staging_app_api_base_url%/}/api/internal/execution/audit-events"
   fi
@@ -666,13 +877,168 @@ supervisor_api_staging_compose() {
     cd "${supervisor_api_staging_repo_root}" || exit
     COMPOSE_PROJECT_NAME="${supervisor_api_staging_compose_project_name}" \
     SUPERVISOR_API_HOST_PORT="${supervisor_api_staging_port}" \
+    CAMPUS_AGENT_DATA_PLANE_NETWORK="${supervisor_api_staging_data_plane_network}" \
     SUPERVISOR_API_RUNTIME_PROFILE=staging \
     API_AUTH_MODE=trusted-worker \
     API_WORKER_SHARED_SECRET="${worker_shared_secret}" \
     SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
+    CAMPUS_SHARED_POSTGRES_URL="${CAMPUS_SHARED_POSTGRES_DOCKER_URL:?CAMPUS_SHARED_POSTGRES_DOCKER_URL is required}" \
+    DOCUMENT_REGISTRY_DATABASE_URL="${DOCUMENT_REGISTRY_DOCKER_DATABASE_URL:?DOCUMENT_REGISTRY_DOCKER_DATABASE_URL is required}" \
+    RAW_ASSET_REGISTRY_DATABASE_URL="${RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL:?RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL is required}" \
+    CAMPUS_SHARED_POSTGRES_OPERATOR_URL="${CAMPUS_SHARED_POSTGRES_OPERATOR_DOCKER_URL:-${CAMPUS_SHARED_POSTGRES_DOCKER_URL}}" \
+    DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL="${DOCUMENT_REGISTRY_OPERATOR_DOCKER_DATABASE_URL:-${DOCUMENT_REGISTRY_DOCKER_DATABASE_URL}}" \
+    RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL="${RAW_ASSET_REGISTRY_OPERATOR_DOCKER_DATABASE_URL:-${RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL}}" \
+    OBJECT_STORE_ENDPOINT="${OBJECT_STORE_DOCKER_ENDPOINT:?OBJECT_STORE_DOCKER_ENDPOINT is required}" \
     QDRANT_URL="${QDRANT_DOCKER_URL:?QDRANT_DOCKER_URL is required}" \
     "${docker_bin}" compose -f "${supervisor_api_staging_compose_file}" "$@"
   )
+}
+
+supervisor_api_staging_ensure_data_plane_network() {
+  local docker_bin
+  docker_bin="$(supervisor_api_staging_require_command docker)"
+  if ! "${docker_bin}" network inspect "${supervisor_api_staging_data_plane_network}" >/dev/null 2>&1; then
+    "${docker_bin}" network create "${supervisor_api_staging_data_plane_network}" >/dev/null
+  fi
+}
+
+supervisor_api_staging_requires_local_postgres_dependency() {
+  [[ "${SUPERVISOR_API_STAGING_REQUIRES_LOCAL_POSTGRES:-false}" == "true" ]]
+}
+
+supervisor_api_staging_requires_local_minio_dependency() {
+  [[ "${SUPERVISOR_API_STAGING_REQUIRES_LOCAL_MINIO:-false}" == "true" ]]
+}
+
+supervisor_api_staging_requires_local_qdrant_dependency() {
+  [[ "${SUPERVISOR_API_STAGING_REQUIRES_LOCAL_QDRANT:-false}" == "true" ]]
+}
+
+supervisor_api_staging_dependency_compose() {
+  local project_name="$1"
+  local compose_file="$2"
+  shift 2
+  local docker_bin
+  docker_bin="$(supervisor_api_staging_require_command docker)"
+
+  (
+    cd "${supervisor_api_staging_repo_root}" || exit
+    COMPOSE_PROJECT_NAME="${project_name}" \
+    CAMPUS_AGENT_DATA_PLANE_NETWORK="${supervisor_api_staging_data_plane_network}" \
+    "${docker_bin}" compose -f "${compose_file}" "$@"
+  )
+}
+
+supervisor_api_staging_postgres_compose() {
+  local docker_bin
+  docker_bin="$(supervisor_api_staging_require_command docker)"
+
+  (
+    cd "${supervisor_api_staging_repo_root}" || exit
+    COMPOSE_PROJECT_NAME="${supervisor_api_staging_postgres_compose_project_name}" \
+    CAMPUS_AGENT_DATA_PLANE_NETWORK="${supervisor_api_staging_data_plane_network}" \
+    LOCAL_POSTGRES_DB="${SUPERVISOR_API_STAGING_LOCAL_POSTGRES_DB:?SUPERVISOR_API_STAGING_LOCAL_POSTGRES_DB is required}" \
+    LOCAL_POSTGRES_USER="${SUPERVISOR_API_STAGING_LOCAL_POSTGRES_USER:?SUPERVISOR_API_STAGING_LOCAL_POSTGRES_USER is required}" \
+    LOCAL_POSTGRES_PASSWORD="${SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PASSWORD:?SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PASSWORD is required}" \
+    LOCAL_POSTGRES_PORT="${SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PORT:?SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PORT is required}" \
+    "${docker_bin}" compose -f "${supervisor_api_staging_postgres_compose_file}" "$@"
+  )
+}
+
+supervisor_api_staging_minio_compose() {
+  local docker_bin
+  docker_bin="$(supervisor_api_staging_require_command docker)"
+
+  (
+    cd "${supervisor_api_staging_repo_root}" || exit
+    COMPOSE_PROJECT_NAME="${supervisor_api_staging_minio_compose_project_name}" \
+    CAMPUS_AGENT_DATA_PLANE_NETWORK="${supervisor_api_staging_data_plane_network}" \
+    OBJECT_STORE_ACCESS_KEY="${SUPERVISOR_API_STAGING_LOCAL_MINIO_ACCESS_KEY:?SUPERVISOR_API_STAGING_LOCAL_MINIO_ACCESS_KEY is required}" \
+    OBJECT_STORE_SECRET_KEY="${SUPERVISOR_API_STAGING_LOCAL_MINIO_SECRET_KEY:?SUPERVISOR_API_STAGING_LOCAL_MINIO_SECRET_KEY is required}" \
+    "${docker_bin}" compose -f "${supervisor_api_staging_minio_compose_file}" "$@"
+  )
+}
+
+supervisor_api_staging_qdrant_compose() {
+  local docker_bin
+  docker_bin="$(supervisor_api_staging_require_command docker)"
+
+  (
+    cd "${supervisor_api_staging_repo_root}" || exit
+    COMPOSE_PROJECT_NAME="${supervisor_api_staging_qdrant_compose_project_name}" \
+    CAMPUS_AGENT_DATA_PLANE_NETWORK="${supervisor_api_staging_data_plane_network}" \
+    QDRANT_API_KEY="${QDRANT_API_KEY:?QDRANT_API_KEY is required}" \
+    QDRANT_READ_ONLY_API_KEY="${QDRANT_READ_ONLY_API_KEY:?QDRANT_READ_ONLY_API_KEY is required}" \
+    "${docker_bin}" compose -f "${supervisor_api_staging_qdrant_compose_file}" "$@"
+  )
+}
+
+supervisor_api_staging_ensure_local_minio_volume() {
+  local docker_bin
+  docker_bin="$(supervisor_api_staging_require_command docker)"
+  "${docker_bin}" volume create local_minio-data >/dev/null
+}
+
+supervisor_api_staging_ensure_local_minio_bucket() {
+  local uv_bin
+  supervisor_api_staging_wait_for_http_ok "http://127.0.0.1:9000/minio/health/ready" 45 2
+  uv_bin="$(supervisor_api_staging_resolve_uv_bin)"
+  (
+    cd "${supervisor_api_staging_repo_root}" || exit
+    "${uv_bin}" run --all-packages python - <<'PY'
+from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
+from campus_ingestion_core.settings import ObjectStoreSettings
+
+settings = ObjectStoreSettings.from_env()
+S3ObjectStoreAdmin(settings).ensure_bucket(bucket=settings.bucket_derived)
+PY
+  )
+}
+
+supervisor_api_staging_ensure_self_hosted_data_plane_dependencies() {
+  supervisor_api_staging_ensure_data_plane_network
+  if supervisor_api_staging_requires_local_postgres_dependency; then
+    supervisor_api_staging_postgres_compose up -d
+  fi
+  if supervisor_api_staging_requires_local_minio_dependency; then
+    supervisor_api_staging_ensure_local_minio_volume
+    supervisor_api_staging_minio_compose up -d
+    supervisor_api_staging_ensure_local_minio_bucket
+  fi
+  if supervisor_api_staging_requires_local_qdrant_dependency; then
+    supervisor_api_staging_qdrant_compose up -d
+  fi
+}
+
+supervisor_api_staging_require_container_qdrant_ready() {
+  local docker_bin
+  local qdrant_ready_status
+  local qdrant_collections_status
+  docker_bin="$(supervisor_api_staging_require_command docker)"
+
+  qdrant_ready_status="$(
+    "${docker_bin}" compose \
+      -p "${supervisor_api_staging_compose_project_name}" \
+      -f "${supervisor_api_staging_compose_file}" \
+      exec -T supervisor-agent-worker python -c \
+'import os,sys,urllib.request; base=os.environ["QDRANT_URL"].rstrip("/"); req=urllib.request.Request(base+"/readyz", headers={"api-key": os.environ.get("QDRANT_API_KEY", "")}); r=urllib.request.urlopen(req, timeout=5); sys.stdout.write(str(r.status))'
+  )"
+  if [[ "${qdrant_ready_status}" != "200" ]]; then
+    echo "supervisor-agent-worker cannot reach Qdrant /readyz via container data-plane URL; status=${qdrant_ready_status}" >&2
+    return 1
+  fi
+
+  qdrant_collections_status="$(
+    "${docker_bin}" compose \
+      -p "${supervisor_api_staging_compose_project_name}" \
+      -f "${supervisor_api_staging_compose_file}" \
+      exec -T supervisor-agent-worker python -c \
+'import os,sys,urllib.request; base=os.environ["QDRANT_URL"].rstrip("/"); req=urllib.request.Request(base+"/collections", headers={"api-key": os.environ.get("QDRANT_API_KEY", "")}); r=urllib.request.urlopen(req, timeout=5); sys.stdout.write(str(r.status))'
+  )"
+  if [[ "${qdrant_collections_status}" != "200" ]]; then
+    echo "supervisor-agent-worker cannot reach Qdrant /collections via container data-plane URL; status=${qdrant_collections_status}" >&2
+    return 1
+  fi
 }
 
 supervisor_api_staging_capture_compose_logs() {
@@ -758,6 +1124,9 @@ supervisor_api_staging_require_runtime_env() {
   fi
 
   supervisor_api_staging_validate_axiom_collector_endpoint
+}
+
+supervisor_api_staging_require_data_plane_ready() {
   supervisor_api_staging_require_registry_collection_rename_closed
   supervisor_api_staging_require_rag_runtime_ready
 }

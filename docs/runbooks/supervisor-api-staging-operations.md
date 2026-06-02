@@ -109,6 +109,8 @@ Compose。
   `http://127.0.0.1:6333`。该 URL 必须让 `/readyz`、`/livez`、`/collections`
   返回 `200`，不能填 cluster 管理页、错误 hostname 或公网未授权入口
 - `STAGING_INGESTION_QDRANT_API_KEY=<staging Qdrant API key>`
+- `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<staging Qdrant read-only API key>`；
+  同机 self-hosted Qdrant 由 lifecycle 脚本启动时必填
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
   query-serving index release metadata 匹配
 - `STAGING_ACCESS_TEAM_DOMAIN=https://ayafeed.cloudflareaccess.com`
@@ -257,17 +259,23 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   `RAW_ASSET_REGISTRY_DATABASE_URL`、`CAMPUS_SHARED_POSTGRES_OPERATOR_URL`、
   `DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL`、`RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL`、
   `OBJECT_STORE_*`、`QDRANT_*`、`EMBEDDING_*` 与 `SPARSE_*`
-- `CAMPUS_SHARED_POSTGRES_URL`、`DOCUMENT_REGISTRY_DATABASE_URL`、
-  `RAW_ASSET_REGISTRY_DATABASE_URL` 与 `OBJECT_STORE_ENDPOINT`
-  不得在 staging supervisor runtime 指向 `127.0.0.1`、
-  `localhost` 或 `host.docker.internal`；这些值只允许存在于本机开发 `.env`，不会作为
-  staging runtime 数据面
+- `STAGING_INGESTION_SHARED_POSTGRES_URL`、`STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL`、
+  `STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL` 与
+  `STAGING_INGESTION_OBJECT_STORE_ENDPOINT` 允许在 `nc-arm-6c` 同机自托管部署中填写
+  `127.0.0.1` / `localhost`。这些值只表示 host-side 运维 / preflight URL；lifecycle
+  脚本会在 Docker compose 环境中分别投影成 `postgres:5432` 与 `minio:9000`。
+  repo-owned local Postgres 是 single-node dependency，所有本地 Postgres DSN 必须使用同一
+  database/user/password/port；repo-owned local MinIO 是 single-node dependency，
+  shared 与 derived credential 同时配置时必须是同一组 credential。
 - `STAGING_INGESTION_QDRANT_URL` 允许在 `nc-arm-6c` 同机自托管部署中填写
-  `http://127.0.0.1:6333`。lifecycle 脚本会在 Docker compose 环境中投影成
-  `QDRANT_DOCKER_URL=http://host.docker.internal:6333/`，并在调用 compose 时把容器内
-  `QDRANT_URL` 设置为该 Docker 视角地址。host-side preflight 仍使用原始
-  `STAGING_INGESTION_QDRANT_URL`，保证 readiness probe 能直接验证同机 self-hosted
-  Qdrant，而不是旧 Qdrant Cloud endpoint
+  `http://127.0.0.1:6333`。该值只表示 host-side 运维 / preflight URL。lifecycle
+  脚本会在 Docker compose 环境中投影成
+  `QDRANT_DOCKER_URL=http://qdrant:6333`，并要求 supervisor runtime 与 Qdrant 同时加入
+  repo-owned `campus-agent-data-plane` Docker network。容器内 retrieval runtime 必须通过
+  Docker service DNS 访问 Qdrant，不得依赖 Docker gateway 或旧开发机 `172.*` 地址。
+- staging runtime 启动前会确保 `campus-agent-data-plane` Docker network 存在；启动后会从
+  `supervisor-agent-worker` 容器内访问 Qdrant `/readyz` 与 `/collections`，该容器视角检查
+  失败时直接 fail closed。
 - staging runtime 启动前会执行 ingestion registry collection rename audit：
   `campus_ingestion_worker.collection_rename_registry_backfill audit`。如果
   `regulations/student_handbook` 或 `regulations/institutional_regulations` 仍残留在
