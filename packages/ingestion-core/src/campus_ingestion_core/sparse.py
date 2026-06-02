@@ -5,10 +5,9 @@ import math
 import os
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
-from fastembed import SparseTextEmbedding
 from qdrant_client.http import models as qdrant_models
 
 DEFAULT_SPARSE_PROVIDER = "qdrant"
@@ -84,7 +83,6 @@ class MockSparseEmbeddingSettings:
 @dataclass(slots=True)
 class QdrantBm25SparseEmbedding:
     settings: SparseEmbeddingSettings
-    _fastembed_model: SparseTextEmbedding | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         provider = self.settings.provider.strip().lower()
@@ -100,7 +98,11 @@ class QdrantBm25SparseEmbedding:
     def build_document(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector:
         if self.settings.is_mock:
             return _build_sparse_vector(text=text, query_mode=False).to_qdrant()
-        return self._build_fastembed_sparse_vector(text=text)
+        return qdrant_models.Document(
+            text=text,
+            model=self.settings.model.strip().lower(),
+            options=_build_bm25_config(self.settings),
+        )
 
     def build_query(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector | None:
         if self.settings.is_mock:
@@ -111,22 +113,11 @@ class QdrantBm25SparseEmbedding:
         normalized = text.strip()
         if not normalized:
             return None
-        return self._build_fastembed_sparse_vector(text=normalized)
-
-    def _build_fastembed_sparse_vector(self, *, text: str) -> qdrant_models.SparseVector:
-        fastembed_model = self._get_fastembed_model()
-        vector = next(iter(fastembed_model.embed([text])))
-        return qdrant_models.SparseVector(
-            indices=[int(index) for index in vector.indices.tolist()],
-            values=[float(value) for value in vector.values.tolist()],
+        return qdrant_models.Document(
+            text=normalized,
+            model=self.settings.model.strip().lower(),
+            options=_build_bm25_config(self.settings),
         )
-
-    def _get_fastembed_model(self) -> SparseTextEmbedding:
-        if self._fastembed_model is None:
-            self._fastembed_model = SparseTextEmbedding(
-                model_name=_fastembed_model_name(self.settings)
-            )
-        return self._fastembed_model
 
 
 def build_sparse_embedding_model(settings: SparseEmbeddingSettings) -> SparseEmbeddingModel:
@@ -145,12 +136,6 @@ def build_mock_sparse_embedding_model(
             language=resolved.language,
         )
     )
-
-
-def _fastembed_model_name(settings: SparseEmbeddingSettings) -> str:
-    if settings.model.strip().lower() == DEFAULT_SPARSE_MODEL:
-        return "Qdrant/bm25"
-    return settings.model.strip()
 
 
 def _build_bm25_config(settings: SparseEmbeddingSettings) -> qdrant_models.Bm25Config:

@@ -194,8 +194,15 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         self.assertIn("dense", point.vector)
         self.assertIn("sparse", point.vector)
         self.assertEqual(point.payload["target_surface"], "regulations/student_rules")
-        self.assertIsInstance(point.vector["sparse"], qdrant_models.SparseVector)
-        self.assertGreater(len(point.vector["sparse"].indices), 0)
+        self.assertIsInstance(point.vector["sparse"], qdrant_models.Document)
+        self.assertEqual(point.vector["sparse"].text, chunks[0].text)
+        self.assertEqual(point.vector["sparse"].model, "qdrant/bm25")
+        self.assertIsInstance(point.vector["sparse"].options, qdrant_models.Bm25Config)
+        self.assertEqual(
+            point.vector["sparse"].options.tokenizer,
+            qdrant_models.TokenizerType.MULTILINGUAL,
+        )
+        self.assertEqual(point.vector["sparse"].options.language, "none")
         indexed_fields = [
             call.kwargs["field_name"] for call in qdrant_client.create_payload_index.call_args_list
         ]
@@ -342,7 +349,9 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         self.assertEqual(settings.tokenizer, "multilingual")
         self.assertEqual(settings.language, "none")
 
-    def test_build_hybrid_prefetch_uses_sparse_vector_query_for_native_hybrid(self) -> None:
+    def test_build_hybrid_prefetch_uses_server_side_bm25_document_query(
+        self,
+    ) -> None:
         class _DenseEmbeddingModel:
             def get_query_embedding(self, query: str) -> list[float]:
                 self.query = query
@@ -363,7 +372,16 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
                 self, text: str
             ) -> qdrant_models.Document | qdrant_models.SparseVector | None:
                 self.query_calls.append(text)
-                return qdrant_models.SparseVector(indices=[101, 202], values=[1.0, 0.5])
+                return qdrant_models.Document(
+                    text=text,
+                    model="qdrant/bm25",
+                    options=qdrant_models.Bm25Config(
+                        tokenizer=qdrant_models.TokenizerType.MULTILINGUAL,
+                        language="none",
+                        lowercase=True,
+                        ascii_folding=False,
+                    ),
+                )
 
         dense_embedding_model = _DenseEmbeddingModel()
         sparse_embedding_model = _SparseEmbeddingModel()
@@ -399,8 +417,15 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         self.assertEqual(prefetch[1].using, "sparse")
         self.assertEqual(prefetch[0].limit, 11)
         self.assertEqual(prefetch[1].limit, 13)
-        self.assertIsInstance(prefetch[1].query, qdrant_models.SparseVector)
-        self.assertGreater(len(prefetch[1].query.indices), 0)
+        self.assertIsInstance(prefetch[1].query, qdrant_models.Document)
+        self.assertEqual(prefetch[1].query.text, "scholarship office hours")
+        self.assertEqual(prefetch[1].query.model, "qdrant/bm25")
+        self.assertIsInstance(prefetch[1].query.options, qdrant_models.Bm25Config)
+        self.assertEqual(
+            prefetch[1].query.options.tokenizer,
+            qdrant_models.TokenizerType.MULTILINGUAL,
+        )
+        self.assertEqual(prefetch[1].query.options.language, "none")
         dense_filter = prefetch[0].filter
         self.assertIsNotNone(dense_filter)
         dense_conditions = dense_filter.must or []

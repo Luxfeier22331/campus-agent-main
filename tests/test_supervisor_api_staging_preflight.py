@@ -76,6 +76,13 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 self.assertIn("external: true", compose)
                 self.assertIn(f"- {alias}", compose)
 
+    def test_self_hosted_qdrant_image_supports_server_side_bm25_inference(self) -> None:
+        compose = (ROOT / "infra/local/docker-compose.qdrant-single-node.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("qdrant/qdrant:v1.15.5", compose)
+
     def test_preflight_script_checks_docker_and_registry_inputs(self) -> None:
         script = (ROOT / "infra/local/staging/preflight-supervisor-api-staging.sh").read_text(
             encoding="utf-8"
@@ -159,6 +166,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
         self.assertIn("supervisor_api_staging_requires_local_minio_dependency", common_script)
         self.assertIn("supervisor_api_staging_requires_local_qdrant_dependency", common_script)
         self.assertIn("supervisor_api_staging_require_container_qdrant_ready", common_script)
+        self.assertIn("bm25_canary_", common_script)
+        self.assertIn('model="qdrant/bm25"', common_script)
+        self.assertIn("Qdrant server-side BM25 inference is not available", common_script)
+        self.assertIn("collection_created = False", common_script)
+        self.assertIn("collection_created = True", common_script)
+        self.assertIn("if collection_created:", common_script)
         self.assertNotIn("host.docker.internal", common_script)
         self.assertNotIn("rewriteLocalhostForDocker", common_script)
         self.assertIn(".env.staging.local", common_script)
@@ -217,10 +230,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
                 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -265,10 +280,138 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
         self.assertEqual(projected["OBJECT_STORE_BUCKET_DERIVED"], "campus-rag-derived-staging")
         self.assertEqual(projected["QDRANT_URL"], "https://qdrant.staging.example.com")
         self.assertEqual(projected["QDRANT_TIMEOUT_SECONDS"], "11")
+        self.assertEqual(projected["EMBEDDING_PROVIDER"], "gitee")
+        self.assertEqual(projected["EMBEDDING_BASE_URL"], "https://ai.gitee.com/v1")
+        self.assertEqual(projected["EMBEDDING_API_KEY"], "embedding-key")
         self.assertEqual(projected["EMBEDDING_MODEL"], "Qwen3-Embedding-4B")
-        self.assertEqual(projected["SPARSE_PROVIDER"], "mock")
+        self.assertEqual(projected["EMBEDDING_DIMENSIONS"], "2560")
+        self.assertEqual(projected["SPARSE_PROVIDER"], "qdrant")
+        self.assertEqual(projected["SPARSE_MODEL"], "qdrant/bm25")
+        self.assertEqual(projected["SPARSE_TOKENIZER"], "multilingual")
+        self.assertEqual(projected["SPARSE_LANGUAGE"], "none")
         self.assertEqual(projected["API_WORKER_SHARED_SECRET"], "worker-secret")
         self.assertEqual(projected["SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS"], "")
+
+    def test_staging_runtime_rejects_missing_staging_embedding_api_key(self) -> None:
+        result = run_common_script_with_env(
+            repo_env=textwrap.dedent(
+                """
+                EMBEDDING_API_KEY=generic-embedding-key
+                """
+            ).strip(),
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+                STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
+                STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
+                STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
+                STAGING_INGESTION_SPARSE_LANGUAGE=none
+                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                """
+            ).strip(),
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("supervisor-api staging data-plane env is invalid", result.stderr)
+        self.assertIn("STAGING_INGESTION_EMBEDDING_API_KEY is required", result.stderr)
+
+    def test_staging_runtime_rejects_missing_staging_sparse_contract(self) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
+                STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+                STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
+                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                """
+            ).strip(),
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("supervisor-api staging data-plane env is invalid", result.stderr)
+        self.assertIn("STAGING_INGESTION_SPARSE_MODEL is required", result.stderr)
+        self.assertIn("STAGING_INGESTION_SPARSE_TOKENIZER is required", result.stderr)
+        self.assertIn("STAGING_INGESTION_SPARSE_LANGUAGE is required", result.stderr)
+
+    def test_staging_runtime_rejects_generic_embedding_and_sparse_without_staging_contract(
+        self,
+    ) -> None:
+        result = run_common_script_with_env(
+            repo_env=textwrap.dedent(
+                """
+                EMBEDDING_PROVIDER=gitee
+                EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                EMBEDDING_API_KEY=generic-embedding-key
+                EMBEDDING_MODEL=Qwen3-Embedding-4B
+                EMBEDDING_DIMENSIONS=2560
+                SPARSE_PROVIDER=qdrant
+                SPARSE_MODEL=qdrant/bm25
+                SPARSE_TOKENIZER=multilingual
+                SPARSE_LANGUAGE=none
+                """
+            ).strip(),
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                """
+            ).strip(),
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("supervisor-api staging data-plane env is invalid", result.stderr)
+        self.assertIn("STAGING_INGESTION_EMBEDDING_PROVIDER is required", result.stderr)
+        self.assertIn("STAGING_INGESTION_EMBEDDING_API_KEY is required", result.stderr)
+        self.assertIn("STAGING_INGESTION_SPARSE_PROVIDER is required", result.stderr)
+        self.assertIn("STAGING_INGESTION_SPARSE_MODEL is required", result.stderr)
 
     def test_staging_runtime_projects_same_host_self_hosted_data_plane_to_service_dns(self) -> None:
         result = run_common_script_with_env(
@@ -287,10 +430,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
                 STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
                 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -359,10 +504,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
                 STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
                 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -399,10 +546,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
                 STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -436,10 +585,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
                 STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -470,10 +621,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
                 STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -505,10 +658,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
                 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -543,10 +698,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
                 STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -616,10 +773,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -661,10 +820,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
@@ -699,10 +860,12 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
-                STAGING_INGESTION_EMBEDDING_PROVIDER=mock
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-                STAGING_INGESTION_SPARSE_PROVIDER=mock
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none

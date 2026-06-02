@@ -21,7 +21,9 @@ updated: 2026-04-23
 
 补充说明：
 
-- live / remote sparse 路径使用 Qdrant cloud inference 执行 `qdrant/bm25`
+- live / remote sparse 路径使用 self-hosted Qdrant server-side BM25 inference 执行
+  `qdrant/bm25`；Python 侧只提交 `Document(text, model="qdrant/bm25",
+  options=Bm25Config(...))`
 - 本地 `:memory:` / mock 路径只保留最小测试 double，不代表 live sparse 真相源
 
 ## 不在本文负责
@@ -73,7 +75,9 @@ updated: 2026-04-23
   - `rrf_dense_weight`
   - `rrf_sparse_weight`
   - `document_support_limit`
-- remote Qdrant client 必须启用 `cloud_inference=True`
+- remote Qdrant client 必须保持 `cloud_inference=False`，由 self-hosted Qdrant server
+  执行 `qdrant/bm25` sparse inference；不得在 Python runtime 中启用 FastEmbed 作为生产
+  sparse encoder
 - handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` /
   vector binding / `retrieval_top_k=8` / hybrid runtime knobs 必须对齐本轮目标索引，不与旧
   dense-only target 混用

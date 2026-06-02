@@ -266,6 +266,8 @@ const stagingRequiredMappings = [
   ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
   ["STAGING_INGESTION_QDRANT_URL", "QDRANT_URL"],
   ["STAGING_INGESTION_EMBEDDING_PROVIDER", "EMBEDDING_PROVIDER"],
+  ["STAGING_INGESTION_EMBEDDING_BASE_URL", "EMBEDDING_BASE_URL"],
+  ["STAGING_INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"],
   ["STAGING_INGESTION_EMBEDDING_MODEL", "EMBEDDING_MODEL"],
   ["STAGING_INGESTION_EMBEDDING_DIMENSIONS", "EMBEDDING_DIMENSIONS"],
   ["STAGING_INGESTION_SPARSE_PROVIDER", "SPARSE_PROVIDER"],
@@ -292,8 +294,6 @@ const stagingOptionalMappings = [
   ["STAGING_INGESTION_QDRANT_API_KEY", "QDRANT_API_KEY"],
   ["STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY", "QDRANT_READ_ONLY_API_KEY"],
   ["STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS", "QDRANT_TIMEOUT_SECONDS"],
-  ["STAGING_INGESTION_EMBEDDING_BASE_URL", "EMBEDDING_BASE_URL"],
-  ["STAGING_INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"],
 ];
 
 function envValue(key) {
@@ -1014,6 +1014,7 @@ supervisor_api_staging_require_container_qdrant_ready() {
   local docker_bin
   local qdrant_ready_status
   local qdrant_collections_status
+  local qdrant_bm25_canary_status
   docker_bin="$(supervisor_api_staging_require_command docker)"
 
   qdrant_ready_status="$(
@@ -1037,6 +1038,85 @@ supervisor_api_staging_require_container_qdrant_ready() {
   )"
   if [[ "${qdrant_collections_status}" != "200" ]]; then
     echo "supervisor-agent-worker cannot reach Qdrant /collections via container data-plane URL; status=${qdrant_collections_status}" >&2
+    return 1
+  fi
+
+  if ! qdrant_bm25_canary_status="$(
+    "${docker_bin}" compose \
+      -p "${supervisor_api_staging_compose_project_name}" \
+      -f "${supervisor_api_staging_compose_file}" \
+      exec -T supervisor-agent-worker python - <<'PY'
+import os
+import sys
+import time
+import uuid
+
+from qdrant_client import QdrantClient
+from qdrant_client.http import models as qdrant_models
+
+collection = f"bm25_canary_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+client = QdrantClient(
+    url=os.environ["QDRANT_URL"],
+    api_key=os.environ.get("QDRANT_API_KEY") or None,
+    timeout=30,
+    cloud_inference=False,
+    check_compatibility=False,
+    trust_env=False,
+)
+bm25_document = qdrant_models.Document(
+    text="server side bm25 canary",
+    model="qdrant/bm25",
+    options=qdrant_models.Bm25Config(
+        tokenizer=qdrant_models.TokenizerType.MULTILINGUAL,
+        language="none",
+        lowercase=True,
+        ascii_folding=False,
+    ),
+)
+collection_created = False
+try:
+    client.create_collection(
+        collection_name=collection,
+        vectors_config={"dense": qdrant_models.VectorParams(size=4, distance=qdrant_models.Distance.COSINE)},
+        sparse_vectors_config={"sparse": qdrant_models.SparseVectorParams(modifier=qdrant_models.Modifier.IDF)},
+    )
+    collection_created = True
+    client.upsert(
+        collection_name=collection,
+        points=[
+            qdrant_models.PointStruct(
+                id=1,
+                vector={"dense": [0.1, 0.2, 0.3, 0.4], "sparse": bm25_document},
+                payload={"kind": "bm25_canary"},
+            )
+        ],
+        wait=True,
+    )
+    result = client.query_points(
+        collection_name=collection,
+        query=bm25_document,
+        using="sparse",
+        limit=1,
+        with_payload=True,
+    )
+    if not result.points:
+        raise RuntimeError("empty BM25 canary query result")
+    if result.points[0].payload.get("kind") != "bm25_canary":
+        raise RuntimeError(f"unexpected BM25 canary payload: {result.points[0].payload!r}")
+    sys.stdout.write("ok")
+finally:
+    if collection_created:
+        client.delete_collection(collection_name=collection)
+PY
+  )"; then
+    echo "Qdrant server-side BM25 inference is not available via container data-plane URL." >&2
+    if [[ -n "${qdrant_bm25_canary_status:-}" ]]; then
+      echo "${qdrant_bm25_canary_status}" >&2
+    fi
+    return 1
+  fi
+  if [[ "${qdrant_bm25_canary_status}" != "ok" ]]; then
+    echo "Qdrant server-side BM25 inference is not available via container data-plane URL; status=${qdrant_bm25_canary_status}" >&2
     return 1
   fi
 }

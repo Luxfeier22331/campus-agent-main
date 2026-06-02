@@ -112,7 +112,16 @@ Compose。
 - `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<staging Qdrant read-only API key>`；
   同机 self-hosted Qdrant 由 lifecycle 脚本启动时必填
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
-  query-serving index release metadata 匹配
+  query-serving index release metadata 匹配。当前 staging baseline 固定为：
+  - `STAGING_INGESTION_EMBEDDING_PROVIDER=gitee`
+  - `STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1`
+  - `STAGING_INGESTION_EMBEDDING_API_KEY=<secret>`
+  - `STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B`
+  - `STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560`
+  - `STAGING_INGESTION_SPARSE_PROVIDER=qdrant`
+  - `STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25`
+  - `STAGING_INGESTION_SPARSE_TOKENIZER=multilingual`
+  - `STAGING_INGESTION_SPARSE_LANGUAGE=none`
 - `STAGING_ACCESS_TEAM_DOMAIN=https://ayafeed.cloudflareaccess.com`
 - `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
 - `SUPERVISOR_API_METRICS_BEARER_TOKEN=<metrics bearer token>`
@@ -128,6 +137,8 @@ Compose。
 supervisor lifecycle 不会从 root `.env`、`apps/app-api/.dev.vars` 或
 `STAGING_APP_API_OPERATOR_DATABASE_URL` 猜测 retrieval runtime 数据面。缺任一
 `STAGING_INGESTION_*` 必填项时，`start-supervisor-api-staging.sh` 会 fail closed。
+generic `EMBEDDING_*` / `SPARSE_*` 不能替代 staging 的
+`STAGING_INGESTION_EMBEDDING_*` / `STAGING_INGESTION_SPARSE_*`。
 
 Cloudflare R2 staging object store 固定为：
 
@@ -273,6 +284,14 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   `QDRANT_DOCKER_URL=http://qdrant:6333`，并要求 supervisor runtime 与 Qdrant 同时加入
   repo-owned `campus-agent-data-plane` Docker network。容器内 retrieval runtime 必须通过
   Docker service DNS 访问 Qdrant，不得依赖 Docker gateway 或旧开发机 `172.*` 地址。
+- 同机 Docker data-plane 内的 Qdrant 通信使用 HTTP + API key；`6333` 只绑定
+  `127.0.0.1`，不公网裸露。TLS 不作为同机容器网络 blocker；一旦 Qdrant 跨主机、
+  公网、Tunnel 或 VPC 间通信，TLS 与网络层隔离升级为硬要求。
+- query runtime 使用 `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY` 投影出的 read-only
+  key；ingestion、snapshot backup 和 restore 运维使用 admin key。
+- sparse retrieval / indexing 使用 self-hosted Qdrant server-side BM25 inference：
+  Python runtime 发送 `qdrant/bm25` `Document`，不部署 Qdrant Cloud，不部署独立 BM25
+  服务，也不在生产路径使用本地 FastEmbed。
 - staging runtime 启动前会确保 `campus-agent-data-plane` Docker network 存在；启动后会从
   `supervisor-agent-worker` 容器内访问 Qdrant `/readyz` 与 `/collections`，该容器视角检查
   失败时直接 fail closed。

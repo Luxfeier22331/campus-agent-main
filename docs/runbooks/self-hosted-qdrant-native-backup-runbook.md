@@ -34,14 +34,30 @@ Required host layout:
   `/srv/backups/campus-agent/qdrant-snapshots/native`
 - restore/archive bundles:
   `/srv/backups/campus-agent/qdrant-snapshots/<corpus>/<collection>/<release_id>/<backup_id>/`
+- container image: `qdrant/qdrant:v1.15.5` or newer. `v1.14.x` is not accepted
+  for staging / early production because server-side `qdrant/bm25` inference is
+  part of the serving contract.
 
 Network contract:
 
 - bind REST and gRPC to `127.0.0.1` or a private interface
 - do not expose `6333` or `6334` directly to the public internet
 - use API key authentication
-- query runtime receives `QDRANT_URL` and `QDRANT_API_KEY` through deployment
-  secrets only
+- same-host Docker data-plane traffic uses HTTP + API key; TLS is not a blocker
+  for `http://qdrant:6333` inside `campus-agent-data-plane`
+- cross-host, public, Tunnel, or VPC-to-VPC Qdrant traffic must use TLS and an
+  explicit network isolation boundary
+- query runtime receives a read-only Qdrant key through deployment secrets only
+- ingestion, snapshot backup, and restore operations use the admin Qdrant key
+
+Sparse contract:
+
+- self-hosted Qdrant executes server-side BM25 inference for `qdrant/bm25`
+- Python ingestion/retrieval runtime sends `Document(text, model="qdrant/bm25",
+  options=Bm25Config(tokenizer="multilingual", language="none"))`
+- do not use Qdrant Cloud inference or a standalone BM25 service for staging /
+  early production
+- do not use local FastEmbed as the production sparse encoder
 
 `campus-rag-derived-staging` and production serving seed buckets do not store
 Qdrant `.snapshot` files.
@@ -99,6 +115,15 @@ STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
 STAGING_INGESTION_QDRANT_API_KEY=<admin-or-runtime-api-key>
 STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<read-only-api-key>
 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=30
+STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+STAGING_INGESTION_EMBEDDING_API_KEY=<embedding-api-key>
+STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+STAGING_INGESTION_SPARSE_PROVIDER=qdrant
+STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
+STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
+STAGING_INGESTION_SPARSE_LANGUAGE=none
 ```
 
 The staging lifecycle script keeps this value as the host-side Qdrant URL. It
@@ -106,7 +131,9 @@ projects the container-side runtime URL to
 `QDRANT_DOCKER_URL=http://qdrant:6333`. When the URL is local, the lifecycle
 script starts repo-owned Qdrant with the configured admin and read-only keys.
 Missing Qdrant values or an unreachable container-side Qdrant endpoint fail
-closed.
+closed. The same readiness path creates and deletes a temporary
+`bm25_canary_*` collection to prove self-hosted Qdrant can execute
+`qdrant/bm25` server-side inference. `/readyz` alone is not enough.
 
 ## Create Current Collection Snapshots
 
