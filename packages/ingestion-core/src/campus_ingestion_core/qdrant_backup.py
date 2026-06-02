@@ -143,7 +143,7 @@ class QdrantSnapshotAdmin:
             url=settings.qdrant_url,
             api_key=settings.qdrant_api_key,
             timeout=settings.qdrant_timeout_seconds,
-            cloud_inference=True,
+            cloud_inference=False,
             check_compatibility=False,
             trust_env=False,
         )

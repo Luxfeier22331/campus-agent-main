@@ -253,7 +253,7 @@ def build_qdrant_client(
             source=source,
             default_timeout_seconds=settings.qdrant_timeout_seconds,
         ),
-        cloud_inference=True,
+        cloud_inference=False,
     )
 
 

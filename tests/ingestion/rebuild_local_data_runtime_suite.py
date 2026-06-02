@@ -84,7 +84,7 @@ class RebuildLocalDataRuntimeTest(unittest.TestCase):
             url="https://qdrant.example.com",
             api_key="test-key",
             timeout=60.0,
-            cloud_inference=True,
+            cloud_inference=False,
             check_compatibility=False,
             trust_env=False,
         )

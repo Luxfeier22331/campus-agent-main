@@ -91,7 +91,7 @@ def _build_qdrant_client(settings: RetrievalSettings) -> QdrantClient:
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key,
         timeout=settings.qdrant_timeout_seconds,
-        cloud_inference=True,
+        cloud_inference=False,
     )
 
 

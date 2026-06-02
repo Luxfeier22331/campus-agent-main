@@ -168,13 +168,8 @@ def _strip_document_support_query_noise(text: str) -> str:
     return focused_query
 
 
-def _build_rrf_query(profile: CollectionRuntimeProfile) -> qdrant_models.RrfQuery:
-    return qdrant_models.RrfQuery(
-        rrf=qdrant_models.Rrf(
-            k=profile.rrf_k,
-            weights=[profile.rrf_dense_weight, profile.rrf_sparse_weight],
-        )
-    )
+def _build_rrf_query(profile: CollectionRuntimeProfile) -> qdrant_models.FusionQuery:
+    return qdrant_models.FusionQuery(fusion=qdrant_models.Fusion.RRF)
 
 
 def _merge_evidence_sources(

@@ -194,8 +194,8 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         self.assertIn("dense", point.vector)
         self.assertIn("sparse", point.vector)
         self.assertEqual(point.payload["target_surface"], "regulations/student_rules")
-        self.assertIsInstance(point.vector["sparse"], qdrant_models.Document)
-        self.assertEqual(point.vector["sparse"].model, "qdrant/bm25")
+        self.assertIsInstance(point.vector["sparse"], qdrant_models.SparseVector)
+        self.assertGreater(len(point.vector["sparse"].indices), 0)
         indexed_fields = [
             call.kwargs["field_name"] for call in qdrant_client.create_payload_index.call_args_list
         ]
@@ -363,16 +363,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
                 self, text: str
             ) -> qdrant_models.Document | qdrant_models.SparseVector | None:
                 self.query_calls.append(text)
-                return qdrant_models.Document(
-                    text=text,
-                    model="qdrant/bm25",
-                    options=qdrant_models.Bm25Config(
-                        tokenizer=qdrant_models.TokenizerType.MULTILINGUAL,
-                        language="none",
-                        lowercase=True,
-                        ascii_folding=False,
-                    ),
-                )
+                return qdrant_models.SparseVector(indices=[101, 202], values=[1.0, 0.5])
 
         dense_embedding_model = _DenseEmbeddingModel()
         sparse_embedding_model = _SparseEmbeddingModel()
@@ -408,9 +399,8 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         self.assertEqual(prefetch[1].using, "sparse")
         self.assertEqual(prefetch[0].limit, 11)
         self.assertEqual(prefetch[1].limit, 13)
-        self.assertIsInstance(prefetch[1].query, qdrant_models.Document)
-        self.assertEqual(prefetch[1].query.model, "qdrant/bm25")
-        self.assertEqual(prefetch[1].query.text, "scholarship office hours")
+        self.assertIsInstance(prefetch[1].query, qdrant_models.SparseVector)
+        self.assertGreater(len(prefetch[1].query.indices), 0)
         dense_filter = prefetch[0].filter
         self.assertIsNotNone(dense_filter)
         dense_conditions = dense_filter.must or []
@@ -437,7 +427,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             )
         )
 
-    def test_build_rrf_query_uses_runtime_profile_weights(self) -> None:
+    def test_build_rrf_query_uses_qdrant_fusion_query_contract(self) -> None:
         query = _build_rrf_query(
             _make_runtime_profile(
                 rrf_k=37,
@@ -446,8 +436,8 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(query.rrf.k, 37)
-        self.assertEqual(query.rrf.weights, [1.6, 0.7])
+        self.assertIsInstance(query, qdrant_models.FusionQuery)
+        self.assertEqual(query.fusion, qdrant_models.Fusion.RRF)
 
     def test_backend_caches_dense_query_embedding_within_ttl(self) -> None:
         class _CountingDenseEmbeddingModel:
@@ -492,9 +482,9 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             ],
         )
 
-    def test_build_qdrant_client_uses_plain_remote_configuration(self) -> None:
+    def test_build_qdrant_client_uses_self_hosted_native_inference_boundary(self) -> None:
         settings = RetrievalSettings(
-            qdrant_url="https://example-cloud.qdrant.io",
+            qdrant_url="https://example-qdrant.internal",
             qdrant_api_key="secret",
         )
         fake_client = object()
@@ -506,10 +496,10 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
 
         self.assertIs(result, fake_client)
         client_ctor.assert_called_once_with(
-            url="https://example-cloud.qdrant.io",
+            url="https://example-qdrant.internal",
             api_key="secret",
             timeout=settings.qdrant_timeout_seconds,
-            cloud_inference=True,
+            cloud_inference=False,
             check_compatibility=False,
             trust_env=False,
         )

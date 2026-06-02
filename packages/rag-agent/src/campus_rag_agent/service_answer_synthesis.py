@@ -17,6 +17,7 @@ from campus_rag_agent.grounding_validation import validate_prompt_answer_groundi
 from campus_rag_agent.rag_sdk_output import validate_rag_sdk_answer_output
 from campus_rag_agent.rag_sdk_trace import reject_unsafe_rag_sdk_projection
 from campus_rag_agent.retrieval_adequacy import sufficient_retrieval_adequacy
+from campus_rag_agent.typed_answer_drafts import validate_typed_answer_draft
 
 from .rag_sdk_models import (
     RagQueryIntent,
@@ -101,6 +102,24 @@ def build_required_rag_sdk_response(
         supporting_sources=answer_draft.supporting_sources,
         query_text=answer_query,
     )
+    deterministic_response = _maybe_build_deterministic_typed_answer_response(
+        request=request,
+        resolved_scope=resolved_scope,
+        answer_draft=answer_draft,
+        answer_selected_evidence=answer_selected_evidence,
+        retrieved_evidence=retrieved_evidence,
+        retrieval_execution_result=retrieval_execution_result,
+        handbook_plan=handbook_plan,
+        curriculum_plan=curriculum_plan,
+        curriculum_course_plan=curriculum_course_plan,
+        curriculum_program_family_plan=curriculum_program_family_plan,
+        confidence=confidence,
+        planner_information_needs=planner_information_needs,
+        projection_context_summaries=projection_context_summaries,
+        retrieval_intent=retrieval_intent,
+    )
+    if deterministic_response is not None:
+        return deterministic_response
     if runner is _RAG_SDK_RUNNER_NOT_PROVIDED or runner is None:
         return _rag_sdk_runtime_error_response(
             request=request,
@@ -276,6 +295,72 @@ def build_required_rag_sdk_response(
         ),
         agent_observability=AgentObservability(
             safe_details=safe_trace_details,
+        ),
+    )
+
+
+def _maybe_build_deterministic_typed_answer_response(
+    *,
+    request: AgentRequest,
+    resolved_scope: KnowledgeScope,
+    answer_draft,
+    answer_selected_evidence: EvidenceBundle,
+    retrieved_evidence,
+    retrieval_execution_result,
+    handbook_plan,
+    curriculum_plan,
+    curriculum_course_plan,
+    curriculum_program_family_plan,
+    confidence: str,
+    planner_information_needs=(),
+    projection_context_summaries=(),
+    retrieval_intent: RetrievalIntent | None = None,
+) -> AgentResponse | None:
+    if retrieval_intent is None:
+        return None
+    if retrieval_intent.expected.answer_kind not in {
+        "policy_object",
+        "curriculum_document",
+        "official_reference",
+    }:
+        return None
+    if answer_draft.presentation_kind != "document_identity":
+        return None
+    if not answer_draft.answer_text.strip():
+        return None
+    validation = validate_typed_answer_draft(
+        answer_draft.typed_draft,
+        expected_answer_kind=retrieval_intent.expected.answer_kind,
+    )
+    if validation.verdict != "valid":
+        return None
+    return AgentResponse(
+        target="rag-agent",
+        status="completed",
+        answer_text=answer_draft.answer_text,
+        confidence=confidence,
+        result=_build_rag_result_payload(
+            evidence=answer_selected_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            resolved_scope=resolved_scope,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request.request_id,
+            allow_session_follow_up=True,
+            semantic_outcome="grounded_answer",
+            retrieval_adequacy=sufficient_retrieval_adequacy(),
+            claim_supports=validation.claim_supports,
+            grounding_verdict="grounded",
+            prompt_runtime_state="deterministic_typed_answer",
+            prompt_runtime_detail=answer_draft.typed_draft.kind,
+            answer_presentation_kind=answer_draft.presentation_kind,
+            answer_presentation_path=answer_draft.presentation_path,
+            answer_diagnostic_reason=answer_draft.diagnostic_reason,
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
         ),
     )
 
