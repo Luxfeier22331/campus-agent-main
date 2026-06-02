@@ -79,6 +79,7 @@ function createTelemetry(): AppTelemetry {
 		getTraceHeaders: vi.fn(() => ({})),
 		markHttpResponseStatus: vi.fn(),
 		recordExecutionAuditEvent: vi.fn(async () => undefined),
+		recordIdentityEndpoint: vi.fn(async () => undefined),
 		recordProjectionDrain: vi.fn(async () => undefined),
 		recordProjectionEnqueued: vi.fn(async () => undefined),
 		recordQualitySampledGrade: vi.fn(async () => undefined),

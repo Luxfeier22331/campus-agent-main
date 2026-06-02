@@ -5,7 +5,7 @@ import {
 
 const DEFAULT_PASSWORD_ENV_KEY = "APP_API_SMOKE_IDENTITY_PASSWORD";
 const DEFAULT_APP_NAME = "campus-agent-app-api";
-const DEFAULT_PUBLIC_CHAT_ORIGIN = "https://campus-chat-staging.ayafeed.com";
+const DEFAULT_PUBLIC_CHAT_ORIGIN = "https://chat-staging.mucwiki-edge.link";
 const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn";
 const DEFAULT_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com";
 const DEFAULT_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com";

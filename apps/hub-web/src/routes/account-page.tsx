@@ -19,25 +19,106 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { signOutHubAccount } from "../platform/auth/client";
 import {
+	type AccountAccess,
+	type AccountIdentity,
 	type AccountOverview,
 	type AccountOverviewState,
+	type AccountPreferences,
+	type AccountPreferencesResult,
+	loadAccountAccess,
+	loadAccountIdentity,
 	loadAccountOverview,
+	loadAccountPreferences,
 	updateAccountPreferences,
 } from "./account-session";
 import { PageDescription, PageTitle, ShellSection } from "./route-layout";
 
+type AccountScopedState = Exclude<AccountOverviewState, "unauthenticated">;
+
 export function AccountPage() {
 	const [overviewState, setOverviewState] = useState<AccountOverviewState>("loading");
 	const [overview, setOverview] = useState<AccountOverview | null>(null);
+	const [identityState, setIdentityState] = useState<AccountScopedState>("loading");
+	const [identity, setIdentity] = useState<AccountIdentity | null>(null);
+	const [accessState, setAccessState] = useState<AccountScopedState>("loading");
+	const [access, setAccess] = useState<AccountAccess | null>(null);
+	const [preferencesState, setPreferencesState] = useState<AccountScopedState>("loading");
+	const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
 	const [isSigningOut, setIsSigningOut] = useState(false);
 	const [isUpdatingPreferences, setIsUpdatingPreferences] = useState(false);
 
+	const setScopedIdentityResult = useCallback(
+		(result: {
+			identity: AccountIdentity | null;
+			state: Exclude<AccountOverviewState, "loading">;
+		}) => {
+			if (result.state === "unauthenticated") {
+				setOverview(null);
+				setOverviewState("unauthenticated");
+				setIdentity(null);
+				setIdentityState("service_unavailable");
+				return;
+			}
+			setIdentity(result.identity);
+			setIdentityState(result.state);
+		},
+		[],
+	);
+
+	const setScopedAccessResult = useCallback(
+		(result: { access: AccountAccess | null; state: Exclude<AccountOverviewState, "loading"> }) => {
+			if (result.state === "unauthenticated") {
+				setOverview(null);
+				setOverviewState("unauthenticated");
+				setAccess(null);
+				setAccessState("service_unavailable");
+				return;
+			}
+			setAccess(result.access);
+			setAccessState(result.state);
+		},
+		[],
+	);
+
+	const setScopedPreferencesResult = useCallback((result: AccountPreferencesResult) => {
+		if (result.state === "unauthenticated") {
+			setOverview(null);
+			setOverviewState("unauthenticated");
+			setPreferences(null);
+			setPreferencesState("service_unavailable");
+			return;
+		}
+		setPreferences(result.preferences);
+		setPreferencesState(result.state);
+	}, []);
+
 	const loadOverview = useCallback(async () => {
 		setOverviewState("loading");
+		setIdentityState("loading");
+		setAccessState("loading");
+		setPreferencesState("loading");
 		const nextOverview = await loadAccountOverview();
 		setOverview(nextOverview.overview);
 		setOverviewState(nextOverview.state);
-	}, []);
+		if (nextOverview.state !== "ready" || !nextOverview.overview) {
+			setIdentity(null);
+			setAccess(null);
+			setPreferences(null);
+			return;
+		}
+
+		setIdentity(nextOverview.overview.identity);
+		setAccess(nextOverview.overview.access);
+		setPreferences(nextOverview.overview.preferences);
+		const [nextIdentity, nextAccess, nextPreferences] = await Promise.all([
+			loadAccountIdentity(),
+			loadAccountAccess(),
+			loadAccountPreferences(),
+		]);
+		setScopedIdentityResult(nextIdentity);
+		setScopedAccessResult(nextAccess);
+		setScopedPreferencesResult(nextPreferences);
+	}, [setScopedAccessResult, setScopedIdentityResult, setScopedPreferencesResult]);
 
 	useEffect(() => {
 		void loadOverview();
@@ -51,6 +132,9 @@ export function AccountPage() {
 		try {
 			await signOutHubAccount();
 			setOverview(null);
+			setIdentity(null);
+			setAccess(null);
+			setPreferences(null);
 			setOverviewState("unauthenticated");
 		} catch {
 			setOverviewState("service_unavailable");
@@ -64,9 +148,12 @@ export function AccountPage() {
 			return;
 		}
 		setIsUpdatingPreferences(true);
+		setPreferencesState("loading");
 		const result = await updateAccountPreferences({ profileMemoryEnabled: enabled });
 		const updatedPreferences = result.preferences;
 		if (result.state === "ready" && updatedPreferences) {
+			setPreferences(updatedPreferences);
+			setPreferencesState("ready");
 			setOverview((current) =>
 				current
 					? {
@@ -76,7 +163,7 @@ export function AccountPage() {
 					: current,
 			);
 		} else {
-			setOverviewState(result.state);
+			setScopedPreferencesResult(result);
 		}
 		setIsUpdatingPreferences(false);
 	}
@@ -104,11 +191,17 @@ export function AccountPage() {
 				{overviewState === "unauthenticated" ? <AccountLoggedOutCard /> : null}
 				{overviewState === "ready" && overview ? (
 					<AccountOverviewPanel
+						access={access}
+						accessState={accessState}
+						identity={identity}
+						identityState={identityState}
 						isSigningOut={isSigningOut}
 						isUpdatingPreferences={isUpdatingPreferences}
 						onProfileMemoryChange={handleProfileMemoryChange}
 						onSignOut={handleSignOut}
 						overview={overview}
+						preferences={preferences}
+						preferencesState={preferencesState}
 					/>
 				) : null}
 			</div>
@@ -181,18 +274,34 @@ function AccountLoggedOutCard() {
 }
 
 export function AccountOverviewPanel({
+	access,
+	accessState = "ready",
+	identity,
+	identityState = "ready",
 	isSigningOut,
 	isUpdatingPreferences = false,
 	onProfileMemoryChange,
 	onSignOut,
 	overview,
+	preferences,
+	preferencesState = "ready",
 }: {
+	access?: AccountAccess | null;
+	accessState?: AccountScopedState;
+	identity?: AccountIdentity | null;
+	identityState?: AccountScopedState;
 	isSigningOut: boolean;
 	isUpdatingPreferences?: boolean;
 	onProfileMemoryChange?: (enabled: boolean) => void;
 	onSignOut: () => void;
 	overview: AccountOverview;
+	preferences?: AccountPreferences | null;
+	preferencesState?: AccountScopedState;
 }) {
+	const resolvedIdentity = identity ?? overview.identity;
+	const resolvedAccess = access ?? overview.access;
+	const resolvedPreferences = preferences ?? overview.preferences;
+
 	return (
 		<div className="flex flex-col gap-6">
 			<AccountPanel>
@@ -234,40 +343,47 @@ export function AccountOverviewPanel({
 				<AccountFactSection
 					icon={<ShieldCheck aria-hidden="true" className="size-5" />}
 					items={[
-						["身份类型", overview.identity.principalType],
-						["验证状态", formatVerificationStatus(overview.identity.verificationStatus)],
-						["Claims", overview.identity.claimsVersion],
+						["身份类型", resolvedIdentity.principalType],
+						["验证状态", formatVerificationStatus(resolvedIdentity.verificationStatus)],
+						["Claims", resolvedIdentity.claimsVersion],
 					]}
+					state={identityState}
 					title="校园身份"
 				/>
 				<AccountFactSection
 					icon={<Layers3 aria-hidden="true" className="size-5" />}
 					items={[
-						["可用应用", overview.access.availableApps.join(" / ") || "无"],
-						["权限", formatPermissions(overview.access.permissions)],
-						["受限内容", overview.access.restrictedSurfacesReady ? "已准备" : "未开放"],
+						["可用应用", resolvedAccess.availableApps.join(" / ") || "无"],
+						["权限", formatPermissions(resolvedAccess.permissions)],
+						["受限内容", resolvedAccess.restrictedSurfacesReady ? "已准备" : "未开放"],
 					]}
+					state={accessState}
 					title="可用应用"
 				/>
 				<AccountFactSection
 					icon={<Sparkles aria-hidden="true" className="size-5" />}
 					items={[
-						["资料记忆", overview.preferences.profileMemoryEnabled ? "已开启" : "已关闭"],
-						["记忆条目", `${overview.preferences.profileMemoryItemCount}`],
+						["资料记忆", resolvedPreferences.profileMemoryEnabled ? "已开启" : "已关闭"],
+						["记忆条目", `${resolvedPreferences.profileMemoryItemCount}`],
 						["授权影响", "不授予权限"],
 					]}
 					renderFooter={
 						onProfileMemoryChange ? (
 							<Button
 								disabled={isUpdatingPreferences}
-								onClick={() => onProfileMemoryChange(!overview.preferences.profileMemoryEnabled)}
+								onClick={() => onProfileMemoryChange(!resolvedPreferences.profileMemoryEnabled)}
 								type="button"
 								variant="outline"
 							>
-								{overview.preferences.profileMemoryEnabled ? "关闭资料记忆" : "开启资料记忆"}
+								{isUpdatingPreferences
+									? "正在保存"
+									: resolvedPreferences.profileMemoryEnabled
+										? "关闭资料记忆"
+										: "开启资料记忆"}
 							</Button>
 						) : undefined
 					}
+					state={preferencesState}
 					title="资料记忆"
 				/>
 				<AccountFactSection
@@ -288,11 +404,13 @@ function AccountFactSection({
 	icon,
 	items,
 	renderFooter,
+	state = "ready",
 	title,
 }: {
 	icon: ReactNode;
 	items: [string, string][];
 	renderFooter?: ReactNode;
+	state?: AccountScopedState;
 	title: string;
 }) {
 	return (
@@ -303,15 +421,33 @@ function AccountFactSection({
 				</span>
 				<h2 className="text-base font-semibold">{title}</h2>
 			</div>
-			<dl className="mt-5 flex flex-col gap-3">
-				{items.map(([label, value]) => (
-					<div className="grid gap-1 sm:grid-cols-[7rem_1fr]" key={label}>
-						<dt className="text-sm text-muted-foreground">{label}</dt>
-						<dd className="break-words text-sm font-medium text-foreground">{value}</dd>
-					</div>
-				))}
-			</dl>
-			{renderFooter ? <div className="mt-5 border-t border-border pt-5">{renderFooter}</div> : null}
+			{state === "loading" ? (
+				<div className="mt-5 flex min-h-28 items-center gap-3 text-sm text-muted-foreground">
+					<Loader2 aria-hidden="true" className="size-4 animate-spin" />
+					正在加载
+				</div>
+			) : null}
+			{state === "service_unavailable" || state === "network_error" ? (
+				<div className="mt-5 flex min-h-28 gap-3 rounded-md border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
+					<AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+					<span>{state === "network_error" ? "无法连接账号服务" : "账号服务暂不可用"}</span>
+				</div>
+			) : null}
+			{state === "ready" ? (
+				<>
+					<dl className="mt-5 flex flex-col gap-3">
+						{items.map(([label, value]) => (
+							<div className="grid gap-1 sm:grid-cols-[7rem_1fr]" key={label}>
+								<dt className="text-sm text-muted-foreground">{label}</dt>
+								<dd className="break-words text-sm font-medium text-foreground">{value}</dd>
+							</div>
+						))}
+					</dl>
+					{renderFooter ? (
+						<div className="mt-5 border-t border-border pt-5">{renderFooter}</div>
+					) : null}
+				</>
+			) : null}
 		</AccountPanel>
 	);
 }
@@ -339,9 +475,7 @@ function formatAccountStatus(status: AccountOverview["account"]["status"]): stri
 	}
 }
 
-function formatVerificationStatus(
-	status: AccountOverview["identity"]["verificationStatus"],
-): string {
+function formatVerificationStatus(status: AccountIdentity["verificationStatus"]): string {
 	switch (status) {
 		case "expired":
 			return "已过期";
@@ -356,7 +490,7 @@ function formatVerificationStatus(
 	}
 }
 
-function formatPermissions(permissions: AccountOverview["access"]["permissions"]): string {
+function formatPermissions(permissions: AccountAccess["permissions"]): string {
 	const enabled = Object.entries(permissions)
 		.filter(([, value]) => value)
 		.map(([key]) => key);

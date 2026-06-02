@@ -47,6 +47,16 @@ export interface IdentityPlatformOverview {
 	};
 }
 
+export type IdentityPlatformAccess = IdentityPlatformOverview["access"];
+export interface IdentityPlatformMaterializationProjection {
+	account: IdentityPlatformOverview["account"];
+	identity: IdentityPlatformOverview["identity"];
+	access: IdentityPlatformOverview["access"];
+	preferences: IdentityPlatformOverview["preferences"];
+	federation: IdentityPlatformOverview["federation"];
+}
+export type IdentityPlatformIdentity = IdentityPlatformOverview["identity"];
+
 export interface IdentityPlatformPreferences {
 	profileMemoryEnabled: boolean;
 	profileMemoryItemCount: number;

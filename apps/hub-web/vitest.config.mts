@@ -12,6 +12,8 @@ export default defineConfig({
 	test: {
 		environment: "node",
 		exclude: ["test/**/*.worker.test.ts"],
+		fileParallelism: false,
 		include: ["test/**/*.test.ts", "test/**/*.test.tsx", "test/**/*.mjs.test.ts"],
+		maxWorkers: 1,
 	},
 });

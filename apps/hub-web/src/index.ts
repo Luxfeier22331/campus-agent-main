@@ -27,6 +27,8 @@ export interface Env {
 const HUB_ALLOWED_APP_API_PATHS = new Set([
 	"/api/me",
 	"/api/me/overview",
+	"/api/me/identity",
+	"/api/me/access",
 	"/api/me/preferences",
 	"/api/auth/sign-in/email",
 	"/api/auth/sign-up/email",

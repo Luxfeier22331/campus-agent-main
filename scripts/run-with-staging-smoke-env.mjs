@@ -12,13 +12,12 @@ import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
+import { loadRepoEnvFile } from "./load-repo-env.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const appDir = resolve(scriptDir, "..");
-const repoRoot = resolve(scriptDir, "../../..");
+const repoRoot = resolve(scriptDir, "..");
 
-loadRepoEnvFile(import.meta.url, "../../..");
+loadRepoEnvFile(import.meta.url, "..");
 
 try {
 	process.loadEnvFile(resolve(repoRoot, ".env.staging.local"));
@@ -28,9 +27,25 @@ try {
 	}
 }
 
-const [command, ...args] = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+let commandCwd = repoRoot;
+if (rawArgs[0] === "--cwd") {
+	const cwdArg = rawArgs[1]?.trim();
+	if (!cwdArg) {
+		console.error(
+			"Usage: node scripts/run-with-staging-smoke-env.mjs [--cwd <repo-path>] <command> [args...]",
+		);
+		process.exit(1);
+	}
+	commandCwd = resolve(repoRoot, cwdArg);
+	rawArgs.splice(0, 2);
+}
+
+const [command, ...args] = rawArgs;
 if (!command) {
-	console.error("Usage: node ./scripts/run-with-staging-smoke-env.mjs <command> [args...]");
+	console.error(
+		"Usage: node scripts/run-with-staging-smoke-env.mjs [--cwd <repo-path>] <command> [args...]",
+	);
 	process.exit(1);
 }
 
@@ -94,6 +109,7 @@ async function acquireStagingSmokeLock() {
 				`${JSON.stringify({
 					pid: process.pid,
 					startedAt: new Date().toISOString(),
+					cwd: commandCwd,
 					command: [command, ...args],
 				})}\n`,
 				"utf-8",
@@ -176,7 +192,7 @@ process.on("SIGTERM", () => handleShutdownSignal("SIGTERM"));
 process.on("exit", releaseStagingSmokeLock);
 
 child = spawn(command, args, {
-	cwd: appDir,
+	cwd: commandCwd,
 	env: process.env,
 	shell: process.platform === "win32",
 	stdio: "inherit",

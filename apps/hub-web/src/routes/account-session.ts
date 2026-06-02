@@ -55,9 +55,21 @@ interface AccountOverviewResult {
 }
 
 export type AccountPreferences = AccountOverview["preferences"];
+export type AccountAccess = AccountOverview["access"];
+export type AccountIdentity = AccountOverview["identity"];
 
 export interface AccountPreferencesResult {
 	preferences: AccountPreferences | null;
+	state: Exclude<AccountOverviewState, "loading">;
+}
+
+export interface AccountIdentityResult {
+	identity: AccountIdentity | null;
+	state: Exclude<AccountOverviewState, "loading">;
+}
+
+export interface AccountAccessResult {
+	access: AccountAccess | null;
 	state: Exclude<AccountOverviewState, "loading">;
 }
 
@@ -111,6 +123,51 @@ export async function loadAccountOverview(
 	} catch {
 		return { overview: null, state: "network_error" };
 	}
+}
+
+export async function loadAccountIdentity(
+	fetchImplementation: typeof fetch = fetch,
+): Promise<AccountIdentityResult> {
+	const result = await loadScopedAccountProjection({
+		fetchImplementation,
+		isValid: isAccountIdentity,
+		path: "/api/me/identity",
+		property: "identity",
+	});
+	return {
+		identity: result.value,
+		state: result.state,
+	};
+}
+
+export async function loadAccountAccess(
+	fetchImplementation: typeof fetch = fetch,
+): Promise<AccountAccessResult> {
+	const result = await loadScopedAccountProjection({
+		fetchImplementation,
+		isValid: isAccountAccess,
+		path: "/api/me/access",
+		property: "access",
+	});
+	return {
+		access: result.value,
+		state: result.state,
+	};
+}
+
+export async function loadAccountPreferences(
+	fetchImplementation: typeof fetch = fetch,
+): Promise<AccountPreferencesResult> {
+	const result = await loadScopedAccountProjection({
+		fetchImplementation,
+		isValid: isAccountPreferences,
+		path: "/api/me/preferences",
+		property: "preferences",
+	});
+	return {
+		preferences: result.value,
+		state: result.state,
+	};
 }
 
 export async function updateAccountPreferences(
@@ -195,6 +252,50 @@ function isCampusAttributes(value: unknown): boolean {
 	return value.departments === undefined || isStringArray(value.departments);
 }
 
+async function loadScopedAccountProjection<T>(input: {
+	fetchImplementation: typeof fetch;
+	isValid: (value: unknown) => value is T;
+	path: string;
+	property: string;
+}): Promise<{
+	state: Exclude<AccountOverviewState, "loading">;
+	value: T | null;
+}> {
+	const { fetchImplementation, isValid, path, property } = input;
+	try {
+		const response = await fetchImplementation(path, {
+			credentials: "include",
+			headers: { accept: "application/json" },
+		});
+		if (response.status === 401) {
+			return { state: "unauthenticated", value: null };
+		}
+		if (!response.ok) {
+			return { state: "service_unavailable", value: null };
+		}
+		const contentType = response.headers.get("content-type") ?? "";
+		if (!contentType.includes("application/json")) {
+			return { state: "service_unavailable", value: null };
+		}
+		let payload: unknown;
+		try {
+			payload = await response.json();
+		} catch {
+			return { state: "service_unavailable", value: null };
+		}
+		if (!isRecord(payload)) {
+			return { state: "service_unavailable", value: null };
+		}
+		const value = payload[property];
+		if (!isValid(value)) {
+			return { state: "service_unavailable", value: null };
+		}
+		return { state: "ready", value };
+	} catch {
+		return { state: "network_error", value: null };
+	}
+}
+
 function isAccountOverview(value: unknown): value is AccountOverview {
 	if (!isRecord(value)) {
 		return false;
@@ -227,29 +328,10 @@ function isAccountOverview(value: unknown): value is AccountOverview {
 	) {
 		return false;
 	}
-	if (
-		!(
-			isRecord(identity) &&
-			hasString(identity, "claimsVersion") &&
-			hasString(identity, "principalId") &&
-			hasAllowedString(identity, "principalType", END_USER_PRINCIPAL_TYPES) &&
-			hasAllowedString(identity, "verificationStatus", IDENTITY_VERIFICATION_STATUSES) &&
-			isCampusAttributes(identity.campusAttributes)
-		)
-	) {
+	if (!isAccountIdentity(identity)) {
 		return false;
 	}
-	if (
-		!(
-			isRecord(access) &&
-			isStringArray(access.availableApps) &&
-			isStringArray(access.entitlementGroups) &&
-			isRecord(access.permissions) &&
-			hasBoolean(access.permissions, "chat") &&
-			hasBoolean(access.permissions, "operator") &&
-			hasBoolean(access, "restrictedSurfacesReady")
-		)
-	) {
+	if (!isAccountAccess(access)) {
 		return false;
 	}
 	if (!isAccountPreferences(preferences)) {
@@ -267,6 +349,29 @@ function isAccountPreferences(value: unknown): value is AccountPreferences {
 		isRecord(value) &&
 		hasBoolean(value, "profileMemoryEnabled") &&
 		isNonNegativeSafeInteger(value.profileMemoryItemCount)
+	);
+}
+
+function isAccountIdentity(value: unknown): value is AccountIdentity {
+	return (
+		isRecord(value) &&
+		hasString(value, "claimsVersion") &&
+		hasString(value, "principalId") &&
+		hasAllowedString(value, "principalType", END_USER_PRINCIPAL_TYPES) &&
+		hasAllowedString(value, "verificationStatus", IDENTITY_VERIFICATION_STATUSES) &&
+		isCampusAttributes(value.campusAttributes)
+	);
+}
+
+function isAccountAccess(value: unknown): value is AccountAccess {
+	return (
+		isRecord(value) &&
+		isStringArray(value.availableApps) &&
+		isStringArray(value.entitlementGroups) &&
+		isRecord(value.permissions) &&
+		hasBoolean(value.permissions, "chat") &&
+		hasBoolean(value.permissions, "operator") &&
+		hasBoolean(value, "restrictedSurfacesReady")
 	);
 }
 

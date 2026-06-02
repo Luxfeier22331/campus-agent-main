@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { loadAccountOverview, updateAccountPreferences } from "../src/routes/account-session";
+import {
+	loadAccountAccess,
+	loadAccountIdentity,
+	loadAccountOverview,
+	loadAccountPreferences,
+	updateAccountPreferences,
+} from "../src/routes/account-session";
 
 const validOverviewPayload = {
 	account: {
@@ -96,6 +102,110 @@ describe("hub account session loader", () => {
 		expect(fetchImplementation).toHaveBeenCalledWith("/api/me/overview", {
 			credentials: "include",
 			headers: { accept: "application/json" },
+		});
+	});
+
+	it("loads the scoped identity projection", async () => {
+		const fetchImplementation = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ identity: validOverviewPayload.identity }), {
+					headers: { "content-type": "application/json" },
+					status: 200,
+				}),
+		);
+
+		await expect(loadAccountIdentity(fetchImplementation)).resolves.toEqual({
+			identity: validOverviewPayload.identity,
+			state: "ready",
+		});
+		expect(fetchImplementation).toHaveBeenCalledWith("/api/me/identity", {
+			credentials: "include",
+			headers: { accept: "application/json" },
+		});
+	});
+
+	it("calls scoped projection fetch without binding it to an internal options object", async () => {
+		const fetchImplementation = async function (this: unknown) {
+			if (this !== undefined) {
+				throw new TypeError("Illegal invocation");
+			}
+			return new Response(JSON.stringify({ identity: validOverviewPayload.identity }), {
+				headers: { "content-type": "application/json" },
+				status: 200,
+			});
+		} as typeof fetch;
+
+		await expect(loadAccountIdentity(fetchImplementation)).resolves.toEqual({
+			identity: validOverviewPayload.identity,
+			state: "ready",
+		});
+	});
+
+	it("loads the scoped access projection", async () => {
+		const fetchImplementation = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ access: validOverviewPayload.access }), {
+					headers: { "content-type": "application/json" },
+					status: 200,
+				}),
+		);
+
+		await expect(loadAccountAccess(fetchImplementation)).resolves.toEqual({
+			access: validOverviewPayload.access,
+			state: "ready",
+		});
+		expect(fetchImplementation).toHaveBeenCalledWith("/api/me/access", {
+			credentials: "include",
+			headers: { accept: "application/json" },
+		});
+	});
+
+	it("loads the scoped preferences projection", async () => {
+		const fetchImplementation = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ preferences: validOverviewPayload.preferences }), {
+					headers: { "content-type": "application/json" },
+					status: 200,
+				}),
+		);
+
+		await expect(loadAccountPreferences(fetchImplementation)).resolves.toEqual({
+			preferences: validOverviewPayload.preferences,
+			state: "ready",
+		});
+		expect(fetchImplementation).toHaveBeenCalledWith("/api/me/preferences", {
+			credentials: "include",
+			headers: { accept: "application/json" },
+		});
+	});
+
+	it("treats invalid scoped identity payloads as service unavailable", async () => {
+		const fetchImplementation = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ identity: { principalId: "user_01HQ" } }), {
+					headers: { "content-type": "application/json" },
+					status: 200,
+				}),
+		);
+
+		await expect(loadAccountIdentity(fetchImplementation)).resolves.toEqual({
+			identity: null,
+			state: "service_unavailable",
+		});
+	});
+
+	it("treats invalid scoped preferences payloads as service unavailable", async () => {
+		const fetchImplementation = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ preferences: { profileMemoryEnabled: true } }), {
+					headers: { "content-type": "application/json" },
+					status: 200,
+				}),
+		);
+
+		await expect(loadAccountPreferences(fetchImplementation)).resolves.toEqual({
+			preferences: null,
+			state: "service_unavailable",
 		});
 	});
 

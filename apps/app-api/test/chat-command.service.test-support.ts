@@ -208,6 +208,7 @@ export function createTelemetryMock(): AppTelemetry {
 		}),
 		markHttpResponseStatus: vi.fn(),
 		recordExecutionAuditEvent: vi.fn(),
+		recordIdentityEndpoint: vi.fn(),
 		recordProjectionDrain: vi.fn(),
 		recordProjectionEnqueued: vi.fn(),
 		recordQualitySampledGrade: vi.fn(),

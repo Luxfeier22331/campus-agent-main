@@ -91,6 +91,36 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.trustedOrigins).toEqual(["https://hub.muc.wiki", "https://chat.example.com"]);
 		});
 
+		it("materializes identity product state through better-auth user creation hooks", async () => {
+			const onIdentityUserCreated = vi.fn().mockResolvedValue(undefined);
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://hub.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				publicChatOrigin: "https://chat.example.com",
+				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				resendApiKey: "resend_test_key",
+				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailAllowlist: ["help_bot@outlook.com"],
+				database: {} as never,
+				onIdentityUserCreated,
+			} as never);
+
+			await config.databaseHooks?.user?.create?.after?.({
+				email: "jane@muc.edu.cn",
+				id: "user_01HQ",
+				name: "Jane Doe",
+			});
+
+			expect(onIdentityUserCreated).toHaveBeenCalledWith({
+				displayName: "Jane Doe",
+				email: "jane@muc.edu.cn",
+				userId: "user_01HQ",
+			});
+		});
+
 		it("sends password reset and password-changed mail through Resend without exposing a repo-owned parallel auth path", async () => {
 			const resendFetch = vi.fn().mockResolvedValue(
 				new Response(JSON.stringify({ id: "email_01HQ" }), {

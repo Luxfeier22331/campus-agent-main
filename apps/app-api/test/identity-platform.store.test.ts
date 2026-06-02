@@ -87,6 +87,46 @@ function createInsertRecorder() {
 }
 
 describe("identity platform store", () => {
+	it("materializes lifecycle projections without mutating profile memory settings", async () => {
+		const { insert, writes } = createInsertRecorder();
+		const transaction = vi.fn(
+			async (callback: (tx: { insert: typeof insert }) => Promise<void>) => {
+				await callback({ insert });
+			},
+		);
+		const store = createPgIdentityPlatformStore({} as never, {
+			getDb: () =>
+				({
+					transaction,
+				}) as never,
+		});
+
+		await store.materializeIdentityProjection({
+			observedAt: "2026-03-29T08:00:00.000Z",
+			projection: createOverview(),
+			snapshotId: "access_snapshot_01HQ",
+		});
+
+		expect(transaction).toHaveBeenCalledTimes(1);
+		expect(writes.map((write) => write.table)).toEqual([
+			identityAccounts,
+			identityProfiles,
+			identityPreferenceSettings,
+			identityAccessSnapshots,
+		]);
+		expect(writes[0].values).toMatchObject({
+			accountId: "user_01HQ",
+			displayName: "Jane Doe",
+			primaryEmail: "jane@muc.edu.cn",
+			status: "active",
+		});
+		expect(writes[2].values).toMatchObject({
+			accountId: "user_01HQ",
+			profileMemoryEnabled: false,
+			uiPreferencesJson: {},
+		});
+	});
+
 	it("materializes preference updates into profile and identity product tables", async () => {
 		const { insert, writes } = createInsertRecorder();
 		const transaction = vi.fn(

@@ -116,4 +116,5 @@ export interface AppRequestScope {
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
+	telemetry: AppTelemetry;
 }

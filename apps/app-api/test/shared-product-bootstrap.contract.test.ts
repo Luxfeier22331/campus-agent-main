@@ -39,6 +39,9 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(packageJson.scripts["test:shared-db-integration"]).toContain(
 			"vitest.shared-db.config.mts",
 		);
+		expect(packageJson.scripts["test:official-web-shared-db-integration"]).toContain(
+			"vitest.official-web-shared-db.config.mts",
+		);
 	});
 
 	it("checks in explicit shared product bootstrap artifacts under app-api", () => {
@@ -58,7 +61,9 @@ describe("app-api shared product bootstrap contracts", () => {
 			"scripts/shared-product-database-bootstrap.d.mts",
 			"vitest.worker.config.mts",
 			"vitest.shared-db.config.mts",
+			"vitest.official-web-shared-db.config.mts",
 			"test/shared-product-db.integration.test.ts",
+			"test/official-web-shared-db.integration.test.ts",
 		];
 
 		for (const relativePath of requiredFiles) {
@@ -95,8 +100,34 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(readme).toContain("test:node");
 		expect(readme).toContain("test:worker");
 		expect(readme).toContain("test:shared-db-integration");
+		expect(readme).toContain("test:official-web-shared-db-integration");
 		expect(readme).toContain("app_auth.*");
 		expect(readme).toContain("chat.*");
+	});
+
+	it("keeps official-web collector lifecycle outside the default shared DB lane", () => {
+		const sharedDbConfig = readAppFile("vitest.shared-db.config.mts");
+		const officialWebSharedDbConfig = readAppFile("vitest.official-web-shared-db.config.mts");
+
+		expect(sharedDbConfig).not.toContain("test/official-web-shared-db.integration.test.ts");
+		expect(officialWebSharedDbConfig).toContain("test/official-web-shared-db.integration.test.ts");
+	});
+
+	it("wires identity preference reads and writes through fresh profile memory storage", () => {
+		const requestScopeSource = readAppFile("src/app/request-scope.ts");
+		const identityServiceStart = requestScopeSource.indexOf(
+			"identityPlatformService = buildIdentityPlatformService({",
+		);
+		const identityServiceEnd = requestScopeSource.indexOf(
+			"function resolveOfficialWebQueryService()",
+			identityServiceStart,
+		);
+
+		expect(identityServiceStart).toBeGreaterThan(-1);
+		expect(identityServiceEnd).toBeGreaterThan(identityServiceStart);
+		expect(requestScopeSource.slice(identityServiceStart, identityServiceEnd)).toContain(
+			"profileMemoryStore: createPgProfileMemoryStore(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getFreshDb,",
+		);
 	});
 
 	it("cuts the worker app shell through app-local submodules instead of keeping helpers inline", () => {

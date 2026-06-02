@@ -98,6 +98,7 @@ const AXIOM_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<string>>(
 			"verdict",
 		]),
 	],
+	["identity.endpoint", new Set([...AXIOM_BASE_ALLOWED_FIELDS, "correlation_id", "endpoint"])],
 	[
 		"execution.admission_rejected",
 		new Set([

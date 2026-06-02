@@ -6,6 +6,8 @@ import type { ProfileMemoryStore } from "../profile-memory";
 import type {
 	EndUserPrincipal,
 	IdentityCampusAttributes,
+	IdentityPlatformAccess,
+	IdentityPlatformIdentity,
 	IdentityPlatformOverview,
 	IdentityPlatformPreferences,
 } from "./model";
@@ -15,8 +17,11 @@ const END_USER_PRINCIPAL_TYPES = new Set(["campus_member", "student", "staff", "
 const DEFAULT_CLAIMS_VERSION = "identity-claims-v1";
 
 export interface IdentityPlatformService {
+	getAccess(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformAccess>;
+	getIdentity(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformIdentity>;
 	getOverview(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformOverview>;
 	getPreferences(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformPreferences>;
+	materializeSessionProjection(input: { principal: ResolvedAppPrincipal }): Promise<void>;
 	updatePreferences(input: {
 		principal: ResolvedAppPrincipal;
 		profileMemoryEnabled: boolean;
@@ -149,6 +154,25 @@ function toPreferences(summary: {
 	};
 }
 
+async function buildCurrentOverview(input: {
+	principal: ResolvedAppPrincipal;
+	profileMemoryStore: Pick<ProfileMemoryStore, "loadSummary">;
+}): Promise<{
+	overview: IdentityPlatformOverview;
+	principal: EndUserPrincipal;
+}> {
+	const principal = requireEndUserPrincipal(input.principal);
+	const preferences = toPreferences(
+		await input.profileMemoryStore.loadSummary({
+			ownerUserId: principal.principal.principalId,
+		}),
+	);
+	return {
+		overview: buildOverview({ preferences, principal }),
+		principal,
+	};
+}
+
 export function buildIdentityPlatformService(
 	dependencies: IdentityPlatformServiceDependencies,
 ): IdentityPlatformService {
@@ -156,14 +180,45 @@ export function buildIdentityPlatformService(
 	const now = dependencies.now ?? (() => new Date());
 
 	return {
+		async getAccess(input) {
+			const { overview } = await buildCurrentOverview({
+				principal: input.principal,
+				profileMemoryStore: dependencies.profileMemoryStore,
+			});
+			return overview.access;
+		},
+
+		async getIdentity(input) {
+			const { overview } = await buildCurrentOverview({
+				principal: input.principal,
+				profileMemoryStore: dependencies.profileMemoryStore,
+			});
+			return overview.identity;
+		},
+
 		async getOverview(input) {
-			const principal = requireEndUserPrincipal(input.principal);
-			const preferences = toPreferences(
-				await dependencies.profileMemoryStore.loadSummary({
-					ownerUserId: principal.principal.principalId,
-				}),
-			);
-			return buildOverview({ preferences, principal });
+			const { overview } = await buildCurrentOverview({
+				principal: input.principal,
+				profileMemoryStore: dependencies.profileMemoryStore,
+			});
+			await dependencies.identityStore.materializeIdentityProjection({
+				observedAt: now().toISOString(),
+				projection: overview,
+				snapshotId: generateId("access_snapshot"),
+			});
+			return overview;
+		},
+
+		async materializeSessionProjection(input) {
+			const { overview } = await buildCurrentOverview({
+				principal: input.principal,
+				profileMemoryStore: dependencies.profileMemoryStore,
+			});
+			await dependencies.identityStore.materializeIdentityProjection({
+				observedAt: now().toISOString(),
+				projection: overview,
+				snapshotId: generateId("access_snapshot"),
+			});
 		},
 
 		async getPreferences(input) {

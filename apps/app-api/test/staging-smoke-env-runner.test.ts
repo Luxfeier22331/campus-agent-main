@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import runWithStagingSmokeEnvSource from "../scripts/run-with-staging-smoke-env.mjs?raw";
+import runWithStagingSmokeEnvSource from "../../../scripts/run-with-staging-smoke-env.mjs?raw";
 
 describe("staging smoke env runner", () => {
 	it("serializes staging smoke commands that share the fixed smoke identity", () => {

@@ -62,4 +62,52 @@ describe("hub account overview panel", () => {
 		expect(html).toContain("campus_member");
 		expect(html).toContain("未验证");
 	});
+
+	it("renders scoped identity, access, and preferences section states independently", () => {
+		const html = renderToStaticMarkup(
+			<AccountOverviewPanel
+				access={null}
+				accessState="service_unavailable"
+				identity={null}
+				identityState="network_error"
+				isSigningOut={false}
+				isUpdatingPreferences={true}
+				onProfileMemoryChange={vi.fn()}
+				onSignOut={vi.fn()}
+				overview={overview}
+				preferences={overview.preferences}
+				preferencesState="loading"
+			/>,
+		);
+
+		expect(html).toContain("校园身份");
+		expect(html).toContain("可用应用");
+		expect(html).toContain("资料记忆");
+		expect(html).toContain("无法连接账号服务");
+		expect(html).toContain("账号服务暂不可用");
+		expect(html).toContain("正在加载");
+		expect(html).not.toContain("关闭资料记忆");
+	});
+
+	it("renders a scoped preferences save state without hiding stable identity and access sections", () => {
+		const html = renderToStaticMarkup(
+			<AccountOverviewPanel
+				access={overview.access}
+				accessState="ready"
+				identity={overview.identity}
+				identityState="ready"
+				isSigningOut={false}
+				isUpdatingPreferences={true}
+				onProfileMemoryChange={vi.fn()}
+				onSignOut={vi.fn()}
+				overview={overview}
+				preferences={overview.preferences}
+				preferencesState="ready"
+			/>,
+		);
+
+		expect(html).toContain("campus_member");
+		expect(html).toContain("chat / docs / account");
+		expect(html).toContain("正在保存");
+	});
 });

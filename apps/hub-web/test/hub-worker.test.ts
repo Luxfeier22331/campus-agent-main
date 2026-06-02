@@ -41,18 +41,18 @@ describe("hub worker boundary", () => {
 			"verify-staging-config.mjs",
 		);
 		expect(packageManifest.scripts?.["build:staging"]).not.toContain("SENTRY_DSN");
-		expect(wranglerConfig).toContain('pattern = "hub-muc-wiki.ayafeed.com"');
+		expect(wranglerConfig).toContain('pattern = "hub-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain('service = "app-api-staging"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "http://127.0.0.1:27031"');
 		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "127.0.0.1:27012"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "hub-muc-wiki.ayafeed.com"');
+		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "hub-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain('[env.staging.secrets]\nrequired = ["SENTRY_DSN"]');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(deployStagingSource).toContain("STAGING_HUB_AUTH_TURNSTILE_SITE_KEY");
-		expect(deployStagingSource).toContain("hub-muc-wiki.ayafeed.com");
+		expect(deployStagingSource).toContain("hub-staging.mucwiki-edge.link");
 		expect(deployStagingSource).toContain('"pnpm"');
 		expect(deployStagingSource).toContain('"exec"');
 		expect(deployStagingSource).toContain('"wrangler"');
@@ -117,6 +117,8 @@ describe("hub worker boundary", () => {
 
 		const allowed = await worker.fetch(new Request("https://hub.muc.wiki/api/me"), env);
 		const overview = await worker.fetch(new Request("https://hub.muc.wiki/api/me/overview"), env);
+		const identity = await worker.fetch(new Request("https://hub.muc.wiki/api/me/identity"), env);
+		const access = await worker.fetch(new Request("https://hub.muc.wiki/api/me/access"), env);
 		const preferencesGet = await worker.fetch(
 			new Request("https://hub.muc.wiki/api/me/preferences"),
 			env,
@@ -130,15 +132,31 @@ describe("hub worker boundary", () => {
 			env,
 		);
 		const rejected = await worker.fetch(new Request("https://hub.muc.wiki/api/chat"), env);
+		const rejectedFederation = await worker.fetch(
+			new Request("https://hub.muc.wiki/api/federation/authorize"),
+			env,
+		);
+		const rejectedDiscovery = await worker.fetch(
+			new Request("https://hub.muc.wiki/.well-known/openid-configuration", {
+				headers: { accept: "application/json" },
+			}),
+			env,
+		);
 
 		expect(allowed.status).toBe(200);
 		expect(overview.status).toBe(200);
+		expect(identity.status).toBe(200);
+		expect(access.status).toBe(200);
 		expect(preferencesGet.status).toBe(200);
 		expect(preferencesPatch.status).toBe(200);
 		expect(rejected.status).toBe(404);
+		expect(rejectedFederation.status).toBe(404);
+		expect(rejectedDiscovery.status).toBe(404);
 		expect(seen).toEqual([
 			"/api/me",
 			"/api/me/overview",
+			"/api/me/identity",
+			"/api/me/access",
 			"/api/me/preferences",
 			"/api/me/preferences",
 		]);

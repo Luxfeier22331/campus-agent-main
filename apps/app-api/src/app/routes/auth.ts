@@ -1,10 +1,22 @@
 import type { Hono } from "hono";
 
 import type { Env } from "../../config";
-import { jsonResponse, withNoStore } from "../../http";
+import { AppApiRouteError, jsonResponse, routeErrorResponse, withNoStore } from "../../http";
 import { requireSessionPrincipal } from "../principal";
 import { dependencyNotReadyResponse } from "../responses";
 import type { AppRequestScope } from "../types";
+
+const END_USER_PRINCIPAL_TYPES = new Set(["campus_member", "student", "staff", "faculty"]);
+
+function isEndUserSessionPrincipal(
+	principal: import("../../modules/auth").ResolvedAppPrincipal,
+): boolean {
+	return (
+		END_USER_PRINCIPAL_TYPES.has(principal.principal.type) &&
+		Boolean(principal.principal.email?.trim()) &&
+		principal.session !== null
+	);
+}
 
 export function registerAuthRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
@@ -45,6 +57,19 @@ export function registerAuthRoutes(input: {
 		});
 		if (resolved.response) {
 			return resolved.response;
+		}
+
+		if (isEndUserSessionPrincipal(resolved.principal)) {
+			try {
+				await scope.resolveIdentityPlatformService().materializeSessionProjection({
+					principal: resolved.principal,
+				});
+			} catch (error) {
+				if (error instanceof AppApiRouteError) {
+					return routeErrorResponse(error);
+				}
+				return dependencyNotReadyResponse();
+			}
 		}
 
 		return jsonResponse({

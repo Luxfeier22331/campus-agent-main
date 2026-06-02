@@ -285,7 +285,7 @@ export function createRequestScopeFactory(input: {
 						getDb: runtime.getFreshDb,
 					}),
 					profileMemoryStore: createPgProfileMemoryStore(input.env, {
-						getDb: runtime.getDb,
+						getDb: runtime.getFreshDb,
 					}),
 				});
 				return identityPlatformService;
@@ -400,6 +400,7 @@ export function createRequestScopeFactory(input: {
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,
 				resolveWeChatOfficialAccountCommandService,
+				telemetry: input.telemetry,
 			};
 		},
 		officialWebExecutionStatusService,
