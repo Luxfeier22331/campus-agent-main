@@ -807,8 +807,9 @@ root convenience keys：
 说明：
 
 - `AXIOM_ENDPOINT` 应写成类似 `<https://us-east-1.aws.edge.axiom.co`>
-- `AXIOM_DATASET` 当前按 environment 命名，例如 `campus-agent-runtime-staging`；
-  service 与 signal 维度通过 `service.name`、`signal_type`、`event_type` 等低基数字段区分
+- `AXIOM_DATASET` 当前按 project 命名，例如 `campus-agent-runtime`；environment、
+  service 与 signal 维度通过 `deployment.environment`、`service.name`、`signal_type`、
+  `event_type` 等低基数字段区分
 - 只有事件量、权限、保留期、字段数量或查询污染成为真实问题时，才进一步拆分 dataset
 - 当前 `.dev.vars.example` 已明确要求使用 ingest API token，不要把 PAT 当成长期 ingest token
 

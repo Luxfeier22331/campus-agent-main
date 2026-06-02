@@ -121,7 +121,7 @@ updated: 2026-05-01
   events and fans out:
   - traces to Sentry and Axiom
   - logs to Axiom
-  - metrics to Axiom via `x-axiom-metrics-dataset`
+  - metrics to the Collector debug pipeline only
 - Secret-bearing Sentry/Axiom endpoint/header/dataset values remain env substitutions; tracked env
   example values are blank.
 - Added `docs/runbooks/runtime-otel-collector-pipeline.md` and linked it from staging/runbook docs.

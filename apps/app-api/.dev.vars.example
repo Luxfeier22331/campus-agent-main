@@ -54,7 +54,7 @@ APP_API_OPERATOR_ISSUE_LINK_TEMPLATE=
 # Copy the base domain of your Axiom org edge deployment, for example:
 # https://us-east-1.aws.edge.axiom.co or https://eu-central-1.aws.edge.axiom.co
 AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co
-AXIOM_DATASET=campus-agent-runtime-dev
+AXIOM_DATASET=campus-agent-runtime
 # Use an Axiom API token for ingest. PATs do not work with edge deployment endpoints.
 AXIOM_TOKEN=
 

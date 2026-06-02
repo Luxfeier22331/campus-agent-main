@@ -46,7 +46,7 @@ APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"
 SUPERVISOR_API_TIMEOUT_MS = "95000"
 SENTRY_ENVIRONMENT = "staging"
 AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"
-AXIOM_DATASET = "campus-agent-runtime-staging"
+AXIOM_DATASET = "campus-agent-runtime"
 
 [env.staging.secrets]
 required = [

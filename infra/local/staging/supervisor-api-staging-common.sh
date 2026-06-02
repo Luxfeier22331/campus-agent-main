@@ -110,18 +110,36 @@ supervisor_api_staging_load_env() {
     "${node_bin}" - "${repo_env_path}" "${repo_staging_env_path}" "${app_api_dev_vars}" <<'NODE'
 const [repoEnvPath, repoStagingEnvPath, appApiDevVarsPath] = process.argv.slice(2);
 const loadedPaths = [];
+const fs = require("node:fs");
+const { parseEnv } = require("node:util");
+if (typeof parseEnv !== "function") {
+  throw new Error("node:util.parseEnv is required for staging env projection");
+}
+const fileEnv = new Map();
+
 for (const filePath of [repoEnvPath, repoStagingEnvPath, appApiDevVarsPath]) {
   if (!filePath) {
     continue;
   }
   try {
-    process.loadEnvFile(filePath);
+    const parsed = parseEnv(fs.readFileSync(filePath, "utf8"));
+    for (const [key, value] of Object.entries(parsed)) {
+      fileEnv.set(key, value);
+    }
     loadedPaths.push(filePath);
   } catch (error) {
     if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
       throw error;
     }
   }
+}
+
+function sourceEnvValue(key) {
+  const processValue = process.env[key]?.trim() || "";
+  if (processValue) {
+    return processValue;
+  }
+  return fileEnv.get(key)?.trim() || "";
 }
 
 const keys = [
@@ -181,7 +199,6 @@ const keys = [
   "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
   "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
   "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
-  "OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
   "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED",
   "SUPERVISOR_API_EXECUTION_AUDIT_URL",
   "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
@@ -237,24 +254,23 @@ function projectObjectStoreForDocker(value) {
 
 const resolved = new Map();
 for (const key of keys) {
-  const value = process.env[key];
-  if (typeof value === "string") {
-    resolved.set(key, value.trim());
+  const value = sourceEnvValue(key);
+  if (value) {
+    resolved.set(key, value);
   }
 }
 
 const bridgeSharedSecret =
-  process.env.SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET?.trim() ||
-  process.env.SUPERVISOR_AGENT_WORKER_SHARED_SECRET?.trim() ||
+  sourceEnvValue("SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET") ||
+  sourceEnvValue("SUPERVISOR_AGENT_WORKER_SHARED_SECRET") ||
   "";
 const bridgeBaseUrl =
-  process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
-  "http://supervisor-agent-worker:27052";
+  sourceEnvValue("SUPERVISOR_AGENT_WORKER_BASE_URL") || "http://supervisor-agent-worker:27052";
 resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 const workerSharedSecret =
-  process.env.API_WORKER_SHARED_SECRET?.trim() ||
-  process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||
+  sourceEnvValue("API_WORKER_SHARED_SECRET") ||
+  sourceEnvValue("SUPERVISOR_API_SHARED_SECRET") ||
   "";
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
 
@@ -297,7 +313,7 @@ const stagingOptionalMappings = [
 ];
 
 function envValue(key) {
-  return process.env[key]?.trim() || "";
+  return sourceEnvValue(key);
 }
 
 function isLocalEndpoint(value) {

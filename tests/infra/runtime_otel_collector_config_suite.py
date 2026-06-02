@@ -71,7 +71,7 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         exporters = set(config["exporters"])
         self.assertIn("otlphttp/sentry", exporters)
         self.assertIn("otlphttp/axiom", exporters)
-        self.assertIn("otlphttp/axiom_metrics", exporters)
+        self.assertNotIn("otlphttp/axiom_metrics", exporters)
         self.assertIn("debug", exporters)
         self.assertIn("health_check", config["extensions"])
         self.assertEqual(config["service"]["extensions"], ["health_check"])
@@ -92,7 +92,7 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             config,
             "metrics",
             processors=[*COMMON_PROCESSORS, "batch"],
-            exporters={"otlphttp/axiom_metrics", "debug"},
+            exporters={"debug"},
         )
         self.assert_pipeline(
             config,
@@ -105,10 +105,6 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             exporters={"otlphttp/axiom", "debug"},
         )
         self.assert_env_only_secret_values(config)
-        self.assertEqual(
-            config["exporters"]["otlphttp/axiom_metrics"]["headers"]["x-axiom-metrics-dataset"],
-            "${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}",
-        )
 
     def test_collector_configs_delete_forbidden_attributes(self) -> None:
         for config in (_load_yaml(LOCAL_CONFIG), _load_yaml(STAGING_CONFIG)):
@@ -127,7 +123,6 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
             "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
             "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
-            "OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
         ):
             self.assertIsNotNone(
                 re.search(rf"^{name}=$", content, re.MULTILINE),
@@ -168,7 +163,7 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         self.assertIn("${env:OTEL_COLLECTOR_SENTRY_AUTH_VALUE}", rendered)
         self.assertIn("${env:OTEL_COLLECTOR_AXIOM_AUTH_HEADER}", rendered)
         self.assertIn("${env:OTEL_COLLECTOR_AXIOM_EVENTS_DATASET}", rendered)
-        self.assertIn("${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}", rendered)
+        self.assertNotIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", rendered)
 
     def test_sentry_exporter_uses_official_otlp_auth_header(self) -> None:
         config = _load_yaml(STAGING_CONFIG)

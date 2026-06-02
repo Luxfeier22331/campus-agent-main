@@ -123,7 +123,7 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
         self.assertIn('"OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT"', common_script)
         self.assertIn('"OTEL_COLLECTOR_AXIOM_AUTH_HEADER"', common_script)
         self.assertIn('"OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"', common_script)
-        self.assertIn('"OTEL_COLLECTOR_AXIOM_METRICS_DATASET"', common_script)
+        self.assertNotIn('"OTEL_COLLECTOR_AXIOM_METRICS_DATASET"', common_script)
         self.assertIn('"SUPERVISOR_API_OTEL_ENABLED"', common_script)
         self.assertIn('"SUPERVISOR_AGENT_WORKER_OTEL_ENABLED"', common_script)
         self.assertIn("supervisor_api_staging_validate_axiom_collector_endpoint", common_script)
@@ -183,8 +183,8 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
         self.assertIn('"SUPERVISOR_API_STAGING_UV_BIN"', common_script)
         self.assertIn(".local/bin/uv", common_script)
         self.assertIn("Operation not permitted", common_script)
-        self.assertIn("process.env.API_WORKER_SHARED_SECRET?.trim() ||", common_script)
-        self.assertIn("process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||", common_script)
+        self.assertIn('sourceEnvValue("API_WORKER_SHARED_SECRET") ||', common_script)
+        self.assertIn('sourceEnvValue("SUPERVISOR_API_SHARED_SECRET") ||', common_script)
         self.assertNotIn(
             "SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-${SUPERVISOR_API_SHARED_SECRET:-}",
             common_script,
@@ -200,6 +200,60 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
         self.assertNotIn("--config", start_script)
         self.assertNotIn("supervisor-api-staging-placeholder", start_script)
         self.assertNotIn("supervisor-api-staging-placeholder", status_script)
+
+    def test_staging_local_env_overrides_repo_env_for_runtime_observability(self) -> None:
+        result = run_common_script_with_env(
+            repo_env=textwrap.dedent(
+                """
+                SUPERVISOR_API_OTEL_ENABLED=false
+                SUPERVISOR_API_OTEL_METRICS_ENABLED=false
+                SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=false
+                OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
+                """
+            ).strip(),
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
+                STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+                STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
+                STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
+                STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
+                STAGING_INGESTION_SPARSE_LANGUAGE=none
+                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_OTEL_ENABLED=true
+                SUPERVISOR_API_OTEL_METRICS_ENABLED=true
+                SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=true
+                OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
+                """
+            ).strip(),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        projected = json.loads(result.stdout)
+        self.assertEqual(projected["SUPERVISOR_API_OTEL_ENABLED"], "true")
+        self.assertEqual(projected["SUPERVISOR_API_OTEL_METRICS_ENABLED"], "true")
+        self.assertEqual(projected["SUPERVISOR_AGENT_WORKER_OTEL_ENABLED"], "true")
+        self.assertEqual(
+            projected["OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"],
+            "campus-agent-runtime",
+        )
 
     def test_staging_runtime_projects_explicit_data_plane_env_over_repo_local_env(self) -> None:
         result = run_common_script_with_env(

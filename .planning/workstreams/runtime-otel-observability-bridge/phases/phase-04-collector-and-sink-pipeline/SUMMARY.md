@@ -33,7 +33,7 @@ Phase 4 is complete.
   - staging Sentry/Axiom/debug fan-out
   - forbidden attribute deletion
   - secret-free env example
-  - Axiom metrics use `x-axiom-metrics-dataset`
+  - metrics stay off Axiom dataset quota and use the Collector debug pipeline
 - Added `docs/runbooks/runtime-otel-collector-pipeline.md` and linked it from runbook/staging docs.
 
 ## Verification

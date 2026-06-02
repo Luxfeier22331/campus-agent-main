@@ -24,7 +24,7 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                     [
                         "SENTRY_DSN=https://shared.example",
                         "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime-dev",
+                        "AXIOM_DATASET=campus-agent-runtime",
                         "AXIOM_TOKEN=axiom-token",
                     ]
                 )
@@ -38,7 +38,7 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                         "SENTRY_ENVIRONMENT=development",
                         "SENTRY_RELEASE=app-api@dev-local",
                         "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime-dev",
+                        "AXIOM_DATASET=campus-agent-runtime",
                         "AXIOM_TOKEN=axiom-token",
                     ]
                 )
@@ -112,7 +112,7 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                     [
                         "SENTRY_DSN=https://shared.example",
                         "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime-dev",
+                        "AXIOM_DATASET=campus-agent-runtime",
                         "AXIOM_TOKEN=axiom-token",
                     ]
                 )
@@ -126,7 +126,7 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                         "SENTRY_ENVIRONMENT=development",
                         "SENTRY_RELEASE=app-api@dev-local",
                         "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime-dev",
+                        "AXIOM_DATASET=campus-agent-runtime",
                         "AXIOM_TOKEN=axiom-token",
                     ]
                 )

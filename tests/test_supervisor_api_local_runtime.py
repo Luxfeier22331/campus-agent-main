@@ -115,7 +115,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", compose)
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", compose)
         self.assertIn("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", compose)
-        self.assertIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", compose)
+        self.assertNotIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", compose)
         self.assertIn(
             "SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces",
             compose,
