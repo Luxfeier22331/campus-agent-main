@@ -74,6 +74,7 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(APP_API_KNOWN_SCHEMAS).toEqual(
 			expect.arrayContaining([
 				"docs",
+				"identity",
 				"official_web",
 				"operator",
 				"profile",

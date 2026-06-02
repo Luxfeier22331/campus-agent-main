@@ -47,6 +47,12 @@ function createCampusPrincipal() {
 	};
 }
 
+function createIdentityStoreStub() {
+	return {
+		updatePreferencesAndMaterialize: vi.fn(),
+	};
+}
+
 export function registerApiMeSuite() {
 	describe("/api/me", () => {
 		it("returns session_required when no app principal exists", async () => {
@@ -209,6 +215,7 @@ export function registerApiMeSuite() {
 			const app = createApp(APP_API_TEST_ENV, {
 				getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
 				identityPlatformService: buildIdentityPlatformService({
+					identityStore: createIdentityStoreStub(),
 					profileMemoryStore,
 				}),
 				profileMemoryService,
@@ -278,6 +285,7 @@ export function registerApiMeSuite() {
 			const app = createApp(APP_API_TEST_ENV, {
 				getPrincipal: vi.fn().mockResolvedValue(principal),
 				identityPlatformService: buildIdentityPlatformService({
+					identityStore: createIdentityStoreStub(),
 					profileMemoryStore,
 				}),
 			} as Parameters<typeof createApp>[1]);
@@ -335,6 +343,144 @@ export function registerApiMeSuite() {
 					code: "forbidden",
 				},
 			});
+		});
+	});
+
+	describe("/api/me/preferences", () => {
+		it("returns the account-center preferences projection for an end-user principal", async () => {
+			const profileMemoryStore = {
+				loadSummary: vi.fn().mockResolvedValue({
+					enabled: false,
+					itemCount: 3,
+				}),
+			};
+			const app = createApp(APP_API_TEST_ENV, {
+				getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+				identityPlatformService: buildIdentityPlatformService({
+					identityStore: createIdentityStoreStub(),
+					profileMemoryStore,
+				}),
+			} as Parameters<typeof createApp>[1]);
+
+			const response = await app.fetch(new Request("https://app-api.internal/api/me/preferences"));
+
+			expect(response.status).toBe(200);
+			await expect(response.json()).resolves.toEqual({
+				preferences: {
+					profileMemoryEnabled: false,
+					profileMemoryItemCount: 3,
+				},
+			});
+		});
+
+		it("updates preferences and materializes the identity product snapshot", async () => {
+			const updatePreferencesAndMaterialize = vi.fn().mockResolvedValue(undefined);
+			const profileMemoryStore = {
+				loadSummary: vi.fn().mockResolvedValue({
+					enabled: true,
+					itemCount: 2,
+				}),
+			};
+			const app = createApp(APP_API_TEST_ENV, {
+				getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+				identityPlatformService: buildIdentityPlatformService({
+					generateId: (prefix) => `${prefix}_01HQ`,
+					identityStore: {
+						updatePreferencesAndMaterialize,
+					},
+					now: () => new Date("2026-03-29T08:00:00.000Z"),
+					profileMemoryStore,
+				}),
+			} as Parameters<typeof createApp>[1]);
+
+			const response = await app.fetch(
+				new Request("https://app-api.internal/api/me/preferences", {
+					body: JSON.stringify({ profileMemoryEnabled: false }),
+					headers: { "content-type": "application/json" },
+					method: "PATCH",
+				}),
+			);
+
+			expect(response.status).toBe(200);
+			await expect(response.json()).resolves.toEqual({
+				preferences: {
+					profileMemoryEnabled: false,
+					profileMemoryItemCount: 2,
+				},
+			});
+			expect(updatePreferencesAndMaterialize).toHaveBeenCalledWith(
+				expect.objectContaining({
+					observedAt: "2026-03-29T08:00:00.000Z",
+					overview: expect.objectContaining({
+						account: expect.objectContaining({
+							accountId: "user_01HQ",
+							email: "jane@muc.edu.cn",
+						}),
+						preferences: {
+							profileMemoryEnabled: false,
+							profileMemoryItemCount: 2,
+						},
+					}),
+					snapshotId: "access_snapshot_01HQ",
+				}),
+			);
+		});
+
+		it("rejects operator principals from account-center preferences", async () => {
+			const app = createApp(APP_API_TEST_ENV, {
+				getPrincipal: vi.fn().mockResolvedValue({
+					actor: {
+						departments: [],
+						principalId: "ops@example.com",
+						principalType: "operator",
+						roles: ["operator"],
+						userId: "ops@example.com",
+					},
+					permissions: {
+						chat: false,
+						operator: true,
+					},
+					principal: {
+						displayName: "Ops Team",
+						email: "ops@example.com",
+						principalId: "ops@example.com",
+						type: "operator",
+					},
+					session: {
+						expiresAt: "2026-03-29T07:00:00.000Z",
+						sessionId: "sess_ops",
+					},
+				}),
+			});
+
+			const response = await app.fetch(new Request("https://app-api.internal/api/me/preferences"));
+
+			expect(response.status).toBe(403);
+		});
+
+		it("rejects invalid preference update payloads", async () => {
+			const app = createApp(APP_API_TEST_ENV, {
+				getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+				identityPlatformService: buildIdentityPlatformService({
+					identityStore: createIdentityStoreStub(),
+					profileMemoryStore: {
+						loadSummary: vi.fn().mockResolvedValue({
+							enabled: true,
+							itemCount: 0,
+						}),
+					},
+				}),
+			} as Parameters<typeof createApp>[1]);
+
+			const response = await app.fetch(
+				new Request("https://app-api.internal/api/me/preferences", {
+					body: JSON.stringify({ profileMemoryEnabled: "false" }),
+					headers: { "content-type": "application/json" },
+					method: "PATCH",
+				}),
+			);
+
+			expect(response.status).toBe(400);
 		});
 	});
 }

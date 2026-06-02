@@ -1,16 +1,32 @@
+import { randomUUID } from "node:crypto";
+
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import type { ProfileMemoryStore } from "../profile-memory";
-import type { EndUserPrincipal, IdentityCampusAttributes, IdentityPlatformOverview } from "./model";
+import type {
+	EndUserPrincipal,
+	IdentityCampusAttributes,
+	IdentityPlatformOverview,
+	IdentityPlatformPreferences,
+} from "./model";
+import type { IdentityPlatformStore } from "./store";
 
 const END_USER_PRINCIPAL_TYPES = new Set(["campus_member", "student", "staff", "faculty"]);
 const DEFAULT_CLAIMS_VERSION = "identity-claims-v1";
 
 export interface IdentityPlatformService {
 	getOverview(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformOverview>;
+	getPreferences(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformPreferences>;
+	updatePreferences(input: {
+		principal: ResolvedAppPrincipal;
+		profileMemoryEnabled: boolean;
+	}): Promise<IdentityPlatformPreferences>;
 }
 
 export interface IdentityPlatformServiceDependencies {
+	generateId?: (prefix: string) => string;
+	identityStore: IdentityPlatformStore;
+	now?: () => Date;
 	profileMemoryStore: Pick<ProfileMemoryStore, "loadSummary">;
 }
 
@@ -79,52 +95,106 @@ function resolveAvailableApps(principal: EndUserPrincipal): string[] {
 	return apps;
 }
 
+function defaultGenerateId(prefix: string): string {
+	return `${prefix}_${randomUUID().replace(/-/g, "")}`;
+}
+
+function buildOverview(input: {
+	preferences: IdentityPlatformPreferences;
+	principal: EndUserPrincipal;
+}): IdentityPlatformOverview {
+	const campusAttributes = buildCampusAttributes(input.principal);
+	const identity = {
+		claimsVersion: resolveClaimsVersion(input.principal),
+		principalId: input.principal.principal.principalId,
+		principalType: input.principal.principal.type,
+		verificationStatus: "unverified" as const,
+	};
+
+	return {
+		account: {
+			accountId: input.principal.principal.principalId,
+			displayName: input.principal.principal.displayName,
+			email: input.principal.principal.email,
+			status: "active",
+		},
+		session: {
+			credentialRuntime: "better_auth",
+			expiresAt: input.principal.session.expiresAt,
+			sessionId: input.principal.session.sessionId,
+			state: "authenticated",
+		},
+		identity: campusAttributes ? { ...identity, campusAttributes } : identity,
+		access: {
+			availableApps: resolveAvailableApps(input.principal),
+			entitlementGroups: resolveEntitlementGroups(input.principal),
+			permissions: input.principal.permissions,
+			restrictedSurfacesReady: resolveRestrictedSurfacesReady(input.principal),
+		},
+		preferences: input.preferences,
+		federation: {
+			connectedClients: [],
+			enabled: false,
+		},
+	};
+}
+
+function toPreferences(summary: {
+	enabled: boolean;
+	itemCount: number;
+}): IdentityPlatformPreferences {
+	return {
+		profileMemoryEnabled: summary.enabled,
+		profileMemoryItemCount: summary.itemCount,
+	};
+}
+
 export function buildIdentityPlatformService(
 	dependencies: IdentityPlatformServiceDependencies,
 ): IdentityPlatformService {
+	const generateId = dependencies.generateId ?? defaultGenerateId;
+	const now = dependencies.now ?? (() => new Date());
+
 	return {
 		async getOverview(input) {
 			const principal = requireEndUserPrincipal(input.principal);
-			const profileMemory = await dependencies.profileMemoryStore.loadSummary({
-				ownerUserId: principal.principal.principalId,
-			});
-			const campusAttributes = buildCampusAttributes(principal);
-			const identity = {
-				claimsVersion: resolveClaimsVersion(principal),
-				principalId: principal.principal.principalId,
-				principalType: principal.principal.type,
-				verificationStatus: "unverified" as const,
-			};
+			const preferences = toPreferences(
+				await dependencies.profileMemoryStore.loadSummary({
+					ownerUserId: principal.principal.principalId,
+				}),
+			);
+			return buildOverview({ preferences, principal });
+		},
 
-			return {
-				account: {
-					accountId: principal.principal.principalId,
-					displayName: principal.principal.displayName,
-					email: principal.principal.email,
-					status: "active",
-				},
-				session: {
-					credentialRuntime: "better_auth",
-					expiresAt: principal.session.expiresAt,
-					sessionId: principal.session.sessionId,
-					state: "authenticated",
-				},
-				identity: campusAttributes ? { ...identity, campusAttributes } : identity,
-				access: {
-					availableApps: resolveAvailableApps(principal),
-					entitlementGroups: resolveEntitlementGroups(principal),
-					permissions: principal.permissions,
-					restrictedSurfacesReady: resolveRestrictedSurfacesReady(principal),
-				},
-				preferences: {
-					profileMemoryEnabled: profileMemory.enabled,
-					profileMemoryItemCount: profileMemory.itemCount,
-				},
-				federation: {
-					connectedClients: [],
-					enabled: false,
-				},
+		async getPreferences(input) {
+			const principal = requireEndUserPrincipal(input.principal);
+			return toPreferences(
+				await dependencies.profileMemoryStore.loadSummary({
+					ownerUserId: principal.principal.principalId,
+				}),
+			);
+		},
+
+		async updatePreferences(input) {
+			const principal = requireEndUserPrincipal(input.principal);
+			const currentPreferences = toPreferences(
+				await dependencies.profileMemoryStore.loadSummary({
+					ownerUserId: principal.principal.principalId,
+				}),
+			);
+			const preferences = {
+				...currentPreferences,
+				profileMemoryEnabled: input.profileMemoryEnabled,
 			};
+			const overview = buildOverview({ preferences, principal });
+
+			await dependencies.identityStore.updatePreferencesAndMaterialize({
+				observedAt: now().toISOString(),
+				overview,
+				snapshotId: generateId("access_snapshot"),
+			});
+
+			return preferences;
 		},
 	};
 }

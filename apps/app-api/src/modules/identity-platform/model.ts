@@ -47,6 +47,11 @@ export interface IdentityPlatformOverview {
 	};
 }
 
+export interface IdentityPlatformPreferences {
+	profileMemoryEnabled: boolean;
+	profileMemoryItemCount: number;
+}
+
 export type EndUserPrincipal = ResolvedAppPrincipal & {
 	principal: ResolvedAppPrincipal["principal"] & {
 		email: string;

@@ -5,6 +5,7 @@ export const APP_API_MIGRATIONS_SCHEMA = "drizzle";
 export const APP_API_MIGRATIONS_TABLE = "app_api_migrations";
 export const APP_API_KNOWN_SCHEMAS = [
 	"docs",
+	"identity",
 	"official_web",
 	"operator",
 	"profile",

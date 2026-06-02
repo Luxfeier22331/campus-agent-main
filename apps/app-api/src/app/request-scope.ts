@@ -17,7 +17,10 @@ import {
 } from "../modules/authenticated-notice-run-processing-query";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
-import { buildIdentityPlatformService } from "../modules/identity-platform";
+import {
+	buildIdentityPlatformService,
+	createPgIdentityPlatformStore,
+} from "../modules/identity-platform";
 import { createSupervisorExecutionClient } from "../modules/integration";
 import {
 	buildOfficialWebCommandService,
@@ -278,6 +281,9 @@ export function createRequestScopeFactory(input: {
 				}
 
 				identityPlatformService = buildIdentityPlatformService({
+					identityStore: createPgIdentityPlatformStore(input.env, {
+						getDb: runtime.getFreshDb,
+					}),
 					profileMemoryStore: createPgProfileMemoryStore(input.env, {
 						getDb: runtime.getDb,
 					}),

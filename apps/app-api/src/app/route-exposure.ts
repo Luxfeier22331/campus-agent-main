@@ -119,9 +119,21 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/me/preferences",
+		callerClass: "browser-surface",
+		admission: "session end-user principal required",
+	},
+	{
+		method: "GET",
 		path: "/api/me/profile-memory",
 		callerClass: "browser-surface",
 		admission: "session principal required",
+	},
+	{
+		method: "PATCH",
+		path: "/api/me/preferences",
+		callerClass: "browser-surface",
+		admission: "session end-user principal required",
 	},
 	{
 		method: "GET",

@@ -211,6 +211,7 @@ describe("app-api worker foundation", () => {
 	});
 
 	it("declares non-inheritable required secrets for local and staging worker environments", () => {
+		const localVarsBlock = readTomlBlock(wranglerConfig, "[env.local.vars]", "[env.local.secrets]");
 		const localSecretsBlock = readTomlBlock(
 			wranglerConfig,
 			"[env.local.secrets]",
@@ -222,6 +223,7 @@ describe("app-api worker foundation", () => {
 			"[[env.staging.hyperdrive]]",
 		);
 		expect(wranglerConfig).toContain("[env.local.secrets]");
+		expect(localVarsBlock).toContain('AUTH_SHELL_ORIGIN = "http://127.0.0.1:27012"');
 		expect(wranglerConfig).toContain('"RESEND_API_KEY"');
 		expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');

@@ -4,6 +4,7 @@ export type {
 	EndUserPrincipal,
 	IdentityCampusAttributes,
 	IdentityPlatformOverview,
+	IdentityPlatformPreferences,
 	IdentityVerificationStatus,
 } from "./model";
 export type {
@@ -11,3 +12,5 @@ export type {
 	IdentityPlatformServiceDependencies,
 } from "./service";
 export { buildIdentityPlatformService } from "./service";
+export type { IdentityPlatformStore } from "./store";
+export { createPgIdentityPlatformStore } from "./store";
