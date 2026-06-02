@@ -32,13 +32,13 @@ Better Auth internal `/api/auth/*` provider details。
 Implemented endpoints:
 
 - `GET /api/me/overview`
+- `GET /api/me/preferences`
+- `PATCH /api/me/preferences`
 
 Reserved scoped endpoints:
 
 - `GET /api/me/identity`
 - `GET /api/me/access`
-- `GET /api/me/preferences`
-- `PATCH /api/me/preferences`
 
 No endpoint in this document may be advertised as implemented until route code,
 route exposure inventory and tests exist. Reserved endpoint shape must stay
@@ -53,7 +53,7 @@ Current route exposure source:
 
 Returns the account center overview for the current signed-in principal.
 
-### Response
+### Overview Response
 
 ```json
 {
@@ -188,10 +188,67 @@ Rules:
 - `connectedClients` must only include app-owned user-facing summaries. It must
   not expose client secrets, raw tokens or authorization codes.
 
+## `GET /api/me/preferences`
+
+Returns the current signed-in end-user account-center preferences projection.
+
+### Preferences Response
+
+```json
+{
+  "preferences": {
+    "profileMemoryEnabled": true,
+    "profileMemoryItemCount": 0
+  }
+}
+```
+
+Rules:
+
+- Only end-user principals may call this endpoint.
+- The response returns summary preference state only. It must not include raw
+  profile memory item keys, values, confidence, visibility or source metadata.
+- The current durable profile memory truth remains `profile.memory_settings` and
+  `profile.memory_items`.
+
+## `PATCH /api/me/preferences`
+
+Updates mutable account-center preferences for the current signed-in end-user.
+
+### Request
+
+```json
+{
+  "profileMemoryEnabled": false
+}
+```
+
+### Preferences Update Response
+
+```json
+{
+  "preferences": {
+    "profileMemoryEnabled": false,
+    "profileMemoryItemCount": 0
+  }
+}
+```
+
+Rules:
+
+- `profileMemoryEnabled` is required and must be a boolean.
+- The mutation writes the profile memory setting and materializes the current
+  app-owned account, identity profile, access snapshot and preference setting
+  projection under `identity.*`.
+- The mutation must not write Better Auth adapter tables or expose Better Auth
+  session internals.
+- Preferences remain personalization state. They cannot grant permissions,
+  entitlement groups, restricted access or federation claims.
+
 ## Reserved Scoped Endpoints
 
-`GET /api/me/identity`, `GET /api/me/access`, `GET /api/me/preferences` and
-`PATCH /api/me/preferences` are reserved for account center decomposition.
+`GET /api/me/identity` and `GET /api/me/access` are reserved for account center
+decomposition.
 
 ## Related Documents
 

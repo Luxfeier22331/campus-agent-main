@@ -96,6 +96,8 @@ contract test carrier。新增 route 必须声明：
 - `ALL /api/auth/*`
 - `GET /api/me`
 - `GET /api/me/overview`
+- `GET /api/me/preferences`
+- `PATCH /api/me/preferences`
 
 Identity Platform detailed object families are frozen separately in
 `docs/contracts/app-api-identity-platform-http.md`.
@@ -442,6 +444,57 @@ assistant message 可以包含 `feedback`：
   或 provider risk signal
 - `profileMemory` 只作为 personalization summary，不授予权限
 - Federation runtime 未实现前，`federation.enabled=false`
+
+### `GET /api/me/preferences`
+
+返回当前 signed-in end-user 的 account center preferences projection。
+
+```json
+{
+  "preferences": {
+    "profileMemoryEnabled": true,
+    "profileMemoryItemCount": 0
+  }
+}
+```
+
+规则：
+
+- 只面向 end-user account center；operator / service principal 不进入该投影
+- 不返回 profile memory item keys、values、confidence、visibility 或 source
+  metadata
+- Preferences 不授予权限、entitlement groups、restricted access 或 federation
+  claims
+
+### `PATCH /api/me/preferences`
+
+更新当前 signed-in end-user 的 account center preferences。
+
+```json
+{
+  "profileMemoryEnabled": false
+}
+```
+
+响应：
+
+```json
+{
+  "preferences": {
+    "profileMemoryEnabled": false,
+    "profileMemoryItemCount": 0
+  }
+}
+```
+
+规则：
+
+- `profileMemoryEnabled` 必须是 boolean
+- 该写路径同步更新 `profile.memory_settings`，并物化当前
+  `identity.accounts`、`identity.identity_profiles`、
+  `identity.preference_settings` 与 `identity.access_snapshots`
+- 不写 Better Auth adapter tables，不暴露 raw cookie、session token 或 Better
+  Auth row
 
 ## Profile Memory Endpoints
 

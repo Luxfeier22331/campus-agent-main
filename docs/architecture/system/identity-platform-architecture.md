@@ -209,14 +209,21 @@ Current implemented truth:
   `identity.*` physical schema for account, identity profile, access snapshot,
   preference and federation policy materialization.
 - `apps/app-api/src/app/routes/identity-platform.ts` implements
-  `GET /api/me/overview` as the first account-center product projection.
+  `GET /api/me/overview`, `GET /api/me/preferences` and
+  `PATCH /api/me/preferences` as the current account-center product projection
+  surface.
 - `apps/app-api/src/modules/identity-platform/service.ts` builds the overview
   from the resolved end-user principal, authorization projection and profile
   memory summary. It rejects operator/service principals and does not expose raw
   Better Auth rows, cookies, tokens or profile memory item values.
-- `apps/hub-web/src/index.ts` allowlists `/api/me`, `/api/me/overview` and
-  selected `/api/auth/*` seams to `apps/app-api`; it does not expose
-  `/api/federation/*` yet.
+- `apps/app-api/src/modules/identity-platform/store.ts` owns the current
+  Identity Platform write path. Scoped preference mutation updates
+  `profile.memory_settings` and materializes `identity.accounts`,
+  `identity.identity_profiles`, `identity.preference_settings` and
+  `identity.access_snapshots` together.
+- `apps/hub-web/src/index.ts` allowlists `/api/me`, `/api/me/overview`,
+  `/api/me/preferences` and selected `/api/auth/*` seams to `apps/app-api`; it
+  does not expose `/api/federation/*` yet.
 - `apps/hub-web/src/routes/app-router.tsx` currently owns `/`, `/account` and
   auth action routes. The account page consumes `/api/me/overview` rather than
   Better Auth raw payload.
@@ -225,10 +232,13 @@ Current implemented truth:
 
 Forward contracts not yet implemented:
 
-- scoped `/api/me/identity`, `/api/me/access` and `/api/me/preferences`
-  endpoints.
-- OIDC/OAuth provider routes, discovery metadata, JWKS and federation client
-  registry.
+- scoped `/api/me/identity` and `/api/me/access` endpoints.
+- OAuth/OIDC provider routes, discovery metadata, JWKS and federation client
+  runtime. Current Better Auth documentation describes the OAuth Provider plugin
+  as an OAuth 2.1 provider with OIDC compatibility, discovery metadata and JWKS
+  verification support; implementation must verify Worker compatibility,
+  schema generation, client registration policy and claims mapping before
+  enabling federation routes.
 
 ## Forbidden Shapes
 

@@ -30,8 +30,14 @@ Current implementation note:
   `identity.federation_user_grants` tables.
 - The first account-center projection may derive account/session fields from
   the resolved Better Auth principal and reads only profile memory summary from
-  `profile.*`. It does not migrate `profile.*` or Better Auth rows into
-  `identity.*` in this batch.
+  `profile.*`.
+- `PATCH /api/me/preferences` is the first explicit identity materialization
+  write path. It updates `profile.memory_settings` and, in the same app-owned
+  write boundary, materializes `identity.accounts`,
+  `identity.identity_profiles`, `identity.preference_settings` and
+  `identity.access_snapshots`.
+- Better Auth adapter rows and existing `profile.memory_items` are not migrated
+  wholesale into `identity.*` in this batch.
 
 ## Schema Families
 
@@ -197,6 +203,9 @@ Rules:
 - Existing `profile.memory_settings` and `profile.memory_items` remain the
   current profile memory durable truth until an implementation explicitly
   migrates or aliases them.
+- The current scoped preference mutation writes `profile.memory_settings` and
+  mirrors the account-level preference into `identity.preference_settings` as
+  Identity Platform product materialization.
 - Preferences affect UX and personalization only.
 - Preferences cannot grant access or alter federation claims by default.
 
