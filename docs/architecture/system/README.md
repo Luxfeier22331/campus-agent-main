@@ -18,6 +18,9 @@ execution、retrieval、data-plane、observability 等系统级边界。
 - `execution-and-agents-architecture.md`
 - `prompt-and-instruction-architecture.md`
 - `identity-and-authorization-architecture.md`
+- `identity-platform-architecture.md`
+- `hub-account-experience-architecture.md`
+- `federation-and-mucwiki-login-architecture.md`
 - `retrieval-serving-architecture.md`
 - `agentic-retrieval-architecture.md`
 - `data-plane-architecture.md`

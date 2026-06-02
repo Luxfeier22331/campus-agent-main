@@ -12,12 +12,14 @@ updated: 2026-05-01
 
 它补充但不替代以下文档：
 
-- `app-api` runtime 与边界：`docs/architecture/system/product-runtime-architecture.md`
+- `app-api` runtime
+  与边界：`docs/architecture/system/product-runtime-architecture.md`
 - request projection
   ownership：`docs/architecture/system/product-runtime-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - `official_web` control-plane schema：`docs/data/app-api-official-web-schema.md`
+- identity platform logical schema：`docs/data/identity-platform-schema.md`
 - authenticated notice processing operator
   contract：`docs/contracts/app-api-authenticated-notice-processing-http.md`
 
@@ -49,6 +51,12 @@ updated: 2026-05-01
 - `official_web.*`
 - `docs.*`
 - `profile.*`
+
+已冻结但尚未 materialized 的 forward product schema：
+
+- future `identity.*` product schema, once implemented, is governed by
+  `docs/data/identity-platform-schema.md`; current `app_auth.*` Better Auth
+  runtime tables must not be treated as the product account model
 
 补充说明：
 
@@ -101,6 +109,12 @@ updated: 2026-05-01
 ## `app_auth.*`
 
 `app_auth.*` 由 Better Auth 拥有。
+
+Identity Platform product schemas are described separately in
+`docs/data/identity-platform-schema.md`. The separation is intentional:
+`app_auth.*` is runtime credential/session substrate, while product account,
+campus identity, access, preferences and federation policy belong to app-owned
+identity product schemas when materialized.
 
 第一版至少存在以下逻辑表：
 
@@ -234,12 +248,15 @@ updated: 2026-05-01
 - `DELETE` 撤回反馈时 hard delete；不保留 tombstone
 - 不保存 raw prompt、raw answer、provider response、retrieval payload 或 auth material
 - `request_id` 用于和 request observability / operator quality read model 关联
-- operator quality feedback aggregates 以 `runtime.request_observability_fact.started_at`
+- operator quality feedback aggregates 以
+  `runtime.request_observability_fact.started_at`
   所在窗口为准，通过 `request_id` 关联 `chat.message_feedback`；feedback `updated_at`
   只表示投票更新时间，不重新定义 operator quality 时间窗
 - `vote=unhelpful` 可以作为 operator quality eval candidate export 输入；export 只携带
-  `request_id`、`conversation_id`、`message_id`、reason code、typed intent summary 与受控
-  quality posture，不携带 raw transcript、raw auth material、provider raw response 或 retrieval
+  `request_id`、`conversation_id`、`message_id`、reason code、typed intent summary
+  与受控
+  quality posture，不携带 raw transcript、raw auth material、provider raw response 或
+  retrieval
   payload
 - feedback 不参与 authorization、serving surface、tool permission、memory projection 或
   supervisor admission
@@ -320,7 +337,8 @@ updated: 2026-05-01
 用途：
 
 - public/current document identity read model
-- 把 canonical `doc_id` / `document_slug` / current version 归一化为 browser-facing 摘要
+- 把 canonical `doc_id` / `document_slug` / current version 归一化为 browser-facing
+  摘要
 
 最小列：
 
@@ -422,8 +440,10 @@ updated: 2026-05-01
 
 规则：
 
-- `search_units` 不保存 `chunk_id`；docs search 返回的是 reader target，不是 retrieval trace
-- snippet 来自 canonical reader units / blocks，不得把 raw chunk payload 直出到 browser contract
+- `search_units` 不保存 `chunk_id`；docs search 返回的是 reader target，不是 retrieval
+  trace
+- snippet 来自 canonical reader units / blocks，不得把 raw chunk payload 直出到 browser
+  contract
 
 ## `profile.memory_settings`
 
@@ -479,7 +499,8 @@ updated: 2026-05-01
   browser-facing control surface 的默认写入姿态
 - `key` 必须是安全 typed key，不能表达 authorization / permission / ACL / visibility
   语义
-- `value` 只作为 personalization weak truth，不得写入 retrieval source truth 或 authz truth
+- `value` 只作为 personalization weak truth，不得写入 retrieval source truth 或 authz
+  truth
 - projection path 只读取当前 owner 的 enabled + user-visible items
 - 删除 item 后，不得再进入后续 `ContextProjection.profile_memory.items`
 
@@ -992,11 +1013,13 @@ updated: 2026-05-01
 - run-level projection 只回答 collector run / replay batch / queue run 的整体状态，不承载
   单个 notice 的 effective processing 详情
 - `source_truth_json` 可保存 `selectedNoticeCount`、`importedNoticeCount`、
-  `attachmentFetchStatusRecordCount`、`rawUploadedCount`、`rawReusedCount` 与少量 title/id
+  `attachmentFetchStatusRecordCount`、`rawUploadedCount`、`rawReusedCount` 与少量
+  title/id
   samples；不得保存 raw source object refs
 - `downstream_json` 可保存 candidate kind、target surface、materialized release
   count 与 status summary；source-truth-only run 可显示 `skipped_source_truth_only`
-- `job_summaries_json` 只保存 job id、run id、queue status、attempt count、selected/imported
+- `job_summaries_json` 只保存 job id、run id、queue status、attempt
+  count、selected/imported
   count、updated timestamp 与 normalized error 信息
 - first release 是 read-only projection；retry、cancel、re-enqueue 不是这张表或 panel
   surface 的职责
@@ -1005,8 +1028,10 @@ updated: 2026-05-01
 
 用途：
 
-- authenticated notice run-processing detail timeline 的 idempotent event projection
-- 后续 run-level freshness / reconciliation diagnostics 的 operator-safe event source
+- authenticated notice run-processing detail timeline 的 idempotent event
+  projection
+- 后续 run-level freshness / reconciliation diagnostics 的 operator-safe event
+  source
 
 最小列：
 
@@ -1033,7 +1058,8 @@ updated: 2026-05-01
 - `event_id` 可由 upstream event id 传入；缺省时由 run snapshot identity、stage、status、
   occurred time 与 ordinal 派生
 - `payload_json` 只允许 compact reason code、count 与 typed status，不允许 raw logs、
-  source file path、object-store locator、backup path、OCR/provider payload 或 raw stack
+  source file path、object-store locator、backup path、OCR/provider payload 或 raw
+  stack
 - event projection 只解释 run-level operator timeline，不作为 ingestion retry /
   cancellation command source
 
@@ -1079,7 +1105,8 @@ updated: 2026-05-01
 - 当前已冻结的第一版 schema 仅冻结 `domain=quality` 的 rollup shape
 - `metrics_json` 只保存受控聚合贡献，不保存 raw request payload、raw sink blob 或 grader 原始结果
 - 当前 feedback quality summary / timeseries 直接由 app-api query service 用
-  `chat.message_feedback.request_id` join `runtime.request_observability_fact.request_id`
+  `chat.message_feedback.request_id` join
+  `runtime.request_observability_fact.request_id`
   得到；它不是 raw sink query，也暂不写入 `operator.metric_rollup.metrics_json`
 
 ## `operator.quality_badcase_projection`

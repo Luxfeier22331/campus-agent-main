@@ -17,6 +17,9 @@ updated: 2026-05-01
 - `app-api-error-model.md`
 - `app-api-request-lifecycle.md`
 - `app-api-supervisor-execution.md`
+- `app-api-identity-platform-http.md` (forward product projection; not current
+  route inventory)
+- `app-api-federation-http.md` (forward federation provider surface)
 
 ## Operator / Official Web contract
 

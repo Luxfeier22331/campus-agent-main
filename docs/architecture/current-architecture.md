@@ -32,7 +32,8 @@ updated: 2026-05-07
 
 `hub-web same-site allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
+`browser -> public-chat-web -> app-api -> supervisor-api ->
+supervisor-agent-worker
 private bridge -> agent`
 
 `browser -> public-docs static reader assets`
@@ -53,18 +54,25 @@ document/index release`
 - hub 是 product entry surface，不是第二个 product backend、generic app-api proxy
   或 MediaWiki proxy
 - panel 不绕过 `apps/app-api`
-- hub / public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走 `APP_API`
+- hub / public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走
+  `APP_API`
   Service Binding；`https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
+- `apps/app-api` 当前同时是 MUC Wiki Hub Identity Platform 的 canonical product owner；
+  Better Auth 是 auth runtime adapter，不是产品账号、校园身份、access entitlement 或
+  federation policy schema owner
 - `campus-api-staging.ayafeed.com` 如存在，只表示 app-api staging machine / ops
   ingress，不是 browser surface upstream
 - `apps/supervisor-api` 是 Go-owned internal execution engine，不是产品后端
-- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
+- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution
+  service
 - `apps/supervisor-api` 是当前 Docker execution ingress，负责 execution HTTP surface
-  与 runtime hardening；Python `apps/supervisor-agent-worker` 只保留 private bridge worker
+  与 runtime hardening；Python `apps/supervisor-agent-worker` 只保留 private bridge
+  worker
 - semantic delegate path 仍进入 Python private bridge；已打开的 deterministic
   structured capability 当前按 `runtime_posture` 分流：
-  `typed_handoff_only` 的 payload 允许在 Go `apps/supervisor-api` 的 non-stream answer
+  `typed_handoff_only` 的 payload 允许在 Go `apps/supervisor-api` 的 non-stream
+  answer
   path 与 lifecycle SSE answer path 直接完成，`sdk_adapter_admitted` 的 payload 则进入
   Go-owned `single_handoff` plan，再由 Python worker 的 SDK-native agent runtime 执行
 - Python bridge 返回 private `AgentResponse`；public `SupervisorResponse`
@@ -74,7 +82,8 @@ document/index release`
   claim、lease、retry、dead-letter、materialize、publish 与失败状态属于
   `packages/ingestion-core` / `apps/ingestion-worker`
 - `wechat_official_account` 已进入 admitted source/data/control-plane truth：当前已有
-  source-truth schema、collector principal、run ledger 与 offline projection handoff
+  source-truth schema、collector principal、run ledger 与 offline projection
+  handoff
   shape，但它不是默认 query-enabled surface，也不是近期已开放的 product runtime
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
 
@@ -121,8 +130,11 @@ document/index release`
 
 - public-facing Worker web surface for `hub.muc.wiki`
 - 拥有 `/` app launcher shell、launcher route registry 与 `/account` account shell
-- 通过 allowlisted same-site seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
+- 通过 allowlisted same-site seam 与 Worker `APP_API` Service Binding 调用
+  `apps/app-api`
   的 `/api/me` 与必要 auth endpoints
+- `/account` 当前消费 compact `/api/me` runtime principal；forward account center 应切到
+  Identity Platform product projection，而不是围绕 Better Auth raw session 建模
 - sibling app entries 只能表现为 registry 中的 `app_link` / `planned` / `external`
   target，不创建 `/chat`、`/docs`、`/panel`、`/map`、`/services` 或 `/notices`
   这类 fake internal browser route shell
@@ -142,7 +154,8 @@ document/index release`
 - browser auth handoff 固定为
   `public-chat-web compat route -> hub-web /account/* -> same-site /api/auth/*`
   -> `app-api`
-- 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
+- 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用
+  `apps/app-api`
 
 ### `apps/public-docs`
 
@@ -159,7 +172,8 @@ document/index release`
 
 - protected Worker web surface
 - 只负责 operator-facing panel UI
-- 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query surfaces
+- 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query
+  surfaces
 - 当前已接入 `Requests`、`Official Web` 与 authenticated notice processing 的 app-owned
   operator-safe read-only surfaces
 
@@ -171,15 +185,21 @@ document/index release`
 - 拥有 public-docs same-site `/api/docs/*` 背后的 document reader control-plane truth
 - 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission
   hardening
+- 拥有 Identity Platform 的 product-layer account / identity / access /
+  preferences / federation policy boundary；当前 `/api/me/overview` 与 federation
+  endpoints 是已冻结 forward contract，尚不得写成 current route inventory
 - 承接 `official_web` control plane
 - 对 `official_web`，只拥有 collector command ingress、crawl-run ledger、operator
   projection/query 与 stable-reference release gate approve/reject ledger；不拥有
   selected-write admission/task truth 或 release executor callback surface
-- 承接 authenticated notice processing 的 operator-safe projection ingest 与 list/detail
+- 承接 authenticated notice processing 的 operator-safe projection ingest 与
+  list/detail
   query；不暴露 raw notice content、OCR payload、附件字节、对象存储路径或 queue mutation
   action
-- 承接 `wechat_official_account` source channel 的 command ingress、collector principal
-  admission、run ledger 与 source artifact registration；当前只拥有 source/data/control-plane
+- 承接 `wechat_official_account` source channel 的 command ingress、collector
+  principal
+  admission、run ledger 与 source artifact registration；当前只拥有
+  source/data/control-plane
   truth，不打开默认 product query/runtime serving
 - 当前代码侧以 route exposure inventory 固定每个 route 的 caller class 与 admission rule
 
@@ -198,7 +218,8 @@ document/index release`
   仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
 - `runtime_decisions.workflow_plan` 已作为 planner 的 canonical safe projection
   落入 bridge contract；当前 runtime 默认只发出 `single_handoff` plan。受控开启
-  `SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run store ready 后，
+  `SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run store ready
+  后，
   可执行首条真实 `multi_step` path：selected notice context + knowledge follow-through
   触发 notice-agent internal selected notice resolve
   (`payload_kind=campus_notice_get`) -> `rag-agent retrieval.query`，并将 notice
@@ -262,7 +283,8 @@ document/index release`
 - 拥有 official-web release task runtime；从 ingestion-owned task payload 推进
   selected-write / stable-reference release，不通过 app-api executor route 回写状态
 - 拥有 ingestion run-level telemetry adapter，输出 canonicalize / chunk / embedding /
-  index release / publish / audit 的 sanitized started/completed/failed run event；
+  index release / publish / audit 的 sanitized started/completed/failed run
+  event；
   export failure 不让 ingestion job 失败
 
 ### `apps/official-web-collector`
@@ -319,6 +341,12 @@ document/index release`
   architecture：`docs/architecture/system/prompt-and-instruction-architecture.md`
 - identity / authorization supporting
   architecture：`docs/architecture/system/identity-and-authorization-architecture.md`
+- identity platform supporting
+  architecture：`docs/architecture/system/identity-platform-architecture.md`
+- hub account experience supporting
+  architecture：`docs/architecture/system/hub-account-experience-architecture.md`
+- future muc.wiki federation supporting
+  architecture：`docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - retrieval / serving supporting
   architecture：`docs/architecture/system/retrieval-serving-architecture.md`
 - data plane supporting

@@ -18,6 +18,8 @@ This app is the shared product backend behind:
 It owns:
 
 - auth and session handling
+- MUC Wiki Hub Identity Platform product boundary for account, identity, access,
+  preferences and future federation policy
 - product-layer principal mapping
 - chat request ingress
 - conversation and message persistence
@@ -44,6 +46,7 @@ Current runtime scope:
   - includes email/password sign-up, sign-in, request-password-reset, and
     reset-password
 - `GET /api/me`
+  - compact current session principal projection
 - `POST /api/official-web/runs`
 - `POST /api/official-web/runs/:runId/heartbeats`
 - `POST /api/official-web/runs/:runId/finalize`
@@ -125,13 +128,16 @@ Observability data policy:
 Canonical references:
 
 - `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/domains/official-web/architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
-  md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
+- `docs/architecture/system/identity-platform-architecture.md`
+- `docs/architecture/system/hub-account-experience-architecture.md`
+- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
+- `docs/contracts/app-api-identity-platform-http.md`
+- `docs/contracts/app-api-federation-http.md`
+- `docs/data/identity-platform-schema.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/contracts/app-api-http.md`

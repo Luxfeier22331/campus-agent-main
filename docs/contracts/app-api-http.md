@@ -13,8 +13,10 @@ browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
-- shared product topology：`docs/architecture/system/product-runtime-architecture.md`
-- `app-api` runtime 与内部边界：`docs/architecture/system/product-runtime-architecture.md`
+- shared product
+  topology：`docs/architecture/system/product-runtime-architecture.md`
+- `app-api` runtime
+  与内部边界：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api -> supervisor-api`
   内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
 - internal eval benchmark
@@ -26,11 +28,16 @@ browser-facing HTTP contract。
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
+- identity platform product
+  projection：`docs/contracts/app-api-identity-platform-http.md`
+- future federation provider surface：`docs/contracts/app-api-federation-http.md`
 
 这份文档不冻结：
 
 - browser 直接可见的 hostname、route mounting 方式或 Worker BFF 实现
 - Better Auth 的 provider 细节
+- Identity Platform forward product projection shape
+- future OIDC/OAuth provider endpoint shape
 - panel UI layout
 - token streaming 或异步后台回答产品形态
 - `official_web` collector command endpoints
@@ -88,6 +95,12 @@ contract test carrier。新增 route 必须声明：
 
 - `ALL /api/auth/*`
 - `GET /api/me`
+
+Identity Platform forward contract is frozen separately in
+`docs/contracts/app-api-identity-platform-http.md`. Do not list
+`/api/me/overview` here until
+`apps/app-api/src/app/route-exposure.ts` and route tests expose it as current
+inventory.
 
 ### Profile Memory
 
@@ -214,10 +227,12 @@ assistant message 可以包含 `feedback`：
 规则：
 
 - `profile memory` 是 app-owned personalization truth，不是 authorization truth
-- browser-facing control surface 只允许当前 signed-in principal 管理自己的 user-visible memory
+- browser-facing control surface 只允许当前 signed-in principal 管理自己的 user-visible
+  memory
 - `key` 必须是安全的 typed key，不接受 authorization / permission / ACL 类 key
 - `value` 是用户声明的短文本偏好或目标，不能作为 ACL、serving surface 或 approval 权限来源
-- 关闭 memory projection 后，后续 execution `ContextProjection.profile_memory.items` 必须为空
+- 关闭 memory projection 后，后续 execution `ContextProjection.profile_memory.items`
+  必须为空
 
 ### Request Projection Summary
 
@@ -470,7 +485,8 @@ Upsert 一个用户声明的 profile memory item。
 - memory item `key` 使用小写 typed key，并拒绝 authorization / permission / ACL 类 key
 - `profileMemory.enabled=false` 不删除已有 item，但 execution projection 必须返回空 memory
 - 删除 item 后，该 item 不得再进入后续 `ContextProjection.profile_memory.items`
-- profile memory 不进入 authorization filter、serving surface、approval 或 tool permission
+- profile memory 不进入 authorization filter、serving surface、approval 或 tool
+  permission
 
 ## Chat Endpoints
 
@@ -635,9 +651,8 @@ rollback 规则：
 
 当前 `public-chat-web` 只 admission `knowledge` capability。这里描述的是该 surface 当前开放的
 capability allowlist，不是长期产品入口原则；前向 routing 语义见
-`docs/architecture/system/capability-routing-and-admission-architecture.md` 与 `docs/dec
-isions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-pol
-icy.md`。
+`docs/architecture/system/capability-routing-and-admission-architecture.md` 与
+`docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`。
 
 请求 headers：
 

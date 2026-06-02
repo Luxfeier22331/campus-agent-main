@@ -23,6 +23,9 @@ policy、reference、runbook，以及已归档的历史 plan。
   - supervisor runtime、agent family、handoff 与 workflow ownership
 - [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
   - retrieval-side agentic planning、evidence contract 与 retrieval/runtime split
+- [architecture/system/identity-platform-architecture.md](./architecture/system/identity-platform-architecture.md)
+  - MUC Wiki Hub Identity Platform、auth runtime adapter 与 account/federation
+    product boundary
 - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - 当前项目级 active lane 与 pending work
 - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
@@ -60,10 +63,16 @@ policy、reference、runbook，以及已归档的历史 plan。
 - 需要回答“产品是什么、当前系统真相是什么、长期要收口到哪里”，先读 `architecture/`
 - 需要回答“顶层 capability routing、surface allowlist 与 admission/routing 分层如何设计”，读
   `architecture/system/capability-routing-and-admission-architecture.md`
-- 需要回答“supervisor、structured runtime、agent handoff 与 SDK-native execution 如何分层”，读
+- 需要回答“supervisor、structured runtime、agent handoff 与 SDK-native execution
+  如何分层”，读
   `architecture/system/execution-and-agents-architecture.md`
 - 需要回答“retrieval planner、bounded evidence、RAG side agent runtime 如何分层”，读
   `architecture/system/agentic-retrieval-architecture.md`
+- 需要回答“用户系统、account center、auth runtime adapter、future muc.wiki login federation
+  如何分层”，读
+  `architecture/system/identity-platform-architecture.md`、
+  `architecture/system/hub-account-experience-architecture.md` 与
+  `architecture/system/federation-and-mucwiki-login-architecture.md`
 - 需要回答“为什么接受这条边界”，读 `decisions/`
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
 - 需要回答“source-channel 的 canonical data truth 是什么”，优先从 `data/` 进入，例如
@@ -79,7 +88,8 @@ policy、reference、runbook，以及已归档的历史 plan。
 - `docs/` 保存长期可引用的 repo truth，不承担 worktree-local 执行状态
 - `architecture/current-architecture.md` 只描述当前 accepted merged truth，不描述 feature
   branch 进度
-- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live 入口；先看这里，再进入
+- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live
+  入口；先看这里，再进入
   `STATE / ROADMAP / REQUIREMENTS`
 - `docs/plans/` 已全部视为 archive namespace；当前 forward execution truth 固定在
   `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/`

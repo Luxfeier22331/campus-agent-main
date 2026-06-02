@@ -26,7 +26,8 @@ supporting architecture。
 
 `hub-web same-site allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
+`browser -> public-chat-web -> app-api -> supervisor-api ->
+supervisor-agent-worker
 private bridge`
 
 `browser -> public-docs static reader assets`
@@ -39,14 +40,19 @@ model`
 这意味着：
 
 - 当前已落地的 public/protected/docs surface 是 shared `app-api` 前面的并列 browser surface
-- Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service Binding；
-  `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的 origin
-- `apps/hub-web` 是 app-set product entry surface；它拥有平面入口、launcher registry 与 account
+- Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service
+  Binding；
+  `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的
+  origin
+- `apps/hub-web` 是 app-set product entry surface；它拥有平面入口、launcher registry 与
+  account
   browser shell，但不拥有 backend truth
 - `apps/public-chat-web` 与 `apps/public-docs` 都是 public-facing surface，但它们的内部 IA
   不自动升级成整个产品的顶层 IA
 - `apps/public-docs` 是独立 docs-first browser surface
 - `apps/app-api` 是 shared product/control-plane backend
+- `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
+  runtime adapter role
 - `apps/supervisor-api` 是 Docker-first internal execution engine
 - panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
 - ingestion/release task state machine 不属于 product runtime；它属于 offline data
@@ -72,6 +78,8 @@ model`
   - sibling app 入口通过 launcher registry 的 `app_link` / `planned` / `external`
     target 表达，不在 hub 内创建 fake browser route shell
   - 只通过 allowlisted same-site app-api seams 消费 `/api/me` 与必要 auth endpoints
+  - account center 的 forward shape 消费 Identity Platform product projection，不消费
+    Better Auth raw records
   - legacy Wiki 只作为 external-link card 指向 `https://muc.wiki`
 - `public-docs`
   - 已是正式公开文档站 app；当前 docs shell 已落地，并通过 Worker `APP_API` Service
@@ -132,7 +140,8 @@ model`
   - `/account/reset-password`
 - same-site allowlisted auth and `/api/me` seams into `apps/app-api` via Worker
   Service Binding
-- fail-closed unknown browser path handling, including sibling app slugs that are
+- fail-closed unknown browser path handling, including sibling app slugs that
+  are
   not hub-owned shell paths
 - no generic app-api proxy
 - no MediaWiki page/content/upload proxy
@@ -155,15 +164,19 @@ model`
 ### `apps/app-api`
 
 - auth / session / principal mapping
+- Identity Platform account / identity / access / preferences / federation
+  policy boundary
 - surface capability policy
 - conversation 与 chat ingress
 - `runtime.request_execution`
 - `runtime.projection_outbox`
 - `operator.request_projection`
 - selected operator control-plane domains，例如 `official_web`
-- selected operator-safe processing projections，例如 `authenticated_notice_processing`
+- selected operator-safe processing projections，例如
+  `authenticated_notice_processing`
 - `official_web` 中只拥有 collector command ingress、operator-safe projection/query 与
-  stable-reference approve/reject ledger；不拥有 selected-write admission/task truth、
+  stable-reference approve/reject ledger；不拥有 selected-write admission/task
+  truth、
   executor read route 或 executor callback route
 - route exposure inventory 必须显式区分 `browser-surface`、`operator-via-panel`、
   `machine-internal`、`collector-machine` 与 `system`；新增 route 时必须同步 caller
@@ -194,7 +207,8 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - internal execution admission
 - typed execution transport
 - forward deploy substrate 已冻结为 Docker-first internal execution service
-- Docker-side Go `supervisor-api` 承担 execution-level backpressure、timeout、readiness、
+- Docker-side Go `supervisor-api` 承担 execution-level
+  backpressure、timeout、readiness、
   bridge circuit breaker、metrics 与 graceful drain；它不拥有 product-level 用户限流或
   browser-facing capability policy
 - 不承担 browser-facing product backend 责任
@@ -203,12 +217,14 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 产品 runtime 与 offline data plane 的分界固定为：
 
-`app-api operator/collector control plane -> ingestion-worker release task runtime`
+`app-api operator/collector control plane -> ingestion-worker release task
+runtime`
 
 固定规则：
 
 - `apps/app-api` 可以接收 collector lifecycle command、维护 crawl-run ledger、物化
-  operator-safe projections，并记录 stable-reference release gate approve/reject ledger
+  operator-safe projections，并记录 stable-reference release gate approve/reject
+  ledger
 - `apps/app-api` 不提供 official-web release executor read/callback routes
 - `apps/app-api` 不保存 contact/service selected-write admission 或 task truth
 - `packages/ingestion-core` 定义 release task contract 与状态推进
@@ -262,7 +278,8 @@ panel `Requests` 的 canonical read path 固定为：
 future operator-facing observability 域也遵循同一 ownership rule：
 
 - audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
-- authenticated notice processing 这类 ingestion/downstream visibility surface 也必须经
+- authenticated notice processing 这类 ingestion/downstream visibility surface
+  也必须经
   `apps/app-api` 的 operator-safe projection 暴露，不能让 panel 回读 queue、object-store、
   operations 目录或 raw logs
 - panel 只能读取 runtime-owned projection / aggregate APIs
@@ -329,7 +346,8 @@ contract 或 auth family route/endpoint truth。
 - shared `apps/app-api` runtime 已冻结为 Worker
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
-- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
+- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution
+  service
 - 这项冻结不等于提前冻结 `apps/supervisor-api` 的单一 Python/HTTP framework
 - execution public ingress 已 hardcut 到 Go `apps/supervisor-api`；Python
   `apps/supervisor-agent-worker`
@@ -355,6 +373,10 @@ contract 或 auth family route/endpoint truth。
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
   md`
+- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
+- `docs/architecture/system/identity-platform-architecture.md`
+- `docs/architecture/system/hub-account-experience-architecture.md`
+- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici

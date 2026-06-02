@@ -6,6 +6,8 @@ It owns:
 
 - `/` app launcher shell backed by a single launcher route registry
 - `/account` browser shell for login, registration and password recovery
+- future account center browser shell consuming app-api Identity Platform
+  projections
 - allowlisted same-site seams to `apps/app-api` through Worker `APP_API`
   Service Binding
 - external legacy Wiki card pointing to `https://muc.wiki`
@@ -15,6 +17,8 @@ It does not own:
 - browser shells for sibling apps such as `/chat`, `/docs`, `/panel`, `/map`,
   `/services`, or `/notices`
 - auth database, session storage, principal mapping or authorization truth
+- Identity Platform product truth, federation policy, MediaWiki account linking
+  or Better Auth raw records
 - generic `/api/*` proxy behavior
 - MediaWiki content, uploaded media, account migration, proxying or mirroring
 - supervisor execution or agent routing
@@ -25,6 +29,9 @@ Current route scope:
 - `GET /readyz`
 - `GET /`
 - `GET /account`
+  - current compact account overview shell; future account center sections are
+    documented in
+    `docs/architecture/system/hub-account-experience-architecture.md`
 - `GET /account/login`
 - `GET /account/register`
 - `GET /account/forgot-password`
