@@ -5,6 +5,8 @@ import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.mjs?raw";
 import worker, { type Env } from "../src/index";
 import workerSource from "../src/index.ts?raw";
+import viteConfigSource from "../vite.config.ts?raw";
+import liveSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
@@ -42,6 +44,8 @@ describe("hub worker boundary", () => {
 		expect(wranglerConfig).toContain('pattern = "hub-muc-wiki.ayafeed.com"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain('service = "app-api-staging"');
+		expect(wranglerConfig).toContain('APP_API_BASE_URL = "http://127.0.0.1:27031"');
+		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "127.0.0.1:27012"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
 		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "hub-muc-wiki.ayafeed.com"');
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
@@ -57,6 +61,28 @@ describe("hub worker boundary", () => {
 		expect(packageManifest.scripts?.dev).toContain("--port 27012");
 		expect(stagingPreflightSource).toContain('"apps/hub-web"');
 		expect(stagingPreflightSource).toContain("worker-staging-hub-web");
+	});
+
+	it("declares a canonical live-smoke path with app-api as an auxiliary worker", () => {
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("HUB_LIVE_SMOKE=1");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--host 127.0.0.1");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 27012");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--strictPort");
+		expect(viteConfigSource).toContain("HUB_LIVE_SMOKE");
+		expect(viteConfigSource).toContain("liveSmokeHubConfigPath");
+		expect(viteConfigSource).toContain("configPath: liveSmokeHubConfigPath");
+		expect(viteConfigSource).toContain("auxiliaryWorkers");
+		expect(viteConfigSource).toContain("../app-api/wrangler.local-smoke.toml");
+		expect(viteConfigSource).toContain("AUTH_SHELL_ORIGIN");
+		expect(viteConfigSource).toContain("http://127.0.0.1:27012");
+		expect(liveSmokeWranglerConfig).toContain("[secrets]");
+		expect(liveSmokeWranglerConfig).toContain("required = []");
+		expect(liveSmokeWranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
+		expect(liveSmokeWranglerConfig).toContain('HUB_WEB_HOSTNAME = "127.0.0.1:27012"');
+		expect(liveSmokeWranglerConfig).toContain(
+			'AUTH_TURNSTILE_SITE_KEY = "1x00000000000000000000AA"',
+		);
+		expect(liveSmokeWranglerConfig).not.toContain("SENTRY_DSN");
 	});
 
 	it("keeps Sentry fail-open while scrubbing auth-sensitive hub fields", () => {
@@ -91,12 +117,31 @@ describe("hub worker boundary", () => {
 
 		const allowed = await worker.fetch(new Request("https://hub.muc.wiki/api/me"), env);
 		const overview = await worker.fetch(new Request("https://hub.muc.wiki/api/me/overview"), env);
+		const preferencesGet = await worker.fetch(
+			new Request("https://hub.muc.wiki/api/me/preferences"),
+			env,
+		);
+		const preferencesPatch = await worker.fetch(
+			new Request("https://hub.muc.wiki/api/me/preferences", {
+				body: JSON.stringify({ profileMemoryEnabled: false }),
+				headers: { "content-type": "application/json" },
+				method: "PATCH",
+			}),
+			env,
+		);
 		const rejected = await worker.fetch(new Request("https://hub.muc.wiki/api/chat"), env);
 
 		expect(allowed.status).toBe(200);
 		expect(overview.status).toBe(200);
+		expect(preferencesGet.status).toBe(200);
+		expect(preferencesPatch.status).toBe(200);
 		expect(rejected.status).toBe(404);
-		expect(seen).toEqual(["/api/me", "/api/me/overview"]);
+		expect(seen).toEqual([
+			"/api/me",
+			"/api/me/overview",
+			"/api/me/preferences",
+			"/api/me/preferences",
+		]);
 	});
 
 	it("fails closed for unknown browser paths instead of serving fake app routes", async () => {

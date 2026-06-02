@@ -9,6 +9,15 @@ preview_urls = false
 binding = "APP_API"
 service = "app-api"
 
+[env.local.vars]
+APP_API_BASE_URL = "http://127.0.0.1:27031"
+HUB_PUBLIC_CHAT_ORIGIN = "http://127.0.0.1:27011"
+HUB_WEB_HOSTNAME = "127.0.0.1:27012"
+
+[[env.local.services]]
+binding = "APP_API"
+service = "app-api-local"
+
 [env.staging.vars]
 APP_API_BASE_URL = "https://app-api.internal"
 HUB_PUBLIC_CHAT_ORIGIN = "https://campus-chat-staging.ayafeed.com"

@@ -54,6 +54,13 @@ interface AccountOverviewResult {
 	state: AccountOverviewState;
 }
 
+export type AccountPreferences = AccountOverview["preferences"];
+
+export interface AccountPreferencesResult {
+	preferences: AccountPreferences | null;
+	state: Exclude<AccountOverviewState, "loading">;
+}
+
 const ACCOUNT_STATUSES = new Set<AccountOverview["account"]["status"]>([
 	"active",
 	"deleted",
@@ -103,6 +110,45 @@ export async function loadAccountOverview(
 		return { overview: payload, state: "ready" };
 	} catch {
 		return { overview: null, state: "network_error" };
+	}
+}
+
+export async function updateAccountPreferences(
+	input: { profileMemoryEnabled: boolean },
+	fetchImplementation: typeof fetch = fetch,
+): Promise<AccountPreferencesResult> {
+	try {
+		const response = await fetchImplementation("/api/me/preferences", {
+			body: JSON.stringify({ profileMemoryEnabled: input.profileMemoryEnabled }),
+			credentials: "include",
+			headers: {
+				accept: "application/json",
+				"content-type": "application/json",
+			},
+			method: "PATCH",
+		});
+		if (response.status === 401) {
+			return { preferences: null, state: "unauthenticated" };
+		}
+		if (!response.ok) {
+			return { preferences: null, state: "service_unavailable" };
+		}
+		const contentType = response.headers.get("content-type") ?? "";
+		if (!contentType.includes("application/json")) {
+			return { preferences: null, state: "service_unavailable" };
+		}
+		let payload: unknown;
+		try {
+			payload = await response.json();
+		} catch {
+			return { preferences: null, state: "service_unavailable" };
+		}
+		if (!(isRecord(payload) && isAccountPreferences(payload.preferences))) {
+			return { preferences: null, state: "service_unavailable" };
+		}
+		return { preferences: payload.preferences, state: "ready" };
+	} catch {
+		return { preferences: null, state: "network_error" };
 	}
 }
 
@@ -206,19 +252,21 @@ function isAccountOverview(value: unknown): value is AccountOverview {
 	) {
 		return false;
 	}
-	if (
-		!(
-			isRecord(preferences) &&
-			hasBoolean(preferences, "profileMemoryEnabled") &&
-			isNonNegativeSafeInteger(preferences.profileMemoryItemCount)
-		)
-	) {
+	if (!isAccountPreferences(preferences)) {
 		return false;
 	}
 	return (
 		isRecord(federation) &&
 		hasBoolean(federation, "enabled") &&
 		isStringArray(federation.connectedClients)
+	);
+}
+
+function isAccountPreferences(value: unknown): value is AccountPreferences {
+	return (
+		isRecord(value) &&
+		hasBoolean(value, "profileMemoryEnabled") &&
+		isNonNegativeSafeInteger(value.profileMemoryItemCount)
 	);
 }
 

@@ -48,6 +48,9 @@ Launcher registry target kinds:
 Allowlisted app-api seams:
 
 - `GET /api/me`
+- `GET /api/me/overview`
+- `GET /api/me/preferences`
+- `PATCH /api/me/preferences`
 - `POST /api/auth/sign-in/email`
 - `POST /api/auth/sign-up/email`
 - `POST /api/auth/sign-out`
@@ -89,7 +92,20 @@ pnpm test
 pnpm test:worker
 pnpm typecheck
 pnpm dev
+pnpm dev:live-smoke
 ```
+
+Local dev notes:
+
+- `pnpm dev` keeps the hub shell isolated to `hub-web`; it is useful for
+  frontend-only iteration, but it is not the canonical account/API smoke path
+  for the `APP_API` service binding.
+- `pnpm dev:live-smoke` is the canonical local account smoke entry. It boots
+  `hub-web` on `<http://127.0.0.1:27012`> and brings up `apps/app-api` as a
+  Cloudflare Vite auxiliary Worker from `../app-api/wrangler.local-smoke.toml`,
+  so same-site `/api/auth/*`, `/api/me/overview` and `/api/me/preferences`
+  requests resolve through the real Worker service binding instead of depending
+  on two separate `pnpm dev` sessions finding each other.
 
 `pnpm dev` listens on `<http://127.0.0.1:27012/>`. The hub surface does not use
 Vite's default `5173` port; that port is already reserved by other local Worker

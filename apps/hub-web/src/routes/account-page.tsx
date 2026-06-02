@@ -22,6 +22,7 @@ import {
 	type AccountOverview,
 	type AccountOverviewState,
 	loadAccountOverview,
+	updateAccountPreferences,
 } from "./account-session";
 import { PageDescription, PageTitle, ShellSection } from "./route-layout";
 
@@ -29,6 +30,7 @@ export function AccountPage() {
 	const [overviewState, setOverviewState] = useState<AccountOverviewState>("loading");
 	const [overview, setOverview] = useState<AccountOverview | null>(null);
 	const [isSigningOut, setIsSigningOut] = useState(false);
+	const [isUpdatingPreferences, setIsUpdatingPreferences] = useState(false);
 
 	const loadOverview = useCallback(async () => {
 		setOverviewState("loading");
@@ -57,6 +59,28 @@ export function AccountPage() {
 		}
 	}
 
+	async function handleProfileMemoryChange(enabled: boolean) {
+		if (isUpdatingPreferences) {
+			return;
+		}
+		setIsUpdatingPreferences(true);
+		const result = await updateAccountPreferences({ profileMemoryEnabled: enabled });
+		const updatedPreferences = result.preferences;
+		if (result.state === "ready" && updatedPreferences) {
+			setOverview((current) =>
+				current
+					? {
+							...current,
+							preferences: updatedPreferences,
+						}
+					: current,
+			);
+		} else {
+			setOverviewState(result.state);
+		}
+		setIsUpdatingPreferences(false);
+	}
+
 	return (
 		<ShellSection className="max-w-5xl">
 			<PageTitle>账号</PageTitle>
@@ -81,6 +105,8 @@ export function AccountPage() {
 				{overviewState === "ready" && overview ? (
 					<AccountOverviewPanel
 						isSigningOut={isSigningOut}
+						isUpdatingPreferences={isUpdatingPreferences}
+						onProfileMemoryChange={handleProfileMemoryChange}
 						onSignOut={handleSignOut}
 						overview={overview}
 					/>
@@ -156,10 +182,14 @@ function AccountLoggedOutCard() {
 
 export function AccountOverviewPanel({
 	isSigningOut,
+	isUpdatingPreferences = false,
+	onProfileMemoryChange,
 	onSignOut,
 	overview,
 }: {
 	isSigningOut: boolean;
+	isUpdatingPreferences?: boolean;
+	onProfileMemoryChange?: (enabled: boolean) => void;
 	onSignOut: () => void;
 	overview: AccountOverview;
 }) {
@@ -226,6 +256,18 @@ export function AccountOverviewPanel({
 						["记忆条目", `${overview.preferences.profileMemoryItemCount}`],
 						["授权影响", "不授予权限"],
 					]}
+					renderFooter={
+						onProfileMemoryChange ? (
+							<Button
+								disabled={isUpdatingPreferences}
+								onClick={() => onProfileMemoryChange(!overview.preferences.profileMemoryEnabled)}
+								type="button"
+								variant="outline"
+							>
+								{overview.preferences.profileMemoryEnabled ? "关闭资料记忆" : "开启资料记忆"}
+							</Button>
+						) : undefined
+					}
 					title="资料记忆"
 				/>
 				<AccountFactSection
@@ -245,10 +287,12 @@ export function AccountOverviewPanel({
 function AccountFactSection({
 	icon,
 	items,
+	renderFooter,
 	title,
 }: {
 	icon: ReactNode;
 	items: [string, string][];
+	renderFooter?: ReactNode;
 	title: string;
 }) {
 	return (
@@ -267,6 +311,7 @@ function AccountFactSection({
 					</div>
 				))}
 			</dl>
+			{renderFooter ? <div className="mt-5 border-t border-border pt-5">{renderFooter}</div> : null}
 		</AccountPanel>
 	);
 }

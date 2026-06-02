@@ -27,6 +27,7 @@ export interface Env {
 const HUB_ALLOWED_APP_API_PATHS = new Set([
 	"/api/me",
 	"/api/me/overview",
+	"/api/me/preferences",
 	"/api/auth/sign-in/email",
 	"/api/auth/sign-up/email",
 	"/api/auth/sign-out",
@@ -267,10 +268,13 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 	}
 
 	try {
+		const forwardedBody = shouldForwardBody(request.method)
+			? await request.arrayBuffer()
+			: undefined;
 		return withNoStore(
 			await env.APP_API.fetch(
 				new Request(appApiUrl.toString(), {
-					body: shouldForwardBody(request.method) ? request.body : undefined,
+					body: forwardedBody,
 					headers,
 					method: request.method,
 					redirect: request.redirect,

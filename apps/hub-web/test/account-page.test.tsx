@@ -45,13 +45,19 @@ const overview: AccountOverview = {
 describe("hub account overview panel", () => {
 	it("renders identity, access, preferences, and federation account center sections", () => {
 		const html = renderToStaticMarkup(
-			<AccountOverviewPanel isSigningOut={false} onSignOut={vi.fn()} overview={overview} />,
+			<AccountOverviewPanel
+				isSigningOut={false}
+				onProfileMemoryChange={vi.fn()}
+				onSignOut={vi.fn()}
+				overview={overview}
+			/>,
 		);
 
 		expect(html).toContain("jane@muc.edu.cn");
 		expect(html).toContain("校园身份");
 		expect(html).toContain("可用应用");
 		expect(html).toContain("资料记忆");
+		expect(html).toContain("关闭资料记忆");
 		expect(html).toContain("MUC Wiki 登录联邦");
 		expect(html).toContain("campus_member");
 		expect(html).toContain("未验证");

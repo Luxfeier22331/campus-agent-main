@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { loadAccountOverview } from "../src/routes/account-session";
+import { loadAccountOverview, updateAccountPreferences } from "../src/routes/account-session";
 
 const validOverviewPayload = {
 	account: {
@@ -96,6 +96,60 @@ describe("hub account session loader", () => {
 		expect(fetchImplementation).toHaveBeenCalledWith("/api/me/overview", {
 			credentials: "include",
 			headers: { accept: "application/json" },
+		});
+	});
+
+	it("updates account-center preferences through the scoped app-api endpoint", async () => {
+		const fetchImplementation = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						preferences: {
+							profileMemoryEnabled: false,
+							profileMemoryItemCount: 4,
+						},
+					}),
+					{
+						headers: { "content-type": "application/json" },
+						status: 200,
+					},
+				),
+		);
+
+		await expect(
+			updateAccountPreferences({ profileMemoryEnabled: false }, fetchImplementation),
+		).resolves.toEqual({
+			preferences: {
+				profileMemoryEnabled: false,
+				profileMemoryItemCount: 4,
+			},
+			state: "ready",
+		});
+		expect(fetchImplementation).toHaveBeenCalledWith("/api/me/preferences", {
+			body: JSON.stringify({ profileMemoryEnabled: false }),
+			credentials: "include",
+			headers: {
+				accept: "application/json",
+				"content-type": "application/json",
+			},
+			method: "PATCH",
+		});
+	});
+
+	it("treats invalid preference update payloads as service unavailable", async () => {
+		const fetchImplementation = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ preferences: { profileMemoryEnabled: false } }), {
+					headers: { "content-type": "application/json" },
+					status: 200,
+				}),
+		);
+
+		await expect(
+			updateAccountPreferences({ profileMemoryEnabled: false }, fetchImplementation),
+		).resolves.toEqual({
+			preferences: null,
+			state: "service_unavailable",
 		});
 	});
 });
