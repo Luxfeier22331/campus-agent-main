@@ -58,7 +58,7 @@ browser-facing HTTP contract。
 - 但 proxy 后的 contract 必须保持与这里一致
 - Worker web surfaces 必须通过 `APP_API` Service Binding 调用 `app-api`；其中
   `https://app-api.internal` 只是内部 Request URL origin
-- `campus-api-staging.ayafeed.com` 如存在，只能作为 staging machine / ops ingress，
+- `api-staging.mucwiki-edge.link` 如存在，只能作为 staging machine / ops ingress，
   不是本文 browser-facing app contract
 - `official_web` collector command surface 与 app-owned run APIs 不属于本文范围，另见
   `docs/contracts/app-api-official-web-http.md`
@@ -96,6 +96,8 @@ contract test carrier。新增 route 必须声明：
 - `ALL /api/auth/*`
 - `GET /api/me`
 - `GET /api/me/overview`
+- `GET /api/me/identity`
+- `GET /api/me/access`
 - `GET /api/me/preferences`
 - `PATCH /api/me/preferences`
 
@@ -444,6 +446,53 @@ assistant message 可以包含 `feedback`：
   或 provider risk signal
 - `profileMemory` 只作为 personalization summary，不授予权限
 - Federation runtime 未实现前，`federation.enabled=false`
+
+### `GET /api/me/identity`
+
+返回当前 signed-in end-user 的 scoped identity product projection。
+
+```json
+{
+  "identity": {
+    "principalId": "user_01HQ...",
+    "principalType": "campus_member",
+    "verificationStatus": "unverified",
+    "claimsVersion": "identity-claims-v1"
+  }
+}
+```
+
+规则：
+
+- 只面向 end-user account center；operator / service principal 不进入该投影
+- Better Auth 登录态不等于已验证校园身份
+- 不返回 raw auth runtime row、cookie、session token 或 provider payload
+
+### `GET /api/me/access`
+
+返回当前 signed-in end-user 的 scoped access product projection。
+
+```json
+{
+  "access": {
+    "availableApps": ["chat", "docs", "account"],
+    "permissions": {
+      "chat": true,
+      "operator": false
+    },
+    "entitlementGroups": ["campus_members"],
+    "restrictedSurfacesReady": false
+  }
+}
+```
+
+规则：
+
+- 只面向 end-user account center；operator / service principal 不进入该投影
+- `availableApps` 是 Hub app availability projection，不替代 route-level
+  authorization
+- Preferences 与 profile memory 不授予权限、entitlement groups、restricted
+  access 或 federation claims
 
 ### `GET /api/me/preferences`
 

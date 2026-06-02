@@ -181,7 +181,7 @@ model`
 - route exposure inventory 必须显式区分 `browser-surface`、`operator-via-panel`、
   `machine-internal`、`collector-machine` 与 `system`；新增 route 时必须同步 caller
   class 与 admission rule
-- `campus-api-staging.ayafeed.com` 如存在，只能作为 staging machine / ops ingress
+- `api-staging.mucwiki-edge.link` 如存在，只能作为 staging machine / ops ingress
   与 readiness/smoke 入口，不是 browser product contract
 
 ## Surface Capability Policy

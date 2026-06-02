@@ -61,7 +61,7 @@ document/index release`
 - `apps/app-api` 当前同时是 MUC Wiki Hub Identity Platform 的 canonical product owner；
   Better Auth 是 auth runtime adapter，不是产品账号、校园身份、access entitlement 或
   federation policy schema owner
-- `campus-api-staging.ayafeed.com` 如存在，只表示 app-api staging machine / ops
+- `api-staging.mucwiki-edge.link` 如存在，只表示 app-api staging machine / ops
   ingress，不是 browser surface upstream
 - `apps/supervisor-api` 是 Go-owned internal execution engine，不是产品后端
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution

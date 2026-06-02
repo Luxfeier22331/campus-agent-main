@@ -11,14 +11,14 @@ updated: 2026-05-07
 这份 runbook 固定首个真实 Worker 部署环境的最小执行面：
 
 - environment: `staging`
-- zone: `ayafeed.com`
-- staging hostname shape: `ayafeed.com` 下一级子域
+- zone: `mucwiki-edge.link`
+- staging hostname shape: `mucwiki-edge.link` 下一级子域
 - `apps/app-api`: Worker `app-api-staging`；optional machine / ops ingress
-  `<https://campus-api-staging.ayafeed.com`>
-- `apps/hub-web`: `<https://hub-muc-wiki.ayafeed.com`>
-- `apps/public-chat-web`: `<https://campus-chat-staging.ayafeed.com`>
-- `apps/public-docs`: `<https://campus-docs-staging.ayafeed.com`>
-- `apps/protected-panel-web`: `<https://campus-panel-staging.ayafeed.com`>
+  `https://api-staging.mucwiki-edge.link`
+- `apps/hub-web`: `https://hub-staging.mucwiki-edge.link`
+- `apps/public-chat-web`: `https://chat-staging.mucwiki-edge.link`
+- `apps/public-docs`: `https://docs-staging.mucwiki-edge.link`
+- `apps/protected-panel-web`: `https://panel-staging.mucwiki-edge.link`
 
 它只回答：
 
@@ -41,16 +41,16 @@ updated: 2026-05-07
 
 ## Hostname Constraint
 
-- 当前 Cloudflare tier 下，不再把 `*.rag.ayafeed.com` 这类深一级 staging custom domain
-  视为可依赖的 SSL deploy truth
-- `ayafeed.com` 是共享 zone，generic 一级子域（例如 `api-staging.ayafeed.com`）不再视为本 repo
+- 当前 Cloudflare staging 下，不再把 `ayafeed.com` 或 `*.rag.ayafeed.com`
+  作为 campus-agent staging custom domain 视为可依赖的 SSL deploy truth
+- `mucwiki-edge.link` 是当前 repo-owned staging zone；`ayafeed.com` 不再视为本 repo
   可占用的 deploy truth
-- staging browser forward truth 必须统一使用 `ayafeed.com` 下的项目隔离一级子域：
-  `hub-muc-wiki.ayafeed.com`、`campus-chat-staging.ayafeed.com`、
-  `campus-docs-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com`
-- `campus-api-staging.ayafeed.com` 如保留，只作为 `app-api-staging` 的 machine /
+- staging browser forward truth 必须统一使用 `mucwiki-edge.link` 下的项目隔离一级子域：
+  `hub-staging.mucwiki-edge.link`、`chat-staging.mucwiki-edge.link`、
+  `docs-staging.mucwiki-edge.link`、`panel-staging.mucwiki-edge.link`
+- `api-staging.mucwiki-edge.link` 如保留，只作为 `app-api-staging` 的 machine /
   ops ingress；web surfaces 不把它当成 upstream
-- repo 中仍残留的 `*.rag.ayafeed.com` staging 配置、脚本断言或测试断言，只能视为待迁移实现残留，不能继续作为新资源
+- repo 中若再次出现 `ayafeed.com` 或 `*.rag.ayafeed.com` staging 配置、脚本断言或测试断言，只能视为待迁移实现残留，不能继续作为新资源
   provision 或 deploy 目标
 - 依据：Cloudflare 官方文档说明 Universal SSL 默认覆盖 apex 与一级子域，更深层级需依赖不同证书能力，因此当前 tier
   下不再继续使用嵌套 staging 子域
@@ -58,18 +58,16 @@ updated: 2026-05-07
 
 ## Repo-Owned Config
 
-当前 repo 仍存在旧的 `*.rag.ayafeed.com` staging 引用；本节描述的是必须收敛到的前向 deploy
-truth，而不是这些旧值的继续合法化。
+本节描述的是必须收敛到 `mucwiki-edge.link` 的前向 deploy truth。
 
 - `apps/app-api/wrangler.toml`
   - `env.staging` 的 Worker 名为 `app-api-staging`
-  - `campus-api-staging.ayafeed.com` 如配置 custom domain，只作为受控 machine /
+  - `api-staging.mucwiki-edge.link` 如配置 custom domain，只作为受控 machine /
     ops ingress
   - `env.staging.hyperdrive` 持有 `APP_API_DB`（cached/read-mostly）与
     `APP_API_DB_FRESH`（no-cache/auth-sensitive）两条 staging binding
-  - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=<https://campus-chat-staging.ayafee
-    d.com`>
-  - `env.staging.vars.AUTH_SHELL_ORIGIN=<https://hub-muc-wiki.ayafeed.com`>
+  - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://chat-staging.mucwiki-edge.link`
+  - `env.staging.vars.AUTH_SHELL_ORIGIN=https://hub-staging.mucwiki-edge.link`
 - `apps/app-api/package.json`
   - `pnpm deploy:staging` 要求显式注入 `STAGING_SUPERVISOR_API_BASE_URL`
   - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env
@@ -84,11 +82,11 @@ truth，而不是这些旧值的继续合法化。
   - 真实 deploy 直接使用当前 shell 的 `wrangler` 登录态；repo-local `.wrangler-home` 只保留给
     dev/test
 - `apps/hub-web/wrangler.toml`
-  - `env.staging` 应收敛到 `hub-muc-wiki.ayafeed.com`
+  - `env.staging` 应收敛到 `hub-staging.mucwiki-edge.link`
   - `env.staging.routes` 必须是 `custom_domain = true`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.APP_API_BASE_URL=<https://app-api.internal`>
-  - `env.staging.vars.HUB_PUBLIC_CHAT_ORIGIN=<https://campus-chat-staging.ayafeed.com`>
+  - `env.staging.vars.APP_API_BASE_URL=https://app-api.internal`
+  - `env.staging.vars.HUB_PUBLIC_CHAT_ORIGIN=https://chat-staging.mucwiki-edge.link`
   - `SENTRY_DSN` 是 optional runtime observability sink，不属于 hub staging deploy hard
     gate
 - `apps/hub-web/package.json`
@@ -102,12 +100,12 @@ truth，而不是这些旧值的继续合法化。
     `SENTRY_RELEASE=hub-web@staging-<sha>`
   - hub auth Turnstile posture 由 publish-time vars 注入：
     `STAGING_HUB_AUTH_TURNSTILE_SITE_KEY` 必填，且必须是 admitted for
-    `hub-muc-wiki.ayafeed.com` 的真实 sitekey；测试 sitekey 只允许 local smoke
+    `hub-staging.mucwiki-edge.link` 的真实 sitekey；测试 sitekey 只允许 local smoke
 - `apps/public-chat-web/wrangler.toml`
-  - `env.staging` 应收敛到 `campus-chat-staging.ayafeed.com`
+  - `env.staging` 应收敛到 `chat-staging.mucwiki-edge.link`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.APP_API_BASE_URL=<https://app-api.internal`>
-  - `env.staging.vars.HUB_WEB_BASE_URL=<https://hub-muc-wiki.ayafeed.com`>
+  - `env.staging.vars.APP_API_BASE_URL=https://app-api.internal`
+  - `env.staging.vars.HUB_WEB_BASE_URL=https://hub-staging.mucwiki-edge.link`
 - `apps/public-chat-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
   - staging build 会通过 repo-owned `scripts/run-worker-staging-build.mjs`
@@ -123,9 +121,9 @@ truth，而不是这些旧值的继续合法化。
     `AUTH_TURNSTILE_EXECUTION` 可选；未显式覆写时默认 `interaction-only` / `render`
   - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
 - `apps/protected-panel-web/wrangler.toml`
-  - `env.staging` 应收敛到 `campus-panel-staging.ayafeed.com`
+  - `env.staging` 应收敛到 `panel-staging.mucwiki-edge.link`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=<https://app-api.internal`>
+  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=https://app-api.internal`
   - `env.staging.vars` 只保留 non-secret runtime truth；`ACCESS_TEAM_DOMAIN` /
     `ACCESS_POLICY_AUD` 不再硬编码在 repo
 - `apps/protected-panel-web/package.json`
@@ -142,7 +140,8 @@ truth，而不是这些旧值的继续合法化。
   - deploy 脚本会自动把当前 git commit 注入 runtime
     `SENTRY_RELEASE=protected-panel-web@staging-<sha>`；仅在需要覆写时才显式传入
     `STAGING_SENTRY_RELEASE`
-  - deploy 脚本会拒绝 `<https://team.cloudflareaccess.com`> / `panel-audience` 这类占位值
+  - deploy 脚本会拒绝 `https://team.cloudflareaccess.com` / `panel-audience`
+    这类占位值
   - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
 
 说明：
@@ -154,13 +153,13 @@ truth，而不是这些旧值的继续合法化。
 
 ### 1. Worker hostnames
 
-- 如需要 machine / ops ingress，创建 `campus-api-staging.ayafeed.com` custom domain，
+- 如需要 machine / ops ingress，创建 `api-staging.mucwiki-edge.link` custom domain，
   绑定到 `app-api-staging`，并使用 Cloudflare Access service token 或等价机器保护
-- 创建 `hub-muc-wiki.ayafeed.com` custom domain，绑定到 `hub-web-staging`
-- 创建 `campus-chat-staging.ayafeed.com` custom domain，绑定到
+- 创建 `hub-staging.mucwiki-edge.link` custom domain，绑定到 `hub-web-staging`
+- 创建 `chat-staging.mucwiki-edge.link` custom domain，绑定到
   `public-chat-web-staging`
-- 创建 `campus-docs-staging.ayafeed.com` custom domain，绑定到 `public-docs-staging`
-- 创建 `campus-panel-staging.ayafeed.com` custom domain，绑定到
+- 创建 `docs-staging.mucwiki-edge.link` custom domain，绑定到 `public-docs-staging`
+- 创建 `panel-staging.mucwiki-edge.link` custom domain，绑定到
   `protected-panel-web-staging`
 
 ### 2. Internal service bindings
@@ -187,7 +186,7 @@ truth，而不是这些旧值的继续合法化。
 
 ### 4. Access
 
-- 为 `campus-panel-staging.ayafeed.com` 建 Cloudflare Access application
+- 为 `panel-staging.mucwiki-edge.link` 建 Cloudflare Access application
 - 生成并记录：
   - `ACCESS_TEAM_DOMAIN`
   - `ACCESS_POLICY_AUD`
@@ -204,7 +203,7 @@ truth，而不是这些旧值的继续合法化。
 - 当前阶段仍不冻结 `apps/supervisor-api` 的 repo-level staging hostname
 - `apps/app-api` staging deploy 时必须显式注入一个真实可达的 execution upstream
 - 当前 repo-owned staging execution origin 默认继续复用
-  `<https://exec-staging.ayafeed.com`>，但它背后承接的是
+  `https://exec-staging.mucwiki-edge.link`，但它背后承接的是
   `infra/local/docker-compose.supervisor-runtime.yml`
 - canonical 常驻方式不是 ad-hoc quick tunnel；而是这台开发机通过 named tunnel
   `supervisor-api-staging` 持续承接 supervisor-api runtime
@@ -265,9 +264,9 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 - `STAGING_APP_API_OPERATOR_DATABASE_URL`
 - 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
-  `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:e2e:staging` 与
-  `docs:gated:smoke:staging`；本机 operator copy 可放在 ignored repo-root
-  `.env.staging.local`
+  `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:e2e:staging`、
+  `docs:gated:smoke:staging` 与 `account:smoke:staging`；验收机
+  operator copy 可放在 ignored repo-root `.env.staging.local`
 - 只有在你手工运行低层 smoke identity reset 时，shell 才需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
 
 要求：
@@ -300,7 +299,7 @@ wrangler secret put SENTRY_DSN --env staging
 
 - `SENTRY_ENVIRONMENT=staging`
 - deploy shell env `STAGING_AUTH_TURNSTILE_SITE_KEY=<real admitted sitekey for
-  campus-chat-staging.ayafeed.com>`
+  chat-staging.mucwiki-edge.link>`
 - 可选 deploy shell env
   `STAGING_AUTH_TURNSTILE_APPEARANCE=<always|execute|interaction-only>`；默认
   `interaction-only`
@@ -322,7 +321,7 @@ wrangler secret put SENTRY_DSN --env staging
 并补齐 deploy shell env：
 
 - `STAGING_HUB_AUTH_TURNSTILE_SITE_KEY=<real admitted sitekey for
-  hub-muc-wiki.ayafeed.com>`
+  hub-staging.mucwiki-edge.link>`
 - 可选 `STAGING_HUB_AUTH_TURNSTILE_APPEARANCE=<always|execute|interaction-only>`；默认
   `interaction-only`
 - 可选 `STAGING_HUB_AUTH_TURNSTILE_EXECUTION=<render|execute>`；默认 `render`
@@ -364,12 +363,13 @@ wrangler secret put SENTRY_DSN --env staging
 
 ## Cross-App Invariants
 
-- `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `<https://campus-chat-staging.ayafeed.com`>
+- `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于
+  `https://chat-staging.mucwiki-edge.link`
 - `AUTH_SHELL_ORIGIN` 与 `HUB_WEB_BASE_URL` 必须精确等于
-  `<https://hub-muc-wiki.ayafeed.com`>
-- `AUTH_TURNSTILE_SITE_KEY` 必须是 `campus-chat-staging.ayafeed.com` admitted
+  `https://hub-staging.mucwiki-edge.link`
+- `AUTH_TURNSTILE_SITE_KEY` 必须是 `chat-staging.mucwiki-edge.link` admitted
   widget 的真实 sitekey；testing sitekey 只允许 local smoke
-- `STAGING_HUB_AUTH_TURNSTILE_SITE_KEY` 必须是 `hub-muc-wiki.ayafeed.com` admitted
+- `STAGING_HUB_AUTH_TURNSTILE_SITE_KEY` 必须是 `hub-staging.mucwiki-edge.link` admitted
   widget 的真实 sitekey；testing sitekey 只允许 local smoke
 - `AUTH_TURNSTILE_APPEARANCE` / `AUTH_TURNSTILE_EXECUTION` 当前默认应分别收口到
   `interaction-only` / `render`；如 staging 需要临时不同姿态，也只能通过 deploy shell env
@@ -381,7 +381,7 @@ wrangler secret put SENTRY_DSN --env staging
   `/api/operator/*` 上收到 `403 operator_identity_not_admitted`
 - `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
 - `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向
-  `<https://app-api.internal`>，并通过 Worker `APP_API` Service Binding 调用
+  `https://app-api.internal`，并通过 Worker `APP_API` Service Binding 调用
   `app-api-staging`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke
   必须覆盖 `sign-up -> immediate sign-in`
@@ -429,6 +429,7 @@ pnpm --dir apps/protected-panel-web exec wrangler login
 ```bash
 pnpm --dir apps/app-api chat:e2e:staging
 pnpm --dir apps/app-api docs:gated:smoke:staging
+pnpm --dir apps/hub-web account:smoke:staging
 ```
 
 - `docs:gated:smoke:staging` 默认读取
@@ -440,16 +441,30 @@ pnpm --dir apps/app-api docs:gated:smoke:staging
   如果该 collection 只有 gated entry，匿名 navigation 应为 `404`
 - 这些命令会在 shell 内生成临时随机密码，通过部署态 `app-api-staging`
   `POST /api/internal/staging-smoke/auth/session` 重置 smoke identity 并铸造真实
-  staging session cookie，然后真实请求 `campus-chat-staging` 或
-  `campus-docs-staging`
+  staging session cookie，然后真实请求 `chat-staging.mucwiki-edge.link`、
+  `docs-staging.mucwiki-edge.link` 或 `hub-staging.mucwiki-edge.link`
 - `chat:e2e:staging` 默认要求 chat request 返回 `answer`
   (`request.resultKind`)；如果返回 `error` 等 typed outcome，脚本会退出非零并输出对应
   `requestId` / `traceId`，避免把 supervisor timeout 或 upstream failure 误判为通过
-- 它要求当前 shell 有 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
+- 它们要求当前 shell 有 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
   `STAGING_APP_API_SMOKE_AUTH_SECRET`；repo-owned wrapper 会自动加载 ignored
   `.env.staging.local`
-- 它不要求本机 staging DB URL，不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，
+- 它们不要求本机 staging DB URL，不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，
   也不要求 agent 通过真实 Turnstile challenge
+- `account:smoke:staging` 是 Hub 身份功能链路的 canonical browser smoke。它必须在
+  `nc-arm-6c:/srv/apps/campus-agent` 执行，只访问
+  `https://hub-staging.mucwiki-edge.link` 与
+  `https://api-staging.mucwiki-edge.link/readyz`，并会拒绝 localhost /
+  `127.0.0.1` 目标。它验证首页主入口仅为问答助手、文档站、MUC Wiki，
+  `/account` 未登录态、带真实 session 后的 account / identity / access /
+  preferences / federation disabled 展示、preferences 写入与刷新保持、sign-out
+  回到未登录态，以及 unknown `/api/*` fail closed。
+- `account:smoke:staging` 的结果会写入
+  `.tmp/identity-acceptance/<timestamp>-hub-account-browser-smoke.md`；这份
+  artifact 只记录功能检查和失败点，不评价 Hub UI/UX 视觉设计质量。
+- Hub 身份验收不得使用 `apps/hub-web dev:live-smoke`、localhost 或本机 Vite
+  dev server 作为完成标准；local dev smoke 只服务前端迭代，不替代
+  `nc-arm-6c + staging Worker` 验收。
 - 低层手动重置命令仍保留：
 
 ```bash
@@ -548,8 +563,8 @@ pnpm --dir apps/app-api deploy:staging
 
 确认：
 
-- `<https://campus-api-staging.ayafeed.com/healthz`>
-- `<https://campus-api-staging.ayafeed.com/readyz`>
+- `https://api-staging.mucwiki-edge.link/healthz`
+- `https://api-staging.mucwiki-edge.link/readyz`
 
 ### 2. `apps/public-chat-web`
 
@@ -559,8 +574,8 @@ pnpm --dir apps/public-chat-web deploy:staging
 
 确认：
 
-- `<https://campus-chat-staging.ayafeed.com/healthz`>
-- `<https://campus-chat-staging.ayafeed.com/readyz`>
+- `https://chat-staging.mucwiki-edge.link/healthz`
+- `https://chat-staging.mucwiki-edge.link/readyz`
 
 ### 3. `apps/protected-panel-web`
 
@@ -572,8 +587,8 @@ pnpm --dir apps/protected-panel-web deploy:staging
 
 确认：
 
-- `<https://campus-panel-staging.ayafeed.com/healthz`>
-- `<https://campus-panel-staging.ayafeed.com/readyz`>
+- `https://panel-staging.mucwiki-edge.link/healthz`
+- `https://panel-staging.mucwiki-edge.link/readyz`
 
 Access service-token envelope smoke:
 
@@ -610,12 +625,12 @@ pnpm --dir apps/protected-panel-web access:smoke:staging
 这轮 staging 的 `SUMMARY.md` 至少应写明：
 
 - Environment: `staging`
-- `public-chat-web` hostname: `campus-chat-staging.ayafeed.com`
-- `protected-panel-web` hostname: `campus-panel-staging.ayafeed.com`
-- `app-api` hostname: `campus-api-staging.ayafeed.com`
+- `public-chat-web` hostname: `chat-staging.mucwiki-edge.link`
+- `protected-panel-web` hostname: `panel-staging.mucwiki-edge.link`
+- `app-api` hostname: `api-staging.mucwiki-edge.link`
 - Worker release: `<release>`
 - panel operator smoke identity
-- 如果 `campus-panel-staging` 的 `/api/operator/*` 返回 `401/403`，对应的 `error.code`
+- 如果 `panel-staging.mucwiki-edge.link` 的 `/api/operator/*` 返回 `401/403`，对应的 `error.code`
   与判定结果
 
 ## Exit Criteria

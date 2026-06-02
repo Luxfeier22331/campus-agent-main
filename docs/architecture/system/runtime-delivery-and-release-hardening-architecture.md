@@ -41,8 +41,8 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 - `apps/public-chat-web`、`apps/protected-panel-web`、`apps/app-api` 必须共享一套
   release hardening discipline，但仍保持独立 deploy unit
-- staging browser baseline 当前固定为 `campus-chat-staging.ayafeed.com`、
-  `campus-docs-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com`；web surfaces
+- staging browser baseline 当前固定为 `chat-staging.mucwiki-edge.link`、
+  `docs-staging.mucwiki-edge.link`、`panel-staging.mucwiki-edge.link`；web surfaces
   通过 Worker `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
@@ -61,19 +61,19 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 - `apps/app-api` -> Worker `app-api-staging`，由 web surfaces 通过 `APP_API` Service
   Binding 调用
-- `apps/app-api` optional machine / ops ingress -> `<https://campus-api-staging.ayafeed.com`>
-- `apps/public-chat-web` -> `<https://campus-chat-staging.ayafeed.com`>
-- `apps/public-docs` -> `<https://campus-docs-staging.ayafeed.com`>
-- `apps/protected-panel-web` -> `<https://campus-panel-staging.ayafeed.com`>
+- `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
+- `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
+- `apps/public-docs` -> `<https://docs-staging.mucwiki-edge.link`>
+- `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
 
 长期规则：
 
-- `ayafeed.com` 下项目隔离一级子域是当前 repo-owned staging truth
-- `*.rag.ayafeed.com` 之类历史嵌套 staging 子域不再作为 forward truth
+- `mucwiki-edge.link` 下项目隔离一级子域是当前 repo-owned staging truth
+- `ayafeed.com` 与 `*.rag.ayafeed.com` 不再作为 campus-agent staging forward truth
 - future production hostname 应新增独立 env truth，而不是覆写 staging baseline
 - `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 在 Worker web surfaces 中固定为
   `https://app-api.internal`，只用于 Service Binding request construction
-- `campus-api-staging.ayafeed.com` 不得作为 browser surface upstream invariant；若保留，
+- `api-staging.mucwiki-edge.link` 不得作为 browser surface upstream invariant；若保留，
   必须按 machine ingress 处理
 
 ## Release Identity

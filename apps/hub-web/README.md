@@ -93,6 +93,7 @@ pnpm test:worker
 pnpm typecheck
 pnpm dev
 pnpm dev:live-smoke
+pnpm account:smoke:staging
 ```
 
 Local dev notes:
@@ -106,6 +107,12 @@ Local dev notes:
   so same-site `/api/auth/*`, `/api/me/overview` and `/api/me/preferences`
   requests resolve through the real Worker service binding instead of depending
   on two separate `pnpm dev` sessions finding each other.
+- `pnpm account:smoke:staging` is the canonical Hub account acceptance smoke.
+  Run it from `nc-arm-6c:/srv/apps/campus-agent`; it targets
+  `https://hub-staging.mucwiki-edge.link`, mints a deployed-runtime session via
+  `app-api-staging`, verifies the account center function chain, and writes
+  `.tmp/identity-acceptance/<timestamp>-hub-account-browser-smoke.md`.
+  Localhost and `dev:live-smoke` are not Hub identity acceptance evidence.
 
 `pnpm dev` listens on `<http://127.0.0.1:27012/>`. The hub surface does not use
 Vite's default `5173` port; that port is already reserved by other local Worker

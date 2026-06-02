@@ -36,10 +36,11 @@ and wiki permissions.
 
 ## Protocol Choice
 
-Login federation should use OIDC first.
+Login federation should use an OIDC-compatible login surface, but the preferred
+runtime candidate is Better Auth OAuth Provider rather than the older Better
+Auth OIDC Provider plugin.
 
-OAuth 2.1 provider support is useful as protocol substrate, but login
-integration needs OIDC-level semantics:
+The required semantics remain OIDC-level:
 
 - issuer
 - subject
@@ -52,14 +53,32 @@ integration needs OIDC-level semantics:
 
 ## Provider Runtime
 
-Better Auth `oauthProvider` / `oidcProvider` plugins are accepted candidate
-runtime adapters, not canonical architecture owners.
+Better Auth provider plugins are accepted candidate runtime adapters, not
+canonical architecture owners.
 
-Before implementation, the workstream must verify:
+Current provider selection rule:
 
-- Worker compatibility
+- Prefer Better Auth OAuth Provider when it can satisfy the required
+  OIDC-compatible login surface.
+- Do not make Better Auth OIDC Provider the production default while official
+  documentation marks it as active-development/deprecation-bound.
+- Do not expose federation routes before Worker compatibility, schema ownership
+  and claims policy behavior are verified.
+
+Current implementation readiness:
+
+- `apps/app-api` installs `@better-auth/oauth-provider` and verifies provider
+  import / assembly in both Node and Worker test lanes.
+- The verified candidate exposes OAuth authorization, token, userinfo,
+  end-session and OIDC metadata endpoints, plus Better Auth OAuth client /
+  token / consent schema definitions.
+- The verified candidate can be paired with Better Auth `jwt()` plugin shape
+  for JWKS substrate.
+- Production federation routes remain closed.
+
+Before route exposure, the workstream must still verify:
+
 - Drizzle schema generation and migration ownership
-- static controlled client registry posture
 - redirect URI validation
 - custom claims mapping
 - consent / trusted-client handling

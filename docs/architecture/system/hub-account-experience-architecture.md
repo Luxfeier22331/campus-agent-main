@@ -72,9 +72,11 @@ identity/access/preferences into a raw session object.
 Target hub account pages should consume `apps/app-api` product projections,
 starting with:
 
-- `GET /api/me/overview` once implemented by `apps/app-api`
-- future scoped endpoints such as `/api/me/identity`, `/api/me/access`,
-  `/api/me/preferences`
+- `GET /api/me/overview` for the account shell and session/federation summary
+- `GET /api/me/identity` for the identity section
+- `GET /api/me/access` for the access and app availability section
+- `GET /api/me/preferences` and `PATCH /api/me/preferences` for preference
+  read/write state
 
 The hub UI should not call Better Auth internals directly for account overview
 state. Better Auth client calls

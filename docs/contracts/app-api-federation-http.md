@@ -8,8 +8,8 @@ updated: 2026-06-02
 
 ## 文档边界
 
-本文冻结 Identity Platform future OIDC/OAuth provider surface 的 target HTTP
-contract。
+本文冻结 Identity Platform future OAuth/OIDC-compatible provider surface 的
+target HTTP contract。
 
 本文是 forward contract：它不表示当前 routes 已经实现，也不表示 `muc.wiki` 已经接入。
 
@@ -17,9 +17,19 @@ contract。
 
 Provider owner: `apps/app-api` Identity Platform.
 
-Runtime substrate: Better Auth `oauthProvider` / `oidcProvider` plugins may be
-used if implementation review confirms Worker compatibility, schema ownership
-and claims policy support.
+Runtime substrate: Better Auth OAuth Provider is the preferred candidate when it
+can satisfy the OIDC-compatible login surface. Better Auth OIDC Provider must
+not be treated as the production default while official documentation marks it
+as active-development/deprecation-bound.
+
+Current implementation readiness: `apps/app-api` installs
+`@better-auth/oauth-provider` and verifies provider import / assembly in Node
+and Worker test lanes. The verified candidate exposes OAuth authorization,
+token, userinfo, end-session, OAuth metadata, OIDC metadata and OAuth schema
+definitions; Better Auth `jwt()` plugin shape is also verified as the JWKS
+substrate. Federation HTTP routes remain unimplemented until schema migration
+ownership, client registry, redirect URI policy, claims policy, consent policy,
+JWKS rotation and logout semantics are frozen.
 
 Client posture: controlled/static client registry for first implementation.
 Open dynamic client registration is out of scope.

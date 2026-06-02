@@ -199,7 +199,8 @@ Current implemented truth:
 
 - `apps/app-api/src/modules/auth/auth.ts` owns Better Auth runtime assembly for
   email/password, session lookup, password reset, Turnstile admission, origin
-  and CSRF posture.
+  and CSRF posture. It also wires the Better Auth user creation hook to
+  materialize the initial app-owned identity projection after registration.
 - `apps/app-api/src/modules/auth/principal.ts` maps Better Auth session material
   and trusted operator/internal inputs into typed `ResolvedAppPrincipal`, actor
   context and authorization projection.
@@ -209,36 +210,43 @@ Current implemented truth:
   `identity.*` physical schema for account, identity profile, access snapshot,
   preference and federation policy materialization.
 - `apps/app-api/src/app/routes/identity-platform.ts` implements
-  `GET /api/me/overview`, `GET /api/me/preferences` and
-  `PATCH /api/me/preferences` as the current account-center product projection
-  surface.
+  `GET /api/me/overview`, `GET /api/me/identity`, `GET /api/me/access`,
+  `GET /api/me/preferences` and `PATCH /api/me/preferences` as the current
+  account-center product projection surface.
 - `apps/app-api/src/modules/identity-platform/service.ts` builds the overview
   from the resolved end-user principal, authorization projection and profile
   memory summary. It rejects operator/service principals and does not expose raw
   Better Auth rows, cookies, tokens or profile memory item values.
 - `apps/app-api/src/modules/identity-platform/store.ts` owns the current
-  Identity Platform write path. Scoped preference mutation updates
-  `profile.memory_settings` and materializes `identity.accounts`,
-  `identity.identity_profiles`, `identity.preference_settings` and
-  `identity.access_snapshots` together.
+  Identity Platform write path. Registration and session/overview lifecycle
+  materialization writes `identity.accounts`, `identity.identity_profiles`,
+  `identity.preference_settings` and `identity.access_snapshots` without
+  mutating profile memory settings. Scoped preference mutation updates
+  `profile.memory_settings` and then materializes the same `identity.*`
+  projection.
 - `apps/hub-web/src/index.ts` allowlists `/api/me`, `/api/me/overview`,
-  `/api/me/preferences` and selected `/api/auth/*` seams to `apps/app-api`; it
-  does not expose `/api/federation/*` yet.
+  `/api/me/identity`, `/api/me/access`, `/api/me/preferences` and selected
+  `/api/auth/*` seams to `apps/app-api`; it does not expose
+  `/api/federation/*` yet.
 - `apps/hub-web/src/routes/app-router.tsx` currently owns `/`, `/account` and
-  auth action routes. The account page consumes `/api/me/overview` rather than
-  Better Auth raw payload.
+  auth action routes. The account page consumes account-center projections
+  rather than Better Auth raw payload: overview for the account shell plus
+  scoped identity, access and preferences projections for section-level states.
 - `apps/app-api/src/db/schema/profile.ts` and `docs/data/app-api-schema.md`
   currently own profile memory durable truth under `profile.*`.
 
 Forward contracts not yet implemented:
 
-- scoped `/api/me/identity` and `/api/me/access` endpoints.
 - OAuth/OIDC provider routes, discovery metadata, JWKS and federation client
   runtime. Current Better Auth documentation describes the OAuth Provider plugin
-  as an OAuth 2.1 provider with OIDC compatibility, discovery metadata and JWKS
-  verification support; implementation must verify Worker compatibility,
-  schema generation, client registration policy and claims mapping before
-  enabling federation routes.
+  as an OAuth 2.1 provider with OIDC-compatible discovery metadata, userinfo,
+  JWKS and end-session support. The current repo installs
+  `@better-auth/oauth-provider` and verifies provider import / assembly in Node
+  and Worker lanes; it also verifies Better Auth `jwt()` plugin shape as the
+  JWKS substrate. Schema migration ownership, client registration policy,
+  claims mapping, key rotation and route exposure are still deliberately closed.
+  The older OIDC Provider plugin is not the preferred production candidate while
+  Better Auth documents it as active-development/deprecation-bound.
 
 ## Forbidden Shapes
 

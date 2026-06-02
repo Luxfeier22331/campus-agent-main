@@ -12,7 +12,7 @@ updated: 2026-05-08
 
 - 当前 repo-owned staging execution runtime 是 `otel-collector + supervisor-api + supervisor-agent-worker`
   三容器
-- `exec-staging.ayafeed.com` 继续通过 named tunnel 指回这台主机上的本地
+- `exec-staging.mucwiki-edge.link` 继续通过 named tunnel 指回这台主机上的本地
   `supervisor-api` runtime
 
 它不覆盖 browser smoke 证据采集；那部分统一看
@@ -39,10 +39,10 @@ updated: 2026-05-08
     - private `/internal/bridge/*`
 - named tunnel：
   - tunnel name: `supervisor-api-staging`
-  - public hostname: `<https://exec-staging.ayafeed.com`>
+  - public hostname: `<https://exec-staging.mucwiki-edge.link`>
   - connector config 必须把该 hostname 指到本机 `http://127.0.0.1:27010`
 - shared staging `app-api`：
-  - `<https://campus-api-staging.ayafeed.com`>
+  - `<https://api-staging.mucwiki-edge.link`>
 - 常驻机制：
   - Windows scheduled task: `CampusAgent-SupervisorApiStaging`
   - WSL-side lifecycle scripts: `infra/local/staging/start-supervisor-api-staging.sh`
@@ -75,8 +75,8 @@ powershell.exe -NoProfile -Command \
 - action 会显式注入：
   - `SUPERVISOR_API_STAGING_PORT=27010`
   - `SUPERVISOR_API_STAGING_TUNNEL_NAME=supervisor-api-staging`
-  - `SUPERVISOR_API_STAGING_PUBLIC_BASE_URL=<https://exec-staging.ayafeed.com`>
-  - `SUPERVISOR_API_STAGING_APP_API_BASE_URL=<https://campus-api-staging.ayafeed.com`>
+  - `SUPERVISOR_API_STAGING_PUBLIC_BASE_URL=<https://exec-staging.mucwiki-edge.link`>
+  - `SUPERVISOR_API_STAGING_APP_API_BASE_URL=<https://api-staging.mucwiki-edge.link`>
 - trigger 包含：
   - 登录时执行一次
   - 每 5 分钟重复执行一次
@@ -103,8 +103,8 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - 本地 `<http://127.0.0.1:27010/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27010/readyz`> 带 `x-worker-origin-auth` 返回 `200`
 - 本地 `<http://127.0.0.1:27010/metrics`> 带 bearer token 返回 `200`
-- `<https://campus-api-staging.ayafeed.com/readyz`> 返回 `200`
-- `campus-api-staging` 的 `auth`、`database`、`supervisorApi` 都是 `ready`
+- `<https://api-staging.mucwiki-edge.link/readyz`> 返回 `200`
+- `api-staging.mucwiki-edge.link` 的 `auth`、`database`、`supervisorApi` 都是 `ready`
 
 补充约束：
 
@@ -141,7 +141,7 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - staging profile 下，supervisor-api full `/readyz` 是内部 runtime probe；
   local lifecycle script 使用 `API_WORKER_SHARED_SECRET` 对本地 `/readyz` 加
   `x-worker-origin-auth`。public deploy / smoke closure 不直接要求
-  `exec-staging.ayafeed.com/readyz`，而是通过 `campus-api-staging /readyz`
+  `exec-staging.mucwiki-edge.link/readyz`，而是通过 `api-staging.mucwiki-edge.link /readyz`
   证明 app-api 已用内部 shared secret 完成 supervisor readiness probe
 - `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有
   admission queue 已不可接收、runtime draining 或 bridge 不健康时才视为 execution
@@ -297,7 +297,7 @@ infra/local/staging/start-supervisor-api-staging.sh
 - 直接检查：
 
 ```bash
-curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 ```
 
 - 如果只有 `supervisorApi` 失败，先回到这份 runbook 的冷启动恢复流程

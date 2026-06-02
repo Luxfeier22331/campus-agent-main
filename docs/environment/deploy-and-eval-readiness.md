@@ -100,15 +100,15 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 - `apps/app-api` -> Worker `app-api-staging`，web surfaces 通过 `APP_API` Service
   Binding 调用
-- `apps/app-api` optional machine / ops ingress -> `<https://campus-api-staging.ayafeed.com`>
-- `apps/public-chat-web` -> `<https://campus-chat-staging.ayafeed.com`>
-- `apps/public-docs` -> `<https://campus-docs-staging.ayafeed.com`>
-- `apps/protected-panel-web` -> `<https://campus-panel-staging.ayafeed.com`>
+- `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
+- `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
+- `apps/public-docs` -> `<https://docs-staging.mucwiki-edge.link`>
+- `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
 
 固定要求：
 
-- 不再把 `*.rag.ayafeed.com` 视为 staging deploy truth
-- `ayafeed.com` 是共享 zone，generic 一级子域不能假定为本 repo 占用
+- 不再把 `ayafeed.com` 或 `*.rag.ayafeed.com` 视为 campus-agent staging deploy truth
+- `mucwiki-edge.link` 是当前 repo-owned staging zone
 - `apps/supervisor-api` 的 deploy substrate 已冻结为 Docker-first internal execution
   service
 - `apps/supervisor-api` staging hostname 继续不冻结；`app-api` deploy 时必须显式注入

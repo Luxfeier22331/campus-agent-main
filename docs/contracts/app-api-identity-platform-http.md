@@ -32,17 +32,13 @@ Better Auth internal `/api/auth/*` provider details。
 Implemented endpoints:
 
 - `GET /api/me/overview`
+- `GET /api/me/identity`
+- `GET /api/me/access`
 - `GET /api/me/preferences`
 - `PATCH /api/me/preferences`
 
-Reserved scoped endpoints:
-
-- `GET /api/me/identity`
-- `GET /api/me/access`
-
 No endpoint in this document may be advertised as implemented until route code,
-route exposure inventory and tests exist. Reserved endpoint shape must stay
-compatible with the object families defined here.
+route exposure inventory and tests exist.
 
 Current route exposure source:
 
@@ -188,6 +184,68 @@ Rules:
 - `connectedClients` must only include app-owned user-facing summaries. It must
   not expose client secrets, raw tokens or authorization codes.
 
+## `GET /api/me/identity`
+
+Returns the current signed-in end-user identity projection.
+
+### Identity Response
+
+```json
+{
+  "identity": {
+    "principalId": "user_01HQ...",
+    "principalType": "campus_member",
+    "verificationStatus": "unverified",
+    "claimsVersion": "identity-claims-v1",
+    "campusAttributes": {
+      "departments": ["computer_science"],
+      "cohort": "2026",
+      "major": "software_engineering",
+      "program": "undergraduate"
+    }
+  }
+}
+```
+
+Rules:
+
+- Only end-user principals may call this endpoint.
+- Operator and service principals fail closed with the same end-user-only
+  account-center boundary as `/api/me/overview`.
+- Better Auth sign-in alone does not imply verified campus identity.
+- `campusAttributes` may be omitted when no accepted campus identity attributes
+  exist.
+
+## `GET /api/me/access`
+
+Returns the current signed-in end-user access projection for account center and
+hub app availability display.
+
+### Access Response
+
+```json
+{
+  "access": {
+    "availableApps": ["chat", "docs", "account"],
+    "permissions": {
+      "chat": true,
+      "operator": false
+    },
+    "entitlementGroups": ["campus_members"],
+    "restrictedSurfacesReady": false
+  }
+}
+```
+
+Rules:
+
+- Only end-user principals may call this endpoint.
+- The response is a product projection for browser display and downstream
+  admission context. It is not a route authorization bypass.
+- `permissions.operator` must not turn an end-user account-center request into
+  an operator product flow.
+- Preferences and profile memory cannot grant access.
+
 ## `GET /api/me/preferences`
 
 Returns the current signed-in end-user account-center preferences projection.
@@ -244,11 +302,6 @@ Rules:
   session internals.
 - Preferences remain personalization state. They cannot grant permissions,
   entitlement groups, restricted access or federation claims.
-
-## Reserved Scoped Endpoints
-
-`GET /api/me/identity` and `GET /api/me/access` are reserved for account center
-decomposition.
 
 ## Related Documents
 
