@@ -1,0 +1,56 @@
+import type { AppPermissions, AppPrincipalType, ResolvedAppPrincipal } from "../auth";
+
+export type AccountStatus = "active" | "deleted" | "pending_recovery" | "suspended";
+export type CredentialRuntime = "better_auth";
+export type IdentityVerificationStatus = "expired" | "manual_review" | "unverified" | "verified";
+
+export interface IdentityCampusAttributes {
+	cohort?: string;
+	departments?: string[];
+	major?: string;
+	program?: string;
+}
+
+export interface IdentityPlatformOverview {
+	account: {
+		accountId: string;
+		displayName: string;
+		email: string;
+		status: AccountStatus;
+	};
+	session: {
+		credentialRuntime: CredentialRuntime;
+		expiresAt: string;
+		sessionId: string;
+		state: "authenticated";
+	};
+	identity: {
+		campusAttributes?: IdentityCampusAttributes;
+		claimsVersion: string;
+		principalId: string;
+		principalType: Exclude<AppPrincipalType, "operator" | "service">;
+		verificationStatus: IdentityVerificationStatus;
+	};
+	access: {
+		availableApps: string[];
+		entitlementGroups: string[];
+		permissions: AppPermissions;
+		restrictedSurfacesReady: boolean;
+	};
+	preferences: {
+		profileMemoryEnabled: boolean;
+		profileMemoryItemCount: number;
+	};
+	federation: {
+		connectedClients: string[];
+		enabled: false;
+	};
+}
+
+export type EndUserPrincipal = ResolvedAppPrincipal & {
+	principal: ResolvedAppPrincipal["principal"] & {
+		email: string;
+		type: Exclude<AppPrincipalType, "operator" | "service">;
+	};
+	session: NonNullable<ResolvedAppPrincipal["session"]>;
+};

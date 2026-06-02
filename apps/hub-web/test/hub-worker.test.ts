@@ -90,11 +90,13 @@ describe("hub worker boundary", () => {
 		});
 
 		const allowed = await worker.fetch(new Request("https://hub.muc.wiki/api/me"), env);
+		const overview = await worker.fetch(new Request("https://hub.muc.wiki/api/me/overview"), env);
 		const rejected = await worker.fetch(new Request("https://hub.muc.wiki/api/chat"), env);
 
 		expect(allowed.status).toBe(200);
+		expect(overview.status).toBe(200);
 		expect(rejected.status).toBe(404);
-		expect(seen).toEqual(["/api/me"]);
+		expect(seen).toEqual(["/api/me", "/api/me/overview"]);
 	});
 
 	it("fails closed for unknown browser paths instead of serving fake app routes", async () => {

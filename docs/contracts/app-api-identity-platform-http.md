@@ -29,7 +29,7 @@ Better Auth internal `/api/auth/*` provider details。
 
 ## Endpoint Summary
 
-Forward product contract, not current route inventory:
+Implemented endpoints:
 
 - `GET /api/me/overview`
 
@@ -43,6 +43,11 @@ Reserved scoped endpoints:
 No endpoint in this document may be advertised as implemented until route code,
 route exposure inventory and tests exist. Reserved endpoint shape must stay
 compatible with the object families defined here.
+
+Current route exposure source:
+
+- `apps/app-api/src/app/route-exposure.ts`
+- `apps/app-api/src/app/routes/identity-platform.ts`
 
 ## `GET /api/me/overview`
 
@@ -165,6 +170,8 @@ Rules:
 
 - Profile memory values are not returned by overview. The detailed profile
   memory API remains `/api/me/profile-memory`.
+- `profileMemoryItemCount` is a summary count only. It must not expose item
+  keys, values, confidence or visibility.
 - Preferences never grant permissions.
 
 ### Federation Object

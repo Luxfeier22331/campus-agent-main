@@ -17,6 +17,7 @@ import {
 } from "../modules/authenticated-notice-run-processing-query";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
+import { buildIdentityPlatformService } from "../modules/identity-platform";
 import { createSupervisorExecutionClient } from "../modules/integration";
 import {
 	buildOfficialWebCommandService,
@@ -98,6 +99,7 @@ export function createRequestScopeFactory(input: {
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
+			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
 			let officialWebReleaseTaskProcessingCommandService =
@@ -270,6 +272,19 @@ export function createRequestScopeFactory(input: {
 				return docsService;
 			}
 
+			function resolveIdentityPlatformService() {
+				if (identityPlatformService) {
+					return identityPlatformService;
+				}
+
+				identityPlatformService = buildIdentityPlatformService({
+					profileMemoryStore: createPgProfileMemoryStore(input.env, {
+						getDb: runtime.getDb,
+					}),
+				});
+				return identityPlatformService;
+			}
+
 			function resolveOfficialWebQueryService() {
 				if (officialWebQueryService) {
 					return officialWebQueryService;
@@ -367,6 +382,7 @@ export function createRequestScopeFactory(input: {
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDocsService,
+				resolveIdentityPlatformService,
 				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
 				resolveOfficialWebReleaseTaskProcessingCommandService,

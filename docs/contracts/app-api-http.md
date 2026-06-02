@@ -95,12 +95,10 @@ contract test carrier。新增 route 必须声明：
 
 - `ALL /api/auth/*`
 - `GET /api/me`
+- `GET /api/me/overview`
 
-Identity Platform forward contract is frozen separately in
-`docs/contracts/app-api-identity-platform-http.md`. Do not list
-`/api/me/overview` here until
-`apps/app-api/src/app/route-exposure.ts` and route tests expose it as current
-inventory.
+Identity Platform detailed object families are frozen separately in
+`docs/contracts/app-api-identity-platform-http.md`.
 
 ### Profile Memory
 
@@ -392,6 +390,58 @@ assistant message 可以包含 `feedback`：
 - v1 不要求单独的 operator 用户系统或 operator session 表
 - 当前 chat routes 继续要求 resolved principal；无 principal 请求返回
   `session_required`，不会创建 anonymous chat conversation
+
+### `GET /api/me/overview`
+
+返回当前 signed-in end-user 的 account center product projection。
+
+```json
+{
+  "account": {
+    "accountId": "user_01HQ...",
+    "email": "jane@muc.edu.cn",
+    "displayName": "Jane Doe",
+    "status": "active"
+  },
+  "session": {
+    "state": "authenticated",
+    "sessionId": "sess_01HQ...",
+    "expiresAt": "2026-03-29T07:00:00.000Z",
+    "credentialRuntime": "better_auth"
+  },
+  "identity": {
+    "principalId": "user_01HQ...",
+    "principalType": "campus_member",
+    "verificationStatus": "unverified",
+    "claimsVersion": "identity-claims-v1"
+  },
+  "access": {
+    "availableApps": ["chat", "docs", "account"],
+    "permissions": {
+      "chat": true,
+      "operator": false
+    },
+    "entitlementGroups": ["campus_members"],
+    "restrictedSurfacesReady": false
+  },
+  "preferences": {
+    "profileMemoryEnabled": true,
+    "profileMemoryItemCount": 0
+  },
+  "federation": {
+    "enabled": false,
+    "connectedClients": []
+  }
+}
+```
+
+规则：
+
+- 只面向 end-user account center；operator / service principal 不进入该投影
+- 不返回 raw cookie、session token、Better Auth row、reset token、captcha token
+  或 provider risk signal
+- `profileMemory` 只作为 personalization summary，不授予权限
+- Federation runtime 未实现前，`federation.enabled=false`
 
 ## Profile Memory Endpoints
 

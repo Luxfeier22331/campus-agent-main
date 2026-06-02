@@ -205,19 +205,28 @@ Current implemented truth:
   context and authorization projection.
 - `apps/app-api/src/app/routes/auth.ts` exposes current `ALL /api/auth/*` and
   compact `GET /api/me` runtime principal projection.
-- `apps/hub-web/src/index.ts` currently allowlists `/api/me` and selected
-  `/api/auth/*` seams to `apps/app-api`; it does not expose `/api/me/overview`
-  or `/api/federation/*` yet.
+- `apps/app-api/src/db/schema/identity.ts` defines the current app-owned
+  `identity.*` physical schema for account, identity profile, access snapshot,
+  preference and federation policy materialization.
+- `apps/app-api/src/app/routes/identity-platform.ts` implements
+  `GET /api/me/overview` as the first account-center product projection.
+- `apps/app-api/src/modules/identity-platform/service.ts` builds the overview
+  from the resolved end-user principal, authorization projection and profile
+  memory summary. It rejects operator/service principals and does not expose raw
+  Better Auth rows, cookies, tokens or profile memory item values.
+- `apps/hub-web/src/index.ts` allowlists `/api/me`, `/api/me/overview` and
+  selected `/api/auth/*` seams to `apps/app-api`; it does not expose
+  `/api/federation/*` yet.
 - `apps/hub-web/src/routes/app-router.tsx` currently owns `/`, `/account` and
-  auth action routes only.
+  auth action routes. The account page consumes `/api/me/overview` rather than
+  Better Auth raw payload.
 - `apps/app-api/src/db/schema/profile.ts` and `docs/data/app-api-schema.md`
   currently own profile memory durable truth under `profile.*`.
 
 Forward contracts not yet implemented:
 
-- `/api/me/overview` and scoped `/api/me/*` Identity Platform product projection
+- scoped `/api/me/identity`, `/api/me/access` and `/api/me/preferences`
   endpoints.
-- `identity.*` app-owned product schema.
 - OIDC/OAuth provider routes, discovery metadata, JWKS and federation client
   registry.
 

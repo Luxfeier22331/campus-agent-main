@@ -6,6 +6,7 @@ import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
 import type { ChatConversationService } from "../modules/chat";
 import type { DocsService } from "../modules/docs";
+import type { IdentityPlatformService } from "../modules/identity-platform";
 import type { SupervisorCampusServicesProductPathPreflight } from "../modules/integration";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
@@ -43,6 +44,7 @@ export interface AppDependencies {
 		env: Env,
 		input?: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
+	identityPlatformService?: IdentityPlatformService;
 	officialWebCommandService?: OfficialWebCommandService;
 	officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
 	officialWebPlannerService?: OfficialWebPlannerService;
@@ -102,6 +104,7 @@ export interface AppRequestScope {
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
 	resolveDocsService(): DocsService;
+	resolveIdentityPlatformService(): IdentityPlatformService;
 	resolveOfficialWebCommandService(): OfficialWebCommandService;
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
 	resolveOfficialWebReleaseTaskProcessingCommandService(): OfficialWebReleaseTaskProcessingCommandService;

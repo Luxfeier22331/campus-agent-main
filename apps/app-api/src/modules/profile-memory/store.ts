@@ -3,7 +3,12 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import { profileMemoryItems, profileMemorySettings } from "../../db/schema";
-import type { ProfileMemoryItem, ProfileMemoryList, ProfileMemoryProjectionItem } from "./model";
+import type {
+	ProfileMemoryItem,
+	ProfileMemoryList,
+	ProfileMemoryProjectionItem,
+	ProfileMemorySummary,
+} from "./model";
 import { toIsoString } from "./model";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
@@ -12,6 +17,7 @@ export interface ProfileMemoryStore {
 	deleteItem(input: { itemId: string; ownerUserId: string }): Promise<boolean>;
 	listByOwner(ownerUserId: string): Promise<ProfileMemoryList>;
 	listProjectionItems(input: { ownerUserId: string }): Promise<ProfileMemoryProjectionItem[]>;
+	loadSummary(input: { ownerUserId: string }): Promise<ProfileMemorySummary>;
 	setEnabled(input: { enabled: boolean; ownerUserId: string; updatedAt: string }): Promise<boolean>;
 	upsertUserDeclared(input: {
 		itemId: string;
@@ -119,6 +125,23 @@ export function createPgProfileMemoryStore(
 				.orderBy(asc(profileMemoryItems.key));
 
 			return rows.map(toProjectionItem);
+		},
+
+		async loadSummary(input) {
+			const db = await getDb();
+			const enabled = await isProjectionEnabled({
+				getDb,
+				ownerUserId: input.ownerUserId,
+			});
+			const rows = await db
+				.select({ itemId: profileMemoryItems.itemId })
+				.from(profileMemoryItems)
+				.where(eq(profileMemoryItems.ownerUserId, input.ownerUserId));
+
+			return {
+				enabled,
+				itemCount: rows.length,
+			};
 		},
 
 		async setEnabled(input) {

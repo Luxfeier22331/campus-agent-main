@@ -4,6 +4,7 @@ export type {
 	ProfileMemoryList,
 	ProfileMemoryProjectionItem,
 	ProfileMemorySourceType,
+	ProfileMemorySummary,
 	ProfileMemoryVisibility,
 } from "./model";
 export {

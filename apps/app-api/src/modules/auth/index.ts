@@ -14,6 +14,7 @@ export {
 export type {
 	AppPermissions,
 	AppPrincipalPayload,
+	AppPrincipalType,
 	AppSessionPayload,
 	AuthorizationProjectionSource,
 	BetterAuthSessionPayload,

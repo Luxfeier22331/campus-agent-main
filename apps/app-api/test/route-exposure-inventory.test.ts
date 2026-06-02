@@ -12,6 +12,7 @@ const routeFiles = [
 	"auth.ts",
 	"chat.ts",
 	"docs.ts",
+	"identity-platform.ts",
 	"internal.ts",
 	"official-web.ts",
 	"operator.ts",

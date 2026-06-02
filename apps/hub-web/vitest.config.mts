@@ -12,6 +12,6 @@ export default defineConfig({
 	test: {
 		environment: "node",
 		exclude: ["test/**/*.worker.test.ts"],
-		include: ["test/**/*.test.ts", "test/**/*.mjs.test.ts"],
+		include: ["test/**/*.test.ts", "test/**/*.test.tsx", "test/**/*.mjs.test.ts"],
 	},
 });

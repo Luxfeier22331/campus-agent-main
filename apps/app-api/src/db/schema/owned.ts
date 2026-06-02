@@ -6,6 +6,15 @@ export {
 	docsSearchUnits,
 } from "./docs";
 export {
+	identityAccessSnapshots,
+	identityAccounts,
+	identityFederationClaimsPolicies,
+	identityFederationClients,
+	identityFederationUserGrants,
+	identityPreferenceSettings,
+	identityProfiles,
+} from "./identity";
+export {
 	crawlRuns,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
@@ -14,6 +23,7 @@ export {
 	officialWebTargetReleaseGates,
 	pageFreshness,
 	pageObservations,
+	runAdmissionDecisions,
 	runArtifacts,
 	runHeartbeats,
 	runOutbox,
@@ -52,6 +62,15 @@ import {
 	docsSearchUnits,
 } from "./docs";
 import {
+	identityAccessSnapshots,
+	identityAccounts,
+	identityFederationClaimsPolicies,
+	identityFederationClients,
+	identityFederationUserGrants,
+	identityPreferenceSettings,
+	identityProfiles,
+} from "./identity";
+import {
 	crawlRuns,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
@@ -60,6 +79,7 @@ import {
 	officialWebTargetReleaseGates,
 	pageFreshness,
 	pageObservations,
+	runAdmissionDecisions,
 	runArtifacts,
 	runHeartbeats,
 	runOutbox,
@@ -99,6 +119,7 @@ export const appApiOwnedSchema = {
 	officialWebTargetReleaseGates,
 	pageObservations,
 	pageFreshness,
+	runAdmissionDecisions,
 	runHeartbeats,
 	runArtifacts,
 	runOutbox,
@@ -107,6 +128,13 @@ export const appApiOwnedSchema = {
 	docsDocumentVersions,
 	docsReaderAssets,
 	docsSearchUnits,
+	identityAccounts,
+	identityProfiles,
+	identityAccessSnapshots,
+	identityPreferenceSettings,
+	identityFederationClients,
+	identityFederationClaimsPolicies,
+	identityFederationUserGrants,
 	profileMemorySettings,
 	profileMemoryItems,
 	requestExecution,

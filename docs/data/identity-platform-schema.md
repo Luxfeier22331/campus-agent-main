@@ -19,6 +19,20 @@ updated: 2026-06-02
 
 本文不替代 migration files、Better Auth adapter schema docs 或 physical table DDL。
 
+Current implementation note:
+
+- `apps/app-api/src/db/schema/identity.ts` is the first physical
+  materialization of the app-owned `identity.*` schema family.
+- `apps/app-api/drizzle/0034_empty_exodus.sql` creates the current
+  `identity.accounts`, `identity.identity_profiles`,
+  `identity.access_snapshots`, `identity.preference_settings`,
+  `identity.federation_clients`, `identity.federation_claims_policies` and
+  `identity.federation_user_grants` tables.
+- The first account-center projection may derive account/session fields from
+  the resolved Better Auth principal and reads only profile memory summary from
+  `profile.*`. It does not migrate `profile.*` or Better Auth rows into
+  `identity.*` in this batch.
+
 ## Schema Families
 
 Long-term logical families:
