@@ -15,7 +15,6 @@ updated: 2026-04-24
 
 - `runtime-serving-and-index-terms.md`
   - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
-- `workstream-agent-harness-contract.md`
 - `qa-assistant-and-harness-gap-review.md`
 - `testing-and-verification-lanes.md`
 - `eval-gold-truth-model.md`

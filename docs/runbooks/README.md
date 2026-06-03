@@ -25,10 +25,11 @@ updated: 2026-04-27
   - 包含 Qdrant backup retention audit；当前 collection GC 需要 qdrant-native
     filesystem snapshot evidence，历史对象存储 snapshot bundle 不能按时间或体积直接删。
 
-## Collaboration / Workstream Claims
+## Collaboration / Workstreams
 
-- `workstream-harness-workflow.md`
-- `workstream-claim-workflow.md`
+- `workstream-gsd-sdk-workflow.md`
+  - 当前 workstream / Codex 协作总入口；具体决策见
+    `../decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`。
 - `public-product-path-safety-ops-runbook.md`
 
 ## Environment-Specific Smoke / Evidence
