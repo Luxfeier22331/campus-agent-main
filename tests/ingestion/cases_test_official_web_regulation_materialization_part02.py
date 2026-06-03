@@ -2,11 +2,106 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from tests.ingestion.test_official_web_regulation_materialization_support import *
 
 
 class OfficialWebRegulationMaterializationTestPart02(unittest.TestCase):
+    def test_worker_local_object_store_uses_local_registries_without_env_registry(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            declarations_path = root / "projection-declarations.json"
+            worker_output_dir = root / "worker-output"
+            object_store_root = root / "object-store"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_local_registry_boundary_test",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page(
+                            raw_asset_id="owasset_local_registry",
+                            raw_version_id="owver_local_registry",
+                            normalized_canonical_url="https://met.example.edu/info/1024/1086.htm",
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="met.example.edu",
+                raw_asset_id="owasset_local_registry",
+                raw_version_id="owver_local_registry",
+                normalized_canonical_url="https://met.example.edu/info/1024/1086.htm",
+                page_title="校园一卡通管理规定",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_local_registry",
+                        raw_version_id="owver_local_registry",
+                        row_id="title",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="校园一卡通管理规定",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_local_registry",
+                        raw_version_id="owver_local_registry",
+                        row_id="p1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为规范校园一卡通管理，制定本规定。",
+                    ),
+                ],
+            )
+
+            with (
+                patch(
+                    "campus_ingestion_worker.materialize_official_web_regulations."
+                    "build_document_registry_from_env",
+                    side_effect=AssertionError("document registry env must not be used"),
+                ),
+                patch(
+                    "campus_ingestion_worker.materialize_official_web_regulations."
+                    "build_raw_asset_registry_from_env",
+                    side_effect=AssertionError("raw asset registry env must not be used"),
+                ),
+            ):
+                materialize_worker_main(
+                    [
+                        "--source-truth-output-dir",
+                        str(output_dir),
+                        "--declarations-path",
+                        str(declarations_path),
+                        "--output-dir",
+                        str(worker_output_dir),
+                        "--object-store-root",
+                        str(object_store_root),
+                    ]
+                )
+
+            self.assertTrue((worker_output_dir / "document-registry.snapshot.json").exists())
+            self.assertTrue((worker_output_dir / "raw-asset-registry.snapshot.json").exists())
+
     def test_materialization_keeps_official_web_page_title_for_public_plan_documents(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-06-01
+updated: 2026-06-03
 ---
 # Authenticated Notice Source Architecture
 
@@ -213,6 +213,8 @@ notice-consumption projection family。
 - 保存 source notice、canonical markdown、attachment truth
 - 承接 offline classification、authority / completeness / answerability、
   target surface 与 consumption status
+- 附件与媒体处理分类使用 `multimodal_processing` / machine-processing
+  术语；不恢复 legacy manual-review projection state
 - notice read model 与 notice runtime 只读取 projection/read model，
   不重新拥有 source truth
 - 当前 posture 仍不是默认公开 serving surface

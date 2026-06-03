@@ -217,18 +217,18 @@ def _resolve_runtime(
         object_store = S3ObjectStoreWriter(settings)
     if args.registry_json:
         document_registry = InMemoryDocumentRegistry(Path(args.registry_json))
+    elif args.object_store_root:
+        document_registry = InMemoryDocumentRegistry(output_dir / "document-registry.snapshot.json")
     else:
         document_registry = build_document_registry_from_env()
     if args.raw_registry_json:
         raw_asset_registry = InMemoryRawAssetRegistry(Path(args.raw_registry_json))
-    else:
-        raw_asset_registry = build_raw_asset_registry_from_env()
-    if args.object_store_root and not args.registry_json:
-        document_registry = InMemoryDocumentRegistry(output_dir / "document-registry.snapshot.json")
-    if args.object_store_root and not args.raw_registry_json:
+    elif args.object_store_root:
         raw_asset_registry = InMemoryRawAssetRegistry(
             output_dir / "raw-asset-registry.snapshot.json"
         )
+    else:
+        raw_asset_registry = build_raw_asset_registry_from_env()
     return {
         "document_registry": document_registry,
         "object_store": object_store,
