@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0022
 status: accepted
 created: 2026-04-02
-updated: 2026-04-26
+updated: 2026-06-04
 ---
 # ADR-0022 Campus Identity And Restricted Document Authorization
 
@@ -216,23 +216,19 @@ updated: 2026-04-26
 这项决策 complements：
 
 - `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
-  d`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 
 ## 外部依据
 
 - OWASP Authorization Cheat Sheet:
-  <<https://cheatsheetseries.owasp.org/cheatshee>
-  ts/Authorization_Cheat_Sheet.html>
+  <https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html>
 - NIST SP 800-162 Guide to Attribute Based Access Control:
   <https://csrc.nist.gov/pubs/sp/800/162/upd2/final>
 - Zanzibar paper: <https://www.usenix.org/system/files/atc19-pang.pdf>
 - Cloudflare Access policies:
   <https://developers.cloudflare.com/cloudflare-one/access-controls/policies/>
 - Cloudflare Access session management:
-  <<https://developers.cloudflare.com/cloud>
-  flare-one/access-controls/access-settings/session-management/>
+  <https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/>

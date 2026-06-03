@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-26
+updated: 2026-06-04
 ---
 
 # Decisions
@@ -42,6 +42,13 @@ updated: 2026-04-26
 - `adr-0043-supervisor-api-docker-first-runtime.md`
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
+
+## Collaboration / Workflow
+
+- `adr-0046-gsd-sdk-and-codex-native-workflow.md`
+  - GSD SDK 作为 planning control plane，Codex 原生会话作为 execution runtime；
+    旧 repo-owned workstream harness、terminal-result、claim lease、heartbeat 与
+    hook 注入不再恢复。
 
 ## Identity、authz 与 operator control plane
 
@@ -97,5 +104,10 @@ updated: 2026-04-26
 ## 维护规则
 
 - ADR 写 architecturally significant decision，不写临时执行记录
+- ADR 不复制 runbook 的命令清单、CLI 参数、smoke 步骤或 operator 执行顺序；这些内容由
+  `docs/runbooks/` 承接
+- ADR 不承接 reference 的矩阵、schema、指标明细、inventory 或 evidence 明细；这些内容由
+  `docs/reference/`、`docs/contracts/` 或 `docs/data/` 承接
 - 旧 ADR 不删除；若失效，标成 `superseded` 或 `deprecated`
 - replacement 必须写进 front matter 或正文显式回链
+- ADR 体系审计记录见 `docs/reference/adr-governance-audit.md`

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0030
 status: accepted
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-06-04
 ---
 # ADR-0030 Institution-Scoped Product Path And Explicit Open-Domain Admission
 
@@ -110,4 +110,3 @@ ess_denied` 语义继续保持独立。
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/architecture/system/prompt-and-instruction-architecture.md`

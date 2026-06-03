@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0015
 status: accepted
 created: 2026-03-28
-updated: 2026-04-26
+updated: 2026-06-04
 ---
 # ADR-0015 用户身份、长期记忆与个性化边界
 
@@ -174,8 +174,8 @@ Accepted on 2026-03-28.
   projection
 - `docs/architecture/system/execution-and-agents-architecture.md` 负责 retrieval-specific
   personalization 与 `RagIntentFrame`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
-  d` 负责长期 authorization model 与 retrieval filter projection 决策
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+  负责长期 authorization model 与 retrieval filter projection 决策
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md` 负责 identity /
   memory telemetry 的最小化规则
 - `docs/decisions/adr-0004-evaluation-metrics.md` 负责 personalization / memory /
@@ -202,8 +202,6 @@ Accepted on 2026-03-28.
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
-  d`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
