@@ -20,7 +20,7 @@ It covers:
 
 It does not cover the historical Qdrant Cloud / Free tier object-store backup
 path. That path is retained only in
-`docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md`.
+`docs/runbooks/archive/qdrant-cloud-backup-and-restore-runbook.md`.
 
 ## Runtime Contract
 

@@ -79,7 +79,6 @@ id = "00000000-0000-0000-0000-000000000000"
 
 [[env.local.hyperdrive]]
 binding = "APP_API_DB_FRESH"
-# Local development can optionally load a dedicated fresh-read connection
-# from `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`.
-# If it is absent, runtime resolution falls back to `APP_API_DB`.
+# Fresh-read runtime access must be configured explicitly through
+# `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`.
 id = "00000000-0000-0000-0000-000000000000"

@@ -139,6 +139,23 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         self.assertEqual(projected["OBJECT_STORE_ENDPOINT"], "https://s3.staging.example.com")
         self.assertEqual(projected["OBJECT_STORE_DERIVED_ACCESS_KEY"], "derived-access")
         self.assertEqual(projected["OBJECT_STORE_BUCKET_DERIVED"], "campus-rag-derived-staging")
+        self.assertEqual(
+            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"],
+            "https://s3.staging.example.com",
+        )
+        self.assertEqual(
+            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"],
+            "derived-access",
+        )
+        self.assertEqual(
+            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"],
+            "derived-secret",
+        )
+        self.assertEqual(projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION"], "auto")
+        self.assertEqual(
+            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET"],
+            "campus-rag-derived-staging",
+        )
         self.assertEqual(projected["QDRANT_URL"], "https://qdrant.staging.example.com")
         self.assertEqual(projected["QDRANT_TIMEOUT_SECONDS"], "11")
         self.assertEqual(projected["EMBEDDING_PROVIDER"], "gitee")
@@ -337,6 +354,23 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         )
         self.assertEqual(projected["OBJECT_STORE_ENDPOINT"], "http://localhost:9000")
         self.assertEqual(projected["OBJECT_STORE_DOCKER_ENDPOINT"], "http://minio:9000")
+        self.assertEqual(
+            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"],
+            "http://minio:9000",
+        )
+        self.assertEqual(
+            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"],
+            "derived-access",
+        )
+        self.assertEqual(
+            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"],
+            "derived-secret",
+        )
+        self.assertEqual(projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION"], "auto")
+        self.assertEqual(
+            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET"],
+            "campus-rag-derived-staging",
+        )
         self.assertEqual(projected["QDRANT_URL"], "http://127.0.0.1:6333")
         self.assertEqual(projected["QDRANT_DOCKER_URL"], "http://qdrant:6333")
         self.assertEqual(projected["SUPERVISOR_API_STAGING_LOCAL_POSTGRES_DB"], "campus_agent")

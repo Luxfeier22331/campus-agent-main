@@ -121,6 +121,11 @@ const keys = [
   "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
   "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
   "INTERNAL_NOTICE_READ_MODEL_TABLE",
+  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
+  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
+  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION",
+  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET",
   "SUPERVISOR_API_STAGING_UV_BIN",
   "SUPERVISOR_API_STAGING_TUNNEL_TOKEN",
 ];
@@ -452,6 +457,26 @@ if (
     "staging supervisor object-store credentials are required: configure shared or derived credential pair",
   );
 }
+const supervisorNoticeBodyAccessKey = hasDerivedObjectStorePair
+  ? envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY")
+  : envValue("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY");
+const supervisorNoticeBodySecretKey = hasDerivedObjectStorePair
+  ? envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY")
+  : envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY");
+resolved.set(
+  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+  projectObjectStoreForDocker(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT")),
+);
+resolved.set("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", supervisorNoticeBodyAccessKey);
+resolved.set("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", supervisorNoticeBodySecretKey);
+resolved.set(
+  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION",
+  envValue("STAGING_INGESTION_OBJECT_STORE_REGION") || "us-east-1",
+);
+resolved.set(
+  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET",
+  envValue("STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED"),
+);
 const localPostgresConfigs = [
   ["STAGING_INGESTION_SHARED_POSTGRES_URL", envValue("STAGING_INGESTION_SHARED_POSTGRES_URL")],
   [
@@ -638,7 +663,22 @@ supervisor_api_staging_require_runtime_env() {
   fi
 
   if [[ -z "${OBJECT_STORE_ENDPOINT:-}" ]]; then
-    echo "OBJECT_STORE_ENDPOINT is required after STAGING_INGESTION_OBJECT_STORE_ENDPOINT projection." >&2
+    echo "OBJECT_STORE_ENDPOINT is required for ingestion/agent-worker data-plane projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT:-}" ]]; then
+    echo "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT is required after staging notice body projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY:-}" || -z "${SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY:-}" ]]; then
+    echo "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY and SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY are required after staging notice body projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET:-}" ]]; then
+    echo "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET is required after staging notice body projection." >&2
     return 1
   fi
 

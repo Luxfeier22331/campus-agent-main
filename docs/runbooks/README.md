@@ -85,6 +85,6 @@ updated: 2026-04-27
 
 - `archive/README.md`
   - historical runbook、legacy path redirect 与已退出默认执行面的旧模板已统一下沉到 archive namespace
-- `qdrant-cloud-backup-and-restore-runbook.md`
+- `archive/qdrant-cloud-backup-and-restore-runbook.md`
   - historical Qdrant Cloud / Free tier backup reference；当前默认方案已切换到
     self-hosted single-node Qdrant native snapshots。

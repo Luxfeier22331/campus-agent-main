@@ -104,6 +104,9 @@ Compose。
 - `STAGING_INGESTION_OBJECT_STORE_REGION=auto`（Cloudflare R2 S3 endpoint）
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=<derived bucket access key>`
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=<derived bucket secret key>`
+- `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_*` 不需要手写；staging env projection 会从
+  `STAGING_INGESTION_OBJECT_STORE_*` 明确生成 supervisor-owned notice body runtime
+  env。
 - `STAGING_INGESTION_QDRANT_URL=<staging self-hosted Qdrant REST URL>`；当前默认是
   `nc-arm-6c` 上的 self-hosted single-node Qdrant，本机/同主机 runtime 通常填
   `http://127.0.0.1:6333`。该 URL 必须让 `/readyz`、`/livez`、`/collections`
@@ -122,7 +125,7 @@ Compose。
   - `STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25`
   - `STAGING_INGESTION_SPARSE_TOKENIZER=multilingual`
   - `STAGING_INGESTION_SPARSE_LANGUAGE=none`
-- `STAGING_ACCESS_TEAM_DOMAIN=https://ayafeed.cloudflareaccess.com`
+- `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
 - `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
 - `SUPERVISOR_API_METRICS_BEARER_TOKEN=<metrics bearer token>`
 - `SUPERVISOR_API_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token>`
@@ -146,11 +149,18 @@ Cloudflare R2 staging object store 固定为：
 - source bucket: `campus-rag-source-staging`
 - derived bucket: `campus-rag-derived-staging`
 
-`supervisor-api` 在线 notice body runtime 只需要 derived bucket 凭据，因此 staging
-runtime 使用只限 `campus-rag-derived-staging` 的 R2 bucket-item token。按 Cloudflare R2
-文档，R2 S3 凭据不是普通 bearer token：Access Key ID 是 API token id，Secret Access
-Key 是 API token value 的 SHA-256。token value 只在创建时显示；创建后必须立即写入
-部署 secret 或 `/srv/apps/campus-agent/.env.staging.local`，不得进入 repo。
+`supervisor-api` 在线 notice body runtime 消费
+`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT`、
+`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY`、
+`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY`、
+`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION` 与
+`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET`。这些 env 由 staging projection 从
+`STAGING_INGESTION_OBJECT_STORE_*` 显式生成；Go runtime 不读取 generic
+`OBJECT_STORE_*` 或 ingestion bucket env。staging runtime 目前指向
+`campus-rag-derived-staging` 中的 canonical notice body object。按 Cloudflare R2 文档，
+R2 S3 凭据不是普通 bearer token：Access Key ID 是 API token id，Secret Access Key
+是 API token value 的 SHA-256。token value 只在创建时显示；创建后必须立即写入部署
+secret 或 `/srv/apps/campus-agent/.env.staging.local`，不得进入 repo。
 
 如果 query-serving index 或 notice read-model 已引用 `campus-rag-derived` 的 object key
 内容，不能只创建空的 `campus-rag-derived-staging` bucket 后宣布 staging 可用；必须先执行
