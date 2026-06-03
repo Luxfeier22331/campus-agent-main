@@ -119,7 +119,7 @@ browser -> protected-panel-web -> app-api
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md)
 - [AGENTS.md](./AGENTS.md)
-- [workstream-claim-workflow](./docs/runbooks/workstream-claim-workflow.md)
+- [workstream-gsd-sdk-workflow](./docs/runbooks/workstream-gsd-sdk-workflow.md)
 
 ## Development
 
@@ -198,27 +198,20 @@ lane，默认不并入 `pnpm lint`。
 
 `feature/worktree -> develop -> main`
 
-plain `codex` 继续用于讨论、评审、问答和方案分析；
-只有真正进入某条 workstream 的执行会话时，才进入 harness-managed session。
+plain `codex` 继续用于讨论、评审、问答、方案分析与执行。
+workstream 的创建、查询、切换与完成由 GSD SDK 管理；执行现场由 Codex 原生会话承接。
 
-并发推进不同 workstream 时，repo 内部的认领与交接统一走 repo-owned claim workflow：
+常用入口：
 
 ```bash
-uv run --all-packages python -m scripts.workstream_claim operator set \
-  <operator_id>
-uv run --all-packages python -m scripts.workstream_harness codex shell \
-  <workstream-slug>
-uv run --all-packages python -m scripts.workstream_harness codex exec \
-  <workstream-slug> -- "<task>"
+gsd-sdk query workstream.list --raw --cwd "$PWD"
+gsd-sdk query workstream.status <workstream-slug> --raw --cwd "$PWD"
+gsd-sdk query workstream.set <workstream-slug> --raw --cwd "$PWD"
+gsd-sdk query workstream.progress --raw --cwd "$PWD"
 ```
 
-会话终态默认通过 `scripts.workstream_harness result write ...` 写入 gitignored runtime
-artifact；final assistant message 保留给人读，不再要求把 terminal JSON 直接显示在用户界面。
-
-底层 `workstream_claim session shell/start` 仍保留为恢复与非-Codex runtime 的 escape
-hatch；tracked planning truth 继续写在 `.planning/WORKSTREAMS.md` 与
-`.planning/workstreams/<slug>/`，运行时认领状态、operator 本地配置、 claim history 与 harness
-run ledger 只写入 gitignored 的 `.planning/runtime/`。 详细流程见
-[workstream-harness-workflow](./docs/runbooks/workstream-harness-workflow.md)、
-[workstream-claim-workflow](./docs/runbooks/workstream-claim-workflow.md) 和
+tracked planning truth 继续写在 `.planning/WORKSTREAMS.md` 与
+`.planning/workstreams/<slug>/`；repo 不再维护本地 lease、heartbeat、hook 注入或 terminal-result
+artifact。详细流程见
+[workstream-gsd-sdk-workflow](./docs/runbooks/workstream-gsd-sdk-workflow.md) 和
 [CONTRIBUTING.md](./CONTRIBUTING.md)。

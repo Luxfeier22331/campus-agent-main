@@ -38,7 +38,8 @@ updated: 2026-05-10
     authenticated canonical regulation gap collection; `SEED-004` has already surfaced as a
     completed native workstream
 - `.planning/runtime/`
-  - gitignored 的本地 operator 配置、claim lease、claim history 与 session pointer 辅助状态；不承担 tracked planning truth
+  - gitignored 的本地 operator scratch 与 session pointer 辅助状态；不承担 tracked planning truth，
+    也不再承载 repo-owned workstream harness、claim lease 或 heartbeat truth
 - `.planning/legacy-flat/`
   - 迁移前的 flat planning archive；仅保留历史 phase / milestone 参考，不再承载当前执行真相
 - `.planning/quick/`、`.planning/todos/`、`.planning/codebase/`、`.planning/research/`
@@ -115,7 +116,7 @@ updated: 2026-05-10
 | `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery.md` | 只有在新的显式 non-excluded target 被 admission、认证窗口重新可用且产品范围重新恢复 bounded owner recovery 优先级时才恢复 |
 | `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md` | 只有在 authenticated portal policy 改变、认证窗口重新 admission 新 surface、需要产品/API scheduler，而不是 repo-owned collector CLI，或 live capture 与 historical replay 再次出现两套 truth 时恢复 |
 | `versioned history query foundation` | `versioned-history-query-foundation` | `yes` | `docs/plans/archive/completed/versioned-history-query-foundation.md` | 只有在 repo 重新 admission runtime-facing non-current query route contract、`app-api` live benchmark 正式承载 non-current `version_query`、或显式改写 `current / historical / as_of / compare` 的 request / resolution / retrieval / answer / eval truth 时才恢复 |
-| `repo-wide agent harness rollout` | `repo-wide-agent-harness-rollout` | `yes` | `.planning/workstreams/repo-wide-agent-harness-rollout/README.md` | 只有在 repo 重新 admission 非-Codex adapter implementation、显式改写 terminal-result transport / blocker taxonomy / hook contract，或需要再次调整默认 execution entrypoint 时才恢复 |
+| `repo-wide agent harness rollout` | `repo-wide-agent-harness-rollout` | `yes` | `.planning/workstreams/repo-wide-agent-harness-rollout/README.md` | retired；旧 repo-owned harness 已在 2026-06-04 被 GSD SDK + Codex 原生会话取代，不再按旧 hook / terminal-result / lease contract 恢复 |
 | `public chat campus services E2E acceptance` | `public-chat-campus-services-e2e-acceptance` | `yes` | `.planning/workstreams/public-chat-campus-services-e2e-acceptance/README.md` | 只有在 campus-services tool denominator 新增、tool-level opening verdict 改写、rollout/rollback contract 改写，或 staging opening evidence 与当前 verdict 发生漂移时才恢复 |
 | `campus services runtime tool gap closeout` | `campus-services-runtime-tool-gap-closeout` | `yes` | `.planning/workstreams/campus-services-runtime-tool-gap-closeout/README.md` | 只有在 campus-services tool denominator、新 product-path tool、admission profile、opening verdict 或 runtime gate contract 被显式改写，或 `public-chat-campus-services-e2e-acceptance` 发现真实入口证据与当前 local gate 漂移时才恢复 |
 | `agents sdk runtime surface expansion` | `agents-sdk-runtime-surface-expansion` | `yes` | `.planning/workstreams/agents-sdk-runtime-surface-expansion/README.md` | 只有在新增 admitted single-surface SDK runtime expansion slice、已完成 surface 的 SDK evidence/guardrail/product-path acceptance 漂移，或 repo 再次需要扩展 worker/domain-agent 内部 SDK substrate 且不属于 `governed-multi-agent-workflow-runtime` 时恢复 |
@@ -170,5 +171,5 @@ updated: 2026-05-10
 - 判断某条 workstream 的当前切片、blockers、verification，进入对应 `.planning/workstreams/<slug>/STATE.md`
 - 判断某条 workstream 的固定顺序，进入对应 `.planning/workstreams/<slug>/ROADMAP.md`
 - 判断某条 workstream 的范围、non-goals 与 success criteria，进入对应 `.planning/workstreams/<slug>/REQUIREMENTS.md`
-- 判断当前谁认领了某条 workstream、handoff 是否 pending、某个本机会话是否仍持有 lease，使用 `uv run --all-packages python -m scripts.workstream_claim ...`；不要把这些运行时状态补写回 tracked planning 文档
+- 判断当前 workstream registry、单条状态、active workstream 与整体进度，使用 `gsd-sdk query workstream.list/status/set/progress --raw --cwd "$PWD"`；不要把本地会话状态写回 tracked planning 文档
 - 需要历史 phase / milestone 叙事时，进入 `.planning/legacy-flat/`

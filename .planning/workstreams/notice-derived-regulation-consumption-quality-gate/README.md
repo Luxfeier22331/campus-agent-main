@@ -24,9 +24,9 @@ eligibility、target materialization gate 与文档站/RAG 消费前质量验收
 - current focus: selected cohort、negative fixture、runbook、regression command、bounded reopen
   rule 与 `354006` docs-only gated reader opening evidence 已冻结；后续只按 bounded
   reopen rule 恢复
-- runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
-  claim status notice-derived-regulation-consumption-quality-gate` 查看；tracked planning
-  文档不保存 claim lease
+- workstream status: 使用 `gsd-sdk query workstream.status
+  notice-derived-regulation-consumption-quality-gate --raw --cwd "$PWD"` 查看；
+  tracked planning 文档不保存本地会话状态
 
 ## Post-Closeout Evidence
 

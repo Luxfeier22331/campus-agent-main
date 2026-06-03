@@ -261,8 +261,8 @@ This workstream is completed. Reopen only under the bounded reopen rule in `ROAD
 If reopened, start with:
 
 ```bash
-uv run --all-packages python -m scripts.workstream_harness codex shell \
-  notice-derived-regulation-consumption-quality-gate
+gsd-sdk query workstream.set notice-derived-regulation-consumption-quality-gate \
+  --raw --cwd "$PWD"
 ```
 
 Then read:

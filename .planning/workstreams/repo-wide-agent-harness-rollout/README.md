@@ -1,24 +1,24 @@
 ---
 doc_type: index
-status: completed
+status: retired
 created: 2026-04-23
-updated: 2026-04-27
+updated: 2026-06-04
 ---
 
 # Workstream: Repo-wide Agent Harness Rollout
 
-这是 `repo-wide-agent-harness-rollout` 的 native workstream 入口。
-它负责 repo 级 agent 执行 harness、Codex 首发适配、runtime ledger 与默认执行入口切换，
-不承接任何产品 runtime 语义，也不复用产品侧 `approval_required`。
+这是 `repo-wide-agent-harness-rollout` 的 retired native workstream 入口。
+它曾负责 repo 级 agent execution harness、Codex 首发适配、runtime ledger 与默认执行入口切换。
+该 repo-owned harness 已在 2026-06-04 从当前执行面移除；当前 workstream 操作由
+GSD SDK 与 Codex 原生会话承担。
 
 ## Current Status
 
-- status: `completed`
-- current phase: `Phase 4`
-- current focus: artifact-only terminal result contract、
-  discussion-vs-execution split、wrapper self-finalization、
-  默认入口切换、真实 run evidence 与 future adapter boundary
-  已全部收口
+- status: `retired`
+- retirement date: `2026-06-04`
+- current execution path: `docs/runbooks/workstream-gsd-sdk-workflow.md`
+- reopen rule: do not restore the old repo-owned harness, hook injection, terminal-result
+  artifact, claim lease, heartbeat ledger, or wrapper command path
 
 ## Native Planning Truth
 

@@ -29,7 +29,7 @@
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - planning 执行面当前按原生 workstream-first 多线推进；repo 级总览固定收口到 `.planning/WORKSTREAMS.md`，单条线的当前真相固定收口到 `.planning/workstreams/<slug>/`
-- repo 级默认 agent execution 入口现已提升为 `scripts.workstream_harness`：底层继续复用 `workstream_claim` lease/heartbeat substrate，但默认终态已收口为 `completed / blocked / failed_needs_repair` 的 harness contract；runtime ledger 只写入 gitignored `.planning/runtime/harness/`
+- repo 级 workstream 操作现回归 GSD SDK + Codex 原生会话：`gsd-sdk query workstream.*` 负责 registry / active workstream / progress，plain `codex` 负责讨论、review、问答与执行；repo 不再维护自建 harness、lease/heartbeat、Codex hook 注入或 terminal-result artifact
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
 - 正式 `apps/public-docs` docs shell 已在当前工作树落地；`document-site-and-canonical-reader`
   workstream 已在 2026-05-05 completed，published reader assets、same-site docs

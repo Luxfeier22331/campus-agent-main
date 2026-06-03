@@ -22,46 +22,38 @@
 - 改动长期边界、contract 或 serving surface 时，同时更新对应
   `docs/architecture/`、`docs/decisions/`、`docs/contracts/`、`docs/data/`
 
-## Workstream Claim Workflow
+## Workstream Workflow
 
-多人并发时，不再靠口头约定或把“谁在做什么”写回 tracked planning 文档； 默认使用 repo-owned harness workflow。
+多人并发时，不再靠口头约定或把“谁在做什么”写回 tracked planning 文档。repo 当前使用
+GSD SDK 管理 workstream registry / active workstream / progress，执行现场交给 Codex 原生会话。
 
-开始前先在本机配置稳定 operator id：
+常用查询和切换入口：
 
 ```bash
-uv run --all-packages python -m scripts.workstream_claim operator set \
-  <operator_id>
+gsd-sdk query workstream.list --raw --cwd "$PWD"
+gsd-sdk query workstream.status <workstream-slug> --raw --cwd "$PWD"
+gsd-sdk query workstream.set <workstream-slug> --raw --cwd "$PWD"
+gsd-sdk query workstream.progress --raw --cwd "$PWD"
 ```
 
-正常执行入口固定为 harness-managed session：
+创建或完成 workstream：
 
 ```bash
-uv run --all-packages python -m scripts.workstream_harness codex shell \
-  <workstream-slug>
-uv run --all-packages python -m scripts.workstream_harness codex exec \
-  <workstream-slug> -- "<task>"
+gsd-sdk query workstream.create "<name>" --raw --cwd "$PWD"
+gsd-sdk query workstream.complete <workstream-slug> --raw --cwd "$PWD"
 ```
 
 补充说明：
 
-- plain `codex` 继续用于普通讨论、代码评审、架构辨析和问答；这类会话不进入
-  harness terminal-result contract
-- harness wrapper 底层仍会执行 `claim -> heartbeat -> child process -> release`
-- interactive / exec run 的 runtime ledger 固定写入 gitignored
-  `.planning/runtime/harness/`
-- terminal result 只认 result artifact side channel；assistant message
-  只保留给人读或审计，不再承担 terminal result transport
-- 当前会话上下文可用 `uv run --all-packages python -m scripts.workstream_claim session
-  current` 查看
-- 交接、接受交接、强制接管与诊断分别使用 `claim handoff`、`claim accept`、`claim takeover`、`claim
-  doctor`
+- plain `codex` 用于普通讨论、代码评审、架构辨析、问答和执行，不再进入 repo 自建
+  terminal-result contract
 - tracked planning truth 继续留在 `.planning/WORKSTREAMS.md` 与
   `.planning/workstreams/<slug>/`
-- 运行时 claim/operator/session 状态只落到 gitignored 的 `.planning/runtime/`
+- 本地会话状态、执行记录和临时上下文不写回 tracked planning 文档
+- 需要恢复某条线时，先读 `.planning/workstreams/<slug>/README.md` 与 `STATE.md`，再用
+  GSD SDK 切换 active workstream
 
-低层 `session shell/start` 仍保留为恢复与非-Codex runtime 的 escape hatch。 完整命令与恢复流程见
-`docs/runbooks/workstream-harness-workflow.md` 与
-`docs/runbooks/workstream-claim-workflow.md`。
+完整命令与恢复流程见 `docs/runbooks/workstream-gsd-sdk-workflow.md`。
 
 ## 环境准备
 
@@ -104,8 +96,8 @@ pnpm web:build
 - `.planning/WORKSTREAMS.md` 记录 repo 级 active / deferred / backlog workstream 总览
 - `.planning/workstreams/<slug>/STATE.md` 记录单条 workstream 的 `now / next /
   blockers / continuity`
-- `.planning/runtime/` 只保存 gitignored 的本地 operator 配置、claim lease、claim history
-  与 session pointer 辅助状态
+- `.planning/runtime/` 只保存 gitignored 的本地 operator scratch 与 session pointer
+  辅助状态；不承载 repo-owned workstream harness、claim lease 或 heartbeat truth
 - `docs/plans/` 记录仍有前向指导价值的计划，不承担 merged truth
 
 如果你在改这些内容：

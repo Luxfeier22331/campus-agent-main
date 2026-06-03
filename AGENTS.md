@@ -64,6 +64,7 @@
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
+- `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`
@@ -263,12 +264,15 @@
   垃圾桶，不把同一 DTO / schema / env projection / route exposure 跨层手写复制
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正
-- plain `codex` 默认用于讨论、review、问答与方案分析；只有真正进入某条 workstream
-  执行时，才使用 repo-owned harness workflow
-- 多人并发推进不同 workstream 时，默认使用 repo-owned harness workflow： `uv run --all-packages
-  python -m scripts.workstream_harness codex shell <slug>` 或 `codex exec <slug>
-  -- "<task>"`； `workstream_claim session shell/start` 只保留为恢复与非-Codex runtime 的
-  低层 escape hatch；不要把运行时认领状态写回 tracked planning 文档
+- plain `codex` 默认用于讨论、review、问答、方案分析与执行；repo 不再维护自建
+  workstream harness、lease/heartbeat 或 Codex hook 注入层
+- 多人并发推进不同 workstream 时，默认用 GSD SDK 查询、切换和维护 workstream
+  registry，例如 `gsd-sdk query workstream.list/status/set/progress --raw --cwd "$PWD"`；
+  tracked planning truth 仍写在 `.planning/WORKSTREAMS.md` 与对应
+  `.planning/workstreams/<slug>/`，不要把本地会话状态写回 tracked planning 文档
+- GSD SDK / Codex native workflow 的长期决策以
+  `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md` 为准；日常命令和场景路由以
+  `docs/runbooks/workstream-gsd-sdk-workflow.md` 为准
 
 ### Git Commit Title Rules
 

@@ -163,11 +163,11 @@ pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts \
 - Phase 9 summary:
   `phases/phase-09-current-release-composition-and-safe-promotion/SUMMARY.md`.
 
-- Claim lease is runtime-only and should be checked with:
+- Workstream status should be checked with:
 
 ```bash
-uv run --all-packages python -m scripts.workstream_claim claim status \
-  authenticated-notice-service-status-consumption
+gsd-sdk query workstream.status authenticated-notice-service-status-consumption \
+  --raw --cwd "$PWD"
 ```
 
 ## Resume Instructions
