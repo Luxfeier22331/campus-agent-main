@@ -16,7 +16,7 @@ import {
 } from "./page-artifacts-helpers.ts";
 import type { VisibleContentContainerStats } from "./page-artifacts-types.ts";
 
-export function analyzeVisibleContentContainers(
+export function analyzeVisibleShellContainers(
 	html: CheerioCrawlingContext["$"],
 ): VisibleContentContainerStats[] {
 	const $: HtmlDomApi = html;
@@ -121,79 +121,6 @@ export function analyzeVisibleContentContainers(
 	});
 }
 
-export function selectRecoverableContentContainers(
-	$: HtmlDomApi,
-	containers: VisibleContentContainerStats[],
-): VisibleContentContainerStats[] {
-	const strongContainers = containers.filter(
-		(item) =>
-			item.textLength >= 80 ||
-			item.repeatedCardChildCount >= 2 ||
-			(item.anchorCount >= 3 &&
-				(item.dateLikeTextCount >= 2 ||
-					item.listCount >= 2 ||
-					item.mediaCount > 0 ||
-					item.repeatedCardChildCount >= 2)),
-	);
-
-	const listingLikeContainers = strongContainers.filter((item) =>
-		isListingLikeRecoveryContainer(item),
-	);
-	if (listingLikeContainers.length > 0) {
-		const dominantContentDescendants = strongContainers.filter(
-			(item) =>
-				!isListingLikeRecoveryContainer(item) &&
-				item.anchorCount === 0 &&
-				item.repeatedCardChildCount === 0 &&
-				listingLikeContainers.some(
-					(container) =>
-						item !== container &&
-						item.textLength >= container.textLength * 0.6 &&
-						($(item.element).parents().toArray() as HtmlDomNode[]).includes(container.element),
-				),
-		);
-		if (dominantContentDescendants.length > 0) {
-			return dominantContentDescendants.filter(
-				(item) =>
-					!dominantContentDescendants.some(
-						(candidate) =>
-							candidate !== item &&
-							candidate.textLength >= item.textLength / 2 &&
-							($(candidate.element).parents().toArray() as HtmlDomNode[]).includes(item.element),
-					),
-			);
-		}
-		return listingLikeContainers.filter(
-			(item) =>
-				!listingLikeContainers.some(
-					(candidate) =>
-						candidate !== item &&
-						($(candidate.element).parents().toArray() as HtmlDomNode[]).includes(item.element),
-				),
-		);
-	}
-
-	return strongContainers.filter(
-		(item) =>
-			!strongContainers.some(
-				(candidate) =>
-					candidate !== item &&
-					candidate.textLength >= item.textLength / 2 &&
-					($(candidate.element).parents().toArray() as HtmlDomNode[]).includes(item.element),
-			),
-	);
-}
-
-export function isListingLikeRecoveryContainer(container: VisibleContentContainerStats): boolean {
-	return (
-		container.anchorCount >= 3 &&
-		(container.dateLikeTextCount >= 2 ||
-			container.listCount >= 2 ||
-			container.mediaCount > 0 ||
-			container.repeatedCardChildCount >= 2)
-	);
-}
-
 function isBoilerplateContainer($: HtmlDomApi, element: HtmlDomNode): boolean {
 	return (
 		hasNavigationAncestor($, element) ||
@@ -214,7 +141,7 @@ function countRepeatedCardChildren($: HtmlDomApi, element: HtmlDomNode): number 
 	for (const child of $(element)
 		.children("div,section,article,li,dt,dd")
 		.toArray() as HtmlDomNode[]) {
-		if (!looksLikeRecoverableCardChild($, child)) {
+		if (!looksLikeRepeatedCardChild($, child)) {
 			continue;
 		}
 
@@ -225,7 +152,7 @@ function countRepeatedCardChildren($: HtmlDomApi, element: HtmlDomNode): number 
 	return [...counts.values()].reduce((max, count) => Math.max(max, count), 0);
 }
 
-function looksLikeRecoverableCardChild($: HtmlDomApi, element: HtmlDomNode): boolean {
+function looksLikeRepeatedCardChild($: HtmlDomApi, element: HtmlDomNode): boolean {
 	const candidate = $(element);
 	const textNormalized = normalizeText(extractElementText($, element));
 	if (textNormalized == null) {

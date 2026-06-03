@@ -134,7 +134,7 @@ describe("official-web-collector quality audit", () => {
 		expect(audit.pages[0]?.issues).toEqual([]);
 	});
 
-	it("does not report recovered visible-content pages as shell-review findings", () => {
+	it("reports div-only visible-content pages as shell-review findings until primary extraction owns the pattern", () => {
 		const { configRoot } = writeTestConfigRoot();
 		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
 		const plan = buildOfficialWebCrawlPlan("campus_public", {
@@ -176,12 +176,17 @@ describe("official-web-collector quality audit", () => {
 			pages: [pageArtifacts],
 		});
 
-		expect(audit.pages[0]?.pageFamily).toBe("article_detail");
-		expect(audit.pages[0]?.status).toBe("pass");
-		expect(audit.pages[0]?.issues).toEqual([]);
+		expect(audit.pages[0]?.pageFamily).toBe("dynamic_shell_page");
+		expect(audit.pages[0]?.status).toBe("review");
+		expect(audit.pages[0]?.issues).toEqual([
+			expect.objectContaining({
+				code: "shell_family_requires_manual_review",
+				severity: "review",
+			}),
+		]);
 	});
 
-	it("flags thin engine2 detail pages for review when body content is not recovered", () => {
+	it("flags thin engine2 detail pages for review when body content is incomplete", () => {
 		const { configRoot } = writeTestConfigRoot();
 		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
 		const plan = buildOfficialWebCrawlPlan("campus_public", {
@@ -234,12 +239,12 @@ describe("official-web-collector quality audit", () => {
 		);
 	});
 
-	it("does not report recovered engine2 detail pages as thin-body review findings", () => {
+	it("does not report hydrated engine2 detail pages as thin-body review findings", () => {
 		const { configRoot } = writeTestConfigRoot();
 		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
 		const plan = buildOfficialWebCrawlPlan("campus_public", {
 			configRoot,
-			crawlRunId: "owrun_quality_engine2_recovered",
+			crawlRunId: "owrun_quality_engine2_hydrated",
 		});
 		const hostPolicy = findOfficialWebHostPolicy(bundle, "www.example.edu");
 
@@ -333,7 +338,7 @@ describe("official-web-collector quality audit", () => {
 		);
 	});
 
-	it("does not report sport-homepage card clusters as shell-review findings once listing signals are recovered", () => {
+	it("reports sport-homepage card clusters as shell-review findings until primary extraction owns the listing pattern", () => {
 		const { configRoot } = writeTestConfigRoot();
 		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
 		const plan = buildOfficialWebCrawlPlan("campus_public", {
@@ -375,8 +380,13 @@ describe("official-web-collector quality audit", () => {
 			pages: [pageArtifacts],
 		});
 
-		expect(audit.pages[0]?.pageFamily).toBe("listing_page");
-		expect(audit.pages[0]?.status).toBe("pass");
-		expect(audit.pages[0]?.issues).toEqual([]);
+		expect(audit.pages[0]?.pageFamily).toBe("dynamic_shell_page");
+		expect(audit.pages[0]?.status).toBe("review");
+		expect(audit.pages[0]?.issues).toEqual([
+			expect.objectContaining({
+				code: "shell_family_requires_manual_review",
+				severity: "review",
+			}),
+		]);
 	});
 });

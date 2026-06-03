@@ -14,7 +14,7 @@ import {
 	SAMPLE_XIAOYOU_LIST_PAGE_HTML,
 } from "./page-artifacts-test-support";
 
-export function registerPageArtifactsXiaoyouRecoverySuite() {
+export function registerPageArtifactsXiaoyouShellSuite() {
 	it("classifies dense direct roster pages on content sites as directory pages instead of generic listing pages", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
 			crawlRunId: "owrun_test_012h_dense",
@@ -92,7 +92,7 @@ export function registerPageArtifactsXiaoyouRecoverySuite() {
 					"https://mp.weixin.qq.com/s/nkWA_2jlmS-e9yTfbEfmyw",
 				].includes(item.linkTarget ?? ""),
 		);
-		const recoveredAnchorText = pageArtifacts.contentBlocks.find(
+		const retainedAnchorText = pageArtifacts.contentBlocks.find(
 			(item) =>
 				item.blockRole === "link" &&
 				item.linkTarget === "https://mp.weixin.qq.com/s/xtybxO4eKRzImzIreOLSRg",
@@ -114,7 +114,7 @@ export function registerPageArtifactsXiaoyouRecoverySuite() {
 		expect(acceptedLeadingNameItem).toBe(
 			"们发延校友荣获2025年度“全国政协委员优秀履职奖” 2026-03-09",
 		);
-		expect(recoveredAnchorText?.textNormalized).toBe(
+		expect(retainedAnchorText?.textNormalized).toBe(
 			"全国政协委员们发延：让民族团结之花在中华大地常开长盛",
 		);
 	});
@@ -175,7 +175,7 @@ export function registerPageArtifactsXiaoyouRecoverySuite() {
 		).toBe(true);
 	});
 
-	it("recovers div-based visible content instead of classifying the page as a dynamic shell", () => {
+	it("keeps div-only dynamic pages out of main content until the primary extractor owns the pattern", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
 			crawlRunId: "owrun_test_013e",
 			requestedUrl: "https://www.example.edu/rcpy.htm",
@@ -184,14 +184,15 @@ export function registerPageArtifactsXiaoyouRecoverySuite() {
 			fetchedAt: "2026-03-31T16:00:00.000Z",
 		});
 
-		expect(pageArtifacts.providerExtraction.pageSignals.zeroMainContent).toBe(false);
-		expect(pageArtifacts.providerExtraction.pageSignals.mainParagraphCount).toBeGreaterThanOrEqual(
-			2,
+		expect(pageArtifacts.providerExtraction.pageSignals.zeroMainContent).toBe(true);
+		expect(pageArtifacts.providerExtraction.pageSignals.mainParagraphCount).toBe(0);
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("dynamic_shell_page");
+		expect(pageArtifacts.pageManifest.pageFamilyReason).toBe(
+			"zero_main_content_with_dynamic_shell_signal",
 		);
-		expect(pageArtifacts.pageManifest.pageFamily).toBe("article_detail");
 	}, 15_000);
 
-	it("recovers panel-style card listings instead of classifying the page as a dynamic shell", () => {
+	it("keeps panel-style dynamic card pages in shell review without inferred listing content", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
 			crawlRunId: "owrun_test_013f",
 			requestedUrl: "https://www.example.edu/sport/index.htm",
@@ -200,12 +201,15 @@ export function registerPageArtifactsXiaoyouRecoverySuite() {
 			fetchedAt: "2026-03-31T16:01:00.000Z",
 		});
 
-		expect(pageArtifacts.providerExtraction.pageSignals.zeroMainContent).toBe(false);
-		expect(pageArtifacts.providerExtraction.pageSignals.mainLinkCount).toBeGreaterThanOrEqual(3);
-		expect(pageArtifacts.pageManifest.pageFamily).toBe("listing_page");
+		expect(pageArtifacts.providerExtraction.pageSignals.zeroMainContent).toBe(true);
+		expect(pageArtifacts.providerExtraction.pageSignals.mainLinkCount).toBe(0);
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("dynamic_shell_page");
+		expect(pageArtifacts.pageManifest.pageFamilyReason).toBe(
+			"zero_main_content_with_dynamic_shell_signal",
+		);
 	});
 
-	it("recovers sport-homepage card clusters into listing signals instead of leaving the page as a shell", () => {
+	it("keeps sport-homepage dynamic card clusters in shell review without inferred listing content", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
 			crawlRunId: "owrun_test_013g",
 			requestedUrl: "https://www.example.edu/sport/",
@@ -214,12 +218,13 @@ export function registerPageArtifactsXiaoyouRecoverySuite() {
 			fetchedAt: "2026-03-31T17:20:00.000Z",
 		});
 
-		expect(pageArtifacts.providerExtraction.pageSignals.zeroMainContent).toBe(false);
-		expect(pageArtifacts.providerExtraction.pageSignals.mainLinkCount).toBeGreaterThanOrEqual(3);
-		expect(
-			pageArtifacts.providerExtraction.pageSignals.dateLikeMainBlockCount,
-		).toBeGreaterThanOrEqual(3);
-		expect(pageArtifacts.pageManifest.pageFamily).toBe("listing_page");
+		expect(pageArtifacts.providerExtraction.pageSignals.zeroMainContent).toBe(true);
+		expect(pageArtifacts.providerExtraction.pageSignals.mainLinkCount).toBe(0);
+		expect(pageArtifacts.providerExtraction.pageSignals.dateLikeMainBlockCount).toBe(0);
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("dynamic_shell_page");
+		expect(pageArtifacts.pageManifest.pageFamilyReason).toBe(
+			"zero_main_content_with_dynamic_shell_signal",
+		);
 	});
 
 	it("extracts xiaoyou-style listing tables via content links instead of a giant main-content table", () => {

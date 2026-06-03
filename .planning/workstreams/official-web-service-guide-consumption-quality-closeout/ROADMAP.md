@@ -82,7 +82,8 @@ Implementation scope:
 - Add tests for real-like VPN direct/client/mobile grouped extraction.
 - Add tests for email material noise filtering using real listing-like rows.
 - Extract section headings and ordered steps into candidate `procedure_groups`.
-- Keep fallback `process_steps` for compatibility.
+- Retire flat `process_steps` as answer authority; keep it only as legacy fixture/source
+  comparison material when grouped procedure metadata is present.
 - Normalize host-like entries without losing source label.
 - Replace hard-coded composition branches with required role-driven composition metadata:
   `procedure_source`, `entry_source`, `material_source`, `contact_source`.

@@ -178,7 +178,7 @@ export function registerPageArtifactsDetailSuite() {
 		expect(pageArtifacts.pageManifest.pageFamilyReason).toBe("paragraph_dominant_main_content");
 	});
 
-	it("keeps unrecovered engine2 detail pages thin instead of treating hidden audio placeholders as main content", () => {
+	it("keeps thin engine2 detail pages thin instead of treating hidden audio placeholders as main content", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
 			crawlRunId: "owrun_test_engine2_thin",
 			requestedUrl: "https://www.example.edu/engine2/d/9285452/699558/0",
@@ -198,9 +198,9 @@ export function registerPageArtifactsDetailSuite() {
 		).toBe(false);
 	});
 
-	it("recovers VSB br-separated regulation body when footer is the only initial paragraph", () => {
+	it("does not infer VSB br-separated regulation bodies when the primary extractor sees only footer text", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
-			crawlRunId: "owrun_test_vsb_regulation_recovery",
+			crawlRunId: "owrun_test_vsb_regulation_shell_review",
 			requestedUrl: "https://www.example.edu/info/1198/4101.htm",
 			finalUrl: "https://www.example.edu/info/1198/4101.htm",
 			responseBody: SAMPLE_VSB_BR_REGULATION_DETAIL_WITH_FOOTER_HTML,
@@ -209,9 +209,9 @@ export function registerPageArtifactsDetailSuite() {
 			fetchedAt: "2026-05-05T09:00:00.000Z",
 		});
 
-		expect(pageArtifacts.pageManifest.mainContentBlockCount).toBeGreaterThanOrEqual(6);
-		expect(pageArtifacts.providerExtraction.pageSignals.mainContentCharacterCount).toBeGreaterThan(
-			240,
+		expect(pageArtifacts.pageManifest.mainContentBlockCount).toBe(1);
+		expect(pageArtifacts.providerExtraction.pageSignals.mainContentCharacterCount).toBeLessThan(
+			120,
 		);
 		expect(
 			pageArtifacts.contentBlocks.some(
@@ -219,12 +219,13 @@ export function registerPageArtifactsDetailSuite() {
 					item.isMainContent &&
 					(item.textNormalized ?? "").includes("第一条 为进一步提高我校科研水平"),
 			),
-		).toBe(true);
+		).toBe(false);
 		expect(
 			pageArtifacts.contentBlocks.some(
 				(item) => item.isMainContent && (item.textNormalized ?? "").includes("Copyright@ 2018"),
 			),
 		).toBe(false);
-		expect(pageArtifacts.pageManifest.pageFamily).toBe("article_detail");
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("generic_content_page");
+		expect(pageArtifacts.pageManifest.pageFamilyReason).toBe("generic_content_signal");
 	});
 }

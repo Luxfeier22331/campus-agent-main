@@ -18,6 +18,8 @@ from campus_ingestion_worker.official_web_handoff_consumer_models import (
 )
 from campus_ingestion_worker.official_web_handoff_consumer_runtime import consume_handoff_record
 
+_DEFAULT_ARTIFACTS = object()
+
 
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -205,18 +207,28 @@ def _handoff_record(
     event_id: str,
     run_id: str,
     site_id: str,
-    artifacts: list[dict[str, object]] | None = None,
+    artifacts: list[dict[str, object]] | object = _DEFAULT_ARTIFACTS,
     host_set: list[str] | None = None,
     seed_set: list[str] | None = None,
     pages_normalized: int = 1,
 ) -> dict[str, object]:
+    resolved_artifacts = (
+        [
+            {
+                "artifactType": "source_truth_bundle",
+                "objectKey": _bundle_key(site_id=site_id, run_id=run_id),
+            }
+        ]
+        if artifacts is _DEFAULT_ARTIFACTS
+        else artifacts
+    )
     return {
         "schemaVersion": "official_web_handoff_dispatch.v1",
         "dispatchRef": "owdispatch_test_01",
         "eventId": event_id,
         "receivedAt": "2026-04-01T16:59:56.929507+00:00",
         "payload": {
-            "artifacts": artifacts or [],
+            "artifacts": resolved_artifacts,
             "collectorVersion": "official-web-collector@0.1.0",
             "configVersion": "campus_public.v1",
             "crawlPolicyVersion": "campus_public_crawl_policy_v1",

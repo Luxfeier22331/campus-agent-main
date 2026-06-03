@@ -407,7 +407,7 @@ describe("official-web-collector incremental crawl", () => {
 		const controlPlaneClient: OfficialWebControlPlaneClient = {
 			startRun: async () => ({
 				run: {
-					runId: "owrun_deleted_title_fallback",
+					runId: "owrun_deleted_title_preserved",
 					siteId: "campus_public",
 					startedAt: "2026-04-01T08:20:00.000Z",
 					status: "accepted",
@@ -415,7 +415,7 @@ describe("official-web-collector incremental crawl", () => {
 			}),
 			sendHeartbeat: async () => ({
 				run: {
-					runId: "owrun_deleted_title_fallback",
+					runId: "owrun_deleted_title_preserved",
 					status: "accepted",
 				},
 			}),
@@ -454,7 +454,7 @@ describe("official-web-collector incremental crawl", () => {
 				finalizeInput = input;
 				return {
 					run: {
-						runId: "owrun_deleted_title_fallback",
+						runId: "owrun_deleted_title_preserved",
 						status: "completed",
 						finishedAt: "2026-04-01T08:20:01.000Z",
 					},
@@ -467,7 +467,7 @@ describe("official-web-collector incremental crawl", () => {
 		const result = await crawlSite("campus_public", {
 			configRoot,
 			outputDir,
-			crawlRunId: "owrun_deleted_title_fallback",
+			crawlRunId: "owrun_deleted_title_preserved",
 			localArtifactsOnly: true,
 			controlPlaneClient,
 			maxPagesPerHost: 1,
@@ -490,7 +490,7 @@ describe("official-web-collector incremental crawl", () => {
 		]);
 	});
 
-	it("falls back to If-Modified-Since when ETag is unavailable", async () => {
+	it("uses If-Modified-Since when ETag is unavailable", async () => {
 		stubRobotsAllowFetch();
 		const requestHeaders = new Map<string, Record<string, string>>();
 		mockCrawlee(({ headers, request }) => {

@@ -296,7 +296,7 @@ handoff observability 上收口，而不是恢复 Python-side routing。
 当前 `packages/rag-agent/src/campus_rag_agent/service.py` 的
 `delegate_to_rag_agent(...)` 仍集中承载 scope、curriculum planning、
 version selection、retrieval plan emission、retrieval execution、
-answer synthesis、prompt fallback 与 grounding downgrade。
+answer synthesis、prompt synthesis failure 与 grounding downgrade。
 
 影响：
 

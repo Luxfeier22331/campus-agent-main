@@ -9,7 +9,6 @@ from campus_ingestion_core import (
     ObjectStoreSettings,
     audit_official_web_projection_chunking,
     build_document_registry_from_env,
-    build_official_web_run_artifact_key,
     build_raw_asset_registry_from_env,
     replay_official_web_source_truth_local,
     validate_official_web_projection_output,
@@ -654,12 +653,9 @@ def resolve_source_truth_bundle_key(payload: dict[str, object]) -> str:
             object_key = str(item.get("objectKey") or "").strip()
             if artifact_type == "source_truth_bundle" and object_key:
                 return object_key
-    site_id = require_text(payload.get("siteId"), "payload.siteId")
-    run_id = require_text(payload.get("runId"), "payload.runId")
-    return build_official_web_run_artifact_key(
-        site_id=site_id,
-        run_id=run_id,
-        artifact_name="source-truth-bundle.json",
+    raise OfficialWebHandoffConsumeError(
+        code="missing_source_truth_bundle",
+        message="handoff payload artifacts must include source_truth_bundle objectKey.",
     )
 
 

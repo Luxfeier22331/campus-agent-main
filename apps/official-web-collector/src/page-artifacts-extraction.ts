@@ -43,10 +43,9 @@ import {
 import type { ExtractedBlockCandidate } from "./page-artifacts-types.ts";
 
 export {
-	extractRecoveryBlockCandidates,
 	looksLikeDynamicShell,
 	looksLikeStructuralShell,
-} from "./page-artifacts-extraction-recovery.ts";
+} from "./page-artifacts-shell-detection.ts";
 
 export function extractBlockCandidates(input: {
 	html: CheerioCrawlingContext["$"];
