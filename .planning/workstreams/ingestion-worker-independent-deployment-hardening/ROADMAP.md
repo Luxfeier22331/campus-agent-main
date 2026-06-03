@@ -232,7 +232,7 @@ uv run --all-packages ruff format . --check
 - 设计 provider result 的 artifact reference extension：
   - object key reference
   - temp file reference for same-process handoff
-  - bytes fallback for small artifacts
+  - inline bytes representation only for explicitly bounded small artifacts
 - oversized PDF flow:
   - split one segment
   - upload to MinerU
@@ -247,7 +247,7 @@ uv run --all-packages ruff format . --check
 - `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion_online_ocr.py`
 - authenticated notice OCR artifact builder modules
 - document import input handling where provider response references are already supported or need extension
-- tests covering small bytes fallback and large reference path
+- tests covering bounded small inline bytes and large reference path
 
 **Verification:**
 
