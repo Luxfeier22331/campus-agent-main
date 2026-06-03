@@ -97,7 +97,7 @@ Direct implication for this repo:
 - `rag-agent` planner 可以被看作“model emits typed request”，但真正的 execution owner 仍必须是
   `retrieval-core`
 - code-level plan models必须保持 closed vocabulary + validation，而不是 prompt-only free text
-- bounded replan / budget exhausted / malformed plan 都要由 code-side enforcement 兜底
+- bounded replan / budget exhausted / malformed plan 都要由 code-side enforcement 显式拦截
 
 ### MCP server concepts: tools are model-controlled actions, resources are application-controlled read context
 

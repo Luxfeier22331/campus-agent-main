@@ -100,7 +100,7 @@ class RegulationSemanticRegistryExtendedRoleSuite:
         self.assertEqual(generic.value, "rank_threshold")
         self.assertEqual(generic.provenance, "inherited:condition_subject")
 
-    def test_shared_intro_subject_resolution_preserves_specialized_fallback_for_single_target_role(
+    def test_shared_intro_subject_resolution_preserves_inherited_subject_for_single_target_role(
         self,
     ) -> None:
         assignment = resolve_regulation_intro_subject(

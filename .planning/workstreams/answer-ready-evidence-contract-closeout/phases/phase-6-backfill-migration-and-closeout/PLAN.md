@@ -18,8 +18,8 @@ proof that runtime behavior, release gates and docs agree.
 
 1. Rebuild `student_rules` chunks using the updated chunk profile and metadata extraction.
 2. Run chunk quality gate and inspect real sample markdown / JSONL output.
-   - Confirm rebuilt target `student_rules` samples have `0` primary text-cue fallback cases.
-   - Confirm fallback diagnostics remain available for old-index compatibility samples.
+   - Confirm rebuilt target `student_rules` samples have `0` primary text-cue cases.
+   - Confirm legacy cue diagnostics remain available for old-index quarantine samples.
 3. Run targeted retrieval and RAG E2E samples:
    - `处分怎么消`
    - `哪些情况不能解除处分`
@@ -30,7 +30,7 @@ proof that runtime behavior, release gates and docs agree.
 4. Verify old-index compatibility posture.
    - If new fields are optional, old indexes remain readable.
    - If release gate requires new fields, document migration path and fail-close behavior.
-   - Old-index compatibility must not weaken rebuilt `student_rules` release admission.
+   - Old-index quarantine must not weaken rebuilt `student_rules` release admission.
 5. Decide `institutional_rules` follow-up.
    - If same regulation chunker applies directly, add adoption notes.
    - If not, create seed/follow-up and do not silently expand scope.

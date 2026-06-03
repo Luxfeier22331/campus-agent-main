@@ -54,9 +54,9 @@ implementation.
    - For every success-criteria field, name the mandatory online projection path consumed by
      ranking/selection/typed drafts.
 1. Create `FALLBACK-DEPRECATION.md`.
-   - Define when text-cue fallback is allowed.
-   - Define fallback diagnostics and eval reporting.
-   - Define the rebuilt `student_rules` target cases where fallback must fail.
+   - Define legacy text-cue quarantine scope.
+   - Define legacy cue diagnostics and eval reporting.
+   - Define the rebuilt `student_rules` target cases where legacy cues must fail.
 1. Create `RELEASE-GATE-DECISION.md`.
    - Identify the existing regulation release-admission module or CLI path to extend.
    - Identify required fixture/manifest evidence.
@@ -71,7 +71,7 @@ implementation.
 - `CONTRACT-DECISION.md` identifies exact Phase 1 implementation scope.
 - `CONTRACT-DECISION.md` does not leave required online fields without a public or internal
   projection owner.
-- `FALLBACK-DEPRECATION.md` defines fallback budget, diagnostics and rebuilt-index disallow list.
+- `FALLBACK-DEPRECATION.md` defines legacy cue budget, diagnostics and rebuilt-index disallow list.
 - `RELEASE-GATE-DECISION.md` names the concrete release-admission hook and fail-close test path.
 - No proposed field leaks backend/vendor implementation details into `packages/contracts`.
 - No implementation files are changed in Phase 0 unless correcting planning docs.

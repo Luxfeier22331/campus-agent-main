@@ -33,8 +33,7 @@ The issue is answer contract design, not basic recall.
 - `packages/rag-agent` short-answer presentation kinds and validation helpers
 - `packages/rag-agent` selection budget adjustments for title / identity / brief shapes
 - `packages/evals` regression cases and ragas smoke coverage
-- minimal diagnostic fields needed to explain presentation kind and real fallback / degradation
-  reasons
+- minimal diagnostic fields needed to explain presentation kind and explicit failure attribution
 
 ## Out Of Scope
 
@@ -60,6 +59,6 @@ The issue is answer contract design, not basic recall.
 - Prefer typed presentation kinds over heuristic prose assembly.
 - Specialized short-answer contracts must be narrower than general summary composition.
 - General summary should never outrank a dedicated short-answer composer.
-- Diagnostics must name the presentation kind; fallback fields must stay empty for normal
-  presentation routes.
+- Diagnostics must name the presentation kind; normal presentation routes must not carry generic
+  failure attribution.
 - No new public contract is required unless a consumer proves it is necessary.

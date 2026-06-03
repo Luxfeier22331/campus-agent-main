@@ -21,7 +21,7 @@ canonical retrieval hardening workstream.
 - Confirm which gaps are correctness blockers versus quality/cost hardening.
 - Produce a short evidence inventory under this workstream.
 - Freeze online runtime manifest posture: request path reads Qdrant payload / current release
-  metadata, while object-store manifest remains audit / offline fallback.
+  metadata, while object-store manifest remains audit / recovery evidence.
 - Define the minimum acceptance case denominator required before query-serving alias publish.
 - Do not change runtime behavior in Phase 0.
 

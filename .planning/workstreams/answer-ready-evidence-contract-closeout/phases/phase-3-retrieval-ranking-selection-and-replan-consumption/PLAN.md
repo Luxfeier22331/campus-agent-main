@@ -12,7 +12,7 @@ updated: 2026-05-06
 ## Goal
 
 Make retrieval-core and rag-agent consume typed evidence metadata as primary ranking/selection
-signals, with text cues retained only as compatibility fallback.
+signals, with text cues retained only as legacy quarantine diagnostics.
 
 ## Tasks
 
@@ -37,25 +37,25 @@ signals, with text cues retained only as compatibility fallback.
    - Polarity mismatch.
    - Category coverage missing.
    - Duplicate parent-unit over-selection.
-5. Enforce fallback deprecation policy.
-   - Old-index compatibility may use text cues only with observable diagnostics.
-   - Diagnostics must include `fallback_used`, `fallback_reason`, `missing_contract_fields`,
+5. Enforce legacy cue deprecation policy.
+   - Old-index quarantine samples may expose text cues only with observable legacy diagnostics.
+   - Legacy diagnostic labels must include `fallback_used`, `fallback_reason`, `missing_contract_fields`,
      `source_index_contract_version` and `fallback_primary_signal`.
-   - Rebuilt target cases must fail tests if typed metadata is absent and fallback becomes primary.
-   - Target rebuilt `student_rules` cases have `0` primary text-cue fallback budget.
+   - Rebuilt target cases must fail tests if typed metadata is absent and text cues become primary.
+   - Target rebuilt `student_rules` cases have `0` primary text-cue budget.
 6. Add tests.
    - Positive procedure vs negative exclusion.
    - Negative restriction query.
    - Rank-threshold judgment.
    - Paper/publication condition.
    - Category discovery overview.
-   - Fallback cue path only when typed metadata absent.
+   - Legacy cue diagnostics only when typed metadata is absent.
 
 ## Acceptance
 
 - Typed metadata outranks title/score when query intent is strong.
-- Text cue fallback is observable, test-covered and reports the Phase 0 required diagnostic fields.
-- Rebuilt `student_rules` target cases do not pass primarily through text-cue fallback.
+- Legacy text-cue diagnostics are observable, test-covered and report the Phase 0 required fields.
+- Rebuilt `student_rules` target cases do not pass primarily through text cues.
 - Replan does not widen scope, authz, version or serving surface.
 - Existing current retrieval behavior for non-regulation/curriculum cases is not regressed.
 

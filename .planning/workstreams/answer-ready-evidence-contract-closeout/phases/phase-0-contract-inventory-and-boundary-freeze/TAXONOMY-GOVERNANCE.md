@@ -33,7 +33,7 @@ This document freezes the vocabulary governance for answer-ready evidence fields
 | `table_fact` | Answer-ready table row/fact. | condition table / amount / quota |
 | `time_constraint` | Deadline or time window. | condition table / procedure |
 | `definition` | Definition clause. | condition table / explanation |
-| `supporting_detail` | Non-primary supporting detail. | fallback only |
+| `supporting_detail` | Non-primary supporting detail. | support only; cannot satisfy primary answer |
 
 ## Condition Subject Vocabulary
 

@@ -22,6 +22,14 @@ from campus_evals.benchmark_models import (
 _QRELS_QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
 _QRELS_WHITESPACE_RE = re.compile(r"\s+")
 _PROGRAM_FAMILY_MEMBERSHIP_CUES = ("有哪些", "有哪几个", "都有哪些", "包括哪些")
+_RETRIEVAL_FIXTURE_MANIFEST_FILENAMES: dict[tuple[str, str], str] = {
+    ("curriculum", "curriculum_plan"): "split-manifest.v1.json",
+    ("official_web", "fresh_news"): "split-manifest.v1.json",
+    ("official_web", "muc_public_pages"): "split-manifest.v1.json",
+    ("official_web", "stable_reference"): "split-manifest.v1.json",
+    ("regulations", "institutional_rules"): "retrieval-eval-manifest.v1.json",
+    ("regulations", "student_rules"): "split-manifest.v1.json",
+}
 
 
 def load_retrieval_hybrid_query_dataset(path: str | Path) -> RetrievalHybridQueryDataset:
@@ -175,18 +183,17 @@ def _load_coverage_scenarios(payload: object) -> dict[str, tuple[str, ...]]:
 def resolve_retrieval_fixture_manifest_path(path: str | Path) -> Path:
     dataset = load_retrieval_qrels_dataset(path)
     repo_root = Path(__file__).resolve().parents[4]
+    scope_key = (dataset.scope.corpus, dataset.scope.collection)
+    manifest_filename = _RETRIEVAL_FIXTURE_MANIFEST_FILENAMES.get(scope_key)
+    if manifest_filename is None:
+        raise KeyError(f"no retrieval fixture manifest contract for {dataset.scope}")
     collection_root = (
         repo_root / "configs" / "ingestion" / dataset.scope.corpus / dataset.scope.collection
     )
-    manifest_path = collection_root / "split-manifest.v1.json"
-    if manifest_path.exists():
-        return manifest_path
-    manifest_path = collection_root / "retrieval-eval-manifest.v1.json"
+    manifest_path = collection_root / manifest_filename
     if not manifest_path.exists():
         raise FileNotFoundError(
-            "unable to resolve retrieval fixture manifest for "
-            f"{dataset.scope}: expected split-manifest.v1.json or "
-            f"retrieval-eval-manifest.v1.json under {collection_root}"
+            f"retrieval fixture manifest for {dataset.scope} is missing: {manifest_path}"
         )
     return manifest_path
 

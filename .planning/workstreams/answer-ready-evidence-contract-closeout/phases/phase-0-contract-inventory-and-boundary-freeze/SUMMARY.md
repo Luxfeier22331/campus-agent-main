@@ -34,7 +34,7 @@ evidence contract.
   `category_member_document_ids`, `category_member_titles` and `answer_role=category_overview`.
 - Aggregated chunks preserve `member_root_unit_ids` and `member_segment_lineage`, but online retrieval
   does not project a stable `parent_unit_id`.
-- Runtime ranking/selection still has cue-driven fallback paths in evidence semantics, query focus
+- Runtime ranking/selection still has cue-driven legacy paths in evidence semantics, query focus
   and statement filtering.
 - Existing release path can fail closed through `publish_scope_release -> evaluate_release_chunk_quality`,
   but the current gate does not enforce the full answer-ready contract.
@@ -46,7 +46,7 @@ evidence contract.
 - Phase 1 should implement retrieval-internal typed evidence projection/accessor first.
 - Public `EvidenceSource` expansion is deferred unless Phase 1 proves a minimal scalar field must
   cross package boundaries.
-- Rebuilt target `student_rules` cases have zero budget for primary text-cue fallback.
+- Rebuilt target `student_rules` cases have zero budget for primary text-cue reliance.
 - Release fail-close must be wired into the existing regulation release path, not a standalone eval.
 - `parent_unit_id` derives from stable `root_unit_id`/structural parent, not chunk order or release id.
 - Component eval schema is frozen before Phase 1 to prevent late-stage boundary drift.

@@ -21,7 +21,7 @@ current retrieval settings and runtime profile.
   collection alias, and validation status.
 - Mismatch fails closed with a clear retrieval backend error.
 - Online request path reads Qdrant point payload / current release metadata only; object-store
-  manifest is audit / offline fallback and must not become request-path dependency.
+  manifest is audit / recovery evidence and must not become request-path dependency.
 - Alias release validation result is cached with bounded TTL / invalidation.
 - Tests do not require a live object store.
 

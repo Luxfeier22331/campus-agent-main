@@ -19,7 +19,7 @@ release admission，而不是只看最终回答是否通过。
 - Extend component eval schema.
 - Add stage assertions for target realistic samples.
 - Add release artifact assertions.
-- Add fallback budget assertions.
+- Add legacy-signal budget assertions.
 - Add per-scope dashboards or JSON summaries.
 - Load or generate assertions from `SEMANTIC-ORACLE.md`.
 - Assert release-lane artifacts named in `RELEASE-LANE-ENTRYPOINTS.md`.

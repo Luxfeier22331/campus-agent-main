@@ -64,7 +64,7 @@ class RagRetrievalQualityGateReport:
 
 def default_retrieval_quality_evidence_root(*, repo_root: str | Path | None = None) -> Path:
     root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[4]
-    return root / ".planning" / "workstreams" / "eval" / "evidence" / "retrieval-quality"
+    return root / "var" / "evals" / "retrieval-quality"
 
 
 def build_rag_retrieval_quality_gate_report(
@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, help="Path to write quality gate JSON.")
     parser.add_argument(
         "--evidence-root",
-        help="Evidence root. Defaults to .planning/workstreams/eval/evidence/retrieval-quality.",
+        help="Evidence root. Defaults to var/evals/retrieval-quality.",
     )
     parser.add_argument("--json", action="store_true", help="Print the JSON report to stdout.")
     args = parser.parse_args(argv)

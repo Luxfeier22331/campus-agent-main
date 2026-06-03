@@ -22,7 +22,7 @@ problem this workstream was created to fix.
 | Phase 0 lacked an explicit frozen contract matrix | closed | medium | Frozen in `phases/phase-0-contract-inventory-and-boundary-freeze/SUMMARY.md` |
 | Phase 0 lacked explicit answer budgets | closed | medium | Frozen in the same phase summary |
 | The low score cases are synthesis-heavy, not retrieval-heavy | closed | high | Confirmed by the current ragas diagnostic report |
-| General summary previously aggregated too many fragments | closed | high | Phase 3 replaced normal fallback wording with bounded `general_summary`; fallback fields are no longer used for normal presentation routes |
+| General summary previously aggregated too many fragments | closed | high | Phase 3 replaced the broad generic answer wording with bounded `general_summary`; normal presentation routes no longer carry generic failure attribution |
 | `TITLE_LOOKUP` still routes through a broad composer path | closed | high | Phase 2 routed title and identity shapes into dedicated presentation-aware composers |
 | `curriculum_identity` is still mixed with summary behavior risk | closed | medium | Phase 2 keeps curriculum identity to a bounded brief-reference sentence |
 
@@ -49,11 +49,12 @@ Phase 2 is the real corrective phase.
 Phase 3 hardened general summary and locked eval evidence.
 
 - Collapse general summary to one short sentence.
-- Add diagnostics for presentation kind while reserving fallback fields for real degradation.
+- Add diagnostics for presentation kind while keeping failure attribution explicit and separate from
+  normal presentation routes.
 - Rerun the frozen ragas smoke cases.
 - Do not reopen retrieval, ingestion, or supervisor routing.
 
 ## Completion Condition
 
-The workstream is complete. Reopen only if the short-answer contract or fallback attribution
+The workstream is complete. Reopen only if the short-answer contract or failure attribution
 regresses.

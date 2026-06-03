@@ -24,7 +24,7 @@ updated: 2026-05-04
   - 诊断本身太慢
   因此观察契约至少要能表达 `request_id`、`plan_id`、`query_mode`、`stage_name`、
   `stage_status`、`candidate_count`、`supporting_evidence_count`、`grounding_verdict`、
-  `fallback_reason`、`latency_ms`、`retrieval_ms`、`prompt_ms`、`adapter_ms` 与
+  `failure_reason`、`latency_ms`、`retrieval_ms`、`prompt_ms`、`adapter_ms` 与
   `diagnostic_ms`。
 
 ## Output Of This Phase

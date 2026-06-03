@@ -79,11 +79,11 @@ This workstream starts from that result but uses stricter completion rules:
 
 - field presence is not enough; semantic correctness must be measured
 - `student_rules` and `institutional_rules` must both produce release-lane evidence
-- runtime text-cue fallback is forbidden for target rebuilt v3 serving chunks
-- compatibility support is allowed only inside a named legacy old-index lane
+- runtime text-cue reliance is forbidden for target rebuilt v3 serving chunks
+- old-index behavior is isolated inside a named legacy quarantine lane
 - target regulation query-serving retrieval now distinguishes explicit compatibility posture:
-  `target_v3_only` fails closed on legacy primary fallback, while
-  `legacy_old_index_compatibility` is compatibility-only and excluded from completion
+  `target_v3_only` fails closed on legacy primary signals, while
+  `legacy_old_index_compatibility` is quarantine-only and excluded from completion
 - no new public ToolSpec, supervisor routing or product surface is opened
 
 ## Boundary Notes

@@ -88,7 +88,7 @@ workstream 已收口以下结构债：
   condition, example, exclusion and procedure content when that prevents answer-ready evidence use.
 - Quality gates fail closed for missing required fields and for semantic contradictions such as
   positive-procedure queries selecting exclusion evidence.
-- Retrieval ranking and evidence selection use typed metadata before fallback.
+- Retrieval ranking and evidence selection use typed metadata before consulting legacy signals.
 - Target v3 `student_rules` and `institutional_rules` rebuilt releases have zero primary text-cue
   fallback in acceptance diagnostics.
 - Component eval reports stage-local failures:
@@ -101,7 +101,7 @@ workstream 已收口以下结构债：
   - `grounding_mismatch`
   - `release_contract_missing`
 - Both mandatory scopes have release manifest and serving alias evidence for the v3 contract.
-- Legacy fallback is documented as old-index-only and cannot satisfy target completion.
+- Legacy signals are documented as old-index-only diagnostics and cannot satisfy target completion.
 - A gold semantic oracle exists before implementation and maps each target sample to expected:
   - query intent
   - answer role

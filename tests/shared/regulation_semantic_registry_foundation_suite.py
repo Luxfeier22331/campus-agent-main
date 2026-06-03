@@ -343,10 +343,11 @@ class RegulationSemanticRegistryFoundationSuite:
             answer_role="example_evidence",
             inherited_condition_subject="paper_or_publication",
             explicit_condition_group_subject="rank_threshold",
+            explicit_condition_group_subject_provenance="chunker:answer_ready_group_anchor",
         )
 
         self.assertEqual(assignment.value, "rank_threshold")
-        self.assertEqual(assignment.provenance, "metadata:condition_group_subject")
+        self.assertEqual(assignment.provenance, "chunker:answer_ready_group_anchor")
 
     def test_shared_condition_group_subject_resolution_maps_table_fact_type_without_condition_subject(
         self,

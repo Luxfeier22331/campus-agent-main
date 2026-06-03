@@ -102,7 +102,7 @@ answer path fail-safe。
   operator observation storage。
 - observation sink failure 只 warning，不破坏在线 answer path。
 - backlog generation 支持 no-hit、low-confidence、forbidden hit、version mismatch、release drift、
-  reranker fallback/degraded。
+  reranker failure。
 
 **Acceptance:**
 
@@ -123,13 +123,14 @@ answer path fail-safe。
 - 增加 collection-level deterministic before/after eval：nDCG、MRR、Hit@K、context precision、
   latency、cost。
 - runtime profile 增加显式 reranker opt-in 字段与 release/profile provenance。
-- reranker failure / timeout fallback 到 baseline hybrid/RRF，并写 degraded observation。
+- reranker failure / timeout / executor missing 必须 fail closed，并写入
+  `failure_kind=reranker_failed` observation。
 
 **Acceptance:**
 
 - 未 opt-in collection 不走 reranker。
 - opt-in collection 缺 deterministic eval evidence 时 fail closed。
-- fallback 不破坏 answer path，且可观测。
+- failure 不会伪装成 baseline answer success，且可观测。
 
 ## Phase 5: Freshness And Live-Assisted Branch Design
 

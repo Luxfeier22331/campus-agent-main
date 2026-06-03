@@ -102,7 +102,7 @@ this roadmap plus `STATE.md`: Phases 0-10 are complete.
 
 - 从 Qdrant point payload / current release metadata 读取 drift guard 所需字段。
 - 不在 online query path 扫描 object-store prefix，object-store manifest 只用于 audit /
-  offline fallback。
+  recovery evidence。
 - 校验 dense/sparse/hybrid/chunk policy/current profile。
 - mismatch fail closed，缓存 alias release validation result 并保留 TTL / invalidation。
 

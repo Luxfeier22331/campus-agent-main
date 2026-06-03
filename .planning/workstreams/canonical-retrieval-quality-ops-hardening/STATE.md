@@ -144,5 +144,5 @@ Observed result: `All checks passed!` and `24 files already formatted`.
 Reopen this workstream only if a new default query-enabled scope lacks denominator policy or release
 acceptance coverage; release benchmark schema / dry-run posture drifts; runtime observation stops
 emitting sanitized durable events; reranker can run without deterministic adoption evidence,
-runtime-profile opt-in or degraded fallback observation; freshness/live branches leak into default
+runtime-profile opt-in or degraded reranker diagnostic observation; freshness/live branches leak into default
 `current` retrieval; or focused/repo-wide gate separation becomes ambiguous again.

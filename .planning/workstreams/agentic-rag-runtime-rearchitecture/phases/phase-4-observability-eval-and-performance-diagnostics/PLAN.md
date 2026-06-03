@@ -20,10 +20,10 @@ updated: 2026-05-04
    - failure class 和 latency 分开记录
    - 每条 summary 至少承载 `request_id`、`plan_id`、`query_mode`、`stage_name`、
      `stage_status`、`candidate_count`、`supporting_evidence_count`、`grounding_verdict`、
-     `fallback_reason` 与 stage latency
+     `failure_reason` 与 stage latency
 
 2. 建立 eval 归因口径
-   - relevancy / faithfulness / unsupported / fallback / no-answer 需要分开看
+   - relevancy / faithfulness / unsupported / presentation failure / no-answer 需要分开看
    - 不用最终分数掩盖 stage 问题
    - 每类 failure 至少对应一条可复现 regression fixture
 

@@ -21,8 +21,8 @@ and bounded.
 - active implementation:
   - `packages/rag-agent` now routes title/document identity, curriculum identity, official-web
     brief reference, and general summary through explicit presentation-aware composers.
-  - `packages/evals` and runtime diagnostics now surface `presentation_kind`, while fallback
-    fields remain reserved for real failure / degradation attribution.
+  - `packages/evals` and runtime diagnostics now surface `presentation_kind`; failure attribution
+    stays explicit and is not modeled as a normal answer route.
 - current slice: Phase 0-3 closeout complete; short-answer answer-contract hardening is now part of
   the worktree truth for `packages/rag-agent`
 - next slices: none; reopen only on regression
@@ -67,5 +67,5 @@ Reopen this workstream only if one of these regresses:
 - general summary regains answer authority over specialized short-answer shapes
 - stage diagnostics can no longer distinguish selection from synthesis failures
 - answer diagnostics stop exposing `presentation_kind` or start marking normal presentation routes
-  as fallback routes again
+  as generic failure routes
 - answer relevancy drops again on the target regression cases for title / brief lookup behavior

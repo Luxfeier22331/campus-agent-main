@@ -90,18 +90,19 @@ transcripts, raw evidence or source bodies into shared contracts, panel response
 eval canonical assets. The default posture is native tracing off, repo-owned sanitized projection
 on.
 
-### Rollout Mode
+### Runtime Mode
 
-The implementation plan must distinguish:
+This early research originally considered multiple rollout modes:
 
 - `candidate`: code exists but only direct tests use it.
 - `shadow`: SDK output is computed for diagnostics but not user-visible.
 - `default_on`: SDK is the primary RAG synthesis path.
-- `fallback_only`: SDK is used only when explicitly selected or when the primary path fails in an
-  admitted way.
+- `fallback_only`: rejected historical option where SDK would be selected after primary path failure.
 - `closed`: SDK path is unavailable.
 
-Phase 0 must decide which mode Phase 3 starts with.
+That posture has been superseded by the SDK-native hardcut: product serving may use only a single
+admitted path or stay closed. Shadow, candidate, fallback-only and dual-primary modes are retained
+here only as historical research terms, not implementation permission.
 
 ## Phase 0 Research Output
 

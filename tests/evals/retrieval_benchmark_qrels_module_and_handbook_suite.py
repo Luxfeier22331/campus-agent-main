@@ -6,6 +6,7 @@ from tests.evals.retrieval_benchmark_test_support import (
     HANDBOOK_MANIFEST_PATH,
     INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH,
     INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH,
+    INSTITUTIONAL_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH,
     INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
     KnowledgeScope,
     RetrievalQrelsDataset,
@@ -298,28 +299,6 @@ class RetrievalHandbookQrelsFixtureTest(unittest.TestCase):
 
 
 class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
-    RELEASE_30_REPORT_PATH = (
-        INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.parents[4]
-        / ".planning"
-        / "workstreams"
-        / "regulation-rag-release-lane"
-        / "evidence"
-        / "phase-09-institutional-30-release"
-        / "release-admission.report.json"
-    )
-    RELEASE_30_READER_MANIFEST_PATH = RELEASE_30_REPORT_PATH.parent / (
-        "institutional-reader-manifest.json"
-    )
-    RE_ADMITTED_SCHOOL_LEVEL_CHUNK_EVIDENCE_ROOT = (
-        INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.parents[4]
-        / ".planning"
-        / "workstreams"
-        / "historical-regulation-canonical-chunk-backfill"
-        / "evidence"
-        / "phase-42-chunk-preparation-all-regulations-v9"
-        / "scoped_rules"
-        / "prepared-documents"
-    )
     SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES = frozenset(
         {
             "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
@@ -385,17 +364,26 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
             self.assertEqual(expected.version_id, item["version_id"])
             self.assertIsNone(expected.chunk_id)
 
-    def test_institutional_rules_eval_manifest_preserves_release_30_current_versions(
+    def test_institutional_rules_eval_manifest_matches_release_acceptance_version_locks(
         self,
     ) -> None:
         manifest = json.loads(INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.read_text())
-        release_docs = self._load_release_30_documents()
         manifest_by_doc_id = {item["document_id"]: item for item in manifest["documents"]}
+        release_acceptance = json.loads(
+            INSTITUTIONAL_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH.read_text(encoding="utf-8")
+        )
 
-        for item in release_docs:
-            manifest_item = manifest_by_doc_id[item["document_id"]]
-            self.assertEqual(manifest_item["version_id"], item["version_id"])
-            self.assertEqual(manifest_item["title"], item["title"])
+        for case in release_acceptance["cases"]:
+            if case.get("expected_no_hit"):
+                continue
+            expected_doc_ids = tuple(case["expected_document_ids"])
+            expected_version_ids = tuple(case["expected_version_ids"])
+            self.assertEqual(len(expected_doc_ids), 1)
+            self.assertEqual(len(expected_version_ids), 1)
+            manifest_item = manifest_by_doc_id[expected_doc_ids[0]]
+            self.assertEqual(manifest_item["version_id"], expected_version_ids[0])
+            if str(case["case_id"]).startswith("institutional-title-exact-"):
+                self.assertEqual(manifest_item["title"], case["query"])
             self.assertEqual(manifest_item["entitlement_groups"], ["campus_members"])
             self.assertEqual(manifest_item["visibility_scope"], "campus")
             self.assertEqual(manifest_item["visibility_level"], "restricted")
@@ -428,7 +416,7 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
             )
         )
 
-    def test_re_admitted_school_level_rules_keep_chunk_preparation_semantic_versions(
+    def test_re_admitted_school_level_rules_keep_manifest_and_qrels_version_locks(
         self,
     ) -> None:
         release_docs = {
@@ -436,11 +424,16 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
             for item in self._load_consumption_manifest_documents()
             if item["title"] in self.SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES
         }
-        evidence_versions = self._load_re_admitted_school_level_chunk_evidence_versions()
+        dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)
+        qrels_versions = {
+            case.query: case.expected_sources[0].version_id
+            for case in dataset.cases
+            if case.query in self.SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES
+        }
 
         self.assertEqual(set(release_docs), self.SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES)
-        self.assertEqual(set(evidence_versions), self.SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES)
-        for title, expected_version_id in evidence_versions.items():
+        self.assertEqual(set(qrels_versions), self.SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES)
+        for title, expected_version_id in qrels_versions.items():
             self.assertEqual(release_docs[title]["version_id"], expected_version_id)
 
     def test_institutional_rules_qrels_cover_authz_version_and_no_hit(self) -> None:
@@ -499,7 +492,7 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
             (),
         )
 
-    def test_resolve_retrieval_fixture_manifest_path_supports_eval_manifest_fallback(
+    def test_resolve_retrieval_fixture_manifest_path_uses_institutional_eval_manifest_contract(
         self,
     ) -> None:
         self.assertEqual(
@@ -567,24 +560,6 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
             (),
         )
 
-    def _load_release_30_documents(self) -> list[dict[str, str]]:
-        release_payload = json.loads(self.RELEASE_30_REPORT_PATH.read_text(encoding="utf-8"))
-        reader_payload = json.loads(
-            self.RELEASE_30_READER_MANIFEST_PATH.read_text(encoding="utf-8")
-        )
-        reader_titles = {
-            str(item.get("document_id") or item.get("docId")): item["title"]
-            for item in reader_payload["documents"]
-        }
-        return [
-            {
-                "document_id": item["document_id"],
-                "version_id": item["version_id"],
-                "title": reader_titles[item["document_id"]],
-            }
-            for item in release_payload["admission_manifest"]["documents"]
-        ]
-
     def _load_consumption_manifest_documents(self) -> list[dict[str, str]]:
         manifest = json.loads(
             INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.read_text(encoding="utf-8")
@@ -597,15 +572,3 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
             }
             for item in manifest["documents"]
         ]
-
-    def _load_re_admitted_school_level_chunk_evidence_versions(self) -> dict[str, str]:
-        versions: dict[str, str] = {}
-        for path in self.RE_ADMITTED_SCHOOL_LEVEL_CHUNK_EVIDENCE_ROOT.glob(
-            "*/document-units.jsonl"
-        ):
-            first_row = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
-            title = str(first_row["metadata"]["title"])
-            if title not in self.SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES:
-                continue
-            versions[title] = str(first_row["version_id"])
-        return versions

@@ -37,7 +37,7 @@ condition-table answers are validated before natural-language rendering.
    - Preserve limitations such as annual notice / college detailed rules.
 5. Integrate SDK path.
    - SDK structured output cannot bypass typed draft validation.
-   - Legacy deterministic synthesis either maps through draft or is explicitly scoped as fallback.
+   - Legacy deterministic synthesis must map through draft validation or stay in test/fixture scope.
    - This work only adds validation/adapter guards to existing SDK and deterministic output paths.
    - Do not change SDK loop ownership, SDK tool schema, handoff routing or public ToolSpec.
 6. Preserve grounding ownership.

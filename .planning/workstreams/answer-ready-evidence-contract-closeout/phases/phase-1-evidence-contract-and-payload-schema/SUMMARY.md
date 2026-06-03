@@ -23,10 +23,10 @@ broadening the public `EvidenceSource` contract.
 - Added `evidence_attributes_for_source(source)` as the single accessor for Phase 1 fields.
 - Added Qdrant payload preservation through an internal anchor sidecar,
   `_retrieval_evidence_attributes`, instead of adding public `EvidenceSource` fields.
-- Preserved old-index compatibility by deriving fallback values from existing public fields such as
+- Preserved old-index quarantine diagnostics by deriving legacy values from existing public fields such as
   `semantic_role`, `polarity`, `action_type`, `claim_type`, `source_unit_key` and `anchor.root_unit_id`.
-- Updated evidence semantic alignment to consume the typed accessor before falling back to public
-  fields.
+- Updated evidence semantic alignment to consume the typed accessor before consulting public
+  legacy fields.
 - Kept backend/provider-specific payload shape out of `packages/contracts`.
 
 ## Verification

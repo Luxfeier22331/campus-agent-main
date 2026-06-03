@@ -134,7 +134,9 @@ class RegulationSemanticRegistryIntroWorkflowSuite:
         self.assertEqual(eligibility.value, "eligibility_group")
         self.assertEqual(eligibility.provenance, "intro_target_roles:eligibility_group")
 
-    def test_shared_intro_scope_resolution_supports_text_fallback(self) -> None:
+    def test_shared_intro_scope_resolution_uses_text_classification_without_target_roles(
+        self,
+    ) -> None:
         procedure = resolve_regulation_intro_scope(
             text="办理程序如下:",
             intro_target_roles=(),

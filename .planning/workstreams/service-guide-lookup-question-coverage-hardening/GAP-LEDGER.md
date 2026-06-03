@@ -32,7 +32,7 @@ None in scope.
 - Broad public-chat campus-services staging / real-entry E2E remains owned by
   `public-chat-campus-services-e2e-acceptance`.
 - New service-guide source collection, selected-write release, PG schema changes and generic RAG
-  fallback remain outside this workstream.
+  generic RAG handling remain outside this workstream.
 
 ## Reopen Rule
 

@@ -70,7 +70,7 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
         self.assertEqual(observed.condition_subject, "discipline_relief_exclusion")
         self.assertEqual(observed.selected_polarities, ("negative",))
 
-    def test_builds_institutional_judgment_observation_from_selected_role_and_fallback_signal(
+    def test_builds_institutional_judgment_observation_from_selected_role_and_contract_diagnostics(
         self,
     ) -> None:
         selected_source = replace(

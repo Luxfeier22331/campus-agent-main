@@ -18,7 +18,7 @@ for both mandatory query-enabled regulation scopes:
 - `regulations/institutional_rules`
 
 Completion requires implementation evidence, semantic oracle evidence, release-lane evidence and
-fallback quarantine evidence. Field presence alone is not completion.
+legacy-signal quarantine evidence. Field presence alone is not completion.
 
 ## Required Evidence
 
@@ -29,12 +29,12 @@ fallback quarantine evidence. Field presence alone is not completion.
 | Extraction | oracle-backed fixtures proving role/subject/polarity/group/category/procedure/intro semantics |
 | Chunking | parent-child clause ids, condition groups and table answer-ready units |
 | Release gate | static metadata correctness gate consumed by regulation release admission |
-| Retrieval | typed metadata ranking/selection/replan with zero primary text-cue fallback on target v3 releases |
+| Retrieval | typed metadata ranking/selection/replan with zero primary text-cue reliance on target v3 releases |
 | Answer | typed draft kind and grounding support match oracle |
 | Eval | component failures attributed by stage and semantic field |
 | Student release | v3 `student_rules` release manifest, acceptance, alias/adoption and post-publish audit |
 | Institutional release | v3 `institutional_rules` release manifest, acceptance, alias/adoption and post-publish audit |
-| Legacy | old-index fallback isolated and excluded from target completion |
+| Legacy | old-index legacy signals isolated and excluded from target completion |
 
 ## Negative Completion Criteria
 

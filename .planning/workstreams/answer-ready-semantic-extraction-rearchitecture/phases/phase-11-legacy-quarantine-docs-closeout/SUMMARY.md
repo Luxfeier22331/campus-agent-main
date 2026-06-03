@@ -13,17 +13,17 @@ updated: 2026-05-09
 
 Phase 11 moved from “diagnostics-only quarantine intent” to an explicit runtime/documented split:
 
-- regulation-family retrieval plans now have a named legacy fallback mode boundary:
+- regulation-family retrieval plans now have a named legacy-signal mode boundary:
   - `target_v3_only`
   - `legacy_old_index_compatibility`
-- target query-serving regulation paths fail closed if they try to ground on legacy primary fallback
+- target query-serving regulation paths fail closed if they try to ground on legacy primary
   signals
 - old-index compatibility remains available only through explicit compatibility mode
-- retrieval/eval/docs now share one legacy fallback signal set instead of repeating local string
+- retrieval/eval/docs now share one legacy-signal set instead of repeating local string
   literals
 
 This closes the previously open implementation gap where target regulation aliases could still
-return success with legacy fallback evidence and only emit diagnostics.
+return success with legacy evidence and only emit diagnostics.
 
 Phase 11 closeout hardening also now tightens the static v3 contract boundary for procedure
 evidence:
@@ -32,7 +32,7 @@ evidence:
   placeholder actor `responsible_party`
 - target v3 `procedure_step` metadata can no longer pass validation/release admission with generic
   placeholder action `procedure_step`
-- this converts the previously latent “shared resolver still has compatibility fallback branches”
+- this converts the previously latent “shared resolver still has compatibility legacy branches”
   debt into explicit fail-close behavior at the static gate
 
 Phase 11 closeout hardening also now closes a publish-time audit blind spot:

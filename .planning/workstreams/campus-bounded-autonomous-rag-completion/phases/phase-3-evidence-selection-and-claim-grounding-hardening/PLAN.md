@@ -83,7 +83,7 @@ answer-bearing evidence and grounding verdicts.
 3. Strengthen grounding validation.
    - Validate prompt answers against selected evidence.
    - Emit `claim_supports`, `unsupported_fields`, `grounding_verdict` and source-trust summary.
-   - Downgrade unsupported prompt answers to no-answer/fallback.
+   - Convert unsupported prompt answers to explicit no-answer with grounding diagnostics.
 4. Strengthen deterministic synthesis.
    - Ensure deterministic curriculum/regulation answers do not bypass evidence coverage.
    - Keep existing good deterministic answers where evidence is sufficient.

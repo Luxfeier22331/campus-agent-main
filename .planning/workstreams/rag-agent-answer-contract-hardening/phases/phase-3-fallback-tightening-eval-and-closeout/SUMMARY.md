@@ -7,25 +7,25 @@ updated: 2026-05-11
 
 <!-- markdownlint-disable MD013 -->
 
-# Summary: Phase 3 Fallback Tightening, Eval, And Closeout
+# Summary: Phase 3 Presentation Tightening, Eval, And Closeout
 
 ## Result
 
-Phase 3 is complete. Generic fallback is now a true narrow fallback path, and runtime/eval
-artifacts can explicitly report which presentation kind and fallback path produced the answer.
+Phase 3 is complete. Generic summary presentation is now a narrow presentation path, and runtime/eval
+artifacts can explicitly report which presentation kind and presentation path produced the answer.
 
 ## Changes
 
-- `GENERAL_SUMMARY` generic fallback now collapses to one short sentence instead of concatenating a
+- `GENERAL_SUMMARY` presentation now collapses to one short sentence instead of concatenating a
   summary chain.
-- `AnswerDraft` now carries `presentation_kind`, `fallback_path`, and `fallback_reason`.
+- `AnswerDraft` now carries `presentation_kind`, `presentation_path`, and validation
+  `failure_reason` where applicable.
 - `RagAgent.build_answer()` now preserves structured presentation metadata from the direct answer
   composer into the typed draft and the public draft diagnostics.
 - Runtime answer-synthesis diagnostics now project:
   - `answer_presentation_kind`
-  - `answer_fallback_path`
-  - `answer_fallback_reason`
-- Stage diagnostics and RAGAS diagnostic reports now include presentation/fallback metadata for
+  - `answer_presentation_path`
+- Stage diagnostics and RAGAS diagnostic reports now include presentation metadata for
   per-case attribution.
 
 ## Evidence

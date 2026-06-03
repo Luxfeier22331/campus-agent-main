@@ -168,7 +168,7 @@ class AnswerReadyComponentEvalTest(unittest.TestCase):
         self.assertEqual(result.failure_classes, ("grounding_mismatch",))
         self.assertEqual(result.failure_gate_classifications, ("query_conditioned",))
 
-    def test_component_eval_ignores_legacy_fallback_signal_payloads(
+    def test_component_eval_passes_when_required_answer_ready_components_match(
         self,
     ) -> None:
         result = evaluate_answer_ready_component_case(

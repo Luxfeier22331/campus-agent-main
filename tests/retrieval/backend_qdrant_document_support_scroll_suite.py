@@ -36,7 +36,7 @@ def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
     }
 
 
-class BackendQdrantDocumentScrollFallbackTest(unittest.TestCase):
+class BackendQdrantDocumentSupportScrollTest(unittest.TestCase):
     def test_backend_does_not_scroll_target_document_after_no_hit_fail_closed(self) -> None:
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True

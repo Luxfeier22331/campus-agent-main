@@ -24,8 +24,8 @@ retrieval projection exposes only the older subset.
 | `claim_type` | `handbook_semantics.py`, table fact inference, answer roles | `metadata.claim_type` | `EvidenceSource.claim_type` | ranking, claim support | tests cover cannot_do/procedure/table | exposed | keep public `EvidenceSource` |
 | `polarity` | `handbook_semantics.py`, answer roles | `metadata.polarity` | `EvidenceSource.polarity` | polarity-aware ranking/replan | retrieval tests cover positive/negative | exposed | keep public `EvidenceSource` |
 | `action_type` | `handbook_semantics.py`, query cue inference | `metadata.action_type` | `EvidenceSource.action_type` | ranking/replan | retrieval tests cover `lift_discipline` / `reissue` | exposed but cue-derived | keep public; improve ingestion-origin values |
-| `article_no` | `handbook_semantics.py`, anchor fallback | `metadata.article_no`, `anchor.article_no` | `EvidenceSource.article_no` | focus matching | retrieval filter/focus tests | exposed | keep public |
-| `clause_no` | `handbook_semantics.py`, anchor fallback | `metadata.clause_no`, `anchor.clause_no` | `EvidenceSource.clause_no` | focus matching | focus tests | exposed | keep public |
+| `article_no` | `handbook_semantics.py`, anchor-derived value | `metadata.article_no`, `anchor.article_no` | `EvidenceSource.article_no` | focus matching | retrieval filter/focus tests | exposed | keep public |
+| `clause_no` | `handbook_semantics.py`, anchor-derived value | `metadata.clause_no`, `anchor.clause_no` | `EvidenceSource.clause_no` | focus matching | focus tests | exposed | keep public |
 | `section_kind` | `handbook_semantics.py` | `metadata.section_kind` | `EvidenceSource.section_kind` | weak evidence filtering | partial | exposed | keep public |
 | `procedure_step_index` | not stable | none | missing | none | no gate | missing | retrieval-internal typed attributes |
 | `procedure_actor` | not stable | none | missing | none | no gate | missing | retrieval-internal typed attributes |

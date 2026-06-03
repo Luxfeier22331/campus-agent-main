@@ -43,8 +43,9 @@ contracts, diagnostics projection and finalization.
   semantic replan is allowed only under explicit budget, reason, trace and no-scope-widening rules.
 - Keep SDK native tracing disabled by default; only sanitized repo-owned projection may enter
   diagnostics or observability.
-- Freeze rollout posture before code integration: `candidate`, `shadow`, `default_on`,
-  `fallback_only` and `closed` must have explicit behavior and verification expectations.
+- Freeze rollout posture before code integration. This historical workstream used candidate/shadow
+  review language, but current repo truth is SDK-native fail-closed behavior without a
+  user-facing fallback rollout mode.
 - Add eval coverage for fuzzy real-user knowledge questions and routing-negative samples.
 - Add unit, integration, eval and public/chat-style smoke coverage for the SDK RAG path.
 - Reuse existing `PROMPT_RUNTIME_*` and `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED` settings where
@@ -96,8 +97,8 @@ contracts, diagnostics projection and finalization.
   before any trace leaves the local adapter boundary.
 - Current `openai-agents` SDK API assumptions are covered by conformance tests before Phase 2
   implementation depends on them.
-- Rollout mode is explicit before service integration; the implementation cannot accidentally keep
-  two long-term primary RAG synthesis paths.
+- Runtime posture is explicit before service integration; the implementation cannot accidentally
+  keep two long-term primary RAG synthesis paths.
 - Existing deterministic RAG behavior does not regress for supported query-enabled surfaces:
   `regulations/student_rules`, `regulations/institutional_rules`,
   `curriculum/curriculum_plan` and `official_web/stable_reference`.
@@ -109,5 +110,6 @@ contracts, diagnostics projection and finalization.
 - Replace retrieval-core ranking, fusion, dedupe or evidence shaping with model-only selection.
 - Make SDK traces the observability source of truth.
 - Add target-specific env variables when AgentSpec/runtime config can express the posture.
-- Keep two long-term primary RAG synthesis paths. Any fallback must be explicitly scoped,
-  observable and planned for retirement or fixture-only use.
+- Keep two long-term primary RAG synthesis paths.
+- Do not preserve user-facing fallback modes. Legacy deterministic behavior must remain only as
+  fixture evidence or explicitly retired historical context, not as a production answer route.

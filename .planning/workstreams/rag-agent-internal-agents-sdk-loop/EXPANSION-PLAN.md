@@ -61,7 +61,7 @@ Exit evidence:
 - Focused Python SDK suites pass.
 - Public-chat local real-provider E2E passes through
   `app-api -> supervisor-api -> worker -> rag-agent SDK loop -> Go finalizer`.
-- Any fallback path is observable and deliberately scoped.
+- No user-facing fallback answer route remains; failures are explicit and observable.
 
 ### Lane B: Structured Domain-Agent Adapter Parity
 

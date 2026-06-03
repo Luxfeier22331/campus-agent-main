@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-import campus_shared
 from campus_regulation_semantics.answer_ready_evidence_contract import (
+    ANSWER_READY_ALLOWED_POLARITIES,
+    ANSWER_READY_CATEGORY_OVERVIEW_ROLES,
+    ANSWER_READY_CATEGORY_REGISTRY_VERSION,
     ANSWER_READY_CONDITION_GROUP_SUBJECTS,
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
     ANSWER_READY_INTERNAL_ATTRIBUTE_FIELDS,
+    ANSWER_READY_PROCEDURE_ACTION_TAXONOMY_VERSION,
     ANSWER_READY_PROCEDURE_ACTIONS,
     answer_ready_contract_rules_for_scope,
     validate_answer_ready_evidence_metadata,
@@ -12,6 +15,10 @@ from campus_regulation_semantics.answer_ready_evidence_contract import (
 from campus_regulation_semantics.regulation_semantic_registry import (
     REGULATION_CONDITION_SUBJECT_DEFINITIONS,
     REGULATION_PROCEDURE_ACTION_DEFINITIONS,
+    resolve_regulation_expected_polarity,
+    resolve_regulation_intro_scope,
+    resolve_regulation_intro_subject,
+    resolve_regulation_procedure_materials,
 )
 
 
@@ -184,45 +191,45 @@ class AnswerReadyEvidenceContractBasicSuite:
 
         self.assertEqual(result.status, "passed")
 
-    def test_package_facade_exports_v3_governance_constants(self) -> None:
+    def test_regulation_semantics_package_exports_v3_governance_constants(self) -> None:
         self.assertEqual(
-            campus_shared.ANSWER_READY_ALLOWED_POLARITIES,
+            ANSWER_READY_ALLOWED_POLARITIES,
             frozenset({"positive", "negative", "neutral"}),
         )
         self.assertIn(
             "category_overview",
-            campus_shared.ANSWER_READY_CATEGORY_OVERVIEW_ROLES,
+            ANSWER_READY_CATEGORY_OVERVIEW_ROLES,
         )
         self.assertEqual(
-            campus_shared.ANSWER_READY_PROCEDURE_ACTION_TAXONOMY_VERSION,
+            ANSWER_READY_PROCEDURE_ACTION_TAXONOMY_VERSION,
             "procedure_action.v1",
         )
         self.assertEqual(
-            campus_shared.ANSWER_READY_CATEGORY_REGISTRY_VERSION,
+            ANSWER_READY_CATEGORY_REGISTRY_VERSION,
             "policy_category_registry.v1",
         )
         self.assertEqual(
-            campus_shared.resolve_regulation_intro_scope(
+            resolve_regulation_intro_scope(
                 text="按如下程序办理:",
                 intro_target_roles=("procedure_step",),
             ).value,
             "procedure_list",
         )
         self.assertEqual(
-            campus_shared.resolve_regulation_procedure_materials(
+            resolve_regulation_procedure_materials(
                 "学生提交解除处分申请表，经学院审核后报学生处。"
             ),
             ("解除处分申请表",),
         )
         self.assertEqual(
-            campus_shared.resolve_regulation_intro_subject(
+            resolve_regulation_intro_subject(
                 intro_target_roles=("time_constraint",),
                 inherited_condition_subject="generic_condition",
             ).value,
             "deadline",
         )
         self.assertEqual(
-            campus_shared.resolve_regulation_expected_polarity(
+            resolve_regulation_expected_polarity(
                 answer_role="table_fact",
                 table_fact_type="generic_policy_table",
             ).value,

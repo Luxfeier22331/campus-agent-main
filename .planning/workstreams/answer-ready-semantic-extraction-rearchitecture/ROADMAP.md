@@ -13,7 +13,7 @@ updated: 2026-05-09
 
 - [x] **Phase 0: Scope Inventory And Done Definition Freeze** — inventory current v2 implementation,
   freeze no-debt definition, semantic oracle, taxonomy admission, institutional denominator,
-  fallback budget and concrete release-lane entrypoints.
+  legacy signal quarantine and concrete release-lane entrypoints.
 - [x] **Phase 1: Contract V3 And Schema Governance** — define `answer_ready_evidence.v3`, required
   fields by evidence role, schema validation and migration rules.
 - [x] **Phase 2: Taxonomy And Registry Normalization** — move subject/category/procedure semantics
@@ -33,8 +33,9 @@ updated: 2026-05-09
   eval. Completion-audit evidence is now recorded in
   `phases/phase-05-answer-ready-quality-gates/SUMMARY.md`; workstream closeout was completed under
   Phase 11.
-- [x] **Phase 6: Retrieval Consumption And Fallback Removal** — make retrieval ranking, selection and
-  replan consume typed v3 metadata, with fallback budget zero for target releases.
+- [x] **Phase 6: Retrieval Consumption And Legacy Signal Removal** — make retrieval ranking,
+  selection and replan consume typed v3 metadata, with legacy-signal budget zero for target
+  releases.
   Completion-audit evidence is now recorded in
   `phases/phase-06-retrieval-consumption-and-fallback-removal/SUMMARY.md`; workstream closeout was
   completed under Phase 11.
@@ -76,7 +77,7 @@ hold until it is explicitly marked complete. Phase 11 recorded:
 - v3 contract docs and implementation
 - taxonomy/registry governance
 - target release manifests for both default regulation scopes
-- fallback usage reports showing zero primary text-cue fallback for target v3 releases
+- legacy-signal usage reports showing zero primary text-cue reliance for target v3 releases
 - component eval reports with stage attribution
 - docs updates for data-plane, retrieval-serving and chunking policy where affected
 - completed Phase 0 oracle/entrypoint/taxonomy admission artifacts

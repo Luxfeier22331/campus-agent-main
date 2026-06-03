@@ -35,7 +35,7 @@ Current `rag-agent` code still mixes:
 - retrieval planning
 - answer-shape heuristics such as `title_lookup`
 - evidence selection
-- prompt synthesis fallback
+- prompt synthesis failure handling
 - grounding / no-answer policy
 
 That makes low answer relevancy / faithfulness scores hard to explain and hard to fix.

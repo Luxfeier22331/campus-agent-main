@@ -27,20 +27,19 @@ public ToolSpec.
 | Claim/span grounding | Existing grounding validates answer text against evidence, but SDK output needs explicit claim/list-item support anchors. | Accepted SDK output must cite returned source ids and at least one source/excerpt/span/ref anchor for every claim and list item. | Phase 1 / Phase 4 | `rag_sdk_output.py` | `tests/agent/rag_agent_sdk_contract_suite.py` | Same | Source-id-only citations allow unsupported generated facts. |
 | Bounded replan | Existing semantic replan is retrieval-core callback driven by empty step results. | SDK may select deterministic query slots by default; semantic replan requires budget, reason and no widening of scope, selector, authz or version constraints. | Phase 2 / Phase 4 | `rag_sdk_tools.py` | `tests/agent/rag_agent_sdk_tools_suite.py` | `uv run --all-packages python -m unittest tests.agent.rag_agent_sdk_tools_suite -q` | Model query rewrite silently widens retrieval authority. |
 | Trace posture | Existing worker SDK trace projection is sanitized; native SDK tracing is disabled in the current OpenAI runner. | Keep SDK native tracing off by default. Project only schema-versioned safe fields: mode, selected tool, counts, failure class, latency, model ref, no raw prompts/transcripts/evidence. | Phase 5 / Phase 6 | `rag_sdk_trace.py`, worker runner | `tests/agent/rag_agent_sdk_trace_suite.py`, `tests/supervisor/rag_agents_sdk_openai_runner_suite.py` | Focused unittest + `pnpm docs:lint` | Raw provider or SDK trace leaks into response/eval surfaces. |
-| Rollout posture | Domain-agent SDK adapters are admitted through ToolSpec posture; RAG internal loop has no posture yet. | Implement `closed`, `candidate`, `shadow`, `default_on`, `fallback_only`; begin as `candidate` for explicit injection, no silent dual primary path. | Phase 3 / Phase 8 | `rag_sdk_models.py`, `service.py`, worker delegate assembly | `tests/agent/rag_agent_sdk_service_suite.py` | Focused unittest | SDK and legacy prompt executor both act as invisible primary synthesis paths. |
+| Runtime posture | Domain-agent SDK adapters are admitted through ToolSpec posture; RAG internal loop has no production posture yet. | Superseded by the SDK-native hardcut: keep `closed` until a single admitted path is promoted; do not introduce shadow, candidate, fallback-only or dual-primary runtime modes. | Phase 3 / Phase 8 | `rag_sdk_models.py`, `service.py`, worker delegate assembly | `tests/agent/rag_agent_sdk_service_suite.py` | Focused unittest | SDK and legacy prompt executor both act as invisible primary synthesis paths. |
 | Product routing negative | `门户密码忘了怎么办` is not current RAG knowledge scope. | Keep it as unsupported/routing-negative eval sample, not a scholarship/regulation answer. | Phase 7 | eval fixtures / suite | `tests/evals/rag_agents_sdk_eval_suite.py` | Focused unittest | RAG becomes hidden fallback for service/identity workflow. |
 
 ## Frozen Decisions
 
-- Phase 3 starts with explicit `candidate` behavior when a runner is injected; no env default silently
-  flips production behavior.
+- Phase 3 runtime-mode planning is superseded by the SDK-native hardcut posture: no env default may
+  silently flip production behavior, and no shadow / candidate / fallback-only runtime mode is
+  admitted for product serving.
 - `packages/rag-agent` stays SDK-neutral. The official SDK dependency remains in
   `apps/supervisor-agent-worker`.
 - `retrieval.query` remains internal and closed.
 - SDK native tracing stays disabled by default.
-- `fallback_only` is a compatibility posture for deterministic legacy path only; it is not a second
-  long-term synthesis architecture.
-- Phase 8 must either promote a single default path or demote the unused path to test/fixture support.
+- Phase 8 must either promote a single default path or keep the unused path in test/fixture support.
 
 ## Evidence
 

@@ -18,7 +18,7 @@ Completed as acceptance-only in current worktree.
 Phase 0 found existing runtime gates for the current scope:
 
 - retrieval replan/live lookup fail-close behavior
-- RAG fallback/no-answer behavior
+- RAG no-answer/fail-closed behavior
 - supervisor cancel flags and bridge runtime handling
 - audit and trace-safe diagnostics
 - RAGAS scorer failure/retry/settings behavior
