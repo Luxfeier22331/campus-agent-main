@@ -102,7 +102,7 @@ updated: 2026-04-21
 ### Slice 4: Freeze Stable-Reference Boundary
 
 - 明确 `official_web/stable_reference` 与 `contact_directory_lookup` 的分工
-- 避免把联系方式长期继续留给 generic RAG 兜底
+- 避免把联系方式长期继续留给 generic RAG 处理
 
 ### Slice 5: Prepare Later Implementation Handoff
 

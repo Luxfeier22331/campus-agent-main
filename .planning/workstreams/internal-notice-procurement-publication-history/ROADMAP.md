@@ -58,7 +58,7 @@ procurement tool。
 **Scope:**
 
 - card fields and ordering
-- source URL display and canonical URL fallback
+- source URL display and canonical URL resolution
 - no body / reference-only behavior
 - public/restricted visibility guard
 

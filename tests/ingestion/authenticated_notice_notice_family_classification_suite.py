@@ -724,7 +724,7 @@ class AuthenticatedNoticeNoticeFamilyClassificationTest(unittest.TestCase):
             with self.subTest(title=case[0]):
                 self._assert_case(index, case)
 
-    def test_classifies_precedence_and_fallback_cases(self) -> None:
+    def test_classifies_precedence_and_default_terminal_cases(self) -> None:
         for index, case in enumerate(PRECEDENCE_CASES, start=200):
             with self.subTest(title=case[0]):
                 self._assert_case(index, case)

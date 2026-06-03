@@ -684,7 +684,7 @@ def cleanup_summary(
 
 def record_operations_dir(*, root: Path | None, record: NoticeIngestQueueRecord) -> Path:
     base = root or Path(
-        ".planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/"
+        "var/ingestion-evidence/authenticated-notice-ingest-queue-e2e-automation/"
         "evidence/consumer-operations"
     )
     attempt_ordinal = int(record.attempt_count) + 1

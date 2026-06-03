@@ -14,11 +14,11 @@ from campus_ingestion_core.collected_notice_reimport_preview import (
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_CAPTURED_RUNS_INVENTORY_PATH = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-01-current-state-audit-and-reset-manifest/captured-runs-inventory.json"
 )
 DEFAULT_PHASE_04_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-dry-run-reimport-and-universal-search-preview"
 )
 

@@ -3,42 +3,50 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
-from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
-    DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
-    resolve_authenticated_notice_collector_run_refs,
+from campus_ingestion_core.authenticated_notice_file_release_import_models import (
+    AuthenticatedNoticeFileReleaseImportRequest,
+    _PreparedFileReleaseImport,
 )
-from campus_ingestion_core.authenticated_notice_defaults import (
-    DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL,
-    DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS,
-    DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
+from campus_ingestion_core.authenticated_notice_file_release_import_scalars import (
+    DEFAULT_AUTHENTICATED_DOCUMENTS_CORPUS,
+    DEFAULT_FILE_RELEASE_SOURCE_COLLECTION,
+    FILE_RELEASE_BLOCK_SCHEMA,
+    FILE_RELEASE_MANIFEST_SCHEMA,
+    FILE_RELEASE_REF_SCHEMA,
+    FILE_RELEASE_SOURCE_SURFACE,
+    _as_record,
+    _collector_version,
+    _exported_at,
+    _fetcher_version,
+    _infer_year,
+    _json_bytes,
+    _jsonl_bytes,
+    _manifest_declares_full_scope_replace,
+    _metadata_line,
+    _normalize_extension,
+    _normalize_text,
+    _optional_int,
+    _optional_text,
+    _required_int,
+    _required_non_negative_int,
+    _required_text,
+    _selected_file_release_ids_for_import,
+)
+from campus_ingestion_core.authenticated_notice_file_release_import_sources import (
+    _load_authenticated_notice_file_release_import_export,
+    _verify_file_release_released_source_objects,
 )
 from campus_ingestion_core.authenticated_notice_file_release_inventory import (
     AuthenticatedNoticeFileReleaseInventoryEntry,
     AuthenticatedNoticeFileReleaseInventoryStore,
     build_authenticated_notice_file_release_inventory_store_from_env,
 )
-from campus_ingestion_core.authenticated_notice_file_release_owner_recovery import (
-    AuthenticatedNoticeFileReleaseExport,
-    load_authenticated_notice_file_release_export,
-)
-from campus_ingestion_core.authenticated_notice_import import (
-    AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
-    AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
-)
+from campus_ingestion_core.authenticated_notice_import import AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN
 from campus_ingestion_core.authenticated_notice_import_assets import _content_type_for_artifact
-from campus_ingestion_core.authenticated_notice_import_sources import (
-    AuthenticatedNoticeImportObjectRefs,
-    explicit_authenticated_notice_import_object_refs,
-    get_verified_authenticated_notice_object_bytes,
-    load_authenticated_notice_import_payload_from_object_refs,
-)
 from campus_ingestion_core.authenticated_notice_source_truth_shared import (
     AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 )
@@ -62,93 +70,7 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
-from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.settings import ObjectStoreSettings
-
-DEFAULT_AUTHENTICATED_DOCUMENTS_CORPUS = "authenticated_documents"
-DEFAULT_FILE_RELEASE_SOURCE_COLLECTION = "file_release_source"
-DEFAULT_FILE_RELEASE_IMPORT_SOURCE = "authenticated_notice_file_release_import_v1"
-DEFAULT_FILE_RELEASE_PARSER_VERSION = "authenticated_notice_file_release_import_v1"
-FILE_RELEASE_SOURCE_SURFACE = "file_release"
-FILE_RELEASE_MANIFEST_SCHEMA = "authenticated_notice_file_release_manifest_v1"
-FILE_RELEASE_BLOCK_SCHEMA = "authenticated_notice_file_release_block_v1"
-FILE_RELEASE_REF_SCHEMA = "authenticated_notice_file_release_ref_v1"
-_YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
-_WHITESPACE_RE = re.compile(r"\s+")
-_SUPPORTED_FILE_RELEASE_IMPORT_MODES = {
-    AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
-    AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
-}
-
-
-@dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeFileReleaseImportRequest:
-    bundle_path: Path | None = None
-    manifest_path: Path | None = None
-    site_id: str = ""
-    source_home_url: str = ""
-    run_id: str | None = None
-    source_bucket: str | None = None
-    bundle_object_key: str | None = None
-    manifest_object_key: str | None = None
-    bundle_content_sha256: str | None = None
-    bundle_byte_size: int | None = None
-    manifest_content_sha256: str | None = None
-    manifest_byte_size: int | None = None
-    allow_local_fixture_import: bool = False
-    collector_run_ledger_table: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE
-    corpus: str = DEFAULT_AUTHENTICATED_DOCUMENTS_CORPUS
-    collection: str = DEFAULT_FILE_RELEASE_SOURCE_COLLECTION
-    default_entitlement_groups: tuple[str, ...] = DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS
-    visibility_scope: str | None = DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE
-    parser_version: str = DEFAULT_FILE_RELEASE_PARSER_VERSION
-    embedding_model: str = DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL
-    import_source: str = DEFAULT_FILE_RELEASE_IMPORT_SOURCE
-    mode: str = AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN
-    replace_scope: bool = False
-
-    def __post_init__(self) -> None:
-        if self.bundle_path is not None:
-            object.__setattr__(self, "bundle_path", Path(self.bundle_path))
-        if self.manifest_path is not None:
-            object.__setattr__(self, "manifest_path", Path(self.manifest_path))
-        object.__setattr__(
-            self,
-            "default_entitlement_groups",
-            tuple(group.strip() for group in self.default_entitlement_groups if group.strip()),
-        )
-        object.__setattr__(self, "mode", _normalize_import_mode(self.mode))
-        for field_name in (
-            "run_id",
-            "source_bucket",
-            "bundle_object_key",
-            "manifest_object_key",
-            "bundle_content_sha256",
-            "manifest_content_sha256",
-            "collector_run_ledger_table",
-        ):
-            value = getattr(self, field_name)
-            if isinstance(value, str):
-                object.__setattr__(self, field_name, value.strip() or None)
-        assert_known_scope(self.corpus, self.collection)
-        _assert_file_release_import_scope(self.corpus, self.collection)
-        if not self.site_id.strip():
-            raise ValueError("site_id is required")
-        if not self.source_home_url.strip():
-            raise ValueError("source_home_url is required")
-        _assert_file_release_import_source_shape(self)
-
-
-@dataclass(frozen=True, slots=True)
-class _PreparedFileReleaseImport:
-    file_release_id: int
-    raw_record: RawAssetRecord
-    capture_artifacts: dict[str, bytes]
-    provider_artifacts: dict[str, bytes]
-    source_truth_artifacts: dict[str, bytes]
-    source_artifact_keys: dict[str, str]
-    document_import: DocumentImportInput
-    inventory_entry: AuthenticatedNoticeFileReleaseInventoryEntry
 
 
 def import_authenticated_notice_file_release_export(
@@ -278,182 +200,6 @@ def import_authenticated_notice_file_release_export(
         "file_release_inventory_rows": len(entries),
         "errors": list(stats.errors),
     }
-
-
-def _load_authenticated_notice_file_release_import_export(
-    *,
-    request: AuthenticatedNoticeFileReleaseImportRequest,
-    env: dict[str, str],
-    object_store: object | None,
-) -> AuthenticatedNoticeFileReleaseExport:
-    object_refs = _file_release_import_object_refs_from_request(request=request, env=env)
-    if object_refs is not None:
-        loaded = load_authenticated_notice_import_payload_from_object_refs(
-            refs=object_refs,
-            env=env,
-            object_store=object_store,
-            bundle_label="authenticated notice file-release bundle",
-            manifest_label="authenticated notice file-release manifest",
-        )
-        _assert_file_release_manifest_schema(loaded.export_manifest)
-        return _file_release_export_from_payload(
-            bundle_records=loaded.bundle_records,
-            export_manifest=loaded.export_manifest,
-        )
-    return load_authenticated_notice_file_release_export(
-        bundle_path=request.bundle_path,
-        manifest_path=request.manifest_path,
-    )
-
-
-def _file_release_import_object_refs_from_request(
-    *,
-    request: AuthenticatedNoticeFileReleaseImportRequest,
-    env: dict[str, str],
-) -> AuthenticatedNoticeImportObjectRefs | None:
-    if request.run_id:
-        resolved = resolve_authenticated_notice_collector_run_refs(
-            env=env,
-            run_id=request.run_id,
-            expected_source_surface=FILE_RELEASE_SOURCE_SURFACE,
-            table_name=request.collector_run_ledger_table
-            or DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
-        )
-        return explicit_authenticated_notice_import_object_refs(
-            source_bucket=resolved.source_bucket,
-            bundle_object_key=resolved.bundle_object_key,
-            manifest_object_key=resolved.manifest_object_key,
-            bundle_content_sha256=resolved.bundle_content_sha256,
-            bundle_byte_size=resolved.bundle_byte_size,
-            manifest_content_sha256=resolved.manifest_content_sha256,
-            manifest_byte_size=resolved.manifest_byte_size,
-            run_id=resolved.run_id,
-        )
-    if request.source_bucket or request.bundle_object_key or request.manifest_object_key:
-        return explicit_authenticated_notice_import_object_refs(
-            source_bucket=request.source_bucket,
-            bundle_object_key=request.bundle_object_key,
-            manifest_object_key=request.manifest_object_key,
-            bundle_content_sha256=request.bundle_content_sha256,
-            bundle_byte_size=request.bundle_byte_size,
-            manifest_content_sha256=request.manifest_content_sha256,
-            manifest_byte_size=request.manifest_byte_size,
-        )
-    return None
-
-
-def _assert_file_release_import_source_shape(
-    request: AuthenticatedNoticeFileReleaseImportRequest,
-) -> None:
-    run_id_selected = request.run_id is not None
-    object_ref_selected = any(
-        value is not None
-        for value in (
-            request.source_bucket,
-            request.bundle_object_key,
-            request.manifest_object_key,
-        )
-    )
-    local_selected = request.bundle_path is not None or request.manifest_path is not None
-    selected_mode_count = sum((run_id_selected, object_ref_selected, local_selected))
-    if selected_mode_count != 1:
-        raise ValueError(
-            "authenticated notice file-release import requires exactly one input mode: "
-            "run_id, object refs, or local fixture import"
-        )
-    if run_id_selected:
-        return
-    if object_ref_selected:
-        explicit_authenticated_notice_import_object_refs(
-            source_bucket=request.source_bucket,
-            bundle_object_key=request.bundle_object_key,
-            manifest_object_key=request.manifest_object_key,
-            bundle_content_sha256=request.bundle_content_sha256,
-            bundle_byte_size=request.bundle_byte_size,
-            manifest_content_sha256=request.manifest_content_sha256,
-            manifest_byte_size=request.manifest_byte_size,
-        )
-        return
-    if request.bundle_path is None or request.manifest_path is None:
-        raise ValueError(
-            "bundle_path and manifest_path are required for authenticated notice "
-            "file-release local fixture import"
-        )
-    if not request.allow_local_fixture_import:
-        raise ValueError(
-            "--allow-local-fixture-import / allow_local_fixture_import is required for "
-            "authenticated notice "
-            "file-release local fixture import"
-        )
-
-
-def _file_release_export_from_payload(
-    *,
-    bundle_records: tuple[dict[str, Any], ...],
-    export_manifest: dict[str, Any],
-) -> AuthenticatedNoticeFileReleaseExport:
-    collector = _as_record(export_manifest.get("collector"))
-    return AuthenticatedNoticeFileReleaseExport(
-        bundle_records=bundle_records,
-        export_manifest=export_manifest,
-        export_scope=_optional_text(export_manifest.get("export_scope")),
-        site_id=_optional_text(export_manifest.get("site_id")),
-        source_home_url=_optional_text(export_manifest.get("source_home_url")),
-        collector_contract_version=_optional_text(collector.get("export_contract_version")),
-    )
-
-
-def _verify_file_release_released_source_objects(
-    *,
-    prepared: tuple[_PreparedFileReleaseImport, ...],
-    object_store: object,
-) -> None:
-    get_bytes = getattr(object_store, "get_bytes", None)
-    if not callable(get_bytes):
-        raise ValueError(
-            "object_store must support get_bytes before file_release_source materialization"
-        )
-    verified_refs: set[tuple[str, str, str, int]] = set()
-    for item in prepared:
-        entry = item.inventory_entry
-        bucket = _required_text(
-            entry.released_file_bucket,
-            "file_release source bytes bucket",
-        )
-        object_key = _required_text(
-            entry.released_file_object_key,
-            "file_release source bytes object_key",
-        )
-        source_sha256 = _required_text(
-            entry.released_file_sha256,
-            "file_release source bytes sha256",
-        )
-        source_byte_size = _required_non_negative_int(
-            entry.released_file_byte_size,
-            "file_release source bytes byte_size",
-        )
-        cache_key = (bucket, object_key, source_sha256, source_byte_size)
-        if cache_key in verified_refs:
-            continue
-        get_verified_authenticated_notice_object_bytes(
-            reader=object_store,  # type: ignore[arg-type]
-            bucket=bucket,
-            key=object_key,
-            expected_sha256=source_sha256,
-            expected_byte_size=source_byte_size,
-            label=f"file_release released source bytes {item.file_release_id}",
-            missing_reason_code="missing_source_bytes",
-        )
-        verified_refs.add(cache_key)
-
-
-def _assert_file_release_manifest_schema(export_manifest: dict[str, Any]) -> None:
-    schema_version = _optional_text(export_manifest.get("schema_version"))
-    if schema_version != "authenticated_notice_file_release_export_v1":
-        raise ValueError(
-            "file-release manifest schema_version must be "
-            "authenticated_notice_file_release_export_v1"
-        )
 
 
 def _prepare_file_release_import(
@@ -919,162 +665,6 @@ def _build_file_release_raw_version_id(bundle_record: dict[str, Any]) -> str:
         json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()
     return f"sha256:{digest}"
-
-
-def _normalize_import_mode(mode: str) -> str:
-    normalized = str(mode or "").strip().lower().replace("-", "_")
-    aliases = {
-        "dry_run": AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
-        "dryrun": AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
-        "preview": AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
-        "materialize": AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
-        "write": AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
-        "admit": AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
-        "admit_and_write": AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
-    }
-    normalized = aliases.get(normalized, normalized)
-    if normalized not in _SUPPORTED_FILE_RELEASE_IMPORT_MODES:
-        raise ValueError(
-            "unsupported authenticated notice file-release import mode: "
-            f"{mode!r}; expected one of {sorted(_SUPPORTED_FILE_RELEASE_IMPORT_MODES)}"
-        )
-    return normalized
-
-
-def _assert_file_release_import_scope(corpus: str, collection: str) -> None:
-    if (
-        corpus != DEFAULT_AUTHENTICATED_DOCUMENTS_CORPUS
-        or collection != DEFAULT_FILE_RELEASE_SOURCE_COLLECTION
-    ):
-        raise ValueError(
-            "authenticated notice file-release imports must target "
-            "authenticated_documents/file_release_source"
-        )
-
-
-def _fetcher_version(export_manifest: dict[str, Any] | None) -> str:
-    return str((export_manifest or {}).get("schema_version") or "unknown")
-
-
-def _collector_version(export_manifest: dict[str, Any] | None) -> str:
-    collector = _as_record((export_manifest or {}).get("collector"))
-    return _required_text(
-        collector.get("export_contract_version")
-        or collector.get("runtime_shell")
-        or (export_manifest or {}).get("schema_version"),
-        "collector.export_contract_version",
-    )
-
-
-def _exported_at(export_manifest: dict[str, Any] | None) -> str:
-    return _required_text((export_manifest or {}).get("exported_at"), "exported_at")
-
-
-def _infer_year(*values: object) -> str | None:
-    for value in values:
-        if not isinstance(value, str):
-            continue
-        match = _YEAR_RE.search(value)
-        if match is not None:
-            return match.group(1)
-    return None
-
-
-def _metadata_line(label: str, value: str | None) -> str | None:
-    if not value:
-        return None
-    return f"{label}：{value}"
-
-
-def _normalize_text(value: str) -> str:
-    return _WHITESPACE_RE.sub(" ", value.replace("\xa0", " ")).strip()
-
-
-def _json_bytes(payload: object) -> bytes:
-    return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-
-
-def _jsonl_bytes(rows: tuple[dict[str, Any], ...]) -> bytes:
-    return (
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows).strip() + "\n"
-        if rows
-        else ""
-    ).encode("utf-8")
-
-
-def _manifest_declares_full_scope_replace(export_manifest: dict[str, Any] | None) -> bool:
-    if not isinstance(export_manifest, dict):
-        return False
-    filters = export_manifest.get("filters")
-    if not isinstance(filters, dict):
-        return False
-    return filters.get("target_file_release_id") is None
-
-
-def _selected_file_release_ids_for_import(
-    *,
-    replace_scope: bool,
-    bundle_records: tuple[dict[str, Any], ...],
-) -> tuple[int, ...]:
-    if replace_scope:
-        return ()
-    return tuple(
-        dict.fromkeys(
-            _required_int(record.get("file_release_id"), "file_release_id")
-            for record in bundle_records
-        )
-    )
-
-
-def _optional_text(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip()
-    return normalized or None
-
-
-def _required_text(value: object, label: str) -> str:
-    normalized = _optional_text(value)
-    if normalized is None:
-        raise ValueError(f"{label} is required")
-    return normalized
-
-
-def _optional_int(value: object) -> int | None:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return None
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed
-
-
-def _required_int(value: object, label: str) -> int:
-    parsed = _optional_int(value)
-    if parsed is None:
-        raise ValueError(f"{label} is required")
-    return parsed
-
-
-def _required_non_negative_int(value: object, label: str) -> int:
-    parsed = _required_int(value, label)
-    if parsed < 0:
-        raise ValueError(f"{label} must be a non-negative integer")
-    return parsed
-
-
-def _normalize_extension(filename: str) -> str | None:
-    candidate = filename.rsplit("/", 1)[-1].rsplit(".", 1)
-    if len(candidate) != 2 or not candidate[1].strip():
-        return None
-    return candidate[1].strip().lower()
-
-
-def _as_record(value: object) -> dict[str, Any]:
-    return dict(value) if isinstance(value, dict) else {}
 
 
 __all__ = [

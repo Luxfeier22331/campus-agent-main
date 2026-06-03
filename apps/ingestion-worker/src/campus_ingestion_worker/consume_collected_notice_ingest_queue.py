@@ -32,12 +32,12 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_HISTORICAL_ENQUEUE_PLAN_PATH = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-7-historical-captured-inventory-synthetic-enqueue/"
     "historical-enqueue-plan.dry-run.json"
 )
 DEFAULT_PHASE_04_8_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-8-queue-consumer-reimport-path"
 )
 

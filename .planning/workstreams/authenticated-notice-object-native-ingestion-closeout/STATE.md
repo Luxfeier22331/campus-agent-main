@@ -178,8 +178,8 @@ updated: 2026-04-29
     notice import wrote source-truth-only holdings for 282 notices without projection/read-model
     rebuild; file-release import materialized `file_release_source` row `585` as
     `imported_holding`.
-  - stale `storageState.json` auth override bug was fixed so fresh operator cookies now replace
-    stale stored `JSESSIONID/nginx/SSO_TGC` values before fallback request-context creation.
+- stale `storageState.json` auth override bug was fixed so fresh operator cookies now replace
+  stale stored `JSESSIONID/nginx/SSO_TGC` values before request-context creation.
   - backup artifact was written to
     `evidence/phase-07-live-repair-and-acceptance/backup/file-release-capture-pre-recollect-20260429.json`
     before repair writes.

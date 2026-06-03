@@ -282,14 +282,14 @@ class ObjectStoreConfigTest(unittest.TestCase):
 
         source_config = factory.client_config(bucket=settings.bucket_source)
         derived_config = factory.client_config(bucket=settings.bucket_derived)
-        fallback_config = factory.client_config(bucket="other-bucket")
+        shared_config = factory.client_config(bucket="other-bucket")
 
         self.assertEqual(source_config["aws_access_key_id"], "source-ak")
         self.assertEqual(source_config["aws_secret_access_key"], "source-sk")
         self.assertEqual(derived_config["aws_access_key_id"], "derived-ak")
         self.assertEqual(derived_config["aws_secret_access_key"], "derived-sk")
-        self.assertEqual(fallback_config["aws_access_key_id"], "shared-ak")
-        self.assertEqual(fallback_config["aws_secret_access_key"], "shared-sk")
+        self.assertEqual(shared_config["aws_access_key_id"], "shared-ak")
+        self.assertEqual(shared_config["aws_secret_access_key"], "shared-sk")
 
     def test_bucket_aware_client_supports_bucket_management_calls(self) -> None:
         settings = ObjectStoreSettings.from_env(

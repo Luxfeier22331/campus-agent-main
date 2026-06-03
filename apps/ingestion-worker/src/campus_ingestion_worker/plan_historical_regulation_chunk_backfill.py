@@ -16,11 +16,11 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_PHASE_13_DIR = Path(
-    ".planning/workstreams/authenticated-notice-regulation-consumption/"
+    "var/ingestion-evidence/authenticated-notice-regulation-consumption/"
     "evidence/phase-13-historical-regulation-canonical-backfill"
 )
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/historical-regulation-canonical-chunk-backfill/"
+    "var/ingestion-evidence/historical-regulation-canonical-chunk-backfill/"
     "evidence/phase-00-chunk-only-boundary-and-inventory"
 )
 

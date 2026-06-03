@@ -47,7 +47,7 @@ Publish to the structured Postgres read model by additionally passing
 - record count: 51
 - validation: `valid=true`
 - runtime smoke evidence:
-  `.planning/workstreams/official-web-source-pack-collection-execution/evidence/academic-calendar-structured-release/runtime-smoke-report.json`
+  `var/ingestion-evidence/official-web-source-pack-collection-execution/academic-calendar-structured-release/runtime-smoke-report.json`
 
 Validated service questions:
 

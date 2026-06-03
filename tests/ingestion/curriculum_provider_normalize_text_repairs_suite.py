@@ -65,7 +65,7 @@ class CurriculumProviderNormalizeTextRepairsTest(CurriculumProviderNormalizeTest
                                 },
                             ]
                         },
-                        "markdown": {"text": "fallback page 1", "images": {}},
+                        "markdown": {"text": "generic page 1", "images": {}},
                     },
                     {
                         "prunedResult": {
@@ -86,7 +86,7 @@ class CurriculumProviderNormalizeTextRepairsTest(CurriculumProviderNormalizeTest
                                 },
                             ]
                         },
-                        "markdown": {"text": "fallback page 2", "images": {}},
+                        "markdown": {"text": "generic page 2", "images": {}},
                     },
                 ]
             },

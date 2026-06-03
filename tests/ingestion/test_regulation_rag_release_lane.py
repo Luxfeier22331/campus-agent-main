@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 import unittest
 from dataclasses import replace
 from datetime import UTC, datetime
-from pathlib import Path
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -16,6 +14,9 @@ from campus_ingestion_core.regulation_rag_release_lane import (
     enqueue_regulation_rag_release_candidates_for_records,
     enqueue_regulation_rag_release_candidates_for_registry_delta,
     process_pending_regulation_rag_release_candidates,
+)
+from campus_ingestion_worker.generate_regulation_rag_release_selected_replay import (
+    build_selected_replay_dry_run,
 )
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
@@ -345,11 +346,7 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
         self.assertNotIn("historical-scoped-rule-186977", candidates)
 
     def test_phase_6_selected_replay_evidence_matches_real_sample_expectations(self) -> None:
-        evidence_path = (
-            Path(".planning/workstreams/regulation-rag-release-lane")
-            / "evidence/phase-06-canary-cohort-closeout/selected-replay-dry-run.json"
-        )
-        payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+        payload = build_selected_replay_dry_run()
 
         self.assertEqual(
             payload["schema_version"],

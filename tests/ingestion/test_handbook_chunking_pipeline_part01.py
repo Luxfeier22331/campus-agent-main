@@ -49,7 +49,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
                 structured_jsonl_bytes=structured_payload,
             )
 
-    def test_policy_page_fallback_keeps_token_guardrail_split_metadata(self) -> None:
+    def test_policy_page_chunk_keeps_token_guardrail_split_metadata(self) -> None:
         structured_payload = (
             json.dumps(
                 _structured_row(

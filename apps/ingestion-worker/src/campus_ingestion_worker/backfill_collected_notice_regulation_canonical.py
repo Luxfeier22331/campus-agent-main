@@ -29,16 +29,16 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_PHASE_06_R1_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1-regulation-candidate-audit-and-admission"
 )
 DEFAULT_OWNER_TEXT_EXECUTION_REPORT_PATH = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1b-regulation-owner-text-recovery-execution/"
     "regulation-owner-text-execution-report.json"
 )
 DEFAULT_PHASE_13_OUTPUT_DIR = Path(
-    ".planning/workstreams/authenticated-notice-regulation-consumption/"
+    "var/ingestion-evidence/authenticated-notice-regulation-consumption/"
     "evidence/phase-13-historical-regulation-canonical-backfill"
 )
 

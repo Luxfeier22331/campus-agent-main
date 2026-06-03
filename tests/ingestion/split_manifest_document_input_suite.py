@@ -669,7 +669,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
                 "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_visibility_scope="fallback-campus",
+            default_visibility_scope="shared-campus",
             corpus="curriculum",
             collection="curriculum_plan",
         )

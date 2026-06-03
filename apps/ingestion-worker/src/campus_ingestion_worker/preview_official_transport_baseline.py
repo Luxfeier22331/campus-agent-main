@@ -19,7 +19,7 @@ from campus_ingestion_core.raw_ingestion_online_ocr import (
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_PHASE_06_2_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-2-official-transport-baseline-ingest-and-overlay-reclassification"
 )
 

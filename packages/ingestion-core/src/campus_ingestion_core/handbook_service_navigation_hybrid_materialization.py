@@ -6,6 +6,13 @@ from dataclasses import asdict, dataclass
 from typing import Protocol
 
 import httpx
+from campus_prompt_runtime import (
+    DEFAULT_PROMPT_RUNTIME_BASE_URL,
+    DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
+    DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
+    DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS,
+    DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
+)
 
 from campus_ingestion_core.campusrag_ingestion_artifacts import ProcessedArtifactInput
 from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
@@ -21,11 +28,6 @@ from campus_ingestion_core.object_store import (
 
 FLOW_GRAPH_FILENAME = "flow-graph.json"
 HANDOOK_SERVICE_NAVIGATION_PROJECTION_SCHEMA_VERSION = "handbook_service_navigation_projection_v1"
-DEFAULT_PROMPT_RUNTIME_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS = 10.0
-DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS = 30.0
-DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS = 10.0
-DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS = 3.0
 DEFAULT_RENDER_DPI = 180
 
 

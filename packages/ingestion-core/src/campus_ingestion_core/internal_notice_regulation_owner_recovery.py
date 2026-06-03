@@ -541,13 +541,11 @@ def _record_has_recoverable_text_source(
         return False
     if object_store is None or not record.canonical_markdown_object_key:
         return True
-    try:
-        body = object_store.get_bytes(
-            bucket=bucket_derived,
-            key=record.canonical_markdown_object_key,
-        ).decode("utf-8")
-    except Exception:
-        return False
+    body = _read_recovery_canonical_markdown(
+        object_store=object_store,
+        bucket_derived=bucket_derived,
+        record=record,
+    )
     return bool(body.strip())
 
 
@@ -559,17 +557,35 @@ def _record_title_candidates(
 ) -> tuple[str, ...]:
     values = [record.document_id, record.source_uri]
     if object_store is not None and record.canonical_markdown_object_key:
-        try:
-            body = object_store.get_bytes(
-                bucket=bucket_derived,
-                key=record.canonical_markdown_object_key,
-            ).decode("utf-8")
-            title = _first_markdown_heading(body)
-            if title:
-                values.insert(0, title)
-        except Exception:
-            pass
+        body = _read_recovery_canonical_markdown(
+            object_store=object_store,
+            bucket_derived=bucket_derived,
+            record=record,
+        )
+        title = _first_markdown_heading(body)
+        if title:
+            values.insert(0, title)
     return tuple(dict.fromkeys(value for value in values if value.strip()))
+
+
+def _read_recovery_canonical_markdown(
+    *,
+    object_store: OwnerRecoveryObjectStore,
+    bucket_derived: str,
+    record: DocumentRegistryRecord,
+) -> str:
+    key = record.canonical_markdown_object_key
+    if not key:
+        raise ValueError(
+            f"canonical_markdown_object_key is required for owner recovery record {record.document_id}"
+        )
+    try:
+        return object_store.get_bytes(bucket=bucket_derived, key=key).decode("utf-8")
+    except Exception as exc:
+        raise ValueError(
+            "failed to read canonical markdown for owner recovery record "
+            f"{record.document_id}: {bucket_derived}/{key}"
+        ) from exc
 
 
 def _record_evidence(match: _RecordMatch) -> dict[str, object]:

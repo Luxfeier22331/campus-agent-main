@@ -39,5 +39,5 @@ passes the explicit multi-notice release override after independent review.
 
 Projection snapshots distinguish baseline schedules from bounded temporary
 overlays with `schedule_scope`, `service_date_ranges`, and `precedence`.
-Temporary overlays only apply to their explicit service-date ranges; the Go
-runtime falls back to the current baseline outside those ranges.
+Temporary overlays only apply to their explicit service-date ranges; outside
+those ranges the Go runtime reads the current baseline schedule.

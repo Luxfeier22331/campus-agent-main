@@ -275,8 +275,8 @@ Behavior:
 
 - Reads durable inbox records written by
   `campus-ingestion-official-web-handoff-dev`
-- Resolves `source_truth_bundle` from handoff `artifacts`; if absent, falls back
-  to the deterministic run artifact key
+- Resolves `source_truth_bundle` only from handoff `artifacts`; a missing
+  artifact fails closed as `missing_source_truth_bundle`
 - Downloads `source-truth-bundle.json` and each page `page-manifest.json` /
   `content-blocks.jsonl` from the source bucket
 - Reconstructs a local replay input tree under the configured execution root

@@ -15,20 +15,19 @@ DEFAULT_BATCH_CONFIG_PATH = Path(
     "run14-policy-regulation-expanded.v1.json"
 )
 DEFAULT_COHORT_MANIFEST_PATH = Path(
-    ".planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/"
+    "packages/evals/fixtures/historical_regulation_denominator_expansion/"
     "run14-policy-regulation-cohorts.json"
 )
 DEFAULT_WRAPPER_FOLLOW_UP_PATH = Path(
-    ".planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/"
+    "packages/evals/fixtures/historical_regulation_denominator_expansion/"
     "wrapper-follow-up-manifest.json"
 )
 DEFAULT_COMPLETED_V9_ADMISSION_MANIFEST_PATH = Path(
-    ".planning/workstreams/historical-regulation-canonical-chunk-backfill/evidence/"
-    "phase-09-historical-offline-regulation-admission/regulation-consumer-admission-manifest.json"
+    "packages/evals/fixtures/historical_regulation_denominator_expansion/"
+    "completed-v9-regulation-consumer-admission-manifest.json"
 )
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/historical-regulation-denominator-expansion/evidence/"
-    "phase-00-denominator-audit"
+    "var/ingestion-evidence/historical-regulation-denominator-expansion/phase-00-denominator-audit"
 )
 
 

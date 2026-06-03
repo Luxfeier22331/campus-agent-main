@@ -19,15 +19,15 @@ from campus_ingestion_core.collected_notice_regulation_owner_text_recovery_model
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_PHASE_05_INPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-05-multimodal-ocr-consumption-readiness"
 )
 DEFAULT_PHASE_06_R1_INPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1-regulation-candidate-audit-and-admission"
 )
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1a-regulation-owner-text-recovery-mini-batch"
 )
 

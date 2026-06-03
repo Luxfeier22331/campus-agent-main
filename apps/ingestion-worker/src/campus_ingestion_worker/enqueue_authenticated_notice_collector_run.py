@@ -24,7 +24,7 @@ from campus_ingestion_core.registry import SHARED_POSTGRES_OPERATOR_ENV_KEY
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/"
+    "var/ingestion-evidence/authenticated-notice-ingest-queue-e2e-automation/"
     "evidence/phase-02-manual-run-enqueue"
 )
 

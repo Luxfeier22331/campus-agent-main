@@ -50,6 +50,7 @@ describe("authenticated notice collector config", () => {
 			AUTHENTICATED_NOTICE_NGINX: "sticky-2",
 			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/99#/",
 			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
+			AUTHENTICATED_NOTICE_PROXY_SERVER: "http://127.0.0.1:10808",
 			AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL:
 				"postgresql://runtime.example/postgres",
 			AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DISABLE: "true",
@@ -98,7 +99,7 @@ describe("authenticated notice collector config", () => {
 		expect(config.ingestQueueEnqueueOutputDir).toBe("/tmp/authenticated-notice-enqueue");
 		expect(config.historicalBackfillMaxPagesPerType).toBe(500);
 		expect(config.bypassProxyForPortal).toBe(false);
-		expect(config.portalProxyServer).toBeNull();
+		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
 		expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");
 		expect(config.writeLocalExports).toBe(true);
 	});
@@ -106,21 +107,23 @@ describe("authenticated notice collector config", () => {
 	it("resolves an explicit portal proxy server when proxy bypass is disabled", () => {
 		const config = resolveCollectorConfig({
 			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
-			HTTPS_PROXY: "http://127.0.0.1:10808",
+			AUTHENTICATED_NOTICE_PROXY_SERVER: "http://127.0.0.1:10808",
 		});
 
 		expect(config.bypassProxyForPortal).toBe(false);
 		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
 	});
 
-	it("falls back to shell proxy vars when explicit portal proxy is empty", () => {
-		const config = resolveCollectorConfig({
-			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
-			AUTHENTICATED_NOTICE_PROXY_SERVER: "",
-			HTTP_PROXY: "http://127.0.0.1:10808",
-		});
-
-		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
+	it("requires an explicit portal proxy server when proxy bypass is disabled", () => {
+		expect(() =>
+			resolveCollectorConfig({
+				AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
+				AUTHENTICATED_NOTICE_PROXY_SERVER: "",
+				HTTP_PROXY: "http://127.0.0.1:10808",
+			}),
+		).toThrow(
+			"AUTHENTICATED_NOTICE_PROXY_SERVER is required when AUTHENTICATED_NOTICE_BYPASS_PROXY=false",
+		);
 	});
 
 	it("appends muc portal hosts into no_proxy and preserves existing entries", () => {

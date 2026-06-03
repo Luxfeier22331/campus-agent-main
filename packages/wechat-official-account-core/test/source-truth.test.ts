@@ -146,7 +146,7 @@ describe("WeChat official-account article source-truth", () => {
 		expect(validateWeChatOfficialAccountArticleSourceTruth(material)).toEqual([]);
 	});
 
-	it("fails closed when the fetched page is a verification wall and preserves fallback summary metadata", () => {
+	it("fails closed when the fetched page is a verification wall and preserves source-derived summary metadata", () => {
 		const material = buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage({
 			accountName: "中央民族大学学生会",
 			accountSlug: "中央民族大学学生会",

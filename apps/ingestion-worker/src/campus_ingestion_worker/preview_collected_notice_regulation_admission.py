@@ -16,23 +16,23 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_PHASE_04_INPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-dry-run-reimport-and-universal-search-preview"
 )
 DEFAULT_PHASE_04_8_INPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-8-queue-consumer-reimport-path"
 )
 DEFAULT_PHASE_05_INPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-05-multimodal-ocr-consumption-readiness"
 )
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1-regulation-candidate-audit-and-admission"
 )
 DEFAULT_OWNER_TEXT_EXECUTION_REPORT_PATH = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1b-regulation-owner-text-recovery-execution/"
     "regulation-owner-text-execution-report.json"
 )

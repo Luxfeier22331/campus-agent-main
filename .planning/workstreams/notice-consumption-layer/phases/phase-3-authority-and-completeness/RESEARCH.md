@@ -95,7 +95,7 @@ status: completed
 - 因此这两类不能被折叠成 `authoritative_attachment_missing`。
 - `authoritative_attachment_missing` 只能用于“当前本应存在 authoritative owner，但 relation / bytes / child owner truth 尚未恢复”的 fail-close 场景。
 
-### 5. `body_only_answerable` 必须是狭义例外，而不是对 missing owner 的宽松兜底
+### 5. `body_only_answerable` 必须是狭义例外，而不是对 missing owner 的宽松替代
 
 - future query contract 已明确：
   - `annual_cycle_rule`

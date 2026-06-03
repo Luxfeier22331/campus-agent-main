@@ -19,12 +19,11 @@ DEFAULT_BUNDLE_PATH = Path(
     "notices-bundle.normalized.json"
 )
 DEFAULT_COMPLETED_MANIFEST_PATH = Path(
-    ".planning/workstreams/historical-regulation-canonical-chunk-backfill/evidence/"
-    "phase-09-historical-offline-regulation-admission/"
-    "regulation-consumer-admission-manifest.json"
+    "packages/evals/fixtures/historical_regulation_denominator_expansion/"
+    "completed-v9-regulation-consumer-admission-manifest.json"
 )
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/historical-regulation-denominator-expansion/evidence/"
+    "var/ingestion-evidence/historical-regulation-denominator-expansion/"
     "phase-05-school-level-inventory"
 )
 

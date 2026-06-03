@@ -363,6 +363,35 @@ def enqueue_regulation_rag_release_candidates_for_registry_delta(
     )
 
 
+def build_selected_search_only_rag_release_candidate(
+    *,
+    record: DocumentRegistryRecord,
+    runtime_profile: CollectionRuntimeProfile,
+    now: datetime | None = None,
+    message: str,
+) -> RagReleaseCandidate:
+    """Build a diagnostic candidate for selected non-serving regulation replay."""
+
+    updated_at = _iso(now)
+    candidate = _candidate_from_record(
+        record=record,
+        runtime_profile=runtime_profile,
+        now=updated_at,
+        status="pending",
+        candidate_reason="selected_record_search_only_replay",
+    )
+    return _with_status(
+        candidate,
+        status="held_search_only",
+        updated_at=updated_at,
+        rag_preparation_status="not_applicable",
+        rag_index_status="not_applicable",
+        rag_serving_status="not_serving",
+        rag_verification_status="not_applicable",
+        message=message,
+    )
+
+
 def process_pending_regulation_rag_release_candidates(
     *,
     store: RegulationRagReleaseCandidateStore,
@@ -760,6 +789,7 @@ __all__ = [
     "build_operator_rag_release_status",
     "build_registry_scope_rag_release_executor",
     "build_regulation_rag_release_candidate_store_from_env",
+    "build_selected_search_only_rag_release_candidate",
     "enqueue_regulation_rag_release_candidates_for_records",
     "enqueue_regulation_rag_release_candidates_for_registry_delta",
     "process_pending_regulation_rag_release_candidates",

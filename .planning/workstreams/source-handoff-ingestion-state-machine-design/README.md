@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -23,7 +23,7 @@ updated: 2026-05-01
 
 - status: `completed`
 - current phase: `Phase 10 closeout complete`
-- active implementation: shared contract/store plus official-web and authenticated-notice adapter
+- completed implementation: shared contract/store plus official-web and authenticated-notice adapter
   foundations plus worker/operator projection implemented
 - current slice: 本 workstream 已完成并关闭。后续生产化 adoption 走 dormant seed
   `.planning/seeds/SEED-003-source-handoff-runtime-store-adoption.md`，不要把部署 wiring 继续塞回

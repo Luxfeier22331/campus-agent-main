@@ -20,7 +20,7 @@ from campus_ingestion_core.authenticated_notice_smoke_replay_run import (
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/"
+    "var/ingestion-evidence/authenticated-notice-ingest-queue-e2e-automation/"
     "evidence/smoke-replay-run"
 )
 

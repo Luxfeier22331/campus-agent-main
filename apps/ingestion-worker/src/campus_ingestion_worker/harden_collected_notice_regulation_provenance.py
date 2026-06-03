@@ -14,7 +14,7 @@ from campus_ingestion_core.registry import build_document_registry_from_env
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_SELECTION_PATH = Path(
-    ".planning/workstreams/authenticated-notice-regulation-consumption/"
+    "var/ingestion-evidence/authenticated-notice-regulation-consumption/"
     "evidence/phase-09-first-batch-regulation-promotion-write-gate/"
     "first-batch-selection.json"
 )

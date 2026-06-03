@@ -353,7 +353,7 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
     def test_source_truth_only_fails_closed_when_mineru_primary_fails_for_pdf(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            raw_bytes = b"%PDF-1.4 mineru fallback"
+            raw_bytes = b"%PDF-1.4 mineru fixture"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
             raw_key = f"official_pdf/student-handbook/undated/sha256/{raw_hash}/capture/student-handbook.pdf"

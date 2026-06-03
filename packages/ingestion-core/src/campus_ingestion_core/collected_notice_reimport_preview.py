@@ -13,9 +13,11 @@ from campus_ingestion_core.authenticated_notice_defaults import (
 from campus_ingestion_core.authenticated_notice_file_release_import import (
     FILE_RELEASE_SOURCE_SURFACE,
     AuthenticatedNoticeFileReleaseImportRequest,
+    _prepare_file_release_import,
+)
+from campus_ingestion_core.authenticated_notice_file_release_import_sources import (
     _assert_file_release_manifest_schema,
     _file_release_export_from_payload,
-    _prepare_file_release_import,
 )
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,

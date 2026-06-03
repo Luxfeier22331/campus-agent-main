@@ -108,7 +108,7 @@ class CollectedNoticeFactReadinessTests(unittest.TestCase):
         )
         self.assertEqual(readiness["blocking_media"][0]["media_role"], "schedule_table_carrier")
 
-    def test_candidate_target_blocking_overrides_legacy_role_inference(self) -> None:
+    def test_candidate_target_blocking_overrides_media_role_inference(self) -> None:
         readiness = build_transport_schedule_fact_readiness(
             unit={
                 "unit_id": "searchable:notice:muc_internal_portal:355867",
@@ -124,7 +124,7 @@ class CollectedNoticeFactReadinessTests(unittest.TestCase):
                         "status": "pending",
                         "media_kind": "image",
                         "media_role": "schedule_table_carrier",
-                        "processing_family": "multimodal_fallback",
+                        "processing_family": "schedule_image_ocr",
                         "target_blocking": True,
                     }
                 ]

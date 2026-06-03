@@ -15,20 +15,20 @@ from campus_ingestion_core.collected_notice_downstream_pilot import (
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_PHASE_04_INPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-dry-run-reimport-and-universal-search-preview"
 )
 DEFAULT_PHASE_05_INPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-05-multimodal-ocr-consumption-readiness"
 )
 DEFAULT_PILOT_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-batched-downstream-replay/"
     "pilot-transport-schedule-355512"
 )
 DEFAULT_BATCH_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-batched-downstream-replay/"
     "batch-transport-schedule"
 )

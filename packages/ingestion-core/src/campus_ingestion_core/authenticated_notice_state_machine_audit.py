@@ -493,10 +493,7 @@ def _unit_findings(
                         ),
                     )
                 )
-        if media_kind == "pdf" and processing_family in {
-            "internal_notice_multimodal",
-            "multimodal_fallback",
-        }:
+        if media_kind == "pdf" and processing_family == "internal_notice_multimodal":
             findings.append(
                 _finding(
                     severity=FINDING_HIGH,
@@ -509,10 +506,7 @@ def _unit_findings(
                     ),
                 )
             )
-        if media_kind == "office" and processing_family in {
-            "internal_notice_multimodal",
-            "multimodal_fallback",
-        }:
+        if media_kind == "office" and processing_family == "internal_notice_multimodal":
             findings.append(
                 _finding(
                     severity=FINDING_HIGH,

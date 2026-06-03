@@ -424,7 +424,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         self.assertEqual(cluster.publicity_signals, ())
         self.assertTrue(cluster.title_signature)
 
-    def test_default_other_fallback_converges_to_automated_terminal_routes(self) -> None:
+    def test_default_other_classification_converges_to_automated_terminal_routes(self) -> None:
         report = build_authenticated_notice_routing_sample_report_from_bundle_records(
             bundle_records=(
                 _bundle_record(
@@ -674,7 +674,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         self.assertEqual(sample.notice_family, "other")
         self.assertEqual(sample.suggested_consumption_route, "no_adoption")
 
-    def test_default_fallback_service_override_does_not_treat_general_maintain_as_status(
+    def test_default_service_override_does_not_treat_general_maintain_as_status(
         self,
     ) -> None:
         report = build_authenticated_notice_routing_sample_report_from_bundle_records(

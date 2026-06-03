@@ -21,7 +21,7 @@ import sys
 import campus_ingestion_worker.env_bootstrap
 
 print(json.dumps({
-    "prompt_runtime_imported": "campus_shared.prompt_runtime" in sys.modules,
+    "prompt_runtime_imported": "campus_prompt_runtime" in sys.modules,
     "provider_config_imported": "campus_shared.provider_config" in sys.modules,
     "ingestion_core_imported": any(
         name == "campus_ingestion_core" or name.startswith("campus_ingestion_core.")

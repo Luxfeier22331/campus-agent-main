@@ -252,6 +252,45 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
         self.assertFalse(row.import_eligible)
         self.assertTrue(row.notice_card_preserved)
 
+    def test_recovery_fails_closed_when_canonical_markdown_cannot_be_read(self) -> None:
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many(
+            (
+                _inventory(
+                    notice_id="300012",
+                    title="关于发布《中央民族大学科研经费管理办法》的通知",
+                    owner_kind="official_web_document",
+                    relation_type="official_web_ref",
+                    owner_title_hint="中央民族大学科研经费管理办法",
+                ),
+            )
+        )
+        official_record = _source_record(
+            document_id="official_web:muc_public_pages:article_detail:research-fund-rule",
+            source_uri="https://www.muc.edu.cn/info/research-fund-rule.htm",
+            corpus="official_web",
+            collection="muc_public_pages",
+            canonical_key="official_web/documents/research-fund-rule/canonical.md",
+            units_key="official_web/documents/research-fund-rule/document-units.jsonl",
+            source_channel="official_web",
+        )
+
+        with self.assertRaisesRegex(ValueError, "failed to read canonical markdown"):
+            build_internal_notice_regulation_owner_recovery_report(
+                audit_report=_audit_report(
+                    _audit_row(
+                        notice_id="300012",
+                        title="关于发布《中央民族大学科研经费管理办法》的通知",
+                        classification="official_web_owner_candidate",
+                        stable_reason="official_web_backed_regulation_body_missing",
+                    )
+                ),
+                source_truth_inventory_store=inventory_store,
+                registry=InMemoryDocumentRegistry((official_record,)),
+                object_store=_FakeObjectStore(objects={}),
+                file_release_inventory_store=InMemoryAuthenticatedNoticeFileReleaseInventoryStore(),
+            )
+
 
 def _inventory(
     *,
