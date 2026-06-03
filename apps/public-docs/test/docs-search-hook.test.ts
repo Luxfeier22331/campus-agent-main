@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { StaticSearchSuggestion } from "../src/search/static-search-suggestions";
+import type { SearchSuggestion } from "../src/search/docs-api-search-core";
 
 vi.mock("virtual-page-data", () => ({
 	searchIndexHash: { "default###zh": "hash" },
@@ -12,7 +12,7 @@ describe("public docs search hook", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("does not hide docs API failures with static search suggestions", async () => {
+	it("clears default Rspress matches and does not hide docs API failures", async () => {
 		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
 			if (url.includes("search_index.default.zh.hash.json")) {
@@ -42,14 +42,29 @@ describe("public docs search hook", () => {
 		vi.stubGlobal("window", { location: { href: "https://docs.example.com/docs/" } });
 
 		const { onSearch } = await import("../src/search/docs-search-hook");
-		const matchedResult: SearchGroup[] = [];
+		const matchedResult: SearchGroup[] = [
+			{
+				group: "默认搜索",
+				renderType: "default",
+				result: [
+					{
+						header: "第一条",
+						highlightInfoList: [{ length: 9, start: 0 }],
+						link: "/docs/regulations/student_rules/national-scholarship",
+						query: "奖学金",
+						title: "国家奖学金评审办法",
+						type: "title",
+					},
+				],
+			},
+		];
 
 		await onSearch("奖学金", matchedResult);
 
 		expect(matchedResult).toEqual([]);
 	});
 
-	it("uses static search suggestions only after docs API returns successfully with no hits", async () => {
+	it("keeps search empty when docs API returns successfully with no hits", async () => {
 		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
 			if (url.includes("search_index.default.zh.hash.json")) {
@@ -79,20 +94,31 @@ describe("public docs search hook", () => {
 		vi.stubGlobal("window", { location: { href: "https://docs.example.com/docs/" } });
 
 		const { onSearch } = await import("../src/search/docs-search-hook");
-		const matchedResult: SearchGroup[] = [];
+		const matchedResult: SearchGroup[] = [
+			{
+				group: "默认搜索",
+				renderType: "default",
+				result: [
+					{
+						header: "第一条",
+						highlightInfoList: [{ length: 9, start: 0 }],
+						link: "/docs/regulations/student_rules/national-scholarship",
+						query: "奖学金",
+						title: "国家奖学金评审办法",
+						type: "title",
+					},
+				],
+			},
+		];
 
 		await onSearch("奖学金", matchedResult);
 
-		expect(matchedResult[0]).toMatchObject({
-			group: "Campus Agent 文档站",
-			renderType: "default",
-		});
-		expect(matchedResult[0]?.result).toHaveLength(2);
+		expect(matchedResult).toEqual([]);
 	});
 });
 
 interface SearchGroup {
 	group: string;
 	renderType: "default";
-	result: StaticSearchSuggestion[];
+	result: SearchSuggestion[];
 }

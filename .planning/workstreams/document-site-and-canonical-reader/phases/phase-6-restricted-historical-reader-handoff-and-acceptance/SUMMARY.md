@@ -11,8 +11,8 @@ updated: 2026-04-27
 
 - `app-api` now resolves restricted reader descriptors for principals whose entitlement groups satisfy the document version.
 - `app-api` now exposes a gated reader asset endpoint with per-request authz and server-only object-key lookup.
-- `public-docs` now returns a generic reader fallback shell when canonical docs routes miss static assets.
-- `public-docs` static asset config now uses `404-page` fallback so Worker code can detect missing static reader pages before serving the gated reader shell.
+- `public-docs` now returns explicit reader handoff shells when canonical docs routes miss static assets.
+- `public-docs` static asset config now uses `404-page` not-found handling so Worker code can detect missing static reader pages before serving the gated reader shell.
 - Contracts and architecture docs now describe the gated reader asset endpoint and no-store delivery posture.
 
 ## Completed In This Execution

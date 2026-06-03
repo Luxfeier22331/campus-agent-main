@@ -10,7 +10,6 @@ import {
 	buildMobileTableRowTitle,
 } from "../src/components/DocsContentEnhancer";
 import { normalizeSearchInputAccessibility } from "../src/components/SearchKeyboardGuard";
-import { buildStaticSearchSuggestions } from "../src/search/static-search-suggestions";
 
 describe("public-docs reader UI contracts", () => {
 	it("keeps collection routes out of the top navigation", () => {
@@ -411,40 +410,5 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("bottom: max(1rem, env(safe-area-inset-bottom));");
 		expect(css).toContain("box-shadow: 0 18px 40px rgba(28, 45, 37, 0.14);");
 		expect(css).not.toContain("flex-basis: 100%;");
-	});
-
-	it("builds static search suggestions from the generated search index shape", () => {
-		const results = buildStaticSearchSuggestions("奖学金", [
-			{
-				title: "中央民族大学本科学生国家奖学金评审办法",
-				routePath: "/docs/regulations/student_rules/national-scholarship-evaluation",
-				content: "第一条 为规范国家奖学金评审工作。",
-				toc: [{ id: "第一条", text: "第一条", charIndex: 0 }],
-			},
-		]);
-
-		expect(results[0]).toMatchObject({
-			type: "title",
-			title: "中央民族大学本科学生国家奖学金评审办法",
-			link: "/docs/regulations/student_rules/national-scholarship-evaluation",
-			query: "奖学金",
-		});
-	});
-
-	it("uses section and content matches when titles do not match", () => {
-		const results = buildStaticSearchSuggestions("毕业要求", [
-			{
-				title: "计算机类本科人才培养方案",
-				routePath: "/docs/curriculum/curriculum_plan/计算机类本科人才培养方案",
-				content: "二、毕业要求\n\n软件工程专业毕业要求包括知识、能力和素质要求。",
-				toc: [{ id: "二毕业要求", text: "二、毕业要求", charIndex: 0 }],
-			},
-		]);
-
-		expect(results.map((result) => result.type)).toEqual(["header", "content"]);
-		expect(results[0]).toMatchObject({
-			header: "计算机类本科人才培养方案 > 二、毕业要求",
-			link: "/docs/curriculum/curriculum_plan/计算机类本科人才培养方案#二毕业要求",
-		});
 	});
 });

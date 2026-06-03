@@ -19,7 +19,7 @@ Turn restricted reader from schema-level posture into an enforced browser delive
 - Add `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/assets/:assetKind` and stream authorized gated asset bytes from `DOCS_READER_ASSETS`.
 - Keep browser JSON responses free of object keys, raw locators, provider paths, source unit keys, and chunk ids.
 - Keep `public-docs` deploy sync public-only; `gated_asset` entries remain absent from `doc_build/_docs`.
-- Add a generic `public-docs` reader fallback shell for docs routes that miss static assets, so restricted/historical docs can resolve through same-site `/api/docs/*`.
+- Add explicit `public-docs` reader handoff shells for docs routes that miss static assets, so restricted/historical docs resolve through same-site `/api/docs/*` without using static content as a substitute.
 
 ## Acceptance
 

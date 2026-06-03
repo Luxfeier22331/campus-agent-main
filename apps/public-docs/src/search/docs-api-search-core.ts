@@ -1,4 +1,40 @@
-import type { SearchIndexPage, StaticSearchSuggestion } from "./static-search-suggestions";
+export interface SearchIndexHeader {
+	id: string;
+	text: string;
+	charIndex?: number;
+}
+
+export interface SearchIndexPage {
+	title: string;
+	routePath: string;
+	content: string;
+	toc: SearchIndexHeader[];
+}
+
+interface HighlightInfo {
+	start: number;
+	length: number;
+}
+
+export interface SearchSuggestion {
+	type: string;
+	title: string;
+	header: string;
+	link: string;
+	query: string;
+	statement?: string;
+	highlightInfoList: HighlightInfo[];
+}
+
+export interface DocsApiSearchSuggestion {
+	type: "content";
+	title: string;
+	header: string;
+	link: string;
+	query: string;
+	statement: string;
+	highlightInfoList: HighlightInfo[];
+}
 
 export interface DocsSearchScope {
 	collection: string;
@@ -42,7 +78,7 @@ export function collectDocsSearchScopes(pages: SearchIndexPage[]): DocsSearchSco
 export function mapDocsApiResultsToSuggestions(
 	query: string,
 	responses: ScopedDocsApiSearchResponse[],
-): StaticSearchSuggestion[] {
+): DocsApiSearchSuggestion[] {
 	const normalizedQuery = query.trim();
 	const highlightLength = new TextEncoder().encode(normalizedQuery).length;
 	return responses.flatMap(({ response }) =>

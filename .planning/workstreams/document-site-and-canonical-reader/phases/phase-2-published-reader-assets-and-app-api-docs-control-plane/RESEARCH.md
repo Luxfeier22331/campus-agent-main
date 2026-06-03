@@ -152,7 +152,7 @@ status: completed
 ## Design Consequences For This Phase
 
 - 要先补 reader projection generator，而不是先补 UI 组件。
-- 要先补 `app-api` 的 runtime-backed docs service，而不是让既有 route shell 永远停留在 unavailable fallback。
+- 要先补 `app-api` 的 runtime-backed docs service，而不是让既有 route shell 永远停留在 unavailable state。
 - 要把 `public-docs` 切到 published reader assets + same-site docs seam，而不是继续直接同步公开文档产物。
 - resolve/search 必须只返回 canonical jump target，不返回正文或 raw trace。
 - `public_static_asset` 与 `gated_asset` 的 delivery mode 必须从第一版就显式区分。

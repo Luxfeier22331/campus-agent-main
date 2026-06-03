@@ -414,7 +414,7 @@ Cloudflare deploy、rollback 或 Deploy Hook URL。
 
 ```bash
 pnpm --filter public-docs acceptance:published-reader-production -- \
-  --output .planning/workstreams/public-docs-rolling-publish-automation/evidence/phase-6-production-acceptance-and-operator-runbook/acceptance.json
+  --output var/public-docs/published-reader-production-acceptance/acceptance.json
 ```
 
 验收 JSON 必须满足：

@@ -18,7 +18,8 @@ updated: 2026-04-27
 
 本 phase 的目标是在不替换原生 Rspress shell 的前提下补齐 reader 运行态状态：
 
-- Rspress 原生搜索保留为 fallback，但优先增强 app-api docs search results。
+- Rspress 原生搜索索引只用于 scope discovery；search result owner 是
+  `app-api` docs search，不能由本地静态索引补结果。
 - source-card / search jump URL 必须使用 `?hl=...#anchor`，避免旧式
   `#anchor?hl=...` 破坏 browser state。
 - current reader route 继续是 `/docs/:corpus/:collection/:documentSlug`。

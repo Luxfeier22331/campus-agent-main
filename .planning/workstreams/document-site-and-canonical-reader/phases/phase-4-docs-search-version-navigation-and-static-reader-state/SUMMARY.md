@@ -26,7 +26,8 @@ source-card integration。
 - `apps/public-docs/src/components/ReaderStateEnhancer.tsx`
 - `apps/public-docs/src/reader/reader-state-core.ts`
 - `apps/public-docs/src/search/docs-api-search-core.ts`
-- `apps/public-docs/src/search/local-search-fallback.ts`
+- `apps/public-docs/src/search/docs-search-hook.ts`
+- `apps/public-docs/src/search/docs-api-search-core.ts`
 - `apps/public-docs/rspress.config.ts`
 - `apps/public-docs/theme/docs-ui.css`
 - `apps/public-docs/test/sync-published-reader-docs.test.ts`
