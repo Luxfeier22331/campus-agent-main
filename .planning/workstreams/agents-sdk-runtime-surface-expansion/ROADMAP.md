@@ -62,7 +62,7 @@ Tasks:
   - `notice-agent + campus_notice_discover`
   - `campus-services-agent`
   - `calendar-agent`
-  - generic fallback
+  - generic instruction profile for explicitly admitted surfaces without a narrower profile
 - Extend runner-shell request DTO with `instruction_profile_id` and `instructions`.
 - Propagate profile id into safe `agents_sdk_runner_projection`.
 - Update OpenAI and mock SDK runners to consume request-scoped instructions.
@@ -104,7 +104,7 @@ Tasks:
 
 - rerun local/public-chat real-provider E2E after Docker health recovers
 - keep `prompt_runtime_state=rag_sdk_completed`
-- ensure fallback remains observable and scoped
+- ensure unsupported or unavailable SDK behavior remains explicit and observable
 
 Delivered:
 

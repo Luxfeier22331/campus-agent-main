@@ -42,7 +42,7 @@ backend, a panel shell, a docs site or a MediaWiki proxy.
    - `test`
    - `test:worker`
 2. Add Worker config for `hub.muc.wiki` route and `APP_API` Service Binding.
-3. Implement static asset delivery and SPA route fallback.
+3. Implement static asset delivery and SPA route rewrite.
 4. Implement route shell for:
    - `/`
    - `/account`

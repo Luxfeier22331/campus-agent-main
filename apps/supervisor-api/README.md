@@ -173,10 +173,14 @@ Current structured query runtime boundary:
   shared database connection.
 - `INTERNAL_NOTICE_READ_MODEL_TABLE` defaults to
   `ingestion_projection.internal_notice_read_model`.
-- `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_DERIVED_ACCESS_KEY`,
-  `OBJECT_STORE_DERIVED_SECRET_KEY`, `OBJECT_STORE_REGION`, and
-  `OBJECT_STORE_BUCKET_DERIVED` configure notice canonical body reads from the
-  S3-compatible derived bucket.
+- `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT`,
+  `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY`,
+  `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY`,
+  `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION`, and
+  `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET` configure notice canonical body
+  reads from the S3-compatible notice body bucket. The bucket may physically be
+  the ingestion derived bucket, but the Go runtime does not read generic
+  ingestion `OBJECT_STORE_*` variables.
 - The runtime is not browser-facing and not an `app-api` product surface. It
   does not open `place_lookup`; navigation / map-backed place lookup remains
   deferred until the map product rollout.
@@ -279,11 +283,11 @@ export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000
 export INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=
 export INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model
-export OBJECT_STORE_ENDPOINT=
-export OBJECT_STORE_DERIVED_ACCESS_KEY=
-export OBJECT_STORE_DERIVED_SECRET_KEY=
-export OBJECT_STORE_REGION=us-east-1
-export OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived
+export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT=
+export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY=
+export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY=
+export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION=us-east-1
+export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET=
 export SUPERVISOR_NOTICE_BODY_LIMIT_BYTES=1048576
 ```
 

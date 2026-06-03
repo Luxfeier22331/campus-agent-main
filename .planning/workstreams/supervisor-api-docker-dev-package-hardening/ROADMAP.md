@@ -118,7 +118,8 @@ pnpm docs:lint
   - server handoff 推荐值
   - 明确哪些 compose 字段仅作本地 baseline
 - 确认 `depends_on` 不替代 readiness；smoke 继续等待 `/readyz`。
-- 保持 `host.docker.internal` rewrite 仅服务本地 Docker。
+- 明确 local Docker 数据面使用 compose service DNS，不把 Docker gateway host rewrite
+  当作服务入口。
 
 **Primary Write Set:**
 

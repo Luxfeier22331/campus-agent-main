@@ -209,10 +209,10 @@ def _profile_api_env(
         if profile_requires_object_store(profile):
             env.update(
                 {
-                    "OBJECT_STORE_ENDPOINT": object_store_base_url,
-                    "OBJECT_STORE_DERIVED_ACCESS_KEY": "smoke-access-key",
-                    "OBJECT_STORE_DERIVED_SECRET_KEY": "smoke-secret-key",
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
+                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
                 }
             )
         return env
@@ -221,10 +221,10 @@ def _profile_api_env(
             "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED": "true",
             "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE": "true",
             "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
-            "OBJECT_STORE_ENDPOINT": object_store_base_url,
-            "OBJECT_STORE_DERIVED_ACCESS_KEY": "smoke-access-key",
-            "OBJECT_STORE_DERIVED_SECRET_KEY": "smoke-secret-key",
-            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
+            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
         }
         if profile == "transport_notice_override_multistep":
             env["SUPERVISOR_API_OPEN_CAPABILITIES"] = "campus_services"

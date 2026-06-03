@@ -59,7 +59,7 @@ describe("hub worker boundary", () => {
 		expect(stagingPreflightSource).toContain("worker-staging-hub-web");
 	});
 
-	it("keeps Sentry fail-open while scrubbing auth-sensitive hub fields", () => {
+	it("keeps Sentry non-blocking while scrubbing auth-sensitive hub fields", () => {
 		expect(workerSource).toContain("beforeSend(event)");
 		expect(workerSource).toContain("sendDefaultPii: false");
 		expect(workerSource).toContain('surface: "hub-web"');

@@ -17,7 +17,7 @@ describe("audit domain helpers", () => {
 		expect(formatAuditEventType("custom.event")).toBe("custom.event");
 	});
 
-	it("formats audit statuses with chinese labels and safe fallbacks", async () => {
+	it("formats known audit statuses with chinese labels and preserves unknown codes", async () => {
 		const { formatAuditStatus } = await import("../src/panel/pages/audit-domain");
 
 		expect(formatAuditStatus("accepted")).toBe("已受理");

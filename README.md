@@ -74,6 +74,7 @@ browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 - [`apps/supervisor-api`](./apps/supervisor-api/)
 - [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)
 - [`packages/rag-agent`](./packages/rag-agent/)
+- [`packages/prompt-runtime`](./packages/prompt-runtime/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)
 
 ## Documentation

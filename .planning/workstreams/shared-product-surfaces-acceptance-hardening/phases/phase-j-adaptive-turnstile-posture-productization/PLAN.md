@@ -65,7 +65,8 @@ updated: 2026-04-21
 
 ### Slice 2: Confirm Staging Widget Truth
 
-- 在 Cloudflare Dashboard 核对 `campus-chat-staging.ayafeed.com` 当前使用的 Turnstile widget：
+- 在 Cloudflare Dashboard 核对当前 `chat-staging.mucwiki-edge.link` staging
+  hostname 使用的 Turnstile widget：
   - sitekey 是否仍是 admitted 真实 widget
   - widget mode 当前是 `Managed` 还是 `Non-Interactive`
 - 如果 staging 仍保留临时 low-friction widget mode，需要明确记录它只代表 staging operator posture，不代表 production policy

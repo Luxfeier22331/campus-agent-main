@@ -23,6 +23,8 @@ status: completed
 - dedicated staging Turnstile widget 已切到 `non-interactive` mode：
   - 仍保持 `campus-chat-staging.ayafeed.com` domain-bound validation
   - 不再把 operator smoke 阻塞在手工 challenge 上
+- 本 summary 中的 `ayafeed.com` staging endpoint 只保留为历史证据；
+  当前 staging truth 已迁移到 `mucwiki-edge.link`。
 - old session revocation 也已被 staging continuity smoke 直接证明：
   - reset 完成后，同一浏览器上下文里的旧 session 对 `/api/me` 返回 `401`
 

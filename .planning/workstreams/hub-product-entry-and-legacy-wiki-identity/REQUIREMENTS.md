@@ -101,7 +101,7 @@ existing `muc.wiki` deployment.
   domain, name prefix and SameSite posture must be documented before Phase 4.
 - `hub.muc.wiki/[slug]` must not mount unknown slugs to app-api by default;
   unsupported slugs fail closed to a controlled not-found page.
-- Hub Worker routes are limited to static asset delivery, SPA route fallback and
+- Hub Worker routes are limited to static asset delivery, SPA route rewrite and
   narrow allowlisted same-site API seams to app-api.
 - Phase 3 starts with a repo-owned typed static app launcher manifest. App-api
   policy projection is a later enhancement, not a Phase 3 blocker.

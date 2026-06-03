@@ -623,20 +623,20 @@ describe("app-api worker foundation", () => {
 				answer: {
 					conversation: {
 						createdAt: "2026-03-28T07:59:00.000Z",
-						id: "conv_fallback_01HQ",
+						id: "conv_waituntil_closed_01HQ",
 						messages: [],
 						title: "图书馆开放时间",
 						updatedAt: "2026-03-28T08:00:01.000Z",
 					},
 					result: {
 						kind: "answer",
-						requestId: "req_fallback_01HQ",
+						requestId: "req_waituntil_closed_01HQ",
 						text: "图书馆开放到 22:00。",
-						traceId: "trace_fallback_01HQ",
+						traceId: "trace_waituntil_closed_01HQ",
 					},
 				},
-				requestId: "req_fallback_01HQ",
-				traceId: "trace_fallback_01HQ",
+				requestId: "req_waituntil_closed_01HQ",
+				traceId: "trace_waituntil_closed_01HQ",
 			}),
 		};
 		const runtime = createWorkerRuntime(env, {

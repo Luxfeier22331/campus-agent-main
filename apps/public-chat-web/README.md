@@ -13,6 +13,10 @@ Current runtime composition:
 - `/chat` and `/chat/:conversationId` render the vendored chat runtime through
   `src/platform/chat/app-shell.tsx`
 - vendored UI/runtime source-of-truth lives in `vendor/vercel-ai-chatbot/`
+- `vendor/vercel-ai-chatbot/` is a donor snapshot for parity review and import
+  compatibility. It is excluded from repo-owned decomposition gates and must not
+  be used as architecture precedent for new fallback, best-effort, or local
+  compatibility behavior in `src/`, `apps/app-api`, or shared packages.
 - repo-owned platform seams live in `src/platform/`
 - exact import-compat ownership lives in `src/platform/vendor-compat/`
 - `src/styles.css` only serves the boot placeholder; the active chat shell comes
@@ -91,8 +95,8 @@ The Worker also requires an internal `APP_API` service binding at runtime.
 
 Readiness expectations:
 
-- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, `APP_API_BASE_URL`, and
-  `PUBLIC_CHAT_HOSTNAME` are all configured
+- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, `APP_API_BASE_URL`,
+  `PUBLIC_CHAT_HOSTNAME`, and `HUB_WEB_BASE_URL` are all configured
 - `GET /readyz` forwards the app-api `preflight.campusServicesProductPath`
   diagnostic block when it is present, so public/chat campus-services opening
   checks can distinguish capability-gate, projection, and read-model blockers

@@ -35,11 +35,11 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
-	t.Setenv("OBJECT_STORE_ENDPOINT", "")
-	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "")
-	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "")
-	t.Setenv("OBJECT_STORE_REGION", "")
-	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", "")
 	t.Setenv("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES", "")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
@@ -162,11 +162,11 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.WorkflowRunAutoMigrate {
 		t.Fatal("workflow run auto migrate must be disabled by default")
 	}
-	if cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived" {
-		t.Fatalf("notice derived bucket = %q", cfg.NoticeObjectStoreBucketDerived)
+	if cfg.NoticeBodyObjectStoreBucket != "" {
+		t.Fatalf("notice body object store bucket = %q, want empty", cfg.NoticeBodyObjectStoreBucket)
 	}
-	if cfg.NoticeObjectStoreBodyLimitBytes != 1_048_576 {
-		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeObjectStoreBodyLimitBytes)
+	if cfg.NoticeBodyObjectStoreBodyLimitBytes != 1_048_576 {
+		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeBodyObjectStoreBodyLimitBytes)
 	}
 	if cfg.PromptRuntimeProvider != "" ||
 		cfg.SupervisorPromptModel != "" ||
@@ -213,7 +213,7 @@ func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
 func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "   ")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "   ")
-	t.Setenv("OBJECT_STORE_REGION", "   ")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "   ")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -225,8 +225,8 @@ func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	if cfg.PromptRuntimeTransport != "responses" {
 		t.Fatalf("prompt runtime transport = %q, want responses", cfg.PromptRuntimeTransport)
 	}
-	if cfg.NoticeObjectStoreRegion != "us-east-1" {
-		t.Fatalf("notice object store region = %q, want us-east-1", cfg.NoticeObjectStoreRegion)
+	if cfg.NoticeBodyObjectStoreRegion != "us-east-1" {
+		t.Fatalf("notice object store region = %q, want us-east-1", cfg.NoticeBodyObjectStoreRegion)
 	}
 }
 
@@ -323,7 +323,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.PromptRuntimeTransport != "responses" ||
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
 		cfg.PromptStrictStructuredOutputs ||
-		cfg.NoticeObjectStoreBodyLimitBytes != 4096 {
+		cfg.NoticeBodyObjectStoreBodyLimitBytes != 4096 {
 		t.Fatalf("unexpected config: %#v", cfg)
 	}
 }
@@ -409,11 +409,11 @@ func TestCapabilityOpenDoesNotOpenPlaceLookupBeforeMapRollout(t *testing.T) {
 func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "postgres://notice.example/db")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "custom_schema.custom_notice_read_model")
-	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
-	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "derived-access")
-	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "derived-secret")
-	t.Setenv("OBJECT_STORE_REGION", "us-east-1")
-	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived-test")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "http://minio:9000")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "derived-access")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "derived-secret")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "us-east-1")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", "notice-body-test")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -426,20 +426,23 @@ func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
 	if cfg.NoticeReadModelTable != "custom_schema.custom_notice_read_model" {
 		t.Fatalf("notice read model table = %q", cfg.NoticeReadModelTable)
 	}
-	if cfg.NoticeObjectStoreEndpoint != "http://minio:9000" ||
-		cfg.NoticeObjectStoreAccessKey != "derived-access" ||
-		cfg.NoticeObjectStoreSecretKey != "derived-secret" ||
-		cfg.NoticeObjectStoreRegion != "us-east-1" ||
-		cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived-test" {
+	if cfg.NoticeBodyObjectStoreEndpoint != "http://minio:9000" ||
+		cfg.NoticeBodyObjectStoreAccessKey != "derived-access" ||
+		cfg.NoticeBodyObjectStoreSecretKey != "derived-secret" ||
+		cfg.NoticeBodyObjectStoreRegion != "us-east-1" ||
+		cfg.NoticeBodyObjectStoreBucket != "notice-body-test" {
 		t.Fatalf("unexpected notice object store config: %#v", cfg)
 	}
 }
 
-func TestLoadFromEnvFallsBackToSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNoticeRuntimeTruth(t *testing.T) {
+func TestLoadFromEnvUsesSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNoticeRuntimeTruth(t *testing.T) {
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/db")
 	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
 	t.Setenv("OBJECT_STORE_ACCESS_KEY", "generic-access")
 	t.Setenv("OBJECT_STORE_SECRET_KEY", "generic-secret")
+	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "derived-access")
+	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "derived-secret")
+	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -455,11 +458,14 @@ func TestLoadFromEnvFallsBackToSharedPostgresWithoutTreatingGenericObjectStoreKe
 	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/db" {
 		t.Fatalf("workflow run database url = %q", cfg.WorkflowRunDatabaseURL)
 	}
-	if cfg.NoticeObjectStoreAccessKey != "" {
-		t.Fatalf("notice object store access key = %q, want empty without derived credential pair", cfg.NoticeObjectStoreAccessKey)
+	if cfg.NoticeBodyObjectStoreAccessKey != "" {
+		t.Fatalf("notice object store access key = %q, want empty without derived credential pair", cfg.NoticeBodyObjectStoreAccessKey)
 	}
-	if cfg.NoticeObjectStoreSecretKey != "" {
-		t.Fatalf("notice object store secret key = %q, want empty without derived credential pair", cfg.NoticeObjectStoreSecretKey)
+	if cfg.NoticeBodyObjectStoreSecretKey != "" {
+		t.Fatalf("notice object store secret key = %q, want empty without derived credential pair", cfg.NoticeBodyObjectStoreSecretKey)
+	}
+	if cfg.NoticeBodyObjectStoreEndpoint != "" || cfg.NoticeBodyObjectStoreBucket != "" {
+		t.Fatalf("notice body object store config must not come from generic object store env: %#v", cfg)
 	}
 }
 

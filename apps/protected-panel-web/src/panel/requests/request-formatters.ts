@@ -384,7 +384,7 @@ function formatGroundingDowngradeState(value: boolean | null) {
 		return PANEL_COPY.unknown;
 	}
 
-	return value ? "已降级" : "未降级";
+	return value ? "证据受限" : "证据完整";
 }
 
 function formatPromptSummary(prompt: RequestReplaySummary["prompt"]) {

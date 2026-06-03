@@ -12,6 +12,7 @@ from campus_contracts import (
     ContextProjection,
     WorkflowAgentContext,
 )
+from campus_prompt_runtime import PromptRuntimeProviderConfig
 from campus_services_agent.academic_calendar_adapter import academic_calendar_response
 from campus_services_agent.http_query_service import CampusServicesHTTPQueryService
 from campus_services_agent.query_service import (
@@ -19,7 +20,6 @@ from campus_services_agent.query_service import (
     CampusServicesAccessContext,
 )
 from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
-from campus_shared import PromptRuntimeProviderConfig
 from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
 from campus_supervisor_agent_worker.openai_agents_runtime import (
     OpenAIAgentsRunResult,

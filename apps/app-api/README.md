@@ -69,7 +69,7 @@ Runtime hardening baseline:
   configured campus email domain suffixes plus optional exact-email exceptions
 - `GET /readyz` also reports whether the optional `official_web` ingestion
   handoff runtime is configured
-- auth responses, chat responses, and operator query responses default to
+- auth responses, chat responses, and operator query responses set
   `Cache-Control: no-store`
 - Better Auth keeps origin / CSRF checks enabled and turns on production rate
   limiting

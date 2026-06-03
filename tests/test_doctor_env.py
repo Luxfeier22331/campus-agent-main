@@ -290,7 +290,8 @@ class DoctorEnvTest(unittest.TestCase):
             condition = status["conditions"]["notice_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("OBJECT_STORE_ENDPOINT", condition["error"])
+            self.assertIn("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", condition["error"])
+            self.assertIn("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", condition["error"])
 
     def test_collect_env_doctor_status_supervisor_api_rejects_axiom_collector_signal_path(
         self,
@@ -405,6 +406,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "APP_API_BASE_URL=https://app-api.internal",
                         "PUBLIC_CHAT_HOSTNAME=chat.example.com",
+                        "HUB_WEB_BASE_URL=https://hub.example.com",
                     ]
                 )
                 + "\n",
@@ -517,7 +519,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(shared_pg["connectivity"]["checked"])
             self.assertTrue(shared_pg["connectivity"]["ok"])
 
-    def test_collect_env_doctor_status_reports_ingestion_surface_and_registry_fallback(
+    def test_collect_env_doctor_status_reports_ingestion_surface_and_registry_source(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -685,7 +687,7 @@ class DoctorEnvTest(unittest.TestCase):
                 os.environ,
                 {
                     "STAGING_SUPERVISOR_API_BASE_URL": "https://supervisor-staging.example.com",
-                    "STAGING_ACCESS_TEAM_DOMAIN": "https://ayafeed.cloudflareaccess.com",
+                    "STAGING_ACCESS_TEAM_DOMAIN": "https://mucwiki-edge.cloudflareaccess.com",
                     "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
                 },
                 clear=True,
@@ -767,7 +769,7 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_ACCESS_TEAM_DOMAIN": "https://ayafeed.cloudflareaccess.com",
+                    "STAGING_ACCESS_TEAM_DOMAIN": "https://mucwiki-edge.cloudflareaccess.com",
                     "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
                 },
                 clear=True,

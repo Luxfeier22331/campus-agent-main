@@ -319,7 +319,7 @@ describe("request replay formatters", () => {
 			{ label: "检索计划", value: "student_rules:current · current · completed" },
 			{ label: "来源轨迹", value: "召回 2 · 支撑 1" },
 			{ label: "声明支撑", value: "2/3 支撑 · 1 未支撑" },
-			{ label: "Grounding", value: "partial · 已降级" },
+			{ label: "Grounding", value: "partial · 证据受限" },
 			{ label: "Prompt", value: "rag_answer_v1@v1 · ok" },
 			{ label: "执行语义", value: "answered" },
 		]);

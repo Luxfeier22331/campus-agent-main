@@ -63,7 +63,7 @@ function buildTargetCandidate(
 }
 
 describe("official web planner service", () => {
-	it("falls back to candidate or job title hints when freshness title is missing", () => {
+	it("chooses candidate or job title hints when freshness title is missing", () => {
 		expect(
 			__officialWebPlannerStoreTestUtils.resolvePlannerPageTitle({
 				freshnessTitle: "",

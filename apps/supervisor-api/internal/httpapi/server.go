@@ -126,16 +126,16 @@ func NewServerWithDependencies(
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
 	intentPolicy, intentPolicyErr := runtimepolicy.LoadIntentPolicy(cfg.IntentPolicyPath)
 	structuredQueryRuntime := structuredquery.NewRuntime(structuredquery.Options{
-		StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
-		TrustedTimeRFC3339:              cfg.StructuredQueryTrustedTimeRFC3339,
-		NoticeReadModelDatabaseURL:      cfg.NoticeReadModelDatabaseURL,
-		NoticeReadModelTable:            cfg.NoticeReadModelTable,
-		NoticeObjectStoreEndpoint:       cfg.NoticeObjectStoreEndpoint,
-		NoticeObjectStoreAccessKey:      cfg.NoticeObjectStoreAccessKey,
-		NoticeObjectStoreSecretKey:      cfg.NoticeObjectStoreSecretKey,
-		NoticeObjectStoreRegion:         cfg.NoticeObjectStoreRegion,
-		NoticeObjectStoreBucketDerived:  cfg.NoticeObjectStoreBucketDerived,
-		NoticeObjectStoreBodyLimitBytes: cfg.NoticeObjectStoreBodyLimitBytes,
+		StructuredProjectionDatabaseURL:     cfg.StructuredProjectionDatabaseURL,
+		TrustedTimeRFC3339:                  cfg.StructuredQueryTrustedTimeRFC3339,
+		NoticeReadModelDatabaseURL:          cfg.NoticeReadModelDatabaseURL,
+		NoticeReadModelTable:                cfg.NoticeReadModelTable,
+		NoticeBodyObjectStoreEndpoint:       cfg.NoticeBodyObjectStoreEndpoint,
+		NoticeBodyObjectStoreAccessKey:      cfg.NoticeBodyObjectStoreAccessKey,
+		NoticeBodyObjectStoreSecretKey:      cfg.NoticeBodyObjectStoreSecretKey,
+		NoticeBodyObjectStoreRegion:         cfg.NoticeBodyObjectStoreRegion,
+		NoticeBodyObjectStoreBucket:         cfg.NoticeBodyObjectStoreBucket,
+		NoticeBodyObjectStoreBodyLimitBytes: cfg.NoticeBodyObjectStoreBodyLimitBytes,
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 

@@ -10,71 +10,71 @@ import (
 )
 
 type Config struct {
-	AppName                           string
-	Host                              string
-	Port                              int
-	RuntimeProfile                    string
-	AuthMode                          string
-	BearerToken                       string
-	WorkerSharedSecret                string
-	DefaultActorID                    string
-	DefaultActorRoles                 []string
-	BridgeBaseURL                     string
-	BridgeSharedSecret                string
-	BridgeResponseLimitBytes          int64
-	BridgeBreakerFailureThreshold     int
-	BridgeBreakerOpenMS               int
-	BridgeRetryMaxAttempts            int
-	BridgeRetryBaseMS                 int
-	MaxConcurrentAnswers              int
-	QueueCapacity                     int
-	QueueTimeoutMS                    int
-	RequestTimeoutMS                  int
-	RequestBodyLimitBytes             int64
-	BridgeTimeoutMS                   int
-	BridgeCancelTimeoutMS             int
-	ShutdownGraceMS                   int
-	MetricsBearerToken                string
-	IntentPolicyPath                  string
-	LaneBudgets                       map[string]LaneBudget
-	OTelEnabled                       bool
-	OTelEndpoint                      string
-	OTelMetricsEnabled                bool
-	OTelMetricsEndpoint               string
-	OTelHeaders                       string
-	OTelServiceName                   string
-	OTelExportTimeoutMS               int
-	OTelExportIntervalMS              int
-	OTelSampleRatio                   float64
-	OTelAllowedAttributesVersion      string
-	ExecutionAuditEnabled             bool
-	ExecutionAuditURL                 string
-	ExecutionAuditSharedSecret        string
-	ExecutionAuditTimeoutMS           int
-	OpenCapabilities                  []string
-	MultiStepWorkflowEnabled          bool
-	WorkflowRunDatabaseURL            string
-	WorkflowRunAutoMigrate            bool
-	QueryServingScopesPath            string
-	InternalQuerySharedSecret         string
-	StructuredQueryTrustedTimeRFC3339 string
-	StructuredQueryTimeoutMS          int
-	StructuredProjectionDatabaseURL   string
-	PromptRuntimeProvider             string
-	SupervisorPromptModel             string
-	AgentPromptModel                  string
-	PromptRuntimeAPIKey               string
-	PromptRuntimeTransport            string
-	PromptRuntimeBaseURL              string
-	PromptStrictStructuredOutputs     bool
-	NoticeReadModelDatabaseURL        string
-	NoticeReadModelTable              string
-	NoticeObjectStoreEndpoint         string
-	NoticeObjectStoreAccessKey        string
-	NoticeObjectStoreSecretKey        string
-	NoticeObjectStoreRegion           string
-	NoticeObjectStoreBucketDerived    string
-	NoticeObjectStoreBodyLimitBytes   int64
+	AppName                             string
+	Host                                string
+	Port                                int
+	RuntimeProfile                      string
+	AuthMode                            string
+	BearerToken                         string
+	WorkerSharedSecret                  string
+	DefaultActorID                      string
+	DefaultActorRoles                   []string
+	BridgeBaseURL                       string
+	BridgeSharedSecret                  string
+	BridgeResponseLimitBytes            int64
+	BridgeBreakerFailureThreshold       int
+	BridgeBreakerOpenMS                 int
+	BridgeRetryMaxAttempts              int
+	BridgeRetryBaseMS                   int
+	MaxConcurrentAnswers                int
+	QueueCapacity                       int
+	QueueTimeoutMS                      int
+	RequestTimeoutMS                    int
+	RequestBodyLimitBytes               int64
+	BridgeTimeoutMS                     int
+	BridgeCancelTimeoutMS               int
+	ShutdownGraceMS                     int
+	MetricsBearerToken                  string
+	IntentPolicyPath                    string
+	LaneBudgets                         map[string]LaneBudget
+	OTelEnabled                         bool
+	OTelEndpoint                        string
+	OTelMetricsEnabled                  bool
+	OTelMetricsEndpoint                 string
+	OTelHeaders                         string
+	OTelServiceName                     string
+	OTelExportTimeoutMS                 int
+	OTelExportIntervalMS                int
+	OTelSampleRatio                     float64
+	OTelAllowedAttributesVersion        string
+	ExecutionAuditEnabled               bool
+	ExecutionAuditURL                   string
+	ExecutionAuditSharedSecret          string
+	ExecutionAuditTimeoutMS             int
+	OpenCapabilities                    []string
+	MultiStepWorkflowEnabled            bool
+	WorkflowRunDatabaseURL              string
+	WorkflowRunAutoMigrate              bool
+	QueryServingScopesPath              string
+	InternalQuerySharedSecret           string
+	StructuredQueryTrustedTimeRFC3339   string
+	StructuredQueryTimeoutMS            int
+	StructuredProjectionDatabaseURL     string
+	PromptRuntimeProvider               string
+	SupervisorPromptModel               string
+	AgentPromptModel                    string
+	PromptRuntimeAPIKey                 string
+	PromptRuntimeTransport              string
+	PromptRuntimeBaseURL                string
+	PromptStrictStructuredOutputs       bool
+	NoticeReadModelDatabaseURL          string
+	NoticeReadModelTable                string
+	NoticeBodyObjectStoreEndpoint       string
+	NoticeBodyObjectStoreAccessKey      string
+	NoticeBodyObjectStoreSecretKey      string
+	NoticeBodyObjectStoreRegion         string
+	NoticeBodyObjectStoreBucket         string
+	NoticeBodyObjectStoreBodyLimitBytes int64
 }
 
 type LaneBudget struct {
@@ -84,55 +84,57 @@ type LaneBudget struct {
 }
 
 type envValues struct {
-	AppName                           string  `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
-	Host                              string  `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
-	Port                              int     `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
-	RuntimeProfile                    string  `env:"SUPERVISOR_API_RUNTIME_PROFILE" envDefault:"local"`
-	AuthMode                          string  `env:"API_AUTH_MODE" envDefault:"bearer"`
-	BearerToken                       string  `env:"API_BEARER_TOKEN"`
-	WorkerSharedSecret                string  `env:"API_WORKER_SHARED_SECRET"`
-	DefaultActorID                    string  `env:"API_DEFAULT_ACTOR_ID"`
-	BridgeBaseURL                     string  `env:"SUPERVISOR_AGENT_WORKER_BASE_URL"`
-	BridgeSharedSecret                string  `env:"SUPERVISOR_AGENT_WORKER_SHARED_SECRET"`
-	BridgeResponseLimitBytes          int64   `env:"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES" envDefault:"1048576"`
-	BridgeBreakerFailureThreshold     int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD" envDefault:"5"`
-	BridgeBreakerOpenMS               int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS" envDefault:"10000"`
-	BridgeRetryMaxAttempts            int     `env:"SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS" envDefault:"2"`
-	BridgeRetryBaseMS                 int     `env:"SUPERVISOR_API_BRIDGE_RETRY_BASE_MS" envDefault:"50"`
-	MaxConcurrentAnswers              int     `env:"SUPERVISOR_API_MAX_CONCURRENT_ANSWERS" envDefault:"8"`
-	QueueCapacity                     int     `env:"SUPERVISOR_API_QUEUE_CAPACITY" envDefault:"24"`
-	QueueTimeoutMS                    int     `env:"SUPERVISOR_API_QUEUE_TIMEOUT_MS" envDefault:"3000"`
-	RequestTimeoutMS                  int     `env:"SUPERVISOR_API_REQUEST_TIMEOUT_MS" envDefault:"45000"`
-	RequestBodyLimitBytes             int64   `env:"SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES" envDefault:"1048576"`
-	BridgeTimeoutMS                   int     `env:"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS" envDefault:"35000"`
-	BridgeCancelTimeoutMS             int     `env:"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
-	ShutdownGraceMS                   int     `env:"SUPERVISOR_API_SHUTDOWN_GRACE_MS" envDefault:"45000"`
-	MetricsBearerToken                string  `env:"SUPERVISOR_API_METRICS_BEARER_TOKEN"`
-	IntentPolicyPath                  string  `env:"SUPERVISOR_API_INTENT_POLICY_PATH"`
-	OTelEndpoint                      string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT"`
-	OTelMetricsEndpoint               string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"`
-	OTelHeaders                       string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS"`
-	OTelServiceName                   string  `env:"SUPERVISOR_API_OTEL_SERVICE_NAME" envDefault:"campus-supervisor-api"`
-	OTelExportTimeoutMS               int     `env:"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS" envDefault:"1000"`
-	OTelExportIntervalMS              int     `env:"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS" envDefault:"15000"`
-	OTelSampleRatio                   float64 `env:"SUPERVISOR_API_OTEL_SAMPLE_RATIO" envDefault:"1.0"`
-	OTelAllowedAttributesVersion      string  `env:"SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION" envDefault:"supervisor-api-otel-attrs-v1"`
-	ExecutionAuditURL                 string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_URL"`
-	ExecutionAuditSharedSecret        string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET"`
-	ExecutionAuditTimeoutMS           int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS" envDefault:"500"`
-	WorkflowRunDatabaseURL            string  `env:"SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"`
-	QueryServingScopesPath            string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
-	InternalQuerySharedSecret         string  `env:"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"`
-	StructuredQueryTrustedTimeRFC3339 string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
-	StructuredQueryTimeoutMS          int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
-	PromptRuntimeTransport            string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
-	PromptRuntimeBaseURL              string  `env:"PROMPT_RUNTIME_BASE_URL"`
-	PromptStrictStructuredOutputs     string  `env:"PROMPT_STRICT_STRUCTURED_OUTPUTS" envDefault:"true"`
-	NoticeReadModelTable              string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
-	NoticeObjectStoreEndpoint         string  `env:"OBJECT_STORE_ENDPOINT"`
-	NoticeObjectStoreRegion           string  `env:"OBJECT_STORE_REGION" envDefault:"us-east-1"`
-	NoticeObjectStoreBucketDerived    string  `env:"OBJECT_STORE_BUCKET_DERIVED" envDefault:"campus-rag-derived"`
-	NoticeObjectStoreBodyLimitBytes   int64   `env:"SUPERVISOR_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
+	AppName                             string  `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
+	Host                                string  `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
+	Port                                int     `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
+	RuntimeProfile                      string  `env:"SUPERVISOR_API_RUNTIME_PROFILE" envDefault:"local"`
+	AuthMode                            string  `env:"API_AUTH_MODE" envDefault:"bearer"`
+	BearerToken                         string  `env:"API_BEARER_TOKEN"`
+	WorkerSharedSecret                  string  `env:"API_WORKER_SHARED_SECRET"`
+	DefaultActorID                      string  `env:"API_DEFAULT_ACTOR_ID"`
+	BridgeBaseURL                       string  `env:"SUPERVISOR_AGENT_WORKER_BASE_URL"`
+	BridgeSharedSecret                  string  `env:"SUPERVISOR_AGENT_WORKER_SHARED_SECRET"`
+	BridgeResponseLimitBytes            int64   `env:"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES" envDefault:"1048576"`
+	BridgeBreakerFailureThreshold       int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD" envDefault:"5"`
+	BridgeBreakerOpenMS                 int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS" envDefault:"10000"`
+	BridgeRetryMaxAttempts              int     `env:"SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS" envDefault:"2"`
+	BridgeRetryBaseMS                   int     `env:"SUPERVISOR_API_BRIDGE_RETRY_BASE_MS" envDefault:"50"`
+	MaxConcurrentAnswers                int     `env:"SUPERVISOR_API_MAX_CONCURRENT_ANSWERS" envDefault:"8"`
+	QueueCapacity                       int     `env:"SUPERVISOR_API_QUEUE_CAPACITY" envDefault:"24"`
+	QueueTimeoutMS                      int     `env:"SUPERVISOR_API_QUEUE_TIMEOUT_MS" envDefault:"3000"`
+	RequestTimeoutMS                    int     `env:"SUPERVISOR_API_REQUEST_TIMEOUT_MS" envDefault:"45000"`
+	RequestBodyLimitBytes               int64   `env:"SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES" envDefault:"1048576"`
+	BridgeTimeoutMS                     int     `env:"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS" envDefault:"35000"`
+	BridgeCancelTimeoutMS               int     `env:"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
+	ShutdownGraceMS                     int     `env:"SUPERVISOR_API_SHUTDOWN_GRACE_MS" envDefault:"45000"`
+	MetricsBearerToken                  string  `env:"SUPERVISOR_API_METRICS_BEARER_TOKEN"`
+	IntentPolicyPath                    string  `env:"SUPERVISOR_API_INTENT_POLICY_PATH"`
+	OTelEndpoint                        string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelMetricsEndpoint                 string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"`
+	OTelHeaders                         string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS"`
+	OTelServiceName                     string  `env:"SUPERVISOR_API_OTEL_SERVICE_NAME" envDefault:"campus-supervisor-api"`
+	OTelExportTimeoutMS                 int     `env:"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS" envDefault:"1000"`
+	OTelExportIntervalMS                int     `env:"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS" envDefault:"15000"`
+	OTelSampleRatio                     float64 `env:"SUPERVISOR_API_OTEL_SAMPLE_RATIO" envDefault:"1.0"`
+	OTelAllowedAttributesVersion        string  `env:"SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION" envDefault:"supervisor-api-otel-attrs-v1"`
+	ExecutionAuditURL                   string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_URL"`
+	ExecutionAuditSharedSecret          string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET"`
+	ExecutionAuditTimeoutMS             int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS" envDefault:"500"`
+	WorkflowRunDatabaseURL              string  `env:"SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"`
+	QueryServingScopesPath              string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
+	InternalQuerySharedSecret           string  `env:"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"`
+	StructuredQueryTrustedTimeRFC3339   string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
+	StructuredQueryTimeoutMS            int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
+	PromptRuntimeTransport              string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
+	PromptRuntimeBaseURL                string  `env:"PROMPT_RUNTIME_BASE_URL"`
+	PromptStrictStructuredOutputs       string  `env:"PROMPT_STRICT_STRUCTURED_OUTPUTS" envDefault:"true"`
+	NoticeReadModelTable                string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
+	NoticeBodyObjectStoreEndpoint       string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"`
+	NoticeBodyObjectStoreAccessKey      string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"`
+	NoticeBodyObjectStoreSecretKey      string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"`
+	NoticeBodyObjectStoreRegion         string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION" envDefault:"us-east-1"`
+	NoticeBodyObjectStoreBucket         string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET"`
+	NoticeBodyObjectStoreBodyLimitBytes int64   `env:"SUPERVISOR_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
 }
 
 func LoadFromEnv() (Config, error) {
@@ -184,71 +186,71 @@ func LoadFromEnv() (Config, error) {
 	}
 
 	return Config{
-		AppName:                           defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
-		Host:                              defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
-		Port:                              values.Port,
-		RuntimeProfile:                    runtimeProfile,
-		AuthMode:                          defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
-		BearerToken:                       strings.TrimSpace(values.BearerToken),
-		WorkerSharedSecret:                strings.TrimSpace(values.WorkerSharedSecret),
-		DefaultActorID:                    strings.TrimSpace(values.DefaultActorID),
-		DefaultActorRoles:                 readStringList("API_DEFAULT_ACTOR_ROLES"),
-		BridgeBaseURL:                     strings.TrimRight(strings.TrimSpace(values.BridgeBaseURL), "/"),
-		BridgeSharedSecret:                strings.TrimSpace(values.BridgeSharedSecret),
-		BridgeResponseLimitBytes:          values.BridgeResponseLimitBytes,
-		BridgeBreakerFailureThreshold:     values.BridgeBreakerFailureThreshold,
-		BridgeBreakerOpenMS:               values.BridgeBreakerOpenMS,
-		BridgeRetryMaxAttempts:            values.BridgeRetryMaxAttempts,
-		BridgeRetryBaseMS:                 values.BridgeRetryBaseMS,
-		MaxConcurrentAnswers:              values.MaxConcurrentAnswers,
-		QueueCapacity:                     values.QueueCapacity,
-		QueueTimeoutMS:                    values.QueueTimeoutMS,
-		RequestTimeoutMS:                  values.RequestTimeoutMS,
-		RequestBodyLimitBytes:             values.RequestBodyLimitBytes,
-		BridgeTimeoutMS:                   values.BridgeTimeoutMS,
-		BridgeCancelTimeoutMS:             values.BridgeCancelTimeoutMS,
-		ShutdownGraceMS:                   values.ShutdownGraceMS,
-		MetricsBearerToken:                strings.TrimSpace(values.MetricsBearerToken),
-		IntentPolicyPath:                  strings.TrimSpace(values.IntentPolicyPath),
-		LaneBudgets:                       laneBudgets,
-		OTelEnabled:                       otelEnabled,
-		OTelEndpoint:                      strings.TrimSpace(values.OTelEndpoint),
-		OTelMetricsEnabled:                otelMetricsEnabled,
-		OTelMetricsEndpoint:               strings.TrimSpace(values.OTelMetricsEndpoint),
-		OTelHeaders:                       strings.TrimSpace(values.OTelHeaders),
-		OTelServiceName:                   defaultString(strings.TrimSpace(values.OTelServiceName), "campus-supervisor-api"),
-		OTelExportTimeoutMS:               values.OTelExportTimeoutMS,
-		OTelExportIntervalMS:              values.OTelExportIntervalMS,
-		OTelSampleRatio:                   values.OTelSampleRatio,
-		OTelAllowedAttributesVersion:      defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "supervisor-api-otel-attrs-v1"),
-		ExecutionAuditEnabled:             executionAuditEnabled,
-		ExecutionAuditURL:                 strings.TrimSpace(values.ExecutionAuditURL),
-		ExecutionAuditSharedSecret:        strings.TrimSpace(values.ExecutionAuditSharedSecret),
-		ExecutionAuditTimeoutMS:           values.ExecutionAuditTimeoutMS,
-		OpenCapabilities:                  openCapabilities,
-		MultiStepWorkflowEnabled:          multiStepWorkflowEnabled,
-		WorkflowRunDatabaseURL:            readWorkflowRunDatabaseURL(values),
-		WorkflowRunAutoMigrate:            workflowRunAutoMigrate,
-		QueryServingScopesPath:            strings.TrimSpace(values.QueryServingScopesPath),
-		InternalQuerySharedSecret:         strings.TrimSpace(values.InternalQuerySharedSecret),
-		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
-		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
-		StructuredProjectionDatabaseURL:   readStructuredProjectionDatabaseURL(),
-		PromptRuntimeProvider:             readString("PROMPT_RUNTIME_PROVIDER", ""),
-		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
-		AgentPromptModel:                  readPromptModel("AGENT_PROMPT_MODEL"),
-		PromptRuntimeAPIKey:               readString("PROMPT_RUNTIME_API_KEY", ""),
-		PromptRuntimeTransport:            defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
-		PromptRuntimeBaseURL:              promptRuntimeBaseURL(values),
-		PromptStrictStructuredOutputs:     promptStrictStructuredOutputs,
-		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
-		NoticeReadModelTable:              defaultString(strings.TrimSpace(values.NoticeReadModelTable), "ingestion_projection.internal_notice_read_model"),
-		NoticeObjectStoreEndpoint:         strings.TrimSpace(values.NoticeObjectStoreEndpoint),
-		NoticeObjectStoreAccessKey:        readString("OBJECT_STORE_DERIVED_ACCESS_KEY", ""),
-		NoticeObjectStoreSecretKey:        readString("OBJECT_STORE_DERIVED_SECRET_KEY", ""),
-		NoticeObjectStoreRegion:           defaultString(strings.TrimSpace(values.NoticeObjectStoreRegion), "us-east-1"),
-		NoticeObjectStoreBucketDerived:    defaultString(strings.TrimSpace(values.NoticeObjectStoreBucketDerived), "campus-rag-derived"),
-		NoticeObjectStoreBodyLimitBytes:   values.NoticeObjectStoreBodyLimitBytes,
+		AppName:                             defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
+		Host:                                defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
+		Port:                                values.Port,
+		RuntimeProfile:                      runtimeProfile,
+		AuthMode:                            defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
+		BearerToken:                         strings.TrimSpace(values.BearerToken),
+		WorkerSharedSecret:                  strings.TrimSpace(values.WorkerSharedSecret),
+		DefaultActorID:                      strings.TrimSpace(values.DefaultActorID),
+		DefaultActorRoles:                   readStringList("API_DEFAULT_ACTOR_ROLES"),
+		BridgeBaseURL:                       strings.TrimRight(strings.TrimSpace(values.BridgeBaseURL), "/"),
+		BridgeSharedSecret:                  strings.TrimSpace(values.BridgeSharedSecret),
+		BridgeResponseLimitBytes:            values.BridgeResponseLimitBytes,
+		BridgeBreakerFailureThreshold:       values.BridgeBreakerFailureThreshold,
+		BridgeBreakerOpenMS:                 values.BridgeBreakerOpenMS,
+		BridgeRetryMaxAttempts:              values.BridgeRetryMaxAttempts,
+		BridgeRetryBaseMS:                   values.BridgeRetryBaseMS,
+		MaxConcurrentAnswers:                values.MaxConcurrentAnswers,
+		QueueCapacity:                       values.QueueCapacity,
+		QueueTimeoutMS:                      values.QueueTimeoutMS,
+		RequestTimeoutMS:                    values.RequestTimeoutMS,
+		RequestBodyLimitBytes:               values.RequestBodyLimitBytes,
+		BridgeTimeoutMS:                     values.BridgeTimeoutMS,
+		BridgeCancelTimeoutMS:               values.BridgeCancelTimeoutMS,
+		ShutdownGraceMS:                     values.ShutdownGraceMS,
+		MetricsBearerToken:                  strings.TrimSpace(values.MetricsBearerToken),
+		IntentPolicyPath:                    strings.TrimSpace(values.IntentPolicyPath),
+		LaneBudgets:                         laneBudgets,
+		OTelEnabled:                         otelEnabled,
+		OTelEndpoint:                        strings.TrimSpace(values.OTelEndpoint),
+		OTelMetricsEnabled:                  otelMetricsEnabled,
+		OTelMetricsEndpoint:                 strings.TrimSpace(values.OTelMetricsEndpoint),
+		OTelHeaders:                         strings.TrimSpace(values.OTelHeaders),
+		OTelServiceName:                     defaultString(strings.TrimSpace(values.OTelServiceName), "campus-supervisor-api"),
+		OTelExportTimeoutMS:                 values.OTelExportTimeoutMS,
+		OTelExportIntervalMS:                values.OTelExportIntervalMS,
+		OTelSampleRatio:                     values.OTelSampleRatio,
+		OTelAllowedAttributesVersion:        defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "supervisor-api-otel-attrs-v1"),
+		ExecutionAuditEnabled:               executionAuditEnabled,
+		ExecutionAuditURL:                   strings.TrimSpace(values.ExecutionAuditURL),
+		ExecutionAuditSharedSecret:          strings.TrimSpace(values.ExecutionAuditSharedSecret),
+		ExecutionAuditTimeoutMS:             values.ExecutionAuditTimeoutMS,
+		OpenCapabilities:                    openCapabilities,
+		MultiStepWorkflowEnabled:            multiStepWorkflowEnabled,
+		WorkflowRunDatabaseURL:              readWorkflowRunDatabaseURL(values),
+		WorkflowRunAutoMigrate:              workflowRunAutoMigrate,
+		QueryServingScopesPath:              strings.TrimSpace(values.QueryServingScopesPath),
+		InternalQuerySharedSecret:           strings.TrimSpace(values.InternalQuerySharedSecret),
+		StructuredQueryTrustedTimeRFC3339:   strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
+		StructuredQueryTimeoutMS:            values.StructuredQueryTimeoutMS,
+		StructuredProjectionDatabaseURL:     readStructuredProjectionDatabaseURL(),
+		PromptRuntimeProvider:               readString("PROMPT_RUNTIME_PROVIDER", ""),
+		SupervisorPromptModel:               readPromptModel("SUPERVISOR_PROMPT_MODEL"),
+		AgentPromptModel:                    readPromptModel("AGENT_PROMPT_MODEL"),
+		PromptRuntimeAPIKey:                 readString("PROMPT_RUNTIME_API_KEY", ""),
+		PromptRuntimeTransport:              defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
+		PromptRuntimeBaseURL:                promptRuntimeBaseURL(values),
+		PromptStrictStructuredOutputs:       promptStrictStructuredOutputs,
+		NoticeReadModelDatabaseURL:          readNoticeReadModelDatabaseURL(),
+		NoticeReadModelTable:                defaultString(strings.TrimSpace(values.NoticeReadModelTable), "ingestion_projection.internal_notice_read_model"),
+		NoticeBodyObjectStoreEndpoint:       strings.TrimSpace(values.NoticeBodyObjectStoreEndpoint),
+		NoticeBodyObjectStoreAccessKey:      strings.TrimSpace(values.NoticeBodyObjectStoreAccessKey),
+		NoticeBodyObjectStoreSecretKey:      strings.TrimSpace(values.NoticeBodyObjectStoreSecretKey),
+		NoticeBodyObjectStoreRegion:         defaultString(strings.TrimSpace(values.NoticeBodyObjectStoreRegion), "us-east-1"),
+		NoticeBodyObjectStoreBucket:         strings.TrimSpace(values.NoticeBodyObjectStoreBucket),
+		NoticeBodyObjectStoreBodyLimitBytes: values.NoticeBodyObjectStoreBodyLimitBytes,
 	}, nil
 }
 
@@ -295,7 +297,7 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 	if values.BridgeResponseLimitBytes <= 0 {
 		return fmt.Errorf("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES must be a positive integer")
 	}
-	if values.NoticeObjectStoreBodyLimitBytes <= 0 {
+	if values.NoticeBodyObjectStoreBodyLimitBytes <= 0 {
 		return fmt.Errorf("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES must be a positive integer")
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {

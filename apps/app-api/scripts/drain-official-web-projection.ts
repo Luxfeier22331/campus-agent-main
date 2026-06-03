@@ -1,11 +1,6 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import type { Env } from "../src/config";
-import { createOfficialWebHandoffPublisher } from "../src/modules/integration/official-web-handoff";
-import {
-	buildOfficialWebProjectionProjector,
-	createPgOfficialWebProjectionStore,
-} from "../src/modules/official-web-projection";
 
 export interface OfficialWebProjectionDrainArgs {
 	limit?: number;
@@ -112,11 +107,15 @@ export async function drainOfficialWebProjection(
 	processed: number;
 	skipped: number;
 }> {
-	const projector = buildOfficialWebProjectionProjector({
+	const [{ createOfficialWebHandoffPublisher }, projectionModule] = await Promise.all([
+		import("../src/modules/integration/official-web-handoff"),
+		import("../src/modules/official-web-projection"),
+	]);
+	const projector = projectionModule.buildOfficialWebProjectionProjector({
 		handoffPublisher: runtime.handoffConfigured
 			? createOfficialWebHandoffPublisher(runtime.env)
 			: undefined,
-		store: createPgOfficialWebProjectionStore(runtime.env),
+		store: projectionModule.createPgOfficialWebProjectionStore(runtime.env),
 	});
 	const result = await projector.drain(
 		input.limit

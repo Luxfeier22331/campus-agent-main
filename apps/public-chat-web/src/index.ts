@@ -1,6 +1,6 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
-import { buildHubAuthRedirect } from "./platform/auth/hub-redirect";
+import { buildHubAuthRedirect, isPublicChatAuthCompatPath } from "./platform/auth/hub-redirect";
 
 export interface Env {
 	APP_API?: {
@@ -169,6 +169,11 @@ const worker = {
 			return proxyToAppApi(request, env);
 		}
 
+		const authRedirectConfigError = getHubAuthRedirectConfigError(url, env);
+		if (authRedirectConfigError) {
+			return authRedirectConfigError;
+		}
+
 		const authRedirect = resolveHubAuthRedirect(url, env);
 		if (authRedirect && (request.method === "GET" || request.method === "HEAD")) {
 			return responseWithPublicChatSecurityHeaders(Response.redirect(authRedirect, 302));
@@ -244,6 +249,22 @@ function resolveHubAuthRedirect(url: URL, env: Env): string | null {
 	return buildHubAuthRedirect(url, env.HUB_WEB_BASE_URL);
 }
 
+function getHubAuthRedirectConfigError(url: URL, env: Env): Response | null {
+	if (!isPublicChatAuthCompatPath(url.pathname) || env.HUB_WEB_BASE_URL?.trim()) {
+		return null;
+	}
+
+	return jsonResponse(503, {
+		error: {
+			code: "dependency_not_ready",
+			details: {
+				missing: ["HUB_WEB_BASE_URL"],
+			},
+			message: "Runtime configuration is incomplete.",
+		},
+	});
+}
+
 function getMissingRuntimeConfig(env: Env): string[] {
 	const missing: string[] = [];
 
@@ -258,6 +279,9 @@ function getMissingRuntimeConfig(env: Env): string[] {
 	}
 	if (!env.PUBLIC_CHAT_HOSTNAME?.trim()) {
 		missing.push("PUBLIC_CHAT_HOSTNAME");
+	}
+	if (!env.HUB_WEB_BASE_URL?.trim()) {
+		missing.push("HUB_WEB_BASE_URL");
 	}
 
 	return missing;

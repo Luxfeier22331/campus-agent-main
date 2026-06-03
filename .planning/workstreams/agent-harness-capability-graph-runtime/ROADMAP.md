@@ -121,7 +121,7 @@ or new product surface opening.
 **Exit Criteria:**
 
 - Resolver can query one canonical registry/config for artifact producer/consumer ownership.
-- Registry refuses ambiguous producer ownership unless explicitly modeled as ordered fallback.
+- Registry refuses ambiguous producer ownership unless explicitly modeled as an ordered priority edge.
 - Phase 2 must not leave a hidden difference between AgentSpec context projection kinds and artifact
   ontology.
 

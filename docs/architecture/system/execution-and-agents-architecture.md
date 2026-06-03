@@ -46,8 +46,11 @@ semantic execution。
 
 - Go `apps/supervisor-api` 负责 Docker-side execution runtime control plane
 - Python `apps/supervisor-agent-worker` 负责 private bridge worker、prompt runtime
-  assembly 与默认 agent delegate map 装配；worker 内部 `AgentDispatcher` 消费
+  assembly、provider client binding 与默认 agent delegate map 装配；worker 内部
+  `AgentDispatcher` 消费
   Go preplanned `AgentRequest` handoff，并调用注入的 agent delegate
+- `packages/prompt-runtime` 负责 provider-facing prompt contract validation、structured
+  output execution、provider response normalization 与 prompt trace construction
 - agent 负责能力边界内的 planning / evidence consumption / answer shaping
 - multi-agent path 只能通过 Go-owned `WorkflowPlan` admission 打开；agent 之间不得通过
   raw prompt transcript、raw provider trace 或 unbounded evidence dump 直接互相调用
@@ -939,7 +942,9 @@ execution path 的 prompt / instruction 继续遵循 package-owned ownership：
 - `packages/retrieval-core` 不拥有 top-level task prompt；只拥有 evidence retrieval 与
   serialization helper
 - `apps/supervisor-agent-worker` 不拥有长期 prompt truth；只负责 semantic runtime
-  assembly 与 provider-backed execution adapter
+  assembly 与 provider client binding
+- `packages/prompt-runtime` 拥有 provider-facing prompt contract validation、
+  structured output execution、provider response normalization 与 prompt trace construction
 
 当前实现中，supervisor deterministic terminal wording 已由 Go direct terminal path
 承接；Python worker 不再维护 production supervisor terminal prompt family。
