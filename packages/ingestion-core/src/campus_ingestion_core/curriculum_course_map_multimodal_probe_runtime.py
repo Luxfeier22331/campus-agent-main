@@ -40,10 +40,10 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime_suppor
     _sample_output_dir,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import (
+    DEFAULT_CURRICULUM_COURSE_MAP_PROMPT_READ_TIMEOUT_SECONDS,
     DEFAULT_MAX_REQUEST_ATTEMPTS,
     DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
     DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
-    DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS,
     DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
     CourseMapFinding,
     CurriculumCourseMapPageProbe,
@@ -57,7 +57,7 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import 
 
 _DEFAULT_TIMEOUT = httpx.Timeout(
     connect=DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
-    read=DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS,
+    read=DEFAULT_CURRICULUM_COURSE_MAP_PROMPT_READ_TIMEOUT_SECONDS,
     write=DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
     pool=DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
 )

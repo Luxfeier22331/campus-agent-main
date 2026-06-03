@@ -11,7 +11,7 @@ from campus_contracts import (
     RagResultDiagnostics,
     RagResultPayload,
 )
-from campus_shared import PromptRuntimeValidationError, classify_prompt_runtime_failure
+from campus_prompt_runtime import PromptRuntimeValidationError, classify_prompt_runtime_failure
 
 from campus_rag_agent.intent import RagIntentFrame
 from campus_rag_agent.prompt_execution import RagPromptExecutor

@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 
 from campus_contracts import EvidenceBundle, EvidenceSource
-from campus_shared import (
+from campus_prompt_runtime import (
     NormalizedProviderGroundingSupport,
     normalize_provider_grounding_supports,
 )

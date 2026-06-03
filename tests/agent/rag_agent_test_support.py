@@ -35,6 +35,10 @@ from campus_ingestion_core import ResolvedVersionQuery, ResolvedVersionSelection
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
 )
+from campus_prompt_runtime import (
+    NormalizedProviderGroundingSupport,
+    PromptRuntimeValidationError,
+)
 from campus_rag_agent import RagAgent
 from campus_rag_agent.agent import _query_mode, _select_answer_support_rows
 from campus_rag_agent.confidence import derive_confidence
@@ -68,10 +72,6 @@ from campus_retrieval_core import (
     RetrievalBackendError,
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
-from campus_shared import (
-    NormalizedProviderGroundingSupport,
-    PromptRuntimeValidationError,
-)
 
 from tests.agent.rag_agent_test_support_defaults import (
     default_condition_subject_for_source,

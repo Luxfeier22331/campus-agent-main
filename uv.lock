@@ -27,6 +27,7 @@ members = [
     "campus-notice-agent",
     "campus-official-web-collector",
     "campus-official-web-core",
+    "campus-prompt-runtime",
     "campus-public-chat-web",
     "campus-rag-agent",
     "campus-regulation-semantics",
@@ -302,6 +303,7 @@ source = { editable = "packages/evals" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-prompt-runtime" },
     { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx" },
@@ -312,6 +314,7 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
     { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -325,6 +328,7 @@ source = { editable = "packages/ingestion-core" }
 dependencies = [
     { name = "boto3" },
     { name = "campus-contracts" },
+    { name = "campus-prompt-runtime" },
     { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx", extra = ["socks"] },
@@ -345,6 +349,7 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.35.0" },
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
     { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
@@ -420,6 +425,23 @@ version = "0.1.0"
 source = { virtual = "packages/official-web-core" }
 
 [[package]]
+name = "campus-prompt-runtime"
+version = "0.1.0"
+source = { editable = "packages/prompt-runtime" }
+dependencies = [
+    { name = "campus-contracts" },
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.0" },
+]
+
+[[package]]
 name = "campus-public-chat-web"
 version = "0.1.0"
 source = { virtual = "apps/public-chat-web" }
@@ -431,6 +453,7 @@ source = { editable = "packages/rag-agent" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-prompt-runtime" },
     { name = "campus-regulation-semantics" },
     { name = "campus-retrieval-core" },
     { name = "campus-shared" },
@@ -440,6 +463,7 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
     { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
     { name = "campus-shared", editable = "packages/shared" },
@@ -492,18 +516,6 @@ requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 name = "campus-shared"
 version = "0.1.0"
 source = { editable = "packages/shared" }
-dependencies = [
-    { name = "campus-contracts" },
-    { name = "httpx" },
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pydantic", specifier = ">=2.0" },
-]
 
 [[package]]
 name = "campus-supervisor-agent-worker"
@@ -511,6 +523,7 @@ version = "0.1.0"
 source = { editable = "apps/supervisor-agent-worker" }
 dependencies = [
     { name = "campus-contracts" },
+    { name = "campus-prompt-runtime" },
     { name = "campus-shared" },
     { name = "httpx" },
     { name = "openai-agents" },
@@ -523,6 +536,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "openai-agents", specifier = ">=0.14.8" },

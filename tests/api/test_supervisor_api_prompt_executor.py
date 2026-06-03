@@ -14,12 +14,12 @@ from campus_contracts import (
     RagRequestPayload,
     TraceContext,
 )
-from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
-from campus_shared import (
+from campus_prompt_runtime import (
     NormalizedProviderGroundingSupport,
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
 )
+from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
 from campus_supervisor_agent_worker.prompt_executor import (
     ProviderBackedRagPromptExecutor,
 )

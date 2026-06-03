@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from campus_contracts import EvidenceBundle
-from campus_shared import NormalizedProviderGroundingSupport
+from campus_prompt_runtime import NormalizedProviderGroundingSupport
 
 from campus_rag_agent.grounding_validation_claim_basic import _extract_claims
 from campus_rag_agent.grounding_validation_result import GroundingValidationResult

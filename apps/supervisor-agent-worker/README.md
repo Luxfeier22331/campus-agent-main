@@ -171,8 +171,9 @@ export SUPERVISOR_RETRIEVAL_RUNTIME_EVENT_JSONL_PATH=/tmp/retrieval-runtime-even
 export SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT=false
 ```
 
-`SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 写入 `retrieval-core` 产生的原始
-observation，用于本地调试和 eval backlog。只有显式设置
+`SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 写入 worker-owned debug JSONL
+observation，用于本地调试和 eval backlog。observation payload 由 retrieval runtime
+生成，文件写入与运行时集成由 `supervisor-agent-worker` 持有。只有显式设置
 `SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT=true` 时才会包含 raw query text；
 生产 sink 不应开启该 debug 开关。
 
