@@ -1,4 +1,9 @@
-import { createDraftConversation, submitChatRequest, submitChatRequestStream } from "./api";
+import {
+	createDraftConversation,
+	submitChatRequest,
+	submitChatRequestStream,
+	subscribeChatRunEventStream,
+} from "./api";
 import { mapChatAnswerPayload, mapChatStreamEvent, mapConversationDetail } from "./mappers";
 
 export async function createShellDraftConversation() {
@@ -19,4 +24,12 @@ export async function* submitShellChatRequestStream(input: {
 	for await (const event of submitChatRequestStream(input)) {
 		yield mapChatStreamEvent(event);
 	}
+}
+
+export function subscribeShellRunEventStream(input: {
+	afterSequence: number;
+	runId: string;
+	signal?: AbortSignal;
+}) {
+	return subscribeChatRunEventStream(input);
 }

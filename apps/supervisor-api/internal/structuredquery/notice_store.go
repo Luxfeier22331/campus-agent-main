@@ -234,12 +234,12 @@ func (s *PostgresNoticeReadModelStore) Close() {
 }
 
 type NoticeS3Options struct {
-	Endpoint      string
-	AccessKey     string
-	SecretKey     string
-	Region        string
-	BucketDerived string
-	MaxBodyBytes  int64
+	Endpoint     string
+	AccessKey    string
+	SecretKey    string
+	Region       string
+	Bucket       string
+	MaxBodyBytes int64
 }
 
 type S3NoticeBodyStore struct {
@@ -259,9 +259,9 @@ func NewS3NoticeBodyStore(options NoticeS3Options) NoticeBodyStore {
 	if region == "" {
 		region = "us-east-1"
 	}
-	bucket := strings.TrimSpace(options.BucketDerived)
+	bucket := strings.TrimSpace(options.Bucket)
 	if bucket == "" {
-		bucket = "campus-rag-derived"
+		return nil
 	}
 	maxBodyBytes := options.MaxBodyBytes
 	if maxBodyBytes <= 0 {

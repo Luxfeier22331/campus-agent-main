@@ -35,7 +35,7 @@ Completed in this slice:
 
 - new native workstream planning truth
 - SDK instruction profile registry for `notice-agent`、`campus-services-agent`、
-  `calendar-agent` and generic fallback
+  `calendar-agent` and a generic admitted-surface profile
 - runner-shell propagation of `instruction_profile_id` and `instructions`
 - safe `agents_sdk_runner_projection.instruction_profile_id`
 - OpenAI/mock SDK runner consumption of request-scoped instructions

@@ -1,6 +1,7 @@
-import { type Env, readAppApiConfig } from "../config";
+import { type Env, isDeployedEnvironment, readAppApiConfig, resolveEnvironment } from "../config";
 import { probeRuntimeDatabase } from "../db/runtime";
 import { buildBetterAuthConfig, probeAppAuthRuntime } from "../modules/auth";
+import type { SupervisorDurableRuntimePreflight } from "../modules/integration";
 import { probeSupervisorApiReady } from "../modules/integration";
 import type { AppRuntimeReadinessResult } from "./types";
 
@@ -9,10 +10,12 @@ function formatRuntimeDependencyFailure(error: unknown): string {
 }
 
 export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadinessResult> {
+	const requireDurableRuntime = isDeployedEnvironment(resolveEnvironment(env));
 	const dependencies: AppRuntimeReadinessResult["dependencies"] = {
 		auth: "not_ready",
 		authShellOrigin: "configured",
 		database: "not_ready",
+		durableRuntime: requireDurableRuntime ? "not_ready" : "not_required",
 		officialWebHandoff:
 			env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
 				? "configured"
@@ -69,9 +72,22 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 	try {
 		const supervisorReadiness = await probeSupervisorApiReady(env);
 		dependencies.supervisorApi = "ready";
+		preflight.durableRuntime = supervisorReadiness.durableRuntime;
+		if (requireDurableRuntime) {
+			if (supervisorReadiness.durableRuntime.status === "ready") {
+				dependencies.durableRuntime = "ready";
+			} else {
+				failed.durableRuntime = formatDurableRuntimePreflightFailure(
+					supervisorReadiness.durableRuntime,
+				);
+			}
+		}
 		preflight.campusServicesProductPath = supervisorReadiness.campusServicesProductPath;
 	} catch (error) {
 		failed.supervisorApi = formatRuntimeDependencyFailure(error);
+		if (requireDurableRuntime) {
+			failed.durableRuntime = formatRuntimeDependencyFailure(error);
+		}
 	}
 
 	return {
@@ -79,4 +95,17 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 		failed,
 		preflight,
 	};
+}
+
+function formatDurableRuntimePreflightFailure(
+	preflight: SupervisorDurableRuntimePreflight,
+): string {
+	if (!preflight) {
+		return "Supervisor durable runtime readiness was not reported.";
+	}
+	const messages = Object.values(preflight.blockers);
+	if (messages.length === 0) {
+		return "Supervisor durable runtime readiness was not reported.";
+	}
+	return messages.join("; ");
 }

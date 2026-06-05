@@ -243,8 +243,8 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             from_env.return_value = SimpleNamespace(
-                qdrant_url=":memory:",
-                qdrant_api_key=None,
+                qdrant_url="https://qdrant.example.com",
+                qdrant_api_key="secret-api-key",
                 qdrant_timeout_seconds=10.0,
                 embedding_provider="mock",
                 embedding_model="mock-embedding",
@@ -255,7 +255,7 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
             build_client.return_value = SimpleNamespace(
                 get_collection=Mock(return_value=SimpleNamespace(points_count=3)),
             )
-            check_endpoint.return_value = {"status": "skipped", "reason": "memory_qdrant"}
+            check_endpoint.return_value = {"status": 200, "body_prefix": "ok"}
 
             worker.main(["--scope", "regulations/institutional_rules"])
 
@@ -266,6 +266,130 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
         self.assertEqual(payload["surfaces"][0]["readiness_blocker"], "unavailable")
         load_profile.assert_called_once_with("regulations", "institutional_rules")
 
+    def test_main_reports_qdrant_endpoint_failure_without_surface_traceback(self) -> None:
+        worker = importlib.import_module(_MODULE_NAME)
+        profile = _profile("regulations", "student_rules", "student_rules")
+        qdrant_client = SimpleNamespace(
+            get_collection=Mock(side_effect=RuntimeError("must not read qdrant collections")),
+        )
+        object_store = _FakeReleaseObjectStore(
+            {
+                "regulations/releases/student_rules/r1/index-release.json": _release_manifest(
+                    release_id="r1",
+                    corpus="regulations",
+                    collection="student_rules",
+                    physical_collection_name="student_rules__r1",
+                    serving_alias="student_rules",
+                ),
+            }
+        )
+
+        with (
+            patch(f"{_MODULE_NAME}.load_worker_env"),
+            patch(f"{_MODULE_NAME}.RetrievalSettings.from_env") as from_env,
+            patch(f"{_MODULE_NAME}._build_qdrant_client", return_value=qdrant_client),
+            patch(
+                f"{_MODULE_NAME}._build_release_object_store",
+                return_value=("available", "", object_store, "campus-rag-derived"),
+            ),
+            patch(f"{_MODULE_NAME}.load_runtime_profile", return_value=profile),
+            patch(f"{_MODULE_NAME}.resolve_alias_target") as resolve_alias,
+            patch(f"{_MODULE_NAME}.validate_alias_release_metadata") as validate_release,
+            patch(f"{_MODULE_NAME}._check_qdrant_endpoint") as check_endpoint,
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            from_env.return_value = SimpleNamespace(
+                qdrant_url="https://broken-qdrant.example.com",
+                qdrant_api_key="secret-api-key",
+                qdrant_timeout_seconds=10.0,
+                embedding_provider="gitee",
+                embedding_model="Qwen3-Embedding-4B",
+                embedding_api_key="secret-embedding-key",
+                embedding_base_url=None,
+                embedding_dimensions=2560,
+                sparse_provider="qdrant",
+                sparse_model="qdrant/bm25",
+                sparse_tokenizer="multilingual",
+                sparse_language="none",
+            )
+            check_endpoint.side_effect = [
+                {"status": 404, "body_prefix": "404 page not found\n"},
+                {"status": 404, "body_prefix": "404 page not found\n"},
+                {"status": 404, "body_prefix": "404 page not found\n"},
+            ]
+
+            worker.main(["--scope", "regulations/student_rules"])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["qdrant_ready"], "not_ready")
+        self.assertEqual(len(payload["surfaces"]), 1)
+        surface = payload["surfaces"][0]
+        self.assertEqual(surface["scope"], "regulations/student_rules")
+        self.assertEqual(surface["readiness_status"], "blocked")
+        self.assertEqual(surface["readiness_blocker"], "qdrant_endpoint_not_ready")
+        self.assertEqual(surface["alias_resolution_status"], "not_checked")
+        self.assertEqual(surface["collection_read_status"], "not_checked")
+        self.assertEqual(surface["latest_collection_read_status"], "not_checked")
+        resolve_alias.assert_not_called()
+        validate_release.assert_not_called()
+        qdrant_client.get_collection.assert_not_called()
+
+    def test_main_reports_alias_resolution_error_as_blocker(self) -> None:
+        worker = importlib.import_module(_MODULE_NAME)
+        profile = _profile("regulations", "student_rules", "student_rules")
+        qdrant_client = SimpleNamespace(get_collection=Mock())
+        object_store = _FakeReleaseObjectStore(
+            {
+                "regulations/releases/student_rules/r1/index-release.json": _release_manifest(
+                    release_id="r1",
+                    corpus="regulations",
+                    collection="student_rules",
+                    physical_collection_name="student_rules__r1",
+                    serving_alias="student_rules",
+                ),
+            }
+        )
+
+        with (
+            patch(f"{_MODULE_NAME}.load_worker_env"),
+            patch(f"{_MODULE_NAME}.RetrievalSettings.from_env") as from_env,
+            patch(f"{_MODULE_NAME}._build_qdrant_client", return_value=qdrant_client),
+            patch(
+                f"{_MODULE_NAME}._build_release_object_store",
+                return_value=("available", "", object_store, "campus-rag-derived"),
+            ),
+            patch(f"{_MODULE_NAME}.load_runtime_profile", return_value=profile),
+            patch(f"{_MODULE_NAME}.resolve_alias_target") as resolve_alias,
+            patch(f"{_MODULE_NAME}.validate_alias_release_metadata"),
+            patch(f"{_MODULE_NAME}._check_qdrant_endpoint") as check_endpoint,
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            from_env.return_value = SimpleNamespace(
+                qdrant_url="https://qdrant.example.com",
+                qdrant_api_key="secret-api-key",
+                qdrant_timeout_seconds=10.0,
+                embedding_provider="gitee",
+                embedding_model="Qwen3-Embedding-4B",
+                embedding_api_key="secret-embedding-key",
+                embedding_base_url=None,
+                embedding_dimensions=2560,
+                sparse_provider="qdrant",
+                sparse_model="qdrant/bm25",
+                sparse_tokenizer="multilingual",
+                sparse_language="none",
+            )
+            check_endpoint.return_value = {"status": 200, "body_prefix": "ok"}
+            resolve_alias.side_effect = RuntimeError("qdrant alias endpoint failed")
+
+            worker.main(["--scope", "regulations/student_rules"])
+
+        surface = json.loads(stdout.getvalue())["surfaces"][0]
+        self.assertEqual(surface["readiness_status"], "blocked")
+        self.assertEqual(surface["readiness_blocker"], "alias_resolution_failed")
+        self.assertEqual(surface["alias_resolution_status"], "error")
+        self.assertIn("qdrant alias endpoint failed", surface["alias_resolution_error"])
+        qdrant_client.get_collection.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -275,9 +399,26 @@ def _profile(corpus: str, collection: str, alias_name: str) -> SimpleNamespace:
     return SimpleNamespace(
         corpus=corpus,
         collection=collection,
+        serving_stage="query_serving",
+        cleaning_policy_version=f"{collection}_cleaning_v1",
+        chunk_profile_version=f"{collection}_semantic_v1",
+        dense_prefetch_limit=20,
+        sparse_prefetch_limit=20,
+        rrf_k=60,
+        rrf_dense_weight=1.0,
+        rrf_sparse_weight=1.0,
+        reranker_enabled_by_default=False,
+        reranker_top_n=None,
+        reranker_profile_version=None,
+        reranker_adoption_evidence_id=None,
+        embedding_query_instruction="Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
         retrieval_enabled=True,
         query_enabled_by_default=True,
-        qdrant_index_binding=SimpleNamespace(alias_name=alias_name),
+        qdrant_index_binding=SimpleNamespace(
+            alias_name=alias_name,
+            dense_vector_name="dense",
+            sparse_vector_name="sparse",
+        ),
     )
 
 

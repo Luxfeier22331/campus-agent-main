@@ -70,6 +70,7 @@ describe("public docs worker shell", () => {
 		expect(wranglerLocalSmokeConfig).toContain("[secrets]");
 		expect(wranglerLocalSmokeConfig).toContain("required = []");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
+		expect(packageManifest.scripts?.["deploy:staging"]).toBe("node ./scripts/deploy-staging.mjs");
 		expect(packageManifest.scripts?.["deploy:verify-config"]).toContain("verify-worker-config.mjs");
 	});
 

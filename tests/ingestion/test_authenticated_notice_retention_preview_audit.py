@@ -15,7 +15,7 @@ from campus_ingestion_core.authenticated_notice_routing_sampling_policy import (
 _ROOT = Path(__file__).resolve().parents[2]
 _PREVIEW_PATH = (
     _ROOT
-    / ".planning/workstreams/collected-notice-consumption-replay-closeout/evidence"
+    / "var/ingestion-evidence/collected-notice-consumption-replay-closeout/evidence"
     / "phase-04-dry-run-reimport-and-universal-search-preview/searchable-notice-preview.json"
 )
 

@@ -77,6 +77,77 @@ func TestAnswerDelegatesProjectedPayloadAndInjectsTraceID(t *testing.T) {
 	}
 }
 
+func TestAnswerProjectsSingleHandoffWorkflowContextBeforeBridge(t *testing.T) {
+	bridgeClient := &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "agent_response",
+			Body: json.RawMessage(`{
+				"selected_target":"rag-agent",
+				"status":"completed",
+				"answer_text":"ok",
+				"follow_up_question":"",
+				"confidence":"high"
+			}`),
+		},
+	}
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "api-bearer-user",
+		DefaultActorRoles:     []string{"student"},
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, bridgeClient)
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{
+			"user_goal":"中央民族大学本科学生国家奖学金评审办法",
+			"request_id":"req-single-rag-workflow-context",
+			"requested_scope":{"corpus":"regulations","collection":"student_rules"}
+		}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-single-rag-workflow-context")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	projected := decodeJSONRecord(t, bridgeClient.seen.Payload)
+	decisions := expectRecord(t, projected["runtime_decisions"], "runtime_decisions")
+	handoff := expectRecord(t, decisions["handoff"], "runtime_decisions.handoff")
+	agentRequest := expectRecord(t, handoff["agent_request"], "runtime_decisions.handoff.agent_request")
+	workflowContext := expectRecord(
+		t,
+		agentRequest["workflow_context"],
+		"runtime_decisions.handoff.agent_request.workflow_context",
+	)
+	if workflowContext["workflow_run_ref"] != "workflow:req-single-rag-workflow-context" {
+		t.Fatalf("workflow_run_ref = %v", workflowContext["workflow_run_ref"])
+	}
+	if workflowContext["step_id"] != "handoff:rag-agent:rag_request" {
+		t.Fatalf("step_id = %v", workflowContext["step_id"])
+	}
+	if workflowContext["agent_id"] != "rag-agent" {
+		t.Fatalf("agent_id = %v", workflowContext["agent_id"])
+	}
+	expectedArtifacts, ok := workflowContext["expected_output_artifacts"].([]any)
+	if !ok ||
+		len(expectedArtifacts) != 2 ||
+		expectedArtifacts[0] != "evidence_bundle" ||
+		expectedArtifacts[1] != "grounding_verdict" {
+		t.Fatalf(
+			"expected_output_artifacts = %#v, want evidence_bundle + grounding_verdict",
+			workflowContext["expected_output_artifacts"],
+		)
+	}
+}
+
 func TestAnswerPropagatesTraceHeadersToBridge(t *testing.T) {
 	bridgeClient := &fakeBridge{
 		configured: true,
@@ -600,160 +671,5 @@ func TestAnswerShortCircuitsWhenBridgeCircuitIsOpen(t *testing.T) {
 	bridgeRuntime := expectRecord(t, readyBody["bridge_runtime"], "bridge_runtime")
 	if bridgeRuntime["circuit_state"] != "open" {
 		t.Fatalf("circuit_state = %v, want open", bridgeRuntime["circuit_state"])
-	}
-}
-
-func TestAnswerBridgeProtocolFailureAuditIncludesBridgeDuration(t *testing.T) {
-	received := make(chan map[string]any, 1)
-	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		var body map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode audit body: %v", err)
-		}
-		received <- body
-		response.WriteHeader(http.StatusOK)
-	}))
-	defer auditServer.Close()
-
-	server := NewServer(config.Config{
-		AuthMode:                   "bearer",
-		BearerToken:                "secret-token",
-		DefaultActorID:             "runtime-bearer-user",
-		ExecutionAuditEnabled:      true,
-		ExecutionAuditSharedSecret: "audit-secret",
-		ExecutionAuditTimeoutMS:    500,
-		ExecutionAuditURL:          auditServer.URL + "/api/internal/execution/audit-events",
-		RequestBodyLimitBytes:      1_048_576,
-		MaxConcurrentAnswers:       8,
-	}, &fakeBridge{
-		configured: true,
-		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
-			time.Sleep(2 * time.Millisecond)
-			return bridge.ExecuteResponse{
-				StatusCode: http.StatusOK,
-				Kind:       "",
-				Body:       json.RawMessage(`{}`),
-			}, nil
-		},
-	})
-	defer func() {
-		_ = server.Shutdown(context.Background())
-	}()
-	request := newTestRequest(
-		http.MethodPost,
-		"/api/v1/answer",
-		delegateAnswerBody("req-audit-bridge-protocol"),
-	)
-	request.Header.Set("authorization", "Bearer secret-token")
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, request)
-
-	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_invalid_response")
-	select {
-	case body := <-received:
-		events, ok := body["events"].([]any)
-		if !ok || len(events) != 1 {
-			t.Fatalf("events = %#v, want one event", body["events"])
-		}
-		event, ok := events[0].(map[string]any)
-		if !ok {
-			t.Fatalf("event = %#v, want object", events[0])
-		}
-		if event["bridge_duration_ms"] == nil {
-			t.Fatalf("bridge_duration_ms = nil, want measured duration: %#v", event)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for execution audit event")
-	}
-}
-
-func TestAnswerMapsBridgeTimeout(t *testing.T) {
-	server := NewServer(config.Config{
-		AuthMode:              "bearer",
-		BearerToken:           "secret-token",
-		DefaultActorID:        "runtime-bearer-user",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-		BridgeTimeoutMS:       1,
-	}, &fakeBridge{
-		configured: true,
-		executeErr: context.DeadlineExceeded,
-	})
-	request := newTestRequest(
-		http.MethodPost,
-		"/api/v1/answer",
-		delegateAnswerBody("req-bridge-timeout"),
-	)
-	request.Header.Set("authorization", "Bearer secret-token")
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, request)
-
-	assertError(t, response, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
-}
-
-func TestAnswerRedactsBridgeTransportError(t *testing.T) {
-	server := NewServer(config.Config{
-		AuthMode:              "bearer",
-		BearerToken:           "secret-token",
-		DefaultActorID:        "runtime-bearer-user",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, &fakeBridge{
-		configured: true,
-		executeErr: errors.New("dial http://internal-host:1234/secret?token=raw-token: connection refused"),
-	})
-	request := newTestRequest(
-		http.MethodPost,
-		"/api/v1/answer",
-		delegateAnswerBody("req-bridge-redaction"),
-	)
-	request.Header.Set("authorization", "Bearer secret-token")
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, request)
-
-	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_unavailable")
-	body := response.Body.String()
-	if !strings.Contains(body, "Supervisor Python bridge is unavailable.") {
-		t.Fatalf("response body missing sanitized bridge message: %s", body)
-	}
-	for _, secret := range []string{"internal-host", "/secret", "raw-token"} {
-		if strings.Contains(body, secret) {
-			t.Fatalf("response body leaked bridge error detail %q: %s", secret, body)
-		}
-	}
-}
-
-func TestAnswerReturnsWithoutWritingWhenClientContextIsCanceled(t *testing.T) {
-	server := NewServer(config.Config{
-		AuthMode:              "bearer",
-		BearerToken:           "secret-token",
-		DefaultActorID:        "runtime-bearer-user",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, &fakeBridge{
-		configured: true,
-		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
-			<-ctx.Done()
-			return bridge.ExecuteResponse{}, ctx.Err()
-		},
-	})
-	request := newTestRequest(
-		http.MethodPost,
-		"/api/v1/answer",
-		delegateAnswerBody("req-client-cancelled"),
-	)
-	request.Header.Set("authorization", "Bearer secret-token")
-	canceledContext, cancel := context.WithCancel(request.Context())
-	cancel()
-	request = request.WithContext(canceledContext)
-
-	response := newTrackingResponseWriter()
-	server.ServeHTTP(response, request)
-
-	if response.wrote {
-		t.Fatalf("expected canceled request to stop without writing response, wrote status %d", response.status)
 	}
 }

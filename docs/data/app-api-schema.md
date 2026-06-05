@@ -530,6 +530,7 @@ identity product schemas when materialized.
 - `idempotency_key` nullable
 - `request_fingerprint_sha256` nullable
 - `trace_id`
+- `run_id` nullable
 - `requested_capability` nullable
 - `requested_scope_json` nullable
 - `version_query_json` nullable
@@ -551,6 +552,7 @@ identity product schemas when materialized.
 
 - `(conversation_id, started_at desc)`
 - `(status, started_at desc)`
+- `(run_id, started_at desc)`
 - unique `(actor_user_id, idempotency_key)` where `idempotency_key is not null`
 
 `status` 第一版允许：
@@ -586,6 +588,9 @@ identity product schemas when materialized.
   自主解析 surface，这里必须落最终解析结果
 - `selected_target` 表示 finalized execution 实际选择的 current runtime target；它不承载
   forward family vocabulary，也不应被重载为 operator-facing display label
+- `run_id` 是 durable agent runtime 的 answer execution backlink；cutover 前旧同步执行
+  路径可以为空，durable chat 主路径必须在第一次 command-side commit 后显式绑定真实
+  durable `Run`
 - `diagnostics_json` 只保存 operator-facing summary diagnostics，例如 resolved policy
   object、rewritten query、clarification/no-answer reason 与 retrieved title
   summary；不要写 raw evidence snippet、score 或 backend payload

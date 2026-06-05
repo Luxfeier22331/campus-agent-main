@@ -83,8 +83,8 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   - canonical staging hard-cut lifecycle scripts / task installer / runbooks 已落地
 - `Phase 7`
   - request lifecycle registry、explicit cancel、per-lane admission、OTel seam 已落地
-  - execution audit events 以 best-effort 方式回流 `app-api` internal
-    ingest，不阻塞 answer path
+  - execution audit events 以 non-blocking audit sink 方式回流 `app-api` internal
+    ingest；它不参与 answer path 成败判定
 - `Phase 8`
   - Go cancel endpoint 已向 Python private bridge 投递 cooperative cancel signal
   - Python bridge 已记录 active request id 的 cancel state
@@ -131,7 +131,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
     records fail-close，不再把历史/缺字段记录返回为 `resolved_current`
 - `Phase 17`
   - execution audit writer 支持 batch、flush、retry 与 optional local spool；
-    delivery 继续 fail-open，不阻塞 answer path
+    delivery failure 不阻塞 answer path，但必须进入明确 audit status
 - `Phase 18`
   - OTel runtime 支持 deterministic sample ratio、allowlisted runtime attributes、
     exported / dropped / failed counters，并在 `/readyz` / `/metrics` 暴露

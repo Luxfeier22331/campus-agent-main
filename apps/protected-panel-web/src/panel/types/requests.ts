@@ -178,6 +178,7 @@ export interface RawRequestObservabilityRecord {
 		completedAt: string | null;
 		conversationId: string;
 		requestId: string;
+		runId?: string | null;
 		requestedCapability: string | null;
 		requestedScope: Record<string, unknown> | null;
 		resolvedScope?: Record<string, unknown> | null;
@@ -242,9 +243,40 @@ export interface RawRequestObservabilityRecord {
 		latestTerminalCode: string | null;
 	};
 	replay?: RequestReplaySummary;
+	runtimeRun?: RequestRuntimeRunSummary | null;
 }
 
 export type RequestObservabilityRecord = RawRequestObservabilityRecord;
+
+export interface RequestRuntimeRunEventSummary {
+	eventType: string;
+	occurredAt: string;
+	sequence: number;
+	visibility: string;
+}
+
+export interface RequestRuntimeRunSummary {
+	eventSummary: {
+		eventCount: number;
+		latestEvent: RequestRuntimeRunEventSummary | null;
+		terminalEvent: RequestRuntimeRunEventSummary | null;
+		visibilityCounts: {
+			browser: number;
+			eval: number;
+			internal: number;
+			panel: number;
+		};
+	};
+	run: {
+		conversationId: string;
+		phase?: string;
+		requestId: string;
+		runId: string;
+		status: string;
+		terminalReason: string | null;
+		traceId: string;
+	};
+}
 
 export function normalizeRequestRecord(input: RawRequestProjectionRecord): RequestProjectionRecord {
 	return {

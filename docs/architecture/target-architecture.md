@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-02
+updated: 2026-06-04
 ---
 # 目标架构
 
@@ -31,6 +31,7 @@ updated: 2026-05-02
 - capability-neutral supervisor routing
 - domain agent 作为稳定能力边界
 - shared app runtime 与 execution engine 分层
+- run-centric durable agent runtime
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
 - eval-governed quality lifecycle
@@ -43,14 +44,13 @@ updated: 2026-05-02
 长期主链路固定为：
 
 `client/channel -> web surface -> shared app-api surface policy/context
-projection -> execution engine -> supervisor core admission/routing ->
-workflow plan -> one or more capability agents -> family-specific
-planning/execution
--> typed step output projection -> supervisor finalization -> response`
+projection -> durable conversation/run store -> supervisor core admission/routing
+-> scheduler / lease coordinator -> workflow plan -> one or more capability
+agents -> family-specific planning/execution -> typed step output projection ->
+run events -> supervisor finalization -> response / stream subscription`
 
 这里的 multi-agent 不是无中心 peer swarm。长期默认是 manager-style
-multi-agent：Go `apps/supervisor-api` 保持 workflow / policy / budget /
-finalization
+multi-agent：Go `apps/supervisor-api` 保持 workflow / policy / budget / finalization
 ownership，domain agents 作为受控 specialist 参与执行；只有当某个 specialist
 需要拥有后续回复 ownership 时，才使用 explicit handoff。
 
@@ -65,6 +65,12 @@ raw/source-truth/projection/document/chunk/index`
 - supervisor 保持唯一顶层协调入口，不演化成无中心 peer mesh
 - supervisor 不得退化成只负责 HTTP 转发的被动 proxy；它必须继续拥有 deterministic
   governance、workflow admission、budget 与 finalization
+- HTTP request 不得成为 agent execution lifetime 的 canonical truth；一次回答的长期
+  execution object 是 durable `Run`，streaming 只是订阅 run events
+- production 并发预算不得只存在于单个 `supervisor-api` 进程内存；durable run store、
+  scheduler / lease coordinator 与 lane worker pool 必须拥有全局 execution truth
+- process-local limiter 只能作为单进程 runtime protection，不得被多实例叠加解释为
+  production scheduler
 - domain agent 不得退化成只有名称的 thin function wrapper；它必须在自己的能力边界内拥有
   planning、tool/result consumption、clarification 或 answer shaping 中至少一种稳定语义职责
 - `admission / guardrails` 与 `capability routing` 必须分层，不得重新混成一个模糊 knowledge gate
@@ -104,10 +110,13 @@ raw/source-truth/projection/document/chunk/index`
   projection
 - `apps/supervisor-api` 持续只是 internal execution engine
 - `apps/app-api` 已冻结为 Worker
-- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution
-  service
+- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/supervisor-api` 的 Docker substrate freeze 不反推单一 Python/HTTP framework、固定
   staging hostname，或 browser-facing exposure model
+- `apps/app-api` 长期拥有 conversation 与 run creation / stream proxy 的 product
+  surface；`apps/supervisor-api` 长期拥有 durable scheduler / lease coordinator 或其
+  adapter、workflow planning、execution budget 与 finalization；worker pool 只消费
+  execution lease
 - Docker-side supervisor runtime 长期可以拆成 Go execution runtime control plane
   与 private semantic orchestration worker；Go 负责 deterministic runtime kernel，
   Python / package-owned agents 继续负责 semantic orchestration 与 reasoning
@@ -143,6 +152,10 @@ raw/source-truth/projection/document/chunk/index`
   `Turn -> WorkflowRun -> AgentInvocation -> ToolCall -> Evidence/Projection ->
   Finalization`；provider-native trace、SDK run state 或框架 agent graph 只能作为内部
   debug input，不能替代 repo-owned sanitized projection
+- production run lifecycle 的 canonical durable object 固定为 `Run`，最小状态为
+  `created -> queued -> admitted -> running -> streaming -> completed / failed /
+  canceled / expired`；`WorkflowRun` 是 multi-step / agent invocation graph 的内部
+  workflow projection，不替代 product-visible run truth
 - supervisor runtime control plane 长期由 Docker-side Go runtime 承接 deterministic
   execution lifecycle、cancel、timeout、queue、per-lane budget、runtime metrics、audit
   writer 与 fail-close envelope
@@ -151,8 +164,7 @@ raw/source-truth/projection/document/chunk/index`
   assembly 与 agent dispatch，不再单独保留 `packages/supervisor-core`
 - domain agent 负责明确能力边界内的 planning / evidence consumption / answer shaping
 - domain agent 可以作为 manager-style workflow 中的 bounded specialist；其输出必须先收敛为
-  `StepOutputProjection` 或同等 bounded result projection，才能供后续 agent 或 finalizer
-  消费
+  `StepOutputProjection` 或同等 bounded result projection，才能供后续 agent 或 finalizer 消费
 - context inheritance 必须按 agent role 最小化；supervisor 不得把完整 conversation、
   完整上游 answer、raw evidence dump、raw OCR、raw provider trace 或未裁剪 source body
   广播给后续 agent
@@ -180,11 +192,9 @@ raw/source-truth/projection/document/chunk/index`
 - `routing clarification` 与 `agent clarification` 必须显式分层；前者由 supervisor
   拥有，后者由对应 agent 拥有
 - 对 `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`、
-  `campus_notice_discover` 与 selected notice card/context resolution 这类结构化
-  runtime
+  `campus_notice_discover` 与 selected notice card/context resolution 这类结构化 runtime
   capability，长期实现形态固定为
-  `projection-backed internal query service + thin tool adapter +
-  domain-agent`，而不是
+  `projection-backed internal query service + thin tool adapter + domain-agent`，而不是
   query-time raw source scan、browser/public API 直连，或 execution path 回调
   `app-api` loopback HTTP
 - projection-backed internal query service 可优先采用 Go 实现，以降低 Docker-side runtime
@@ -205,8 +215,7 @@ raw/source-truth/projection/document/chunk/index`
   - `navigation-agent` 补充办理地点
   - `rag-agent` 补充稳定制度依据
 - notice explanation answer
-  - `notice-agent` 解析 selected notice ref，提供 official source card 与 bounded
-    context
+  - `notice-agent` 解析 selected notice ref，提供 official source card 与 bounded context
   - `rag-agent` 读取相关制度 / reference evidence
   - supervisor 统一 finalization 与 fail-close semantics
 
@@ -230,8 +239,7 @@ repo-owned internal query service -> sanitized result projection`
   handoff 中允许的 tool 子集
 - provider/SDK tool loop 只作为 domain-agent 内部的 bounded execution substrate；它不是
   顶层 routing engine，也不拥有跨 family permission expansion
-- provider-native function calling / Agents SDK 是 Python semantic runtime
-  substrate，不是
+- provider-native function calling / Agents SDK 是 Python semantic runtime substrate，不是
   repo-level orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
   capability family
 - tool 必须优先建模为 read-only typed capability；state-changing tool 默认不进入
@@ -303,23 +311,19 @@ prompt 内部的隐式判断。
 
 固定职责如下：
 
-- `apps/app-api` 拥有 surface capability policy、conversation / session
-  truth、operator
+- `apps/app-api` 拥有 surface capability policy、conversation / session truth、operator
   review truth 与观测驱动治理 read model
-- `apps/supervisor-api` 只拥有 deterministic execution admission、lane / opening
-  gate、
+- `apps/supervisor-api` 只拥有 deterministic execution admission、lane / opening gate、
   timeout / cancel / audit event 与 runtime metrics
 - `apps/supervisor-api` 拥有 supervisor routing intent framing、routing
   clarification 与 handoff semantics
 - domain agent 只拥有已选定 capability family 内部的 agent clarification 与执行语义
-- `packages/evals` 拥有 intent truth dataset、runner、regression gate 与
-  observed-case
+- `packages/evals` 拥有 intent truth dataset、runner、regression gate 与 observed-case
   promotion 协议
 
 长期 intent policy / classifier 规则必须由 repo-owned artifact 治理，而不是散落在 runtime
 源码中的匿名 signal list。该 artifact 至少固定 policy artifact schema version、runtime
-policy version、classifier behavior version、intent schema version、case-set
-version、reason
+policy version、classifier behavior version、intent schema version、case-set version、reason
 code registry 与 signal group taxonomy。runtime 可以把 artifact 编译进部署镜像或按受控路径加载，
 但缺失、版本漂移或结构不合法时必须 fail closed，不能静默回退到另一套未版本化规则。
 
@@ -356,8 +360,7 @@ resolver 显式产出：
 - missing slots
 - ambiguity reason
 
-resolver 只能消费 `apps/app-api` 投影出的最小 typed context，例如 session slot、selected
-notice
+resolver 只能消费 `apps/app-api` 投影出的最小 typed context，例如 session slot、selected notice
 ref、recent goal summary 与 actor / profile projection；它不得反向读取 raw transcript、raw
 session store 或 browser-local state。
 
@@ -378,13 +381,11 @@ suite family 固定为：
 
 观测驱动治理链路固定为：
 
-`request observability fact -> operator review / sampled grade -> intent case
-mining
+`request observability fact -> operator review / sampled grade -> intent case mining
 -> packages/evals observed_regression -> release gate / version compat report`
 
 该链路只能回流 sanitized routing / outcome / review summary，不得把 raw prompt、raw answer、
-raw transcript、auth material 或 provider raw response 作为 panel truth 或 eval
-canonical
+raw transcript、auth material 或 provider raw response 作为 panel truth 或 eval canonical
 asset。
 
 ## 长期 eval / quality governance 形态
@@ -419,14 +420,12 @@ operator observability rollup`
 
 其中：
 
-- production aggregate、sampled grades、release-gate verdict 与 golden truth
-  不得混成一张表
+- production aggregate、sampled grades、release-gate verdict 与 golden truth 不得混成一张表
 - candidate review 必须记录 accept / reject / duplicate / deprecated / needs-info 等
   lifecycle decision，以及 reviewer、reason、source request 与 target suite
 - accepted case 必须写入 repo-owned case fixture / artifact truth，而不是只留在 panel、
   sink dashboard 或临时 JSON
-- release-gate artifact 必须保留 request correlation、runtime versions、case-set
-  version、
+- release-gate artifact 必须保留 request correlation、runtime versions、case-set version、
   deterministic verdict、supplemental verdict 与 publish summary
 - failed release gate 只能通过修复 runtime、修复 truth、或有审计记录的 case
   governance decision 关闭，不能在 panel 上直接 override
@@ -445,8 +444,7 @@ operator observability rollup`
 - `context_follow_up`
   - session slot、selected notice、recent goal、profile projection 与缺上下文澄清
 - `version_compat`
-  - intent schema、classifier、prompt、model、index、case-set 与 downstream consumer
-    兼容性
+  - intent schema、classifier、prompt、model、index、case-set 与 downstream consumer 兼容性
 - `workflow_trace`
   - planner、handoff、tool call、guardrail、fail-close 与 structured runtime branch
     的 trace correctness
@@ -454,34 +452,28 @@ operator observability rollup`
 `workflow_trace` 是 orchestration 的一等 release gate，不是回答质量 gate 的附属字段。它至少需要覆盖：
 
 - `direct_vs_delegate_branch_correctness`
-  - 应直返 clarification / rejection / structured runtime 的 case 不得误入 Python
-    delegate
+  - 应直返 clarification / rejection / structured runtime 的 case 不得误入 Python delegate
   - 应 delegate 的 semantic case 必须携带完整 `AgentRequest` handoff
 - `handoff_correctness`
-  - capability family、target、allowed tools、missing slots、context resolution 与
-    policy
+  - capability family、target、allowed tools、missing slots、context resolution 与 policy
     reason 必须和 expected truth 对齐
 - `tool_argument_precision`
-  - structured tool / retrieval plan 的 corpus、collection、doc/version、service
-    subtype、
+  - structured tool / retrieval plan 的 corpus、collection、doc/version、service subtype、
     temporal scope 与 source-channel 参数必须可比对
 - `fail_close_correctness`
   - policy unavailable、capability closed、query scope disabled、missing context 与
     unauthorized visibility 必须进入可审计 terminal outcome
 - `trace_projection_completeness`
-  - request correlation、runtime versions、policy artifact versions、planning
-    outcome、
+  - request correlation、runtime versions、policy artifact versions、planning outcome、
     selected target / tool 与 source summary 必须进入 sanitized artifact
 
 外部 agent / trace 工具可以降低 trace capture 与 grader adapter 的实现成本，但不能成为
-`workflow_trace` 的 canonical truth；repo-owned case fixture、expected
-truth、artifact
+`workflow_trace` 的 canonical truth；repo-owned case fixture、expected truth、artifact
 projection 与 release verdict 仍由 `packages/evals` 拥有。
 
 长期评分分层固定为：
 
-- deterministic gate 是 canonical release verdict 的第一层，覆盖
-  status、routing、retrieval、
+- deterministic gate 是 canonical release verdict 的第一层，覆盖 status、routing、retrieval、
   citation、required facts、forbidden claims、policy / authz 与 fail-close
 - supplemental graders 只能补充 grounding、relevance、tool / handoff semantics、
   workflow quality 与 human-calibrated rubric；它们是否 gating 由 repo-owned policy 决定
@@ -491,8 +483,7 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 
 长期 eval artifact 与 observability 回流必须坚持 data minimization：
 
-- eval artifact 可以保存 sanitized prompt summary、expected truth、observability
-  summary、
+- eval artifact 可以保存 sanitized prompt summary、expected truth、observability summary、
   request / trace correlation、grader rationale summary 与 safe links
 - eval artifact 不得保存 raw JWT、raw cookies、raw auth envelope、raw transcript、
   provider raw response、retrieval backend dump 或未经裁剪的 restricted document
@@ -513,12 +504,6 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 长期 owner 固定为：
 
 - `apps/app-api` 拥有 canonical identity / authz / memory truth
-- `apps/app-api` 长期拥有 MUC Wiki Hub Identity Platform 的 account / identity /
-  access /
-  preferences / federation product truth；auth library 只作为 runtime adapter
-- future `muc.wiki` login 通过标准 OIDC relying-party federation 接入 Identity
-  Platform，
-  不通过 cookie/session/database 兼容或 MediaWiki 账号迁移定义长期边界
 - execution path 只消费最小 typed projection
 - retrieval 只消费 authz projection carrier，不拥有最终 entitlement resolution
 - memory 可以个性化 planning / wording，但不能提权
@@ -537,8 +522,7 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
   serving alias publish 后才进入可检索状态
 - query-enabled regulation scope 的 RAG release candidate 必须先通过
   `regulation_rag_release_admission.v1` scope-level manifest；该 manifest 绑定当前
-  document identity/version/hash、document-units hash、cleaning/chunk/runtime
-  profile
+  document identity/version/hash、document-units hash、cleaning/chunk/runtime profile
   identity、reader current version 与 qrels/authz 检查结果。缺失或不匹配时只能进入
   `release_admission_blocked`，不得 embedding、index 或切 alias
 - RAG release lane 必须支持增量更新：用 document identity、version/hash 与 runtime
@@ -561,8 +545,7 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - raw asset、source truth、declared projection、document truth、chunk/index 持续分层
 - source truth 是 canonical shared upstream
 - 一份 source truth 可以 fan-out 到多份 collection / corpus
-- canonical document artifacts 可以 fan-out 到 reader asset lane 与 RAG release
-  lane；
+- canonical document artifacts 可以 fan-out 到 reader asset lane 与 RAG release lane；
   reader asset、document-units、chunks、index release 与 serving alias 继续各自持有
   独立 truth
 - 后续 replay / rebuild 从 source truth 继续，而不是返回 raw 重消费
@@ -584,11 +567,10 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - explicit historical / as-of / compare query
 - freshness-sensitive / live-assisted retrieval
 - regulation 之外更多 document family 的增量 RAG release lane rollout、scheduled
-  reconciliation、rollback/current-pointer automation 与 operator-safe status
-  projection
+  reconciliation、rollback/current-pointer automation 与 operator-safe status projection
   扩面
 - restricted document rollout
-- 更完整的 identity platform / authz / memory productization
+- 更完整的 identity / authz / memory productization
 - operator observability / audit control plane
 - deploy-side observability hardening
 

@@ -24,8 +24,19 @@ export interface SupervisorCampusServicesProductPathPreflight {
 	blockers: Record<string, string>;
 }
 
+export interface SupervisorDurableRuntimePreflight {
+	status: "ready" | "blocked" | "not_reported";
+	checks: {
+		durableRuntimeStore: SupervisorReadinessCheckStatus;
+		durableWorkerLoop: SupervisorReadinessCheckStatus;
+		durableRecoveryLoop: SupervisorReadinessCheckStatus;
+	};
+	blockers: Record<string, string>;
+}
+
 export interface SupervisorReadinessProbeResult {
 	campusServicesProductPath: SupervisorCampusServicesProductPathPreflight;
+	durableRuntime: SupervisorDurableRuntimePreflight;
 }
 
 export async function probeSupervisorApiReady(
@@ -123,6 +134,7 @@ export async function probeSupervisorApiReady(
 	const payload = await parseSupervisorReadyzPayload(response);
 	return {
 		campusServicesProductPath: buildCampusServicesProductPathPreflight(payload),
+		durableRuntime: buildDurableRuntimePreflight(payload),
 	};
 }
 
@@ -222,6 +234,55 @@ function collectCampusServicesProductPathBlockers(
 	return blockers;
 }
 
+function buildDurableRuntimePreflight(
+	payload: SupervisorReadyzRecord | null,
+): SupervisorDurableRuntimePreflight {
+	const durableRuntime = readRecord(payload?.durable_runtime);
+	const durableWorkerLoop = readRecord(payload?.durable_worker_loop);
+	const durableRecoveryLoop = readRecord(payload?.durable_recovery_loop);
+	const checks: SupervisorDurableRuntimePreflight["checks"] = {
+		durableRuntimeStore: readinessFromConfiguredAndHealthy(
+			durableRuntime?.configured,
+			durableRuntime?.healthy,
+		),
+		durableWorkerLoop: readinessFromEnabledConfiguredHealthyAndStarted(durableWorkerLoop),
+		durableRecoveryLoop: readinessFromEnabledConfiguredHealthyAndStarted(durableRecoveryLoop),
+	};
+	const blockers = collectDurableRuntimeBlockers(checks);
+	const hasReportedCheck = Object.values(checks).some((status) => status !== "not_reported");
+	const status = hasReportedCheck
+		? Object.keys(blockers).length === 0
+			? "ready"
+			: "blocked"
+		: "not_reported";
+
+	return {
+		status,
+		checks,
+		blockers,
+	};
+}
+
+function collectDurableRuntimeBlockers(
+	checks: SupervisorDurableRuntimePreflight["checks"],
+): Record<string, string> {
+	const blockers: Record<string, string> = {};
+	const requiredChecks: readonly [keyof SupervisorDurableRuntimePreflight["checks"], string][] = [
+		["durableRuntimeStore", "durable_runtime store is not configured and healthy"],
+		["durableWorkerLoop", "durable_worker_loop is not enabled, configured, healthy, and started"],
+		[
+			"durableRecoveryLoop",
+			"durable_recovery_loop is not enabled, configured, healthy, and started",
+		],
+	];
+	for (const [key, message] of requiredChecks) {
+		if (checks[key] !== "ready") {
+			blockers[key] = message;
+		}
+	}
+	return blockers;
+}
+
 function resolveCampusServicesCapabilityGate(
 	payload: SupervisorReadyzRecord | null,
 ): SupervisorCampusServicesProductPathPreflight["capabilityGate"] {
@@ -256,6 +317,20 @@ function readinessFromConfiguredAndHealthy(
 	return configured === true && healthy === true ? "ready" : "not_ready";
 }
 
+function readinessFromEnabledConfiguredHealthyAndStarted(
+	status: SupervisorReadyzRecord | null,
+): SupervisorReadinessCheckStatus {
+	if (!status) {
+		return "not_reported";
+	}
+	return status.enabled === true &&
+		status.configured === true &&
+		status.healthy === true &&
+		status.started === true
+		? "ready"
+		: "not_ready";
+}
+
 function readRecord(value: unknown): SupervisorReadyzRecord | null {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return null;
@@ -286,6 +361,60 @@ export class SupervisorTransportError extends Error {
 	}
 }
 
+export async function parseSupervisorJsonResponse(
+	response: Response,
+): Promise<Record<string, unknown>> {
+	try {
+		const parsed = (await response.json()) as unknown;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			throw new Error("Supervisor JSON response must be an object.");
+		}
+		return parsed as Record<string, unknown>;
+	} catch {
+		throw new SupervisorTransportError({
+			code: "supervisor_invalid_response",
+			message: "Supervisor returned an invalid JSON response.",
+			retryable: true,
+			status: response.status === 200 || response.status === 202 ? 502 : response.status,
+		});
+	}
+}
+
+export function parseSupervisorErrorEnvelope(
+	parsed: Record<string, unknown>,
+	status: number,
+): { code: string; message: string; retryable: boolean } {
+	const error = parsed.error;
+	if (!error || typeof error !== "object" || Array.isArray(error)) {
+		throw new SupervisorTransportError({
+			code: "supervisor_invalid_error_envelope",
+			message: "Supervisor returned an invalid error envelope.",
+			retryable: false,
+			status,
+		});
+	}
+	const record = error as Record<string, unknown>;
+	if (
+		typeof record.code !== "string" ||
+		record.code.trim() === "" ||
+		typeof record.message !== "string" ||
+		record.message.trim() === "" ||
+		typeof record.retryable !== "boolean"
+	) {
+		throw new SupervisorTransportError({
+			code: "supervisor_invalid_error_envelope",
+			message: "Supervisor returned an invalid error envelope.",
+			retryable: false,
+			status,
+		});
+	}
+	return {
+		code: record.code,
+		message: record.message,
+		retryable: record.retryable,
+	};
+}
+
 export function mapStatusCodeToErrorCode(status: number): string {
 	if (status === 504) {
 		return "execution_timeout";
@@ -296,7 +425,7 @@ export function mapStatusCodeToErrorCode(status: number): string {
 
 export function createSupervisorRequestHeaders(input: {
 	env: Pick<Env, "SUPERVISOR_API_ACCESS_CLIENT_ID" | "SUPERVISOR_API_ACCESS_CLIENT_SECRET">;
-	payload: SupervisorExecutionInput;
+	payload: Pick<SupervisorExecutionInput, "traceHeaders" | "traceId">;
 	sharedSecret: string;
 	traceDataProvider: () => Record<string, unknown>;
 	accept?: string;

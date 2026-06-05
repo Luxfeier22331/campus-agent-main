@@ -12,6 +12,10 @@ supervisor_api_staging_rotate_logs_if_needed
 supervisor_api_staging_load_env
 supervisor_api_staging_require_runtime_env
 supervisor_api_staging_run_doctor
+supervisor_api_staging_ensure_data_plane_network
+supervisor_api_staging_ensure_self_hosted_data_plane_dependencies
+supervisor_api_staging_require_data_plane_ready
+supervisor_api_staging_ensure_durable_runtime_schema
 
 cloudflared_bin="$(supervisor_api_staging_require_command cloudflared)"
 
@@ -32,7 +36,7 @@ supervisor_api_staging_wait_for_http_ok \
   "${supervisor_api_staging_local_readyz_url}" \
   45 \
   2 \
-  "${SUPERVISOR_API_SHARED_SECRET:-supervisor-api-staging-placeholder}" \
+  "${SUPERVISOR_API_SHARED_SECRET:?SUPERVISOR_API_SHARED_SECRET is required}" \
   "x-worker-origin-auth"
 supervisor_api_staging_wait_for_http_ok \
   "${supervisor_api_staging_local_metrics_url}" \
@@ -41,11 +45,13 @@ supervisor_api_staging_wait_for_http_ok \
   "${SUPERVISOR_API_METRICS_BEARER_TOKEN}" \
   "authorization"
 supervisor_api_staging_capture_compose_logs
+supervisor_api_staging_require_container_qdrant_ready
 
 if supervisor_api_staging_pid_is_running "${supervisor_api_staging_cloudflared_pid_file}"; then
   echo "cloudflared already running (pid $(supervisor_api_staging_read_pid "${supervisor_api_staging_cloudflared_pid_file}"))"
 else
   setsid -f env \
+    "TUNNEL_TOKEN=${SUPERVISOR_API_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:?SUPERVISOR_API_STAGING_TUNNEL_TOKEN is required}}" \
     -u HTTP_PROXY \
     -u HTTPS_PROXY \
     -u ALL_PROXY \
@@ -53,11 +59,10 @@ else
     -u https_proxy \
     -u all_proxy \
     "${cloudflared_bin}" tunnel \
-    --config "${supervisor_api_staging_cloudflared_config_file}" \
     --no-autoupdate \
     --edge-ip-version "${supervisor_api_staging_cloudflared_edge_ip_version}" \
     --metrics "${supervisor_api_staging_cloudflared_metrics_address}" \
-    run "${supervisor_api_staging_tunnel_name}" \
+    run \
     9>&- \
     >>"${supervisor_api_staging_cloudflared_log_file}" 2>&1
 fi
@@ -81,6 +86,7 @@ else
 fi
 echo "logs:"
 echo "  ${supervisor_api_staging_otel_collector_log_file}"
+echo "  ${supervisor_api_staging_otel_collector_recent_log_file}"
 echo "  ${supervisor_api_staging_supervisor_api_log_file}"
 echo "  ${supervisor_api_staging_supervisor_agent_worker_log_file}"
 echo "  ${supervisor_api_staging_cloudflared_log_file}"

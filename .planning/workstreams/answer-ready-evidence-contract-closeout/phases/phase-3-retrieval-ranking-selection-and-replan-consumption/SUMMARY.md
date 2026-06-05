@@ -10,7 +10,7 @@ updated: 2026-05-06
 # Phase 3 Summary: Retrieval Ranking, Selection And Replan Consumption
 
 Phase 3 made retrieval ranking consume the typed answer-ready evidence projection as the primary
-signal for target student-rules cases and made old-index fallback observable.
+signal for target student-rules cases and made old-index legacy signals observable.
 
 ## Artifacts
 
@@ -28,7 +28,7 @@ signal for target student-rules cases and made old-index fallback observable.
 - Extended the retrieval-internal evidence accessor to preserve typed semantic fields from the
   answer-ready sidecar: `semantic_role`, `polarity`, `action_type`, `claim_type`,
   `audience_scope`, `article_no`, `clause_no` and `section_kind`.
-- Added `EvidenceFallbackDiagnostics` and source-level fallback detection for missing
+- Added `EvidenceFallbackDiagnostics` and source-level legacy-signal detection for missing
   `answer_role`, `parent_unit_id` or `evidence_contract_version`.
 - Extended query intent with `condition_subject` and `category_id`.
 - Updated semantic alignment so:
@@ -36,7 +36,7 @@ signal for target student-rules cases and made old-index fallback observable.
   - negative restriction queries preserve `exclusion_rule` / `exception_rule`
   - category discovery prefers `category_overview` / `policy_list`
   - judgment queries prefer matching `condition_subject`
-- Added fallback diagnostics to `RetrievalStepActivity` and sanitized retrieval observations:
+- Added legacy diagnostic labels to `RetrievalStepActivity` and sanitized retrieval observations:
   `fallback_used`, `fallback_reason`, `missing_contract_fields`,
   `source_index_contract_version` and `fallback_primary_signal`.
 - Kept public `EvidenceSource` unchanged and kept backend/provider-specific payload shapes out of

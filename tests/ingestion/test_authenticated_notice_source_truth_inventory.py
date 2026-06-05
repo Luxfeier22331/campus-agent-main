@@ -141,7 +141,7 @@ def _inventory_entry(notice_id: str) -> AuthenticatedNoticeSourceTruthInventoryE
 
 
 class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
-    def test_parent_snapshot_record_parser_rehydrates_registry_record_with_source_key_fallback(
+    def test_parent_snapshot_record_parser_rehydrates_registry_record_with_source_keys(
         self,
     ) -> None:
         record = _document_record("notice:muc:000005", "sha256:5")

@@ -57,7 +57,7 @@ gate 清晰分层。
 - production-grade retrieval observation intake：schema、privacy posture、durable sink seam、
   backlog generation 与 failure classification。
 - reranker adoption gate：deterministic before/after eval、latency/cost budget、runtime profile
-  opt-in、fallback posture。
+  opt-in、fail-closed failure posture。
 - explicit `freshness_sensitive` / `live_assisted` branch design and gated implementation plan。
 - workstream focused gates 与 repo-wide gates 的 documented separation。
 - docs / runbook / planning truth update。
@@ -84,9 +84,10 @@ gate 清晰分层。
 4. runtime observation 有 sanitized durable intake seam；JSONL 只保留为 local/debug sink，生产
    sink failure 不破坏 answer path，但必须产生 warning / failure observation。
 5. no-hit、low-confidence、forbidden hit、version mismatch、release metadata drift 与 reranker
-   degraded/fallback 都能进入 eval/backlog candidate。
+   failure 都能进入 eval/backlog candidate。
 6. reranker 只有在 collection-level deterministic eval 同时满足 retrieval quality、latency 与 cost
-   budget 时才允许 profile opt-in；失败时 fallback 到 baseline hybrid/RRF。
+   budget 时才允许 profile opt-in；opt-in 后 executor 缺失、失败或超时必须 fail closed，并写入
+   `failure_kind=reranker_failed` observation。
 7. `freshness_sensitive` / `live_assisted` query mode 与默认 `current` retrieval 分离；回答必须能携带
    `as_of` / source timestamp / retrieval mode。
 8. CI / local verification 明确区分 focused workstream gate、affected gate、repo-wide gate 与已知

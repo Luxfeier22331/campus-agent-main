@@ -29,7 +29,7 @@ class AuthenticatedNoticeLegacyNormalizationResult:
 def normalize_authenticated_notice_legacy_export(
     *,
     bundle_records: Sequence[dict[str, Any]],
-    legacy_manifest: dict[str, Any] | None,
+    legacy_manifest: dict[str, Any],
     site_id: str,
     source_home_url: str,
     selected_notice_ids: Sequence[str] = (),
@@ -74,7 +74,7 @@ def normalize_authenticated_notice_legacy_export(
 
 def build_authenticated_notice_legacy_normalized_manifest(
     *,
-    legacy_manifest: dict[str, Any] | None,
+    legacy_manifest: dict[str, Any],
     site_id: str,
     source_home_url: str,
     notice_type_policy: Sequence[dict[str, Any]],
@@ -85,7 +85,7 @@ def build_authenticated_notice_legacy_normalized_manifest(
     export_scope: str | None,
     exported_at: str,
 ) -> dict[str, Any]:
-    legacy = dict(legacy_manifest or {})
+    legacy = _require_legacy_manifest(legacy_manifest)
     legacy_run = dict(legacy.get("run") or {})
     legacy_counts = dict(legacy.get("counts") or {})
     filtered_notice_type_ids = tuple(
@@ -241,6 +241,38 @@ def _default_export_scope(
 ) -> str:
     legacy_scope = str(legacy_manifest.get("export_scope") or "legacy").strip() or "legacy"
     return f"{legacy_scope}-normalized-{filtered_notice_count}"
+
+
+def _require_legacy_manifest(legacy_manifest: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(legacy_manifest, dict) or not legacy_manifest:
+        raise ValueError("legacy authenticated notice manifest is required")
+    required_top_level = ("schema_version", "exported_at", "export_scope", "run", "counts")
+    missing_top_level = tuple(
+        field for field in required_top_level if legacy_manifest.get(field) in (None, "")
+    )
+    if missing_top_level:
+        raise ValueError(
+            "legacy authenticated notice manifest missing required fields: "
+            + ", ".join(missing_top_level)
+        )
+    legacy_run = legacy_manifest.get("run")
+    if not isinstance(legacy_run, dict):
+        raise ValueError("legacy authenticated notice manifest run must be an object")
+    required_run_fields = ("status", "started_at", "finished_at", "pages_fetched", "items_seen")
+    missing_run_fields = tuple(
+        field for field in required_run_fields if legacy_run.get(field) in (None, "")
+    )
+    if missing_run_fields:
+        raise ValueError(
+            "legacy authenticated notice manifest run missing required fields: "
+            + ", ".join(missing_run_fields)
+        )
+    if str(legacy_run.get("status") or "").strip() != "success":
+        raise ValueError("legacy authenticated notice manifest run status must be success")
+    legacy_counts = legacy_manifest.get("counts")
+    if not isinstance(legacy_counts, dict) or legacy_counts.get("notices") in (None, ""):
+        raise ValueError("legacy authenticated notice manifest counts.notices is required")
+    return dict(legacy_manifest)
 
 
 __all__ = [

@@ -291,7 +291,7 @@ class HandbookChunkingPipelinePart04Test(unittest.TestCase):
         self,
     ) -> None:
         metadata = build_collection_semantic_metadata(
-            record=_institutional_registry_record("official-web-regulation-body-fallback"),
+            record=_institutional_registry_record("official-web-regulation-body-support"),
             unit_type="institutional_regulation_block",
             anchor={
                 "section_path": ["第一章 总则"],

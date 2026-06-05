@@ -5,7 +5,9 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
+from campus_regulation_semantics.regulation_semantic_registry import (
+    canonical_regulation_condition_subject,
+)
 
 from campus_evals.profile_report import (
     load_json_object,

@@ -117,7 +117,7 @@ promotion/materialization 的 acceptance truth。
 当前 Phase 8 closeout 已补充 target-side chunk preparation 的 local-only
 acceptance evidence，但 stop point 仍未提升到 release / alias publish。冻结证据见：
 
-- `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+- `var/ingestion-evidence/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
 
 ### 6. Repo-local acceptance 必须使用隔离 snapshot root
 

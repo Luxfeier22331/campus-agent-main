@@ -2,10 +2,12 @@ import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversationStore } from "../../chat";
 import type {
 	RequestedScope,
+	SupervisorDurableRuntimeClient,
 	SupervisorExecutionClient,
 	SupervisorExecutionResponse,
 } from "../../integration";
 import type { ProfileMemoryProjectionStore } from "../../profile-memory";
+import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry } from "../../telemetry";
 import type { VersionQuery } from "../../version-query";
 
@@ -63,6 +65,8 @@ export interface ChatCommandStreamEvent {
 		};
 		occurredAt: string;
 		requestId: string;
+		runId?: string | null;
+		runPhase?: RuntimeRunPhase;
 		status: string;
 		traceId: string;
 	};
@@ -82,6 +86,12 @@ export interface ChatCommandService {
 	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;
 }
 
+export interface DurableEventPollingPolicy {
+	maxAttempts: number;
+	pollIntervalMs: number;
+	sleep?: (durationMs: number) => Promise<void>;
+}
+
 export interface ChatCommandServiceDependencies {
 	computeFingerprint?: (input: {
 		conversationDiscriminator: string;
@@ -93,10 +103,14 @@ export interface ChatCommandServiceDependencies {
 	conversationStore: ChatConversationStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
 	generateId?: (prefix: string) => string;
+	isDurableRuntimeConfigured?: boolean;
 	now?: () => Date;
 	profileMemoryStore?: ProfileMemoryProjectionStore;
+	requireDurableRuntime?: boolean;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
+	durableEventPolling?: DurableEventPollingPolicy;
+	durableRuntime?: SupervisorDurableRuntimeClient;
 	supervisor: SupervisorExecutionClient;
 	telemetry?: AppTelemetry;
 	traceBacklinkRecorder?: {

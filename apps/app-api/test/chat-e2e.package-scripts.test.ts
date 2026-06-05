@@ -13,6 +13,12 @@ describe("chat e2e package scripts", () => {
 		expect(packageJson.scripts["chat:e2e"]).toContain("scripts/chat-e2e.ts");
 		expect(packageJson.scripts["chat:e2e:dev"]).toContain("scripts/chat-e2e-local-dev.ts");
 		expect(packageJson.scripts["chat:e2e:staging"]).toContain("--profile staging");
+		expect(packageJson.scripts["chat:durable:e2e:staging"]).toContain(
+			"scripts/chat-durable-e2e-staging.ts",
+		);
+		expect(packageJson.scripts["chat:durable:e2e:staging"]).toContain(
+			"run-with-staging-smoke-env.mjs",
+		);
 		expect(packageJson.scripts["chat:e2e:local-real-provider"]).toContain(
 			"scripts/chat-e2e-local-real-provider.ts",
 		);

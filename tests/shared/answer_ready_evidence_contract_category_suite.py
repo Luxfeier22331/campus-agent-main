@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from campus_shared.answer_ready_evidence_contract import validate_answer_ready_evidence_metadata
-from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
+from campus_regulation_semantics.answer_ready_evidence_contract import (
+    validate_answer_ready_evidence_metadata,
+)
+from campus_regulation_semantics.regulation_semantic_registry import (
+    load_regulation_discovery_config,
+)
 
 
 class AnswerReadyEvidenceContractCategorySuite:

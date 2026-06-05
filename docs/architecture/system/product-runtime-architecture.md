@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-02
+updated: 2026-06-04
 ---
 # Product Runtime Architecture
 
@@ -54,6 +54,9 @@ model`
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
   runtime adapter role
 - `apps/supervisor-api` 是 Docker-first internal execution engine
+- 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
+  应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
+  subscription
 - panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
 - ingestion/release task state machine 不属于 product runtime；它属于 offline data
   plane
@@ -168,6 +171,8 @@ model`
   policy boundary
 - surface capability policy
 - conversation 与 chat ingress
+- durable run creation / status / cancel / stream proxy 的 product-layer
+  command / query surface
 - `runtime.request_execution`
 - `runtime.projection_outbox`
 - `operator.request_projection`
@@ -211,6 +216,8 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   backpressure、timeout、readiness、
   bridge circuit breaker、metrics 与 graceful drain；它不拥有 product-level 用户限流或
   browser-facing capability policy
+- 长期上，production run admission 与 execution lease 必须落在 durable scheduler /
+  lease coordinator；当前 Go 进程内 admission 只表达 single-process protection
 - 不承担 browser-facing product backend 责任
 
 ## App-api / Ingestion Boundary
@@ -242,6 +249,7 @@ runtime`
   - 拥有 execution-level lifecycle、explicit cancel、global / per-lane admission、
     queue、timeout、bridge circuit breaker、readiness、metrics、OTel telemetry seam 与
     graceful drain
+  - 当前 queue / active count 是进程内状态，不是最终 durable run queue
 - Python `apps/supervisor-agent-worker`
   - private orchestration bridge worker
   - 负责消费 Go 已投影的 private bridge request，并通过 worker 内部
@@ -253,8 +261,13 @@ runtime`
 
 - `apps/app-api` 仍拥有 product-layer auth/session/principal、surface capability
   policy、conversation、request projection 与 operator read model
+- `apps/app-api` 拥有 browser-facing run command / query / stream proxy；streaming
+  是 run event subscription，不是 execution ownership
 - Go execution runtime 不能反向拥有 browser-facing capability allowlist、用户级限流、
   duplicate-click UX、conversation truth 或 operator control plane
+- Go execution runtime 拥有 scheduler / lease coordinator 或其 adapter、workflow
+  planning、execution budget 与 finalization；process-local limiter 只能作为本进程
+  protection
 - Go runtime 可以继续吸收 deterministic supervisor runtime kernel，但不能因此把
   semantic orchestration、domain-agent reasoning 或 retrieval planning 塞进 `apps/*`
 

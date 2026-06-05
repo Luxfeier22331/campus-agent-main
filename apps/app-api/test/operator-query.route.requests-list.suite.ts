@@ -50,6 +50,7 @@ export function registerOperatorQueryRequestsListSuite(): void {
 							projectedAt: "2026-03-28T08:00:02.000Z",
 							questionPreview: "图书馆开放到几点？",
 							requestId: "req_01HQ",
+							runId: "run_01HQ",
 							requestedCapability: "knowledge",
 							requestedScope: {
 								collection: "student_rules",
@@ -99,6 +100,7 @@ export function registerOperatorQueryRequestsListSuite(): void {
 						projectedAt: "2026-03-28T08:00:02.000Z",
 						questionPreview: "图书馆开放到几点？",
 						requestId: "req_01HQ",
+						runId: "run_01HQ",
 						requestedCapability: "knowledge",
 						requestedScope: {
 							collection: "student_rules",

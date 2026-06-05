@@ -260,6 +260,7 @@ export interface RawOperatorQualityBadcaseRecord {
 	links: RawOperatorTraceLinks;
 	openedAt: string;
 	requestId: string;
+	runId: string | null;
 	selectedTarget: string | null;
 	status: string;
 	summary: string;
@@ -349,6 +350,7 @@ export interface RawOperatorQualityEvalCandidateRecord {
 		>;
 	};
 	requestId: string | null;
+	runId: string | null;
 	selectedTarget: string | null;
 	summary: string;
 	surface: string;

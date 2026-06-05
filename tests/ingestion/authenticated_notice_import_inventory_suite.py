@@ -538,7 +538,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
         self.assertEqual(terminal_outcomes[0]["terminal_outcome"], "terminal_unavailable")
         self.assertEqual(terminal_outcomes[0]["terminal_reason"], "http_404")
 
-    def test_import_authenticated_notice_bundle_deduplicates_inline_image_fallback_refs(
+    def test_import_authenticated_notice_bundle_deduplicates_inline_image_duplicate_refs(
         self,
     ) -> None:
         bundle = _sample_notice_bundle()

@@ -73,17 +73,25 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	defer structuredQueryCancel()
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
 	workflowRunStatus := s.workflowRunStoreStatus(request.Context())
+	durableWorkerLoopStatus := s.durableWorkerLoopStatus()
+	durableRecoveryLoopStatus := s.durableRecoveryLoopStatus()
 	promptGate := evaluatePromptConfigGate(s.config)
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	structuredRuntimeHealthy := s.openStructuredRuntimeHealthy(structuredQueryStatus)
 	workflowRuntimeHealthy := !s.config.MultiStepWorkflowEnabled || workflowRunStatus["healthy"] == true
+	durableRuntimeStatus := s.durableRuntimeStatus(request.Context())
+	durableWorkerLoopHealthy := durableWorkerLoopStatus["healthy"] == true
+	durableRecoveryLoopHealthy := durableRecoveryLoopStatus["healthy"] == true
 	ready := bridgeHealthy &&
 		transportStatus.Healthy &&
 		telemetryHealthy &&
 		executionAuditHealthy &&
 		structuredRuntimeHealthy &&
 		workflowRuntimeHealthy &&
+		durableRuntimeStatus["healthy"] == true &&
+		durableWorkerLoopHealthy &&
+		durableRecoveryLoopHealthy &&
 		promptGate.Admitted
 	statusCode := http.StatusOK
 	statusText := "ready"
@@ -101,6 +109,9 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"execution_audit_runtime":  executionAuditStatus,
 		"structured_query_runtime": structuredQueryStatus,
 		"workflow_run_runtime":     workflowRunStatus,
+		"durable_runtime":          durableRuntimeStatus,
+		"durable_worker_loop":      durableWorkerLoopStatus,
+		"durable_recovery_loop":    durableRecoveryLoopStatus,
 		"capability_gates":         s.capabilityGateStatus(),
 		"prompt_config_gate":       promptGate,
 		"bridge_runtime": map[string]any{
@@ -206,6 +217,119 @@ func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {
 		return status
 	}
 	status["healthy"] = true
+	return status
+}
+
+func (s *Server) durableRuntimeStatus(ctx context.Context) map[string]any {
+	configured := s.durableRuntime != nil
+	status := map[string]any{
+		"configured": configured,
+		"healthy":    true,
+		"last_error": "",
+	}
+	if s.durableRuntimeErr != nil {
+		status["healthy"] = false
+		status["last_error"] = "durable runtime store could not be initialized"
+		return status
+	}
+	if !configured {
+		return status
+	}
+	checker, ok := s.durableRuntime.(interface{ HealthCheck(context.Context) error })
+	if !ok {
+		return status
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+	defer cancel()
+	if err := checker.HealthCheck(checkCtx); err != nil {
+		status["healthy"] = false
+		status["last_error"] = "durable runtime store health check failed"
+		return status
+	}
+	return status
+}
+
+func (s *Server) durableWorkerLoopStatus() map[string]any {
+	status := map[string]any{
+		"enabled":           s.config.DurableWorkerLoopEnabled,
+		"configured":        s.durableWorkerLoop != nil,
+		"healthy":           true,
+		"last_error":        "",
+		"worker_id":         "",
+		"lane":              "",
+		"step_id":           "",
+		"started":           false,
+		"last_outcome":      "",
+		"last_run_id":       "",
+		"last_lease_id":     "",
+		"last_iteration_at": "",
+	}
+	if !s.config.DurableWorkerLoopEnabled {
+		return status
+	}
+	if s.durableWorkerLoopErr != nil {
+		status["healthy"] = false
+		status["last_error"] = "durable worker loop could not be configured"
+		return status
+	}
+	if s.durableWorkerLoop == nil {
+		status["healthy"] = false
+		status["last_error"] = "durable worker loop is enabled but not configured"
+		return status
+	}
+	loopStatus := s.durableWorkerLoop.Status()
+	status["worker_id"] = loopStatus.WorkerID
+	status["lane"] = string(loopStatus.Lane)
+	status["step_id"] = loopStatus.StepID
+	status["started"] = loopStatus.Started
+	status["last_outcome"] = string(loopStatus.LastOutcome)
+	status["last_run_id"] = loopStatus.LastRunID
+	status["last_lease_id"] = loopStatus.LastLeaseID
+	status["healthy"] = loopStatus.Healthy
+	if loopStatus.LastError != "" {
+		status["last_error"] = "durable worker loop iteration failed"
+	}
+	if !loopStatus.LastIterationAt.IsZero() {
+		status["last_iteration_at"] = loopStatus.LastIterationAt.UTC().Format(time.RFC3339Nano)
+	}
+	return status
+}
+
+func (s *Server) durableRecoveryLoopStatus() map[string]any {
+	status := map[string]any{
+		"enabled":             s.config.DurableRecoveryLoopEnabled,
+		"configured":          s.durableRecoveryLoop != nil,
+		"healthy":             true,
+		"last_error":          "",
+		"started":             false,
+		"last_iteration_at":   "",
+		"last_expired_leases": 0,
+		"last_timed_out_runs": 0,
+	}
+	if !s.config.DurableRecoveryLoopEnabled {
+		return status
+	}
+	if s.durableRecoveryLoopErr != nil {
+		status["healthy"] = false
+		status["last_error"] = "durable recovery loop could not be configured"
+		return status
+	}
+	if s.durableRecoveryLoop == nil {
+		status["healthy"] = false
+		status["last_error"] = "durable recovery loop is enabled but not configured"
+		return status
+	}
+	loopStatus := s.durableRecoveryLoop.Status()
+	status["started"] = loopStatus.Started
+	status["healthy"] = loopStatus.Healthy
+	status["last_expired_leases"] = loopStatus.LastExpiredLeases
+	status["last_timed_out_runs"] = loopStatus.LastTimedOutRuns
+	if loopStatus.LastError != "" {
+		status["last_error"] = "durable recovery loop iteration failed"
+	}
+	if !loopStatus.LastIterationAt.IsZero() {
+		status["last_iteration_at"] = loopStatus.LastIterationAt.UTC().Format(time.RFC3339Nano)
+	}
 	return status
 }
 

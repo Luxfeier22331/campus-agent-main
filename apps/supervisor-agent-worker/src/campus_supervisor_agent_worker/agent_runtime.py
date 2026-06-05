@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 import httpx
-from campus_shared import (
+from campus_prompt_runtime import (
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
     build_prompt_runtime_http_client,

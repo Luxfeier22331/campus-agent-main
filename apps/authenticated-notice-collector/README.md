@@ -93,15 +93,14 @@ Auth note:
   adding the portal hosts to `NO_PROXY` and removes those portal hosts from the
   current process `NO_PROXY` value if already present; the collector also passes
   an explicit Playwright proxy to browser bootstrap and API requests using
-  `AUTHENTICATED_NOTICE_PROXY_SERVER`, or `HTTPS_PROXY` / `HTTP_PROXY` /
-  `ALL_PROXY` when the explicit value is empty
+  `AUTHENTICATED_NOTICE_PROXY_SERVER`; shell-wide proxy variables are not used
+  as a portal proxy contract
 - `JSESSIONID` and `nginx` are portal-derived session cookies; the collector
   will first try visiting `<https://my.muc.edu.cn/page/11#/`> once before
   creating the API request context so these cookies can be refreshed at runtime
 - browser launch and `page.goto` both share the same short bootstrap timeout
-  window; if either step times out in headless mode, the collector falls back to
-  the existing `storageState` cookies and lets the subsequent API request verify
-  whether the session is still usable
+  window; if either step times out in headless mode, the collector surfaces that
+  bootstrap failure before creating the API request context
 - `auth:check` is responsible for verifying that the refreshed session can
   access both
   `/comsys-portal-notice-web/getNoticeByPage` and

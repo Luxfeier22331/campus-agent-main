@@ -114,6 +114,24 @@ def build_retrieval_runtime_event_sink(
     return sink
 
 
+def build_jsonl_retrieval_observation_sink(path: str | Path) -> RetrievalObservationSink:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    write_lock = Lock()
+
+    def sink(observation: dict[str, object]) -> None:
+        line = json.dumps(
+            observation,
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+        with write_lock, output_path.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+
+    return sink
+
+
 def build_runtime_event_jsonl_emitter(path: str | Path) -> RuntimeEventEmitter:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

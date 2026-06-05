@@ -281,11 +281,11 @@ func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
 	runtime := NewRuntime(Options{
 		NoticeReadModelDatabaseURL:     "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
 		NoticeReadModelTable:           "ingestion_projection.internal_notice_read_model",
-		NoticeObjectStoreEndpoint:      "http://minio:9000",
-		NoticeObjectStoreAccessKey:     "access",
-		NoticeObjectStoreSecretKey:     "secret",
-		NoticeObjectStoreRegion:        "us-east-1",
-		NoticeObjectStoreBucketDerived: "campus-rag-derived",
+		NoticeBodyObjectStoreEndpoint:  "http://minio:9000",
+		NoticeBodyObjectStoreAccessKey: "access",
+		NoticeBodyObjectStoreSecretKey: "secret",
+		NoticeBodyObjectStoreRegion:    "us-east-1",
+		NoticeBodyObjectStoreBucket:    "notice-body",
 	})
 
 	status := runtime.Status(context.Background())

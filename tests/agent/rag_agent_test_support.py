@@ -35,6 +35,10 @@ from campus_ingestion_core import ResolvedVersionQuery, ResolvedVersionSelection
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
 )
+from campus_prompt_runtime import (
+    NormalizedProviderGroundingSupport,
+    PromptRuntimeValidationError,
+)
 from campus_rag_agent import RagAgent
 from campus_rag_agent.agent import _query_mode, _select_answer_support_rows
 from campus_rag_agent.confidence import derive_confidence
@@ -59,17 +63,15 @@ from campus_rag_agent.rag_sdk_output import RagSdkAnswerOutput, RagSdkClaim, Rag
 from campus_rag_agent.service import delegate_to_rag_agent as _service_delegate_to_rag_agent
 from campus_rag_agent.service_retrieval import retrieve_sources
 from campus_rag_agent.typed_answer_drafts import validate_typed_answer_draft
+from campus_regulation_semantics.regulation_semantic_registry import (
+    load_regulation_discovery_config,
+)
 from campus_retrieval_core import (
     CorpusQueryDisabledError,
     RestrictedDocumentAccessDeniedError,
     RetrievalBackendError,
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
-from campus_shared import (
-    NormalizedProviderGroundingSupport,
-    PromptRuntimeValidationError,
-)
-from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
 
 from tests.agent.rag_agent_test_support_defaults import (
     default_condition_subject_for_source,

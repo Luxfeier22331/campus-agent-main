@@ -344,7 +344,7 @@ describe("request principal resolution", () => {
 		expect(mockedGetAppAuth).not.toHaveBeenCalled();
 	});
 
-	it("ignores non-admitted operator headers on non-operator surfaces and falls back to session auth", async () => {
+	it("ignores non-admitted operator headers on non-operator surfaces and resolves session auth", async () => {
 		mockedGetAppAuth.mockResolvedValue({
 			api: {
 				getSession: vi.fn().mockResolvedValue({

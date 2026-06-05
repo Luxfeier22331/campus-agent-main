@@ -12,12 +12,7 @@ import {
 	fetchFileReleaseTypes,
 	isAttachmentDownloadTerminalUnavailableError,
 } from "./api.js";
-import {
-	type AuthenticatedNoticeArtifactStore,
-	createAuthenticatedNoticeArtifactStoreFromEnv,
-	type StoredArtifactRef,
-} from "./artifact-store.js";
-import { buildCollectorRunLeaseKey } from "./collector-run-lease.js";
+import type { AuthenticatedNoticeArtifactStore, StoredArtifactRef } from "./artifact-store.js";
 import {
 	buildCollectorFileReleaseRunLedgerRecord,
 	buildCollectorRunFailedLedgerRecord,
@@ -26,7 +21,8 @@ import {
 	type CollectorRunLedgerRecord,
 	type CollectorRunLedgerStore,
 } from "./collector-run-ledger.js";
-import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config.js";
+import { sanitizeObjectKeySegment } from "./collector-runtime.js";
+import { resolveCollectorConfig } from "./config.js";
 import {
 	AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 	buildExportManifest,
@@ -44,18 +40,11 @@ import {
 	normalizeUrlHost,
 	normalizeUrlScheme,
 	resolveAbsoluteUrl,
-	resolveFileReleaseExportFiltersFromEnv,
 	resolveFileReleaseFilename,
 	resolveReleasedFileContentType,
 	safeBasename,
 	toTimestampLabel,
 } from "./file-release-export-helpers.js";
-import {
-	buildCollectorRunLeaseStoreForMain,
-	buildCollectorRunLedgerStoreForMain,
-	runWithOptionalCollectorLease,
-	sanitizeObjectKeySegment,
-} from "./file-release-export-runtime.js";
 import { createApiContextFromStorageState } from "./portal.js";
 import { formatSafeErrorMessage } from "./safe-error.js";
 import type {
@@ -740,70 +729,4 @@ async function materializeReleasedFiles(input: {
 		bundleRecords,
 		uploadedCount,
 	};
-}
-
-export async function main(): Promise<void> {
-	loadCollectorEnv();
-	const config = resolveCollectorConfig(process.env);
-	ensureRuntimeDirs(config);
-	const exportedAt = new Date().toISOString();
-	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
-	const collectorRunLedgerStore = buildCollectorRunLedgerStoreForMain(config);
-	const collectorRunLeaseStore = buildCollectorRunLeaseStoreForMain(config);
-	const { pageSize, maxPages, maxFileReleases, targetFileReleaseId } =
-		resolveFileReleaseExportFiltersFromEnv(process.env);
-	try {
-		await runWithOptionalCollectorLease(
-			collectorRunLeaseStore,
-			{
-				leaseKey: buildCollectorRunLeaseKey({
-					siteId: config.siteId,
-					sourceSurface: "file_release",
-				}),
-				now: exportedAt,
-				ownerId: `${config.siteId}:file_release:${toTimestampLabel(exportedAt)}`,
-				ttlSeconds: config.collectorRunLeaseTtlSeconds,
-			},
-			async () => {
-				const runResult = await runFileReleaseExport({
-					artifactStore: attachmentArtifactStore,
-					collectBundle: () =>
-						collectFileReleaseBundle({
-							attachmentArtifactStore,
-							exportedAt,
-							maxFileReleases,
-							maxPages,
-							pageSize,
-							requestBackoffBaseMs: config.requestBackoffBaseMs,
-							requestMaxRetries: config.requestMaxRetries,
-							siteId: config.siteId,
-							sourceHomeUrl: config.sourceHomeUrl,
-							targetFileReleaseId,
-						}),
-					collectorRunLedgerStore,
-					exportedAt,
-					outputDir: config.exportsDir,
-					siteId: config.siteId,
-					sourceHomeUrl: config.sourceHomeUrl,
-					writeLocalArtifacts: config.writeLocalExports,
-				});
-				console.log(
-					JSON.stringify(
-						{
-							...runResult.result.stats,
-							bundlePath: runResult.written?.bundlePath ?? null,
-							bundleObjectKey: runResult.uploadedArtifactRefs.bundleObjectKey,
-							manifestPath: runResult.written?.manifestPath ?? null,
-							manifestObjectKey: runResult.uploadedArtifactRefs.manifestObjectKey,
-						},
-						null,
-						2,
-					),
-				);
-			},
-		);
-	} finally {
-		await collectorRunLedgerStore?.dispose();
-		await collectorRunLeaseStore?.dispose();
-	}
 }

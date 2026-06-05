@@ -41,6 +41,7 @@ export const requestExecution = runtime.table(
 		idempotencyKey: text("idempotency_key"),
 		requestFingerprintSha256: text("request_fingerprint_sha256"),
 		traceId: text("trace_id").notNull(),
+		runId: text("run_id"),
 		safetyIdentifier: text("safety_identifier"),
 		requestedCapability: text("requested_capability"),
 		requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
@@ -66,6 +67,10 @@ export const requestExecution = runtime.table(
 		),
 		statusStartedAtIndex: index("runtime_request_execution_status_started_at_idx").on(
 			table.status,
+			table.startedAt,
+		),
+		runStartedAtIndex: index("runtime_request_execution_run_started_at_idx").on(
+			table.runId,
 			table.startedAt,
 		),
 		safetyIdentifierStartedAtIndex: index(

@@ -3,8 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from campus_shared import APP_NAME
-from campus_shared.prompt_runtime import (
+from campus_prompt_runtime import (
     DEFAULT_PROMPT_RUNTIME_BASE_URL,
     DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
     DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS,
@@ -14,6 +13,7 @@ from campus_shared.prompt_runtime import (
     DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS,
     DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
 )
+from campus_shared import APP_NAME
 
 DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES = 1_048_576
 

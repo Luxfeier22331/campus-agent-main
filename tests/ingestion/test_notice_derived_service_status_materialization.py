@@ -253,7 +253,7 @@ class NoticeDerivedServiceStatusMaterializationTest(unittest.TestCase):
         self.assertEqual(record["effective_from"], "2025-10-01T00:00:00+08:00")
         self.assertEqual(record["effective_until"], "2025-10-09T00:00:00+08:00")
 
-    def test_library_status_note_extracts_status_segment_without_markdown_fallback(self) -> None:
+    def test_library_status_note_extracts_status_segment_without_markdown_suffix(self) -> None:
         registry, object_store, entry = _service_status_runtime(
             notice_id="352345",
             notice_title="关于图书馆2025年国庆节、中秋节放假及工作安排的通知",

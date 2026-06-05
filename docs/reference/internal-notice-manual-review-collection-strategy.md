@@ -77,6 +77,6 @@ manual-review / duplicate-hold boundary 的当前解释。
 
 - `docs/reference/institutional-regulations-offline-inventory.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `var/ingestion-evidence/authenticated-notice-regulation-consumption/README.md`
 - `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery
   .md`

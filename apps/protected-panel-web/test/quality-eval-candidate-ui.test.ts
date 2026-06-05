@@ -29,6 +29,12 @@ describe("quality eval candidate UI", () => {
 		expect(qualityCardsSource).toContain("candidate.diagnostic?.caseId");
 	});
 
+	it("shows durable run backlinks as review metadata without turning them into execution truth", () => {
+		expect(qualityCardsSource).toContain("PANEL_COPY.qualityPage.queueColumns.runId");
+		expect(qualityCardsSource).toContain("candidate.runId ?? PANEL_COPY.pending");
+		expect(qualityCardsSource).toContain("props.selectedBadcase.runId ?? PANEL_COPY.pending");
+	});
+
 	it("renders RAGAS diagnostic review metadata without raw runtime links", () => {
 		expect(diagnosticSummarySource).toContain("diagnostic.failureStage");
 		expect(diagnosticSummarySource).toContain("diagnostic.expectedDocIds");

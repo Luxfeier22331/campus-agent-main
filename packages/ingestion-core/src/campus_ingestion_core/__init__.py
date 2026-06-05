@@ -241,15 +241,15 @@ from campus_ingestion_core.process import (
 from campus_ingestion_core.qdrant_backup import (
     CollectionGcCheckRequest,
     CollectionGcEligibilityReport,
-    SnapshotBackupRequest,
-    SnapshotRestoreReport,
-    SnapshotRestoreRequest,
     check_snapshot_gc_eligibility,
-    create_snapshot_backup,
     default_backup_id,
-    restore_snapshot_backup,
 )
 from campus_ingestion_core.qdrant_backup_models import SnapshotBackupManifest
+from campus_ingestion_core.qdrant_filesystem_backup import (
+    FilesystemSnapshotBackupReport,
+    FilesystemSnapshotBackupRequest,
+    create_filesystem_snapshot_backup,
+)
 from campus_ingestion_core.raw_ingestion import (
     OnlineOcrClient,
     OnlineOcrProviderResult,
@@ -417,6 +417,8 @@ __all__ = [
     "FileReleaseOwnerRecoveryMatch",
     "FileReleaseOwnerRecoveryReadinessReport",
     "FileReleaseResolvedFile",
+    "FilesystemSnapshotBackupReport",
+    "FilesystemSnapshotBackupRequest",
     "HandbookCleanupResult",
     "HandbookSourceTruthValidationReport",
     "ImportReport",
@@ -485,9 +487,6 @@ __all__ = [
     "S3ObjectStoreClientFactory",
     "ScopeAliasReport",
     "SnapshotBackupManifest",
-    "SnapshotBackupRequest",
-    "SnapshotRestoreReport",
-    "SnapshotRestoreRequest",
     "SourceObservation",
     "SparseEmbeddingSettings",
     "SplitManifest",
@@ -548,7 +547,7 @@ __all__ = [
     "chunk_structured_unit",
     "clean_structured_text",
     "cleanup_handbook_document",
-    "create_snapshot_backup",
+    "create_filesystem_snapshot_backup",
     "default_backup_id",
     "default_official_web_projection_declarations_path",
     "default_preparation_run_id",
@@ -609,7 +608,6 @@ __all__ = [
     "resolve_prefetched_hf_tokenizer_path",
     "resolve_regulation_rag_release_admission_manifest_key",
     "resolve_version_query",
-    "restore_snapshot_backup",
     "rollback_release_alias",
     "scan_handbook_source_truth_rows",
     "scan_internal_notice_chunking",

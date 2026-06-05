@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     resolve_regulation_answer_role,
 )
 

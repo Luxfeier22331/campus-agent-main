@@ -10,12 +10,14 @@ from campus_ingestion_core.object_store import build_processed_artifact_key
 
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_CATEGORY_REGISTRY_VERSION,
     ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION,
 )
 
-from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
+from campus_regulation_semantics.regulation_semantic_registry import (
+    load_regulation_discovery_config,
+)
 
 from tests.ingestion._handbook_chunking_test_support import (
     build_hermetic_handbook_v3_chunk_profile,

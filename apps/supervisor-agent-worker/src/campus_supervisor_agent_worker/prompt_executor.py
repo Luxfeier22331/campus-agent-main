@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import httpx
+from campus_prompt_runtime import (
+    PromptRuntimeProviderConfig,
+    ResponsesStructuredOutputExecutor,
+    build_prompt_trace,
+)
 from campus_rag_agent.prompt_execution import (
     RagAnswerPromptOutput,
     RagClarifyPromptOutput,
@@ -8,11 +13,6 @@ from campus_rag_agent.prompt_execution import (
 )
 from campus_rag_agent.prompt_packets import RagPromptPacket
 from campus_rag_agent.prompts.registry import get_rag_prompt_spec
-from campus_shared import (
-    PromptRuntimeProviderConfig,
-    ResponsesStructuredOutputExecutor,
-    build_prompt_trace,
-)
 from pydantic import BaseModel, ConfigDict
 
 from campus_supervisor_agent_worker.prompt_stack import (

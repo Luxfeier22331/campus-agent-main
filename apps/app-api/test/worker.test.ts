@@ -3,6 +3,7 @@ import stagingPreflightSource from "../../../scripts/run-worker-staging-prefligh
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
+import runWithStagingSmokeEnvSource from "../scripts/run-with-staging-smoke-env.mjs?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
@@ -87,6 +88,7 @@ function createRuntimeReadinessResult() {
 			auth: "ready",
 			authShellOrigin: "configured",
 			database: "ready",
+			durableRuntime: "not_required",
 			officialWebHandoff: "not_configured",
 			operatorBridge: "configured",
 			publicChatCompatibilityOrigin: "configured",
@@ -156,11 +158,11 @@ describe("app-api worker foundation", () => {
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
-		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "30000"');
+		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "95000"');
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
-		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime-staging"');
+		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime"');
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
@@ -173,7 +175,7 @@ describe("app-api worker foundation", () => {
 			"check_worker_secret_presence.py",
 		);
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
-		expect(deployStagingSource).toContain("loadRepoEnvFile");
+		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
 		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain(
 			"chat-e2e.ts --profile staging",
@@ -200,13 +202,17 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
-		expect(runWithStagingDbEnvSource).toContain("loadRepoEnvFile");
-		expect(runWithStagingDbEnvSource).toContain(".env.staging.local");
+		expect(runWithStagingDbEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(runWithStagingDbEnvSource).not.toContain("loadRepoEnvFile");
+		expect(runWithStagingDbEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
+		expect(runWithStagingSmokeEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("https://hub-staging.mucwiki-edge.link");
 		expect(runWithStagingDbEnvSource).toContain("https://chat-staging.mucwiki-edge.link");
 		expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
+		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
 		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
 		expect(stagingPreflightSource).toContain("db:bootstrap:staging");
@@ -302,6 +308,7 @@ describe("app-api worker foundation", () => {
 				auth: "ready",
 				authShellOrigin: "configured",
 				database: "ready",
+				durableRuntime: "not_required",
 				officialWebHandoff: "not_configured",
 				operatorBridge: "configured",
 				publicChatCompatibilityOrigin: "configured",
@@ -337,6 +344,7 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
+					durableRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
@@ -413,6 +421,7 @@ describe("app-api worker foundation", () => {
 					auth: "not_ready",
 					authShellOrigin: "configured",
 					database: "ready",
+					durableRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
@@ -448,6 +457,75 @@ describe("app-api worker foundation", () => {
 		});
 	});
 
+	it("fails readyz closed when deployed durable runtime preflight is blocked", async () => {
+		const runtime = createWorkerRuntime(env, {
+			runtimeReadinessProbe: vi.fn().mockResolvedValue({
+				dependencies: {
+					auth: "ready",
+					authShellOrigin: "configured",
+					database: "ready",
+					durableRuntime: "not_ready",
+					officialWebHandoff: "not_configured",
+					operatorBridge: "configured",
+					publicChatCompatibilityOrigin: "configured",
+					supervisorApi: "ready",
+				},
+				failed: {
+					durableRuntime: "durable_worker_loop is not enabled, configured, healthy, and started",
+				},
+				preflight: {
+					durableRuntime: {
+						status: "blocked",
+						checks: {
+							durableRuntimeStore: "ready",
+							durableWorkerLoop: "not_ready",
+							durableRecoveryLoop: "ready",
+						},
+						blockers: {
+							durableWorkerLoop:
+								"durable_worker_loop is not enabled, configured, healthy, and started",
+						},
+					},
+				},
+			}),
+		});
+
+		const response = await runtime.fetch(
+			new Request("https://app-api.internal/readyz"),
+			createExecutionContext(),
+		);
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				code: "dependency_not_ready",
+				message: "Runtime dependencies are not ready.",
+				retryable: true,
+				traceId: null,
+				requestId: null,
+				details: {
+					failed: {
+						durableRuntime: "durable_worker_loop is not enabled, configured, healthy, and started",
+					},
+					preflight: {
+						durableRuntime: {
+							status: "blocked",
+							checks: {
+								durableRuntimeStore: "ready",
+								durableWorkerLoop: "not_ready",
+								durableRecoveryLoop: "ready",
+							},
+							blockers: {
+								durableWorkerLoop:
+									"durable_worker_loop is not enabled, configured, healthy, and started",
+							},
+						},
+					},
+				},
+			},
+		});
+	});
+
 	it("publishes campus services product-path preflight blockers on readyz", async () => {
 		const runtime = createWorkerRuntime(env, {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue({
@@ -455,6 +533,7 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
+					durableRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
@@ -620,20 +699,20 @@ describe("app-api worker foundation", () => {
 				answer: {
 					conversation: {
 						createdAt: "2026-03-28T07:59:00.000Z",
-						id: "conv_fallback_01HQ",
+						id: "conv_waituntil_closed_01HQ",
 						messages: [],
 						title: "图书馆开放时间",
 						updatedAt: "2026-03-28T08:00:01.000Z",
 					},
 					result: {
 						kind: "answer",
-						requestId: "req_fallback_01HQ",
+						requestId: "req_waituntil_closed_01HQ",
 						text: "图书馆开放到 22:00。",
-						traceId: "trace_fallback_01HQ",
+						traceId: "trace_waituntil_closed_01HQ",
 					},
 				},
-				requestId: "req_fallback_01HQ",
-				traceId: "trace_fallback_01HQ",
+				requestId: "req_waituntil_closed_01HQ",
+				traceId: "trace_waituntil_closed_01HQ",
 			}),
 		};
 		const runtime = createWorkerRuntime(env, {

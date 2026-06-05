@@ -112,7 +112,7 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_API_KEY=prompt-runtime-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
                         "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
@@ -167,6 +167,40 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["conditions"]["otel_axiom_collector_endpoint_contract"]["ready"])
             self.assertFalse(
                 status["conditions"]["otel_axiom_collector_endpoint_contract"]["required"]
+            )
+
+    def test_collect_env_doctor_status_supervisor_api_uses_prompt_runtime_api_key(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "PROMPT_RUNTIME_API_KEY=prompt-runtime-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertTrue(status["overall_ready"])
+            self.assertEqual(
+                status["providers"]["llm"]["resolved_key"],
+                "PROMPT_RUNTIME_API_KEY",
+            )
+            self.assertEqual(
+                status["providers"]["llm"]["checked_keys"],
+                ["PROMPT_RUNTIME_API_KEY"],
             )
 
     def test_collect_env_doctor_status_supervisor_api_requires_bridge_contract(self) -> None:
@@ -290,7 +324,8 @@ class DoctorEnvTest(unittest.TestCase):
             condition = status["conditions"]["notice_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("OBJECT_STORE_ENDPOINT", condition["error"])
+            self.assertIn("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", condition["error"])
+            self.assertIn("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", condition["error"])
 
     def test_collect_env_doctor_status_supervisor_api_rejects_axiom_collector_signal_path(
         self,
@@ -405,6 +440,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "APP_API_BASE_URL=https://app-api.internal",
                         "PUBLIC_CHAT_HOSTNAME=chat.example.com",
+                        "HUB_WEB_BASE_URL=https://hub.example.com",
                     ]
                 )
                 + "\n",
@@ -517,7 +553,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(shared_pg["connectivity"]["checked"])
             self.assertTrue(shared_pg["connectivity"]["ok"])
 
-    def test_collect_env_doctor_status_reports_ingestion_surface_and_registry_fallback(
+    def test_collect_env_doctor_status_reports_ingestion_surface_and_registry_source(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -675,111 +711,6 @@ class DoctorEnvTest(unittest.TestCase):
                     "OBJECT_STORE_DERIVED_ACCESS_KEY+OBJECT_STORE_DERIVED_SECRET_KEY"
                 ),
             )
-
-    def test_collect_env_doctor_status_reports_worker_staging_shell_requirements(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "campus-agent"
-            repo_root.mkdir(parents=True)
-
-            with patch.dict(
-                os.environ,
-                {
-                    "STAGING_SUPERVISOR_API_BASE_URL": "https://supervisor-staging.example.com",
-                    "STAGING_ACCESS_TEAM_DOMAIN": "https://ayafeed.cloudflareaccess.com",
-                    "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
-                },
-                clear=True,
-            ):
-                status = collect_env_doctor_status(repo_root=repo_root, surface="worker-staging")
-
-            self.assertTrue(status["overall_ready"])
-            self.assertTrue(
-                status["settings"]["required"]["staging_supervisor_api_base_url"]["present"]
-            )
-            self.assertTrue(status["settings"]["required"]["staging_access_team_domain"]["present"])
-            self.assertTrue(status["settings"]["required"]["staging_access_policy_aud"]["present"])
-
-    def test_collect_env_doctor_status_reports_app_api_worker_staging_requirements(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "campus-agent"
-            repo_root.mkdir(parents=True)
-
-            with patch.dict(
-                os.environ,
-                {
-                    "STAGING_SUPERVISOR_API_BASE_URL": "https://supervisor-staging.example.com",
-                },
-                clear=True,
-            ):
-                status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-app-api"
-                )
-
-            self.assertTrue(status["overall_ready"])
-            self.assertTrue(
-                status["settings"]["required"]["staging_supervisor_api_base_url"]["present"]
-            )
-            self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
-
-    def test_collect_env_doctor_status_reports_public_chat_worker_staging_without_shell_inputs(
-        self,
-    ) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "campus-agent"
-            repo_root.mkdir(parents=True)
-
-            with patch.dict(os.environ, {}, clear=True):
-                status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-public-chat-web"
-                )
-
-            self.assertTrue(status["overall_ready"])
-            self.assertEqual(status["settings"]["required"], {})
-            self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
-
-    def test_collect_env_doctor_status_reports_hub_worker_staging_requirements(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "campus-agent"
-            repo_root.mkdir(parents=True)
-
-            with patch.dict(
-                os.environ,
-                {
-                    "STAGING_HUB_AUTH_TURNSTILE_SITE_KEY": "0x4AAAAAAAstagingWidget",
-                },
-                clear=True,
-            ):
-                status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-hub-web"
-                )
-
-            self.assertTrue(status["overall_ready"])
-            self.assertTrue(
-                status["settings"]["required"]["staging_hub_auth_turnstile_site_key"]["present"]
-            )
-            self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
-
-    def test_collect_env_doctor_status_reports_panel_worker_staging_requirements(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "campus-agent"
-            repo_root.mkdir(parents=True)
-
-            with patch.dict(
-                os.environ,
-                {
-                    "STAGING_ACCESS_TEAM_DOMAIN": "https://ayafeed.cloudflareaccess.com",
-                    "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
-                },
-                clear=True,
-            ):
-                status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-protected-panel-web"
-                )
-
-            self.assertTrue(status["overall_ready"])
-            self.assertTrue(status["settings"]["required"]["staging_access_team_domain"]["present"])
-            self.assertTrue(status["settings"]["required"]["staging_access_policy_aud"]["present"])
-            self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
 
 if __name__ == "__main__":

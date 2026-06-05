@@ -404,7 +404,7 @@ class OfficialWebProjectionCoreReplayTestPart07(unittest.TestCase):
         self.assertIsInstance(routes, list)
         self.assertEqual(routes, [])
 
-    def test_replay_official_web_source_truth_local_keeps_generic_fallback_pages_in_manual_review_for_muc_public_pages(
+    def test_replay_official_web_source_truth_local_keeps_generic_shell_pages_in_manual_review_for_muc_public_pages(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:

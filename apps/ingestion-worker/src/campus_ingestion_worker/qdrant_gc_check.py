@@ -4,6 +4,7 @@ import argparse
 import json
 from collections.abc import Sequence
 from dataclasses import asdict
+from pathlib import Path
 
 from campus_ingestion_core.qdrant_backup import (
     CollectionGcCheckRequest,
@@ -20,6 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--collection", required=True)
     parser.add_argument("--release-id", required=True)
+    parser.add_argument(
+        "--backup-root",
+        required=True,
+        help="Filesystem root for qdrant-native snapshot bundles.",
+    )
     parser.add_argument(
         "--protected-physical-collection-name",
         action="append",
@@ -43,6 +49,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             corpus=args.corpus,
             collection=args.collection,
             release_id=args.release_id,
+            backup_root=Path(args.backup_root),
             protected_physical_collection_names=tuple(args.protected_physical_collection_names),
             manual_blockers=tuple(args.manual_blockers),
         )

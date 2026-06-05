@@ -344,6 +344,46 @@ class RagAgentSdkServiceTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.fail_close_reason, "rag_sdk_runtime_failed")
         self.assertEqual(response.result.diagnostics.semantic_outcome, "runtime_error")
 
+    def test_policy_object_identity_completes_without_sdk_runner(self) -> None:
+        title = "中央民族大学本科学生国家奖学金评审办法"
+        source = _make_handbook_source(
+            doc_id="handbook:national-scholarship",
+            title=title,
+            snippet="第一条 为奖励特别优秀的全日制本科学生，设立国家奖学金。",
+            score=0.33,
+            chunk_id_suffix="national-scholarship-policy-object-identity",
+            content_role="requirement",
+            is_answer_bearing=True,
+            semantic_role="eligibility_condition",
+            polarity="positive",
+            claim_type="condition",
+        )
+        evidence = EvidenceBundle(
+            query_text=title,
+            corpus="regulations",
+            collection="student_rules",
+            sources=(source,),
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal=title,
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn(f"《{title}》", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics.prompt_runtime_state, "deterministic_typed_answer"
+        )
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertEqual(response.result.diagnostics.answer_presentation_kind, "document_identity")
+
     def test_direct_service_requires_explicit_sdk_runner(self) -> None:
         response = delegate_to_rag_agent(
             _request(),

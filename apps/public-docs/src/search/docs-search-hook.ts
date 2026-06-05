@@ -2,31 +2,24 @@ import { searchIndexHash } from "virtual-page-data";
 import {
 	collectDocsSearchScopes,
 	type DocsApiSearchResponse,
+	type DocsApiSearchSuggestion,
 	mapDocsApiResultsToSuggestions,
 	type ScopedDocsApiSearchResponse,
-} from "./docs-api-search-core";
-import {
-	buildStaticSearchSuggestions,
 	type SearchIndexPage,
-	type StaticSearchSuggestion,
-} from "./static-search-suggestions";
+	type SearchSuggestion,
+} from "./docs-api-search-core";
 
 interface DefaultSearchGroup {
 	group: string;
 	renderType: "default";
-	result: StaticSearchSuggestion[];
+	result: SearchSuggestion[];
 }
 
 interface DocsApiSearchOutcome {
-	results: StaticSearchSuggestion[];
-	status: "failed" | "succeeded";
+	results: DocsApiSearchSuggestion[];
 }
 
 let pagesPromise: Promise<SearchIndexPage[]> | null = null;
-
-function hasDefaultResults(matchedResult: DefaultSearchGroup[]): boolean {
-	return matchedResult.some((group) => group.result.length > 0);
-}
 
 function resolveStaticBasePath(): string {
 	const script = document.querySelector<HTMLScriptElement>('script[src*="/static/js/"]');
@@ -83,7 +76,7 @@ async function searchDocsApi(
 ): Promise<DocsApiSearchOutcome> {
 	const scopes = collectDocsSearchScopes(pages);
 	if (scopes.length === 0) {
-		return { results: [], status: "succeeded" };
+		return { results: [] };
 	}
 	const responses = (
 		await Promise.all(
@@ -101,10 +94,11 @@ async function searchDocsApi(
 			}),
 		)
 	).filter((response): response is ScopedDocsApiSearchResponse => Boolean(response));
-	return { results: mapDocsApiResultsToSuggestions(query, responses), status: "succeeded" };
+	return { results: mapDocsApiResultsToSuggestions(query, responses) };
 }
 
 export async function onSearch(query: string, matchedResult: DefaultSearchGroup[]): Promise<void> {
+	matchedResult.splice(0, matchedResult.length);
 	const pages = await getSearchIndexPages();
 	let docsApiOutcome: DocsApiSearchOutcome;
 	try {
@@ -120,24 +114,4 @@ export async function onSearch(query: string, matchedResult: DefaultSearchGroup[
 		});
 		return;
 	}
-
-	if (hasDefaultResults(matchedResult)) {
-		return;
-	}
-
-	const staticSuggestions = buildStaticSearchSuggestions(query, pages);
-	if (staticSuggestions.length === 0) {
-		return;
-	}
-
-	if (matchedResult[0]) {
-		matchedResult[0].result = staticSuggestions;
-		return;
-	}
-
-	matchedResult.push({
-		group: "Campus Agent 文档站",
-		renderType: "default",
-		result: staticSuggestions,
-	});
 }

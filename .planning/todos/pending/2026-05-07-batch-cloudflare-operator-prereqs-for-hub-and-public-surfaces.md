@@ -13,24 +13,21 @@ files:
 
 `hub-web` staging preflight is currently blocked by missing external Cloudflare
 operator configuration, specifically a real Turnstile widget site key admitted
-for `hub-muc-wiki.ayafeed.com` now, and later for the final `hub.muc.wiki`
-hostname. This should not be handled as an ad hoc one-off ask to the `muc.wiki`
-domain owner every time a surface is ready. The real gap is that repo rollout
-still lacks a single batched operator checklist covering Cloudflare-managed
+for `hub-staging.mucwiki-edge.link`. This should not be handled as an ad hoc
+one-off dashboard change every time a surface is ready. The real gap is that repo
+rollout still lacks a single batched operator checklist covering Cloudflare-managed
 prerequisites across hub and other public browser surfaces.
 
-The request should also be framed correctly: Turnstile does not require zone
-ownership of `muc.wiki`; it requires a Cloudflare account operator to create or
-manage a widget whose hostname allowlist includes the active hub hostname, plus
-the corresponding runtime values to be handed back to campus-agent operators.
+The current active hostname for this backlog item is `hub-staging.mucwiki-edge.link`.
+`hub.muc.wiki` production custom-hostname work is intentionally not part of this
+staging operator request.
 
 ## Solution
 
 Create a repo-owned external-operator backlog item and later execute it as one
 batched request. The batched checklist should include at least:
 
-- Turnstile widget provisioning for `hub-muc-wiki.ayafeed.com`
-- later Turnstile widget/domain provisioning for `hub.muc.wiki`
+- Turnstile widget provisioning for `hub-staging.mucwiki-edge.link`
 - confirmation of the exact staging site key returned to campus-agent operators
 - any matching `app-api` secret-side Turnstile prerequisites if hub auth rollout
   still depends on them

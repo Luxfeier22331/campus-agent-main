@@ -41,7 +41,7 @@ updated: 2026-05-07
 
 - Do not delete old-index read compatibility if still needed for safe historical operation; quarantine
   it instead.
-- Do not claim target v3 completion while any fallback primary path is allowed for target rebuilt
+- Do not claim target v3 completion while any legacy-signal primary path is allowed for target rebuilt
   releases.
 - Do not update docs to claim merged truth before release evidence exists.
 

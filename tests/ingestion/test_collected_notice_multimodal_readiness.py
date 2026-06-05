@@ -441,7 +441,7 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
             {"355867", "355868"},
         )
 
-    def test_internal_notice_image_uses_ocr_path_not_multimodal_fallback(self) -> None:
+    def test_internal_notice_image_uses_ocr_path_not_direct_multimodal(self) -> None:
         unit = _unit(
             notice_id="355868",
             title="关于临时调整校园服务开放时间的通知",

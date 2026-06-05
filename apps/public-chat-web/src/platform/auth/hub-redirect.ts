@@ -77,13 +77,25 @@ export function buildPublicChatAuthCompatPath(
 	return `${route.compatPath}${search ? `?${search}` : ""}`;
 }
 
-export function buildHubAuthRedirect(url: URL, hubBaseUrl = "https://hub.muc.wiki"): string | null {
+export function isPublicChatAuthCompatPath(pathname: string): pathname is PublicChatAuthCompatPath {
+	return pathname in PUBLIC_CHAT_AUTH_COMPAT_ROUTES;
+}
+
+export function buildHubAuthRedirect(
+	url: URL,
+	hubBaseUrl: string | null | undefined,
+): string | null {
 	const route = PUBLIC_CHAT_AUTH_COMPAT_ROUTES[url.pathname as PublicChatAuthCompatPath];
 	if (!route) {
 		return null;
 	}
 
-	const hubOrigin = new URL(hubBaseUrl.trim() || "https://hub.muc.wiki").origin;
+	const normalizedHubBaseUrl = trimToNull(hubBaseUrl);
+	if (!normalizedHubBaseUrl) {
+		throw new Error("HUB_WEB_BASE_URL is required for public chat auth redirects.");
+	}
+
+	const hubOrigin = new URL(normalizedHubBaseUrl).origin;
 	const redirectUrl = new URL(route.hubPath, hubOrigin);
 
 	if (route.kind === "reset-password") {

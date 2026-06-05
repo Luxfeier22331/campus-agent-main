@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     AnswerReadyEvidenceValidationResult,
     validate_answer_ready_evidence_metadata,
 )

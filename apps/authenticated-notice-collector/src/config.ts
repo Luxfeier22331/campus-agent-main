@@ -270,19 +270,11 @@ function resolvePortalProxyServer(
 	if (bypassProxyForPortal) {
 		return null;
 	}
-	for (const candidate of [
-		source.AUTHENTICATED_NOTICE_PROXY_SERVER,
-		source.HTTPS_PROXY,
-		source.https_proxy,
-		source.HTTP_PROXY,
-		source.http_proxy,
-		source.ALL_PROXY,
-		source.all_proxy,
-	] as Array<string | undefined>) {
-		const normalized = String(candidate ?? "").trim();
-		if (normalized) {
-			return normalized;
-		}
+	const normalized = String(source.AUTHENTICATED_NOTICE_PROXY_SERVER ?? "").trim();
+	if (!normalized) {
+		throw new Error(
+			"AUTHENTICATED_NOTICE_PROXY_SERVER is required when AUTHENTICATED_NOTICE_BYPASS_PROXY=false",
+		);
 	}
-	return null;
+	return normalized;
 }

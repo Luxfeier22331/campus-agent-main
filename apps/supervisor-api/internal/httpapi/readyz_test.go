@@ -37,6 +37,14 @@ func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
 	if bridgeRuntime["configured"] != false {
 		t.Fatalf("bridge configured = %v, want false", bridgeRuntime["configured"])
 	}
+	workerLoop := expectRecord(t, body["durable_worker_loop"], "durable_worker_loop")
+	if workerLoop["enabled"] != false || workerLoop["healthy"] != true {
+		t.Fatalf("durable_worker_loop = %#v, want disabled healthy", workerLoop)
+	}
+	recoveryLoop := expectRecord(t, body["durable_recovery_loop"], "durable_recovery_loop")
+	if recoveryLoop["enabled"] != false || recoveryLoop["healthy"] != true {
+		t.Fatalf("durable_recovery_loop = %#v, want disabled healthy", recoveryLoop)
+	}
 }
 
 func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
@@ -495,23 +503,23 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
 
 func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
 	server := NewServer(config.Config{
-		AppName:                         "campus-agent",
-		MaxConcurrentAnswers:            8,
-		OpenCapabilities:                []string{"notice"},
-		PromptRuntimeProvider:           "openai-responses",
-		SupervisorPromptModel:           "gpt-supervisor",
-		AgentPromptModel:                "gpt-agent",
-		PromptRuntimeAPIKey:             "test-key",
-		PromptRuntimeTransport:          "responses",
-		PromptRuntimeBaseURL:            "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs:   true,
-		NoticeReadModelDatabaseURL:      "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
-		NoticeReadModelTable:            "ingestion_projection.internal_notice_read_model",
-		NoticeObjectStoreEndpoint:       "http://127.0.0.1:1",
-		NoticeObjectStoreAccessKey:      "access-key",
-		NoticeObjectStoreSecretKey:      "secret-object-key",
-		NoticeObjectStoreBucketDerived:  "campus-rag-derived",
-		NoticeObjectStoreBodyLimitBytes: 1_048_576,
+		AppName:                             "campus-agent",
+		MaxConcurrentAnswers:                8,
+		OpenCapabilities:                    []string{"notice"},
+		PromptRuntimeProvider:               "openai-responses",
+		SupervisorPromptModel:               "gpt-supervisor",
+		AgentPromptModel:                    "gpt-agent",
+		PromptRuntimeAPIKey:                 "test-key",
+		PromptRuntimeTransport:              "responses",
+		PromptRuntimeBaseURL:                "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs:       true,
+		NoticeReadModelDatabaseURL:          "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
+		NoticeReadModelTable:                "ingestion_projection.internal_notice_read_model",
+		NoticeBodyObjectStoreEndpoint:       "http://127.0.0.1:1",
+		NoticeBodyObjectStoreAccessKey:      "access-key",
+		NoticeBodyObjectStoreSecretKey:      "secret-object-key",
+		NoticeBodyObjectStoreBucket:         "notice-body",
+		NoticeBodyObjectStoreBodyLimitBytes: 1_048_576,
 	}, &fakeBridge{
 		configured: true,
 		readyz: bridge.ReadyzResponse{
@@ -552,22 +560,22 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
 
 func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.T) {
 	server := NewServer(config.Config{
-		AppName:                         "campus-agent",
-		MaxConcurrentAnswers:            8,
-		PromptRuntimeProvider:           "openai-responses",
-		SupervisorPromptModel:           "gpt-supervisor",
-		AgentPromptModel:                "gpt-agent",
-		PromptRuntimeAPIKey:             "test-key",
-		PromptRuntimeTransport:          "responses",
-		PromptRuntimeBaseURL:            "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs:   true,
-		NoticeReadModelDatabaseURL:      "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
-		NoticeReadModelTable:            "ingestion_projection.internal_notice_read_model",
-		NoticeObjectStoreEndpoint:       "http://127.0.0.1:1",
-		NoticeObjectStoreAccessKey:      "access-key",
-		NoticeObjectStoreSecretKey:      "secret-object-key",
-		NoticeObjectStoreBucketDerived:  "campus-rag-derived",
-		NoticeObjectStoreBodyLimitBytes: 1_048_576,
+		AppName:                             "campus-agent",
+		MaxConcurrentAnswers:                8,
+		PromptRuntimeProvider:               "openai-responses",
+		SupervisorPromptModel:               "gpt-supervisor",
+		AgentPromptModel:                    "gpt-agent",
+		PromptRuntimeAPIKey:                 "test-key",
+		PromptRuntimeTransport:              "responses",
+		PromptRuntimeBaseURL:                "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs:       true,
+		NoticeReadModelDatabaseURL:          "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
+		NoticeReadModelTable:                "ingestion_projection.internal_notice_read_model",
+		NoticeBodyObjectStoreEndpoint:       "http://127.0.0.1:1",
+		NoticeBodyObjectStoreAccessKey:      "access-key",
+		NoticeBodyObjectStoreSecretKey:      "secret-object-key",
+		NoticeBodyObjectStoreBucket:         "notice-body",
+		NoticeBodyObjectStoreBodyLimitBytes: 1_048_576,
 	}, &fakeBridge{
 		configured: true,
 		readyz: bridge.ReadyzResponse{

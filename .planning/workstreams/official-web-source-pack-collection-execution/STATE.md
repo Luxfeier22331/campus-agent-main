@@ -122,7 +122,7 @@ Result:
 - docs reader assets: `public_entry_count=8`
 - filtered out as non-rule fragment:
   - `https://xxgk.muc.edu.cn/info/1290/5771.htm`
-- skipped regulation preview fallback:
+- skipped regulation preview publication path:
   - `projection-report.json` now has `emitted_documents=0`, so attachment-only or
     rejected regulation preview pages do not publish ordinary `muc_public_pages`
     documents.

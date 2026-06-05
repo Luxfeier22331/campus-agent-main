@@ -5,6 +5,8 @@ import type {
 	RequestProjectionDiagnostics,
 	RequestProjectionRecord,
 	RequestReplaySummary,
+	RequestRuntimeRunEventSummary,
+	RequestRuntimeRunSummary,
 } from "../types";
 
 export const CURRENT_RUNTIME_TARGET_OPTIONS = [
@@ -371,6 +373,62 @@ export function buildRequestIntentEntries(intent: RequestIntentObservabilitySumm
 
 export { buildRequestWorkflowTraceEntries } from "./request-workflow-formatters";
 
+function formatRuntimeRunEventSummary(event: RequestRuntimeRunEventSummary | null) {
+	if (!event) {
+		return PANEL_COPY.notAvailable;
+	}
+
+	return `${event.sequence} · ${event.eventType} · ${event.visibility} · ${formatTimestamp(
+		event.occurredAt,
+	)}`;
+}
+
+export function buildRequestRuntimeRunEntries(run: RequestRuntimeRunSummary | null | undefined) {
+	if (!run) {
+		return [];
+	}
+
+	return [
+		{
+			label: "Run ID",
+			value: run.run.runId,
+		},
+		{
+			label: "Run 状态",
+			value: run.run.status,
+		},
+		{
+			label: "Run 阶段",
+			value: run.run.phase || PANEL_COPY.unknown,
+		},
+		{
+			label: "终态原因",
+			value: run.run.terminalReason || PANEL_COPY.none,
+		},
+		{
+			label: "事件数",
+			value: String(run.eventSummary.eventCount),
+		},
+		{
+			label: "最近事件",
+			value: formatRuntimeRunEventSummary(run.eventSummary.latestEvent),
+		},
+		{
+			label: "终态事件",
+			value: formatRuntimeRunEventSummary(run.eventSummary.terminalEvent),
+		},
+		{
+			label: "可见性分布",
+			value: [
+				`internal=${run.eventSummary.visibilityCounts.internal}`,
+				`panel=${run.eventSummary.visibilityCounts.panel}`,
+				`browser=${run.eventSummary.visibilityCounts.browser}`,
+				`eval=${run.eventSummary.visibilityCounts.eval}`,
+			].join(" · "),
+		},
+	];
+}
+
 function formatClaimSupportSummary(summary: RequestClaimSupportSummary | null | undefined) {
 	if (!summary) {
 		return PANEL_COPY.unknown;
@@ -384,7 +442,7 @@ function formatGroundingDowngradeState(value: boolean | null) {
 		return PANEL_COPY.unknown;
 	}
 
-	return value ? "已降级" : "未降级";
+	return value ? "证据受限" : "证据完整";
 }
 
 function formatPromptSummary(prompt: RequestReplaySummary["prompt"]) {

@@ -43,7 +43,7 @@ from campus_ingestion_core.settings import DEFAULT_BUCKET_DERIVED, DEFAULT_BUCKE
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_READY_CANDIDATES_PATH = Path(
-    ".planning/workstreams/historical-regulation-denominator-expansion/evidence/"
+    "var/ingestion-evidence/historical-regulation-denominator-expansion/"
     "phase-00-denominator-audit/ready-canonical-chunk-candidates.json"
 )
 DEFAULT_NORMALIZED_BUNDLE_PATH = Path(
@@ -51,7 +51,7 @@ DEFAULT_NORMALIZED_BUNDLE_PATH = Path(
     "notices-bundle.normalized.json"
 )
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/historical-regulation-denominator-expansion/evidence/"
+    "var/ingestion-evidence/historical-regulation-denominator-expansion/"
     "phase-01-04-canonical-chunk-backfill"
 )
 PHASE_ID = DEFAULT_HISTORICAL_REGULATION_DENOMINATOR_PHASE

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-05-01
+updated: 2026-06-04
 ---
 # Contracts
 
@@ -20,6 +20,7 @@ updated: 2026-05-01
 - `app-api-identity-platform-http.md` (forward product projection; not current
   route inventory)
 - `app-api-federation-http.md` (forward federation provider surface)
+- `durable-agent-runtime-contract.md`
 
 ## Operator / Official Web contract
 

@@ -75,7 +75,7 @@ updated: 2026-05-01
 - Phase 2 created and requires a small deterministic acceptance fixture set before any
   query-serving alias publish can pass; missing fixtures fail closed.
 - Phase 5 runtime drift guard posture is frozen: online query path uses Qdrant point payload /
-  current release metadata; object-store manifest is audit / offline fallback only.
+  current release metadata; object-store manifest is audit / recovery evidence only.
 - Phase 6/9 embedding cache uses deterministic provider/model/dimension/profile identity;
   cache key changes must invalidate stale vectors.
 

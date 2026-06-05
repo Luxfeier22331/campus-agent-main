@@ -573,10 +573,7 @@ async function main(): Promise<void> {
 		now: args.now,
 		outputPath:
 			args.outputPath ??
-			resolve(
-				REPO_ROOT,
-				".planning/workstreams/public-docs-rolling-publish-automation/evidence/phase-6-production-acceptance-and-operator-runbook/acceptance.json",
-			),
+			resolve(REPO_ROOT, "var/public-docs/published-reader-production-acceptance/acceptance.json"),
 	});
 	console.log(JSON.stringify(evidence, null, 2));
 	if (evidence.status !== "passed") {

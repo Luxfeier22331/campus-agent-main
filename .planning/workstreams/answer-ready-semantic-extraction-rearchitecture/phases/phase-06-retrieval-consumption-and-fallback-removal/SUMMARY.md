@@ -7,12 +7,12 @@ updated: 2026-05-08
 
 <!-- markdownlint-disable MD013 -->
 
-# Summary: Phase 6 Retrieval Consumption And Fallback Removal
+# Summary: Phase 6 Retrieval Consumption And Legacy Signal Removal
 
 ## Result
 
 Phase 6 now has explicit completion-audit evidence. Retrieval ranking, evidence selection and
-replan use typed v3 metadata as the primary path, while legacy fallback is observable and cannot
+replan use typed v3 metadata as the primary path, while legacy signals are observable and cannot
 satisfy target regulation serving unless the runtime is explicitly in
 `legacy_old_index_compatibility` mode.
 
@@ -57,13 +57,13 @@ under Phase 11 closeout.
   - `tests/retrieval/retrieval_service_replan_execution_suite.py::test_execute_retrieval_plan_replans_when_top_grounding_conflicts_with_query_polarity`
   - `tests/retrieval/retrieval_service_replan_execution_suite.py::test_execute_retrieval_plan_marks_group_support_missing_for_rank_query_with_only_example_child`
   - `tests/retrieval/retrieval_service_replan_execution_suite.py::test_execute_retrieval_plan_marks_procedure_group_mismatch_when_only_condition_child_returned`
-- Legacy fallback is observable and downgraded when contract metadata is incomplete:
+- Legacy signals are observable and downgraded when contract metadata is incomplete:
   - `tests/retrieval/evidence_attributes_suite.py::test_fallback_diagnostics_flag_incomplete_v3_procedure_contract`
   - `tests/retrieval/evidence_contract_ranking_suite.py::test_ranking_features_report_fallback_diagnostics_when_contract_metadata_is_absent`
   - `tests/retrieval/evidence_contract_ranking_suite.py::test_incomplete_v3_sidecar_is_still_treated_as_missing_contract`
   - `tests/retrieval/retrieval_service_replan_execution_suite.py::test_execute_retrieval_plan_emits_answer_ready_fallback_diagnostics_for_legacy_index`
-- Target regulation serving fails closed on legacy primary fallback, while explicit compatibility
-  mode remains allowed:
+- Target regulation serving fails closed on legacy primary signals, while explicit compatibility
+  mode remains quarantine-only:
   - `tests/retrieval/retrieval_service_replan_execution_suite.py::test_execute_retrieval_plan_fails_closed_when_target_regulation_path_hits_legacy_fallback`
   - `tests/retrieval/retrieval_service_replan_execution_suite.py::test_execute_retrieval_plan_allows_legacy_fallback_for_explicit_compatibility_mode`
 - Category discovery remains typed all the way through retrieval selection:

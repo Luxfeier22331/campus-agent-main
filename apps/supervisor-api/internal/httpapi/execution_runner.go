@@ -271,6 +271,30 @@ func (s *Server) runBridgeExecution(
 	)
 	defer bridgeCancel()
 
+	if executionRequest.StructuredHandoff == nil {
+		return terminalResult(executionTerminal{
+			State:      lifecycle.StateFailed,
+			Code:       "supervisor_bridge_invalid_plan",
+			Message:    "Supervisor workflow handoff is required before bridge execution.",
+			StatusCode: http.StatusBadGateway,
+			Retryable:  false,
+			Outcome:    "supervisor_bridge_invalid_plan",
+		})
+	}
+	bridgePayload, err := execution.BridgePayloadForHandoff(
+		executionRequest.Payload,
+		*executionRequest.StructuredHandoff,
+	)
+	if err != nil {
+		return terminalResult(executionTerminal{
+			State:      lifecycle.StateFailed,
+			Code:       "supervisor_bridge_invalid_plan",
+			Message:    "Supervisor workflow handoff could not be projected.",
+			StatusCode: http.StatusBadGateway,
+			Retryable:  false,
+			Outcome:    "supervisor_bridge_invalid_plan",
+		})
+	}
 	bridgeStartedAt := time.Now()
 	bridgeResponse, bridgeRunState, terminal, err := s.executeBridgeWithRetry(
 		bridgeCtx,
@@ -278,7 +302,7 @@ func (s *Server) runBridgeExecution(
 		executionRequest,
 		emitProgress,
 		bridge.Request{
-			Payload: executionRequest.Payload,
+			Payload: bridgePayload,
 			TraceHeaders: telemetry.InjectBridgeTraceHeaders(
 				requestCtx,
 				executionRequest.RequestID,

@@ -29,7 +29,7 @@
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - planning 执行面当前按原生 workstream-first 多线推进；repo 级总览固定收口到 `.planning/WORKSTREAMS.md`，单条线的当前真相固定收口到 `.planning/workstreams/<slug>/`
-- repo 级默认 agent execution 入口现已提升为 `scripts.workstream_harness`：底层继续复用 `workstream_claim` lease/heartbeat substrate，但默认终态已收口为 `completed / blocked / failed_needs_repair` 的 harness contract；runtime ledger 只写入 gitignored `.planning/runtime/harness/`
+- repo 级 workstream 操作现回归 GSD SDK + Codex 原生会话：`gsd-sdk query workstream.*` 负责 registry / active workstream / progress，plain `codex` 负责讨论、review、问答与执行；repo 不再维护自建 harness、lease/heartbeat、Codex hook 注入或 terminal-result artifact
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
 - 正式 `apps/public-docs` docs shell 已在当前工作树落地；`document-site-and-canonical-reader`
   workstream 已在 2026-05-05 completed，published reader assets、same-site docs
@@ -143,7 +143,7 @@
   独立 RAG release lane；新 target 尚未进入 RAG release / serving admission；
   public-chat citation 继续关闭。auth-dependent `file_release owner recovery` 仍由独立
   workstream 管理，不混入本线。
-- [ ] staging@ayafeed.com 的项目隔离一级子域部署基线已经成立；`campus-api-staging`、`campus-chat-staging`、`campus-panel-staging` 当前 truth 稳定，后续 release hardening 已收口为 Phase 1002 `Worker 部署与发布硬化收口`
+- [ ] staging@mucwiki-edge.link 的项目隔离一级子域部署基线正在切换；`api-staging`、`chat-staging`、`docs-staging`、`panel-staging`、`hub-staging` 与 `exec-staging` 是当前 staging hostname truth，后续 release hardening 继续沿 Phase 1002 `Worker 部署与发布硬化收口` 执行
 - [ ] `shared product surfaces acceptance / hardening` 已在 `Phase I` closeout 之后继续 reopen 到 `Phase J` Turnstile posture productization：固定方向是 always-on verification、Cloudflare-managed adaptive interactive challenge only on elevated risk，以及 local / staging / prod runtime posture seam；`Phase K` 的 mature auth shell local cutover 已完成，但 workstream 当前仍只剩 `Phase J` 真实 staging 浏览器 closeout blocker；它继续只覆盖 shared backend、public chat 与 protected panel，不改 panel Access model
 - [ ] `official_web/fresh_news` / `official_web/news_archive` 的 repo-level runtime opening criteria 已在 Phase 1003 冻结；后续 opening execution / acceptance 已下调到 backlog `999.4`，当前只保留 `stable_reference` 与 default-off news contract，不在 active implementation lane
 - [ ] 校内导航当前只打开 Go direct `place_lookup` 地点目录查询；地图实际上线后再从 backlog

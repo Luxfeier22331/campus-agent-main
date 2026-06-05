@@ -7,6 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
   "campus-contracts",
   "campus-ingestion-core",
+  "campus-prompt-runtime",
+  "campus-regulation-semantics",
   "campus-retrieval-core",
   "campus-shared",
 ]
@@ -17,6 +19,8 @@ package = true
 [tool.uv.sources]
 campus-contracts = { workspace = true }
 campus-ingestion-core = { workspace = true }
+campus-prompt-runtime = { workspace = true }
+campus-regulation-semantics = { workspace = true }
 campus-retrieval-core = { workspace = true }
 campus-shared = { workspace = true }
 

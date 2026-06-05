@@ -149,8 +149,7 @@ function buildPageAuditEntry(page: CollectedPageArtifact): OfficialWebPageQualit
 		issues.push({
 			code: "detail_like_page_with_thin_body",
 			severity: "review",
-			message:
-				"detail-like page has a thin recovered body and should be reviewed for incomplete extraction",
+			message: "detail-like page has a thin body and should be reviewed for incomplete extraction",
 		});
 	}
 

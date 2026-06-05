@@ -187,12 +187,23 @@ export function createPgChatCommandStore(
 		async finalizeRequest(input) {
 			const db = await getDb();
 			await db.transaction(async (tx) => {
-				await tx.insert(messages).values(buildChatMessageInsertValues(input.assistantMessage));
-
-				await tx
+				const finalizedRequestRows = await tx
 					.update(requestExecution)
 					.set(buildFinalizeRequestExecutionUpdateValues(input.requestExecution))
-					.where(eq(requestExecution.requestId, input.requestExecution.requestId));
+					.where(
+						and(
+							eq(requestExecution.requestId, input.requestExecution.requestId),
+							eq(requestExecution.status, "accepted"),
+						),
+					)
+					.returning({ requestId: requestExecution.requestId });
+				if (finalizedRequestRows.length !== 1) {
+					throw new Error(
+						`Cannot finalize request ${input.requestExecution.requestId} because it is not in accepted status.`,
+					);
+				}
+
+				await tx.insert(messages).values(buildChatMessageInsertValues(input.assistantMessage));
 
 				await tx
 					.insert(projectionOutbox)

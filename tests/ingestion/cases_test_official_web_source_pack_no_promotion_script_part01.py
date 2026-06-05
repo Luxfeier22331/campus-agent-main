@@ -1,6 +1,7 @@
 # ruff: noqa: F403,F405
 from __future__ import annotations
 
+import hashlib
 import unittest
 
 from tests.ingestion.test_official_web_source_pack_no_promotion_script_support import *
@@ -169,7 +170,8 @@ class OfficialWebSourcePackNoPromotionScriptTestPart01(unittest.TestCase):
                     }
                 ],
             }
-            (collector_output / "source-truth-bundle.json").write_text(
+            bundle_path = collector_output / "source-truth-bundle.json"
+            bundle_path.write_text(
                 json_dumps(bundle_payload),
                 encoding="utf-8",
             )
@@ -278,6 +280,7 @@ class OfficialWebSourcePackNoPromotionScriptTestPart01(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
+            bundle_bytes = bundle_path.read_bytes()
             record_path = handoff_dir / "owevt_current.json"
             record_path.write_text(
                 json_dumps(
@@ -291,7 +294,15 @@ class OfficialWebSourcePackNoPromotionScriptTestPart01(unittest.TestCase):
                             "siteId": "muc_public",
                             "runIntent": "target_workset",
                             "status": "completed",
-                            "artifacts": [],
+                            "artifacts": [
+                                {
+                                    "artifactType": "source_truth_bundle",
+                                    "objectKey": "official_web/muc_public/runs/owrun_current/source-truth-bundle.json",
+                                    "contentSha256": hashlib.sha256(bundle_bytes).hexdigest(),
+                                    "byteSize": len(bundle_bytes),
+                                    "recordCount": 1,
+                                }
+                            ],
                         },
                     }
                 ),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 
 from campus_contracts import AgentRequest, AgentResponse, ErrorInfo, SupervisorRequest
 
@@ -50,6 +50,17 @@ def build_bridge_routes(
             "POST",
             "/internal/bridge/supervisor/answer",
             lambda headers, body: handle_bridge_answer(
+                headers,
+                body,
+                settings,
+                runtime_agent_handler,
+                cancel_flags=runtime_cancel_flags,
+            ),
+        ),
+        HttpRoute(
+            "POST",
+            "/internal/bridge/durable/execution",
+            lambda headers, body: handle_bridge_durable_execution(
                 headers,
                 body,
                 settings,
@@ -160,6 +171,75 @@ def handle_bridge_answer(
     return _bridge_response(200, asdict(response), kind="agent_response")
 
 
+def handle_bridge_durable_execution(
+    headers: Mapping[str, str],
+    body: dict[str, object] | None,
+    settings: ApiSettings,
+    agent_handler: AgentEnvelopeHandler,
+    *,
+    cancel_flags: CancelFlagStore | None = None,
+) -> HttpResponse:
+    bridge_auth_error = require_bridge_auth(headers, settings)
+    if bridge_auth_error is not None:
+        return bridge_auth_error
+
+    payload = body or {}
+    try:
+        work_item = _parse_durable_execution_work_item(payload)
+        envelope = parse_bridge_supervisor_envelope(work_item.execution)
+    except ValueError as exc:
+        return _bridge_response(
+            400,
+            {"error": asdict(ErrorInfo(code="invalid_request", message=str(exc)))},
+            kind="bridge_invalid_request",
+        )
+    request = envelope.request
+    runtime_agent_request = envelope.agent_request
+    if runtime_agent_request is None:
+        return _bridge_response(
+            400,
+            {
+                "error": asdict(
+                    ErrorInfo(
+                        code="invalid_request",
+                        message="runtime_decisions.handoff.agent_request is required.",
+                    )
+                )
+            },
+            kind="bridge_invalid_request",
+        )
+    runtime_agent_request = _bind_durable_work_item_to_agent_request(
+        runtime_agent_request,
+        work_item,
+    )
+
+    runtime_cancel_flags = cancel_flags or CancelFlagStore()
+    runtime_cancel_flags.prune_stale(max_age_seconds=settings.cancel_flag_ttl_seconds)
+    runtime_cancel_flags.register(request)
+    try:
+        if runtime_cancel_flags.is_cancel_requested(request.request_id):
+            raise ExecutionCancelledError("Execution was cancelled.")
+        response = agent_handler(request, runtime_agent_request)
+        if runtime_cancel_flags.is_cancel_requested(request.request_id):
+            raise ExecutionCancelledError("Execution was cancelled.")
+    except ExecutionCancelledError as exc:
+        return _bridge_response(
+            exc.http_status_code,
+            {"error": asdict(exc.to_error_info())},
+            kind="supervisor_error",
+        )
+    except AgentDispatchError as exc:
+        return _bridge_response(
+            exc.http_status_code,
+            {"error": asdict(exc.to_error_info())},
+            kind="supervisor_error",
+        )
+    finally:
+        runtime_cancel_flags.complete(request.request_id)
+
+    return _bridge_response(200, asdict(response), kind="durable_agent_response")
+
+
 def handle_bridge_cancel(
     headers: Mapping[str, str],
     body: dict[str, object] | None,
@@ -193,6 +273,73 @@ def handle_bridge_cancel(
             "trace_id": record.trace_id,
             "status": "cancel_requested",
         },
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class DurableExecutionWorkItem:
+    run_id: str
+    lease_id: str
+    step_id: str
+    lane: str
+    worker_id: str
+    attempt: int
+    execution: dict[str, object]
+
+
+def _parse_durable_execution_work_item(payload: Mapping[str, object]) -> DurableExecutionWorkItem:
+    bridge_version = require_string(payload.get("bridge_version"), field_name="bridge_version")
+    if bridge_version != "supervisor_durable_worker_v1":
+        raise ValueError("bridge_version must be supervisor_durable_worker_v1")
+    run_id = require_string(payload.get("run_id"), field_name="run_id")
+    lease_id = require_string(payload.get("lease_id"), field_name="lease_id")
+    step_id = require_string(payload.get("step_id"), field_name="step_id")
+    lane = require_string(payload.get("lane"), field_name="lane")
+    worker_id = require_string(payload.get("worker_id"), field_name="worker_id")
+    raw_attempt = payload.get("attempt")
+    if not isinstance(raw_attempt, int) or raw_attempt < 1:
+        raise ValueError("attempt must be a positive integer")
+    raw_execution = payload.get("execution")
+    if not isinstance(raw_execution, dict):
+        raise ValueError("execution must be an object")
+    return DurableExecutionWorkItem(
+        run_id=run_id,
+        lease_id=lease_id,
+        step_id=step_id,
+        lane=lane,
+        worker_id=worker_id,
+        attempt=raw_attempt,
+        execution=raw_execution,
+    )
+
+
+def _bind_durable_work_item_to_agent_request(
+    runtime_agent_request: AgentRequest,
+    work_item: DurableExecutionWorkItem,
+) -> AgentRequest:
+    workflow_context = runtime_agent_request.workflow_context
+    return AgentRequest(
+        target=runtime_agent_request.target,
+        user_goal=runtime_agent_request.user_goal,
+        conversation_id=runtime_agent_request.conversation_id,
+        request_id=runtime_agent_request.request_id,
+        safety_identifier=runtime_agent_request.safety_identifier,
+        trace=runtime_agent_request.trace,
+        actor=runtime_agent_request.actor,
+        context=runtime_agent_request.context,
+        payload=runtime_agent_request.payload,
+        allowed_tools=runtime_agent_request.allowed_tools,
+        workflow_context=type(workflow_context)(
+            schema_version=workflow_context.schema_version,
+            visibility=workflow_context.visibility,
+            workflow_run_ref=work_item.run_id,
+            step_id=work_item.step_id,
+            agent_id=workflow_context.agent_id,
+            target=workflow_context.target,
+            required_projection_kind=workflow_context.required_projection_kind,
+            expected_output_artifacts=workflow_context.expected_output_artifacts,
+            projection_refs=workflow_context.projection_refs,
+        ),
     )
 
 

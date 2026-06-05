@@ -4,12 +4,11 @@ import httpx
 from campus_contracts import AgentObservability, AgentResponse, ErrorInfo, RagResultPayload
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService
+from campus_prompt_runtime import PromptRuntimeHTTPSettings, PromptRuntimeProviderConfig
 from campus_rag_agent.service import delegate_to_rag_agent
-from campus_retrieval_core import build_jsonl_retrieval_observation_sink
 from campus_services_agent import (
     CampusServicesHTTPQueryService,
 )
-from campus_shared import PromptRuntimeHTTPSettings, PromptRuntimeProviderConfig
 
 from campus_supervisor_agent_worker.admitted_agent_execution import AdmittedAgentExecutor
 from campus_supervisor_agent_worker.agent_dispatch import (
@@ -25,6 +24,7 @@ from campus_supervisor_agent_worker.openai_agents_rag_runtime import (
 from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsNativeRuntime
 from campus_supervisor_agent_worker.prompt_executor import ProviderBackedRagPromptExecutor
 from campus_supervisor_agent_worker.retrieval_observation_bridge import (
+    build_jsonl_retrieval_observation_sink,
     build_retrieval_runtime_event_sink,
     build_runtime_event_jsonl_emitter,
     build_runtime_event_otlp_emitter,

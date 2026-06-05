@@ -1,18 +1,11 @@
 #!/usr/bin/env node
 import process from "node:process";
-import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
+import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
 
 const DEFAULT_BASE_URL = "https://panel-staging.mucwiki-edge.link";
 const EXPECTED_OPERATOR_API_ERROR = "Invalid Access JWT.";
 
-loadRepoEnvFile(import.meta.url, "../../..");
-try {
-	process.loadEnvFile(new URL("../../../.env.staging.local", import.meta.url));
-} catch (error) {
-	if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
-		throw error;
-	}
-}
+loadRepoStagingEnvFile(import.meta.url, "../../..");
 
 function readRequiredEnv(name) {
 	const value = process.env[name]?.trim();

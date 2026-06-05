@@ -57,12 +57,12 @@ func NewRuntime(options Options) *Runtime {
 	noticeBodyStore := options.NoticeBodyStore
 	if noticeBodyStore == nil {
 		noticeBodyStore = NewS3NoticeBodyStore(NoticeS3Options{
-			Endpoint:      strings.TrimSpace(options.NoticeObjectStoreEndpoint),
-			AccessKey:     strings.TrimSpace(options.NoticeObjectStoreAccessKey),
-			SecretKey:     strings.TrimSpace(options.NoticeObjectStoreSecretKey),
-			Region:        strings.TrimSpace(options.NoticeObjectStoreRegion),
-			BucketDerived: strings.TrimSpace(options.NoticeObjectStoreBucketDerived),
-			MaxBodyBytes:  options.NoticeObjectStoreBodyLimitBytes,
+			Endpoint:     strings.TrimSpace(options.NoticeBodyObjectStoreEndpoint),
+			AccessKey:    strings.TrimSpace(options.NoticeBodyObjectStoreAccessKey),
+			SecretKey:    strings.TrimSpace(options.NoticeBodyObjectStoreSecretKey),
+			Region:       strings.TrimSpace(options.NoticeBodyObjectStoreRegion),
+			Bucket:       strings.TrimSpace(options.NoticeBodyObjectStoreBucket),
+			MaxBodyBytes: options.NoticeBodyObjectStoreBodyLimitBytes,
 		})
 	}
 	runtime := &Runtime{

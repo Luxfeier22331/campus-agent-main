@@ -93,6 +93,13 @@ INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH = (
     / "fixtures"
     / "institutional_rules_golden_retrieval_qrels.v1.json"
 )
+INSTITUTIONAL_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "institutional_rules_release_acceptance.v1.json"
+)
 OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH = (
     Path(__file__).resolve().parents[2]
     / "packages"

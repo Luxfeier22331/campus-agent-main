@@ -13,7 +13,7 @@ updated: 2026-05-08
 
 Phase 8 now has explicit completion-audit evidence. The workstream no longer depends only on final
 answer pass/fail; deterministic component eval can attribute failures to intent, retrieval,
-ranking, selection, semantic contract, draft, grounding, fallback budget or release-contract
+ranking, selection, semantic contract, draft, grounding, legacy-signal budget or release-contract
 stages, and those summaries are consumable by the release lane.
 
 This summary records audit evidence for the Phase 8 plan. The overall workstream remains active

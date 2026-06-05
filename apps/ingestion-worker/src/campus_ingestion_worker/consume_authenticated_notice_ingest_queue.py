@@ -34,7 +34,7 @@ from campus_ingestion_worker.authenticated_notice_typed_downstream_materializati
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/"
+    "var/ingestion-evidence/authenticated-notice-ingest-queue-e2e-automation/"
     "evidence/phase-04-run-level-queue-consumer"
 )
 

@@ -418,7 +418,7 @@ describe("official-web-core policy", () => {
 		expect(result.urlIdentityBasis).toBe("declared_canonical");
 	});
 
-	it("falls back to final URL when declared canonical is not acceptable", () => {
+	it("uses final URL when declared canonical is not acceptable", () => {
 		const buildOfficialWebUrlIdentity = (
 			officialWebCore as {
 				buildOfficialWebUrlIdentity?: (

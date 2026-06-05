@@ -15,15 +15,15 @@ from campus_ingestion_core.collected_notice_multimodal_readiness import (
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_PHASE_04_INPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-dry-run-reimport-and-universal-search-preview"
 )
 DEFAULT_PHASE_05_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-05-multimodal-ocr-consumption-readiness"
 )
 DEFAULT_PHASE_05_CONTRACT_PATH = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "phases/phase-05-multimodal-ocr-consumption-readiness/"
     "NOTICE-MULTIMODAL-CONSUMPTION-CONTRACT.md"
 )

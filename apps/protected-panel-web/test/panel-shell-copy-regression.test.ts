@@ -273,6 +273,13 @@ describe("protected panel shell chinese copy", () => {
 		expect(auditPageSource).not.toContain("href={detailLinks.traceLink}");
 	});
 
+	it("renders request detail durable run truth from operator-safe runtime summaries", () => {
+		expect(requestShowSource).toContain("buildRequestRuntimeRunEntries");
+		expect(requestShowSource).toContain("observabilityRecord?.runtimeRun");
+		expect(requestShowSource).toContain("运行事实");
+		expect(requestShowSource).toContain("RunEvent");
+	});
+
 	it("keeps guarded external links isolated from the opener browsing context", () => {
 		expect(requestShowSource).not.toContain('rel="noreferrer"');
 		expect(qualityPageCardsSource).not.toContain('rel="noreferrer"');

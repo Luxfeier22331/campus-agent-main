@@ -74,7 +74,7 @@ class CampusragIngestionMetadataSuite(unittest.TestCase):
             " https://example.edu/source-url ",
         )
 
-    def test_derive_document_title_and_year_use_metadata_before_fallback(self) -> None:
+    def test_derive_document_title_and_year_prefer_metadata_over_document_id(self) -> None:
         metadata = {
             "document_title": " 2026 学生手册 ",
             "published_date": "2026-03-24",

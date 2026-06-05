@@ -29,6 +29,16 @@ func main() {
 		cfg.BridgeResponseLimitBytes,
 	)
 	handler := httpapi.NewServerWithDependencies(cfg, bridgeClient, nil, logger, nil)
+	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
+	defer runtimeCancel()
+	if err := handler.StartDurableWorkerLoop(runtimeCtx); err != nil {
+		logger.Error("campus supervisor-api durable worker loop failed to start", "error", err.Error())
+		os.Exit(1)
+	}
+	if err := handler.StartDurableRecoveryLoop(runtimeCtx); err != nil {
+		logger.Error("campus supervisor-api durable recovery loop failed to start", "error", err.Error())
+		os.Exit(1)
+	}
 
 	server := &http.Server{
 		Addr:              address,
@@ -50,6 +60,7 @@ func main() {
 	select {
 	case signalValue := <-shutdownSignals:
 		logger.Info("campus supervisor-api draining", "signal", signalValue.String())
+		runtimeCancel()
 		handler.StartDraining()
 		ctx, cancel := context.WithTimeout(
 			context.Background(),

@@ -81,7 +81,7 @@ describe("operator trace backlink recorder", () => {
 		});
 	});
 
-	it("fails open on invalid templates or command write failures", async () => {
+	it("does not block the request path on invalid templates or command write failures", async () => {
 		const logger = { warn: vi.fn() };
 		const commandService = {
 			ingestEvalCoverageSnapshot: vi.fn(),

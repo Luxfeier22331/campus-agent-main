@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Normalize legacy authenticated notice donor exports into repo-owned bootstrap artifacts."
     )
     parser.add_argument("--bundle-path", required=True)
-    parser.add_argument("--manifest-path")
+    parser.add_argument("--manifest-path", required=True)
     parser.add_argument("--notice-types-path")
     parser.add_argument("--selection-path")
     parser.add_argument("--notice-id", action="append", dest="notice_ids", default=[])
@@ -39,9 +39,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     bundle_records = load_authenticated_notice_bundle_payload(Path(args.bundle_path))
-    legacy_manifest = load_authenticated_notice_export_manifest(
-        Path(args.manifest_path) if args.manifest_path else None
-    )
+    legacy_manifest = load_authenticated_notice_export_manifest(Path(args.manifest_path))
     selected_notice_ids = tuple(str(item).strip() for item in args.notice_ids if str(item).strip())
     if args.selection_path:
         selected_notice_ids = tuple(

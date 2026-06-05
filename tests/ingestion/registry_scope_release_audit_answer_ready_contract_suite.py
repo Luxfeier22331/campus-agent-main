@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from campus_ingestion_core.index_release import IndexReleaseManifest
 from campus_ingestion_core.registry_scope_release import audit_published_scope_release
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION,
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
 )

@@ -44,10 +44,10 @@ PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"
-SUPERVISOR_API_TIMEOUT_MS = "30000"
+SUPERVISOR_API_TIMEOUT_MS = "95000"
 SENTRY_ENVIRONMENT = "staging"
 AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"
-AXIOM_DATASET = "campus-agent-runtime-staging"
+AXIOM_DATASET = "campus-agent-runtime"
 
 [env.staging.secrets]
 required = [
@@ -80,7 +80,6 @@ id = "00000000-0000-0000-0000-000000000000"
 
 [[env.local.hyperdrive]]
 binding = "APP_API_DB_FRESH"
-# Local development can optionally load a dedicated fresh-read connection
-# from `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`.
-# If it is absent, runtime resolution falls back to `APP_API_DB`.
+# Fresh-read runtime access must be configured explicitly through
+# `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`.
 id = "00000000-0000-0000-0000-000000000000"

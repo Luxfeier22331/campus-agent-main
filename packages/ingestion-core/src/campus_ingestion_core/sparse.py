@@ -80,25 +80,27 @@ class MockSparseEmbeddingSettings:
     language: str = DEFAULT_SPARSE_LANGUAGE
 
 
+@dataclass(slots=True)
 class QdrantBm25SparseEmbedding:
-    def __init__(self, settings: SparseEmbeddingSettings) -> None:
-        provider = settings.provider.strip().lower()
+    settings: SparseEmbeddingSettings
+
+    def __post_init__(self) -> None:
+        provider = self.settings.provider.strip().lower()
         if provider not in {DEFAULT_SPARSE_PROVIDER, "mock"}:
-            raise ValueError(f"unsupported sparse embedding provider: {settings.provider}")
-        if settings.model.strip().lower() != DEFAULT_SPARSE_MODEL:
-            raise ValueError(f"unsupported sparse embedding model: {settings.model}")
-        if settings.tokenizer.strip().lower() != DEFAULT_SPARSE_TOKENIZER:
-            raise ValueError(f"unsupported sparse tokenizer: {settings.tokenizer}")
-        if settings.language.strip().lower() != DEFAULT_SPARSE_LANGUAGE:
-            raise ValueError(f"unsupported sparse language: {settings.language}")
-        self.settings = settings
+            raise ValueError(f"unsupported sparse embedding provider: {self.settings.provider}")
+        if self.settings.model.strip().lower() != DEFAULT_SPARSE_MODEL:
+            raise ValueError(f"unsupported sparse embedding model: {self.settings.model}")
+        if self.settings.tokenizer.strip().lower() != DEFAULT_SPARSE_TOKENIZER:
+            raise ValueError(f"unsupported sparse tokenizer: {self.settings.tokenizer}")
+        if self.settings.language.strip().lower() != DEFAULT_SPARSE_LANGUAGE:
+            raise ValueError(f"unsupported sparse language: {self.settings.language}")
 
     def build_document(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector:
         if self.settings.is_mock:
             return _build_sparse_vector(text=text, query_mode=False).to_qdrant()
         return qdrant_models.Document(
             text=text,
-            model=self.settings.model,
+            model=self.settings.model.strip().lower(),
             options=_build_bm25_config(self.settings),
         )
 
@@ -113,7 +115,7 @@ class QdrantBm25SparseEmbedding:
             return None
         return qdrant_models.Document(
             text=normalized,
-            model=self.settings.model,
+            model=self.settings.model.strip().lower(),
             options=_build_bm25_config(self.settings),
         )
 

@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	answerPath = "/internal/bridge/supervisor/answer"
-	readyzPath = "/internal/bridge/readyz"
-	cancelPath = "/internal/bridge/execution/cancel"
+	answerPath           = "/internal/bridge/supervisor/answer"
+	durableExecutionPath = "/internal/bridge/durable/execution"
+	readyzPath           = "/internal/bridge/readyz"
+	cancelPath           = "/internal/bridge/execution/cancel"
 )
 
 const defaultResponseLimitBytes int64 = 1_048_576
@@ -70,6 +71,40 @@ func (c *HTTPClient) Execute(ctx context.Context, request Request) (ExecuteRespo
 	}, nil
 }
 
+func (c *HTTPClient) ExecuteDurable(
+	ctx context.Context,
+	request DurableExecutionRequest,
+) (ExecuteResponse, error) {
+	body, err := json.Marshal(durableExecutionWireRequest{
+		BridgeVersion: "supervisor_durable_worker_v1",
+		RunID:         request.RunID,
+		LeaseID:       request.LeaseID,
+		StepID:        request.StepID,
+		Lane:          request.Lane,
+		WorkerID:      request.WorkerID,
+		Attempt:       request.Attempt,
+		Execution:     request.Execution.Payload,
+	})
+	if err != nil {
+		return ExecuteResponse{}, err
+	}
+	response, err := c.do(
+		ctx,
+		http.MethodPost,
+		durableExecutionPath,
+		body,
+		request.Execution.TraceHeaders,
+	)
+	if err != nil {
+		return ExecuteResponse{}, err
+	}
+	return ExecuteResponse{
+		StatusCode: response.StatusCode,
+		Body:       response.Body,
+		Kind:       response.Kind,
+	}, nil
+}
+
 func (c *HTTPClient) Readyz(ctx context.Context) (ReadyzResponse, error) {
 	response, err := c.do(ctx, http.MethodGet, readyzPath, nil, nil)
 	if err != nil {
@@ -94,6 +129,17 @@ func (c *HTTPClient) Cancel(ctx context.Context, request CancelRequest) (CancelR
 		StatusCode: response.StatusCode,
 		Body:       response.Body,
 	}, nil
+}
+
+type durableExecutionWireRequest struct {
+	BridgeVersion string          `json:"bridge_version"`
+	RunID         string          `json:"run_id"`
+	LeaseID       string          `json:"lease_id"`
+	StepID        string          `json:"step_id"`
+	Lane          string          `json:"lane"`
+	WorkerID      string          `json:"worker_id"`
+	Attempt       int             `json:"attempt"`
+	Execution     json.RawMessage `json:"execution"`
 }
 
 type rawResponse struct {

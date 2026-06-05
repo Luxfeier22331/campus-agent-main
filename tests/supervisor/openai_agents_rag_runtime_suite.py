@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from campus_contracts import EvidenceBundle
+from campus_prompt_runtime import PromptRuntimeProviderConfig
 from campus_rag_agent.rag_sdk_models import (
     RagQueryIntent,
     RagSdkEvidenceAnchor,
@@ -14,7 +15,6 @@ from campus_rag_agent.rag_sdk_models import (
     RagTaskKind,
 )
 from campus_rag_agent.rag_sdk_output import RagSdkAnswerOutput
-from campus_shared import PromptRuntimeProviderConfig
 from campus_supervisor_agent_worker.agents_sdk_function_tools import (
     build_agents_sdk_function_tool,
 )

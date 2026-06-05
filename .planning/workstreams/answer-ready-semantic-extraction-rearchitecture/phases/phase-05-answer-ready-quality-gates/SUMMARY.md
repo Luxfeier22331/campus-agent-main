@@ -45,7 +45,7 @@ under Phase 11 closeout.
   - `tests/ingestion/test_index_release_acceptance.py::test_release_chunk_quality_reports_unknown_procedure_actor`
   - `tests/ingestion/test_index_release_acceptance.py::test_release_chunk_quality_reports_unknown_procedure_next_actor`
 - Category-overview and grouped metadata contracts are enforced by the release gate, not left to
-  runtime best-effort:
+  runtime discretion:
   - `tests/ingestion/test_index_release_acceptance.py::test_release_chunk_quality_reports_category_overview_registry_conflicts`
   - `tests/ingestion/test_index_release_acceptance.py::test_release_chunk_quality_reports_category_overview_missing_typed_subject_contract`
   - `tests/ingestion/test_index_release_acceptance.py::test_release_chunk_quality_reports_category_overview_missing_group_contract`

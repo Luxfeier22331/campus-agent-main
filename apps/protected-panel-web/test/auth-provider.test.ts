@@ -15,7 +15,7 @@ function createAccessLoginHtmlResponse(): Response {
 		status: 200,
 		statusText: "OK",
 		text: vi.fn().mockResolvedValue("<!DOCTYPE html><title>Sign in ・ Cloudflare Access</title>"),
-		url: "https://ayafeed.cloudflareaccess.com/cdn-cgi/access/login/panel-staging.mucwiki-edge.link",
+		url: "https://mucwiki-edge.cloudflareaccess.com/cdn-cgi/access/login/panel-staging.mucwiki-edge.link",
 	} as unknown as Response;
 }
 

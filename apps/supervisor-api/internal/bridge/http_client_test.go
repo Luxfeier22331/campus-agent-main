@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -68,6 +69,99 @@ func TestHTTPClientExecuteCallsPrivateBridgeEndpoint(t *testing.T) {
 	}
 	if response.Kind != "agent_response" {
 		t.Fatalf("kind = %q, want agent_response", response.Kind)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	if string(response.Body) != `{"status":"completed"}` {
+		t.Fatalf("body = %s, want response body", string(response.Body))
+	}
+}
+
+func TestHTTPClientExecuteDurableCallsPrivateDurableEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", request.Method)
+		}
+		if request.URL.Path != durableExecutionPath {
+			t.Fatalf("path = %s, want %s", request.URL.Path, durableExecutionPath)
+		}
+		if request.Header.Get("x-supervisor-bridge-auth") != "bridge-secret" {
+			t.Fatalf(
+				"x-supervisor-bridge-auth = %q, want bridge-secret",
+				request.Header.Get("x-supervisor-bridge-auth"),
+			)
+		}
+		if request.Header.Get("traceparent") != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
+			t.Fatalf("traceparent = %q", request.Header.Get("traceparent"))
+		}
+		if request.Header.Get("authorization") != "" {
+			t.Fatal("authorization header must not be propagated from trace headers")
+		}
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("unmarshal durable payload: %v", err)
+		}
+		if payload["bridge_version"] != "supervisor_durable_worker_v1" {
+			t.Fatalf("bridge_version = %v", payload["bridge_version"])
+		}
+		if payload["run_id"] != "run-001" {
+			t.Fatalf("run_id = %v", payload["run_id"])
+		}
+		if payload["lease_id"] != "lease-001" {
+			t.Fatalf("lease_id = %v", payload["lease_id"])
+		}
+		if payload["step_id"] != "primary" {
+			t.Fatalf("step_id = %v", payload["step_id"])
+		}
+		if payload["lane"] != "rag" {
+			t.Fatalf("lane = %v", payload["lane"])
+		}
+		if payload["worker_id"] != "worker-001" {
+			t.Fatalf("worker_id = %v", payload["worker_id"])
+		}
+		if payload["attempt"] != float64(2) {
+			t.Fatalf("attempt = %v", payload["attempt"])
+		}
+		execution, ok := payload["execution"].(map[string]any)
+		if !ok {
+			t.Fatalf("execution = %#v, want object", payload["execution"])
+		}
+		if execution["user_goal"] != "hello" {
+			t.Fatalf("execution.user_goal = %v", execution["user_goal"])
+		}
+		writer.Header().Set("x-supervisor-bridge-kind", "durable_agent_response")
+		writer.Header().Set("content-type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"status":"completed"}`))
+	}))
+	defer server.Close()
+
+	client := NewHTTPClient(server.URL, "bridge-secret")
+	response, err := client.ExecuteDurable(context.Background(), DurableExecutionRequest{
+		RunID:    "run-001",
+		LeaseID:  "lease-001",
+		StepID:   "primary",
+		Lane:     "rag",
+		WorkerID: "worker-001",
+		Attempt:  2,
+		Execution: Request{
+			Payload: []byte(`{"user_goal":"hello"}`),
+			TraceHeaders: map[string]string{
+				"authorization": "Bearer secret",
+				"traceparent":   "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute durable returned error: %v", err)
+	}
+	if response.Kind != "durable_agent_response" {
+		t.Fatalf("kind = %q, want durable_agent_response", response.Kind)
 	}
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)

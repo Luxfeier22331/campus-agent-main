@@ -17,7 +17,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
 export const DEFAULT_PUBLIC_DOCS_SYNC_MANIFEST_PATH = resolve(
 	repoRoot,
-	"var/public-docs-sync-manifest.json",
+	"var/public-docs-sync-manifest.staging.json",
 );
 
 export interface StagingDocsGatedSmokeArgs {

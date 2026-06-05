@@ -34,6 +34,9 @@ class CollectionRenameRegistryBackfillWorkerCliTest(unittest.TestCase):
             patch(
                 "campus_ingestion_worker.collection_rename_registry_backfill.apply_registry_collection_rename_backfill"
             ) as apply_backfill,
+            patch(
+                "campus_ingestion_worker.collection_rename_registry_backfill.close_persistent_postgres_pools"
+            ) as close_pools,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             apply_backfill.return_value = report
@@ -41,8 +44,25 @@ class CollectionRenameRegistryBackfillWorkerCliTest(unittest.TestCase):
 
         payload = json.loads(stdout.getvalue())
         self.assertEqual(apply_backfill.call_count, 1)
+        self.assertEqual(close_pools.call_count, 1)
         self.assertEqual(payload["command"], "apply")
         self.assertEqual(payload["targets"][0]["updated_row_count"], 2)
+
+    def test_main_closes_persistent_pools_when_command_fails(self) -> None:
+        with (
+            patch("campus_ingestion_worker.collection_rename_registry_backfill.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.collection_rename_registry_backfill.audit_registry_collection_rename_backfill",
+                side_effect=RuntimeError("boom"),
+            ),
+            patch(
+                "campus_ingestion_worker.collection_rename_registry_backfill.close_persistent_postgres_pools"
+            ) as close_pools,
+            self.assertRaisesRegex(RuntimeError, "boom"),
+        ):
+            worker.main(["audit"])
+
+        self.assertEqual(close_pools.call_count, 1)
 
 
 if __name__ == "__main__":

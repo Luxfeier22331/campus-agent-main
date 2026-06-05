@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from campus_prompt_runtime import PromptRuntimeProviderConfig
 from campus_rag_agent.rag_sdk_models import (
     RagSdkEvidenceAnchor,
     RagSdkRunRequest,
@@ -18,7 +19,6 @@ from campus_rag_agent.rag_sdk_tools import (
     RagSdkToolError,
 )
 from campus_rag_agent.rag_sdk_trace import build_rag_sdk_trace_projection
-from campus_shared import PromptRuntimeProviderConfig
 from pydantic import BaseModel, ConfigDict, Field
 
 from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (

@@ -21,12 +21,12 @@ from campus_ingestion_core.registry import SHARED_POSTGRES_OPERATOR_ENV_KEY
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_REIMPORT_PLAN_PATH = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-dry-run-reimport-and-universal-search-preview/"
     "reimport-plan.dry-run.json"
 )
 DEFAULT_PHASE_04_7_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-04-7-historical-captured-inventory-synthetic-enqueue"
 )
 

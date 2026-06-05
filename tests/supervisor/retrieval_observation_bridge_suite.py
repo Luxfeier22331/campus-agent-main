@@ -15,6 +15,7 @@ from campus_contracts import (
 )
 from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
 from campus_supervisor_agent_worker.retrieval_observation_bridge import (
+    build_jsonl_retrieval_observation_sink,
     build_retrieval_runtime_event_sink,
     build_runtime_event_emitter_status,
     build_runtime_event_jsonl_emitter,
@@ -158,6 +159,29 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
             ],
         )
 
+    def test_worker_owned_retrieval_observation_jsonl_sink_writes_debug_observation(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "retrieval-observations.jsonl"
+            sink = build_jsonl_retrieval_observation_sink(output_path)
+
+            sink(
+                {
+                    "request_id": "req-debug",
+                    "query_sha256": "hash-debug",
+                    "query": "debug query only when explicitly enabled upstream",
+                }
+            )
+
+            rows = [
+                json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(rows[0]["request_id"], "req-debug")
+        self.assertEqual(rows[0]["query_sha256"], "hash-debug")
+        self.assertEqual(rows[0]["query"], "debug query only when explicitly enabled upstream")
+
     def test_runtime_event_emitter_status_reports_otlp_configuration(self) -> None:
         status = build_runtime_event_emitter_status(
             otel_enabled=True,
@@ -240,6 +264,7 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
                     rag_prompt_executor=None,
                     campus_services_query_service=None,
                     notice_query_service=None,
+                    rag_openai_runtime=object(),
                 )
 
                 response = delegates["rag-agent"](

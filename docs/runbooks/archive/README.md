@@ -12,6 +12,9 @@ updated: 2026-04-20
 ## Historical Workflows
 
 - `authenticated-notice/README.md`
+- `qdrant-cloud-backup-and-restore-runbook.md`
+  - superseded Qdrant Cloud / object-store snapshot runbook; current Qdrant
+    backup operations use `../self-hosted-qdrant-native-backup-runbook.md`.
 
 ## Path Redirects
 

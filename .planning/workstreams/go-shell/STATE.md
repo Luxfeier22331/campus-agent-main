@@ -716,8 +716,9 @@ updated: 2026-04-27
   `campus_services`, `notice` and `default`
 - `/readyz` and `/metrics` expose lane, lifecycle final-state and telemetry
   runtime state
-- OTel trace exporter seam is disabled by default and fail-open on answer path
-- execution audit emitter is disabled by default, fail-open, bounded, and sends
+- OTel trace exporter seam is disabled by default; exporter failure is non-blocking for answer path
+  and visible through telemetry status
+- execution audit emitter is disabled by default, bounded, and sends
   only allowlisted runtime events to `app-api` internal ingest
 - `/readyz` and `/metrics` expose execution audit runtime status without making
   audit sink health a readiness blocker

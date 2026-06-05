@@ -32,8 +32,8 @@ It does not edit runtime code.
   not just source-id presence.
 - SDK query behavior is bounded. Default behavior is selecting deterministic planner query slots;
   semantic replan requires an explicit budget, reason, trace and no-scope-widening rules.
-- Rollout mode must be frozen before service integration, including `candidate`, `shadow`,
-  `default_on`, `fallback_only` and `closed`.
+- Runtime posture must be frozen before service integration; rejected historical modes include
+  `candidate`, `shadow`, `fallback_only` and dual-primary execution.
 - Existing fuzzy real-user category discovery cases are in scope for planning:
   `有哪些本科生可以申请的奖学金` should not be forced into clarification if admitted category
   evidence exists.

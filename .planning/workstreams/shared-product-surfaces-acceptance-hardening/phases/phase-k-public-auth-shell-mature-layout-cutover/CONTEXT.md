@@ -28,7 +28,8 @@ status: completed
   - 右侧为 `Preview` 聊天窗口预览与 `Powered by AI Gateway` 文案
 - 当前 repo 已经对 donor auth form 做了精确 compat ownership：
   - `@/components/chat/auth-form` -> `src/platform/vendor-compat/components/chat/auth-form.tsx`
-- 但 `@/app/(auth)/layout` 还没有同等级的精确 compat seam；它当前仍通过 `@/* -> vendor/vercel-ai-chatbot/*` 兜底进 donor file。
+- 但 `@/app/(auth)/layout` 还没有同等级的精确 vendor seam；它当前仍通过
+  `@/* -> vendor/vercel-ai-chatbot/*` 解析到 donor file。
 
 ## Why This Phase Exists
 

@@ -53,8 +53,9 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
 
         process_by_label = {process.label: process for process in plan.processes}
         self.assertIn("s3-smoke-object-store", process_by_label)
+        self.assertNotIn("OBJECT_STORE_ENDPOINT", process_by_label["supervisor-api"].env)
         self.assertEqual(
-            process_by_label["supervisor-api"].env["OBJECT_STORE_ENDPOINT"],
+            process_by_label["supervisor-api"].env["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"],
             "http://127.0.0.1:19082",
         )
         self.assertEqual(

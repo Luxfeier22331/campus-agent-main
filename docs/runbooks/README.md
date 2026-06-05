@@ -12,6 +12,9 @@ updated: 2026-04-27
 
 ## Core Deploy / Smoke / Release
 
+- `e2e-qa-release-runbook.md`
+  - 上线前真实 staging E2E QA 总入口；串联 repo preflight、runtime readiness、
+    public surfaces、chat、docs、panel、observability、data-plane sanity 与 evidence closeout。
 - `staging-worker-deploy-runbook.md`
 - `document-reader-publish-and-docs-deploy-runbook.md`
   - 包含 serving seed export / verify / restore，以及旧
@@ -19,12 +22,14 @@ updated: 2026-04-27
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
 - `index-release-runbook.md`
-  - 包含 Qdrant backup retention audit；对象存储 snapshot bundle 不能按时间或体积直接删。
+  - 包含 Qdrant backup retention audit；当前 collection GC 需要 qdrant-native
+    filesystem snapshot evidence，历史对象存储 snapshot bundle 不能按时间或体积直接删。
 
-## Collaboration / Workstream Claims
+## Collaboration / Workstreams
 
-- `workstream-harness-workflow.md`
-- `workstream-claim-workflow.md`
+- `workstream-gsd-sdk-workflow.md`
+  - 当前 workstream / Codex 协作总入口；具体决策见
+    `../decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`。
 - `public-product-path-safety-ops-runbook.md`
 
 ## Environment-Specific Smoke / Evidence
@@ -34,6 +39,7 @@ updated: 2026-04-27
 - `supervisor-api-server-handoff.md`
 - `runtime-otel-collector-pipeline.md`
 - `worker-observability-smoke-runbook.md`
+- `templates/e2e-qa-release-artifact-template.md`
 - `templates/public-chat-staging-smoke-artifact-template.md`
 - `templates/worker-observability-smoke-artifact-template.md`
 
@@ -41,7 +47,7 @@ updated: 2026-04-27
 
 - `local-postgres-dev-recovery-runbook.md`
 - `supervisor-api-local-runtime-smoke.md`
-- `qdrant-cloud-backup-and-restore-runbook.md`
+- `self-hosted-qdrant-native-backup-runbook.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`
 
@@ -80,3 +86,6 @@ updated: 2026-04-27
 
 - `archive/README.md`
   - historical runbook、legacy path redirect 与已退出默认执行面的旧模板已统一下沉到 archive namespace
+- `archive/qdrant-cloud-backup-and-restore-runbook.md`
+  - historical Qdrant Cloud / Free tier backup reference；当前默认方案已切换到
+    self-hosted single-node Qdrant native snapshots。

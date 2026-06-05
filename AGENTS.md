@@ -5,8 +5,7 @@
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
 - 当前主路径是 `supervisor-api -> supervisor-agent-worker -> agent -> retrieval-core`
-- 当前 product entry surface 已收口到 `hub-web -> app launcher / account
-  shell`，`public-chat-web`、
+- 当前 product entry surface 已收口到 `hub-web -> app launcher / account shell`，`public-chat-web`、
   `public-docs`、`protected-panel-web` 作为并列 browser surface 进入 shared `app-api`
 - 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平
   tool
@@ -39,8 +38,10 @@
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/durable-agent-runtime-architecture.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/code-organization-and-decomposition-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/system/identity-platform-architecture.md`
 - `docs/architecture/system/hub-account-experience-architecture.md`
@@ -65,12 +66,14 @@
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
+- `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`
@@ -80,12 +83,17 @@
 工作规则：
 
 - `AGENTS.md` 只负责仓库入口约束、目录导航和工作协议，不重复深层设计文档
-- 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和 `docs/` 视为实现与架构的参考材料
+- 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和
+  `docs/` 视为实现与架构的参考材料
 - 产品定位、目标用户与产品边界以 `docs/architecture/product-positioning.md` 为准
 - 当前 accepted merged-truth topology 与已开放 serving surface 以
   `docs/architecture/current-architecture.md` 为准
 - 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应
   `docs/` 文档为准
+- 代码组织、目录分解、小区块、目录同构与不重复治理以
+  `docs/architecture/system/code-organization-and-decomposition-architecture.md`
+  为准；`pnpm decomposition:lint` 只是基础行数 / baseline gate，不等于完整架构
+  review
 - 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以
   `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应
   `.planning/workstreams/<slug>/` 为准
@@ -260,14 +268,20 @@
 - Node / Worker app 默认使用 `pnpm`，不再新增或维护 `package-lock.json`
 - 如果变更触及长期边界、当前 accepted retrieval/data-plane 约束或对象存储/ingestion 不变量，同步检查相关
   `docs/architecture` 或 `docs/decisions` 是否需要更新
+- 结构性改动必须遵守代码组织架构文档：按 owner / runtime boundary /
+  domain responsibility 切分，不用机械拆文件绕过 gate，不把 helper 做成跨 owner
+  垃圾桶，不把同一 DTO / schema / env projection / route exposure 跨层手写复制
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正
-- plain `codex` 默认用于讨论、review、问答与方案分析；只有真正进入某条 workstream
-  执行时，才使用 repo-owned harness workflow
-- 多人并发推进不同 workstream 时，默认使用 repo-owned harness workflow： `uv run --all-packages
-  python -m scripts.workstream_harness codex shell <slug>` 或 `codex exec <slug>
-  -- "<task>"`； `workstream_claim session shell/start` 只保留为恢复与非-Codex runtime 的
-  低层 escape hatch；不要把运行时认领状态写回 tracked planning 文档
+- plain `codex` 默认用于讨论、review、问答、方案分析与执行；repo 不再维护自建
+  workstream harness、lease/heartbeat 或 Codex hook 注入层
+- 多人并发推进不同 workstream 时，默认用 GSD SDK 查询、切换和维护 workstream
+  registry，例如 `gsd-sdk query workstream.list/status/set/progress --raw --cwd "$PWD"`；
+  tracked planning truth 仍写在 `.planning/WORKSTREAMS.md` 与对应
+  `.planning/workstreams/<slug>/`，不要把本地会话状态写回 tracked planning 文档
+- GSD SDK / Codex native workflow 的长期决策以
+  `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md` 为准；日常命令和场景路由以
+  `docs/runbooks/workstream-gsd-sdk-workflow.md` 为准
 
 ### Git Commit Title Rules
 
@@ -381,6 +395,10 @@ pnpm web:build:affected
 - 如果新增局部测试或检查命令，只记录仓库里真实存在、可重复执行的命令
 - 不要把“担心腐烂”当成替代验证证据的理由
 - 当提出某种设计风险时，应尽可能区分：文档事实、代码事实，以及你的推断
+- 上线前真实 staging E2E closeout 走
+  `docs/runbooks/e2e-qa-release-runbook.md`；该 runbook 是 release QA 总入口，
+  不替代 unit / typecheck / build，也不能用 fallback、兜底、
+  `--expect-result-kind any` 或跳过 Access / auth / readyz 的方式标绿
 
 ## Repo Map
 
@@ -389,13 +407,20 @@ pnpm web:build:affected
   Go finalization 与 runtime observability，不接管 agent semantic reasoning、
   prompt/provider execution 或 retrieval backend 细节
 - `apps/supervisor-agent-worker`: Python private semantic worker；负责 bridge DTO
-  防御性校验、prompt runtime assembly 与 agent delegate dispatch
+  防御性校验、prompt runtime assembly、provider client binding 与 agent delegate dispatch
 - `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排
-- `packages/rag-agent`: 知识域 agent 入口；负责 retrieval 导向的 query/answer/confidence 逻辑
+- `packages/rag-agent`: 知识域 agent 入口；负责 retrieval 导向的
+  query/answer/confidence 逻辑
+- `packages/prompt-runtime`: provider-facing prompt runtime；负责 prompt contract
+  validation、Responses structured output execution、provider response
+  normalization 与 prompt trace construction；不得通过 `packages/shared` 重新导出
 - `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径
 - `packages/ingestion-core`: ingestion/data plane
   的逻辑消费层，负责去重、版本推进、解析、chunking、索引写入编排
+- `packages/regulation-semantics`: regulations 领域语义 owner；负责 answer-ready evidence
+  contract、answer role / condition / procedure taxonomy 与 regulation semantic registry
 - `packages/contracts`: supervisor -> agent handoff、evidence bundle 与共享
   schema；不要泄漏运行时或基础设施类型
 - `packages/evals`: 回归场景、基线与 smoke/eval 入口
-- `packages/shared`: 轻量共享常量和工具；不要演变成业务逻辑垃圾桶
+- `packages/shared`: 轻量共享常量和 env/provider config helper；不要演变成业务逻辑、
+  prompt runtime 或 provider transport 垃圾桶

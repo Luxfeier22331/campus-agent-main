@@ -1,0 +1,99 @@
+{
+	"name": "MUCWiki",
+	"version": "0.1.0",
+	"author": [
+		"MUC Wiki maintainers"
+	],
+	"url": "https://wiki.mucwiki-edge.link",
+	"descriptionmsg": "mucwiki-skin-desc",
+	"namemsg": "skinname-mucwiki",
+	"license-name": "GPL-2.0-or-later",
+	"type": "skin",
+	"requires": {
+		"MediaWiki": ">= 1.43"
+	},
+	"ValidSkinNames": {
+		"mucwiki": {
+			"class": "SkinMustache",
+			"args": [
+				{
+					"name": "mucwiki",
+					"responsive": true,
+					"supportsMwHeading": true,
+					"templateDirectory": "templates/",
+					"styles": [
+						"skins.mucwiki.codex",
+						"skins.mucwiki.styles"
+					],
+					"messages": [
+						"search",
+						"sitetitle",
+						"toolbox",
+						"navigation-heading",
+						"personaltools",
+						"namespaces",
+						"views"
+					]
+				}
+			]
+		}
+	},
+	"SkinOOUIThemes": {
+		"mucwiki": "Apex"
+	},
+	"ResourceModules": {
+		"skins.mucwiki.codex": {
+			"class": "MediaWiki\\ResourceLoader\\CodexModule",
+			"codexStyleOnly": true,
+			"codexComponents": [
+				"CdxButton",
+				"CdxCard",
+				"CdxCheckbox",
+				"CdxIcon",
+				"CdxMenu",
+				"CdxMessage",
+				"CdxRadio",
+				"CdxSearchInput",
+				"CdxTextInput",
+				"CdxToggleSwitch"
+			]
+		},
+		"skins.mucwiki.styles": {
+			"class": "MediaWiki\\ResourceLoader\\SkinModule",
+			"features": {
+				"normalize": true,
+				"elements": true,
+				"logo": true,
+				"content-media": true,
+				"content-links": true,
+				"content-tables": true,
+				"interface": true,
+				"interface-category": true,
+				"i18n-ordered-lists": true,
+				"i18n-headings": true
+			},
+			"styles": [
+				"resources/tokens-base.less",
+				"resources/content.less",
+				"resources/special-pages.less",
+				"resources/search.less",
+				"resources/recent-changes.less",
+				"resources/file-pages.less",
+				"resources/auth-pages.less",
+				"resources/preferences.less",
+				"resources/upload.less",
+				"resources/mobile.less"
+			]
+		}
+	},
+	"ResourceFileModulePaths": {
+		"localBasePath": "",
+		"remoteSkinPath": "MUCWiki"
+	},
+	"MessagesDirs": {
+		"MUCWiki": [
+			"i18n"
+		]
+	},
+	"manifest_version": 2
+}

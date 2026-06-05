@@ -62,7 +62,7 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
 
         self.assertNotEqual(metadata["answer_role"], "procedure_step")
 
-    def test_short_textual_merge_role_fallback_prefers_existing_semantic_metadata(self) -> None:
+    def test_short_textual_merge_role_prefers_existing_semantic_metadata(self) -> None:
         candidate = _ChunkCandidate(
             unit_type="article_body",
             root_unit_id="article-deadline",

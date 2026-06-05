@@ -3,8 +3,10 @@ from __future__ import annotations
 import re
 
 from campus_contracts import EvidenceSource
+from campus_regulation_semantics.regulation_semantic_registry import (
+    REGULATION_CONDITION_SUBJECT_DEFINITIONS,
+)
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
-from campus_shared.regulation_semantic_registry import REGULATION_CONDITION_SUBJECT_DEFINITIONS
 
 from .agent_answer_shape import AnswerShape
 from .agent_selection_statements import (

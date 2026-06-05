@@ -49,7 +49,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
                 structured_jsonl_bytes=structured_payload,
             )
 
-    def test_policy_page_fallback_keeps_token_guardrail_split_metadata(self) -> None:
+    def test_policy_page_chunk_keeps_token_guardrail_split_metadata(self) -> None:
         structured_payload = (
             json.dumps(
                 _structured_row(
@@ -423,7 +423,7 @@ class HandbookChunkingPipelinePart01Test(unittest.TestCase):
         }
 
         with patch(
-            "campus_shared.regulation_semantic_registry._load_student_rules_query_planning_config",
+            "campus_regulation_semantics.regulation_semantic_registry._load_student_rules_query_planning_config",
             return_value=config,
         ):
             self.assertIsNone(

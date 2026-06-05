@@ -3,7 +3,9 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+import scripts.query_sentry_spans as sentry_spans
 from scripts.query_sentry_spans import (
     DEFAULT_FIELDS,
     query_sentry_spans,
@@ -69,6 +71,45 @@ class QuerySentrySpansTest(unittest.TestCase):
                     "https://sentry.io/api/0/organizations/linear27/events/?dataset=spans&field=trace&field=span.op&field=span.description&field=timestamp&field=id&field=project.name&project=4511127821484032&project=4511127812571136&environment=staging&statsPeriod=30d&sort=-timestamp&per_page=20&query=trace%3Aaa87e040f4a74358aa74b62fa06b87b8"
                 ],
             )
+
+    def test_query_sentry_spans_uses_default_fetch_for_cli_path(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(repo_root / ".env", "SENTRY_API_TOKEN=repo-token\n")
+            requested_urls: list[str] = []
+
+            def fake_fetch_json(url: str, token: str) -> object:
+                requested_urls.append(url)
+                self.assertEqual(token, "repo-token")
+                return {
+                    "data": [
+                        {
+                            "id": "span_02",
+                            "project.name": "campus-agent-workers",
+                            "span.description": "POST /api/chat/requests",
+                            "span.op": "http.server",
+                            "timestamp": "2026-06-02T19:24:14+00:00",
+                            "trace": "trace-default-fetch",
+                        }
+                    ],
+                    "meta": {"dataset": "spans"},
+                }
+
+            with patch.object(sentry_spans, "default_fetch_json", fake_fetch_json):
+                status = sentry_spans.query_sentry_spans(
+                    repo_root=repo_root,
+                    org_slug="linear27",
+                    project_ids=["4511351503454208"],
+                    environment="staging",
+                    stats_period="1h",
+                    query='span.description:"POST /api/chat/requests"',
+                )
+
+            self.assertEqual(status["row_count"], 1)
+            self.assertEqual(status["rows"][0]["trace"], "trace-default-fetch")
+            self.assertEqual(len(requested_urls), 1)
+            self.assertIn("project=4511351503454208", requested_urls[0])
+            self.assertIn("environment=staging", requested_urls[0])
 
     def test_render_markdown_report_includes_query_inputs_and_rows(self) -> None:
         report = render_markdown_report(

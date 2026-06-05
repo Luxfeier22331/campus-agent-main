@@ -219,7 +219,7 @@ Docker-side execution runtime kernel。
 - extend admission from global-only to global + per-lane budgets
 - expose lane / lifecycle / telemetry readiness and metrics
 - add OTel-first trace exporter seam with disabled-by-default local posture
-- add best-effort execution audit event backflow to `app-api` internal ingest
+- add bounded execution audit event backflow to `app-api` internal ingest
 - update compose env, runbooks and execution contract
 
 **Exit Criteria:**
@@ -231,7 +231,8 @@ Docker-side execution runtime kernel。
 - `/metrics` reports lane admission, lifecycle and telemetry counters
 - execution audit backflow reports emitted / dropped / failed counters and never
   blocks answer requests
-- OTel export is fail-open for answer path and does not emit raw `user_goal`
+- OTel export failure is non-blocking for answer path, records explicit telemetry failure state,
+  and does not emit raw `user_goal`
 - `pnpm go:check`, focused docs lint, yaml lint and compose config pass or have
   documented unrelated blockers
 
@@ -254,7 +255,7 @@ Docker-side execution runtime kernel。
 - Go cancel endpoint attempts Go -> Python cooperative cancel for active executions
 - Python bridge returns `202 cancel_requested` for active request ids and
   `404` for missing ids
-- cancel delivery failure is fail-open for the cancel endpoint
+- cancel delivery failure is recorded in the cancel outcome without blocking Go wait-path release
 - targeted Go and Python bridge tests cover the route
 
 **Closeout Note:**
@@ -485,8 +486,8 @@ projection record 冒充成当前服务状态。
 
 ## Phase 17: Execution Audit Writer Hardening
 
-**Goal:** 把 Go execution audit writer 从单次 best-effort post 升级为 batch / retry /
-optional spool 的 fail-open writer。
+**Goal:** 把 Go execution audit writer 从单次 post 升级为 batch / retry / optional spool writer；
+传输失败必须进入明确审计状态，不能伪装成成功写入。
 
 **Scope:**
 
@@ -500,7 +501,8 @@ optional spool 的 fail-open writer。
 
 - Go execution audit tests cover batching, retry-before-success and spool-after-retry
 - audit payload allowlist remains raw-content-free
-- answer path remains fail-open when audit delivery fails
+- answer path remains non-blocking when audit delivery fails, and audit status records failed /
+  spooled delivery
 
 **Closeout Note:**
 
@@ -716,7 +718,7 @@ envelope。
 **Closeout Note:**
 
 - Repo-local implementation is complete. Remaining Python routing code is retained
-  only for non-bridge fallback / tests where explicitly documented.
+  only for explicitly documented non-bridge legacy tests.
 
 ## Phase 27: All-Delegate Handoff Planner
 

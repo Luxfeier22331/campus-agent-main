@@ -17,10 +17,7 @@ from campus_ingestion_core.collected_notice_ingest_queue import (
     validate_notice_ingest_job_payload,
 )
 
-_FIXTURE_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
-    "phases/phase-04-5-notice-ingest-queue-contract/fixtures"
-)
+_FIXTURE_DIR = Path("packages/evals/fixtures/authenticated_notice_ingest_queue")
 
 
 def _manifest_ref() -> NoticeIngestObjectRef:
@@ -347,6 +344,8 @@ class CollectedNoticeIngestQueueContractTests(unittest.TestCase):
         )
 
     def test_phase_fixtures_validate(self) -> None:
+        self.assertNotIn(".planning", str(_FIXTURE_DIR))
+        self.assertNotIn("var/ingestion-evidence", str(_FIXTURE_DIR))
         fixture_paths = sorted(_FIXTURE_DIR.glob("*.json"))
         self.assertEqual(
             [path.name for path in fixture_paths],

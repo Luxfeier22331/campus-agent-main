@@ -11,7 +11,9 @@ from campus_evals.retrieval_chunk_quality import (
     retrieval_chunk_quality_report_to_dict,
 )
 from campus_evals.retrieval_chunk_quality_cli import main as chunk_quality_main
-from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
+from campus_regulation_semantics.regulation_semantic_registry import (
+    load_regulation_discovery_config,
+)
 
 from tests.evals.retrieval_benchmark_test_support import unittest
 

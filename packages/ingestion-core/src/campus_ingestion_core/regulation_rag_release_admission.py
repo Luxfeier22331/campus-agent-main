@@ -7,7 +7,9 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
 
-from campus_shared.answer_ready_evidence_contract import ANSWER_READY_EVIDENCE_CONTRACT_VERSION
+from campus_regulation_semantics.answer_ready_evidence_contract import (
+    ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+)
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.index_release_acceptance import (

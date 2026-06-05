@@ -13,8 +13,10 @@ import {
 	setMessageFeedback,
 	submitChatRequest,
 	submitChatRequestStream,
+	subscribeChatRunEventStream,
 	UnauthorizedError,
 } from "../src/platform/chat/api";
+import type { ChatRunEventProjection } from "../src/platform/chat/types";
 
 describe("public chat app-api client", () => {
 	afterEach(() => {
@@ -100,7 +102,7 @@ describe("public chat app-api client", () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			new Response(
 				[
-					'event: request.accepted\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"accepted","occurredAt":"2026-03-28T08:00:00.000Z"}',
+					'event: request.accepted\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","runPhase":"queued","status":"accepted","occurredAt":"2026-03-28T08:00:00.000Z"}',
 					'event: execution.running\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"running","occurredAt":"2026-03-28T08:00:01.000Z"}',
 					'event: request.completed\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"completed","occurredAt":"2026-03-28T08:00:02.000Z","answer":{"conversation":{"createdAt":"2026-03-28T08:00:00.000Z","id":"conv_01HQ","messages":[],"title":"图书馆开放时间","updatedAt":"2026-03-28T08:00:02.000Z"},"result":{"kind":"answer","requestId":"req_stream_01HQ","text":"图书馆开放到 22:00。","traceId":"trace_stream_01HQ"}}}',
 				].join("\n\n"),
@@ -126,6 +128,7 @@ describe("public chat app-api client", () => {
 			"execution.running",
 			"request.completed",
 		]);
+		expect(events[0]?.data.runPhase).toBe("queued");
 		expect(events.at(-1)?.data.answer?.result).toMatchObject({
 			kind: "answer",
 			requestId: "req_stream_01HQ",
@@ -146,6 +149,66 @@ describe("public chat app-api client", () => {
 				method: "POST",
 			}),
 		);
+	});
+
+	it("subscribes to an existing durable run stream from a sequence cursor without submitting a request", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				[
+					'event: run.started\ndata: {"eventId":"event-started","eventType":"run.started","occurredAt":"2026-06-04T01:02:05.000Z","payload":{"status":"running"},"runId":"run_01HQ","sequence":3,"visibility":"browser"}',
+					'event: finalization.completed\ndata: {"eventId":"event-final","eventType":"finalization.completed","occurredAt":"2026-06-04T01:02:06.000Z","payload":{"request_id":"req_01HQ","trace_id":"trace_01HQ"},"runId":"run_01HQ","sequence":4,"visibility":"browser"}',
+				].join("\n\n"),
+				{
+					headers: {
+						"content-type": "text/event-stream; charset=utf-8",
+					},
+					status: 200,
+				},
+			),
+		);
+
+		const events: ChatRunEventProjection[] = [];
+		for await (const event of subscribeChatRunEventStream({
+			afterSequence: 2,
+			runId: "run_01HQ",
+		})) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([
+			{
+				eventId: "event-started",
+				eventType: "run.started",
+				occurredAt: "2026-06-04T01:02:05.000Z",
+				payload: { status: "running" },
+				runId: "run_01HQ",
+				sequence: 3,
+				visibility: "browser",
+			},
+			{
+				eventId: "event-final",
+				eventType: "finalization.completed",
+				occurredAt: "2026-06-04T01:02:06.000Z",
+				payload: {
+					request_id: "req_01HQ",
+					trace_id: "trace_01HQ",
+				},
+				runId: "run_01HQ",
+				sequence: 4,
+				visibility: "browser",
+			},
+		]);
+		expect(fetchSpy).toHaveBeenCalledOnce();
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/chat/runs/run_01HQ/events/stream?after_sequence=2",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					accept: "text/event-stream",
+				}),
+				method: "GET",
+			}),
+		);
+		expect(fetchSpy).not.toHaveBeenCalledWith("/api/chat/requests/stream", expect.anything());
 	});
 
 	it("rejects invalid JSON stream error payloads from app-api", async () => {

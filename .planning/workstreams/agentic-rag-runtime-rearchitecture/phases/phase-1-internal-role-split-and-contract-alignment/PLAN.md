@@ -36,7 +36,7 @@ answer synthesis、grounding validation 五个可辨识阶段，并冻结哪些 
    - 明确它们不能决定 answer success
 
 4. 分离 failure semantics
-   - 把 retrieval failure、no_answer、low confidence、grounding failure、prompt fallback 区分开
+   - 把 retrieval failure、no_answer、low confidence、grounding failure、prompt synthesis failure 区分开
    - 让每一类 failure 都能追到 stage-level 原因
 
 5. 形成 phase 级文档输出

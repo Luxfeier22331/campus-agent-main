@@ -95,6 +95,7 @@ class OfficialWebHandoffConsumerFailureTest(unittest.TestCase):
                 record_path,
                 _handoff_record(
                     event_id="owevt_completed_missing_bundle",
+                    artifacts=[],
                     run_id="owrun_projection_001",
                     site_id="campus_public",
                 ),

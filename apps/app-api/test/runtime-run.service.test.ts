@@ -1,0 +1,255 @@
+// @vitest-environment node
+
+import { describe, expect, it, vi } from "vitest";
+
+import type {
+	SupervisorDurableRun,
+	SupervisorDurableRunEvent,
+	SupervisorDurableRuntimeClient,
+} from "../src/modules/integration/supervisor";
+import { buildRuntimeRunService, type RuntimeRunEventProjection } from "../src/modules/runtime-run";
+import { createPrincipal } from "./chat-command.service.test-support";
+
+function durableRun(overrides: Partial<SupervisorDurableRun> = {}): SupervisorDurableRun {
+	return {
+		admittedAt: "",
+		completedAt: "",
+		conversationId: "conv_01HQ",
+		createdAt: "2026-06-04T01:02:03.000Z",
+		failCloseReason: "",
+		finalResponseRef: "",
+		lane: "rag",
+		ownerUserId: "user_01HQ",
+		requestId: "req_01HQ",
+		requestedCapability: "knowledge",
+		runId: "run_01HQ",
+		selectedCapability: "knowledge",
+		startedAt: "",
+		status: "running",
+		streamingStartedAt: "",
+		surface: "public_chat_web",
+		terminalReason: "",
+		traceId: "trace_01HQ",
+		turnId: "turn_01HQ",
+		updatedAt: "2026-06-04T01:02:04.000Z",
+		workflowPlanRef: "",
+		...overrides,
+	};
+}
+
+function durableEvent(
+	overrides: Partial<SupervisorDurableRunEvent> & {
+		eventType: string;
+		sequence: number;
+	},
+): SupervisorDurableRunEvent {
+	const { eventType, sequence, ...rest } = overrides;
+	return {
+		conversationId: "conv_01HQ",
+		eventId: `event-${sequence}`,
+		eventType,
+		occurredAt: "2026-06-04T01:02:06.000Z",
+		payload: {},
+		payloadSchemaVersion: "run-event-v1",
+		runId: "run_01HQ",
+		sequence,
+		visibility: "browser",
+		...rest,
+	};
+}
+
+describe("runtime run service", () => {
+	it("projects durable run statuses into product runtime phases", async () => {
+		const durableRuntime: SupervisorDurableRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(
+				durableRun({
+					status: "queued",
+				}),
+			),
+			listRunEvents: vi.fn().mockResolvedValue([]),
+		};
+		const service = buildRuntimeRunService({
+			durableRuntime,
+			store: {
+				getOwnedRun: vi.fn().mockResolvedValue({
+					conversationId: "conv_01HQ",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					traceId: "trace_01HQ",
+				}),
+			},
+		});
+
+		await expect(
+			service.getStatus({
+				principal: createPrincipal(),
+				runId: "run_01HQ",
+			}),
+		).resolves.toEqual({
+			run: expect.objectContaining({
+				phase: "queued",
+				status: "queued",
+			}),
+		});
+	});
+
+	it("rejects unknown durable run statuses instead of guessing a product phase", async () => {
+		const durableRuntime: SupervisorDurableRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(
+				durableRun({
+					status: "mystery",
+				}),
+			),
+			listRunEvents: vi.fn().mockResolvedValue([]),
+		};
+		const service = buildRuntimeRunService({
+			durableRuntime,
+			store: {
+				getOwnedRun: vi.fn().mockResolvedValue({
+					conversationId: "conv_01HQ",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					traceId: "trace_01HQ",
+				}),
+			},
+		});
+
+		await expect(
+			service.getStatus({
+				principal: createPrincipal(),
+				runId: "run_01HQ",
+			}),
+		).rejects.toThrow("Supervisor durable run status is not supported.");
+	});
+
+	it("rejects listed browser events that do not advance the requested cursor", async () => {
+		const durableRuntime: SupervisorDurableRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(durableRun()),
+			listRunEvents: vi.fn().mockResolvedValue([
+				durableEvent({
+					eventType: "run.started",
+					sequence: 2,
+				}),
+			]),
+		};
+		const service = buildRuntimeRunService({
+			durableRuntime,
+			store: {
+				getOwnedRun: vi.fn().mockResolvedValue({
+					conversationId: "conv_01HQ",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					traceId: "trace_01HQ",
+				}),
+			},
+		});
+
+		await expect(
+			service.listEvents({
+				afterSequence: 2,
+				principal: createPrincipal(),
+				runId: "run_01HQ",
+			}),
+		).rejects.toThrow("Supervisor durable run events must advance the requested cursor.");
+	});
+
+	it("subscribes to browser-visible durable run events by cursor until terminal event arrives", async () => {
+		const sleep = vi.fn(async () => undefined);
+		const listRunEvents = vi
+			.fn()
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([
+				durableEvent({
+					eventType: "run.started",
+					sequence: 3,
+				}),
+			])
+			.mockResolvedValueOnce([
+				durableEvent({
+					eventType: "finalization.completed",
+					payload: {
+						request_id: "req_01HQ",
+						trace_id: "trace_01HQ",
+					},
+					sequence: 4,
+				}),
+			]);
+		const durableRuntime: SupervisorDurableRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(durableRun()),
+			listRunEvents,
+		};
+		const service = buildRuntimeRunService({
+			durableRuntime,
+			store: {
+				getOwnedRun: vi.fn().mockResolvedValue({
+					conversationId: "conv_01HQ",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					traceId: "trace_01HQ",
+				}),
+			},
+		});
+
+		const observed: RuntimeRunEventProjection[] = [];
+		for await (const event of service.subscribeEvents({
+			afterSequence: 2,
+			polling: {
+				maxAttempts: 3,
+				pollIntervalMs: 25,
+				sleep,
+			},
+			principal: createPrincipal(),
+			runId: "run_01HQ",
+		})) {
+			observed.push(event);
+		}
+
+		expect(listRunEvents).toHaveBeenNthCalledWith(1, {
+			afterSequence: 2,
+			runId: "run_01HQ",
+			traceId: "trace_01HQ",
+		});
+		expect(listRunEvents).toHaveBeenNthCalledWith(2, {
+			afterSequence: 2,
+			runId: "run_01HQ",
+			traceId: "trace_01HQ",
+		});
+		expect(listRunEvents).toHaveBeenNthCalledWith(3, {
+			afterSequence: 3,
+			runId: "run_01HQ",
+			traceId: "trace_01HQ",
+		});
+		expect(sleep).toHaveBeenCalledTimes(2);
+		expect(observed).toEqual([
+			{
+				eventId: "event-3",
+				eventType: "run.started",
+				occurredAt: "2026-06-04T01:02:06.000Z",
+				payload: {},
+				runId: "run_01HQ",
+				sequence: 3,
+				visibility: "browser",
+			},
+			{
+				eventId: "event-4",
+				eventType: "finalization.completed",
+				occurredAt: "2026-06-04T01:02:06.000Z",
+				payload: {
+					request_id: "req_01HQ",
+					trace_id: "trace_01HQ",
+				},
+				runId: "run_01HQ",
+				sequence: 4,
+				visibility: "browser",
+			},
+		]);
+	});
+});

@@ -17,7 +17,7 @@ updated: 2026-05-06
 **Last Activity:** 2026-05-06
 **Last Activity Description:** Closed Phase 8/9 by making multi-step `WorkflowRun` persist
 step-level `tool_call_summaries`, deriving `selected_tools` and operator summary from recorded run
-truth instead of final-step inference, adding bounded provenance fallback via output projection ids,
+truth instead of final-step inference, adding bounded provenance linkage via output projection ids,
 rerunning the real `multi-agent-live-smoke` gate to PASS with zero workflow-trace failures, and
 recording the repo-owned decision to keep the second governed scenario closed.
 

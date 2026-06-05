@@ -1,12 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fetchNoticeDetail, fetchNoticePage, fetchNoticeSelects } from "./api.js";
-import {
-	type AuthenticatedNoticeArtifactStore,
-	createAuthenticatedNoticeArtifactStoreFromEnv,
-	type StoredArtifactRef,
-} from "./artifact-store.js";
-import { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions.js";
+import type { AuthenticatedNoticeArtifactStore, StoredArtifactRef } from "./artifact-store.js";
+
+export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions.js";
+
 import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status.js";
 import {
 	type AttachmentFetchAdmission,
@@ -29,16 +27,6 @@ import {
 	toTimestampLabel,
 } from "./bootstrap-export-helpers.js";
 import {
-	buildAttachmentFetchStatusStoreForMain,
-	buildCollectorRunLeaseStoreForMain,
-	buildCollectorRunLedgerStoreForMain,
-} from "./bootstrap-export-runtime-stores.js";
-import {
-	buildCollectorRunLeaseKey,
-	type DisposableCollectorRunLeaseStore,
-	withCollectorRunLease,
-} from "./collector-run-lease.js";
-import {
 	buildCollectorRunFailedLedgerRecord,
 	buildCollectorRunId,
 	buildCollectorRunLedgerRecord,
@@ -46,13 +34,8 @@ import {
 	type CollectorRunLedgerRecord,
 	type CollectorRunLedgerStore,
 } from "./collector-run-ledger.js";
-import {
-	type CollectorConfig,
-	ensureRuntimeDirs,
-	loadCollectorEnv,
-	resolveCollectorConfig,
-} from "./config.js";
-import { enqueueVerifiedCollectorRun } from "./ingest-queue-enqueue.js";
+import { sanitizeObjectKeySegment } from "./collector-runtime.js";
+import { resolveCollectorConfig } from "./config.js";
 import * as noticeTypeConfig from "./notice-types.js";
 import { createApiContextFromStorageState } from "./portal.js";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission.js";
@@ -122,8 +105,6 @@ export interface CollectBootstrapBundleResult {
 		pagesFetched: number;
 	};
 }
-
-export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions.js";
 
 export interface WriteBootstrapArtifactsInput {
 	bundleRecords: BundleNoticeRecord[];
@@ -719,115 +700,4 @@ function assertVerifiedRunHandoff(record: CollectorRunLedgerRecord): void {
 			`collector handoff verification failed: ${record.failureReason ?? record.verificationStatus}`,
 		);
 	}
-}
-
-export async function main(): Promise<void> {
-	loadCollectorEnv();
-	const config = resolveCollectorConfig(process.env);
-	ensureRuntimeDirs(config);
-	const noticeTypes = noticeTypeConfig.applyNoticeTypeAllowlist(
-		noticeTypeConfig.loadNoticeTypes(config.noticeTypesPath),
-		config.noticeTypeAllowlist,
-	);
-	const exportedAt = new Date().toISOString();
-	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
-	const attachmentFetchAdmissions = loadAttachmentFetchAdmissionsForMain(config);
-	const attachmentFetchStatusStore = buildAttachmentFetchStatusStoreForMain(config);
-	const collectorRunLedgerStore = buildCollectorRunLedgerStoreForMain(config);
-	const collectorRunLeaseStore = buildCollectorRunLeaseStoreForMain(config);
-	try {
-		await runWithOptionalCollectorLease(
-			collectorRunLeaseStore,
-			{
-				leaseKey: buildCollectorRunLeaseKey({
-					siteId: config.siteId,
-					sourceSurface: "notice",
-				}),
-				now: exportedAt,
-				ownerId: `${config.siteId}:notice:${toTimestampLabel(exportedAt)}`,
-				ttlSeconds: config.collectorRunLeaseTtlSeconds,
-			},
-			async () => {
-				const selectedNotices = parseSelectedNoticeSpecs(
-					process.env.AUTHENTICATED_NOTICE_SELECTED_NOTICES,
-				);
-				const runResult = await runBootstrapExport({
-					artifactStore: attachmentArtifactStore,
-					attachmentFetchAdmissions,
-					collectBundle: () =>
-						collectBootstrapBundle({
-							attachmentArtifactStore,
-							attachmentFetchStatusStore,
-							collectionMode: config.collectionMode,
-							exportedAt,
-							noticeTypes,
-							requestBackoffBaseMs: config.requestBackoffBaseMs,
-							requestMaxRetries: config.requestMaxRetries,
-							attachmentFetchAdmissions,
-							defaultInlineVisualCapture: config.defaultInlineVisualCapture,
-							backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
-							selectedNotices,
-							siteId: config.siteId,
-							sourceHomeUrl: config.sourceHomeUrl,
-						}),
-					collectionMode: config.collectionMode,
-					collectorRunLedgerStore,
-					exportedAt,
-					outputDir: config.exportsDir,
-					siteId: config.siteId,
-					sourceHomeUrl: config.sourceHomeUrl,
-					verifiedRunEnqueue: config.ingestQueueEnqueueOnSuccess
-						? ({ ledgerRecord }) =>
-								enqueueVerifiedCollectorRun({
-									ledgerRecord,
-									outputDir: config.ingestQueueEnqueueOutputDir,
-									siteId: config.siteId,
-								})
-						: undefined,
-					writeLocalArtifacts: config.writeLocalExports,
-				});
-				console.log(
-					JSON.stringify(
-						{
-							...runResult.result.stats,
-							bundlePath: runResult.written?.bundlePath ?? null,
-							bundleObjectKey: runResult.uploadedArtifactRefs.bundleObjectKey,
-							manifestPath: runResult.written?.manifestPath ?? null,
-							manifestObjectKey: runResult.uploadedArtifactRefs.manifestObjectKey,
-						},
-						null,
-						2,
-					),
-				);
-			},
-		);
-	} finally {
-		await attachmentFetchStatusStore?.dispose();
-		await collectorRunLedgerStore?.dispose();
-		await collectorRunLeaseStore?.dispose();
-	}
-}
-
-function loadAttachmentFetchAdmissionsForMain(config: CollectorConfig): AttachmentFetchAdmission[] {
-	if (config.attachmentFetchRequestManifestPath === null) {
-		return [];
-	}
-	const raw = fs.readFileSync(config.attachmentFetchRequestManifestPath, "utf-8");
-	return parseAttachmentFetchAdmissionsFromManifest(JSON.parse(raw));
-}
-
-function sanitizeObjectKeySegment(value: string): string {
-	const normalized = value.trim().replace(/[^0-9A-Za-z_.=-]+/g, "_");
-	return normalized || "unknown";
-}
-
-async function runWithOptionalCollectorLease<T>(
-	store: DisposableCollectorRunLeaseStore | undefined,
-	input: Parameters<typeof withCollectorRunLease>[1],
-	operation: () => Promise<T>,
-): Promise<T> {
-	if (!store) {
-		return await operation();
-	}
-	return await withCollectorRunLease(store, input, operation);
 }

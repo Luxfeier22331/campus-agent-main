@@ -1,5 +1,7 @@
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
+import type { SupervisorDurableRun, SupervisorDurableRunEvent } from "../integration";
+import { runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
 import {
 	isAllowedTimeseriesGranularity,
 	normalizeAuditListFilters,
@@ -15,6 +17,9 @@ import type {
 	OperatorQualityEvalCandidateListResult,
 	OperatorQueryService,
 	OperatorQueryServiceDependencies,
+	OperatorRequestObservabilityRecord,
+	OperatorRuntimeRunEventSummary,
+	OperatorRuntimeRunSummary,
 } from "./service-types";
 import { inferEvalFamilyFromCauseClass } from "./store/shared";
 
@@ -58,6 +63,7 @@ function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 			},
 			links: badcase.links,
 			requestId: badcase.requestId,
+			runId: badcase.runId,
 			selectedTarget: badcase.selectedTarget,
 			summary: badcase.summary,
 			surface: badcase.surface,
@@ -88,6 +94,135 @@ function mergeQualityEvalCandidates(
 			.slice(0, limit),
 		page: {
 			nextCursor: first.page.nextCursor ?? second.page.nextCursor ?? third.page.nextCursor,
+		},
+	};
+}
+
+const TERMINAL_RUN_EVENT_TYPES = new Set([
+	"finalization.completed",
+	"run.completed",
+	"run.failed",
+	"run.canceled",
+	"run.expired",
+]);
+
+function toRuntimeRunEventSummary(
+	event: SupervisorDurableRunEvent,
+): OperatorRuntimeRunEventSummary {
+	return {
+		eventType: event.eventType,
+		occurredAt: event.occurredAt,
+		sequence: event.sequence,
+		visibility: event.visibility,
+	};
+}
+
+function assertDurableRunMatchesRequest(
+	request: OperatorRequestObservabilityRecord["request"],
+	run: SupervisorDurableRun,
+): void {
+	if (
+		run.runId !== request.runId ||
+		run.requestId !== request.requestId ||
+		run.conversationId !== request.conversationId ||
+		run.traceId !== request.traceId
+	) {
+		throw new AppApiRouteError({
+			code: "durable_run_identity_drift",
+			message: "Durable run identity does not match operator request projection.",
+			retryable: true,
+			status: 502,
+		});
+	}
+}
+
+function assertDurableEventMatchesRun(
+	run: SupervisorDurableRun,
+	event: SupervisorDurableRunEvent,
+	lastSequence: number,
+): number {
+	if (event.runId !== run.runId || event.conversationId !== run.conversationId) {
+		throw new AppApiRouteError({
+			code: "durable_run_event_identity_drift",
+			message: "Durable run event identity does not match durable run projection.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	if (!Number.isInteger(event.sequence) || event.sequence <= lastSequence) {
+		throw new AppApiRouteError({
+			code: "durable_run_event_cursor_regression",
+			message: "Durable run event sequence must strictly advance.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	return event.sequence;
+}
+
+async function loadRuntimeRunSummary(
+	dependencies: OperatorQueryServiceDependencies,
+	record: OperatorRequestObservabilityRecord,
+): Promise<OperatorRuntimeRunSummary | null> {
+	const runId = record.request.runId;
+	if (!runId) {
+		return null;
+	}
+	if (!dependencies.durableRuntime) {
+		throw new AppApiRouteError({
+			code: "durable_runtime_not_configured",
+			message: "Durable runtime is required for request run observability.",
+			retryable: true,
+			status: 503,
+		});
+	}
+
+	const run = await dependencies.durableRuntime.getRun({
+		runId,
+		traceId: record.request.traceId,
+	});
+	assertDurableRunMatchesRequest(record.request, run);
+	const events = await dependencies.durableRuntime.listRunEvents({
+		runId,
+		traceId: record.request.traceId,
+	});
+
+	const visibilityCounts = {
+		browser: 0,
+		eval: 0,
+		internal: 0,
+		panel: 0,
+	};
+	let latestEvent: OperatorRuntimeRunEventSummary | null = null;
+	let terminalEvent: OperatorRuntimeRunEventSummary | null = null;
+	let lastSequence = 0;
+	for (const event of events) {
+		lastSequence = assertDurableEventMatchesRun(run, event, lastSequence);
+		if (event.visibility in visibilityCounts) {
+			visibilityCounts[event.visibility as keyof typeof visibilityCounts] += 1;
+		}
+		const summary = toRuntimeRunEventSummary(event);
+		latestEvent = summary;
+		if (TERMINAL_RUN_EVENT_TYPES.has(event.eventType)) {
+			terminalEvent = summary;
+		}
+	}
+
+	return {
+		eventSummary: {
+			eventCount: events.length,
+			latestEvent,
+			terminalEvent,
+			visibilityCounts,
+		},
+		run: {
+			conversationId: run.conversationId,
+			phase: runtimeRunPhaseFromSupervisorStatus(run.status),
+			requestId: run.requestId,
+			runId: run.runId,
+			status: run.status,
+			terminalReason: run.terminalReason || null,
+			traceId: run.traceId,
 		},
 	};
 }
@@ -143,7 +278,10 @@ export function buildOperatorQueryService(
 				});
 			}
 
-			return projection;
+			return {
+				...projection,
+				runtimeRun: await loadRuntimeRunSummary(dependencies, projection),
+			};
 		},
 
 		async getAuditById(input) {

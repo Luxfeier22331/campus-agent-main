@@ -18,6 +18,11 @@ from campus_ingestion_core.file_asset_routing import (
     RAW_PROVIDER_RESPONSE_SEGMENT_FILENAME_TEMPLATE,
     adapt_mineru_archive_to_canonical_provider_payload,
 )
+from campus_ingestion_core.raw_ingestion_mineru_api import (
+    require_mineru_success_payload,
+    resolve_mineru_extract_results_url,
+    resolve_mineru_file_upload_url,
+)
 
 DEFAULT_ONLINE_OCR_MODEL = "PaddleOCR-VL-1.5"
 DEFAULT_ONLINE_OCR_POLL_SECONDS = 5
@@ -481,7 +486,7 @@ class MineruApiClient:
         )
         headers = {"Authorization": f"Bearer {self._settings.api_key}"}
         upload_response = requests.post(
-            _resolve_mineru_file_upload_url(self._settings.base_url),
+            resolve_mineru_file_upload_url(self._settings.base_url),
             headers=headers,
             json={
                 "enable_formula": self._settings.enable_formula,
@@ -498,7 +503,7 @@ class MineruApiClient:
             timeout=self._settings.timeout_seconds,
         )
         upload_response.raise_for_status()
-        upload_payload = _require_mineru_success_payload(
+        upload_payload = require_mineru_success_payload(
             response_payload=upload_response.json(),
             action=f"create upload URL for {file_name}",
         )
@@ -526,12 +531,12 @@ class MineruApiClient:
         deadline = time.monotonic() + self._settings.timeout_seconds
         while True:
             status_response = requests.get(
-                _resolve_mineru_extract_results_url(self._settings.base_url, batch_id=batch_id),
+                resolve_mineru_extract_results_url(self._settings.base_url, batch_id=batch_id),
                 headers=headers,
                 timeout=self._settings.timeout_seconds,
             )
             status_response.raise_for_status()
-            status_payload = _require_mineru_success_payload(
+            status_payload = require_mineru_success_payload(
                 response_payload=status_response.json(),
                 action=f"query extract result for {file_name}",
             )
@@ -643,48 +648,6 @@ def _parse_online_ocr_bool(value: str | None, *, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     raise ValueError(f"invalid boolean value: {value}")
-
-
-def _resolve_mineru_api_root(base_url: str) -> str:
-    normalized = base_url.rstrip("/")
-    suffixes = (
-        "/api/v4/file-urls/batch",
-        "/api/v4/extract-results/batch",
-        "/api/v4/extract/task",
-        "/api/v4",
-        "/api",
-    )
-    lower_normalized = normalized.lower()
-    for suffix in suffixes:
-        if lower_normalized.endswith(suffix):
-            return normalized[: -len(suffix)] + "/api/v4"
-    return f"{normalized}/api/v4"
-
-
-def _resolve_mineru_file_upload_url(base_url: str) -> str:
-    return f"{_resolve_mineru_api_root(base_url)}/file-urls/batch"
-
-
-def _resolve_mineru_extract_results_url(base_url: str, *, batch_id: str) -> str:
-    return f"{_resolve_mineru_api_root(base_url)}/extract-results/batch/{batch_id}"
-
-
-def _require_mineru_success_payload(
-    *,
-    response_payload: object,
-    action: str,
-) -> dict[str, object]:
-    if not isinstance(response_payload, dict):
-        raise RuntimeError(f"MinerU response must be a JSON object while trying to {action}")
-    code = response_payload.get("code")
-    if code not in {0, "0", None}:
-        raise RuntimeError(
-            f"MinerU API failed to {action}: code={code}, msg={response_payload.get('msg')}"
-        )
-    payload = response_payload.get("data")
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"MinerU response is missing data while trying to {action}")
-    return payload
 
 
 def _require_layout_parsing_result_payload(

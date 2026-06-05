@@ -35,7 +35,7 @@ inventory artifact:
 - Provider-response replay does not publish query-serving alias.
 - Query-serving alias publish must fail closed when acceptance fixtures are missing or failing.
 - Online retrieval runtime must use Qdrant point payload / current release metadata for drift guard;
-  object-store manifest remains audit / offline fallback.
+  object-store manifest remains audit / recovery evidence.
 - `packages/evals` owns shared qrels and retrieval tuning runner logic.
 
 ## Next Phase

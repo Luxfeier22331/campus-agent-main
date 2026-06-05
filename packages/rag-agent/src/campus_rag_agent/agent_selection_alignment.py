@@ -3,13 +3,15 @@ from __future__ import annotations
 import re
 
 from campus_contracts import EvidenceSource
+from campus_regulation_semantics.regulation_semantic_registry import (
+    REGULATION_CONDITION_SUBJECT_DEFINITIONS,
+)
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 from campus_retrieval_core.evidence_ranking import query_targets_source_title
 from campus_retrieval_core.evidence_semantics import (
     infer_query_condition_subject,
     semantic_alignment_score,
 )
-from campus_shared.regulation_semantic_registry import REGULATION_CONDITION_SUBJECT_DEFINITIONS
 
 from .agent_answer_shape import AnswerShape
 from .agent_official_web_reference_selection import (

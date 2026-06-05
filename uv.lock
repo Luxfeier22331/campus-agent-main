@@ -27,8 +27,10 @@ members = [
     "campus-notice-agent",
     "campus-official-web-collector",
     "campus-official-web-core",
+    "campus-prompt-runtime",
     "campus-public-chat-web",
     "campus-rag-agent",
+    "campus-regulation-semantics",
     "campus-retrieval-core",
     "campus-services-agent",
     "campus-shared",
@@ -301,6 +303,8 @@ source = { editable = "packages/evals" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-prompt-runtime" },
+    { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx" },
     { name = "ragas" },
@@ -310,6 +314,8 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ragas", specifier = ">=0.4.3" },
@@ -322,6 +328,8 @@ source = { editable = "packages/ingestion-core" }
 dependencies = [
     { name = "boto3" },
     { name = "campus-contracts" },
+    { name = "campus-prompt-runtime" },
+    { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx", extra = ["socks"] },
     { name = "llama-index-core" },
@@ -341,6 +349,8 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.35.0" },
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "llama-index-core", specifier = ">=0.14.18" },
@@ -415,6 +425,23 @@ version = "0.1.0"
 source = { virtual = "packages/official-web-core" }
 
 [[package]]
+name = "campus-prompt-runtime"
+version = "0.1.0"
+source = { editable = "packages/prompt-runtime" }
+dependencies = [
+    { name = "campus-contracts" },
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.0" },
+]
+
+[[package]]
 name = "campus-public-chat-web"
 version = "0.1.0"
 source = { virtual = "apps/public-chat-web" }
@@ -426,6 +453,8 @@ source = { editable = "packages/rag-agent" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-prompt-runtime" },
+    { name = "campus-regulation-semantics" },
     { name = "campus-retrieval-core" },
     { name = "campus-shared" },
 ]
@@ -434,9 +463,16 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
     { name = "campus-shared", editable = "packages/shared" },
 ]
+
+[[package]]
+name = "campus-regulation-semantics"
+version = "0.1.0"
+source = { editable = "packages/regulation-semantics" }
 
 [[package]]
 name = "campus-retrieval-core"
@@ -445,6 +481,7 @@ source = { editable = "packages/retrieval-core" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx", extra = ["socks"] },
     { name = "llama-index-core" },
@@ -456,6 +493,7 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "llama-index-core", specifier = ">=0.14.18" },
@@ -478,18 +516,6 @@ requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 name = "campus-shared"
 version = "0.1.0"
 source = { editable = "packages/shared" }
-dependencies = [
-    { name = "campus-contracts" },
-    { name = "httpx" },
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pydantic", specifier = ">=2.0" },
-]
 
 [[package]]
 name = "campus-supervisor-agent-worker"
@@ -497,6 +523,7 @@ version = "0.1.0"
 source = { editable = "apps/supervisor-agent-worker" }
 dependencies = [
     { name = "campus-contracts" },
+    { name = "campus-prompt-runtime" },
     { name = "campus-shared" },
     { name = "httpx" },
     { name = "openai-agents" },
@@ -509,6 +536,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "openai-agents", specifier = ">=0.14.8" },
@@ -3096,7 +3124,7 @@ wheels = [
 
 [[package]]
 name = "qdrant-client"
-version = "1.17.1"
+version = "1.18.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "grpcio" },
@@ -3107,9 +3135,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/30/dd/f8a8261b83946af3cd65943c93c4f83e044f01184e8525404989d22a81a5/qdrant_client-1.17.1.tar.gz", hash = "sha256:22f990bbd63485ed97ba551a4c498181fcb723f71dcab5d6e4e43fe1050a2bc0", size = 344979, upload-time = "2026-03-13T17:13:44.678Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/65/45/5b1bdd15a3c7730eefb9c113600829e20d689b82b5a23f9e07d107094004/qdrant_client-1.18.0.tar.gz", hash = "sha256:52e8ece1a7d40519801bf0b70713bfa0f6b7ae28c7275bbe0b0286fbed7f6db4", size = 352580, upload-time = "2026-05-11T14:12:38.702Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/68/69/77d1a971c4b933e8c79403e99bcbb790463da5e48333cc4fd5d412c63c98/qdrant_client-1.17.1-py3-none-any.whl", hash = "sha256:6cda4064adfeaf211c751f3fbc00edbbdb499850918c7aff4855a9a759d56cbd", size = 389947, upload-time = "2026-03-13T17:13:43.156Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/10/c437bd2ac41ef30d3019063e6ce537dc111e9214473b337ee88f7fa6359a/qdrant_client-1.18.0-py3-none-any.whl", hash = "sha256:093aa8cf8a420ee3ad2a68b007e1378d7992b2600e0b53c193fc172674f659cd", size = 398126, upload-time = "2026-05-11T14:12:36.998Z" },
 ]
 
 [[package]]

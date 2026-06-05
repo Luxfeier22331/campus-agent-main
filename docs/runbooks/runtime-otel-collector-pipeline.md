@@ -32,7 +32,8 @@ Signal taxonomy, allowed attributes and forbidden fields remain defined in
   - receives OTLP traces, metrics and logs
   - exports traces to Sentry and Axiom
   - exports logs to Axiom
-  - exports metrics to Axiom through `x-axiom-metrics-dataset`
+  - keeps metrics on the Collector debug pipeline; Axiom does not receive a
+    separate metrics dataset
 - `infra/otel/collector.env.example`
   - documents required environment variables
   - keeps all endpoint/header/dataset values blank in the tracked file
@@ -85,8 +86,7 @@ OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT=<secret-managed endpoint>
 OTEL_COLLECTOR_SENTRY_AUTH_VALUE=<secret-managed x-sentry-auth value>
 OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co
 OTEL_COLLECTOR_AXIOM_AUTH_HEADER=<secret-managed header>
-OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=<secret-managed dataset>
-OTEL_COLLECTOR_AXIOM_METRICS_DATASET=<secret-managed metrics dataset>
+OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
 ```
 
 For Sentry, use the combined OTLP endpoint from **Client Keys (DSN) > OpenTelemetry
@@ -189,8 +189,9 @@ If the Collector receives telemetry but no sink records appear:
    automatically.
 6. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` matches `AXIOM_ENDPOINT`, so Worker-local and
    Collector-based exports land in the same Axiom edge deployment.
-7. Confirm Axiom traces/logs use `x-axiom-dataset` and metrics use
-   `x-axiom-metrics-dataset`.
+7. Confirm Axiom traces/logs use `x-axiom-dataset=campus-agent-runtime`.
+   Metrics stay on the Collector debug pipeline and are not exported to a
+   separate Axiom metrics dataset.
 
 Exporter failure must not break product request paths. It should appear as telemetry degraded
 health or sink-side missing evidence, not as answer-path failure.

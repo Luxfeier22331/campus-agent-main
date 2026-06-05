@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     canonical_regulation_procedure_action,
     resolve_regulation_answer_role,
     resolve_regulation_procedure_action,

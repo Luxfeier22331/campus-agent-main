@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from campus_contracts import EvidenceBundle, EvidenceSource
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     REGULATION_CONDITION_SUBJECT_DEFINITIONS,
 )
 

@@ -38,7 +38,7 @@ from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 SMOKE_SCHEMA_VERSION = "authenticated_notice_ingest_queue_e2e_smoke.v1"
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/"
+    "var/ingestion-evidence/authenticated-notice-ingest-queue-e2e-automation/"
     "evidence/phase-08-captured-content-e2e-smoke"
 )
 

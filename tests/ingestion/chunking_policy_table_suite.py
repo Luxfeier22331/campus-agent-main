@@ -129,7 +129,7 @@ class ChunkingPolicyTableTest(_ChunkingPolicyTestCase):
         self.assertTrue(all(spec.split_reason == "table_row_window" for spec in specs))
         self.assertTrue(all("等级 | 分数" in spec.text for spec in specs))
 
-    def test_table_unit_without_row_lines_splits_oversized_fallback_text(self) -> None:
+    def test_table_unit_without_row_lines_splits_oversized_table_text(self) -> None:
         unit = StructuredUnitChunkInput(
             unit_type="table_unit",
             root_unit_id="table-002",

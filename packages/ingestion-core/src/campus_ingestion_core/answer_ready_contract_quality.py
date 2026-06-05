@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from campus_shared.answer_ready_evidence_contract import (
+from campus_regulation_semantics.answer_ready_evidence_contract import (
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
     validate_answer_ready_evidence_metadata,
 )

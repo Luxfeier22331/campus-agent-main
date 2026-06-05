@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from campus_contracts import PromptTrace
-from campus_shared import (
+from campus_prompt_runtime import (
     NormalizedProviderGroundingSupport,
     PromptRuntimeValidationError,
     require_non_empty_output_text,

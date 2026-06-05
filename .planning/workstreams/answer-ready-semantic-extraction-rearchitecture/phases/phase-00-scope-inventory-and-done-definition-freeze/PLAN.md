@@ -24,7 +24,7 @@ updated: 2026-05-07
 - Freeze taxonomy admission and value-change governance.
 - Freeze institutional-rule denominator and early sample coverage.
 - Freeze static release-gate vs query-conditioned eval boundary.
-- Freeze fallback budget and old-index compatibility lane.
+- Freeze legacy-signal budget and old-index quarantine lane.
 - Freeze release adoption proof requirements.
 
 ## Deliverables

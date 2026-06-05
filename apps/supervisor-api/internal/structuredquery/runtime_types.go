@@ -16,23 +16,23 @@ const (
 )
 
 type Options struct {
-	ServiceStatusReadModelStore     ServiceStatusReadModelStore
-	TransportScheduleReadModelStore TransportScheduleReadModelStore
-	ServiceGuideReadModelStore      ServiceGuideReadModelStore
-	ContactDirectoryReadModelStore  ContactDirectoryReadModelStore
-	AcademicCalendarReadModelStore  AcademicCalendarReadModelStore
-	StructuredProjectionDatabaseURL string
-	TrustedTimeRFC3339              string
-	NoticeReadModelStore            NoticeReadModelStore
-	NoticeBodyStore                 NoticeBodyStore
-	NoticeReadModelDatabaseURL      string
-	NoticeReadModelTable            string
-	NoticeObjectStoreEndpoint       string
-	NoticeObjectStoreAccessKey      string
-	NoticeObjectStoreSecretKey      string
-	NoticeObjectStoreRegion         string
-	NoticeObjectStoreBucketDerived  string
-	NoticeObjectStoreBodyLimitBytes int64
+	ServiceStatusReadModelStore         ServiceStatusReadModelStore
+	TransportScheduleReadModelStore     TransportScheduleReadModelStore
+	ServiceGuideReadModelStore          ServiceGuideReadModelStore
+	ContactDirectoryReadModelStore      ContactDirectoryReadModelStore
+	AcademicCalendarReadModelStore      AcademicCalendarReadModelStore
+	StructuredProjectionDatabaseURL     string
+	TrustedTimeRFC3339                  string
+	NoticeReadModelStore                NoticeReadModelStore
+	NoticeBodyStore                     NoticeBodyStore
+	NoticeReadModelDatabaseURL          string
+	NoticeReadModelTable                string
+	NoticeBodyObjectStoreEndpoint       string
+	NoticeBodyObjectStoreAccessKey      string
+	NoticeBodyObjectStoreSecretKey      string
+	NoticeBodyObjectStoreRegion         string
+	NoticeBodyObjectStoreBucket         string
+	NoticeBodyObjectStoreBodyLimitBytes int64
 }
 
 type Runtime struct {

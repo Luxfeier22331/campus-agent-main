@@ -24,6 +24,7 @@ import {
 import type { OperatorQueryRuntime, RequestObservabilityFactRow } from "./runtime";
 import {
 	escapeLikePattern,
+	loadRunBacklinksByRequestIds,
 	toAuditListItem,
 	toIsoString,
 	toLinks,
@@ -83,7 +84,14 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 				.where(eq(requestProjection.requestId, requestId))
 				.limit(1);
 
-			return rows[0] ? toRequestProjectionRecord(rows[0]) : null;
+			const row = rows[0];
+			if (!row) {
+				return null;
+			}
+			const runBacklinks = await loadRunBacklinksByRequestIds(db, [row.requestId]);
+			return toRequestProjectionRecord(row, {
+				runId: runBacklinks.get(row.requestId) ?? null,
+			});
 		},
 
 		async getAuditById(auditEventId: string) {
@@ -159,6 +167,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 				.where(eq(traceBacklinkProjection.requestId, requestId))
 				.limit(1);
 			const backlink = backlinkRows[0] ?? null;
+			const runBacklinks = await loadRunBacklinksByRequestIds(db, [projection.requestId]);
 			const retrievedSources = fact?.retrievedSourcesJson ?? [];
 			const supportingSources = fact?.supportingSourcesJson ?? [];
 			const retrievalAttempted = fact?.retrievalAttempted ?? null;
@@ -311,6 +320,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					completedAt: toIsoString(projection.completedAt),
 					conversationId: projection.conversationId,
 					requestId: projection.requestId,
+					runId: runBacklinks.get(projection.requestId) ?? null,
 					requestedCapability: projection.requestedCapability ?? null,
 					requestedScope: projection.requestedScopeJson ?? null,
 					...(projection.versionQueryJson ? { versionQuery: projection.versionQueryJson } : {}),
@@ -383,7 +393,15 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 				.limit(filters.limit + 1);
 
 			const visibleRows = rows.slice(0, filters.limit);
-			const items = visibleRows.map(toRequestProjectionRecord);
+			const runBacklinks = await loadRunBacklinksByRequestIds(
+				db,
+				visibleRows.map((row) => row.requestId),
+			);
+			const items = visibleRows.map((row) =>
+				toRequestProjectionRecord(row, {
+					runId: runBacklinks.get(row.requestId) ?? null,
+				}),
+			);
 			const cursorRow = rows.length > filters.limit ? visibleRows.at(-1) : null;
 
 			return {

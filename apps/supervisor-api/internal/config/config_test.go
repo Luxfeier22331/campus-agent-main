@@ -32,14 +32,16 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "")
 	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "")
 	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "")
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "")
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_AUTO_MIGRATE", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
-	t.Setenv("OBJECT_STORE_ENDPOINT", "")
-	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "")
-	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "")
-	t.Setenv("OBJECT_STORE_REGION", "")
-	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", "")
 	t.Setenv("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES", "")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
@@ -162,11 +164,33 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.WorkflowRunAutoMigrate {
 		t.Fatal("workflow run auto migrate must be disabled by default")
 	}
-	if cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived" {
-		t.Fatalf("notice derived bucket = %q", cfg.NoticeObjectStoreBucketDerived)
+	if cfg.DurableRuntimeDatabaseURL != "" {
+		t.Fatalf("durable runtime database url = %q, want empty", cfg.DurableRuntimeDatabaseURL)
 	}
-	if cfg.NoticeObjectStoreBodyLimitBytes != 1_048_576 {
-		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeObjectStoreBodyLimitBytes)
+	if cfg.DurableRuntimeAutoMigrate {
+		t.Fatal("durable runtime auto migrate must be disabled by default")
+	}
+	if cfg.DurableWorkerLoopEnabled {
+		t.Fatal("durable worker loop must be disabled by default")
+	}
+	if cfg.DurableWorkerLoopWorkerID != "" ||
+		cfg.DurableWorkerLoopLane != "" ||
+		cfg.DurableWorkerLoopStepID != "" ||
+		cfg.DurableWorkerLoopPollIntervalMS != 0 ||
+		cfg.DurableWorkerLoopLeaseTTLMS != 0 ||
+		cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS != 0 {
+		t.Fatalf("unexpected durable worker loop defaults: %#v", cfg)
+	}
+	if cfg.DurableRecoveryLoopEnabled ||
+		cfg.DurableRecoveryLoopIntervalMS != 0 ||
+		cfg.DurableRecoveryLoopMaxRetryAttempts != 0 {
+		t.Fatalf("unexpected durable recovery loop defaults: %#v", cfg)
+	}
+	if cfg.NoticeBodyObjectStoreBucket != "" {
+		t.Fatalf("notice body object store bucket = %q, want empty", cfg.NoticeBodyObjectStoreBucket)
+	}
+	if cfg.NoticeBodyObjectStoreBodyLimitBytes != 1_048_576 {
+		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeBodyObjectStoreBodyLimitBytes)
 	}
 	if cfg.PromptRuntimeProvider != "" ||
 		cfg.SupervisorPromptModel != "" ||
@@ -176,6 +200,122 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
 		!cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvReadsDurableRuntimeDatabaseSettingsExplicitly(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "postgres://runtime.example/campus_agent")
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_AUTO_MIGRATE", "true")
+	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if cfg.DurableRuntimeDatabaseURL != "postgresql://runtime.example/campus_agent" {
+		t.Fatalf("durable runtime database url = %q", cfg.DurableRuntimeDatabaseURL)
+	}
+	if !cfg.DurableRuntimeAutoMigrate {
+		t.Fatal("durable runtime auto migrate = false, want true")
+	}
+	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/campus_agent" {
+		t.Fatalf("workflow run database url = %q, want shared postgres normalized", cfg.WorkflowRunDatabaseURL)
+	}
+}
+
+func TestLoadFromEnvDoesNotInferDurableRuntimeDatabaseURLFromSharedPostgres(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "")
+	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if cfg.DurableRuntimeDatabaseURL != "" {
+		t.Fatalf(
+			"durable runtime database url = %q, want explicit setting only",
+			cfg.DurableRuntimeDatabaseURL,
+		)
+	}
+}
+
+func TestLoadFromEnvReadsExplicitDurableWorkerLoopSettings(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE", "rag")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if !cfg.DurableWorkerLoopEnabled {
+		t.Fatal("durable worker loop enabled = false, want true")
+	}
+	if cfg.DurableWorkerLoopWorkerID != "worker-staging-rag-001" {
+		t.Fatalf("worker id = %q", cfg.DurableWorkerLoopWorkerID)
+	}
+	if cfg.DurableWorkerLoopLane != "rag" {
+		t.Fatalf("lane = %q", cfg.DurableWorkerLoopLane)
+	}
+	if cfg.DurableWorkerLoopStepID != "handoff:rag-agent:rag_request" {
+		t.Fatalf("step id = %q", cfg.DurableWorkerLoopStepID)
+	}
+	if cfg.DurableWorkerLoopPollIntervalMS != 250 {
+		t.Fatalf("poll interval = %d", cfg.DurableWorkerLoopPollIntervalMS)
+	}
+	if cfg.DurableWorkerLoopLeaseTTLMS != 30000 {
+		t.Fatalf("lease ttl = %d", cfg.DurableWorkerLoopLeaseTTLMS)
+	}
+	if cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS != 5000 {
+		t.Fatalf("lease heartbeat interval = %d", cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS)
+	}
+}
+
+func TestLoadFromEnvRejectsEnabledDurableWorkerLoopWithoutWorkerID(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID", "")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE", "rag")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected enabled durable worker loop without worker id to fail")
+	}
+}
+
+func TestLoadFromEnvReadsExplicitDurableRecoveryLoopSettings(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250")
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "2")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if !cfg.DurableRecoveryLoopEnabled {
+		t.Fatal("durable recovery loop enabled = false, want true")
+	}
+	if cfg.DurableRecoveryLoopIntervalMS != 250 {
+		t.Fatalf("recovery interval = %d", cfg.DurableRecoveryLoopIntervalMS)
+	}
+	if cfg.DurableRecoveryLoopMaxRetryAttempts != 2 {
+		t.Fatalf("recovery max retry attempts = %d", cfg.DurableRecoveryLoopMaxRetryAttempts)
+	}
+}
+
+func TestLoadFromEnvRejectsEnabledDurableRecoveryLoopWithoutRetryLimit(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250")
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected enabled durable recovery loop without max retry attempts to fail")
 	}
 }
 
@@ -213,7 +353,7 @@ func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
 func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "   ")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "   ")
-	t.Setenv("OBJECT_STORE_REGION", "   ")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "   ")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -225,8 +365,8 @@ func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	if cfg.PromptRuntimeTransport != "responses" {
 		t.Fatalf("prompt runtime transport = %q, want responses", cfg.PromptRuntimeTransport)
 	}
-	if cfg.NoticeObjectStoreRegion != "us-east-1" {
-		t.Fatalf("notice object store region = %q, want us-east-1", cfg.NoticeObjectStoreRegion)
+	if cfg.NoticeBodyObjectStoreRegion != "us-east-1" {
+		t.Fatalf("notice object store region = %q, want us-east-1", cfg.NoticeBodyObjectStoreRegion)
 	}
 }
 
@@ -323,7 +463,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.PromptRuntimeTransport != "responses" ||
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
 		cfg.PromptStrictStructuredOutputs ||
-		cfg.NoticeObjectStoreBodyLimitBytes != 4096 {
+		cfg.NoticeBodyObjectStoreBodyLimitBytes != 4096 {
 		t.Fatalf("unexpected config: %#v", cfg)
 	}
 }
@@ -409,11 +549,11 @@ func TestCapabilityOpenDoesNotOpenPlaceLookupBeforeMapRollout(t *testing.T) {
 func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "postgres://notice.example/db")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "custom_schema.custom_notice_read_model")
-	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
-	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "derived-access")
-	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "derived-secret")
-	t.Setenv("OBJECT_STORE_REGION", "us-east-1")
-	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived-test")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "http://minio:9000")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "derived-access")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "derived-secret")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "us-east-1")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", "notice-body-test")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -426,20 +566,23 @@ func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
 	if cfg.NoticeReadModelTable != "custom_schema.custom_notice_read_model" {
 		t.Fatalf("notice read model table = %q", cfg.NoticeReadModelTable)
 	}
-	if cfg.NoticeObjectStoreEndpoint != "http://minio:9000" ||
-		cfg.NoticeObjectStoreAccessKey != "derived-access" ||
-		cfg.NoticeObjectStoreSecretKey != "derived-secret" ||
-		cfg.NoticeObjectStoreRegion != "us-east-1" ||
-		cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived-test" {
+	if cfg.NoticeBodyObjectStoreEndpoint != "http://minio:9000" ||
+		cfg.NoticeBodyObjectStoreAccessKey != "derived-access" ||
+		cfg.NoticeBodyObjectStoreSecretKey != "derived-secret" ||
+		cfg.NoticeBodyObjectStoreRegion != "us-east-1" ||
+		cfg.NoticeBodyObjectStoreBucket != "notice-body-test" {
 		t.Fatalf("unexpected notice object store config: %#v", cfg)
 	}
 }
 
-func TestLoadFromEnvFallsBackToSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNoticeRuntimeTruth(t *testing.T) {
+func TestLoadFromEnvUsesSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNoticeRuntimeTruth(t *testing.T) {
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/db")
 	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
 	t.Setenv("OBJECT_STORE_ACCESS_KEY", "generic-access")
 	t.Setenv("OBJECT_STORE_SECRET_KEY", "generic-secret")
+	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "derived-access")
+	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "derived-secret")
+	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -455,11 +598,14 @@ func TestLoadFromEnvFallsBackToSharedPostgresWithoutTreatingGenericObjectStoreKe
 	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/db" {
 		t.Fatalf("workflow run database url = %q", cfg.WorkflowRunDatabaseURL)
 	}
-	if cfg.NoticeObjectStoreAccessKey != "" {
-		t.Fatalf("notice object store access key = %q, want empty without derived credential pair", cfg.NoticeObjectStoreAccessKey)
+	if cfg.NoticeBodyObjectStoreAccessKey != "" {
+		t.Fatalf("notice object store access key = %q, want empty without derived credential pair", cfg.NoticeBodyObjectStoreAccessKey)
 	}
-	if cfg.NoticeObjectStoreSecretKey != "" {
-		t.Fatalf("notice object store secret key = %q, want empty without derived credential pair", cfg.NoticeObjectStoreSecretKey)
+	if cfg.NoticeBodyObjectStoreSecretKey != "" {
+		t.Fatalf("notice object store secret key = %q, want empty without derived credential pair", cfg.NoticeBodyObjectStoreSecretKey)
+	}
+	if cfg.NoticeBodyObjectStoreEndpoint != "" || cfg.NoticeBodyObjectStoreBucket != "" {
+		t.Fatalf("notice body object store config must not come from generic object store env: %#v", cfg)
 	}
 }
 

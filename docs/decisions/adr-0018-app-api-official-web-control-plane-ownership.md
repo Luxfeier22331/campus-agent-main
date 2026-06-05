@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0018
 status: accepted
 created: 2026-03-29
-updated: 2026-05-02
+updated: 2026-06-04
 ---
 # ADR-0018 App API Official Web Control-Plane Ownership
 
@@ -169,8 +169,6 @@ ingestion handoff ownership
 ## 相关文档
 
 - `docs/architecture/domains/official-web/architecture.md`
-- `docs/architecture/domains/official-web/architecture.md`
 - `docs/contracts/app-api-official-web-http.md`
 - `docs/contracts/app-api-official-web-run-lifecycle.md`
 - `docs/data/app-api-official-web-schema.md`
-- `docs/architecture/domains/official-web/architecture.md`

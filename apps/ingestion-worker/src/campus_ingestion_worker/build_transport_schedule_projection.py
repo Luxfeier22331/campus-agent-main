@@ -7,22 +7,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from campus_ingestion_core import ObjectStoreSettings
-from campus_ingestion_core.internal_notice_consumer_admission_gate import (
-    CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
-    ConsumerAdmissionGateRequest,
-    check_internal_notice_consumer_admission_gate,
-)
-from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
-    InternalNoticeConsumerAdmissionManifest,
-    load_internal_notice_consumer_admission_manifest,
-)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
-    NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
-    NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
     NoticeConsumptionProjectionEntry,
     build_notice_consumption_projection_store_from_env,
     normalize_notice_ids,
@@ -34,7 +23,6 @@ from campus_ingestion_core.object_store import build_index_release_artifact_key
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.structured_projection_postgres import (
     build_structured_projection_publisher_from_env,
-    projection_artifact_checksum,
 )
 from campus_ingestion_core.transport_schedule_projection import (
     DEFAULT_TRANSPORT_SCHEDULE_HORIZON_DAYS,
@@ -46,64 +34,40 @@ from campus_ingestion_core.transport_schedule_projection import (
     write_transport_schedule_projection_release,
 )
 
+from campus_ingestion_worker.build_transport_schedule_projection_contracts import (
+    _DerivedObjectStore,
+    _SourceObjectStore,
+    _StructuredProjectionPublisher,
+    _TransportProjectionObjectStore,
+)
+from campus_ingestion_worker.build_transport_schedule_projection_gate import (
+    _assert_transport_bundle_matches_preview_gate_report,
+    _assert_transport_consumer_admission_gate_allows,
+    _assert_transport_preview_gate_allows,
+    _assert_transport_release_scope_allows,
+    _load_consumer_admission_manifest_for_transport,
+    _ready_transport_projection_entries,
+)
+from campus_ingestion_worker.build_transport_schedule_projection_io import _write_json
+from campus_ingestion_worker.build_transport_schedule_projection_provenance import (
+    _transport_release_notice_provenance_records,
+)
+from campus_ingestion_worker.build_transport_schedule_projection_publish import (
+    _PUBLISH_MODE_PREVIEW,
+    _PUBLISH_MODES,
+    _normalize_publish_mode,
+    _promotes_current,
+    _publish_structured_projection_release,
+    _writes_structured_projection,
+    _writes_versioned_artifacts,
+)
+from campus_ingestion_worker.build_transport_schedule_projection_source import (
+    _load_source_truth_parents,
+)
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.internal_notice_selection import (
     build_internal_notice_selection_provenance,
 )
-
-
-class _SourceObjectStore(Protocol):
-    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
-
-
-class _DerivedObjectStore(Protocol):
-    def put_bytes(
-        self,
-        *,
-        bucket: str,
-        key: str,
-        data: bytes,
-        content_type: str,
-    ) -> None: ...
-
-
-class _TransportProjectionObjectStore(_SourceObjectStore, _DerivedObjectStore, Protocol):
-    pass
-
-
-class _StructuredProjectionPublisher(Protocol):
-    def publish_release(
-        self,
-        *,
-        corpus: str,
-        collection: str,
-        release_id: str,
-        generated_at: str,
-        schema_version: str,
-        artifact_object_key: str,
-        artifact_checksum: str,
-        bundle: Mapping[str, Any],
-        validation_status: str,
-        promote_current: bool = True,
-    ) -> object: ...
-
-
-class _ProjectionReleaseReport(Protocol):
-    release_id: str
-    release_object_key: str
-
-
-_PUBLISH_MODE_PREVIEW = "preview"
-_PUBLISH_MODE_STAGE = "stage"
-_PUBLISH_MODE_PROMOTE = "promote"
-_PUBLISH_MODES = frozenset(
-    {
-        _PUBLISH_MODE_PREVIEW,
-        _PUBLISH_MODE_STAGE,
-        _PUBLISH_MODE_PROMOTE,
-    }
-)
-_SHANGHAI_TZ = timezone(timedelta(hours=8))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -417,448 +381,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             publish_mode=publish_mode,
         )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
-
-
-def _publish_structured_projection_release(
-    *,
-    structured_projection_publisher: _StructuredProjectionPublisher | None,
-    bundle: Mapping[str, Any],
-    report: _ProjectionReleaseReport,
-    generated_at: str,
-    promote_current: bool,
-    enabled: bool,
-) -> None:
-    if structured_projection_publisher is None or not enabled:
-        return
-    schema_version = _required_text(bundle.get("schema_version"))
-    if schema_version is None:
-        raise ValueError("transport schedule projection bundle schema_version is required")
-    structured_projection_publisher.publish_release(
-        corpus=TRANSPORT_SCHEDULE_CORPUS,
-        collection=TRANSPORT_SCHEDULE_COLLECTION,
-        release_id=report.release_id,
-        generated_at=generated_at,
-        schema_version=schema_version,
-        artifact_object_key=report.release_object_key,
-        artifact_checksum=projection_artifact_checksum(bundle),
-        bundle=bundle,
-        validation_status="valid",
-        promote_current=promote_current,
-    )
-
-
-def _load_consumer_admission_manifest_for_transport(
-    *,
-    manifest_path: str | None,
-) -> InternalNoticeConsumerAdmissionManifest:
-    if not str(manifest_path or "").strip():
-        raise ValueError(
-            "consumer admission manifest is required before transport_schedule typed materialization"
-        )
-    return load_internal_notice_consumer_admission_manifest(Path(str(manifest_path)).resolve())
-
-
-def _assert_transport_consumer_admission_gate_allows(
-    *,
-    manifest: InternalNoticeConsumerAdmissionManifest,
-    notice_ids: Sequence[str],
-) -> None:
-    report = check_internal_notice_consumer_admission_gate(
-        manifest=manifest,
-        request=ConsumerAdmissionGateRequest(
-            operation=CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
-            source_corpus="campus_notices",
-            source_collection="internal_notice",
-            selected_notice_ids=tuple(notice_ids),
-            scope_write_mode="upsert_selected",
-            target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
-            max_empty_body_count=0,
-            max_unsupported_binary_count=0,
-        ),
-    )
-    if not report.allowed:
-        raise ValueError(
-            "consumer admission manifest gate blocked transport_schedule materialization: "
-            + ", ".join(report.reason_codes)
-        )
-
-
-def _assert_transport_preview_gate_allows(
-    *,
-    publish_mode: str,
-    report_path: str | None,
-    selected_notice_ids: Sequence[str],
-) -> Mapping[str, Any] | None:
-    if not _writes_structured_projection(publish_mode):
-        return None
-    normalized_path = str(report_path or "").strip()
-    if not normalized_path:
-        raise ValueError(
-            "transport preview gate report is required before transport_schedule stage/promote"
-        )
-    report = _read_json(Path(normalized_path).resolve())
-    if report.get("schema_version") != "schedule_transport_preview_gate.v1":
-        raise ValueError("transport preview gate report has unsupported schema_version")
-    if not bool(report.get("validation_valid")):
-        raise ValueError("transport preview gate validation is not valid")
-
-    selected = set(normalize_notice_ids(selected_notice_ids))
-    buckets = dict(report.get("buckets") or {})
-    passed = set(normalize_notice_ids(buckets.get("preview_passed") or ()))
-    missing = sorted(selected - passed)
-    if missing:
-        raise ValueError(
-            "transport preview gate did not pass selected notice ids: " + ", ".join(missing)
-        )
-
-    release_write_buckets = dict(report.get("release_write_buckets") or {})
-    skipped = set(normalize_notice_ids(release_write_buckets.get("preview_failed_skip") or ()))
-    blocked = sorted(selected & skipped)
-    if blocked:
-        raise ValueError(
-            "transport preview gate marked selected notice ids as preview_failed_skip: "
-            + ", ".join(blocked)
-        )
-    return report
-
-
-def _assert_transport_bundle_matches_preview_gate_report(
-    *,
-    publish_mode: str,
-    bundle: Mapping[str, Any],
-    preview_gate_report: Mapping[str, Any] | None,
-    selected_notice_ids: Sequence[str],
-) -> None:
-    if not _writes_structured_projection(publish_mode) or preview_gate_report is None:
-        return
-    selected = set(normalize_notice_ids(selected_notice_ids))
-    release_write_buckets = dict(preview_gate_report.get("release_write_buckets") or {})
-    current_serving = set(
-        normalize_notice_ids(release_write_buckets.get("current_serving_write") or ())
-    )
-    historical_snapshot_only = set(
-        normalize_notice_ids(release_write_buckets.get("historical_snapshot_only_write") or ())
-    )
-    scoped_historical = (
-        historical_snapshot_only & selected if selected else historical_snapshot_only
-    )
-    current_snapshot_notice_ids = _current_snapshot_notice_ids(bundle)
-    serving_notice_ids = _serving_notice_ids(bundle)
-    historical_current_notice_ids = sorted(current_snapshot_notice_ids & scoped_historical)
-    if historical_current_notice_ids:
-        raise ValueError(
-            "transport preview gate marked notice ids as historical_snapshot_only_write, "
-            "but bundle would publish them as current snapshots: "
-            + ", ".join(historical_current_notice_ids)
-        )
-    invalid_current_notice_ids = sorted(current_snapshot_notice_ids - current_serving)
-    if invalid_current_notice_ids:
-        raise ValueError(
-            "transport preview gate does not allow bundle current snapshot notice ids: "
-            + ", ".join(invalid_current_notice_ids)
-        )
-    historical_serving_notice_ids = sorted(serving_notice_ids & scoped_historical)
-    if historical_serving_notice_ids:
-        raise ValueError(
-            "transport preview gate marked notice ids as historical_snapshot_only_write, "
-            "but bundle contains serving rows for them: " + ", ".join(historical_serving_notice_ids)
-        )
-
-
-def _current_snapshot_notice_ids(bundle: Mapping[str, Any]) -> set[str]:
-    return {
-        notice_id
-        for snapshot in _list_of_mappings(bundle.get("transport_schedule_snapshots"))
-        if bool(snapshot.get("is_current"))
-        if (notice_id := _notice_id_from_source_ref(snapshot.get("source_ref")))
-    }
-
-
-def _serving_notice_ids(bundle: Mapping[str, Any]) -> set[str]:
-    notice_ids: set[str] = set()
-    for departure in _list_of_mappings(bundle.get("scheduled_departures")):
-        notice_ids.update(_notice_ids_from_refs(departure.get("related_notice_refs")))
-    for exception in _list_of_mappings(bundle.get("transport_service_exceptions")):
-        notice_ids.update(_notice_ids_from_refs(exception.get("related_notice_refs")))
-    for operational_notice in _list_of_mappings(bundle.get("transport_operational_notices")):
-        notice_id = _notice_id_from_source_ref(operational_notice.get("source_ref"))
-        if notice_id:
-            notice_ids.add(notice_id)
-    return notice_ids
-
-
-def _notice_ids_from_refs(value: object) -> set[str]:
-    if isinstance(value, str):
-        values: Sequence[object] = (value,)
-    elif isinstance(value, Sequence):
-        values = value
-    else:
-        values = ()
-    return {
-        notice_id for raw_value in values if (notice_id := _notice_id_from_source_ref(raw_value))
-    }
-
-
-def _notice_id_from_source_ref(value: object) -> str:
-    parts = str(value or "").strip().split(":")
-    if len(parts) >= 3 and parts[0] == "notice":
-        return parts[-1].strip()
-    return ""
-
-
-def _list_of_mappings(value: object) -> tuple[Mapping[str, Any], ...]:
-    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
-        return ()
-    return tuple(dict(item) for item in value if isinstance(item, Mapping))
-
-
-def _transport_release_notice_provenance_records(
-    *,
-    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
-    admitted_at: str,
-    materialized_at: str,
-) -> list[dict[str, str]]:
-    records: list[dict[str, str]] = []
-    seen_notice_ids: set[str] = set()
-    for entry in projection_entries:
-        notice_id = str(entry.source_notice_id or "").strip()
-        if not notice_id or notice_id in seen_notice_ids:
-            continue
-        seen_notice_ids.add(notice_id)
-        records.append(
-            {
-                "source_notice_id": notice_id,
-                "source_ref": _projection_source_ref(entry),
-                "source_notice_release_time": _normalize_local_notice_timestamp(
-                    entry.source_notice_release_time
-                ),
-                "admitted_at": admitted_at,
-                "materialized_at": materialized_at,
-            }
-        )
-    return records
-
-
-def _projection_source_ref(entry: NoticeConsumptionProjectionEntry) -> str:
-    parts = str(entry.source_notice_document_id or "").split(":")
-    if len(parts) == 3 and parts[0] == "notice":
-        return entry.source_notice_document_id
-    return f"notice:muc_internal_portal:{entry.source_notice_id}"
-
-
-def _normalize_local_notice_timestamp(value: object) -> str:
-    normalized = str(value or "").strip()
-    if not normalized:
-        return ""
-    candidates = [normalized.replace("Z", "+00:00")]
-    if " " in normalized and "T" not in normalized:
-        candidates.append(normalized.replace(" ", "T"))
-    for candidate in candidates:
-        try:
-            parsed = datetime.fromisoformat(candidate)
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=_SHANGHAI_TZ)
-            return parsed.astimezone(_SHANGHAI_TZ).isoformat()
-        except ValueError:
-            pass
-    for layout in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-        try:
-            parsed = datetime.strptime(normalized, layout).replace(tzinfo=_SHANGHAI_TZ)
-            return parsed.isoformat()
-        except ValueError:
-            pass
-    return normalized
-
-
-def _normalize_publish_mode(value: str) -> str:
-    normalized = str(value or _PUBLISH_MODE_PROMOTE).strip().lower()
-    if normalized not in _PUBLISH_MODES:
-        raise ValueError(f"unsupported transport schedule publish mode: {value!r}")
-    return normalized
-
-
-def _writes_versioned_artifacts(publish_mode: str) -> bool:
-    return publish_mode in {_PUBLISH_MODE_STAGE, _PUBLISH_MODE_PROMOTE}
-
-
-def _writes_structured_projection(publish_mode: str) -> bool:
-    return publish_mode in {_PUBLISH_MODE_STAGE, _PUBLISH_MODE_PROMOTE}
-
-
-def _promotes_current(publish_mode: str) -> bool:
-    return publish_mode == _PUBLISH_MODE_PROMOTE
-
-
-def _ready_transport_projection_entries(
-    entries: Sequence[NoticeConsumptionProjectionEntry],
-) -> tuple[NoticeConsumptionProjectionEntry, ...]:
-    return tuple(
-        entry
-        for entry in entries
-        if entry.target_surface == NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE
-        and entry.consumption_status == NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
-        and str(entry.role_metadata.get("service_status_candidate_kind") or "")
-        == "transport_schedule"
-    )
-
-
-def _assert_transport_release_scope_allows(
-    *,
-    publish_mode: str,
-    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
-    selected_notice_ids: Sequence[str],
-    all_ready_transport_candidates: bool,
-    allow_multi_notice_release: bool,
-) -> None:
-    if not _writes_structured_projection(publish_mode):
-        return
-    if allow_multi_notice_release:
-        return
-    if all_ready_transport_candidates:
-        raise ValueError(
-            "all-ready transport candidates cannot be staged or promoted without "
-            "--allow-multi-notice-release; use explicit --notice-id for per-notice selected write"
-        )
-    release_notice_ids = normalize_notice_ids(
-        selected_notice_ids or tuple(entry.source_notice_id for entry in projection_entries)
-    )
-    if len(release_notice_ids) != 1:
-        raise ValueError(
-            "transport schedule stage/promote from consumption projection requires exactly one "
-            "selected notice id unless --allow-multi-notice-release is set"
-        )
-
-
-def _load_source_truth_parents(
-    *,
-    inventory_path: Path,
-    source_truth_root: Path | None,
-    source_object_store: _SourceObjectStore | None,
-    source_bucket: str | None,
-) -> tuple[dict[str, Any], ...]:
-    inventory = _read_json(inventory_path)
-    raw_parents = inventory.get("parents")
-    if not isinstance(raw_parents, list):
-        raise ValueError("source-truth inventory parents must be an array")
-    parents: list[dict[str, Any]] = []
-    for raw_parent in raw_parents:
-        parent = _require_mapping(raw_parent, "parents[]")
-        if isinstance(parent.get("notice_manifest"), dict) and isinstance(
-            parent.get("content_blocks"), list
-        ):
-            parents.append(
-                {
-                    "notice_manifest": dict(parent["notice_manifest"]),
-                    "content_blocks": [dict(row) for row in parent["content_blocks"]],
-                }
-            )
-            continue
-        manifest_key = _required_text(parent.get("notice_manifest_key"))
-        blocks_key = _required_text(parent.get("content_blocks_key"))
-        if manifest_key is None or blocks_key is None:
-            raise ValueError(
-                "source-truth parent requires embedded notice_manifest/content_blocks or "
-                "notice_manifest_key/content_blocks_key"
-            )
-        parents.append(
-            {
-                "notice_manifest": _read_source_json(
-                    key=manifest_key,
-                    source_truth_root=source_truth_root,
-                    source_object_store=source_object_store,
-                    source_bucket=source_bucket,
-                ),
-                "content_blocks": _read_source_jsonl(
-                    key=blocks_key,
-                    source_truth_root=source_truth_root,
-                    source_object_store=source_object_store,
-                    source_bucket=source_bucket,
-                ),
-            }
-        )
-    return tuple(parents)
-
-
-def _read_source_json(
-    *,
-    key: str,
-    source_truth_root: Path | None,
-    source_object_store: _SourceObjectStore | None,
-    source_bucket: str | None,
-) -> dict[str, Any]:
-    payload = json.loads(
-        _read_source_bytes(
-            key=key,
-            source_truth_root=source_truth_root,
-            source_object_store=source_object_store,
-            source_bucket=source_bucket,
-        ).decode("utf-8")
-    )
-    return _require_mapping(payload, key)
-
-
-def _read_source_jsonl(
-    *,
-    key: str,
-    source_truth_root: Path | None,
-    source_object_store: _SourceObjectStore | None,
-    source_bucket: str | None,
-) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for index, line in enumerate(
-        _read_source_bytes(
-            key=key,
-            source_truth_root=source_truth_root,
-            source_object_store=source_object_store,
-            source_bucket=source_bucket,
-        )
-        .decode("utf-8")
-        .splitlines(),
-        start=1,
-    ):
-        if not line.strip():
-            continue
-        rows.append(_require_mapping(json.loads(line), f"{key}:{index}"))
-    return rows
-
-
-def _read_source_bytes(
-    *,
-    key: str,
-    source_truth_root: Path | None,
-    source_object_store: _SourceObjectStore | None,
-    source_bucket: str | None,
-) -> bytes:
-    if source_truth_root is not None:
-        return (source_truth_root / key).read_bytes()
-    if source_object_store is None or source_bucket is None:
-        raise ValueError(
-            "source object store and source bucket are required without source_truth_root"
-        )
-    return source_object_store.get_bytes(bucket=source_bucket, key=key)
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return _require_mapping(payload, str(path))
-
-
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
-def _require_mapping(value: object, label: str) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        raise ValueError(f"{label} must be an object")
-    return dict(value)
-
-
-def _required_text(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip()
-    return normalized or None
 
 
 def _default_generated_at() -> str:

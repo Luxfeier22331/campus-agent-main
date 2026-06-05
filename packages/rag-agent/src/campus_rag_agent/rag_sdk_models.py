@@ -5,7 +5,7 @@ from enum import StrEnum
 
 from campus_contracts import EvidenceBundle
 from campus_contracts.schema_metadata import schema_metadata
-from campus_shared import NormalizedProviderGroundingSupport
+from campus_prompt_runtime import NormalizedProviderGroundingSupport
 
 from .typed_answer_drafts import TypedAnswerDraft
 

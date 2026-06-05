@@ -93,10 +93,10 @@ Remaining gap:
   - `condition_polarity`
   - `condition_group_id` when the condition belongs to a group
 - Ranking and evidence selection use typed metadata as the primary signal.
-- Runtime text cues remain only as compatibility fallback for old indexes or explicitly absent
+- Runtime text cues remain only as legacy diagnostics for old indexes or explicitly absent
   metadata. Rebuilt query-serving `student_rules` chunks must not rely on text cues as the primary
-  answer-ready signal, and fallback usage must be surfaced in diagnostics/eval with a measurable
-  budget defined in Phase 0.
+  answer-ready signal, and legacy signal usage must be surfaced in diagnostics/eval with a
+  measurable zero-primary budget defined in Phase 0.
 - Component eval can fail a case specifically as `intent_mismatch`, `retrieval_miss`,
   `ranking_mismatch`, `selection_not_answer_ready`, `draft_contract_mismatch`,
   `grounding_mismatch` or `chunk_contract_missing`.

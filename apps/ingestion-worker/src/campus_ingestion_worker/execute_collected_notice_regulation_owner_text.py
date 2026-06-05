@@ -20,12 +20,12 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_ATTEMPT_PLAN_PATH = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1a-regulation-owner-text-recovery-mini-batch/"
     "regulation-owner-text-attempt-plan.json"
 )
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1b-regulation-owner-text-recovery-execution"
 )
 EXECUTION_REPORT_FILENAME = "regulation-owner-text-execution-report.json"

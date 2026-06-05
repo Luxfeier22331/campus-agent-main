@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0011
 status: accepted
 created: 2026-03-27
-updated: 2026-03-28
+updated: 2026-06-04
 ---
 # ADR-0011 Protected Panel Worker Runtime 决策
 
@@ -158,7 +158,4 @@ panel 长期功能域固定为：
 
 ## 相关文档
 
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`

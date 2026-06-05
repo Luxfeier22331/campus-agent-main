@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0002
 status: accepted
 created: 2026-03-22
-updated: 2026-05-02
+updated: 2026-06-01
 ---
 # ADR-0002 本地 MinIO 约束与迁移不变量
 
@@ -35,9 +35,15 @@ updated: 2026-05-02
 - `campus-rag-derived` 保存按 collection 派生的 canonical 文档、结构化 metadata 和其他
   downstream 中间产物
 
-第一阶段不新增第三个专门 chunk bucket；chunk 文本、向量与检索 payload 统一由 Qdrant 管理。 对象存储只保留
-source-truth / document artifact、小型 index release manifest，以及 `Free` tier 过渡期的
-Qdrant snapshot backup bundle；不把 chunking 后的全文 chunk dump 当作长期对象存储真相。
+第一阶段不新增第三个专门 chunk bucket；chunk 文本、向量与检索 payload 统一由 Qdrant 管理。对象存储只保留
+source-truth / document artifact、小型 index release manifest 与 operations evidence；不把
+chunking 后的全文 chunk dump 当作长期对象存储真相。
+
+历史 `Free` tier 过渡期曾在 derived bucket 保存
+`{corpus}/backups/{collection}/...` Qdrant snapshot bundle。ADR-0045 接受后，当前默认备份
+路径改为 self-hosted Qdrant native snapshots，归档到
+`/srv/backups/campus-agent/qdrant-snapshots/` 并复制到 off-host archive；staging R2 /
+serving seed bucket 不保存 Qdrant `.snapshot`。
 
 ## Object Key 规范
 
@@ -53,7 +59,7 @@ Qdrant snapshot backup bundle；不把 chunking 后的全文 chunk dump 当作�
     docid8}/{revision_track}/{year}/{artifact_filename}`
   - release artifact:
     `{corpus}/releases/{collection}/{release_id}/{artifact_filename}`
-  - qdrant backup bundle:
+  - historical qdrant backup bundle:
     `{corpus}/backups/{collection}/{release_id}/{backup_id}/{artifact_filename}`
   - operation artifact:
     `{corpus}/operations/{operation}/{run_id}/{artifact_filename}`
@@ -87,10 +93,10 @@ Qdrant snapshot backup bundle；不把 chunking 后的全文 chunk dump 当作�
   }/reader-assets/asset-manifest.json`
 - `{corpus}/releases/{collection}/{release_id}/validation-summary.json`
 - `{corpus}/releases/{collection}/{release_id}/index-release.json`
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json`
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_collection_n
-  ame}.snapshot`
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/restore-report.json`
+- historical `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json`
+- historical `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_
+  collection_name}.snapshot`
+- historical `{corpus}/backups/{collection}/{release_id}/{backup_id}/restore-report.json`
 - `{corpus}/operations/{operation}/{run_id}/{artifact_filename}`
 
 说明：
@@ -115,12 +121,10 @@ Qdrant snapshot backup bundle；不把 chunking 后的全文 chunk dump 当作�
   index release 的结构性校验摘要
 - `{corpus}/releases/{collection}/{release_id}/index-release.json` 保存 serving
   alias、physical collection、policy version 和文档哈希等发布元数据
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json`
-  保存 Qdrant snapshot bundle 的 alias、release、checksum 与恢复元数据
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_collection_n
-  ame}.snapshot` 保存 `Free` tier 过渡期的 collection snapshot 文件
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/restore-report.json`
-  保存 restore drill 或真实恢复后的验证结果
+- historical `{corpus}/backups/{collection}/{release_id}/{backup_id}/...` 只用于清理旧
+  object-store snapshot bundle，不再是当前 backup 主路径
+- 当前 self-hosted Qdrant native snapshot 的 manifest / checksum /
+  restore command 固定随 filesystem bundle 一起保存，不进入 derived bucket 或 staging R2
 - `provider-response.jsonl` 不得冒充 raw layer 真相源
 - `title_slug--{docid8}` 负责人工定位；`version_id` 继续留在 registry / metadata
   中，不再强制单独占路径层级
@@ -142,7 +146,7 @@ Qdrant snapshot backup bundle；不把 chunking 后的全文 chunk dump 当作�
 - `official_web` 的 run artifacts 固定放在 `official_web/{site_id}/runs/{run_id}/`
 - derived 的逻辑文档对象固定放在 `documents/`
 - release artifact 固定放在 `releases/`
-- Qdrant snapshot backup bundle 固定放在 `backups/`
+- historical Qdrant snapshot backup bundle 固定放在 `backups/`
 - operation artifact 固定放在 `operations/`
 - 文档目录中的第三层固定为 `collection`
 - 文档目录中的第四层固定为 `title_slug--{docid8}`
@@ -150,9 +154,9 @@ Qdrant snapshot backup bundle；不把 chunking 后的全文 chunk dump 当作�
 - source bucket 中 `capture` / `provider` / `source-truth` / `projection` 都位于同一份
   `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}` 来源前缀下
 - 文档目录中的第六层固定为人类可读版本标签，例如 `2018`
-- `backups/` 前缀中的第三层固定为 `collection`
-- `backups/` 前缀中的第四层固定为 `release_id`
-- `backups/` 前缀中的第五层固定为 `backup_id`
+- historical `backups/` 前缀中的第三层固定为 `collection`
+- historical `backups/` 前缀中的第四层固定为 `release_id`
+- historical `backups/` 前缀中的第五层固定为 `backup_id`
 - `operations/` 前缀中的第三层固定为 `operation`
 - `operations/` 前缀中的第四层固定为 `run_id`
 - object key 中不直接编码短期来源名、兼容层术语或一次性版本层级，例如 `tracks/`、`editions/`、`v1/`

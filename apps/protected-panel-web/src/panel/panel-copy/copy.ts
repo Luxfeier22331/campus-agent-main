@@ -261,6 +261,7 @@ export const PANEL_COPY = {
 			detectedBy: "发现来源",
 			openedAt: "打开时间",
 			requestId: "请求 ID",
+			runId: "Run ID",
 			selectedTarget: "目标",
 			status: "状态",
 			summary: "摘要",

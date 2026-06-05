@@ -78,6 +78,8 @@ export function mapChatStreamEvent(
 		occurredAt: event.data.occurredAt,
 		outcome: event.data.answer ? mapChatAnswerPayload(event.data.answer) : undefined,
 		requestId: event.data.requestId,
+		runId: event.data.runId,
+		runPhase: event.data.runPhase,
 		status: event.data.status,
 		traceId: event.data.traceId,
 	};

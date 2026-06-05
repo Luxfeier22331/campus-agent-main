@@ -4,7 +4,7 @@ import asyncio
 import unittest
 
 from campus_contracts import AgentRequest, CampusNoticeDiscoverPayload
-from campus_shared import PromptRuntimeProviderConfig
+from campus_prompt_runtime import PromptRuntimeProviderConfig
 from campus_supervisor_agent_worker.agents_sdk_instruction_profiles import (
     instruction_profile_for_request,
 )

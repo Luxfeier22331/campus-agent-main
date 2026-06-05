@@ -85,7 +85,7 @@ describe("hub worker boundary", () => {
 		expect(liveSmokeWranglerConfig).not.toContain("SENTRY_DSN");
 	});
 
-	it("keeps Sentry fail-open while scrubbing auth-sensitive hub fields", () => {
+	it("keeps Sentry non-blocking while scrubbing auth-sensitive hub fields", () => {
 		expect(workerSource).toContain("beforeSend(event)");
 		expect(workerSource).toContain("sendDefaultPii: false");
 		expect(workerSource).toContain('surface: "hub-web"');

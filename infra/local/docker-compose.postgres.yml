@@ -12,6 +12,15 @@ services:
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks:
+      data-plane:
+        aliases:
+          - campus-agent-postgres
+
+networks:
+  data-plane:
+    external: true
+    name: ${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}
 
 volumes:
   postgres-data:

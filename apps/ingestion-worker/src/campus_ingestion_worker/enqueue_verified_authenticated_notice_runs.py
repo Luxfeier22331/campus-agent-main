@@ -25,7 +25,7 @@ from campus_ingestion_core.verified_authenticated_notice_run_enqueue_scan import
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/"
+    "var/ingestion-evidence/authenticated-notice-ingest-queue-e2e-automation/"
     "evidence/verified-run-scheduled-enqueue"
 )
 

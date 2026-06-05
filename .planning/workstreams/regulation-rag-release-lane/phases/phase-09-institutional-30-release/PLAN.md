@@ -41,7 +41,7 @@ before switching the serving alias.
 jq empty \
   packages/evals/fixtures/institutional_rules_release_acceptance.v1.json \
   packages/evals/fixtures/institutional_rules_retrieval_qrels.json \
-  .planning/workstreams/regulation-rag-release-lane/evidence/phase-09-institutional-30-release/*.json
+  configs/ingestion/regulations/institutional_rules/retrieval-eval-manifest.v1.json
 
 uv run --all-packages python -m unittest \
   tests.ingestion.test_admit_regulation_rag_release_worker \

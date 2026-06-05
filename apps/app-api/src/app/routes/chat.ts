@@ -3,7 +3,9 @@ import type { Hono } from "hono";
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
 import { hasMatchingInternalSecret, type ResolvedAppPrincipal } from "../../modules/auth";
+import { SupervisorTransportError } from "../../modules/integration";
 import type { ChatCommandStreamEvent } from "../../modules/runtime-command";
+import type { RuntimeRunEventProjection, RuntimeRunSummary } from "../../modules/runtime-run";
 import { requireSessionPrincipal } from "../principal";
 import {
 	buildInternalEvalPrincipalFromRequest,
@@ -71,8 +73,75 @@ function readFeedbackReasonCodes(body: Record<string, unknown>): string[] | unde
 	return body.reasonCodes;
 }
 
+function readRunCancelReason(body: Record<string, unknown>): string {
+	const reason = body.reason;
+	if (typeof reason === "string" && reason.trim()) {
+		return reason.trim();
+	}
+
+	throw new AppApiRouteError({
+		code: "invalid_request",
+		message: "reason is required.",
+		retryable: false,
+		status: 400,
+	});
+}
+
+function readAfterSequenceQuery(value: string | undefined): number | undefined {
+	if (value === undefined) {
+		return;
+	}
+	const trimmed = value.trim();
+	if (!trimmed) {
+		throw new AppApiRouteError({
+			code: "invalid_request",
+			message: "after_sequence must be a non-negative integer.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	const parsed = Number(trimmed);
+	if (!Number.isInteger(parsed) || parsed < 0) {
+		throw new AppApiRouteError({
+			code: "invalid_request",
+			message: "after_sequence must be a non-negative integer.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	return parsed;
+}
+
+function routeChatErrorResponse(
+	error: unknown,
+	routeErrorCorrelation: {
+		requestId: string;
+		traceId: string;
+	},
+): Response | null {
+	if (error instanceof AppApiRouteError) {
+		return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
+	}
+	if (error instanceof SupervisorTransportError) {
+		return routeErrorResponseWithRouteErrorCorrelation(
+			new AppApiRouteError({
+				code: error.code,
+				message: error.message,
+				retryable: error.retryable,
+				status: error.status,
+			}),
+			routeErrorCorrelation,
+		);
+	}
+	return null;
+}
+
+function encodeSseMessage(input: { data: unknown; event: string }): Uint8Array {
+	return new TextEncoder().encode(`event: ${input.event}\ndata: ${JSON.stringify(input.data)}\n\n`);
+}
+
 function encodeSseEvent(event: ChatCommandStreamEvent): Uint8Array {
-	return new TextEncoder().encode(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
+	return encodeSseMessage(event);
 }
 
 function isTerminalChatStreamEvent(event: ChatCommandStreamEvent): boolean {
@@ -122,6 +191,40 @@ function createChatSseResponse(input: {
 			"x-accel-buffering": "no",
 			"x-request-id": input.first.data.requestId,
 			"x-trace-id": input.first.data.traceId,
+		},
+		status: 200,
+	});
+}
+
+function createRunEventsSseResponse(input: {
+	events: AsyncIterable<RuntimeRunEventProjection>;
+	run: RuntimeRunSummary;
+}): Response {
+	const stream = new ReadableStream<Uint8Array>({
+		async start(controller) {
+			try {
+				for await (const event of input.events) {
+					controller.enqueue(
+						encodeSseMessage({
+							data: event,
+							event: event.eventType,
+						}),
+					);
+				}
+			} finally {
+				controller.close();
+			}
+		},
+	});
+
+	return new Response(stream, {
+		headers: {
+			"cache-control": "no-store",
+			"content-type": "text/event-stream; charset=utf-8",
+			"x-accel-buffering": "no",
+			"x-request-id": input.run.requestId,
+			"x-run-id": input.run.runId,
+			"x-trace-id": input.run.traceId,
 		},
 		status: 200,
 	});
@@ -180,8 +283,9 @@ export function registerChatRoutes(input: {
 				},
 			);
 		} catch (error) {
-			if (error instanceof AppApiRouteError) {
-				return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
 			}
 			throw error;
 		}
@@ -241,8 +345,9 @@ export function registerChatRoutes(input: {
 				},
 			});
 		} catch (error) {
-			if (error instanceof AppApiRouteError) {
-				return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
 			}
 			throw error;
 		}
@@ -278,8 +383,133 @@ export function registerChatRoutes(input: {
 				},
 			);
 		} catch (error) {
-			if (error instanceof AppApiRouteError) {
-				return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.get("/api/chat/runs/:runId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const response = await scope.resolveRuntimeRunService().getStatus({
+				principal: resolved.principal,
+				runId: c.req.param("runId"),
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.get("/api/chat/runs/:runId/events", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const response = await scope.resolveRuntimeRunService().listEvents({
+				afterSequence: readAfterSequenceQuery(c.req.query("after_sequence")),
+				principal: resolved.principal,
+				runId: c.req.param("runId"),
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.get("/api/chat/runs/:runId/events/stream", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const runtimeRunService = scope.resolveRuntimeRunService();
+			const runStatus = await runtimeRunService.getStatus({
+				principal: resolved.principal,
+				runId: c.req.param("runId"),
+			});
+			const events = runtimeRunService.subscribeEvents({
+				afterSequence: readAfterSequenceQuery(c.req.query("after_sequence")),
+				principal: resolved.principal,
+				runId: c.req.param("runId"),
+			});
+			return createRunEventsSseResponse({
+				events,
+				run: runStatus.run,
+			});
+		} catch (error) {
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.post("/api/chat/runs/:runId/cancel", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
+			const response = await scope.resolveRuntimeRunService().cancel({
+				principal: resolved.principal,
+				reason: readRunCancelReason(body),
+				runId: c.req.param("runId"),
+			});
+			return jsonResponse(response, { status: 202 });
+		} catch (error) {
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
 			}
 			throw error;
 		}

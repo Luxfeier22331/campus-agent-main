@@ -32,7 +32,7 @@ export function toSourceDocIdsSummary(sourceDocIds: string[]): string | null {
 	return sourceDocIds.slice(0, 3).join(",");
 }
 
-export function runSentrySafely(operation: () => void): void {
+export function runTelemetrySideEffectWithoutRequestFailure(operation: () => void): void {
 	try {
 		operation();
 	} catch {
@@ -40,7 +40,7 @@ export function runSentrySafely(operation: () => void): void {
 	}
 }
 
-export function readSentryTraceDataSafely(
+export function readTelemetryTraceDataWithoutRequestFailure(
 	traceDataProvider: () => TraceDataLike | null | undefined,
 ): TraceDataLike {
 	try {

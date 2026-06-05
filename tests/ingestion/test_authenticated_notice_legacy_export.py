@@ -137,6 +137,15 @@ class AuthenticatedNoticeLegacyExportNormalizationTest(unittest.TestCase):
         self.assertEqual(manifest["run"]["items_inserted"], 1)
         self.assertEqual(manifest["legacy_source"]["schema_version"], "v3")
 
+    def test_normalize_legacy_export_requires_source_manifest(self) -> None:
+        with self.assertRaisesRegex(ValueError, "legacy authenticated notice manifest is required"):
+            normalize_authenticated_notice_legacy_export(
+                bundle_records=_sample_bundle(),
+                legacy_manifest={},
+                site_id="muc_internal_portal",
+                source_home_url="https://my.muc.edu.cn",
+            )
+
     def test_load_selected_notice_ids_from_json_batch_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
             batch_path = Path(temp_dir) / "batch.json"

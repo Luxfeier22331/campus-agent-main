@@ -54,11 +54,11 @@ reader asset、版本切换与临时高亮状态。
 
 ### Slice 5: Search Enhancement
 
-- 保留 Rspress local search fallback。
-- 从 Rspress search index pages 收集 docs search scope。
+- 保留 Rspress search index pages 作为 docs search scope discovery 输入。
 - 对每个 scope 调用 same-site `/api/docs/collections/:corpus/:collection/search`。
 - 将 app-api docs search result 映射为 Rspress suggestion group。
-- API 失败或无结果时回退到本地搜索，不阻断 docs site。
+- API 失败或无结果时不补本地静态搜索结果；docs site shell 继续可用，
+  search result 保持由 `app-api` docs search contract 拥有。
 
 ### Slice 6: Verification
 

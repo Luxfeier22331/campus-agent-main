@@ -16,13 +16,21 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("DOCUMENT_REGISTRY_DATABASE_URL", script)
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL", script)
         self.assertIn("SUPERVISOR_API_EXECUTION_AUDIT_URL", script)
-        self.assertIn("host.docker.internal", script)
+        self.assertIn("projectLocalServiceDns", script)
+        self.assertIn("postgres", script)
+        self.assertIn("minio", script)
+        self.assertIn("qdrant", script)
+        self.assertNotIn("host.docker.internal", script)
         self.assertIn("read -r -d '' env_key", script)
         self.assertIn('"SUPERVISOR_AGENT_WORKER_BASE_URL"', script)
         self.assertIn('"http://supervisor-agent-worker:27052"', script)
         self.assertNotIn("eval ", script)
         self.assertIn("SUPERVISOR_RUNTIME_COMPOSE_PARALLEL_LIMIT", script)
         self.assertIn('COMPOSE_PARALLEL_LIMIT="${compose_parallel_limit}"', script)
+        self.assertIn("ensure_data_plane_network", script)
+        self.assertLess(
+            script.index("ensure_data_plane_network"), script.index('"${docker_bin}" compose')
+        )
         self.assertIn('"${docker_bin}" compose', script)
         self.assertIn("docker-compose.supervisor-runtime.yml", script)
 
@@ -90,6 +98,8 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("no-new-privileges:true", compose)
         self.assertIn('max-size: "10m"', compose)
         self.assertIn("x-supervisor-bridge-auth", compose)
+        self.assertIn("campus-agent-data-plane", compose)
+        self.assertIn("external: true", compose)
 
         self.assertIn('"SUPERVISOR_API_DOCKER_GOPROXY"', script)
         self.assertIn('"SUPERVISOR_API_DOCKER_GOSUMDB"', script)
@@ -105,7 +115,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", compose)
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", compose)
         self.assertIn("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", compose)
-        self.assertIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", compose)
+        self.assertNotIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", compose)
         self.assertIn(
             "SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces",
             compose,

@@ -13,7 +13,9 @@ from campus_ingestion_core.collected_notice_replay_closeout_acceptance import (
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
-DEFAULT_WORKSTREAM_ROOT = Path(".planning/workstreams/collected-notice-consumption-replay-closeout")
+DEFAULT_WORKSTREAM_ROOT = Path(
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout"
+)
 DEFAULT_OUTPUT_DIR = DEFAULT_WORKSTREAM_ROOT / "evidence/phase-07-acceptance-and-closeout"
 
 

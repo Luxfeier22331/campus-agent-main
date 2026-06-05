@@ -36,9 +36,9 @@ lineage and production release adoption is not proven for both default regulatio
 | Consumer | File | Current Use | V3 Gap |
 |----------|------|-------------|--------|
 | release/chunk quality | `packages/ingestion-core/src/campus_ingestion_core/answer_ready_contract_quality.py` | Fails on missing required v2 fields | Needs v3 role-specific correctness and static-only gate split |
-| retrieval projection | `packages/retrieval-core/src/campus_retrieval_core/evidence_attributes.py` | Reads internal evidence anchor and produces typed attributes plus fallback diagnostics | Needs v3 version/readiness classification and old-index-only fallback quarantine |
+| retrieval projection | `packages/retrieval-core/src/campus_retrieval_core/evidence_attributes.py` | Reads internal evidence anchor and produces typed attributes plus legacy-signal diagnostics | Needs v3 version/readiness classification and old-index-only signal quarantine |
 | semantic ranking | `packages/retrieval-core/src/campus_retrieval_core/evidence_semantics.py` | Uses typed attributes and query cue inference to score alignment | Needs oracle-backed query intent and less ad hoc query cue dependence |
-| ranking features | `packages/retrieval-core/src/campus_retrieval_core/evidence_ranking_features.py` | Penalizes fallback for strong query intent and adds semantic alignment score | Needs zero primary fallback assertion for target v3 releases |
+| ranking features | `packages/retrieval-core/src/campus_retrieval_core/evidence_ranking_features.py` | Penalizes legacy signals for strong query intent and adds semantic alignment score | Needs zero primary legacy-signal assertion for target v3 releases |
 | component eval | `packages/evals/src/campus_evals/answer_ready_component_eval.py` | Checks intent/retrieval/ranking/selection/draft/grounding mismatch | Needs release-contract and semantic-contract failure classes plus oracle input |
 | typed answer draft | `packages/rag-agent` typed answer modules | Consumes answer-ready evidence indirectly | Needs explicit v3 draft/grounding expectations from semantic oracle |
 

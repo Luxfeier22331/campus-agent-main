@@ -2,12 +2,12 @@ import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadRepoEnvFile } from "./load-repo-env.mjs";
+import { loadRepoStagingEnvFile } from "./load-repo-env.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
 
-loadRepoEnvFile(import.meta.url, "..");
+loadRepoStagingEnvFile(import.meta.url, "..");
 
 function fail(message) {
 	console.error(message);

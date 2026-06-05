@@ -62,7 +62,8 @@ Run this only in an environment with `otelcol-contrib` and managed Sentry/Axiom 
 5. Send one staging `/api/v1/answer` request with trace context.
 6. Confirm Sentry receives trace evidence.
 7. Confirm Axiom receives traces/logs through `x-axiom-dataset`.
-8. Confirm Axiom receives metrics through `x-axiom-metrics-dataset`.
+8. Confirm metrics stay on the Collector debug pipeline and do not require a
+   separate Axiom metrics dataset.
 9. Confirm no raw prompt, raw query, raw answer, chunk body, canonical body, OCR raw text,
    authorization, cookie, JWT, database URL or provider secret appears in sink records.
 10. Stop or block the Collector/exporter and confirm product request handling remains fail-safe.

@@ -46,7 +46,7 @@ uv run --all-packages python -m campus_ingestion_worker.build_internal_notice_co
   --collector-run-id <collector-run-id> \
   --source-surface notice \
   --notice-id 355867 \
-  --output-path .planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/355867-smoke/consumer-admission-manifest.json \
+  --output-path var/ingestion-evidence/authenticated-notice-ingest-operator-panel/355867-smoke/consumer-admission-manifest.json \
   --admission-run-id consumer-admission:<collector-run-id> \
   --selection-source operator_panel_phase6_real_env \
   --selection-path <collector-run-id> \
@@ -69,8 +69,8 @@ uv run --all-packages python -m campus_ingestion_worker.smoke_authenticated_noti
   --expected-target-surface campus_services \
   --expected-read-model-count scheduledDepartures=49 \
   --expected-read-model-count rejectedSources=0 \
-  --consumer-admission-manifest-path .planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/355867-smoke/consumer-admission-manifest.json \
-  --output-dir .planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/355867-smoke
+  --consumer-admission-manifest-path var/ingestion-evidence/authenticated-notice-ingest-operator-panel/355867-smoke/consumer-admission-manifest.json \
+  --output-dir var/ingestion-evidence/authenticated-notice-ingest-operator-panel/355867-smoke
 ```
 
 Passing evidence must show:
@@ -92,7 +92,7 @@ uv run --all-packages python -m campus_ingestion_worker.backfill_authenticated_n
   --queue-records-path <queue-records.json> \
   --trace-path <authenticated-notice-run-queue-consume.trace.json> \
   --notice-id 355867 \
-  --output-path .planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/backfill-355867.json
+  --output-path var/ingestion-evidence/authenticated-notice-ingest-operator-panel/backfill-355867.json
 ```
 
 `queue-records.json` may be either a list of persisted
@@ -109,7 +109,7 @@ uv run --all-packages python -m campus_ingestion_worker.backfill_authenticated_n
   --queue-records-path <queue-records.json> \
   --trace-path <authenticated-notice-run-queue-consume.trace.json> \
   --collector-run-token 20260428T181953007Z \
-  --output-path .planning/workstreams/authenticated-notice-run-level-operator-view/evidence/run-backfill-20260428T181953007Z.json
+  --output-path var/ingestion-evidence/authenticated-notice-run-level-operator-view/run-backfill-20260428T181953007Z.json
 ```
 
 Expected real sample posture for collector run token `20260428T181953007Z`:

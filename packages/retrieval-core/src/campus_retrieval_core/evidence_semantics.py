@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from typing import Literal
 
 from campus_contracts import EvidenceSource
-from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
+from campus_regulation_semantics.regulation_semantic_registry import (
+    canonical_regulation_condition_subject,
+)
 
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 

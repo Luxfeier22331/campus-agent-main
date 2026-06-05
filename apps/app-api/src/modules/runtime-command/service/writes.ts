@@ -81,6 +81,7 @@ export function buildAcceptedWrite(input: {
 	requestId: string;
 	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
+	runId: string | null;
 	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
 	surface: string;
@@ -124,6 +125,7 @@ export function buildAcceptedWrite(input: {
 			idempotencyKey: input.idempotencyKey,
 			requestFingerprintSha256: input.requestFingerprintSha256,
 			traceId: input.traceId,
+			runId: input.runId,
 			safetyIdentifier: input.safetyIdentifier,
 			requestedCapability: input.requestedCapability,
 			requestedScope: input.requestedScope,
@@ -203,6 +205,7 @@ export function buildFinalizedWrite(input: {
 	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
 	response: SupervisorExecutionResponse;
+	runId: string | null;
 	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
 	surface: string;
@@ -359,6 +362,7 @@ export function buildFinalizedWrite(input: {
 			idempotencyKey: null,
 			requestFingerprintSha256: null,
 			traceId: normalizedTraceId,
+			runId: input.runId,
 			safetyIdentifier: input.safetyIdentifier,
 			requestedCapability: input.requestedCapability,
 			requestedScope: input.requestedScope,

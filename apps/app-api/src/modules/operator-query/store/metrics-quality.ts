@@ -30,6 +30,7 @@ import {
 	buildGradeBucketMap,
 	buildResultWindow,
 	inferGradeDomainFromCauseClass,
+	loadRunBacklinksByRequestIds,
 	loadTraceBacklinksByRequestIds,
 	resolveBucketStart,
 	resolveWindowBounds,
@@ -44,6 +45,7 @@ const NEGATIVE_FEEDBACK_DETECTED_BY = "negative_feedback";
 type QualityEvalCandidate = OperatorQualityEvalCandidateListResult["candidates"][number];
 type RuntimeQualityEvalCandidate = QualityEvalCandidate & {
 	requestId: string;
+	runId: string | null;
 	traceId: string;
 };
 type SuggestedReviewLabel = NonNullable<QualityEvalCandidate["review"]>["suggestedLabels"][number];
@@ -585,6 +587,10 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 				db,
 				visibleRows.map((row) => row.requestId),
 			);
+			const runBacklinksByRequestId = await loadRunBacklinksByRequestIds(
+				db,
+				visibleRows.map((row) => row.requestId),
+			);
 			const requestIdsWithInferredGrades = new Set<string>();
 			for (const row of visibleRows) {
 				const inferred = inferGradeDomainFromCauseClass(row.causeClass);
@@ -626,6 +632,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 					links: toLinks(backlinksByRequestId.get(row.requestId)),
 					openedAt: row.openedAt.toISOString(),
 					requestId: row.requestId,
+					runId: runBacklinksByRequestId.get(row.requestId) ?? null,
 					selectedTarget: row.selectedTarget ?? null,
 					status: row.status,
 					summary: row.summary,
@@ -738,6 +745,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 						review: {
 							suggestedLabels: reviewLabels,
 						},
+						runId: null,
 						selectedTarget: requestRow.selectedTarget ?? null,
 						summary: feedbackSummary(answerKind, reasonCodes),
 						surface: requestRow.surface,
@@ -758,11 +766,16 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 				db,
 				candidates.map((candidate) => candidate.requestId),
 			);
+			const runBacklinksByRequestId = await loadRunBacklinksByRequestIds(
+				db,
+				candidates.map((candidate) => candidate.requestId),
+			);
 
 			return {
 				candidates: candidates.map((candidate) => ({
 					...candidate,
 					links: toLinks(backlinksByRequestId.get(candidate.requestId)),
+					runId: runBacklinksByRequestId.get(candidate.requestId) ?? null,
 				})),
 				page: {
 					nextCursor: null,

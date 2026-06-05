@@ -37,7 +37,7 @@ code-owned runtime seam。当前接受的实现基线是：
 
 补充约束：
 
-- repo-global developer invariants 由 shared prompt runtime helper 持有
+- repo-global developer invariants 由 `packages/prompt-runtime` 持有
 - package-owned role prompt 当前由 `packages/rag-agent` prompt registry 持有；
   Python production supervisor terminal prompt family 已移除
 - `packages/rag-agent` 的 runtime package 名称继续保持 current merged truth；但
@@ -46,9 +46,11 @@ code-owned runtime seam。当前接受的实现基线是：
 - `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_stack.py`
   负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence
   packet 组装成 runtime stack
+- `packages/prompt-runtime` 负责 provider-facing prompt contract validation、
+  provider-backed strict structured outputs、provider response normalization，并生成
+  validated `PromptTrace`
 - `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_executor.py`
-  负责 provider-backed strict structured outputs，并在产品主链路生成 validated
-  `PromptTrace`
+  只负责把 worker-local RAG prompt stack 绑定到 `packages/prompt-runtime`
 - provider `refusal`、`incomplete` 与 request/schema failure 必须在 RAG prompt execution
   path fail-close，不得被当作 schema-valid success 放行
 - `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_
@@ -384,7 +386,10 @@ repo 级 instruction hierarchy 固定拆成五层：
 - `apps/supervisor-api`
   - owns prompt config admission summary and deterministic terminal envelopes
 - `apps/supervisor-agent-worker`
-  - owns RAG provider client / prompt executor runtime binding
+  - owns RAG prompt runtime assembly and provider client binding
+- `packages/prompt-runtime`
+  - owns prompt contract validation, provider structured output execution,
+    provider response normalization and prompt trace construction
 - `packages/rag-agent`
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
 - `apps/app-api`
@@ -891,7 +896,8 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - package-owned prompt registry、prompt packet 与 strict validation seam
   已成为 knowledge path 产品主链路的一部分
 - `apps/supervisor-api` 已承担 prompt config admission summary；Python
-  `apps/supervisor-agent-worker` 仍实际创建 RAG provider client / prompt executor，并将
+  `apps/supervisor-agent-worker` 仍实际创建 RAG provider client，并通过
+  `packages/prompt-runtime` 执行 prompt contract validation、structured output 与
   prompt trace 接入现有 diagnostics / observability
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture

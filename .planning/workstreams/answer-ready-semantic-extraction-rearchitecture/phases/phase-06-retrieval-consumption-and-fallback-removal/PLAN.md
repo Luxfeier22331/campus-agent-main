@@ -7,7 +7,7 @@ updated: 2026-05-07
 
 <!-- markdownlint-disable MD013 -->
 
-# Phase 6: Retrieval Consumption And Fallback Removal
+# Phase 6: Retrieval Consumption And Legacy Signal Removal
 
 ## Goal
 
@@ -20,7 +20,7 @@ release 的 primary text-cue fallback 清零。
 - Update ranking feature extraction.
 - Update supporting evidence selection.
 - Update post-retrieval self-check and replan triggers.
-- Add fallback diagnostics and hard target release budget.
+- Add legacy-signal diagnostics and hard target release budget.
 - Consume the Phase 0 semantic oracle for query-conditioned contradiction cases.
 
 ## Deliverables
@@ -39,13 +39,13 @@ release 的 primary text-cue fallback 清零。
   - category coverage missing
   - repeated same parent over-selection
   - intro/procedure/ratio weak evidence over-selection
-- Fallback diagnostics:
+- Legacy-signal diagnostic labels:
   - `fallback_used`
   - `fallback_reason`
   - `fallback_primary_signal`
   - `missing_contract_fields`
   - `source_index_contract_version`
-- Tests proving zero primary fallback for v3 fixtures.
+- Tests proving zero primary legacy-signal reliance for v3 fixtures.
 - Tests proving query-conditioned contradictions such as positive-procedure query vs negative
   exclusion evidence are attributed to ranking/selection, not release gate.
 
@@ -53,7 +53,7 @@ release 的 primary text-cue fallback 清零。
 
 - First-stage retrieval remains recall-oriented.
 - Replan must not widen authz, version, scope or runtime profile.
-- Fallback may remain only for old-index compatibility and must be observable.
+- Legacy-signal reads may remain only for old-index quarantine and must be observable.
 
 ## Verification
 
@@ -66,8 +66,8 @@ uv run --all-packages ruff format packages/retrieval-core tests/retrieval --chec
 ## Exit Criteria
 
 - Typed metadata is the primary ranking/selection signal.
-- Rebuilt v3 fixtures report zero primary text-cue fallback.
-- Old-index fallback is still supported only as legacy diagnostics.
+- Rebuilt v3 fixtures report zero primary text-cue reliance.
+- Old-index legacy signals are still supported only as diagnostics.
 - Known polarity cases such as `处分怎么消` select positive procedure evidence over negative
   restrictions.
 - Stage-local diagnostics report `ranking_mismatch` or `selection_not_answer_ready` when the oracle

@@ -28,9 +28,9 @@ status 问题回退成 generic RAG 或 notice body query-time scan。
   historical samples `247726`、`352345`、`354502`、`354575`、`354674`
   保留为 rejected-source evidence，不进入 current truth。本 workstream 已归档到
   `.planning/milestones/ws-authenticated-notice-service-status-consumption-2026-04-28/`。
-- runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
-  claim status authenticated-notice-service-status-consumption` 查看；tracked
-  planning 文档不保存 claim lease
+- workstream status: 使用 `gsd-sdk query workstream.status
+  authenticated-notice-service-status-consumption --raw --cwd "$PWD"` 查看；
+  tracked planning 文档不保存本地会话状态
 
 ## Source Truth And Adjacent Workstreams
 

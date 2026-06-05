@@ -30,15 +30,15 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_PHASE_06_R1_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r1-regulation-candidate-audit-and-admission"
 )
 DEFAULT_PHASE_06_R3_DIR = Path(
-    ".planning/workstreams/collected-notice-consumption-replay-closeout/"
+    "var/ingestion-evidence/collected-notice-consumption-replay-closeout/"
     "evidence/phase-06-r3-regulation-normalization-quality-gate"
 )
 DEFAULT_PHASE_09_OUTPUT_DIR = Path(
-    ".planning/workstreams/authenticated-notice-regulation-consumption/"
+    "var/ingestion-evidence/authenticated-notice-regulation-consumption/"
     "evidence/phase-09-first-batch-regulation-promotion-write-gate"
 )
 

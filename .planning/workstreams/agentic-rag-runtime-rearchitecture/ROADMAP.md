@@ -167,14 +167,14 @@ contract，而不是只有“多打点”的泛化口号。
 
 **Scope:**
 
-- stage-level trace summary、failure class、candidate counts、latency and fallback reasons。
+- stage-level trace summary、failure class、candidate counts、latency and failure reasons。
 - 评估输入输出中保留足够的 plan / evidence / grounding 信息，但不泄漏 raw provider trace。
 - 对 ragas 或其他诊断流做性能分解：区分检索、prompt、adapter、diagnostic scorer、optional
   dependency noise。
 - 为 answer relevancy / faithfulness 低分建立可复现的 regression fixture。
   建议的稳定观察字段至少包括：`request_id`、`plan_id`、`query_mode`、`stage_name`、
   `stage_status`、`candidate_count`、`supporting_evidence_count`、`grounding_verdict`、
-  `fallback_reason`、`latency_ms`、`retrieval_ms`、`prompt_ms`、`adapter_ms` 与
+  `failure_reason`、`latency_ms`、`retrieval_ms`、`prompt_ms`、`adapter_ms` 与
   `diagnostic_ms`。
 
 **Exit Criteria:**

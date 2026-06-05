@@ -44,12 +44,8 @@ updated: 2026-05-05
   - exact currently installed `openai-agents` version
   - supported `Agent`, `Runner`, `FunctionTool`, strict schema and structured output behavior
   - tool-choice and max-turn behavior needed for RAG
-- Freeze rollout modes before code:
-  - `candidate`
-  - `shadow`
-  - `default_on`
-  - `fallback_only`
-  - `closed`
+- Freeze runtime posture before code. Historical candidate/shadow review modes may be described as
+  migration evidence, but they must not become user-facing production answer modes.
 - Freeze trace posture: SDK native tracing off by default; sanitized repo projection only.
 - Freeze bounded replan posture: default query-slot selection only; semantic replan requires an
   admitted budget and no widening of scope, selector, authorization, version or serving surface.
@@ -59,7 +55,7 @@ updated: 2026-05-05
 
 - No plan item requires public ToolSpec exposure for `retrieval.query`.
 - No plan item lets SDK own supervisor routing, workflow plan or finalization.
-- Rollout mode and legacy prompt executor posture are defined before service integration.
+- Runtime posture and legacy prompt executor retirement are defined before service integration.
 - Claim/span grounding and bounded replan are explicit implementation requirements.
 - SDK conformance tests are a Phase 2 blocker.
 - Raw SDK tracing is not part of default observability.
@@ -186,8 +182,8 @@ updated: 2026-05-05
 
 - Extend `delegate_to_rag_agent` with optional `rag_sdk_runner`.
 - Keep deterministic preflight and planner stage before SDK execution.
-- Enforce Phase 0 rollout mode in service integration. The code path must distinguish candidate,
-  shadow, default-on, fallback-only and closed behavior.
+- Enforce the frozen runtime posture in service integration. The code path must not keep two
+  user-facing answer synthesis substrates.
 - Add query-intent classification before SDK execution and keep it inside `rag-agent`, not
   supervisor routing.
 - Ensure preflight does not convert `category_discovery` into `needs_clarification` when category
@@ -197,7 +193,7 @@ updated: 2026-05-05
 - Insert SDK loop after retrieval context/plan construction and before old retrieval/evidence
   selection/answer synthesis path.
 - Map SDK output into existing `AgentResponse` and `RagResultPayload`.
-- Keep fallback posture explicit and observable; do not silently blend SDK and legacy synthesis.
+- Keep failure posture explicit and observable; do not silently blend SDK and legacy synthesis.
 
 **Exit Criteria:**
 
@@ -257,8 +253,8 @@ updated: 2026-05-05
   - `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED`
 - Prefer AgentSpec/runtime config for `rag-agent` SDK posture rather than adding a new allowlist env.
 - Update `agent_delegates.py` to inject `rag_sdk_runner` into `delegate_to_rag_agent`.
-- Ensure missing SDK dependency/provider/model/key fails closed and preserves deterministic fallback
-  only if the selected posture explicitly allows fallback.
+- Ensure missing SDK dependency/provider/model/key fails closed and does not preserve a production
+  fallback answer route.
 
 **Exit Criteria:**
 
@@ -340,7 +336,7 @@ updated: 2026-05-05
 - Decide whether SDK loop becomes default for `rag-agent` answer synthesis.
 - Reconfirm Phase 0 rollout mode and update it with evidence, not preference.
 - If default-on:
-  - demote old prompt executor to fixture/fallback-only or remove redundant production path.
+  - demote old prompt executor to fixture-only evidence or remove the redundant production path.
   - update tests and docs to avoid two competing primary synthesis runtimes.
 - If not default-on:
   - record blockers and keep SDK as explicit gated candidate only.
@@ -348,7 +344,7 @@ updated: 2026-05-05
 **Exit Criteria:**
 
 - There is one primary production RAG synthesis path.
-- Any fallback is documented, observable and deliberately scoped.
+- No user-facing fallback answer route remains.
 
 ## Phase 9: Architecture Closeout
 

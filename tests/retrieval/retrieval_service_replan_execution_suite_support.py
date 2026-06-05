@@ -8,6 +8,11 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from campus_contracts import EvidenceBundle
+from campus_regulation_semantics.answer_ready_evidence_contract import (
+    ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION,
+    ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+    ANSWER_READY_PROCEDURE_ACTION_TAXONOMY_VERSION,
+)
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 from campus_retrieval_core.models import (
     RetrievalPlan,
@@ -25,11 +30,6 @@ from campus_retrieval_core.service import (
     build_jsonl_retrieval_observation_sink,
     build_retrieval_observation_event_sink,
     execute_retrieval_plan,
-)
-from campus_shared.answer_ready_evidence_contract import (
-    ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION,
-    ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
-    ANSWER_READY_PROCEDURE_ACTION_TAXONOMY_VERSION,
 )
 
 from tests.retrieval.retrieval_service_test_support import _make_source

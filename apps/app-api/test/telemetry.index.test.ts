@@ -40,7 +40,7 @@ describe("app telemetry", () => {
 		);
 	});
 
-	it("fails open when configureChatRequestScope hits a sentry error", () => {
+	it("keeps the request path non-blocking when configureChatRequestScope hits a sentry error", () => {
 		sentryMocks.setTag.mockImplementation(() => {
 			throw new Error("sentry setTag failed");
 		});
@@ -66,7 +66,7 @@ describe("app telemetry", () => {
 		).not.toThrow();
 	});
 
-	it("fails open when sentry trace data lookup throws", () => {
+	it("returns empty trace headers when sentry trace data lookup throws", () => {
 		sentryMocks.getTraceData.mockImplementation(() => {
 			throw new Error("trace data failed");
 		});

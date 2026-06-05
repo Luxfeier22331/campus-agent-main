@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-05-01
+updated: 2026-06-01
 ---
 # Index Release Runbook
 
@@ -22,10 +22,10 @@ updated: 2026-05-01
 - 术语定义：`docs/reference/runtime-serving-and-index-terms.md`
 - 旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-co
   llection-retention-and-expiration.md`
-- Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-an
-  d-object-store-transition.md`
-- Qdrant Cloud 备份 /
-  恢复操作：`docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md`
+- 当前 self-hosted Qdrant native backup 策略：
+  `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+- 当前 self-hosted Qdrant native backup 操作：
+  `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md`
 - 当前优先级和执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
   `STATE.md`
 
@@ -33,7 +33,8 @@ updated: 2026-05-01
 
 执行前必须确认：
 
-- `.env` 已配置 cloud Qdrant、object store、document registry、embedding provider
+- `.env` / deployment secret 已配置 Qdrant REST endpoint、object store、
+  document registry、embedding provider
 - 对应 collection 的 `runtime-profile.json` 已确认：
   - `qdrant_alias_name`
   - `qdrant_collection_prefix`
@@ -81,7 +82,9 @@ inventory role：
 - `orphan_backup_manifest`：有 backup manifest 但找不到 release manifest；不得直接删除，需要先确认是否为迁移/恢复证据。
 
 删除 physical collection 仍必须走 `campus-ingestion-qdrant-gc-check` /
-`campus-ingestion-qdrant-gc-delete`，不能直接根据本 audit 删除对象存储 backup。
+`campus-ingestion-qdrant-gc-delete`，并显式传入当前 qdrant-native backup root，例如
+`--backup-root /srv/backups/campus-agent/qdrant-snapshots`。不能直接根据本 audit 删除对象存储
+backup。
 
 建议先检查：
 
@@ -94,9 +97,9 @@ uv run --all-packages python -m unittest \
   tests.retrieval.test_backend_qdrant
 ```
 
-## Qdrant Cloud Proxy Rule
+## Qdrant Proxy Rule
 
-当前 WSL operator shell 对 Qdrant Cloud 有一个已验证的固定约束：
+operator shell 对远端 Qdrant endpoint 有一个已验证的固定约束：
 
 - 如果进程继承了宿主机代理值，`curl
   "$QDRANT_URL/collections"`、`QdrantClient.get_collections()` 和 `get_aliases()`
@@ -585,12 +588,14 @@ runtime profile、canonical qrels 或 serving alias。
 
 ### 推荐 Backup 基线
 
-在 Qdrant Cloud 上清理旧 collection 前，建议先确保备份窗口覆盖最长删除门禁：
+清理旧 collection 前，必须先确认 self-hosted Qdrant native snapshot 已覆盖最长删除门禁：
 
-- `Standard` 环境：daily `14` 天、weekly `8` 周、monthly `6` 个月
-- 当前 `Free` tier：先补 `snapshot bundle -> object storage` 过渡方案，再评估删除
+- local daily snapshots: `14` 天
+- local weekly snapshots: `8` 周
+- off-host daily snapshots: `14` 天
+- migration baseline snapshots: 默认 `30` 天
 
-具体操作以 `docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md` 为准。
+具体操作以 `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md` 为准。
 
 ### 清理前检查
 
@@ -601,7 +606,7 @@ runtime profile、canonical qrels 或 serving alias。
 1. 目标 collection 不是仍在保护窗口内的 `migration_baseline`
 1. 对应 release 的 `index-release.json` 与 `validation-summary.json` 已在对象存储落盘
 1. 当前没有 active incident、回归调查或人工验收仍依赖该 release
-1. Qdrant Cloud backup 或显式 snapshot/export 已覆盖这次 release 的恢复窗口
+1. qdrant-native snapshot 与 off-host archive 已覆盖这次 release 的恢复窗口
 
 ### 清理步骤
 
@@ -638,3 +643,23 @@ runtime profile、canonical qrels 或 serving alias。
 - 不要跳过 validation 直接 publish alias
 - 不要把 chunk dump 回写到对象存储
 - 不要把 `--reset-index` 当作 routine expiration/cleanup 入口
+
+## Exceptional Reconstruction From Native Qdrant Snapshot
+
+The normal index-release source of truth is the ingestion release publication
+path. A reconstructed manifest is allowed only for disaster recovery when the
+live Qdrant alias and native snapshot sidecar are already consistent but the
+derived bucket lost the corresponding `index-release.json`.
+
+Command:
+
+```bash
+uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
+  --backup-root /srv/backups/campus-agent/qdrant-snapshots \
+  --report-path var/staging-evidence/rag-release-manifest-reconstruction.json
+```
+
+Add `--write` only after the dry-run report is reviewed. The command validates
+alias target, physical collection, release id, manifest key and point count
+against both live Qdrant payloads and `backup-manifest.json`. It writes only
+exact `*/releases/*/<release_id>/index-release.json` keys.

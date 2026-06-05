@@ -614,7 +614,7 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
             title="中央民族大学本科学生国家奖学金评审办法",
             snippet="国家奖学金用于奖励特别优秀的全日制本科学生。",
             score=0.83,
-            chunk_id_suffix="national-overview-registry-fallback",
+            chunk_id_suffix="national-overview-registry-support",
             content_role="definition",
             is_answer_bearing=True,
         )

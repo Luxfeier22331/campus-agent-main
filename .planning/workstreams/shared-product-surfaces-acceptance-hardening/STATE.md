@@ -86,7 +86,8 @@ updated: 2026-04-21
 - integrated acceptance continuity anchor remains:
   - `conversationId=9cb68dd1-9a74-4ed5-a616-308c41761a4c`
   - `requestId=req_4be3b117d87a40fc807d5644d06133d0`
-- staging runtime truth at closeout：
+- historical staging runtime truth at the original closeout; superseded by the
+  `mucwiki-edge.link` staging hostname family:
   - `https://campus-api-staging.ayafeed.com/readyz` -> ready
   - `https://campus-api-staging.ayafeed.com/healthz` -> ok
   - `https://campus-chat-staging.ayafeed.com/readyz` -> ready
@@ -166,13 +167,13 @@ updated: 2026-04-21
   - desktop `/login` `/register` `/forgot-password` 与 invalid `/reset-password` shell screenshots are captured
   - mobile `/login` `/register` screenshots confirm the same single-column shell scales without the donor split preview
   - anonymous local auth pages emit expected `/api/me` `401`, which is pre-auth baseline behavior rather than a shell regression
-- `curl --noproxy '*' -sS https://campus-api-staging.ayafeed.com/readyz`
+- Historical evidence command: `curl --noproxy '*' -sS https://campus-api-staging.ayafeed.com/readyz`
   - `status: ready`
-- `curl --noproxy '*' -sS https://campus-api-staging.ayafeed.com/healthz`
+- Historical evidence command: `curl --noproxy '*' -sS https://campus-api-staging.ayafeed.com/healthz`
   - `status: ok`
-- `curl --noproxy '*' -sS https://campus-chat-staging.ayafeed.com/readyz`
+- Historical evidence command: `curl --noproxy '*' -sS https://campus-chat-staging.ayafeed.com/readyz`
   - `status: ready`
-- `curl --noproxy '*' -sS https://campus-chat-staging.ayafeed.com/healthz`
+- Historical evidence command: `curl --noproxy '*' -sS https://campus-chat-staging.ayafeed.com/healthz`
   - `status: ok`
 
 ## Session Continuity

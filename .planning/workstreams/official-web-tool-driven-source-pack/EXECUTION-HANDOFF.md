@@ -64,7 +64,7 @@ The following source cases may be converted into manifest rows by the execution 
 | Campus card service | `https://met.muc.edu.cn/info/1027/1127.htm` | service guide plus optional contact projection |
 | Campus network authentication | `https://met.muc.edu.cn/info/1008/1846.htm` | service guide with entry refs |
 | VPN usage | `https://met.muc.edu.cn/info/1046/1674.htm` | service guide with entry refs; attachment retained as reference only |
-| Unified identity password reset guide | `https://met.muc.edu.cn/info/1068/1830.htm` | service guide with entry refs and fallback handling facts |
+| Unified identity password reset guide | `https://met.muc.edu.cn/info/1068/1830.htm` | service guide with entry refs and exception/on-site handling facts |
 | Email service pages | `https://met.muc.edu.cn/info/1024/1090.htm`, `https://met.muc.edu.cn/info/1046/1932.htm`, `https://met.muc.edu.cn/xzzq/sqbg/1.htm` | offline composition for service guide; policy page also admitted as regulation/reference |
 | Information disclosure implementation rules | `https://xxgk.muc.edu.cn/info/1005/1107.htm` | policy/reference source and optional composition fact source |
 | Information disclosure application pages | `https://xxgk.muc.edu.cn/info/1007/1113.htm`, `https://xxgk.muc.edu.cn/info/1007/1114.htm`, `https://xxgk.muc.edu.cn/xxgk/lxfs.htm` | offline composition components |

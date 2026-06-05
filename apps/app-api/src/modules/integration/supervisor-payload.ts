@@ -2,7 +2,7 @@ import type { ExecutionActorContext } from "../auth";
 import { toSupervisorVersionQuery } from "../version-query";
 import type { SupervisorContextProjection, SupervisorExecutionInput } from "./supervisor-types";
 
-function toSupervisorActor(actor: ExecutionActorContext) {
+export function toSupervisorActor(actor: ExecutionActorContext) {
 	return {
 		cohort: actor.cohort,
 		user_id: actor.userId,
@@ -15,7 +15,7 @@ function toSupervisorActor(actor: ExecutionActorContext) {
 	};
 }
 
-function toSupervisorContext(context: SupervisorContextProjection) {
+export function toSupervisorContext(context: SupervisorContextProjection) {
 	return {
 		actor: toSupervisorActor(context.actor),
 		authorization: {

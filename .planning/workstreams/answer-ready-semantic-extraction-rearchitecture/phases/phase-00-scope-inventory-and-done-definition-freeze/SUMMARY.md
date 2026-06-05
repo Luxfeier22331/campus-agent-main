@@ -33,7 +33,7 @@ allowlists. It froze the execution contract for the remaining workstream phases.
   presence.
 - Static release gates validate chunk/document metadata validity; query-conditioned contradictions
   belong to retrieval/component eval.
-- Old-index fallback is compatibility-only and cannot satisfy target v3 completion.
+- Old-index legacy signals are quarantine-only and cannot satisfy target v3 completion.
 - Taxonomy changes require admission metadata and release invalidation or compatibility proof.
 - Phase 9/10 must use the repo release lane entrypoints frozen in
   `RELEASE-LANE-ENTRYPOINTS.md`. The available entrypoints are:

@@ -7,6 +7,7 @@ compose_file="${SUPERVISOR_RUNTIME_COMPOSE_FILE:-${repo_root}/infra/local/docker
 compose_project_name="${SUPERVISOR_RUNTIME_COMPOSE_PROJECT_NAME:-campus-supervisor-runtime-local}"
 compose_parallel_limit="${SUPERVISOR_RUNTIME_COMPOSE_PARALLEL_LIMIT:-1}"
 api_host_port="${SUPERVISOR_API_HOST_PORT:-27051}"
+data_plane_network="${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}"
 
 require_command() {
   local command_name="$1"
@@ -19,6 +20,14 @@ require_command() {
   fi
 
   printf '%s\n' "${resolved}"
+}
+
+ensure_data_plane_network() {
+  local docker_bin
+  docker_bin="$(require_command docker)"
+  if ! "${docker_bin}" network inspect "${data_plane_network}" >/dev/null 2>&1; then
+    "${docker_bin}" network create "${data_plane_network}" >/dev/null
+  fi
 }
 
 load_runtime_env() {
@@ -72,7 +81,6 @@ const keys = [
   "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
   "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
   "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
-  "OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
   "AUDIT_LOG_PATH",
   "AUDIT_QUEUE_CAPACITY",
   "APP_API_INTERNAL_SHARED_SECRET",
@@ -123,15 +131,15 @@ const keys = [
   "SPARSE_LANGUAGE",
 ];
 
-function rewriteLocalhostForDocker(value) {
+function projectLocalServiceDns(value, serviceName) {
   if (!value) {
     return value;
   }
   try {
     const parsed = new URL(value);
     if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") {
-      parsed.hostname = "host.docker.internal";
-      return parsed.toString();
+      parsed.hostname = serviceName;
+      return parsed.toString().replace(/\/$/, "");
     }
   } catch {
     return value;
@@ -169,13 +177,14 @@ resolved.set("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", internalQuerySharedSecre
 resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 
 for (const [key, value] of resolved.entries()) {
-  const outputValue =
-    key === "DOCUMENT_REGISTRY_DATABASE_URL" ||
-    key === "CAMPUS_SHARED_POSTGRES_URL" ||
-    key === "SUPERVISOR_API_EXECUTION_AUDIT_URL" ||
-    key === "OBJECT_STORE_ENDPOINT"
-      ? rewriteLocalhostForDocker(value)
-      : value;
+  let outputValue = value;
+  if (key === "DOCUMENT_REGISTRY_DATABASE_URL" || key === "CAMPUS_SHARED_POSTGRES_URL") {
+    outputValue = projectLocalServiceDns(value, "postgres");
+  } else if (key === "OBJECT_STORE_ENDPOINT") {
+    outputValue = projectLocalServiceDns(value, "minio");
+  } else if (key === "QDRANT_URL") {
+    outputValue = projectLocalServiceDns(value, "qdrant");
+  }
   process.stdout.write(`${key}\0${outputValue}\0`);
 }
 NODE
@@ -187,6 +196,7 @@ main() {
 
   docker_bin="$(require_command docker)"
   load_runtime_env
+  ensure_data_plane_network
 
   if [[ "$#" -eq 0 ]]; then
     set -- up -d --build
@@ -196,10 +206,13 @@ main() {
     cd "${repo_root}" || exit
     COMPOSE_PROJECT_NAME="${compose_project_name}" \
     COMPOSE_PARALLEL_LIMIT="${compose_parallel_limit}" \
+    CAMPUS_AGENT_DATA_PLANE_NETWORK="${data_plane_network}" \
     SUPERVISOR_API_HOST_PORT="${api_host_port}" \
     API_AUTH_MODE="${API_AUTH_MODE:-trusted-worker}" \
     "${docker_bin}" compose -f "${compose_file}" "$@"
   )
 }
 
-main "$@"
+if [[ "${1:-}" != "__campus_agent_print_projected_env" ]]; then
+  main "$@"
+fi

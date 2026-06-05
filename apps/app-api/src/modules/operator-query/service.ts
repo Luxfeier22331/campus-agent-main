@@ -33,6 +33,8 @@ export type {
 	OperatorRequestListFilters,
 	OperatorRequestObservabilityRecord,
 	OperatorResultWindow,
+	OperatorRuntimeRunEventSummary,
+	OperatorRuntimeRunSummary,
 	OperatorSafetyAnomalyListFilters,
 	OperatorSafetyAnomalyListResult,
 	OperatorSafetySummaryResult,

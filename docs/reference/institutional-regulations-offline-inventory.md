@@ -26,7 +26,7 @@ updated: 2026-04-24
 
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `var/ingestion-evidence/authenticated-notice-regulation-consumption/README.md`
 - `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery
   .md`
 
@@ -65,7 +65,7 @@ regulation，例如：
 
 当前 bounded `11` 条 target 的 local-only target-side acceptance evidence 冻结在：
 
-- `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+- `var/ingestion-evidence/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
 
 最终通过口径：
 

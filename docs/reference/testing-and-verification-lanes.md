@@ -167,6 +167,35 @@ pnpm web:test:integration
 - 当前 repo 的 repair 入口是 `pnpm --dir apps/app-api db:reconcile-shared-drift --
   --json`
 
+### E2E QA Release Lane
+
+入口：
+
+```bash
+docs/runbooks/e2e-qa-release-runbook.md
+```
+
+语义：
+
+- 这是上线前真实 staging 验收 lane，不替代 unit、typecheck、build、lint 或 integration lane
+- 它只在真实 staging deployment、真实 auth/session、真实 browser surface、真实 data plane 与真实
+  observability sink 均存在时执行
+- 当前默认目标环境是 `mucwiki-edge.link` staging；`hub.muc.wiki` production custom-hostname
+  path 不属于当前 gate
+- 它串联 repo preflight、supervisor runtime readiness、public surface health、chat E2E、
+  docs gated smoke、protected panel Access smoke、browser QA、Sentry/Axiom sink verification
+  与 data-plane sanity
+- 证据必须落盘到 `var/staging-evidence/<timestamp>-e2e-qa-release/`
+- 它不能使用 fallback、兜底、best-effort、silent recovery、`--expect-result-kind any` 或跳过
+  Access / auth / readyz 的方式标绿
+- Sentry closure 默认查询 Explore `spans`；issue-list endpoint 权限不足不是 staging
+  observability blocker
+
+对应 runbook：
+
+- `docs/runbooks/e2e-qa-release-runbook.md`
+- `docs/runbooks/templates/e2e-qa-release-artifact-template.md`
+
 ## app-api lane 语义
 
 `apps/app-api` 同时承载 Node 业务逻辑测试与 Worker runtime 测试，因此 lane 明确拆分：

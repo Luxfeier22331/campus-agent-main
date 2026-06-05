@@ -9,6 +9,7 @@ from campus_ingestion_core.collection_rename_registry_backfill import (
     apply_registry_collection_rename_backfill,
     audit_registry_collection_rename_backfill,
 )
+from campus_ingestion_core.postgres_runtime import close_persistent_postgres_pools
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -30,10 +31,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    if args.command == "audit":
-        report = audit_registry_collection_rename_backfill()
-    else:
-        report = apply_registry_collection_rename_backfill()
+    try:
+        if args.command == "audit":
+            report = audit_registry_collection_rename_backfill()
+        else:
+            report = apply_registry_collection_rename_backfill()
+    finally:
+        close_persistent_postgres_pools()
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
 

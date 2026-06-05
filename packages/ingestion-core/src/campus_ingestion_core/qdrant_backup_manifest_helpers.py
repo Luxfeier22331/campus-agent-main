@@ -145,13 +145,12 @@ def _find_backup_manifest_for_release(
 
 def _build_gc_delete_report_key(
     *,
-    backup_manifest_object_key: str | None,
+    backup_manifest_path: str | None = None,
     corpus: str,
     collection: str,
     release_id: str,
 ) -> str:
-    if backup_manifest_object_key:
-        return backup_manifest_object_key.rsplit("/", 1)[0] + "/gc-delete-report.json"
+    _ = backup_manifest_path
     return build_operations_artifact_key(
         corpus=corpus,
         operation="qdrant_gc_delete",

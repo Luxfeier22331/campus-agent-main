@@ -1,0 +1,535 @@
+.mucwiki-home {
+  display: grid;
+  gap: 1rem;
+  color: #202122;
+  font-size: 1rem;
+}
+
+.mucwiki-home,
+.mucwiki-home * {
+  box-sizing: border-box;
+}
+
+.mucwiki-home a {
+  color: #215c8f;
+  text-decoration: none;
+}
+
+.mucwiki-home a:hover,
+.mucwiki-home a:focus {
+  color: #17446e;
+  text-decoration: underline;
+}
+
+.mucwiki-home p {
+  margin: 0;
+}
+
+.mucwiki-home-masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(18rem, .58fr);
+  gap: 1rem;
+  align-items: stretch;
+  padding: .92rem;
+  border: 1px solid #d7ddd7;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 241, 239, .72), rgba(255, 255, 255, .84) 38%),
+    #fff;
+  box-shadow: 0 10px 28px rgba(42, 48, 41, .055);
+}
+
+.mucwiki-home-copy {
+  display: grid;
+  align-content: center;
+  gap: .72rem;
+  min-height: 11.4rem;
+  padding: 1.1rem 1.2rem;
+  border-left: 3px solid #b42318;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .62);
+  line-height: 1.74;
+}
+
+.mucwiki-home-kicker {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  min-height: 1.72rem;
+  align-items: center;
+  padding: .24rem .66rem;
+  border: 1px solid #f0c9c4;
+  border-radius: 999px;
+  background: #fff1ef;
+  color: #7f1d1d;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.mucwiki-home-kicker::before {
+  content: "";
+  width: .46rem;
+  height: .46rem;
+  margin-right: .38rem;
+  border-radius: 999px;
+  background: #b42318;
+}
+
+.mucwiki-home-title {
+  color: #141b22;
+  font-size: 2.16rem;
+  font-weight: 700;
+  line-height: 1.08;
+}
+
+.mucwiki-home-lede {
+  max-width: 42rem;
+  color: #263044;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.mucwiki-home-side {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: .72rem;
+  min-width: 0;
+}
+
+.mucwiki-home-media {
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  min-height: 9.6rem;
+  overflow: hidden;
+  border: 1px solid #e1e6e0;
+  border-radius: 8px;
+  background: #f5f6f4;
+}
+
+.mucwiki-home-media .mw-file-element,
+.mucwiki-home-media img {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  border-radius: 8px;
+}
+
+.mucwiki-home-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .58rem;
+}
+
+.mucwiki-home-stat {
+  min-width: 0;
+  padding: .62rem .66rem;
+  border: 1px solid #dfe5de;
+  border-radius: 8px;
+  background: rgba(250, 251, 249, .96);
+  color: #54595d;
+  line-height: 1.28;
+  text-align: center;
+}
+
+.mucwiki-home-stat strong,
+.mucwiki-home-stat span {
+  display: block;
+}
+
+.mucwiki-home-stat strong,
+.mucwiki-home-stat strong a {
+  color: #17446e;
+  font-size: 1.14rem;
+  font-weight: 700;
+}
+
+.mucwiki-home-stat span {
+  margin-top: .18rem;
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.mucwiki-home-section {
+  margin-top: .05rem;
+}
+
+.mucwiki-home-section h2 {
+  display: flex;
+  align-items: center;
+  gap: .52rem;
+  margin: 0 0 .72rem;
+  padding-bottom: .5rem;
+  border-bottom: 1px solid #e5e9e4;
+  color: #141b22;
+  font-size: 1.14rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.mucwiki-home-section h2::before {
+  content: "";
+  display: inline-block;
+  width: .34rem;
+  height: 1.08rem;
+  border-radius: 999px;
+  background: #b42318;
+}
+
+.mucwiki-home-grid {
+  display: grid;
+  gap: .72rem;
+}
+
+.mucwiki-home-grid--primary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mucwiki-home-section--entries {
+  padding: .15rem 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.mucwiki-home-card,
+.mucwiki-home-panel,
+.mucwiki-home-help__grid > div,
+.mucwiki-home-topline,
+.mucwiki-home-note {
+  border: 1px solid #dfe5de;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 1px 2px rgba(42, 48, 41, .026);
+}
+
+.mucwiki-home-card {
+  position: relative;
+  min-height: 5.25rem;
+  padding: .8rem 1.82rem .8rem .88rem;
+  overflow: hidden;
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.mucwiki-home-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: .18rem;
+  background: #24735d;
+  opacity: .74;
+}
+
+.mucwiki-home-card::after {
+  content: "›";
+  position: absolute;
+  top: .86rem;
+  right: .92rem;
+  color: #8b9b8d;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.mucwiki-home-card:hover {
+  border-color: #b8c8b8;
+  background: #fbfdfb;
+  box-shadow: 0 8px 20px rgba(42, 48, 41, .05);
+  transform: translateY(-1px);
+}
+
+.mucwiki-home-card strong,
+.mucwiki-home-card span {
+  display: block;
+}
+
+.mucwiki-home-card strong {
+  padding-left: .28rem;
+  color: #141b22;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.mucwiki-home-card span {
+  margin-top: .34rem;
+  padding-left: .28rem;
+  color: #5b6670;
+  line-height: 1.56;
+}
+
+.mucwiki-home-topline,
+.mucwiki-home-note {
+  margin-top: 0;
+  color: #54595d;
+  line-height: 1.68;
+}
+
+.mucwiki-home-topline {
+  padding: .76rem .95rem;
+  background: #fbfcfb;
+}
+
+.mucwiki-home-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, .54fr);
+  gap: .85rem;
+  padding: .92rem 1rem;
+  background: #fbfcfb;
+}
+
+.mucwiki-home-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.mucwiki-home-panel {
+  position: relative;
+  min-height: 12.6rem;
+  overflow: hidden;
+  padding: 1.05rem 1.15rem;
+}
+
+.mucwiki-home-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: .2rem;
+  background: #24735d;
+}
+
+.mucwiki-home-panel ul {
+  display: grid;
+  gap: .38rem;
+  margin: .15rem 0 0;
+  padding-left: 1.1rem;
+  line-height: 1.75;
+}
+
+.mucwiki-home-panel--building {
+  border-color: #ead8a8;
+  background: #fff8ea;
+}
+
+.mucwiki-home-panel--building::before {
+  background: #8a570b;
+}
+
+.mucwiki-home-link-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.mucwiki-home-link-cloud p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: 0;
+}
+
+.mucwiki-home-link-cloud span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.08rem;
+  padding: .32rem .62rem;
+  border: 1px solid #dfe5de;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .96);
+  color: #344054;
+  font-size: .94rem;
+  line-height: 1.32;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.mucwiki-home-link-cloud span:hover {
+  border-color: #b8c8b8;
+  background: #edf7f3;
+  transform: translateY(-1px);
+}
+
+.mucwiki-home-help__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .78rem;
+}
+
+.mucwiki-home-help__grid > div {
+  position: relative;
+  padding: .95rem 1rem;
+  background: #fbfcfb;
+}
+
+.mucwiki-home-help__grid > div::before {
+  content: "";
+  display: block;
+  width: 2rem;
+  height: .18rem;
+  margin-bottom: .72rem;
+  border-radius: 999px;
+  background: #b42318;
+}
+
+.mucwiki-home-help h3 {
+  margin: 0 0 .45rem;
+  color: #141b22;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.mucwiki-home-help p {
+  color: #54595d;
+  line-height: 1.66;
+}
+
+.mucwiki-home-card a,
+.mucwiki-home-link-cloud a,
+.mucwiki-home-stat a {
+  text-decoration: none;
+}
+
+@media (max-width: 980px) {
+  .mucwiki-home-masthead,
+  .mucwiki-home-note,
+  .mucwiki-home-columns,
+  .mucwiki-home-help__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mucwiki-home-grid--primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .mucwiki-home {
+    gap: .62rem;
+    font-size: .9rem;
+  }
+
+  .mucwiki-home-masthead {
+    gap: .5rem;
+    padding: .5rem;
+  }
+
+  .mucwiki-home-copy {
+    min-height: auto;
+    gap: .42rem;
+    padding: .48rem .24rem .48rem .56rem;
+    border-left-width: 2px;
+    line-height: 1.56;
+  }
+
+  .mucwiki-home-copy > p:not(.mucwiki-home-kicker):not(.mucwiki-home-title):not(.mucwiki-home-lede) {
+    color: #46515d;
+    font-size: .86rem;
+  }
+
+  .mucwiki-home-kicker {
+    min-height: 1.42rem;
+    padding: .18rem .5rem;
+    font-size: .76rem;
+  }
+
+  .mucwiki-home-kicker::before {
+    width: .36rem;
+    height: .36rem;
+    margin-right: .3rem;
+  }
+
+  .mucwiki-home-title {
+    font-size: 1.28rem;
+    font-weight: 700;
+    line-height: 1.14;
+  }
+
+  .mucwiki-home-lede {
+    font-size: .84rem;
+    line-height: 1.48;
+  }
+
+  .mucwiki-home-media {
+    max-height: 9.5rem;
+    min-height: 5.8rem;
+  }
+
+  .mucwiki-home-media .mw-file-element,
+  .mucwiki-home-media img {
+    max-width: 100%;
+    max-height: 9.3rem;
+    object-fit: cover;
+  }
+
+  .mucwiki-home-stats-grid {
+    gap: .3rem;
+  }
+
+  .mucwiki-home-stat {
+    padding: .34rem .28rem;
+  }
+
+  .mucwiki-home-stat strong {
+    font-size: .84rem;
+  }
+
+  .mucwiki-home-stat span {
+    font-size: .72rem;
+  }
+
+  .mucwiki-home-section {
+    margin-top: 0;
+  }
+
+  .mucwiki-home-section h2 {
+    margin-bottom: .48rem;
+    padding-bottom: .36rem;
+    font-size: .98rem;
+  }
+
+  .mucwiki-home-grid--primary {
+    grid-template-columns: 1fr;
+  }
+
+  .mucwiki-home-section--entries {
+    padding: .62rem;
+  }
+
+  .mucwiki-home-card {
+    min-height: 3.7rem;
+    padding: .56rem 1.5rem .56rem .66rem;
+  }
+
+  .mucwiki-home-card strong {
+    font-size: .9rem;
+    font-weight: 700;
+  }
+
+  .mucwiki-home-card span {
+    margin-top: .2rem;
+    font-size: .86rem;
+    line-height: 1.46;
+  }
+
+  .mucwiki-home-topline,
+  .mucwiki-home-note,
+  .mucwiki-home-panel,
+  .mucwiki-home-help__grid > div {
+    padding: .66rem .7rem;
+  }
+
+  .mucwiki-home-note {
+    gap: .5rem;
+  }
+
+  .mucwiki-home-link-cloud,
+  .mucwiki-home-link-cloud p {
+    gap: .38rem;
+  }
+
+  .mucwiki-home-link-cloud span {
+    width: auto;
+    border-radius: 8px;
+    font-size: .9rem;
+  }
+}

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-04-26
+updated: 2026-06-04
 ---
 # System Architecture
 
@@ -12,10 +12,12 @@ execution、retrieval、data-plane、observability 等系统级边界。
 ## 当前文档
 
 - `product-runtime-architecture.md`
+- `code-organization-and-decomposition-architecture.md`
 - `capability-routing-and-admission-architecture.md`
 - `document-site-architecture.md`
 - `runtime-delivery-and-release-hardening-architecture.md`
 - `execution-and-agents-architecture.md`
+- `durable-agent-runtime-architecture.md`
 - `prompt-and-instruction-architecture.md`
 - `identity-and-authorization-architecture.md`
 - `identity-platform-architecture.md`

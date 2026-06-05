@@ -230,13 +230,19 @@ workstream。
     `sync:published-reader-assets`，默认 deploy path 通过
     `build:published-reader-assets` 消费 app-owned sync manifest
   - `public-docs` Worker 已保持 same-site `/api/docs/*` proxy，其他 `/api/*`
-    fail-close；Phase 4 已让 Rspress search fallback 增强消费 same-site docs
-    search API，API 失败时回退到本地搜索
+    fail-close；Phase 4 已让 Rspress search 明确消费 same-site docs
+    search API；本地静态搜索索引只作为 scope discovery 输入，不作为 search
+    result owner
   - Rspress build 仍提示 theme export 迁移 warning；当前 build 可通过，
     后续若要消除 warning，应单独收口 theme export shape，而不是替换原生
     shell
 
 ## Latest Execution Evidence (2026-04-27)
+
+The `ayafeed.com` endpoints in this dated closeout block are retained only as
+historical evidence. Current campus-agent staging truth is the
+`mucwiki-edge.link` hostname family; do not use the URLs below as deploy,
+smoke, or runbook targets.
 
 - real gated sample 已注入 docs registry：
   - `doc_id=curriculum:中央民族大学大学生社会实践环节实施方案`

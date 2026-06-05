@@ -4,7 +4,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from campus_contracts import AgentRequest
-from campus_shared import PromptRuntimeProviderConfig
+from campus_prompt_runtime import PromptRuntimeProviderConfig
 
 from campus_supervisor_agent_worker.agents_sdk_function_tools import (
     build_agents_sdk_function_tool,

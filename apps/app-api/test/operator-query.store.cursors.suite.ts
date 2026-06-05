@@ -46,6 +46,8 @@ export function registerOperatorQueryStoreCursorsSuite(ctx: OperatorQueryStoreSu
 		const badcaseLimit = vi.fn().mockResolvedValue(badcaseRows);
 		const badcaseOrderBy = vi.fn(() => ({ limit: badcaseLimit }));
 		const backlinkWhere = vi.fn().mockResolvedValue([]);
+		const runBacklinkLimit = vi.fn().mockResolvedValue([]);
+		const runBacklinkWhere = vi.fn(() => ({ limit: runBacklinkLimit }));
 
 		const select = vi
 			.fn()
@@ -57,6 +59,11 @@ export function registerOperatorQueryStoreCursorsSuite(ctx: OperatorQueryStoreSu
 			.mockReturnValueOnce({
 				from: vi.fn(() => ({
 					where: backlinkWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: runBacklinkWhere,
 				})),
 			});
 
@@ -142,11 +149,20 @@ export function registerOperatorQueryStoreCursorsSuite(ctx: OperatorQueryStoreSu
 		];
 		const requestLimit = vi.fn().mockResolvedValue(requestRows);
 		const requestOrderBy = vi.fn(() => ({ limit: requestLimit }));
-		const select = vi.fn().mockReturnValueOnce({
-			from: vi.fn(() => ({
-				orderBy: requestOrderBy,
-			})),
-		});
+		const runBacklinkLimit = vi.fn().mockResolvedValue([]);
+		const runBacklinkWhere = vi.fn(() => ({ limit: runBacklinkLimit }));
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					orderBy: requestOrderBy,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: runBacklinkWhere,
+				})),
+			});
 
 		createRuntimeDatabase.mockResolvedValue({
 			select,
@@ -176,6 +192,108 @@ export function registerOperatorQueryStoreCursorsSuite(ctx: OperatorQueryStoreSu
 				startedAt: "2026-04-01T09:00:00.000Z",
 			}),
 		);
+	});
+	it("attaches durable run backlinks to request list projections", async () => {
+		const requestRows = [
+			{
+				answerPreview: "First answer",
+				completedAt: new Date("2026-04-01T10:00:01.000Z"),
+				conversationId: "conv_01",
+				diagnosticsJson: null,
+				durationMs: 100,
+				errorCode: null,
+				entitlementGroupsJson: ["students"],
+				entitlementSnapshotId: null,
+				principalId: "student_01",
+				principalLabel: "Student One",
+				principalType: "campus_member",
+				projectedAt: new Date("2026-04-01T10:00:02.000Z"),
+				questionPreview: "First question",
+				requestedCapability: "knowledge",
+				requestedScopeJson: null,
+				requestId: "req_01",
+				resolvedScopeJson: null,
+				selectedTarget: "rag-agent",
+				sourceDocIdsJson: [],
+				startedAt: new Date("2026-04-01T10:00:00.000Z"),
+				status: "completed",
+				surface: "public_chat_web",
+				traceId: "trace_01",
+				versionQueryJson: null,
+			},
+			{
+				answerPreview: "Second answer",
+				completedAt: new Date("2026-04-01T09:00:01.000Z"),
+				conversationId: "conv_02",
+				diagnosticsJson: null,
+				durationMs: 100,
+				errorCode: null,
+				entitlementGroupsJson: ["students"],
+				entitlementSnapshotId: null,
+				principalId: "student_02",
+				principalLabel: "Student Two",
+				principalType: "campus_member",
+				projectedAt: new Date("2026-04-01T09:00:02.000Z"),
+				questionPreview: "Second question",
+				requestedCapability: "knowledge",
+				requestedScopeJson: null,
+				requestId: "req_02",
+				resolvedScopeJson: null,
+				selectedTarget: "rag-agent",
+				sourceDocIdsJson: [],
+				startedAt: new Date("2026-04-01T09:00:00.000Z"),
+				status: "completed",
+				surface: "public_chat_web",
+				traceId: "trace_02",
+				versionQueryJson: null,
+			},
+		];
+		const requestLimit = vi.fn().mockResolvedValue(requestRows);
+		const requestOrderBy = vi.fn(() => ({ limit: requestLimit }));
+		const runLimit = vi.fn().mockResolvedValue([
+			{
+				requestId: "req_01",
+				runId: "run_01",
+			},
+			{
+				requestId: "req_02",
+				runId: null,
+			},
+		]);
+		const runWhere = vi.fn(() => ({ limit: runLimit }));
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					orderBy: requestOrderBy,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: runWhere,
+				})),
+			});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never);
+		const result = await store.list({
+			conversationId: null,
+			cursor: null,
+			limit: 2,
+			q: null,
+			requestId: null,
+			status: null,
+			surface: null,
+		});
+
+		expect(result.requests.map((request) => [request.requestId, request.runId])).toEqual([
+			["req_01", "run_01"],
+			["req_02", null],
+		]);
+		expect(runWhere).toHaveBeenCalledTimes(1);
 	});
 	it("returns opaque audit cursors for the last visible row", async () => {
 		const auditRows = [

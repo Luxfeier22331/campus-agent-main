@@ -184,10 +184,61 @@ class DocsStructureTest(unittest.TestCase):
 
         self.assertIn("app-api-eval-benchmark-http.md", contracts_index)
 
+    def test_contracts_index_lists_durable_agent_runtime_contract(self) -> None:
+        contracts_index = (DOCS_ROOT / "contracts" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("durable-agent-runtime-contract.md", contracts_index)
+
+    def test_data_index_lists_durable_agent_runtime_schema(self) -> None:
+        data_index = (DOCS_ROOT / "data" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("durable-agent-runtime-schema.md", data_index)
+
     def test_reference_index_lists_eval_benchmark_artifact_contract(self) -> None:
         reference_index = (DOCS_ROOT / "reference" / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("eval-benchmark-artifact-contract.md", reference_index)
+
+    def test_reference_index_lists_durable_runtime_gap_matrix(self) -> None:
+        reference_index = (DOCS_ROOT / "reference" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("durable-agent-runtime-gap-matrix.md", reference_index)
+
+    def test_durable_runtime_phase0_phase1_docs_are_linked(self) -> None:
+        architecture = (
+            DOCS_ROOT / "architecture" / "system" / "durable-agent-runtime-architecture.md"
+        ).read_text(encoding="utf-8")
+        contract = (DOCS_ROOT / "contracts" / "durable-agent-runtime-contract.md").read_text(
+            encoding="utf-8"
+        )
+        schema = (DOCS_ROOT / "data" / "durable-agent-runtime-schema.md").read_text(
+            encoding="utf-8"
+        )
+        gap_matrix = (DOCS_ROOT / "reference" / "durable-agent-runtime-gap-matrix.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("durable-agent-runtime-gap-matrix.md", architecture)
+        self.assertIn("durable-agent-runtime-contract.md", architecture)
+        self.assertIn("durable-agent-runtime-schema.md", architecture)
+        self.assertIn("durable-agent-runtime-contract-v1", contract)
+        self.assertIn("runtime.agent_runs", schema)
+        self.assertIn("in-process lifecycle registry", gap_matrix)
+
+    def test_durable_runtime_contract_freezes_run_and_lease_terms(self) -> None:
+        contract = (DOCS_ROOT / "contracts" / "durable-agent-runtime-contract.md").read_text(
+            encoding="utf-8"
+        )
+
+        for token in (
+            "`run_id`",
+            "`conversation_id`",
+            "Execution lease status enum",
+            "`conversation_active_run`",
+            "`rag`",
+            "`campus_services`",
+        ):
+            self.assertIn(token, contract)
 
     def test_testing_reference_matches_current_repo_lint_semantics(self) -> None:
         verification_reference = (

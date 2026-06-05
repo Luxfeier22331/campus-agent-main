@@ -166,7 +166,7 @@ Runtime tools must not fetch or compose official-web pages at query time.
   - initial password rule and password complexity requirement
   - self-service password change entry in `https://my.muc.edu.cn`
   - forgot-password recovery path via face recognition
-  - service-portal application fallback and on-site handling locations
+  - service-portal application exception path and on-site handling locations
 - Primary owner:
   - `service_guide_lookup`
 - Collection path:
@@ -178,7 +178,7 @@ Runtime tools must not fetch or compose official-web pages at query time.
   - "密码修改入口是什么？" -> entry ref answer
 - Risk / gate:
   - page includes screenshots, but the text is already sufficient for first-slice guide answers
-  - face-recognition and on-site fallback should remain descriptive guide facts, not action flow
+  - face-recognition and on-site exception handling should remain descriptive guide facts, not action flow
 ## Case 7: Information Disclosure Implementation Rules
 
 - URL: `https://xxgk.muc.edu.cn/info/1005/1107.htm`

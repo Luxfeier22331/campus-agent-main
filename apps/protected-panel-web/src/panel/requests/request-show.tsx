@@ -22,6 +22,7 @@ import {
 	buildRequestDiagnosticEntries,
 	buildRequestIntentEntries,
 	buildRequestReplayEntries,
+	buildRequestRuntimeRunEntries,
 	buildRequestWorkflowTraceEntries,
 	formatAclDecisionLabel,
 	formatCapabilityLabel,
@@ -192,6 +193,7 @@ function RequestShowContent() {
 	const links = observabilityRecord?.links ?? null;
 	const auditSummary = observabilityRecord?.auditSummary ?? null;
 	const intentEntries = buildRequestIntentEntries(observability?.intent);
+	const runtimeRunEntries = buildRequestRuntimeRunEntries(observabilityRecord?.runtimeRun);
 	const replayEntries = buildRequestReplayEntries(observabilityRecord?.replay);
 	const workflowTraceEntries = buildRequestWorkflowTraceEntries(workflowTrace);
 
@@ -474,6 +476,35 @@ function RequestShowContent() {
 							</Stack>
 						</CardContent>
 					</Card>
+
+					{runtimeRunEntries.length > 0 ? (
+						<Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+							<CardContent>
+								<Stack spacing={2}>
+									<Typography variant="h6">运行事实</Typography>
+									<Typography color="text.secondary" variant="body2">
+										RunEvent 安全摘要来自 durable runtime；此区块不展示原始 payload、prompt
+										或回答草稿。
+									</Typography>
+									<Divider />
+									<Box
+										sx={{
+											display: "grid",
+											gap: 2,
+											gridTemplateColumns: {
+												md: "repeat(4, minmax(0, 1fr))",
+												xs: "1fr",
+											},
+										}}
+									>
+										{runtimeRunEntries.map((entry) => (
+											<RequestFieldRow key={entry.label} label={entry.label} value={entry.value} />
+										))}
+									</Box>
+								</Stack>
+							</CardContent>
+						</Card>
+					) : null}
 
 					{tool || workflowTrace ? (
 						<Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>

@@ -14,7 +14,7 @@ from campus_ingestion_core.historical_regulation_school_level_owner_recovery imp
 )
 
 DEFAULT_INVENTORY_PATH = Path(
-    ".planning/workstreams/historical-regulation-denominator-expansion/evidence/"
+    "var/ingestion-evidence/historical-regulation-denominator-expansion/"
     "phase-05-school-level-inventory/school-level-inventory.json"
 )
 DEFAULT_BUNDLE_PATH = Path(
@@ -22,7 +22,7 @@ DEFAULT_BUNDLE_PATH = Path(
     "notices-bundle.normalized.json"
 )
 DEFAULT_OUTPUT_DIR = Path(
-    ".planning/workstreams/historical-regulation-denominator-expansion/evidence/"
+    "var/ingestion-evidence/historical-regulation-denominator-expansion/"
     "phase-06-school-level-owner-text-recovery"
 )
 

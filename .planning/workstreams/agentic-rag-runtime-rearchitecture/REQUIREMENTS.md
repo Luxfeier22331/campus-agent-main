@@ -48,7 +48,7 @@ title-lookup 之类启发式从“决策权”降级为最多只影响展示。
 1. `rag-agent` 的代码与文档都能清楚区分 planner、retrieval、evidence selection、
    synthesis 与 grounding 的职责。
 2. `title_lookup` 之类 heuristics 不再决定 answer success；如果保留，只能是过渡性
-   display hint 或 compatibility fallback。
+   display hint，不能作为 answer success 兼容路径。
 3. retrieval plan、step activity、evidence selection 与 grounding verdict 能进入
    sanitized observability / eval artifact。
 4. 低 relevancy / low faithfulness 的 failure 可以归因到 plan、retrieval、evidence、

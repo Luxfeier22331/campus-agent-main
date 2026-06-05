@@ -15,7 +15,7 @@ function createErrorResponse(payload: unknown, status = 403) {
 function createOpaqueRedirectResponse(url: string) {
 	const response = new Response(null, {
 		headers: {
-			location: "https://ayafeed.cloudflareaccess.com/cdn-cgi/access/login/example",
+			location: "https://mucwiki-edge.cloudflareaccess.com/cdn-cgi/access/login/example",
 		},
 		status: 302,
 		statusText: "Found",

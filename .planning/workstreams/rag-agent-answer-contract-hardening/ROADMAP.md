@@ -40,7 +40,7 @@ need to exist before any implementation changes land.
 
 **Exit Criteria:**
 
-- a contract matrix exists for title, identity, brief, and fallback answers
+- a contract matrix exists for title, identity, brief, and general-summary answers
 - the budget for each contract is written down before implementation starts
 - the regression set for the low answer-relevancy cases is frozen
 
@@ -105,7 +105,7 @@ the answer cannot accidentally expand.
 **Scope:**
 
 - simplify general summary so it emits one short sentence instead of a summary chain
-- add stage diagnostics for presentation kind and fallback-only degradation attribution
+- add stage diagnostics for presentation kind and explicit synthesis failure attribution
 - extend ragas smoke and unit coverage for the target title / brief cases
 - confirm that answer relevancy returns above the current gate on the target smoke cases
 - record the reopen rule and closeout boundary in the workstream docs

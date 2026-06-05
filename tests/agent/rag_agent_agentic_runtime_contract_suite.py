@@ -96,6 +96,60 @@ class RagAgentAgenticRuntimeContractTest(unittest.TestCase):
             "weak_supporting_evidence",
         )
 
+    def test_policy_object_title_query_selects_answer_ready_identity_source_after_weak_title_hits(
+        self,
+    ) -> None:
+        title = "中央民族大学本科学生国家奖学金评审办法"
+        weak_sources = tuple(
+            _make_handbook_source(
+                doc_id="handbook:national-scholarship",
+                title=title,
+                snippet=f"{title} 目录 文件下载 附件说明 第{index}条",
+                score=0.99 - index / 100,
+                chunk_id_suffix=f"national-scholarship-weak-title-{index}",
+                content_role="navigation",
+                is_answer_bearing=False,
+            )
+            for index in range(1, 4)
+        )
+        answer_ready_source = _make_handbook_source(
+            doc_id="handbook:national-scholarship",
+            title=title,
+            snippet="第一条 为奖励特别优秀的全日制本科学生，设立国家奖学金。",
+            score=0.33,
+            chunk_id_suffix="national-scholarship-answer-ready-identity",
+            content_role="requirement",
+            is_answer_bearing=True,
+            semantic_role="eligibility_condition",
+            polarity="positive",
+            claim_type="condition",
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal=title,
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text=title,
+                corpus="regulations",
+                collection="student_rules",
+                sources=(*weak_sources, answer_ready_source),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.confidence, "medium")
+        self.assertIn(f"《{title}》", response.answer_text)
+        diagnostics = response.result.diagnostics
+        self.assertEqual(diagnostics.semantic_outcome, "grounded_answer")
+        selected_chunk_ids = {source.chunk_id for source in response.result.evidence.sources}
+        self.assertIn(answer_ready_source.chunk_id, selected_chunk_ids)
+        self.assertFalse(selected_chunk_ids & {source.chunk_id for source in weak_sources})
+
     def test_discovery_query_shape_uses_category_discovery_list_for_regulation_family(self) -> None:
         evidence = EvidenceBundle(
             query_text="学校层面的学生管理制度有哪些",

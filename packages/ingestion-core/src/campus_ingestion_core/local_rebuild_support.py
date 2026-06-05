@@ -122,6 +122,14 @@ class S3ObjectStoreAdmin:
     def healthcheck(self, *, bucket: str) -> None:
         self._client.list_objects_v2(Bucket=bucket, MaxKeys=1)
 
+    def ensure_bucket(self, *, bucket: str) -> None:
+        try:
+            self._client.head_bucket(Bucket=bucket)
+        except Exception as exc:
+            if not _is_missing_object_error(exc):
+                raise
+            self._client.create_bucket(Bucket=bucket)
+
     def delete_object(self, *, bucket: str, key: str) -> None:
         self._client.delete_object(Bucket=bucket, Key=key)
 
@@ -260,7 +268,7 @@ def _is_missing_object_error(exc: Exception) -> bool:
     if not isinstance(error, dict):
         return False
     code = str(error.get("Code") or "").strip()
-    return code in {"404", "NoSuchKey", "NotFound"}
+    return code in {"404", "NoSuchBucket", "NoSuchKey", "NotFound"}
 
 
 def _build_rebuild_trace_recorder(source: dict[str, str]) -> _RebuildTraceRecorder | None:

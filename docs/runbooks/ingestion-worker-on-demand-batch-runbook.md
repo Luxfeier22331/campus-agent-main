@@ -269,7 +269,7 @@ ingest queue payload。它只调度已经写入 run ledger 且对象校验通过
   `manual_review` 或 `blocked`，不得伪装成 queued work。
 
 当前已有 queue store 与生命周期基础，但完整无人值守链路仍按
-`.planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/ROADMAP.md`
+`var/ingestion-evidence/authenticated-notice-ingest-queue-e2e-automation/ROADMAP.md`
 分阶段推进。Phase 1 只冻结 queue contract 与 lifecycle；后续 Phase 才接入
 collector auto-enqueue、run-level consumer、media gate、promotion、downstream
 materialization 与 captured-content smoke。

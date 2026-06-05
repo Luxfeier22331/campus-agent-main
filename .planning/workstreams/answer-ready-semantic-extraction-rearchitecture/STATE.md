@@ -81,8 +81,8 @@ owns the final audited closeout result, and the workstream is complete. The fina
   - all functional broad-verification regressions are clear.
   - restored in-scope broad verification:
     - `tests.api.supervisor_api_bridge_services_suite.*` no longer fails after
-      `campus-services-agent` regains deterministic structured fallback execution when
-      `runtime=None` but the internal query service is configured
+      `campus-services-agent` regains deterministic structured execution when `runtime=None`
+      but the internal query service is configured
     - verification:
       - `uv run --all-packages python -m unittest tests.supervisor.admitted_agent_execution_suite -q`
         passed (`Ran 4 tests`, `OK`)
@@ -189,10 +189,11 @@ owns the final audited closeout result, and the workstream is complete. The fina
 - semantic replan query rewriting now consumes typed `condition_subject` /
   `condition_group_subject` hints for group-missing condition queries, so rank-threshold misses can
   narrow toward threshold/exception clauses without introducing a new runtime Chinese-cue patch
-- retrieval-side fallback diagnostics are now contract-aware rather than base-field-aware:
+- retrieval-side legacy-signal diagnostics are now contract-aware rather than base-field-aware:
   - v3 sidecars that carry `answer_role` / `parent_unit_id` / version only but omit required
-    role-specific fields now surface `fallback_used=True`, `fallback_reason=missing_contract` and
-    the missing typed field list, instead of being treated as complete typed evidence
+    role-specific fields now surface legacy diagnostic labels such as `fallback_used=True`,
+    `fallback_reason=missing_contract` and the missing typed field list, instead of being treated
+    as complete typed evidence
   - canonical `condition_group_id` suffix recovery remains available for compatibility reads, so
     missing explicit `condition_group_subject` on old indexes can still be normalized without
     reopening text-cue fallback
@@ -523,9 +524,9 @@ Closed Phase 8 / downstream integration status:
 
 - keep advancing Phase 4/5 structural debt so component failures continue to map onto typed
   metadata rather than fallback heuristics
-- Phase 6/11 fallback quarantine moved one step forward in eval policy:
-  - component eval no longer treats only `text_cue` as fallback-budget regression
-  - legacy primary fallback signals exposed by retrieval runtime, including `public_semantic` and
+- Phase 6/11 legacy-signal quarantine moved one step forward in eval policy:
+  - component eval no longer treats only `text_cue` as legacy-budget regression
+  - legacy primary signals exposed by retrieval runtime, including `public_semantic` and
     `public_content_role`, now also fail target component-eval rows instead of slipping through as
     target-pass behavior
   - target query-enabled regulation release now also enforces this proof at release/admission
@@ -547,7 +548,7 @@ Closed Phase 8 / downstream integration status:
     longer open gaps
   - target retrieval runtime now fail-closes when `regulations/student_rules` or
     `regulations/institutional_rules` query-serving plans in `target_v3_only` mode try to use
-    legacy primary fallback signals (`text_cue`, `public_semantic`, `public_content_role`)
+    legacy primary signals (`text_cue`, `public_semantic`, `public_content_role`)
   - old-index compatibility remains possible only through explicit
     `legacy_old_index_compatibility` source-trust policy mode; compatibility reads remain
     observable but are excluded from target completion and target serving truth

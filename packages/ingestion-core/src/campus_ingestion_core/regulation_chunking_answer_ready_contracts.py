@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from campus_shared.regulation_semantic_registry import (
+from campus_regulation_semantics.regulation_semantic_registry import (
     resolve_regulation_action_type,
     resolve_regulation_group_intro_kind,
     resolve_regulation_group_subject,

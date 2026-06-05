@@ -6,8 +6,8 @@ import { buildAxiomEnvelope } from "./axiom-envelope";
 import {
 	hashIdentifier,
 	normalizeString,
-	readSentryTraceDataSafely,
-	runSentrySafely,
+	readTelemetryTraceDataWithoutRequestFailure,
+	runTelemetrySideEffectWithoutRequestFailure,
 	toScopeSummary,
 	toSourceDocIdsSummary,
 } from "./helpers";
@@ -42,7 +42,7 @@ export function createAppTelemetry(
 
 	return {
 		captureException(error, detail) {
-			runSentrySafely(() => {
+			runTelemetrySideEffectWithoutRequestFailure(() => {
 				Sentry.withScope((scope) => {
 					if (detail?.route) {
 						scope.setTag("route", detail.route);
@@ -63,7 +63,7 @@ export function createAppTelemetry(
 		},
 
 		configureChatRequestScope(input) {
-			runSentrySafely(() => {
+			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					principalType: input.actor.principalType,
 					requestedCapability: input.requestedCapability,
@@ -86,7 +86,7 @@ export function createAppTelemetry(
 		},
 
 		configureHttpRequestScope(input) {
-			runSentrySafely(() => {
+			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					route: input.route,
 					surface: input.surface,
@@ -98,12 +98,12 @@ export function createAppTelemetry(
 		getTraceHeaders(input) {
 			return resolveTracePropagationHeaders({
 				request: input?.request,
-				traceData: readSentryTraceDataSafely(traceDataProvider),
+				traceData: readTelemetryTraceDataWithoutRequestFailure(traceDataProvider),
 			});
 		},
 
 		markHttpResponseStatus(status) {
-			runSentrySafely(() => {
+			runTelemetrySideEffectWithoutRequestFailure(() => {
 				Sentry.setTag("status", String(status));
 			});
 		},
@@ -190,7 +190,7 @@ export function createAppTelemetry(
 		},
 
 		async recordRequestAccepted(input) {
-			runSentrySafely(() => {
+			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					principalType: input.actor.principalType,
 					requestedCapability: input.requestedCapability,
@@ -228,7 +228,7 @@ export function createAppTelemetry(
 		},
 
 		async recordRequestFinalized(input) {
-			runSentrySafely(() => {
+			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					errorCode: input.errorCode,
 					principalType: input.principalType,
@@ -276,7 +276,7 @@ export function createAppTelemetry(
 		},
 
 		async recordRequestTransportError(input) {
-			runSentrySafely(() => {
+			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					errorCode: input.errorCode,
 					principalType: input.principalType,

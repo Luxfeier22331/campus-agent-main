@@ -16,9 +16,9 @@ updated: 2026-05-06
 **Current Phase:** Complete
 **Last Activity:** 2026-05-06
 **Last Activity Description:** Updated acceptance record after Python SDK fixture/contract drift
-recheck and recorded follow-up expansion lanes. The default path remains deterministic RAG unless
-worker injects the SDK runner in `candidate`; `shadow` is observation-only, `default_on` is
-implemented but not enabled by default, and `fallback_only`/`closed` preserve the legacy path.
+recheck and recorded follow-up expansion lanes. This completed historical workstream predates the
+SDK-native hardcut; current repo truth no longer treats candidate/shadow/fallback-only as
+user-facing rollout modes.
 
 ## Baseline Facts
 
@@ -50,8 +50,9 @@ Completed slice:
 - SDK-neutral `rag-agent` request/output/tool/trace projections.
 - Claim/span and list-item guardrails.
 - Bounded `retrieve_evidence` tool projection.
-- Candidate/default-on service integration with fail-closed semantics.
-- Shadow mode that executes SDK but returns deterministic legacy response.
+- SDK service integration with fail-closed semantics.
+- Historical shadow/candidate observations are retained only as closeout context; they are not a
+  current production posture.
 - Worker-owned official OpenAI Agents SDK runner plus mock runner.
 - Focused eval cases for scholarship category discovery and portal-password routing negative.
 - Public-chat-style Go finalizer coverage for SDK-completed RAG responses and raw result
@@ -85,7 +86,7 @@ Latest acceptance addendum, 2026-05-06:
 
 Reopen only if `retrieval.query` becomes public/structured handoff, SDK-native types leak into
 `packages/contracts`, SDK output can complete without claim/span evidence support, SDK tool input
-can widen scope/authz/version selectors, shadow/fallback modes affect user-facing answers, raw SDK
+can widen scope/authz/version selectors, a user-facing fallback or shadow mode reappears, raw SDK
 trace/provider payload reaches shared response/eval surfaces, or RAG SDK category discovery regresses
 to premature clarification.
 

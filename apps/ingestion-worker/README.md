@@ -275,8 +275,8 @@ Behavior:
 
 - Reads durable inbox records written by
   `campus-ingestion-official-web-handoff-dev`
-- Resolves `source_truth_bundle` from handoff `artifacts`; if absent, falls back
-  to the deterministic run artifact key
+- Resolves `source_truth_bundle` only from handoff `artifacts`; a missing
+  artifact fails closed as `missing_source_truth_bundle`
 - Downloads `source-truth-bundle.json` and each page `page-manifest.json` /
   `content-blocks.jsonl` from the source bucket
 - Reconstructs a local replay input tree under the configured execution root
@@ -866,56 +866,34 @@ Behavior:
   label lines, and ellipsis truncation
 - Does not write registry truth, Qdrant collections, or serving aliases
 
-### `qdrant_backup_create`
+### `qdrant_filesystem_backup_create`
 
-Operator-facing backup shell for one release-managed Qdrant collection snapshot
-bundle.
+Active operator-facing backup shell for one release-managed Qdrant collection
+snapshot on the local filesystem.
 
 Required CLI args:
 
 - `--corpus`
 - `--collection`
 - `--release-id`
-- `--backup-reason`
+- `--output-root`
+- `--operator`
 
 Optional CLI args:
 
-- `--operator`
+- `--backup-reason`
 
 Behavior:
 
 - Reads `{corpus}/releases/{collection}/{release_id}/index-release.json`.
+- Verifies the serving alias, points count, and release payload against the
+  release manifest.
 - Creates a collection snapshot for that release's physical collection.
-- Uploads the snapshot to
-  `{corpus}/backups/{collection}/{release_id}/{backup_id}/...`.
-- Writes `backup-manifest.json` with alias binding, checksum, manifest key, and
-  operator metadata.
-
-### `qdrant_backup_restore`
-
-Operator-facing restore shell for one previously exported snapshot bundle.
-
-Required CLI args:
-
-- `--corpus`
-- `--collection`
-- `--release-id`
-- `--backup-id`
-
-Optional CLI args:
-
-- `--operator`
-- `--target-collection-name`
-- `--apply-alias`
-
-Behavior:
-
-- Downloads one snapshot bundle from derived bucket.
-- Restores the physical collection into Qdrant Cloud.
-- Verifies collection existence, points count, and release payload metadata.
-- Only reapplies serving alias when `--apply-alias` is enabled and verification
-  passes.
-- Writes `restore-report.json` back to the same backup prefix.
+- Writes the bundle under
+  `<output-root>/<corpus>/<collection>/<release_id>/<backup_id>/`.
+- Writes `backup-manifest.json`, `sha256.txt`, and `restore-command.txt`.
+- Deletes the temporary snapshot from Qdrant after the filesystem bundle is
+  written.
 
 ### `qdrant_gc_check`
 
@@ -926,6 +904,7 @@ Required CLI args:
 - `--corpus`
 - `--collection`
 - `--release-id`
+- `--backup-root`
 
 Optional CLI args:
 
@@ -937,8 +916,8 @@ Behavior:
 - Loads the target release manifest and compares it with live alias state.
 - Evaluates whether the target is `current` / `previous` / `migration_baseline`
   / `archive_candidate`.
-- Requires validation summary and snapshot bundle evidence before reporting
-  `eligible=true`.
+- Requires validation summary and qdrant-native filesystem snapshot bundle
+  evidence under `--backup-root` before reporting `eligible=true`.
 - Does not delete anything; it only emits a structured gate report.
 
 ### Source-Truth Fan-Out Rule

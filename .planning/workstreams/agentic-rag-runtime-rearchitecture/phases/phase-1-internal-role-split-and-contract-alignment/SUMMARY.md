@@ -22,7 +22,7 @@ Phase 1 已完成首轮实现。
 - `RagResultDiagnostics.stage_activities` 已接入 `rag-agent` 结果构造，可输出
   `request_id`、`plan_id`、`query_mode`、`stage_name`、`stage_status`、
   `candidate_count`、`supporting_evidence_count`、`grounding_verdict`、
-  `fallback_reason`、`latency_ms`、`retrieval_ms`、`prompt_ms`、`adapter_ms`、
+  `failure_reason`、`latency_ms`、`retrieval_ms`、`prompt_ms`、`adapter_ms`、
   `diagnostic_ms`。
 - 降级 `title_lookup` 权限：title-targeted single hit 如果没有 answer-bearing /
   positive support role，不再能把 weak title hit 推成 `completed`。

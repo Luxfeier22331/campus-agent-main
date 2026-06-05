@@ -97,8 +97,8 @@ This workstream can close only when:
   eligibility intros, category overviews and parent-child clause context.
 - Qdrant payload/retrieval projection preserves those fields.
 - Ranking/selection consumes typed evidence metadata before falling back to text cues.
-- Text-cue fallback is observable, limited to old-index compatibility or explicitly missing metadata,
-  and blocked for rebuilt `student_rules` query-serving chunks covered by the answer-ready contract.
+- Text-cue signals are observable legacy diagnostics, quarantined from rebuilt query-serving chunks
+  covered by the answer-ready contract, and cannot satisfy target completion.
 - Component-level eval can attribute failures to intent, retrieval, ranking, selection, synthesis or
   grounding.
 - Release/chunk quality gates fail closed when answer-ready contract fields are missing for

@@ -4,6 +4,7 @@ import argparse
 import json
 from collections.abc import Sequence
 from dataclasses import asdict
+from pathlib import Path
 
 from campus_ingestion_core.qdrant_backup import (
     CollectionGcDeleteRequest,
@@ -21,6 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", required=True)
     parser.add_argument("--release-id", required=True)
     parser.add_argument("--operator", required=True)
+    parser.add_argument(
+        "--backup-root",
+        required=True,
+        help="Filesystem root for qdrant-native snapshot bundles.",
+    )
     return parser
 
 
@@ -33,6 +39,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             collection=args.collection,
             release_id=args.release_id,
             operator=args.operator.strip(),
+            backup_root=Path(args.backup_root),
         )
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-04-23
+updated: 2026-06-01
 ---
 # Runtime Serving And Index Terms
 
@@ -17,8 +17,8 @@ updated: 2026-04-23
 - 不重复对象存储 key 约束：`docs/decisions/adr-0002-local-minio-conventions.md`
 - 不重复旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical
   -collection-retention-and-expiration.md`
-- 不重复 Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restor
-  e-and-object-store-transition.md`
+- 不重复 self-hosted Qdrant native backup 策略：
+  `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
 - 不承担当前执行状态真相：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
   `STATE.md`
 - 早期 `phase-1` 文档只作为历史背景或约束来源，不再单独承担当前 phase truth
@@ -504,36 +504,38 @@ updated: 2026-04-23
   path
 - release manifest 不保存 chunk dump
 
-### Managed Backup
+### Qdrant Native Snapshot Bundle
 
 定义：
 
-- `Qdrant Cloud Standard` 中由 dashboard 配置的 automatic backups
+- self-hosted Qdrant 节点上保存的一组 collection snapshot 恢复材料
+
+文件系统位置：
+
+- `/srv/backups/campus-agent/qdrant-snapshots/<corpus>/<collection>/<release_id>/<backup_id>/backup-manifest.json`
+- `/srv/backups/campus-agent/qdrant-snapshots/<corpus>/<collection>/<release_id>/<backup_id>/<physical_collection_name>.snapshot`
+- `/srv/backups/campus-agent/qdrant-snapshots/<corpus>/<collection>/<release_id>/<backup_id>/sha256.txt`
+- `/srv/backups/campus-agent/qdrant-snapshots/<corpus>/<collection>/<release_id>/<backup_id>/restore-command.txt`
 
 说明：
 
-- managed backup 是 cluster-level 恢复覆盖，不是对象存储里的导出文件
-- 在 `Standard` 环境里，它是旧 collection 清理与灾难恢复的默认 backup 主路径
-
-### Snapshot Backup Bundle
-
-定义：
-
-- 当前 `Free` tier 过渡期在对象存储里保存的一组 Qdrant collection 备份材料
-
-对象存储位置：
-
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json`
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_collection_n
-  ame}.snapshot`
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/restore-report.json`
-
-说明：
-
-- snapshot bundle 至少包含 snapshot 文件和 `backup-manifest.json`
+- native snapshot bundle 至少包含 snapshot 文件、`backup-manifest.json` 与
+  `sha256.txt`
 - 因为 collection snapshot 不包含 aliases，`backup-manifest.json` 必须记录
   `alias_bindings`
-- snapshot bundle 是恢复材料，不是在线 chunk truth
+- native snapshot bundle 是恢复材料，不是在线 chunk truth
+- staging R2 / serving seed bucket 不保存 Qdrant `.snapshot`
+
+### Historical Object-Store Snapshot Backup Bundle
+
+定义：
+
+- ADR-0020 时期在对象存储里保存的 Qdrant collection 备份材料
+
+说明：
+
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/...` 只保留为历史清理对象
+- 旧 bundle 不能被当作当前 backup 主路径
 
 ### Source Truth
 
@@ -560,8 +562,8 @@ updated: 2026-04-23
 - preparation-gated scope 必须先拿到 verified chunk preparation，再进入 index release
 - 旧 physical collection 默认先进入 `current / previous / migration_baseline /
   archive_candidate` 角色判断，再决定是否删除；不允许仅按年龄直接删除
-- 对象存储保留 source/document artifact、release manifest，以及 `Free` tier 过渡期的 snapshot
-  backup bundle
+- 对象存储保留 source/document artifact、release manifest 与 operations evidence；当前
+  Qdrant native snapshot 不进入 serving seed bucket
 - chunk preparation artifacts 落在 operations prefix，不落在 release prefix
 - Qdrant 承载 chunk 文本、向量与检索 payload
 
@@ -571,7 +573,7 @@ updated: 2026-04-23
 - 不要把 `corpus/collection` 或 `requestedScope` 误当成 capability routing 的代理字段
 - 不要把 routing clarification 和 agent clarification 混为一谈
 - 不要把 chunk preparation manifest 误读成 index release manifest
-- 不要把“文档历史版本必须保留”误读成“所有历史 physical collection 必须永久留在 Qdrant Cloud”
+- 不要把“文档历史版本必须保留”误读成“所有历史 physical collection 必须永久留在 Qdrant”
 - 不要把 release manifest 当成 chunk store
 - 不要把 snapshot backup bundle 误读成新的在线 query store
 - 不要把早期 phase 文档中的固定 collection 或 handbook-only 叙事继续当作当前 truth

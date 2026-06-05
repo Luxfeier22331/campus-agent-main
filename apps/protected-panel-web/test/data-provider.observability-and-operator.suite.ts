@@ -375,6 +375,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 								traceLink: "https://sentry.example/traces/trace_01",
 							},
 							requestId: "req_01",
+							runId: "run_01",
 							selectedTarget: "navigation-agent",
 							summary: "Intent classifier selected the wrong target",
 							surface: "public_chat_web",
@@ -417,6 +418,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 								rawTranscriptIncluded: false,
 							},
 							requestId: "req_feedback_01",
+							runId: "run_feedback_01",
 							review: {
 								suggestedLabels: ["wrong_intent"],
 							},
@@ -460,6 +462,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 					intake: {
 						suggestedEvalFamily: "intent",
 					},
+					runId: "run_01",
 				},
 				{
 					candidateId: "eval_candidate:negative_feedback:feedback_01",
@@ -470,6 +473,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 					intake: {
 						source: "negative_feedback",
 					},
+					runId: "run_feedback_01",
 					review: {
 						suggestedLabels: ["wrong_intent"],
 					},
@@ -539,6 +543,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 						},
 						openedAt: "2026-04-01T10:00:00.000Z",
 						requestId: "req_01",
+						runId: "run_01",
 						selectedTarget: "rag-agent",
 						status: "open",
 						summary: "Missing citation.",
@@ -568,6 +573,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 				{
 					badcaseId: "qbad_01",
 					id: "qbad_01",
+					runId: "run_01",
 				},
 			],
 		});

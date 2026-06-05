@@ -491,7 +491,7 @@ class CampusragIngestionImportSuite(_CampusragIngestionSupportBase):
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
             cleaning_policy_version="student_rules_cleaning_v1",
-            default_visibility_scope="fallback-campus",
+            default_visibility_scope="shared-campus",
         )
 
         self.assertEqual(stats.success_count, 1)
@@ -531,7 +531,7 @@ class CampusragIngestionImportSuite(_CampusragIngestionSupportBase):
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
             cleaning_policy_version="student_rules_cleaning_v1",
-            default_visibility_scope="fallback-campus",
+            default_visibility_scope="shared-campus",
         )
 
         self.assertEqual(stats.success_count, 0)

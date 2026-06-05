@@ -119,6 +119,7 @@ export function registerOperatorQueryObservabilitySuite(): void {
 						completedAt: "2026-03-28T08:00:01.000Z",
 						conversationId: "conv_01HQ",
 						requestId: "req_01HQ",
+						runId: "run_01HQ",
 						requestedCapability: "knowledge",
 						requestedScope: {
 							collection: "student_rules",
@@ -255,6 +256,7 @@ export function registerOperatorQueryObservabilitySuite(): void {
 					completedAt: "2026-03-28T08:00:01.000Z",
 					conversationId: "conv_01HQ",
 					requestId: "req_01HQ",
+					runId: "run_01HQ",
 					requestedCapability: "knowledge",
 					requestedScope: {
 						collection: "student_rules",

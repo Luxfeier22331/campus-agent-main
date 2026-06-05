@@ -8,9 +8,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Protocol
 
+from campus_regulation_semantics.regulation_semantic_registry import (
+    load_regulation_discovery_config,
+)
 from campus_retrieval_core.evidence_semantics import infer_evidence_query_intent
 from campus_retrieval_core.query_focus import extract_query_focus
-from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
 
 from .retrieval_intent import (
     RetrievalIntent,

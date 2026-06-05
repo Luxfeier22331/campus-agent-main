@@ -20,7 +20,7 @@ updated: 2026-04-28
   promotion manifest / target materialization 执行
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md` 的
   acceptance truth
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `var/ingestion-evidence/authenticated-notice-regulation-consumption/README.md`
   的 workstream 顺序
 
 ## 当前边界
@@ -50,7 +50,7 @@ updated: 2026-04-28
 
 当前 bounded `11` 条 target 的 closeout evidence 已冻结在：
 
-- `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+- `var/ingestion-evidence/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
 
 冻结范围只包括 local-only acceptance artifact triplet：
 

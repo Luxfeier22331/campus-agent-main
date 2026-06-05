@@ -22,8 +22,9 @@ import { UnauthorizedError } from "./api";
 import { getShellConversationDetail } from "./conversations";
 import { getSerializedChatHistoryKey } from "./history-cache";
 import { mapShellConversationMessages } from "./message-parts";
+import { getBrowserPendingRunStore, type PendingRunStore, resumePendingRun } from "./pending-run";
 import { useChatbotShellRuntime } from "./runtime";
-import { submitShellChatRequestStream } from "./transport";
+import { submitShellChatRequestStream, subscribeShellRunEventStream } from "./transport";
 import type { ShellRequestOutcome } from "./types";
 
 export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
@@ -32,6 +33,10 @@ type SendMessageInput = Parameters<UseChatHelpers<ChatMessage>["sendMessage"]>[0
 
 function redirectToLoginCompat(returnTo: string) {
 	window.location.assign(buildPublicChatAuthCompatPath("login", { returnTo }));
+}
+
+function getPendingRunStore(): PendingRunStore | null {
+	return getBrowserPendingRunStore();
 }
 
 interface ActiveChatContextValue {
@@ -217,6 +222,19 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 					prompt: trimmedPrompt,
 					signal: controller.signal,
 				})) {
+					if (event.event === "request.accepted" && event.runId) {
+						if (!event.runPhase) {
+							throw new Error("Accepted durable run event is missing product run phase.");
+						}
+						getPendingRunStore()?.save({
+							conversationId: activeConversationId,
+							lastSequence: 0,
+							phase: event.runPhase,
+							requestId: event.requestId,
+							runId: event.runId,
+							traceId: event.traceId,
+						});
+					}
 					activeRequestRef.current = {
 						controller,
 						requestId: event.requestId,
@@ -238,6 +256,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 				}
 
 				draftConversationIdRef.current = null;
+				getPendingRunStore()?.clear();
 				setConversationTitle(outcome.conversation.title);
 				setMessages(mapShellConversationMessages(outcome.conversation));
 				setStatus("ready");
@@ -274,6 +293,79 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 		},
 		[conversationId, mutate, setMessages, setSessionUnauthenticated],
 	);
+
+	useEffect(() => {
+		let cancelled = false;
+		const pendingStore = getPendingRunStore();
+		if (!pendingStore) {
+			return;
+		}
+		const pending = pendingStore.load();
+		if (!pending) {
+			return;
+		}
+		if (conversationId && pending.conversationId !== conversationId) {
+			void router.replace(`/chat/${pending.conversationId}`);
+			return;
+		}
+		const activePendingStore: PendingRunStore = pendingStore;
+
+		const controller = new AbortController();
+		setStatus("submitted");
+		setThreadError(null);
+
+		async function resume() {
+			try {
+				const result = await resumePendingRun({
+					loadConversation: getShellConversationDetail,
+					signal: controller.signal,
+					store: activePendingStore,
+					subscribe: subscribeShellRunEventStream,
+				});
+				if (cancelled) {
+					return;
+				}
+				if (result.kind === "completed") {
+					setConversationTitle(result.conversation.title);
+					setMessages(mapShellConversationMessages(result.conversation));
+					setStatus("ready");
+					mutate(getSerializedChatHistoryKey());
+					if (!conversationId) {
+						void router.replace(`/chat/${result.conversation.id}`);
+					}
+					return;
+				}
+				if (result.kind === "pending") {
+					setStatus("submitted");
+				}
+			} catch (error) {
+				if (cancelled || (error instanceof Error && error.name === "AbortError")) {
+					return;
+				}
+				if (error instanceof UnauthorizedError) {
+					setSessionUnauthenticated();
+					redirectToLoginCompat(
+						window.location.pathname + window.location.search + window.location.hash,
+					);
+					return;
+				}
+				setStatus("error");
+				const message = error instanceof Error ? error.message : "当前无法恢复进行中的请求。";
+				setThreadError(message);
+				toast({
+					description: message,
+					type: "error",
+				});
+			}
+		}
+
+		void resume();
+
+		return () => {
+			cancelled = true;
+			controller.abort();
+		};
+	}, [conversationId, mutate, router, setMessages, setSessionUnauthenticated]);
 
 	const value = useMemo<ActiveChatContextValue>(
 		() => ({

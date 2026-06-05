@@ -122,6 +122,29 @@ describe("public chat interaction closure", () => {
 		expect(activeChatSource).not.toContain("const previousMessages = messages;");
 	});
 
+	it("routes completed pending durable runs to their canonical conversation path", () => {
+		expect(activeChatSource).toContain(
+			["void router.replace(`/chat/${", "result.conversation.id}`)"].join(""),
+		);
+		expect(activeChatSource).toContain("resumePendingRun");
+		expect(activeChatSource).toContain("subscribeShellRunEventStream");
+		expect(activeChatSource).not.toContain(
+			"submitShellChatRequestStream({\n\t\t\t\t\tconversationId: pending",
+		);
+	});
+
+	it("does not silently ignore a pending durable run on a mismatched conversation route", () => {
+		expect(activeChatSource).toContain(
+			"if (conversationId && pending.conversationId !== conversationId)",
+		);
+		expect(activeChatSource).toContain(
+			["void router.replace(`/chat/${", "pending.conversationId}`)"].join(""),
+		);
+		expect(activeChatSource).not.toContain(
+			"if (!pending || (conversationId && pending.conversationId !== conversationId))",
+		);
+	});
+
 	it("kicks unauthorized users to the login compatibility route with a full document redirect", () => {
 		expect(activeChatSource).toContain("redirectToLoginCompat");
 		expect(activeChatSource).toContain("window.location.assign");

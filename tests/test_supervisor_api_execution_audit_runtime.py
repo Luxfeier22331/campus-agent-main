@@ -19,7 +19,7 @@ class SupervisorApiExecutionAuditRuntimeTest(unittest.TestCase):
             self.assertIn(key, compose)
 
     def test_supervisor_api_staging_derives_execution_audit_from_app_api_config(self) -> None:
-        script = (ROOT / "infra/local/staging/supervisor-api-staging-common.sh").read_text(
+        script = (ROOT / "infra/local/staging/supervisor-api-staging-env.sh").read_text(
             encoding="utf-8"
         )
 

@@ -24,7 +24,7 @@ updated: 2026-04-24
 ### Slice 2: Freeze Publish / Backflow Contract
 
 - inline `request_correlation` 优先
-- 外部 manifest 只作 fallback
+- 外部 manifest 只能作为显式 publish input；缺失 inline correlation 时 fail closed
 - publish summary 只记录结果，不反向定义 accepted verdict
 
 ### Slice 3: Freeze Ownership Boundary
@@ -35,4 +35,3 @@ updated: 2026-04-24
 ## Exit Rule
 
 完成后，publish/backflow 已成为 accepted shared seam，而不是 handbook/curriculum 局部 closeout 逻辑。
-

@@ -19,7 +19,7 @@ updated: 2026-05-07
 - [x] **Phase 2: Ingestion Semantic Extraction And Chunk Units** — emit stable answer-ready fields
   for procedure, eligibility, condition, exclusion, category overview and parent-child clause units.
 - [x] **Phase 3: Retrieval Ranking, Selection And Replan Consumption** — consume typed metadata in
-  ranking/selection/replan before text-cue fallback.
+  ranking/selection/replan before legacy text cues.
 - [x] **Phase 4: Typed Answer Drafts And Grounding** — introduce typed answer drafts for policy list,
   procedure, eligibility judgment and condition-table answers, then render grounded Chinese answers.
 - [x] **Phase 5: Component Eval And Release Gates** — add stage-local assertions, qrels expectations
@@ -70,9 +70,9 @@ that will fail closed when rebuilt query-serving chunks lack the contract.
   - Qdrant payload/index fields
   - package-local typed extraction structures
   - answer draft structures.
-- Decide fallback deprecation policy:
-  - when text-cue fallback is allowed
-  - how fallback usage is reported
+- Decide legacy text-cue quarantine policy:
+  - when text-cue signals are accepted only as old-index diagnostics
+  - how legacy signal usage is reported
   - which rebuilt `student_rules` cases must fail if typed metadata is missing.
 - Decide release gate integration:
   - exact existing release-admission module or command to extend
@@ -84,7 +84,8 @@ that will fail closed when rebuilt query-serving chunks lack the contract.
 - A field matrix exists in Phase 0 summary.
 - `CONTRACT-DECISION.md` defines one mandatory online projection path for every success-criteria
   field, even when that path remains retrieval-internal rather than public `EvidenceSource`.
-- `FALLBACK-DEPRECATION.md` defines fallback budget, diagnostics and disallowed rebuilt-index cases.
+- `FALLBACK-DEPRECATION.md` records the historical deprecation decision, diagnostics and
+  disallowed rebuilt-index cases.
 - `RELEASE-GATE-DECISION.md` identifies the concrete release-admission hook and test owner.
 - `EVAL-CONTRACT.md` defines the stage-local eval schema before implementation starts.
 - `TAXONOMY-GOVERNANCE.md` defines controlled vocabularies and versioning.
@@ -178,10 +179,10 @@ that will fail closed when rebuilt query-serving chunks lack the contract.
   - negative restriction targets `answer_role=exclusion_rule | exception_rule`
   - category discovery targets `answer_role=category_overview | policy_list`
   - judgment queries target matching `condition_subject`.
-- Enforce Phase 0 fallback policy:
-  - old-index compatibility may use fallback with diagnostics
+- Enforce Phase 0 legacy-signal policy:
+  - old-index compatibility may only expose text-cue signals as diagnostics
   - rebuilt `student_rules` answer-ready chunks covered by the contract must prefer typed metadata
-  - tests must fail if fallback becomes the primary path for target rebuilt cases.
+  - tests must fail if text-cue signals become the primary path for target rebuilt cases.
 - Update supporting evidence selection to reject non-answer-ready intro/procedure/ratio chunks when
   typed alternatives exist.
 - Update replan triggers for:
@@ -195,10 +196,10 @@ that will fail closed when rebuilt query-serving chunks lack the contract.
 **Exit Criteria:**
 
 - The target regression cases pass through ranking and selection with typed metadata.
-- Fallback cue paths are observable and covered by tests with required diagnostics:
+- Legacy cue paths are observable and covered by tests with legacy diagnostic field labels:
   `fallback_used`, `fallback_reason`, `missing_contract_fields`,
   `source_index_contract_version` and `fallback_primary_signal`.
-- Rebuilt target `student_rules` cases have `0` primary text-cue fallback budget.
+- Rebuilt target `student_rules` cases have `0` primary text-cue reliance.
 - Replan does not widen scope, authz, version or serving surface.
 
 ## Phase 4: Typed Answer Drafts And Grounding

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from campus_shared.answer_ready_evidence_contract import validate_answer_ready_evidence_metadata
+from campus_regulation_semantics.answer_ready_evidence_contract import (
+    validate_answer_ready_evidence_metadata,
+)
 
 
 class AnswerReadyEvidenceContractConflictSuite:
@@ -328,6 +330,7 @@ class AnswerReadyEvidenceContractConflictSuite:
                 "clause_unit_id": "doc-a:article-12:2",
                 "condition_subject": "paper_or_publication",
                 "condition_group_subject": "rank_threshold",
+                "condition_group_subject_provenance": "chunker:answer_ready_group_anchor",
                 "condition_group_id": "doc-a:article-12:group-01:rank_threshold",
                 "condition_subject_taxonomy_version": "condition_subject.v1",
                 "condition_subject_provenance": "answer_role:example_evidence",
@@ -346,6 +349,7 @@ class AnswerReadyEvidenceContractConflictSuite:
                 "clause_unit_id": "doc-b:article-7:1",
                 "condition_subject": "application_procedure",
                 "condition_group_subject": "security_or_confidentiality_requirement",
+                "condition_group_subject_provenance": "chunker:answer_ready_group_anchor",
                 "condition_group_id": (
                     "doc-b:article-7:group-01:security_or_confidentiality_requirement"
                 ),

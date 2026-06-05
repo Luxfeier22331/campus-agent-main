@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from campus_shared.regulation_semantic_registry import build_regulation_condition_group_id
+from campus_regulation_semantics.regulation_semantic_registry import (
+    build_regulation_condition_group_id,
+)
 
 from campus_ingestion_core.chunking import (
     ChunkProfile,

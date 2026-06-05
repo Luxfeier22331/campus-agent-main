@@ -84,13 +84,10 @@ phases and must finish before any SDK implementation starts.
    - confirm native SDK tracing remains disabled by default.
    - define sanitized fields allowed in diagnostics.
    - define redaction tests required later.
-8. Build rollout mode matrix:
-   - `candidate`
-   - `shadow`
-   - `default_on`
-   - `fallback_only`
-   - `closed`
-   - decide which mode Phase 3 begins with.
+8. Build runtime posture matrix:
+   - keep product serving closed until a single admitted path is promoted.
+   - document shadow, candidate, fallback-only and dual-primary modes as rejected historical options.
+   - decide which hardcut gate Phase 3 must satisfy before any promotion.
 9. Produce `SUMMARY.md` with readiness matrix:
    - `area`
    - `current_fact`

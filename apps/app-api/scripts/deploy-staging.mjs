@@ -1,19 +1,39 @@
 import { spawnSync } from "node:child_process";
-import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
 import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
-loadRepoEnvFile(import.meta.url, "../../..");
+loadRepoStagingEnvFile(import.meta.url, "../../..");
+const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function fail(message) {
 	console.error(message);
 	process.exit(1);
 }
 
+function run(command, args, options = {}) {
+	const result = spawnSync(command, args, {
+		cwd: options.cwd ?? appDir,
+		env: options.env ?? process.env,
+		stdio: "inherit",
+	});
+
+	if (typeof result.status === "number") {
+		if (result.status !== 0) {
+			process.exit(result.status);
+		}
+		return;
+	}
+
+	process.exit(result.error ? 1 : 0);
+}
+
 const upstream = process.env.STAGING_SUPERVISOR_API_BASE_URL?.trim();
 if (!upstream) {
 	fail(
-		"STAGING_SUPERVISOR_API_BASE_URL is required. Point it at the current dev-backed supervisor origin before deploying staging.",
+		"STAGING_SUPERVISOR_API_BASE_URL is required. Point it at the mucwiki-edge staging supervisor origin before deploying staging.",
 	);
 }
 
@@ -33,7 +53,7 @@ try {
 
 const sentryRelease = resolveStagingSentryRelease("app-api");
 
-const result = spawnSync(
+run(
 	"wrangler",
 	[
 		"deploy",
@@ -45,13 +65,7 @@ const result = spawnSync(
 		`SENTRY_RELEASE:${sentryRelease}`,
 	],
 	{
+		cwd: appDir,
 		env: buildWranglerCommandEnv(process.env),
-		stdio: "inherit",
 	},
 );
-
-if (typeof result.status === "number") {
-	process.exit(result.status);
-}
-
-process.exit(result.error ? 1 : 0);

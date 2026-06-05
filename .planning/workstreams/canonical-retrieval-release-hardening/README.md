@@ -69,7 +69,7 @@ provenance、成本控制与 retrieval acceptance gate。
   release path。
 - online retrieval runtime 不把 object-store manifest 作为 request-path 强依赖；runtime
   drift guard 首选 Qdrant point payload / current release metadata，object-store manifest
-  只作为 audit / offline fallback。
+  只作为 audit-only / offline reference。
 
 ## Related Architecture
 

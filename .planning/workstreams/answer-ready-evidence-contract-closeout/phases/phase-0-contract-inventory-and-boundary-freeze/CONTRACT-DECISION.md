@@ -20,7 +20,7 @@ online fields that must be serialized outside retrieval/rag-agent.
 | `answer_role` | defer public promotion | required | no | Ranking, selection and typed drafts need it immediately; public serialization can wait. |
 | `condition_subject` | defer public promotion | required | no | Needed for judgment/reranking; not yet a public response need. |
 | `parent_unit_id` | defer public promotion | required | no | Needed for duplicate-parent suppression and support grouping. |
-| `evidence_contract_version` | defer public promotion | required | no | Needed for fallback/migration diagnostics. |
+| `evidence_contract_version` | defer public promotion | required | no | Needed for legacy-signal and migration diagnostics. |
 | procedure step attributes | no | required for `procedure_step` chunks | no | Complex structure should stay package-local until public need exists. |
 | category overview attributes | no | required for `category_overview` chunks | no | Supports policy-list draft without bloating public source model. |
 | condition group attributes | no | required where deterministic | no | Supports condition-table grouping; optional until extraction confidence is high. |
@@ -31,7 +31,7 @@ online fields that must be serialized outside retrieval/rag-agent.
 
 - Add a retrieval-core module such as `evidence_attributes.py` that builds a typed
   `EvidenceAttributes` view from `EvidenceSource`, source metadata when available and old-field
-  fallbacks.
+  legacy fields.
 - Add Qdrant payload resolvers for `answer_role`, `condition_subject`, `parent_unit_id`,
   `evidence_contract_version` and rich typed attributes.
 - Do not add backend/vendor-specific shapes to `packages/contracts`.

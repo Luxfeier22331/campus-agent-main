@@ -347,11 +347,12 @@ curl -sS -i http://127.0.0.1:8081/readyz
 - `readyz = 200`
 ```
 
-**Exit criteria pattern** (`staging-worker-deploy-runbook.md` lines 338-397):
+**Exit criteria pattern** (`staging-worker-deploy-runbook.md` lines 338-397;
+hostname examples updated to the current `mucwiki-edge.link` staging family):
 
 ```md
-- `https://campus-api-staging.ayafeed.com/healthz`
-- `https://campus-api-staging.ayafeed.com/readyz`
+- `https://api-staging.mucwiki-edge.link/healthz`
+- `https://api-staging.mucwiki-edge.link/readyz`
 - 三个 Worker 已成功 deploy 到 staging
 - 三个 `/readyz` 均为 ready
 ```
