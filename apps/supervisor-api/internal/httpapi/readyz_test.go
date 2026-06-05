@@ -37,6 +37,14 @@ func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
 	if bridgeRuntime["configured"] != false {
 		t.Fatalf("bridge configured = %v, want false", bridgeRuntime["configured"])
 	}
+	workerLoop := expectRecord(t, body["durable_worker_loop"], "durable_worker_loop")
+	if workerLoop["enabled"] != false || workerLoop["healthy"] != true {
+		t.Fatalf("durable_worker_loop = %#v, want disabled healthy", workerLoop)
+	}
+	recoveryLoop := expectRecord(t, body["durable_recovery_loop"], "durable_recovery_loop")
+	if recoveryLoop["enabled"] != false || recoveryLoop["healthy"] != true {
+		t.Fatalf("durable_recovery_loop = %#v, want disabled healthy", recoveryLoop)
+	}
 }
 
 func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {

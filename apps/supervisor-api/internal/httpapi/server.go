@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,20 +23,27 @@ import (
 )
 
 type Server struct {
-	config          config.Config
-	bridge          bridge.Client
-	bridgeBreaker   *bridge.CircuitBreaker
-	admission       *admission.Controller
-	lifecycle       *lifecycle.Registry
-	logger          *slog.Logger
-	metrics         *observability.Metrics
-	telemetry       *telemetry.Emitter
-	executionAudit  *executionaudit.Emitter
-	structuredQuery *structuredquery.Runtime
-	workflowRuns    execution.WorkflowRunStore
-	workflowRunsErr error
-	intentPolicy    runtimepolicy.IntentPolicyArtifact
-	intentPolicyErr error
+	config                  config.Config
+	bridge                  bridge.Client
+	bridgeBreaker           *bridge.CircuitBreaker
+	admission               *admission.Controller
+	lifecycle               *lifecycle.Registry
+	logger                  *slog.Logger
+	metrics                 *observability.Metrics
+	telemetry               *telemetry.Emitter
+	executionAudit          *executionaudit.Emitter
+	structuredQuery         *structuredquery.Runtime
+	workflowRuns            execution.WorkflowRunStore
+	workflowRunsErr         error
+	durableRuntime          execution.DurableRuntimeStore
+	durableRuntimeErr       error
+	durableLeaseCoordinator *execution.DurableLeaseCoordinator
+	durableWorkerLoop       *durableWorkerLoop
+	durableWorkerLoopErr    error
+	durableRecoveryLoop     *durableRecoveryLoop
+	durableRecoveryLoopErr  error
+	intentPolicy            runtimepolicy.IntentPolicyArtifact
+	intentPolicyErr         error
 }
 
 type errorInfo struct {
@@ -138,26 +147,34 @@ func NewServerWithDependencies(
 		NoticeBodyObjectStoreBodyLimitBytes: cfg.NoticeBodyObjectStoreBodyLimitBytes,
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
+	durableRuntime, durableRuntimeErr := newDurableRuntimeStore(cfg)
+	durableLeaseCoordinator := execution.NewDurableLeaseCoordinator(durableRuntime)
 
-	return &Server{
+	server := &Server{
 		config: cfg,
 		bridge: bridgeClient,
 		bridgeBreaker: bridge.NewCircuitBreaker(bridge.CircuitBreakerConfig{
 			FailureThreshold: cfg.BridgeBreakerFailureThreshold,
 			OpenDuration:     time.Duration(cfg.BridgeBreakerOpenMS) * time.Millisecond,
 		}),
-		admission:       admissionController,
-		lifecycle:       registry,
-		logger:          logger,
-		metrics:         metrics,
-		telemetry:       telemetryEmitter,
-		executionAudit:  executionAuditEmitter,
-		structuredQuery: structuredQueryRuntime,
-		workflowRuns:    workflowRuns,
-		workflowRunsErr: workflowRunsErr,
-		intentPolicy:    intentPolicy,
-		intentPolicyErr: intentPolicyErr,
+		admission:               admissionController,
+		lifecycle:               registry,
+		logger:                  logger,
+		metrics:                 metrics,
+		telemetry:               telemetryEmitter,
+		executionAudit:          executionAuditEmitter,
+		structuredQuery:         structuredQueryRuntime,
+		workflowRuns:            workflowRuns,
+		workflowRunsErr:         workflowRunsErr,
+		durableRuntime:          durableRuntime,
+		durableRuntimeErr:       durableRuntimeErr,
+		durableLeaseCoordinator: durableLeaseCoordinator,
+		intentPolicy:            intentPolicy,
+		intentPolicyErr:         intentPolicyErr,
 	}
+	server.configureDurableWorkerLoop()
+	server.configureDurableRecoveryLoop()
+	return server
 }
 
 func newWorkflowRunStore(cfg config.Config) (execution.WorkflowRunStore, error) {
@@ -170,6 +187,86 @@ func newWorkflowRunStore(cfg config.Config) (execution.WorkflowRunStore, error) 
 		DatabaseURL: strings.TrimSpace(cfg.WorkflowRunDatabaseURL),
 		AutoMigrate: cfg.WorkflowRunAutoMigrate,
 	})
+}
+
+func newDurableRuntimeStore(cfg config.Config) (execution.DurableRuntimeStore, error) {
+	if strings.TrimSpace(cfg.DurableRuntimeDatabaseURL) == "" {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	store, err := execution.NewPostgresDurableRuntimeStore(ctx, execution.PostgresDurableRuntimeStoreOptions{
+		DatabaseURL: strings.TrimSpace(cfg.DurableRuntimeDatabaseURL),
+		AutoMigrate: cfg.DurableRuntimeAutoMigrate,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+func (s *Server) configureDurableWorkerLoop() {
+	if !s.config.DurableWorkerLoopEnabled {
+		s.durableWorkerLoop = nil
+		s.durableWorkerLoopErr = nil
+		return
+	}
+	if s.durableRuntimeErr != nil {
+		s.durableWorkerLoop = nil
+		s.durableWorkerLoopErr = s.durableRuntimeErr
+		return
+	}
+	if s.durableRuntime == nil || s.durableLeaseCoordinator == nil {
+		s.durableWorkerLoop = nil
+		s.durableWorkerLoopErr = execution.ErrDurableRuntimeStoreNotConfigured
+		return
+	}
+	s.durableWorkerLoop = newDurableWorkerLoop(durableWorkerLoopOptions{
+		Store:                  s.durableRuntime,
+		Coordinator:            s.durableLeaseCoordinator,
+		Bridge:                 s.bridge,
+		WorkerID:               s.config.DurableWorkerLoopWorkerID,
+		WorkerKind:             s.config.AppName,
+		RuntimeVersion:         s.config.AppName,
+		Lane:                   execution.DurableLane(s.config.DurableWorkerLoopLane),
+		StepID:                 s.config.DurableWorkerLoopStepID,
+		LeaseTTL:               time.Duration(s.config.DurableWorkerLoopLeaseTTLMS) * time.Millisecond,
+		LeaseHeartbeatInterval: time.Duration(s.config.DurableWorkerLoopLeaseHeartbeatIntervalMS) * time.Millisecond,
+		GenerateLeaseID:        generateDurableLeaseID,
+	})
+	s.durableWorkerLoopErr = nil
+}
+
+func (s *Server) configureDurableRecoveryLoop() {
+	if !s.config.DurableRecoveryLoopEnabled {
+		s.durableRecoveryLoop = nil
+		s.durableRecoveryLoopErr = nil
+		return
+	}
+	if s.durableRuntimeErr != nil {
+		s.durableRecoveryLoop = nil
+		s.durableRecoveryLoopErr = s.durableRuntimeErr
+		return
+	}
+	if s.durableRuntime == nil || s.durableLeaseCoordinator == nil {
+		s.durableRecoveryLoop = nil
+		s.durableRecoveryLoopErr = execution.ErrDurableRuntimeStoreNotConfigured
+		return
+	}
+	s.durableRecoveryLoop = newDurableRecoveryLoop(durableRecoveryLoopOptions{
+		Store:            s.durableRuntime,
+		Coordinator:      s.durableLeaseCoordinator,
+		MaxRetryAttempts: s.config.DurableRecoveryLoopMaxRetryAttempts,
+	})
+	s.durableRecoveryLoopErr = nil
+}
+
+func generateDurableLeaseID() string {
+	var buffer [16]byte
+	if _, err := rand.Read(buffer[:]); err != nil {
+		return ""
+	}
+	return "lease-" + hex.EncodeToString(buffer[:])
 }
 
 func newAdmissionController(cfg config.Config) *admission.Controller {
@@ -193,6 +290,110 @@ func (s *Server) StartDraining() {
 	s.admission.StartDraining()
 }
 
+func (s *Server) StartDurableWorkerLoop(ctx context.Context) error {
+	if !s.config.DurableWorkerLoopEnabled {
+		return nil
+	}
+	if s.durableWorkerLoopErr != nil {
+		return s.durableWorkerLoopErr
+	}
+	if s.durableWorkerLoop == nil {
+		return execution.ErrDurableRuntimeStoreNotConfigured
+	}
+	if err := s.syncDurableLaneBudgets(ctx); err != nil {
+		return err
+	}
+	interval := time.Duration(s.config.DurableWorkerLoopPollIntervalMS) * time.Millisecond
+	started := make(chan error, 1)
+	go func() {
+		err := s.durableWorkerLoop.Run(ctx, interval)
+		if err != nil && ctx.Err() != nil {
+			err = nil
+		}
+		select {
+		case started <- err:
+		default:
+			if err != nil {
+				s.logger.Error("durable worker loop stopped", "error", err.Error())
+			}
+		}
+	}()
+	select {
+	case err := <-started:
+		return err
+	default:
+		return nil
+	}
+}
+
+func (s *Server) StartDurableRecoveryLoop(ctx context.Context) error {
+	if !s.config.DurableRecoveryLoopEnabled {
+		return nil
+	}
+	if s.durableRecoveryLoopErr != nil {
+		return s.durableRecoveryLoopErr
+	}
+	if s.durableRecoveryLoop == nil {
+		return execution.ErrDurableRuntimeStoreNotConfigured
+	}
+	if err := s.syncDurableLaneBudgets(ctx); err != nil {
+		return err
+	}
+	interval := time.Duration(s.config.DurableRecoveryLoopIntervalMS) * time.Millisecond
+	started := make(chan error, 1)
+	go func() {
+		err := s.durableRecoveryLoop.Run(ctx, interval)
+		if err != nil && ctx.Err() != nil {
+			err = nil
+		}
+		select {
+		case started <- err:
+		default:
+			if err != nil {
+				s.logger.Error("durable recovery loop stopped", "error", err.Error())
+			}
+		}
+	}()
+	select {
+	case err := <-started:
+		return err
+	default:
+		return nil
+	}
+}
+
+func (s *Server) syncDurableLaneBudgets(ctx context.Context) error {
+	if s.durableRuntime == nil {
+		return execution.ErrDurableRuntimeStoreNotConfigured
+	}
+	now := time.Now().UTC()
+	runTimeout := time.Duration(s.config.RequestTimeoutMS) * time.Millisecond
+	leaseTimeout := runTimeout
+	if s.config.DurableWorkerLoopLeaseTTLMS > 0 {
+		leaseTimeout = time.Duration(s.config.DurableWorkerLoopLeaseTTLMS) * time.Millisecond
+	}
+	workerHeartbeatTimeout := leaseTimeout * 2
+	for laneName, budget := range s.config.LaneBudgets {
+		if laneName == "" {
+			continue
+		}
+		if err := s.durableRuntime.UpsertLaneBudget(ctx, execution.LaneBudget{
+			Lane:                   execution.DurableLane(laneName),
+			MaxActiveLeases:        budget.MaxConcurrent,
+			MaxQueuedRuns:          budget.QueueCapacity,
+			QueueTimeout:           time.Duration(budget.QueueTimeoutMS) * time.Millisecond,
+			RunTimeout:             runTimeout,
+			LeaseTimeout:           leaseTimeout,
+			WorkerHeartbeatTimeout: workerHeartbeatTimeout,
+			Enabled:                true,
+			UpdatedAt:              now,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) Shutdown(ctx context.Context) error {
 	var firstErr error
 	if s.telemetry != nil {
@@ -207,6 +408,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.structuredQuery.Close()
 	}
 	if closer, ok := s.workflowRuns.(interface{ Close() }); ok {
+		closer.Close()
+	}
+	if closer, ok := s.durableRuntime.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	return firstErr
@@ -242,6 +446,33 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleAnswerStream(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/cancel":
 		s.handleCancel(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/durable/runs":
+		s.handleDurableRunCreate(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/durable/workers/process-next":
+		s.handleDurableWorkerProcessNext(writer, request)
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/durable/runs/") &&
+		strings.HasSuffix(path, "/events"):
+		if runID, ok := durableRunIDFromPath(path, "/events"); ok {
+			s.handleDurableRunEvents(writer, request, runID)
+		} else {
+			setOutcome(writer, "not_found")
+			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
+		}
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/durable/runs/") &&
+		strings.HasSuffix(path, "/cancel"):
+		if runID, ok := durableRunIDFromPath(path, "/cancel"); ok {
+			s.handleDurableRunCancel(writer, request, runID)
+		} else {
+			setOutcome(writer, "not_found")
+			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
+		}
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/durable/runs/"):
+		if runID, ok := durableRunIDFromPath(path, ""); ok {
+			s.handleDurableRunGet(writer, request, runID)
+		} else {
+			setOutcome(writer, "not_found")
+			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
+		}
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-guide":

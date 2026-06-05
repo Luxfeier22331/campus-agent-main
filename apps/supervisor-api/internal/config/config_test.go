@@ -32,6 +32,8 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "")
 	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "")
 	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "")
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "")
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_AUTO_MIGRATE", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
@@ -162,6 +164,28 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.WorkflowRunAutoMigrate {
 		t.Fatal("workflow run auto migrate must be disabled by default")
 	}
+	if cfg.DurableRuntimeDatabaseURL != "" {
+		t.Fatalf("durable runtime database url = %q, want empty", cfg.DurableRuntimeDatabaseURL)
+	}
+	if cfg.DurableRuntimeAutoMigrate {
+		t.Fatal("durable runtime auto migrate must be disabled by default")
+	}
+	if cfg.DurableWorkerLoopEnabled {
+		t.Fatal("durable worker loop must be disabled by default")
+	}
+	if cfg.DurableWorkerLoopWorkerID != "" ||
+		cfg.DurableWorkerLoopLane != "" ||
+		cfg.DurableWorkerLoopStepID != "" ||
+		cfg.DurableWorkerLoopPollIntervalMS != 0 ||
+		cfg.DurableWorkerLoopLeaseTTLMS != 0 ||
+		cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS != 0 {
+		t.Fatalf("unexpected durable worker loop defaults: %#v", cfg)
+	}
+	if cfg.DurableRecoveryLoopEnabled ||
+		cfg.DurableRecoveryLoopIntervalMS != 0 ||
+		cfg.DurableRecoveryLoopMaxRetryAttempts != 0 {
+		t.Fatalf("unexpected durable recovery loop defaults: %#v", cfg)
+	}
 	if cfg.NoticeBodyObjectStoreBucket != "" {
 		t.Fatalf("notice body object store bucket = %q, want empty", cfg.NoticeBodyObjectStoreBucket)
 	}
@@ -176,6 +200,122 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
 		!cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvReadsDurableRuntimeDatabaseSettingsExplicitly(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "postgres://runtime.example/campus_agent")
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_AUTO_MIGRATE", "true")
+	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if cfg.DurableRuntimeDatabaseURL != "postgresql://runtime.example/campus_agent" {
+		t.Fatalf("durable runtime database url = %q", cfg.DurableRuntimeDatabaseURL)
+	}
+	if !cfg.DurableRuntimeAutoMigrate {
+		t.Fatal("durable runtime auto migrate = false, want true")
+	}
+	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/campus_agent" {
+		t.Fatalf("workflow run database url = %q, want shared postgres normalized", cfg.WorkflowRunDatabaseURL)
+	}
+}
+
+func TestLoadFromEnvDoesNotInferDurableRuntimeDatabaseURLFromSharedPostgres(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "")
+	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if cfg.DurableRuntimeDatabaseURL != "" {
+		t.Fatalf(
+			"durable runtime database url = %q, want explicit setting only",
+			cfg.DurableRuntimeDatabaseURL,
+		)
+	}
+}
+
+func TestLoadFromEnvReadsExplicitDurableWorkerLoopSettings(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE", "rag")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if !cfg.DurableWorkerLoopEnabled {
+		t.Fatal("durable worker loop enabled = false, want true")
+	}
+	if cfg.DurableWorkerLoopWorkerID != "worker-staging-rag-001" {
+		t.Fatalf("worker id = %q", cfg.DurableWorkerLoopWorkerID)
+	}
+	if cfg.DurableWorkerLoopLane != "rag" {
+		t.Fatalf("lane = %q", cfg.DurableWorkerLoopLane)
+	}
+	if cfg.DurableWorkerLoopStepID != "handoff:rag-agent:rag_request" {
+		t.Fatalf("step id = %q", cfg.DurableWorkerLoopStepID)
+	}
+	if cfg.DurableWorkerLoopPollIntervalMS != 250 {
+		t.Fatalf("poll interval = %d", cfg.DurableWorkerLoopPollIntervalMS)
+	}
+	if cfg.DurableWorkerLoopLeaseTTLMS != 30000 {
+		t.Fatalf("lease ttl = %d", cfg.DurableWorkerLoopLeaseTTLMS)
+	}
+	if cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS != 5000 {
+		t.Fatalf("lease heartbeat interval = %d", cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS)
+	}
+}
+
+func TestLoadFromEnvRejectsEnabledDurableWorkerLoopWithoutWorkerID(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID", "")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE", "rag")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
+	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected enabled durable worker loop without worker id to fail")
+	}
+}
+
+func TestLoadFromEnvReadsExplicitDurableRecoveryLoopSettings(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250")
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "2")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if !cfg.DurableRecoveryLoopEnabled {
+		t.Fatal("durable recovery loop enabled = false, want true")
+	}
+	if cfg.DurableRecoveryLoopIntervalMS != 250 {
+		t.Fatalf("recovery interval = %d", cfg.DurableRecoveryLoopIntervalMS)
+	}
+	if cfg.DurableRecoveryLoopMaxRetryAttempts != 2 {
+		t.Fatalf("recovery max retry attempts = %d", cfg.DurableRecoveryLoopMaxRetryAttempts)
+	}
+}
+
+func TestLoadFromEnvRejectsEnabledDurableRecoveryLoopWithoutRetryLimit(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250")
+	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected enabled durable recovery loop without max retry attempts to fail")
 	}
 }
 

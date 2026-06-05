@@ -1,0 +1,87 @@
+package execution
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"time"
+)
+
+var (
+	ErrDurableRunExists                 = errors.New("durable run already exists")
+	ErrDurableRuntimeStoreNotConfigured = errors.New("durable runtime store not configured")
+	ErrDurableRunNotFound               = errors.New("durable run not found")
+	ErrNoQueuedDurableRun               = errors.New("no queued durable run")
+	ErrInvalidDurableRun                = errors.New("invalid durable run")
+	ErrInvalidRunTransition             = errors.New("invalid durable run transition")
+	ErrConversationActiveRun            = errors.New("conversation active run")
+	ErrInvalidRunEvent                  = errors.New("invalid durable run event")
+	ErrExecutionLeaseNotFound           = errors.New("execution lease not found")
+	ErrInvalidExecutionLease            = errors.New("invalid execution lease")
+	ErrExecutionLeaseConflict           = errors.New("execution lease conflict")
+	ErrExecutionLeaseDrift              = errors.New("execution lease ownership drift")
+	ErrLaneBudgetNotFound               = errors.New("lane budget not found")
+	ErrInvalidLaneBudget                = errors.New("invalid lane budget")
+	ErrLaneBudgetDisabled               = errors.New("lane budget disabled")
+	ErrLaneBudgetExceeded               = errors.New("lane budget exceeded")
+	ErrWorkerHeartbeatNotFound          = errors.New("worker heartbeat not found")
+	ErrWorkerHeartbeatInvalid           = errors.New("invalid worker heartbeat")
+	ErrInvalidExpiredLeaseRecovery      = errors.New("invalid expired lease recovery")
+	ErrInvalidTimedOutRunRecovery       = errors.New("invalid timed out run recovery")
+	ErrInvalidDurableRunCancel          = errors.New("invalid durable run cancel")
+)
+
+type DurableRuntimeStore interface {
+	CreateRun(context.Context, DurableRun) (DurableRun, error)
+	GetRun(context.Context, string) (DurableRun, error)
+	TransitionRun(context.Context, string, DurableRunStatus, DurableTerminalReason, time.Time) (
+		DurableRun,
+		error,
+	)
+	AppendRunEvent(context.Context, DurableRunEvent) (DurableRunEvent, error)
+	ListRunEvents(context.Context, string) ([]DurableRunEvent, error)
+	ListRunEventsAfter(context.Context, string, int64) ([]DurableRunEvent, error)
+	AcquireExecutionLease(context.Context, ExecutionLeaseRequest) (ExecutionLease, error)
+	AcquireNextExecutionLease(context.Context, NextExecutionLeaseRequest) (ExecutionLease, error)
+	GetExecutionLease(context.Context, string) (ExecutionLease, error)
+	HeartbeatExecutionLease(context.Context, string, string, time.Time, time.Time) (
+		ExecutionLease,
+		error,
+	)
+	ReleaseExecutionLease(context.Context, string, string, string, time.Time) (ExecutionLease, error)
+	ExpireExecutionLeases(context.Context, time.Time, string) ([]ExecutionLease, error)
+	RecoverExpiredExecutionLeases(context.Context, ExpiredLeaseRecoveryRequest) (
+		[]ExpiredLeaseRecoveryResult,
+		error,
+	)
+	RecoverTimedOutRuns(context.Context, TimedOutRunRecoveryRequest) (
+		[]TimedOutRunRecoveryResult,
+		error,
+	)
+	CancelRun(context.Context, DurableRunCancelRequest) (DurableRunCancelResult, error)
+	UpsertLaneBudget(context.Context, LaneBudget) error
+	UpsertWorkerHeartbeat(context.Context, WorkerHeartbeat) error
+}
+
+type InMemoryDurableRuntimeStore struct {
+	mu                      sync.RWMutex
+	runs                    map[string]DurableRun
+	runEvents               map[string][]DurableRunEvent
+	leases                  map[string]ExecutionLease
+	activeLeaseByRunAndStep map[string]string
+	activeRunByConversation map[string]string
+	laneBudgets             map[DurableLane]LaneBudget
+	workerHeartbeats        map[string]WorkerHeartbeat
+}
+
+func NewInMemoryDurableRuntimeStore() *InMemoryDurableRuntimeStore {
+	return &InMemoryDurableRuntimeStore{
+		runs:                    map[string]DurableRun{},
+		runEvents:               map[string][]DurableRunEvent{},
+		leases:                  map[string]ExecutionLease{},
+		activeLeaseByRunAndStep: map[string]string{},
+		activeRunByConversation: map[string]string{},
+		laneBudgets:             map[DurableLane]LaneBudget{},
+		workerHeartbeats:        map[string]WorkerHeartbeat{},
+	}
+}
