@@ -267,6 +267,30 @@ Additional closeout evidence:
 - mobile action rails computed to `flex-wrap: nowrap`
 - login page exposed the `MUC Wiki Hub` OIDC entry
 - Playwright viewport screenshots were captured for:
-  - `mucwiki-home-mobile-audit.png`
-  - `mucwiki-edit-mobile-audit.png`
-  - `mucwiki-article-desktop-audit.png`
+- `mucwiki-home-mobile-audit.png`
+- `mucwiki-edit-mobile-audit.png`
+- `mucwiki-article-desktop-audit.png`
+
+Authenticated staging smoke used the staging-only user `MUCVisualSmoke` in the
+`/srv/apps/wiki-staging` database. The authenticated browser matrix covered
+desktop `1366x900` and mobile `390x844` viewports across these 7 logged-in
+routes, for 14 route/viewport checks total:
+
+- `Special:参数设置`
+- `Special:上传文件`
+- `Special:监视列表`
+- `User_talk:MUCVisualSmoke`
+- `User_talk:MUCVisualSmoke?action=edit`
+- `Special:移动页面/学生宿舍`
+- `User_talk:MUCVisualSmoke?action=delete`
+
+Every authenticated check used `wiki.mucwiki-edge.link`, `skin-mucwiki`, a
+logged-in personal toolbar containing `MUCVisualSmoke` and `退出`, zero
+document-level horizontal overflow, and no rejected homepage copy. The upload
+and preferences forms stayed inside the mobile viewport, and edit/save/preview
+controls rendered with skinned form surfaces.
+
+Additional authenticated screenshots were captured for:
+
+- `mucwiki-preferences-mobile-auth-audit.png`
+- `mucwiki-upload-mobile-auth-audit.png`
