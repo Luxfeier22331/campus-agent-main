@@ -116,12 +116,26 @@ pnpm --dir apps/app-api chat:e2e:staging -- \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-student-rule.json"
 ```
 
+运行 durable runtime 断线 / 恢复专项 smoke：
+
+```bash
+pnpm --dir apps/app-api chat:durable:e2e:staging \
+  | tee "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json"
+```
+
 通过标准：
 
 - 每条命令 exit code 为 `0`
 - `request.resultKind=answer`
 - 输出包含 `requestId`、`traceId`、`conversationId`
 - `historyHasConversation=true`
+- durable reconnect 输出 `passed=true`
+- durable reconnect 输出 `submitStreamAbortedAfterAccepted=true`
+- durable reconnect 输出包含同一个 `submit.runId`、`run.runId`、`run.requestId` 与
+  `run.traceId`
+- durable reconnect 的 `resume.terminalEvent.eventType=finalization.completed`
+- durable reconnect 的 conversation summary
+  `hasAssistantMessageForRequest=true`
 
 不接受：
 

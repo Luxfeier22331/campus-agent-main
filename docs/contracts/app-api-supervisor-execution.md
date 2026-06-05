@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-05-02
+updated: 2026-06-04
 ---
 # App API Supervisor Execution Contract
 
@@ -20,6 +20,7 @@ updated: 2026-05-02
   truth：`docs/architecture/system/capability-routing-and-admission-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
+- durable agent runtime contract：`docs/contracts/durable-agent-runtime-contract.md`
 - execution admission
   ownership：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - capability-neutral routing 与 surface capability policy：`docs/decisions/adr-004
@@ -63,6 +64,14 @@ canonical schema，再重新生成 artifact。
 handoff 的 `AgentRequest` / `AgentResponse`。它不承载 `runtime_decisions`、
 `supervisor_bridge_v6` 或具体 transport wrapper，避免把 execution runtime truth 泄漏进共享
 agent contract 包。
+
+Durable runtime compatibility note：
+
+- 本文冻结的是 current internal execution transport / bridge wrapper
+- `docs/contracts/durable-agent-runtime-contract.md` 冻结 forward production run /
+  event / lease contract
+- durable runtime cutover 不能通过在本 schema 中塞入 vendor queue、worker process
+  state 或 transient stream state 来替代 run store
 
 ## Strict Wire Policy
 

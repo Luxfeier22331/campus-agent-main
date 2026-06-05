@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-27
+updated: 2026-06-04
 ---
 # Data
 
@@ -13,6 +13,7 @@ canonical truth”“哪些只是 projection carrier”。
 
 - `app-api-schema.md`
 - `app-api-official-web-schema.md`
+- `durable-agent-runtime-schema.md`
 - `canonical-document-reader-model.md`
 
 ## Source-Channel Source-Truth Schema

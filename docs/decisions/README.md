@@ -40,6 +40,7 @@ updated: 2026-06-04
 - `adr-0013-app-api-worker-runtime.md`
 - `adr-0017-supervisor-internal-execution-admission.md`
 - `adr-0043-supervisor-api-docker-first-runtime.md`
+- `adr-0047-run-centric-durable-agent-runtime.md`
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-05-01
+updated: 2026-06-04
 ---
 # Contracts
 
@@ -17,6 +17,7 @@ updated: 2026-05-01
 - `app-api-error-model.md`
 - `app-api-request-lifecycle.md`
 - `app-api-supervisor-execution.md`
+- `durable-agent-runtime-contract.md`
 
 ## Operator / Official Web contract
 

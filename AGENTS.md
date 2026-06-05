@@ -38,6 +38,7 @@
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/durable-agent-runtime-architecture.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/code-organization-and-decomposition-architecture.md`
@@ -59,6 +60,7 @@
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`

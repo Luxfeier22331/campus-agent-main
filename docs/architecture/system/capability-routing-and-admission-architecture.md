@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-05-01
+updated: 2026-06-04
 ---
 # Capability Routing And Admission Architecture
 
@@ -48,6 +48,9 @@ workflow planning -> agent-owned execution -> supervisor finalization`
 - `requested_scope` 只属于 knowledge-family path，不是所有请求共享的顶层默认字段
 - `admission` 与 `routing` 必须分层，避免把 authz、surface policy、approval-required 与
   domain reasoning 混在一起
+- `admission` 还必须区分 surface admission、identity / quota admission、run
+  admission 与 execution lease admission；当前 supervisor 进程内 queue 只属于
+  execution-level local protection，不是完整 production admission
 - `rag-agent` 仍是核心 capability family，但不再被默认等同于整个产品入口语义
 - multi-agent 不是默认自由展开；它必须由 typed workflow plan、allowed agents、
   allowed tools、step budget 与 eval denominator admission
@@ -115,12 +118,31 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - approval-required
 - hard reject
 - 明显 `out_of_scope`
+- per-user / per-org / per-conversation quota
+- run creation / execution lease 是否可被 admitted
 
 固定规则：
 
 - `admission` 先于 `routing`
 - prompt 不得覆盖 deterministic gate
 - agent 不得反向放开上游已关闭的 capability 或 surface policy
+
+长期 admission 分层固定为：
+
+- `surface admission`
+  - `apps/app-api` 拥有；判断 browser surface、caller class 与 capability allowlist
+- `identity / quota admission`
+  - `apps/app-api` 与 durable scheduler 共同消费；canonical identity truth 仍在
+    `apps/app-api`
+- `run admission`
+  - `apps/supervisor-api` durable scheduler 拥有；判断是否创建 / 推进一个 run
+- `execution lease admission`
+  - scheduler / lease coordinator 拥有；判断 lane、worker、provider、Qdrant、
+    Postgres 等 execution budget
+
+当前 `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS`、`SUPERVISOR_API_QUEUE_CAPACITY` 与
+`SUPERVISOR_API_QUEUE_TIMEOUT_MS` 只属于 current process-local execution protection。
+它们不得替代 durable run admission 或 lease coordination。
 
 ### 3. Capability Routing
 
@@ -156,6 +178,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - 哪些 agent / tools 被允许
 - 每一步的 input projection、output projection、timeout、budget 与 fail-close 条件是什么
 - 哪些 cross-step context 可以进入下一步 prompt 或 finalization
+- 本次 workflow 对 durable run / lane / lease / timeout 的要求是什么
 
 固定规则：
 

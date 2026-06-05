@@ -748,6 +748,7 @@ icy.md`。
 ```json
 {
   "requestId": "req_01HQ...",
+  "runId": "run_01HQ...",
   "traceId": "trace_01HQ...",
   "status": "running",
   "occurredAt": "2026-03-28T07:11:00.000Z"
@@ -778,15 +779,68 @@ terminal event 额外携带：
 
 规则：
 
-- `request.accepted` 在 durable accept commit 后发送
+- durable runtime 启用时，`request.accepted` 在 app-api accept commit 与
+  supervisor durable run create 均成功后发送；其 data 必须包含 `runId`
 - terminal event 在 finalization commit 后发送；因此 terminal `answer` 是
   app-owned DB/projection truth 的产物
+- submit stream 的浏览器连接不拥有 finalization；app-api 必须通过 request
+  `waitUntil` 持有同一个 durable finalization closeout，浏览器断开只停止事件消费，
+  不能停止 finalization commit
+- finalization commit 只允许从 `runtime.request_execution.status=accepted`
+  转为 terminal status；重复 closeout 或状态漂移必须 fail closed，不能重复插入
+  assistant message / outbox / observability fact
 - `request.completed` 覆盖 `answer`、`clarification`、`no_answer` 等已处理完成
   分支
 - `request.failed` 覆盖 post-accept execution failure / rejected /
   approval-required browser error 展示分支
 - `request.cancelled` 覆盖 explicit cancel 或 upstream cancel 分支，
   chat-visible result 仍复用 `error` kind
+
+### `GET /api/chat/runs/:runId/events/stream`
+
+这是 public chat 的 durable run event resume stream 入口。它订阅已有
+`run_id` 的 browser-visible run event projection，不创建新 request，不重新执行 agent，
+也不重新 finalization。当前实现是 bounded continuous subscription：服务端按
+`after_sequence` cursor 轮询新事件，遇到 terminal event 后关闭；如果订阅预算内没有
+terminal event，也会关闭，client 必须用最后已消费 sequence 重新连接。
+
+查询参数：
+
+- `after_sequence`: 可选 non-negative integer；存在时只返回 sequence 大于该值的
+  browser-visible run events
+
+成功响应 headers：
+
+- `Content-Type: text/event-stream; charset=utf-8`
+- `Cache-Control: no-store`
+- `X-Accel-Buffering: no`
+- `X-Run-Id: <run-id>`
+- `X-Request-Id: <request-id>`
+- `X-Trace-Id: <trace-id>`
+
+每个 SSE event 的 event name 等于 durable `eventType`，data 是 app-api
+browser-visible run event projection：
+
+```json
+{
+  "eventId": "event_01HQ...",
+  "eventType": "finalization.completed",
+  "occurredAt": "2026-06-04T01:02:06.000Z",
+  "payload": {},
+  "runId": "run_01HQ...",
+  "sequence": 3,
+  "visibility": "browser"
+}
+```
+
+固定规则：
+
+- admission 必须经过 session principal 与 local `runtime.request_execution.run_id`
+  ownership gate
+- 该 endpoint 只能输出 `visibility=browser` 的 event projection
+- 空 stream 是合法响应；它表示订阅预算内没有新的可见事件，不表示 run terminal
+- reconnect / resume 只能读取 run event stream，不得重新执行同一个 run；retry /
+  repair 必须创建新的显式 run
 
 ## Operator Endpoints
 

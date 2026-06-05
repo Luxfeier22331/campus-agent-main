@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-02
+updated: 2026-06-04
 ---
 # 目标架构
 
@@ -31,6 +31,7 @@ updated: 2026-05-02
 - capability-neutral supervisor routing
 - domain agent 作为稳定能力边界
 - shared app runtime 与 execution engine 分层
+- run-centric durable agent runtime
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
 - eval-governed quality lifecycle
@@ -43,9 +44,10 @@ updated: 2026-05-02
 长期主链路固定为：
 
 `client/channel -> web surface -> shared app-api surface policy/context
-projection -> execution engine -> supervisor core admission/routing ->
-workflow plan -> one or more capability agents -> family-specific planning/execution
--> typed step output projection -> supervisor finalization -> response`
+projection -> durable conversation/run store -> supervisor core admission/routing
+-> scheduler / lease coordinator -> workflow plan -> one or more capability
+agents -> family-specific planning/execution -> typed step output projection ->
+run events -> supervisor finalization -> response / stream subscription`
 
 这里的 multi-agent 不是无中心 peer swarm。长期默认是 manager-style
 multi-agent：Go `apps/supervisor-api` 保持 workflow / policy / budget / finalization
@@ -63,6 +65,12 @@ raw/source-truth/projection/document/chunk/index`
 - supervisor 保持唯一顶层协调入口，不演化成无中心 peer mesh
 - supervisor 不得退化成只负责 HTTP 转发的被动 proxy；它必须继续拥有 deterministic
   governance、workflow admission、budget 与 finalization
+- HTTP request 不得成为 agent execution lifetime 的 canonical truth；一次回答的长期
+  execution object 是 durable `Run`，streaming 只是订阅 run events
+- production 并发预算不得只存在于单个 `supervisor-api` 进程内存；durable run store、
+  scheduler / lease coordinator 与 lane worker pool 必须拥有全局 execution truth
+- process-local limiter 只能作为单进程 runtime protection，不得被多实例叠加解释为
+  production scheduler
 - domain agent 不得退化成只有名称的 thin function wrapper；它必须在自己的能力边界内拥有
   planning、tool/result consumption、clarification 或 answer shaping 中至少一种稳定语义职责
 - `admission / guardrails` 与 `capability routing` 必须分层，不得重新混成一个模糊 knowledge gate
@@ -105,6 +113,10 @@ raw/source-truth/projection/document/chunk/index`
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/supervisor-api` 的 Docker substrate freeze 不反推单一 Python/HTTP framework、固定
   staging hostname，或 browser-facing exposure model
+- `apps/app-api` 长期拥有 conversation 与 run creation / stream proxy 的 product
+  surface；`apps/supervisor-api` 长期拥有 durable scheduler / lease coordinator 或其
+  adapter、workflow planning、execution budget 与 finalization；worker pool 只消费
+  execution lease
 - Docker-side supervisor runtime 长期可以拆成 Go execution runtime control plane
   与 private semantic orchestration worker；Go 负责 deterministic runtime kernel，
   Python / package-owned agents 继续负责 semantic orchestration 与 reasoning
@@ -140,6 +152,10 @@ raw/source-truth/projection/document/chunk/index`
   `Turn -> WorkflowRun -> AgentInvocation -> ToolCall -> Evidence/Projection ->
   Finalization`；provider-native trace、SDK run state 或框架 agent graph 只能作为内部
   debug input，不能替代 repo-owned sanitized projection
+- production run lifecycle 的 canonical durable object 固定为 `Run`，最小状态为
+  `created -> queued -> admitted -> running -> streaming -> completed / failed /
+  canceled / expired`；`WorkflowRun` 是 multi-step / agent invocation graph 的内部
+  workflow projection，不替代 product-visible run truth
 - supervisor runtime control plane 长期由 Docker-side Go runtime 承接 deterministic
   execution lifecycle、cancel、timeout、queue、per-lane budget、runtime metrics、audit
   writer 与 fail-close envelope

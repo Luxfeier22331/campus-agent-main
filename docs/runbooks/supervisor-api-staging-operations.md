@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-24
-updated: 2026-06-01
+updated: 2026-06-05
 ---
 # Supervisor API Staging Operations
 
@@ -62,12 +62,31 @@ updated: 2026-06-01
 
 ### 1. 同步 repo
 
-在本机 release branch 上把仓库同步到 `nc-arm-6c`：
+在本机 release branch 上把仓库同步到 `nc-arm-6c:/srv/apps/campus-agent`。
+canonical staging lifecycle 固定使用：
+
+- compose project: `campus-supervisor-api-staging`
+- host port: `27051`
+- runtime dir: `.tmp/supervisor-api-staging`
+
+不要在 canonical `.env.staging.local` 中覆写
+`SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME`、
+`SUPERVISOR_API_STAGING_RUNTIME_DIR` 或 `SUPERVISOR_API_STAGING_PORT`。普通
+`start/status` 脚本会拒绝被指到 isolated proof runtime，避免
+`exec-staging.mucwiki-edge.link` 指向 `27051` 但生命周期脚本操作另一个 compose
+project。
+
+如果需要本机 durable proof，使用
+`infra/local/staging/proof-supervisor-api-durable-runtime-staging.sh`，并在该命令的
+执行环境中显式设置 isolated project/runtime/port；不要把这些 proof 变量写进
+canonical staging operator secret。
+
+同步命令示例：
 
 ```bash
 rsync -a --delete --exclude .git --exclude .worktrees --exclude node_modules \
   --exclude .venv --exclude .tmp --exclude .env \
-  --exclude .env.staging.local --exclude .env.qdrant.local \
+  --exclude .env.staging.local --exclude .env.qdrant.local --exclude .dev.vars \
   ./ nc-arm-6c:/srv/apps/campus-agent/
 ```
 
@@ -128,9 +147,39 @@ Compose。
 - `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
 - `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
 - `SUPERVISOR_API_METRICS_BEARER_TOKEN=<metrics bearer token>`
-- `SUPERVISOR_API_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token>`
+- `SUPERVISOR_API_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token>`；只有
+  `start-supervisor-api-staging.sh` 在启动或接管 cloudflared connector 时需要该
+  token。`status-supervisor-api-staging.sh --check` 只验证既有
+  runtime/tunnel/public readiness，不要求持有 tunnel deployment secret。
 - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>`
 - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
+- `SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=<durable runtime Postgres URL>`；
+  这是 supervisor durable run store / scheduler / lease coordinator 的显式 store
+  URL，不从 `STAGING_INGESTION_SHARED_POSTGRES_URL`、
+  `SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL`、root `.env` 或
+  `apps/app-api/.dev.vars` 推断。同机 self-hosted Postgres 场景通常写
+  `postgresql://<user>:<password>@127.0.0.1:5432/campus_agent`；lifecycle 会把容器侧
+  URL 投影为 `postgres:5432`。
+- durable worker loop 必须显式开启并完整配置：
+  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED=true`
+  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID=supervisor-api-staging-rag-001`
+  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE=rag`
+  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID=handoff:rag-agent:rag_request`
+  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS=250`
+  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS=30000`
+  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS=5000`
+  heartbeat interval 必须短于 lease TTL。开启 worker loop 但缺任一字段时，
+  lifecycle 必须 fail closed。
+- durable recovery loop 必须显式开启并完整配置：
+  - `SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED=true`
+  - `SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS=250`
+  - `SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS=2`
+  recovery loop 是 scheduler-owned recovery path：它不领取 execution lease、
+  不调用 bridge、不执行 agent，只负责周期性回收 expired lease 与 timed-out run。
+  `MAX_RETRY_ATTEMPTS` 是 expired lease recovery 的显式 bounded retry policy：
+  未达上限时 run 重新入队并递增 lease attempt，达到上限后才以
+  `lease_expired` terminal。
+  开启 recovery loop 但缺任一字段时，lifecycle 必须 fail closed。
 
 `STAGING_APP_API_OPERATOR_DATABASE_URL` 只用于 `app-api` staging schema/bootstrap/operator
 脚本；即使它物理上和 runtime shared Postgres 相同，也必须单独写入
@@ -142,6 +191,9 @@ supervisor lifecycle 不会从 root `.env`、`apps/app-api/.dev.vars` 或
 `STAGING_INGESTION_*` 必填项时，`start-supervisor-api-staging.sh` 会 fail closed。
 generic `EMBEDDING_*` / `SPARSE_*` 不能替代 staging 的
 `STAGING_INGESTION_EMBEDDING_*` / `STAGING_INGESTION_SPARSE_*`。
+generic `CAMPUS_SHARED_POSTGRES_URL` 也不能替代
+`SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL`；durable run truth 必须有自己的
+显式配置入口。
 
 Cloudflare R2 staging object store 固定为：
 
@@ -196,6 +248,26 @@ systemctl --no-pager --full status cloudflared-supervisor-api-staging.service
 
 ### 4. 启动 supervisor runtime
 
+启动脚本会在 Docker Compose runtime 启动前完成 durable schema install/check：
+
+- `infra/local/staging/start-supervisor-api-staging.sh` 先完成 env projection、
+  Docker data-plane readiness 与 self-hosted dependency readiness，再执行
+  `supervisor_api_staging_ensure_durable_runtime_schema`
+- schema 命令入口是
+  `apps/supervisor-api/cmd/durable-runtime-schema`
+- `install` 模式调用 durable Postgres store `EnsureSchema` 后执行 `HealthCheck`
+- `check` 模式只执行 `HealthCheck`
+- 两个模式都通过 `SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL` 访问容器侧
+  durable store，不从 generic Postgres env 推断
+- evidence 固定写入
+  `${SUPERVISOR_API_STAGING_RUNTIME_DIR:-.tmp/supervisor-api-staging}/evidence/`
+  下的：
+  - `durable-runtime-schema-install.json`
+  - `durable-runtime-schema-check.json`
+
+schema install/check 任一失败时启动直接失败；不要用 durable proof command 代替 schema
+安装。
+
 ```bash
 cd /srv/apps/campus-agent
 infra/local/staging/start-supervisor-api-staging.sh
@@ -224,9 +296,15 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   tunnel status 为 healthy
 - 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
+  且 payload 明确报告：
+  - `durable_runtime.configured=true`
+  - `durable_runtime.healthy=true`
+  - `durable_worker_loop.enabled/configured/healthy/started=true`
+  - `durable_recovery_loop.enabled/configured/healthy/started=true`
 - 本地 `<http://127.0.0.1:27051/metrics`> 带 bearer token 返回 `200`
 - `<https://api-staging.mucwiki-edge.link/readyz`> 返回 `200`
-- `api-staging` 的 `auth`、`database`、`supervisorApi` 都是 `ready`
+- `api-staging` 的 `auth`、`database`、`supervisorApi` 与 `durableRuntime`
+  都是 `ready`
 
 补充约束：
 
@@ -390,6 +468,7 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 日志目录：
 
 - `.tmp/supervisor-api-staging/logs/otel-collector.log`
+- `.tmp/supervisor-api-staging/logs/otel-collector.recent.log`
 - `.tmp/supervisor-api-staging/logs/supervisor-api.log`
 - `.tmp/supervisor-api-staging/logs/supervisor-agent-worker.log`
 - `.tmp/supervisor-api-staging/logs/cloudflared.log`
@@ -399,6 +478,9 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 - 每次执行 `start-supervisor-api-staging.sh` 时都会检查日志大小
 - 单文件超过 `20 MiB` 时做 copy-truncate 轮转
 - 最多保留 `5` 份历史：`.1` 到 `.5`
+- `otel-collector.log` 保留全量容器日志用于历史排障；`status --check` 的
+  exporter failure gate 只读取 `otel-collector.recent.log`，即本次检查窗口内的
+  collector 日志。历史上已经修复的 exporter 401/403 不应永久阻塞当前 readiness。
 
 ## 故障分流
 
@@ -491,6 +573,96 @@ curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 ```
 
 - 如果只有 `supervisorApi` 失败，先回到这份 runbook 的冷启动恢复流程
+
+## Durable Runtime Proof
+
+先运行 durable cutover preflight。该命令只读取本地 repo secret 文件和当前
+process env，不部署、不写远端状态、不打印 secret value；缺 `STAGING_INGESTION_*`
+数据面配置、app-api supervisor shared secret 或 Cloudflare deploy token 时必须
+fail closed：
+
+```bash
+pnpm durable:cutover:preflight --json
+```
+
+`CLOUDFLARE_API_TOKEN` 是本次 deploy shell 的 process env，不写入
+`.env.staging.local`。如果在 `nc-arm-6c` 的非登录 SSH shell 中运行，必须先确认
+`pnpm` 与 `uv` 都能被找到；当前 host 可用路径为 `/usr/local/bin/pnpm` 与
+`/home/deploy/.local/bin/uv`，必要时用以下方式显式执行：
+
+```bash
+PATH=/home/deploy/.local/bin:/usr/local/bin:/usr/bin:/bin \
+  pnpm durable:cutover:preflight --json
+```
+
+先确认 schema install/check evidence 存在，且两份 JSON 都报告 `passed=true`、
+`schema_ready=true`、`store=postgres`。schema evidence 来自启动脚本，不来自 proof：
+
+```bash
+jq . .tmp/supervisor-api-staging/evidence/durable-runtime-schema-install.json
+jq . .tmp/supervisor-api-staging/evidence/durable-runtime-schema-check.json
+```
+
+在把 durable runtime 标记为 staging-ready 前，再对当前 durable Postgres store 运行
+repo-owned proof command。该命令只创建 `proof-*` exact-prefix artifacts，验证完成后
+删除自己的 proof runs / worker heartbeats，并恢复运行前的 lane budget。
+
+```bash
+cd apps/supervisor-api
+evidence_dir="../../var/staging-evidence/<timestamp>"
+go run ./cmd/durable-runtime-proof \
+  --database-url "$SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL" \
+  --evidence-path "$evidence_dir/postgres-durable-runtime-proof.json" \
+  --prefix "proof-$(date -u +%Y%m%dT%H%M%SZ)"
+```
+
+再对当前 deployed supervisor HTTP runtime 运行 repo-owned durable-ready proof。该命令
+只读取 `/readyz`，并要求 deployed payload 明确报告 durable store healthy、worker loop
+started、recovery loop started：
+
+```bash
+supervisor_url="${STAGING_SUPERVISOR_API_BASE_URL:-http://127.0.0.1:27051}"
+go run ./cmd/durable-runtime-http-proof \
+  --supervisor-url "$supervisor_url" \
+  --shared-secret "$SUPERVISOR_API_SHARED_SECRET" \
+  --evidence-path "$evidence_dir/supervisor-durable-http-proof.json"
+```
+
+如果 Cloudflare tunnel / app-api public deploy token 暂不可用，但需要先证明隔离目录中
+本机 supervisor durable runtime 已经具备 durable store、worker loop、recovery loop 与
+container data-plane readiness，可运行 local durable proof：
+
+```bash
+infra/local/staging/proof-supervisor-api-durable-runtime-staging.sh
+```
+
+该 proof 不检查 `cloudflared`、`api-staging.mucwiki-edge.link/readyz` 或 browser
+reconnect；它只能作为 supervisor runtime substrate evidence，不能替代
+`status-supervisor-api-staging.sh --check` 或
+`pnpm --dir apps/app-api chat:durable:e2e:staging`。
+
+通过标准：
+
+- `passed=true`
+- `multi_worker.successful_lease_count=1`
+- `multi_worker.empty_queue_count=1`
+- `recovery.first_recovery_status=queued`
+- `recovery.second_recovery_status=expired`
+- `recovery.terminal_reason=lease_expired`
+- `verification.cleanup_verified=true`
+- HTTP proof 的 `readyz.durable_runtime.configured=true`
+- HTTP proof 的 `readyz.durable_runtime.healthy=true`
+- HTTP proof 的 `readyz.durable_worker_loop.enabled/configured/healthy/started=true`
+- HTTP proof 的 `readyz.durable_recovery_loop.enabled/configured/healthy/started=true`
+
+该 proof 只证明 Postgres durable store / lease coordinator 的生产不变量；它不能安装
+schema，也不能替代真实 deployed
+`chat-staging -> app-api-staging -> supervisor-api -> worker loop` reconnect
+evidence。`status-supervisor-api-staging.sh --check` 现在会显式拒绝 durable runtime /
+worker loop / recovery loop 未 started 的 supervisor readyz，也会拒绝 `api-staging
+/readyz` 中 `dependencies.durableRuntime` 不是 `ready` 的状态。该 gate 只防止
+readiness 假绿；`pnpm --dir apps/app-api chat:durable:e2e:staging` 仍必须通过，且
+`request.accepted` 必须包含 durable `runId` 与 `runPhase`。
 
 ## Recovery Boundary
 

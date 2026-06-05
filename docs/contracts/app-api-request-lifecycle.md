@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-25
+updated: 2026-06-04
 ---
 # App API Request Lifecycle
 
@@ -19,12 +19,13 @@ updated: 2026-04-25
   契约：`docs/contracts/app-api-supervisor-execution.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
+- durable agent runtime contract：`docs/contracts/durable-agent-runtime-contract.md`
 - request projection
   ownership：`docs/architecture/system/product-runtime-architecture.md`
 
 ## Lifecycle Conclusion
 
-长期请求链路固定为：
+当前请求链路固定为：
 
 1. `app-api` 解析 session / trusted operator identity
 1. 解析已有 conversation 或为首轮请求准备 lazy create，并校验请求体
@@ -94,6 +95,13 @@ updated: 2026-04-25
 `running` / `queued` 不写入 `runtime.request_execution.status`；它们只作为 lifecycle
 stream event 暴露给当前浏览器请求。
 
+Forward durable runtime 说明：
+
+- 最终 production execution status 不再由 `runtime.request_execution.status` 单独承载
+- answer-level execution truth 迁移到 durable `Run`
+- product streaming 迁移为 run event subscription
+- current request lifecycle 在 cutover 前继续作为 app-api request projection truth
+
 ## Command-Side Sequence
 
 ### Step 1: Admit
@@ -132,7 +140,25 @@ stream event 暴露给当前浏览器请求。
 
 - `status=accepted`
 - 已记录 `requestId`、`traceId`
+- durable runtime cutover 后，已记录 durable `runId`
 - 已绑定 conversation / verified actor projection / requested scope
+
+当前兼容说明：
+
+- cutover 前旧同步 `/api/v1/answer` 路径的 `runtime.request_execution.run_id`
+  可以为空
+- durable chat 主路径启用后，`run_id` 不得通过 diagnostics、projection payload 或
+  telemetry sink 间接承载；必须写入 `runtime.request_execution.run_id`
+- 当前 durable cutover 进度：`POST /api/chat/requests` 与
+  `POST /api/chat/requests/stream` 均在 app-api accept 后创建 supervisor durable
+  run，并将真实 `run_id` 写入 accepted / finalized
+  `runtime.request_execution`；blocking 与 stream final answer commit 均从
+  supervisor durable `finalization.completed` run event payload 产出。
+- durable stream path 的 `request.accepted` 必须在 supervisor durable run create
+  成功后发送；浏览器连接断开不得取消 app-api finalization closeout。
+- `runtime.request_execution` finalization 只允许从 `status=accepted` 原子推进到
+  terminal status；如果 request 已经被 finalized、取消或处于其他状态，finalization
+  必须 fail closed，且不得插入第二条 assistant message。
 
 ### Conversation Resolution Rule
 
@@ -168,10 +194,11 @@ fail-close checks。
   - chat-visible result 继续走既有 `error` kind
 - 这类 precheck reject 不调用 `apps/supervisor-api`
 
-`app-api` 使用内部 execution contract 调用 `apps/supervisor-api`。同步入口使用
-`/api/v1/answer`；产品级 lifecycle streaming 入口使用
-`/api/v1/answer/stream`，但 browser 只消费 `app-api` 自己的
-`POST /api/chat/requests/stream` contract。
+`app-api` 使用内部 execution contract 调用 `apps/supervisor-api`。当前 submit path 会先创建
+durable run；随后最终 answer 仍由同步 `/api/v1/answer` 产出。产品级 lifecycle
+streaming 当前仍使用 `/api/v1/answer/stream`，但 browser 只消费 `app-api` 自己的
+`POST /api/chat/requests/stream` contract。后续 cutover 必须把 terminal answer 与 streaming
+迁移到 durable `run_events`，不得用旧 lifecycle stream 反推 durable truth。
 
 该调用：
 
@@ -286,6 +313,9 @@ operator.request_projection`
 - 当前 `app-api` merged truth 采用 `request success -> Worker waitUntil bounded
   drain` 与 `scheduled projector` 并存；前者负责收敛常规请求写后延迟，后者负责补偿/恢复与 deploy-side
   observability
+- durable chat stream 还额外使用 request `waitUntil` 持有 app-api
+  finalization closeout；该 closeout 与浏览器 stream 消费共享同一个
+  finalization promise，不允许 stream consumer 与 background closeout 双写
 - queue 只可以在 outbox commit 之后作为 fan-out / 加速手段引入
 - 不接受 queue-first 再反补数据库 truth 的形态
 - 但它必须仍属于 `app-api` boundary

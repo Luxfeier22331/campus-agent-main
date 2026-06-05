@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-07
+updated: 2026-06-04
 ---
 # Execution And Agents Architecture
 
@@ -40,8 +40,9 @@ OpenAI Agents SDK native runtime 调用 repo-owned structured query backend。
 
 长期目标态在同一 governance boundary 内扩展为：
 
-`app-api -> supervisor-api -> workflow plan -> one or more domain agents ->
-typed step output projections -> Go supervisor finalization`
+`app-api -> durable conversation / run store -> supervisor-api scheduler /
+lease coordinator -> workflow plan -> one or more domain agents -> typed step
+output projections -> run events -> Go supervisor finalization`
 
 这表示 repo 采用 supervisor-led governed multi-agent，而不是无中心 peer
 agent mesh。Go `apps/supervisor-api` 保留 deterministic workflow ownership；
@@ -104,9 +105,11 @@ supervisor 不负责：
 
 Docker-side Go runtime control plane 长期负责：
 
-- request lifecycle、in-flight registry、deadline、timeout、cancel 与 graceful drain
-- global / per-capability lane admission、queue、backpressure、retryability 与 circuit
-  breaker
+- durable run lifecycle adapter、deadline、timeout、cancel 与 graceful drain
+- scheduler / lease coordinator、global / per-capability lane admission、queue、
+  backpressure、retryability 与 circuit breaker
+- process-local lifecycle / admission limiter 作为本进程 protection；它不是
+  production run store 或跨实例全局 scheduler
 - execution request envelope validation、trace / actor / context projection 的结构校验
 - deterministic capability routing gate、scope opening gate 与 query-enabled collection
   gate 中不依赖 LLM 的部分
@@ -125,6 +128,10 @@ Docker-side Go runtime control plane 长期负责：
 - Go `supervisor-api` 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
   admission、bridge circuit breaker、bounded bridge transport retry、metrics、OTel seam
   与 execution audit backflow
+- 当前 lifecycle、active count 与 queue 仍是进程内 truth；它们服务 single-instance
+  runtime protection。长期 production execution truth 必须迁到 durable run store +
+  scheduler / lease coordinator + lease-driven worker pool。完整 target 见
+  `docs/architecture/system/durable-agent-runtime-architecture.md`
 - Go `supervisor-api` 已补齐 Go -> Python cooperative cancel signal；Python bridge
   记录 active request id 的 cancel state，默认 supervisor orchestration 已在路由、
   RAG prompt execution 和 agent delegation checkpoints 观测取消；provider /
@@ -185,6 +192,10 @@ Docker-side Go runtime control plane 长期负责：
   `SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE=true` 只适合 local/dev 或明确允许启动迁移的环境。
   completed `multi_step` 至少包含两个有序 handoff step；需要 cross-step
   context 的 edge 必须声明 `required_projection_kind`，projection 缺失时 fail-closed
+- `WorkflowRunStore` 是 multi-step workflow foundation，不等同于最终 product-visible
+  durable `Run` / `RunEvent` truth；后续 durable runtime 收口必须把 answer-level
+  run lifecycle、conversation active-run policy、lane lease 与 stream event projection
+  明确建模
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
   均通过 PostgreSQL release current pointer + typed read model 消费，

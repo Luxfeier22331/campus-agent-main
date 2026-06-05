@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-07
+updated: 2026-06-04
 ---
 # 当前架构
 
@@ -62,6 +62,10 @@ document/index release`
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/supervisor-api` 是当前 Docker execution ingress，负责 execution HTTP surface
   与 runtime hardening；Python `apps/supervisor-agent-worker` 只保留 private bridge worker
+- `apps/supervisor-api` 当前拥有的 lifecycle、global / per-lane admission 与 bounded
+  queue 是 single-process runtime protection；它不是最终 production durable scheduler，
+  也不是跨实例全局并发预算 truth。长期 run-centric durable runtime 见
+  `docs/architecture/system/durable-agent-runtime-architecture.md`
 - semantic delegate path 仍进入 Python private bridge；已打开的 deterministic
   structured capability 当前按 `runtime_posture` 分流：
   `typed_handoff_only` 的 payload 允许在 Go `apps/supervisor-api` 的 non-stream answer
@@ -193,6 +197,13 @@ document/index release`
   request projection、in-flight lifecycle、explicit cancel、global / per-lane
   execution admission、bounded queue、timeout、readiness、metrics、OTel telemetry
   seam 与 graceful drain
+- 当前 in-flight lifecycle registry、active count 与 queue 均为进程内状态。它们足以表达
+  当前 single-instance / staging runtime protection，但不得被解释为最终 production
+  agent execution truth；多实例 deployment 下不会自动产生统一 admission budget 或 durable
+  queue
+- 当前 answer / stream HTTP request 仍与 execution lifetime 强耦合。长期目标是
+  `run_id` / `run_events` 驱动的 durable execution 与 subscription model；当前尚未完成
+  durable scheduler / lease-driven worker pool 收口
 - 拥有 deterministic structured planner；当前实现位于
   `apps/supervisor-api/internal/structuredplanning`，`internal/execution`
   仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
