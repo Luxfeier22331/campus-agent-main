@@ -1,0 +1,151 @@
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-content-text {
+	box-sizing: border-box;
+	max-width: none;
+	margin: .9rem 0;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-content-text:not(:has(#mw-upload-form)) {
+	max-width: 42rem;
+	padding: .82rem .95rem;
+	border: 1px solid #f0d5aa;
+	border-radius: var(--mucwiki-radius-md);
+	background: var(--mucwiki-warning-soft);
+	color: #563817;
+	font-weight: 650;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-content-text:has(#mw-upload-form) {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--mucwiki-text);
+	font-weight: 400;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form {
+	max-width: 58rem;
+	padding: 1rem;
+	border: 1px solid var(--mucwiki-border-soft);
+	border-radius: var(--mucwiki-radius-md);
+	background: #fff;
+	box-shadow: var(--mucwiki-shadow-soft);
+	box-sizing: border-box;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form * {
+	box-sizing: border-box;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form fieldset {
+	min-width: 0;
+	margin: 0 0 .9rem;
+	padding: .9rem;
+	border: 1px solid var(--mucwiki-border-soft);
+	border-radius: var(--mucwiki-radius-md);
+	background: var(--mucwiki-surface-raised);
+	box-sizing: border-box;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form legend {
+	color: var(--mucwiki-text);
+	font-weight: 850;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form table,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form tbody {
+	display: block;
+	width: 100%;
+	max-width: none;
+	border: 0;
+	background: transparent;
+	overflow: visible;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form tr {
+	display: grid;
+	grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+	gap: .42rem .85rem;
+	align-items: start;
+	width: 100%;
+	padding: .58rem 0;
+	border-bottom: 1px solid var(--mucwiki-border-soft);
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form tr:last-child {
+	border-bottom: 0;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form th,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form td {
+	display: block;
+	width: 100% !important;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-sizing: border-box;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form th {
+	color: var(--mucwiki-text);
+	font-weight: 750;
+	line-height: 1.45;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form input[type='text'],
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form input[type='password'],
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form input[type='email'],
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form input[type='url'],
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form input[type='file'],
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form #wpDestFile,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form textarea,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form select,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form .oo-ui-widget,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form .oo-ui-inputWidget,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form .oo-ui-inputWidget-input {
+	width: 100% !important;
+	max-width: 100%;
+	min-height: 2.28rem;
+	border: 1px solid var(--mucwiki-border);
+	border-radius: var(--mucwiki-radius-sm);
+	background: #fff;
+	color: var(--mucwiki-text);
+	box-sizing: border-box;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form input[type='file'] {
+	height: auto;
+	padding: .55rem;
+	border-style: dashed;
+	background: #fbfcfb;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form textarea {
+	min-height: 10rem;
+	resize: vertical;
+}
+
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form .mw-htmlform-submit-buttons,
+body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form .mw-upload-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .45rem;
+	margin-top: .9rem;
+}
+
+@media (max-width: 720px) {
+	body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form {
+		padding: .72rem;
+	}
+
+	body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form fieldset {
+		padding: .68rem;
+	}
+
+	body.skin-mucwiki.mw-special-Upload .mucwiki-body #mw-upload-form tr {
+		grid-template-columns: 1fr;
+		gap: .24rem;
+		padding: .52rem 0;
+	}
+}

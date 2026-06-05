@@ -1,0 +1,9 @@
+{
+	"@metadata": {
+		"authors": [
+			"MUC Wiki maintainers"
+		]
+	},
+	"skinname-mucwiki": "MUC Wiki",
+	"mucwiki-skin-desc": "Component-oriented MUC Wiki skin for campus knowledge pages"
+}

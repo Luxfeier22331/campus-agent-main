@@ -1,0 +1,468 @@
+.mucwiki-body {
+	color: #263044;
+	font-size: 1rem;
+	line-height: 1.78;
+}
+
+.mucwiki-body > .mw-parser-output,
+.mucwiki-body > .printfooter,
+.mucwiki-body > #catlinks {
+	max-width: 92ch;
+}
+
+.mucwiki-body p,
+.mucwiki-body li,
+.mucwiki-body dd,
+.mucwiki-body td {
+	color: #263044;
+}
+
+.mucwiki-body h2,
+.mucwiki-body h3,
+.mucwiki-body h4 {
+	margin-top: 1.7rem;
+	margin-bottom: .7rem;
+	border-bottom: 1px solid var(--mucwiki-border-soft);
+	padding-bottom: .4rem;
+	color: #202122;
+	font-weight: 700;
+	letter-spacing: 0;
+}
+
+.mucwiki-body h2 {
+	font-size: 1.55rem;
+}
+
+.mucwiki-body h3 {
+	font-size: 1.18rem;
+}
+
+.mucwiki-body img,
+.mucwiki-body .thumb,
+.mucwiki-body .mw-file-element {
+	max-width: 100%;
+	height: auto;
+}
+
+.mucwiki-body table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+	border-collapse: collapse;
+	border: 1px solid var(--mucwiki-border);
+	border-radius: var(--mucwiki-radius-md);
+	background: #fff;
+}
+
+.mucwiki-body th,
+.mucwiki-body td {
+	border-color: var(--mucwiki-border-soft);
+	padding: .55rem .65rem;
+}
+
+.mucwiki-body th {
+	background: var(--mucwiki-knowledge-soft);
+	color: #155443;
+	font-weight: 850;
+}
+
+.mucwiki-body input[type='text'],
+.mucwiki-body input[type='password'],
+.mucwiki-body input[type='email'],
+.mucwiki-body input[type='search'],
+.mucwiki-body input[type='url'],
+.mucwiki-body input[type='number'],
+.mucwiki-body textarea,
+.mucwiki-body select,
+.mucwiki-body .oo-ui-inputWidget-input,
+.mucwiki-body .cdx-text-input__input {
+	max-width: 100%;
+	min-height: var(--mucwiki-control-height);
+	padding: .52rem .68rem;
+	border: 1px solid var(--mucwiki-border);
+	border-radius: var(--mucwiki-radius-sm);
+	background: #fff;
+	color: var(--mucwiki-text);
+	font: inherit;
+	box-shadow: none;
+}
+
+.mucwiki-search input[type='search']:focus,
+.mucwiki-search .cdx-text-input__input:focus,
+.mucwiki-search .mw-searchInput:focus,
+.mucwiki-body input[type='text']:focus,
+.mucwiki-body input[type='password']:focus,
+.mucwiki-body input[type='email']:focus,
+.mucwiki-body input[type='search']:focus,
+.mucwiki-body input[type='url']:focus,
+.mucwiki-body input[type='number']:focus,
+.mucwiki-body textarea:focus,
+.mucwiki-body select:focus,
+.mucwiki-body .oo-ui-inputWidget-input:focus,
+.mucwiki-body .cdx-text-input__input:focus {
+	border-color: #9db8dd;
+	outline: 3px solid var(--mucwiki-ring);
+}
+
+.mucwiki-body button,
+.mucwiki-body input[type='submit'],
+.mucwiki-body .oo-ui-buttonElement-button,
+.mucwiki-body .cdx-button {
+	min-height: var(--mucwiki-control-height);
+	border: 1px solid var(--mucwiki-border);
+	border-radius: var(--mucwiki-radius-sm);
+	background: #fff;
+	color: var(--mucwiki-link-strong);
+	font-weight: 800;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.mucwiki-body button:hover,
+.mucwiki-body button:focus,
+.mucwiki-body input[type='submit']:hover,
+.mucwiki-body input[type='submit']:focus,
+.mucwiki-body .oo-ui-buttonElement-button:hover,
+.mucwiki-body .oo-ui-buttonElement-button:focus,
+.mucwiki-body .cdx-button:hover,
+.mucwiki-body .cdx-button:focus {
+	border-color: #a9bfdb;
+	background: var(--mucwiki-accent-soft);
+	color: var(--mucwiki-accent-strong);
+}
+
+.mucwiki-body input[type='checkbox'],
+.mucwiki-body input[type='radio'] {
+	width: 1rem;
+	height: 1rem;
+	margin: 0 .45rem 0 0;
+	accent-color: var(--mucwiki-accent);
+}
+
+.mucwiki-body .mw-parser-output > p {
+	max-width: 72ch;
+}
+
+.mucwiki-body .toc,
+.mucwiki-body .vector-toc,
+.mucwiki-body #toc,
+.mucwiki-body .thumb,
+.mucwiki-body table,
+.mucwiki-body .catlinks {
+	max-width: 100%;
+}
+
+.mucwiki-body #toc,
+.mucwiki-body .toc {
+	width: 100%;
+	max-width: 30rem;
+	margin: 1rem 0 1.2rem;
+	padding: .78rem .88rem;
+	border: 1px solid var(--mucwiki-border-soft);
+	border-radius: var(--mucwiki-radius-md);
+	background: var(--mucwiki-surface-raised);
+	box-shadow: 0 1px 2px rgba(42, 48, 41, .025);
+}
+
+.mucwiki-body #toc .toctitle {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: .6rem;
+	margin: 0 0 .3rem;
+	padding: 0 0 .4rem;
+	border-bottom: 1px solid var(--mucwiki-border-soft);
+}
+
+.mucwiki-body #toc .toctitle h2 {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	color: var(--mucwiki-text);
+	font-size: 1rem;
+	font-weight: 850;
+}
+
+.mucwiki-body #toc ul {
+	display: grid;
+	gap: .18rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mucwiki-body #toc li {
+	margin: 0;
+	padding: 0;
+	line-height: 1.5;
+}
+
+.mucwiki-body #toc a {
+	display: grid;
+	grid-template-columns: 2.3rem minmax(0, 1fr);
+	gap: .35rem;
+	padding: .22rem .32rem;
+	border-radius: var(--mucwiki-radius-sm);
+	text-decoration: none;
+}
+
+.mucwiki-body #toc a:hover,
+.mucwiki-body #toc a:focus {
+	background: var(--mucwiki-knowledge-soft);
+}
+
+.mucwiki-body #toc .tocnumber {
+	color: var(--mucwiki-subtle);
+	font-variant-numeric: tabular-nums;
+}
+
+.mucwiki-body #toc .toctext {
+	color: var(--mucwiki-link-strong);
+}
+
+@media (min-width: 920px) {
+	body.ns-0.action-view:not(.page-Main_Page) .mucwiki-body #mw-content-text > .mw-parser-output {
+		display: grid;
+		grid-template-columns: minmax(0, 72ch) minmax(15rem, 19rem);
+		column-gap: 2rem;
+		align-items: start;
+		max-width: none;
+	}
+
+	body.ns-0.action-view:not(.page-Main_Page) .mucwiki-body #toc,
+	body.ns-0.action-view:not(.page-Main_Page) .mucwiki-body .toc {
+		position: sticky;
+		top: 5.6rem;
+		grid-column: 2;
+		grid-row: 1 / span 12;
+		width: auto;
+		max-width: none;
+		margin: 0;
+	}
+
+	body.ns-0.action-view:not(.page-Main_Page) .mucwiki-body #mw-content-text > .mw-parser-output > :not(#toc):not(.toc) {
+		grid-column: 1;
+		min-width: 0;
+	}
+}
+
+.mucwiki-body .mw-ui-button,
+.mucwiki-body .oo-ui-buttonElement-framed > .oo-ui-buttonElement-button,
+.mucwiki-body .cdx-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: .35rem;
+	padding: .45rem .75rem;
+	border-radius: var(--mucwiki-radius-sm);
+}
+
+.mucwiki-body .mw-ui-progressive,
+.mucwiki-body .oo-ui-flaggedElement-progressive > .oo-ui-buttonElement-button,
+.mucwiki-body .cdx-button--action-progressive {
+	border-color: var(--mucwiki-accent);
+	background: var(--mucwiki-accent);
+	color: #fff;
+}
+
+.mucwiki-body .mw-ui-progressive:hover,
+.mucwiki-body .mw-ui-progressive:focus,
+.mucwiki-body .oo-ui-flaggedElement-progressive > .oo-ui-buttonElement-button:hover,
+.mucwiki-body .oo-ui-flaggedElement-progressive > .oo-ui-buttonElement-button:focus,
+.mucwiki-body .cdx-button--action-progressive:hover,
+.mucwiki-body .cdx-button--action-progressive:focus {
+	border-color: var(--mucwiki-accent-strong);
+	background: var(--mucwiki-accent-strong);
+	color: #fff;
+}
+
+.mucwiki-body .oo-ui-panelLayout-framed,
+.mucwiki-body fieldset,
+.mucwiki-body .mw-warning-with-logexcerpt,
+.mucwiki-body .permissions-errors,
+.mucwiki-body .errorbox,
+.mucwiki-body .successbox,
+.mucwiki-body .warningbox {
+	border: 1px solid var(--mucwiki-border);
+	border-radius: var(--mucwiki-radius-md);
+	background: var(--mucwiki-surface-raised);
+	box-shadow: var(--mucwiki-shadow-soft);
+}
+
+.mucwiki-body fieldset {
+	min-width: 0;
+	margin: 1rem 0;
+	padding: 1rem;
+}
+
+.mucwiki-body fieldset legend {
+	padding: 0 .35rem;
+	color: var(--mucwiki-link-strong);
+	font-weight: 700;
+}
+
+.mucwiki-body .oo-ui-fieldLayout {
+	margin-top: .75rem;
+}
+
+.mucwiki-body .oo-ui-fieldLayout-header,
+.mucwiki-body label {
+	color: #263044;
+	font-weight: 600;
+}
+
+.mucwiki-body .oo-ui-labelElement-label {
+	color: #263044;
+}
+
+.mucwiki-body .oo-ui-tagMultiselectWidget,
+.mucwiki-body .oo-ui-textInputWidget .oo-ui-inputWidget-input {
+	border-color: #cfd9e7;
+	border-radius: var(--mucwiki-radius-sm);
+	background: #fff;
+	box-shadow: none;
+}
+
+.mucwiki-body .oo-ui-tagItemWidget,
+.mucwiki-body .oo-ui-tagMultiselectWidget.oo-ui-widget-enabled .oo-ui-tagItemWidget {
+	border-color: #b9d8cd;
+	border-radius: 999px;
+	background: var(--mucwiki-knowledge-soft);
+	color: #155443;
+	font-weight: 800;
+}
+
+body.action-edit .mucwiki-body #editform {
+	display: grid;
+	gap: 1rem;
+	min-width: 0;
+}
+
+body.action-edit .mucwiki-body > p,
+body.action-edit .mucwiki-body > .permissions-errors,
+body.action-edit .mucwiki-body > textarea#wpTextbox1 {
+	max-width: none;
+}
+
+body.action-edit .mucwiki-body > p {
+	margin: .75rem 0;
+	color: var(--mucwiki-muted);
+}
+
+body.action-edit .mucwiki-body > p a {
+	font-weight: 750;
+}
+
+body.action-edit .mucwiki-body .permissions-errors {
+	margin: .85rem 0;
+	padding: .85rem 1rem;
+	border-color: #f0d5aa;
+	background: var(--mucwiki-warning-soft);
+	color: #563817;
+}
+
+body.action-edit .mucwiki-body .wikiEditor-ui {
+	overflow: hidden;
+	border: 1px solid var(--mucwiki-border);
+	border-radius: var(--mucwiki-radius-md);
+	background: var(--mucwiki-surface);
+	box-shadow: var(--mucwiki-shadow-soft);
+}
+
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar {
+	overflow-x: auto;
+	border-bottom: 1px solid var(--mucwiki-border-soft);
+	background: linear-gradient(180deg, #fff, var(--mucwiki-surface-raised));
+	scrollbar-width: thin;
+}
+
+body.action-edit .mucwiki-body .wikiEditor-ui-top,
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .tabs,
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .section {
+	min-width: 0;
+}
+
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .group,
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .tool,
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .oo-ui-toolbar-bar {
+	min-width: 0;
+}
+
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .tool-button,
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .oo-ui-buttonElement-button,
+body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .oo-ui-popupToolGroup-handle {
+	border-radius: var(--mucwiki-radius-sm);
+}
+
+body.action-edit .mucwiki-body .wikiEditor-ui-text {
+	border-top: 0;
+	background: #fff;
+	padding: .7rem;
+}
+
+body.action-edit .mucwiki-body textarea#wpTextbox1 {
+	width: 100%;
+	min-height: 34rem;
+	border: 1px solid #d3dce8;
+	border-radius: var(--mucwiki-radius-sm);
+	background: #fbfdff;
+	color: #1f2937;
+	font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', 'Noto Sans Mono CJK SC', monospace;
+	font-size: .95rem;
+	line-height: 1.74;
+	resize: vertical;
+	box-shadow: inset 0 1px 2px rgba(31, 41, 55, .035);
+}
+
+body.action-edit .mucwiki-body textarea#wpTextbox1:focus {
+	border-color: #9db8dd;
+	outline: 3px solid var(--mucwiki-ring);
+	outline-offset: 0;
+}
+
+body.action-edit .mucwiki-body .editOptions {
+	display: grid;
+	gap: .75rem;
+	min-width: 0;
+	margin-top: 1rem;
+	padding: 1rem;
+	border: 1px solid var(--mucwiki-border-soft);
+	border-radius: var(--mucwiki-radius-md);
+	background: var(--mucwiki-surface-raised);
+	box-shadow: var(--mucwiki-shadow-soft);
+}
+
+body.action-edit .mucwiki-body .templatesUsed {
+	margin-top: 1rem;
+	padding: .9rem 1rem;
+	border: 1px solid var(--mucwiki-border-soft);
+	border-radius: var(--mucwiki-radius-md);
+	background: var(--mucwiki-surface-raised);
+	box-shadow: var(--mucwiki-shadow-soft);
+}
+
+body.action-edit .mucwiki-body .editOptions .oo-ui-fieldLayout,
+body.action-edit .mucwiki-body .editOptions .mw-summary-preview {
+	min-width: 0;
+	margin-top: 0;
+}
+
+body.action-edit .mucwiki-body .editCheckboxes {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .5rem 1rem;
+}
+
+body.action-edit .mucwiki-body .editButtons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .55rem;
+	align-items: center;
+}
+
+body.action-edit .mucwiki-body .editButtons input,
+body.action-edit .mucwiki-body .editButtons button,
+body.action-edit .mucwiki-body .editButtons .oo-ui-buttonElement-button {
+	min-height: 2.35rem;
+}
+

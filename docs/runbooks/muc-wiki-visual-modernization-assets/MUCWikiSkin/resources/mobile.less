@@ -1,0 +1,496 @@
+body.page-Main_Page .mucwiki-article {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+}
+
+body.page-Main_Page #firstHeading,
+body.page-Main_Page #siteSub {
+	display: none;
+}
+
+body.page-Main_Page .mucwiki-body {
+	line-height: 1.62;
+}
+
+body.page-Main_Page .mucwiki-body > .mw-parser-output {
+	max-width: none;
+}
+
+.mucwiki-footer {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .5rem 1rem;
+	max-width: 82rem;
+	margin: 1.2rem auto 0;
+	padding: .8rem 1rem;
+	color: var(--mucwiki-muted);
+	font-size: .88rem;
+}
+
+.mucwiki-footer a {
+	color: var(--mucwiki-muted);
+}
+
+.mucwiki-footer__icon img {
+	max-height: 1.8rem;
+}
+
+@media (max-width: 1040px) {
+	.mucwiki-topbar {
+		grid-template-columns: 1fr;
+	}
+
+	.mucwiki-main-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.mucwiki-sidebar {
+		order: 2;
+	}
+
+	.mucwiki-sidebar__inner {
+		position: static;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+}
+
+@media (max-width: 640px) {
+	body.skin-mucwiki {
+		background-image: linear-gradient(180deg, rgba(255, 255, 255, .99), rgba(245, 246, 244, 0) 14rem);
+	}
+
+	.mucwiki-shell {
+		padding: .42rem .46rem 1rem;
+	}
+
+	.mucwiki-topbar {
+		position: static;
+		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-areas:
+			'brand user'
+			'search search';
+		gap: .38rem;
+		border-radius: 8px;
+		padding: .42rem;
+	}
+
+	.mucwiki-brand {
+		grid-area: brand;
+		min-width: 0;
+	}
+
+	.mucwiki-brand__wordmark {
+		font-size: .78rem;
+	}
+
+	.mucwiki-brand__mark {
+		width: 1.42rem;
+		height: 1.42rem;
+	}
+
+	.mucwiki-search {
+		grid-area: search;
+	}
+
+	.mucwiki-usernav {
+		grid-area: user;
+		max-width: 58vw;
+		overflow: hidden;
+	}
+
+	.mucwiki-search input[type='search'],
+	.mucwiki-search .cdx-text-input__input,
+	.mucwiki-search .mw-searchInput {
+		min-height: 1.85rem;
+		padding: .28rem .5rem;
+		font-size: .78rem;
+	}
+
+	.mucwiki-search button,
+	.mucwiki-search input[type='submit'],
+	.mucwiki-search .cdx-button {
+		min-width: 1.95rem;
+		min-height: 1.85rem;
+		padding: .24rem .46rem;
+		font-size: .76rem;
+	}
+
+	.mucwiki-usernav a,
+	.mucwiki-tabs a {
+		min-height: 1.72rem;
+		padding: .24rem .36rem;
+		font-size: .74rem;
+	}
+
+	.mucwiki-usernav__list,
+	.mucwiki-page-toolbar {
+		justify-content: flex-start;
+	}
+
+	.mucwiki-usernav__list {
+		justify-content: flex-end;
+		flex-wrap: nowrap;
+		gap: .2rem;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.mucwiki-usernav__list::-webkit-scrollbar {
+		display: none;
+	}
+
+	.mucwiki-usernav a {
+		max-width: 6.6rem;
+		min-height: 1.72rem;
+		padding: .24rem .32rem;
+	}
+
+	.mucwiki-usernav #pt-userpage a {
+		min-width: 3rem;
+		max-width: 3rem;
+		border-color: var(--mucwiki-border-soft);
+		background: var(--mucwiki-surface-raised);
+		color: transparent;
+		font-size: 0;
+	}
+
+	.mucwiki-usernav #pt-userpage a::after {
+		content: '账号';
+		color: var(--mucwiki-accent-strong);
+		font-size: .74rem;
+		font-weight: 750;
+	}
+
+	.mucwiki-usernav #pt-notifications-alert,
+	.mucwiki-usernav #pt-notifications-notice,
+	.mucwiki-usernav #pt-mytalk,
+	.mucwiki-usernav #pt-watchlist,
+	.mucwiki-usernav #pt-mycontris {
+		display: none;
+	}
+
+	.mucwiki-page-toolbar {
+		flex-direction: row;
+		flex-wrap: nowrap;
+		align-items: center;
+		justify-content: flex-start;
+		gap: .22rem;
+		margin-bottom: .28rem;
+		padding: .14rem .1rem .18rem;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+	}
+
+	.mucwiki-page-toolbar::-webkit-scrollbar {
+		display: none;
+	}
+
+	.mucwiki-page-toolbar .mucwiki-tabs a {
+		min-height: 1.72rem;
+		padding: .22rem .42rem;
+		border-color: var(--mucwiki-border-soft);
+		background: rgba(255, 255, 255, .74);
+		font-size: .72rem;
+		font-weight: 750;
+	}
+
+	.mucwiki-page-toolbar .mucwiki-tabs {
+		flex: 0 0 auto;
+		overflow: visible;
+	}
+
+	.mucwiki-page-toolbar .mucwiki-tabs .selected a {
+		border-color: #e7b8b1;
+		background: var(--mucwiki-accent-soft);
+	}
+
+	.mucwiki-tabs ul {
+		flex-wrap: nowrap;
+		overflow: visible;
+	}
+
+	.mucwiki-body #mw-searchoptions {
+		gap: .55rem;
+		padding: .72rem;
+	}
+
+	.mucwiki-body #mw-searchoptions .checkbox-container {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: .25rem;
+	}
+
+	.mucwiki-body #mw-searchoptions .checkbox-container label {
+		min-height: 1.8rem;
+		font-size: .82rem;
+	}
+
+	.mucwiki-body .mw-search-profile-tabs,
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget-top,
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget-bottom,
+	.mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget {
+		padding: .46rem;
+	}
+
+	.mucwiki-body .cdx-search-input {
+		grid-template-columns: 1fr;
+	}
+
+	body.mw-special-Search .mucwiki-body .cdx-search-input {
+		grid-template-columns: 1fr;
+	}
+
+	body.mw-special-Search .mucwiki-body .cdx-search-input .cdx-button,
+	body.mw-special-Search .mucwiki-body .cdx-search-input button {
+		width: 100%;
+		min-height: 2.08rem;
+	}
+
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout .oo-ui-fieldLayout-body,
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout .oo-ui-fieldLayout-field {
+		display: grid;
+		gap: .42rem;
+	}
+
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-input,
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-button,
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-input .oo-ui-widget,
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-button .oo-ui-widget,
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-button button {
+		width: 100%;
+	}
+
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-button button {
+		min-height: 2.08rem;
+		border-color: var(--mucwiki-accent);
+		background: var(--mucwiki-accent);
+		color: #fff;
+	}
+
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-button button *,
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-button .oo-ui-labelElement-label {
+		color: #fff;
+	}
+
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-button button:hover,
+	body.mw-special-Search .mucwiki-body #search .oo-ui-actionFieldLayout-button button:focus {
+		border-color: var(--mucwiki-accent-strong);
+		background: var(--mucwiki-accent-strong);
+		color: #fff;
+	}
+
+	.mucwiki-body .mw-search-pager-top,
+	.mucwiki-body .mw-search-pager-bottom {
+		gap: .25rem;
+		padding: .5rem .56rem;
+		font-size: .78rem;
+	}
+
+	.mucwiki-body .mw-search-pager-top a,
+	.mucwiki-body .mw-search-pager-bottom a {
+		min-height: 1.72rem;
+		padding: .18rem .36rem;
+	}
+
+	.mucwiki-body #mw-searchoptions .checkbox-container label {
+		min-height: 2rem;
+		padding: .24rem .38rem;
+	}
+
+	body.ns-special .mucwiki-body #userloginForm {
+		grid-template-columns: 1fr;
+	}
+
+	body.ns-special .mucwiki-body #userloginForm .mw-htmlform {
+		max-width: none;
+		padding: .72rem;
+	}
+
+	body.ns-special .mucwiki-body #userloginForm .mw-htmlform input[type='text'],
+	body.ns-special .mucwiki-body #userloginForm .mw-htmlform input[type='password'],
+	body.ns-special .mucwiki-body #userloginForm .mw-htmlform .cdx-text-input__input,
+	body.ns-special .mucwiki-body #userloginForm .mw-htmlform button {
+		min-height: 2.2rem;
+	}
+
+	body.ns-special .mucwiki-body #userloginForm .mw-htmlform #wpLoginAttempt,
+	body.ns-special .mucwiki-body #userloginForm .mw-htmlform #mw-input-pluggableauthlogin0,
+	body.ns-special .mucwiki-body #userloginForm .mw-htmlform #mw-createaccount-join {
+		min-height: 2.32rem;
+	}
+
+	.mucwiki-body .mw-changeslist-legend {
+		float: none;
+		max-width: none;
+		margin: 0 0 .85rem;
+	}
+
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget {
+		margin: .8rem 0;
+	}
+
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget-top,
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget-bottom {
+		gap: .42rem;
+	}
+
+	.mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget {
+		padding: .42rem;
+		font-size: .82rem;
+	}
+
+	.mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget .oo-ui-tagMultiselectWidget-handle {
+		padding: .42rem .46rem;
+	}
+
+	body.skin-mucwiki .mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget-wrapper-top {
+		padding-bottom: .34rem;
+	}
+
+	body.skin-mucwiki .mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget-wrapper {
+		gap: .34rem;
+	}
+
+	body.skin-mucwiki .mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget-wrapper-content-title,
+	body.skin-mucwiki .mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget-hideshowButton,
+	body.skin-mucwiki .mucwiki-body .mw-rcfilters-ui-filterWrapperWidget .oo-ui-labelElement-label {
+		font-size: .76rem;
+	}
+
+	body.skin-mucwiki .mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget-hideshowButton > .oo-ui-buttonElement-button,
+	body.skin-mucwiki .mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget-cell-reset .oo-ui-buttonElement-button {
+		min-height: 1.82rem;
+		padding: .14rem .28rem;
+	}
+
+	body.skin-mucwiki .mucwiki-body .mw-rcfilters-ui-filterTagMultiselectWidget .oo-ui-tagItemWidget {
+		margin: .1rem .16rem .1rem 0;
+	}
+
+	.mucwiki-body .mw-rcfilters-ui-table {
+		gap: .28rem;
+		margin-top: .4rem;
+		padding-top: .4rem;
+	}
+
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget .oo-ui-buttonElement > .oo-ui-buttonElement-button,
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget .oo-ui-dropdownWidget-handle,
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget .oo-ui-popupToolGroup-handle {
+		min-height: 1.95rem;
+		padding-top: .18rem;
+		padding-bottom: .18rem;
+		font-size: .82rem;
+	}
+
+	.mucwiki-body .mw-rcfilters-ui-filterWrapperWidget-bottom {
+		justify-content: flex-start;
+	}
+
+	.mucwiki-body .mw-changeslist .mw-changeslist-line {
+		padding: .58rem .62rem;
+		line-height: 1.58;
+	}
+
+	.mucwiki-body .mw-changeslist ul,
+	.mucwiki-body .mw-changeslist li {
+		padding-left: 0;
+	}
+
+	body.action-edit .mucwiki-body textarea#wpTextbox1 {
+		min-height: 30rem;
+		padding: .74rem .82rem;
+		font-size: .9rem;
+		line-height: 1.68;
+	}
+
+	body.action-edit .mucwiki-body .wikiEditor-ui {
+		border-radius: 8px;
+	}
+
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar {
+		min-height: 4.45rem;
+	}
+
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .tabs span,
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .section-main,
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .section-advanced,
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .section-characters,
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .section-help {
+		font-size: .78rem;
+	}
+
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .tool-button,
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .oo-ui-buttonElement-button,
+	body.action-edit .mucwiki-body .wikiEditor-ui-toolbar .oo-ui-popupToolGroup-handle {
+		min-height: 2rem;
+	}
+
+	body.action-edit .mucwiki-body .editOptions {
+		gap: .65rem;
+		padding: .78rem;
+	}
+
+	body.action-edit .mucwiki-body .editCheckboxes,
+	body.action-edit .mucwiki-body .editButtons {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: .48rem;
+	}
+
+	body.action-edit .mucwiki-body .editButtons input,
+	body.action-edit .mucwiki-body .editButtons button,
+	body.action-edit .mucwiki-body .editButtons .oo-ui-buttonElement,
+	body.action-edit .mucwiki-body .editButtons .oo-ui-buttonElement-button {
+		width: 100%;
+	}
+
+	.mucwiki-sidebar__inner {
+		grid-template-columns: 1fr;
+	}
+
+	.mucwiki-article {
+		padding: .7rem .68rem;
+		border-radius: 8px;
+	}
+
+	body.page-Main_Page .mucwiki-article {
+		padding: 0;
+	}
+
+	#firstHeading {
+		margin-bottom: .48rem;
+		padding-bottom: .46rem;
+		font-size: 1.18rem;
+	}
+
+	.mucwiki-body {
+		font-size: .8rem;
+		line-height: 1.52;
+	}
+
+	.mucwiki-body #toc,
+	.mucwiki-body .toc {
+		margin: .72rem 0 .9rem;
+		padding: .5rem .54rem;
+		max-width: none;
+	}
+
+	.mucwiki-body #toc .toctitle {
+		margin-bottom: .2rem;
+		padding-bottom: .32rem;
+	}
+
+	.mucwiki-body #toc a {
+		grid-template-columns: 1.65rem minmax(0, 1fr);
+		padding: .06rem .1rem;
+		font-size: .78rem;
+	}
+
+	.mucwiki-body #toc li {
+		line-height: 1.38;
+	}
+
+}
