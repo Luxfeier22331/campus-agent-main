@@ -83,6 +83,27 @@ describe("federation provider routes", () => {
 		]);
 	});
 
+	it("normalizes provider JSON redirects to HTTP redirects on federation routes", async () => {
+		const app = createApp(env, {
+			authHandler: vi.fn(() =>
+				Response.json({
+					redirect: true,
+					url: "https://wiki.mucwiki-edge.link/wiki/Special:PluggableAuthLogin?code=abc&state=xyz",
+				}),
+			),
+		});
+
+		const response = await app.fetch(
+			new Request("https://hub.muc.wiki/api/federation/authorize"),
+			env,
+		);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe(
+			"https://wiki.mucwiki-edge.link/wiki/Special:PluggableAuthLogin?code=abc&state=xyz",
+		);
+	});
+
 	it("serves well-known metadata through the Better Auth provider metadata API", async () => {
 		const getOpenIdConfig = vi.fn(async () => ({
 			issuer: "https://hub-staging.mucwiki-edge.link",

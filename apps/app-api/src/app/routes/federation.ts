@@ -27,6 +27,55 @@ const FEDERATION_METADATA_ENDPOINT_REWRITES = {
 type FederationMetadataAuth = Parameters<typeof oauthProviderOpenIdConfigMetadata>[0] &
 	Parameters<typeof oauthProviderAuthServerMetadata>[0];
 
+function buildRedirectResponse(url: string): Response | null {
+	let redirectUrl: URL;
+	try {
+		redirectUrl = new URL(url);
+	} catch {
+		return null;
+	}
+
+	if (!(redirectUrl.protocol === "https:" && redirectUrl.hostname)) {
+		return null;
+	}
+
+	return new Response(null, {
+		headers: {
+			location: redirectUrl.toString(),
+		},
+		status: 303,
+	});
+}
+
+async function normalizeFederationProviderResponse(response: Response): Promise<Response> {
+	if (response.status !== 200) {
+		return response;
+	}
+
+	const contentType = response.headers.get("content-type") ?? "";
+	if (!contentType.toLowerCase().includes("application/json")) {
+		return response;
+	}
+
+	let payload: unknown;
+	try {
+		payload = await response.clone().json();
+	} catch {
+		return response;
+	}
+
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		return response;
+	}
+
+	const body = payload as Record<string, unknown>;
+	if (body.redirect !== true || typeof body.url !== "string") {
+		return response;
+	}
+
+	return buildRedirectResponse(body.url) ?? response;
+}
+
 function rewriteFederationRequest(request: Request): Request {
 	const url = new URL(request.url);
 	const targetPath = FEDERATION_ROUTE_REWRITES.get(url.pathname);
@@ -106,9 +155,14 @@ export function registerFederationRoutes(input: {
 		const scope = input.createRequestScope();
 
 		try {
-			const response = await input.authHandler(rewriteFederationRequest(request), input.env, {
-				getAppAuth: scope.getAppAuth,
-			});
+			const providerResponse = await input.authHandler(
+				rewriteFederationRequest(request),
+				input.env,
+				{
+					getAppAuth: scope.getAppAuth,
+				},
+			);
+			const response = await normalizeFederationProviderResponse(providerResponse);
 			return await rewriteFederationMetadataResponse({ request, response });
 		} catch {
 			return dependencyNotReadyResponse();
