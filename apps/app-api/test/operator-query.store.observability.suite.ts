@@ -92,6 +92,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 			],
 			[],
 			[],
+			[],
 		];
 		const limit = vi.fn().mockImplementation(async () => responses.shift() ?? []);
 		const orderBy = vi.fn().mockImplementation(async () => responses.shift() ?? []);
@@ -267,6 +268,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 			],
 			[],
 			[],
+			[],
 		];
 		const limit = vi.fn().mockImplementation(async () => responses.shift() ?? []);
 		const orderBy = vi.fn().mockImplementation(async () => responses.shift() ?? []);
@@ -376,6 +378,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					diagnosticsJson: null,
 				},
 			],
+			[],
 			[
 				{
 					requestId: "req_versioned_01HQ",
@@ -418,6 +421,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					measuredAt: new Date("2026-03-28T08:00:03.000Z"),
 				},
 			],
+			[],
 			[],
 			[],
 			[],

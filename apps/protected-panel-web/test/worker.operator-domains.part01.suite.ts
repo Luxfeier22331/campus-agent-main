@@ -132,6 +132,7 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 													suggestedEvalFamily: "intent",
 												},
 												requestId: "req_01HR",
+												runId: "run_01HR",
 												selectedTarget: "navigation-agent",
 												summary: "intent classifier selected the wrong handoff target",
 												surface: "public_chat_web",
@@ -327,6 +328,7 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 							intake: {
 								suggestedEvalFamily: "intent",
 							},
+							runId: "run_01HR",
 						},
 					],
 				});

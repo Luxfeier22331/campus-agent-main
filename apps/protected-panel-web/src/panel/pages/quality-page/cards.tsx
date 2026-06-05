@@ -472,6 +472,7 @@ export function QualityQueueSection(props: {
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.surface}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.selectedTarget}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.requestId}</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.runId}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.actions}</TableCell>
 							</TableRow>
 						</TableHead>
@@ -488,6 +489,7 @@ export function QualityQueueSection(props: {
 									<TableCell>{formatSurfaceLabel(badcase.surface)}</TableCell>
 									<TableCell>{formatSelectedTargetLabel(badcase.selectedTarget)}</TableCell>
 									<TableCell>{badcase.requestId}</TableCell>
+									<TableCell>{badcase.runId ?? PANEL_COPY.pending}</TableCell>
 									<TableCell>
 										<Button
 											onClick={() => props.onSelectBadcase(badcase)}
@@ -570,6 +572,7 @@ export function QualityEvalCandidateSection(props: {
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.surface}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.selectedTarget}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.requestId}</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.runId}</TableCell>
 							</TableRow>
 						</TableHead>
 						<TableBody>
@@ -604,6 +607,7 @@ export function QualityEvalCandidateSection(props: {
 											candidate.diagnostic?.caseId
 										)}
 									</TableCell>
+									<TableCell>{candidate.runId ?? PANEL_COPY.pending}</TableCell>
 								</TableRow>
 							))}
 						</TableBody>
@@ -713,6 +717,10 @@ export function QualityDetailDrawer(props: {
 								<Typography variant="body2">
 									<strong>{PANEL_COPY.qualityPage.queueColumns.requestId}</strong>:{" "}
 									{props.selectedBadcase.requestId}
+								</Typography>
+								<Typography variant="body2">
+									<strong>{PANEL_COPY.qualityPage.queueColumns.runId}</strong>:{" "}
+									{props.selectedBadcase.runId ?? PANEL_COPY.pending}
 								</Typography>
 								<Typography variant="body2">
 									<strong>Trace ID</strong>: {props.selectedBadcase.traceId}

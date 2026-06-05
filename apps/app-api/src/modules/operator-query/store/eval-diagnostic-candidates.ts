@@ -64,6 +64,7 @@ function toCandidate(row: EvalDiagnosticBadcaseRow): EvalDiagnosticCandidate {
 			traceLink: null,
 		},
 		requestId: null,
+		runId: null,
 		selectedTarget: null,
 		summary: summaryFor(row),
 		surface: row.surfaceKey,

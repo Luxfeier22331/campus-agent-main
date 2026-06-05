@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildRequestIntentEntries,
 	buildRequestReplayEntries,
+	buildRequestRuntimeRunEntries,
 	buildRequestWorkflowTraceEntries,
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatCapabilityLabel,
@@ -241,6 +242,66 @@ describe("request workflow trace formatters", () => {
 		expect(rendered).not.toContain("secret-bridge-payload");
 		expect(rendered).not.toContain("secret-provider-response");
 		expect(rendered).not.toContain("secret-prompt");
+	});
+});
+
+describe("request durable runtime formatters", () => {
+	it("builds operator-facing durable run rows without raw event payloads", () => {
+		const rows = buildRequestRuntimeRunEntries({
+			eventSummary: {
+				eventCount: 2,
+				latestEvent: {
+					eventType: "finalization.completed",
+					occurredAt: "2026-06-04T01:02:06.000Z",
+					sequence: 2,
+					visibility: "browser",
+				},
+				terminalEvent: {
+					eventType: "finalization.completed",
+					occurredAt: "2026-06-04T01:02:06.000Z",
+					sequence: 2,
+					visibility: "browser",
+				},
+				visibilityCounts: {
+					browser: 1,
+					eval: 0,
+					internal: 1,
+					panel: 0,
+				},
+			},
+			run: {
+				conversationId: "conv_01HQ",
+				phase: "completed",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				status: "completed",
+				terminalReason: "answer_completed",
+				traceId: "trace_01HQ",
+			},
+		});
+
+		expect(rows).toEqual([
+			{ label: "Run ID", value: "run_01HQ" },
+			{ label: "Run 状态", value: "completed" },
+			{ label: "Run 阶段", value: "completed" },
+			{ label: "终态原因", value: "answer_completed" },
+			{ label: "事件数", value: "2" },
+			{
+				label: "最近事件",
+				value: "2 · finalization.completed · browser · 2026年6月4日 09:02",
+			},
+			{
+				label: "终态事件",
+				value: "2 · finalization.completed · browser · 2026年6月4日 09:02",
+			},
+			{ label: "可见性分布", value: "internal=1 · panel=0 · browser=1 · eval=0" },
+		]);
+		expect(JSON.stringify(rows)).not.toContain("payload");
+	});
+
+	it("keeps durable run rows compatible with non-durable historical records", () => {
+		expect(buildRequestRuntimeRunEntries(undefined)).toEqual([]);
+		expect(buildRequestRuntimeRunEntries(null)).toEqual([]);
 	});
 });
 

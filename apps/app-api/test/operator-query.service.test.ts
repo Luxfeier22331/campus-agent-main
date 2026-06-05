@@ -2,31 +2,9 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import { buildOperatorQueryService } from "../src/modules/operator-query";
 
-function createOperatorPrincipal(): ResolvedAppPrincipal {
-	return {
-		actor: {
-			departments: ["ops"],
-			principalId: "ops@example.com",
-			principalType: "operator",
-			roles: ["operator"],
-			userId: "ops@example.com",
-		},
-		permissions: {
-			chat: false,
-			operator: true,
-		},
-		principal: {
-			displayName: "Ops Team",
-			email: "ops@example.com",
-			principalId: "ops@example.com",
-			type: "operator",
-		},
-		session: null,
-	};
-}
+import { createOperatorPrincipal } from "./operator-query.route.test-support";
 
 describe("operator query service aggregate summaries", () => {
 	it("normalizes quality summary filters before delegating to the store", async () => {
@@ -557,6 +535,7 @@ describe("operator query service aggregate summaries", () => {
 						},
 						openedAt: "2026-03-28T08:00:10.000Z",
 						requestId: "req_01HQ",
+						runId: "run_01HQ",
 						selectedTarget: "rag-agent",
 						status: "open",
 						summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
@@ -579,6 +558,7 @@ describe("operator query service aggregate summaries", () => {
 						},
 						openedAt: "2026-03-28T08:03:10.000Z",
 						requestId: "req_01HR",
+						runId: "run_01HR",
 						selectedTarget: "navigation-agent",
 						status: "open",
 						summary: "intent classifier selected the wrong handoff target",
@@ -643,6 +623,7 @@ describe("operator query service aggregate summaries", () => {
 						traceLink: "https://sentry.example/traces/trace_01HQ",
 					},
 					requestId: "req_01HQ",
+					runId: "run_01HQ",
 					selectedTarget: "rag-agent",
 					summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
 					surface: "public_chat_web",
@@ -668,6 +649,7 @@ describe("operator query service aggregate summaries", () => {
 						traceLink: "https://sentry.example/traces/trace_01HR",
 					},
 					requestId: "req_01HR",
+					runId: "run_01HR",
 					selectedTarget: "navigation-agent",
 					summary: "intent classifier selected the wrong handoff target",
 					surface: "public_chat_web",

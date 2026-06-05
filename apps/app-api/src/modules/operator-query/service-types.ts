@@ -8,11 +8,13 @@ import type {
 	RequestSourceTrustSummary,
 } from "../request-diagnostics";
 import type { RequestExecutionStatus } from "../runtime-command";
+import type { RuntimeRunPhase } from "../runtime-run";
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { VersionQuery, VersionQueryMode } from "../version-query";
 
 export interface RequestProjectionRecord {
 	requestId: string;
+	runId: string | null;
 	traceId: string;
 	surface: string;
 	conversationId: string;
@@ -156,6 +158,7 @@ export interface OperatorIntentObservabilitySummary {
 export interface OperatorRequestObservabilityRecord {
 	request: {
 		requestId: string;
+		runId: string | null;
 		traceId: string;
 		conversationId: string;
 		surface: string;
@@ -286,6 +289,37 @@ export interface OperatorRequestObservabilityRecord {
 	auditSummary: {
 		auditEventCount: number;
 		latestTerminalCode: string | null;
+	};
+	runtimeRun?: OperatorRuntimeRunSummary | null;
+}
+
+export interface OperatorRuntimeRunEventSummary {
+	eventType: string;
+	occurredAt: string;
+	sequence: number;
+	visibility: string;
+}
+
+export interface OperatorRuntimeRunSummary {
+	run: {
+		conversationId: string;
+		phase: RuntimeRunPhase;
+		requestId: string;
+		runId: string;
+		status: string;
+		terminalReason: string | null;
+		traceId: string;
+	};
+	eventSummary: {
+		eventCount: number;
+		latestEvent: OperatorRuntimeRunEventSummary | null;
+		terminalEvent: OperatorRuntimeRunEventSummary | null;
+		visibilityCounts: {
+			browser: number;
+			eval: number;
+			internal: number;
+			panel: number;
+		};
 	};
 }
 
@@ -505,6 +539,7 @@ export interface OperatorQualityBadcaseListResult {
 	badcases: Array<{
 		badcaseId: string;
 		requestId: string;
+		runId: string | null;
 		traceId: string;
 		surface: string;
 		selectedTarget: string | null;
@@ -533,6 +568,7 @@ export interface OperatorQualityEvalCandidateListResult {
 	candidates: Array<{
 		candidateId: string;
 		requestId: string | null;
+		runId: string | null;
 		traceId: string | null;
 		surface: string;
 		selectedTarget: string | null;

@@ -2,6 +2,7 @@ import { eq, gte, inArray, lte } from "drizzle-orm";
 
 import {
 	qualityGradeProjection,
+	requestExecution,
 	requestObservabilityFact,
 	traceBacklinkProjection,
 } from "../../../db/schema";
@@ -31,6 +32,9 @@ export function escapeLikePattern(value: string): string {
 
 export function toRequestProjectionRecord(
 	row: typeof import("../../../db/schema").requestProjection.$inferSelect,
+	input: {
+		runId?: string | null;
+	} = {},
 ): RequestProjectionRecord {
 	return {
 		answerPreview: row.answerPreview ?? null,
@@ -47,6 +51,7 @@ export function toRequestProjectionRecord(
 		projectedAt: row.projectedAt.toISOString(),
 		questionPreview: row.questionPreview,
 		requestId: row.requestId,
+		runId: input.runId ?? null,
 		requestedCapability: row.requestedCapability ?? null,
 		requestedScope: row.requestedScopeJson ?? null,
 		...(row.versionQueryJson ? { versionQuery: row.versionQueryJson } : {}),
@@ -60,6 +65,32 @@ export function toRequestProjectionRecord(
 		visibilityScope: row.visibilityScope ?? null,
 		applicabilityScope: row.applicabilityScope ?? null,
 	};
+}
+
+export async function loadRunBacklinksByRequestIds(
+	db: RuntimeDatabase,
+	requestIds: string[],
+): Promise<Map<string, string | null>> {
+	const uniqueRequestIds = [...new Set(requestIds)];
+	const backlinks = new Map<string, string | null>(
+		uniqueRequestIds.map((requestId) => [requestId, null]),
+	);
+	if (uniqueRequestIds.length === 0) {
+		return backlinks;
+	}
+
+	const rows = await db
+		.select({
+			requestId: requestExecution.requestId,
+			runId: requestExecution.runId,
+		})
+		.from(requestExecution)
+		.where(inArray(requestExecution.requestId, uniqueRequestIds))
+		.limit(uniqueRequestIds.length);
+	for (const row of rows) {
+		backlinks.set(row.requestId, row.runId ?? null);
+	}
+	return backlinks;
 }
 
 export function toAuditListItem(
