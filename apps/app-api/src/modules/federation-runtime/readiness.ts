@@ -1,5 +1,6 @@
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { jwt } from "better-auth/plugins";
+import { buildFederationProviderClaimSet } from "./claims";
 import {
 	FEDERATION_CLAIMS,
 	FEDERATION_ID_TOKEN_SIGNING_ALG,
@@ -65,6 +66,8 @@ export function buildFederationProviderRuntimeReadinessReport(): FederationProvi
 		},
 		cachedTrustedClients: new Set(["muc-wiki"]),
 		consentPage: "/account/federation/consent",
+		customIdTokenClaims: buildFederationProviderClaimSet,
+		customUserInfoClaims: buildFederationProviderClaimSet,
 		grantTypes: ["authorization_code", "refresh_token"],
 		loginPage: "/account/login",
 		scopes: [...FEDERATION_SCOPES],

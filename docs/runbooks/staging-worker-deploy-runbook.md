@@ -446,6 +446,7 @@ pnpm --dir apps/protected-panel-web exec wrangler login
 ```bash
 pnpm --dir apps/app-api chat:e2e:staging
 pnpm --dir apps/app-api docs:gated:smoke:staging
+pnpm --dir apps/app-api federation:smoke:staging
 pnpm --dir apps/hub-web account:smoke:staging
 ```
 
@@ -479,6 +480,20 @@ pnpm --dir apps/hub-web account:smoke:staging
 - `account:smoke:staging` 的结果会写入
   `.tmp/identity-acceptance/<timestamp>-hub-account-browser-smoke.md`；这份
   artifact 只记录功能检查和失败点，不评价 Hub UI/UX 视觉设计质量。
+- `federation:smoke:staging` 是 MUC Wiki OAuth/OIDC provider 的 canonical
+  staging smoke。它必须在 `nc-arm-6c:/srv/apps/campus-agent` 执行，只访问
+  `https://hub-staging.mucwiki-edge.link` 与
+  `https://api-staging.mucwiki-edge.link/readyz`，并会拒绝 localhost /
+  `127.0.0.1` 目标。它验证 discovery、JWKS、staging session mint、
+  authorization code + PKCE redirect、token exchange 与 userinfo claims。
+- `federation:smoke:staging` 要求当前 shell 有
+  `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET`，并继续要求
+  `APP_API_STAGING_SMOKE_AUTH_SECRET` 或 `STAGING_APP_API_SMOKE_AUTH_SECRET`；
+  repo-owned wrapper 会自动加载 ignored `.env.staging.local`。
+- `federation:smoke:staging` 的结果会写入
+  `.tmp/identity-acceptance/<timestamp>-federation-smoke.md`；artifact
+  会记录 redacted authorization redirect，不记录 token、authorization code
+  或 client secret。
 - Hub 身份验收不得使用 `apps/hub-web dev:live-smoke`、localhost 或本机 Vite
   dev server 作为完成标准；local dev smoke 只服务前端迭代，不替代
   `nc-arm-6c + staging Worker` 验收。
@@ -610,6 +625,7 @@ Federation discovery / JWKS 确认通过 Hub staging origin：
 ```bash
 curl -fsS https://hub-staging.mucwiki-edge.link/.well-known/openid-configuration
 curl -fsS https://hub-staging.mucwiki-edge.link/api/federation/jwks
+pnpm --dir apps/app-api federation:smoke:staging
 ```
 
 discovery response issuer 必须是 `https://hub-staging.mucwiki-edge.link`，且

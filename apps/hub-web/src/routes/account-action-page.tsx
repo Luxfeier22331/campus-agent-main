@@ -144,13 +144,14 @@ function HubEmailPasswordForm(props: { mode: "login" | "register" }) {
 		setStatus("idle");
 		try {
 			const captchaToken = readFormString(form, "captchaToken");
-			if (mode === "register") {
-				await signUpWithEmail({ captchaToken, email, name: email, password, returnTo });
-			} else {
-				await signInWithEmail({ captchaToken, email, password, returnTo });
-			}
+			const result =
+				mode === "register"
+					? await signUpWithEmail({ captchaToken, email, name: email, password, returnTo })
+					: await signInWithEmail({ captchaToken, email, password, returnTo });
 			setStatus("success");
-			window.location.assign(returnTo);
+			if (!result.redirectedByProvider) {
+				window.location.assign(returnTo);
+			}
 		} catch (error) {
 			setStatus(mapAuthError(error));
 			turnstileControllerRef.current?.resetToken();

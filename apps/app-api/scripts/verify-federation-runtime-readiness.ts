@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname } from "node:path";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { symmetricDecrypt } from "better-auth/crypto";
 import type { Pool } from "pg";
@@ -211,8 +210,7 @@ export async function buildFederationRuntimeReadinessReportWithDatabase(input: {
 		...report,
 		jwksSecretCompatibility,
 		status:
-			report.status === "provider_verified_routes_exposed" &&
-			jwksSecretCompatibility.compatible
+			report.status === "provider_verified_routes_exposed" && jwksSecretCompatibility.compatible
 				? "provider_verified_routes_exposed"
 				: "blocked_before_route_exposure",
 	};

@@ -116,9 +116,7 @@ export function registerFederationRoutes(input: {
 	};
 
 	input.app.get("/.well-known/openid-configuration", (c) => handleMetadataRequest(c.req.raw));
-	input.app.get("/.well-known/oauth-authorization-server", (c) =>
-		handleMetadataRequest(c.req.raw),
-	);
+	input.app.get("/.well-known/oauth-authorization-server", (c) => handleMetadataRequest(c.req.raw));
 	input.app.get("/api/federation/authorize", (c) => handleFederationRequest(c.req.raw));
 	input.app.post("/api/federation/token", (c) => handleFederationRequest(c.req.raw));
 	input.app.get("/api/federation/userinfo", (c) => handleFederationRequest(c.req.raw));

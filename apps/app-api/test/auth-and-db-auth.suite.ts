@@ -90,6 +90,21 @@ export function registerAppApiAuthConfigSuite() {
 					}),
 				]),
 			);
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: "oauth-provider",
+						options: expect.objectContaining({
+							allowDynamicClientRegistration: false,
+							cachedTrustedClients: new Set(["muc-wiki"]),
+							customIdTokenClaims: expect.any(Function),
+							customUserInfoClaims: expect.any(Function),
+							loginPage: "/account/login",
+							scopes: ["openid", "profile", "email"],
+						}),
+					}),
+				]),
+			);
 			expect(config.hooks?.before).toBeDefined();
 			expect(config.emailAndPassword.sendResetPassword).toEqual(expect.any(Function));
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));

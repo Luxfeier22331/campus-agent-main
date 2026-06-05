@@ -14,10 +14,7 @@ import {
 } from "../../config";
 import { createRuntimeDatabase, probeBetterAuthDatabase } from "../../db/runtime";
 import { appAuthSchema } from "../../db/schema";
-import {
-	createPgIdentityPlatformStore,
-	type IdentityPlatformMaterializationProjection,
-} from "../identity-platform";
+import { buildFederationProviderClaimSet } from "../federation-runtime/claims";
 import {
 	FEDERATION_CLAIMS,
 	FEDERATION_JWKS_GRACE_PERIOD_SECONDS,
@@ -25,6 +22,10 @@ import {
 	FEDERATION_JWKS_ROTATION_INTERVAL_SECONDS,
 	FEDERATION_SCOPES,
 } from "../federation-runtime/config";
+import {
+	createPgIdentityPlatformStore,
+	type IdentityPlatformMaterializationProjection,
+} from "../identity-platform";
 import {
 	resolvePasswordResetRedirectTarget,
 	sendPasswordChangedEmail,
@@ -271,6 +272,8 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				},
 				cachedTrustedClients: new Set(["muc-wiki"]),
 				consentPage: "/account/federation/consent",
+				customIdTokenClaims: buildFederationProviderClaimSet,
+				customUserInfoClaims: buildFederationProviderClaimSet,
 				grantTypes: ["authorization_code", "refresh_token"],
 				loginPage: "/account/login",
 				scopes: [...FEDERATION_SCOPES],

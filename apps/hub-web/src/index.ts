@@ -67,10 +67,7 @@ const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [
 	...BASE_FORWARDED_HEADERS,
 	"authorization",
 ] as const;
-const FEDERATION_CREDENTIAL_PATHS = new Set([
-	"/api/federation/token",
-	"/api/federation/userinfo",
-]);
+const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
 const AUTH_FORWARDED_HEADERS = [
 	...BASE_FORWARDED_HEADERS,
 	"origin",

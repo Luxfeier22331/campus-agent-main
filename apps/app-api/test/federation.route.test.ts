@@ -134,5 +134,4 @@ describe("federation provider routes", () => {
 			jwks_uri: "https://hub-staging.mucwiki-edge.link/api/federation/jwks",
 		});
 	});
-
 });

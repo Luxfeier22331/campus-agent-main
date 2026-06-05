@@ -18,6 +18,7 @@
 		"smoke-identity:provision:staging": "node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx ./scripts/provision-smoke-identity.ts",
 		"federation:provision-muc-wiki": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/provision-muc-wiki-federation-client.ts",
 		"federation:provision-muc-wiki:staging": "node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx ./scripts/provision-muc-wiki-federation-client.ts",
+		"federation:smoke:staging": "node ../../scripts/run-with-staging-smoke-env.mjs --cwd apps/app-api node ./scripts/staging-federation-smoke.mjs",
 		"chat:e2e": "pnpm exec tsx ./scripts/chat-e2e.ts",
 		"chat:e2e:dev": "pnpm exec tsx ./scripts/chat-e2e-local-dev.ts",
 		"chat:e2e:local-real-provider": "pnpm exec tsx ./scripts/chat-e2e-local-real-provider.ts",

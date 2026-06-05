@@ -1,6 +1,9 @@
+import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import { createAuthClient } from "better-auth/react";
 
-export const hubAuthClient = createAuthClient();
+export const hubAuthClient = createAuthClient({
+	plugins: [oauthProviderClient()],
+});
 
 export type HubAuthActionState =
 	| "idle"
@@ -28,6 +31,10 @@ export interface HubResetPasswordSubmission {
 	confirmPassword: string;
 	newPassword: string;
 	token: string;
+}
+
+export interface HubAuthSubmissionResult {
+	redirectedByProvider: boolean;
 }
 
 export class HubAuthSubmissionError extends Error {
@@ -93,9 +100,24 @@ function classifyRecoveryError(
 	return "failed";
 }
 
-export async function signInWithEmail(input: HubEmailPasswordSubmission): Promise<void> {
+function hasProviderRedirect(response: unknown): boolean {
+	if (!response || typeof response !== "object") {
+		return false;
+	}
+	const data = (response as { data?: unknown }).data;
+	return (
+		Boolean(data) &&
+		typeof data === "object" &&
+		(data as { redirect?: unknown }).redirect === true &&
+		typeof (data as { url?: unknown }).url === "string"
+	);
+}
+
+export async function signInWithEmail(
+	input: HubEmailPasswordSubmission,
+): Promise<HubAuthSubmissionResult> {
 	const response = await hubAuthClient.signIn.email({
-		callbackURL: "/account",
+		callbackURL: input.returnTo || "/account",
 		email: input.email,
 		fetchOptions: input.captchaToken
 			? { headers: { "x-captcha-response": input.captchaToken } }
@@ -107,11 +129,16 @@ export async function signInWithEmail(input: HubEmailPasswordSubmission): Promis
 		const message = readAuthErrorMessage(response, "登录失败。");
 		throw new HubAuthSubmissionError(classifyAuthError("sign-in", message), message);
 	}
+	return {
+		redirectedByProvider: hasProviderRedirect(response),
+	};
 }
 
-export async function signUpWithEmail(input: HubEmailPasswordSubmission): Promise<void> {
+export async function signUpWithEmail(
+	input: HubEmailPasswordSubmission,
+): Promise<HubAuthSubmissionResult> {
 	const response = await hubAuthClient.signUp.email({
-		callbackURL: "/account",
+		callbackURL: input.returnTo || "/account",
 		email: input.email,
 		fetchOptions: input.captchaToken
 			? { headers: { "x-captcha-response": input.captchaToken } }
@@ -123,6 +150,9 @@ export async function signUpWithEmail(input: HubEmailPasswordSubmission): Promis
 		const message = readAuthErrorMessage(response, "注册失败。");
 		throw new HubAuthSubmissionError(classifyAuthError("sign-up", message), message);
 	}
+	return {
+		redirectedByProvider: hasProviderRedirect(response),
+	};
 }
 
 export async function requestHubPasswordReset(input: HubPasswordRecoverySubmission): Promise<void> {

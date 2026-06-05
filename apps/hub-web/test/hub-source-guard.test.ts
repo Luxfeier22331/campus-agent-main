@@ -86,6 +86,9 @@ describe("hub source guardrails", () => {
 		expect(routeSurfaceSource).toContain("ResetTokenMissingState");
 		expect(routeSurfaceSource).not.toMatch(/href=\{`\/api\/auth\/\$\{kind\}`\}/);
 		expect(accountPageSource).not.toContain('to="/account/reset-password"');
+		expect(packageManifest.dependencies).toHaveProperty("@better-auth/oauth-provider");
+		expect(authClientSource).toContain("@better-auth/oauth-provider/client");
+		expect(authClientSource).toContain("oauthProviderClient()");
 		expect(authClientSource).toContain("createAuthClient");
 		expect(authClientSource).toContain("x-captcha-response");
 		expect(authClientSource).not.toContain("betterAuth(");
