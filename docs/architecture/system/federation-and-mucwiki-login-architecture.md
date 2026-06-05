@@ -2,22 +2,25 @@
 doc_type: architecture
 status: active
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-03
 ---
 # Federation And MUC Wiki Login Architecture
 
 ## 文档边界
 
-本文冻结 future `muc.wiki` login federation 的 target architecture。
+本文冻结 `muc.wiki` login federation 的 target architecture 与当前 provider
+implementation truth。
 
 它回答的是：
 
 - Identity Platform 如何作为 provider
 - `muc.wiki` 如何作为 relying party
 - 为什么不采用 cookie/session/database compatibility
-- Better Auth provider plugins 在架构中的位置
+- Better Auth provider runtime 在架构中的位置
 
-本文不表示 `muc.wiki` login federation 已经上线，也不要求本轮实现 provider endpoints。
+本文表示 `apps/app-api` 的 federation provider endpoints 已实现；它不表示
+`muc.wiki` production login federation 已经上线。上线前仍必须完成
+`nc-arm-6c` 上的 MediaWiki staging smoke、client secret 注入与 client provision。
 
 ## Target Relationship
 
@@ -36,9 +39,9 @@ and wiki permissions.
 
 ## Protocol Choice
 
-Login federation should use an OIDC-compatible login surface, but the preferred
-runtime candidate is Better Auth OAuth Provider rather than the older Better
-Auth OIDC Provider plugin.
+Login federation uses an OIDC-compatible login surface. The selected runtime
+adapter is Better Auth OAuth Provider rather than the older Better Auth OIDC
+Provider plugin.
 
 The required semantics remain OIDC-level:
 
@@ -53,65 +56,61 @@ The required semantics remain OIDC-level:
 
 ## Provider Runtime
 
-Better Auth provider plugins are accepted candidate runtime adapters, not
-canonical architecture owners.
+Better Auth provider plugins are accepted runtime adapters, not canonical
+architecture owners.
 
-Current provider selection rule:
+Current provider selection:
 
-- Prefer Better Auth OAuth Provider when it can satisfy the required
-  OIDC-compatible login surface.
+- Use `@better-auth/oauth-provider` for OAuth 2.1 provider behavior with
+  OIDC-compatible discovery, userinfo, ID token and end-session semantics.
+- Use Better Auth `jwt()` as the signing / JWKS substrate.
 - Do not make Better Auth OIDC Provider the production default while official
   documentation marks it as active-development/deprecation-bound.
-- Do not expose federation routes before Worker compatibility, schema ownership
-  and claims policy behavior are verified.
 
 Current implementation readiness:
 
-- `apps/app-api` installs `@better-auth/oauth-provider` and verifies provider
-  import / assembly in both Node and Worker test lanes.
-- The verified candidate exposes OAuth authorization, token, userinfo,
-  end-session and OIDC metadata endpoints, plus Better Auth OAuth client /
-  token / consent schema definitions.
-- The verified candidate can be paired with Better Auth `jwt()` plugin shape
-  for JWKS substrate.
-- Production federation routes remain closed.
+- `apps/app-api/src/modules/auth/auth.ts` mounts `jwt()` and
+  `oauthProvider()`.
+- Dynamic client registration is disabled.
+- `cachedTrustedClients` admits only `muc-wiki`.
+- Better Auth's ordinary `/token` endpoint is disabled so it cannot conflict
+  with OAuth `/oauth2/token`.
+- Better Auth native `/oauth2/*` and `/jwks` endpoints are internal mapping
+  targets behind the canonical public `/api/federation/*` routes.
+- Better Auth runtime tables live in `app_auth.*`.
+- App-owned federation policy remains in `identity.federation_*`.
+- The first client is materialized by the app-api provision script, not by
+  Hub, MediaWiki or a provider admin UI.
 
-Before route exposure, the workstream must still verify:
-
-- Drizzle schema generation and migration ownership
-- redirect URI validation
-- custom claims mapping
-- consent / trusted-client handling
-- end-session behavior
-- key rotation and JWKS exposure
-
-If Better Auth provider plugins satisfy the contract, prefer them over
-hand-written protocol implementation.
+Do not write a hand-made OAuth/OIDC protocol stack in this repo.
 
 ## Public Origin And Routing
 
 The public issuer may be `https://hub.muc.wiki`, because hub is the app-set
 entry surface. That does not make hub the provider owner.
 
-If the public origin is hub-owned, hub may expose only explicit allowlisted
-federation seams, such as OIDC discovery and `/api/federation/*`, to
-`apps/app-api`. It must not become a generic app-api proxy or a MediaWiki
+If the public origin is hub-owned, hub exposes only explicit allowlisted
+federation seams, namely discovery routes and canonical `/api/federation/*`,
+to `apps/app-api`. It must not become a generic app-api proxy or a MediaWiki
 compatibility backend.
 
 ## Client Registry
 
 首期 federation client registry 固定为 controlled/static posture。
 
-Required client semantics:
+The first client is `muc-wiki`:
 
-- client id
-- client type: confidential or public
-- redirect URI allowlist
-- post-logout redirect URI allowlist
-- allowed scopes
-- claims policy id
-- consent policy
-- enabled / disabled state
+- client type: confidential
+- token endpoint auth: `client_secret_basic`
+- allowed scopes: `openid`, `profile`, `email`
+- response type: `code`
+- grant types: `authorization_code`, `refresh_token`
+- PKCE: required with `S256`
+- consent policy: `trusted_first_party_skip_repeated_consent`
+- end-session: enabled
+- redirect URI allowlist: the full MediaWiki `Special:PluggableAuthLogin`
+  callback URL
+- post-logout redirect URI allowlist: explicit wiki logout/return URL
 
 Dynamic public client registration is out of scope for the first implementation.
 
@@ -163,6 +162,11 @@ Recommended posture:
   MediaWiki extension policy
 - wiki-local permissions continue to be evaluated by MediaWiki
 - app-api does not become MediaWiki permission authority
+
+Staging setup uses MediaWiki `OpenID Connect` extension plus
+`PluggableAuth`. Provider URL is `https://hub-staging.mucwiki-edge.link` for
+staging and `https://hub.muc.wiki` for production. The client secret is runtime
+secret material and is never committed.
 
 ## Forbidden Shapes
 

@@ -40,7 +40,7 @@ export function registerAppApiAuthConfigSuite() {
 
 			expect(config.baseURL).toBe("https://chat.example.com");
 			expect(config.trustedOrigins).toEqual(["https://chat.example.com"]);
-			expect(config.basePath).toBe("/api/auth");
+			expect(config.basePath).toBe("/");
 			expect(config.emailAndPassword).toMatchObject({
 				autoSignIn: true,
 				enabled: true,
@@ -66,6 +66,29 @@ export function registerAppApiAuthConfigSuite() {
 			});
 			expect(config.plugins).toEqual(
 				expect.arrayContaining([expect.objectContaining({ id: "captcha" })]),
+			);
+			expect(config.disabledPaths).toContain("/token");
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ id: "jwt" }),
+					expect.objectContaining({ id: "oauth-provider" }),
+				]),
+			);
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: "jwt",
+						options: expect.objectContaining({
+							disableSettingJwtHeader: true,
+							jwks: expect.objectContaining({
+								keyPairConfig: {
+									alg: "RS256",
+									modulusLength: 2048,
+								},
+							}),
+						}),
+					}),
+				]),
 			);
 			expect(config.hooks?.before).toBeDefined();
 			expect(config.emailAndPassword.sendResetPassword).toEqual(expect.any(Function));
@@ -271,6 +294,11 @@ export function registerAppApiAuthConfigSuite() {
 					"session",
 					"account",
 					"verification",
+					"oauthClient",
+					"oauthRefreshToken",
+					"oauthAccessToken",
+					"oauthConsent",
+					"jwks",
 					"identityAccounts",
 					"identityProfiles",
 					"identityAccessSnapshots",

@@ -7,6 +7,7 @@ import { dependencyNotReadyResponse } from "../responses";
 import type { AppRequestScope } from "../types";
 
 const END_USER_PRINCIPAL_TYPES = new Set(["campus_member", "student", "staff", "faculty"]);
+const APP_AUTH_ROUTE_PREFIX = "/api/auth";
 
 function isEndUserSessionPrincipal(
 	principal: import("../../modules/auth").ResolvedAppPrincipal,
@@ -16,6 +17,16 @@ function isEndUserSessionPrincipal(
 		Boolean(principal.principal.email?.trim()) &&
 		principal.session !== null
 	);
+}
+
+function rewriteApiAuthRequest(request: Request): Request {
+	const url = new URL(request.url);
+	if (!url.pathname.startsWith(APP_AUTH_ROUTE_PREFIX)) {
+		return request;
+	}
+
+	url.pathname = url.pathname.slice(APP_AUTH_ROUTE_PREFIX.length) || "/";
+	return new Request(url, request);
 }
 
 export function registerAuthRoutes(input: {
@@ -38,7 +49,7 @@ export function registerAuthRoutes(input: {
 
 		try {
 			return withNoStore(
-				await input.authHandler(c.req.raw, input.env, {
+				await input.authHandler(rewriteApiAuthRequest(c.req.raw), input.env, {
 					getAppAuth: scope.getAppAuth,
 				}),
 			);

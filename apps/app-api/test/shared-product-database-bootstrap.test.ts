@@ -14,7 +14,17 @@ describe("app-api shared product database bootstrap", () => {
 	it("freezes app_auth/chat as fixed shared product schemas", () => {
 		expect(APP_AUTH_SCHEMA).toBe("app_auth");
 		expect(APP_CHAT_SCHEMA).toBe("chat");
-		expect(BETTER_AUTH_TABLES).toEqual(["user", "session", "account", "verification"]);
+		expect(BETTER_AUTH_TABLES).toEqual([
+			"user",
+			"session",
+			"account",
+			"verification",
+			"oauthClient",
+			"oauthRefreshToken",
+			"oauthAccessToken",
+			"oauthConsent",
+			"jwks",
+		]);
 	});
 
 	it("reads bootstrap env from the app-api operator connection only", () => {
@@ -51,5 +61,15 @@ describe("app-api shared product database bootstrap", () => {
 				publicSchemaTables: ["session", "account", "verification"],
 			}),
 		).toThrow("Conflicting Better Auth table placement detected");
+	});
+
+	it("admits additive Better Auth plugin table migrations inside app_auth", () => {
+		expect(
+			classifyBetterAuthTableOwnership({
+				authSchema: "app_auth",
+				authSchemaTables: ["user", "session", "account", "verification"],
+				publicSchemaTables: [],
+			}),
+		).toBe("target_schema_needs_migration");
 	});
 });

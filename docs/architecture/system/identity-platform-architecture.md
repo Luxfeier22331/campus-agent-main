@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-03
 ---
 # Identity Platform Architecture
 
@@ -67,7 +67,8 @@ auth runtime adapter 负责 credential/session/provider mechanics：
 - password reset
 - session cookie and server-side session lookup
 - CSRF / origin / captcha admission
-- optional future passkey / social login / OAuth/OIDC provider plugin runtime
+- OAuth/OIDC provider plugin runtime
+- optional future passkey / social login runtime
 
 Current runtime adapter is Better Auth. Future replacement is allowed only if
 Identity Platform product contracts remain stable or are explicitly versioned.
@@ -206,9 +207,20 @@ Current implemented truth:
   context and authorization projection.
 - `apps/app-api/src/app/routes/auth.ts` exposes current `ALL /api/auth/*` and
   compact `GET /api/me` runtime principal projection.
+- `apps/app-api/src/app/routes/federation.ts` exposes the canonical
+  federation route surface:
+  `GET /.well-known/openid-configuration`,
+  `GET /.well-known/oauth-authorization-server`,
+  `GET /api/federation/authorize`, `POST /api/federation/token`,
+  `GET /api/federation/userinfo`, `GET /api/federation/jwks` and
+  `GET /api/federation/logout`. Better Auth native `/oauth2/*` and `/jwks`
+  paths are internal mapping targets.
 - `apps/app-api/src/db/schema/identity.ts` defines the current app-owned
   `identity.*` physical schema for account, identity profile, access snapshot,
   preference and federation policy materialization.
+- `apps/app-api/src/db/schema/auth.ts` defines Better Auth-owned runtime
+  schema, including core auth tables plus `oauthClient`, `oauthRefreshToken`,
+  `oauthAccessToken`, `oauthConsent` and `jwks`.
 - `apps/app-api/src/app/routes/identity-platform.ts` implements
   `GET /api/me/overview`, `GET /api/me/identity`, `GET /api/me/access`,
   `GET /api/me/preferences` and `PATCH /api/me/preferences` as the current
@@ -224,10 +236,14 @@ Current implemented truth:
   mutating profile memory settings. Scoped preference mutation updates
   `profile.memory_settings` and then materializes the same `identity.*`
   projection.
+- `apps/app-api/scripts/provision-muc-wiki-federation-client.ts` materializes
+  the controlled `muc-wiki` client into both app-owned
+  `identity.federation_*` policy tables and Better Auth-owned
+  `app_auth.oauthClient` runtime table.
 - `apps/hub-web/src/index.ts` allowlists `/api/me`, `/api/me/overview`,
-  `/api/me/identity`, `/api/me/access`, `/api/me/preferences` and selected
-  `/api/auth/*` seams to `apps/app-api`; it does not expose
-  `/api/federation/*` yet.
+  `/api/me/identity`, `/api/me/access`, `/api/me/preferences`, selected
+  `/api/auth/*` seams and explicit federation seams to `apps/app-api`; it does
+  not expose a generic `/api/*` proxy or federation admin surface.
 - `apps/hub-web/src/routes/app-router.tsx` currently owns `/`, `/account` and
   auth action routes. The account page consumes account-center projections
   rather than Better Auth raw payload: overview for the account shell plus
@@ -235,18 +251,15 @@ Current implemented truth:
 - `apps/app-api/src/db/schema/profile.ts` and `docs/data/app-api-schema.md`
   currently own profile memory durable truth under `profile.*`.
 
-Forward contracts not yet implemented:
+Implemented federation runtime:
 
 - OAuth/OIDC provider routes, discovery metadata, JWKS and federation client
-  runtime. Current Better Auth documentation describes the OAuth Provider plugin
-  as an OAuth 2.1 provider with OIDC-compatible discovery metadata, userinfo,
-  JWKS and end-session support. The current repo installs
-  `@better-auth/oauth-provider` and verifies provider import / assembly in Node
-  and Worker lanes; it also verifies Better Auth `jwt()` plugin shape as the
-  JWKS substrate. Schema migration ownership, client registration policy,
-  claims mapping, key rotation and route exposure are still deliberately closed.
-  The older OIDC Provider plugin is not the preferred production candidate while
-  Better Auth documents it as active-development/deprecation-bound.
+  runtime are implemented in `apps/app-api` with `@better-auth/oauth-provider`
+  and Better Auth `jwt()`.
+- Production `muc.wiki` login federation is still gated by staging client
+  provisioning, runtime secret injection and `nc-arm-6c` MediaWiki OpenID
+  Connect smoke.
+- The older OIDC Provider plugin is not the selected production adapter.
 
 ## Forbidden Shapes
 

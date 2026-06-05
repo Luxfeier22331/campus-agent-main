@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-03
 ---
 # Identity Platform Schema
 
@@ -38,6 +38,9 @@ Current implementation note:
   `identity.access_snapshots`.
 - Better Auth adapter rows and existing `profile.memory_items` are not migrated
   wholesale into `identity.*` in this batch.
+- Federation runtime materializes the controlled `muc-wiki` client into
+  `identity.federation_*` product policy tables and Better Auth-owned
+  `app_auth.oauthClient` through app-api provision scripts.
 
 ## Schema Families
 
@@ -69,6 +72,11 @@ Current logical set:
 - `app_auth.session`
 - `app_auth.account`
 - `app_auth.verification`
+- `app_auth.oauthClient`
+- `app_auth.oauthRefreshToken`
+- `app_auth.oauthAccessToken`
+- `app_auth.oauthConsent`
+- `app_auth.jwks`
 
 Rules:
 
@@ -79,9 +87,9 @@ Rules:
   projection.
 - Product contracts must not expose raw Better Auth rows.
 
-Future Better Auth provider plugins may add tables for OAuth/OIDC clients,
-grants, consent or keys. Those tables remain runtime substrate unless explicitly
-adopted into `identity.federation_*` logical product schema.
+Better Auth OAuth/JWT tables remain runtime substrate. Federation product truth
+is not read from these rows directly; the app-owned `identity.federation_*`
+tables define client policy, allowed scopes, allowed claims and grant posture.
 
 ## `identity.accounts`
 
@@ -232,6 +240,9 @@ Minimum fields:
 Rules:
 
 - First implementation uses controlled/static client registration.
+- The first `muc-wiki` client policy is materialized by
+  `apps/app-api/scripts/provision-muc-wiki-federation-client.ts`.
+- Hub and MediaWiki do not create, mutate or own federation client policy.
 - Client secret values are secret material and must not be committed as schema
   fixture data or documentation examples.
 - Dynamic public client registration is out of scope until a new ADR accepts it.

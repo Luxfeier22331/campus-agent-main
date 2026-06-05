@@ -1,7 +1,8 @@
+import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { captcha } from "better-auth/plugins";
+import { captcha, jwt } from "better-auth/plugins";
 import { decodeBase64UrlBytes, encodeBase64UrlBytes } from "../../base64url";
 import {
 	type AppApiEnvironment,
@@ -17,6 +18,13 @@ import {
 	createPgIdentityPlatformStore,
 	type IdentityPlatformMaterializationProjection,
 } from "../identity-platform";
+import {
+	FEDERATION_CLAIMS,
+	FEDERATION_JWKS_GRACE_PERIOD_SECONDS,
+	FEDERATION_JWKS_KEY_PAIR_CONFIG,
+	FEDERATION_JWKS_ROTATION_INTERVAL_SECONDS,
+	FEDERATION_SCOPES,
+} from "../federation-runtime/config";
 import {
 	resolvePasswordResetRedirectTarget,
 	sendPasswordChangedEmail,
@@ -208,7 +216,8 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 	return {
 		appName: input.appName,
 		baseURL: appOrigin,
-		basePath: "/api/auth",
+		basePath: "/",
+		disabledPaths: ["/token"],
 		trustedOrigins,
 		secret: input.betterAuthSecret,
 		emailAndPassword: {
@@ -246,6 +255,26 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		},
 		database: input.database,
 		plugins: [
+			jwt({
+				disableSettingJwtHeader: true,
+				jwks: {
+					gracePeriod: FEDERATION_JWKS_GRACE_PERIOD_SECONDS,
+					keyPairConfig: FEDERATION_JWKS_KEY_PAIR_CONFIG,
+					rotationInterval: FEDERATION_JWKS_ROTATION_INTERVAL_SECONDS,
+				},
+			}),
+			oauthProvider({
+				allowDynamicClientRegistration: false,
+				advertisedMetadata: {
+					claims_supported: [...FEDERATION_CLAIMS],
+					scopes_supported: [...FEDERATION_SCOPES],
+				},
+				cachedTrustedClients: new Set(["muc-wiki"]),
+				consentPage: "/account/federation/consent",
+				grantTypes: ["authorization_code", "refresh_token"],
+				loginPage: "/account/login",
+				scopes: [...FEDERATION_SCOPES],
+			}),
 			captcha({
 				provider: "cloudflare-turnstile",
 				secretKey: input.authTurnstileSecretKey,

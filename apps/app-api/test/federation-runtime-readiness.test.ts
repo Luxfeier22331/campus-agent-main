@@ -36,7 +36,12 @@ describe("federation runtime readiness", () => {
 		expect(report.endpoints.verified).toBe(true);
 		expect(report.schema.verified).toBe(true);
 		expect(report.jwtPlugin).toMatchObject({
+			idTokenSigningAlg: "RS256",
 			jwksEndpoint: "verified",
+			keyPairConfig: {
+				alg: "RS256",
+				modulusLength: 2048,
+			},
 		});
 		expect(report.jwtPlugin.endpoints).toEqual(
 			expect.arrayContaining(["getJwks", "getToken", "signJWT", "verifyJWT"]),

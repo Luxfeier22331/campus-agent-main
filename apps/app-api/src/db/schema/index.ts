@@ -1,4 +1,15 @@
-export { account, appAuthSchema, session, user, verification } from "./auth";
+export {
+	account,
+	appAuthSchema,
+	jwks,
+	oauthAccessToken,
+	oauthClient,
+	oauthConsent,
+	oauthRefreshToken,
+	session,
+	user,
+	verification,
+} from "./auth";
 export { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 export {
 	docsCollections,
@@ -56,7 +67,17 @@ export {
 	wechatOfficialAccountRunHeartbeats,
 } from "./wechat-official-account";
 
-import { account, session, user, verification } from "./auth";
+import {
+	account,
+	jwks,
+	oauthAccessToken,
+	oauthClient,
+	oauthConsent,
+	oauthRefreshToken,
+	session,
+	user,
+	verification,
+} from "./auth";
 import { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 import {
 	docsCollections,
@@ -119,6 +140,11 @@ export const appApiSchema = {
 	session,
 	account,
 	verification,
+	oauthClient,
+	oauthRefreshToken,
+	oauthAccessToken,
+	oauthConsent,
+	jwks,
 	conversations,
 	messageFeedback,
 	messages,

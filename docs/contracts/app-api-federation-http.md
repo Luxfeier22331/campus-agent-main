@@ -2,37 +2,53 @@
 doc_type: contract
 status: active
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-03
 ---
 # App API Federation HTTP Contract
 
 ## 文档边界
 
-本文冻结 Identity Platform future OAuth/OIDC-compatible provider surface 的
-target HTTP contract。
+本文冻结 Identity Platform OAuth/OIDC-compatible provider surface 的 HTTP
+contract。
 
-本文是 forward contract：它不表示当前 routes 已经实现，也不表示 `muc.wiki` 已经接入。
+本文描述当前已实现的 provider route surface。它不表示 `muc.wiki` production
+login federation 已经 rollout；production 前仍必须完成 staging client provision
+和 `nc-arm-6c` MediaWiki OpenID Connect smoke。
 
 ## Provider Posture
 
 Provider owner: `apps/app-api` Identity Platform.
 
-Runtime substrate: Better Auth OAuth Provider is the preferred candidate when it
-can satisfy the OIDC-compatible login surface. Better Auth OIDC Provider must
-not be treated as the production default while official documentation marks it
-as active-development/deprecation-bound.
+Runtime substrate: Better Auth OAuth Provider is the selected runtime adapter
+for the OIDC-compatible login surface. Better Auth OIDC Provider must not be
+treated as the production default while official documentation marks it as
+active-development/deprecation-bound.
 
-Current implementation readiness: `apps/app-api` installs
-`@better-auth/oauth-provider` and verifies provider import / assembly in Node
-and Worker test lanes. The verified candidate exposes OAuth authorization,
-token, userinfo, end-session, OAuth metadata, OIDC metadata and OAuth schema
-definitions; Better Auth `jwt()` plugin shape is also verified as the JWKS
-substrate. Federation HTTP routes remain unimplemented until schema migration
-ownership, client registry, redirect URI policy, claims policy, consent policy,
-JWKS rotation and logout semantics are frozen.
+Current implementation: `apps/app-api` mounts `@better-auth/oauth-provider` as
+the selected provider runtime adapter and Better Auth `jwt()` as the signing /
+JWKS substrate. The auth runtime disables the ordinary Better Auth `/token`
+endpoint and disables JWT header emission so OAuth `/oauth2/token` and
+`/oauth2/userinfo` remain the only federation token/userinfo semantics.
+
+`apps/app-api` exposes canonical public routes under `/api/federation/*` and
+well-known discovery routes. Better Auth native `/oauth2/*` and `/jwks` paths
+are internal mapping targets, not the public contract.
 
 Client posture: controlled/static client registry for first implementation.
 Open dynamic client registration is out of scope.
+
+Runtime persistence:
+
+- Better Auth-owned runtime state lives in `app_auth.oauthClient`,
+  `app_auth.oauthRefreshToken`, `app_auth.oauthAccessToken`,
+  `app_auth.oauthConsent` and `app_auth.jwks`.
+- App-owned product policy lives in `identity.federation_clients`,
+  `identity.federation_claims_policies` and
+  `identity.federation_user_grants`.
+- The `muc-wiki` client is materialized by
+  `pnpm --dir apps/app-api federation:provision-muc-wiki` or
+  `pnpm --dir apps/app-api federation:provision-muc-wiki:staging`, not by Hub
+  UI or MediaWiki.
 
 ## Discovery
 
@@ -69,6 +85,18 @@ Required fields include:
 The final issuer and endpoint host must match deployed Identity Platform
 origin. Local/staging origins must not be documented as production truth.
 
+Production issuer:
+
+```text
+https://hub.muc.wiki
+```
+
+Staging issuer:
+
+```text
+https://hub-staging.mucwiki-edge.link
+```
+
 If the issuer is `https://hub.muc.wiki`, hub only exposes explicit allowlisted
 federation seams to `apps/app-api`. Endpoint ownership remains in `apps/app-api`.
 
@@ -92,7 +120,7 @@ Required request parameters:
 Rules:
 
 - `redirect_uri` must match client registry exactly.
-- PKCE is required for public clients and allowed for confidential clients.
+- The first `muc-wiki` confidential client requires PKCE by client policy.
 - The endpoint requires an active app-api session principal.
 - Trusted-client consent skipping must come from client policy, not caller
   input.
@@ -170,22 +198,36 @@ Rules:
 
 ## Client Registry
 
-First implementation must use controlled/static client registration.
+First implementation uses controlled/static client registration.
 
-Minimum client fields:
+The first client is:
 
-- `clientId`
-- `clientType`
-- `clientName`
-- `redirectUris`
-- `postLogoutRedirectUris`
-- `allowedScopes`
-- `claimsPolicyId`
-- `consentPolicy`
-- `enabled`
+- `clientId`: `muc-wiki`
+- `clientType`: `confidential`
+- `clientName`: `MUC Wiki`
+- `allowedScopes`: `["openid", "profile", "email"]`
+- `claimsPolicyId`: `muc-wiki-default`
+- `consentPolicy`: `trusted_first_party_skip_repeated_consent`
+- `enabled`: `true`
+- `tokenEndpointAuthMethod`: `client_secret_basic`
+- `grantTypes`: `["authorization_code", "refresh_token"]`
+- `responseTypes`: `["code"]`
+- `requirePKCE`: `true`
+- `enableEndSession`: `true`
 
 Client secret values must be stored as secret material, not in docs or committed
 config.
+
+Staging provision command:
+
+```bash
+APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
+APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:PluggableAuthLogin' \
+APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:UserLogout' \
+pnpm --dir apps/app-api federation:provision-muc-wiki:staging
+```
 
 ## Related Documents
 

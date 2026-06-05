@@ -16,6 +16,18 @@ export interface AppApiRouteExposure {
 
 export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	{
+		method: "GET",
+		path: "/.well-known/openid-configuration",
+		callerClass: "browser-surface",
+		admission: "OIDC discovery metadata for registered federation clients",
+	},
+	{
+		method: "GET",
+		path: "/.well-known/oauth-authorization-server",
+		callerClass: "browser-surface",
+		admission: "OAuth authorization server metadata for registered federation clients",
+	},
+	{
 		method: "ALL",
 		path: "/api/auth/*",
 		callerClass: "browser-surface",
@@ -110,6 +122,36 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/me",
 		callerClass: "browser-surface",
 		admission: "session principal required",
+	},
+	{
+		method: "GET",
+		path: "/api/federation/authorize",
+		callerClass: "browser-surface",
+		admission: "registered OAuth/OIDC client and active end-user session required",
+	},
+	{
+		method: "POST",
+		path: "/api/federation/token",
+		callerClass: "browser-surface",
+		admission: "registered OAuth/OIDC client token exchange",
+	},
+	{
+		method: "GET",
+		path: "/api/federation/userinfo",
+		callerClass: "browser-surface",
+		admission: "valid OAuth/OIDC access token required",
+	},
+	{
+		method: "GET",
+		path: "/api/federation/jwks",
+		callerClass: "browser-surface",
+		admission: "public federation signing key discovery",
+	},
+	{
+		method: "GET",
+		path: "/api/federation/logout",
+		callerClass: "browser-surface",
+		admission: "registered OAuth/OIDC client end-session request",
 	},
 	{
 		method: "GET",

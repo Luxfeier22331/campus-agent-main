@@ -1,5 +1,13 @@
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { jwt } from "better-auth/plugins";
+import {
+	FEDERATION_CLAIMS,
+	FEDERATION_ID_TOKEN_SIGNING_ALG,
+	FEDERATION_JWKS_GRACE_PERIOD_SECONDS,
+	FEDERATION_JWKS_KEY_PAIR_CONFIG,
+	FEDERATION_JWKS_ROTATION_INTERVAL_SECONDS,
+	FEDERATION_SCOPES,
+} from "./config";
 
 const REQUIRED_ENDPOINTS = [
 	"getOAuthServerConfig",
@@ -34,7 +42,9 @@ export interface FederationProviderRuntimeReadinessReport {
 	};
 	jwtPlugin: {
 		endpoints: string[];
+		idTokenSigningAlg: typeof FEDERATION_ID_TOKEN_SIGNING_ALG;
 		jwksEndpoint: "verified" | "not_verified";
+		keyPairConfig: typeof FEDERATION_JWKS_KEY_PAIR_CONFIG;
 		schema: string[];
 	};
 	staticClientRegistry: "configured";
@@ -49,12 +59,24 @@ export interface FederationProviderRuntimeReadinessReport {
 export function buildFederationProviderRuntimeReadinessReport(): FederationProviderRuntimeReadinessReport {
 	const plugin = oauthProvider({
 		allowDynamicClientRegistration: false,
+		advertisedMetadata: {
+			claims_supported: [...FEDERATION_CLAIMS],
+			scopes_supported: [...FEDERATION_SCOPES],
+		},
 		cachedTrustedClients: new Set(["muc-wiki"]),
 		consentPage: "/account/federation/consent",
+		grantTypes: ["authorization_code", "refresh_token"],
 		loginPage: "/account/login",
-		scopes: ["openid", "profile", "email"],
+		scopes: [...FEDERATION_SCOPES],
 	});
-	const jwtPlugin = jwt();
+	const jwtPlugin = jwt({
+		disableSettingJwtHeader: true,
+		jwks: {
+			gracePeriod: FEDERATION_JWKS_GRACE_PERIOD_SECONDS,
+			keyPairConfig: FEDERATION_JWKS_KEY_PAIR_CONFIG,
+			rotationInterval: FEDERATION_JWKS_ROTATION_INTERVAL_SECONDS,
+		},
+	});
 	const endpoints = Object.keys(plugin.endpoints ?? {});
 	const schemaTables = Object.keys(plugin.schema ?? {});
 	const jwtEndpoints = Object.keys(jwtPlugin.endpoints ?? {});
@@ -82,7 +104,9 @@ export function buildFederationProviderRuntimeReadinessReport(): FederationProvi
 		},
 		jwtPlugin: {
 			endpoints: jwtEndpoints,
+			idTokenSigningAlg: FEDERATION_ID_TOKEN_SIGNING_ALG,
 			jwksEndpoint: jwksVerified ? "verified" : "not_verified",
+			keyPairConfig: FEDERATION_JWKS_KEY_PAIR_CONFIG,
 			schema: jwtSchemaTables,
 		},
 		staticClientRegistry: "configured",

@@ -25,11 +25,18 @@ export interface Env {
 }
 
 const HUB_ALLOWED_APP_API_PATHS = new Set([
+	"/.well-known/openid-configuration",
+	"/.well-known/oauth-authorization-server",
 	"/api/me",
 	"/api/me/overview",
 	"/api/me/identity",
 	"/api/me/access",
 	"/api/me/preferences",
+	"/api/federation/authorize",
+	"/api/federation/token",
+	"/api/federation/userinfo",
+	"/api/federation/jwks",
+	"/api/federation/logout",
 	"/api/auth/sign-in/email",
 	"/api/auth/sign-up/email",
 	"/api/auth/sign-out",
@@ -56,6 +63,14 @@ const BASE_FORWARDED_HEADERS = [
 	"idempotency-key",
 	"x-trace-id",
 ] as const;
+const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [
+	...BASE_FORWARDED_HEADERS,
+	"authorization",
+] as const;
+const FEDERATION_CREDENTIAL_PATHS = new Set([
+	"/api/federation/token",
+	"/api/federation/userinfo",
+]);
 const AUTH_FORWARDED_HEADERS = [
 	...BASE_FORWARDED_HEADERS,
 	"origin",
@@ -306,7 +321,13 @@ function isViteDevAssetPath(pathname: string): boolean {
 }
 
 function getForwardedHeaders(pathname: string) {
-	return isHubAuthRequest(pathname) ? AUTH_FORWARDED_HEADERS : BASE_FORWARDED_HEADERS;
+	if (isHubAuthRequest(pathname)) {
+		return AUTH_FORWARDED_HEADERS;
+	}
+	if (FEDERATION_CREDENTIAL_PATHS.has(pathname)) {
+		return FEDERATION_CREDENTIAL_FORWARDED_HEADERS;
+	}
+	return BASE_FORWARDED_HEADERS;
 }
 
 function shouldForwardBody(method: string): boolean {

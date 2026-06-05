@@ -47,6 +47,13 @@ Current runtime scope:
     reset-password
 - `GET /api/me`
   - compact current session principal projection
+- `GET /.well-known/openid-configuration`
+- `GET /.well-known/oauth-authorization-server`
+- `GET /api/federation/authorize`
+- `POST /api/federation/token`
+- `GET /api/federation/userinfo`
+- `GET /api/federation/jwks`
+- `GET /api/federation/logout`
 - `POST /api/official-web/runs`
 - `POST /api/official-web/runs/:runId/heartbeats`
 - `POST /api/official-web/runs/:runId/finalize`
@@ -209,6 +216,9 @@ Environment:
 - `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
 - `APP_API_INTERNAL_SHARED_SECRET`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET`
+- `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET`
+- `APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI`
+- `APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI`
 - `APP_API_OPERATOR_DATABASE_URL`
 - `APP_API_DATABASE_SSLMODE`
 - `SENTRY_DSN`
@@ -271,6 +281,12 @@ Deployment minimum gate:
   `POST /api/internal/staging-smoke/auth/session`, must be distinct from the
   public auth and internal service secrets, and may be provided through ignored
   repo-root `.env.staging.local`
+- `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET`,
+  `APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI` and
+  `APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI` are required only when
+  provisioning the controlled `muc-wiki` OAuth/OIDC client. The client secret
+  is command-scoped secret material; it is not a Worker runtime variable and
+  must not be committed.
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails
   expected to use the protected panel bridge
 - `SUPERVISOR_API_BASE_URL` and `SUPERVISOR_API_SHARED_SECRET` must be present
@@ -293,6 +309,12 @@ pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- \
   --email help_bot@outlook.com --name "Help Bot"
+APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
+APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:PluggableAuthLogin' \
+APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:UserLogout' \
+pnpm federation:provision-muc-wiki
 pnpm chat:e2e:dev -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm chat:e2e:local-real-provider
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
@@ -327,6 +349,13 @@ APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
   pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
   "Help Bot"
+APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
+APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:PluggableAuthLogin' \
+APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:UserLogout' \
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+pnpm federation:provision-muc-wiki:staging
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm docs:gated:smoke:staging
 pnpm dev
@@ -347,6 +376,10 @@ Deploy note:
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 - `db:bootstrap:staging` 负责补齐 `app_auth.*` / `chat.*` shared-product 面；现有
   staging 若只跑 `db:migrate:staging`，不会自动得到 `chat.messages.structured_parts_json`
+- `federation:provision-muc-wiki:staging` 负责把 controlled `muc-wiki` client
+  同步到 `identity.federation_*` product policy 与 Better Auth
+  `app_auth.oauthClient` runtime table。它必须在 staging DB bootstrap/migrate/drift
+  之后、MediaWiki OIDC smoke 之前执行。
 - `chat:e2e:staging` and `docs:gated:smoke:staging` do not require local
   staging DB credentials; they reset the fixed smoke identity through the
   deployed staging internal smoke endpoint protected by

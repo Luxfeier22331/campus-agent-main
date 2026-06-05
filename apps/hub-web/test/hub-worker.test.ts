@@ -106,9 +106,12 @@ describe("hub worker boundary", () => {
 
 	it("allows only explicitly admitted app-api seams", async () => {
 		const seen: string[] = [];
+		const seenAuthorizationByPath = new Map<string, string | null>();
 		const env = createEnv({
 			fetch(request) {
-				seen.push(new URL(request.url).pathname);
+				const pathname = new URL(request.url).pathname;
+				seen.push(pathname);
+				seenAuthorizationByPath.set(pathname, request.headers.get("authorization"));
 				return new Response(JSON.stringify({ ok: true }), {
 					headers: { "content-type": "application/json" },
 				});
@@ -132,12 +135,42 @@ describe("hub worker boundary", () => {
 			env,
 		);
 		const rejected = await worker.fetch(new Request("https://hub.muc.wiki/api/chat"), env);
-		const rejectedFederation = await worker.fetch(
+		const federationAuthorize = await worker.fetch(
 			new Request("https://hub.muc.wiki/api/federation/authorize"),
 			env,
 		);
-		const rejectedDiscovery = await worker.fetch(
+		const federationToken = await worker.fetch(
+			new Request("https://hub.muc.wiki/api/federation/token", {
+				body: new URLSearchParams({ grant_type: "authorization_code" }),
+				headers: { authorization: "Basic federation-client-secret" },
+				method: "POST",
+			}),
+			env,
+		);
+		const federationUserinfo = await worker.fetch(
+			new Request("https://hub.muc.wiki/api/federation/userinfo"),
+			env,
+		);
+		const federationJwks = await worker.fetch(
+			new Request("https://hub.muc.wiki/api/federation/jwks"),
+			env,
+		);
+		const federationLogout = await worker.fetch(
+			new Request("https://hub.muc.wiki/api/federation/logout"),
+			env,
+		);
+		const rejectedFederation = await worker.fetch(
+			new Request("https://hub.muc.wiki/api/federation/admin"),
+			env,
+		);
+		const discovery = await worker.fetch(
 			new Request("https://hub.muc.wiki/.well-known/openid-configuration", {
+				headers: { accept: "application/json" },
+			}),
+			env,
+		);
+		const oauthMetadata = await worker.fetch(
+			new Request("https://hub.muc.wiki/.well-known/oauth-authorization-server", {
 				headers: { accept: "application/json" },
 			}),
 			env,
@@ -150,8 +183,18 @@ describe("hub worker boundary", () => {
 		expect(preferencesGet.status).toBe(200);
 		expect(preferencesPatch.status).toBe(200);
 		expect(rejected.status).toBe(404);
+		expect(federationAuthorize.status).toBe(200);
+		expect(federationToken.status).toBe(200);
+		expect(federationUserinfo.status).toBe(200);
+		expect(federationJwks.status).toBe(200);
+		expect(federationLogout.status).toBe(200);
 		expect(rejectedFederation.status).toBe(404);
-		expect(rejectedDiscovery.status).toBe(404);
+		expect(discovery.status).toBe(200);
+		expect(oauthMetadata.status).toBe(200);
+		expect(seenAuthorizationByPath.get("/api/me")).toBeNull();
+		expect(seenAuthorizationByPath.get("/api/federation/token")).toBe(
+			"Basic federation-client-secret",
+		);
 		expect(seen).toEqual([
 			"/api/me",
 			"/api/me/overview",
@@ -159,6 +202,13 @@ describe("hub worker boundary", () => {
 			"/api/me/access",
 			"/api/me/preferences",
 			"/api/me/preferences",
+			"/api/federation/authorize",
+			"/api/federation/token",
+			"/api/federation/userinfo",
+			"/api/federation/jwks",
+			"/api/federation/logout",
+			"/.well-known/openid-configuration",
+			"/.well-known/oauth-authorization-server",
 		]);
 	});
 

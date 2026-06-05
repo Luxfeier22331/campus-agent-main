@@ -263,6 +263,12 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 
 - `STAGING_APP_API_OPERATOR_DATABASE_URL`
 - 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
+- `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET`，仅用于
+  `federation:provision-muc-wiki:staging`
+- `APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI`，首期为完整
+  `Special:PluggableAuthLogin` callback URL
+- `APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI`，首期为显式 wiki logout /
+  return URL
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
   `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:e2e:staging`、
   `docs:gated:smoke:staging` 与 `account:smoke:staging`；验收机
@@ -284,6 +290,8 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
   store 输入；不要把它写入 repo、runbook 产物或浏览器抓包摘要
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` 只属于 staging automation admission；它必须和
   Worker secret store 中的同名 secret 一致，不进入浏览器、supervisor 或 retrieval path
+- `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET` 只属于 app-api operator provision
+  命令；它不进入 Worker vars、Hub vars、文档示例真实值或 MediaWiki repo 文件
 - `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 不属于当前最小 staging chat/panel/app-api
   闭环的必填项；它只在你准备同时验收 official-web live control-plane 时才应视为当前环境 gate
 
@@ -335,6 +343,15 @@ wrangler secret put SENTRY_DSN --env staging
 - `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm --dir apps/hub-web
   deploy:staging` 会在 publish 时自动注入 `hub-web@staging-<sha>`，只有需要固定
   release 名时才用 `STAGING_SENTRY_RELEASE`
+
+Federation seam note:
+
+- Hub only forwards explicit federation seams to `app-api`: well-known
+  discovery, `/api/federation/authorize`, `/api/federation/token`,
+  `/api/federation/userinfo`, `/api/federation/jwks` and
+  `/api/federation/logout`
+- Hub does not own federation state and does not expose a generic
+  `/api/federation/*` or `/api/*` proxy
 
 ### `apps/protected-panel-web`
 
@@ -554,6 +571,28 @@ pnpm --dir apps/app-api db:migrate:staging
 
 这一步不是可选优化，而是 `official_web` operator surface 的 deploy gate。
 
+Federation client provision 必须在 shared DB bootstrap / migrate / drift
+收敛后执行：
+
+```bash
+APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
+APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:PluggableAuthLogin' \
+APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:UserLogout' \
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+pnpm --dir apps/app-api federation:provision-muc-wiki:staging
+```
+
+该命令同步两层 truth：
+
+- `identity.federation_clients` 与 `identity.federation_claims_policies`：
+  app-owned product policy
+- `app_auth.oauthClient`：Better Auth provider runtime client record
+
+不要通过 Hub、MediaWiki 或 Better Auth public client CRUD endpoint 创建首期
+`muc-wiki` client。
+
 ### 1. `apps/app-api`
 
 ```bash
@@ -565,6 +604,16 @@ pnpm --dir apps/app-api deploy:staging
 
 - `https://api-staging.mucwiki-edge.link/healthz`
 - `https://api-staging.mucwiki-edge.link/readyz`
+
+Federation discovery / JWKS 确认通过 Hub staging origin：
+
+```bash
+curl -fsS https://hub-staging.mucwiki-edge.link/.well-known/openid-configuration
+curl -fsS https://hub-staging.mucwiki-edge.link/api/federation/jwks
+```
+
+discovery response issuer 必须是 `https://hub-staging.mucwiki-edge.link`，且
+advertised federation endpoints 必须在同一 origin 下。
 
 ### 2. `apps/public-chat-web`
 
@@ -608,6 +657,42 @@ pnpm --dir apps/protected-panel-web access:smoke:staging
 可由 automation 到达，不被投射为 human operator identity。
 
 ## Post-Deploy Verification
+
+### MediaWiki OIDC relying-party rehearsal
+
+Production `muc.wiki` login federation 只有在 `nc-arm-6c` 上完成 staging /
+rehearsal smoke 后才能视为 ready。首期 MediaWiki posture：
+
+- install and enable `PluggableAuth`
+- install and enable `OpenIDConnect`
+- provider URL:
+  - staging: `https://hub-staging.mucwiki-edge.link`
+  - production: `https://hub.muc.wiki`
+- client ID: `muc-wiki`
+- client secret: runtime secret, matching the app-api provision input
+- scope: `openid profile email`
+- code challenge method: `S256`
+- auth method: `client_secret_basic`
+- callback / redirect URI: full MediaWiki `Special:PluggableAuthLogin` URL,
+  matching `identity.federation_clients.redirect_uris_json`
+
+Forbidden integration shapes:
+
+- no shared `.muc.wiki` cookie
+- no MediaWiki user/password/session import into app-api
+- no app-api import of MediaWiki groups, page permissions, content or media
+- no Hub-owned provider state or federation admin UI
+
+Smoke flow:
+
+1. Open `Special:UserLogin`.
+2. Start OpenID Connect login.
+3. Redirect to Hub/app-api authorization route.
+4. Sign in with existing Hub/app-api auth.
+5. Return to `Special:PluggableAuthLogin`.
+6. Verify wiki-local account creation or linking by OIDC subject/email.
+7. Verify wiki-local logout.
+8. Verify provider end-session only with an admitted post-logout redirect URI.
 
 部署完成后，按 `docs/runbooks/worker-observability-smoke-runbook.md` 执行：
 
