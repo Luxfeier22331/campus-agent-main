@@ -4,6 +4,8 @@ export const HUB_ACCOUNT_ROUTES = [
 	"/account/register",
 	"/account/forgot-password",
 	"/account/reset-password",
+	"/account/federation/consent",
+	"/account/federation/error",
 ] as const;
 
 export const HUB_OWNED_SHELL_PATHS = ["/", ...HUB_ACCOUNT_ROUTES] as const;

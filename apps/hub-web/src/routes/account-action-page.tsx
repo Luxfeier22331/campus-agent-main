@@ -1,7 +1,16 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, KeyRound, ShieldCheck } from "lucide-react";
+import {
+	ArrowLeft,
+	ArrowRight,
+	Check,
+	KeyRound,
+	LockKeyhole,
+	ShieldCheck,
+	TriangleAlert,
+} from "lucide-react";
 import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +24,7 @@ import {
 	signInWithEmail,
 	signUpWithEmail,
 } from "../platform/auth/client";
+import { type HubOAuthContext, resolveHubOAuthContext } from "../platform/auth/oauth-context";
 import {
 	resolveHubAuthReturnOrigins,
 	resolveHubAuthReturnTarget,
@@ -29,9 +39,12 @@ import { ShellSection } from "./route-layout";
 type AccountActionKind = "forgot-password" | "login" | "register" | "reset-password";
 
 export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
+	const oauthContext = useMemo(readOAuthContext, []);
 	const title =
 		kind === "login"
-			? "欢迎登录"
+			? oauthContext
+				? `登录 ${oauthContext.client.productLabel}`
+				: "欢迎登录"
 			: kind === "register"
 				? "创建账号"
 				: kind === "forgot-password"
@@ -39,7 +52,9 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 					: "设置新密码";
 	const description =
 		kind === "login"
-			? "极简工具化校园入口"
+			? oauthContext
+				? `继续访问 ${oauthContext.client.displayName}`
+				: "极简工具化校园入口"
 			: kind === "register"
 				? "使用统一账号访问校园应用"
 				: kind === "forgot-password"
@@ -51,15 +66,22 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 		) : kind === "reset-password" ? (
 			<HubPasswordRecoveryResetForm />
 		) : (
-			<HubEmailPasswordForm mode={kind} />
+			<HubEmailPasswordForm mode={kind} oauthContext={oauthContext} />
 		);
 
 	return (
-		<AuthPageShell>
+		<AuthPageShell isFederationFlow={Boolean(oauthContext)}>
 			<div className="mb-8 text-center">
-				<span className="mx-auto mb-5 grid size-12 place-items-center rounded-lg bg-primary text-primary-foreground">
+				<span
+					className={cn(
+						"mx-auto mb-5 grid size-12 place-items-center rounded-lg bg-primary text-primary-foreground",
+						oauthContext && "bg-foreground",
+					)}
+				>
 					{kind === "forgot-password" || kind === "reset-password" ? (
 						<KeyRound aria-hidden="true" className="size-5" />
+					) : oauthContext ? (
+						<LockKeyhole aria-hidden="true" className="size-5" />
 					) : (
 						<ShieldCheck aria-hidden="true" className="size-5" />
 					)}
@@ -67,10 +89,80 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 				<h1 className="text-2xl font-semibold tracking-normal">{title}</h1>
 				<p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
 			</div>
+			{oauthContext && kind === "login" ? <OAuthClientPanel oauthContext={oauthContext} /> : null}
 			{form}
-			<AuthAuxiliaryLinks kind={kind} />
+			<AuthAuxiliaryLinks kind={kind} oauthContext={oauthContext} />
 		</AuthPageShell>
 	);
+}
+
+export function FederationConsentPage() {
+	const oauthContext = useMemo(readOAuthContext, []);
+
+	return (
+		<AuthPageShell isFederationFlow={Boolean(oauthContext)}>
+			<FederationStatusHeader
+				icon={<ShieldCheck aria-hidden="true" className="size-5" />}
+				title="授权请求已受信任"
+			/>
+			{oauthContext ? <OAuthClientPanel oauthContext={oauthContext} /> : null}
+			<p className="text-sm leading-6 text-muted-foreground">
+				当前 staging 只接入受控的 MUC Wiki client。登录完成后，Hub 会继续处理授权请求。
+			</p>
+			<Button asChild className="mt-6 w-full">
+				<a href={oauthContext?.authorizePath ?? "/account"}>继续</a>
+			</Button>
+		</AuthPageShell>
+	);
+}
+
+export function FederationErrorPage() {
+	const error = useMemo(readOAuthError, []);
+	return (
+		<AuthPageShell isFederationFlow>
+			<FederationStatusHeader
+				icon={<TriangleAlert aria-hidden="true" className="size-5" />}
+				title="登录授权未完成"
+			/>
+			<div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
+				<p className="text-sm font-medium text-destructive">{error.title}</p>
+				<p className="mt-2 text-sm leading-6 text-muted-foreground">{error.description}</p>
+			</div>
+			<Button asChild className="mt-6 w-full" variant="outline">
+				<a href="/account/login">返回登录</a>
+			</Button>
+		</AuthPageShell>
+	);
+}
+
+function readOAuthContext(): HubOAuthContext | null {
+	if (typeof window === "undefined") {
+		return null;
+	}
+	return resolveHubOAuthContext(window.location.search);
+}
+
+function readOAuthError(): { description: string; title: string } {
+	if (typeof window === "undefined") {
+		return {
+			description: "请从 MUC Wiki 登录入口重新发起授权。",
+			title: "授权请求不可用",
+		};
+	}
+	const params = new URLSearchParams(window.location.search);
+	const code = params.get("error")?.trim() || "invalid_request";
+	const description = params.get("error_description")?.trim();
+	return {
+		description: description || "请从 MUC Wiki 登录入口重新发起授权。",
+		title:
+			code === "access_denied"
+				? "您已取消授权"
+				: code === "invalid_client"
+					? "应用未被允许"
+					: code === "invalid_redirect_uri"
+						? "回调地址未被允许"
+						: "授权请求不可用",
+	};
 }
 
 function readReturnTo(): string {
@@ -78,6 +170,10 @@ function readReturnTo(): string {
 		return resolveHubAuthReturnTarget("", {
 			appOrigins: resolveHubAuthReturnOrigins({}),
 		});
+	}
+	const oauthContext = resolveHubOAuthContext(window.location.search);
+	if (oauthContext) {
+		return `${window.location.pathname}${window.location.search}`;
 	}
 	const script = document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID);
 	const runtimeConfig = parseTurnstileRuntimeConfigSource(script?.textContent);
@@ -110,8 +206,11 @@ function mapAuthError(error: unknown): Exclude<HubAuthActionState, "idle" | "suc
 	return "failed";
 }
 
-function HubEmailPasswordForm(props: { mode: "login" | "register" }) {
-	const { mode } = props;
+function HubEmailPasswordForm(props: {
+	mode: "login" | "register";
+	oauthContext: HubOAuthContext | null;
+}) {
+	const { mode, oauthContext } = props;
 	const [status, setStatus] = useState<HubAuthActionState>("idle");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isTurnstileConfigured, setIsTurnstileConfigured] = useState(false);
@@ -202,7 +301,13 @@ function HubEmailPasswordForm(props: { mode: "login" | "register" }) {
 				status={status}
 			/>
 			<Button disabled={isSubmitting || !isTurnstileConfigured} type="submit">
-				{isSubmitting ? "提交中" : mode === "login" ? "登录" : "注册"}
+				{isSubmitting
+					? "提交中"
+					: mode === "login"
+						? oauthContext
+							? `继续访问 ${oauthContext.client.displayName}`
+							: "登录"
+						: "注册"}
 				<ArrowRight aria-hidden="true" />
 			</Button>
 		</form>
@@ -401,16 +506,33 @@ function HubAuthStatus({
 	);
 }
 
-function AuthAuxiliaryLinks({ kind }: { kind: AccountActionKind }) {
+function AuthAuxiliaryLinks({
+	kind,
+	oauthContext,
+}: {
+	kind: AccountActionKind;
+	oauthContext?: HubOAuthContext | null;
+}) {
 	if (kind === "login") {
+		const suffix = typeof window !== "undefined" && oauthContext ? window.location.search : "";
+		const registerPath = `/account/register${suffix}`;
 		return (
 			<div className="mt-6 flex flex-col items-center justify-center gap-3 text-sm sm:flex-row">
-				<Link
-					className="inline-flex min-h-11 items-center font-medium text-primary hover:text-primary/80"
-					to="/account/register"
-				>
-					注册账号
-				</Link>
+				{oauthContext ? (
+					<a
+						className="inline-flex min-h-11 items-center font-medium text-primary hover:text-primary/80"
+						href={registerPath}
+					>
+						注册账号
+					</a>
+				) : (
+					<Link
+						className="inline-flex min-h-11 items-center font-medium text-primary hover:text-primary/80"
+						to="/account/register"
+					>
+						注册账号
+					</Link>
+				)}
 				<span className="hidden text-muted-foreground sm:inline">·</span>
 				<Link
 					className="inline-flex min-h-11 items-center font-medium text-primary hover:text-primary/80"
@@ -423,15 +545,26 @@ function AuthAuxiliaryLinks({ kind }: { kind: AccountActionKind }) {
 	}
 
 	if (kind === "register") {
+		const suffix = typeof window !== "undefined" && oauthContext ? window.location.search : "";
+		const loginPath = `/account/login${suffix}`;
 		return (
 			<p className="mt-6 text-center text-sm text-muted-foreground">
 				已有账号？{" "}
-				<Link
-					className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 font-medium text-primary hover:text-primary/80"
-					to="/account/login"
-				>
-					登录
-				</Link>
+				{oauthContext ? (
+					<a
+						className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 font-medium text-primary hover:text-primary/80"
+						href={loginPath}
+					>
+						登录
+					</a>
+				) : (
+					<Link
+						className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 font-medium text-primary hover:text-primary/80"
+						to="/account/login"
+					>
+						登录
+					</Link>
+				)}
 			</p>
 		);
 	}
@@ -449,13 +582,60 @@ function AuthAuxiliaryLinks({ kind }: { kind: AccountActionKind }) {
 	);
 }
 
-function AuthPageShell({ children }: { children: ReactNode }) {
+function AuthPageShell({
+	children,
+	isFederationFlow = false,
+}: {
+	children: ReactNode;
+	isFederationFlow?: boolean;
+}) {
 	return (
-		<ShellSection className="max-w-lg">
-			<Card className="rounded-lg border-border bg-card shadow-none">
+		<ShellSection className={cn("max-w-lg", isFederationFlow && "py-10 lg:py-14")}>
+			<Card
+				className={cn(
+					"rounded-lg border-border bg-card shadow-sm",
+					isFederationFlow && "border-input shadow-none",
+				)}
+			>
 				<CardContent className="p-6 sm:p-8">{children}</CardContent>
 			</Card>
 		</ShellSection>
+	);
+}
+
+function FederationStatusHeader({ icon, title }: { icon: ReactNode; title: string }) {
+	return (
+		<div className="mb-8 text-center">
+			<span className="mx-auto mb-5 grid size-12 place-items-center rounded-lg bg-foreground text-background">
+				{icon}
+			</span>
+			<h1 className="text-2xl font-semibold tracking-normal">{title}</h1>
+		</div>
+	);
+}
+
+function OAuthClientPanel({ oauthContext }: { oauthContext: HubOAuthContext }) {
+	return (
+		<div className="mb-6 rounded-lg border border-border bg-muted/40 p-4">
+			<div className="flex items-center justify-between gap-4">
+				<div>
+					<p className="text-sm font-semibold text-foreground">{oauthContext.client.displayName}</p>
+					<p className="mt-1 text-xs text-muted-foreground">{oauthContext.client.hostLabel}</p>
+				</div>
+				<Badge variant="outline">OAuth</Badge>
+			</div>
+			<div className="mt-4 border-t border-border pt-4">
+				<p className="text-xs font-medium uppercase text-muted-foreground">请求访问</p>
+				<ul className="mt-3 grid gap-2">
+					{oauthContext.client.scopeItems.map((item) => (
+						<li className="flex items-center gap-2 text-sm text-foreground" key={item}>
+							<Check aria-hidden="true" className="size-4 text-primary" />
+							<span>{item}</span>
+						</li>
+					))}
+				</ul>
+			</div>
+		</div>
 	);
 }
 

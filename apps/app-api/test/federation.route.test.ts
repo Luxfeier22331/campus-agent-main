@@ -104,6 +104,30 @@ describe("federation provider routes", () => {
 		);
 	});
 
+	it("normalizes browser authorize errors to the hub federation error page", async () => {
+		const app = createApp(env, {
+			authHandler: vi.fn(() =>
+				Response.json(
+					{
+						error: "invalid_redirect_uri",
+						error_description: "redirect URI is not registered",
+					},
+					{ status: 400 },
+				),
+			),
+		});
+
+		const response = await app.fetch(
+			new Request("https://hub-staging.mucwiki-edge.link/api/federation/authorize"),
+			env,
+		);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe(
+			"https://hub-staging.mucwiki-edge.link/account/federation/error?error=invalid_redirect_uri&error_description=redirect+URI+is+not+registered",
+		);
+	});
+
 	it("serves well-known metadata through the Better Auth provider metadata API", async () => {
 		const getOpenIdConfig = vi.fn(async () => ({
 			issuer: "https://hub-staging.mucwiki-edge.link",

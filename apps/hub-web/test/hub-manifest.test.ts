@@ -49,6 +49,8 @@ describe("hub app launcher manifest", () => {
 			"/account/register",
 			"/account/forgot-password",
 			"/account/reset-password",
+			"/account/federation/consent",
+			"/account/federation/error",
 		]);
 		expect(HUB_OWNED_SHELL_PATHS).toEqual(["/", ...HUB_ACCOUNT_ROUTES]);
 		expect(isHubInternalSlug("account")).toBe(false);

@@ -47,7 +47,20 @@ function buildRedirectResponse(url: string): Response | null {
 	});
 }
 
-async function normalizeFederationProviderResponse(response: Response): Promise<Response> {
+async function normalizeFederationProviderResponse(input: {
+	request: Request;
+	response: Response;
+}): Promise<Response> {
+	const { request, response } = input;
+	const requestUrl = new URL(request.url);
+	if (
+		request.method === "GET" &&
+		requestUrl.pathname === "/api/federation/authorize" &&
+		response.status >= 400
+	) {
+		return await normalizeAuthorizeErrorResponse({ request, response });
+	}
+
 	if (response.status !== 200) {
 		return response;
 	}
@@ -74,6 +87,48 @@ async function normalizeFederationProviderResponse(response: Response): Promise<
 	}
 
 	return buildRedirectResponse(body.url) ?? response;
+}
+
+async function normalizeAuthorizeErrorResponse(input: {
+	request: Request;
+	response: Response;
+}): Promise<Response> {
+	const contentType = input.response.headers.get("content-type") ?? "";
+	if (!contentType.toLowerCase().includes("application/json")) {
+		return input.response;
+	}
+
+	let payload: unknown;
+	try {
+		payload = await input.response.clone().json();
+	} catch {
+		return input.response;
+	}
+
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		return input.response;
+	}
+
+	const body = payload as Record<string, unknown>;
+	const error = typeof body.error === "string" ? body.error : "invalid_request";
+	const description =
+		typeof body.error_description === "string"
+			? body.error_description
+			: typeof body.message === "string"
+				? body.message
+				: "";
+	const errorUrl = new URL("/account/federation/error", new URL(input.request.url).origin);
+	errorUrl.searchParams.set("error", error);
+	if (description) {
+		errorUrl.searchParams.set("error_description", description);
+	}
+
+	return new Response(null, {
+		headers: {
+			location: errorUrl.toString(),
+		},
+		status: 303,
+	});
 }
 
 function rewriteFederationRequest(request: Request): Request {
@@ -162,7 +217,10 @@ export function registerFederationRoutes(input: {
 					getAppAuth: scope.getAppAuth,
 				},
 			);
-			const response = await normalizeFederationProviderResponse(providerResponse);
+			const response = await normalizeFederationProviderResponse({
+				request,
+				response: providerResponse,
+			});
 			return await rewriteFederationMetadataResponse({ request, response });
 		} catch {
 			return dependencyNotReadyResponse();

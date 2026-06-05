@@ -227,6 +227,14 @@ describe("hub worker boundary", () => {
 			env,
 		);
 		const account = await worker.fetch(new Request("https://hub.muc.wiki/account/login"), env);
+		const federationConsent = await worker.fetch(
+			new Request("https://hub.muc.wiki/account/federation/consent"),
+			env,
+		);
+		const federationError = await worker.fetch(
+			new Request("https://hub.muc.wiki/account/federation/error"),
+			env,
+		);
 
 		expect(unknown.status).toBe(404);
 		expect(chat.status).toBe(404);
@@ -236,6 +244,8 @@ describe("hub worker boundary", () => {
 			},
 		});
 		expect(account.status).toBe(200);
+		expect(federationConsent.status).toBe(200);
+		expect(federationError.status).toBe(200);
 		expect(account.headers.get("content-type")).toContain("text/html");
 	});
 

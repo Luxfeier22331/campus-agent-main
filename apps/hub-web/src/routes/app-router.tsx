@@ -1,6 +1,10 @@
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 
-import { AccountActionPage } from "./account-action-page";
+import {
+	AccountActionPage,
+	FederationConsentPage,
+	FederationErrorPage,
+} from "./account-action-page";
 import { AccountPage } from "./account-page";
 import { LauncherPage } from "./launcher-page";
 import { NotFoundPage, RootRouteComponent } from "./route-layout";
@@ -46,6 +50,18 @@ const accountResetPasswordRoute = createRoute({
 	path: "/account/reset-password",
 });
 
+const accountFederationConsentRoute = createRoute({
+	component: FederationConsentPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/federation/consent",
+});
+
+const accountFederationErrorRoute = createRoute({
+	component: FederationErrorPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/federation/error",
+});
+
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	accountRoute,
@@ -53,6 +69,8 @@ const routeTree = rootRoute.addChildren([
 	accountRegisterRoute,
 	accountForgotPasswordRoute,
 	accountResetPasswordRoute,
+	accountFederationConsentRoute,
+	accountFederationErrorRoute,
 ]);
 
 const router = createRouter({

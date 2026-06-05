@@ -78,9 +78,14 @@ describe("hub source guardrails", () => {
 		expect(routerSource).toContain('path: "/account/register"');
 		expect(routerSource).toContain('path: "/account/forgot-password"');
 		expect(routerSource).toContain('path: "/account/reset-password"');
+		expect(routerSource).toContain('path: "/account/federation/consent"');
+		expect(routerSource).toContain('path: "/account/federation/error"');
 		expect(routeSurfaceSource).toContain("HubEmailPasswordForm");
 		expect(routeSurfaceSource).toContain("HubPasswordRecoveryRequestForm");
 		expect(routeSurfaceSource).toContain("HubPasswordRecoveryResetForm");
+		expect(routeSurfaceSource).toContain("OAuthClientPanel");
+		expect(routeSurfaceSource).toContain("FederationConsentPage");
+		expect(routeSurfaceSource).toContain("FederationErrorPage");
 		expect(routeSurfaceSource).toContain("重置密码");
 		expect(routeSurfaceSource).toContain("账号服务暂不可用");
 		expect(routeSurfaceSource).toContain("ResetTokenMissingState");
