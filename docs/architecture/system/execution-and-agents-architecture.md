@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 # Execution And Agents Architecture
 
@@ -13,8 +13,8 @@ updated: 2026-06-04
 它回答的是：
 
 - `apps/supervisor-api` 与 `apps/supervisor-agent-worker` 分别负责什么
-- supervisor 如何与 agent 交互
-- RAG agent 与其他 domain capability family 的长期角色是什么
+- supervisor 如何调度 typed tools 与 agent-as-tool steps
+- RAG agent 与其他 domain capability family 的目标角色是什么
 
 ## Execution Chain
 
@@ -38,16 +38,17 @@ agent -> retrieval-core -> evidence -> supervisor response`
 Go direct-runtime 抢走；它们走 Go-owned `single_handoff` plan，再由 Python worker 的
 OpenAI Agents SDK native runtime 调用 repo-owned structured query backend。
 
-长期目标态在同一 governance boundary 内扩展为：
+目标态在同一 governance boundary 内扩展为：
 
-`app-api -> durable conversation / run store -> supervisor-api scheduler /
-lease coordinator -> workflow plan -> one or more domain agents -> typed step
-output projections -> run events -> Go supervisor finalization`
+`app-api -> durable conversation / run store -> PG queued run / queued step rows
+-> supervisor scheduler / lease coordinator -> typed workflow plan -> typed tools
+or agent-as-tool steps -> step results -> run events -> Go supervisor finalization`
 
 这表示 repo 采用 supervisor-led governed multi-agent，而不是无中心 peer
 agent mesh。Go `apps/supervisor-api` 保留 deterministic workflow ownership；
-Python `apps/supervisor-agent-worker` 与 package-owned domain agents 承接 bounded
-semantic execution。
+typed tools 承接 deterministic data access；Python
+`apps/supervisor-agent-worker` 与 package-owned semantic specialists 只在
+agent-as-tool step 内承接 bounded semantic execution。
 
 边界固定如下：
 
@@ -58,7 +59,8 @@ semantic execution。
   Go preplanned `AgentRequest` handoff，并调用注入的 agent delegate
 - `packages/prompt-runtime` 负责 provider-facing prompt contract validation、structured
   output execution、provider response normalization 与 prompt trace construction
-- agent 负责能力边界内的 planning / evidence consumption / answer shaping
+- typed tool 负责 deterministic data access；agent-as-tool 负责能力边界内的 semantic
+  planning / evidence consumption / answer shaping
 - multi-agent path 只能通过 Go-owned `WorkflowPlan` admission 打开；agent 之间不得通过
   raw prompt transcript、raw provider trace 或 unbounded evidence dump 直接互相调用
 - `packages/retrieval-core` 负责 evidence retrieval kernel、target-state retrieval
@@ -86,7 +88,7 @@ supervisor 不负责：
 - retrieval backend 细节
 - collection-specific ingestion logic
 - product-layer auth/session ownership
-- 将 agent 降级成扁平 tool bundle
+- 将 semantic specialist 降级成扁平 tool bundle，或把 deterministic tool 包装成无语义职责的 agent
 - 在 prompt 内隐式决定跨 agent 协作顺序
 
 补充约束：
@@ -103,10 +105,11 @@ supervisor 不负责：
 - deterministic runtime control plane
 - semantic orchestration and agent reasoning
 
-Docker-side Go runtime control plane 长期负责：
+Docker-side Go runtime code domain 负责：
 
 - durable run lifecycle adapter、deadline、timeout、cancel 与 graceful drain
-- scheduler / lease coordinator、global / per-capability lane admission、queue、
+- scheduler / lease coordinator、global / per-capability lane admission、PG
+  queued run / queued step scan、execution lease、
   backpressure、retryability 与 circuit breaker
 - process-local lifecycle / admission limiter 作为本进程 protection；它不是
   production run store 或跨实例全局 scheduler
@@ -123,14 +126,29 @@ Docker-side Go runtime control plane 长期负责：
 - transport / timeout / bridge unavailable / policy unavailable 等 fail-close response
   envelope
 
+`apps/supervisor-api` 在部署上拆成五类 role：
+
+- `supervisor-api-control`：HTTP command-query、run create/query/cancel、
+  readyz/metrics 与 operator-safe projection。
+- `supervisor-scheduler`：使用 PG `FOR UPDATE SKIP LOCKED` 消费 queued run / queued step
+  rows，写 admission event 与 execution lease。
+- `supervisor-recovery`：回收 expired lease、timed-out run / step 与 stale worker heartbeat。
+- `supervisor-worker-{lane}`：按 lane 消费 lease，执行 typed tool 或 agent-as-tool step，并写
+  step attempt / result / run event。
+- `worker-autoscaler`：读取 sanitized backlog / lease / heartbeat / lane budget projection，只调
+  worker replica count，不写 execution truth。
+
 当前 repo-local runtime progress：
 
 - Go `supervisor-api` 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
   admission、bridge circuit breaker、bounded bridge transport retry、metrics、OTel seam
   与 execution audit backflow
-- 当前 lifecycle、active count 与 queue 仍是进程内 truth；它们服务 single-instance
-  runtime protection。长期 production execution truth 必须迁到 durable run store +
-  scheduler / lease coordinator + lease-driven worker pool。完整 target 见
+- 当前已经具备 PG-backed run-level durable baseline：durable run store、
+  events、leases、lane budgets、worker heartbeat、lease coordinator、worker
+  loop、recovery loop 与 app-api durable chat cutover。进程内 lifecycle、
+  active count 与 bounded queue 只保留为本进程 runtime protection。当前缺口是
+  step-level durable ledger、role split、multi-lane worker pool、worker
+  autoscaler 与 typed-tool RAG step graph。完整 target 见
   `docs/architecture/system/durable-agent-runtime-architecture.md`
 - Go `supervisor-api` 已补齐 Go -> Python cooperative cancel signal；Python bridge
   记录 active request id 的 cancel state，默认 supervisor orchestration 已在路由、
@@ -192,10 +210,9 @@ Docker-side Go runtime control plane 长期负责：
   `SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE=true` 只适合 local/dev 或明确允许启动迁移的环境。
   completed `multi_step` 至少包含两个有序 handoff step；需要 cross-step
   context 的 edge 必须声明 `required_projection_kind`，projection 缺失时 fail-closed
-- `WorkflowRunStore` 是 multi-step workflow foundation，不等同于最终 product-visible
-  durable `Run` / `RunEvent` truth；后续 durable runtime 收口必须把 answer-level
-  run lifecycle、conversation active-run policy、lane lease 与 stream event projection
-  明确建模
+- `WorkflowRunStore` 是 multi-step workflow foundation；当前 product-visible durable
+  `Run` / `RunEvent` truth 已具备 run-level baseline。下一层收口必须把 `RunStep`、
+  `StepAttempt`、`StepResult`、lane lease 与 stream event projection 统一建模
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
   均通过 PostgreSQL release current pointer + typed read model 消费，
@@ -313,9 +330,10 @@ planning -> agent-owned execution -> Go supervisor finalization`
 更完整的 routing / admission 分层，统一看
 `docs/architecture/system/capability-routing-and-admission-architecture.md`。
 
-## Agent Model
+## Tool And Agent-As-Tool Model
 
-agent 是稳定能力边界，不等于某个底层框架对象。
+domain capability 默认 tools-first。agent 是 semantic specialist boundary，不等于某个底层框架对象，
+也不是 deterministic data access 的默认包装层。
 
 当前 merged-truth 已接受的 current-truth runtime / package label：
 
@@ -326,8 +344,11 @@ agent 是稳定能力边界，不等于某个底层框架对象。
 
 后续如引入新的稳定 capability family，必须满足：
 
-- 能力边界长期稳定
-- handoff contract 可显式化
+- deterministic data access 已先建模为 typed tool 或 projection-backed
+  internal query service
+- 需要 semantic specialist 的理由明确，例如消歧、摘要、跨工具编排、agent-owned
+  clarification、evidence consumption 或 answer shaping
+- handoff / step contract 可显式化
 - workflow / safety / eval 可重复验证
 
 补充命名约束：
@@ -342,25 +363,26 @@ agent 是稳定能力边界，不等于某个底层框架对象。
   - `navigation-agent`
   - `campus-services-agent`
   - `notice-agent`
-- 当长期新增稳定 capability family 时，前向 family label 默认采用 `<domain>-agent`
+- 当新增稳定 capability family 时，默认先新增 typed tool；只有需要 semantic specialist 时才新增
+  `<domain>-agent` label
 - 当前 label 已与 forward family label 一致的能力边界，不再额外维护 synthetic split；如未来新增 domain
   capability，需要先冻结 family label，再决定其 package/runtime admission 形态
 - 当前 shared contract seam 使用 `AgentRequest` / `AgentResponse` 作为 private
   bridge 的 canonical DTO 名称。
 
-## Governed Multi-Agent Target
+## Governed Typed-Step Target
 
-长期 multi-agent 默认采用 manager-style orchestration：
+multi-agent 默认采用 manager-style typed-step orchestration：
 
-`Go supervisor-api -> WorkflowPlan -> bounded specialist agent calls ->
-StepOutputProjection -> next step / finalizer`
+`Go supervisor-api -> durable RunStep -> typed tool or bounded specialist
+agent-as-tool -> StepResult / StepOutputProjection -> next step / finalizer`
 
 外部 agent 框架与 Codex CLI / Agents SDK / LangGraph 等 runtime 的共同启发只作为
 supporting design input：它们证明 manager-style specialist call、explicit handoff、
 tool orchestration、trace 与 agent graph 都应是一等 runtime concern。repo 的 canonical
-truth 仍由 `WorkflowPlan`、`AgentRequest`、`AgentResponse`、
-`StepOutputProjection` 与 `workflow_trace_summary` 拥有；不得把任何 SDK-native graph、
-provider trace 或框架状态提升为 shared contract。
+truth 仍由 durable `RunStep`、`StepAttempt`、`StepResult`、`WorkflowPlan`、
+`AgentRequest`、`AgentResponse`、`StepOutputProjection` 与 `workflow_trace_summary`
+拥有；不得把任何 SDK-native graph、provider trace 或框架状态提升为 shared contract。
 
 固定 owner 如下：
 
@@ -368,10 +390,12 @@ provider trace 或框架状态提升为 shared contract。
   - 拥有 workflow mode、allowed agents、allowed tools、step order、parallelism、
     timeout / budget、retry / replan posture、terminal fail-close policy 与 finalization
 - Python `apps/supervisor-agent-worker`
-  - 拥有 bounded domain-agent runtime、provider adapter、agent loop execution 与
+  - 拥有 bounded agent-as-tool runtime、provider adapter、agent loop execution 与
     step-local guardrail / tool result consumption
-- domain agent
-  - 拥有 family 内部 reasoning、tool sequencing、clarification 与 answer shaping
+- typed tool
+  - 拥有 deterministic data access contract 与 sanitized result projection
+- agent-as-tool
+  - 拥有 family 内部 semantic reasoning、tool sequencing、clarification 与 answer shaping
 - `packages/evals`
   - 拥有 multi-agent step selection、handoff correctness、context projection completeness
     与 final answer grounding 的 denominator
@@ -389,8 +413,8 @@ provider trace 或框架状态提升为 shared contract。
 
 ### AgentSpec Registry Target
 
-长期必须有 repo-owned `AgentSpec` registry，作为 `ToolSpec` 的 agent-level 等价物。
-新增或打开稳定 domain agent 时，不得只在 planner 中添加字符串 target；必须先注册
+必须有 repo-owned `AgentSpec` registry，作为 `ToolSpec` 的 agent-level 等价物。
+新增或打开稳定 domain agent-as-tool 时，不得只在 planner 中添加字符串 target；必须先注册
 `AgentSpec` 或同等 canonical artifact。
 
 `AgentSpec` 至少固定：
@@ -416,12 +440,12 @@ provider trace 或框架状态提升为 shared contract。
 
 ### Agent Invocation Graph Target
 
-multi-agent runtime 的 canonical lifecycle 应显式建模为：
+multi-agent runtime 的 canonical lifecycle 应显式投影到 durable step model：
 
-`Turn -> WorkflowRun -> AgentInvocation -> ToolCall -> Evidence/Projection -> Finalization`
+`Turn -> Run -> RunStep -> StepAttempt -> StepResult -> RunEvent -> Finalization`
 
-当前 `WorkflowRunStore` 与 `workflow_trace_summary` 是这条线的 foundation；后续需要补齐
-agent invocation graph projection。该 projection 只保存 sanitized contract，不保存 raw
+`AgentInvocation` 与 `ToolCall` 是 step result / workflow trace 内的 sanitized projection，而不是
+独立 execution truth owner。该 projection 只保存 sanitized contract，不保存 raw
 prompt、raw model response、raw provider trace、raw OCR、raw source HTML 或未裁剪附件正文。
 
 每个 `AgentInvocation` 至少应包含：
@@ -770,12 +794,12 @@ surface 折叠成同一个 generic campus-services prompt。至少应保留：
 长期上，部分校园问题不是 generic retrieval 问答，而是 projection-backed structured runtime
 query。
 
-当前已冻结的前向 family 包括：
+当前已冻结的前向 family / tool boundary 包括：
 
-- `campus-services-agent`
-  - 承接 `transport_schedule_lookup`、`service_status_lookup` 与
+- campus services typed tools
+  - 承接 deterministic `transport_schedule_lookup`、`service_status_lookup` 与
     `service_guide_lookup`、`contact_directory_lookup`、`academic_calendar_lookup`，以及
-    later-wave `service_process_lookup`
+    reserved `service_process_lookup`
   - `service_guide_lookup` 只回答只读办理指南、材料、入口说明、服务时间、联系方式与来源引用；
     不执行申请、预约、提交、代办、支付、工单创建或任何状态变更
   - 详细领域边界、projection owner 与 opening gate 统一看
@@ -790,30 +814,40 @@ query。
     trusted execution anchor 仍由服务端解析并通过 `queried_time_anchor`
     返回，不接受客户端自由写入 `time_anchor`
   - “校历怎么看 / 校历在哪里看”仍属于 `service_guide_lookup` 的只读指南边界
-- `notice-agent`
-  - 承接 `campus_notice_discover`、selected notice ref resolution、official source card
-    rendering 与 bounded notice context projection
+- `campus-services-agent`
+  - 只在需要 semantic disambiguation、跨工具编排、说明生成或 agent-owned clarification
+    时作为 agent-as-tool 消费 campus services typed tools
+  - 不拥有服务 source truth、release current pointer 或 typed read model
+- notice typed tools
+  - 承接 deterministic `campus_notice_discover`、selected notice ref
+    resolution、official source card rendering 与 bounded notice context projection
   - 回答 notice 发现、候选消歧、官方链接回链、短摘要/事实抽取所需的内部 context；current-year
     miss 不得自动触发历史回退
   - 不作为默认正文阅读器；canonical notice body / OCR owner text 不得直接进入用户面全文输出
-  - future source family 至少显式区分 public `official_web` notice-like pages 与
+  - source family 至少显式区分 public `official_web` notice-like pages 与
     restricted `campus_notices/internal_notice`
+- `notice-agent`
+  - 只在需要 notice 候选语义消歧、historical posture、短摘要/事实抽取或向下游 family
+    提供 source-linked bounded context 时作为 agent-as-tool
+  - 不拥有 notice source truth、canonical body truth、OCR truth 或 release current pointer
 - `navigation-agent`
   - 当前 accepted runtime / package / ADR label 已统一为 `navigation-agent`
-  - 可消费 transport point refs / service point refs
+  - 只在 navigation semantic specialist step 中消费 transport point refs /
+    service point refs
   - 不拥有 timetable truth 或 service-status truth
 - `rag-agent`
   - 当前 accepted runtime / package label 已统一为 `rag-agent`
-  - 继续承接稳定制度/流程/材料类问题，例如公费医疗报销规则、材料与办理流程
+  - 继续承接稳定制度/流程/材料类问题，例如公费医疗报销规则、材料与办理流程；其 retrieval
+    / evidence verifier / synthesis / grounding 必须表现为 durable typed steps
 
 固定实现 shape：
 
-- tool 只是 domain-agent 持有的 thin adapter
+- deterministic data access 默认是 typed tool，不是 agent 的附属物
 - tool 后面必须是 repo-owned internal query service，而不是 browser-facing API
 - internal query service 只消费 projection / normalized truth，不在 query 时回扫 raw
   source bundle
-- supervisor 负责 routing / terminal semantics，但不直接拥有这些 domain tools，也不默认通过
-  `rag-agent` 代持这些 domain capability
+- supervisor 负责 routing / terminal semantics 与 typed step admission；它不直接拥有这些
+  domain source truth，也不默认通过 `rag-agent` 代持这些 domain capability
 - `current/latest/effective/current-year miss` 这类 temporal semantics 必须是
   code-owned routing / contract truth，而不是 prompt 或 retrieval 层的事后补救
 
@@ -838,8 +872,8 @@ projection owner 继续显式分层：
 
 ## Structured Runtime Opening Gate
 
-`campus-services-agent` / `notice-agent` 的 owner package、thin adapter 与
-handoff seam 已存在，不等于这条 runtime lane 已开放。
+campus services / notice 的 typed tool、agent-as-tool package 与 handoff seam 已存在，不等于这条
+runtime lane 已开放。
 
 固定规则：
 
@@ -849,7 +883,7 @@ handoff seam 已存在，不等于这条 runtime lane 已开放。
   unavailable adapter 伪装成“能力已上线”
 - 显式历史参考、current miss fail-closed 与 stable-RAG boundary 属于 opening criteria，
   不是后续 prompt polish 或 operator 文案问题
-- `campus-services-agent` 的领域 opening 规则与 projection owner 细节，统一看
+- campus services 的领域 opening 规则与 projection owner 细节，统一看
   `docs/architecture/domains/campus-services/architecture.md`
 
 ## RAG Family Responsibilities
@@ -871,38 +905,49 @@ handoff seam 已存在，不等于这条 runtime lane 已开放。
 
 ## RAG Family Internal Roles
 
-长期 `rag-agent` family 在 capability boundary 内固定拆成以下内部角色：
+`rag-agent` family 在 capability boundary 内固定拆成以下 durable typed
+steps / internal roles：
 
 - `scope resolver`
   - 解析 capability、surface、entity、query mode
 - `retrieval planner`
   - 生成 typed retrieval plan
+- `typed retrieval / domain tool executor`
+  - 调用 admitted retrieval-core 或 domain typed tools
+- `evidence verifier`
+  - 判断 coverage、source trust、freshness、contract completeness 是否足以继续
 - `answer synthesizer`
   - 基于 supporting evidence 生成最终回答
 - `grounding validator`
   - 判断最终回答是否仍被 supporting evidence 支持
 
-这些角色可以继续由同一 package 内部实现，但长期不得再混成一个无法观测的单阶段 prompt 调用。
+这些角色可以继续由同一 package 内部实现，但不得再混成一个无法观测的单阶段 prompt 调用。
 
 ## Retrieval Planner / Executor Boundary
 
 长期固定采用：
 
-`agent planner -> retrieval-core executor`
+`rag-agent planner -> typed retrieval/domain tools -> retrieval-core executor /
+domain query service -> evidence verifier -> synthesis -> grounding`
 
 其中：
 
 - `rag-agent`
   - 当前 runtime package 是 `packages/rag-agent`
-  - 拥有 plan 语义、replan 决策、supporting evidence selection policy
+  - 拥有 plan 语义、replan 决策、supporting evidence selection policy、synthesis 与
+    grounding policy
 - `retrieval-core`
   - 拥有 step execution、rerank、merge / dedupe、query activity、candidate shaping
+- domain typed tools
+  - 拥有 deterministic data access 与 projection-backed result contract
 
 固定规则：
 
 - planner 不能绕过 runtime profile 或 authz projection
 - executor 不能反向改写产品 scope、query mode 或 capability
 - plan 必须是 typed artifact，而不是只存在于 prompt 内部
+- evidence contract 驱动 replan / clarification / fail-close；synthesis 不得
+  补齐缺失 tool / retrieval evidence
 
 ## Cross-Scope Planning Rules
 
@@ -990,7 +1035,8 @@ task/evidence packet -> Go-side supervisor finalization`
 ## Forbidden Shapes
 
 - 不把 supervisor 重新写成被动转发层
-- 不把 agent 重新降级成 `campusRAG` 式扁平 tool
+- 不把 `rag-agent` 重新降级成 `campusRAG` 式扁平 retrieval tool，也不把 deterministic
+  typed tool 包装成没有语义职责的 agent
 - 不把 `campus-services-agent` / `notice-agent` 的 structured runtime 再塞回 generic
   RAG 或单一 mega-tool router
 - 不把 retrieval implementation 细节塞回 `apps/supervisor-agent-worker`

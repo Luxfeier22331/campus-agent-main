@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 # Capability Routing And Admission Architecture
 
@@ -16,8 +16,8 @@ architecture。
 - 顶层产品入口应先做什么判断、后做什么判断
 - `admission` 与 `routing` 应怎样分层
 - `requested_scope`、`capability family`、clarification 分别属于哪一层
-- `apps/app-api`、`apps/supervisor-api`、`apps/supervisor-agent-worker` 与 agent
-  各自负责什么
+- `apps/app-api`、`apps/supervisor-api`、`apps/supervisor-agent-worker`、
+  typed tools 与 agent-as-tool 各自负责什么
 
 它不负责：
 
@@ -38,22 +38,26 @@ supporting architecture，不得把它误读成“public chat 当前已经不是
 而是：
 
 `surface intake -> admission / guardrails -> capability routing ->
-workflow planning -> agent-owned execution -> supervisor finalization`
+workflow planning -> typed tool / agent-as-tool execution -> supervisor finalization`
 
 其中固定规则如下：
 
 - 顶层默认先判定 `capability family`，而不是先判定 retrieval `scope`
 - capability family 判定之后，supervisor 再决定本次请求是 terminal、
-  direct structured runtime、single-agent execution，还是 admitted multi-agent workflow
+  direct typed tool runtime、single agent-as-tool execution，还是 admitted
+  multi-step workflow
 - `requested_scope` 只属于 knowledge-family path，不是所有请求共享的顶层默认字段
 - `admission` 与 `routing` 必须分层，避免把 authz、surface policy、approval-required 与
   domain reasoning 混在一起
 - `admission` 还必须区分 surface admission、identity / quota admission、run
-  admission 与 execution lease admission；当前 supervisor 进程内 queue 只属于
-  execution-level local protection，不是完整 production admission
+  admission、step admission 与 execution lease admission；supervisor 进程内 queue 只属于
+  execution-level local protection，不是 canonical production admission
 - `rag-agent` 仍是核心 capability family，但不再被默认等同于整个产品入口语义
 - multi-agent 不是默认自由展开；它必须由 typed workflow plan、allowed agents、
   allowed tools、step budget 与 eval denominator admission
+- deterministic domain capability 默认先建模为 typed tool / projection-backed
+  internal query service；semantic specialist 只作为 agent-as-tool step 进入
+  workflow
 
 ## Current Truth Vs Forward Truth
 
@@ -62,7 +66,7 @@ workflow planning -> agent-owned execution -> supervisor finalization`
 - `public-chat-web -> app-api` 的公开 chat 请求当前只开放 `knowledge`
 - `place_lookup` 在 execution contract 中仍存在，但当前产品路径继续 fail-close；
   地图 UI、route planning 与 `place_card` product consumption 等 navigation 能力等地图产品上线后再开放
-- `notice-agent`、`campus-services-agent` 是已冻结的前向 capability family；internal
+- `notice-agent`、`campus-services-agent` 是已冻结的 semantic specialist family；internal
   execution wire 已接受显式 `notice` / `campus_services` capability label 并映射到对应
   lane，但它们还不是当前默认公开主路径
 
@@ -81,7 +85,7 @@ workflow planning -> agent-owned execution -> supervisor finalization`
 1. `admission / guardrails`
 1. `capability routing`
 1. `workflow planning`
-1. `agent-owned execution`
+1. `typed tool / agent-as-tool execution`
 1. `supervisor finalization`
 
 ### 1. Surface Intake
@@ -120,6 +124,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - 明显 `out_of_scope`
 - per-user / per-org / per-conversation quota
 - run creation / execution lease 是否可被 admitted
+- durable step 是否可创建、排队和领取 lease
 
 固定规则：
 
@@ -136,6 +141,9 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
     `apps/app-api`
 - `run admission`
   - `apps/supervisor-api` durable scheduler 拥有；判断是否创建 / 推进一个 run
+- `step admission`
+  - `apps/supervisor-api` durable scheduler 拥有；判断 typed step 是否允许排队、是否满足
+    dependency、projection、ToolSpec / AgentSpec 与 lane 条件
 - `execution lease admission`
   - scheduler / lease coordinator 拥有；判断 lane、worker、provider、Qdrant、
     Postgres 等 execution budget
@@ -160,14 +168,15 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - retrieval `scope` 的细粒度解析
 - notice/service/navigation 域内的最终业务解释
 
-长期默认只路由到 repo admitted capability family，例如：
+长期默认只路由到 repo admitted capability family / semantic specialist family，例如：
 
 - `rag-agent`
 - `notice-agent`
 - `campus-services-agent`
 - `navigation-agent`
 
-如果未来明确接受新的 capability，它必须先以 repo-owned family label 入场，而不是作为 hidden fallback。
+如果明确接受新的 deterministic capability，它必须先以 repo-owned typed tool / internal query
+service 入场；只有需要 semantic specialist 时才新增 family label，不能作为 hidden fallback。
 
 ### 4. Workflow Planning
 
@@ -179,6 +188,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - 每一步的 input projection、output projection、timeout、budget 与 fail-close 条件是什么
 - 哪些 cross-step context 可以进入下一步 prompt 或 finalization
 - 本次 workflow 对 durable run / lane / lease / timeout 的要求是什么
+- 哪些 durable step 必须由 typed tool 执行，哪些可以由 agent-as-tool 执行
 
 固定规则：
 
@@ -188,23 +198,29 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - routing clarification 仍发生在 workflow planning 之前；agent clarification 只能发生在已选定
   family / step 内部
 
-### 5. Agent-Owned Execution
+### 5. Typed Tool / Agent-As-Tool Execution
 
-一旦 capability family 已确定，后续执行 truth 归对应 agent 拥有。
+一旦 capability family 已确定，deterministic data access 归 typed tool /
+internal query service 拥有；semantic reasoning 归对应 agent-as-tool 拥有。
 
 固定分工：
 
 - `rag-agent`
-  - knowledge-family 内部 intent / ambiguity / clarification / retrieval planning
-    / answer synthesis
+  - knowledge-family 内部 intent / ambiguity / clarification / retrieval planning、
+    evidence verification、answer synthesis 与 grounding
+- notice typed tools
+  - notice discovery / selected notice ref resolution / source card / bounded
+    context read
 - `notice-agent`
-  - notice discovery / canonical notice reading / historical downgrade
-- `campus-services-agent`
+  - notice 候选消歧、historical posture、短摘要/事实抽取等 semantic specialist step
+- campus services typed tools
   - structured current-state / process / directory / schedule lookup
-- `navigation-agent`
-  - place lookup，与 future route/wayfinding expansion 保持同一 family
+- `campus-services-agent`
+  - campus services semantic disambiguation、跨工具编排、说明生成或 agent-owned clarification
+- navigation typed tools / `navigation-agent`
+  - place / point deterministic read 与 navigation semantic specialist step
 
-在 multi-agent workflow 中，agent-owned execution 不等于 agent 之间自由互调。每个 agent step
+在 multi-step workflow 中，agent-as-tool execution 不等于 agent 之间自由互调。每个 step
 只消费 workflow plan 允许的 typed input projection，并只返回 bounded typed output，例如
 `StepOutputProjection`、evidence summary、change set、place context 或 grounding verdict。
 
@@ -311,7 +327,8 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 
 - routing changes 进入 release path 前必须有独立 eval
 - 不能只用最终 answer quality 掩盖顶层路由错误
-- operator-facing summary 必须能区分“路由错了”和“进入正确 agent 但证据不足”
+- operator-facing summary 必须能区分“路由错了”“step planning 错了”“typed tool 失败”
+  和“进入正确 agent-as-tool 但证据不足”
 
 ## Forbidden Shapes
 
@@ -321,6 +338,8 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 - 不把 structured runtime capability 伪装成 generic retrieval fallback
 - 不让 browser surface 绕开 `app-api` 直接推理最终 capability routing
 - 不把 `routing clarification` 与 `agent clarification` 混成一个模糊状态
+- 不把 deterministic typed tool 包装成没有语义职责的 agent
+- 不让 K8s、Redis、provider trace 或 SDK graph 成为 admission / queue / lease truth
 
 ## 相关稳定文档
 

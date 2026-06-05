@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-04
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 # Durable Agent Runtime Architecture
 
@@ -15,26 +15,28 @@ supporting architecture。
 
 - 一次用户回答的 canonical execution object 是什么
 - conversation、run、event、lease、lane 与 worker pool 的长期关系是什么
-- production 并发预算、排队、取消、恢复与 streaming 应由哪一层拥有
-- 当前 `supervisor-api` 的进程内 admission 与最终 durable runtime 之间如何分层
+- production 并发预算、排队、取消、恢复、step execution 与 streaming 应由哪一层拥有
+- `supervisor-api` 作为代码域如何拆成 control / scheduler / recovery / lane worker
+  / autoscaler roles
 
 它不负责：
 
 - 具体 database schema、migration 文件或执行顺序
-- 当前 staging 是否已经完成 durable runtime implementation
-- 某个 worker pool 的部署数量、机器规格或 autoscaling 参数
+- 当前 staging 的一次部署证据是否已经覆盖所有 production topology
+- 某个 worker pool 的机器规格或具体 autoscaling 阈值
 - eval、retrieval、ingestion 的 collection-specific release 细节
 
-当前 merged truth 仍以 `docs/architecture/current-architecture.md` 为准。本文描述的是长期
-supporting architecture，不得反向宣称当前实现已经具备全部能力。
+当前 merged truth 仍以 `docs/architecture/current-architecture.md` 为准。本文描述的是
+supporting architecture；实现状态必须单独写在 current architecture 或 evidence artifact 中。
 
 ## Core Conclusion
 
-`campus-agent` 的最终 production execution model 固定为：
+`campus-agent` 的 production execution model 固定为：
 
 `surface request -> app-api surface / identity projection -> durable conversation
-and run store -> scheduler / lease coordinator -> lane worker pools ->
-run events -> app-api stream / projection -> browser surface`
+and run store -> PG-backed queued run / queued step rows -> scheduler / lease
+coordinator -> lane worker pools -> typed step results -> run events -> app-api
+stream / projection -> browser surface`
 
 核心规则：
 
@@ -45,6 +47,9 @@ run events -> app-api stream / projection -> browser surface`
 - production admission truth 不得只存在于某个 `supervisor-api` 进程内存。
 - process-local limiter 只能作为单进程 runtime protection，不能作为全局 production
   scheduler。
+- PG 是 canonical execution truth；Redis 只能做非权威 wakeup / live fanout / cache，不得作为
+  run、queue、lease、event 或 terminal state truth。
+- K8s 只调度 pod / resource，不拥有 queue、lease、run、event 或 terminal truth。
 
 ## Canonical Objects
 
@@ -114,6 +119,56 @@ canceled / expired`
 - raw prompt、raw answer draft、raw provider response、raw transcript、auth
   material 与 restricted raw body 不进入 canonical run event。
 
+### Run Step
+
+`RunStep` 是 run 内一个 typed execution unit。
+
+固定属性：
+
+- step id
+- run id
+- parent step id / dependency step ids
+- lane
+- capability family
+- step kind
+- target typed tool 或 agent-as-tool
+- input projection refs
+- output contract
+- status、attempt policy、timeout 与 budget
+
+固定规则：
+
+- supervisor 只调度 typed step，不调用自由 agent。
+- deterministic data access 必须表现为 typed tool step。
+- semantic specialist 必须表现为 agent-as-tool step。
+- step input 只能引用 sanitized projection；不得携带 raw prompt、raw provider
+  trace、raw source body 或未经裁剪附件正文。
+
+### Step Attempt
+
+`StepAttempt` 是 worker 对某个 step 的一次 execution attempt。
+
+固定规则：
+
+- 每次 attempt 必须由 active execution lease 授权。
+- retry 必须产生新的 attempt record，不得覆盖旧 attempt。
+- attempt status、worker id、lease id、started/completed time、terminal reason
+  与 safe failure summary 必须可审计。
+- provider / tool / retrieval 调用失败只能写入 bounded failure record，不得由 synthesis 补洞。
+
+### Step Result
+
+`StepResult` 是 typed step 的 sanitized terminal output。
+
+固定规则：
+
+- tool step 产出 typed tool result projection。
+- agent-as-tool step 产出 bounded `StepOutputProjection`。
+- retrieval step 产出 supporting evidence / query activity projection。
+- finalization 只能消费 admitted step result 与 supporting evidence；不得读取 raw tool payload、
+  raw provider response 或 raw candidate trace。
+- 缺 required step result 时，run 进入 clarification 或 fail-closed terminal path。
+
 ### Execution Lease
 
 `ExecutionLease` 是 worker 对某个 run / step 的执行权。
@@ -181,9 +236,9 @@ canceled / expired`
 
 ### `apps/supervisor-api`
 
-`apps/supervisor-api` 长期是 deterministic execution control plane。
+`apps/supervisor-api` 是 deterministic execution code domain，不等于单一部署职责。
 
-它负责：
+代码域负责提供：
 
 - run admission facade
 - scheduler / lease coordinator 或其 repo-owned adapter
@@ -201,8 +256,30 @@ canceled / expired`
 - domain-agent semantic reasoning
 - retrieval backend implementation
 
-当前进程内 lifecycle / admission / queue 属于 current runtime protection；长期必须下沉到
-durable run store + scheduler / lease coordinator，进程内 limiter 只保留为本进程资源保护。
+进程内 lifecycle / admission / queue 只能作为本进程 runtime protection。canonical queue 与
+execution truth 必须在 PG durable rows、scheduler decision、lease 与 run event 中。
+
+### Supervisor Runtime Roles
+
+同一 `apps/supervisor-api` code domain 在部署上拆成以下 roles：
+
+- `supervisor-api-control`
+  - 承接 internal HTTP / command-query surface、run create / cancel / query、
+    readyz / metrics 与 operator-safe projection。
+- `supervisor-scheduler`
+  - 扫描 queued run / queued step rows，基于 lane budget、worker readiness、downstream
+    budget 与 `FOR UPDATE SKIP LOCKED` 获取调度窗口，写入 admission event 与 execution
+    lease。
+- `supervisor-recovery`
+  - 回收 expired leases、timed-out runs / steps、stale worker heartbeat，并写入 retry /
+    terminal events。
+- `supervisor-worker-{lane}`
+  - 只消费对应 lane 的 execution lease，执行 typed step，写入 step attempt / result / run
+    event；不得拥有 global admission truth。
+- `worker-autoscaler`
+  - 读取 sanitized backlog、lease、heartbeat 与 lane budget projection，只调整
+    `supervisor-worker-{lane}` replica count。它不得写 run、step、lease、event 或 terminal
+    state。
 
 ### `apps/supervisor-agent-worker`
 
@@ -226,14 +303,17 @@ durable run store + scheduler / lease coordinator，进程内 limiter 只保留�
 
 ### Worker Pools
 
-长期 worker pool 应按 lane / capability family 组织。
+worker pool 按 lane / capability family 组织。
 
-允许的早期形态：
+固定规则：
 
-- 单 worker binary / container 消费多个 lane，但 lease 必须记录 lane。
-- 单机部署多个 worker container 增加吞吐。
-
-禁止把这些早期部署形态解释为长期架构真相。长期 truth 是 lane lease 与 run store，而不是容器数量。
+- 每个 worker 只能执行 lease 授权的 typed step。
+- lane worker pool 可以横向扩容；扩容只增加消费能力，不改变 queue / lease truth。
+- worker pool 不写 global budget、不决定 terminal state、不绕过 scheduler。
+- lane worker pool 的性能优化必须围绕 step specialization、connection reuse、provider
+  concurrency、retrieval/tool batching、bounded prompt assembly 与 backpressure；不得通过扩大
+  prompt context、跳过 evidence verifier 或绕过 policy gate 换取吞吐。
+- K8s 可以承载这些 worker pod，但 K8s readiness / HPA metric 不是 execution truth。
 
 ## Admission Stack
 
@@ -318,9 +398,9 @@ Owner：scheduler / lease coordinator。
 - resume 只能恢复 event stream 或读取已投影状态；不能重新执行同一个 run，除非创建明确 retry /
   repair run。
 
-## Scheduling And Recovery
+## Queue, Scheduling And Recovery
 
-长期 scheduler 必须支持：
+scheduler 必须支持：
 
 - global active lease budget
 - per-lane active lease budget
@@ -333,6 +413,25 @@ Owner：scheduler / lease coordinator。
 - drain and deployment handoff
 - terminal state projection
 
+canonical queue 形态固定为：
+
+- queued run rows：`runtime.agent_runs.status='queued'`
+- queued step rows：`runtime.agent_run_steps.status='queued'`
+- scheduler 使用 `FOR UPDATE SKIP LOCKED` 领取候选 rows
+- scheduler 在同一事务中检查 lane budget / worker readiness / downstream budget，并写
+  execution lease 与 admission event
+- worker 只消费 lease，不直接扫描 queued rows 来决定是否执行
+
+Redis 不进入 canonical queue path。允许的 Redis 用途只包括：
+
+- 非权威 wakeup signal
+- browser live fanout 加速
+- cache / invalidation
+- derived dashboard counter
+
+Redis 丢失、flush、延迟或重启不得导致 run、step、lease、event 或 terminal state 丢失，也不得让
+worker 绕过 PG scheduler。
+
 失败处理固定为 fail closed：
 
 - run store unavailable：不能创建新的 run
@@ -341,26 +440,43 @@ Owner：scheduler / lease coordinator。
 - required projection missing：run 进入 terminal failed / clarification path
 - lease metadata drift：不得执行该 step
 
-## Initial Substrate Decision
+## Deployment Substrate And Autoscaling Boundary
 
-长期语义不绑定某个 vendor substrate。
+runtime 语义不绑定某个 vendor substrate；但 canonical execution truth 固定在 PG durable
+runtime schema 中。
 
-当前 repo 的优先落地 substrate 是：
+repo-owned durable substrate 固定为：
 
-`Postgres-backed run store + scheduler / lease coordinator`
+`Postgres-backed run / step store + scheduler / lease coordinator`
 
 原因：
 
 - repo 已拥有 Postgres product/runtime schema boundary
 - `apps/supervisor-api` 已是 Docker-first internal execution service
-- staging / early production 已有 self-hosted data plane
-- 该 substrate 可先在单机内运行，但语义上已经是 durable runtime
+- self-hosted data plane 已有 Postgres / Qdrant / object store 运维边界
+- PG row lock、transaction、index 与 audit model 可以直接表达 execution truth
 
 Temporal、Cloudflare Workflows、Cloudflare Queues 或其他 durable execution
-substrate 可以作为后续 implementation upgrade；它们不得改变本文冻结的
-conversation、run、event、lane、lease 与 worker pool 语义。
+substrate 只能作为 implementation substrate 替换；它们不得改变本文冻结的
+conversation、run、step、attempt、result、event、lane、lease 与 worker pool 语义。
 
-## Current Implementation Gap
+K8s 边界固定为：
+
+- K8s 调度 pod、resource request/limit、service discovery、rollout、liveness/readiness。
+- K8s 不拥有 run queue、step queue、execution lease、lane budget、run event 或
+  terminal state。
+- K8s Job / CronJob / HPA / KEDA 只能基于 PG-derived metrics 调整 worker presence；不能成为
+  canonical scheduler。
+
+worker autoscaler 边界固定为：
+
+- 输入：sanitized lane backlog、oldest queued age、active leases、worker
+  heartbeat、downstream budget projection、SLO target。
+- 输出：每个 `supervisor-worker-{lane}` 的 desired replica count。
+- 禁止：写 run / step / lease / event、改变 lane budget、修改 queued rows、直接标记 terminal
+  state、基于 raw prompt 或 raw provider trace 做扩缩容。
+
+## Current Implementation State
 
 当前实现已经具备：
 
@@ -371,7 +487,7 @@ conversation、run、event、lane、lease 与 worker pool 语义。
 - timeout / cancel / drain
 - bridge circuit breaker
 - metrics / OTel / execution audit seam
-- initial `WorkflowRunStore` foundation for gated multi-step path
+- `WorkflowRunStore` foundation for gated multi-step path
 - isolated durable runtime store kernel in `apps/supervisor-api/internal/execution`
   for `DurableRun`、`RunEvent`、`ExecutionLease`、`LaneBudget` 与
   `WorkerHeartbeat`
@@ -440,50 +556,27 @@ conversation、run、event、lane、lease 与 worker pool 语义。
   public-chat persists that phase in pending-run state, and protected panel
   request detail displays the same phase instead of deriving queue state locally
 
-当前仍不是完整 durable runtime，因为：
+当前缺口：
 
-- queue 与 active count 仍是进程内状态
-- request lifetime 与 execution lifetime 已在 durable stream finalization closeout
-  上解耦；repo-owned staging reconnect harness 已完成，但 deployed staging
-  evidence、worker crash 与 multi-worker deployment 验证尚未完成。2026-06-04
-  的真实 staging reconnect 运行仍失败于 `request.accepted` 缺少 durable
-  `runId` / `runPhase`，因此当前 deployed product path 不能被标记为
-  durable-ready
-- conversation active run policy 已在 durable store kernel 中具备 fail-closed
-  contract，并已接入 app-api durable run create；pending-run product baseline 已接入
-  public-chat，但真实 staging refresh / reconnect evidence 尚未落盘
-- run events 已有 durable store foundation，并可驱动 durable-configured app-api
-  finalization；app-api 已有 `run_id + after_sequence` browser resume stream
-  endpoint，并以 bounded continuous subscription 方式等待后续 run events；submit
-  stream 的 app-api finalization closeout 已不依赖 browser stream consumer；public-chat
-  pending-run 恢复已经不会重发 prompt；repo-owned reconnect harness 已收口，但真实
-  staging evidence closeout 仍未收口
-- deployed `staging` / `production` app-api chat command execution now requires
-  explicitly configured durable runtime; durable runtime absence or missing
-  supervisor URL / shared secret config fails before request acceptance and does
-  not enter the legacy sync execution path. The legacy sync path remains a
-  local / development non-durable path only.
-- deployed `staging` / `production` app-api readyz now requires supervisor
-  durable store / durable worker loop / durable recovery loop readiness before
-  reporting `dependencies.durableRuntime=ready`; staging strict status also
-  checks the local supervisor readyz durable payload, so ordinary service
-  readiness can no longer be used as durable-ready evidence.
-- worker pool 已有 supervisor-owned lease-driven loop foundation、active lease
-  heartbeat renewal、independent scheduler recovery loop、bounded retry policy、
-  run timeout recovery、active cancel lease release 与 completion 前 run / lease
-  truth revalidation；单进程 store contract 已证明并发 acquire 不会双领同一
-  queued run，worker loop 在 lane budget backpressure 下保持常驻轮询；
-  Postgres-backed proof command 已在真实 Postgres store 上证明并发 worker
-  不会双领同一 queued run，且 expired lease 会按 bounded retry policy
-  requeue / terminal expire；但 deployed multi-worker verification、long-running
-  delegate cancel latency 与真实 staging recovery evidence 尚未收口
-- 多个 supervisor 实例之间的全局 admission truth 已有 Postgres store / coordinator
-  foundation，但尚未完成 multi-instance production verification
-- panel / eval / observability 还没有统一改为 run-event truth
+- runtime role split 尚未落成独立部署职责：`supervisor-api-control`、
+  `supervisor-scheduler`、`supervisor-recovery`、`supervisor-worker-{lane}` 与
+  `worker-autoscaler` 仍需按 role 拆分运行、配置、readyz 与 evidence。
+- step-level durable runtime 尚未完整收口：需要补齐 `agent_run_steps`、
+  `agent_step_attempts`、`agent_step_results` 的 migration、store contract、scheduler
+  事务、worker writeback 与 panel/eval projection。
+- multi-lane worker pool 与 worker autoscaler 尚未落成：当前 worker loop 证明了 lease-driven
+  consumption foundation，但还没有按 lane 独立 pool、autoscaler desired replicas 与
+  downstream budget projection 收口。
+- RAG 还需要接入 durable typed-tool step graph：retrieval/domain typed
+  tools、evidence verifier、replan、synthesis、grounding 与 finalization 需要
+  成为可审计 step trajectory，而不是只停在 answer-level run event。
+- panel / eval / observability 需要统一到 step-level trajectory：routing、planning、tool、
+  retrieval、rerank、selection、synthesis、grounding 应作为诊断阶段进入 badcase、RAGAS、
+  golden dataset 与 operator panel projection。
 
-这些 gap 应作为后续 implementation workstream 处理；不得通过简单多开实例来伪装为已解决。
+这些 gap 不得通过简单多开实例、HTTP load balancing、Redis queue 或 K8s HPA 标记为已解决。
 
-Phase 0 / Phase 1 / Phase 2 / Phase 3 foundation 的当前落盘产物：
+当前落盘产物：
 
 - `docs/reference/durable-agent-runtime-gap-matrix.md`
   - 当前实现差距矩阵

@@ -34,7 +34,10 @@ updated: 2026-06-05
     - `trusted-worker`
     - `127.0.0.1:27051`
     - `/healthz` `/readyz` `/metrics` `/api/v1/answer`
-    - bounded in-process admission queue / backpressure / graceful drain
+    - PG-backed run-level durable runtime baseline：run store、events、leases、lane
+      budgets、worker heartbeat、worker loop、recovery loop
+    - bounded in-process admission queue / backpressure / graceful drain as
+      local process protection
   - `supervisor-agent-worker`
     - private `/internal/bridge/*`
 - named tunnel：
@@ -57,6 +60,18 @@ updated: 2026-06-05
   - lifecycle lock: `.tmp/supervisor-api-staging/lifecycle.lock`
 
 以上是当前 `nc-arm-6c` staging host 特定形态，不代表 production substrate。
+
+当前 staging durable runtime 口径：
+
+- staging 必须证明 run-level durable baseline：durable store、worker loop、
+  recovery loop 与 app-api durable chat cutover ready。
+- staging 还不是 step-level multi-role topology：`supervisor-api-control`、
+  `supervisor-scheduler`、`supervisor-recovery`、`supervisor-worker-{lane}` 与
+  `worker-autoscaler` 当前仍作为目标 role model 记录在架构文档中。
+- staging 的 Docker Compose / systemd / Cloudflare tunnel 只负责部署与连接；不拥有 run queue、
+  step queue、execution lease、event 或 terminal truth。
+- Redis 不参与 canonical execution queue。若以后用于 wakeup / fanout / cache，丢失或重启不得影响
+  durable run / step / lease / event truth。
 
 ## 安装与重装
 
@@ -306,6 +321,10 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - `api-staging` 的 `auth`、`database`、`supervisorApi` 与 `durableRuntime`
   都是 `ready`
 
+当前 strict check 证明的是 run-level durable readiness；它不等于 step-level role split、
+multi-lane worker pool 或 worker autoscaler 已完成。上线证据需要另行记录这些目标角色的部署与
+step ledger projection。
+
 补充约束：
 
 - `supervisor-api` 默认 admission 参数为 `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8`、
@@ -319,6 +338,9 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
   `campus_services=2/4/1500ms`、`notice=2/4/1500ms`、`default=1/2/1500ms`；
   三元组含义为 `max_concurrent / queue_capacity / queue_timeout`
+- durable lane budget 的目标语义是 PG-backed `max_active_leases`、queued run / queued step
+  budget 与 lease timeout。上述 process-local 三元组只保留为当前 staging process protection，
+  不得作为 worker autoscaling 或 production queue truth。
 - staging 默认启用 `SUPERVISOR_API_OTEL_ENABLED=true`、
   `SUPERVISOR_API_OTEL_METRICS_ENABLED=true` 与
   `SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=true`
@@ -603,7 +625,7 @@ jq . .tmp/supervisor-api-staging/evidence/durable-runtime-schema-install.json
 jq . .tmp/supervisor-api-staging/evidence/durable-runtime-schema-check.json
 ```
 
-在把 durable runtime 标记为 staging-ready 前，再对当前 durable Postgres store 运行
+在把 run-level durable runtime 标记为 staging-ready 前，再对当前 durable Postgres store 运行
 repo-owned proof command。该命令只创建 `proof-*` exact-prefix artifacts，验证完成后
 删除自己的 proof runs / worker heartbeats，并恢复运行前的 lane budget。
 

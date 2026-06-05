@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 # 当前架构
 
@@ -62,9 +62,11 @@ document/index release`
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/supervisor-api` 是当前 Docker execution ingress，负责 execution HTTP surface
   与 runtime hardening；Python `apps/supervisor-agent-worker` 只保留 private bridge worker
-- `apps/supervisor-api` 当前拥有的 lifecycle、global / per-lane admission 与 bounded
-  queue 是 single-process runtime protection；它不是最终 production durable scheduler，
-  也不是跨实例全局并发预算 truth。长期 run-centric durable runtime 见
+- `apps/supervisor-api` 当前已经具备 PG-backed run-level durable baseline：durable
+  run store、run events、execution leases、lane budgets、worker heartbeat、worker loop、
+  recovery loop、cancel/recovery/finalization revalidation，以及 app-api durable chat
+  cutover。仍未完成的是 step-level durable ledger、runtime role split、multi-lane
+  worker pool、worker autoscaler 与 typed-tool RAG 全量收口。目标 durable runtime 见
   `docs/architecture/system/durable-agent-runtime-architecture.md`
 - semantic delegate path 仍进入 Python private bridge；已打开的 deterministic
   structured capability 当前按 `runtime_posture` 分流：
@@ -197,13 +199,16 @@ document/index release`
   request projection、in-flight lifecycle、explicit cancel、global / per-lane
   execution admission、bounded queue、timeout、readiness、metrics、OTel telemetry
   seam 与 graceful drain
-- 当前 in-flight lifecycle registry、active count 与 queue 均为进程内状态。它们足以表达
-  当前 single-instance / staging runtime protection，但不得被解释为最终 production
-  agent execution truth；多实例 deployment 下不会自动产生统一 admission budget 或 durable
-  queue
-- 当前 answer / stream HTTP request 仍与 execution lifetime 强耦合。长期目标是
-  `run_id` / `run_events` 驱动的 durable execution 与 subscription model；当前尚未完成
-  durable scheduler / lease-driven worker pool 收口
+- 当前已经具备 run-level durable execution baseline：`apps/supervisor-api/internal/execution`
+  中的 PG run store、append-only events、execution leases、lane budgets、worker
+  heartbeat、lease coordinator、worker loop 与 recovery loop 是当前 merged truth。app-api
+  durable chat cutover 已让 accepted chat request 创建 supervisor durable run，并通过
+  `run_id + run_events` 驱动 blocking / stream finalization 与 browser resume。
+- 进程内 lifecycle registry、active count 与 bounded queue 仍保留为本进程 runtime
+  protection；它们不再是 durable execution 的目标 truth，也不得被多实例叠加解释为全局
+  scheduler。当前缺口是 step-level durable ledger、supervisor 多角色部署、lane
+  worker pool、worker autoscaler、step trajectory 诊断，以及 RAG typed
+  retrieval/domain tools 与 durable step graph 的完整收口。
 - 拥有 deterministic structured planner；当前实现位于
   `apps/supervisor-api/internal/structuredplanning`，`internal/execution`
   仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
@@ -286,14 +291,18 @@ document/index release`
 
 - `packages/rag-agent` 当前默认 knowledge agent，负责 retrieval-specific
   planning、clarification、grounded answer synthesis
-- `packages/navigation-agent` 已接受的 navigation capability boundary；当前 package /
-  contract truth 存在，但产品主路径对 `place_lookup` 仍保持 fail-close，直到地图产品正式上线
-- `packages/campus-services-agent` 是 campus services structured runtime
-  boundary；当前同时承接 `service_status_lookup`、`service_guide_lookup`、
+- `packages/navigation-agent` 是 navigation semantic specialist package；产品主路径对
+  `place_lookup` 仍保持 fail-close，直到地图产品正式上线。deterministic place / point
+  reads 必须先表现为 typed tool 或 internal query service；navigation specialist 只能作为
+  typed `agent_step` / agent-as-tool 消费这些工具，不拥有 spatial source truth
+- `packages/campus-services-agent` 是 campus services semantic specialist package；当前
+  capability family 覆盖 `service_status_lookup`、`service_guide_lookup`、
   `transport_schedule_lookup`、`contact_directory_lookup` 与
-  `academic_calendar_lookup`。其中 `academic_calendar_lookup` 只消费
-  `calendar/academic_calendar` projection-backed read model，支持教学周、
-  命名校历事件区间、学期窗口与补课/调休上课事实，不负责校历查看入口说明
+  `academic_calendar_lookup`。这些能力的 deterministic data access 默认是 typed tool /
+  projection-backed internal query service；semantic specialist 只能在 typed
+  `agent_step` / agent-as-tool 内消费工具输出。其中 `academic_calendar_lookup` 只消费
+  `calendar/academic_calendar` projection-backed read model，支持教学周、命名校历事件区间、
+  学期窗口与补课/调休上课事实，不负责校历查看入口说明
 - `packages/retrieval-core` retrieval abstraction、metadata pre-filter、evidence
   shaping
 - `packages/ingestion-core` ingestion/data-plane consumption logic
@@ -308,6 +317,9 @@ document/index release`
 - 当前额外冻结的 forward family label 继续包括：
   - `campus-services-agent`
   - `notice-agent`
+  这些 label 表示 semantic specialist family，不表示 deterministic source truth owner；
+  notice / services / navigation 的默认实现入口必须是 typed tool 或 projection-backed
+  internal query service，只有需要语义判断、消歧、摘要或跨工具编排时才进入 agent-as-tool。
 - 对 `rag` / `navigation` 两条 capability family，forward family label 与 current
   runtime truth 已经对齐；active canonical surface 不再维护单独的 legacy
   current-truth alias。

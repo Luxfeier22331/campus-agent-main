@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-06-04
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 # Durable Agent Runtime Contract
 
@@ -12,8 +12,9 @@ updated: 2026-06-04
 
 它回答的是：
 
-- `Conversation`、`Run`、`RunEvent`、`ExecutionLease` 与 `LaneBudget` 的语义
-- run lifecycle、event lifecycle、lease lifecycle 如何流转
+- `Conversation`、`Run`、`RunStep`、`StepAttempt`、`StepResult`、`RunEvent`、
+  `ExecutionLease` 与 `LaneBudget` 的语义
+- run lifecycle、step lifecycle、event lifecycle、lease lifecycle 如何流转
 - app-api、supervisor-api 与 worker pool 在 durable runtime 中的 seam 如何分层
 
 它不负责：
@@ -79,6 +80,19 @@ Run id 是一次 answer execution 的 canonical durable object id。
 - run id 必须贯穿 run events、lease、worker heartbeat、final answer 与 eval backlink
 - `request_id` 只能作为 compatibility / correlation id，不再作为 final runtime identity
 
+### `step_id`
+
+Step id 是 run 内 typed execution unit id。
+
+固定规则：
+
+- step id 必须在同一 run 内唯一
+- execution lease 必须引用明确 step id；run-level single-step execution 也必须有 canonical
+  root step id
+- step id 必须贯穿 step attempts、step results、tool/retrieval/synthesis events
+  与 eval backlink
+- step id 不能由 worker 临时生成后只保存在本地内存
+
 ### `trace_id`
 
 Trace id 是 observability correlation id。
@@ -132,6 +146,113 @@ Run status enum 固定为：
 - `failed` 不允许被无审计地覆盖成 `completed`
 - retry 必须写入明确 lease attempt record；repair 如果改变用户可见语义或输入，
   必须创建新 run 或关联 source turn
+
+## Step Lifecycle
+
+Run step status enum 固定为：
+
+- `created`
+- `queued`
+- `admitted`
+- `running`
+- `succeeded`
+- `failed`
+- `blocked`
+- `skipped`
+- `canceled`
+- `expired`
+
+状态语义：
+
+- `created`
+  - workflow / planner 已创建 typed step，但尚未进入 step queue
+- `queued`
+  - step 已进入 durable lane queue，等待 execution lease
+- `admitted`
+  - scheduler 已允许该 step 获取 execution lease
+- `running`
+  - worker 已持有 active lease 并开始执行该 step
+- `succeeded`
+  - step 已产出符合 output contract 的 typed result
+- `failed`
+  - step 因 invariant、dependency、provider、retrieval、tool 或 policy failure 终止
+- `blocked`
+  - step 缺 required projection、authz、freshness、source-trust 或 evidence 条件
+- `skipped`
+  - step 因 upstream terminal decision 不再需要执行，必须记录 skip reason
+- `canceled`
+  - step 随 run explicit cancel 或 step-local cancel 终止
+- `expired`
+  - step / lease 超过 durable timeout 或 heartbeat expiry 后终止
+
+固定规则：
+
+- terminal step statuses 是 `succeeded`、`failed`、`blocked`、`skipped`、`canceled`、
+  `expired`
+- 每个非 terminal step 必须可被 scheduler 查询并与 lane budget 对齐
+- required dependency 未完成时不得执行 step
+- worker 不得直接把 step 从 `queued` 改成 terminal；必须持有 active lease
+- step terminal state 必须写 `terminal_reason` 或 `blocker_reason`
+
+## Step Attempt Contract
+
+每个 attempt 至少包含：
+
+- `attempt_id`
+- `run_id`
+- `step_id`
+- `lease_id`
+- `worker_id`
+- `attempt_no`
+- `status`
+- `started_at`
+- `completed_at`
+- `terminal_reason`
+- `failure_kind`
+- `metadata`
+
+固定规则：
+
+- retry 必须递增 `attempt_no`
+- attempt 与 lease 必须一一关联；没有 lease 的 attempt 无效
+- attempt payload 必须是 sanitized execution summary，不保存 raw prompt、raw provider
+  response、raw source body、auth material 或 object-store credentials
+- failed attempt 只能通过后续 attempt 或 terminal step event 关闭，不得原地改写为 success
+
+## Step Result Contract
+
+每个 step result 至少包含：
+
+- `result_id`
+- `run_id`
+- `step_id`
+- `attempt_id`
+- `result_kind`
+- `visibility`
+- `payload_schema_version`
+- `payload`
+- `created_at`
+
+`result_kind` 第一版固定包括：
+
+- `typed_tool_result`
+- `agent_output_projection`
+- `retrieval_query_activity`
+- `supporting_evidence`
+- `grounding_verdict`
+- `synthesis_draft_projection`
+- `finalization_projection`
+
+固定规则：
+
+- result payload 必须是 bounded sanitized projection
+- deterministic data access 输出 `typed_tool_result`
+- semantic specialist 输出 `agent_output_projection`
+- retrieval step 输出 `retrieval_query_activity` 与 supporting evidence projection
+- synthesis 不得伪造缺失 tool / retrieval result
+- grounding verdict 不得读取 raw provider transcript；只能消费 final answer projection 与
+  supporting evidence projection
+- browser、panel、eval 只能读取 result projection 或由 result 派生的 read model
 
 ## Terminal Reason
 
@@ -195,6 +316,18 @@ Run event schema family 固定为：
 - `lease.released`
 - `lease.expired`
 - `workflow.planned`
+- `step.created`
+- `step.queued`
+- `step.admitted`
+- `step.started`
+- `step.completed`
+- `step.failed`
+- `step.blocked`
+- `step.skipped`
+- `step.expired`
+- `step_attempt.started`
+- `step_attempt.completed`
+- `step_result.created`
 - `agent.started`
 - `agent.completed`
 - `agent.failed`
@@ -249,6 +382,23 @@ Execution lease status enum 固定为：
   provenance；达到上限后才写 `run.expired`
 - worker 不得通过本地状态伪造全局 admission
 - lease release 必须写 run event
+
+## Canonical Queue Contract
+
+canonical queue 固定由 PG durable rows 表达：
+
+- queued run：`runtime.agent_runs.status='queued'`
+- queued step：`runtime.agent_run_steps.status='queued'`
+
+消费规则：
+
+- scheduler 使用 `FOR UPDATE SKIP LOCKED` 选择候选 queued rows
+- scheduler 在同一事务内检查 lane budget、worker readiness、dependency state 与 downstream
+  budget
+- scheduler 创建 execution lease 并写 admission event 后，worker 才能执行
+- worker 不得直接扫描 queued rows 并绕过 lease
+- process-local queue 只能作为本进程 protection，不是 canonical queue
+- Redis 不得作为 canonical queue；只能作为非权威 wakeup、fanout、cache 或 derived counter
 
 ## Lane Budget Contract
 
@@ -315,12 +465,14 @@ app-api owns：
 
 supervisor-api owns：
 
-- run admission decision
-- workflow planning
-- lane selection
-- lease coordinator or durable scheduler adapter
-- finalization
-- fail-close terminal mapping
+- `supervisor-api-control`：run command-query、cancel/query/readyz/metrics 与
+  projection
+- `supervisor-scheduler`：run / step admission、lane selection、PG queue scan、
+  lease creation
+- `supervisor-recovery`：expired lease、timed-out run / step、stale worker recovery
+- `supervisor-worker-{lane}`：lease-authorized typed step execution 与 result writeback
+- deterministic workflow planning、finalization 与 fail-close terminal mapping
+- `worker-autoscaler` desired replica calculation；autoscaler 不写 execution truth
 
 Supervisor durable run create command 固定要求：
 
@@ -339,9 +491,9 @@ worker pool owns：
 
 - lease consumption
 - heartbeat
-- domain-agent execution
+- typed tool / agent-as-tool step execution
 - run event writeback
-- terminal result writeback
+- step attempt / result writeback
 
 worker pool does not own：
 
@@ -349,15 +501,16 @@ worker pool does not own：
 - conversation ownership
 - global admission truth
 - public final response envelope
+- run / step / lease admission truth
 
 ## Compatibility Boundary
 
-Current `POST /api/v1/answer` and `POST /api/v1/answer/stream` remain current
-implementation transports until durable run endpoints are implemented.
+Current `POST /api/v1/answer` and `POST /api/v1/answer/stream` remain internal
+execution transports for the current deployed surface.
 
-They must be interpreted as compatibility transports, not final production run
+They must be interpreted as transport endpoints, not as the durable run / step
 contract.
 
-Implementation may bridge current request execution into durable run records during
-cutover, but it must not add fallback behavior or silently synthesize missing run
-fields. Missing required durable runtime state must fail closed.
+Implementation may bridge request execution into durable run records, but it must
+not add fallback behavior or silently synthesize missing run / step fields.
+Missing required durable runtime state must fail closed.

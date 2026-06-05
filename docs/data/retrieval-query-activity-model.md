@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-21
-updated: 2026-04-22
+updated: 2026-06-05
 ---
 # Retrieval Query Activity Model
 
@@ -14,6 +14,7 @@ supporting evidence 的逻辑数据模型。
 它回答的是：
 
 - `StepResult` 的四层结构在逻辑上如何落地
+- retrieval query activity 如何映射到 durable step trajectory
 - 哪些对象属于 internal execution truth，哪些对象可以进入 operator / browser surface
 - supporting evidence 与 candidate set 的关系是什么
 - canonical reference / reader jump 应从哪一层派生
@@ -27,12 +28,14 @@ supporting evidence 的逻辑数据模型。
 
 ## Goal
 
-在不把 raw retrieval trace 直接暴露给上层的前提下，为后续 multi-step executor、 operator
-observability、supporting evidence selection 与 grounded synthesis 提供统一数据面。
+在不把 raw retrieval trace 直接暴露给上层的前提下，为 multi-step executor、operator
+observability、badcase / RAGAS / golden dataset、supporting evidence selection 与 grounded
+synthesis 提供统一数据面。
 
 固定目标：
 
 - query activity 是 execution truth，不是 answer truth
+- query activity 必须能回链到 durable `run_id` / `step_id` / `attempt_id`
 - supporting evidence 是 candidate set 的受控子集
 - canonical reference / reader jump 只从稳定 canonical units 派生
 - operator 可见 execution summary 与 browser 可见 evidence summary 必须分层
@@ -41,8 +44,9 @@ observability、supporting evidence selection 与 grounded synthesis 提供统�
 
 这组逻辑对象在长期链路中的位置固定为：
 
-`RetrievalPlan -> StepResult[] -> candidate set merge -> supporting evidence
-selection -> source card / reader target -> answer synthesis`
+`RunStep(planning) -> RetrievalPlan -> RunStep(retrieval/tool/rerank/selection)
+-> StepResult[] -> candidate set merge -> supporting evidence selection ->
+RunStep(synthesis) -> RunStep(grounding) -> source card / reader target`
 
 因此：
 
@@ -50,6 +54,7 @@ selection -> source card / reader target -> answer synthesis`
 - merged candidate set 仍属于 execution truth
 - supporting evidence 是回答层可消费的最小证据真相
 - source card / reader target 是浏览器安全投影，不回退成 raw candidate trace
+- synthesis 只能消费 supporting evidence 与 typed tool results；不能补齐缺失 retrieval result
 
 ## Core Conclusion
 
@@ -73,11 +78,14 @@ selection -> source card / reader target -> answer synthesis`
 `retrieval_plan_summary`：
 
 - `plan_id`
+- `run_id`
 - `query_mode`
 - `replan_count`
 - `terminal_state`
 - `step_activities[]`
   - `step_id`
+  - `run_step_id`
+  - `stage`
   - `step_type`
   - `scope.corpus`
   - `scope.collection`
@@ -87,6 +95,9 @@ selection -> source card / reader target -> answer synthesis`
   - `candidate_count`
   - `reference_count`
   - `failure_kind`
+- `stage_attribution`
+- `evidence_coverage_verdict`
+- `grounding_verdict`
 
 固定约束：
 
@@ -94,6 +105,8 @@ selection -> source card / reader target -> answer synthesis`
 - 不在 panel 返回 step query text、raw filter payload、raw snippets 或 provider-native
   debug fields
 - 它与 `sourceTrace.retrieved` / `sourceTrace.supporting` 互补，不互相替代
+- 它必须能按 `routing / planning / tool / retrieval / rerank / selection /
+  synthesis / grounding` 归因；不能只把失败归到最终 answer quality
 
 ## Logical Objects
 
@@ -105,6 +118,7 @@ selection -> source card / reader target -> answer synthesis`
 
 ```text
 QueryActivity
+- run_id: str
 - request_id: str
 - plan_id: str
 - query_mode: str
@@ -113,6 +127,15 @@ QueryActivity
 - step_activities[]: StepActivity
 - merged_candidate_ids[]: str
 - selected_supporting_evidence_ids[]: str
+- stage_attribution:
+  - routing
+  - planning
+  - tool
+  - retrieval
+  - rerank
+  - selection
+  - synthesis
+  - grounding
 - terminal_state:
   - completed
   - failed_closed
@@ -124,6 +147,8 @@ QueryActivity
 - `QueryActivity` 只记录执行摘要，不承载整段 grounding 正文
 - `merged_candidate_ids` 与 `selected_supporting_evidence_ids` 必须可区分
 - terminal state 必须能区分正常完成、fail-close 与被 gate 阻断
+- `stage_attribution` 是诊断主线；如果多个阶段失败，必须记录 primary stage 与 supporting
+  failure refs
 
 ### StepActivity
 
@@ -133,7 +158,18 @@ QueryActivity
 
 ```text
 StepActivity
+- run_id: str
 - step_id: str
+- run_step_id: str
+- attempt_id: str | null
+- stage:
+  - planning
+  - tool
+  - retrieval
+  - rerank
+  - selection
+  - synthesis
+  - grounding
 - step_type: str
 - scope:
   - corpus
@@ -163,6 +199,8 @@ StepActivity
 - `filters_applied` 记录“执行时实际用了哪些 gate / filter”，而不是 planner 自己声称用了什么
 - `selector_summary` 只写 compact summary，不写原始大 payload
 - `candidate_count` 与 `reference_count` 允许为 `0`
+- `run_step_id` 必须引用 durable step ledger；operator projection 不从 raw logs 推断 step
+  identity
 
 ### GroundingCandidate
 
@@ -259,7 +297,10 @@ FailureRecord
   - live_lookup_unavailable
   - no_grounding
   - executor_error
+  - evidence_coverage_failed
+  - grounding_failed
 - terminal: bool
+- stage: str
 - message: str
 ```
 
@@ -267,6 +308,7 @@ FailureRecord
 
 - `FailureRecord` 只承载 retrieval execution 失败，不承载 app-level transport error
 - `terminal=true` 表示必须 fail-close，不能再继续自由生成
+- `stage` 必须使用统一阶段词汇，供 badcase / eval / panel 归因
 
 ## StepResult Mapping
 
@@ -284,6 +326,7 @@ FailureRecord
 固定规则：
 
 - `activity.step_id` 必须与 `StepResult.step_id` 对齐
+- `activity.run_step_id` 必须与 durable `runtime.agent_run_steps.step_id` 对齐
 - `CanonicalReference.candidate_id` 必须引用已存在的 `GroundingCandidate`
 - `FailureRecord` 非空时，`status` 只能是 `blocked` 或 `failed`
 
@@ -300,6 +343,8 @@ FailureRecord
   - compact `QueryActivity`
   - selected step summaries
   - selected supporting evidence summary
+  - sanitized durable step trajectory summary
+  - stage attribution
 - browser-safe projection
   - `SupportingEvidence`
   - `CanonicalReference`
@@ -308,6 +353,8 @@ FailureRecord
 固定约束：
 
 - operator projection 不直接暴露 raw vendor payload
+- operator projection 不直接暴露 raw prompt、raw provider response、raw source
+  body、raw step payload 或 auth material
 - browser projection 不直接暴露 raw candidate trace、query text history 或 failure
   internals
 - browser source card 只能从 `SupportingEvidence + CanonicalReference` 派生
@@ -324,6 +371,9 @@ FailureRecord
   - 由 `rag-agent` 的 evidence selection policy 从 merged candidate set 中受控选出
 - `QueryActivity.selected_supporting_evidence_ids`
   - 只记录结果引用，不重复内嵌 browser payload
+- `QueryActivity.stage_attribution`
+  - 从 durable step status、failure record、coverage verdict 与 grounding verdict 派生，不从
+    free-text answer judge 反推
 
 ## Non-Goals
 
@@ -331,6 +381,7 @@ FailureRecord
 - 不把 candidate set 直接暴露成回答依据
 - 不把 `StepResult` 降成只有 snippets 的无结构列表
 - 不把 canonical reference 降成 raw trace id 或 vendor hit id
+- 不让 RAGAS low-score case 只停留在分数列表；必须能回链到 durable step trajectory 与阶段归因
 
 ## 相关稳定文档
 

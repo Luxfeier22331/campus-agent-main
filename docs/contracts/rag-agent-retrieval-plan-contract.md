@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-21
-updated: 2026-04-26
+updated: 2026-06-05
 ---
 # RAG Agent Retrieval Plan Contract
 
@@ -13,7 +13,8 @@ seam。
 
 它回答的是：
 
-- `RetrievalPlan / RetrievalStep / StepResult` 的最小稳定 shape 是什么
+- `RetrievalPlan / RetrievalStep / StepResult` 的最小稳定 shape 是什么，以及如何映射到
+  durable `RunStep` / `StepResult`
 - planner / executor 各自拥有什么语义 owner
 - `version_query`、freshness、source-trust、budget 与 fail-close 如何进入 plan
 - 哪些字段属于 internal retrieval seam，不能泄漏成 browser / supervisor-facing contract
@@ -29,27 +30,28 @@ seam。
 
 - 这份 contract 记录的是稳定 runtime seam，不等于 `packages/contracts` 里的 shared package
   placement
-- `Phase 1` 固定把这组类型留在 `rag-agent <-> retrieval-core` internal seam，暂不提升为
-  supervisor / browser shared contract
 - 当前 merged truth 仍以 `docs/architecture/current-architecture.md` 与
   `docs/architecture/system/retrieval-serving-architecture.md` 的 single-shot baseline
   为准； 本文冻结的是 target-state 进入实现前必须先明确的 seam truth
 
 ## Core Conclusion
 
-`RetrievalPlan` 在本仓库里固定是 repo-owned typed artifact，而不是 prompt 内部不可见的自由文本状态。
+`RetrievalPlan` 在本仓库里固定是 repo-owned typed artifact，并且必须能投影到 durable
+step trajectory，而不是 prompt 内部不可见的自由文本状态。
 
 固定结论：
 
 - `rag-agent` 负责生成 `RetrievalPlan`
 - `retrieval-core` 负责执行 `RetrievalStep`
 - `RetrievalRequest` 是 executor kernel input，不等于 `RetrievalStep`
+- 每个 `RetrievalStep` 必须映射到 durable `RunStep`
 - `StepResult` 固定拆成四层：
   - `grounding`
   - `references`
   - `activity`
   - `failure`
 - budget、authz、version、freshness、source-trust 都必须在 plan / step seam 上显式表达或显式继承
+- evidence verifier 的结果必须进入 step result；synthesis 不得补齐缺失 evidence
 
 ## Contract Placement
 
@@ -64,6 +66,8 @@ seam。
   browser surface 不得依赖这组内部类型
 - operator / browser 最终只应看到衍生后的 supporting evidence 或 operator-safe execution
   summary，而不是 raw plan / raw vendor payload
+- durable runtime 可以保存 sanitized plan / step / result projection，用于 scheduler、
+  eval、panel 与 badcase 回链
 
 ## RetrievalPlan
 
@@ -72,6 +76,7 @@ seam。
 ```text
 RetrievalPlan
 - plan_id: str
+- run_id: str
 - query_mode:
   - current
   - historical
@@ -107,6 +112,7 @@ RetrievalPlan
 - `source_trust_policy` 只表达 answer-bearing evidence 的最低可信门槛，不等于 remote tool
   router
 - `budget.max_steps` 计入 replan 后插入的新增 steps；预算耗尽固定 fail-close
+- `run_id` 是 durable runtime correlation，不由 retrieval-core 生成
 
 ## RetrievalStep
 
@@ -115,7 +121,16 @@ RetrievalPlan
 ```text
 RetrievalStep
 - step_id: str
+- run_step_id: str
 - step_type: closed vocabulary
+- stage:
+  - planning
+  - tool
+  - retrieval
+  - rerank
+  - selection
+  - synthesis
+  - grounding
 - scope:
   - corpus
   - collection
@@ -136,6 +151,8 @@ RetrievalStep
   - freshness_decision
   - compare_inputs
   - live_candidates
+  - coverage_verdict
+  - supporting_evidence
 ```
 
 固定语义：
@@ -145,6 +162,7 @@ RetrievalStep
   继续强制 enforcement
 - step 可以比 plan 更窄，不能比 plan 更宽
 - `depends_on_step_ids` 表达依赖顺序；executor 可以在不破坏依赖的前提下并行独立 steps
+- `run_step_id` 必须指向 durable `runtime.agent_run_steps` 中的同一 typed execution unit
 
 ## Allowed Step Vocabulary
 
@@ -152,8 +170,18 @@ RetrievalStep
 
 当前 admitted execution values：
 
-- `indexed_lookup`
+- `hybrid_search`
   - 单一 admitted collection 的索引检索
+- `document_section_read`
+  - 读取 canonical document section / root unit
+- `parent_context_expand`
+  - 在 admitted document 内做 parent / child context expansion
+- `rerank`
+  - 执行 admitted rerank profile
+- `evidence_coverage_verify`
+  - 验证 candidate / supporting evidence 是否覆盖 query 要求
+- `supporting_evidence_select`
+  - 选择 answer-bearing supporting evidence
 - `entity_resolution`
   - 实体分辨、别名定位、canonical identity 收敛
 - `historical_version_lookup`
@@ -168,8 +196,8 @@ RetrievalStep
 当前 reserved value：
 
 - `scope_follow_up`
-  - 只保留给“同一 admitted capability 内切换 internal retrieval surface”的 future contract
-    扩展；在显式 admission 之前，初始 executor 可以拒绝它
+  - 只保留给“同一 admitted capability 内切换 internal retrieval surface”的显式扩展；
+    未 admission 时 executor 必须拒绝它
 
 固定排除：
 
@@ -203,6 +231,7 @@ RetrievalStep
 ```text
 StepResult
 - step_id: str
+- run_step_id: str
 - status:
   - succeeded
   - empty
@@ -212,6 +241,7 @@ StepResult
 - references[]: stable canonical references
 - activity: compact step execution summary
 - failure: null | terminal/non-terminal failure record
+- stage_attribution: str
 ```
 
 固定规则：
@@ -221,6 +251,7 @@ StepResult
 - `activity` 用于 operator / eval / audit，不直接暴露 raw vendor payload
 - `failure` 只记录 bounded retrieval failure，不替代 top-level app error model
 - `StepResult` 的详细逻辑对象定义见 `docs/data/retrieval-query-activity-model.md`
+- `stage_attribution` 必须可映射到 badcase / RAGAS / golden dataset / panel 的同一阶段词汇
 
 ## Planner And Executor Boundary
 
@@ -231,6 +262,7 @@ StepResult
 - selector narrowing intent
 - 是否触发 bounded replan
 - supporting evidence selection policy
+- evidence coverage decision 和 synthesis / grounding policy
 
 ### `retrieval-core` executor 固定负责
 
@@ -240,12 +272,19 @@ StepResult
 - rerank / threshold / merge / dedupe
 - `StepResult.activity` 与 candidate shaping
 
+### typed domain tools 固定负责
+
+- projection-backed deterministic data access
+- typed tool result schema
+- source truth / release current pointer / visibility posture enforcement
+
 固定约束：
 
 - planner 不得静默扩大 scope、trust tier 或 runtime capability
 - executor 不得静默改写 query mode、历史语义或产品 capability
 - `RetrievalRequest` 继续是 executor kernel input；它可以从 `RetrievalStep` 派生，但两者不
   允许一一直接等号化
+- evidence verifier 失败时必须 replan、clarification 或 fail-close；synthesis 不得把缺失证据补成自然语言答案
 
 ## Budget, Replan, And Fail-Close
 
@@ -278,6 +317,8 @@ StepResult
 - unresolved freshness
 - no admitted live branch
 - no answer-bearing supporting evidence
+- evidence coverage failed
+- grounding failed
 - unauthorized or runtime-profile-blocked scope
 
 ## Browser / Supervisor Safe Boundary
@@ -289,12 +330,14 @@ StepResult
 - raw step query text history
 - raw vendor scores / payload
 - raw candidate trace dump
+- raw durable step payload
 
 browser / supervisor 允许消费的只是：
 
 - supporting evidence
 - source card / canonical reader jump target
 - operator-safe execution summary
+- sanitized step trajectory summary
 
 ## Forbidden Shapes
 

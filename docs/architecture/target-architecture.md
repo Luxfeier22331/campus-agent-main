@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 # 目标架构
 
@@ -29,13 +29,17 @@ updated: 2026-06-04
 - supervisor-led governed multi-agent architecture
 - deterministic governance + bounded semantic agent execution
 - capability-neutral supervisor routing
-- domain agent 作为稳定能力边界
+- tools-first domain capability boundary；semantic specialist 以 agent-as-tool
+  参与 typed step
 - shared app runtime 与 execution engine 分层
-- run-centric durable agent runtime
+- PG-backed run + step-level durable agent runtime
+- supervisor multi-role deployment：control / scheduler / recovery / lane
+  worker / autoscaler
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
 - eval-governed quality lifecycle
-- planner-first `agentic retrieval` target，且仍保持 bounded campus scope
+- durable planner-first typed-tool `agentic retrieval` target，且仍保持
+  bounded campus scope
 - repo-owned tool orchestration，provider-native function calling 只作为
   domain-agent 内部 adapter
 - cross-agent context 通过 typed artifact / projection 传递，而不是通过 prompt
@@ -44,15 +48,15 @@ updated: 2026-06-04
 长期主链路固定为：
 
 `client/channel -> web surface -> shared app-api surface policy/context
-projection -> durable conversation/run store -> supervisor core admission/routing
--> scheduler / lease coordinator -> workflow plan -> one or more capability
-agents -> family-specific planning/execution -> typed step output projection ->
-run events -> supervisor finalization -> response / stream subscription`
+projection -> durable conversation/run store -> supervisor control admission/routing
+-> PG queued run/step rows -> scheduler / lease coordinator -> typed workflow
+plan -> typed tools or agent-as-tool steps -> step results -> run events ->
+supervisor finalization -> response / stream subscription`
 
 这里的 multi-agent 不是无中心 peer swarm。长期默认是 manager-style
 multi-agent：Go `apps/supervisor-api` 保持 workflow / policy / budget / finalization
-ownership，domain agents 作为受控 specialist 参与执行；只有当某个 specialist
-需要拥有后续回复 ownership 时，才使用 explicit handoff。
+ownership，typed tools 与 agent-as-tool 作为受控 specialist step 参与执行；只有当某个
+specialist 需要拥有后续回复 ownership 时，才使用 explicit handoff。
 
 长期摄入链路固定为：
 
@@ -68,11 +72,15 @@ raw/source-truth/projection/document/chunk/index`
 - HTTP request 不得成为 agent execution lifetime 的 canonical truth；一次回答的长期
   execution object 是 durable `Run`，streaming 只是订阅 run events
 - production 并发预算不得只存在于单个 `supervisor-api` 进程内存；durable run store、
-  scheduler / lease coordinator 与 lane worker pool 必须拥有全局 execution truth
+  durable step store、scheduler / lease coordinator 与 lane worker pool 必须拥有全局
+  execution truth
 - process-local limiter 只能作为单进程 runtime protection，不得被多实例叠加解释为
   production scheduler
-- domain agent 不得退化成只有名称的 thin function wrapper；它必须在自己的能力边界内拥有
-  planning、tool/result consumption、clarification 或 answer shaping 中至少一种稳定语义职责
+- deterministic data access 默认必须建模为 typed tool 或 projection-backed internal query
+  service；semantic specialist 只有在需要语义消歧、摘要、规划、tool/result consumption、
+  clarification 或 answer shaping 时才作为 agent-as-tool
+- agent-as-tool 不得退化成只有名称的 thin function wrapper；没有稳定语义职责的能力应保留为
+  typed tool
 - `admission / guardrails` 与 `capability routing` 必须分层，不得重新混成一个模糊 knowledge gate
 - runtime / transport 逻辑留在 `apps/*`
 - stable capability boundary 留在 `packages/*`
@@ -92,6 +100,12 @@ raw/source-truth/projection/document/chunk/index`
 - provider-native function calling、remote MCP、built-in web tool 或其他外部 tool
   substrate 不得替代 repo-owned admission、source-trust、ToolSpec、eval 与
   observability truth
+- Redis 不得作为 canonical execution queue；只允许作为 cache、invalidation、非权威 wakeup 或
+  live fanout adjunct
+- K8s 只作为 pod/resource/rollout substrate；不得拥有 run queue、step queue、execution
+  lease、run event 或 terminal truth
+- worker autoscaler 只能调整 `supervisor-worker-{lane}` replica count，不得写 run、step、
+  lease、event 或 terminal state
 - tool output 不得以 provider 原始 trace、raw function response 或未裁剪正文形式进入
   app-api、panel、eval canonical asset 或 downstream prompt context
 - cross-agent handoff / context projection 必须使用 bounded typed artifact；不得把上一步
@@ -114,12 +128,12 @@ raw/source-truth/projection/document/chunk/index`
 - `apps/supervisor-api` 的 Docker substrate freeze 不反推单一 Python/HTTP framework、固定
   staging hostname，或 browser-facing exposure model
 - `apps/app-api` 长期拥有 conversation 与 run creation / stream proxy 的 product
-  surface；`apps/supervisor-api` 长期拥有 durable scheduler / lease coordinator 或其
-  adapter、workflow planning、execution budget 与 finalization；worker pool 只消费
-  execution lease
-- Docker-side supervisor runtime 长期可以拆成 Go execution runtime control plane
-  与 private semantic orchestration worker；Go 负责 deterministic runtime kernel，
-  Python / package-owned agents 继续负责 semantic orchestration 与 reasoning
+  surface；`apps/supervisor-api` code domain 拆成 `supervisor-api-control`、
+  `supervisor-scheduler`、`supervisor-recovery`、`supervisor-worker-{lane}` 与
+  `worker-autoscaler` roles；worker pool 只消费 execution lease
+- Docker-side supervisor runtime 拆成 Go deterministic runtime roles 与 private semantic
+  worker；Go 负责 durable runtime kernel、scheduler/recovery/autoscaler contract 与
+  finalization，Python / package-owned specialists 继续负责 semantic reasoning
 
 ## 长期 execution / agent 形态
 
@@ -132,11 +146,12 @@ raw/source-truth/projection/document/chunk/index`
   - `rag-agent`
   - `navigation-agent`
 - 当前同样已经进入 repo truth、但在 opening posture / runtime path / tool admission 上
-  采用不同约束的 capability family 包括：
+  采用不同约束的 semantic specialist family 包括：
   - `campus-services-agent`
   - `notice-agent`
-- 当长期新增稳定能力边界时，前向 family 命名默认采用 `<domain>-agent`
-- 早期实验性的 `availability-agent` 占位 capability 已退休；当前不再保留 `availability-agent`
+- 当新增稳定 domain capability 时，默认先冻结 typed tool / internal query service；只有需要
+  semantic specialist 时，才新增 `<domain>-agent` family label
+- `availability-agent` 占位 capability 已退休；当前不再保留 `availability-agent`
   之类前向 alias
 - 对已完成收口的 capability family，不再维护与 current-truth label 脱节的 synthetic
   alias；后续也不得继续无规则地新增混合命名
@@ -148,9 +163,10 @@ raw/source-truth/projection/document/chunk/index`
   allowed agents、allowed tools、step budget、timeout 与 fail-close terminal policy
 - 长期必须有 repo-owned `AgentSpec` registry 作为 agent-level canonical artifact；新增稳定
   domain agent 不得只在 planner / prompt / runtime delegate map 中添加字符串 target
-- multi-agent runtime 的 canonical lifecycle 固定为
-  `Turn -> WorkflowRun -> AgentInvocation -> ToolCall -> Evidence/Projection ->
-  Finalization`；provider-native trace、SDK run state 或框架 agent graph 只能作为内部
+- durable runtime 的 canonical lifecycle 固定为
+  `Turn -> Run -> RunStep -> StepAttempt -> StepResult -> RunEvent -> Finalization`；
+  multi-agent projection 可以在 step result 中表达 `AgentInvocation` / `ToolCall` graph；
+  provider-native trace、SDK run state 或框架 agent graph 只能作为内部
   debug input，不能替代 repo-owned sanitized projection
 - production run lifecycle 的 canonical durable object 固定为 `Run`，最小状态为
   `created -> queued -> admitted -> running -> streaming -> completed / failed /
@@ -162,20 +178,24 @@ raw/source-truth/projection/document/chunk/index`
 - supervisor deterministic orchestration 长期由 Go `apps/supervisor-api` 承接；
   Python `apps/supervisor-agent-worker` 只保留 private bridge worker、prompt runtime
   assembly 与 agent dispatch，不再单独保留 `packages/supervisor-core`
-- domain agent 负责明确能力边界内的 planning / evidence consumption / answer shaping
-- domain agent 可以作为 manager-style workflow 中的 bounded specialist；其输出必须先收敛为
+- typed tool 负责 deterministic data access；agent-as-tool 负责明确语义边界内的 planning /
+  evidence consumption / answer shaping
+- agent-as-tool 可以作为 manager-style workflow 中的 bounded specialist；其输出必须先收敛为
   `StepOutputProjection` 或同等 bounded result projection，才能供后续 agent 或 finalizer 消费
 - context inheritance 必须按 agent role 最小化；supervisor 不得把完整 conversation、
   完整上游 answer、raw evidence dump、raw OCR、raw provider trace 或未裁剪 source body
   广播给后续 agent
-- `campus-services-agent` 长期承接只读校园服务结构化查询，包括 transport
-  schedule、service status、service guide、temporary override 与 later-wave contact
-  directory 等结构化校园服务真相；其中 `service_guide_lookup` 只回答办理指南、材料、
-  入口说明、服务时间、联系方式与来源引用，不执行申请、预约、提交、代办、支付、工单创建或任何状态变更
-- `notice-agent` 长期承接 notice discovery、selected notice ref resolution、
-  official source card rendering、historical downgrade、短摘要/事实抽取的 bounded notice
-  context projection，以及向 campus-services / RAG / regulation 等下游 family 提供
-  source-linked notice context。它不是默认正文阅读器，不负责把官方通知全文复制到用户面。
+- campus services 的只读结构化查询默认由 typed tools / projection-backed internal query
+  service 承接，包括 transport schedule、service status、service guide、temporary override
+  与 contact directory。`campus-services-agent` 只在需要语义消歧、跨工具编排、说明生成或
+  agent-owned clarification 时作为 agent-as-tool；它不拥有服务 source truth。
+  其中 `service_guide_lookup` 只回答办理指南、材料、入口说明、服务时间、
+  联系方式与来源引用，不执行申请、预约、提交、代办、支付、工单创建或任何状态变更
+- notice discovery、selected notice ref resolution 与 official source card
+  rendering 默认由 typed tools / projection-backed internal query service 承接。
+  `notice-agent` 只在需要候选消歧、historical posture、短摘要/事实抽取或向
+  campus-services / RAG / regulation 等下游提供
+  source-linked bounded notice context 时作为 agent-as-tool。它不是默认正文阅读器，不负责把官方通知全文复制到用户面。
 - `navigation-agent` 长期可消费 transport point refs / service point refs，但不拥有
   timetable truth 或 service-status truth；当前 runtime package 为
   `packages/navigation-agent`
@@ -187,18 +207,18 @@ raw/source-truth/projection/document/chunk/index`
 - `retrieval-core` 长期负责 retrieval execution、rerank / merge / dedupe、query
   activity 与 candidate-set shaping
 - retrieval backend、vector infra、framework 选择隐藏在 agent / retrieval boundary 之后
-- 非 RAG capability 只要是长期稳定能力边界，也应作为稳定 domain family 落地，而不是回退成 supervisor inline
-  tool
+- 非 RAG deterministic capability 只要是稳定能力边界，默认应作为 typed tool / internal query
+  service 落地，而不是回退成 supervisor inline ad hoc function
 - `routing clarification` 与 `agent clarification` 必须显式分层；前者由 supervisor
   拥有，后者由对应 agent 拥有
 - 对 `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`、
   `campus_notice_discover` 与 selected notice card/context resolution 这类结构化 runtime
-  capability，长期实现形态固定为
-  `projection-backed internal query service + thin tool adapter + domain-agent`，而不是
+  capability，目标实现形态固定为
+  `projection-backed internal query service + typed tool + optional agent-as-tool`，而不是
   query-time raw source scan、browser/public API 直连，或 execution path 回调
   `app-api` loopback HTTP
 - projection-backed internal query service 可优先采用 Go 实现，以降低 Docker-side runtime
-  latency / memory cost；这不改变 domain-agent 的 capability owner 角色
+  latency / memory cost；这不改变 typed tool / agent-as-tool 的边界
 - 对 structured projection capability，长期 online consumption 固定为 PostgreSQL
   release catalog / current pointer / typed read model；对象存储保存 immutable release
   artifacts，Redis 只能作为 cache / invalidation adjunct，不拥有 current truth
@@ -206,17 +226,20 @@ raw/source-truth/projection/document/chunk/index`
 典型 multi-agent campus workflow 的长期形态包括：
 
 - transport / schedule answer
-  - `campus-services-agent` 读取 current schedule baseline
-  - `notice-agent` 提供近期 override / change notice 的 source-linked bounded context
-  - `navigation-agent` 补充 stop / pickup point context
-  - `rag-agent` 或 grounding validator 校验证据是否足以回答
+  - campus services typed tool 读取 current schedule baseline
+  - notice typed tool 或 `notice-agent` agent-as-tool 提供近期 override /
+    change notice 的 source-linked bounded context
+  - navigation typed tool 或 `navigation-agent` agent-as-tool 补充 stop /
+    pickup point context
+  - `rag-agent` retrieval step 或 grounding validator 校验证据是否足以回答
 - service handling answer
-  - `campus-services-agent` 读取 guide / contact / status projection
-  - `navigation-agent` 补充办理地点
-  - `rag-agent` 补充稳定制度依据
+  - campus services typed tool 读取 guide / contact / status projection
+  - navigation typed tool 补充办理地点
+  - `rag-agent` typed retrieval step 补充稳定制度依据
 - notice explanation answer
-  - `notice-agent` 解析 selected notice ref，提供 official source card 与 bounded context
-  - `rag-agent` 读取相关制度 / reference evidence
+  - notice typed tool 或 `notice-agent` agent-as-tool 解析 selected notice ref，提供 official
+    source card 与 bounded context
+  - `rag-agent` typed retrieval step 读取相关制度 / reference evidence
   - supervisor 统一 finalization 与 fail-close semantics
 
 如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 agent 接入，并拥有单独的
@@ -226,18 +249,18 @@ routing、policy、eval 与 observability 约束；它不是当前 campus path �
 
 长期 tool 架构固定为：
 
-`Go supervisor-api deterministic admission -> ToolSpec / allowed_tools ->
-domain-agent optional provider-native tool loop -> thin adapter ->
-repo-owned internal query service -> sanitized result projection`
+`Go supervisor-api deterministic admission -> durable RunStep -> ToolSpec /
+allowed_tools -> typed tool or agent-as-tool -> repo-owned internal query service
+-> sanitized StepResult projection`
 
 其中：
 
 - Go `apps/supervisor-api` 拥有 tool admission、opening gate、capability / lane /
   scope / version guard、`allowed_tools` planning、workflow policy 与 fail-close
   terminal semantics
-- domain-agent 可以在自己的能力边界内使用 provider/SDK mediated tool loop，但只能消费 Go
-  handoff 中允许的 tool 子集
-- provider/SDK tool loop 只作为 domain-agent 内部的 bounded execution substrate；它不是
+- agent-as-tool 可以在自己的能力边界内使用 provider/SDK mediated tool loop，但只能消费 Go
+  durable step 中允许的 tool 子集
+- provider/SDK tool loop 只作为 agent-as-tool 内部的 bounded execution substrate；它不是
   顶层 routing engine，也不拥有跨 family permission expansion
 - provider-native function calling / Agents SDK 是 Python semantic runtime substrate，不是
   repo-level orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
@@ -249,7 +272,7 @@ repo-owned internal query service -> sanitized result projection`
   bytes、collector runtime 或 ingestion/index build path
 - tool result 必须先变成 bounded result projection 或 `StepOutputProjection`，再进入
   answer synthesis、workflow trace、operator projection 或下一步 handoff
-- remote MCP / provider built-in web search 只能作为 future admitted source-channel
+- remote MCP / provider built-in web search 只能作为显式 admitted source-channel
   adjunct；未 admission 前不得作为 campus answer-bearing fallback
 
 tool 与 deterministic query function 的边界必须保持清晰：
@@ -553,9 +576,8 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 
 ## 与当前架构的关系
 
-当前架构是目标架构的受控子集，不是另一套方向。
-
-当前尚未完成但属于目标架构一部分的能力包括：
+当前架构是目标架构的受控子集，不是另一套方向。目标架构包含以下能力边界；是否已经合入
+merged truth 只看 `docs/architecture/current-architecture.md`，不由本文反推：
 
 - richer execution capability families
 - governed routing intent schema / classifier versioning
@@ -574,7 +596,8 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - operator observability / audit control plane
 - deploy-side observability hardening
 
-这些能力的推进以对应 supporting architecture、ADR 与 active plans 为准。
+这些能力的实现状态以对应 supporting architecture、ADR、current architecture 与 active plans
+为准。
 
 与 capability-neutral routing、surface capability policy 与 clarification 分层相关的长期
 supporting truth，统一看

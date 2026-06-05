@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-06-04
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 # Durable Agent Runtime Schema
 
@@ -13,7 +13,8 @@ updated: 2026-06-04
 它回答的是：
 
 - 哪些 logical tables / records 拥有 durable runtime truth
-- conversation、run、event、lease、lane budget、worker heartbeat 如何关联
+- conversation、run、step、attempt、result、event、lease、lane budget、
+  worker heartbeat 如何关联
 - 哪些字段是 canonical truth，哪些只是 projection / correlation
 
 它不负责：
@@ -44,6 +45,9 @@ updated: 2026-06-04
 目标 logical tables：
 
 - `runtime.agent_runs`
+- `runtime.agent_run_steps`
+- `runtime.agent_step_attempts`
+- `runtime.agent_step_results`
 - `runtime.agent_run_events`
 - `runtime.execution_leases`
 - `runtime.lane_budgets`
@@ -64,6 +68,23 @@ updated: 2026-06-04
 - `chat.messages`
   - user / assistant UX message truth
   - 不拥有 run lifecycle truth
+
+## Queue Model
+
+canonical execution queue 固定由 PG durable rows 表达：
+
+- run-level queue：`runtime.agent_runs.status='queued'`
+- step-level queue：`runtime.agent_run_steps.status='queued'`
+
+消费规则：
+
+- scheduler 使用 `FOR UPDATE SKIP LOCKED` 读取候选 queued rows
+- scheduler 在同一事务中检查 lane budget、worker readiness、dependency state 与 downstream
+  budget，并写入 `runtime.execution_leases`
+- worker 只消费 active lease，不直接扫描 queued rows 自行执行
+- process-local queue 只能作为本进程 protection，不是 canonical execution queue
+- Redis 只能用于非权威 wakeup、live fanout、cache 或 derived counter；不拥有 run、step、
+  lease、event 或 terminal truth
 
 ## `runtime.agent_runs`
 
@@ -170,6 +191,162 @@ updated: 2026-06-04
 - browser stream、panel、eval 与 audit 读取 event projection 或 read model，不读取 raw
   provider trace
 
+## `runtime.agent_run_steps`
+
+用途：
+
+- step-level durable execution truth
+
+最小列：
+
+- `step_id`
+- `run_id`
+- `parent_step_id`
+- `dependency_step_ids_json`
+- `lane`
+- `capability_family`
+- `step_kind`
+- `target_id`
+- `target_kind`
+- `status`
+- `terminal_reason`
+- `blocker_reason`
+- `created_at`
+- `queued_at`
+- `admitted_at`
+- `started_at`
+- `completed_at`
+- `updated_at`
+- `input_projection_refs_json`
+- `output_contract_json`
+- `budget_json`
+- `metadata_json`
+
+最小索引：
+
+- primary key `(run_id, step_id)`
+- `(run_id, status, created_at)`
+- `(lane, status, created_at)`
+- `(target_kind, target_id, status)`
+- `(status, queued_at)`
+
+`status` enum：
+
+- `created`
+- `queued`
+- `admitted`
+- `running`
+- `succeeded`
+- `failed`
+- `blocked`
+- `skipped`
+- `canceled`
+- `expired`
+
+规则：
+
+- `step_id` 在同一 run 内唯一
+- dependency step 未 terminal 且满足 output contract 前，不得执行 dependent step
+- `target_kind` 固定区分 `typed_tool`、`agent_as_tool`、`retrieval`、`synthesis`、
+  `grounding`、`finalization`
+- terminal statuses 必须写 `terminal_reason` 或 `blocker_reason`
+- `input_projection_refs_json` 只能保存 sanitized projection refs，不保存 raw prompt、
+  raw provider response、raw source body 或 auth material
+
+## `runtime.agent_step_attempts`
+
+用途：
+
+- worker 对某个 step 的 attempt truth
+
+最小列：
+
+- `attempt_id`
+- `run_id`
+- `step_id`
+- `lease_id`
+- `worker_id`
+- `attempt_no`
+- `status`
+- `started_at`
+- `completed_at`
+- `terminal_reason`
+- `failure_kind`
+- `created_at`
+- `updated_at`
+- `metadata_json`
+
+最小索引：
+
+- primary key `(attempt_id)`
+- unique `(run_id, step_id, attempt_no)`
+- `(lease_id)`
+- `(worker_id, status, started_at)`
+- `(run_id, step_id, status)`
+
+`status` enum：
+
+- `running`
+- `succeeded`
+- `failed`
+- `blocked`
+- `canceled`
+- `expired`
+
+规则：
+
+- attempt 必须引用 active lease
+- retry 必须新建 attempt 并递增 `attempt_no`
+- failed attempt 不得原地改写成 succeeded
+- metadata 不保存 raw prompt、raw provider response、raw source body、auth
+  material 或 object store credential
+
+## `runtime.agent_step_results`
+
+用途：
+
+- typed step terminal output truth
+
+最小列：
+
+- `result_id`
+- `run_id`
+- `step_id`
+- `attempt_id`
+- `result_kind`
+- `visibility`
+- `payload_schema_version`
+- `payload_json`
+- `payload_hash`
+- `created_at`
+
+最小索引：
+
+- primary key `(result_id)`
+- `(run_id, step_id)`
+- `(attempt_id)`
+- `(result_kind, created_at)`
+- unique `(run_id, step_id, result_kind)` where result kind is terminal-singleton
+
+`result_kind` enum：
+
+- `typed_tool_result`
+- `agent_output_projection`
+- `retrieval_query_activity`
+- `supporting_evidence`
+- `grounding_verdict`
+- `synthesis_draft_projection`
+- `finalization_projection`
+
+规则：
+
+- payload 必须是 sanitized projection
+- deterministic data access 输出 `typed_tool_result`
+- semantic specialist 输出 `agent_output_projection`
+- retrieval step 输出 `retrieval_query_activity` 与 supporting evidence projection
+- synthesis / finalization 只能消费 admitted result，不得补造缺失 retrieval/tool result
+- browser / panel / eval 只能读取 projection 或 read model，不读取 raw provider trace
+
 ## `runtime.execution_leases`
 
 用途：
@@ -217,6 +394,8 @@ updated: 2026-06-04
   retry 上限时，同一 run 可以回到 `queued`，下一条 lease 必须写递增后的
   `attempt`
 - release 必须写 `release_reason`
+- run-level single-step execution 也必须使用 canonical root `step_id`，不能让
+  `execution_leases.step_id` 永久为空
 
 ## `runtime.lane_budgets`
 
@@ -322,6 +501,10 @@ operator-facing read model 不直接读取 scheduler internals。
 - selected capability
 - source / evidence safe summary
 - trace id / request id backlink
+- step trajectory summary
+- stage attribution：`routing`、`planning`、`tool`、`retrieval`、`rerank`、
+  `selection`、`synthesis`、`grounding`
+- step result safe refs
 
 禁止投影：
 
@@ -334,18 +517,15 @@ operator-facing read model 不直接读取 scheduler internals。
 
 ## Migration Boundary
 
-Phase 1 冻结 logical schema。
+本文冻结 logical schema。当前 merged truth 已具备 PG-backed run-level durable baseline；
+step-level tables 是目标 durable runtime contract 的下一层 logical truth，不能用 runtime event
+字符串或 provider trace 代替。
 
-Phase 3 foundation 已在 `apps/supervisor-api/internal/execution` 中提供
-Postgres-backed durable runtime store 与 schema bootstrap；它用于验证 durable runtime
-tables、indexes 与 store contract，不表示 current chat execution 已切换到 durable
-scheduler。
-
-后续 implementation 必须遵守：
+实现必须遵守：
 
 - schema first
 - migration tests before runtime cutover
-- old `runtime.request_execution` remains current request projection truth until
-  run creation endpoint is implemented
 - no fallback synthesis of missing run fields
 - no dual-write silent success when durable run write fails
+- no fallback synthesis of missing step / attempt / result fields
+- no Redis-backed canonical queue
