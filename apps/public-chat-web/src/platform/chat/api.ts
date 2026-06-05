@@ -7,6 +7,7 @@ import type {
 	ConversationSummary,
 	SessionPrincipal,
 } from "./api-types";
+import type { ChatRunEventProjection, ChatRunPhase } from "./types";
 
 export class UnauthorizedError extends Error {
 	constructor(message = "请先登录。") {
@@ -73,6 +74,8 @@ export interface ChatRequestStreamEvent {
 		};
 		occurredAt: string;
 		requestId: string;
+		runId?: string | null;
+		runPhase?: ChatRunPhase;
 		status: string;
 		traceId: string;
 	};
@@ -118,22 +121,21 @@ async function requestJson<T>(input: {
 	return payload as T;
 }
 
-function parseSseBlock(block: string): ChatRequestStreamEvent | null {
+function parseSseBlock<T>(
+	block: string,
+	isKnownEvent: (eventName: string) => boolean,
+): {
+	data: T;
+	event: string;
+} | null {
 	let event: ChatRequestStreamEventName | null = null;
 	const dataLines: string[] = [];
 
 	for (const line of block.split(/\r?\n/)) {
 		if (line.startsWith("event:")) {
 			const eventName = line.slice("event:".length).trim();
-			if (
-				eventName === "request.accepted" ||
-				eventName === "execution.queued" ||
-				eventName === "execution.running" ||
-				eventName === "request.completed" ||
-				eventName === "request.failed" ||
-				eventName === "request.cancelled"
-			) {
-				event = eventName;
+			if (isKnownEvent(eventName)) {
+				event = eventName as ChatRequestStreamEventName;
 			}
 			continue;
 		}
@@ -147,12 +149,30 @@ function parseSseBlock(block: string): ChatRequestStreamEvent | null {
 	}
 
 	return {
-		data: JSON.parse(dataLines.join("\n")) as ChatRequestStreamEvent["data"],
+		data: JSON.parse(dataLines.join("\n")) as T,
 		event,
 	};
 }
 
-async function* parseProductSse(response: Response): AsyncIterable<ChatRequestStreamEvent> {
+function isProductStreamEventName(eventName: string): eventName is ChatRequestStreamEventName {
+	return (
+		eventName === "request.accepted" ||
+		eventName === "execution.queued" ||
+		eventName === "execution.running" ||
+		eventName === "request.completed" ||
+		eventName === "request.failed" ||
+		eventName === "request.cancelled"
+	);
+}
+
+function isDurableRunEventName(eventName: string): boolean {
+	return eventName.trim().length > 0 && !isProductStreamEventName(eventName);
+}
+
+async function* parseSse<T>(
+	response: Response,
+	isKnownEvent: (eventName: string) => boolean,
+): AsyncIterable<{ data: T; event: string }> {
 	if (!response.body) {
 		throw new Error("Lifecycle stream response body is empty.");
 	}
@@ -174,7 +194,7 @@ async function* parseProductSse(response: Response): AsyncIterable<ChatRequestSt
 				const block = buffer.slice(0, boundary);
 				const match = buffer.slice(boundary).match(/^\r?\n\r?\n/);
 				buffer = buffer.slice(boundary + (match?.[0].length ?? 2));
-				const parsed = parseSseBlock(block);
+				const parsed = parseSseBlock<T>(block, isKnownEvent);
 				if (parsed) {
 					yield parsed;
 				}
@@ -183,12 +203,30 @@ async function* parseProductSse(response: Response): AsyncIterable<ChatRequestSt
 		}
 
 		buffer += decoder.decode();
-		const parsed = parseSseBlock(buffer.trim());
+		const parsed = parseSseBlock<T>(buffer.trim(), isKnownEvent);
 		if (parsed) {
 			yield parsed;
 		}
 	} finally {
 		reader.releaseLock();
+	}
+}
+
+async function* parseProductSse(response: Response): AsyncIterable<ChatRequestStreamEvent> {
+	for await (const event of parseSse<ChatRequestStreamEvent["data"]>(
+		response,
+		isProductStreamEventName,
+	)) {
+		yield {
+			data: event.data,
+			event: event.event as ChatRequestStreamEventName,
+		};
+	}
+}
+
+async function* parseRunEventSse(response: Response): AsyncIterable<ChatRunEventProjection> {
+	for await (const event of parseSse<ChatRunEventProjection>(response, isDurableRunEventName)) {
+		yield event.data;
 	}
 }
 
@@ -350,6 +388,58 @@ export async function* submitChatRequestStream(input: {
 	}
 
 	for await (const event of parseProductSse(response)) {
+		yield event;
+	}
+}
+
+export async function* subscribeChatRunEventStream(input: {
+	afterSequence?: number;
+	runId: string;
+	signal?: AbortSignal;
+}): AsyncIterable<ChatRunEventProjection> {
+	const runId = input.runId.trim();
+	if (!runId) {
+		throw new Error("runId is required.");
+	}
+	if (
+		input.afterSequence !== undefined &&
+		(!Number.isInteger(input.afterSequence) || input.afterSequence < 0)
+	) {
+		throw new Error("afterSequence must be a non-negative integer.");
+	}
+
+	const params = new URLSearchParams();
+	if (input.afterSequence !== undefined) {
+		params.set("after_sequence", String(input.afterSequence));
+	}
+	const response = await fetch(
+		`/api/chat/runs/${encodeURIComponent(runId)}/events/stream${params.toString() ? `?${params.toString()}` : ""}`,
+		{
+			credentials: "same-origin",
+			headers: {
+				accept: "text/event-stream",
+			},
+			method: "GET",
+			signal: input.signal,
+		},
+	);
+
+	if (response.status === 401) {
+		const payload = isJsonContentType(response.headers.get("content-type") ?? "")
+			? await readRequiredJson(response, "App API returned invalid JSON error payload.")
+			: undefined;
+		throw new UnauthorizedError(parseErrorMessage(payload, response.statusText));
+	}
+
+	if (!response.ok) {
+		const contentType = response.headers.get("content-type") ?? "";
+		const payload = isJsonContentType(contentType)
+			? await readRequiredJson(response, "App API returned invalid JSON error payload.")
+			: await response.text();
+		throw new Error(parseErrorMessage(payload, response.statusText));
+	}
+
+	for await (const event of parseRunEventSse(response)) {
 		yield event;
 	}
 }

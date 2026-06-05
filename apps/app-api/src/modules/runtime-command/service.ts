@@ -4,12 +4,19 @@ import {
 	type SupervisorExecutionResponse,
 	SupervisorTransportError,
 } from "../integration";
+import { type RuntimeRunPhase, runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
 
+import {
+	startDurableFinalizationCloseout,
+	waitForDurableFinalizationResponse,
+} from "./service/durable";
+import { buildDurableRagRunMetadata } from "./service/durable-metadata";
 import {
 	buildAbuseThrottleRejectedResponse,
 	createPreAcceptError,
 	toHandledErrorTransportOutcome,
 } from "./service/errors";
+import { streamLegacySupervisorExecution } from "./service/legacy-stream";
 import {
 	defaultComputeFingerprint,
 	defaultGenerateId,
@@ -17,13 +24,7 @@ import {
 	previewText,
 	resolveValidatedPayload,
 } from "./service/normalize";
-import {
-	mapSupervisorLifecycleEvent,
-	parseSupervisorSse,
-	parseSupervisorTerminalResponse,
-	supervisorStreamErrorResponse,
-	toTerminalChatStreamEvent,
-} from "./service/stream";
+import { toTerminalChatStreamEvent } from "./service/stream";
 import {
 	type ChatCommandService,
 	type ChatCommandServiceDependencies,
@@ -57,9 +58,12 @@ interface AcceptedChatCommandContext {
 	input: ChatCommandSubmitInput;
 	requestFingerprintSha256: string | null;
 	requestId: string;
+	runId: string | null;
+	runPhase: RuntimeRunPhase | null;
 	safetyIdentifier: string | null;
 	surface: string;
 	traceId: string;
+	turnId: string | null;
 	userMessageId: string;
 	validatedPayload: ValidatedChatCommandPayload;
 }
@@ -119,6 +123,17 @@ export function buildChatCommandService(
 
 		const surface = input.surface?.trim() || "public_chat_web";
 		const validatedPayload = resolveValidatedPayload(input.payload, { surface });
+		if (
+			dependencies.requireDurableRuntime &&
+			!(dependencies.durableRuntime && dependencies.isDurableRuntimeConfigured !== false)
+		) {
+			throw createPreAcceptError({
+				code: "durable_runtime_required",
+				message: "Durable runtime is required for this environment.",
+				retryable: true,
+				status: 503,
+			});
+		}
 		const ownerUserId = input.principal.principal.principalId;
 
 		let conversation: ChatConversation | null = null;
@@ -174,6 +189,8 @@ export function buildChatCommandService(
 
 		const requestId = generateId("req");
 		const traceId = generateId("trace");
+		const runId = dependencies.durableRuntime ? generateId("run") : null;
+		const turnId = dependencies.durableRuntime ? generateId("turn") : null;
 		const safetyIdentifier = deriveSafetyIdentifierForPrincipal(input.principal);
 		const acceptedAt = now().toISOString();
 		const userMessageId = generateId("msg");
@@ -223,6 +240,7 @@ export function buildChatCommandService(
 			requestId,
 			requestedCapability: validatedPayload.requestedCapability,
 			requestedScope: validatedPayload.requestedScope,
+			runId,
 			versionQuery: validatedPayload.versionQuery,
 			safetyIdentifier,
 			surface,
@@ -285,9 +303,12 @@ export function buildChatCommandService(
 				input,
 				requestFingerprintSha256,
 				requestId,
+				runId,
+				runPhase: null,
 				safetyIdentifier,
 				surface,
 				traceId,
+				turnId,
 				userMessageId,
 				validatedPayload,
 			},
@@ -322,6 +343,64 @@ export function buildChatCommandService(
 			traceId: context.traceId,
 			userGoal: context.validatedPayload.prompt,
 		};
+	}
+
+	async function createDurableRunForAcceptedCommand(context: AcceptedChatCommandContext): Promise<{
+		response: SupervisorExecutionResponse | null;
+		transportError: { code: string; retryable: boolean } | null;
+	}> {
+		if (!dependencies.durableRuntime) {
+			return {
+				response: null,
+				transportError: null,
+			};
+		}
+		if (!(context.runId && context.turnId)) {
+			throw new SupervisorTransportError({
+				code: "runtime_invariant_failed",
+				message: "Durable runtime command is missing run or turn id.",
+				retryable: false,
+				status: 500,
+			});
+		}
+
+		const supervisorInput = await buildSupervisorInput(context);
+		try {
+			const run = await dependencies.durableRuntime.createRun({
+				conversationId: context.conversation.id,
+				lane: "rag",
+				metadata: buildDurableRagRunMetadata(supervisorInput),
+				ownerUserId: context.input.principal.actor.userId,
+				requestId: context.requestId,
+				requestedCapability: context.validatedPayload.requestedCapability,
+				runId: context.runId,
+				runtimeVersions: {
+					contract: "durable-agent-runtime-contract-v1",
+				},
+				selectedCapability: context.validatedPayload.requestedCapability,
+				surface: context.surface,
+				traceHeaders: supervisorInput.traceHeaders,
+				traceId: context.traceId,
+				turnId: context.turnId,
+			});
+			context.runPhase = runtimeRunPhaseFromSupervisorStatus(run.status);
+			return {
+				response: null,
+				transportError: null,
+			};
+		} catch (error) {
+			const handled = toHandledErrorTransportOutcome(error);
+			return {
+				response: {
+					...handled,
+					traceId: context.traceId,
+				},
+				transportError: {
+					code: handled.error.code,
+					retryable: handled.error.retryable,
+				},
+			};
+		}
 	}
 
 	async function getAbuseControlState(context: AcceptedChatCommandContext) {
@@ -386,6 +465,7 @@ export function buildChatCommandService(
 			requestedCapability: context.validatedPayload.requestedCapability,
 			requestedScope: context.validatedPayload.requestedScope,
 			response: input.executionResponse,
+			runId: context.runId,
 			versionQuery: context.validatedPayload.versionQuery,
 			safetyIdentifier: context.safetyIdentifier,
 			surface: context.surface,
@@ -477,6 +557,8 @@ export function buildChatCommandService(
 			data: {
 				occurredAt: context.acceptedAt,
 				requestId: context.requestId,
+				runId: context.runId,
+				...(context.runPhase ? { runPhase: context.runPhase } : {}),
 				status: "accepted",
 				traceId: context.traceId,
 			},
@@ -491,6 +573,37 @@ export function buildChatCommandService(
 			occurredAt: now().toISOString(),
 			response,
 		});
+	}
+
+	async function executeDurableBlocking(input: {
+		context: AcceptedChatCommandContext;
+		durableRuntime: NonNullable<ChatCommandServiceDependencies["durableRuntime"]>;
+	}): Promise<{
+		response: SupervisorExecutionResponse;
+		transportError: { code: string; retryable: boolean } | null;
+	}> {
+		try {
+			return await waitForDurableFinalizationResponse({
+				context: input.context,
+				listRunEvents: (afterSequence) =>
+					input.durableRuntime.listRunEvents({
+						afterSequence,
+						runId: input.context.runId ?? "",
+						traceHeaders: telemetry?.getTraceHeaders(),
+						traceId: input.context.traceId,
+					}),
+				polling: dependencies.durableEventPolling,
+			});
+		} catch (error) {
+			const handled = toHandledErrorTransportOutcome(error);
+			return {
+				response: handled,
+				transportError: {
+					code: handled.error.code,
+					retryable: handled.error.retryable,
+				},
+			};
+		}
 	}
 
 	async function executeBlocking(context: AcceptedChatCommandContext): Promise<{
@@ -531,6 +644,26 @@ export function buildChatCommandService(
 				return accepted.response;
 			}
 
+			const durableRunCreate = await createDurableRunForAcceptedCommand(accepted.value);
+			if (durableRunCreate.response) {
+				return finalizeAcceptedCommand({
+					context: accepted.value,
+					executionResponse: durableRunCreate.response,
+					transportError: durableRunCreate.transportError,
+				});
+			}
+			const durableRuntime = dependencies.durableRuntime;
+			if (durableRuntime) {
+				const execution = await executeDurableBlocking({
+					context: accepted.value,
+					durableRuntime,
+				});
+				return finalizeAcceptedCommand({
+					context: accepted.value,
+					executionResponse: execution.response,
+					transportError: execution.transportError,
+				});
+			}
 			const execution = await executeBlocking(accepted.value);
 			return finalizeAcceptedCommand({
 				context: accepted.value,
@@ -547,6 +680,42 @@ export function buildChatCommandService(
 			}
 
 			const context = accepted.value;
+
+			const durableRuntime = dependencies.durableRuntime;
+			if (durableRuntime) {
+				const durableRunCreate = await createDurableRunForAcceptedCommand(context);
+				if (durableRunCreate.response) {
+					const finalized = await finalizeAcceptedCommand({
+						context,
+						executionResponse: durableRunCreate.response,
+						transportError: durableRunCreate.transportError,
+					});
+					yield toTerminalChatStreamEvent({
+						occurredAt: now().toISOString(),
+						response: finalized,
+					});
+					return;
+				}
+
+				const closeout = startDurableFinalizationCloseout({
+					context,
+					finalizeAcceptedCommand,
+					listRunEvents: (afterSequence) =>
+						durableRuntime.listRunEvents({
+							afterSequence,
+							runId: context.runId ?? "",
+							traceHeaders: telemetry?.getTraceHeaders(),
+							traceId: context.traceId,
+						}),
+					now,
+					polling: dependencies.durableEventPolling,
+				});
+				context.input.waitUntil?.(closeout.completion);
+				yield acceptedStreamEvent(context);
+				yield* closeout.streamEvents();
+				return;
+			}
+
 			yield acceptedStreamEvent(context);
 
 			const abuseControlState = await getAbuseControlState(context);
@@ -564,128 +733,14 @@ export function buildChatCommandService(
 				return;
 			}
 
-			if (!dependencies.supervisor.executeStream) {
-				const error = new SupervisorTransportError({
-					code: "dependency_not_ready",
-					message: "Supervisor lifecycle stream is not configured.",
-					retryable: true,
-					status: 503,
-				});
-				const handled = toHandledErrorTransportOutcome(error);
-				const finalized = await finalizeAcceptedCommand({
-					context,
-					executionResponse: handled,
-					transportError: {
-						code: handled.error.code,
-						retryable: handled.error.retryable,
-					},
-				});
-				yield toTerminalChatStreamEvent({
-					occurredAt: now().toISOString(),
-					response: finalized,
-				});
-				return;
-			}
-
-			let upstreamResponse: Response;
-			try {
-				upstreamResponse = await dependencies.supervisor.executeStream(
-					await buildSupervisorInput(context),
-				);
-			} catch (error) {
-				const handled = toHandledErrorTransportOutcome(error);
-				const finalized = await finalizeAcceptedCommand({
-					context,
-					executionResponse: handled,
-					transportError: {
-						code: handled.error.code,
-						retryable: handled.error.retryable,
-					},
-				});
-				yield toTerminalChatStreamEvent({
-					occurredAt: now().toISOString(),
-					response: finalized,
-				});
-				return;
-			}
-
-			let sawTerminal = false;
-			try {
-				for await (const upstreamEvent of parseSupervisorSse(upstreamResponse)) {
-					const lifecycleEvent = mapSupervisorLifecycleEvent({
-						data: upstreamEvent.data,
-						event: upstreamEvent.event,
-						now,
-					});
-					if (lifecycleEvent) {
-						yield lifecycleEvent;
-						continue;
-					}
-
-					const terminal = parseSupervisorTerminalResponse({
-						data: upstreamEvent.data,
-						event: upstreamEvent.event,
-						now,
-					});
-					if (!terminal) {
-						continue;
-					}
-
-					sawTerminal = true;
-					const finalized = await finalizeAcceptedCommand({
-						context,
-						executionResponse: terminal.response,
-					});
-					yield toTerminalChatStreamEvent({
-						occurredAt: terminal.occurredAt,
-						response: finalized,
-						sourceEvent: terminal.sourceEvent,
-					});
-					break;
-				}
-			} catch (error) {
-				const finalized = await finalizeAcceptedCommand({
-					context,
-					executionResponse: supervisorStreamErrorResponse({
-						code: "supervisor_invalid_response",
-						message:
-							error instanceof Error
-								? error.message
-								: "Supervisor lifecycle stream violated the execution contract.",
-						retryable: true,
-						traceId: context.traceId,
-					}),
-					transportError: {
-						code: "supervisor_invalid_response",
-						retryable: true,
-					},
-				});
-				yield toTerminalChatStreamEvent({
-					occurredAt: now().toISOString(),
-					response: finalized,
-				});
-				return;
-			}
-
-			if (!sawTerminal) {
-				const finalized = await finalizeAcceptedCommand({
-					context,
-					executionResponse: supervisorStreamErrorResponse({
-						code: "supervisor_invalid_response",
-						message: "Supervisor lifecycle stream ended before a terminal event.",
-						retryable: true,
-						traceId: context.traceId,
-					}),
-					transportError: {
-						code: "supervisor_invalid_response",
-						retryable: true,
-					},
-				});
-				yield toTerminalChatStreamEvent({
-					occurredAt: now().toISOString(),
-					response: finalized,
-				});
-			}
+			yield* streamLegacySupervisorExecution({
+				buildSupervisorInput,
+				context,
+				executeStream: dependencies.supervisor.executeStream,
+				finalizeAcceptedCommand,
+				now,
+				traceId: context.traceId,
+			});
 		},
 	};
 }

@@ -427,6 +427,18 @@ DROP COLUMN "actor_groups_json";`),
 		expect(plan.mismatches[0]).toContain("runtime.request_execution");
 	});
 
+	it("expects request_execution to carry the durable run backlink", () => {
+		const requestExecutionTable = buildTableFromExpected("runtime.request_execution");
+
+		expect(requestExecutionTable.columns).toContainEqual(
+			expect.objectContaining({
+				name: "run_id",
+				notNull: false,
+				type: "text",
+			}),
+		);
+	});
+
 	it("treats pending add-column migrations as repairable rather than schema divergence", () => {
 		const inventory = makeInventory({
 			schemas: ["operator", "runtime"],

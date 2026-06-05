@@ -58,7 +58,30 @@ export interface ShellChatStreamEvent {
 		| "request.cancelled";
 	occurredAt: string;
 	requestId: string;
+	runId?: string | null;
+	runPhase?: ChatRunPhase;
 	status: string;
 	traceId: string;
 	outcome?: ShellRequestOutcome;
 }
+
+export interface ChatRunEventProjection {
+	eventId: string;
+	eventType: string;
+	occurredAt: string;
+	payload: Record<string, unknown>;
+	runId: string;
+	sequence: number;
+	visibility: "browser";
+}
+
+export type ChatRunPhase =
+	| "created"
+	| "queued"
+	| "admitted"
+	| "running"
+	| "streaming"
+	| "completed"
+	| "failed"
+	| "canceled"
+	| "expired";

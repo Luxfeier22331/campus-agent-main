@@ -168,4 +168,53 @@ export function registerSupervisorAdapterAccessSuite(ctx: SupervisorAdapterSuite
 			},
 		});
 	});
+
+	it("reports durable runtime blockers from supervisor readiness", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					status: "ready",
+					durable_runtime: {
+						configured: true,
+						healthy: true,
+					},
+					durable_worker_loop: {
+						enabled: false,
+						configured: false,
+						healthy: true,
+						started: false,
+					},
+					durable_recovery_loop: {
+						enabled: true,
+						configured: true,
+						healthy: true,
+						started: true,
+					},
+				}),
+				{
+					headers: { "content-type": "application/json" },
+					status: 200,
+				},
+			),
+		);
+
+		const result = await probeSupervisorApiReady(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+			},
+			{ fetchImplementation },
+		);
+
+		expect(result.durableRuntime).toEqual({
+			status: "blocked",
+			checks: {
+				durableRuntimeStore: "ready",
+				durableWorkerLoop: "not_ready",
+				durableRecoveryLoop: "ready",
+			},
+			blockers: {
+				durableWorkerLoop: "durable_worker_loop is not enabled, configured, healthy, and started",
+			},
+		});
+	});
 }

@@ -41,6 +41,7 @@ export interface RequestExecutionWrite {
 	idempotencyKey: string | null;
 	requestFingerprintSha256: string | null;
 	traceId: string;
+	runId: string | null;
 	safetyIdentifier?: string | null;
 	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;

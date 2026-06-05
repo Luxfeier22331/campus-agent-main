@@ -88,6 +88,7 @@ function createRuntimeReadinessResult() {
 			auth: "ready",
 			authShellOrigin: "configured",
 			database: "ready",
+			durableRuntime: "not_required",
 			officialWebHandoff: "not_configured",
 			operatorBridge: "configured",
 			publicChatCompatibilityOrigin: "configured",
@@ -305,6 +306,7 @@ describe("app-api worker foundation", () => {
 				auth: "ready",
 				authShellOrigin: "configured",
 				database: "ready",
+				durableRuntime: "not_required",
 				officialWebHandoff: "not_configured",
 				operatorBridge: "configured",
 				publicChatCompatibilityOrigin: "configured",
@@ -340,6 +342,7 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
+					durableRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
@@ -416,6 +419,7 @@ describe("app-api worker foundation", () => {
 					auth: "not_ready",
 					authShellOrigin: "configured",
 					database: "ready",
+					durableRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
@@ -451,6 +455,75 @@ describe("app-api worker foundation", () => {
 		});
 	});
 
+	it("fails readyz closed when deployed durable runtime preflight is blocked", async () => {
+		const runtime = createWorkerRuntime(env, {
+			runtimeReadinessProbe: vi.fn().mockResolvedValue({
+				dependencies: {
+					auth: "ready",
+					authShellOrigin: "configured",
+					database: "ready",
+					durableRuntime: "not_ready",
+					officialWebHandoff: "not_configured",
+					operatorBridge: "configured",
+					publicChatCompatibilityOrigin: "configured",
+					supervisorApi: "ready",
+				},
+				failed: {
+					durableRuntime: "durable_worker_loop is not enabled, configured, healthy, and started",
+				},
+				preflight: {
+					durableRuntime: {
+						status: "blocked",
+						checks: {
+							durableRuntimeStore: "ready",
+							durableWorkerLoop: "not_ready",
+							durableRecoveryLoop: "ready",
+						},
+						blockers: {
+							durableWorkerLoop:
+								"durable_worker_loop is not enabled, configured, healthy, and started",
+						},
+					},
+				},
+			}),
+		});
+
+		const response = await runtime.fetch(
+			new Request("https://app-api.internal/readyz"),
+			createExecutionContext(),
+		);
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				code: "dependency_not_ready",
+				message: "Runtime dependencies are not ready.",
+				retryable: true,
+				traceId: null,
+				requestId: null,
+				details: {
+					failed: {
+						durableRuntime: "durable_worker_loop is not enabled, configured, healthy, and started",
+					},
+					preflight: {
+						durableRuntime: {
+							status: "blocked",
+							checks: {
+								durableRuntimeStore: "ready",
+								durableWorkerLoop: "not_ready",
+								durableRecoveryLoop: "ready",
+							},
+							blockers: {
+								durableWorkerLoop:
+									"durable_worker_loop is not enabled, configured, healthy, and started",
+							},
+						},
+					},
+				},
+			},
+		});
+	});
+
 	it("publishes campus services product-path preflight blockers on readyz", async () => {
 		const runtime = createWorkerRuntime(env, {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue({
@@ -458,6 +531,7 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
+					durableRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",

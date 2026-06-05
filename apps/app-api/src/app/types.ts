@@ -6,7 +6,10 @@ import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
 import type { ChatConversationService } from "../modules/chat";
 import type { DocsService } from "../modules/docs";
-import type { SupervisorCampusServicesProductPathPreflight } from "../modules/integration";
+import type {
+	SupervisorCampusServicesProductPathPreflight,
+	SupervisorDurableRuntimePreflight,
+} from "../modules/integration";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
 import type { OfficialWebPlannerService } from "../modules/official-web-planner";
@@ -20,6 +23,7 @@ import type { OperatorObservabilityCommandService } from "../modules/operator-ob
 import type { OperatorQueryService } from "../modules/operator-query";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
+import type { RuntimeRunService } from "../modules/runtime-run";
 import type { AppTelemetry } from "../modules/telemetry";
 import type { WeChatOfficialAccountCommandService } from "../modules/wechat-official-account-command";
 
@@ -62,6 +66,7 @@ export interface AppDependencies {
 	}) => void;
 	telemetry?: AppTelemetry;
 	runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
+	runtimeRunService?: RuntimeRunService;
 }
 
 type AppDocsDependencyName = "auth" | "database" | "docsReadModel";
@@ -75,13 +80,14 @@ export interface AppDocsReadinessResult {
 	failed: Partial<Record<AppDocsDependencyName, string>>;
 }
 
-type AppRuntimeDependencyName = "auth" | "database" | "supervisorApi";
+type AppRuntimeDependencyName = "auth" | "database" | "durableRuntime" | "supervisorApi";
 
 export interface AppRuntimeReadinessResult {
 	dependencies: {
 		auth: "ready" | "not_ready";
 		authShellOrigin: "configured";
 		database: "ready" | "not_ready";
+		durableRuntime: "ready" | "not_ready" | "not_required";
 		officialWebHandoff: "configured" | "not_configured";
 		operatorBridge: "configured";
 		publicChatCompatibilityOrigin: "configured";
@@ -90,6 +96,7 @@ export interface AppRuntimeReadinessResult {
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;
 	preflight?: {
 		campusServicesProductPath?: SupervisorCampusServicesProductPathPreflight;
+		durableRuntime?: SupervisorDurableRuntimePreflight;
 	};
 }
 
@@ -112,5 +119,6 @@ export interface AppRequestScope {
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;
+	resolveRuntimeRunService(): RuntimeRunService;
 	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
 }
