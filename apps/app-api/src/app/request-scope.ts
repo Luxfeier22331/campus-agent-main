@@ -1,4 +1,4 @@
-import type { Env } from "../config";
+import { type Env, isDeployedEnvironment, resolveEnvironment } from "../config";
 import {
 	buildAuthenticatedNoticeProcessingCommandService,
 	createPgAuthenticatedNoticeProcessingCommandStore,
@@ -17,7 +17,11 @@ import {
 } from "../modules/authenticated-notice-run-processing-query";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
-import { createSupervisorExecutionClient } from "../modules/integration";
+import {
+	createSupervisorDurableRuntimeClient,
+	createSupervisorExecutionClient,
+	isSupervisorDurableRuntimeConfigured,
+} from "../modules/integration";
 import {
 	buildOfficialWebCommandService,
 	createPgOfficialWebCommandStore,
@@ -61,6 +65,7 @@ import {
 import { buildOperatorQueryService, createPgOperatorQueryStore } from "../modules/operator-query";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
+import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
 import {
 	buildWeChatOfficialAccountCommandService,
 	createPgWeChatOfficialAccountCommandStore,
@@ -73,6 +78,12 @@ export function createRequestScopeFactory(input: {
 	env: Env;
 	telemetry: import("../modules/telemetry").AppTelemetry;
 }) {
+	const environment = resolveEnvironment(input.env);
+	const requireDurableRuntime = isDeployedEnvironment(environment);
+	const durableRuntimeConfigured = isSupervisorDurableRuntimeConfigured(input.env);
+	const durableRuntime = durableRuntimeConfigured
+		? createSupervisorDurableRuntimeClient(input.env)
+		: undefined;
 	const officialWebExecutionStatusService =
 		input.dependencies.officialWebExecutionStatusService ??
 		buildOfficialWebExecutionStatusService({
@@ -113,6 +124,7 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
+			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
 			let weChatOfficialAccountCommandService =
 				input.dependencies.wechatOfficialAccountCommandService ?? null;
 
@@ -197,6 +209,9 @@ export function createRequestScopeFactory(input: {
 					}),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
+					durableRuntime,
+					isDurableRuntimeConfigured: durableRuntimeConfigured,
+					requireDurableRuntime,
 					supervisor: createSupervisorExecutionClient(input.env),
 					telemetry: input.telemetry,
 					traceBacklinkRecorder: buildOperatorTraceBacklinkRecorder({
@@ -315,6 +330,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				operatorQueryService = buildOperatorQueryService({
+					durableRuntime: createSupervisorDurableRuntimeClient(input.env),
 					store: createPgOperatorQueryStore(input.env, { getDb: runtime.getDb }),
 				});
 				return operatorQueryService;
@@ -343,6 +359,18 @@ export function createRequestScopeFactory(input: {
 					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return profileMemoryService;
+			}
+
+			function resolveRuntimeRunService() {
+				if (runtimeRunService) {
+					return runtimeRunService;
+				}
+
+				runtimeRunService = buildRuntimeRunService({
+					durableRuntime: createSupervisorDurableRuntimeClient(input.env),
+					store: createPgRuntimeRunStore(input.env, { getDb: runtime.getFreshDb }),
+				});
+				return runtimeRunService;
 			}
 
 			function resolveWeChatOfficialAccountCommandService() {
@@ -377,6 +405,7 @@ export function createRequestScopeFactory(input: {
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,
+				resolveRuntimeRunService,
 				resolveWeChatOfficialAccountCommandService,
 			};
 		},

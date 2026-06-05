@@ -4,12 +4,13 @@
 
 supervisor_api_staging_capture_compose_logs() {
   supervisor_api_staging_compose logs --no-color otel-collector >"${supervisor_api_staging_otel_collector_log_file}" 2>&1 || true
+  supervisor_api_staging_compose logs --no-color --since 5m otel-collector >"${supervisor_api_staging_otel_collector_recent_log_file}" 2>&1 || true
   supervisor_api_staging_compose logs --no-color supervisor-api >"${supervisor_api_staging_supervisor_api_log_file}" 2>&1 || true
   supervisor_api_staging_compose logs --no-color supervisor-agent-worker >"${supervisor_api_staging_supervisor_agent_worker_log_file}" 2>&1 || true
 }
 
 supervisor_api_staging_collector_logs_have_export_errors() {
-  local log_file="${supervisor_api_staging_otel_collector_log_file}"
+  local log_file="${supervisor_api_staging_otel_collector_recent_log_file}"
 
   if [[ ! -f "${log_file}" ]]; then
     return 1
@@ -46,6 +47,43 @@ export to the same Axiom edge deployment.
 AXIOM_ENDPOINT=${source_endpoint}
 OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=${endpoint}
 EOF
+    return 1
+  fi
+}
+
+supervisor_api_staging_require_observability_sink_env() {
+  local missing_keys=()
+  local required_key
+  for required_key in \
+    AXIOM_ENDPOINT \
+    OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT \
+    OTEL_COLLECTOR_SENTRY_AUTH_VALUE \
+    OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT \
+    OTEL_COLLECTOR_AXIOM_AUTH_HEADER \
+    OTEL_COLLECTOR_AXIOM_EVENTS_DATASET; do
+    if [[ -z "${!required_key:-}" ]]; then
+      missing_keys+=("${required_key}")
+    fi
+  done
+
+  if (( ${#missing_keys[@]} > 0 )); then
+    echo "supervisor-api staging observability sink env is incomplete:" >&2
+    for required_key in "${missing_keys[@]}"; do
+      echo "  - ${required_key} is required" >&2
+    done
+    return 1
+  fi
+
+  if [[ "${OTEL_COLLECTOR_AXIOM_EVENTS_DATASET}" != "campus-agent-runtime" ]]; then
+    echo "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET must be campus-agent-runtime." >&2
+    return 1
+  fi
+  if [[ "${OTEL_COLLECTOR_AXIOM_AUTH_HEADER}" != Bearer\ * ]]; then
+    echo "OTEL_COLLECTOR_AXIOM_AUTH_HEADER must be a Bearer authorization header." >&2
+    return 1
+  fi
+  if [[ "${OTEL_COLLECTOR_SENTRY_AUTH_VALUE}" != sentry\ sentry_key=* ]]; then
+    echo "OTEL_COLLECTOR_SENTRY_AUTH_VALUE must use the Sentry x-sentry-auth value: sentry sentry_key=<public key>." >&2
     return 1
   fi
 }

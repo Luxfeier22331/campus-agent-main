@@ -36,8 +36,12 @@
 !packages/navigation-agent/**
 !packages/notice-agent/
 !packages/notice-agent/**
+!packages/prompt-runtime/
+!packages/prompt-runtime/**
 !packages/rag-agent/
 !packages/rag-agent/**
+!packages/regulation-semantics/
+!packages/regulation-semantics/**
 !packages/retrieval-core/
 !packages/retrieval-core/**
 !packages/shared/

@@ -11,6 +11,7 @@ supervisor_api_staging_cloudflared_log_file="${supervisor_api_staging_log_dir}/c
 supervisor_api_staging_supervisor_api_log_file="${supervisor_api_staging_log_dir}/supervisor-api.log"
 supervisor_api_staging_supervisor_agent_worker_log_file="${supervisor_api_staging_log_dir}/supervisor-agent-worker.log"
 supervisor_api_staging_otel_collector_log_file="${supervisor_api_staging_log_dir}/otel-collector.log"
+supervisor_api_staging_otel_collector_recent_log_file="${supervisor_api_staging_log_dir}/otel-collector.recent.log"
 
 supervisor_api_staging_host="${SUPERVISOR_API_STAGING_HOST:-127.0.0.1}"
 supervisor_api_staging_port="${SUPERVISOR_API_STAGING_PORT:-27051}"
@@ -43,6 +44,25 @@ fi
 
 supervisor_api_staging_bridge_shared_secret=""
 
+supervisor_api_staging_refresh_runtime_topology_from_env() {
+  supervisor_api_staging_runtime_dir="${SUPERVISOR_API_STAGING_RUNTIME_DIR:-${supervisor_api_staging_repo_root}/.tmp/supervisor-api-staging}"
+  supervisor_api_staging_log_dir="${supervisor_api_staging_runtime_dir}/logs"
+  supervisor_api_staging_lock_file="${supervisor_api_staging_runtime_dir}/lifecycle.lock"
+  supervisor_api_staging_cloudflared_pid_file="${supervisor_api_staging_runtime_dir}/cloudflared.pid"
+  supervisor_api_staging_cloudflared_log_file="${supervisor_api_staging_log_dir}/cloudflared.log"
+  supervisor_api_staging_supervisor_api_log_file="${supervisor_api_staging_log_dir}/supervisor-api.log"
+  supervisor_api_staging_supervisor_agent_worker_log_file="${supervisor_api_staging_log_dir}/supervisor-agent-worker.log"
+  supervisor_api_staging_otel_collector_log_file="${supervisor_api_staging_log_dir}/otel-collector.log"
+  supervisor_api_staging_otel_collector_recent_log_file="${supervisor_api_staging_log_dir}/otel-collector.recent.log"
+  supervisor_api_staging_host="${SUPERVISOR_API_STAGING_HOST:-127.0.0.1}"
+  supervisor_api_staging_port="${SUPERVISOR_API_STAGING_PORT:-27051}"
+  supervisor_api_staging_compose_file="${SUPERVISOR_API_STAGING_COMPOSE_FILE:-${supervisor_api_staging_repo_root}/infra/local/docker-compose.supervisor-runtime.yml}"
+  supervisor_api_staging_compose_project_name="${SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME:-campus-supervisor-api-staging}"
+  supervisor_api_staging_local_healthz_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/healthz"
+  supervisor_api_staging_local_readyz_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/readyz"
+  supervisor_api_staging_local_metrics_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/metrics"
+}
+
 supervisor_api_staging_runtime_globals_declared() {
   : "${supervisor_api_staging_runtime_dir}" \
     "${supervisor_api_staging_log_dir}" \
@@ -52,6 +72,7 @@ supervisor_api_staging_runtime_globals_declared() {
     "${supervisor_api_staging_supervisor_api_log_file}" \
     "${supervisor_api_staging_supervisor_agent_worker_log_file}" \
     "${supervisor_api_staging_otel_collector_log_file}" \
+    "${supervisor_api_staging_otel_collector_recent_log_file}" \
     "${supervisor_api_staging_host}" \
     "${supervisor_api_staging_port}" \
     "${supervisor_api_staging_compose_file}" \

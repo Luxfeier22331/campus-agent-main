@@ -3,11 +3,42 @@ from __future__ import annotations
 from campus_shared.provider_config import (
     EMBEDDING_API_KEY_PRECEDENCE,
     LLM_API_KEY_PRECEDENCE,
+    ProviderConfigResolutionError,
+    ResolvedLLMProviderConfig,
     resolve_embedding_provider_config,
     resolve_llm_provider_config,
 )
 
 from scripts.doctor_env_worker_staging_specs import WORKER_STAGING_SURFACE_SPECS
+
+PROMPT_RUNTIME_API_KEY_PRECEDENCE = ("PROMPT_RUNTIME_API_KEY",)
+PROMPT_RUNTIME_BASE_URL_PRECEDENCE = ("PROMPT_RUNTIME_BASE_URL",)
+
+
+def resolve_prompt_runtime_provider_config(
+    surface_name: str,
+    *,
+    env: dict[str, str],
+) -> ResolvedLLMProviderConfig:
+    normalized_surface_name = surface_name.strip()
+    if not normalized_surface_name:
+        raise ValueError("surface_name must not be empty")
+    api_key = env.get("PROMPT_RUNTIME_API_KEY", "").strip()
+    if not api_key:
+        raise ProviderConfigResolutionError(
+            surface_name=normalized_surface_name,
+            logical_name="prompt_runtime_api_key",
+            checked_keys=PROMPT_RUNTIME_API_KEY_PRECEDENCE,
+        )
+    base_url = env.get("PROMPT_RUNTIME_BASE_URL", "").strip()
+    return ResolvedLLMProviderConfig(
+        surface_name=normalized_surface_name,
+        api_key=api_key,
+        api_key_source="PROMPT_RUNTIME_API_KEY",
+        base_url=base_url or None,
+        base_url_source="PROMPT_RUNTIME_BASE_URL" if base_url else None,
+    )
+
 
 SURFACE_SPECS = {
     "evals": {
@@ -189,8 +220,8 @@ SURFACE_SPECS = {
     "supervisor-api": {
         "providers": {
             "llm": {
-                "checked_keys": LLM_API_KEY_PRECEDENCE,
-                "resolver": resolve_llm_provider_config,
+                "checked_keys": PROMPT_RUNTIME_API_KEY_PRECEDENCE,
+                "resolver": resolve_prompt_runtime_provider_config,
                 "surface_name": "supervisor.api",
             },
         },

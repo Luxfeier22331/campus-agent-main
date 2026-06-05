@@ -20,29 +20,11 @@ if (( $# == 1 )); then
   strict_mode=1
 fi
 
-probe_http_url() {
-  local url="$1"
-  local body_file="$2"
-  local use_noproxy="${3:-0}"
-  local header_value="${4:-}"
-  local header_kind="${5:-}"
-  local -a curl_command
-
-  curl_command=(curl -sS -o "${body_file}" -w "%{http_code}")
-  if [[ "${use_noproxy}" == "1" ]]; then
-    curl_command+=(--noproxy '*')
-  fi
-  supervisor_api_staging_append_probe_auth_header curl_command "${header_value}" "${header_kind}"
-  curl_command+=("${url}")
-
-  "${curl_command[@]}" || true
-}
-
 supervisor_api_staging_ensure_runtime_dirs
 supervisor_api_staging_acquire_lock 30
 supervisor_api_staging_load_env
 if (( strict_mode == 1 )); then
-  supervisor_api_staging_require_runtime_env
+  supervisor_api_staging_require_status_env
   supervisor_api_staging_require_data_plane_ready
 fi
 supervisor_api_staging_adopt_existing_process \
@@ -82,6 +64,7 @@ if (( strict_mode == 0 )); then
   echo
   echo "logs:"
   echo "  ${supervisor_api_staging_otel_collector_log_file}"
+  echo "  ${supervisor_api_staging_otel_collector_recent_log_file}"
   echo "  ${supervisor_api_staging_supervisor_api_log_file}"
   echo "  ${supervisor_api_staging_supervisor_agent_worker_log_file}"
   echo "  ${supervisor_api_staging_cloudflared_log_file}"
@@ -106,13 +89,15 @@ if [[ -n "${supervisor_api_staging_public_base_url}" ]] && ! supervisor_api_stag
   failures+=("cloudflared process is not running")
 fi
 
-local_healthz_status="$(probe_http_url "${supervisor_api_staging_local_healthz_url}" "${local_healthz_body}")"
+local_healthz_status="$(
+  supervisor_api_staging_probe_http_url "${supervisor_api_staging_local_healthz_url}" "${local_healthz_body}"
+)"
 if [[ "${local_healthz_status}" != "200" ]]; then
   failures+=("local healthz returned HTTP ${local_healthz_status}")
 fi
 
 local_readyz_status="$(
-  probe_http_url \
+  supervisor_api_staging_probe_http_url \
     "${supervisor_api_staging_local_readyz_url}" \
     "${local_readyz_body}" \
     0 \
@@ -122,13 +107,29 @@ local_readyz_status="$(
 if [[ "${local_readyz_status}" != "200" ]]; then
   failures+=("local readyz returned HTTP ${local_readyz_status}")
 fi
+if ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_runtime.configured" "true" ||
+  ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_runtime.healthy" "true"; then
+  failures+=("local readyz payload is not durable_runtime ready")
+fi
+if ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_worker_loop.enabled" "true" ||
+  ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_worker_loop.configured" "true" ||
+  ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_worker_loop.healthy" "true" ||
+  ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_worker_loop.started" "true"; then
+  failures+=("local readyz payload is not durable_worker_loop started")
+fi
+if ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_recovery_loop.enabled" "true" ||
+  ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_recovery_loop.configured" "true" ||
+  ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_recovery_loop.healthy" "true" ||
+  ! supervisor_api_staging_probe_json_path_equals "${local_readyz_body}" "durable_recovery_loop.started" "true"; then
+  failures+=("local readyz payload is not durable_recovery_loop started")
+fi
 
 local_metrics_status="$(
-  probe_http_url \
+  supervisor_api_staging_probe_http_url \
     "${supervisor_api_staging_local_metrics_url}" \
     "${local_metrics_body}" \
     0 \
-    "${SUPERVISOR_API_METRICS_BEARER_TOKEN}" \
+    "${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}" \
     "authorization"
 )"
 if [[ "${local_metrics_status}" != "200" ]]; then
@@ -136,7 +137,7 @@ if [[ "${local_metrics_status}" != "200" ]]; then
 fi
 
 if [[ -n "${supervisor_api_staging_app_api_readyz_url}" ]]; then
-  app_api_readyz_status="$(probe_http_url "${supervisor_api_staging_app_api_readyz_url}" "${app_api_readyz_body}" 1)"
+  app_api_readyz_status="$(supervisor_api_staging_probe_http_url "${supervisor_api_staging_app_api_readyz_url}" "${app_api_readyz_body}" 1)"
   app_api_readyz_payload="$(tr -d '[:space:]' <"${app_api_readyz_body}")"
 
   if [[ "${app_api_readyz_status}" != "200" ]]; then
@@ -154,10 +155,13 @@ if [[ -n "${supervisor_api_staging_app_api_readyz_url}" ]]; then
   if [[ "${app_api_readyz_payload}" != *'"supervisorApi":"ready"'* ]]; then
     failures+=("app-api readyz payload is not supervisorApi=ready")
   fi
+  if ! supervisor_api_staging_probe_json_path_equals "${app_api_readyz_body}" "dependencies.durableRuntime" '"ready"'; then
+    failures+=("app-api readyz payload is not durableRuntime=ready")
+  fi
 fi
 
 if supervisor_api_staging_collector_logs_have_export_errors; then
-  failures+=("otel-collector log contains permanent exporter failures")
+  failures+=("otel-collector recent log contains permanent exporter failures")
 fi
 
 if (( ${#failures[@]} > 0 )); then

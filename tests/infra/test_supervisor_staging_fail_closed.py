@@ -36,6 +36,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -62,6 +63,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -112,6 +114,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -159,6 +162,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
             registry_audit_payload="legacy",
@@ -199,6 +203,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
             rag_runtime_payload="blocked",

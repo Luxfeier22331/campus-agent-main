@@ -120,6 +120,56 @@ supervisor_api_staging_wait_for_http_ok() {
   return 1
 }
 
+supervisor_api_staging_probe_http_url() {
+  local url="$1"
+  local body_file="$2"
+  local use_noproxy="${3:-0}"
+  local header_value="${4:-}"
+  local header_kind="${5:-}"
+  local -a curl_command
+
+  curl_command=(curl -sS -o "${body_file}" -w "%{http_code}")
+  if [[ "${use_noproxy}" == "1" ]]; then
+    curl_command+=(--noproxy '*')
+  fi
+  supervisor_api_staging_append_probe_auth_header curl_command "${header_value}" "${header_kind}"
+  curl_command+=("${url}")
+
+  "${curl_command[@]}" || true
+}
+
+supervisor_api_staging_probe_json_path_equals() {
+  local body_file="$1"
+  local path="$2"
+  local expected_json="$3"
+  local node_bin
+
+  node_bin="$(supervisor_api_staging_require_command node)"
+  "${node_bin}" - "${body_file}" "${path}" "${expected_json}" <<'NODE'
+const fs = require("node:fs");
+const [bodyPath, path, expectedJson] = process.argv.slice(2);
+let payload;
+try {
+  payload = JSON.parse(fs.readFileSync(bodyPath, "utf8"));
+} catch {
+  process.exit(1);
+}
+let current = payload;
+for (const segment of path.split(".")) {
+  if (!segment) {
+    process.exit(1);
+  }
+  if (!current || typeof current !== "object" || !(segment in current)) {
+    process.exit(1);
+  }
+  current = current[segment];
+}
+if (JSON.stringify(current) !== JSON.stringify(JSON.parse(expectedJson))) {
+  process.exit(1);
+}
+NODE
+}
+
 supervisor_api_staging_append_probe_auth_header() {
   local -n curl_args_ref="$1"
   local header_value="${2:-}"
@@ -243,6 +293,7 @@ supervisor_api_staging_compose() {
     RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL="${RAW_ASSET_REGISTRY_OPERATOR_DOCKER_DATABASE_URL:-${RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL}}" \
     OBJECT_STORE_ENDPOINT="${OBJECT_STORE_DOCKER_ENDPOINT:?OBJECT_STORE_DOCKER_ENDPOINT is required}" \
     QDRANT_URL="${QDRANT_DOCKER_URL:?QDRANT_DOCKER_URL is required}" \
+    SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL="${SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL:?SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required}" \
     "${docker_bin}" compose -f "${supervisor_api_staging_compose_file}" "$@"
   )
 }
@@ -255,6 +306,50 @@ supervisor_api_staging_compose_project_running() {
   local services
   services="$(supervisor_api_staging_compose_running_services 2>/dev/null || true)"
   [[ "${services}" == *"otel-collector"* ]] && [[ "${services}" == *"supervisor-api"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
+}
+
+supervisor_api_staging_run_durable_schema_command() {
+  local mode="$1"
+  local evidence_path="$2"
+  local docker_bin
+  local container_evidence_path
+
+  docker_bin="$(supervisor_api_staging_require_command docker)"
+  case "${evidence_path}" in
+    "${supervisor_api_staging_repo_root}"/*)
+      container_evidence_path="/workspace/${evidence_path#"${supervisor_api_staging_repo_root}/"}"
+      ;;
+    *)
+      echo "Durable runtime schema evidence path must stay under repo root: ${evidence_path}" >&2
+      return 1
+      ;;
+  esac
+  (
+    cd "${supervisor_api_staging_repo_root}" || exit
+    "${docker_bin}" run --rm \
+      --network "${supervisor_api_staging_data_plane_network}" \
+      -v "${supervisor_api_staging_repo_root}:/workspace" \
+      -w /workspace/apps/supervisor-api \
+      -e GOCACHE=/workspace/.tmp/go-cache \
+      -e GOMODCACHE=/workspace/.tmp/go-mod-cache \
+      golang:1.26.2-bookworm \
+      go run ./cmd/durable-runtime-schema \
+        --mode "${mode}" \
+        --database-url "${SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL:?SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required}" \
+        --evidence-path "${container_evidence_path}"
+  )
+}
+
+supervisor_api_staging_ensure_durable_runtime_schema() {
+  local evidence_dir="${supervisor_api_staging_runtime_dir}/evidence"
+  mkdir -p "${evidence_dir}"
+
+  supervisor_api_staging_run_durable_schema_command \
+    install \
+    "${evidence_dir}/durable-runtime-schema-install.json"
+  supervisor_api_staging_run_durable_schema_command \
+    check \
+    "${evidence_dir}/durable-runtime-schema-check.json"
 }
 
 supervisor_api_staging_resolve_uv_bin() {

@@ -59,6 +59,24 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/chat/runs/:runId",
+		callerClass: "browser-surface",
+		admission: "session principal plus run ownership required",
+	},
+	{
+		method: "GET",
+		path: "/api/chat/runs/:runId/events",
+		callerClass: "browser-surface",
+		admission: "session principal plus run ownership required",
+	},
+	{
+		method: "GET",
+		path: "/api/chat/runs/:runId/events/stream",
+		callerClass: "browser-surface",
+		admission: "session principal plus run ownership required",
+	},
+	{
+		method: "GET",
 		path: "/api/docs/readyz",
 		callerClass: "browser-surface",
 		admission: "docs control-plane readiness probe",
@@ -356,6 +374,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/chat/requests/stream",
 		callerClass: "browser-surface",
 		admission: "session principal required",
+	},
+	{
+		method: "POST",
+		path: "/api/chat/runs/:runId/cancel",
+		callerClass: "browser-surface",
+		admission: "session principal plus run ownership required",
 	},
 	{
 		method: "POST",

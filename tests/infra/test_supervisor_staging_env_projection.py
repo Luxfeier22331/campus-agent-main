@@ -44,9 +44,20 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 SUPERVISOR_API_OTEL_ENABLED=true
                 SUPERVISOR_API_OTEL_METRICS_ENABLED=true
                 SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=true
+                SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED=true
+                SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID=supervisor-api-staging-rag-001
+                SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE=rag
+                SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID=handoff:rag-agent:rag_request
+                SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS=250
+                SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS=30000
+                SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS=5000
+                SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED=true
+                SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS=250
+                SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS=2
                 OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
                 """
             ).strip(),
@@ -60,6 +71,84 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         self.assertEqual(
             projected["OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"],
             "campus-agent-runtime",
+        )
+        self.assertEqual(
+            projected["SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL"],
+            "postgresql://durable@staging-db.example.com:5432/campus_agent",
+        )
+        self.assertEqual(projected["SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED"], "true")
+        self.assertEqual(
+            projected["SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME"],
+            "campus-supervisor-api-staging",
+        )
+        self.assertTrue(
+            projected["SUPERVISOR_API_STAGING_RUNTIME_DIR"].endswith("/.tmp/supervisor-api-staging")
+        )
+        self.assertNotIn("durable-staging", projected["SUPERVISOR_API_STAGING_RUNTIME_DIR"])
+        self.assertEqual(projected["SUPERVISOR_API_STAGING_PORT"], "27051")
+        self.assertEqual(
+            projected["SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID"],
+            "supervisor-api-staging-rag-001",
+        )
+        self.assertEqual(projected["SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE"], "rag")
+        self.assertEqual(
+            projected["SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID"],
+            "handoff:rag-agent:rag_request",
+        )
+        self.assertEqual(projected["SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS"], "250")
+        self.assertEqual(projected["SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS"], "30000")
+        self.assertEqual(
+            projected["SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS"],
+            "5000",
+        )
+        self.assertEqual(projected["SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED"], "true")
+        self.assertEqual(projected["SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS"], "250")
+        self.assertEqual(
+            projected["SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS"],
+            "2",
+        )
+
+    def test_canonical_staging_rejects_isolated_durable_proof_topology(self) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
+                STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+                STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
+                STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
+                STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
+                STAGING_INGESTION_SPARSE_LANGUAGE=none
+                SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME=campus-supervisor-api-durable-staging
+                SUPERVISOR_API_STAGING_RUNTIME_DIR=.tmp/supervisor-api-durable-staging
+                SUPERVISOR_API_STAGING_PORT=27061
+                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                """
+            ).strip(),
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Canonical supervisor-api staging compose project must be campus-supervisor-api-staging",
+            result.stderr,
         )
 
     def test_staging_runtime_projects_explicit_data_plane_env_over_repo_local_env(self) -> None:
@@ -106,6 +195,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -170,6 +260,91 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         self.assertEqual(projected["API_WORKER_SHARED_SECRET"], "worker-secret")
         self.assertEqual(projected["SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS"], "")
 
+    def test_staging_runtime_requires_explicit_durable_runtime_database_url(self) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
+                STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+                STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
+                STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
+                STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
+                STAGING_INGESTION_SPARSE_LANGUAGE=none
+                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                """
+            ).strip(),
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL is required",
+            result.stderr,
+        )
+
+    def test_staging_runtime_rejects_enabled_durable_recovery_loop_without_retry_limit(
+        self,
+    ) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
+                STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+                STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
+                STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
+                STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
+                STAGING_INGESTION_SPARSE_LANGUAGE=none
+                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED=true
+                SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS=250
+                """
+            ).strip(),
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS is required",
+            result.stderr,
+        )
+
     def test_staging_runtime_rejects_missing_staging_embedding_api_key(self) -> None:
         result = run_common_script_with_env(
             repo_env=textwrap.dedent(
@@ -202,6 +377,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://runtime:secret@127.0.0.1:5432/campus_agent
                 """
             ).strip(),
         )
@@ -236,6 +412,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -280,6 +457,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -322,6 +500,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://runtime:secret@127.0.0.1:5432/campus_agent
                 """
             ).strip(),
         )
@@ -342,15 +521,15 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         )
         self.assertEqual(
             projected["CAMPUS_SHARED_POSTGRES_DOCKER_URL"],
-            "postgresql://runtime:secret@postgres:5432/campus_agent",
+            "postgresql://runtime:secret@campus-agent-postgres:5432/campus_agent",
         )
         self.assertEqual(
             projected["DOCUMENT_REGISTRY_DOCKER_DATABASE_URL"],
-            "postgresql://runtime:secret@postgres:5432/campus_agent",
+            "postgresql://runtime:secret@campus-agent-postgres:5432/campus_agent",
         )
         self.assertEqual(
             projected["RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL"],
-            "postgresql://runtime:secret@postgres:5432/campus_agent",
+            "postgresql://runtime:secret@campus-agent-postgres:5432/campus_agent",
         )
         self.assertEqual(projected["OBJECT_STORE_ENDPOINT"], "http://localhost:9000")
         self.assertEqual(projected["OBJECT_STORE_DOCKER_ENDPOINT"], "http://minio:9000")
@@ -376,6 +555,14 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         self.assertEqual(projected["SUPERVISOR_API_STAGING_LOCAL_POSTGRES_DB"], "campus_agent")
         self.assertEqual(projected["SUPERVISOR_API_STAGING_LOCAL_POSTGRES_USER"], "runtime")
         self.assertEqual(projected["SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PORT"], "5432")
+        self.assertEqual(
+            projected["SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL"],
+            "postgresql://runtime:secret@127.0.0.1:5432/campus_agent",
+        )
+        self.assertEqual(
+            projected["SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL"],
+            "postgresql://runtime:secret@campus-agent-postgres:5432/campus_agent",
+        )
         self.assertEqual(
             projected["SUPERVISOR_API_STAGING_LOCAL_MINIO_ACCESS_KEY"],
             "derived-access",
@@ -413,6 +600,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -455,6 +643,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -494,6 +683,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -530,6 +720,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -567,6 +758,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_API_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )

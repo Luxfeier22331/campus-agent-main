@@ -30,6 +30,15 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
 
     def test_env_module_loads_staging_observability_and_secret_contract(self) -> None:
         env_script = (STAGING_DIR / "supervisor-api-staging-env.sh").read_text(encoding="utf-8")
+        env_example = (ROOT / ".env.staging.local.example").read_text(encoding="utf-8")
+        core_script = (STAGING_DIR / "supervisor-api-staging-core.sh").read_text(encoding="utf-8")
+        compose = (ROOT / "infra/local/docker-compose.supervisor-runtime.yml").read_text(
+            encoding="utf-8"
+        )
+        worker_dockerfile = (ROOT / "apps/supervisor-agent-worker/Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
 
         self.assertIn('"OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT"', env_script)
         self.assertIn('"OTEL_COLLECTOR_SENTRY_AUTH_VALUE"', env_script)
@@ -42,13 +51,76 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn(".env.staging.local", env_script)
         self.assertIn('"SUPERVISOR_API_STAGING_TUNNEL_TOKEN"', env_script)
         self.assertIn("remote-managed supervisor-api-staging tunnel", env_script)
+        self.assertIn("supervisor_api_staging_require_runtime_env_core", env_script)
+        self.assertIn("supervisor_api_staging_require_status_env", env_script)
+        self.assertIn("supervisor_api_staging_require_tunnel_token", env_script)
+        self.assertIn("supervisor_api_staging_require_observability_sink_env", env_script)
+        self.assertIn("supervisor_api_staging_require_local_durable_proof_env", env_script)
+        self.assertIn("supervisor_api_staging_require_isolated_durable_proof_runtime", env_script)
+        self.assertIn("SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME", env_script)
+        self.assertIn("SUPERVISOR_API_STAGING_PORT", env_script)
+        self.assertIn("SUPERVISOR_API_STAGING_RUNTIME_DIR", env_script)
         self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET is required", env_script)
         self.assertIn('sourceEnvValue("API_WORKER_SHARED_SECRET") ||', env_script)
         self.assertIn('sourceEnvValue("SUPERVISOR_API_SHARED_SECRET") ||', env_script)
+        for durable_key in (
+            "SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED",
+            "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL",
+            "SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID",
+            "SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE",
+            "SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID",
+            "SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
+            "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
+            "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
+            "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED",
+            "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
+            "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+        ):
+            self.assertIn(f'"{durable_key}"', env_script)
+            self.assertIn(f"{durable_key}=", env_example)
+            self.assertIn(f"{durable_key}:", compose)
+        self.assertIn("SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL", env_script)
+        self.assertIn(
+            "SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required",
+            core_script,
+        )
+        self.assertIn(
+            'SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL="${SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL',
+            core_script,
+        )
         self.assertNotIn(
             "SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-${SUPERVISOR_API_SHARED_SECRET:-}",
             env_script,
         )
+        self.assertIn("COPY packages/prompt-runtime ./packages/prompt-runtime", worker_dockerfile)
+        self.assertIn(
+            "COPY packages/regulation-semantics ./packages/regulation-semantics",
+            worker_dockerfile,
+        )
+        self.assertIn('"packages/prompt-runtime"', worker_dockerfile)
+        self.assertIn('"packages/regulation-semantics"', worker_dockerfile)
+        self.assertIn("/app/packages/prompt-runtime/src", worker_dockerfile)
+        self.assertIn("/app/packages/regulation-semantics/src", worker_dockerfile)
+        self.assertIn("!packages/prompt-runtime/", dockerignore)
+        self.assertIn("!packages/prompt-runtime/**", dockerignore)
+        self.assertIn("!packages/regulation-semantics/", dockerignore)
+        self.assertIn("!packages/regulation-semantics/**", dockerignore)
+
+    def test_local_durable_proof_script_does_not_replace_public_staging_gate(self) -> None:
+        proof_script = (STAGING_DIR / "proof-supervisor-api-durable-runtime-staging.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("supervisor_api_staging_require_local_durable_proof_env", proof_script)
+        self.assertIn("supervisor_api_staging_require_isolated_durable_proof_runtime", proof_script)
+        self.assertIn("supervisor_api_staging_require_data_plane_ready", proof_script)
+        self.assertIn("supervisor_api_staging_require_container_qdrant_ready", proof_script)
+        self.assertIn("local readyz payload is not durable_runtime ready", proof_script)
+        self.assertIn("local readyz payload is not durable_worker_loop started", proof_script)
+        self.assertIn("local readyz payload is not durable_recovery_loop started", proof_script)
+        self.assertIn("local durable proof: ok", proof_script)
+        self.assertNotIn("supervisor_api_staging_app_api_readyz_url", proof_script)
+        self.assertNotIn("cloudflared", proof_script)
 
     def test_core_module_owns_process_compose_and_uv_helpers(self) -> None:
         core_script = (STAGING_DIR / "supervisor-api-staging-core.sh").read_text(encoding="utf-8")
@@ -58,6 +130,8 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn(".local/bin/uv", core_script)
         self.assertIn("Operation not permitted", core_script)
         self.assertIn('[[ "${services}" == *"otel-collector"* ]]', core_script)
+        self.assertIn("supervisor_api_staging_probe_http_url", core_script)
+        self.assertIn("supervisor_api_staging_probe_json_path_equals", core_script)
 
     def test_data_plane_module_owns_local_dependencies_and_rag_readiness(self) -> None:
         data_plane_script = (STAGING_DIR / "supervisor-api-staging-data-plane.sh").read_text(
@@ -128,6 +202,9 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         status_script = (STAGING_DIR / "status-supervisor-api-staging.sh").read_text(
             encoding="utf-8"
         )
+        common_script = (STAGING_DIR / "supervisor-api-staging-common.sh").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn(
             "supervisor_api_staging_validate_axiom_collector_endpoint", observability_script
@@ -135,8 +212,21 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("must be the Axiom OTLP base domain", observability_script)
         self.assertIn("must match AXIOM_ENDPOINT", observability_script)
         self.assertIn("logs --no-color otel-collector", observability_script)
-        self.assertIn("otel-collector log contains permanent exporter failures", status_script)
-        self.assertIn("supervisor_api_staging_require_runtime_env", status_script)
+        self.assertIn("logs --no-color --since 5m otel-collector", observability_script)
+        self.assertIn("supervisor_api_staging_otel_collector_recent_log_file", common_script)
+        self.assertIn("supervisor_api_staging_otel_collector_recent_log_file", observability_script)
+        self.assertIn(
+            "otel-collector recent log contains permanent exporter failures", status_script
+        )
+        self.assertIn("supervisor_api_staging_probe_json_path_equals", status_script)
+        self.assertIn('"durable_worker_loop.started"', status_script)
+        self.assertIn('"durable_recovery_loop.started"', status_script)
+        self.assertIn("local readyz payload is not durable_runtime ready", status_script)
+        self.assertIn("local readyz payload is not durable_worker_loop started", status_script)
+        self.assertIn("local readyz payload is not durable_recovery_loop started", status_script)
+        self.assertIn("app-api readyz payload is not durableRuntime=ready", status_script)
+        self.assertIn("supervisor_api_staging_require_status_env", status_script)
+        self.assertNotIn("supervisor_api_staging_require_runtime_env", status_script)
         self.assertIn("strict_mode == 1", status_script)
         self.assertIn('echo "  ${supervisor_api_staging_otel_collector_log_file}"', start_script)
         self.assertIn('echo "  ${supervisor_api_staging_otel_collector_log_file}"', status_script)

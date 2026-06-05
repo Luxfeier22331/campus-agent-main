@@ -15,7 +15,7 @@ services:
     networks:
       data-plane:
         aliases:
-          - postgres
+          - campus-agent-postgres
 
 networks:
   data-plane:

@@ -18,6 +18,33 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
             script.index("supervisor_api_staging_compose up -d --build"),
         )
 
+    def test_start_script_installs_and_checks_durable_schema_before_compose(self) -> None:
+        script = (ROOT / "infra/local/staging/start-supervisor-api-staging.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("supervisor_api_staging_ensure_durable_runtime_schema", script)
+        self.assertLess(
+            script.index("supervisor_api_staging_ensure_durable_runtime_schema"),
+            script.index("supervisor_api_staging_compose up -d --build"),
+        )
+
+    def test_core_module_runs_durable_schema_command_in_data_plane_container(self) -> None:
+        script = (ROOT / "infra/local/staging/supervisor-api-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("supervisor_api_staging_ensure_durable_runtime_schema", script)
+        self.assertIn("cmd/durable-runtime-schema", script)
+        self.assertIn('--mode "${mode}"', script)
+        self.assertIn("install \\", script)
+        self.assertIn("check \\", script)
+        self.assertIn("--network", script)
+        self.assertIn("${supervisor_api_staging_data_plane_network}", script)
+        self.assertIn("SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL", script)
+        self.assertIn("durable-runtime-schema-install.json", script)
+        self.assertIn("durable-runtime-schema-check.json", script)
+
     def test_staging_start_ensures_data_plane_network_before_compose(self) -> None:
         script = (ROOT / "infra/local/staging/start-supervisor-api-staging.sh").read_text(
             encoding="utf-8"
@@ -44,6 +71,12 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
         self.assertIn("external: true", compose)
         self.assertNotIn("host.docker.internal", compose)
         self.assertIn("supervisor-runtime", compose)
+        supervisor_api_section = compose.split("  supervisor-api:", 1)[1].split(
+            "\n\nnetworks:",
+            1,
+        )[0]
+        self.assertIn("      - supervisor-runtime", supervisor_api_section)
+        self.assertIn("      - data-plane", supervisor_api_section)
 
     def test_supervisor_runtime_timeout_budget_wraps_agent_worker_budget(self) -> None:
         compose = (ROOT / "infra/local/docker-compose.supervisor-runtime.yml").read_text(
@@ -62,7 +95,7 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
     def test_local_data_plane_compose_files_join_repo_owned_network(self) -> None:
         for relative_path, alias in (
             ("infra/local/docker-compose.qdrant-single-node.yml", "qdrant"),
-            ("infra/local/docker-compose.postgres.yml", "postgres"),
+            ("infra/local/docker-compose.postgres.yml", "campus-agent-postgres"),
             ("infra/local/docker-compose.minio.yml", "minio"),
         ):
             compose = (ROOT / relative_path).read_text(encoding="utf-8")

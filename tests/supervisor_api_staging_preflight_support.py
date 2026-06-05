@@ -47,9 +47,29 @@ _PROJECTED_STAGING_KEYS = [
     "SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PORT",
     "SUPERVISOR_API_STAGING_LOCAL_MINIO_ACCESS_KEY",
     "SUPERVISOR_API_STAGING_UV_BIN",
+    "SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME",
+    "SUPERVISOR_API_STAGING_RUNTIME_DIR",
+    "SUPERVISOR_API_STAGING_PORT",
     "SUPERVISOR_API_OTEL_ENABLED",
     "SUPERVISOR_API_OTEL_METRICS_ENABLED",
     "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED",
+    "SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED",
+    "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL",
+    "SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL",
+    "SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID",
+    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE",
+    "SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID",
+    "SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
+    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
+    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
+    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED",
+    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
+    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+    "AXIOM_ENDPOINT",
+    "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
+    "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
+    "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
+    "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
     "SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS",
     "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_POSTGRES",
@@ -63,6 +83,17 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "OBJECT_STORE_ENDPOINT",
     "QDRANT_URL",
 ]
+
+_VALID_OBSERVABILITY_SINK_ENV = {
+    "AXIOM_ENDPOINT": "https://us-east-1.aws.edge.axiom.co",
+    "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT": (
+        "https://o4511127794155520.ingest.us.sentry.io/api/4511351503454208/integration/otlp"
+    ),
+    "OTEL_COLLECTOR_SENTRY_AUTH_VALUE": ("sentry sentry_key=03ac022c1d762aa1882d3fdbc27915f9"),
+    "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT": "https://us-east-1.aws.edge.axiom.co",
+    "OTEL_COLLECTOR_AXIOM_AUTH_HEADER": "Bearer axiom-ingest-token",
+    "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET": "campus-agent-runtime",
+}
 
 
 def run_common_script_with_env(
@@ -84,7 +115,10 @@ def run_common_script_with_env(
             )
         common_path = staging_dir / "supervisor-api-staging-common.sh"
         (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
-        (temp_root / ".env.staging.local").write_text(staging_env + "\n", encoding="utf-8")
+        (temp_root / ".env.staging.local").write_text(
+            _with_valid_observability_sink_env(staging_env) + "\n",
+            encoding="utf-8",
+        )
         app_api_dir = temp_root / "apps" / "app-api"
         app_api_dir.mkdir(parents=True)
         (app_api_dir / ".dev.vars").write_text(
@@ -131,6 +165,20 @@ def run_common_script_with_env(
             stderr=subprocess.PIPE,
             text=True,
         )
+
+
+def _with_valid_observability_sink_env(staging_env: str) -> str:
+    present_keys = {
+        line.split("=", 1)[0].strip()
+        for line in staging_env.splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and "=" in line
+    }
+    missing_fixture_lines = [
+        f"{key}={value}"
+        for key, value in _VALID_OBSERVABILITY_SINK_ENV.items()
+        if key not in present_keys
+    ]
+    return "\n".join([*missing_fixture_lines, staging_env]).strip()
 
 
 def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedProcess[str]:

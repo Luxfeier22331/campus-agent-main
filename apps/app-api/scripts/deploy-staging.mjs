@@ -1,9 +1,11 @@
-import { spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
-import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
+import { runWranglerCommand } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
 loadRepoStagingEnvFile(import.meta.url, "../../..");
+const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function fail(message) {
 	console.error(message);
@@ -33,8 +35,7 @@ try {
 
 const sentryRelease = resolveStagingSentryRelease("app-api");
 
-const result = spawnSync(
-	"wrangler",
+const result = runWranglerCommand(
 	[
 		"deploy",
 		"--env",
@@ -44,10 +45,7 @@ const result = spawnSync(
 		"--var",
 		`SENTRY_RELEASE:${sentryRelease}`,
 	],
-	{
-		env: buildWranglerCommandEnv(process.env),
-		stdio: "inherit",
-	},
+	{ cwd: appDir, env: process.env, stdio: "inherit" },
 );
 
 if (typeof result.status === "number") {

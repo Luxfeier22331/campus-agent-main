@@ -107,6 +107,17 @@ const keys = [
   "SUPERVISOR_API_EXECUTION_AUDIT_URL",
   "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
   "SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS",
+  "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL",
+  "SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED",
+  "SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID",
+  "SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE",
+  "SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID",
+  "SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
+  "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
+  "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
+  "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED",
+  "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
+  "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
   "SUPERVISOR_AGENT_WORKER_THREADS",
   "SUPERVISOR_AGENT_WORKER_BASE_URL",
   "SUPERVISOR_API_SHARED_SECRET",
@@ -127,6 +138,9 @@ const keys = [
   "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION",
   "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET",
   "SUPERVISOR_API_STAGING_UV_BIN",
+  "SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME",
+  "SUPERVISOR_API_STAGING_RUNTIME_DIR",
+  "SUPERVISOR_API_STAGING_PORT",
   "SUPERVISOR_API_STAGING_TUNNEL_TOKEN",
 ];
 
@@ -149,12 +163,28 @@ function projectLoopbackUrlHost(value, dockerHost, dockerPort) {
   return value;
 }
 
+function removeUrlSearchParam(value, name) {
+  if (!value) {
+    return value;
+  }
+  try {
+    const parsed = new URL(value);
+    parsed.searchParams.delete(name);
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return value;
+  }
+}
+
 function projectQdrantForDocker(value) {
   return projectLoopbackUrlHost(value, "qdrant", "6333");
 }
 
 function projectPostgresForDocker(value) {
-  return projectLoopbackUrlHost(value, "postgres", "5432");
+  return removeUrlSearchParam(
+    projectLoopbackUrlHost(value, "campus-agent-postgres", "5432"),
+    "gssencmode",
+  );
 }
 
 function projectObjectStoreForDocker(value) {
@@ -574,6 +604,12 @@ resolved.set(
   "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_QDRANT",
   isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) ? "true" : "false",
 );
+if (envValue("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL")) {
+  resolved.set(
+    "SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL",
+    projectPostgresForDocker(envValue("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL")),
+  );
+}
 
 for (const [key, value] of resolved.entries()) {
   process.stdout.write(`export ${key}=${JSON.stringify(value)}\n`);
@@ -582,6 +618,11 @@ for (const [key, value] of resolved.entries()) {
 NODE
   )"
   eval "${export_script}"
+  supervisor_api_staging_refresh_runtime_topology_from_env
+  export SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME="${supervisor_api_staging_compose_project_name}"
+  export SUPERVISOR_API_STAGING_RUNTIME_DIR="${supervisor_api_staging_runtime_dir}"
+  export SUPERVISOR_API_STAGING_PORT="${supervisor_api_staging_port}"
+  supervisor_api_staging_ensure_runtime_dirs
 
   supervisor_api_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-}"
   if [[ -z "${API_WORKER_SHARED_SECRET:-}" ]]; then
@@ -622,6 +663,84 @@ NODE
 }
 
 supervisor_api_staging_require_runtime_env() {
+  supervisor_api_staging_require_canonical_runtime_topology
+  supervisor_api_staging_require_runtime_env_core
+  supervisor_api_staging_require_tunnel_token
+  supervisor_api_staging_validate_axiom_collector_endpoint
+}
+
+supervisor_api_staging_require_status_env() {
+  supervisor_api_staging_require_canonical_runtime_topology
+  supervisor_api_staging_require_runtime_env_core
+  supervisor_api_staging_validate_axiom_collector_endpoint
+}
+
+supervisor_api_staging_require_tunnel_token() {
+  if [[ -z "${SUPERVISOR_API_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:-}}" ]]; then
+    echo "SUPERVISOR_API_STAGING_TUNNEL_TOKEN is required for the remote-managed supervisor-api-staging tunnel." >&2
+    return 1
+  fi
+}
+
+supervisor_api_staging_require_local_durable_proof_env() {
+  if [[ "${SUPERVISOR_API_STAGING_RUNTIME_KIND:-}" != "local-durable-proof" ]]; then
+    echo "SUPERVISOR_API_STAGING_RUNTIME_KIND=local-durable-proof is required for the local durable proof script." >&2
+    return 1
+  fi
+  supervisor_api_staging_require_runtime_env_core
+  supervisor_api_staging_require_isolated_durable_proof_runtime
+  supervisor_api_staging_validate_axiom_collector_endpoint
+}
+
+supervisor_api_staging_require_canonical_runtime_topology() {
+  if [[ "${SUPERVISOR_API_STAGING_RUNTIME_KIND:-canonical}" != "canonical" ]]; then
+    echo "Canonical supervisor-api staging lifecycle requires SUPERVISOR_API_STAGING_RUNTIME_KIND=canonical or unset." >&2
+    return 1
+  fi
+  if [[ "${supervisor_api_staging_compose_project_name}" != "campus-supervisor-api-staging" ]]; then
+    echo "Canonical supervisor-api staging compose project must be campus-supervisor-api-staging." >&2
+    return 1
+  fi
+  if [[ "${supervisor_api_staging_runtime_dir}" != "${supervisor_api_staging_repo_root}/.tmp/supervisor-api-staging" ]]; then
+    echo "Canonical supervisor-api staging runtime dir must be ${supervisor_api_staging_repo_root}/.tmp/supervisor-api-staging." >&2
+    return 1
+  fi
+  if [[ "${supervisor_api_staging_port}" != "27051" ]]; then
+    echo "Canonical supervisor-api staging port must be 27051." >&2
+    return 1
+  fi
+}
+
+supervisor_api_staging_require_isolated_durable_proof_runtime() {
+  if [[ -z "${SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME:-}" ]]; then
+    echo "SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME is required for local durable proof; use an isolated compose project, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ -z "${SUPERVISOR_API_STAGING_RUNTIME_DIR:-}" ]]; then
+    echo "SUPERVISOR_API_STAGING_RUNTIME_DIR is required for local durable proof; use an isolated runtime directory, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ -z "${SUPERVISOR_API_STAGING_PORT:-}" ]]; then
+    echo "SUPERVISOR_API_STAGING_PORT is required for local durable proof; use an isolated host port, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ "${SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME}" == "campus-supervisor-api-staging" ]]; then
+    echo "SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME must not be campus-supervisor-api-staging for local durable proof." >&2
+    return 1
+  fi
+  if [[ "${SUPERVISOR_API_STAGING_RUNTIME_DIR}" == "${supervisor_api_staging_repo_root}/.tmp/supervisor-api-staging" ]]; then
+    echo "SUPERVISOR_API_STAGING_RUNTIME_DIR must not use the canonical staging runtime directory for local durable proof." >&2
+    return 1
+  fi
+  if [[ "${SUPERVISOR_API_STAGING_PORT}" == "27051" ]]; then
+    echo "SUPERVISOR_API_STAGING_PORT must not use canonical staging port 27051 for local durable proof." >&2
+    return 1
+  fi
+}
+
+supervisor_api_staging_require_runtime_env_core() {
+  supervisor_api_staging_require_observability_sink_env
+
   if [[ -n "${SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS:-}" ]]; then
     echo "supervisor-api staging data-plane env is invalid:" >&2
     while IFS= read -r data_plane_error; do
@@ -650,6 +769,43 @@ supervisor_api_staging_require_runtime_env() {
   if [[ -z "${SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET:-}" ]]; then
     echo "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET is required for supervisor-api staging structured query runtime." >&2
     return 1
+  fi
+
+  if [[ -z "${SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL:-}" ]]; then
+    echo "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL is required for supervisor-api staging durable runtime." >&2
+    return 1
+  fi
+
+  if [[ "${SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED:-}" == "true" ]]; then
+    local durable_worker_loop_required_keys=(
+      SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID
+      SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE
+      SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID
+      SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS
+      SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS
+      SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS
+    )
+    local durable_worker_loop_required_key
+    for durable_worker_loop_required_key in "${durable_worker_loop_required_keys[@]}"; do
+      if [[ -z "${!durable_worker_loop_required_key:-}" ]]; then
+        echo "${durable_worker_loop_required_key} is required when SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED=true." >&2
+        return 1
+      fi
+    done
+  fi
+
+  if [[ "${SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED:-}" == "true" ]]; then
+    local durable_recovery_loop_required_keys=(
+      SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS
+      SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS
+    )
+    local durable_recovery_loop_required_key
+    for durable_recovery_loop_required_key in "${durable_recovery_loop_required_keys[@]}"; do
+      if [[ -z "${!durable_recovery_loop_required_key:-}" ]]; then
+        echo "${durable_recovery_loop_required_key} is required when SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED=true." >&2
+        return 1
+      fi
+    done
   fi
 
   if [[ -z "${CAMPUS_SHARED_POSTGRES_URL:-}" ]]; then
@@ -686,11 +842,4 @@ supervisor_api_staging_require_runtime_env() {
     echo "QDRANT_URL is required after STAGING_INGESTION_QDRANT_URL projection." >&2
     return 1
   fi
-
-  if [[ -z "${SUPERVISOR_API_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:-}}" ]]; then
-    echo "SUPERVISOR_API_STAGING_TUNNEL_TOKEN is required for the remote-managed supervisor-api-staging tunnel." >&2
-    return 1
-  fi
-
-  supervisor_api_staging_validate_axiom_collector_endpoint
 }
