@@ -23,6 +23,7 @@ import {
 	buildRequestIntentEntries,
 	buildRequestReplayEntries,
 	buildRequestRuntimeRunEntries,
+	buildRequestStepTrajectoryEntries,
 	buildRequestWorkflowTraceEntries,
 	formatAclDecisionLabel,
 	formatCapabilityLabel,
@@ -194,6 +195,9 @@ function RequestShowContent() {
 	const auditSummary = observabilityRecord?.auditSummary ?? null;
 	const intentEntries = buildRequestIntentEntries(observability?.intent);
 	const runtimeRunEntries = buildRequestRuntimeRunEntries(observabilityRecord?.runtimeRun);
+	const stepTrajectoryEntries = buildRequestStepTrajectoryEntries(
+		observabilityRecord?.runtimeRun?.stepTrajectory,
+	);
 	const replayEntries = buildRequestReplayEntries(observabilityRecord?.replay);
 	const workflowTraceEntries = buildRequestWorkflowTraceEntries(workflowTrace);
 
@@ -483,8 +487,8 @@ function RequestShowContent() {
 								<Stack spacing={2}>
 									<Typography variant="h6">运行事实</Typography>
 									<Typography color="text.secondary" variant="body2">
-										RunEvent 安全摘要来自 durable runtime；此区块不展示原始 payload、prompt
-										或回答草稿。
+										RunEvent 与 Step 轨迹来自 sanitized projection；此区块不展示原始
+										payload、prompt 或回答草稿。
 									</Typography>
 									<Divider />
 									<Box
@@ -501,6 +505,30 @@ function RequestShowContent() {
 											<RequestFieldRow key={entry.label} label={entry.label} value={entry.value} />
 										))}
 									</Box>
+									{stepTrajectoryEntries.length > 0 ? (
+										<>
+											<Divider />
+											<Typography variant="subtitle2">Step 轨迹</Typography>
+											<Box
+												sx={{
+													display: "grid",
+													gap: 2,
+													gridTemplateColumns: {
+														md: "repeat(2, minmax(0, 1fr))",
+														xs: "1fr",
+													},
+												}}
+											>
+												{stepTrajectoryEntries.map((entry) => (
+													<RequestFieldRow
+														key={entry.label}
+														label={entry.label}
+														value={entry.value}
+													/>
+												))}
+											</Box>
+										</>
+									) : null}
 								</Stack>
 							</CardContent>
 						</Card>

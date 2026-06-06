@@ -72,6 +72,7 @@ export function registerOperatorQueryStoreEvalCandidateReviewSuite(
 				{
 					candidateId: "eval_candidate:ragas_diagnostic:student-scholarship-condition:faithfulness",
 					causeClass: "evidence_selection_failed",
+					diagnosisStage: "selection",
 					diagnostic: {
 						answerShape: "eligibility_judgment",
 						caseId: "student-scholarship-condition",
@@ -242,6 +243,7 @@ export function registerOperatorQueryStoreEvalCandidateReviewSuite(
 				{
 					candidateId: "eval_candidate:negative_feedback:feedback_01",
 					causeClass: "wrong_intent",
+					diagnosisStage: "routing",
 					correlation: {
 						answerKind: "answer",
 						assistantMessageId: "msg_assistant_01",

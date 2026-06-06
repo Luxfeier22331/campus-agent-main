@@ -117,6 +117,7 @@ describe("chat command durable stream closeout", () => {
 					sequence: 1,
 				}),
 			]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -215,6 +216,7 @@ describe("chat command durable stream closeout", () => {
 					sequence: 1,
 				}),
 			]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",

@@ -196,6 +196,56 @@ describe("operator query service aggregate summaries", () => {
 					visibility: "browser",
 				},
 			]),
+			listRunSteps: vi.fn().mockResolvedValue({
+				attempts: [
+					{
+						attempt: 1,
+						attemptId: "planning:attempt:1",
+						completedAt: "2026-06-04T01:02:04.100Z",
+						payloadSchemaVersion: "step-attempt-projection-v1",
+						runId: "run_01HQ",
+						sanitizedPayload: { activityType: "PlanChatAnswerActivity" },
+						startedAt: "2026-06-04T01:02:04.000Z",
+						status: "completed",
+						stepId: "planning",
+						taskQueue: "campus-agent.activity.rag",
+						updatedAt: "2026-06-04T01:02:04.100Z",
+						workerId: "staging:rag:worker-1",
+					},
+				],
+				results: [
+					{
+						attemptId: "planning:attempt:1",
+						createdAt: "2026-06-04T01:02:04.100Z",
+						payloadSchemaVersion: "step-result-projection-v1",
+						projectionRef: "projection://runs/run_01HQ/planning",
+						resultId: "planning:result:1",
+						resultKind: "plan",
+						runId: "run_01HQ",
+						sanitizedPayload: { selectedCapability: "knowledge" },
+						status: "completed",
+						stepId: "planning",
+					},
+				],
+				steps: [
+					{
+						capability: "knowledge",
+						completedAt: "2026-06-04T01:02:04.100Z",
+						conversationId: "conv_01HQ",
+						parentStepId: "",
+						payloadSchemaVersion: "run-step-projection-v1",
+						runId: "run_01HQ",
+						sanitizedPayload: { rawPrompt: "must not leak" },
+						startedAt: "2026-06-04T01:02:04.000Z",
+						status: "completed",
+						stepId: "planning",
+						stepKind: "planning",
+						taskQueue: "campus-agent.activity.rag",
+						updatedAt: "2026-06-04T01:02:04.100Z",
+						workerId: "staging:rag:worker-1",
+					},
+				],
+			}),
 		};
 		const service = buildOperatorQueryService({
 			executionRuntime,
@@ -212,6 +262,10 @@ describe("operator query service aggregate summaries", () => {
 			traceId: "trace_01HQ",
 		});
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
+			runId: "run_01HQ",
+			traceId: "trace_01HQ",
+		});
+		expect(executionRuntime.listRunSteps).toHaveBeenCalledWith({
 			runId: "run_01HQ",
 			traceId: "trace_01HQ",
 		});
@@ -245,6 +299,23 @@ describe("operator query service aggregate summaries", () => {
 				status: "completed",
 				terminalReason: "answer_completed",
 				traceId: "trace_01HQ",
+			},
+			stepTrajectory: {
+				attemptCount: 1,
+				resultCount: 1,
+				steps: [
+					{
+						attemptCount: 1,
+						capability: "knowledge",
+						latestResultRef: "projection://runs/run_01HQ/planning",
+						resultCount: 1,
+						status: "completed",
+						stepId: "planning",
+						stepKind: "planning",
+						taskQueue: "campus-agent.activity.rag",
+						workerId: "staging:rag:worker-1",
+					},
+				],
 			},
 		});
 		expect(JSON.stringify(result.runtimeRun)).not.toContain("must not leak");

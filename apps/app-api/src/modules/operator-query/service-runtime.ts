@@ -1,6 +1,10 @@
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
-import type { ExecutionControlRun, ExecutionControlRunEvent } from "../integration";
+import type {
+	ExecutionControlRun,
+	ExecutionControlRunEvent,
+	ExecutionControlRunStepTrajectory,
+} from "../integration";
 import { runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
 import {
 	isAllowedTimeseriesGranularity,
@@ -54,6 +58,7 @@ function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 		candidates: badcases.badcases.map((badcase) => ({
 			candidateId: `eval_candidate:${badcase.badcaseId}`,
 			causeClass: badcase.causeClass,
+			diagnosisStage: badcase.diagnosisStage,
 			grade: badcase.grade,
 			intake: {
 				createdAt: badcase.openedAt,
@@ -160,6 +165,29 @@ function assertDurableEventMatchesRun(
 	return event.sequence;
 }
 
+function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) {
+	return {
+		attemptCount: trajectory.attempts.length,
+		resultCount: trajectory.results.length,
+		steps: trajectory.steps.map((step) => {
+			const attempts = trajectory.attempts.filter((attempt) => attempt.stepId === step.stepId);
+			const results = trajectory.results.filter((result) => result.stepId === step.stepId);
+			const latestResult = results.at(-1);
+			return {
+				attemptCount: attempts.length,
+				capability: step.capability,
+				latestResultRef: latestResult?.projectionRef ?? null,
+				resultCount: results.length,
+				status: step.status,
+				stepId: step.stepId,
+				stepKind: step.stepKind,
+				taskQueue: step.taskQueue,
+				workerId: step.workerId,
+			};
+		}),
+	};
+}
+
 async function loadRuntimeRunSummary(
 	dependencies: OperatorQueryServiceDependencies,
 	record: OperatorRequestObservabilityRecord,
@@ -183,6 +211,10 @@ async function loadRuntimeRunSummary(
 	});
 	assertDurableRunMatchesRequest(record.request, run);
 	const events = await dependencies.executionRuntime.listRunEvents({
+		runId,
+		traceId: record.request.traceId,
+	});
+	const stepTrajectory = await dependencies.executionRuntime.listRunSteps({
 		runId,
 		traceId: record.request.traceId,
 	});
@@ -224,6 +256,7 @@ async function loadRuntimeRunSummary(
 			terminalReason: run.terminalReason || null,
 			traceId: run.traceId,
 		},
+		stepTrajectory: summarizeStepTrajectory(stepTrajectory),
 	};
 }
 

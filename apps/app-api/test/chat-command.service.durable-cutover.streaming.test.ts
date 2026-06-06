@@ -8,6 +8,7 @@ import type { ChatCommandStreamEvent } from "../src/modules/runtime-command";
 import {
 	answerResponsePayload,
 	durableEvent,
+	emptyRunStepTrajectory,
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
@@ -38,6 +39,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -103,6 +105,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -208,6 +211,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 					visibility: "internal",
 				},
 			]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -319,6 +323,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 						visibility: "browser",
 					}),
 				]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",

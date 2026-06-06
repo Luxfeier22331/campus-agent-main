@@ -90,11 +90,63 @@ export interface ExecutionControlRunEvent {
 	visibility: string;
 }
 
+export interface ExecutionControlRunStep {
+	capability: string;
+	completedAt: string;
+	conversationId: string;
+	parentStepId: string;
+	payloadSchemaVersion: string;
+	runId: string;
+	sanitizedPayload: JsonRecord;
+	startedAt: string;
+	status: string;
+	stepId: string;
+	stepKind: string;
+	taskQueue: string;
+	updatedAt: string;
+	workerId: string;
+}
+
+export interface ExecutionControlStepAttempt {
+	attempt: number;
+	attemptId: string;
+	completedAt: string;
+	payloadSchemaVersion: string;
+	runId: string;
+	sanitizedPayload: JsonRecord;
+	startedAt: string;
+	status: string;
+	stepId: string;
+	taskQueue: string;
+	updatedAt: string;
+	workerId: string;
+}
+
+export interface ExecutionControlStepResult {
+	attemptId: string;
+	createdAt: string;
+	payloadSchemaVersion: string;
+	projectionRef: string;
+	resultId: string;
+	resultKind: string;
+	runId: string;
+	sanitizedPayload: JsonRecord;
+	status: string;
+	stepId: string;
+}
+
+export interface ExecutionControlRunStepTrajectory {
+	attempts: ExecutionControlStepAttempt[];
+	results: ExecutionControlStepResult[];
+	steps: ExecutionControlRunStep[];
+}
+
 export interface ExecutionControlRuntimeClient {
 	cancelRun(input: ExecutionControlRunCancelInput): Promise<ExecutionControlRun>;
 	createRun(input: ExecutionControlRunCreateInput): Promise<ExecutionControlRun>;
 	getRun(input: ExecutionControlRunQuery): Promise<ExecutionControlRun>;
 	listRunEvents(input: ExecutionControlRunEventQuery): Promise<ExecutionControlRunEvent[]>;
+	listRunSteps(input: ExecutionControlRunQuery): Promise<ExecutionControlRunStepTrajectory>;
 }
 
 export function isExecutionControlRuntimeConfigured(env: ExecutionControlRuntimeEnv): boolean {
@@ -256,6 +308,17 @@ export function createExecutionControlRuntimeClient(
 			});
 			return parseDurableRunEvents(parsed);
 		},
+		async listRunSteps(
+			query: ExecutionControlRunQuery,
+		): Promise<ExecutionControlRunStepTrajectory> {
+			const parsed = await requestExecutionControl(`/internal/execution/runs/${query.runId}/steps`, {
+				expectedStatus: 200,
+				method: "GET",
+				traceHeaders: query.traceHeaders,
+				traceId: query.traceId,
+			});
+			return parseRunStepTrajectory(parsed);
+		},
 	};
 }
 
@@ -344,6 +407,86 @@ function parseDurableRunEvents(payload: JsonRecord): ExecutionControlRunEvent[] 
 			visibility: readRequiredString(record, "visibility"),
 		};
 	});
+}
+
+function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTrajectory {
+	const steps = readRequiredArray(payload, "steps");
+	const attempts = readRequiredArray(payload, "attempts");
+	const results = readRequiredArray(payload, "results");
+	return {
+		attempts: attempts.map((attempt, index) => parseStepAttempt(attempt, index)),
+		results: results.map((result, index) => parseStepResult(result, index)),
+		steps: steps.map((step, index) => parseRunStep(step, index)),
+	};
+}
+
+function parseRunStep(value: unknown, index: number): ExecutionControlRunStep {
+	const record = readArrayRecord(value, `steps[${index}]`);
+	return {
+		capability: readRequiredString(record, "capability"),
+		completedAt: readRequiredString(record, "completed_at"),
+		conversationId: readRequiredString(record, "conversation_id"),
+		parentStepId: readRequiredString(record, "parent_step_id"),
+		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
+		runId: readRequiredString(record, "run_id"),
+		sanitizedPayload: readRequiredRecord(record, "sanitized_payload"),
+		startedAt: readRequiredString(record, "started_at"),
+		status: readRequiredString(record, "status"),
+		stepId: readRequiredString(record, "step_id"),
+		stepKind: readRequiredString(record, "step_kind"),
+		taskQueue: readRequiredString(record, "task_queue"),
+		updatedAt: readRequiredString(record, "updated_at"),
+		workerId: readRequiredString(record, "worker_id"),
+	};
+}
+
+function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAttempt {
+	const record = readArrayRecord(value, `attempts[${index}]`);
+	return {
+		attempt: readRequiredNumber(record, "attempt"),
+		attemptId: readRequiredString(record, "attempt_id"),
+		completedAt: readRequiredString(record, "completed_at"),
+		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
+		runId: readRequiredString(record, "run_id"),
+		sanitizedPayload: readRequiredRecord(record, "sanitized_payload"),
+		startedAt: readRequiredString(record, "started_at"),
+		status: readRequiredString(record, "status"),
+		stepId: readRequiredString(record, "step_id"),
+		taskQueue: readRequiredString(record, "task_queue"),
+		updatedAt: readRequiredString(record, "updated_at"),
+		workerId: readRequiredString(record, "worker_id"),
+	};
+}
+
+function parseStepResult(value: unknown, index: number): ExecutionControlStepResult {
+	const record = readArrayRecord(value, `results[${index}]`);
+	return {
+		attemptId: readRequiredString(record, "attempt_id"),
+		createdAt: readRequiredString(record, "created_at"),
+		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
+		projectionRef: readRequiredString(record, "projection_ref"),
+		resultId: readRequiredString(record, "result_id"),
+		resultKind: readRequiredString(record, "result_kind"),
+		runId: readRequiredString(record, "run_id"),
+		sanitizedPayload: readRequiredRecord(record, "sanitized_payload"),
+		status: readRequiredString(record, "status"),
+		stepId: readRequiredString(record, "step_id"),
+	};
+}
+
+function readRequiredArray(payload: JsonRecord, key: string): unknown[] {
+	const value = payload[key];
+	if (!Array.isArray(value)) {
+		throw invalidDurableResponse(`${key} must be an array.`);
+	}
+	return value;
+}
+
+function readArrayRecord(value: unknown, label: string): JsonRecord {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw invalidDurableResponse(`${label} must be an object.`);
+	}
+	return value as JsonRecord;
 }
 
 function readRequiredString(payload: JsonRecord, key: string): string {

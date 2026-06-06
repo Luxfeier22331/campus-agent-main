@@ -602,6 +602,7 @@ export function registerOperatorQueryQualitySuite(): void {
 						{
 							badcaseId: "qbad_01HQ",
 							causeClass: "citation_missing",
+							diagnosisStage: "selection",
 							detectedBy: "runtime_monitor",
 							grade: {
 								graderVersion: "grader@2026-04-03",
@@ -647,6 +648,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					{
 						badcaseId: "qbad_01HQ",
 						causeClass: "citation_missing",
+						diagnosisStage: "selection",
 						detectedBy: "runtime_monitor",
 						grade: {
 							graderVersion: "grader@2026-04-03",
@@ -704,6 +706,7 @@ export function registerOperatorQueryQualitySuite(): void {
 						{
 							candidateId: "eval_candidate:req_01HQ:unsupported_by_evidence",
 							causeClass: "unsupported_by_evidence",
+							diagnosisStage: "grounding",
 							grade: {
 								graderVersion: "grader@2026-04-03",
 								result: "fail",
@@ -752,6 +755,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					{
 						candidateId: "eval_candidate:req_01HQ:unsupported_by_evidence",
 						causeClass: "unsupported_by_evidence",
+						diagnosisStage: "grounding",
 						grade: {
 							graderVersion: "grader@2026-04-03",
 							result: "fail",

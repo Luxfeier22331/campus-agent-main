@@ -321,6 +321,21 @@ export interface OperatorRuntimeRunSummary {
 			panel: number;
 		};
 	};
+	stepTrajectory: {
+		attemptCount: number;
+		resultCount: number;
+		steps: Array<{
+			attemptCount: number;
+			capability: string;
+			latestResultRef: string | null;
+			resultCount: number;
+			status: string;
+			stepId: string;
+			stepKind: string;
+			taskQueue: string;
+			workerId: string;
+		}>;
+	};
 }
 
 export interface OperatorOverviewResult {
@@ -545,6 +560,16 @@ export interface OperatorQualityBadcaseListResult {
 		selectedTarget: string | null;
 		status: string;
 		causeClass: string;
+		diagnosisStage:
+			| "routing"
+			| "planning"
+			| "tool"
+			| "retrieval"
+			| "rerank"
+			| "selection"
+			| "synthesis"
+			| "grounding"
+			| "finalization";
 		detectedBy: string;
 		openedAt: string;
 		summary: string;
@@ -573,6 +598,16 @@ export interface OperatorQualityEvalCandidateListResult {
 		surface: string;
 		selectedTarget: string | null;
 		causeClass: string;
+		diagnosisStage:
+			| "routing"
+			| "planning"
+			| "tool"
+			| "retrieval"
+			| "rerank"
+			| "selection"
+			| "synthesis"
+			| "grounding"
+			| "finalization";
 		summary: string;
 		grade: {
 			result: string;
@@ -604,12 +639,16 @@ export interface OperatorQualityEvalCandidateListResult {
 			caseId: string;
 			expectedDocIds: string[];
 			failureStage:
+				| "routing"
+				| "planning"
+				| "tool"
 				| "retrieval"
 				| "rerank"
 				| "selection"
 				| "evidence_selection"
 				| "synthesis"
 				| "grounding"
+				| "finalization"
 				| "diagnostic";
 			metricFailureReason: string;
 			metricName: string;

@@ -7,7 +7,11 @@ export {
 	type ExecutionControlRunEvent,
 	type ExecutionControlRunEventQuery,
 	type ExecutionControlRunQuery,
+	type ExecutionControlRunStep,
+	type ExecutionControlRunStepTrajectory,
 	type ExecutionControlRuntimeClient,
+	type ExecutionControlStepAttempt,
+	type ExecutionControlStepResult,
 } from "./execution-control-runtime";
 export { parseSupervisorExecutionResponsePayload } from "./supervisor-response";
 export type {

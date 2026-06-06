@@ -69,6 +69,7 @@ describe("runtime run service", () => {
 				}),
 			),
 			listRunEvents: vi.fn().mockResolvedValue([]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 		};
 		const service = buildRuntimeRunService({
 			executionRuntime,
@@ -105,6 +106,7 @@ describe("runtime run service", () => {
 				}),
 			),
 			listRunEvents: vi.fn().mockResolvedValue([]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 		};
 		const service = buildRuntimeRunService({
 			executionRuntime,
@@ -137,6 +139,7 @@ describe("runtime run service", () => {
 					sequence: 2,
 				}),
 			]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 		};
 		const service = buildRuntimeRunService({
 			executionRuntime,
@@ -185,6 +188,7 @@ describe("runtime run service", () => {
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun()),
 			listRunEvents,
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 		};
 		const service = buildRuntimeRunService({
 			executionRuntime,

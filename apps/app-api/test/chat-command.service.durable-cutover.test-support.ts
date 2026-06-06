@@ -1,6 +1,7 @@
 import type {
 	ExecutionControlRun,
 	ExecutionControlRunEvent,
+	ExecutionControlRunStepTrajectory,
 } from "../src/modules/integration/execution-control";
 
 export function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
@@ -27,6 +28,14 @@ export function durableRun(overrides: Partial<ExecutionControlRun> = {}): Execut
 		updatedAt: "2026-06-04T01:02:04Z",
 		workflowPlanRef: "",
 		...overrides,
+	};
+}
+
+export function emptyRunStepTrajectory(): ExecutionControlRunStepTrajectory {
+	return {
+		attempts: [],
+		results: [],
+		steps: [],
 	};
 }
 
