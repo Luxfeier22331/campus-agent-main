@@ -4,7 +4,7 @@
 
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
-- 当前主路径是 `execution-gateway -> supervisor-agent-worker -> agent -> retrieval-core`
+- 当前主路径是 `execution-control -> supervisor-agent-worker -> agent -> retrieval-core`
 - 当前 product entry surface 已收口到 `hub-web -> app launcher / account shell`，`public-chat-web`、
   `public-docs`、`protected-panel-web` 作为并列 browser surface 进入 shared `app-api`
 - 架构目标是 capability-neutral orchestrated execution：顶层由 supervisor / execution
@@ -18,8 +18,8 @@
   但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 选择尚未 repo-wide 冻结；当前已明确冻结 `apps/app-api = Worker`，以及
-  `apps/execution-gateway = Docker-first internal execution service`；这不等于提前冻结
-  `apps/execution-gateway` 的单一 Python/HTTP 框架
+  `apps/execution-control = Docker-first internal execution service`；这不等于提前冻结
+  `apps/execution-control` 的单一 Python/HTTP 框架
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
 
 ### Branch Model
@@ -398,7 +398,7 @@ pnpm web:build:affected
 
 ## Repo Map
 
-- `apps/execution-gateway`: Go-owned deterministic runtime/control-plane；负责
+- `apps/execution-control`: Go-owned deterministic runtime/control-plane；负责
   execution admission、capability / policy gate、structured runtime planning、
   Go finalization 与 runtime observability，不接管 agent semantic reasoning、
   prompt/provider execution 或 retrieval backend 细节

@@ -12,7 +12,7 @@ import type { AppTelemetry } from "../src/modules/telemetry";
 import type {
 	SupervisorExecutionInput,
 	SupervisorExecutionResponse,
-} from "../src/modules/integration/execution-gateway";
+} from "../src/modules/integration/execution-control";
 
 export { createHmac } from "node:crypto";
 export type { ResolvedAppPrincipal } from "../src/modules/auth";
@@ -30,7 +30,7 @@ export {
 	buildChatCommandService,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
-	ExecutionGatewayTransportError,
+	ExecutionControlTransportError,
 } from "../src/modules/runtime-command";
 export type { AppTelemetry } from "../src/modules/telemetry";
 

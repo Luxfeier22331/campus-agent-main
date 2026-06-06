@@ -3,7 +3,7 @@
 `apps/supervisor-agent-worker` 是 Docker-first supervisor execution service 里的 Python
 orchestration worker。
 
-当前 public/internal HTTP execution ingress 已 hardcut 到 Go `apps/supervisor-api`。
+当前 public/internal HTTP execution ingress 已 hardcut 到 Go `apps/execution-control`。
 本 package 不再暴露 public `/api/v1/answer`，也不再负责 bearer / trusted-worker
 caller auth、public request body limit、transport admission、queue、metrics 或
 published `transport_runtime`。Python ASGI 入口只保留 private bridge 的 defensive
@@ -13,7 +13,7 @@ body cap，避免异常 bridge caller 在 auth / JSON parsing 前造成无界内
 
 Python worker 只负责：
 
-- 接收 Go `supervisor-api` 已投影好的 private `SupervisorRequest`
+- 接收 Go `execution-control` 已投影好的 private `SupervisorRequest`
 - 装配默认 agent delegate map，并调用 worker 内部 private agent dispatcher
 - 绑定 RAG prompt runtime / provider-backed executor
 - 消费 Go bridge v6 中的 deterministic delegate handoff plan，并把完整
@@ -22,12 +22,12 @@ Python worker 只负责：
 - 消费 Go bridge v6 中的 `routing_frame` / `scope_gate` / `policy_gate` /
   `context_preflight` / `handoff`；缺失 Go-owned routing frame 或 delegate handoff
   时 fail-closed
-- 返回 agent 的 `AgentResponse`；Go `supervisor-api` 负责 public
+- 返回 agent 的 `AgentResponse`；Go `execution-control` 负责 public
   `SupervisorResponse` finalization 与 response observability projection
 - 在配置 structured query internal seam 时，为 `campus-services-agent`
-  注入 Go `supervisor-api` query service client
+  注入 Go `execution-control` query service client
 - 暴露 private bridge health / readiness
-- 接收 Go `supervisor-api` 的 cooperative cancel signal，并在 Python bridge flag store
+- 接收 Go `execution-control` 的 cooperative cancel signal，并在 Python bridge flag store
   中保留最小 cancel flag；默认 agent dispatch path 会在 prompt execution 和 agent
   delegation 前后检查取消状态
 
@@ -36,7 +36,7 @@ Python worker 不负责：
 - browser-facing chat / panel API
 - product-layer auth / session / conversation
 - public execution transport
-- Go `supervisor-api` admission / backpressure / metrics
+- Go `execution-control` admission / backpressure / metrics
 - product scope、approval-required、query-enabled scope 或 context follow-up
   的 deterministic runtime truth
 - terminal envelope、structured tool policy 或 deterministic structured runtime
@@ -60,7 +60,7 @@ Python worker 不负责：
 - `x-supervisor-bridge-auth: <secret>`
 - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<secret>`
 - `SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES=1048576`，默认 1 MiB；该限制只
-  作用于 private bridge body，不替代 Go `supervisor-api` 的 public ingress limit。
+  作用于 private bridge body，不替代 Go `execution-control` 的 public ingress limit。
 
 `/internal/bridge/readyz` 只报告 Python worker 自身状态：
 
@@ -68,7 +68,7 @@ Python worker 不负责：
 - `prompt_http_pool`
 - `worker_runtime`
 
-Go `supervisor-api` `/readyz` 会聚合 Python worker readiness，并发布唯一的
+Go `execution-control` `/readyz` 会聚合 Python worker readiness，并发布唯一的
 execution `transport_runtime`、lifecycle/cancel runtime truth 与
 `prompt_config_gate`。
 
@@ -76,7 +76,7 @@ bridge answer route 只接受 `supervisor_bridge_v6` delegate handoff，并要�
 `response_contract=agent_response`。请求必须携带
 `runtime_decisions.handoff.agent_request`，且 routing frame 的
 `suggested_next_action` 必须是 `delegate`。Non-delegate terminal routing 由 Go
-`supervisor-api` 的 non-stream / lifecycle SSE direct terminal path 处理，不再发送给
+`execution-control` 的 non-stream / lifecycle SSE direct terminal path 处理，不再发送给
 Python bridge。`supervisor_bridge_v6` 之前的 shape、flat preplanned fields 与 legacy
 handoff payload fragment 不是 active compatibility path。
 
@@ -116,7 +116,7 @@ docker build -f apps/supervisor-agent-worker/Dockerfile \
 完整本地 runtime 使用双容器：
 
 ```bash
-docker compose -f infra/local/docker-compose.supervisor-runtime.yml up --build
+docker compose -f infra/local/docker-compose.execution-control-runtime.yml up --build
 ```
 
 ## Prompt Env
@@ -153,12 +153,12 @@ export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS=1
 supervisor terminal prompt stack 已移除，不再作为 Python worker admission 必需项。
 
 Python bridge 不再拥有本地 supervisor audit JSONL writer，也不在 public handler
-签名中暴露 `audit_sink`。execution audit 由 Go `apps/supervisor-api` 的 allowlisted
+签名中暴露 `audit_sink`。execution audit 由 Go `apps/execution-control` 的 allowlisted
 audit writer 负责回流到 `app-api` internal ingest。
 
 `SUPERVISOR_INTERNAL_QUERY_BASE_URL` / `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
 是 supervisor runtime harness 注入的内部 wiring，只用于 Python worker 调用同一
-supervisor runtime 内 Go `supervisor-api` 的 internal
+supervisor runtime 内 Go `execution-control` 的 internal
 `/internal/query/campus-services/*` seam。普通 repo `.env` 不需要手写这两个值；
 未由 harness 注入时，`campus-services-agent` 继续保持 internal query service
 unavailable，不会打开产品 serving gate。

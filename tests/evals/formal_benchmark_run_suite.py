@@ -115,7 +115,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
                         selected_tools=("retrieval.query",),
                         tool_argument_summary={"collection": "student_rules"},
                         guardrail_outcomes={"scope_gate": "pass"},
-                        runtime_versions={"execution-gateway": "test"},
+                        runtime_versions={"execution-control": "test"},
                         policy_artifact_versions={"intent-policy": "test"},
                     ),
                     orchestration_case_results=orchestration_case_results_cls(

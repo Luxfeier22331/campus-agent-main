@@ -41,15 +41,15 @@ uv run --all-packages python -m scripts.doctor_env <surface> --json
 - `query`
 - `ingestion`
 - `evals`
-- `execution-gateway`
+- `execution-control`
 - `worker-staging`
 - `worker-staging-app-api`
 - `worker-staging-public-chat-web`
 - `worker-staging-protected-panel-web`
 
-### Execution Gateway runtime gate
+### Execution Control runtime gate
 
-`execution-gateway` doctor surface now checks execution runtime inputs separately
+`execution-control` doctor surface now checks execution runtime inputs separately
 from Worker staging:
 
 - shared LLM provider resolution
@@ -61,10 +61,10 @@ from Worker staging:
 
 Conditional readiness:
 
-- if `EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED=true`, doctor requires
-  `EXECUTION_GATEWAY_EXECUTION_AUDIT_URL` and
-  `EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET`
-- if `EXECUTION_GATEWAY_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
+- if `EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=true`, doctor requires
+  `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` and
+  `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
+- if `EXECUTION_CONTROL_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
   doctor requires `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` and
   `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice
   read-model/object-store runtime dependencies
@@ -74,7 +74,7 @@ Runtime `/readyz` is stricter than liveness:
 - `200 ready` means prompt runtime admitted, prompt HTTP pool configured,
   audit writer healthy, and answer admission not currently saturated
 - `503 degraded` means at least one execution runtime component is not ready
-- outside the `local` runtime profile, execution-gateway full `/readyz` requires
+- outside the `local` runtime profile, execution-control full `/readyz` requires
   internal worker auth and must not be used as an unauthenticated public deploy
   probe; public staging closure should use `app-api /readyz`, which performs the
   supervisor readiness probe with the configured shared secret
@@ -109,10 +109,10 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 - 不再把 `ayafeed.com` 或 `*.rag.ayafeed.com` 视为 campus-agent staging deploy truth
 - `mucwiki-edge.link` 是当前 repo-owned staging zone
-- `apps/execution-gateway` 的 deploy substrate 已冻结为 Docker-first internal execution
+- `apps/execution-control` 的 deploy substrate 已冻结为 Docker-first internal execution
   service
-- `apps/execution-gateway` staging hostname 继续不冻结；`app-api` deploy 时必须显式注入
-  `STAGING_EXECUTION_GATEWAY_BASE_URL`
+- `apps/execution-control` staging hostname 继续不冻结；`app-api` deploy 时必须显式注入
+  `STAGING_EXECUTION_CONTROL_BASE_URL`
 - public chat / docs / panel 的 app-api upstream invariant 是 `APP_API` Service
   Binding + `https://app-api.internal`
 - deploy secret truth 继续留在 Cloudflare secret store，不写回 repo-tracked

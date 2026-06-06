@@ -87,7 +87,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_provider="openai-responses",
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
-                internal_query_base_url="https://execution-gateway.internal",
+                internal_query_base_url="https://execution-control.internal",
                 internal_query_shared_secret="structured-secret",
             )
         )
@@ -171,7 +171,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
                 agents_sdk_runtime_enabled=True,
-                internal_query_base_url="https://execution-gateway.internal",
+                internal_query_base_url="https://execution-control.internal",
                 internal_query_shared_secret="structured-secret",
             )
         )
@@ -236,7 +236,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_api_key="",
                 prompt_runtime_base_url="https://api.openai.com/v1",
                 agents_sdk_runtime_enabled=True,
-                internal_query_base_url="https://execution-gateway.internal",
+                internal_query_base_url="https://execution-control.internal",
                 internal_query_shared_secret="structured-secret",
             )
         )
@@ -376,7 +376,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         delegates = _build_agent_delegates(
             settings=ApiSettings(
                 agents_sdk_runtime_enabled=True,
-                internal_query_base_url="https://execution-gateway.internal",
+                internal_query_base_url="https://execution-control.internal",
                 internal_query_shared_secret="structured-secret",
             ),
             rag_prompt_executor=None,

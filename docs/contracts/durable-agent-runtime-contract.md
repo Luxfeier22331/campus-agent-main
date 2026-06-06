@@ -15,7 +15,7 @@ updated: 2026-06-06
 - `Conversation`、`Run`、`RunStep`、`StepAttempt`、`StepResult`、`RunEvent`、
   `ExecutionLease` 与 `LaneBudget` 的语义
 - run lifecycle、step lifecycle、event lifecycle 与 activity attempt projection 如何流转
-- app-api、execution-gateway、Temporal execution plane 与 worker pool 在 durable
+- app-api、execution-control、Temporal execution plane 与 worker pool 在 durable
   runtime 中的 seam 如何分层
 
 它不负责：
@@ -44,7 +44,7 @@ updated: 2026-06-06
 
 - architecture 文档
 - data schema 文档
-- app-api / execution-gateway contract
+- app-api / execution-control contract
 - panel / eval / observability consumer
 - fixture / contract tests
 
@@ -127,7 +127,7 @@ Run status enum 固定为：
   - run 已进入 execution plane
   - 等待 Temporal workflow/activity dispatch 或 current PG baseline lease
 - `admitted`
-  - execution-gateway / workflow policy 已允许该 run / step 推进
+  - execution-control / workflow policy 已允许该 run / step 推进
 - `running`
   - workflow/activity worker 已开始执行
 - `streaming`
@@ -478,9 +478,9 @@ app-api owns：
 - conversation active-run admission
 - browser-facing error envelope
 
-### Execution Gateway
+### Execution Control
 
-execution-gateway owns：
+execution-control owns：
 
 - run command-query、workflow start/cancel/signal/query/update、readyz/metrics 与
   projection
@@ -533,7 +533,7 @@ worker pool does not own：
 ## Compatibility Boundary
 
 `POST /api/v1/answer` and `POST /api/v1/answer/stream` are retired from the
-active `app-api -> execution-gateway` serving path.
+active `app-api -> execution-control` serving path.
 
 The active internal execution seam is the Temporal-backed run command/query
 contract:

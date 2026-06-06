@@ -146,7 +146,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
   - authz projection、identity projection、operator-facing read model
 - runtime profile / registry / release truth
   - collection posture、visibility、serving alias、version mode
-- `execution-gateway` / current `apps/execution-gateway`
+- `execution-control` / current `apps/execution-control`
   - policy / capability admission
   - workflow/activity admission
   - projection command and finalization
@@ -417,7 +417,7 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 - Python SDK suite 必须证明 internal DTO、function tool boundary、guardrail、rollout mode、
   sanitized trace projection 与 worker runner contract 未漂移
 - public/chat product-path E2E 必须证明
-  `execution-gateway -> supervisor-agent-worker -> rag-agent SDK loop -> Go finalizer`
+  `execution-control -> supervisor-agent-worker -> rag-agent SDK loop -> Go finalizer`
   返回 canonical `SupervisorResponse`
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker

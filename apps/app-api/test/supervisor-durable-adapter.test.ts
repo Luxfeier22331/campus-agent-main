@@ -3,9 +3,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-	createExecutionGatewayRuntimeClient,
-	isExecutionGatewayRuntimeConfigured,
-} from "../src/modules/integration/execution-gateway";
+	createExecutionControlRuntimeClient,
+	isExecutionControlRuntimeConfigured,
+} from "../src/modules/integration/execution-control";
 
 function readMockRequestBody(fetchImplementation: ReturnType<typeof vi.fn>, index: number): string {
 	const body = fetchImplementation.mock.calls[index]?.[1]?.body;
@@ -42,30 +42,29 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 	};
 }
 
-describe("execution gateway runtime adapter", () => {
-	it("reports execution gateway configured only when new base URL and shared secret are present", () => {
+describe("execution control runtime adapter", () => {
+	it("reports execution control configured only when new base URL and shared secret are present", () => {
 		expect(
-			isExecutionGatewayRuntimeConfigured({
-				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
-				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
+			isExecutionControlRuntimeConfigured({
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(true);
 		expect(
-			isExecutionGatewayRuntimeConfigured({
-				EXECUTION_GATEWAY_BASE_URL: " ",
-				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
+			isExecutionControlRuntimeConfigured({
+				EXECUTION_CONTROL_BASE_URL: " ",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(false);
 		expect(
-			isExecutionGatewayRuntimeConfigured({
-				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
-				EXECUTION_GATEWAY_SHARED_SECRET: "",
+			isExecutionControlRuntimeConfigured({
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "",
 			}),
 		).toBe(false);
 		expect(
-			isExecutionGatewayRuntimeConfigured({
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			isExecutionControlRuntimeConfigured({
+				APP_API_INTERNAL_SHARED_SECRET: "shared-secret",
 			} as never),
 		).toBe(false);
 	});
@@ -76,10 +75,10 @@ describe("execution gateway runtime adapter", () => {
 				status: 202,
 			}),
 		);
-		const client = createExecutionGatewayRuntimeClient(
+		const client = createExecutionControlRuntimeClient(
 			{
-				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
-				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -108,7 +107,7 @@ describe("execution gateway runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-gateway.internal/internal/execution/runs",
+			"https://execution-control.internal/internal/execution/runs",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
@@ -191,10 +190,10 @@ describe("execution gateway runtime adapter", () => {
 					{ status: 200 },
 				),
 			);
-		const client = createExecutionGatewayRuntimeClient(
+		const client = createExecutionControlRuntimeClient(
 			{
-				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
-				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -210,7 +209,7 @@ describe("execution gateway runtime adapter", () => {
 
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			1,
-			"https://execution-gateway.internal/internal/execution/runs/run_durable_001",
+			"https://execution-control.internal/internal/execution/runs/run_durable_001",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
@@ -222,7 +221,7 @@ describe("execution gateway runtime adapter", () => {
 		);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			2,
-			"https://execution-gateway.internal/internal/execution/runs/run_durable_001/events",
+			"https://execution-control.internal/internal/execution/runs/run_durable_001/events",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
@@ -254,10 +253,10 @@ describe("execution gateway runtime adapter", () => {
 				status: 200,
 			}),
 		);
-		const client = createExecutionGatewayRuntimeClient(
+		const client = createExecutionControlRuntimeClient(
 			{
-				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
-				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -269,7 +268,7 @@ describe("execution gateway runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-gateway.internal/internal/execution/runs/run_durable_001/events?after_sequence=7",
+			"https://execution-control.internal/internal/execution/runs/run_durable_001/events?after_sequence=7",
 			expect.objectContaining({
 				method: "GET",
 			}),
@@ -282,10 +281,10 @@ describe("execution gateway runtime adapter", () => {
 				status: 202,
 			}),
 		);
-		const client = createExecutionGatewayRuntimeClient(
+		const client = createExecutionControlRuntimeClient(
 			{
-				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
-				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -297,7 +296,7 @@ describe("execution gateway runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-gateway.internal/internal/execution/runs/run_durable_001/cancel",
+			"https://execution-control.internal/internal/execution/runs/run_durable_001/cancel",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
@@ -314,7 +313,7 @@ describe("execution gateway runtime adapter", () => {
 	});
 
 	it("fails closed when durable runtime configuration is missing", async () => {
-		const client = createExecutionGatewayRuntimeClient({});
+		const client = createExecutionControlRuntimeClient({});
 
 		await expect(
 			client.getRun({
@@ -341,10 +340,10 @@ describe("execution gateway runtime adapter", () => {
 				{ status: 409 },
 			),
 		);
-		const client = createExecutionGatewayRuntimeClient(
+		const client = createExecutionControlRuntimeClient(
 			{
-				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
-				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -378,10 +377,10 @@ describe("execution gateway runtime adapter", () => {
 				{ status: 202 },
 			),
 		);
-		const client = createExecutionGatewayRuntimeClient(
+		const client = createExecutionControlRuntimeClient(
 			{
-				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
-				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -398,7 +397,7 @@ describe("execution gateway runtime adapter", () => {
 				turnId: "turn_durable_001",
 			}),
 		).rejects.toMatchObject({
-			code: "execution_gateway_invalid_response",
+			code: "execution_control_invalid_response",
 			retryable: true,
 			status: 502,
 		});

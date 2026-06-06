@@ -1,6 +1,6 @@
 from campus_contracts import ServiceGuideLookupPayload
 
-from .execution_gateway_bridge_support import *
+from .execution_control_bridge_support import *
 
 
 class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):

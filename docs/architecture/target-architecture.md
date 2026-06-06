@@ -33,7 +33,7 @@ updated: 2026-06-05
   参与 typed step
 - shared app runtime 与 execution engine 分层
 - Temporal-backed durable execution plane
-- execution-gateway + workflow / activity worker pools + worker autoscaler
+- execution-control + workflow / activity worker pools + worker autoscaler
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
 - eval-governed quality lifecycle
@@ -47,12 +47,12 @@ updated: 2026-06-05
 长期主链路固定为：
 
 `client/channel -> browser surface -> shared app-api surface policy/context
-projection -> execution-gateway admission / workflow start -> Temporal workflow
+projection -> execution-control admission / workflow start -> Temporal workflow
 -> typed activities / agent-as-tool activities -> sanitized step projection ->
 finalization projection -> app-api response / stream subscription`
 
 这里的 multi-agent 不是无中心 peer swarm。长期默认是 manager-style
-multi-agent：`execution-gateway` 与 Temporal workflow 保持 workflow / policy /
+multi-agent：`execution-control` 与 Temporal workflow 保持 workflow / policy /
 budget / finalization ownership，typed tools 与 agent-as-tool 作为受控 capability
 step 参与执行；只有当某个 specialist 需要拥有后续回复 ownership 时，才使用 explicit
 handoff。
@@ -72,8 +72,8 @@ flowchart LR
     AppAPI["app-api\nproduct ingress"]
   end
 
-  subgraph ExecutionIngress["Execution Gateway"]
-    Gateway["execution-gateway\nworkflow command"]
+  subgraph ExecutionIngress["Execution Control"]
+    Gateway["execution-control\nworkflow command"]
   end
 
   subgraph TemporalPlane["Temporal Execution Plane"]
@@ -148,7 +148,7 @@ raw/source-truth/projection/document/chunk/index`
 - HTTP request 不得成为 agent execution lifetime 的 canonical truth；一次回答的长期
   execution object 是 Temporal workflow execution + repo-owned product run
   projection，streaming 只是订阅 sanitized events / projection
-- production 并发预算不得只存在于单个 `execution-gateway` 进程内存；Temporal Task Queue、
+- production 并发预算不得只存在于单个 `execution-control` 进程内存；Temporal Task Queue、
   workflow / activity worker pool、repo-owned admission policy 与 downstream
   budget projection 必须共同定义全局 execution capacity
 - process-local limiter 只能作为单进程 runtime protection，不得被多实例叠加解释为
@@ -200,13 +200,13 @@ raw/source-truth/projection/document/chunk/index`
   ingress、request projection 与 operator read surfaces
 - shared `apps/app-api` 长期同时拥有 surface capability policy 与最小 typed context
   projection
-- `execution-gateway` 持续只是 internal execution ingress，不是 product backend
+- `execution-control` 持续只是 internal execution ingress，不是 product backend
 - `apps/app-api` 已冻结为 Worker
-- 当前 `apps/execution-gateway` 是 existing implementation label；长期概念名是
-  `execution-gateway`
-- execution-gateway / worker 的部署 substrate 不反推 browser-facing exposure model
+- 当前 `apps/execution-control` 是 existing implementation label；长期概念名是
+  `execution-control`
+- execution-control / worker 的部署 substrate 不反推 browser-facing exposure model
 - `apps/app-api` 长期拥有 conversation 与 run creation / stream proxy 的 product
-  surface；`execution-gateway` 负责 workflow start / signal / cancel / query，
+  surface；`execution-control` 负责 workflow start / signal / cancel / query，
   Temporal 负责 workflow history、task queue、retry、timeout 与 heartbeat
 - worker runtime 拆成 workflow worker 与 activity worker pools；deterministic
   workflow code 负责 orchestration，package-owned specialists 继续负责 bounded
@@ -249,7 +249,7 @@ raw/source-truth/projection/document/chunk/index`
   `created -> queued -> admitted -> running -> streaming -> completed / failed /
   canceled / expired`；`WorkflowRun` 是 multi-step / agent invocation graph 的内部
   workflow projection，不替代 product-visible run truth
-- execution-gateway 长期承接 deterministic machine ingress、workflow command/query、
+- execution-control 长期承接 deterministic machine ingress、workflow command/query、
   cancel/signal/update admission、runtime metrics、audit command 与 fail-close envelope
 - deterministic orchestration 长期由 Temporal workflow code 承接；Python /
   package-owned specialists 只在 activity worker 或 agent-as-tool activity 内执行
@@ -326,13 +326,13 @@ routing、policy、eval 与 observability 约束；它不是当前 campus path �
 
 长期 tool 架构固定为：
 
-`execution-gateway deterministic admission -> Temporal workflow step ->
+`execution-control deterministic admission -> Temporal workflow step ->
 ToolSpec / allowed_tools -> typed activity or agent-as-tool activity ->
 repo-owned internal query service -> sanitized StepResult projection`
 
 其中：
 
-- `execution-gateway` 与 workflow policy 拥有 tool admission、opening gate、
+- `execution-control` 与 workflow policy 拥有 tool admission、opening gate、
   capability / lane / scope / version guard、`allowed_tools` planning、
   workflow policy 与 fail-close terminal semantics
 - agent-as-tool 可以在自己的能力边界内使用 provider/SDK mediated tool loop，但只能消费 Go
@@ -413,9 +413,9 @@ prompt 内部的隐式判断。
 
 - `apps/app-api` 拥有 surface capability policy、conversation / session truth、
   operator review truth 与观测驱动治理 read model
-- `apps/execution-gateway` 只拥有 deterministic execution admission、lane /
+- `apps/execution-control` 只拥有 deterministic execution admission、lane /
   opening gate、timeout / cancel / audit event 与 runtime metrics
-- `apps/execution-gateway` 拥有 supervisor routing intent framing、routing
+- `apps/execution-control` 拥有 supervisor routing intent framing、routing
   clarification 与 handoff semantics
 - domain agent 只拥有已选定 capability family 内部的 agent clarification 与执行语义
 - `packages/evals` 拥有 intent truth dataset、runner、regression gate 与 observed-case
@@ -502,7 +502,7 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
   trace backlink ingest 与 operator-facing projection，不拥有 golden truth
 - `protected-panel-web` 只承担 operator review / triage UX；它可以发起受控 review
   action，但不决定 golden set truth、不生成 benchmark artifact
-- `apps/execution-gateway` 与 domain agent 只产出 execution / trace / outcome
+- `apps/execution-control` 与 domain agent 只产出 execution / trace / outcome
   facts，不写 eval truth
 - OpenAI Evals / graders / tracing、RAGAS、Sentry、Axiom 等外部工具只能作为 grader、
   trace/debug sink 或 analysis input，不成为 repo canonical eval truth

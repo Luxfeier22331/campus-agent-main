@@ -15,7 +15,7 @@ runbook，不重复维护每个子流程的全部细节。
 
 - repo unit / typecheck / build gate
 - `docs/runbooks/staging-worker-deploy-runbook.md`
-- `docs/runbooks/execution-gateway-staging-smoke-runbook.md`
+- `docs/runbooks/execution-control-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 
 当前默认目标环境是 `mucwiki-edge.link` staging。`hub.muc.wiki` 不属于本文的当前 gate。
@@ -58,7 +58,7 @@ git diff --check | tee "$E2E_QA_EVIDENCE_DIR/git-diff-check.txt"
 ```bash
 ssh deploy@152.53.241.57 \
   'cd /srv/apps/campus-agent && \
-    ./infra/local/staging/status-execution-gateway-staging.sh --check' \
+    ./infra/local/staging/status-execution-control-staging.sh --check' \
   | tee "$E2E_QA_EVIDENCE_DIR/supervisor-status.txt"
 ```
 

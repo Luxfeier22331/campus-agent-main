@@ -3,14 +3,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type {
-	ExecutionGatewayRun,
-	ExecutionGatewayRunEvent,
-	ExecutionGatewayRuntimeClient,
-} from "../src/modules/integration/execution-gateway";
+	ExecutionControlRun,
+	ExecutionControlRunEvent,
+	ExecutionControlRuntimeClient,
+} from "../src/modules/integration/execution-control";
 import { buildRuntimeRunService, type RuntimeRunEventProjection } from "../src/modules/runtime-run";
 import { createPrincipal } from "./chat-command.service.test-support";
 
-function durableRun(overrides: Partial<ExecutionGatewayRun> = {}): ExecutionGatewayRun {
+function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -38,11 +38,11 @@ function durableRun(overrides: Partial<ExecutionGatewayRun> = {}): ExecutionGate
 }
 
 function durableEvent(
-	overrides: Partial<ExecutionGatewayRunEvent> & {
+	overrides: Partial<ExecutionControlRunEvent> & {
 		eventType: string;
 		sequence: number;
 	},
-): ExecutionGatewayRunEvent {
+): ExecutionControlRunEvent {
 	const { eventType, sequence, ...rest } = overrides;
 	return {
 		conversationId: "conv_01HQ",
@@ -60,7 +60,7 @@ function durableEvent(
 
 describe("runtime run service", () => {
 	it("projects durable run statuses into product runtime phases", async () => {
-		const durableRuntime: ExecutionGatewayRuntimeClient = {
+		const durableRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(
@@ -96,7 +96,7 @@ describe("runtime run service", () => {
 	});
 
 	it("rejects unknown durable run statuses instead of guessing a product phase", async () => {
-		const durableRuntime: ExecutionGatewayRuntimeClient = {
+		const durableRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(
@@ -127,7 +127,7 @@ describe("runtime run service", () => {
 	});
 
 	it("rejects listed browser events that do not advance the requested cursor", async () => {
-		const durableRuntime: ExecutionGatewayRuntimeClient = {
+		const durableRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun()),
@@ -180,7 +180,7 @@ describe("runtime run service", () => {
 					sequence: 4,
 				}),
 			]);
-		const durableRuntime: ExecutionGatewayRuntimeClient = {
+		const durableRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun()),

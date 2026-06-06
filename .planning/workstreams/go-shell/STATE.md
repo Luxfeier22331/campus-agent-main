@@ -456,7 +456,7 @@ updated: 2026-04-27
     `pnpm html:lint`, `pnpm xml:lint`, and `pnpm public-docs:lint`
   - `API_WORKER_SHARED_SECRET=worker-secret`
     `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=core-secret`
-    `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
+    `docker compose -f infra/local/docker-compose.execution-control-runtime.yml config`
   - `docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .`
   - `docker build -f apps/supervisor-agent-worker/Dockerfile`
     `-t campus-supervisor-agent-worker:local .`
@@ -514,7 +514,7 @@ updated: 2026-04-27
 - Environment-side hard-cut support validation passed on 2026-04-24:
   - `bash -n` passed for `infra/local/staging/supervisor-api-staging-common.sh` and all
     `supervisor-api-staging*.sh` lifecycle scripts
-  - `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
+  - `docker compose -f infra/local/docker-compose.execution-control-runtime.yml config`
     passed with dummy bridge / worker secrets
   - `uv run --all-packages python -m scripts.doctor_env supervisor-api --json`
     passed
@@ -525,7 +525,7 @@ updated: 2026-04-27
   - `pnpm exec markdownlint-cli2` for touched pre-hardcut docs / contracts /
     architecture docs / runbooks / workstream docs
   - `pnpm yaml:lint`
-  - `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
+  - `docker compose -f infra/local/docker-compose.execution-control-runtime.yml config`
     with dummy bridge / worker secrets
 - Full `pnpm docs:lint` passed during the 2026-04-24 hardcut closeout
   verification.
@@ -680,7 +680,7 @@ updated: 2026-04-27
 - Added `/readyz` aggregation that preserves Python worker runtime status while
   publishing Go transport admission as `transport_runtime`.
 - Added repo-owned Python orchestration worker Dockerfile and local compose
-  harness at `infra/local/docker-compose.supervisor-runtime.yml`.
+  harness at `infra/local/docker-compose.execution-control-runtime.yml`.
 - Added Go unit coverage for execution projection, bridge client and bridge
   response handling.
 - Confirmed live two-container smoke with the Go runtime fronting Python orchestration.

@@ -382,7 +382,7 @@ def _execution_run_payload(profile: str, request: dict[str, object]) -> dict[str
         "surface": "local-process-smoke",
         "selected_capability": capability,
         "lane": _lane_for_capability(capability),
-        "runtime_versions": {"contract": "temporal-execution-gateway-v1"},
+        "runtime_versions": {"contract": "temporal-execution-control-v1"},
         "metadata": {
             "execution_payload": execution_payload,
             "handoff": _handoff_for_request(capability, request),

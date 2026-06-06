@@ -27,7 +27,7 @@ updated: 2026-04-26
 
 ## 当前 rollout 状态
 
-- Go `apps/execution-gateway` 当前拥有 `place_lookup` admission / framing，并可在
+- Go `apps/execution-control` 当前拥有 `place_lookup` admission / framing，并可在
   direct runtime 中使用 repo-owned `place_catalog` 回答地点查询
 - 本文保留的是 repo-owned contract truth，不代表当前浏览器地图产品面已经开放
 - 地图 UI、route planning 与更完整的 `place_card` product consumption 等到地图产品上线后再开放
@@ -37,7 +37,7 @@ updated: 2026-04-26
 
 - `RequestedCapability` 首发新增 `place_lookup`
 - `AgentTarget` 首发新增 `navigation-agent`
-- Go `apps/execution-gateway` 把用户地点问句 framing 成
+- Go `apps/execution-control` 把用户地点问句 framing 成
   `PlaceLookupPayload(query_text=...)`
 - 当前 `place_lookup` request 不接受 `requested_scope`
 

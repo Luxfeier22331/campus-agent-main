@@ -1,9 +1,9 @@
 import type {
-	ExecutionGatewayRun,
-	ExecutionGatewayRunEvent,
-} from "../src/modules/integration/execution-gateway";
+	ExecutionControlRun,
+	ExecutionControlRunEvent,
+} from "../src/modules/integration/execution-control";
 
-export function durableRun(overrides: Partial<ExecutionGatewayRun> = {}): ExecutionGatewayRun {
+export function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -56,11 +56,11 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 }
 
 export function durableEvent(
-	overrides: Partial<ExecutionGatewayRunEvent> & {
+	overrides: Partial<ExecutionControlRunEvent> & {
 		eventType: string;
 		sequence: number;
 	},
-): ExecutionGatewayRunEvent {
+): ExecutionControlRunEvent {
 	const { eventType, sequence, ...rest } = overrides;
 	return {
 		conversationId: "conv_01HQ",

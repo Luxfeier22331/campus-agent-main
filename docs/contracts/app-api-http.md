@@ -15,7 +15,7 @@ browser-facing HTTP contract。
 
 - shared product topology：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api` runtime 与内部边界：`docs/architecture/system/product-runtime-architecture.md`
-- `app-api -> execution-gateway`
+- `app-api -> execution-control`
   内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
 - internal eval benchmark
   ingress：`docs/contracts/app-api-eval-benchmark-http.md`
@@ -722,7 +722,7 @@ icy.md`。
 ### `POST /api/chat/requests/stream`
 
 这是 public chat 的 lifecycle streaming 命令入口。它不提供 token delta，不暴露
-`execution-gateway` raw event；browser 只消费 `app-api` 产品级 SSE contract。
+`execution-control` raw event；browser 只消费 `app-api` 产品级 SSE contract。
 
 请求 headers 与 body 复用 `POST /api/chat/requests`。
 

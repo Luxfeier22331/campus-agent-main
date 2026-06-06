@@ -18,10 +18,10 @@ class IntentReleaseGateScriptTest(unittest.TestCase):
         payload = run_release_gate(command_runner=fake_runner)
 
         self.assertTrue(payload["passed"])
-        self.assertEqual(payload["runner"], "execution-gateway-go")
+        self.assertEqual(payload["runner"], "execution-control-go")
         command_text = [" ".join(command) for command in commands]
         self.assertTrue(any("scripts.intent_gate" in item for item in command_text))
-        self.assertTrue(any("--runner execution-gateway-go" in item for item in command_text))
+        self.assertTrue(any("--runner execution-control-go" in item for item in command_text))
         self.assertTrue(any("go test ./..." in item for item in command_text))
         self.assertTrue(any("supervisor-adapter.test.ts" in item for item in command_text))
         self.assertTrue(any("tests.evals.eval_admission_suite" in item for item in command_text))
@@ -32,7 +32,7 @@ class IntentReleaseGateScriptTest(unittest.TestCase):
             payload = {
                 "schema_version": 1,
                 "passed": True,
-                "runner": "execution-gateway-go",
+                "runner": "execution-control-go",
                 "command_results": [],
             }
 
@@ -40,7 +40,7 @@ class IntentReleaseGateScriptTest(unittest.TestCase):
 
             written = json.loads(output_path.read_text(encoding="utf-8"))
 
-        self.assertEqual(written["runner"], "execution-gateway-go")
+        self.assertEqual(written["runner"], "execution-control-go")
 
 
 if __name__ == "__main__":

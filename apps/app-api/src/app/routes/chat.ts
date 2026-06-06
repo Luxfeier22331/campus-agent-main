@@ -3,7 +3,7 @@ import type { Hono } from "hono";
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
 import { hasMatchingInternalSecret, type ResolvedAppPrincipal } from "../../modules/auth";
-import { ExecutionGatewayTransportError } from "../../modules/integration";
+import { ExecutionControlTransportError } from "../../modules/integration";
 import type { ChatCommandStreamEvent } from "../../modules/runtime-command";
 import type { RuntimeRunEventProjection, RuntimeRunSummary } from "../../modules/runtime-run";
 import { requireSessionPrincipal } from "../principal";
@@ -122,7 +122,7 @@ function routeChatErrorResponse(
 	if (error instanceof AppApiRouteError) {
 		return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 	}
-	if (error instanceof ExecutionGatewayTransportError) {
+	if (error instanceof ExecutionControlTransportError) {
 		return routeErrorResponseWithRouteErrorCorrelation(
 			new AppApiRouteError({
 				code: error.code,

@@ -4,13 +4,13 @@ status: active
 created: 2026-04-27
 updated: 2026-04-27
 ---
-# Execution Gateway Server Handoff
+# Execution Control Server Handoff
 
 ## 文档边界
 
-这份 runbook 只定义 Docker-first `execution-gateway` server handoff baseline：
+这份 runbook 只定义 Docker-first `execution-control` server handoff baseline：
 
-- `execution-gateway + supervisor-agent-worker` 双容器部署契约
+- `execution-control + supervisor-agent-worker` 双容器部署契约
 - server env / health / logging / restart / resource 基线
 - `app-api` execution origin 对接约束
 
@@ -22,14 +22,14 @@ updated: 2026-04-27
 
 ## Target Shape
 
-- compose file: `infra/local/docker-compose.supervisor-runtime.yml`
+- compose file: `infra/local/docker-compose.execution-control-runtime.yml`
 - services:
-  - `execution-gateway`
+  - `execution-control`
   - `supervisor-agent-worker`
 - ingress:
-  - machine-local reverse proxy 或 tunnel 指向 `execution-gateway:8000`
+  - machine-local reverse proxy 或 tunnel 指向 `execution-control:8000`
 - upstream contract:
-  - `app-api` 调用 `STAGING_EXECUTION_GATEWAY_BASE_URL`（或对应环境等价键）
+  - `app-api` 调用 `STAGING_EXECUTION_CONTROL_BASE_URL`（或对应环境等价键）
   - worker origin auth 由 `API_WORKER_SHARED_SECRET` 控制
 
 ## Server Env Baseline
@@ -43,8 +43,8 @@ updated: 2026-04-27
   - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
   - `SUPERVISOR_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
 - conditional:
-  - 启用 execution audit 时：`EXECUTION_GATEWAY_EXECUTION_AUDIT_URL`、
-    `EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET`
+  - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、
+    `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
   - 打开 `campus_services` / `notice` capability 时：`CAMPUS_SHARED_POSTGRES_URL`；
     notice 还需要 object-store/read-model 依赖
 
@@ -56,16 +56,18 @@ updated: 2026-04-27
 
 ```bash
 docker build \
-  -f apps/execution-gateway/Dockerfile \
-  -t campus-execution-gateway:local .
+  -f apps/execution-control/Dockerfile \
+  -t campus-execution-control:local .
 ```
 
 1. start runtime
 
 ```bash
-COMPOSE_PROJECT_NAME=campus-supervisor-runtime \
-EXECUTION_GATEWAY_HOST_PORT=27051 \
-docker compose -f infra/local/docker-compose.supervisor-runtime.yml up -d --build
+COMPOSE_PROJECT_NAME=campus-execution-control-runtime \
+EXECUTION_CONTROL_HOST_PORT=27051 \
+docker compose \
+  -f infra/local/docker-compose.execution-control-runtime.yml \
+  up -d --build
 ```
 
 1. health/readiness checks
@@ -79,7 +81,7 @@ curl -sS -i http://127.0.0.1:27051/metrics
 1. smoke
 
 ```bash
-infra/local/smoke-supervisor-runtime.sh closed_gate
+infra/local/smoke-execution-control-runtime.sh closed_gate
 ```
 
 ## Runtime Baseline
@@ -90,18 +92,18 @@ infra/local/smoke-supervisor-runtime.sh closed_gate
   - `no-new-privileges`
   - JSON log rotation (`10m * 3`)
 - process-level:
-  - `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS`
-  - `EXECUTION_GATEWAY_QUEUE_CAPACITY`
-  - `EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS`
-  - lane budgets (`EXECUTION_GATEWAY_LANE_*`)
+  - `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS`
+  - `EXECUTION_CONTROL_QUEUE_CAPACITY`
+  - `EXECUTION_CONTROL_QUEUE_TIMEOUT_MS`
+  - lane budgets (`EXECUTION_CONTROL_LANE_*`)
 - ingress-level:
-  - metrics token (`EXECUTION_GATEWAY_METRICS_BEARER_TOKEN`) when metrics endpoint
+  - metrics token (`EXECUTION_CONTROL_METRICS_BEARER_TOKEN`) when metrics endpoint
     is externally reachable
 
 ## Handoff Checklist
 
 - doctor:
-  - `uv run --all-packages python -m scripts.doctor_env execution-gateway --json`
+  - `uv run --all-packages python -m scripts.doctor_env execution-control --json`
 - static checks:
   - `pnpm go:check`
   - `pnpm shell:lint`
@@ -109,7 +111,7 @@ infra/local/smoke-supervisor-runtime.sh closed_gate
 - runtime checks:
   - Docker build success
   - `healthz` / `readyz` / `metrics` return expected status
-  - smoke artifact generated under `.tmp/execution-gateway-local-smoke/`
+  - smoke artifact generated under `.tmp/execution-control-local-smoke/`
 - app-api integration:
   - execution origin URL configured to current server ingress
   - shared secret aligned with `API_WORKER_SHARED_SECRET`

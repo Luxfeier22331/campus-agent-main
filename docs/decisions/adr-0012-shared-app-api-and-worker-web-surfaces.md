@@ -25,7 +25,7 @@ Accepted on 2026-03-28.
 
 - chat 与 panel 都是部署在 Worker 上的前端表面
 - 中间只有一层 shared application/control-plane backend
-- `apps/execution-gateway` 继续专注于 answer execution
+- `apps/execution-control` 继续专注于 answer execution
 
 ## 决策
 
@@ -36,14 +36,14 @@ Accepted on 2026-03-28.
 1. `apps/app-api` 作为 shared application/control-plane backend。
 1. `apps/app-api` 接管 auth、session、conversation、chat ingress、request ledger /
    projection input、审计入口、指标记录与 operator query。
-1. `apps/execution-gateway` 退为 execution engine，不再承担产品层 auth/session/
+1. `apps/execution-control` 退为 execution engine，不再承担产品层 auth/session/
    conversation 或 panel 查询 API。
 
 ## 边界约束
 
 这项决策同时冻结以下约束：
 
-- browser 不直接调用 `apps/execution-gateway`
+- browser 不直接调用 `apps/execution-control`
 - panel 不直接调用数据库
 - `app-api` 不是另一个 orchestrator
 - `app-api` 内部仍需保持 command/query 分离

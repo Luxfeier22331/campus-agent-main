@@ -16,8 +16,8 @@ operator 可以用稳定命令构建镜像、启动双容器 runtime、运行 pr
 ## In Scope
 
 - `apps/supervisor-api` Docker image 的 build/run contract。
-- `infra/local/docker-compose.supervisor-runtime.yml` 的 dev/runtime hardening。
-- `infra/local/start-supervisor-runtime.sh` 与 `infra/local/smoke-supervisor-runtime.sh`
+- `infra/local/docker-compose.execution-control-runtime.yml` 的 dev/runtime hardening。
+- `infra/local/start-execution-control-runtime.sh` 与 `infra/local/smoke-execution-control-runtime.sh`
   的 preflight、profile 与 evidence artifact。
 - `scripts.doctor_env supervisor-api` 的部署包 readiness gate。
 - supervisor runtime 专属 env inventory / command template。
@@ -84,7 +84,7 @@ Success criteria:
 
 ### `SUP-DEP-05`: Compose Hardening
 
-`infra/local/docker-compose.supervisor-runtime.yml` 必须能作为 local/dev deployment package 的可检查基线。
+`infra/local/docker-compose.execution-control-runtime.yml` 必须能作为 local/dev deployment package 的可检查基线。
 
 Success criteria:
 

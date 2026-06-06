@@ -12,10 +12,10 @@ function fail(message) {
 	process.exit(1);
 }
 
-const upstream = process.env.STAGING_EXECUTION_GATEWAY_BASE_URL?.trim();
+const upstream = process.env.STAGING_EXECUTION_CONTROL_BASE_URL?.trim();
 if (!upstream) {
 	fail(
-		"STAGING_EXECUTION_GATEWAY_BASE_URL is required. Point it at the mucwiki-edge staging supervisor origin before deploying staging.",
+		"STAGING_EXECUTION_CONTROL_BASE_URL is required. Point it at the mucwiki-edge staging supervisor origin before deploying staging.",
 	);
 }
 
@@ -23,14 +23,14 @@ let normalizedUpstream;
 try {
 	const parsed = new URL(upstream);
 	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-		fail("STAGING_EXECUTION_GATEWAY_BASE_URL must start with http:// or https://");
+		fail("STAGING_EXECUTION_CONTROL_BASE_URL must start with http:// or https://");
 	}
 	parsed.pathname = "";
 	parsed.search = "";
 	parsed.hash = "";
 	normalizedUpstream = parsed.toString().replace(/\/$/, "");
 } catch {
-	fail("STAGING_EXECUTION_GATEWAY_BASE_URL must be a valid absolute URL.");
+	fail("STAGING_EXECUTION_CONTROL_BASE_URL must be a valid absolute URL.");
 }
 
 const sentryRelease = resolveStagingSentryRelease("app-api");
@@ -41,7 +41,7 @@ const result = runWranglerCommand(
 		"--env",
 		"staging",
 		"--var",
-		`EXECUTION_GATEWAY_BASE_URL:${normalizedUpstream}`,
+		`EXECUTION_CONTROL_BASE_URL:${normalizedUpstream}`,
 		"--var",
 		`SENTRY_RELEASE:${sentryRelease}`,
 	],

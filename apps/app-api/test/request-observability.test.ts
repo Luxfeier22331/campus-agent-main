@@ -337,7 +337,7 @@ describe("request observability", () => {
 						suggested_next_action: "delegate",
 					},
 					runtimeVersions: {
-						"supervisor-api": "test",
+						"execution-control": "test",
 					},
 					selectedTarget: "campus-services-agent",
 					selectedTools: ["transport_schedule_lookup"],

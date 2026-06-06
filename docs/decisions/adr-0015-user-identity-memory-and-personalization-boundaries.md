@@ -40,7 +40,7 @@ Accepted on 2026-03-28.
 - canonical app identity 由 `apps/app-api` 拥有
 - browser cookie、Access JWT、Worker admission 或 edge trust material 只属于
   runtime-boundary input
-- `apps/execution-gateway`、`apps/supervisor-agent-worker`、`packages/rag-agent` 只消费
+- `apps/execution-control`、`apps/supervisor-agent-worker`、`packages/rag-agent` 只消费
   `app-api` 投影后的 typed actor context
 
 这意味着：
@@ -95,7 +95,7 @@ Accepted on 2026-03-28.
 
 ## 决策 4：跨边界只传 typed projection，不传 raw state
 
-`app-api -> execution-gateway -> agent` 链路默认只允许传递最小化、结构化的上下文投影。
+`app-api -> execution-control -> agent` 链路默认只允许传递最小化、结构化的上下文投影。
 
 长期默认允许的内容包括：
 

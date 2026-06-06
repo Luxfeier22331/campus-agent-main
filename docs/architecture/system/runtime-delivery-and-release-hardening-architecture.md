@@ -26,8 +26,8 @@ updated: 2026-04-25
 执行级 runbook 统一看：
 
 - `docs/runbooks/staging-worker-deploy-runbook.md`
-- `docs/runbooks/execution-gateway-staging-operations.md`
-- `docs/runbooks/execution-gateway-staging-smoke-runbook.md`
+- `docs/runbooks/execution-control-staging-operations.md`
+- `docs/runbooks/execution-control-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 
 ## 核心结论
@@ -44,13 +44,13 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - staging browser baseline 当前固定为 `chat-staging.mucwiki-edge.link`、
   `docs-staging.mucwiki-edge.link`、`panel-staging.mucwiki-edge.link`；web surfaces
   通过 Worker `APP_API` Service Binding 调用 `app-api-staging`
-- `apps/execution-gateway` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+- `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
-- `apps/execution-gateway` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
+- `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
-- 当前 repo-owned staging execution runtime 已 hardcut 到 `execution-gateway + supervisor-agent-worker`
+- 当前 repo-owned staging execution runtime 已 hardcut 到 `execution-control + supervisor-agent-worker`
   双容器；legacy dev-backed supervisor host 不再是 active runback path
-- `execution-gateway` readiness 代表 execution runtime 是否适合接收新请求；瞬时并发满载不单独定义为
+- `execution-control` readiness 代表 execution runtime 是否适合接收新请求；瞬时并发满载不单独定义为
   runtime broken，queue full / draining / bridge unhealthy 才进入 degraded posture
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
   共同决定
@@ -120,20 +120,20 @@ release identity 的长期规则固定为：
 
 ### Upstream Execution Gate
 
-- `app-api` deploy 时必须显式注入真实可达的 `EXECUTION_GATEWAY_BASE_URL`
+- `app-api` deploy 时必须显式注入真实可达的 `EXECUTION_CONTROL_BASE_URL`
 - forward deploy truth 应指向 Docker-first Go execution ingress
 - 如果 Docker supervisor ingress 由 Cloudflare Access 保护，`app-api` 必须同时注入
-  `EXECUTION_GATEWAY_ACCESS_CLIENT_ID` 与 `EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET`
+  `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
-- repo-owned staging runbook 只消费 `execution-gateway` execution origin；不再保留
+- repo-owned staging runbook 只消费 `execution-control` execution origin；不再保留
   dev-backed compatibility path
 
 ### Execution Runtime Gate
 
 Docker-side execution runtime 的 release gate 长期至少覆盖：
 
-- `execution-gateway /healthz`、`/readyz` 与 `/metrics` 可达
-- Python private bridge readiness 已被 `execution-gateway /readyz` 聚合
+- `execution-control /healthz`、`/readyz` 与 `/metrics` 可达
+- Python private bridge readiness 已被 `execution-control /readyz` 聚合
 - configured global budget 与 per-lane budget 未漂移
 - queue full、queue timeout、draining、bridge timeout 与 bridge unavailable 都有
   typed failure fingerprint
@@ -216,4 +216,4 @@ post-deploy verification 的长期 closure 固定为：
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0043-execution-gateway-docker-first-runtime.md`
+- `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`

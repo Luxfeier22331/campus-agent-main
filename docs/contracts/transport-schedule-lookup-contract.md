@@ -44,7 +44,7 @@ updated: 2026-04-28
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
 - rollout flag 仍由 Go runtime 持有：
-  `EXECUTION_GATEWAY_OPEN_CAPABILITIES=campus_services`。
+  `EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services`。
 - 未设置该 flag 时，产品路径仍必须 fail-close。
 
 ## Core Conclusion
@@ -75,7 +75,7 @@ updated: 2026-04-28
 - 临时停运/调整写入 `transport_service_exceptions`
 - 对象存储保存 immutable versioned artifact；current artifact 只保留为
   compatibility surface
-- Go `apps/execution-gateway` 不直接读取对象存储或 mounted projection file；长期通过
+- Go `apps/execution-control` 不直接读取对象存储或 mounted projection file；长期通过
   projection-backed internal query service 读取 PostgreSQL current pointer 与 typed
   read model
 

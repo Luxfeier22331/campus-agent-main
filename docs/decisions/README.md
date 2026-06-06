@@ -39,7 +39,7 @@ updated: 2026-06-06
 - `adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `adr-0013-app-api-worker-runtime.md`
 - `adr-0017-supervisor-internal-execution-admission.md`
-- `adr-0043-execution-gateway-docker-first-runtime.md`
+- `adr-0043-execution-control-docker-first-runtime.md`
 - `adr-0047-run-centric-durable-agent-runtime.md`
   - superseded by `adr-0048-temporal-execution-plane.md` for target execution substrate
 - `adr-0048-temporal-execution-plane.md`

@@ -20,11 +20,11 @@ updated: 2026-04-27
   - `supervisor-api` required inputs收紧：bridge base URL + shared secret 必填。
   - 新增条件校验：execution audit / opened `campus_services|notice` 对应依赖必须齐备。
   - text/json 输出都包含 condition 结果。
-- `infra/local/docker-compose.supervisor-runtime.yml`
+- `infra/local/docker-compose.execution-control-runtime.yml`
   - 双服务增加 `init`, `restart`, `no-new-privileges`, log rotation, healthcheck。
   - `supervisor-api` 等待 `supervisor-agent-worker: service_healthy`。
   - worker healthcheck 使用 `x-supervisor-bridge-auth`，避免 401 假性 unhealthy。
-- `infra/local/smoke-supervisor-runtime.sh`
+- `infra/local/smoke-execution-control-runtime.sh`
   - 增加标准 artifact bundle（`healthz/readyz/metrics/answer/summary`）。
   - 失败保留 artifact。
   - 启动失败场景下也会触发 compose 清理（`started_compose` 置位顺序修复）。
@@ -43,7 +43,7 @@ updated: 2026-04-27
   - `pnpm docs:lint`
   - `uv run --all-packages python -m unittest tests.test_supervisor_api_local_runtime -q`
   - `docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .`
-  - `infra/local/smoke-supervisor-runtime.sh closed_gate`
+  - `infra/local/smoke-execution-control-runtime.sh closed_gate`
 - runtime artifact
   - `.tmp/supervisor-api-local-smoke/20260427T145119Z-closed_gate/summary.json`
 

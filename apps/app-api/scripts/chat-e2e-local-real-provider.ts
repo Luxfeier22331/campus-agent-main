@@ -33,8 +33,8 @@ const child = spawn("pnpm", args, {
 		PROMPT_RUNTIME_PROVIDER: process.env.PROMPT_RUNTIME_PROVIDER || "openai-responses",
 		SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED:
 			process.env.SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED || "true",
-		EXECUTION_GATEWAY_TIMEOUT_MS:
-			process.env.EXECUTION_GATEWAY_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
+		EXECUTION_CONTROL_TIMEOUT_MS:
+			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
 		SUPERVISOR_AGENT_WORKER_TIMEOUT_MS:
 			process.env.SUPERVISOR_AGENT_WORKER_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
 	},

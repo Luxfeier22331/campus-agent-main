@@ -29,12 +29,12 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            commands["execution-gateway"].command,
-            ("go", "run", "./cmd/execution-gateway"),
+            commands["execution-control"].command,
+            ("go", "run", "./cmd/execution-control"),
         )
-        self.assertEqual(commands["execution-gateway"].cwd, Path("/repo/apps/execution-gateway"))
+        self.assertEqual(commands["execution-control"].cwd, Path("/repo/apps/execution-control"))
         self.assertEqual(
-            commands["execution-gateway"].env["SUPERVISOR_AGENT_WORKER_BASE_URL"],
+            commands["execution-control"].env["SUPERVISOR_AGENT_WORKER_BASE_URL"],
             "http://127.0.0.1:19081",
         )
         command_words = [word for process in plan.processes for word in process.command]
@@ -53,9 +53,9 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
 
         process_by_label = {process.label: process for process in plan.processes}
         self.assertIn("s3-smoke-object-store", process_by_label)
-        self.assertNotIn("OBJECT_STORE_ENDPOINT", process_by_label["execution-gateway"].env)
+        self.assertNotIn("OBJECT_STORE_ENDPOINT", process_by_label["execution-control"].env)
         self.assertEqual(
-            process_by_label["execution-gateway"].env[
+            process_by_label["execution-control"].env[
                 "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"
             ],
             "http://127.0.0.1:19082",
@@ -127,7 +127,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
         )
         self.assertEqual(
-            process_by_label["execution-gateway"].env[
+            process_by_label["execution-control"].env[
                 "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"
             ],
             TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
@@ -254,7 +254,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
         )
 
         process_by_label = {process.label: process for process in plan.processes}
-        api_env = process_by_label["execution-gateway"].env
+        api_env = process_by_label["execution-control"].env
 
         self.assertEqual(api_env["PROMPT_RUNTIME_PROVIDER"], "mock-runtime")
         self.assertEqual(api_env["PROMPT_RUNTIME_MODEL"], "gpt-5.5")

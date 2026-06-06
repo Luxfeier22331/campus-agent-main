@@ -13,7 +13,7 @@ SCRIPT = REPO_ROOT / "scripts" / "check_durable_runtime_cutover_preflight.py"
 
 VALID_STAGING_ENV = textwrap.dedent(
     """
-    STAGING_EXECUTION_GATEWAY_BASE_URL=https://exec-staging.mucwiki-edge.link
+    STAGING_EXECUTION_CONTROL_BASE_URL=https://exec-staging.mucwiki-edge.link
     STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@example/campus_agent
     STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@example/campus_agent
     STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@example/campus_agent
@@ -40,17 +40,17 @@ VALID_STAGING_ENV = textwrap.dedent(
     OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co
     OTEL_COLLECTOR_AXIOM_AUTH_HEADER=Bearer axiom-ingest-token
     OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
-    EXECUTION_GATEWAY_METRICS_BEARER_TOKEN=metrics
+    EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics
     SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
     SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-    EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@example/campus_agent
+    EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@example/campus_agent
     TEMPORAL_POSTGRES_PASSWORD=temporal-postgres-password
-    EXECUTION_GATEWAY_TEMPORAL_ADDRESS=temporal:7233
-    EXECUTION_GATEWAY_TEMPORAL_NAMESPACE=campus-agent-staging
-    EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE=campus-agent.workflow
-    EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY=staging:execution-gateway:001
-    EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
-    EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS=5000
+    EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
+    EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
+    EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow
+    EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
+    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
+    EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
     """
 ).strip()
 
@@ -106,7 +106,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
 
     def test_staging_runbook_uses_current_preflight_cli_shape(self) -> None:
         runbook = (
-            REPO_ROOT / "docs" / "runbooks" / "execution-gateway-staging-operations.md"
+            REPO_ROOT / "docs" / "runbooks" / "execution-control-staging-operations.md"
         ).read_text()
 
         self.assertIn("pnpm durable:cutover:preflight --json", runbook)
@@ -119,17 +119,17 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
             {
                 ".env.staging.local": textwrap.dedent(
                     """
-                    EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@example/campus_agent
+                    EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@example/campus_agent
                     TEMPORAL_POSTGRES_PASSWORD=temporal-postgres-password
-                    EXECUTION_GATEWAY_TEMPORAL_ADDRESS=temporal:7233
-                    EXECUTION_GATEWAY_TEMPORAL_NAMESPACE=campus-agent-staging
-                    EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE=campus-agent.workflow
-                    EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY=staging:execution-gateway:001
-                    EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
-                    EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS=5000
+                    EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
+                    EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
+                    EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow
+                    EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
+                    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
+                    EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
                     """
                 ).strip(),
-                "apps/app-api/.dev.vars": "EXECUTION_GATEWAY_SHARED_SECRET=worker-secret\n",
+                "apps/app-api/.dev.vars": "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
             }
         )
 
@@ -147,7 +147,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         result = run_preflight(
             {
                 ".env.staging.local": VALID_STAGING_ENV,
-                "apps/app-api/.dev.vars": "EXECUTION_GATEWAY_SHARED_SECRET=worker-secret\n",
+                "apps/app-api/.dev.vars": "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
             },
             env={"CLOUDFLARE_API_TOKEN": "cf-token"},
         )
@@ -161,7 +161,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         result = run_preflight(
             {
                 ".env.staging.local": LOCAL_MINIO_STAGING_ENV,
-                "apps/app-api/.dev.vars": "EXECUTION_GATEWAY_SHARED_SECRET=worker-secret\n",
+                "apps/app-api/.dev.vars": "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
             },
             env={"CLOUDFLARE_API_TOKEN": "cf-token"},
         )
@@ -179,7 +179,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         result = run_preflight(
             {
                 ".env.staging.local": invalid_env,
-                "apps/app-api/.dev.vars": "EXECUTION_GATEWAY_SHARED_SECRET=worker-secret\n",
+                "apps/app-api/.dev.vars": "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
             },
             env={"CLOUDFLARE_API_TOKEN": "cf-token"},
         )
@@ -192,8 +192,8 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
     def test_rejects_invalid_cutover_contract_values(self) -> None:
         invalid_env = (
             VALID_STAGING_ENV.replace(
-                "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY=staging:execution-gateway:001",
-                "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY=worker-1",
+                "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001",
+                "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=worker-1",
             )
             .replace(
                 "STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25",
@@ -211,7 +211,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         result = run_preflight(
             {
                 ".env.staging.local": invalid_env,
-                "apps/app-api/.dev.vars": "EXECUTION_GATEWAY_SHARED_SECRET=worker-secret\n",
+                "apps/app-api/.dev.vars": "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
             },
             env={"CLOUDFLARE_API_TOKEN": "cf-token"},
         )
@@ -222,21 +222,21 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertIn("STAGING_INGESTION_OBJECT_STORE_PROFILE", payload["blockers"])
         self.assertIn("STAGING_INGESTION_EMBEDDING_DIMENSIONS", payload["blockers"])
         self.assertIn("STAGING_INGESTION_SPARSE_MODEL", payload["blockers"])
-        self.assertIn("EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY", payload["blockers"])
+        self.assertIn("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", payload["blockers"])
 
     def test_rejects_retired_pg_loop_env(self) -> None:
-        invalid_env = VALID_STAGING_ENV + "\nEXECUTION_GATEWAY_DURABLE_WORKER_LOOP_ENABLED=true\n"
+        invalid_env = VALID_STAGING_ENV + "\nEXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED=true\n"
         result = run_preflight(
             {
                 ".env.staging.local": invalid_env,
-                "apps/app-api/.dev.vars": "EXECUTION_GATEWAY_SHARED_SECRET=worker-secret\n",
+                "apps/app-api/.dev.vars": "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
             },
             env={"CLOUDFLARE_API_TOKEN": "cf-token"},
         )
 
         self.assertNotEqual(result.returncode, 0)
         payload = json.loads(result.stdout)
-        self.assertIn("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_ENABLED", payload["blockers"])
+        self.assertIn("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED", payload["blockers"])
 
     def test_rejects_invalid_observability_sink_contract(self) -> None:
         invalid_env = (
@@ -256,7 +256,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         result = run_preflight(
             {
                 ".env.staging.local": invalid_env,
-                "apps/app-api/.dev.vars": "EXECUTION_GATEWAY_SHARED_SECRET=worker-secret\n",
+                "apps/app-api/.dev.vars": "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
             },
             env={"CLOUDFLARE_API_TOKEN": "cf-token"},
         )

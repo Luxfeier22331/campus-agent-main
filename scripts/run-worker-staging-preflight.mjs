@@ -46,16 +46,16 @@ async function probeUrl(input) {
 }
 
 async function probeSupervisorApiForStagingAppApi() {
-	const upstream = process.env.STAGING_EXECUTION_GATEWAY_BASE_URL?.trim();
+	const upstream = process.env.STAGING_EXECUTION_CONTROL_BASE_URL?.trim();
 	if (!upstream) {
-		fail("STAGING_EXECUTION_GATEWAY_BASE_URL is required for apps/app-api staging preflight.");
+		fail("STAGING_EXECUTION_CONTROL_BASE_URL is required for apps/app-api staging preflight.");
 	}
 
 	let baseUrl;
 	try {
 		baseUrl = new URL(upstream);
 	} catch {
-		fail("STAGING_EXECUTION_GATEWAY_BASE_URL must be a valid absolute URL.");
+		fail("STAGING_EXECUTION_CONTROL_BASE_URL must be a valid absolute URL.");
 	}
 
 	baseUrl.pathname = "/";
@@ -66,7 +66,7 @@ async function probeSupervisorApiForStagingAppApi() {
 
 	try {
 		await probeUrl({
-			label: `STAGING_EXECUTION_GATEWAY_BASE_URL health probe (${healthUrl.toString()})`,
+			label: `STAGING_EXECUTION_CONTROL_BASE_URL health probe (${healthUrl.toString()})`,
 			url: healthUrl,
 		});
 	} catch (error) {

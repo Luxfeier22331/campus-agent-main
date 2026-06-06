@@ -145,7 +145,7 @@ export function registerDataProviderSafetyAuditSuite() {
 					traceId: "trace_01HQ",
 				},
 				links: {
-					issueFingerprint: "timeout:supervisor-api",
+					issueFingerprint: "timeout:execution-control",
 					issueLink: "https://sentry.example/issues/123",
 					traceLink: "https://sentry.example/traces/trace_01HQ",
 				},

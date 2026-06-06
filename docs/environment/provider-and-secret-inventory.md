@@ -188,34 +188,34 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   获取方式: 在 Zero Trust 创建 self-hosted Access application，复制 team domain 与
   Application Audience (AUD) Tag
 
-- Provider / system: Execution Gateway staging operator shell
-  作用: 这台开发机上的 staging named tunnel、execution-gateway 双容器 runtime、自愈任务与 strict
+- Provider / system: Execution Control staging operator shell
+  作用: 这台开发机上的 staging named tunnel、execution-control 双容器 runtime、自愈任务与 strict
   health check
-  主要 env keys: `EXECUTION_GATEWAY_STAGING_TUNNEL_NAME`
-  `EXECUTION_GATEWAY_STAGING_PUBLIC_BASE_URL`
-  `EXECUTION_GATEWAY_STAGING_APP_API_BASE_URL`
+  主要 env keys: `EXECUTION_CONTROL_STAGING_TUNNEL_NAME`
+  `EXECUTION_CONTROL_STAGING_PUBLIC_BASE_URL`
+  `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL`
   `SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET`
   放置位置: operator shell / Windows scheduled task action
   何时必需: 当前 canonical staging execution runtime 需要
   获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写
 
 - Provider / system: Supervisor local runtime command template
-  作用: 本地 Docker 双容器 `execution-gateway` runtime 的 command-scoped override
-  主要 env keys: `SUPERVISOR_RUNTIME_*` `EXECUTION_GATEWAY_*`
+  作用: 本地 Docker 双容器 `execution-control` runtime 的 command-scoped override
+  主要 env keys: `SUPERVISOR_RUNTIME_*` `EXECUTION_CONTROL_*`
   `SUPERVISOR_AGENT_WORKER_*` `SUPERVISOR_STRUCTURED_QUERY_*`
   放置位置: `env/commands/supervisor-runtime.env.example`
   何时必需: 只在本地 smoke / 运维排障需要显式覆写默认值时
   获取方式: 直接基于 repo template；不要把 deploy-only secret 回写到 root `.env.example`
 
-- Provider / system: Execution Gateway machine ingress protection
-  作用: `apps/app-api` 调用 Docker-first `execution-gateway` 时穿过 Cloudflare Access /
+- Provider / system: Execution Control machine ingress protection
+  作用: `apps/app-api` 调用 Docker-first `execution-control` 时穿过 Cloudflare Access /
   Tunnel 保护的机器入口
-  主要 env keys: `EXECUTION_GATEWAY_ACCESS_CLIENT_ID`
-  `EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET`
+  主要 env keys: `EXECUTION_CONTROL_ACCESS_CLIENT_ID`
+  `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
   放置位置: `apps/app-api/.dev.vars` 或 Cloudflare Worker secret store
-  何时必需: 当 `EXECUTION_GATEWAY_BASE_URL` 指向 Access-protected machine ingress 时必需
+  何时必需: 当 `EXECUTION_CONTROL_BASE_URL` 指向 Access-protected machine ingress 时必需
   获取方式: Cloudflare Zero Trust Service Token；该 token 不替代
-  `EXECUTION_GATEWAY_SHARED_SECRET`
+  `EXECUTION_CONTROL_SHARED_SECRET`
 
 ## Provider 详情
 
@@ -430,7 +430,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 R2 API token 作为 S3 凭据时，Access Key ID 是 token id，Secret Access Key 是 token
 value 的 SHA-256。Secret Access Key 只在创建 token 时可派生一次；不得把 token value
-或派生后的 secret 写入 repo。`execution-gateway` staging 只读/读取 notice canonical body 时使用
+或派生后的 secret 写入 repo。`execution-control` staging 只读/读取 notice canonical body 时使用
 derived-only bucket-scoped 凭据，不能复用 `ayafeed-*` 或 public docs reader asset bucket。
 
 Worker gated reader 交付：
@@ -914,9 +914,9 @@ root convenience keys：
   - `BETTER_AUTH_SECRET`
   - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
   - `PUBLIC_CHAT_WEB_ORIGIN`
-  - `EXECUTION_GATEWAY_*`
+  - `EXECUTION_CONTROL_*`
   - 如果 supervisor ingress 受 Cloudflare Access 保护，补充
-    `EXECUTION_GATEWAY_ACCESS_CLIENT_ID` 与 `EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET`
+    `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
   - `APP_API_INTERNAL_SHARED_SECRET`
 - `apps/public-chat-web/.dev.vars`
   - `APP_API_BASE_URL`

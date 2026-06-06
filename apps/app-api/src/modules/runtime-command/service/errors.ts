@@ -1,5 +1,5 @@
 import { AppApiRouteError } from "../../../http";
-import { type SupervisorExecutionResponse, ExecutionGatewayTransportError } from "../../integration";
+import { type SupervisorExecutionResponse, ExecutionControlTransportError } from "../../integration";
 
 export function createPreAcceptError(input: {
 	code: string;
@@ -30,7 +30,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 	status: "error";
 	traceId: string;
 } {
-	if (error instanceof ExecutionGatewayTransportError) {
+	if (error instanceof ExecutionControlTransportError) {
 		return {
 			answerText: "",
 			error: {

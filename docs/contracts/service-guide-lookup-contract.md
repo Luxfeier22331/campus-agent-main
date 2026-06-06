@@ -36,7 +36,7 @@ updated: 2026-04-26
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
 - rollout flag 仍由 Go runtime 持有：
-  `EXECUTION_GATEWAY_OPEN_CAPABILITIES=campus_services`；未设置时产品路径仍应 fail-close。
+  `EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services`；未设置时产品路径仍应 fail-close。
 
 ## Core Conclusion
 
@@ -316,7 +316,7 @@ ServiceGuideCandidate
 - builder 离线抽取 service records、section facts、materials、entry refs、office hours、
   contacts 与 source refs
 - builder 必须输出 validation summary；带人工审核标记的旧 source truth 不能进入新 release
-- Go `apps/execution-gateway` 通过 PostgreSQL `structured_projection_current` current
+- Go `apps/execution-control` 通过 PostgreSQL `structured_projection_current` current
   pointer 与 typed `service_guide_read_model` 读取当前 release，不直接读取对象存储，也不再支持
   mounted current projection file runtime path
 
@@ -377,4 +377,4 @@ Phase 6 snapshot（2026-04-27）：
 
 - 上述条件已由 `campus-services-product-path` opening gate 聚合验证通过。
 - tool-level verdict 已进入 `open`，但环境是否对真实用户开放仍受
-  `EXECUTION_GATEWAY_OPEN_CAPABILITIES` 控制。
+  `EXECUTION_CONTROL_OPEN_CAPABILITIES` 控制。

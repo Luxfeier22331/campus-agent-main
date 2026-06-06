@@ -16,7 +16,7 @@ architecture。
 - 顶层产品入口应先做什么判断、后做什么判断
 - `admission` 与 `routing` 应怎样分层
 - `requested_scope`、`capability family`、clarification 分别属于哪一层
-- `apps/app-api`、`execution-gateway` / current `apps/execution-gateway`、
+- `apps/app-api`、`execution-control` / current `apps/execution-control`、
   `apps/supervisor-agent-worker`、
   typed tools 与 agent-as-tool 各自负责什么
 
@@ -143,17 +143,17 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
   - `apps/app-api` 与 durable scheduler 共同消费；canonical identity truth 仍在
     `apps/app-api`
 - `run admission`
-  - `apps/execution-gateway` durable scheduler 拥有；判断是否创建 / 推进一个 run
+  - `apps/execution-control` durable scheduler 拥有；判断是否创建 / 推进一个 run
 - `step admission`
-  - `apps/execution-gateway` durable scheduler 拥有；判断 typed step 是否允许排队、是否满足
+  - `apps/execution-control` durable scheduler 拥有；判断 typed step 是否允许排队、是否满足
     dependency、projection、ToolSpec / AgentSpec 与 lane 条件
 - `activity dispatch admission`
   - target architecture 中由 Temporal workflow / task queue dispatch 与
     repo-owned budget policy 承接；判断 lane、worker、provider、Qdrant、
     Postgres 等 execution budget
 
-当前 `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS`、
-`EXECUTION_GATEWAY_QUEUE_CAPACITY` 与 `EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS` 只属于
+当前 `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS`、
+`EXECUTION_CONTROL_QUEUE_CAPACITY` 与 `EXECUTION_CONTROL_QUEUE_TIMEOUT_MS` 只属于
 current process-local execution protection。
 它们不得替代 durable run admission 或 lease coordination。
 
@@ -251,12 +251,12 @@ supervisor 长期继续统一负责：
 - `public-chat-web` 当前 knowledge-only 是 surface posture
 - `public-docs` 不消费 execution routing，不因此拥有 `knowledge` capability
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
-- `apps/execution-gateway` 不拥有 product-layer surface allowlist truth
+- `apps/execution-control` 不拥有 product-layer surface allowlist truth
 
 禁止做法：
 
 - 把某个 surface 当前开放的 capability 直接写死成整个 repo 的长期入口原则
-- 让 `apps/execution-gateway` 或 agent 反向拥有 browser-facing capability policy
+- 让 `apps/execution-control` 或 agent 反向拥有 browser-facing capability policy
 
 ## Capability Family First, Scope Second
 

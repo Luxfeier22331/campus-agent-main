@@ -125,10 +125,10 @@ export function buildSharedDbIntegrationEnv(input: {
 		PUBLIC_CHAT_WEB_ORIGIN:
 			process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
 		RESEND_API_KEY: process.env.RESEND_API_KEY?.trim() || "shared-db-integration-resend-key",
-		EXECUTION_GATEWAY_BASE_URL:
-			process.env.EXECUTION_GATEWAY_BASE_URL?.trim() || "https://execution-gateway.internal",
-		EXECUTION_GATEWAY_SHARED_SECRET:
-			process.env.EXECUTION_GATEWAY_SHARED_SECRET?.trim() || "shared-db-integration-secret",
+		EXECUTION_CONTROL_BASE_URL:
+			process.env.EXECUTION_CONTROL_BASE_URL?.trim() || "https://execution-control.internal",
+		EXECUTION_CONTROL_SHARED_SECRET:
+			process.env.EXECUTION_CONTROL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
 	};
 
 	return {

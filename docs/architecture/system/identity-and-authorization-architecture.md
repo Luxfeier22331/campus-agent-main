@@ -109,7 +109,7 @@ authz schema。
 execution path 的长期规则：
 
 - `apps/app-api` 提供最小 typed actor/context
-- `apps/execution-gateway` 只做 caller admission，不恢复最终业务 actor
+- `apps/execution-control` 只做 caller admission，不恢复最终业务 actor
 - supervisor / agent 基于 typed projection 做 planning、clarification、wording
 
 ## Restricted Documents And Retrieval

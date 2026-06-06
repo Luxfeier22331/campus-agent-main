@@ -35,7 +35,7 @@ capability，而不是 generic retrieval 的一个 collection alias。
 固定形态为：
 
 ```text
-app-api -> execution-gateway -> supervisor-agent-worker -> campus-services-agent
+app-api -> execution-control -> supervisor-agent-worker -> campus-services-agent
 -> thin tool adapter -> internal query service -> projection-backed structured truth
 ```
 
@@ -192,7 +192,7 @@ workflow。
   `structured_projection_current` current pointer 与 transport typed read model
 - Docker runtime 读取 PostgreSQL current release + typed read model；文件 projection
   path 已下线
-- Go `apps/execution-gateway` 不直接读对象存储、不持有对象存储凭据
+- Go `apps/execution-control` 不直接读对象存储、不持有对象存储凭据
 
 这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。
 
@@ -219,7 +219,7 @@ runtime lane 已开放。
 
 - opening gate 由 shared eval profile `campus-services-product-path` 驱动；artifact
   是产品路径 opening verdict 的唯一 machine-readable 入口
-- rollout flag 仍由 Go runtime 持有：`EXECUTION_GATEWAY_OPEN_CAPABILITIES`
+- rollout flag 仍由 Go runtime 持有：`EXECUTION_CONTROL_OPEN_CAPABILITIES`
 - gate 未打开时，产品主路径必须保持 deterministic fail-close，不得回退 generic retrieval
 - 不得通过 stub、link-only response 或 “先用 RAG 顶上” 伪装成能力已上线
 
@@ -245,7 +245,7 @@ uv run --all-packages python -m scripts.eval_gate accept \
 
 - local gate `PASS` 只表示“可进入 rollout 判定”，不自动等于 staging/prod 已开
 - staging/prod 开放前必须额外满足：
-  - `execution-gateway /readyz`：`capability_gates.campus_services.open=true`
+  - `execution-control /readyz`：`capability_gates.campus_services.open=true`
   - `app-api/public-chat /readyz`：`preflight.campusServicesProductPath.status=ready`
 - 若上述 preflight blocker 任一项退化，必须立即回滚 capability flag
 

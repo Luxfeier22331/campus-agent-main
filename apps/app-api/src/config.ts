@@ -1,7 +1,7 @@
 export type AppApiEnvironment = "development" | "test" | "staging" | "production";
 export type DatabaseSslMode = "disable" | "prefer" | "require";
-export const DEFAULT_EXECUTION_GATEWAY_TIMEOUT_MS = 8_000;
-export const DEFAULT_EXECUTION_GATEWAY_EVAL_TIMEOUT_MS = 30_000;
+export const DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS = 8_000;
+export const DEFAULT_EXECUTION_CONTROL_EVAL_TIMEOUT_MS = 30_000;
 export const DEFAULT_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS = 8_000;
 
 export interface HyperdriveBindingLike {
@@ -23,12 +23,12 @@ export interface Env {
 	AUTH_RESET_EMAIL_FROM?: string;
 	AUTH_RESET_EMAIL_REPLY_TO?: string;
 	PUBLIC_CHAT_WEB_ORIGIN?: string;
-	EXECUTION_GATEWAY_ACCESS_CLIENT_ID?: string;
-	EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET?: string;
-	EXECUTION_GATEWAY_BASE_URL?: string;
-	EXECUTION_GATEWAY_SHARED_SECRET?: string;
-	EXECUTION_GATEWAY_TIMEOUT_MS?: string;
-	EXECUTION_GATEWAY_EVAL_TIMEOUT_MS?: string;
+	EXECUTION_CONTROL_ACCESS_CLIENT_ID?: string;
+	EXECUTION_CONTROL_ACCESS_CLIENT_SECRET?: string;
+	EXECUTION_CONTROL_BASE_URL?: string;
+	EXECUTION_CONTROL_SHARED_SECRET?: string;
+	EXECUTION_CONTROL_TIMEOUT_MS?: string;
+	EXECUTION_CONTROL_EVAL_TIMEOUT_MS?: string;
 	APP_API_OPERATOR_DATABASE_URL?: string;
 	APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
@@ -66,10 +66,10 @@ export interface AppApiConfig {
 	endUserEmailDomainAllowlist: string[];
 	endUserEmailAllowlist: string[];
 	operatorEmailAllowlist: string[];
-	executionGatewayBaseUrl: string;
-	executionGatewaySharedSecret: string;
-	executionGatewayTimeoutMs: number;
-	executionGatewayEvalTimeoutMs: number;
+	executionControlBaseUrl: string;
+	executionControlSharedSecret: string;
+	executionControlTimeoutMs: number;
+	executionControlEvalTimeoutMs: number;
 }
 
 export interface AppAuthConfig {
@@ -94,8 +94,8 @@ const MISSING_CONFIG_KEYS = [
 	"RESEND_API_KEY",
 	"AUTH_RESET_EMAIL_FROM",
 	"PUBLIC_CHAT_WEB_ORIGIN",
-	"EXECUTION_GATEWAY_BASE_URL",
-	"EXECUTION_GATEWAY_SHARED_SECRET",
+	"EXECUTION_CONTROL_BASE_URL",
+	"EXECUTION_CONTROL_SHARED_SECRET",
 	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 	"APP_API_OPERATOR_EMAIL_ALLOWLIST",
 	"APP_API_INTERNAL_SHARED_SECRET",
@@ -187,10 +187,10 @@ export function getMissingRuntimeConfig(env: Env): string[] {
 	if (!env.PUBLIC_CHAT_WEB_ORIGIN?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[5]);
 	}
-	if (!env.EXECUTION_GATEWAY_BASE_URL?.trim()) {
+	if (!env.EXECUTION_CONTROL_BASE_URL?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[6]);
 	}
-	if (!env.EXECUTION_GATEWAY_SHARED_SECRET?.trim()) {
+	if (!env.EXECUTION_CONTROL_SHARED_SECRET?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[7]);
 	}
 	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
@@ -311,21 +311,21 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		env.APP_API_INTERNAL_SHARED_SECRET,
 		"APP_API_INTERNAL_SHARED_SECRET",
 	);
-	const executionGatewayBaseUrl = readRequiredTrimmedValue(
-		env.EXECUTION_GATEWAY_BASE_URL,
-		"EXECUTION_GATEWAY_BASE_URL",
+	const executionControlBaseUrl = readRequiredTrimmedValue(
+		env.EXECUTION_CONTROL_BASE_URL,
+		"EXECUTION_CONTROL_BASE_URL",
 	);
-	const executionGatewaySharedSecret = readRequiredTrimmedValue(
-		env.EXECUTION_GATEWAY_SHARED_SECRET,
-		"EXECUTION_GATEWAY_SHARED_SECRET",
+	const executionControlSharedSecret = readRequiredTrimmedValue(
+		env.EXECUTION_CONTROL_SHARED_SECRET,
+		"EXECUTION_CONTROL_SHARED_SECRET",
 	);
-	const executionGatewayTimeoutMs = parsePositiveInteger(
-		env.EXECUTION_GATEWAY_TIMEOUT_MS,
-		DEFAULT_EXECUTION_GATEWAY_TIMEOUT_MS,
+	const executionControlTimeoutMs = parsePositiveInteger(
+		env.EXECUTION_CONTROL_TIMEOUT_MS,
+		DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
 	);
-	const executionGatewayEvalTimeoutMs = parsePositiveInteger(
-		env.EXECUTION_GATEWAY_EVAL_TIMEOUT_MS,
-		DEFAULT_EXECUTION_GATEWAY_EVAL_TIMEOUT_MS,
+	const executionControlEvalTimeoutMs = parsePositiveInteger(
+		env.EXECUTION_CONTROL_EVAL_TIMEOUT_MS,
+		DEFAULT_EXECUTION_CONTROL_EVAL_TIMEOUT_MS,
 	);
 
 	return {
@@ -341,10 +341,10 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		endUserEmailAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_ALLOWLIST).map((item) =>
 			item.toLowerCase(),
 		),
-		executionGatewayBaseUrl,
-		executionGatewaySharedSecret,
-		executionGatewayTimeoutMs,
-		executionGatewayEvalTimeoutMs,
+		executionControlBaseUrl,
+		executionControlSharedSecret,
+		executionControlTimeoutMs,
+		executionControlEvalTimeoutMs,
 		operatorEmailAllowlist: parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>
 			item.toLowerCase(),
 		),

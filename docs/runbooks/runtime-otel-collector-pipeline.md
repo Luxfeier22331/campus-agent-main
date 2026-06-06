@@ -49,11 +49,11 @@ Start a local Collector with the debug profile:
 otelcol-contrib --config=infra/otel/collector-local-debug.yaml
 ```
 
-Enable `execution-gateway` OTLP export to the local Collector:
+Enable `execution-control` OTLP export to the local Collector:
 
 ```bash
-EXECUTION_GATEWAY_OTEL_ENABLED=true
-EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318/v1/traces
+EXECUTION_CONTROL_OTEL_ENABLED=true
+EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318/v1/traces
 ```
 
 Expected local evidence:
@@ -135,10 +135,10 @@ Expected result: no matches; `rg` exits with `1`.
 The workstream-level acceptance record is
 `.planning/workstreams/runtime-otel-observability-bridge/ACCEPTANCE.md`.
 
-Online runtime smoke through `execution-gateway`:
+Online runtime smoke through `execution-control`:
 
 ```bash
-cd apps/execution-gateway && \
+cd apps/execution-control && \
   go test ./internal/httpapi -run 'TestRuntimeOtel' -count=1
 ```
 

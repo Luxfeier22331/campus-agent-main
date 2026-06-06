@@ -123,7 +123,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         )
         self.assertEqual(transport_schedule.expected_run_status, 202)
         self.assertEqual(
-            transport_schedule.processes[1].env["EXECUTION_GATEWAY_OPEN_CAPABILITIES"],
+            transport_schedule.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
@@ -145,7 +145,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             transport_processes["supervisor-agent-worker"].env[
                 "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
             ],
-            transport_processes["execution-gateway"].env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
+            transport_processes["execution-control"].env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
         )
         self.assertEqual(
             transport_processes["supervisor-agent-worker"].env[
@@ -162,12 +162,12 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         )
         self.assertIn('"status": "queued"', transport_schedule_stream.expected_run_body_tokens)
         self.assertEqual(
-            transport_schedule_stream.processes[1].env["EXECUTION_GATEWAY_OPEN_CAPABILITIES"],
+            transport_schedule_stream.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(service_status.expected_run_status, 202)
         self.assertEqual(
-            service_status.processes[1].env["EXECUTION_GATEWAY_OPEN_CAPABILITIES"],
+            service_status.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
@@ -176,7 +176,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         )
         self.assertEqual(service_guide.expected_run_status, 202)
         self.assertEqual(
-            service_guide.processes[1].env["EXECUTION_GATEWAY_OPEN_CAPABILITIES"],
+            service_guide.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
@@ -185,7 +185,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         )
         self.assertEqual(contact_directory.expected_run_status, 202)
         self.assertEqual(
-            contact_directory.processes[1].env["EXECUTION_GATEWAY_OPEN_CAPABILITIES"],
+            contact_directory.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
@@ -197,14 +197,14 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         }
         self.assertEqual(notice_discover.execution_run_payload["requested_capability"], "notice")
         self.assertEqual(
-            notice_discover_processes["execution-gateway"].env[
-                "EXECUTION_GATEWAY_OPEN_CAPABILITIES"
+            notice_discover_processes["execution-control"].env[
+                "EXECUTION_CONTROL_OPEN_CAPABILITIES"
             ],
             "notice",
         )
         self.assertNotIn("s3-smoke-object-store", notice_discover_processes)
         self.assertNotIn(
-            "OBJECT_STORE_ENDPOINT", notice_discover_processes["execution-gateway"].env
+            "OBJECT_STORE_ENDPOINT", notice_discover_processes["execution-control"].env
         )
         self.assertEqual(
             notice_discover_processes["supervisor-agent-worker"].env[
@@ -219,7 +219,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "campus_services",
         )
         self.assertEqual(
-            academic_processes["execution-gateway"].env["EXECUTION_GATEWAY_OPEN_CAPABILITIES"],
+            academic_processes["execution-control"].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
@@ -238,14 +238,14 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "notice:smoke:001",
         )  # type: ignore[index]
         self.assertEqual(
-            multi_step_processes["execution-gateway"].env[
-                "EXECUTION_GATEWAY_MULTI_STEP_WORKFLOW_ENABLED"
+            multi_step_processes["execution-control"].env[
+                "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED"
             ],
             "true",
         )
         self.assertEqual(
-            multi_step_processes["execution-gateway"].env[
-                "EXECUTION_GATEWAY_WORKFLOW_RUN_AUTO_MIGRATE"
+            multi_step_processes["execution-control"].env[
+                "EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE"
             ],
             "true",
         )
@@ -259,7 +259,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             multi_step_processes["supervisor-agent-worker"].env[
                 "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
             ],
-            multi_step_processes["execution-gateway"].env[
+            multi_step_processes["execution-control"].env[
                 "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
             ],
         )
@@ -279,14 +279,14 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "353903",
         )  # type: ignore[index]
         self.assertEqual(
-            transport_override_processes["execution-gateway"].env[
-                "EXECUTION_GATEWAY_MULTI_STEP_WORKFLOW_ENABLED"
+            transport_override_processes["execution-control"].env[
+                "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED"
             ],
             "true",
         )
         self.assertEqual(
-            transport_override_processes["execution-gateway"].env[
-                "EXECUTION_GATEWAY_OPEN_CAPABILITIES"
+            transport_override_processes["execution-control"].env[
+                "EXECUTION_CONTROL_OPEN_CAPABILITIES"
             ],
             "campus_services",
         )
@@ -327,8 +327,8 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "notice:transport:355122",
         )  # type: ignore[index]
         self.assertEqual(
-            selected_notice_guardrail_processes["execution-gateway"].env[
-                "EXECUTION_GATEWAY_OPEN_CAPABILITIES"
+            selected_notice_guardrail_processes["execution-control"].env[
+                "EXECUTION_CONTROL_OPEN_CAPABILITIES"
             ],
             "campus_services",
         )
@@ -344,7 +344,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         self.assertEqual(transactional.expected_run_status, 202)
         self.assertEqual(transactional.execution_run_payload["requested_capability"], "knowledge")
         self.assertEqual(
-            transactional.processes[1].env["EXECUTION_GATEWAY_OPEN_CAPABILITIES"],
+            transactional.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "",
         )
         self.assertIn('"status": "queued"', transactional.expected_run_body_tokens)
@@ -453,7 +453,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                 process_by_label = {process.label: process for process in processes}
 
                 self.assertEqual(
-                    process_by_label["execution-gateway"].env[
+                    process_by_label["execution-control"].env[
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"
                     ],
                     "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_notice",
@@ -502,7 +502,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                     {
                         "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": runtime_database_url,
-                        "EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL": runtime_database_url,
+                        "EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL": runtime_database_url,
                         "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
                         ),
@@ -511,19 +511,19 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                 process_by_label = {process.label: process for process in processes}
 
                 self.assertEqual(
-                    process_by_label["execution-gateway"].env[
+                    process_by_label["execution-control"].env[
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"
                     ],
                     f"postgresql://postgres:postgres@127.0.0.1:5432/{database_name}",
                 )
                 self.assertEqual(
-                    process_by_label["execution-gateway"].env[
-                        "EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL"
+                    process_by_label["execution-control"].env[
+                        "EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL"
                     ],
                     f"postgresql://postgres:postgres@127.0.0.1:5432/{database_name}",
                 )
                 self.assertNotIn(
-                    "EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL",
+                    "EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL",
                     process_by_label["supervisor-agent-worker"].env,
                 )
 

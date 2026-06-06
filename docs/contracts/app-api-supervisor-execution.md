@@ -8,7 +8,7 @@ updated: 2026-06-04
 
 ## 文档边界
 
-这份文档冻结 shared `apps/app-api` 调用 `apps/execution-gateway` 的内部执行契约。
+这份文档冻结 shared `apps/app-api` 调用 `apps/execution-control` 的内部执行契约。
 
 它补充但不替代以下文档：
 
@@ -31,11 +31,11 @@ updated: 2026-06-04
 - `packages/contracts` 中 agent payload 的全部字段
 - execution engine runtime 必须采用哪种 Python/HTTP 框架
 - Docker 镜像构建细节、容器编排平台与 repo-level staging hostname
-- public entry Worker 对 `apps/execution-gateway` 的现有 Cloudflare ingress contract
+- public entry Worker 对 `apps/execution-control` 的现有 Cloudflare ingress contract
 
 ## Machine-Readable Contract Source
 
-`app-api -> execution-gateway -> supervisor-agent-worker` 的 execution /
+`app-api -> execution-control -> supervisor-agent-worker` 的 execution /
 bridge wrapper 以机器可读 schema 为 canonical source：
 
 - `docs/contracts/schemas/supervisor-execution.openapi.yaml`：OpenAPI 3.1.1 +
@@ -45,7 +45,7 @@ bridge wrapper 以机器可读 schema 为 canonical source：
   artifact
 - `apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts`：Worker
   adapter 消费的 TS wire enum / interface
-- `apps/execution-gateway/internal/contracts/supervisor_execution_contract.go`：Go
+- `apps/execution-control/internal/contracts/supervisor_execution_contract.go`：Go
   execution runtime 消费的 bridge version、response contract 与 wire DTO
 - `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/supervisor_execution_contract.py`：
   Python private semantic worker 消费的 Pydantic DTO
@@ -79,12 +79,12 @@ internal execution seam 只接受 canonical `snake_case` JSON。
 
 固定规则：
 
-- `supervisor-execution.openapi.yaml` 是 `app-api -> execution-gateway ->
+- `supervisor-execution.openapi.yaml` 是 `app-api -> execution-control ->
   supervisor-agent-worker` wrapper 的唯一 schema truth；TS / Go / Python 生成物只能从它派生
 - `app-api` adapter 必须 strict parse supervisor response；`200` body 如果出现 camelCase
   top-level field、未知 top-level field、非法 enum 或缺少必需字段，按
   `supervisor_invalid_response` transport/protocol failure 处理
-- Go `execution-gateway` 与 Python bridge 对 bridge v6 envelope 也必须 strict decode；缺少
+- Go `execution-control` 与 Python bridge 对 bridge v6 envelope 也必须 strict decode；缺少
   `runtime_decisions`、`handoff.agent_request`、非法 `bridge_version`、非法 enum 或未知
   canonical wrapper 字段都 fail-closed
 - browser / panel / public product API 可以继续使用产品层 camelCase projection，但不能把
@@ -124,7 +124,7 @@ terminal policy、resume policy 与 semantic retry policy；真实 delegate payl
 首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
 `notice-agent internal selected notice resolve
 (payload_kind=campus_notice_get) -> rag-agent retrieval.query`。notice step 输出会被
-`execution-gateway` 投影成 canonical `StepOutputProjection`，再输入后续 RAG step；
+`execution-control` 投影成 canonical `StepOutputProjection`，再输入后续 RAG step；
 `workflow_plan.edges[].required_projection_kind` 声明跨 step 输入要求。operator / eval
 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
 `projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
@@ -136,16 +136,16 @@ contract 承诺。
 
 长期执行链路固定为：
 
-`public-chat-web -> app-api -> execution-gateway -> supervisor-agent-worker -> agent`
+`public-chat-web -> app-api -> execution-control -> supervisor-agent-worker -> agent`
 
 这里的关键规则只有三条：
 
 - browser 永远不直接使用这份 contract
 - `app-api` 负责产品层 auth/session/principal mapping，并把 execution-side `actor` 显式传给
-  `execution-gateway`
-- `execution-gateway` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层
+  `execution-control`
+- `execution-control` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层
   auth/session/conversation
-- `execution-gateway` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+- `execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service；这不改变本文冻结的 request/response 语义
 
 ## Transport Conclusion
@@ -161,22 +161,22 @@ contract 承诺。
 - `GET /readyz`
 
 `POST /api/v1/answer` 与 `POST /api/v1/answer/stream` 已从 active
-`app-api -> execution-gateway` submit path 退役；它们不得作为 runtime fallback、
+`app-api -> execution-control` submit path 退役；它们不得作为 runtime fallback、
 smoke shortcut 或兼容双路径恢复。Forward canonical seam 是 `app-api ->
-execution-gateway` 的 internal execution run command/query contract，不是
+execution-control` 的 internal execution run command/query contract，不是
 browser-facing public API。
 
 JSON 命名保持 `snake_case`，原因如下：
 
-- 当前 `apps/execution-gateway` 已以 shared `SupervisorRequest` /
+- 当前 `apps/execution-control` 已以 shared `SupervisorRequest` /
   `SupervisorResponse` model 为 wire truth
 - 这里是 internal execution seam，不是 browser product API
-- 这样可以减少 `app-api -> execution-gateway` 之间的翻译噪音
+- 这样可以减少 `app-api -> execution-control` 之间的翻译噪音
 
 ## Streaming Lifecycle Endpoint
 
 产品级 streaming 由 `app-api` 读取 sanitized run projection / event stream 后对 browser
-输出。`execution-gateway` 不再提供 active answer SSE endpoint。
+输出。`execution-control` 不再提供 active answer SSE endpoint。
 
 固定事件：
 
@@ -197,7 +197,7 @@ JSON 命名保持 `snake_case`，原因如下：
 - `execution.failed` / `execution.cancelled` 的 `data.error` 承载 stable
   `{ code, message, retryable }`
 - 不承诺 token-level delta、partial answer、tool trace replay 或 browser 直连
-- `app-api` 不读取 Temporal history，也不把 raw execution-gateway / Temporal event
+- `app-api` 不读取 Temporal history，也不把 raw execution-control / Temporal event
   直接暴露给 browser；它只读取 PG projection / event rows
 - 产品层 auth、session、request projection、terminal answer shape 与 duplicate-submit UX
   仍归 `app-api` / web surface 所有
@@ -217,7 +217,7 @@ JSON 命名保持 `snake_case`，原因如下：
 - `x-trace-id` 由 `app-api` 生成并负责透传
 - `x-worker-origin-auth` 是 execution-side internal caller admission 头；`app-api`
   第一版可以直接复用这个名字
-- `cf-access-jwt-assertion` 不是 shared `app-api` 调用 `execution-gateway` 的长期 contract
+- `cf-access-jwt-assertion` 不是 shared `app-api` 调用 `execution-control` 的长期 contract
   一部分
 - Cloudflare Access service token 只保护 machine ingress，不替代 `x-worker-origin-auth`
   这层 app-level shared secret
@@ -244,7 +244,7 @@ JSON 命名保持 `snake_case`，原因如下：
 响应语义：
 
 - active execution 返回 `202`，body 中 `status=cancel_requested`
-- Go `apps/execution-gateway` 会在 body 中附带 `bridge_cancel_status`，取值为 `accepted`、
+- Go `apps/execution-control` 会在 body 中附带 `bridge_cancel_status`，取值为 `accepted`、
   `not_found`、`not_configured` 或 `failed`；该字段只表示 Go -> Python
   cooperative cancel signal 的投递结果，不改变 `app-api` 对 cancel request 的
   canonical lifecycle 判断
@@ -252,7 +252,7 @@ JSON 命名保持 `snake_case`，原因如下：
 - 鉴权失败返回 `401 unauthorized`
 - malformed request 返回 `400 invalid_request`
 
-当前取消语义保证 Go `apps/execution-gateway` 停止等待、释放 execution admission slot，
+当前取消语义保证 Go `apps/execution-control` 停止等待、释放 execution admission slot，
 并把 lifecycle 标记为 `cancel_requested` / `cancelled`。Python bridge 已提供
 `/internal/bridge/execution/cancel` 并记录 active request id 的 cooperative cancel
 state；默认 supervisor orchestration 会在路由、prompt composition、agent
@@ -261,15 +261,15 @@ delegation 和 finalization 前后检查该状态，并以 `499 execution_cancel
 
 ## Bridge Circuit Breaker
 
-Go `apps/execution-gateway` 拥有 Python bridge transport / protocol health 的 circuit
+Go `apps/execution-control` 拥有 Python bridge transport / protocol health 的 circuit
 breaker。
 
 配置项：
 
-- `EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD`：默认 `5`
-- `EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS`：默认 `10000`
-- `EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS`：默认 `2`
-- `EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS`：默认 `50`
+- `EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD`：默认 `5`
+- `EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS`：默认 `10000`
+- `EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS`：默认 `2`
+- `EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS`：默认 `50`
 
 语义：
 
@@ -283,14 +283,14 @@ breaker。
   掩盖
 - 恢复成功的 delegate response 会在 `workflow_trace_summary.trace_steps` 的
   `finalization` step 中写出 `attempt_count` 与 `runtime_retry_count`；Prometheus
-  通过 `campus_execution_gateway_bridge_retries_total{kind=...}` 记录 retry attempt
+  通过 `campus_execution_control_bridge_retries_total{kind=...}` 记录 retry attempt
 - 语义层 supervisor error 不代表 bridge transport 不健康；有效 bridge envelope 会重置 circuit
 - breaker 只保护 Docker-side execution runtime，不替代 `app-api` 的 product-layer
   user limit、热点合并或 duplicate-submit UX
 
 ## Structured Query Internal Runtime
 
-Go `apps/execution-gateway` 当前承载 gate-closed structured query runtime foundation：
+Go `apps/execution-control` 当前承载 gate-closed structured query runtime foundation：
 
 - `POST /internal/query/campus-services/service-status`
 - `POST /internal/query/campus-services/service-guide`
@@ -339,7 +339,7 @@ product/control-plane endpoint。
 
 ## Execution Audit Backflow
 
-Go `apps/execution-gateway` 可以把 execution runtime kernel 事件回流给 `app-api`，但这条回流不是
+Go `apps/execution-control` 可以把 execution runtime kernel 事件回流给 `app-api`，但这条回流不是
 browser-facing execution response，也不是 panel query backend。
 
 回流 endpoint 固定为：
@@ -348,9 +348,9 @@ browser-facing execution response，也不是 panel query backend。
 
 调用规则：
 
-- 由 Go `apps/execution-gateway` 使用 `x-app-internal-auth` 调用 `app-api`
+- 由 Go `apps/execution-control` 使用 `x-app-internal-auth` 调用 `app-api`
 - delivery 是 fail-closed；开启 execution audit 后，audit sink 不可用或返回非 2xx 时，
-  `apps/execution-gateway` 必须返回稳定诊断错误，不得继续完成 answer request
+  `apps/execution-control` 必须返回稳定诊断错误，不得继续完成 answer request
 - Go writer 同步发送每个 safe audit event；不存在 batch、flush、retry、local spool 或
   drop path
 - `app-api` 验证 `request_id` 与 `trace_id` 后写入 `runtime.projection_outbox`
@@ -359,7 +359,7 @@ browser-facing execution response，也不是 panel query backend。
 - `Sentry` / `Axiom` 只作为 sanitized telemetry sink 或 backlink 来源，不成为 panel
   canonical truth
 - request lifecycle 中的 trace / issue backlink 由 `app-api` optional recorder
-  写入 `operator.trace_backlink_projection`；Go `apps/execution-gateway` 不直接服务
+  写入 `operator.trace_backlink_projection`；Go `apps/execution-control` 不直接服务
   panel，也不直接写 operator schema
 
 第一版允许的 event type：
@@ -422,7 +422,7 @@ payload 或 provider raw response。
 字段说明：
 
 - `request_id` 来自 `app-api` 分配的 canonical request identity；当前 Go
-  `apps/execution-gateway` runtime 要求它非空，用作 in-flight lifecycle 与 cancel key
+  `apps/execution-control` runtime 要求它非空，用作 in-flight lifecycle 与 cancel key
 - `conversation_id` 来自 chat domain truth
 - `user_goal` 来自产品层 prompt
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
@@ -438,14 +438,14 @@ payload 或 provider raw response。
   仍由 `app-api` surface capability policy 决定允许子集
 - `requested_scope` 可选；当前 wire truth 仍保留这个顶层字段，但它只应被解释为 knowledge-family path 的
   scope hint。如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许
-  agent 自主解析最终 serving surface，而不是由 `app-api` 或 `execution-gateway` 伪造默认
+  agent 自主解析最终 serving surface，而不是由 `app-api` 或 `execution-control` 伪造默认
   collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为
   `place_catalog` 仍是 `navigation-agent` 消费的 internal spatial truth，而不是默认公开
   query-serving surface；`campus_services` 与 `notice` 同样不得携带
   `requested_scope`
 - `version_query` 可选；当前只允许与 `requested_capability=knowledge` 一起出现。`app-api` 负责把
   browser/eval 路径上的 `camelCase versionQuery` 归一化成 Python-side `snake_case` 形态后传给
-  `execution-gateway`
+  `execution-control`
 
 补充说明：
 
@@ -462,7 +462,7 @@ payload 或 provider raw response。
 
 ## Response Body
 
-`execution-gateway` 返回的最小成功 body 继续对齐 `SupervisorResponse + trace_id`：
+`execution-control` 返回的最小成功 body 继续对齐 `SupervisorResponse + trace_id`：
 
 ```json
 {
@@ -625,10 +625,10 @@ payload 或 provider raw response。
 这意味着：
 
 - `app-api` 应把 `200 + status=error` 视为 execution-level handled outcome
-- `409 execution_already_in_flight` 表示同一 `request_id` 已在 Go `execution-gateway`
+- `409 execution_already_in_flight` 表示同一 `request_id` 已在 Go `execution-control`
   in-flight
   registry 中，不应重试成新的 execution identity
-- `499 execution_cancelled` 表示 Go `execution-gateway` 已接受 explicit cancel 或
+- `499 execution_cancelled` 表示 Go `execution-control` 已接受 explicit cancel 或
   upstream cancel 后停止等待；它不是 semantic answer failure
 - `503 transport_lane_queue_full` 与 `503 transport_lane_queue_timeout` 表示特定
   workload lane 饱和，区别于全局 `transport_queue_full` / `transport_queue_timeout`
@@ -658,12 +658,12 @@ runtime version provenance 一致；否则 fail-closed，而不是返回半结�
 
 ## Current Compatibility Note
 
-当前仓库里的 public execution ingress 已 hardcut 到 `apps/execution-gateway`。
+当前仓库里的 public execution ingress 已 hardcut 到 `apps/execution-control`。
 shared product path 已收口为：
 
-- internal caller admission 由 Go `execution-gateway` 验证 runtime header
+- internal caller admission 由 Go `execution-control` 验证 runtime header
 - `context` 由 `app-api` 显式提供，并携带最终 `actor` 与 `authorization`
-- Go `execution-gateway` 的 `trusted-worker` 不依赖 Cloudflare Access JWT 或 edge
+- Go `execution-control` 的 `trusted-worker` 不依赖 Cloudflare Access JWT 或 edge
   identity header 来恢复最终业务 actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
@@ -676,7 +676,7 @@ shared product path 已收口为：
 
 - 当前 internal execution wire truth 仍是 `requested_capability + knowledge-only optional
   requested_scope`
-- 在明确引入新版本 contract 之前，`app-api` 与 `execution-gateway` 继续按这组字段互操作，不把
+- 在明确引入新版本 contract 之前，`app-api` 与 `execution-control` 继续按这组字段互操作，不把
   capability-neutral routing 误写成“当前 wire 已经 capability-family-native”
 - `requested_scope` 的长期语义应收窄为 knowledge-family-specific field；它不能代替 capability
   routing，也不应要求非 knowledge path 伪造等价字段
@@ -690,8 +690,8 @@ shared product path 已收口为：
 
 ## Non-Goals
 
-- 不把 panel query 做进 `execution-gateway`
-- 不让 `execution-gateway` 理解 Better Auth session 或 operator trusted-access provider
+- 不把 panel query 做进 `execution-control`
+- 不让 `execution-control` 理解 Better Auth session 或 operator trusted-access provider
   细节
 - 不把 public entry Worker 的外部 ingress contract 直接复制为 shared `app-api` 的内部
   execution contract

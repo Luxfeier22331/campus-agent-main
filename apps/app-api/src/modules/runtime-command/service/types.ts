@@ -2,7 +2,7 @@ import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversationStore } from "../../chat";
 import type {
 	RequestedScope,
-	ExecutionGatewayRuntimeClient,
+	ExecutionControlRuntimeClient,
 	SupervisorExecutionResponse,
 } from "../../integration";
 import type { ProfileMemoryProjectionStore } from "../../profile-memory";
@@ -109,7 +109,7 @@ export interface ChatCommandServiceDependencies {
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;
-	durableRuntime?: ExecutionGatewayRuntimeClient;
+	durableRuntime?: ExecutionControlRuntimeClient;
 	supervisor?: unknown;
 	telemetry?: AppTelemetry;
 	traceBacklinkRecorder?: {

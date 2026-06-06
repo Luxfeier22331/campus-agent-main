@@ -13,8 +13,8 @@ updated: 2026-04-26
 
 `campus-agent` 的长期运行形态不是单一 HTTP 服务，而是至少包含：
 
-- `apps/execution-gateway` 入口边界
-- `apps/execution-gateway` execution runtime、runtime policy、finalization 与审计投影
+- `apps/execution-control` 入口边界
+- `apps/execution-control` execution runtime、runtime policy、finalization 与审计投影
 - `apps/supervisor-agent-worker` private agent bridge
 - `packages/rag-agent` / `packages/retrieval-core` 的在线回答链路
 - `apps/ingestion-worker` / `packages/ingestion-core` 的离线摄入链路
@@ -86,7 +86,7 @@ updated: 2026-04-26
 
 默认进入 `Sentry` 的信息包括：
 
-- `apps/execution-gateway`、worker、consumer app 的未捕获异常与错误聚合
+- `apps/execution-control`、worker、consumer app 的未捕获异常与错误聚合
 - 慢请求、timeout、retry、外部依赖失败
 - 关键 runtime trace 与 downstream span
 - AI / LLM / agent 相关 span、token 使用与调用失败

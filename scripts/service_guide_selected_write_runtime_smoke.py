@@ -85,9 +85,9 @@ def build_service_guide_selected_write_runtime_smoke_plan(
     resolved_api_port = api_port if api_port > 0 else _available_tcp_port(api_host)
     api_base_url = f"http://{api_host}:{resolved_api_port}"
     process = ProcessCommandSpec(
-        label="execution-gateway",
-        command=("go", "run", "./cmd/execution-gateway"),
-        cwd=repo_root / "apps" / "execution-gateway",
+        label="execution-control",
+        command=("go", "run", "./cmd/execution-control"),
+        cwd=repo_root / "apps" / "execution-control",
         env={
             "API_AUTH_MODE": "trusted-worker",
             "API_WORKER_SHARED_SECRET": os.getenv(
@@ -107,8 +107,8 @@ def build_service_guide_selected_write_runtime_smoke_plan(
                 "PROMPT_STRICT_STRUCTURED_OUTPUTS",
                 "true",
             ),
-            "EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED": "false",
-            "EXECUTION_GATEWAY_OTEL_ENABLED": "false",
+            "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
+            "EXECUTION_CONTROL_OTEL_ENABLED": "false",
             "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": resolved_secret,
             "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS": os.getenv(
                 "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
@@ -119,7 +119,7 @@ def build_service_guide_selected_write_runtime_smoke_plan(
                 "trusted_time_rfc3339",
             ),
         },
-        log_path=output_dir / "execution-gateway.log",
+        log_path=output_dir / "execution-control.log",
     )
     return ServiceGuideSelectedWriteRuntimeSmokePlan(
         repo_root=repo_root,
@@ -522,7 +522,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--api-port",
         type=int,
         default=0,
-        help="Port for execution-gateway. Defaults to an available local port.",
+        help="Port for execution-control. Defaults to an available local port.",
     )
     parser.add_argument("--timeout-seconds", type=float, default=20.0)
     parser.add_argument("--startup-timeout-seconds", type=float, default=90.0)

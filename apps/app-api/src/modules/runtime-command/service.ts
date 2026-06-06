@@ -2,7 +2,7 @@ import { type ChatConversation, DRAFT_CONVERSATION_TITLE, toConversationResponse
 import {
 	type SupervisorExecutionInput,
 	type SupervisorExecutionResponse,
-	ExecutionGatewayTransportError,
+	ExecutionControlTransportError,
 } from "../integration";
 import { type RuntimeRunPhase, runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
 
@@ -355,7 +355,7 @@ export function buildChatCommandService(
 			};
 		}
 		if (!(context.runId && context.turnId)) {
-			throw new ExecutionGatewayTransportError({
+			throw new ExecutionControlTransportError({
 				code: "runtime_invariant_failed",
 				message: "Durable runtime command is missing run or turn id.",
 				retryable: false,

@@ -1,5 +1,5 @@
 import type { ResolvedAppPrincipal } from "../auth";
-import type { ExecutionGatewayRuntimeClient } from "../integration";
+import type { ExecutionControlRuntimeClient } from "../integration";
 import type {
 	NormalizedOperatorAuditListFilters,
 	NormalizedOperatorOverviewFilters,
@@ -140,6 +140,6 @@ export interface OperatorQueryService {
 }
 
 export interface OperatorQueryServiceDependencies {
-	durableRuntime?: ExecutionGatewayRuntimeClient | null;
+	durableRuntime?: ExecutionControlRuntimeClient | null;
 	store: OperatorQueryStore;
 }

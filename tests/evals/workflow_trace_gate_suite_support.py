@@ -111,7 +111,7 @@ def _trace_summary(**overrides):
                 "source_ids": ["transport_schedule:commute"],
             },
         ),
-        "runtime_versions": {"execution-gateway": "test"},
+        "runtime_versions": {"execution-control": "test"},
         "policy_artifact_versions": {"intent-policy": "v1"},
     }
     defaults.update(overrides)

@@ -11,7 +11,7 @@ import { createPgChatConversationStore } from "../src/modules/chat";
 import type {
 	SupervisorExecutionInput,
 	SupervisorExecutionResponse,
-} from "../src/modules/integration/execution-gateway";
+} from "../src/modules/integration/execution-control";
 import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
 import {
 	buildSharedDbIntegrationEnv,

@@ -23,7 +23,7 @@ baseline 与历史设计依据。
 取消 / 恢复 / 重试、worker 横向扩展、step trajectory 诊断、operator projection 与
 eval/badcase 闭环。
 
-当前 repo 已有 Go `apps/execution-gateway` 的 PG-backed run-level durable baseline：
+当前 repo 已有 Go `apps/execution-control` 的 PG-backed run-level durable baseline：
 run store、events、execution leases、lane budgets、worker heartbeat、worker loop、
 recovery loop 与 app-api durable chat cutover。但继续自研 step-level scheduler、lease recovery、worker
 autoscaling 与 workflow history 会把大量精力投入到通用 durable execution kernel，而不是产品能力、
@@ -43,7 +43,7 @@ Temporal execution substrate 提供。
 ```text
 browser surfaces
 -> app-api
--> execution-gateway
+-> execution-control
 -> Temporal execution plane
 -> workflow / activity worker pools
 -> capability packages + data plane
@@ -53,11 +53,11 @@ browser surfaces
 
 ## 决策细节
 
-### 决策 1：`execution-gateway` 是 Temporal client owner
+### 决策 1：`execution-control` 是 Temporal client owner
 
 `apps/app-api` 不直接对接 Temporal。
 
-`execution-gateway` 负责：
+`execution-control` 负责：
 
 - trusted machine ingress from app-api
 - capability admission closeout
@@ -66,7 +66,7 @@ browser surfaces
 - run correlation 与 projection command
 - fail-close terminal mapping
 
-`execution-gateway` 不负责：
+`execution-control` 不负责：
 
 - product-layer auth/session/conversation truth
 - browser-facing surface policy ownership
@@ -74,7 +74,7 @@ browser surfaces
 - worker autoscaling decision
 - panel/eval canonical read model
 
-当前实现名仍是 `apps/execution-gateway`。长期概念名收口为 `execution-gateway`；代码目录是否重命名是后续
+当前实现名仍是 `apps/execution-control`。长期概念名收口为 `execution-control`；代码目录是否重命名是后续
 implementation work，不改变本 ADR 的架构边界。
 
 ### 决策 2：Temporal 拥有 execution truth
@@ -155,7 +155,7 @@ run projection、step projection、terminal state 或 capability policy。
 K8s 调度：
 
 - Temporal service pods if self-hosted
-- execution-gateway pods
+- execution-control pods
 - workflow worker pods
 - activity worker pods
 - resource requests / limits
@@ -196,11 +196,11 @@ agent-as-tool。
 ## 结果
 
 - `docs/architecture/target-architecture.md` 以
-  `app-api -> execution-gateway -> Temporal` 作为长期拓扑。
+  `app-api -> execution-control -> Temporal` 作为长期拓扑。
 - `docs/architecture/system/durable-agent-runtime-architecture.md` 以 Temporal
   execution plane 取代 PG scheduler / lease coordinator 作为 target runtime substrate。
 - `docs/architecture/system/execution-and-agents-architecture.md` 的 target runtime
-  roles 改为 execution-gateway、Temporal workflow worker 与 activity worker pools。
+  roles 改为 execution-control、Temporal workflow worker 与 activity worker pools。
 - `docs/contracts/durable-agent-runtime-contract.md` 与
   `docs/data/durable-agent-runtime-schema.md` 中的 run / step / event 表述必须被
   解释为 repo-owned product projection / eval truth，而不是 Temporal 的内部
@@ -211,7 +211,7 @@ agent-as-tool。
 
 本 ADR 不决定：
 
-- 立即重命名 `apps/execution-gateway` 目录
+- 立即重命名 `apps/execution-control` 目录
 - Temporal Cloud 还是 self-hosted Temporal
 - Temporal SDK 语言最终选择
 - worker image 拆分数量

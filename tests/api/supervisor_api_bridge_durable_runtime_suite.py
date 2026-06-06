@@ -6,7 +6,7 @@ from campus_contracts import AgentResponse
 from campus_supervisor_agent_worker.api import build_bridge_routes
 from campus_supervisor_agent_worker.settings import ApiSettings
 
-from .execution_gateway_bridge_support import (
+from .execution_control_bridge_support import (
     SupervisorApiBridgeBaseTest,
     _bridge_v6_payload,
 )

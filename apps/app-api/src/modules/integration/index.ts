@@ -7,16 +7,16 @@ export {
 	OfficialWebHandoffTransportError,
 } from "./official-web-handoff";
 export type {
-	ExecutionGatewayRun,
-	ExecutionGatewayRunCancelInput,
-	ExecutionGatewayRunCreateInput,
-	ExecutionGatewayRunEvent,
-	ExecutionGatewayRunEventQuery,
-	ExecutionGatewayRunQuery,
-	ExecutionGatewayRuntimeClient,
-	ExecutionGatewayRuntimePreflight,
+	ExecutionControlRun,
+	ExecutionControlRunCancelInput,
+	ExecutionControlRunCreateInput,
+	ExecutionControlRunEvent,
+	ExecutionControlRunEventQuery,
+	ExecutionControlRunQuery,
+	ExecutionControlRuntimeClient,
+	ExecutionControlRuntimePreflight,
 	RequestedScope,
-	ExecutionGatewayCampusServicesProductPathPreflight,
+	ExecutionControlCampusServicesProductPathPreflight,
 	SupervisorContextProjection,
 	SupervisorExecutionInput,
 	SupervisorExecutionObservability,
@@ -25,14 +25,14 @@ export type {
 	SupervisorProfileMemoryItem,
 	SupervisorProfileMemorySummary,
 	SupervisorPromptTrace,
-	ExecutionGatewayReadinessProbeResult,
+	ExecutionControlReadinessProbeResult,
 	SupervisorSessionSlot,
 	SupervisorSessionSummary,
-} from "./execution-gateway";
+} from "./execution-control";
 export {
-	createExecutionGatewayRuntimeClient,
-	isExecutionGatewayRuntimeConfigured,
+	createExecutionControlRuntimeClient,
+	isExecutionControlRuntimeConfigured,
 	parseSupervisorExecutionResponsePayload,
-	probeExecutionGatewayReady,
-	ExecutionGatewayTransportError,
-} from "./execution-gateway";
+	probeExecutionControlReady,
+	ExecutionControlTransportError,
+} from "./execution-control";

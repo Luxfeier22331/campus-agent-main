@@ -6,7 +6,7 @@ WORKER_STAGING_SURFACE_SPECS = {
         "required_settings": {
             "staging_access_policy_aud": ("STAGING_ACCESS_POLICY_AUD",),
             "staging_access_team_domain": ("STAGING_ACCESS_TEAM_DOMAIN",),
-            "staging_execution_gateway_base_url": ("STAGING_EXECUTION_GATEWAY_BASE_URL",),
+            "staging_execution_control_base_url": ("STAGING_EXECUTION_CONTROL_BASE_URL",),
         },
         "optional_settings": {
             "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
@@ -18,7 +18,7 @@ WORKER_STAGING_SURFACE_SPECS = {
     "worker-staging-app-api": {
         "providers": {},
         "required_settings": {
-            "staging_execution_gateway_base_url": ("STAGING_EXECUTION_GATEWAY_BASE_URL",),
+            "staging_execution_control_base_url": ("STAGING_EXECUTION_CONTROL_BASE_URL",),
         },
         "optional_settings": {
             "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),

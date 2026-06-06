@@ -12,7 +12,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 					latestTerminalCode: "completed",
 				},
 				links: {
-					issueFingerprint: "timeout:supervisor-api",
+					issueFingerprint: "timeout:execution-control",
 					issueLink: "https://sentry.example/issues/123",
 					traceLink: "https://sentry.example/traces/trace_01HQ",
 				},
@@ -116,7 +116,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		).resolves.toMatchObject({
 			data: {
 				links: {
-					issueFingerprint: "timeout:supervisor-api",
+					issueFingerprint: "timeout:execution-control",
 					traceLink: "https://sentry.example/traces/trace_01HQ",
 				},
 				observability: {

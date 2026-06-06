@@ -39,9 +39,9 @@ local/dev package closeout、staging host closeout，还是 server handoff packa
 **Inputs:**
 
 - `apps/supervisor-api/Dockerfile`
-- `infra/local/docker-compose.supervisor-runtime.yml`
-- `infra/local/start-supervisor-runtime.sh`
-- `infra/local/smoke-supervisor-runtime.sh`
+- `infra/local/docker-compose.execution-control-runtime.yml`
+- `infra/local/start-execution-control-runtime.sh`
+- `infra/local/smoke-execution-control-runtime.sh`
 - `docs/runbooks/supervisor-api-local-runtime-smoke.md`
 - `docs/runbooks/supervisor-api-staging-operations.md`
 - `scripts/doctor_env.py`
@@ -123,8 +123,8 @@ pnpm docs:lint
 
 **Primary Write Set:**
 
-- `infra/local/docker-compose.supervisor-runtime.yml`
-- `infra/local/start-supervisor-runtime.sh`
+- `infra/local/docker-compose.execution-control-runtime.yml`
+- `infra/local/start-execution-control-runtime.sh`
 - `tests/test_supervisor_api_local_runtime.py`
 - `docs/runbooks/supervisor-api-local-runtime-smoke.md`
 
@@ -186,7 +186,7 @@ uv run --all-packages ruff check scripts tests
 
 **Scope:**
 
-- 扩展 `infra/local/smoke-supervisor-runtime.sh`：
+- 扩展 `infra/local/smoke-execution-control-runtime.sh`：
   - `SUPERVISOR_RUNTIME_SMOKE_ARTIFACT_DIR`
   - timestamped default artifact dir
   - 保存 `healthz` / `readyz` / `metrics` / answer body / summary
@@ -205,14 +205,14 @@ uv run --all-packages ruff check scripts tests
 
 **Primary Write Set:**
 
-- `infra/local/smoke-supervisor-runtime.sh`
+- `infra/local/smoke-execution-control-runtime.sh`
 - `tests/test_supervisor_api_local_runtime.py`
 - `docs/runbooks/supervisor-api-local-runtime-smoke.md`
 
 **Verification:**
 
 ```bash
-bash -n infra/local/smoke-supervisor-runtime.sh
+bash -n infra/local/smoke-execution-control-runtime.sh
 pnpm shell:lint
 uv run --all-packages python -m unittest tests.test_supervisor_api_local_runtime -q
 pnpm docs:lint
@@ -221,7 +221,7 @@ pnpm docs:lint
 Runtime verification when Docker is available:
 
 ```bash
-infra/local/smoke-supervisor-runtime.sh closed_gate
+infra/local/smoke-execution-control-runtime.sh closed_gate
 ```
 
 **Exit Criteria:**
@@ -237,7 +237,7 @@ infra/local/smoke-supervisor-runtime.sh closed_gate
 
 - `apps/supervisor-api/README.md`：
   - 单容器 `docker run` 只标记为 health-only。
-  - canonical execution smoke 指向 `infra/local/smoke-supervisor-runtime.sh`。
+  - canonical execution smoke 指向 `infra/local/smoke-execution-control-runtime.sh`。
   - build / run / smoke / teardown 命令和实际脚本一致。
 - `docs/runbooks/supervisor-api-local-runtime-smoke.md`：
   - 增加 evidence artifact 说明。
@@ -335,7 +335,7 @@ pnpm docker:lint
 pnpm yaml:lint
 pnpm docs:lint
 docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .
-infra/local/smoke-supervisor-runtime.sh closed_gate
+infra/local/smoke-execution-control-runtime.sh closed_gate
 ```
 
 **Exit Criteria:**

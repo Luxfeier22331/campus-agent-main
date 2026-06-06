@@ -40,7 +40,7 @@ updated: 2026-06-03
 
 ## Staging Runtime Readiness
 
-- `status-execution-gateway-staging.sh --check`:
+- `status-execution-control-staging.sh --check`:
 - Qdrant runtime URL check:
 - Docker data-plane check:
 - Notes:

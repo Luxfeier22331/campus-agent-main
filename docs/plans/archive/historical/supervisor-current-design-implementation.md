@@ -15,7 +15,7 @@ updated: 2026-04-20
 ## Retained Meaning
 
 - 这份旧计划曾负责把 `supervisor-core` 从薄透传收口到单 specialist 协调层
-- 它的历史价值在于说明 repo 早期如何固定 `execution-gateway -> supervisor-core -> rag-specialist` 的主链路职责
+- 它的历史价值在于说明 repo 早期如何固定 `execution-control -> supervisor-core -> rag-specialist` 的主链路职责
 
 ## Current Canonical Entry
 

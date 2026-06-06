@@ -46,7 +46,7 @@ accepted merged truth，也不把 deferred / backlog 能力冒充为已上线。
 ## Summary
 
 当前方向正确：产品问答仍应保持
-`public-chat-web -> app-api -> execution-gateway -> supervisor-agent-worker -> agent`
+`public-chat-web -> app-api -> execution-control -> supervisor-agent-worker -> agent`
 的 supervisor-led 主链路。这里讨论的 harness 指校园问答助手产品自身的
 quality harness：eval、trace、guardrail、review 与 badcase 回流闭环；
 它不是 repo-owned workstream execution harness。
@@ -104,7 +104,7 @@ backlog / deferred follow-up 保留，不进入这一轮实现范围。
 `app-api` 的未来架构职责继续固定为 shared product / control-plane
 backend：
 
-- browser surface 不直接调用 `apps/execution-gateway`
+- browser surface 不直接调用 `apps/execution-control`
 - `apps/app-api` 拥有 auth / session / principal mapping
 - `apps/app-api` 拥有 surface capability policy
 - `apps/app-api` 拥有 conversation、chat ingress、request lifecycle 与
@@ -269,8 +269,8 @@ offline / deferred / fail-close posture。
 ### QA-002: Capability Routing Still Has Heuristic Edges
 
 目标态要求先判 capability family，再进入 family 内部 execution path。
-当前 Go `apps/execution-gateway/internal/runtimepolicy` 与
-`apps/execution-gateway/internal/structuredplanning` 已拥有 runtime policy /
+当前 Go `apps/execution-control/internal/runtimepolicy` 与
+`apps/execution-control/internal/structuredplanning` 已拥有 runtime policy /
 structured planning；后续缺口应继续在 Go-owned admission / policy artifact /
 handoff observability 上收口，而不是恢复 Python-side routing。
 

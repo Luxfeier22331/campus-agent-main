@@ -36,7 +36,7 @@ updated: 2026-05-01
 
 长期导航主链路固定为：
 
-`web surface -> app-api -> execution-gateway -> supervisor-agent-worker -> navigation-agent
+`web surface -> app-api -> execution-control -> supervisor-agent-worker -> navigation-agent
 -> spatial truth / provider adapters -> supervisor response`
 
 在长期 multi-agent workflow 中，`navigation-agent` 也可以作为 bounded spatial
@@ -75,7 +75,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 - 导航能力既可以被 chat surface 消费，也可以被未来独立的 map / wayfinding surface 消费
 - chat 内 route card、mini-map 与路线解释仍然是重要消费形态，但不再被提升为唯一产品入口真相
-- 如果未来存在独立地图入口，它也必须与 chat 共享同一条 `app-api -> execution-gateway -> navigation-agent`
+- 如果未来存在独立地图入口，它也必须与 chat 共享同一条 `app-api -> execution-control -> navigation-agent`
   truth chain
 
 长期推荐形态包括：
@@ -92,7 +92,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 ## Execution Ownership
 
-### `apps/execution-gateway`
+### `apps/execution-control`
 
 长期负责：
 

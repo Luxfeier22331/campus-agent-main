@@ -17,7 +17,7 @@ WORKER_BRIDGE_AUTHORIZATION_CODECS = WORKER_CORE / "bridge_authorization_codecs.
 WORKER_BRIDGE_MEMORY_CODECS = WORKER_CORE / "bridge_memory_codecs.py"
 WORKER_BRIDGE_SESSION_CODECS = WORKER_CORE / "bridge_session_codecs.py"
 WORKER_BRIDGE_TRACE_CODECS = WORKER_CORE / "bridge_trace_codecs.py"
-EXECUTION_GATEWAY_GO = Path("apps/execution-gateway/internal")
+EXECUTION_CONTROL_GO = Path("apps/execution-control/internal")
 
 
 class SupervisorRuntimeGuardrailTest(unittest.TestCase):
@@ -34,14 +34,14 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
             with self.subTest(path=str(path)):
                 self.assertFalse(path.exists())
 
-    def test_go_execution_gateway_runtime_modules_remain_split_by_concern(self) -> None:
+    def test_go_execution_control_runtime_modules_remain_split_by_concern(self) -> None:
         expected_modules = (
-            EXECUTION_GATEWAY_GO / "runtimepolicy" / "policy.go",
-            EXECUTION_GATEWAY_GO / "structuredquery" / "service_guide.go",
-            EXECUTION_GATEWAY_GO / "structuredquery" / "runtime.go",
-            EXECUTION_GATEWAY_GO / "httpapi" / "structured_direct.go",
-            EXECUTION_GATEWAY_GO / "executionaudit" / "emitter.go",
-            EXECUTION_GATEWAY_GO / "observability" / "metrics_prometheus.go",
+            EXECUTION_CONTROL_GO / "runtimepolicy" / "policy.go",
+            EXECUTION_CONTROL_GO / "structuredquery" / "service_guide.go",
+            EXECUTION_CONTROL_GO / "structuredquery" / "runtime.go",
+            EXECUTION_CONTROL_GO / "httpapi" / "structured_direct.go",
+            EXECUTION_CONTROL_GO / "executionaudit" / "emitter.go",
+            EXECUTION_CONTROL_GO / "observability" / "metrics_prometheus.go",
         )
         for path in expected_modules:
             with self.subTest(path=str(path)):

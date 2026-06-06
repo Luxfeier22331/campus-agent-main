@@ -19,14 +19,14 @@ PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn
 # Optional exact email exceptions for end-user sign-up/sign-in.
 APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com
-EXECUTION_GATEWAY_BASE_URL=https://execution-gateway.internal
-EXECUTION_GATEWAY_SHARED_SECRET=replace-with-execution-gateway-shared-secret
-EXECUTION_GATEWAY_TIMEOUT_MS=8000
-EXECUTION_GATEWAY_EVAL_TIMEOUT_MS=30000
-# Optional. Required only when EXECUTION_GATEWAY_BASE_URL is protected by
+EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
+EXECUTION_CONTROL_SHARED_SECRET=replace-with-execution-control-shared-secret
+EXECUTION_CONTROL_TIMEOUT_MS=8000
+EXECUTION_CONTROL_EVAL_TIMEOUT_MS=30000
+# Optional. Required only when EXECUTION_CONTROL_BASE_URL is protected by
 # Cloudflare Access service-token authentication.
-EXECUTION_GATEWAY_ACCESS_CLIENT_ID=
-EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET=
+EXECUTION_CONTROL_ACCESS_CLIENT_ID=
+EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=
 # Comma-separated exact operator emails allowed through the panel bridge.
 APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
 # Must match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`.

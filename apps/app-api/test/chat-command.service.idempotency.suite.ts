@@ -13,7 +13,7 @@ import {
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
 	type SupervisorExecutionClient,
-	ExecutionGatewayTransportError,
+	ExecutionControlTransportError,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceIdempotencySuite(): void {
@@ -109,7 +109,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			telemetry,
 			supervisor: {
 				execute: vi.fn().mockRejectedValue(
-					new ExecutionGatewayTransportError({
+					new ExecutionControlTransportError({
 						code: "execution_timeout",
 						message: "Supervisor execution timed out.",
 						retryable: true,

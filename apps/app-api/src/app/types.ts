@@ -7,8 +7,8 @@ import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/au
 import type { ChatConversationService } from "../modules/chat";
 import type { DocsService } from "../modules/docs";
 import type {
-	ExecutionGatewayCampusServicesProductPathPreflight,
-	ExecutionGatewayRuntimePreflight,
+	ExecutionControlCampusServicesProductPathPreflight,
+	ExecutionControlRuntimePreflight,
 } from "../modules/integration";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
@@ -80,7 +80,7 @@ export interface AppDocsReadinessResult {
 	failed: Partial<Record<AppDocsDependencyName, string>>;
 }
 
-type AppRuntimeDependencyName = "auth" | "database" | "durableRuntime" | "executionGateway";
+type AppRuntimeDependencyName = "auth" | "database" | "durableRuntime" | "executionControl";
 
 export interface AppRuntimeReadinessResult {
 	dependencies: {
@@ -91,12 +91,12 @@ export interface AppRuntimeReadinessResult {
 		officialWebHandoff: "configured" | "not_configured";
 		operatorBridge: "configured";
 		publicChatCompatibilityOrigin: "configured";
-		executionGateway: "ready" | "not_ready";
+		executionControl: "ready" | "not_ready";
 	};
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;
 	preflight?: {
-		campusServicesProductPath?: ExecutionGatewayCampusServicesProductPathPreflight;
-		durableRuntime?: ExecutionGatewayRuntimePreflight;
+		campusServicesProductPath?: ExecutionControlCampusServicesProductPathPreflight;
+		durableRuntime?: ExecutionControlRuntimePreflight;
 	};
 }
 

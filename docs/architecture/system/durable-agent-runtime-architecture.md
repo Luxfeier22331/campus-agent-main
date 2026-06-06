@@ -16,7 +16,7 @@ supporting architecture。
 - 一次用户回答的 canonical execution object 是什么
 - conversation、run、event、Temporal workflow、task queue 与 worker pool 的长期关系是什么
 - production 并发预算、排队、取消、恢复、step execution 与 streaming 应由哪一层拥有
-- `execution-gateway`、Temporal workflow worker、activity worker pool 与 worker autoscaler
+- `execution-control`、Temporal workflow worker、activity worker pool 与 worker autoscaler
   如何分层
 
 它不负责：
@@ -34,7 +34,7 @@ supporting architecture；实现状态必须单独写在 current architecture �
 `campus-agent` 的 production execution model 固定为：
 
 `surface request -> app-api surface / identity projection -> durable conversation
-and run projection -> execution-gateway -> Temporal workflow -> task queues ->
+and run projection -> execution-control -> Temporal workflow -> task queues ->
 workflow / activity worker pools -> typed step results -> sanitized projection ->
 app-api stream / projection -> browser surface`
 
@@ -45,8 +45,8 @@ app-api stream / projection -> browser surface`
 - `conversation_id` 是上下文、权限、memory 与同会话并发策略的边界。
 - `run_events` 是 streaming、trace、audit、operator projection 与 eval backlink
   的共同事实源。
-- production admission truth 不得只存在于某个 `execution-gateway` /
-  `execution-gateway` 进程内存。
+- production admission truth 不得只存在于某个 `execution-control` /
+  `execution-control` 进程内存。
 - process-local limiter 只能作为单进程 runtime protection，不能作为全局 production
   scheduler。
 - Temporal 是 canonical execution plane；PG 是 product truth / sanitized projection
@@ -220,7 +220,7 @@ canceled / expired`
   workflow 与
   finalization ordering。
 - workflow 不拥有 product auth/session/conversation source truth；它只消费 app-api /
-  execution-gateway 投影后的 bounded context。
+  execution-control 投影后的 bounded context。
 
 ### Activity Attempt
 
@@ -299,11 +299,11 @@ Temporal Task Queue 是 worker dispatch substrate。
 - worker lease ownership
 - provider call execution
 
-### `execution-gateway`
+### `execution-control`
 
-`execution-gateway` 是 trusted internal execution ingress。
+`execution-control` 是 trusted internal execution ingress。
 
-当前实现名仍是 `apps/execution-gateway`；长期概念名是 `execution-gateway`。
+当前实现名仍是 `apps/execution-control`；长期概念名是 `execution-control`。
 
 它负责：
 
@@ -332,7 +332,7 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
 
 长期 runtime roles 固定为：
 
-- `execution-gateway`
+- `execution-control`
   - internal command-query surface、workflow start / signal / cancel / query / update、
     readyz / metrics 与 projection command。
 - `workflow-worker`
@@ -410,7 +410,7 @@ Owner：`apps/app-api` 与 scheduler 共享，但 canonical identity truth 在 `
 
 ### Run Admission
 
-Owner：`execution-gateway` + Temporal workflow admission policy。
+Owner：`execution-control` + Temporal workflow admission policy。
 
 判断：
 
@@ -430,8 +430,8 @@ Owner：Temporal workflow policy + task queue worker matching。
 - worker 是否符合该 activity 的 capability / version / readiness 条件
 - activity retry、timeout、heartbeat policy 是否满足
 
-当前 `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS`、
-`EXECUTION_GATEWAY_QUEUE_CAPACITY` 与 `EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS` 只表达
+当前 `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS`、
+`EXECUTION_CONTROL_QUEUE_CAPACITY` 与 `EXECUTION_CONTROL_QUEUE_TIMEOUT_MS` 只表达
 current process-local execution protection。
 它们不得被解释为完整 production admission model。
 
@@ -549,7 +549,7 @@ worker autoscaler 边界固定为：
 
 当前实现已经具备：
 
-- Go `execution-gateway` execution ingress
+- Go `execution-control` execution ingress
 - in-process lifecycle registry
 - global / per-lane admission
 - bounded in-memory queue
@@ -557,15 +557,15 @@ worker autoscaler 边界固定为：
 - bridge circuit breaker
 - metrics / OTel / execution audit seam
 - `WorkflowRunStore` foundation for gated multi-step path
-- isolated durable runtime store kernel in `apps/execution-gateway/internal/execution`
+- isolated durable runtime store kernel in `apps/execution-control/internal/execution`
   for `DurableRun`、`RunEvent`、`ExecutionLease`、`LaneBudget` 与
   `WorkerHeartbeat`
 - Postgres-backed durable runtime store foundation with explicit
-  `EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL` configuration
+  `EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL` configuration
 - retained PG lease coordinator / worker loop / recovery loop code exists as a
   migration artifact, but the online serving path is Temporal-backed. Staging and
-  production env must reject `EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_*` and
-  `EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_*` rather than re-enable PG lease
+  production env must reject `EXECUTION_CONTROL_DURABLE_WORKER_LOOP_*` and
+  `EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_*` rather than re-enable PG lease
   execution.
 - Temporal owns queued workflow/activity execution, retry, timeout, and worker
   poller readiness. PG durable runtime tables are the sanitized product
@@ -597,14 +597,14 @@ worker autoscaler 边界固定为：
   be disconnected after `request.accepted` and resumed from the existing durable
   run event stream by `run_id + after_sequence`
 - repo-owned Postgres durable runtime proof command:
-  `apps/execution-gateway/cmd/durable-runtime-proof` creates exact-prefix proof
+  `apps/execution-control/cmd/durable-runtime-proof` creates exact-prefix proof
   artifacts in a real Postgres durable store, verifies multi-worker
   single-lease acquisition, verifies expired-lease retry / terminal recovery,
   writes JSON evidence, restores the pre-existing lane budget, and removes its
   own proof runs / heartbeats
-- repo-owned deployed execution-gateway Temporal HTTP proof command:
-  `apps/execution-gateway/cmd/temporal-runtime-http-proof` records deployed
-  execution-gateway `/readyz` evidence and fails closed unless projection store,
+- repo-owned deployed execution-control Temporal HTTP proof command:
+  `apps/execution-control/cmd/temporal-runtime-http-proof` records deployed
+  execution-control `/readyz` evidence and fails closed unless projection store,
   Temporal runtime, and Temporal workers are all reported ready / started
 - public-chat pending-run product baseline: accepted durable run identity is
   persisted in tab-scoped storage, browser resume reads the existing run event
@@ -620,7 +620,7 @@ worker autoscaler 边界固定为：
 
 - Temporal execution plane 尚未落地：当前仍是 PG-backed run-level durable baseline +
   in-process worker/recovery loop，不是 target workflow/activity/task-queue substrate。
-- execution-gateway 概念尚未完成代码/部署收口：当前实现名仍是 `apps/execution-gateway`。
+- execution-control 概念尚未完成代码/部署收口：当前实现名仍是 `apps/execution-control`。
 - step-level durable runtime 尚未完整收口：需要补齐 `agent_run_steps`、
   `agent_step_attempts`、`agent_step_results` 的 projection contract、Temporal activity
   mapping、worker writeback 与 panel/eval projection。
@@ -644,10 +644,10 @@ worker autoscaler 边界固定为：
   - conversation / run / event / lease / lane 的概念 contract
 - `docs/data/durable-agent-runtime-schema.md`
   - durable runtime logical schema
-- `apps/execution-gateway/internal/execution/durable_runtime*.go`
+- `apps/execution-control/internal/execution/durable_runtime*.go`
   - isolated durable store kernel、lease coordinator、in-memory contract substrate
     与 Postgres store foundation
-- `apps/execution-gateway/cmd/durable-runtime-proof`
+- `apps/execution-control/cmd/durable-runtime-proof`
   - Postgres-backed durable runtime proof command for multi-worker lease and
     expired-lease recovery evidence
 

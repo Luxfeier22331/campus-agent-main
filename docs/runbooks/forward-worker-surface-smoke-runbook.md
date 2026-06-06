@@ -174,7 +174,7 @@ profile 语义：
 - `local-real-provider`：复用 `dev` 的 public/chat 产品路径编排，但强制启用
   `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=true` 并默认使用真实
   `PROMPT_RUNTIME_PROVIDER=openai-responses`。它用于验证
-  `public-chat-web -> app-api -> execution-gateway -> supervisor-agent-worker ->
+  `public-chat-web -> app-api -> execution-control -> supervisor-agent-worker ->
   rag-agent SDK loop -> Go finalizer`，不是 deployed staging smoke，也不是
   notice discover 专用 smoke
 

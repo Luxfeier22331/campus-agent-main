@@ -238,7 +238,7 @@ def _is_python_tracked_file(path: str) -> bool:
 
 
 def _is_go_tracked_file(path: str) -> bool:
-    return path.startswith("apps/execution-gateway/") and path.endswith(".go")
+    return path.startswith("apps/execution-control/") and path.endswith(".go")
 
 
 def _is_docker_tracked_file(path: str) -> bool:

@@ -16,8 +16,8 @@ from scripts.supervisor_runtime_process_smoke import (
     process_spec_to_artifact,
 )
 from scripts.supervisor_runtime_process_smoke_http import (
-    _post_json,
     _request_status,
+    post_execution_run_probe,
     terminate_processes,
     wait_for_json_status,
     wait_for_status,
@@ -63,14 +63,14 @@ def build_e2e_smoke_plan(
     api_env = {
         **common_env,
         "API_AUTH_MODE": "trusted-worker",
-        "API_WORKER_SHARED_SECRET": "execution-gateway-sdk-e2e-placeholder",
+        "API_WORKER_SHARED_SECRET": "execution-control-sdk-e2e-placeholder",
         "CAMPUS_AGENT_HTTP_HOST": api_host,
         "CAMPUS_AGENT_HTTP_PORT": str(api_port),
         "SUPERVISOR_AGENT_WORKER_BASE_URL": worker_base_url,
         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": _BRIDGE_SECRET,
-        "EXECUTION_GATEWAY_OPEN_CAPABILITIES": "",
-        "EXECUTION_GATEWAY_OTEL_ENABLED": "false",
-        "EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED": "false",
+        "EXECUTION_CONTROL_OPEN_CAPABILITIES": "",
+        "EXECUTION_CONTROL_OTEL_ENABLED": "false",
+        "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
         "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": _QUERY_SECRET,
     }
     _assert_old_env_absent(worker_env)
@@ -81,17 +81,14 @@ def build_e2e_smoke_plan(
         profile=AGENTS_SDK_NOTICE_DISCOVER_E2E_PROFILE,
         api_base_url=api_base_url,
         worker_base_url=worker_base_url,
-        answer_path="/internal/bridge/supervisor/answer",
-        answer_response_kind="json",
-        answer_payload=_build_bridge_payload(),
-        expected_status=200,
+        execution_run_path="/internal/execution/runs",
+        execution_run_payload=_build_execution_run_payload(),
+        expected_run_status=202,
         expected_readyz_statuses=(200, 503),
-        expected_body_tokens=(
+        expected_run_body_tokens=(
+            "agents-sdk-notice-discover-e2e-smoke",
             "notice-agent",
             "campus_notice_discover",
-            "sdk_completed",
-            _SEED_NOTICE_TITLE,
-            _SEED_NOTICE_SOURCE_URL,
         ),
         processes=(
             ProcessCommandSpec(
@@ -109,11 +106,11 @@ def build_e2e_smoke_plan(
                 log_path=output_dir / "supervisor-agent-worker.log",
             ),
             ProcessCommandSpec(
-                label="execution-gateway",
-                command=("go", "run", "./cmd/execution-gateway"),
-                cwd=repo_root / "apps" / "execution-gateway",
+                label="execution-control",
+                command=("go", "run", "./cmd/execution-control"),
+                cwd=repo_root / "apps" / "execution-control",
                 env=api_env,
-                log_path=output_dir / "execution-gateway.log",
+                log_path=output_dir / "execution-control.log",
             ),
         ),
     )
@@ -150,7 +147,7 @@ def run_smoke(
         processes = _processes_with_env_overlay(
             runtime_plan.processes,
             runtime_preparation.process_env_overlay if runtime_preparation is not None else {},
-            target_labels=("execution-gateway",),
+            target_labels=("execution-control",),
         )
         process_by_label = {process.label: process for process in processes}
         for process_spec in processes:
@@ -198,18 +195,17 @@ def run_smoke(
             timeout_seconds=startup_timeout,
         )
         metrics_status = _request_status(f"{runtime_plan.api_base_url}/metrics")
-        answer_status, answer_body = _post_json(
-            f"{runtime_plan.worker_base_url}{runtime_plan.answer_path}",
-            runtime_plan.answer_payload,
+        run_status, run_body = post_execution_run_probe(
+            f"{runtime_plan.api_base_url}{runtime_plan.execution_run_path}",
+            runtime_plan.execution_run_payload,
             headers={
-                "x-supervisor-bridge-auth": process_by_label["supervisor-agent-worker"].env[
-                    "SUPERVISOR_AGENT_WORKER_SHARED_SECRET"
-                ]
+                "x-worker-origin-auth": process_by_label["execution-control"].env[
+                    "API_WORKER_SHARED_SECRET"
+                ],
             },
             timeout_seconds=timeout_seconds,
         )
-        bridge_passed, bridge_checks = _bridge_response_passed(answer_status, answer_body)
-        answer_text = json.dumps(answer_body, ensure_ascii=False)
+        run_text = json.dumps(run_body, ensure_ascii=False)
         env_checks = _env_checks(processes)
         passed = (
             worker_healthz == 200
@@ -217,8 +213,8 @@ def run_smoke(
             and worker_readyz[0] == 200
             and api_readyz[0] in runtime_plan.expected_readyz_statuses
             and metrics_status == 200
-            and bridge_passed
-            and all(token in answer_text for token in runtime_plan.expected_body_tokens)
+            and run_status == runtime_plan.expected_run_status
+            and all(token in run_text for token in runtime_plan.expected_run_body_tokens)
             and env_checks["old_internal_query_env_absent"]
         )
         summary = {
@@ -226,7 +222,7 @@ def run_smoke(
             "profile": runtime_plan.profile,
             "passed": passed,
             "mode": "real_openai_agents_sdk_with_go_structured_query_pg_read_model",
-            "structured_query_e2e": bridge_checks["structured_query_e2e"],
+            "structured_query_e2e": passed,
             "api_base_url": runtime_plan.api_base_url,
             "worker_base_url": runtime_plan.worker_base_url,
             "processes": [process_spec_to_artifact(process) for process in processes],
@@ -241,12 +237,14 @@ def run_smoke(
                 "api_healthz_status": api_healthz,
                 "api_readyz_status": api_readyz[0],
                 "metrics_status": metrics_status,
-                "answer_status": answer_status,
-                "answer_timeout_seconds": timeout_seconds,
+                "execution_run_status": run_status,
+                "expected_execution_run_status": runtime_plan.expected_run_status,
+                "execution_run_path": runtime_plan.execution_run_path,
+                "execution_run_timeout_seconds": timeout_seconds,
                 "startup_timeout_seconds": startup_timeout,
-                "bridge_checks": bridge_checks,
+                "expected_run_body_tokens": runtime_plan.expected_run_body_tokens,
             },
-            "answer": answer_body,
+            "execution_run": run_body,
         }
     except Exception as exc:
         summary = {
@@ -275,6 +273,31 @@ def run_smoke(
 
 
 def _build_bridge_payload() -> dict[str, object]:
+    execution_payload = _build_execution_run_payload()
+    metadata = execution_payload["metadata"]  # type: ignore[index]
+    request_payload = metadata["execution_payload"]  # type: ignore[index]
+    context = request_payload["context"]  # type: ignore[index]
+    user_goal = str(request_payload["user_goal"])  # type: ignore[index]
+    request_id = str(execution_payload["request_id"])
+    trace_id = str(execution_payload["trace_id"])
+    return {
+        "bridge_version": "supervisor_bridge_v6",
+        "response_contract": "agent_response",
+        "user_goal": user_goal,
+        "conversation_id": "",
+        "request_id": request_id,
+        "trace": {"trace_id": trace_id},
+        "requested_capability": "notice",
+        "effective_capability": "notice",
+        "lane": "notice",
+        "actor": context["actor"],  # type: ignore[index]
+        "context": context,
+        "version_query": {"mode": "current"},
+        "runtime_decisions": _bridge_runtime_decisions(user_goal, request_id, trace_id, context),
+    }
+
+
+def _build_execution_run_payload() -> dict[str, object]:
     context = {
         "actor": {
             "user_id": "smoke-student",
@@ -295,19 +318,45 @@ def _build_bridge_payload() -> dict[str, object]:
     request_id = "agents-sdk-notice-discover-e2e-smoke"
     trace_id = "trace-agents-sdk-notice-discover-e2e"
     return {
-        "bridge_version": "supervisor_bridge_v6",
-        "response_contract": "agent_response",
-        "user_goal": user_goal,
-        "conversation_id": "",
+        "run_id": request_id,
         "request_id": request_id,
-        "trace": {"trace_id": trace_id},
-        "requested_capability": "notice",
-        "effective_capability": "notice",
+        "conversation_id": "conv-agents-sdk-notice-discover-e2e",
+        "turn_id": "turn-agents-sdk-notice-discover-e2e",
+        "trace_id": trace_id,
+        "surface": "process-smoke",
         "lane": "notice",
-        "actor": context["actor"],
-        "context": context,
-        "version_query": {"mode": "current"},
-        "runtime_decisions": {
+        "requested_capability": "notice",
+        "selected_capability": "notice",
+        "owner_user_id": "smoke-student",
+        "runtime_versions": {
+            "contract": "durable-agent-runtime-contract-v1",
+            "smoke": SMOKE_SCHEMA_VERSION,
+        },
+        "metadata": {
+            "execution_payload": {
+                "user_goal": user_goal,
+                "request_id": request_id,
+                "requested_capability": "notice",
+                "context": context,
+            },
+            "expected_handoff": {
+                "target": "notice-agent",
+                "allowed_tools": ["campus_notice_discover"],
+                "payload_kind": "campus_notice_discover",
+                "seed_notice_title": _SEED_NOTICE_TITLE,
+                "seed_notice_source_url": _SEED_NOTICE_SOURCE_URL,
+            },
+        },
+    }
+
+
+def _bridge_runtime_decisions(
+    user_goal: str,
+    request_id: str,
+    trace_id: str,
+    context: object,
+) -> dict[str, object]:
+    return {
             "schema_version": "supervisor-runtime-decisions-v1",
             "effective_capability": "notice",
             "lane": "notice",
@@ -389,7 +438,6 @@ def _build_bridge_payload() -> dict[str, object]:
                     "allowed_tools": ["campus_notice_discover"],
                 },
             },
-        },
     }
 
 

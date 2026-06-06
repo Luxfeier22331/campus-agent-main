@@ -67,7 +67,7 @@ def build_process_smoke_plan(
     object_store_host: str = "127.0.0.1",
     object_store_port: int = 27061,
 ) -> ProcessSmokePlan:
-    api_secret = os.getenv("API_WORKER_SHARED_SECRET", "execution-gateway-local-placeholder")
+    api_secret = os.getenv("API_WORKER_SHARED_SECRET", "execution-control-local-placeholder")
     bridge_secret = os.getenv(
         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
         "supervisor-agent-worker-local-placeholder",
@@ -109,9 +109,9 @@ def build_process_smoke_plan(
         "CAMPUS_AGENT_HTTP_HOST": api_host,
         "CAMPUS_AGENT_HTTP_PORT": str(api_port),
         "SUPERVISOR_AGENT_WORKER_BASE_URL": worker_base_url,
-        "EXECUTION_GATEWAY_OTEL_ENABLED": "false",
-        "EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED": "false",
-        "EXECUTION_GATEWAY_OPEN_CAPABILITIES": os.getenv("EXECUTION_GATEWAY_OPEN_CAPABILITIES", ""),
+        "EXECUTION_CONTROL_OTEL_ENABLED": "false",
+        "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
+        "EXECUTION_CONTROL_OPEN_CAPABILITIES": os.getenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", ""),
         **_temporal_env(),
         **profile_api_env,
     }
@@ -138,11 +138,11 @@ def build_process_smoke_plan(
             log_path=output_dir / "supervisor-agent-worker.log",
         ),
         ProcessCommandSpec(
-            label="execution-gateway",
-            command=("go", "run", "./cmd/execution-gateway"),
-            cwd=repo_root / "apps" / "execution-gateway",
+            label="execution-control",
+            command=("go", "run", "./cmd/execution-control"),
+            cwd=repo_root / "apps" / "execution-control",
             env=api_env,
-            log_path=output_dir / "execution-gateway.log",
+            log_path=output_dir / "execution-control.log",
         ),
     )
     if profile_requires_object_store(profile):
@@ -194,7 +194,7 @@ def _profile_api_env(
 ) -> dict[str, str]:
     if profile in campus_services_sdk_profiles():
         return {
-            "EXECUTION_GATEWAY_OPEN_CAPABILITIES": "campus_services",
+            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "campus_services",
             "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
             ),
@@ -202,7 +202,7 @@ def _profile_api_env(
         }
     if profile == "notice_discover_sdk_opened":
         env = {
-            "EXECUTION_GATEWAY_OPEN_CAPABILITIES": "notice",
+            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "notice",
             "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
         if profile_requires_object_store(profile):
@@ -217,8 +217,8 @@ def _profile_api_env(
         return env
     if profile in MULTI_STEP_WORKFLOW_PROFILES:
         env = {
-            "EXECUTION_GATEWAY_MULTI_STEP_WORKFLOW_ENABLED": "true",
-            "EXECUTION_GATEWAY_WORKFLOW_RUN_AUTO_MIGRATE": "true",
+            "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED": "true",
+            "EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE": "true",
             "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
             "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
             "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
@@ -226,14 +226,14 @@ def _profile_api_env(
             "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
         }
         if profile == "transport_notice_override_multistep":
-            env["EXECUTION_GATEWAY_OPEN_CAPABILITIES"] = "campus_services"
+            env["EXECUTION_CONTROL_OPEN_CAPABILITIES"] = "campus_services"
             env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
                 TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
             )
         return env
     if profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
         return {
-            "EXECUTION_GATEWAY_OPEN_CAPABILITIES": "campus_services",
+            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "campus_services",
             "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
     return {}
@@ -271,12 +271,12 @@ def _temporal_env() -> dict[str, str]:
     values = {
         key: os.getenv(key, "").strip()
         for key in (
-            "EXECUTION_GATEWAY_TEMPORAL_ADDRESS",
-            "EXECUTION_GATEWAY_TEMPORAL_NAMESPACE",
-            "EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE",
-            "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY",
-            "EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT",
-            "EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS",
+            "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
+            "EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
+            "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
+            "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
+            "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
         )
     }
     return {key: value for key, value in values.items() if value}
@@ -360,7 +360,7 @@ def run_process_smoke(
             f"{plan.api_base_url}{plan.execution_run_path}",
             plan.execution_run_payload,
             headers={
-                "x-worker-origin-auth": process_by_label["execution-gateway"].env[
+                "x-worker-origin-auth": process_by_label["execution-control"].env[
                     "API_WORKER_SHARED_SECRET"
                 ]
             },
@@ -378,7 +378,7 @@ def run_process_smoke(
             and not any(token in run_text for token in forbidden_body_tokens)
         )
         summary = {
-            "schema_version": "execution_gateway_process_smoke.v1",
+            "schema_version": "execution_control_process_smoke.v1",
             "profile": plan.profile,
             "passed": passed,
             "api_base_url": plan.api_base_url,
@@ -409,7 +409,7 @@ def run_process_smoke(
             for spec, process in zip(plan.processes, started, strict=False)
         }
         summary = {
-            "schema_version": "execution_gateway_process_smoke.v1",
+            "schema_version": "execution_control_process_smoke.v1",
             "profile": plan.profile,
             "passed": False,
             "api_base_url": plan.api_base_url,
@@ -446,7 +446,7 @@ def _forbidden_body_tokens(profile: str) -> tuple[str, ...]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run execution-gateway + supervisor-agent-worker local process smoke."
+        description="Run execution-control + supervisor-agent-worker local process smoke."
     )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--profile", default="closed_gate")

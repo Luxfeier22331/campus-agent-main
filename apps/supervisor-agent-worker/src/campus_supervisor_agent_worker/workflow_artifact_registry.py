@@ -13,7 +13,6 @@ SUPPORTED_OWNER_AGENTS = {
     "navigation-agent",
     "campus-services-agent",
     "notice-agent",
-    "supervisor-api",
 }
 SUPPORTED_VISIBILITIES = {
     "agent_private",

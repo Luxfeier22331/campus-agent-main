@@ -34,7 +34,7 @@ It does not own:
 
 - auth/session/conversation truth
 - chat request ledger or request projection truth
-- direct browser access to `apps/supervisor-api`
+- direct browser access to `apps/execution-control`
 
 Current route scope:
 

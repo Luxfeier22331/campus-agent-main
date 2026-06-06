@@ -77,8 +77,8 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(viteConfigSource).toContain("auxiliaryWorkers");
 		expect(viteConfigSource).toContain("wrangler.local-smoke.toml");
 		expect(viteConfigSource).toContain("../app-api/wrangler.local-smoke.toml");
-		expect(viteConfigSource).toContain("liveSmokeSupervisorApiBaseUrl");
-		expect(viteConfigSource).toContain("process.env.SUPERVISOR_API_BASE_URL");
+		expect(viteConfigSource).toContain("liveSmokeExecutionControlBaseUrl");
+		expect(viteConfigSource).toContain("process.env.EXECUTION_CONTROL_BASE_URL");
 		expect(viteConfigSource).toContain("http://127.0.0.1:27051");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");

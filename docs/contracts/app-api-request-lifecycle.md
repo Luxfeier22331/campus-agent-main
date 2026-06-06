@@ -15,7 +15,7 @@ updated: 2026-06-04
 
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - internal eval ingress contract：`docs/contracts/app-api-eval-benchmark-http.md`
-- `app-api -> execution-gateway`
+- `app-api -> execution-control`
   契约：`docs/contracts/app-api-supervisor-execution.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
@@ -32,7 +32,7 @@ updated: 2026-06-04
 1. 生成 canonical `requestId` 与 `traceId`
 1. 在同库 command boundary durable 写入 `runtime.request_execution` 与首个
    `runtime.projection_outbox` 事件
-1. 调用 `apps/execution-gateway`
+1. 调用 `apps/execution-control`
 1. 写回最终 execution outcome，并追加最终 `runtime.projection_outbox` 事件
 1. projector 在同一 `app-api` boundary 内物化 `operator.request_projection`
 1. panel 只通过 `GET /api/operator/requests*` 读取 projection
@@ -149,7 +149,7 @@ Forward durable runtime 说明：
   telemetry sink 间接承载；必须写入 `runtime.request_execution.run_id`
 - 当前 cutover 进度：`POST /api/chat/requests` 与
   `POST /api/chat/requests/stream` 均在 app-api accept 后通过
-  `execution-gateway` 创建 Temporal-backed execution run，并将真实 `run_id`
+  `execution-control` 创建 Temporal-backed execution run，并将真实 `run_id`
   写入 accepted / finalized `runtime.request_execution`；blocking 与 stream final
   answer commit 均从 sanitized run projection / `finalization.completed` event
   payload 产出。
@@ -172,7 +172,7 @@ Forward durable runtime 说明：
 
 ### Step 3: Execute
 
-在真正调用 `apps/execution-gateway` 之前，`app-api` 允许运行 repo-owned pre-execution
+在真正调用 `apps/execution-control` 之前，`app-api` 允许运行 repo-owned pre-execution
 fail-close checks。
 
 当前 contract 冻结为：
@@ -191,9 +191,9 @@ fail-close checks。
   - `status=rejected`
   - `error_code=rate_limit_exceeded`
   - chat-visible result 继续走既有 `error` kind
-- 这类 precheck reject 不调用 `apps/execution-gateway`
+- 这类 precheck reject 不调用 `apps/execution-control`
 
-`app-api` 使用内部 execution contract 调用 `apps/execution-gateway`。当前 submit path
+`app-api` 使用内部 execution contract 调用 `apps/execution-control`。当前 submit path
 只调用 `POST /internal/execution/runs` 启动 Temporal workflow；终端 answer 与 streaming
 均由 sanitized projection / run events 驱动，不调用旧 `/api/v1/answer` 或
 `/api/v1/answer/stream`。
@@ -201,11 +201,11 @@ fail-close checks。
 该调用：
 
 - 不暴露给 browser
-- 不把 execution-gateway / Temporal raw event 直接暴露给 browser
+- 不把 execution-control / Temporal raw event 直接暴露给 browser
 - 不回写 panel projection
 - 只返回 typed execution outcome
 - forward deploy substrate 已冻结为 Docker-first internal execution service；当前 execution
-  origin 必须指向 Go `apps/execution-gateway`，而不是 Python private bridge worker
+  origin 必须指向 Go `apps/execution-control`，而不是 Python private bridge worker
 
 ### Step 4: Finalize
 
@@ -253,7 +253,7 @@ fail-close checks。
 - `execution.completed` 且 semantic result 为 `needs_clarification` /
   `no_answer` 时，产品 SSE 仍用 `request.completed`，并在 `data.status` 与
   `data.answer.result.kind` 中表达语义分支
-- browser 不直连 `apps/execution-gateway`，也不消费 raw `execution.started` /
+- browser 不直连 `apps/execution-control`，也不消费 raw `execution.started` /
   `execution.completed` internal event
 
 ### Session Slot Finalize Rule
@@ -326,7 +326,7 @@ operator.request_projection`
 - chat response 可以先成功返回
 - panel list/detail 可以短时间内看不到刚完成的请求
 - 这不是让 panel 反查 `runtime.request_execution`、JSONL audit、telemetry sink 或
-  `apps/execution-gateway` 的理由
+  `apps/execution-control` 的理由
 
 ## Idempotency Rule
 
