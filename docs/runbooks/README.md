@@ -34,9 +34,9 @@ updated: 2026-04-27
 
 ## Environment-Specific Smoke / Evidence
 
-- `supervisor-api-staging-operations.md`
-- `supervisor-api-staging-smoke-runbook.md`
-- `supervisor-api-server-handoff.md`
+- `execution-gateway-staging-operations.md`
+- `execution-gateway-staging-smoke-runbook.md`
+- `execution-gateway-server-handoff.md`
 - `runtime-otel-collector-pipeline.md`
 - `worker-observability-smoke-runbook.md`
 - `templates/e2e-qa-release-artifact-template.md`
@@ -46,7 +46,7 @@ updated: 2026-04-27
 ## Local Infra / Recovery
 
 - `local-postgres-dev-recovery-runbook.md`
-- `supervisor-api-local-runtime-smoke.md`
+- `execution-gateway-local-runtime-smoke.md`
 - `self-hosted-qdrant-native-backup-runbook.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`

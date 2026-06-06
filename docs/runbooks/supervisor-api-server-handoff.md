@@ -4,13 +4,13 @@ status: active
 created: 2026-04-27
 updated: 2026-04-27
 ---
-# Supervisor API Server Handoff
+# Execution Gateway Server Handoff
 
 ## 文档边界
 
-这份 runbook 只定义 Docker-first `supervisor-api` server handoff baseline：
+这份 runbook 只定义 Docker-first `execution-gateway` server handoff baseline：
 
-- `supervisor-api + supervisor-agent-worker` 双容器部署契约
+- `execution-gateway + supervisor-agent-worker` 双容器部署契约
 - server env / health / logging / restart / resource 基线
 - `app-api` execution origin 对接约束
 
@@ -24,12 +24,12 @@ updated: 2026-04-27
 
 - compose file: `infra/local/docker-compose.supervisor-runtime.yml`
 - services:
-  - `supervisor-api`
+  - `execution-gateway`
   - `supervisor-agent-worker`
 - ingress:
-  - machine-local reverse proxy 或 tunnel 指向 `supervisor-api:8000`
+  - machine-local reverse proxy 或 tunnel 指向 `execution-gateway:8000`
 - upstream contract:
-  - `app-api` 调用 `STAGING_SUPERVISOR_API_BASE_URL`（或对应环境等价键）
+  - `app-api` 调用 `STAGING_EXECUTION_GATEWAY_BASE_URL`（或对应环境等价键）
   - worker origin auth 由 `API_WORKER_SHARED_SECRET` 控制
 
 ## Server Env Baseline
@@ -43,8 +43,8 @@ updated: 2026-04-27
   - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
   - `SUPERVISOR_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
 - conditional:
-  - 启用 execution audit 时：`SUPERVISOR_API_EXECUTION_AUDIT_URL`、
-    `SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET`
+  - 启用 execution audit 时：`EXECUTION_GATEWAY_EXECUTION_AUDIT_URL`、
+    `EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET`
   - 打开 `campus_services` / `notice` capability 时：`CAMPUS_SHARED_POSTGRES_URL`；
     notice 还需要 object-store/read-model 依赖
 
@@ -55,14 +55,16 @@ updated: 2026-04-27
 1. build image
 
 ```bash
-docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .
+docker build \
+  -f apps/execution-gateway/Dockerfile \
+  -t campus-execution-gateway:local .
 ```
 
 1. start runtime
 
 ```bash
 COMPOSE_PROJECT_NAME=campus-supervisor-runtime \
-SUPERVISOR_API_HOST_PORT=27051 \
+EXECUTION_GATEWAY_HOST_PORT=27051 \
 docker compose -f infra/local/docker-compose.supervisor-runtime.yml up -d --build
 ```
 
@@ -88,18 +90,18 @@ infra/local/smoke-supervisor-runtime.sh closed_gate
   - `no-new-privileges`
   - JSON log rotation (`10m * 3`)
 - process-level:
-  - `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS`
-  - `SUPERVISOR_API_QUEUE_CAPACITY`
-  - `SUPERVISOR_API_QUEUE_TIMEOUT_MS`
-  - lane budgets (`SUPERVISOR_API_LANE_*`)
+  - `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS`
+  - `EXECUTION_GATEWAY_QUEUE_CAPACITY`
+  - `EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS`
+  - lane budgets (`EXECUTION_GATEWAY_LANE_*`)
 - ingress-level:
-  - metrics token (`SUPERVISOR_API_METRICS_BEARER_TOKEN`) when metrics endpoint
+  - metrics token (`EXECUTION_GATEWAY_METRICS_BEARER_TOKEN`) when metrics endpoint
     is externally reachable
 
 ## Handoff Checklist
 
 - doctor:
-  - `uv run --all-packages python -m scripts.doctor_env supervisor-api --json`
+  - `uv run --all-packages python -m scripts.doctor_env execution-gateway --json`
 - static checks:
   - `pnpm go:check`
   - `pnpm shell:lint`
@@ -107,7 +109,7 @@ infra/local/smoke-supervisor-runtime.sh closed_gate
 - runtime checks:
   - Docker build success
   - `healthz` / `readyz` / `metrics` return expected status
-  - smoke artifact generated under `.tmp/supervisor-api-local-smoke/`
+  - smoke artifact generated under `.tmp/execution-gateway-local-smoke/`
 - app-api integration:
   - execution origin URL configured to current server ingress
   - shared secret aligned with `API_WORKER_SHARED_SECRET`

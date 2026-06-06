@@ -7,7 +7,7 @@
 这个目录承载 `RAG agent` 的局部实现边界。
 
 - 接收来自 `apps/supervisor-agent-worker` 的稳定 `AgentRequest` handoff，而不是继续暴露旧
-  `campusRAG` tool 风格接口
+  prototype tool 风格接口
 - 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence
   collection`、`evidence normalization`、`confidence` 返回
 - 返回 `AgentResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去

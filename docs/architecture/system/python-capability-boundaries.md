@@ -13,11 +13,11 @@ runtime ownership，只说明 Python 继续保留的 semantic capability 如何�
 
 ## Runtime Boundary
 
-Python 不再拥有 deterministic supervisor runtime truth。
+Python 不再拥有 deterministic execution runtime truth。
 
 - `apps/supervisor-agent-worker` 只负责 private bridge parsing、prompt runtime assembly
   与 agent delegate dispatch
-- Go `apps/supervisor-api` 继续拥有 admission、routing frame、structured runtime、
+- Go `apps/execution-gateway` 继续拥有 admission、routing frame、structured runtime、
   lifecycle、observability、final response shaping 与 fail-close terminal envelope
 - Python worker 只消费 Go canonical bridge envelope 与 Go preplanned `AgentRequest`
 

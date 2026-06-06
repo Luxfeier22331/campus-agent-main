@@ -32,9 +32,8 @@ updated: 2026-06-05
 - tools-first domain capability boundary；semantic specialist 以 agent-as-tool
   参与 typed step
 - shared app runtime 与 execution engine 分层
-- PG-backed run + step-level durable agent runtime
-- supervisor multi-role deployment：control / scheduler / recovery / lane
-  worker / autoscaler
+- Temporal-backed durable execution plane
+- execution-gateway + workflow / activity worker pools + worker autoscaler
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
 - eval-governed quality lifecycle
@@ -47,16 +46,93 @@ updated: 2026-06-05
 
 长期主链路固定为：
 
-`client/channel -> web surface -> shared app-api surface policy/context
-projection -> durable conversation/run store -> supervisor control admission/routing
--> PG queued run/step rows -> scheduler / lease coordinator -> typed workflow
-plan -> typed tools or agent-as-tool steps -> step results -> run events ->
-supervisor finalization -> response / stream subscription`
+`client/channel -> browser surface -> shared app-api surface policy/context
+projection -> execution-gateway admission / workflow start -> Temporal workflow
+-> typed activities / agent-as-tool activities -> sanitized step projection ->
+finalization projection -> app-api response / stream subscription`
 
 这里的 multi-agent 不是无中心 peer swarm。长期默认是 manager-style
-multi-agent：Go `apps/supervisor-api` 保持 workflow / policy / budget / finalization
-ownership，typed tools 与 agent-as-tool 作为受控 specialist step 参与执行；只有当某个
-specialist 需要拥有后续回复 ownership 时，才使用 explicit handoff。
+multi-agent：`execution-gateway` 与 Temporal workflow 保持 workflow / policy /
+budget / finalization ownership，typed tools 与 agent-as-tool 作为受控 capability
+step 参与执行；只有当某个 specialist 需要拥有后续回复 ownership 时，才使用 explicit
+handoff。
+
+目标拓扑图：
+
+```mermaid
+flowchart LR
+  subgraph Client["Browser Surfaces"]
+    Hub["hub-web"]
+    Chat["public-chat-web"]
+    Docs["public-docs"]
+    Panel["protected-panel-web"]
+  end
+
+  subgraph ProductIngress["Product Ingress"]
+    AppAPI["app-api\nproduct ingress"]
+  end
+
+  subgraph ExecutionIngress["Execution Gateway"]
+    Gateway["execution-gateway\nworkflow command"]
+  end
+
+  subgraph TemporalPlane["Temporal Execution Plane"]
+    Temporal["Temporal Service\nworkflow + task queues"]
+  end
+
+  subgraph Workers["Worker Pools"]
+    Planner["planner-worker\nrequest plan / capability graph"]
+    RAG["rag-capability-worker\nretrieval / evidence / synthesis support"]
+    Nav["navigation-worker\nnavigation tools"]
+    Notice["notice-worker\nnotice tools"]
+    Finalizer["finalization-worker\nanswer contract / projection"]
+  end
+
+  subgraph DataPlane["Data Plane"]
+    PG["Postgres\nproduct truth / projections / eval / panel"]
+    Qdrant["Qdrant\nvector + sparse retrieval"]
+    ObjectStore["S3-compatible object storage\nartifacts"]
+    Provider["LLM / Embedding Providers"]
+  end
+
+  subgraph Observability["Observability"]
+    Sentry["Sentry\ntraces / errors"]
+    Axiom["Axiom\nruntime events"]
+    PanelOps["operator panel\nsanitized projections"]
+  end
+
+  Hub --> AppAPI
+  Chat --> AppAPI
+  Docs --> AppAPI
+  Panel --> AppAPI
+
+  AppAPI --> Gateway
+  Gateway --> Temporal
+
+  Temporal --> Planner
+  Temporal --> RAG
+  Temporal --> Nav
+  Temporal --> Notice
+  Temporal --> Finalizer
+
+  Planner --> Provider
+  RAG --> Qdrant
+  RAG --> ObjectStore
+  RAG --> Provider
+  Nav --> PG
+  Notice --> PG
+  Finalizer --> PG
+
+  Gateway --> PG
+  AppAPI --> PG
+  AppAPI --> PanelOps
+
+  AppAPI --> Sentry
+  Gateway --> Sentry
+  Workers --> Sentry
+  Workers --> Axiom
+  Gateway --> Axiom
+```
 
 长期摄入链路固定为：
 
@@ -65,15 +141,16 @@ raw/source-truth/projection/document/chunk/index`
 
 ## 长期硬约束
 
-- 不退回 `campusRAG` 式的扁平 tool-adapter 顶层路径
+- 不退回扁平 retrieval tool-adapter 顶层路径
 - supervisor 保持唯一顶层协调入口，不演化成无中心 peer mesh
 - supervisor 不得退化成只负责 HTTP 转发的被动 proxy；它必须继续拥有 deterministic
   governance、workflow admission、budget 与 finalization
 - HTTP request 不得成为 agent execution lifetime 的 canonical truth；一次回答的长期
-  execution object 是 durable `Run`，streaming 只是订阅 run events
-- production 并发预算不得只存在于单个 `supervisor-api` 进程内存；durable run store、
-  durable step store、scheduler / lease coordinator 与 lane worker pool 必须拥有全局
-  execution truth
+  execution object 是 Temporal workflow execution + repo-owned product run
+  projection，streaming 只是订阅 sanitized events / projection
+- production 并发预算不得只存在于单个 `execution-gateway` 进程内存；Temporal Task Queue、
+  workflow / activity worker pool、repo-owned admission policy 与 downstream
+  budget projection 必须共同定义全局 execution capacity
 - process-local limiter 只能作为单进程 runtime protection，不得被多实例叠加解释为
   production scheduler
 - deterministic data access 默认必须建模为 typed tool 或 projection-backed internal query
@@ -102,10 +179,11 @@ raw/source-truth/projection/document/chunk/index`
   observability truth
 - Redis 不得作为 canonical execution queue；只允许作为 cache、invalidation、非权威 wakeup 或
   live fanout adjunct
-- K8s 只作为 pod/resource/rollout substrate；不得拥有 run queue、step queue、execution
-  lease、run event 或 terminal truth
-- worker autoscaler 只能调整 `supervisor-worker-{lane}` replica count，不得写 run、step、
-  lease、event 或 terminal state
+- K8s 只作为 pod/resource/rollout substrate；不得拥有 workflow history、task queue truth、
+  product run projection、event projection 或 terminal truth
+- worker autoscaler 只能调整 workflow / activity worker replica count，不得写
+  workflow state、product run projection、step projection、event projection 或 terminal
+  state
 - tool output 不得以 provider 原始 trace、raw function response 或未裁剪正文形式进入
   app-api、panel、eval canonical asset 或 downstream prompt context
 - cross-agent handoff / context projection 必须使用 bounded typed artifact；不得把上一步
@@ -122,18 +200,17 @@ raw/source-truth/projection/document/chunk/index`
   ingress、request projection 与 operator read surfaces
 - shared `apps/app-api` 长期同时拥有 surface capability policy 与最小 typed context
   projection
-- `apps/supervisor-api` 持续只是 internal execution engine
+- `execution-gateway` 持续只是 internal execution ingress，不是 product backend
 - `apps/app-api` 已冻结为 Worker
-- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
-- `apps/supervisor-api` 的 Docker substrate freeze 不反推单一 Python/HTTP framework、固定
-  staging hostname，或 browser-facing exposure model
+- 当前 `apps/execution-gateway` 是 existing implementation label；长期概念名是
+  `execution-gateway`
+- execution-gateway / worker 的部署 substrate 不反推 browser-facing exposure model
 - `apps/app-api` 长期拥有 conversation 与 run creation / stream proxy 的 product
-  surface；`apps/supervisor-api` code domain 拆成 `supervisor-api-control`、
-  `supervisor-scheduler`、`supervisor-recovery`、`supervisor-worker-{lane}` 与
-  `worker-autoscaler` roles；worker pool 只消费 execution lease
-- Docker-side supervisor runtime 拆成 Go deterministic runtime roles 与 private semantic
-  worker；Go 负责 durable runtime kernel、scheduler/recovery/autoscaler contract 与
-  finalization，Python / package-owned specialists 继续负责 semantic reasoning
+  surface；`execution-gateway` 负责 workflow start / signal / cancel / query，
+  Temporal 负责 workflow history、task queue、retry、timeout 与 heartbeat
+- worker runtime 拆成 workflow worker 与 activity worker pools；deterministic
+  workflow code 负责 orchestration，package-owned specialists 继续负责 bounded
+  semantic reasoning
 
 ## 长期 execution / agent 形态
 
@@ -172,12 +249,12 @@ raw/source-truth/projection/document/chunk/index`
   `created -> queued -> admitted -> running -> streaming -> completed / failed /
   canceled / expired`；`WorkflowRun` 是 multi-step / agent invocation graph 的内部
   workflow projection，不替代 product-visible run truth
-- supervisor runtime control plane 长期由 Docker-side Go runtime 承接 deterministic
-  execution lifecycle、cancel、timeout、queue、per-lane budget、runtime metrics、audit
-  writer 与 fail-close envelope
-- supervisor deterministic orchestration 长期由 Go `apps/supervisor-api` 承接；
-  Python `apps/supervisor-agent-worker` 只保留 private bridge worker、prompt runtime
-  assembly 与 agent dispatch，不再单独保留 `packages/supervisor-core`
+- execution-gateway 长期承接 deterministic machine ingress、workflow command/query、
+  cancel/signal/update admission、runtime metrics、audit command 与 fail-close envelope
+- deterministic orchestration 长期由 Temporal workflow code 承接；Python /
+  package-owned specialists 只在 activity worker 或 agent-as-tool activity 内执行
+  prompt runtime assembly、provider binding 与 semantic dispatch，不再把 top-level
+  orchestration 放进 prompt 或 provider graph
 - typed tool 负责 deterministic data access；agent-as-tool 负责明确语义边界内的 planning /
   evidence consumption / answer shaping
 - agent-as-tool 可以作为 manager-style workflow 中的 bounded specialist；其输出必须先收敛为
@@ -249,15 +326,15 @@ routing、policy、eval 与 observability 约束；它不是当前 campus path �
 
 长期 tool 架构固定为：
 
-`Go supervisor-api deterministic admission -> durable RunStep -> ToolSpec /
-allowed_tools -> typed tool or agent-as-tool -> repo-owned internal query service
--> sanitized StepResult projection`
+`execution-gateway deterministic admission -> Temporal workflow step ->
+ToolSpec / allowed_tools -> typed activity or agent-as-tool activity ->
+repo-owned internal query service -> sanitized StepResult projection`
 
 其中：
 
-- Go `apps/supervisor-api` 拥有 tool admission、opening gate、capability / lane /
-  scope / version guard、`allowed_tools` planning、workflow policy 与 fail-close
-  terminal semantics
+- `execution-gateway` 与 workflow policy 拥有 tool admission、opening gate、
+  capability / lane / scope / version guard、`allowed_tools` planning、
+  workflow policy 与 fail-close terminal semantics
 - agent-as-tool 可以在自己的能力边界内使用 provider/SDK mediated tool loop，但只能消费 Go
   durable step 中允许的 tool 子集
 - provider/SDK tool loop 只作为 agent-as-tool 内部的 bounded execution substrate；它不是
@@ -334,11 +411,11 @@ prompt 内部的隐式判断。
 
 固定职责如下：
 
-- `apps/app-api` 拥有 surface capability policy、conversation / session truth、operator
-  review truth 与观测驱动治理 read model
-- `apps/supervisor-api` 只拥有 deterministic execution admission、lane / opening gate、
-  timeout / cancel / audit event 与 runtime metrics
-- `apps/supervisor-api` 拥有 supervisor routing intent framing、routing
+- `apps/app-api` 拥有 surface capability policy、conversation / session truth、
+  operator review truth 与观测驱动治理 read model
+- `apps/execution-gateway` 只拥有 deterministic execution admission、lane /
+  opening gate、timeout / cancel / audit event 与 runtime metrics
+- `apps/execution-gateway` 拥有 supervisor routing intent framing、routing
   clarification 与 handoff semantics
 - domain agent 只拥有已选定 capability family 内部的 agent clarification 与执行语义
 - `packages/evals` 拥有 intent truth dataset、runner、regression gate 与 observed-case
@@ -425,7 +502,7 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
   trace backlink ingest 与 operator-facing projection，不拥有 golden truth
 - `protected-panel-web` 只承担 operator review / triage UX；它可以发起受控 review
   action，但不决定 golden set truth、不生成 benchmark artifact
-- `apps/supervisor-api` 与 domain agent 只产出 execution / trace / outcome
+- `apps/execution-gateway` 与 domain agent 只产出 execution / trace / outcome
   facts，不写 eval truth
 - OpenAI Evals / graders / tracing、RAGAS、Sentry、Axiom 等外部工具只能作为 grader、
   trace/debug sink 或 analysis input，不成为 repo canonical eval truth

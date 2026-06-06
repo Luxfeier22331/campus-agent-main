@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-05
+updated: 2026-06-06
 ---
 # Execution And Agents Architecture
 
@@ -12,7 +12,7 @@ updated: 2026-06-05
 
 它回答的是：
 
-- `apps/supervisor-api` 与 `apps/supervisor-agent-worker` 分别负责什么
+- `apps/execution-gateway` 与 `apps/supervisor-agent-worker` 分别负责什么
 - supervisor 如何调度 typed tools 与 agent-as-tool steps
 - RAG agent 与其他 domain capability family 的目标角色是什么
 
@@ -20,7 +20,7 @@ updated: 2026-06-05
 
 当前主路径遵循：
 
-`app-api -> supervisor-api -> supervisor-agent-worker private bridge ->
+`app-api -> execution-gateway -> supervisor-agent-worker private bridge ->
 agent -> retrieval-core -> evidence -> supervisor response`
 
 当前 execution runtime 已统一成三种受治理路径：
@@ -32,7 +32,7 @@ agent -> retrieval-core -> evidence -> supervisor response`
 其中，已打开但仍保持 `typed_handoff_only` 的 deterministic structured capability 是
 `direct_runtime` 分支：
 
-`app-api -> supervisor-api -> Go structured runtime -> supervisor-style response`
+`app-api -> execution-gateway -> Go structured runtime -> supervisor-style response`
 
 已进入 `runtime_posture=sdk_adapter_admitted` 的 structured tool 不再被公开 answer 入口的
 Go direct-runtime 抢走；它们走 Go-owned `single_handoff` plan，再由 Python worker 的
@@ -40,19 +40,19 @@ OpenAI Agents SDK native runtime 调用 repo-owned structured query backend。
 
 目标态在同一 governance boundary 内扩展为：
 
-`app-api -> durable conversation / run store -> PG queued run / queued step rows
--> supervisor scheduler / lease coordinator -> typed workflow plan -> typed tools
-or agent-as-tool steps -> step results -> run events -> Go supervisor finalization`
+`app-api -> execution-gateway -> Temporal workflow -> typed activities or
+agent-as-tool activities -> sanitized step projection -> finalization projection`
 
 这表示 repo 采用 supervisor-led governed multi-agent，而不是无中心 peer
-agent mesh。Go `apps/supervisor-api` 保留 deterministic workflow ownership；
-typed tools 承接 deterministic data access；Python
-`apps/supervisor-agent-worker` 与 package-owned semantic specialists 只在
-agent-as-tool step 内承接 bounded semantic execution。
+agent mesh。长期 deterministic workflow ownership 由 `execution-gateway` + Temporal
+workflow code 承接；typed activities 承接 deterministic data access；Python
+`apps/supervisor-agent-worker` 与 package-owned semantic specialists 只在 agent-as-tool
+activity 内承接 bounded semantic execution。
 
 边界固定如下：
 
-- Go `apps/supervisor-api` 负责 Docker-side execution runtime control plane
+- 当前 Go `apps/execution-gateway` 负责 Docker-side execution runtime control plane；长期概念名是
+  `execution-gateway`
 - Python `apps/supervisor-agent-worker` 负责 private bridge worker、prompt runtime
   assembly、provider client binding 与默认 agent delegate map 装配；worker 内部
   `AgentDispatcher` 消费
@@ -79,7 +79,7 @@ supervisor 长期负责：
 - fail-close terminal semantics
 
 当前语言切分下，deterministic admission / routing / handoff projection 与
-`AgentResponse -> SupervisorResponse` finalization 由 Go `apps/supervisor-api`
+`AgentResponse -> SupervisorResponse` finalization 由 Go `apps/execution-gateway`
 拥有；Python `apps/supervisor-agent-worker` 只装配 agent delegates 并执行 private
 agent dispatch。
 
@@ -102,14 +102,15 @@ supervisor 不负责：
 
 长期上，supervisor execution engine 拆成两类职责：
 
-- deterministic runtime control plane
+- deterministic execution gateway / workflow orchestration
 - semantic orchestration and agent reasoning
 
-Docker-side Go runtime code domain 负责：
+`execution-gateway` + Temporal workflow code 负责：
 
-- durable run lifecycle adapter、deadline、timeout、cancel 与 graceful drain
-- scheduler / lease coordinator、global / per-capability lane admission、PG
-  queued run / queued step scan、execution lease、
+- durable run projection adapter、deadline、timeout、cancel / signal / update 与
+  graceful drain
+- workflow start / query / cancel / signal / update
+- global / per-capability lane admission、Temporal task queue selection、
   backpressure、retryability 与 circuit breaker
 - process-local lifecycle / admission limiter 作为本进程 protection；它不是
   production run store 或跨实例全局 scheduler
@@ -126,21 +127,24 @@ Docker-side Go runtime code domain 负责：
 - transport / timeout / bridge unavailable / policy unavailable 等 fail-close response
   envelope
 
-`apps/supervisor-api` 在部署上拆成五类 role：
+目标部署 roles：
 
-- `supervisor-api-control`：HTTP command-query、run create/query/cancel、
-  readyz/metrics 与 operator-safe projection。
-- `supervisor-scheduler`：使用 PG `FOR UPDATE SKIP LOCKED` 消费 queued run / queued step
-  rows，写 admission event 与 execution lease。
-- `supervisor-recovery`：回收 expired lease、timed-out run / step 与 stale worker heartbeat。
-- `supervisor-worker-{lane}`：按 lane 消费 lease，执行 typed tool 或 agent-as-tool step，并写
-  step attempt / result / run event。
-- `worker-autoscaler`：读取 sanitized backlog / lease / heartbeat / lane budget projection，只调
-  worker replica count，不写 execution truth。
+- `execution-gateway`：HTTP command-query、workflow
+  start/query/cancel/signal/update、
+  readyz/metrics 与 projection command。
+- `workflow-worker`：poll Temporal workflow task queue，执行 deterministic
+  workflow code。
+- `activity-worker-{capability}`：poll capability activity task queue，执行
+  typed tool 或 agent-as-tool activity，并写 sanitized projection。
+- `projection-worker`：在 selected implementation 中把 workflow/activity
+  progress materialize 到 app-api / panel / eval read model。
+- `worker-autoscaler`：读取 Temporal task queue metrics、poller health、
+  downstream budget
+  projection 与 SLO policy，只调 worker replica count，不写 execution truth。
 
 当前 repo-local runtime progress：
 
-- Go `supervisor-api` 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
+- Go `execution-gateway` 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
   admission、bridge circuit breaker、bounded bridge transport retry、metrics、OTel seam
   与 execution audit backflow
 - 当前已经具备 PG-backed run-level durable baseline：durable run store、
@@ -150,28 +154,29 @@ Docker-side Go runtime code domain 负责：
   step-level durable ledger、role split、multi-lane worker pool、worker
   autoscaler 与 typed-tool RAG step graph。完整 target 见
   `docs/architecture/system/durable-agent-runtime-architecture.md`
-- Go `supervisor-api` 已补齐 Go -> Python cooperative cancel signal；Python bridge
+- Go `execution-gateway` 已补齐 Go -> Python cooperative cancel signal；Python bridge
   记录 active request id 的 cancel state，默认 supervisor orchestration 已在路由、
   RAG prompt execution 和 agent delegation checkpoints 观测取消；provider /
   prompt executor 已进入阻塞 HTTP 调用时仍不承诺 hard-abort
-- Go `supervisor-api` 的 execution envelope 已接受 `knowledge`、`place_lookup`、
+- Go `execution-gateway` 的 execution envelope 已接受 `knowledge`、`place_lookup`、
   `campus_services`、`notice` capability label，并将它们映射到
   `rag`、`navigation`、`campus_services`、`notice` lane；`requested_scope` 仍只允许
   knowledge path 使用
-- Go `supervisor-api` 已拥有 deterministic effective capability / lane inference：
+- Go `execution-gateway` 已拥有 deterministic effective capability / lane inference：
   当 caller 未显式传 `requested_capability` 时，常见地点、校车/班车、通知/公告/公示
   与 knowledge-family 请求会先被归入对应 runtime lane；versioned / scoped
   knowledge 请求仍保持 knowledge path；capability inference、runtime policy 与
   structured handoff planner 共用 `configs/runtime/intent-policy.v1.json` 作为 signal
   taxonomy 单一来源
-- Go `supervisor-api` 已拥有 private bridge v6 canonical request projection：
+- Go `execution-gateway` 已拥有 private bridge v6 canonical request projection：
   Python bridge hardcut 到 `supervisor_bridge_v6`，缺失 Go-owned
   `effective_capability` / `lane` / `runtime_decisions` 时 fail-closed；
   Python worker 不再重复做 capability keyword inference
-- `app-api -> supervisor-api -> supervisor-agent-worker` 的 execution / bridge wrapper
-  由 `docs/contracts/schemas/supervisor-execution.openapi.yaml` 作为 OpenAPI 3.1.1
-  canonical schema，并生成 TS / Go / Python runtime artifact；`packages/contracts`
-  只承载 stable `AgentRequest` / `AgentResponse` handoff schema
+- `app-api -> execution-gateway -> supervisor-agent-worker` 的 execution /
+  bridge wrapper 由 `docs/contracts/schemas/supervisor-execution.openapi.yaml`
+  作为 OpenAPI 3.1.1 canonical schema，并生成 TS / Go / Python runtime
+  artifact；`packages/contracts` 只承载 stable `AgentRequest` /
+  `AgentResponse` handoff schema
 - execution wrapper 当前采用 strict wire policy：internal seam 固定 `snake_case`、
   不接受 camelCase 或未知 top-level wrapper 字段；共享 valid / invalid fixture matrix
   必须同时被 Python bridge、Go runtime 与 TypeScript app-api adapter 消费
@@ -203,17 +208,17 @@ Docker-side Go runtime code domain 负责：
   selected target / payload kind / allowed tools、terminal policy、resume policy 与
   semantic retry policy。`runtime_decisions.handoff.agent_request` 仍是 bridge 真实
   `AgentRequest`；`workflow_plan` 不复制完整 payload，也不替代 bridge request
-- `apps/supervisor-api/internal/execution` 已有 repo-owned `WorkflowRunStore`
+- `apps/execution-gateway/internal/execution` 已有 repo-owned `WorkflowRunStore`
   接口、in-memory 实现与 PostgreSQL backend，用于约束 run id、state、step timeline
   与 handoff chain、context projections 的内部 run-state shape。生产打开 `multi_step` 必须配置
-  `SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL` 并安装 `runtime.workflow_runs` schema；
-  `SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE=true` 只适合 local/dev 或明确允许启动迁移的环境。
+  `EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL` 并安装 `runtime.workflow_runs` schema；
+  `EXECUTION_GATEWAY_WORKFLOW_RUN_AUTO_MIGRATE=true` 只适合 local/dev 或明确允许启动迁移的环境。
   completed `multi_step` 至少包含两个有序 handoff step；需要 cross-step
   context 的 edge 必须声明 `required_projection_kind`，projection 缺失时 fail-closed
 - `WorkflowRunStore` 是 multi-step workflow foundation；当前 product-visible durable
   `Run` / `RunEvent` truth 已具备 run-level baseline。下一层收口必须把 `RunStep`、
   `StepAttempt`、`StepResult`、lane lease 与 stream event projection 统一建模
-- Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
+- Go `execution-gateway` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
   均通过 PostgreSQL release current pointer + typed read model 消费，
   `transport_schedule_lookup` 具备 projection-backed schedule query kernel 与
@@ -224,26 +229,27 @@ Docker-side Go runtime code domain 负责：
   function，不进入 provider/SDK tool surface；其
   authenticated-notice-backed offline projection builder 属于 ingestion data plane，
   产品主路由 gate 仍保持关闭
-- Go `supervisor-api` 已拥有 deterministic delegate handoff planner，bridge v6
+- Go `execution-gateway` 已拥有 deterministic delegate handoff planner，bridge v6
   通过 `runtime_decisions.handoff.agent_request` 传递完整
   `AgentRequest`、target、allowed tools 与 planning outcome；Python worker 只消费
   Go handoff，不再在 Python query time 构造 RAG / navigation / 校车 /
   service status / notice payload
-- planner 实现边界在 `apps/supervisor-api/internal/structuredplanning`；
-  `apps/supervisor-api/internal/execution` 只负责 request projection 与 bridge v6
+- planner 实现边界在 `apps/execution-gateway/internal/structuredplanning`；
+  `apps/execution-gateway/internal/execution` 只负责 request projection 与 bridge v6
   `runtime_decisions` 适配；planner 不再维护独立 signal taxonomy，只消费 Go
   runtime policy artifact 与 typed request
-- Go `supervisor-api` 已拥有 deterministic runtime policy foundation；当前实现位于
-  `apps/supervisor-api/internal/runtimepolicy`，bridge v6 delegate 请求传递
+- Go `execution-gateway` 已拥有 deterministic runtime policy foundation；当前实现位于
+  `apps/execution-gateway/internal/runtimepolicy`，bridge v6 delegate 请求传递
   `scope_gate`、`policy_gate`、`context_preflight`、`tool_policy`、`routing_frame` 与
   `handoff`。Python bridge 对缺失 Go-owned routing frame / delegate handoff 的 v6
   请求 fail-closed，不再在 bridge 主路径重新做 product-scope、approval-required、
   context-follow-up 或 terminal 裁决；non-delegate terminal routing 由 Go direct
   terminal path 返回
-- Go `supervisor-api` 已拥有 non-stream 与 lifecycle SSE direct structured answer path，
-  但 direct answer 只保留给 ToolSpec 中仍为 `typed_handoff_only` 的 structured
-  payload。`sdk_adapter_admitted` 的 structured payload 在公开 answer / stream 入口
-  进入 `single_handoff` bridge lane；Go 仍负责 opening gate、admission、
+- Go `execution-gateway` 已拥有 non-stream 与 lifecycle SSE direct structured
+  answer path，但 direct answer 只保留给 ToolSpec 中仍为
+  `typed_handoff_only` 的 structured payload。`sdk_adapter_admitted` 的
+  structured payload 在公开 answer / stream 入口进入 `single_handoff` bridge
+  lane；Go 仍负责 opening gate、admission、
   `WorkflowPlan`、ToolSpec admission、structured query backend、fail-close envelope
   与 finalization
 - Go runtime policy 当前从 `configs/runtime/intent-policy.v1.json` 加载 versioned
@@ -261,30 +267,30 @@ Docker-side Go runtime code domain 负责：
   `transport_schedule_lookup` / `service_status_lookup` 的 subtype 返回
   `structured_subtype_missing` clarification，避免 delegate + nil handoff 进入 Python
   bridge
-- Go `supervisor-api` 已把 runtime policy decision summary 纳入内部观测口径：
+- Go `execution-gateway` 已把 runtime policy decision summary 纳入内部观测口径：
   `/metrics` 只用低基数 label 发布 `scope_gate`、`policy_gate`、
   `context_preflight`、`routing_next_action`、`planning_outcome`、selected target /
   tool、terminal outcome 与 fail-close reason；OTel 与 execution audit 同步携带这些安全摘要，
   不携带 raw `user_goal` 或 prompt/provider payload
-- Go `supervisor-api` 已拥有 bridge response finalization：Python bridge 只返回
+- Go `execution-gateway` 已拥有 bridge response finalization：Python bridge 只返回
   `AgentResponse`，Go finalizer 统一生成 public `SupervisorResponse` 与
   response-level observability；Python legacy `policy.py` / `response.py` 已删除
 - Standalone Python `packages/supervisor-core` 已退役；剩余
   `AgentDispatcher` / `dispatch_agent_request` 已内联到
   `apps/supervisor-agent-worker`，默认 agent delegate map 由 worker runtime
   assembly 装配
-- Go `supervisor-api` 已拥有 query-enabled scope admission；当前 allowlist 来自
+- Go `execution-gateway` 已拥有 query-enabled scope admission；当前 allowlist 来自
   `configs/runtime/query-serving-scopes.v1.json`，并通过 drift test 与 ingestion
   runtime profile 的 `query_enabled_by_default=true` 保持一致。disabled knowledge
   scope 在进入 Python bridge 前返回 `403 disallowed_knowledge_scope`
-- Go `supervisor-api` 已拥有 structured runtime opening gate：
-  `campus_services` / `notice` 默认关闭，只有通过 `SUPERVISOR_API_OPEN_CAPABILITIES`
+- Go `execution-gateway` 已拥有 structured runtime opening gate：
+  `campus_services` / `notice` 默认关闭，只有通过 `EXECUTION_GATEWAY_OPEN_CAPABILITIES`
   显式开放后才允许进入 structured runtime；该变量只接受 `campus_services`、`notice`
   及其逗号组合，不接受 `*` / `all`
 - `place_lookup` / navigation 继续 fail-close，等待地图产品上线后再进行 serving admission
   wildcard；关闭时 non-stream request 返回 `503 structured_runtime_closed`，
   lifecycle stream 返回 terminal `execution.failed`
-- Go `supervisor-api` 已拥有 prompt config admission summary：
+- Go `execution-gateway` 已拥有 prompt config admission summary：
   `/readyz` 发布 Go-owned `prompt_config_gate`；Python worker 继续实际创建
   provider client / prompt executor，只上报 executor admission 与 HTTP pool health
 
@@ -295,10 +301,10 @@ Python semantic orchestration 长期继续负责：
 - RAG prompt stack semantic assembly 与 provider-backed structured output execution，除非
   后续 profiling 证明它们是 Go runtime 稳定后的下一条瓶颈线
 - Python bridge 不再拥有本地 supervisor audit JSONL writer；execution audit writer /
-  backflow 属于 Go `apps/supervisor-api`
+  backflow 属于 Go `apps/execution-gateway`
 - Python bridge readiness 只报告 `prompt_runtime`、`prompt_http_pool` 与 minimal
   `worker_runtime`；execution lifecycle / cancel counters / runtime truth 由 Go
-  `apps/supervisor-api` 发布
+  `apps/execution-gateway` 发布
 
 固定边界：
 
@@ -374,7 +380,7 @@ domain capability 默认 tools-first。agent 是 semantic specialist boundary，
 
 multi-agent 默认采用 manager-style typed-step orchestration：
 
-`Go supervisor-api -> durable RunStep -> typed tool or bounded specialist
+`Go execution-gateway -> durable RunStep -> typed tool or bounded specialist
 agent-as-tool -> StepResult / StepOutputProjection -> next step / finalizer`
 
 外部 agent 框架与 Codex CLI / Agents SDK / LangGraph 等 runtime 的共同启发只作为
@@ -386,7 +392,7 @@ truth 仍由 durable `RunStep`、`StepAttempt`、`StepResult`、`WorkflowPlan`�
 
 固定 owner 如下：
 
-- Go `apps/supervisor-api`
+- Go `apps/execution-gateway`
   - 拥有 workflow mode、allowed agents、allowed tools、step order、parallelism、
     timeout / budget、retry / replan posture、terminal fail-close policy 与 finalization
 - Python `apps/supervisor-agent-worker`
@@ -541,7 +547,7 @@ semantic runtime 使用 OpenAI Agents SDK native substrate。它用来承接：
 
 但它不能替代以下 repo-owned truth：
 
-- Go `apps/supervisor-api` 的 deterministic runtime kernel、admission、routing policy、
+- Go `apps/execution-gateway` 的 deterministic runtime kernel、admission、routing policy、
   posture-gated direct structured runtime branch、fail-close envelope 与 finalization
 - `apps/app-api` 的 surface capability policy、auth/session/principal、conversation、
   request projection 与 operator read model
@@ -552,7 +558,7 @@ semantic runtime 使用 OpenAI Agents SDK native substrate。它用来承接：
 
 当前 Agents SDK 路径固定为 SDK-native worker runtime：
 
-`Go supervisor-api -> AgentRequest -> Python SDK-backed domain agent -> AgentResponse
+`Go execution-gateway -> AgentRequest -> Python SDK-backed domain agent -> AgentResponse
 -> Go finalization`
 
 SDK run / trace 只能作为内部 trace/debug input；进入 app-api / panel / eval 的内容必须先
@@ -560,7 +566,7 @@ SDK run / trace 只能作为内部 trace/debug input；进入 app-api / panel / 
 trace 直接写入 shared contracts。
 
 Provider-native function calling 的默认接入点同样只能在 domain-agent 内部。它不能替代 Go
-`apps/supervisor-api` 的 `allowed_tools`、tool admission、opening gate、runtime policy
+`apps/execution-gateway` 的 `allowed_tools`、tool admission、opening gate、runtime policy
 或 fail-close finalization。Python adapter 只能把 Go handoff 中已经允许的 tool 子集编译成
 provider function schema，并把 tool output 先收敛为 repo-owned typed result，再返回
 `AgentResponse`。
@@ -609,12 +615,12 @@ SDK runtime 不是 repo-wide owner。后续新增 surface 按以下顺序 admiss
 
 长期 tool use 采用 application-owned orchestration：
 
-`Go supervisor-api -> ToolSpec / allowed_tools -> domain-agent tool loop ->
+`Go execution-gateway -> ToolSpec / allowed_tools -> domain-agent tool loop ->
 thin adapter -> internal query service -> sanitized AgentResponse -> Go finalization`
 
 固定 owner 如下：
 
-- `apps/supervisor-api`
+- `apps/execution-gateway`
   - 拥有 deterministic tool admission、capability / lane / scope / version guard、
     opening gate、workflow plan、max-call / timeout posture、fail-close terminal
     semantics 与 low-cardinality observability labels
@@ -978,20 +984,20 @@ domain query service -> evidence verifier -> synthesis -> grounding`
 
 ## Runtime Posture
 
-`apps/supervisor-api` 表示 logical execution engine boundary，不代表所有 runtime code 都必须继续
-留在 Python。
+`apps/execution-gateway` 表示 logical execution engine boundary，不代表所有 runtime
+code 都必须继续留在 Python。
 
 当前重要的是：
 
 - transport 留在 `apps/*`
 - private agent dispatch checkpoint 留在 `apps/supervisor-agent-worker`
 - agent behavior 留在 agent package
-- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
-- Docker-side Go `supervisor-api` owns runtime hardening: request limits, caller
+- `apps/execution-gateway` 的部署 substrate 已冻结为 Docker-first internal execution service
+- Docker-side Go `execution-gateway` owns runtime hardening: request limits, caller
   admission, in-flight lifecycle, explicit cancel, global / per-lane execution
   queue / backpressure, bridge circuit breaker, timeout propagation, readiness,
   metrics, OTel telemetry seam and graceful drain
-- 这项冻结不改写 `app-api -> supervisor-api` contract，也不提前冻结单一 Python/HTTP
+- 这项冻结不改写 `app-api -> execution-gateway` contract，也不提前冻结单一 Python/HTTP
   framework
 - Python `apps/supervisor-agent-worker` 只保留 private bridge worker，不再保留 repo-local
   public compatibility entry
@@ -1035,12 +1041,12 @@ task/evidence packet -> Go-side supervisor finalization`
 ## Forbidden Shapes
 
 - 不把 supervisor 重新写成被动转发层
-- 不把 `rag-agent` 重新降级成 `campusRAG` 式扁平 retrieval tool，也不把 deterministic
+- 不把 `rag-agent` 重新降级成扁平 retrieval tool，也不把 deterministic
   typed tool 包装成没有语义职责的 agent
 - 不把 `campus-services-agent` / `notice-agent` 的 structured runtime 再塞回 generic
   RAG 或单一 mega-tool router
 - 不把 retrieval implementation 细节塞回 `apps/supervisor-agent-worker`
-- 不让 `apps/supervisor-api` 恢复 product backend、operator query 或 browser API 责任
+- 不让 `apps/execution-gateway` 恢复 product backend、operator query 或 browser API 责任
 - 不让 execution path 为了取 service/notice truth 而回调 `app-api` loopback HTTP
 - 不让 tool 在 query time 重新扫描 raw notice/source bundle 来“临时算答案”
 - 不把 retrieval steps 内联回 supervisor routing
@@ -1051,7 +1057,7 @@ task/evidence packet -> Go-side supervisor finalization`
 
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`
+- `docs/decisions/adr-0043-execution-gateway-docker-first-runtime.md`
 - `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-cap
   ability-policy.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`

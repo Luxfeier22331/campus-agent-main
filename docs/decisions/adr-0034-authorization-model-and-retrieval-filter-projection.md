@@ -35,7 +35,7 @@ Accepted on 2026-03-29.
 
 - `apps/app-api` 拥有 canonical principal mapping、entitlement truth、resource
   ownership truth 与 approval truth
-- `apps/supervisor-api`、`apps/supervisor-agent-worker`、`packages/rag-agent` 与
+- `apps/execution-gateway`、`apps/supervisor-agent-worker`、`packages/rag-agent` 与
   `packages/retrieval-core` 只消费最小化 typed authz projection
 - edge / Worker / Cloudflare Access 侧身份材料只属于 boundary input，不等于 canonical
   authorization truth

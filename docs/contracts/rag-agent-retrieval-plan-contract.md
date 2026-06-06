@@ -62,7 +62,7 @@ step trajectory，而不是 prompt 内部不可见的自由文本状态。
 固定规则：
 
 - `packages/contracts` 当前不承载 `RetrievalPlan / RetrievalStep / StepResult`
-- `apps/app-api`、`apps/supervisor-api`、`apps/supervisor-agent-worker` 与
+- `apps/app-api`、`apps/execution-gateway`、`apps/supervisor-agent-worker` 与
   browser surface 不得依赖这组内部类型
 - operator / browser 最终只应看到衍生后的 supporting evidence 或 operator-safe execution
   summary，而不是 raw plan / raw vendor payload

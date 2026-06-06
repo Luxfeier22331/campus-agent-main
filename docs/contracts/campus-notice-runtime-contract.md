@@ -14,7 +14,7 @@ This contract freezes the query-time notice runtime boundary.
 It covers:
 
 - `packages/contracts` notice payload/result dataclasses
-- Go `apps/supervisor-api` ToolSpec, planner, direct runtime and internal
+- Go `apps/execution-gateway` ToolSpec, planner, direct runtime and internal
   query service
 - Python `apps/supervisor-agent-worker -> packages/notice-agent` handoff and
   thin adapter
@@ -118,7 +118,7 @@ NoticeDisplayPolicy
 
 ## Runtime Ownership
 
-Go `apps/supervisor-api` owns:
+Go `apps/execution-gateway` owns:
 
 - ToolSpec posture and `allowed_tools`
 - selected notice planning

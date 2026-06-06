@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-06-05
+updated: 2026-06-06
 ---
 # Capability Routing And Admission Architecture
 
@@ -16,7 +16,8 @@ architecture。
 - 顶层产品入口应先做什么判断、后做什么判断
 - `admission` 与 `routing` 应怎样分层
 - `requested_scope`、`capability family`、clarification 分别属于哪一层
-- `apps/app-api`、`apps/supervisor-api`、`apps/supervisor-agent-worker`、
+- `apps/app-api`、`execution-gateway` / current `apps/execution-gateway`、
+  `apps/supervisor-agent-worker`、
   typed tools 与 agent-as-tool 各自负责什么
 
 它不负责：
@@ -38,7 +39,8 @@ supporting architecture，不得把它误读成“public chat 当前已经不是
 而是：
 
 `surface intake -> admission / guardrails -> capability routing ->
-workflow planning -> typed tool / agent-as-tool execution -> supervisor finalization`
+workflow planning -> Temporal typed activity / agent-as-tool activity ->
+supervisor finalization`
 
 其中固定规则如下：
 
@@ -50,8 +52,9 @@ workflow planning -> typed tool / agent-as-tool execution -> supervisor finaliza
 - `admission` 与 `routing` 必须分层，避免把 authz、surface policy、approval-required 与
   domain reasoning 混在一起
 - `admission` 还必须区分 surface admission、identity / quota admission、run
-  admission、step admission 与 execution lease admission；supervisor 进程内 queue 只属于
-  execution-level local protection，不是 canonical production admission
+  admission、workflow/activity admission 与 task dispatch admission；supervisor
+  进程内 queue 只属于 execution-level local protection，不是 canonical production
+  admission
 - `rag-agent` 仍是核心 capability family，但不再被默认等同于整个产品入口语义
 - multi-agent 不是默认自由展开；它必须由 typed workflow plan、allowed agents、
   allowed tools、step budget 与 eval denominator admission
@@ -140,16 +143,18 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
   - `apps/app-api` 与 durable scheduler 共同消费；canonical identity truth 仍在
     `apps/app-api`
 - `run admission`
-  - `apps/supervisor-api` durable scheduler 拥有；判断是否创建 / 推进一个 run
+  - `apps/execution-gateway` durable scheduler 拥有；判断是否创建 / 推进一个 run
 - `step admission`
-  - `apps/supervisor-api` durable scheduler 拥有；判断 typed step 是否允许排队、是否满足
+  - `apps/execution-gateway` durable scheduler 拥有；判断 typed step 是否允许排队、是否满足
     dependency、projection、ToolSpec / AgentSpec 与 lane 条件
-- `execution lease admission`
-  - scheduler / lease coordinator 拥有；判断 lane、worker、provider、Qdrant、
+- `activity dispatch admission`
+  - target architecture 中由 Temporal workflow / task queue dispatch 与
+    repo-owned budget policy 承接；判断 lane、worker、provider、Qdrant、
     Postgres 等 execution budget
 
-当前 `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS`、`SUPERVISOR_API_QUEUE_CAPACITY` 与
-`SUPERVISOR_API_QUEUE_TIMEOUT_MS` 只属于 current process-local execution protection。
+当前 `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS`、
+`EXECUTION_GATEWAY_QUEUE_CAPACITY` 与 `EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS` 只属于
+current process-local execution protection。
 它们不得替代 durable run admission 或 lease coordination。
 
 ### 3. Capability Routing
@@ -189,14 +194,18 @@ service 入场；只有需要 semantic specialist 时才新增 family label，�
 - 哪些 cross-step context 可以进入下一步 prompt 或 finalization
 - 本次 workflow 对 durable run / lane / lease / timeout 的要求是什么
 - 哪些 durable step 必须由 typed tool 执行，哪些可以由 agent-as-tool 执行
+- 哪些 Temporal workflow / activity task queue 被允许参与
 
 固定规则：
 
 - `workflow_plan` 不复制完整 prompt payload，不替代 bridge request
-- multi-agent path 必须有 ordered step truth、context projection truth 与 trace denominator
+- multi-agent path 必须有 ordered step truth、context projection truth 与 trace
+  denominator
 - 并行 fanout 必须由 workflow plan 显式声明；不得让 provider 自由并发调用全局工具全集
 - routing clarification 仍发生在 workflow planning 之前；agent clarification 只能发生在已选定
   family / step 内部
+- Temporal workflow history 不替代 product projection；workflow/activity progress
+  必须写入 repo-owned sanitized projection 后才能进入 panel / eval / badcase truth
 
 ### 5. Typed Tool / Agent-As-Tool Execution
 
@@ -242,12 +251,12 @@ supervisor 长期继续统一负责：
 - `public-chat-web` 当前 knowledge-only 是 surface posture
 - `public-docs` 不消费 execution routing，不因此拥有 `knowledge` capability
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
-- `apps/supervisor-api` 不拥有 product-layer surface allowlist truth
+- `apps/execution-gateway` 不拥有 product-layer surface allowlist truth
 
 禁止做法：
 
 - 把某个 surface 当前开放的 capability 直接写死成整个 repo 的长期入口原则
-- 让 `apps/supervisor-api` 或 agent 反向拥有 browser-facing capability policy
+- 让 `apps/execution-gateway` 或 agent 反向拥有 browser-facing capability policy
 
 ## Capability Family First, Scope Second
 

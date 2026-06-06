@@ -145,7 +145,7 @@ current artifact：
 
 长期 serving truth 由 PostgreSQL 持有：ingestion worker 在 immutable object artifact
 写入成功后，发布 release catalog、`structured_projection_current` current pointer 与
-`service_guide_read_model` typed read model。Go `apps/supervisor-api` 通过 PG current
+`service_guide_read_model` typed read model。Go `apps/execution-gateway` 通过 PG current
 release 读取 `service_guide_lookup` 数据，不直接读对象存储、不持有对象存储凭据。
 
 文件 projection path runtime 已下线；本地 fixture、smoke 与 bootstrap 也应通过

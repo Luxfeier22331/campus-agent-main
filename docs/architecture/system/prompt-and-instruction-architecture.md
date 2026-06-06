@@ -29,7 +29,7 @@ updated: 2026-04-25
 当前 repo 已经把 prompt / instruction runtime 收口为显式 supporting architecture +
 code-owned runtime seam。当前接受的实现基线是：
 
-- Go `apps/supervisor-api` 拥有 intent framing、routing、policy 与 response
+- Go `apps/execution-gateway` 拥有 intent framing、routing、policy 与 response
   finalization
 - `packages/rag-agent` 拥有 ambiguity handling、query planning、retrieval-oriented
   answer shaping
@@ -153,7 +153,7 @@ code-owned runtime seam。当前接受的实现基线是：
 这些 truth 继续由：
 
 - `apps/app-api`
-- `apps/supervisor-api`
+- `apps/execution-gateway`
 - `packages/retrieval-core`
 - registry / runtime profile / release manifest
 
@@ -318,7 +318,7 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 - 拥有 product-facing answer kind 映射与 operator-facing projection
 - 不拥有 policy / scope / grounding 的最终真相判断
 
-### `apps/supervisor-api` ownership
+### `apps/execution-gateway` ownership
 
 - 拥有 top-level `policy gate` 与 `scope gate`
 - 拥有语义终态 finalization
@@ -383,7 +383,7 @@ repo 级 instruction hierarchy 固定拆成五层：
 
 当前实现边界：
 
-- `apps/supervisor-api`
+- `apps/execution-gateway`
   - owns prompt config admission summary and deterministic terminal envelopes
 - `apps/supervisor-agent-worker`
   - owns RAG prompt runtime assembly and provider client binding
@@ -566,7 +566,7 @@ repo 当前推荐的 system / role 设计固定为：
 
 当前 production supervisor terminal path 不再维护 prompt family；clarify /
 approval-required / out-of-scope / reject 的 deterministic terminal wording 由 Go
-`supervisor-api` 的 direct terminal path 承接。若后续重新引入 LLM-assisted supervisor
+`execution-gateway` 的 direct terminal path 承接。若后续重新引入 LLM-assisted supervisor
 wording，必须作为新的显式 workstream 重新定义 prompt family、eval gate 与 code
 finalization，不得复用已删除的旧 supervisor prompt assets。
 
@@ -895,7 +895,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - package-owned prompt registry、prompt packet 与 strict validation seam
   已成为 knowledge path 产品主链路的一部分
-- `apps/supervisor-api` 已承担 prompt config admission summary；Python
+- `apps/execution-gateway` 已承担 prompt config admission summary；Python
   `apps/supervisor-agent-worker` 仍实际创建 RAG provider client，并通过
   `packages/prompt-runtime` 执行 prompt contract validation、structured output 与
   prompt trace 接入现有 diagnostics / observability

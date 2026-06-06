@@ -5,7 +5,7 @@ status: accepted
 created: 2026-04-23
 updated: 2026-04-24
 ---
-# ADR-0043 Supervisor API Docker-First Runtime
+# ADR-0043 Execution Gateway Docker-First Runtime
 
 ## 状态
 
@@ -17,10 +17,10 @@ Accepted on 2026-04-23.
 
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/app-api` 的 runtime = Worker
-- `apps/supervisor-api` 只是 internal execution engine
-- `app-api -> supervisor-api` 是 canonical internal execution seam
+- `apps/execution-gateway` 只是 internal execution engine
+- `app-api -> execution-gateway` 是 canonical internal execution seam
 
-但 `apps/supervisor-api` 的部署 substrate 一直没有正式冻结。
+但 `apps/execution-gateway` 的部署 substrate 一直没有正式冻结。
 
 如果这件事继续悬空，后续实现很容易反复漂移为：
 
@@ -30,17 +30,17 @@ Accepted on 2026-04-23.
 
 ## 决策
 
-1. `apps/supervisor-api` 的前向 deploy substrate 冻结为 Docker-first internal
+1. `apps/execution-gateway` 的前向 deploy substrate 冻结为 Docker-first internal
    execution service。
 1. 这项冻结表达的是部署 substrate，不等于冻结单一 Python/HTTP framework。
-1. 这项冻结不要求 `apps/supervisor-api` 与 `apps/app-api` 使用同一 runtime，也不把
-   `apps/supervisor-api` 改写成 Worker。
-1. `app-api` 继续通过显式 `SUPERVISOR_API_BASE_URL` 调用一个真实可达的 execution origin；
+1. 这项冻结不要求 `apps/execution-gateway` 与 `apps/app-api` 使用同一 runtime，也不把
+   `apps/execution-gateway` 改写成 Worker。
+1. `app-api` 继续通过显式 `EXECUTION_GATEWAY_BASE_URL` 调用一个真实可达的 execution origin；
    这项 ADR 不单独冻结 repo-level staging hostname。
-1. Go `supervisor-api` packaging / automation 落地后，repo-local Python public
+1. Go `execution-gateway` packaging / automation 落地后，repo-local Python public
    compatibility entry 已移除；Python 侧只保留 `supervisor-agent-worker` private
    bridge worker。
-1. Docker-first execution service 的 runtime control plane 由 Go `apps/supervisor-api`
+1. Docker-first execution service 的 runtime control plane 由 Go `apps/execution-gateway`
    承担；Python `apps/supervisor-agent-worker` 继续保留 semantic orchestration 与
    agent reasoning 边界。
 
@@ -48,9 +48,9 @@ Accepted on 2026-04-23.
 
 这项决策同时冻结以下约束：
 
-- `apps/supervisor-api` 继续只是 internal execution engine，不重新吸收产品层 auth/session/
+- `apps/execution-gateway` 继续只是 internal execution engine，不重新吸收产品层 auth/session/
   conversation 或 browser-facing API 责任
-- `app-api -> supervisor-api` 的 typed execution contract 不因 Docker substrate
+- `app-api -> execution-gateway` 的 typed execution contract 不因 Docker substrate
   freeze 而改写
 - repo-local dev server、named tunnel 或其他兼容桥接姿势不能再被表述为长期 deploy
   truth
@@ -61,19 +61,19 @@ Accepted on 2026-04-23.
 
 直接结果如下：
 
-- repo 入口文档与 architecture docs 必须把 `apps/supervisor-api = Docker-first internal
+- repo 入口文档与 architecture docs 必须把 `apps/execution-gateway = Docker-first internal
   execution service` 作为 accepted truth
-- runbook 必须把 `supervisor-api + supervisor-agent-worker` 双容器作为当前 execution
+- runbook 必须把 `execution-gateway + supervisor-agent-worker` 双容器作为当前 execution
   runtime truth
 - dev-backed staging 兼容路径已退出 active runbook / script surface
-- Go `apps/supervisor-api` 是当前 Docker execution ingress，拥有 execution transport、
+- Go `apps/execution-gateway` 是当前 Docker execution ingress，拥有 execution transport、
   admission、queue、timeout、readiness、metrics 与 graceful drain
-- 后续 Go 迁移优先吸收 deterministic supervisor runtime kernel：request
+- 后续 Go 迁移优先吸收 deterministic execution runtime kernel：request
   lifecycle、cancel、per-lane budget、audit writer、runtime observability、
   fail-close envelope 与 projection-backed structured query dispatch
 - Go runtime 扩张不得把 product-layer auth/session/conversation、browser-facing
   capability policy、ingestion/OCR/indexing、RAG retrieval planning 或 agent semantic
-  reasoning 拉进 Go `apps/supervisor-api`
+  reasoning 拉进 Go `apps/execution-gateway`
 
 ## Complements
 

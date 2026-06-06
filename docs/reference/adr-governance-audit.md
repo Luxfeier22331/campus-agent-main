@@ -70,7 +70,7 @@ updated: 2026-06-04
 
 - `apps/app-api = Cloudflare Worker`，见 `ADR-0013` 与
   `docs/architecture/system/product-runtime-architecture.md`。
-- `apps/supervisor-api = Docker-first internal execution service`，见
+- `apps/execution-gateway = Docker-first internal execution service`，见
   `ADR-0043` 与 `docs/architecture/current-architecture.md`。
 - product surface 收口到 `hub-web` / `public-chat-web` / `public-docs` /
   `protected-panel-web` + shared `app-api`，见 `ADR-0012`、`ADR-0013`、

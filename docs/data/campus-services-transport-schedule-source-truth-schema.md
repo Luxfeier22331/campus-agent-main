@@ -325,7 +325,7 @@ mounted readonly current projection file runtime 已下线。
 - `admitted_at`
 - `materialized_at`
 
-Go `apps/supervisor-api` 长期不直接读对象存储、不持有对象存储凭据，也不在 query-time
+Go `apps/execution-gateway` 长期不直接读对象存储、不持有对象存储凭据，也不在 query-time
 解析 projection JSON。它通过 projection-backed internal query service 读取 PG current
 release 与 typed read model。
 

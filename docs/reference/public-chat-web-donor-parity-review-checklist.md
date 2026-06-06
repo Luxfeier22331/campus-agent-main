@@ -21,7 +21,7 @@ updated: 2026-04-20
 
 - 维护某一轮 closeout 的实时判定结果
 - 替代单轮 staging smoke 目录中的原始截图与网络证据
-- 改写 `public-chat-web -> app-api -> supervisor-api` 运行边界
+- 改写 `public-chat-web -> app-api -> execution-gateway` 运行边界
 
 ## Gate 说明
 

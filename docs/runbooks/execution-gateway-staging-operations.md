@@ -2,27 +2,27 @@
 doc_type: runbook
 status: active
 created: 2026-04-24
-updated: 2026-06-05
+updated: 2026-06-06
 ---
-# Supervisor API Staging Operations
+# Execution Gateway Staging Operations
 
 ## 文档边界
 
-这份 runbook 只回答当前 canonical staging execution upstream 的长期运维真相：
+这份 runbook 只回答当前 canonical staging execution upstream 的运维真相：
 
-- 当前 repo-owned staging execution runtime 是 `otel-collector + supervisor-api + supervisor-agent-worker`
-  三容器
+- 当前 repo-owned staging execution runtime 是
+  `otel-collector + execution-gateway + supervisor-agent-worker` 三容器
 - `exec-staging.mucwiki-edge.link` 通过 Cloudflare remote-managed named tunnel 指向
-  `nc-arm-6c` 上的本地 `supervisor-api` runtime
+  `nc-arm-6c` 上的本地 `execution-gateway` runtime
 
 它不覆盖 browser smoke 证据采集；那部分统一看
-`supervisor-api-staging-smoke-runbook.md`。
+`execution-gateway-staging-smoke-runbook.md`。
 它也不作为通用 Linux server 部署文档；server handoff 见
-`supervisor-api-server-handoff.md`。
+`execution-gateway-server-handoff.md`。
 
 ## 当前真相
 
-- `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+- `apps/execution-gateway` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - 当前 repo-owned staging execution runtime：
   - `infra/local/docker-compose.supervisor-runtime.yml`
@@ -30,18 +30,27 @@ updated: 2026-06-05
     - repo-owned runtime telemetry fan-out
     - local OTLP ingress `4317/4318`
     - health check `13133`
-  - `supervisor-api`
+  - `execution-gateway`
     - `trusted-worker`
     - `127.0.0.1:27051`
-    - `/healthz` `/readyz` `/metrics` `/api/v1/answer`
-    - PG-backed run-level durable runtime baseline：run store、events、leases、lane
-      budgets、worker heartbeat、worker loop、recovery loop
-    - bounded in-process admission queue / backpressure / graceful drain as
-      local process protection
+    - `/healthz` `/readyz` `/metrics`
+    - Temporal-backed execution run command/query seam：
+      `/internal/execution/runs`,
+      `/internal/execution/runs/:runId`,
+      `/internal/execution/runs/:runId/events`,
+      `/internal/execution/runs/:runId/cancel`
+    - PG-backed sanitized projection store：run store、events、step projection
+      artifacts for app-api / panel / eval reads
+    - Temporal workflow/activity workers for execution scheduling and retry
   - `supervisor-agent-worker`
     - private `/internal/bridge/*`
+  - `temporal`
+    - self-hosted Temporal frontend/history/matching/worker service
+    - dedicated Temporal Postgres persistence / visibility store
+  - `temporal-ui`
+    - local-only operator UI
 - named tunnel：
-  - tunnel name: `supervisor-api-staging`
+  - tunnel name: `execution-gateway-staging`
   - tunnel id: `7d0db8a7-53bd-417d-8028-548c35c8e30e`
   - public hostname: `<https://exec-staging.mucwiki-edge.link`>
   - Cloudflare remote config 必须把该 hostname 指到 connector 本机
@@ -53,11 +62,12 @@ updated: 2026-06-05
   - `<https://api-staging.mucwiki-edge.link`>
 - canonical staging host：`nc-arm-6c`, repo path `/srv/apps/campus-agent`
 - 常驻机制：
-  - Docker Compose runtime: `infra/local/staging/start-supervisor-api-staging.sh`
+  - Docker Compose runtime: `infra/local/staging/start-execution-gateway-staging.sh`
   - Cloudflare connector: systemd service
-    `cloudflared-supervisor-api-staging.service`
-  - strict health check: `infra/local/staging/status-supervisor-api-staging.sh --check`
-  - lifecycle lock: `.tmp/supervisor-api-staging/lifecycle.lock`
+    `cloudflared-execution-gateway-staging.service`
+  - strict health check:
+    `infra/local/staging/status-execution-gateway-staging.sh --check`
+  - lifecycle lock: `.tmp/execution-gateway-staging/lifecycle.lock`
 
 以上是当前 `nc-arm-6c` staging host 特定形态，不代表 production substrate。
 
@@ -65,9 +75,12 @@ updated: 2026-06-05
 
 - staging 必须证明 run-level durable baseline：durable store、worker loop、
   recovery loop 与 app-api durable chat cutover ready。
-- staging 还不是 step-level multi-role topology：`supervisor-api-control`、
-  `supervisor-scheduler`、`supervisor-recovery`、`supervisor-worker-{lane}` 与
-  `worker-autoscaler` 当前仍作为目标 role model 记录在架构文档中。
+- staging 还不是 Temporal execution plane：当前仍是 PG-backed run-level durable
+  baseline + execution-gateway / supervisor-agent-worker Docker runtime。
+- `execution-gateway-control`、`supervisor-scheduler`、`supervisor-recovery`、
+  `supervisor-worker-{lane}` 与 `worker-autoscaler` 是 ADR-0047 时代的历史 target role
+  label；target execution substrate 已由 ADR-0048 收口为
+  `execution-gateway` + Temporal workflow/activity worker pools。
 - staging 的 Docker Compose / systemd / Cloudflare tunnel 只负责部署与连接；不拥有 run queue、
   step queue、execution lease、event 或 terminal truth。
 - Redis 不参与 canonical execution queue。若以后用于 wakeup / fanout / cache，丢失或重启不得影响
@@ -80,19 +93,19 @@ updated: 2026-06-05
 在本机 release branch 上把仓库同步到 `nc-arm-6c:/srv/apps/campus-agent`。
 canonical staging lifecycle 固定使用：
 
-- compose project: `campus-supervisor-api-staging`
+- compose project: `campus-execution-gateway-staging`
 - host port: `27051`
-- runtime dir: `.tmp/supervisor-api-staging`
+- runtime dir: `.tmp/execution-gateway-staging`
 
 不要在 canonical `.env.staging.local` 中覆写
-`SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME`、
-`SUPERVISOR_API_STAGING_RUNTIME_DIR` 或 `SUPERVISOR_API_STAGING_PORT`。普通
+`EXECUTION_GATEWAY_STAGING_COMPOSE_PROJECT_NAME`、
+`EXECUTION_GATEWAY_STAGING_RUNTIME_DIR` 或 `EXECUTION_GATEWAY_STAGING_PORT`。普通
 `start/status` 脚本会拒绝被指到 isolated proof runtime，避免
 `exec-staging.mucwiki-edge.link` 指向 `27051` 但生命周期脚本操作另一个 compose
 project。
 
 如果需要本机 durable proof，使用
-`infra/local/staging/proof-supervisor-api-durable-runtime-staging.sh`，并在该命令的
+`infra/local/staging/proof-execution-gateway-durable-runtime-staging.sh`，并在该命令的
 执行环境中显式设置 isolated project/runtime/port；不要把这些 proof 变量写进
 canonical staging operator secret。
 
@@ -114,13 +127,13 @@ rsync -a --delete --exclude .git --exclude .worktrees --exclude node_modules \
 - `apps/app-api/.dev.vars`：`app-api` runtime secret 与 supervisor shared secret
 - 各 web app `.dev.vars`：只供 staging build/deploy secret presence gate 使用
 
-`infra/local/staging/start-supervisor-api-staging.sh` 会按顺序读取 `.env`、
+`infra/local/staging/start-execution-gateway-staging.sh` 会按顺序读取 `.env`、
 `.env.staging.local`、`apps/app-api/.dev.vars`，再把允许进入 runtime 的 key 注入
 Compose。
 
 `.env.staging.local` 必须包含：
 
-- `STAGING_SUPERVISOR_API_BASE_URL=https://exec-staging.mucwiki-edge.link`
+- `STAGING_EXECUTION_GATEWAY_BASE_URL=https://exec-staging.mucwiki-edge.link`
 - `STAGING_INGESTION_SHARED_POSTGRES_URL=<staging shared Postgres URL>`；
   如果使用 Supabase，必须是 session pooler `:5432` DSN，并包含 `sslmode=require`
 - `STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=<registry Postgres URL>`；
@@ -161,40 +174,31 @@ Compose。
   - `STAGING_INGESTION_SPARSE_LANGUAGE=none`
 - `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
 - `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
-- `SUPERVISOR_API_METRICS_BEARER_TOKEN=<metrics bearer token>`
-- `SUPERVISOR_API_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token>`；只有
-  `start-supervisor-api-staging.sh` 在启动或接管 cloudflared connector 时需要该
-  token。`status-supervisor-api-staging.sh --check` 只验证既有
+- `EXECUTION_GATEWAY_METRICS_BEARER_TOKEN=<metrics bearer token>`
+- `EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token>`；只有
+  `start-execution-gateway-staging.sh` 在启动或接管 cloudflared connector 时需要该
+  token。`status-execution-gateway-staging.sh --check` 只验证既有
   runtime/tunnel/public readiness，不要求持有 tunnel deployment secret。
 - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>`
 - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
-- `SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=<durable runtime Postgres URL>`；
-  这是 supervisor durable run store / scheduler / lease coordinator 的显式 store
-  URL，不从 `STAGING_INGESTION_SHARED_POSTGRES_URL`、
-  `SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL`、root `.env` 或
+- `EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL=<durable runtime Postgres URL>`；
+  这是 execution projection store 的显式 URL，不从 `STAGING_INGESTION_SHARED_POSTGRES_URL`、
+  `EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL`、root `.env` 或
   `apps/app-api/.dev.vars` 推断。同机 self-hosted Postgres 场景通常写
   `postgresql://<user>:<password>@127.0.0.1:5432/campus_agent`；lifecycle 会把容器侧
   URL 投影为 `postgres:5432`。
-- durable worker loop 必须显式开启并完整配置：
-  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED=true`
-  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID=supervisor-api-staging-rag-001`
-  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE=rag`
-  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID=handoff:rag-agent:rag_request`
-  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS=250`
-  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS=30000`
-  - `SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS=5000`
-  heartbeat interval 必须短于 lease TTL。开启 worker loop 但缺任一字段时，
-  lifecycle 必须 fail closed。
-- durable recovery loop 必须显式开启并完整配置：
-  - `SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED=true`
-  - `SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS=250`
-  - `SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS=2`
-  recovery loop 是 scheduler-owned recovery path：它不领取 execution lease、
-  不调用 bridge、不执行 agent，只负责周期性回收 expired lease 与 timed-out run。
-  `MAX_RETRY_ATTEMPTS` 是 expired lease recovery 的显式 bounded retry policy：
-  未达上限时 run 重新入队并递增 lease attempt，达到上限后才以
-  `lease_expired` terminal。
-  开启 recovery loop 但缺任一字段时，lifecycle 必须 fail closed。
+- Temporal 必须显式配置：
+  - `TEMPORAL_POSTGRES_PASSWORD=<temporal postgres password>`
+  - `EXECUTION_GATEWAY_TEMPORAL_ADDRESS=temporal:7233`
+  - `EXECUTION_GATEWAY_TEMPORAL_NAMESPACE=campus-agent-staging`
+  - `EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE=campus-agent.workflow`
+  - `EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY=staging:execution-gateway:<instance>`
+  - `EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT=<workflow id salt>`
+  - `EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS=5000`
+  缺任一 Temporal 必填配置时，lifecycle 必须 fail closed。
+- `EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_*` 与
+  `EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_*` 已退役；staging env 出现这些键时必须
+  fail closed。
 
 `STAGING_APP_API_OPERATOR_DATABASE_URL` 只用于 `app-api` staging schema/bootstrap/operator
 脚本；即使它物理上和 runtime shared Postgres 相同，也必须单独写入
@@ -203,11 +207,11 @@ Compose。
 `STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL`。
 supervisor lifecycle 不会从 root `.env`、`apps/app-api/.dev.vars` 或
 `STAGING_APP_API_OPERATOR_DATABASE_URL` 猜测 retrieval runtime 数据面。缺任一
-`STAGING_INGESTION_*` 必填项时，`start-supervisor-api-staging.sh` 会 fail closed。
+`STAGING_INGESTION_*` 必填项时，`start-execution-gateway-staging.sh` 会 fail closed。
 generic `EMBEDDING_*` / `SPARSE_*` 不能替代 staging 的
 `STAGING_INGESTION_EMBEDDING_*` / `STAGING_INGESTION_SPARSE_*`。
 generic `CAMPUS_SHARED_POSTGRES_URL` 也不能替代
-`SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL`；durable run truth 必须有自己的
+`EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL`；durable run truth 必须有自己的
 显式配置入口。
 
 Cloudflare R2 staging object store 固定为：
@@ -216,7 +220,7 @@ Cloudflare R2 staging object store 固定为：
 - source bucket: `campus-rag-source-staging`
 - derived bucket: `campus-rag-derived-staging`
 
-`supervisor-api` 在线 notice body runtime 消费
+`execution-gateway` 在线 notice body runtime 消费
 `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT`、
 `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY`、
 `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY`、
@@ -235,7 +239,7 @@ secret 或 `/srv/apps/campus-agent/.env.staging.local`，不得进入 repo。
 
 `apps/app-api/.dev.vars` 必须包含：
 
-- `SUPERVISOR_API_SHARED_SECRET`
+- `EXECUTION_GATEWAY_SHARED_SECRET`
 - `APP_API_INTERNAL_SHARED_SECRET`
 - app-api runtime secrets；retrieval data-plane、object-store 与 supervisor-agent-worker
   query env 不放在这里，统一由 repo-root `.env.staging.local` 的
@@ -247,35 +251,35 @@ secret 或 `/srv/apps/campus-agent/.env.staging.local`，不得进入 repo。
 
 ```bash
 cd /srv/apps/campus-agent
-sudo SUPERVISOR_API_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token> \
-  infra/local/staging/install-supervisor-api-staging-cloudflared-service.sh
+sudo EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token> \
+  infra/local/staging/install-execution-gateway-staging-cloudflared-service.sh
 ```
 
 确认：
 
 - 非登录 SSH shell 必须能执行 `uv`，或在 `.env.staging.local` 显式设置
-  `SUPERVISOR_API_STAGING_UV_BIN=/home/deploy/.local/bin/uv`；staging lifecycle
+  `EXECUTION_GATEWAY_STAGING_UV_BIN=/home/deploy/.local/bin/uv`；staging lifecycle
   不会跳过 `doctor_env`。
 
 ```bash
-systemctl --no-pager --full status cloudflared-supervisor-api-staging.service
+systemctl --no-pager --full status cloudflared-execution-gateway-staging.service
 ```
 
-### 4. 启动 supervisor runtime
+### 4. 启动 execution runtime
 
 启动脚本会在 Docker Compose runtime 启动前完成 durable schema install/check：
 
-- `infra/local/staging/start-supervisor-api-staging.sh` 先完成 env projection、
+- `infra/local/staging/start-execution-gateway-staging.sh` 先完成 env projection、
   Docker data-plane readiness 与 self-hosted dependency readiness，再执行
-  `supervisor_api_staging_ensure_durable_runtime_schema`
+  `execution_gateway_staging_ensure_durable_runtime_schema`
 - schema 命令入口是
-  `apps/supervisor-api/cmd/durable-runtime-schema`
+  `apps/execution-gateway/cmd/durable-runtime-schema`
 - `install` 模式调用 durable Postgres store `EnsureSchema` 后执行 `HealthCheck`
 - `check` 模式只执行 `HealthCheck`
-- 两个模式都通过 `SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL` 访问容器侧
+- 两个模式都通过 `EXECUTION_GATEWAY_DURABLE_RUNTIME_DOCKER_DATABASE_URL` 访问容器侧
   durable store，不从 generic Postgres env 推断
 - evidence 固定写入
-  `${SUPERVISOR_API_STAGING_RUNTIME_DIR:-.tmp/supervisor-api-staging}/evidence/`
+  `${EXECUTION_GATEWAY_STAGING_RUNTIME_DIR:-.tmp/execution-gateway-staging}/evidence/`
   下的：
   - `durable-runtime-schema-install.json`
   - `durable-runtime-schema-check.json`
@@ -285,8 +289,8 @@ schema install/check 任一失败时启动直接失败；不要用 durable proof
 
 ```bash
 cd /srv/apps/campus-agent
-infra/local/staging/start-supervisor-api-staging.sh
-infra/local/staging/status-supervisor-api-staging.sh --check
+infra/local/staging/start-execution-gateway-staging.sh
+infra/local/staging/status-execution-gateway-staging.sh --check
 ```
 
 ## 日常健康检查
@@ -294,57 +298,60 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 人类可读状态：
 
 ```bash
-infra/local/staging/status-supervisor-api-staging.sh
+infra/local/staging/status-execution-gateway-staging.sh
 ```
 
 严格健康检查：
 
 ```bash
-infra/local/staging/status-supervisor-api-staging.sh --check
+infra/local/staging/status-execution-gateway-staging.sh --check
 ```
 
 `--check` 通过标准：
 
-- `otel-collector`、`supervisor-api` 与
+- `otel-collector`、`execution-gateway` 与
   `supervisor-agent-worker` 都在当前 compose project 中运行
-- `cloudflared-supervisor-api-staging.service` 处于 active/running，且 Cloudflare
+- `cloudflared-execution-gateway-staging.service` 处于 active/running，且 Cloudflare
   tunnel status 为 healthy
 - 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
   且 payload 明确报告：
   - `durable_runtime.configured=true`
   - `durable_runtime.healthy=true`
-  - `durable_worker_loop.enabled/configured/healthy/started=true`
-  - `durable_recovery_loop.enabled/configured/healthy/started=true`
+  - `temporal_runtime.configured=true`
+  - `temporal_runtime.healthy=true`
+  - `temporal_runtime.workers.started=true`
+  - `temporal_runtime.namespace=campus-agent-staging`
+  - `temporal_runtime.task_queue=campus-agent.workflow`
 - 本地 `<http://127.0.0.1:27051/metrics`> 带 bearer token 返回 `200`
 - `<https://api-staging.mucwiki-edge.link/readyz`> 返回 `200`
-- `api-staging` 的 `auth`、`database`、`supervisorApi` 与 `durableRuntime`
+- `api-staging` 的 `auth`、`database`、`executionGateway` 与 `durableRuntime`
   都是 `ready`
 
-当前 strict check 证明的是 run-level durable readiness；它不等于 step-level role split、
+当前 strict check 证明的是 Temporal execution plane + projection store readiness；它不等于
 multi-lane worker pool 或 worker autoscaler 已完成。上线证据需要另行记录这些目标角色的部署与
 step ledger projection。
 
 补充约束：
 
-- `supervisor-api` 默认 admission 参数为 `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8`、
-  `SUPERVISOR_API_QUEUE_CAPACITY=24`、`SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000`、
-  `SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000` 与
+- `execution-gateway` 默认 admission 参数为 `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS=8`、
+  `EXECUTION_GATEWAY_QUEUE_CAPACITY=24`、`EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS=3000`、
+  `EXECUTION_GATEWAY_REQUEST_TIMEOUT_MS=45000` 与
   `SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000`
-- 默认 bridge protection 参数为 `SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5`、
-  `SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000`、
-  `SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS=2` 与
-  `SUPERVISOR_API_BRIDGE_RETRY_BASE_MS=50`
+- 默认 bridge protection 参数为 `EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD=5`、
+  `EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS=10000`、
+  `EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS=2` 与
+  `EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS=50`
 - 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
   `campus_services=2/4/1500ms`、`notice=2/4/1500ms`、`default=1/2/1500ms`；
   三元组含义为 `max_concurrent / queue_capacity / queue_timeout`
 - durable lane budget 的目标语义是 PG-backed `max_active_leases`、queued run / queued step
   budget 与 lease timeout。上述 process-local 三元组只保留为当前 staging process protection，
   不得作为 worker autoscaling 或 production queue truth。
-- staging 默认启用 `SUPERVISOR_API_OTEL_ENABLED=true`、
-  `SUPERVISOR_API_OTEL_METRICS_ENABLED=true` 与
+- staging 默认启用 `EXECUTION_GATEWAY_OTEL_ENABLED=true`、
+  `EXECUTION_GATEWAY_OTEL_METRICS_ENABLED=true` 与
   `SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=true`
-- `supervisor-api` traces / metrics 都应发往本地 `otel-collector`
+- `execution-gateway` traces / metrics 都应发往本地 `otel-collector`
 - `supervisor-agent-worker` runtime events 可以同时保留 JSONL debug sink，并直接发往
   本地 `otel-collector` 的 OTLP HTTP traces / metrics / logs endpoints
 - OTel attribute allowlist、forbidden fields 与 sink ownership 以
@@ -353,14 +360,14 @@ step ledger projection。
 - Collector / Sentry / Axiom fan-out 操作以
   `docs/runbooks/runtime-otel-collector-pipeline.md` 为准；runtime 只把 sanitized OTLP
   发给 Collector，vendor endpoint/header/dataset 由部署 secret 注入
-- `supervisor-api` 会从入口请求提取 `traceparent` / `baggage`；为兼容当前
+- `execution-gateway` 会从入口请求提取 `traceparent` / `baggage`；为兼容当前
   `app-api` 链路，也会把有效的 `sentry-trace` 转成标准 `traceparent`。向
   `supervisor-agent-worker` 只传播 `traceparent`、`baggage`、`x-request-id`
   与 `x-trace-id`
-- staging profile 必须设置 `SUPERVISOR_API_METRICS_BEARER_TOKEN`；
-  `status-supervisor-api-staging.sh` 会用该 token 拉取本地 `/metrics`，且不应把
+- staging profile 必须设置 `EXECUTION_GATEWAY_METRICS_BEARER_TOKEN`；
+  `status-execution-gateway-staging.sh` 会用该 token 拉取本地 `/metrics`，且不应把
   raw token 写入日志
-- staging profile 下，supervisor-api full `/readyz` 是内部 runtime probe；
+- staging profile 下，execution-gateway full `/readyz` 是内部 runtime probe；
   local lifecycle script 使用 `API_WORKER_SHARED_SECRET` 对本地 `/readyz` 加
   `x-worker-origin-auth`。public deploy / smoke closure 不直接要求
   `exec-staging.mucwiki-edge.link/readyz`，而是通过 `api-staging /readyz`
@@ -373,7 +380,7 @@ step ledger projection。
   `QDRANT_TIMEOUT_SECONDS`、`DOCUMENT_REGISTRY_DATABASE_URL`、
   `RAW_ASSET_REGISTRY_DATABASE_URL`、`CAMPUS_SHARED_POSTGRES_URL`、`EMBEDDING_*`
   与 `SPARSE_*`
-- `infra/local/staging/start-supervisor-api-staging.sh` 会从 `.env`、
+- `infra/local/staging/start-execution-gateway-staging.sh` 会从 `.env`、
   `.env.staging.local` 与 `apps/app-api/.dev.vars` 导入基础 secret，但 query/runtime
   数据面只接受 repo-root `.env.staging.local` 中的 `STAGING_INGESTION_*`，再投影成
   Compose 里的 `CAMPUS_SHARED_POSTGRES_URL`、`DOCUMENT_REGISTRY_DATABASE_URL`、
@@ -391,7 +398,7 @@ step ledger projection。
 - `STAGING_INGESTION_QDRANT_URL` 允许在 `nc-arm-6c` 同机自托管部署中填写
   `http://127.0.0.1:6333`。该值只表示 host-side 运维 / preflight URL。lifecycle
   脚本会在 Docker compose 环境中投影成
-  `QDRANT_DOCKER_URL=http://qdrant:6333`，并要求 supervisor runtime 与 Qdrant 同时加入
+  `QDRANT_DOCKER_URL=http://qdrant:6333`，并要求 execution runtime 与 Qdrant 同时加入
   repo-owned `campus-agent-data-plane` Docker network。容器内 retrieval runtime 必须通过
   Docker service DNS 访问 Qdrant，不得依赖 Docker gateway 或旧开发机 `172.*` 地址。
 - 同机 Docker data-plane 内的 Qdrant 通信使用 HTTP + API key；`6333` 只绑定
@@ -409,12 +416,12 @@ step ledger projection。
   `campus_ingestion_worker.collection_rename_registry_backfill audit`。如果
   `regulations/student_handbook` 或 `regulations/institutional_regulations` 仍残留在
   `document_registry` / `raw_asset_registry` 的 `collection` 列或 `record.collection`，
-  `start-supervisor-api-staging.sh` 会 fail closed。先执行 apply：
+  `start-execution-gateway-staging.sh` 会 fail closed。先执行 apply：
 
 ```bash
 cd /srv/apps/campus-agent
-source infra/local/staging/supervisor-api-staging-common.sh
-supervisor_api_staging_load_env >/dev/null
+source infra/local/staging/execution-gateway-staging-common.sh
+execution_gateway_staging_load_env >/dev/null
 uv run --all-packages python -m \
   campus_ingestion_worker.collection_rename_registry_backfill audit
 uv run --all-packages python -m \
@@ -432,7 +439,7 @@ runtime。不要在 retrieval/read path 增加 `student_handbook` alias。
   `curriculum/curriculum_plan`。
   该 gate 会检查 Qdrant REST endpoint、serving alias、latest published release、alias
   freshness 与 release metadata guard；任一 core query-serving surface 不 ready 时
-  `start-supervisor-api-staging.sh` 会 fail closed。典型 blocker：
+  `start-execution-gateway-staging.sh` 会 fail closed。典型 blocker：
   - `qdrant_endpoint_not_ready`：`QDRANT_URL` 不是可用 REST endpoint，先从 Qdrant
     Cloud cluster detail 复制正确 URL，再重跑 probe
   - `alias_not_published`：对应 serving alias 未发布，先执行 release/publish 流程
@@ -440,8 +447,8 @@ runtime。不要在 retrieval/read path 增加 `student_handbook` alias。
   - `release_metadata_guard_failed`：query runtime 的 embedding/sparse/profile 设置与
     index release metadata 不一致，先修 env 或重新发布 index release
 - 当 compose project 尚未运行、启动脚本需要 `docker compose up -d --build` 时，
-  `start-supervisor-api-staging.sh` 会先执行
-  `infra/local/staging/preflight-supervisor-api-staging.sh`
+  `start-execution-gateway-staging.sh` 会先执行
+  `infra/local/staging/preflight-execution-gateway-staging.sh`
 - preflight 会通过 `docker version --format '{{.Server.Version}}'` 检查 Docker daemon，
   并检查 Docker Compose v2、compose 文件存在性，以及当前 staging Dockerfile 依赖的 base image
   registry 可达性：
@@ -450,18 +457,18 @@ runtime。不要在 retrieval/read path 增加 `student_handbook` alias。
   - `python:3.12-slim-bookworm`
   - `ghcr.io/astral-sh/uv:0.8.22-python3.12-bookworm-slim`
 - registry preflight 默认使用 `docker buildx imagetools inspect`；设置
-  `SUPERVISOR_API_STAGING_PREFLIGHT_PULL=1` 时改用 `docker pull`
+  `EXECUTION_GATEWAY_STAGING_PREFLIGHT_PULL=1` 时改用 `docker pull`
 - Docker daemon / Compose 基础检查默认 `10s` 超时，可用
-  `SUPERVISOR_API_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS` 调整；registry 检查默认
-  `30s` 超时，可用 `SUPERVISOR_API_STAGING_PREFLIGHT_REGISTRY_TIMEOUT_SECONDS` 调整
+  `EXECUTION_GATEWAY_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS` 调整；registry 检查默认
+  `30s` 超时，可用 `EXECUTION_GATEWAY_STAGING_PREFLIGHT_REGISTRY_TIMEOUT_SECONDS` 调整
 - 如果 staging host 已经预拉取 base image 且处于受控离线/代理故障窗口，可设置
-  `SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY=1` 跳过 registry 检查；这只应作为本机
+  `EXECUTION_GATEWAY_STAGING_PREFLIGHT_SKIP_REGISTRY=1` 跳过 registry 检查；这只应作为本机
   环境绕过，不表示 registry 依赖已恢复
 
 systemd 层状态：
 
 ```bash
-systemctl --no-pager --full status cloudflared-supervisor-api-staging.service
+systemctl --no-pager --full status cloudflared-execution-gateway-staging.service
 ```
 
 ## 冷启动恢复
@@ -470,10 +477,10 @@ systemctl --no-pager --full status cloudflared-supervisor-api-staging.service
 
 ```bash
 cd /srv/apps/campus-agent
-infra/local/staging/stop-supervisor-api-staging.sh
-sudo systemctl restart cloudflared-supervisor-api-staging.service
-infra/local/staging/start-supervisor-api-staging.sh
-until infra/local/staging/status-supervisor-api-staging.sh --check; do \
+infra/local/staging/stop-execution-gateway-staging.sh
+sudo systemctl restart cloudflared-execution-gateway-staging.service
+infra/local/staging/start-execution-gateway-staging.sh
+until infra/local/staging/status-execution-gateway-staging.sh --check; do \
   sleep 2; done
 ```
 
@@ -489,15 +496,15 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 
 日志目录：
 
-- `.tmp/supervisor-api-staging/logs/otel-collector.log`
-- `.tmp/supervisor-api-staging/logs/otel-collector.recent.log`
-- `.tmp/supervisor-api-staging/logs/supervisor-api.log`
-- `.tmp/supervisor-api-staging/logs/supervisor-agent-worker.log`
-- `.tmp/supervisor-api-staging/logs/cloudflared.log`
+- `.tmp/execution-gateway-staging/logs/otel-collector.log`
+- `.tmp/execution-gateway-staging/logs/otel-collector.recent.log`
+- `.tmp/execution-gateway-staging/logs/execution-gateway.log`
+- `.tmp/execution-gateway-staging/logs/supervisor-agent-worker.log`
+- `.tmp/execution-gateway-staging/logs/cloudflared.log`
 
 轮转规则：
 
-- 每次执行 `start-supervisor-api-staging.sh` 时都会检查日志大小
+- 每次执行 `start-execution-gateway-staging.sh` 时都会检查日志大小
 - 单文件超过 `20 MiB` 时做 copy-truncate 轮转
 - 最多保留 `5` 份历史：`.1` 到 `.5`
 - `otel-collector.log` 保留全量容器日志用于历史排障；`status --check` 的
@@ -506,37 +513,37 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 
 ## 故障分流
 
-`status --check` 报 `supervisor-api compose project is not fully running`
+`status --check` 报 `execution-gateway compose project is not fully running`
 
 - 先看：
-  - `.tmp/supervisor-api-staging/logs/supervisor-api.log`
-  - `.tmp/supervisor-api-staging/logs/supervisor-agent-worker.log`
-- 如果 `start-supervisor-api-staging.sh` 在 build 前失败，先直接运行：
+  - `.tmp/execution-gateway-staging/logs/execution-gateway.log`
+  - `.tmp/execution-gateway-staging/logs/supervisor-agent-worker.log`
+- 如果 `start-execution-gateway-staging.sh` 在 build 前失败，先直接运行：
 
 ```bash
-infra/local/staging/preflight-supervisor-api-staging.sh
+infra/local/staging/preflight-execution-gateway-staging.sh
 ```
 
 - preflight 在 `docker buildx imagetools inspect ...` 或 `docker pull ...`
   阶段失败，通常是 Docker Desktop registry/proxy 配置或到 Docker Hub/GHCR
   的网络不可达；先修 Docker registry 访问，或确认 base images 已经缓存后临时设置
-  `SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY=1`
+  `EXECUTION_GATEWAY_STAGING_PREFLIGHT_SKIP_REGISTRY=1`
 - 再直接执行：
 
 ```bash
 cd <repo-root>
-COMPOSE_PROJECT_NAME=campus-supervisor-api-staging \
-SUPERVISOR_API_HOST_PORT=27051 \
+COMPOSE_PROJECT_NAME=campus-execution-gateway-staging \
+EXECUTION_GATEWAY_HOST_PORT=27051 \
 docker compose -f infra/local/docker-compose.supervisor-runtime.yml ps
 ```
 
 `status --check` 报 `local readyz returned HTTP ...`
 
-- 说明 `supervisor-api` 或 `supervisor-agent-worker` 还没达到真实 runtime ready
+- 说明 `execution-gateway` 或 `supervisor-agent-worker` 还没达到真实 runtime ready
 - 先跑：
 
 ```bash
-uv run --all-packages python -m scripts.doctor_env supervisor-api --json
+uv run --all-packages python -m scripts.doctor_env execution-gateway --json
 ```
 
 - 再看 `supervisor-agent-worker.log` 中缺的是 prompt runtime、HTTP pool 还是 worker runtime
@@ -548,7 +555,7 @@ uv run --all-packages python -m scripts.doctor_env supervisor-api --json
 - 先确认容器里变量存在：
 
 ```bash
-docker exec campus-supervisor-api-staging-supervisor-agent-worker-1 \
+docker exec campus-execution-gateway-staging-supervisor-agent-worker-1 \
   sh -lc 'for k in QDRANT_URL DOCUMENT_REGISTRY_DATABASE_URL \
   SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET EMBEDDING_MODEL; do \
   eval v=\${$k:-}; [ -n "$v" ] && echo "$k=set" || echo "$k=unset"; done'
@@ -556,15 +563,15 @@ docker exec campus-supervisor-api-staging-supervisor-agent-worker-1 \
 
 execution audit 不出现在 panel 审计时间线
 
-- 先看 `supervisor-api` 的 `/readyz` 中 `execution_audit_runtime`
+- 先看 `execution-gateway` 的 `/readyz` 中 `execution_audit_runtime`
 - 再看 `/metrics`：
 
 ```bash
 curl -sS http://127.0.0.1:27051/metrics | grep execution_audit
 ```
 
-- staging lifecycle 会优先读取显式 `SUPERVISOR_API_EXECUTION_AUDIT_*`
-  变量；未显式配置时，会从 `SUPERVISOR_API_STAGING_APP_API_BASE_URL` 与
+- staging lifecycle 会优先读取显式 `EXECUTION_GATEWAY_EXECUTION_AUDIT_*`
+  变量；未显式配置时，会从 `EXECUTION_GATEWAY_STAGING_APP_API_BASE_URL` 与
   `APP_API_INTERNAL_SHARED_SECRET` 派生 internal ingest URL 和 shared secret
 - 如果 emitted 增加但 panel 未出现，检查 `app-api` scheduled projector drain；
   internal ingest 成功时也会触发 request-scoped drain，cron 只承担周期性一致性检查
@@ -572,22 +579,23 @@ curl -sS http://127.0.0.1:27051/metrics | grep execution_audit
 - 如果变量缺失，重新执行：
 
 ```bash
-infra/local/staging/stop-supervisor-api-staging.sh
-infra/local/staging/start-supervisor-api-staging.sh
+infra/local/staging/stop-execution-gateway-staging.sh
+infra/local/staging/start-execution-gateway-staging.sh
 ```
 
 `status --check` 报 `public readyz returned HTTP ...`
 
 - 优先判断 named tunnel connector 是否掉线
-- 用 `systemctl status cloudflared-supervisor-api-staging.service` 与 Cloudflare tunnel
-  status 确认 connector 是否注册成功
+- 用 `systemctl status cloudflared-execution-gateway-staging.service` 与
+  Cloudflare tunnel status 确认 connector 是否注册成功
 - 如果 systemd 运行但 tunnel 仍 down，确认
-  `/etc/campus-agent/supervisor-api-staging-cloudflared.env` 中的 `TUNNEL_TOKEN`
-  是否来自当前 `supervisor-api-staging` tunnel
+  `/etc/campus-agent/execution-gateway-staging-cloudflared.env` 中的 `TUNNEL_TOKEN`
+  是否来自当前 `execution-gateway-staging` tunnel
 
 `status --check` 报 `app-api readyz ...`
 
-- 说明本地 supervisor-api runtime 可能健康，但 shared staging `app-api` 自身或它到 supervisor 的依赖不健康
+- 说明本地 execution-gateway runtime 可能健康，但 shared staging `app-api`
+  自身或它到 supervisor 的依赖不健康
 - 直接检查：
 
 ```bash
@@ -621,74 +629,68 @@ PATH=/home/deploy/.local/bin:/usr/local/bin:/usr/bin:/bin \
 `schema_ready=true`、`store=postgres`。schema evidence 来自启动脚本，不来自 proof：
 
 ```bash
-jq . .tmp/supervisor-api-staging/evidence/durable-runtime-schema-install.json
-jq . .tmp/supervisor-api-staging/evidence/durable-runtime-schema-check.json
+jq . .tmp/execution-gateway-staging/evidence/durable-runtime-schema-install.json
+jq . .tmp/execution-gateway-staging/evidence/durable-runtime-schema-check.json
 ```
 
-在把 run-level durable runtime 标记为 staging-ready 前，再对当前 durable Postgres store 运行
-repo-owned proof command。该命令只创建 `proof-*` exact-prefix artifacts，验证完成后
-删除自己的 proof runs / worker heartbeats，并恢复运行前的 lane budget。
+在把 Temporal execution runtime 标记为 staging-ready 前，对当前 projection store 运行
+repo-owned proof command。该命令只创建 `proof-*` exact-prefix artifacts，验证完成后删除自己的
+proof projection rows。
 
 ```bash
-cd apps/supervisor-api
+cd apps/execution-gateway
 evidence_dir="../../var/staging-evidence/<timestamp>"
 go run ./cmd/durable-runtime-proof \
-  --database-url "$SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL" \
+  --database-url "$EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL" \
   --evidence-path "$evidence_dir/postgres-durable-runtime-proof.json" \
   --prefix "proof-$(date -u +%Y%m%dT%H%M%SZ)"
 ```
 
-再对当前 deployed supervisor HTTP runtime 运行 repo-owned durable-ready proof。该命令
-只读取 `/readyz`，并要求 deployed payload 明确报告 durable store healthy、worker loop
-started、recovery loop started：
+再对当前 deployed execution-gateway HTTP runtime 运行 repo-owned Temporal-ready proof。该命令
+只读取 `/readyz`，并要求 deployed payload 明确报告 projection store healthy、Temporal runtime
+healthy、worker pollers started：
 
 ```bash
-supervisor_url="${STAGING_SUPERVISOR_API_BASE_URL:-http://127.0.0.1:27051}"
-go run ./cmd/durable-runtime-http-proof \
-  --supervisor-url "$supervisor_url" \
-  --shared-secret "$SUPERVISOR_API_SHARED_SECRET" \
-  --evidence-path "$evidence_dir/supervisor-durable-http-proof.json"
+execution_gateway_url="${STAGING_EXECUTION_GATEWAY_BASE_URL:-http://127.0.0.1:27051}"
+go run ./cmd/temporal-runtime-http-proof \
+  --execution-gateway-url "$execution_gateway_url" \
+  --shared-secret "$EXECUTION_GATEWAY_SHARED_SECRET" \
+  --evidence-path "$evidence_dir/execution-gateway-temporal-http-proof.json"
 ```
 
 如果 Cloudflare tunnel / app-api public deploy token 暂不可用，但需要先证明隔离目录中
-本机 supervisor durable runtime 已经具备 durable store、worker loop、recovery loop 与
-container data-plane readiness，可运行 local durable proof：
+本机 execution gateway runtime 已经具备 projection store、Temporal workers 与 container
+data-plane readiness，可运行 local Temporal proof：
 
 ```bash
-infra/local/staging/proof-supervisor-api-durable-runtime-staging.sh
+infra/local/staging/proof-execution-gateway-temporal-runtime-staging.sh
 ```
 
 该 proof 不检查 `cloudflared`、`api-staging.mucwiki-edge.link/readyz` 或 browser
-reconnect；它只能作为 supervisor runtime substrate evidence，不能替代
-`status-supervisor-api-staging.sh --check` 或
+reconnect；它只能作为 execution runtime substrate evidence，不能替代
+`status-execution-gateway-staging.sh --check` 或
 `pnpm --dir apps/app-api chat:durable:e2e:staging`。
 
 通过标准：
 
 - `passed=true`
-- `multi_worker.successful_lease_count=1`
-- `multi_worker.empty_queue_count=1`
-- `recovery.first_recovery_status=queued`
-- `recovery.second_recovery_status=expired`
-- `recovery.terminal_reason=lease_expired`
-- `verification.cleanup_verified=true`
 - HTTP proof 的 `readyz.durable_runtime.configured=true`
 - HTTP proof 的 `readyz.durable_runtime.healthy=true`
-- HTTP proof 的 `readyz.durable_worker_loop.enabled/configured/healthy/started=true`
-- HTTP proof 的 `readyz.durable_recovery_loop.enabled/configured/healthy/started=true`
+- HTTP proof 的 `readyz.temporal_runtime.configured=true`
+- HTTP proof 的 `readyz.temporal_runtime.healthy=true`
+- HTTP proof 的 `readyz.temporal_runtime.workers.started=true`
 
-该 proof 只证明 Postgres durable store / lease coordinator 的生产不变量；它不能安装
-schema，也不能替代真实 deployed
-`chat-staging -> app-api-staging -> supervisor-api -> worker loop` reconnect
-evidence。`status-supervisor-api-staging.sh --check` 现在会显式拒绝 durable runtime /
-worker loop / recovery loop 未 started 的 supervisor readyz，也会拒绝 `api-staging
-/readyz` 中 `dependencies.durableRuntime` 不是 `ready` 的状态。该 gate 只防止
+该 proof 只证明 projection store / Temporal runtime 的生产不变量；它不能安装 schema，也不能替代真实
+deployed `chat-staging -> app-api-staging -> execution-gateway -> Temporal workflow/activity`
+reconnect evidence。`status-execution-gateway-staging.sh --check` 现在会显式拒绝
+projection store 或 Temporal workers 未 ready 的 execution-gateway readyz，也会拒绝
+`api-staging /readyz` 中 `dependencies.durableRuntime` 不是 `ready` 的状态。该 gate 只防止
 readiness 假绿；`pnpm --dir apps/app-api chat:durable:e2e:staging` 仍必须通过，且
 `request.accepted` 必须包含 durable `runId` 与 `runPhase`。
 
 ## Recovery Boundary
 
-当前 active recovery path 是重启 `supervisor-api + supervisor-agent-worker` 双容器 runtime。
+当前 active recovery path 是重启 `execution-gateway + supervisor-agent-worker` 双容器 runtime。
 仓库不再维护 dev-backed Python public ingress fallback。
 
 ## Staging RAG Release Manifest Recovery
@@ -724,7 +726,7 @@ Then verify readiness:
 
 ```bash
 uv run --all-packages campus-ingestion-probe-regulation-rag-release-runtime
-infra/local/staging/status-supervisor-api-staging.sh --check
+infra/local/staging/status-execution-gateway-staging.sh --check
 ```
 
 Do not use this command to bypass a failed ingestion release. If Qdrant payload

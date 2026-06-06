@@ -50,7 +50,7 @@ updated: 2026-04-22
 
 固定原因：
 
-- `place_lookup`、`place_card` 与地图消费共享同一条 `app-api -> supervisor-api -> navigation-specialist` 产品路径
+- `place_lookup`、`place_card` 与地图消费共享同一条 `app-api -> execution-gateway -> navigation-specialist` 产品路径
 - 若拆 lane，容易在地图尚未真正上线或 runtime 仍 fail-close 时提前堆消费层补丁
 
 ## Fixed Rules

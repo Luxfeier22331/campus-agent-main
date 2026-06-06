@@ -1,9 +1,10 @@
 ---
 doc_type: decision
 decision_id: ADR-0047
-status: accepted
+status: superseded
 created: 2026-06-04
-updated: 2026-06-05
+updated: 2026-06-06
+replacement: adr-0048-temporal-execution-plane.md
 ---
 # ADR-0047 Run And Step-Centric Durable Agent Runtime
 
@@ -11,20 +12,25 @@ updated: 2026-06-05
 
 Accepted on 2026-06-04.
 
+Superseded on 2026-06-06 by `adr-0048-temporal-execution-plane.md`.
+
+本 ADR 继续保留当前 PG-backed run-level durable baseline 与 run / step / event
+projection 语义的历史依据；长期 execution substrate 已改为 Temporal execution plane。
+
 ## 背景
 
 `campus-agent` 当前已经冻结了以下方向：
 
 - `apps/app-api` 是 product-layer auth、session、principal、conversation 与 surface
   capability policy owner
-- `apps/supervisor-api` 是 Docker-first internal execution engine
+- `apps/execution-gateway` 是 Docker-first internal execution engine
 - `apps/supervisor-agent-worker` 是 private semantic worker
 - supervisor 拥有 deterministic governance、workflow planning、admission、budget 与
   finalization
 - deterministic data access 以 typed tool 参与执行；semantic specialist 以 agent-as-tool
   参与执行
 
-当前实现已经具备 Go `supervisor-api` 的 execution ingress、PG run-level
+当前实现已经具备 Go `execution-gateway` 的 execution ingress、PG run-level
 durable store、run events、execution leases、lane budgets、worker heartbeat、
 lease coordinator、worker loop、recovery loop、cancel / timeout / recovery 与
 app-api durable chat cutover。
@@ -69,7 +75,7 @@ canceled / expired`
 
 ### 决策 2：production execution truth 由 durable runtime 拥有
 
-production admission 和 execution lease 不得只存在于单个 `supervisor-api` 进程内存。
+production admission 和 execution lease 不得只存在于单个 `execution-gateway` 进程内存。
 
 固定 owner：
 
@@ -77,13 +83,13 @@ production admission 和 execution lease 不得只存在于单个 `supervisor-ap
 - durable step store 拥有 step lifecycle、attempt 与 result truth
 - scheduler / lease coordinator 拥有 run / step admission 与 execution lease
 - worker pool 只消费 lease，不拥有 global admission truth
-- `apps/supervisor-api` 继续拥有 deterministic control plane、scheduler adapter、
+- `apps/execution-gateway` 继续拥有 deterministic control plane、scheduler adapter、
   workflow planning、budget decision 与 finalization
 
 ### 决策 3：process-local admission limiter 只保留为 runtime protection
 
-当前 `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS`、
-`SUPERVISOR_API_QUEUE_CAPACITY` 与 `SUPERVISOR_API_QUEUE_TIMEOUT_MS` 表达的是当前
+当前 `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS`、
+`EXECUTION_GATEWAY_QUEUE_CAPACITY` 与 `EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS` 表达的是当前
 single-process protection。
 
 解释固定为：
@@ -133,7 +139,7 @@ conversation 是上下文、memory、authorization 与 committed history 的边�
 - `campus_services`
 - `default`
 
-lane 不只是 `supervisor-api` 内部计数器，而是 durable queue / lease / worker pool 的调度维度。
+lane 不只是 `execution-gateway` 内部计数器，而是 durable queue / lease / worker pool 的调度维度。
 
 直接含义：
 
@@ -151,7 +157,7 @@ repo-owned canonical execution substrate 固定为：
 原因：
 
 - repo 已有 shared Postgres product/runtime schema boundary
-- `apps/supervisor-api` 已冻结为 Docker-first internal execution service
+- `apps/execution-gateway` 已冻结为 Docker-first internal execution service
 - PG row lock、transaction、index 与 audit model 能表达 run / step / lease truth
 - self-hosted data plane 已存在，不需要把 Redis 或 provider graph 推进 canonical queue path
 
@@ -231,7 +237,7 @@ agent-as-tool 参与 typed step。
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
-- `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`
+- `docs/decisions/adr-0043-execution-gateway-docker-first-runtime.md`
 
 本 ADR 不 supersede 上述 ADR；它补充 production agent execution substrate 的 durable runtime
 truth，并冻结 PG-backed step-level execution queue / lease / result model。

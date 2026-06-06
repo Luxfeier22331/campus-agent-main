@@ -4,7 +4,7 @@ status: active
 created: 2026-04-24
 updated: 2026-05-01
 ---
-# Supervisor API Staging Smoke Runbook
+# Execution Gateway Staging Smoke Runbook
 
 ## 文档边界
 
@@ -12,33 +12,33 @@ updated: 2026-05-01
 
 - `public-chat-web`
 - `app-api`
-- `supervisor-api` 由 repo-owned `supervisor-api` staging runtime 承接
+- `execution-gateway` 由 repo-owned `execution-gateway` staging runtime 承接
 
 它回答的是：
 
-- 如何把 `chat-staging -> app-api-staging -> supervisor-api execution origin` 跑通
+- 如何把 `chat-staging -> app-api-staging -> execution-gateway execution origin` 跑通
 - 每轮 smoke 最少要验证哪些链路
 - 什么时候需要重新 deploy `app-api-staging`
 
-它不保留 legacy dev-backed upstream；当前 staging smoke 只以 Go `apps/supervisor-api`
+它不保留 legacy dev-backed upstream；当前 staging smoke 只以 Go `apps/execution-gateway`
 execution origin 为准。
 
 ## 当前补充真相
 
-- `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+- `apps/execution-gateway` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - 当前 repo-owned staging execution runtime 是 `nc-arm-6c` 上的
-  `otel-collector + supervisor-api + supervisor-agent-worker + named tunnel`
+  `otel-collector + execution-gateway + supervisor-agent-worker + named tunnel`
 - 如果继续复用 `<https://exec-staging.mucwiki-edge.link`> 作为 execution origin，就不需要为了
   runtime hard cut 重新 deploy `app-api-staging`
 - 只有当 execution upstream URL 本身变化时，才需要重新设置
-  `STAGING_SUPERVISOR_API_BASE_URL` 并 redeploy `app-api`
+  `STAGING_EXECUTION_GATEWAY_BASE_URL` 并 redeploy `app-api`
 
 ## 判定标准
 
 这条 smoke 通过，表示：
 
-- `chat-staging -> app-api-staging -> current supervisor-api upstream` 真实可用
+- `chat-staging -> app-api-staging -> current execution-gateway upstream` 真实可用
 - browser 真实请求不再卡在 transport failure
 - typed execution outcome 可以成功回到 chat surface
 
@@ -47,21 +47,21 @@ execution origin 为准。
 - 当前 chat answer 质量已经达到 release 标准
 - production execution substrate 已经启用
 
-## Step 1. 启动 canonical supervisor-api staging runtime
+## Step 1. 启动 canonical execution-gateway staging runtime
 
 在 `nc-arm-6c:/srv/apps/campus-agent` 使用 repo-owned lifecycle 脚本：
 
 ```bash
-infra/local/staging/start-supervisor-api-staging.sh
-infra/local/staging/status-supervisor-api-staging.sh --check
+infra/local/staging/start-execution-gateway-staging.sh
+infra/local/staging/status-execution-gateway-staging.sh --check
 ```
 
 最小通过标准：
 
-- `infra/local/staging/status-supervisor-api-staging.sh --check` 返回 `0`
+- `infra/local/staging/status-execution-gateway-staging.sh --check` 返回 `0`
 
 如果需要重装 Cloudflare connector systemd service，按
-`supervisor-api-staging-operations.md` 的 `安装与重装` 执行。
+`execution-gateway-staging-operations.md` 的 `安装与重装` 执行。
 
 ## Step 2. 判断是否需要重新 deploy app-api staging
 
@@ -77,7 +77,7 @@ infra/local/staging/status-supervisor-api-staging.sh --check
    - 必须重新 deploy `app-api-staging`
 
 ```bash
-STAGING_SUPERVISOR_API_BASE_URL=https://<current-supervisor-upstream> \
+STAGING_EXECUTION_GATEWAY_BASE_URL=https://<current-supervisor-upstream> \
 pnpm --dir apps/app-api deploy:staging
 ```
 
@@ -110,10 +110,10 @@ curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/readyz
 curl --noproxy '*' -sS -i https://exec-staging.mucwiki-edge.link/healthz
 ```
 
-`exec-staging /readyz` 是 supervisor-api full runtime probe；staging profile 下它需要
+`exec-staging /readyz` 是 execution-gateway full runtime probe；staging profile 下它需要
 internal worker auth，不作为 public smoke gate。public smoke 通过
 `api-staging /readyz` 间接验证 app-api 已经能带内部 shared secret 探测
-supervisor runtime readiness。
+execution runtime readiness。
 
 ## Step 4. Authenticated Chat Smoke
 
@@ -182,7 +182,7 @@ transport debug；默认 staging closeout 不直接探 supervisor full `/readyz`
 
 至少记录：
 
-- `infra/local/staging/status-supervisor-api-staging.sh --check`
+- `infra/local/staging/status-execution-gateway-staging.sh --check`
 - `https://exec-staging.mucwiki-edge.link/healthz`
 - `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
@@ -195,7 +195,7 @@ transport debug；默认 staging closeout 不直接探 supervisor full `/readyz`
 1. 停掉 canonical runtime：
 
 ```bash
-infra/local/staging/stop-supervisor-api-staging.sh
+infra/local/staging/stop-execution-gateway-staging.sh
 ```
 
 1. 保持 execution upstream 指向 canonical staging runtime，并修复 canonical runtime 或

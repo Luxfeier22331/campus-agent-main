@@ -13,7 +13,7 @@ updated: 2026-04-20
 - `e2e-qa-release-artifact-template.md`
   - `e2e-qa-release-runbook.md` 的上线前 E2E QA 证据模板
 - `public-chat-staging-smoke-artifact-template.md`
-  - `supervisor-api-staging-smoke-runbook.md` 的 public-chat staging smoke 证据模板
+  - `execution-gateway-staging-smoke-runbook.md` 的 public-chat staging smoke 证据模板
 - `worker-observability-smoke-artifact-template.md`
   - `worker-observability-smoke-runbook.md` 的 observability smoke 证据模板
 

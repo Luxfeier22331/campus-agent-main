@@ -35,7 +35,7 @@ monitoring 与 observability sink participation 的 supporting architecture。
 - `Sentry`、`Axiom`、OpenAI trace / eval tooling 是 observability / debugging /
   grading sinks
 - panel 只能消费 runtime-owned APIs，不直接读取 raw audit log、telemetry sink 或
-  `apps/supervisor-api`
+  `apps/execution-gateway`
 
 因此长期主链路固定为：
 
@@ -94,11 +94,11 @@ debugging / analysis / grading`
 - 让 panel 直接回放 raw execution payload
 - 让 sink query 反向成为长期 operator API
 
-### `apps/supervisor-api`
+### `apps/execution-gateway`
 
 - 继续只是 execution engine
 - 不承担 operator observability query backend
-- Docker-side Go `apps/supervisor-api` runtime 可以产生 execution audit events，但只能通过
+- Docker-side Go `apps/execution-gateway` runtime 可以产生 execution audit events，但只能通过
   `app-api` internal ingest 写入 app-owned outbox / projection，不直接服务 panel
 
 ### Telemetry / Evaluation Sinks
@@ -108,11 +108,11 @@ debugging / analysis / grading`
 
 ## Execution Audit Backflow
 
-Go `apps/supervisor-api` runtime 负责 admission、queue/backpressure、timeout、
+Go `apps/execution-gateway` runtime 负责 admission、queue/backpressure、timeout、
 cancel 与 bridge failure 等 runtime kernel 事实。它产生的 execution audit
 events 只能按以下路径进入 panel：
 
-`supervisor-api execution event` -> `app-api internal ingest` ->
+`execution-gateway execution event` -> `app-api internal ingest` ->
 `runtime.projection_outbox` -> `operator.request_audit_projection` ->
 `protected-panel-web`
 
@@ -126,7 +126,7 @@ events 只能按以下路径进入 panel：
 
 规则：
 
-- `app-api` 继续是 audit projection owner；`supervisor-api` 不写 Postgres、不提供
+- `app-api` 继续是 audit projection owner；`execution-gateway` 不写 Postgres、不提供
   operator query backend
 - `app-api` execution audit ingest 成功后必须调度 request-scoped projector drain；
   scheduled drain 只承担周期性一致性检查，不承担 answer path 的补救语义
@@ -139,7 +139,7 @@ events 只能按以下路径进入 panel：
 - `app-api` 可以按 optional deep-link template 把 request trace / issue backlink 写入
   `operator.trace_backlink_projection`；这是 app-owned projection write，不是 panel
   route-time sink query
-- Go `supervisor-api` 的 execution audit writer 开启后必须同步发送每个 safe audit
+- Go `execution-gateway` 的 execution audit writer 开启后必须同步发送每个 safe audit
   event；sink 不可用时 answer path fail closed。`/readyz` / `/metrics` 必须暴露
   enabled、configured、emitted、failed 与 last error，便于 operator 诊断投递状态。
 
@@ -431,7 +431,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 固定约束：
 
 - 这些字段继续由 `app-api` owned request observability fact / audit projection 收口，不由
-  `protected-panel-web`、`apps/supervisor-api` 或 sink query 直接拥有
+  `protected-panel-web`、`apps/execution-gateway` 或 sink query 直接拥有
 - 它们必须保持 summary-only：不返回 raw query args、raw adapter response、raw notice/source
   bundle、raw prompt
 - 如果 runtime lane 尚未 opening 或本次请求命中 fail-close，这份 summary 也必须记录 deterministic
@@ -581,9 +581,9 @@ ownership matrix 固定在
 
 当前 runtime bridge 已收口为：
 
-- `apps/supervisor-api` 是 online trace owner，负责 request admission、bridge
+- `apps/execution-gateway` 是 online trace owner，负责 request admission、bridge
   attempt 与 finalization 的 sanitized OTLP trace signal
-- `apps/supervisor-api` 在启用 OTel 后对 configured product answer paths 采用
+- `apps/execution-gateway` 在启用 OTel 后对 configured product answer paths 采用
   fail-close 语义；telemetry 交付失败返回 `telemetry_delivery_failed`，sampling 丢弃仍只作为
   显式采样计数
 - `apps/supervisor-agent-worker` 负责把 `retrieval.runtime_observation` 映射成 sanitized
@@ -623,7 +623,7 @@ ownership matrix 固定在
 
 - 不把 panel 做成 `Sentry` 或 `Axiom` 的嵌入式 viewer
 - 不让 raw audit log 直接成为 operator query data plane
-- 不让 `apps/supervisor-api` 承担 observability query backend
+- 不让 `apps/execution-gateway` 承担 observability query backend
 - 不把 production aggregate、sampled grades、release-gate eval truth 混成一张表
 - 不把 token / cost / ACL / citation 口径硬编码在前端
 - 不让 vendor-specific event schema 反向定义 `packages/contracts`

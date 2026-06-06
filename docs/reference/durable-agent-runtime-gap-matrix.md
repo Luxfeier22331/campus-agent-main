@@ -1,24 +1,34 @@
 ---
 doc_type: reference
-status: active
+status: superseded
 created: 2026-06-04
-updated: 2026-06-04
+updated: 2026-06-06
 ---
 # Durable Agent Runtime Gap Matrix
 
 ## 文档边界
 
-本文是 `durable-agent-runtime` 的实现收口矩阵。
+本文是 2026-06-04 PG lease / worker loop durable runtime baseline 的历史收口矩阵。
 
-它只记录当前实现与目标 durable runtime 之间的差距，不定义最终 schema，不替代
-architecture / ADR / contract。
+它不再代表当前 active execution plane。当前 active execution plane 已切换为
+self-hosted Temporal + `execution-gateway` command/query seam；PG
+`runtime.agent_runs` / events / steps 只作为 product projection truth，不再作为
+online scheduler / lease / recovery truth。
+
+旧 PG durable scheduler、durable worker loop、durable recovery loop、
+`/api/v1/answer` 与 `/api/v1/answer/stream` 都不得作为新的 serving path 或
+fallback 重新启用。需要查看当前实现与缺口时，先看下面的 Temporal 入口文档。
 
 权威设计入口：
 
 - `docs/architecture/system/durable-agent-runtime-architecture.md`
-- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
+- `docs/decisions/adr-0048-temporal-execution-plane.md`
 - `docs/contracts/durable-agent-runtime-contract.md`
 - `docs/data/durable-agent-runtime-schema.md`
+
+历史背景入口：
+
+- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
 
 ## Summary
 
@@ -29,7 +39,7 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
 
 当前具备：
 
-- Go `supervisor-api` execution ingress
+- Go `execution-gateway` execution ingress
 - in-process lifecycle registry
 - global / per-lane admission controller
 - bounded in-memory queue
@@ -65,7 +75,7 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
   browser-visible `finalization.completed` or `run.completed`; terminal run
   drift, released / expired lease state, and lease ownership drift fail closed
   without publishing late completion events
-- app-api supervisor durable runtime adapter for internal create / get /
+- app-api execution gateway runtime adapter for internal create / get /
   events / cancel command-query calls
 - app-api product `POST /api/chat/requests` submit path now creates a
   supervisor durable run after app-api accept, writes the real `run_id`
@@ -125,11 +135,11 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
   installs schema through `EnsureSchema` in `install` mode, verifies with
   `HealthCheck` in both modes, and writes explicit JSON evidence. Staging
   lifecycle runs `install` then `check` before Docker Compose runtime starts.
-- repo-owned deployed supervisor durable HTTP proof command:
-  `go run ./cmd/durable-runtime-http-proof --supervisor-url ... --shared-secret
-  ... --evidence-path ...` records `/readyz` evidence and fails closed unless
-  durable store, durable worker loop and durable recovery loop are all reported
-  ready / started by the deployed supervisor runtime
+- Superseded deployed PG durable HTTP proof command:
+  `cmd/durable-runtime-http-proof` was retired with the Temporal cutover. Current
+  staging proof uses `cmd/temporal-runtime-http-proof` against the
+  `execution-gateway` Temporal readiness surface and must not require PG worker
+  loop / recovery loop readiness.
 - repo-owned durable-ready gate: app-api runtime readyz now parses supervisor
   readyz `durable_runtime` / `durable_worker_loop` /
   `durable_recovery_loop` status and requires `dependencies.durableRuntime=ready`
@@ -212,7 +222,7 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
 
 ### Lifecycle Source
 
-- Current: `apps/supervisor-api/internal/lifecycle` 维护进程内 registry。
+- Current: `apps/execution-gateway/internal/lifecycle` 维护进程内 registry。
 - Target: durable run store 维护 lifecycle。
 - Progress: durable run lifecycle 已可通过 supervisor internal create / process /
   cancel 写入 store 和 run events；app-api durable-configured blocking 与 stream
@@ -281,12 +291,12 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
 
 ### Worker Execution
 
-- Current: supervisor-api 同步调用 Python bridge；Python worker 处理一次 request。
+- Current: execution-gateway 同步调用 Python bridge；Python worker 处理一次 request。
 - Target: worker pool 消费 durable lease 并写 run events。
 - Progress: Python worker 已提供 `/internal/bridge/durable/execution`；Go bridge
   client 已提供 `ExecuteDurable`；supervisor internal executor 已能领取 lease、
   调用 durable worker endpoint，并写 `agent.*`、`run.*` 与 `lease.released`
-  events；supervisor-api 已有可显式启用的常驻 durable worker loop；active
+  events；execution-gateway 已有可显式启用的常驻 durable worker loop；active
   execution 期间已执行 lease heartbeat renewal；worker loop 已接入 explicit
   bounded retry policy；bridge late success 不能覆盖已经 cancel / expired 的 run，
   也不能在 lease ownership drift 后写 browser-visible finalization；lane budget
@@ -372,20 +382,20 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
 
 ### In-Process Lifecycle
 
-- `apps/supervisor-api/internal/lifecycle/registry.go`
-- `apps/supervisor-api/internal/httpapi/execution_runner.go`
-- `apps/supervisor-api/internal/httpapi/structured_direct_lifecycle.go`
+- `apps/execution-gateway/internal/lifecycle/registry.go`
+- `apps/execution-gateway/internal/httpapi/execution_runner.go`
+- `apps/execution-gateway/internal/httpapi/structured_direct_lifecycle.go`
 
 当前 lifecycle 在 supervisor process 内注册、transition、cancel、complete。
 
 ### In-Process Admission
 
-- `apps/supervisor-api/internal/admission/limiter.go`
-- `apps/supervisor-api/internal/config/config.go`
-- `apps/supervisor-api/internal/httpapi/server.go`
+- `apps/execution-gateway/internal/admission/limiter.go`
+- `apps/execution-gateway/internal/config/config.go`
+- `apps/execution-gateway/internal/httpapi/server.go`
 
-当前 admission 使用 `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS`、
-`SUPERVISOR_API_QUEUE_CAPACITY`、`SUPERVISOR_API_QUEUE_TIMEOUT_MS` 与 per-lane
+当前 admission 使用 `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS`、
+`EXECUTION_GATEWAY_QUEUE_CAPACITY`、`EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS` 与 per-lane
 budgets，全部在单进程 controller 内生效。
 
 ### Current Request Projection
@@ -399,9 +409,9 @@ budgets，全部在单进程 controller 内生效。
 
 ### Current Workflow Foundation
 
-- `apps/supervisor-api/internal/execution/workflow_run.go`
-- `apps/supervisor-api/internal/execution/workflow_run_store.go`
-- `apps/supervisor-api/internal/execution/workflow_run_postgres_store.go`
+- `apps/execution-gateway/internal/execution/workflow_run.go`
+- `apps/execution-gateway/internal/execution/workflow_run_store.go`
+- `apps/execution-gateway/internal/execution/workflow_run_postgres_store.go`
 
 当前 `WorkflowRunStore` 约束 multi-step workflow trace、handoff chain、context
 projection 与 agent invocation。它是 workflow graph foundation，不是 answer-level
@@ -411,7 +421,7 @@ durable run truth。
 
 - `docs/contracts/app-api-request-lifecycle.md`
 - `docs/contracts/app-api-supervisor-execution.md`
-- `apps/supervisor-api/internal/httpapi/sse.go`
+- `apps/execution-gateway/internal/httpapi/sse.go`
 
 当前 durable-configured product SSE 可以通过 `after_sequence` cursor polling 消费
 supervisor durable run events 后投影；browser-facing
@@ -428,16 +438,16 @@ Phase 1 已冻结 durable runtime contract 与 logical schema。
 
 Phase 2 / Phase 3 / Phase 4 foundation 已落地：
 
-- `apps/supervisor-api/internal/execution/durable_runtime*.go`
+- `apps/execution-gateway/internal/execution/durable_runtime*.go`
   - `DurableRun`、`RunEvent`、`ExecutionLease`、`LaneBudget`、
     `WorkerHeartbeat` 的 isolated store kernel
   - durable lease coordinator；`AcquireNextExecutionLease` 会原子选择 queued
     run、推进 admitted/running、创建 lease 并写入 run events
   - in-memory contract substrate
   - Postgres store foundation 与 schema bootstrap
-- `SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL`
+- `EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL`
   - durable runtime Postgres store 的显式配置入口
-  - 不从 `SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL` 或
+  - 不从 `EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL` 或
     `CAMPUS_SHARED_POSTGRES_URL` 隐式推断
 
 Phase 5 / Phase 6 / supervisor substrate 已部分落地：
@@ -446,25 +456,25 @@ Phase 5 / Phase 6 / supervisor substrate 已部分落地：
   - `/internal/bridge/durable/execution`
   - 要求 `run_id`、`lease_id`、`step_id`、`lane`、`worker_id` 与 `attempt`
   - 缺 durable lease metadata 时 fail closed
-- `apps/supervisor-api/internal/bridge/*`
+- `apps/execution-gateway/internal/bridge/*`
   - `ExecuteDurable` 调用 Python durable worker endpoint
-- `apps/supervisor-api/internal/httpapi/durable_worker_executor.go`
+- `apps/execution-gateway/internal/httpapi/durable_worker_executor.go`
   - 领取 durable lease、调用 durable bridge、写 `agent.started` /
     `agent.completed` / `agent.failed`、run terminal event 与 `lease.released`
   - 对 RAG lane，supervisor 负责从 durable `execution_payload` 生成
     `rag-agent` handoff；app-api 不需要也不允许拥有 RAG handoff planning
-- `apps/supervisor-api/internal/httpapi/durable_run_handlers.go`
+- `apps/execution-gateway/internal/httpapi/durable_run_handlers.go`
   - internal create / get / events / cancel command-query substrate
   - create command 要求 `metadata.execution_payload`，并校验
     `request_id` / `conversation_id` / `trace_id` 与外层 durable run identity
     对齐
-- `apps/supervisor-api/internal/httpapi/durable_worker_handlers.go`
+- `apps/execution-gateway/internal/httpapi/durable_worker_handlers.go`
   - explicit `process-next` command；当前不是后台 scheduler loop
-- `apps/supervisor-api/internal/httpapi/durable_recovery_loop.go`
+- `apps/execution-gateway/internal/httpapi/durable_recovery_loop.go`
   - scheduler-owned recovery loop；只回收 expired lease / timed-out run，不领取
     lease、不调用 bridge、不执行 agent work
 - `apps/app-api/src/modules/integration/supervisor-durable.ts`
-  - app-api supervisor durable runtime adapter
+  - app-api execution gateway runtime adapter
   - 调用 supervisor internal create / get / events / cancel endpoint
   - strict 解析 durable run projection 与 run event projection
 - `apps/app-api/src/modules/runtime-command/service.ts`

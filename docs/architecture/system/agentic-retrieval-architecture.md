@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-20
-updated: 2026-06-05
+updated: 2026-06-06
 ---
 # Agentic Retrieval Architecture
 
@@ -37,7 +37,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 - planner-first
 - typed retrieval plan
-- durable step graph execution
+- Temporal-backed durable step graph execution
 - typed retrieval / domain tools
 - evidence verifier
 - explicit freshness / historical routing
@@ -80,17 +80,18 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 主链路中的 RAG 片段固定为：
 
-`supervisor typed step admission -> rag-agent planner -> typed retrieval/domain
-tools -> retrieval-core executor / domain query service -> evidence verifier ->
-supporting evidence selection -> rag-agent synthesis -> grounding validation ->
-supervisor finalization`
+`supervisor typed step admission -> Temporal workflow activity -> rag-agent planner
+-> typed retrieval/domain activities -> retrieval-core executor / domain query service
+-> evidence verifier -> supporting evidence selection -> rag-agent synthesis ->
+grounding validation -> supervisor finalization`
 
 其中：
 
 - supervisor 负责 capability / policy / top-level routing admission
 - `rag-agent` 负责 plan 与 answer 语义
 - `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
-- durable runtime 负责 step lease、attempt、result、event 与 recovery truth
+- Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
+  repo-owned projection 负责 step attempt、result、event 与 eval/panel truth
 - evidence contract 驱动 replan / clarification / fail-close；synthesis 不得补洞
 
 当 retrieval 处于 multi-agent workflow 中时，长期片段固定为：
@@ -145,9 +146,12 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
   - authz projection、identity projection、operator-facing read model
 - runtime profile / registry / release truth
   - collection posture、visibility、serving alias、version mode
-- `apps/supervisor-api`
-  - policy / capability admission、durable step admission、lease、attempt、
-    result 与 finalization
+- `execution-gateway` / current `apps/execution-gateway`
+  - policy / capability admission
+  - workflow/activity admission
+  - projection command and finalization
+- Temporal execution plane
+  - workflow history、task queue、retry、timeout、heartbeat 与 worker dispatch
 
 ## RetrievalPlan
 
@@ -412,8 +416,9 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 
 - Python SDK suite 必须证明 internal DTO、function tool boundary、guardrail、rollout mode、
   sanitized trace projection 与 worker runner contract 未漂移
-- public/chat product-path E2E 必须证明 `supervisor-api -> supervisor-agent-worker ->
-  rag-agent SDK loop -> Go finalizer` 返回 canonical `SupervisorResponse`
+- public/chat product-path E2E 必须证明
+  `execution-gateway -> supervisor-agent-worker -> rag-agent SDK loop -> Go finalizer`
+  返回 canonical `SupervisorResponse`
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker
 - SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；

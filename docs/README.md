@@ -20,7 +20,7 @@ policy、reference、runbook，以及已归档的历史 plan。
 - [architecture/system/capability-routing-and-admission-architecture.md](./architecture/system/capability-routing-and-admission-architecture.md)
   - capability routing、surface admission 与 structured/runtime opening owner
 - [architecture/system/execution-and-agents-architecture.md](./architecture/system/execution-and-agents-architecture.md)
-  - supervisor runtime、agent family、handoff 与 workflow ownership
+  - execution runtime、agent family、handoff 与 workflow ownership
 - [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
   - retrieval-side agentic planning、evidence contract 与 retrieval/runtime split
 - [../.planning/PROJECT.md](../.planning/PROJECT.md)

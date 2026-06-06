@@ -624,7 +624,7 @@ updated: 2026-05-01
 
 - projector 必须按 `event_id` 做幂等消费
 - outbox payload 只携带 projection 所需字段，不承担 raw audit dump 角色
-- `execution.*` payload 只允许 Go `apps/supervisor-api` 的 safe runtime summary，例如
+- `execution.*` payload 只允许 Go `apps/execution-gateway` 的 safe runtime summary，例如
   lane、decision、failure kind、HTTP status、retryable、duration、queue wait、
   bridge duration；禁止 raw prompt、raw answer、raw transcript、auth material、
   retrieval payload 或 provider raw response

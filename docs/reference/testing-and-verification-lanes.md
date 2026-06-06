@@ -180,7 +180,7 @@ docs/runbooks/e2e-qa-release-runbook.md
   observability sink 均存在时执行
 - 当前默认目标环境是 `mucwiki-edge.link` staging；`hub.muc.wiki` production custom-hostname
   path 不属于当前 gate
-- 它串联 repo preflight、supervisor runtime readiness、public surface health、chat E2E、
+- 它串联 repo preflight、execution runtime readiness、public surface health、chat E2E、
   docs gated smoke、protected panel Access smoke、browser QA、Sentry/Axiom sink verification
   与 data-plane sanity
 - 证据必须落盘到 `var/staging-evidence/<timestamp>-e2e-qa-release/`

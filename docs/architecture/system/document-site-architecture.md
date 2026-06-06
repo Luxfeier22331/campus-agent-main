@@ -58,7 +58,7 @@ updated: 2026-04-27
 
 `browser -> public-docs same-site /api/docs/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> supervisor-api`
+`browser -> public-chat-web -> app-api -> execution-gateway`
 
 这意味着：
 

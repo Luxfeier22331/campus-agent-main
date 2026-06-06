@@ -186,7 +186,7 @@ list endpoints 额外支持：
 {
   "traceLink": "https://sentry.example/organizations/campus/traces/trace_01HQ",
   "issueLink": "https://sentry.example/organizations/campus/issues/123",
-  "issueFingerprint": "timeout:supervisor-api"
+  "issueFingerprint": "timeout:execution-gateway"
 }
 ```
 
@@ -1532,7 +1532,7 @@ list endpoints 额外支持：
 {
   "events": [
     {
-      "event_id": "supervisor-api:req_01HQ:execution.bridge_failed",
+      "event_id": "execution-gateway:req_01HQ:execution.bridge_failed",
       "request_id": "req_01HQ",
       "trace_id": "trace_01HQ",
       "event_type": "execution.bridge_failed",
@@ -1554,7 +1554,7 @@ list endpoints 额外支持：
 规则：
 
 - `request_id` 必须已存在于 app-owned request truth，`trace_id` 必须匹配该请求
-- `event_id` 由 producer 按 `supervisor-api:<request_id>:<event_type>` 生成，重复 ingest
+- `event_id` 由 producer 按 `execution-gateway:<request_id>:<event_type>` 生成，重复 ingest
   必须幂等
 - 只接受 allowlist execution event type；不接受 raw prompt、raw answer、raw
   transcript、auth material、retrieval payload 或 provider raw response
@@ -1604,7 +1604,7 @@ list endpoints 额外支持：
       "traceId": "trace_01HQ",
       "traceLink": "https://sentry.example/organizations/campus/traces/trace_01HQ",
       "issueLink": "https://sentry.example/organizations/campus/issues/123",
-      "issueFingerprint": "timeout:supervisor-api"
+      "issueFingerprint": "timeout:execution-gateway"
     }
   ]
 }
@@ -1624,6 +1624,6 @@ list endpoints 额外支持：
 
 - 不把 `Sentry`、`Axiom`、OpenAI trace / eval tooling 提升成 panel canonical query
   backend
-- 不让 `apps/supervisor-api` 暴露 operator observability HTTP surface
+- 不让 `apps/execution-gateway` 暴露 operator observability HTTP surface
 - 不让 panel BFF 查询数据库、audit JSONL 或 sink 后再自己拼 aggregate
 - 不把 request observability detail 退化成 raw execution / trace dump

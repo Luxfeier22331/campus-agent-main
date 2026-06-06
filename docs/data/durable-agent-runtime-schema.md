@@ -2,17 +2,17 @@
 doc_type: data
 status: active
 created: 2026-06-04
-updated: 2026-06-05
+updated: 2026-06-06
 ---
 # Durable Agent Runtime Schema
 
 ## 文档边界
 
-本文冻结 run-centric durable agent runtime 的逻辑数据模型。
+本文冻结 run-centric durable agent runtime 的 product / projection 逻辑数据模型。
 
 它回答的是：
 
-- 哪些 logical tables / records 拥有 durable runtime truth
+- 哪些 logical tables / records 拥有 product runtime projection truth
 - conversation、run、step、attempt、result、event、lease、lane budget、
   worker heartbeat 如何关联
 - 哪些字段是 canonical truth，哪些只是 projection / correlation
@@ -23,6 +23,7 @@ updated: 2026-06-05
 - 物理分库 / 分区策略
 - SQL DDL 的完整列类型和索引语法
 - 当前代码是否已实现这些表
+- Temporal internal workflow history schema
 
 稳定 contract 见：
 
@@ -71,12 +72,22 @@ updated: 2026-06-05
 
 ## Queue Model
 
-canonical execution queue 固定由 PG durable rows 表达：
+target canonical execution queue 固定由 Temporal Task Queue 表达；PG 表达的是
+product run / step projection、operator/eval read model 与 current PG baseline。
+
+target queue model：
+
+- workflow task queue
+- activity task queue
+- worker polling
+- Temporal retry / timeout / heartbeat semantics
+
+current PG baseline queue 继续由 PG durable rows 表达：
 
 - run-level queue：`runtime.agent_runs.status='queued'`
 - step-level queue：`runtime.agent_run_steps.status='queued'`
 
-消费规则：
+current baseline 消费规则：
 
 - scheduler 使用 `FOR UPDATE SKIP LOCKED` 读取候选 queued rows
 - scheduler 在同一事务中检查 lane budget、worker readiness、dependency state 与 downstream
@@ -90,7 +101,7 @@ canonical execution queue 固定由 PG durable rows 表达：
 
 用途：
 
-- answer-level durable run truth
+- answer-level product run projection truth
 
 最小列：
 
@@ -195,7 +206,7 @@ canonical execution queue 固定由 PG durable rows 表达：
 
 用途：
 
-- step-level durable execution truth
+- step-level product / eval projection truth
 
 最小列：
 
@@ -257,7 +268,8 @@ canonical execution queue 固定由 PG durable rows 表达：
 
 用途：
 
-- worker 对某个 step 的 attempt truth
+- worker 对某个 step 的 attempt projection truth；target architecture 中来源是 Temporal
+  activity attempt，current baseline 中来源是 PG execution lease attempt
 
 最小列：
 
@@ -351,7 +363,11 @@ canonical execution queue 固定由 PG durable rows 表达：
 
 用途：
 
-- durable execution lease truth
+- current PG baseline durable execution lease truth
+
+target architecture 中 Temporal task queue / activity heartbeat / timeout 替代
+execution lease 作为 canonical dispatch substrate；本表只保留为 current baseline /
+migration projection。
 
 最小列：
 
@@ -517,9 +533,10 @@ operator-facing read model 不直接读取 scheduler internals。
 
 ## Migration Boundary
 
-本文冻结 logical schema。当前 merged truth 已具备 PG-backed run-level durable baseline；
-step-level tables 是目标 durable runtime contract 的下一层 logical truth，不能用 runtime event
-字符串或 provider trace 代替。
+本文冻结 logical schema。当前 merged truth 已具备 PG-backed run-level durable
+baseline；target architecture 接受 Temporal 作为 canonical execution plane。
+step-level tables 在目标形态中是 product / panel / eval projection truth，不能用
+Temporal raw history、runtime event 字符串或 provider trace 代替。
 
 实现必须遵守：
 

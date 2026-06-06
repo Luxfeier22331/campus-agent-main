@@ -15,7 +15,7 @@ updated: 2026-04-27
 - data-plane canonical chain：仍以 `docs/architecture/system/data-plane-architecture.md`
   为准
 - query-serving surface：仍由 collection runtime profile 控制
-- app-api / supervisor-api 边界：ingestion worker 不接管在线回答编排
+- app-api / execution-gateway 边界：ingestion worker 不接管在线回答编排
 
 ## Runtime Posture
 

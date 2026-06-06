@@ -2,31 +2,33 @@
 doc_type: contract
 status: active
 created: 2026-06-04
-updated: 2026-06-05
+updated: 2026-06-06
 ---
 # Durable Agent Runtime Contract
 
 ## 文档边界
 
-本文冻结 run-centric durable agent runtime 的稳定概念 contract。
+本文冻结 run-centric durable agent runtime 的稳定 product / projection contract。
 
 它回答的是：
 
 - `Conversation`、`Run`、`RunStep`、`StepAttempt`、`StepResult`、`RunEvent`、
   `ExecutionLease` 与 `LaneBudget` 的语义
-- run lifecycle、step lifecycle、event lifecycle、lease lifecycle 如何流转
-- app-api、supervisor-api 与 worker pool 在 durable runtime 中的 seam 如何分层
+- run lifecycle、step lifecycle、event lifecycle 与 activity attempt projection 如何流转
+- app-api、execution-gateway、Temporal execution plane 与 worker pool 在 durable
+  runtime 中的 seam 如何分层
 
 它不负责：
 
 - 当前代码是否已经实现这些接口
 - 具体 HTTP path、SQL migration 文件或 worker deployment 数量
 - agent-specific payload、retrieval plan、ToolSpec 或 provider schema
+- Temporal internal workflow history schema
 
 当前 architecture owner：
 
 - `docs/architecture/system/durable-agent-runtime-architecture.md`
-- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
+- `docs/decisions/adr-0048-temporal-execution-plane.md`
 
 逻辑 schema owner：
 
@@ -42,7 +44,7 @@ updated: 2026-06-05
 
 - architecture 文档
 - data schema 文档
-- app-api / supervisor-api contract
+- app-api / execution-gateway contract
 - panel / eval / observability consumer
 - fixture / contract tests
 
@@ -87,8 +89,8 @@ Step id 是 run 内 typed execution unit id。
 固定规则：
 
 - step id 必须在同一 run 内唯一
-- execution lease 必须引用明确 step id；run-level single-step execution 也必须有 canonical
-  root step id
+- Temporal workflow/activity progress 与 repo-owned projection 必须引用明确 step id；
+  run-level single-step execution 也必须有 canonical root step id
 - step id 必须贯穿 step attempts、step results、tool/retrieval/synthesis events
   与 eval backlink
 - step id 不能由 worker 临时生成后只保存在本地内存
@@ -122,11 +124,12 @@ Run status enum 固定为：
 - `created`
   - run 已 durable 创建，但尚未进入 scheduler queue
 - `queued`
-  - run 已进入 durable lane queue，等待 execution lease
+  - run 已进入 execution plane
+  - 等待 Temporal workflow/activity dispatch 或 current PG baseline lease
 - `admitted`
-  - scheduler 已允许该 run / step 获取 execution lease
+  - execution-gateway / workflow policy 已允许该 run / step 推进
 - `running`
-  - worker 已持有 active lease 并开始执行
+  - workflow/activity worker 已开始执行
 - `streaming`
   - run 正在产生 answer-facing output events
 - `completed`
@@ -167,11 +170,11 @@ Run step status enum 固定为：
 - `created`
   - workflow / planner 已创建 typed step，但尚未进入 step queue
 - `queued`
-  - step 已进入 durable lane queue，等待 execution lease
+  - step 已进入 Temporal activity task queue 或 current PG baseline queue
 - `admitted`
-  - scheduler 已允许该 step 获取 execution lease
+  - workflow policy 已允许该 step dispatch
 - `running`
-  - worker 已持有 active lease 并开始执行该 step
+  - activity worker 已开始执行该 step
 - `succeeded`
   - step 已产出符合 output contract 的 typed result
 - `failed`
@@ -189,9 +192,10 @@ Run step status enum 固定为：
 
 - terminal step statuses 是 `succeeded`、`failed`、`blocked`、`skipped`、`canceled`、
   `expired`
-- 每个非 terminal step 必须可被 scheduler 查询并与 lane budget 对齐
+- 每个非 terminal step 必须可被 workflow/projection 查询并与 lane budget 对齐
 - required dependency 未完成时不得执行 step
-- worker 不得直接把 step 从 `queued` 改成 terminal；必须持有 active lease
+- worker 不得直接把 step 从 `queued` 改成 terminal；必须由 Temporal
+  activity dispatch 或 current baseline active lease 授权
 - step terminal state 必须写 `terminal_reason` 或 `blocker_reason`
 
 ## Step Attempt Contract
@@ -214,7 +218,8 @@ Run step status enum 固定为：
 固定规则：
 
 - retry 必须递增 `attempt_no`
-- attempt 与 lease 必须一一关联；没有 lease 的 attempt 无效
+- target architecture 中 attempt 必须关联 Temporal activity attempt / workflow
+  execution；current PG baseline 中 attempt 与 lease 必须一一关联
 - attempt payload 必须是 sanitized execution summary，不保存 raw prompt、raw provider
   response、raw source body、auth material 或 object-store credentials
 - failed attempt 只能通过后续 attempt 或 terminal step event 关闭，不得原地改写为 success
@@ -347,9 +352,12 @@ Run event schema family 固定为：
 - browser stream、panel、eval 与 audit 只能消费 run event projection 或由它派生的 read
   model
 
-## Execution Lease Contract
+## Execution Dispatch Contract
 
-Execution lease status enum 固定为：
+Target architecture 中 execution dispatch 由 Temporal workflow / activity task
+queue 承接。
+
+Current PG baseline 继续使用 execution lease projection，状态 enum 固定为：
 
 - `available`
 - `leased`
@@ -374,9 +382,11 @@ Execution lease status enum 固定为：
 
 固定规则：
 
-- worker 只有持有 active lease 才能执行 run / step
-- lease 必须定期 heartbeat
-- scheduler 可以根据 expiry 回收 lease
+- target worker 只有收到 Temporal activity task 才能执行 step；current baseline
+  worker 只有持有 active lease 才能执行 run / step
+- activity 必须按 Temporal policy heartbeat；current baseline lease 必须定期 heartbeat
+- Temporal 根据 timeout / heartbeat 处理 activity retry；current baseline
+  scheduler 可以根据 expiry 回收 lease
 - expired lease recovery 未达到显式 retry 上限时，可以把同一 run 重新写为
   `queued`，并必须通过新的 lease `attempt` 和 `run.queued` event 暴露 retry
   provenance；达到上限后才写 `run.expired`
@@ -385,14 +395,21 @@ Execution lease status enum 固定为：
 
 ## Canonical Queue Contract
 
-canonical queue 固定由 PG durable rows 表达：
+target canonical execution queue 固定由 Temporal Task Queue 表达：
+
+- workflow task queue
+- activity task queue
+- worker polling
+- Temporal retry / timeout / heartbeat semantics
+
+current PG baseline queue 继续由 PG durable rows 表达：
 
 - queued run：`runtime.agent_runs.status='queued'`
 - queued step：`runtime.agent_run_steps.status='queued'`
 
 消费规则：
 
-- scheduler 使用 `FOR UPDATE SKIP LOCKED` 选择候选 queued rows
+- current scheduler 使用 `FOR UPDATE SKIP LOCKED` 选择候选 queued rows
 - scheduler 在同一事务内检查 lane budget、worker readiness、dependency state 与 downstream
   budget
 - scheduler 创建 execution lease 并写 admission event 后，worker 才能执行
@@ -461,18 +478,28 @@ app-api owns：
 - conversation active-run admission
 - browser-facing error envelope
 
-### Supervisor API
+### Execution Gateway
 
-supervisor-api owns：
+execution-gateway owns：
 
-- `supervisor-api-control`：run command-query、cancel/query/readyz/metrics 与
+- run command-query、workflow start/cancel/signal/query/update、readyz/metrics 与
   projection
-- `supervisor-scheduler`：run / step admission、lane selection、PG queue scan、
-  lease creation
-- `supervisor-recovery`：expired lease、timed-out run / step、stale worker recovery
-- `supervisor-worker-{lane}`：lease-authorized typed step execution 与 result writeback
 - deterministic workflow planning、finalization 与 fail-close terminal mapping
-- `worker-autoscaler` desired replica calculation；autoscaler 不写 execution truth
+- Temporal client ownership for workflow command/query
+
+Temporal owns：
+
+- workflow state and history
+- workflow / activity task queues
+- retry / timeout / heartbeat / timer mechanics
+- worker dispatch through polling
+
+Worker pools own：
+
+- workflow task execution
+- activity task execution
+- typed tool / agent-as-tool step execution
+- sanitized step attempt / result writeback
 
 Supervisor durable run create command 固定要求：
 
@@ -505,11 +532,16 @@ worker pool does not own：
 
 ## Compatibility Boundary
 
-Current `POST /api/v1/answer` and `POST /api/v1/answer/stream` remain internal
-execution transports for the current deployed surface.
+`POST /api/v1/answer` and `POST /api/v1/answer/stream` are retired from the
+active `app-api -> execution-gateway` serving path.
 
-They must be interpreted as transport endpoints, not as the durable run / step
-contract.
+The active internal execution seam is the Temporal-backed run command/query
+contract:
+
+- `POST /internal/execution/runs`
+- `GET /internal/execution/runs/:runId`
+- `GET /internal/execution/runs/:runId/events`
+- `POST /internal/execution/runs/:runId/cancel`
 
 Implementation may bridge request execution into durable run records, but it must
 not add fallback behavior or silently synthesize missing run / step fields.

@@ -31,12 +31,12 @@ updated: 2026-05-07
 
 当前补充真相：
 
-- `apps/supervisor-api` 的前向 deploy substrate 已正式冻结为 Docker-first internal
+- `apps/execution-gateway` 的前向 deploy substrate 已正式冻结为 Docker-first internal
   execution service
 - 当前 repo-owned staging execution runtime 已收敛到 `nc-arm-6c` 上的
-  `otel-collector + supervisor-api + supervisor-agent-worker` 三容器
+  `otel-collector + execution-gateway + supervisor-agent-worker` 三容器
 - 这条 canonical execution runtime 的运维姿势、systemd connector、自愈与日志规则统一记录在
-  `supervisor-api-staging-operations.md`
+  `execution-gateway-staging-operations.md`
 - Python public compatibility ingress 已退出 active staging path
 
 ## Hostname Constraint
@@ -64,12 +64,12 @@ updated: 2026-05-07
   - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=<https://chat-staging.mucwiki-edge.link`>
   - `env.staging.vars.AUTH_SHELL_ORIGIN=<https://hub-staging.mucwiki-edge.link`>
 - `apps/app-api/package.json`
-  - `pnpm deploy:staging` 要求显式注入 `STAGING_SUPERVISOR_API_BASE_URL`
+  - `pnpm deploy:staging` 要求显式注入 `STAGING_EXECUTION_GATEWAY_BASE_URL`
   - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env
     worker-staging-app-api`、Cloudflare secret presence、repo-owned staging config
     verification、`db:bootstrap:staging`、`db:migrate:staging` 与
     `db:reconcile-shared-drift:staging`
-  - deploy 时通过 `--var SUPERVISOR_API_BASE_URL:<url>` 注入当前 supervisor execution
+  - deploy 时通过 `--var EXECUTION_GATEWAY_BASE_URL:<url>` 注入当前 supervisor execution
     upstream
   - `pnpm deploy:staging` 会在 publish 时自动注入
     `SENTRY_RELEASE=app-api@staging-<sha>`；只有需要固定 release 名时才覆写
@@ -192,28 +192,30 @@ updated: 2026-05-07
 
 ### 5. Supervisor upstream
 
-- `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+- `apps/execution-gateway` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
-- 当前阶段仍不冻结 `apps/supervisor-api` 的 repo-level staging hostname
+- 当前阶段仍不冻结 `apps/execution-gateway` 的 repo-level staging hostname
 - `apps/app-api` staging deploy 时必须显式注入一个真实可达的 execution upstream
 - 当前 repo-owned staging execution origin 默认继续复用
   `<https://exec-staging.mucwiki-edge.link`>，但它背后承接的是
   `infra/local/docker-compose.supervisor-runtime.yml`
-- canonical 常驻方式不是 ad-hoc quick tunnel；而是 `nc-arm-6c` 通过 Cloudflare
-  remote-managed named tunnel `supervisor-api-staging` 持续承接 supervisor-api runtime
+- canonical 常驻方式不是 ad-hoc quick tunnel；而是 `nc-arm-6c` 通过
+  Cloudflare remote-managed named tunnel `execution-gateway-staging` 持续承接
+  execution-gateway runtime
 - 只要 production execution substrate 还没有接管，staging operator 就应优先维护
-  `nc-arm-6c` 上的 canonical supervisor-api 常驻链路，而不是每轮重新发一个随机
+  `nc-arm-6c` 上的 canonical execution-gateway 常驻链路，而不是每轮重新发一个随机
   quick tunnel
 - 当前 repo-owned execution upstream 实际来自：
-  - `nc-arm-6c:/srv/apps/campus-agent/infra/local/staging/start-supervisor-api-staging.sh`
-  - `cloudflared-supervisor-api-staging.service`
-  - strict health gate `infra/local/staging/status-supervisor-api-staging.sh --check`
-- `exec-staging.mucwiki-edge.link` 的 Cloudflare tunnel remote config 必须指向 connector
-  本机 `http://127.0.0.1:27051`
+  - `nc-arm-6c:/srv/apps/campus-agent/infra/local/staging/start-execution-gateway-staging.sh`
+  - `cloudflared-execution-gateway-staging.service`
+  - strict health gate
+    `infra/local/staging/status-execution-gateway-staging.sh --check`
+- `exec-staging.mucwiki-edge.link` 的 Cloudflare tunnel remote config 必须指向
+  connector 本机 `http://127.0.0.1:27051`
 - `127.0.0.1` 只能留在 tunnel connector 所在机器的 process truth，不能作为
   Cloudflare staging deploy truth
 - 当前 canonical execution host 的常驻安装、冷启动恢复与 `status --check`
-  health gate，见 `docs/runbooks/supervisor-api-staging-operations.md`
+  health gate，见 `docs/runbooks/execution-gateway-staging-operations.md`
 
 ### 6. Production custom hostname is deferred
 
@@ -236,7 +238,7 @@ wrangler secret put BETTER_AUTH_SECRET --env staging
 wrangler secret put AUTH_TURNSTILE_SECRET_KEY --env staging
 wrangler secret put RESEND_API_KEY --env staging
 wrangler secret put AUTH_RESET_EMAIL_FROM --env staging
-wrangler secret put SUPERVISOR_API_SHARED_SECRET --env staging
+wrangler secret put EXECUTION_GATEWAY_SHARED_SECRET --env staging
 wrangler secret put APP_API_INTERNAL_SHARED_SECRET --env staging
 wrangler secret put APP_API_STAGING_SMOKE_AUTH_SECRET --env staging
 wrangler secret put SENTRY_DSN --env staging
@@ -408,7 +410,7 @@ wrangler secret put SENTRY_DSN --env staging
   `app-api-staging`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke
   必须覆盖 `sign-up -> immediate sign-in`
-- `SUPERVISOR_API_BASE_URL` 在每次 staging deploy 时都必须显式注入，且当次值必须真实可达
+- `EXECUTION_GATEWAY_BASE_URL` 在每次 staging deploy 时都必须显式注入，且当次值必须真实可达
 - `STAGING_ACCESS_TEAM_DOMAIN` / `STAGING_ACCESS_POLICY_AUD` 必须都是真实 Access
   值，不能使用 repo 占位默认值
 - `app-api /readyz` 必须先 ready，再允许 web surfaces 对外 smoke
@@ -470,7 +472,7 @@ pnpm --dir apps/app-api docs:gated:smoke:staging
   先在 `nc-arm-6c:/srv/apps/campus-agent` 执行
   `campus_ingestion_worker.probe_regulation_rag_release_runtime`。`qdrant_endpoint_not_ready`
   表示 `.env.staging.local` 的 `STAGING_INGESTION_QDRANT_URL` 不是可用 Qdrant REST
-  endpoint，必须修正 endpoint 后再重启 supervisor runtime。
+  endpoint，必须修正 endpoint 后再重启 execution runtime。
 - `chat:e2e:staging` 默认要求 chat request 返回 `answer`
   (`request.resultKind`)；如果返回 `error` 等 typed outcome，脚本会退出非零并输出对应
   `requestId` / `traceId`，避免把 supervisor timeout 或 upstream failure 误判为通过
@@ -571,7 +573,7 @@ pnpm --dir apps/app-api db:migrate:staging
 ### 1. `apps/app-api`
 
 ```bash
-STAGING_SUPERVISOR_API_BASE_URL=https://<current-supervisor-upstream> \
+STAGING_EXECUTION_GATEWAY_BASE_URL=https://<current-supervisor-upstream> \
 pnpm --dir apps/app-api deploy:staging
 ```
 
