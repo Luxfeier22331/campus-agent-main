@@ -24,7 +24,8 @@ RUN go test ./... \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/workflow-worker ./cmd/workflow-worker \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-rag ./cmd/activity-worker-rag \
-  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-finalization ./cmd/activity-worker-finalization
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-finalization ./cmd/activity-worker-finalization \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/worker-autoscaler ./cmd/worker-autoscaler
 
 FROM debian:bookworm-slim
 
@@ -37,6 +38,7 @@ COPY --from=build /out/execution-control /usr/local/bin/execution-control
 COPY --from=build /out/workflow-worker /usr/local/bin/workflow-worker
 COPY --from=build /out/activity-worker-rag /usr/local/bin/activity-worker-rag
 COPY --from=build /out/activity-worker-finalization /usr/local/bin/activity-worker-finalization
+COPY --from=build /out/worker-autoscaler /usr/local/bin/worker-autoscaler
 COPY configs/runtime/agents.v2.json /etc/campus-agent/agents.v2.json
 COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /etc/campus-agent/query-serving-scopes.v1.json

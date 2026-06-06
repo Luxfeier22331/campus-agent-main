@@ -9,6 +9,7 @@ Current status:
   `GET /metrics`, `POST /internal/execution/runs`,
   `GET /internal/execution/runs/:runId`,
   `GET /internal/execution/runs/:runId/events`,
+  `GET /internal/execution/runs/:runId/steps`,
   `POST /internal/execution/runs/:runId/cancel`, and
   `POST /internal/execution/cancel`.
 - Owns request body limits, JSON parsing, `bearer` / `trusted-worker` caller
@@ -74,7 +75,7 @@ Current status:
   `campus_notice_get` read the internal notice PG read model and S3-compatible
   derived canonical bodies. This still does not open `campus_services` or
   `notice` product serving.
-- When `campus_services` or `notice` is explicitly opened, deterministic
+- When `campus_services`, `navigation`, or `notice` is explicitly opened, deterministic
   structured payloads run as typed Temporal activities and write sanitized
   projections. `app-api` remains the browser-facing answer/status/event surface.
 - Owns bounded FIFO execution admission with queue full / lane queue full /
@@ -149,7 +150,7 @@ Current structured query runtime boundary:
 - Structured product serving gates for `campus_services` and `notice` are
   closed by default. `EXECUTION_CONTROL_OPEN_CAPABILITIES` is the Go-owned
   allowlist for opening those capabilities after eval / product admission
-  evidence exists. It only accepts `campus_services`, `notice`, or
+  evidence exists. It accepts `campus_services`, `navigation`, `notice`, or
   comma-separated combinations of these values; wildcard values such as `*` or
   `all` are rejected.
 - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth and is
@@ -190,7 +191,8 @@ Current structured query runtime boundary:
   `campus_services` / `notice` are still closed, and `/metrics` reports
   capability gate open / closed decisions.
 - `/readyz` degrades if `campus_services` or `notice` is opened before its
-  required structured runtime dependencies are configured.
+  required structured runtime dependencies are configured, and if any opened
+  capability is missing its required Temporal activity task queue poller.
 
 Current observability boundary:
 
@@ -305,6 +307,19 @@ docker build \
   -f apps/execution-control/Dockerfile \
   -t campus-execution-control:local .
 ```
+
+Worker autoscaler dry-run proof:
+
+```bash
+go run ./cmd/worker-autoscaler \
+  --input-path /path/to/autoscaler-input.json \
+  --evidence-path /path/to/worker-autoscaler-evidence.json
+```
+
+This command belongs to the Execution Operations Plane. It reads task queue /
+budget observations and writes desired-replica evidence only; it does not write
+Temporal workflow state, run projection, step projection, event projection, or
+terminal state.
 
 Direct local process smoke for development:
 
