@@ -1,24 +1,24 @@
-import { DEFAULT_SUPERVISOR_API_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
+import { DEFAULT_EXECUTION_GATEWAY_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import {
-	createSupervisorRequestHeaders,
-	parseSupervisorErrorEnvelope,
-	parseSupervisorJsonResponse,
-	SupervisorTransportError,
-} from "./supervisor-transport";
+	createExecutionGatewayRequestHeaders,
+	parseExecutionGatewayErrorEnvelope,
+	parseExecutionGatewayJsonResponse,
+	ExecutionGatewayTransportError,
+} from "./execution-gateway-transport";
 
-type SupervisorDurableEnv = Pick<
+type ExecutionGatewayRuntimeEnv = Pick<
 	Env,
-	| "SUPERVISOR_API_ACCESS_CLIENT_ID"
-	| "SUPERVISOR_API_ACCESS_CLIENT_SECRET"
-	| "SUPERVISOR_API_BASE_URL"
-	| "SUPERVISOR_API_SHARED_SECRET"
-	| "SUPERVISOR_API_TIMEOUT_MS"
+	| "EXECUTION_GATEWAY_ACCESS_CLIENT_ID"
+	| "EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET"
+	| "EXECUTION_GATEWAY_BASE_URL"
+	| "EXECUTION_GATEWAY_SHARED_SECRET"
+	| "EXECUTION_GATEWAY_TIMEOUT_MS"
 >;
 
 type JsonRecord = Record<string, unknown>;
 
-export interface SupervisorDurableRunCreateInput {
+export interface ExecutionGatewayRunCreateInput {
 	conversationId: string;
 	lane: string;
 	metadata: JsonRecord;
@@ -34,27 +34,27 @@ export interface SupervisorDurableRunCreateInput {
 	turnId: string;
 }
 
-export interface SupervisorDurableRunQuery {
+export interface ExecutionGatewayRunQuery {
 	runId: string;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 }
 
-export interface SupervisorDurableRunEventQuery {
+export interface ExecutionGatewayRunEventQuery {
 	afterSequence?: number;
 	runId: string;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 }
 
-export interface SupervisorDurableRunCancelInput {
+export interface ExecutionGatewayRunCancelInput {
 	reason: string;
 	runId: string;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 }
 
-export interface SupervisorDurableRun {
+export interface ExecutionGatewayRun {
 	admittedAt: string;
 	completedAt: string;
 	conversationId: string;
@@ -78,7 +78,7 @@ export interface SupervisorDurableRun {
 	workflowPlanRef: string;
 }
 
-export interface SupervisorDurableRunEvent {
+export interface ExecutionGatewayRunEvent {
 	conversationId: string;
 	eventId: string;
 	eventType: string;
@@ -90,28 +90,28 @@ export interface SupervisorDurableRunEvent {
 	visibility: string;
 }
 
-export interface SupervisorDurableRuntimeClient {
-	cancelRun(input: SupervisorDurableRunCancelInput): Promise<SupervisorDurableRun>;
-	createRun(input: SupervisorDurableRunCreateInput): Promise<SupervisorDurableRun>;
-	getRun(input: SupervisorDurableRunQuery): Promise<SupervisorDurableRun>;
-	listRunEvents(input: SupervisorDurableRunEventQuery): Promise<SupervisorDurableRunEvent[]>;
+export interface ExecutionGatewayRuntimeClient {
+	cancelRun(input: ExecutionGatewayRunCancelInput): Promise<ExecutionGatewayRun>;
+	createRun(input: ExecutionGatewayRunCreateInput): Promise<ExecutionGatewayRun>;
+	getRun(input: ExecutionGatewayRunQuery): Promise<ExecutionGatewayRun>;
+	listRunEvents(input: ExecutionGatewayRunEventQuery): Promise<ExecutionGatewayRunEvent[]>;
 }
 
-export function isSupervisorDurableRuntimeConfigured(env: SupervisorDurableEnv): boolean {
-	return Boolean(env.SUPERVISOR_API_BASE_URL?.trim() && env.SUPERVISOR_API_SHARED_SECRET?.trim());
+export function isExecutionGatewayRuntimeConfigured(env: ExecutionGatewayRuntimeEnv): boolean {
+	return Boolean(env.EXECUTION_GATEWAY_BASE_URL?.trim() && env.EXECUTION_GATEWAY_SHARED_SECRET?.trim());
 }
 
-export function createSupervisorDurableRuntimeClient(
-	env: SupervisorDurableEnv,
+export function createExecutionGatewayRuntimeClient(
+	env: ExecutionGatewayRuntimeEnv,
 	input: {
 		fetchImplementation?: typeof fetch;
 		traceDataProvider?: () => Record<string, unknown>;
 	} = {},
-): SupervisorDurableRuntimeClient {
+): ExecutionGatewayRuntimeClient {
 	const fetchImplementation = input.fetchImplementation ?? fetch;
 	const traceDataProvider = input.traceDataProvider ?? (() => ({}));
 
-	async function requestSupervisor(
+	async function requestExecutionGateway(
 		path: string,
 		options: {
 			body?: JsonRecord;
@@ -121,20 +121,20 @@ export function createSupervisorDurableRuntimeClient(
 			traceId?: string | null;
 		},
 	): Promise<JsonRecord> {
-		const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
-		const sharedSecret = env.SUPERVISOR_API_SHARED_SECRET?.trim();
+		const baseUrl = env.EXECUTION_GATEWAY_BASE_URL?.trim();
+		const sharedSecret = env.EXECUTION_GATEWAY_SHARED_SECRET?.trim();
 		if (!(baseUrl && sharedSecret)) {
-			throw new SupervisorTransportError({
+			throw new ExecutionGatewayTransportError({
 				code: "dependency_not_ready",
-				message: "Supervisor durable runtime is not configured.",
+				message: "Execution gateway runtime is not configured.",
 				retryable: true,
 				status: 503,
 			});
 		}
 
 		const timeoutMs = parsePositiveInteger(
-			env.SUPERVISOR_API_TIMEOUT_MS,
-			DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
+			env.EXECUTION_GATEWAY_TIMEOUT_MS,
+			DEFAULT_EXECUTION_GATEWAY_TIMEOUT_MS,
 		);
 		let response: Response;
 		try {
@@ -143,9 +143,9 @@ export function createSupervisorDurableRuntimeClient(
 				const timeoutId = setTimeout(() => {
 					controller.abort();
 					reject(
-						new SupervisorTransportError({
+						new ExecutionGatewayTransportError({
 							code: "execution_timeout",
-							message: `Supervisor durable runtime request exceeded ${timeoutMs}ms timeout.`,
+							message: `Execution gateway runtime request exceeded ${timeoutMs}ms timeout.`,
 							retryable: true,
 							status: 504,
 						}),
@@ -154,7 +154,7 @@ export function createSupervisorDurableRuntimeClient(
 
 				fetchImplementation(`${baseUrl}${path}`, {
 					body: options.body ? JSON.stringify(options.body) : undefined,
-					headers: createSupervisorRequestHeaders({
+					headers: createExecutionGatewayRequestHeaders({
 						env,
 						payload: {
 							traceHeaders: options.traceHeaders,
@@ -170,9 +170,9 @@ export function createSupervisorDurableRuntimeClient(
 					.catch((error) => {
 						if (error instanceof Error && error.name === "AbortError") {
 							reject(
-								new SupervisorTransportError({
+								new ExecutionGatewayTransportError({
 									code: "execution_timeout",
-									message: `Supervisor durable runtime request exceeded ${timeoutMs}ms timeout.`,
+									message: `Execution gateway runtime request exceeded ${timeoutMs}ms timeout.`,
 									retryable: true,
 									status: 504,
 								}),
@@ -187,23 +187,23 @@ export function createSupervisorDurableRuntimeClient(
 					});
 			});
 		} catch (error) {
-			if (error instanceof SupervisorTransportError) {
+			if (error instanceof ExecutionGatewayTransportError) {
 				throw error;
 			}
 
-			throw new SupervisorTransportError({
-				code: "supervisor_unavailable",
+			throw new ExecutionGatewayTransportError({
+				code: "execution_gateway_unavailable",
 				message:
-					error instanceof Error ? error.message : "Supervisor durable runtime request failed.",
+					error instanceof Error ? error.message : "Execution gateway runtime request failed.",
 				retryable: true,
 				status: 502,
 			});
 		}
 
-		const parsed = await parseSupervisorJsonResponse(response);
+		const parsed = await parseExecutionGatewayJsonResponse(response);
 		if (response.status !== options.expectedStatus) {
-			const errorEnvelope = parseSupervisorErrorEnvelope(parsed, response.status);
-			throw new SupervisorTransportError({
+			const errorEnvelope = parseExecutionGatewayErrorEnvelope(parsed, response.status);
+			throw new ExecutionGatewayTransportError({
 				code: errorEnvelope.code,
 				message: errorEnvelope.message,
 				retryable: errorEnvelope.retryable,
@@ -214,8 +214,8 @@ export function createSupervisorDurableRuntimeClient(
 	}
 
 	return {
-		async cancelRun(cancelInput: SupervisorDurableRunCancelInput): Promise<SupervisorDurableRun> {
-			const parsed = await requestSupervisor(`/internal/durable/runs/${cancelInput.runId}/cancel`, {
+		async cancelRun(cancelInput: ExecutionGatewayRunCancelInput): Promise<ExecutionGatewayRun> {
+			const parsed = await requestExecutionGateway(`/internal/execution/runs/${cancelInput.runId}/cancel`, {
 				body: {
 					reason: cancelInput.reason,
 				},
@@ -226,8 +226,8 @@ export function createSupervisorDurableRuntimeClient(
 			});
 			return parseDurableRun(parsed);
 		},
-		async createRun(createInput: SupervisorDurableRunCreateInput): Promise<SupervisorDurableRun> {
-			const parsed = await requestSupervisor("/internal/durable/runs", {
+		async createRun(createInput: ExecutionGatewayRunCreateInput): Promise<ExecutionGatewayRun> {
+			const parsed = await requestExecutionGateway("/internal/execution/runs", {
 				body: toDurableRunCreateBody(createInput),
 				expectedStatus: 202,
 				method: "POST",
@@ -236,8 +236,8 @@ export function createSupervisorDurableRuntimeClient(
 			});
 			return parseDurableRun(parsed);
 		},
-		async getRun(query: SupervisorDurableRunQuery): Promise<SupervisorDurableRun> {
-			const parsed = await requestSupervisor(`/internal/durable/runs/${query.runId}`, {
+		async getRun(query: ExecutionGatewayRunQuery): Promise<ExecutionGatewayRun> {
+			const parsed = await requestExecutionGateway(`/internal/execution/runs/${query.runId}`, {
 				expectedStatus: 200,
 				method: "GET",
 				traceHeaders: query.traceHeaders,
@@ -246,9 +246,9 @@ export function createSupervisorDurableRuntimeClient(
 			return parseDurableRun(parsed);
 		},
 		async listRunEvents(
-			query: SupervisorDurableRunEventQuery,
-		): Promise<SupervisorDurableRunEvent[]> {
-			const parsed = await requestSupervisor(durableRunEventsPath(query), {
+			query: ExecutionGatewayRunEventQuery,
+		): Promise<ExecutionGatewayRunEvent[]> {
+			const parsed = await requestExecutionGateway(durableRunEventsPath(query), {
 				expectedStatus: 200,
 				method: "GET",
 				traceHeaders: query.traceHeaders,
@@ -259,8 +259,9 @@ export function createSupervisorDurableRuntimeClient(
 	};
 }
 
-function durableRunEventsPath(query: SupervisorDurableRunEventQuery): string {
-	const path = `/internal/durable/runs/${query.runId}/events`;
+
+function durableRunEventsPath(query: ExecutionGatewayRunEventQuery): string {
+	const path = `/internal/execution/runs/${query.runId}/events`;
 	if (query.afterSequence === undefined) {
 		return path;
 	}
@@ -268,7 +269,7 @@ function durableRunEventsPath(query: SupervisorDurableRunEventQuery): string {
 		!(Number.isInteger(query.afterSequence) && Number.isFinite(query.afterSequence)) ||
 		query.afterSequence < 0
 	) {
-		throw new SupervisorTransportError({
+		throw new ExecutionGatewayTransportError({
 			code: "invalid_request",
 			message: "afterSequence must be a non-negative integer.",
 			retryable: false,
@@ -278,7 +279,7 @@ function durableRunEventsPath(query: SupervisorDurableRunEventQuery): string {
 	return `${path}?after_sequence=${query.afterSequence}`;
 }
 
-function toDurableRunCreateBody(input: SupervisorDurableRunCreateInput): JsonRecord {
+function toDurableRunCreateBody(input: ExecutionGatewayRunCreateInput): JsonRecord {
 	return {
 		conversation_id: input.conversationId,
 		lane: input.lane,
@@ -295,7 +296,7 @@ function toDurableRunCreateBody(input: SupervisorDurableRunCreateInput): JsonRec
 	};
 }
 
-function parseDurableRun(payload: JsonRecord): SupervisorDurableRun {
+function parseDurableRun(payload: JsonRecord): ExecutionGatewayRun {
 	return {
 		admittedAt: readRequiredString(payload, "admitted_at"),
 		completedAt: readRequiredString(payload, "completed_at"),
@@ -321,7 +322,7 @@ function parseDurableRun(payload: JsonRecord): SupervisorDurableRun {
 	};
 }
 
-function parseDurableRunEvents(payload: JsonRecord): SupervisorDurableRunEvent[] {
+function parseDurableRunEvents(payload: JsonRecord): ExecutionGatewayRunEvent[] {
 	const events = payload.events;
 	if (!Array.isArray(events)) {
 		throw invalidDurableResponse("events must be an array.");
@@ -369,10 +370,10 @@ function readRequiredRecord(payload: JsonRecord, key: string): JsonRecord {
 	return value as JsonRecord;
 }
 
-function invalidDurableResponse(detail: string): SupervisorTransportError {
-	return new SupervisorTransportError({
-		code: "supervisor_invalid_response",
-		message: `Supervisor durable runtime response violates the contract: ${detail}`,
+function invalidDurableResponse(detail: string): ExecutionGatewayTransportError {
+	return new ExecutionGatewayTransportError({
+		code: "execution_gateway_invalid_response",
+		message: `Execution gateway runtime response violates the contract: ${detail}`,
 		retryable: true,
 		status: 502,
 	});

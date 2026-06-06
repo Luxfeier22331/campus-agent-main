@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { SupervisorDurableRuntimeClient } from "../src/modules/integration";
+import type { ExecutionGatewayRuntimeClient } from "../src/modules/integration";
 import { buildOperatorQueryService } from "../src/modules/operator-query";
 import { createOperatorPrincipal } from "./operator-query.route.test-support";
 
@@ -146,7 +146,7 @@ describe("operator query service aggregate summaries", () => {
 			listQualityEvalCandidates: vi.fn(),
 			listSafetyAnomalies: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue({

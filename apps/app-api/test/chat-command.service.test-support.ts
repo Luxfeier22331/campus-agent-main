@@ -9,10 +9,17 @@ import type {
 	ProfileMemoryProjectionStore,
 } from "../src/modules/runtime-command";
 import type { AppTelemetry } from "../src/modules/telemetry";
+import type {
+	SupervisorExecutionInput,
+	SupervisorExecutionResponse,
+} from "../src/modules/integration/execution-gateway";
 
 export { createHmac } from "node:crypto";
 export type { ResolvedAppPrincipal } from "../src/modules/auth";
-export type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
+export interface SupervisorExecutionClient {
+	execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
+	executeStream?(input: SupervisorExecutionInput): Promise<Response>;
+}
 export type {
 	ChatCommandStore,
 	ChatConversationStore,
@@ -23,7 +30,7 @@ export {
 	buildChatCommandService,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
-	SupervisorTransportError,
+	ExecutionGatewayTransportError,
 } from "../src/modules/runtime-command";
 export type { AppTelemetry } from "../src/modules/telemetry";
 

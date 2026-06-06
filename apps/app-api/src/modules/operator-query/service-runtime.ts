@@ -1,6 +1,6 @@
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
-import type { SupervisorDurableRun, SupervisorDurableRunEvent } from "../integration";
+import type { ExecutionGatewayRun, ExecutionGatewayRunEvent } from "../integration";
 import { runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
 import {
 	isAllowedTimeseriesGranularity,
@@ -107,7 +107,7 @@ const TERMINAL_RUN_EVENT_TYPES = new Set([
 ]);
 
 function toRuntimeRunEventSummary(
-	event: SupervisorDurableRunEvent,
+	event: ExecutionGatewayRunEvent,
 ): OperatorRuntimeRunEventSummary {
 	return {
 		eventType: event.eventType,
@@ -119,7 +119,7 @@ function toRuntimeRunEventSummary(
 
 function assertDurableRunMatchesRequest(
 	request: OperatorRequestObservabilityRecord["request"],
-	run: SupervisorDurableRun,
+	run: ExecutionGatewayRun,
 ): void {
 	if (
 		run.runId !== request.runId ||
@@ -137,8 +137,8 @@ function assertDurableRunMatchesRequest(
 }
 
 function assertDurableEventMatchesRun(
-	run: SupervisorDurableRun,
-	event: SupervisorDurableRunEvent,
+	run: ExecutionGatewayRun,
+	event: ExecutionGatewayRunEvent,
 	lastSequence: number,
 ): number {
 	if (event.runId !== run.runId || event.conversationId !== run.conversationId) {

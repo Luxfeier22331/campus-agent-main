@@ -9,7 +9,7 @@ const DEFAULT_PUBLIC_CHAT_ORIGIN = "https://chat-staging.mucwiki-edge.link";
 const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn";
 const DEFAULT_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com";
 const DEFAULT_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com";
-const DEFAULT_SUPERVISOR_BASE_URL = "https://supervisor.internal";
+const DEFAULT_SUPERVISOR_BASE_URL = "https://execution-gateway.internal";
 const DEFAULT_SUPERVISOR_SHARED_SECRET = "smoke-identity-supervisor-secret";
 const DEFAULT_INTERNAL_SHARED_SECRET = "smoke-identity-internal-secret";
 const DEFAULT_BETTER_AUTH_SECRET = "smoke-identity-secret-smoke-identity-secret";
@@ -154,9 +154,9 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
 		password,
 		passwordEnvKey,
 		publicChatOrigin,
-		supervisorApiBaseUrl: env.SUPERVISOR_API_BASE_URL?.trim() || DEFAULT_SUPERVISOR_BASE_URL,
+		supervisorApiBaseUrl: env.EXECUTION_GATEWAY_BASE_URL?.trim() || DEFAULT_SUPERVISOR_BASE_URL,
 		supervisorApiSharedSecret:
-			env.SUPERVISOR_API_SHARED_SECRET?.trim() || DEFAULT_SUPERVISOR_SHARED_SECRET,
+			env.EXECUTION_GATEWAY_SHARED_SECRET?.trim() || DEFAULT_SUPERVISOR_SHARED_SECRET,
 	};
 }
 
@@ -185,8 +185,8 @@ export function buildSmokeIdentityProvisionRuntimeEnv(input) {
 		BETTER_AUTH_SECRET: input.betterAuthSecret,
 		PUBLIC_CHAT_WEB_ORIGIN: input.publicChatOrigin,
 		RESEND_API_KEY: input.resendApiKey || DEFAULT_RESEND_API_KEY,
-		SUPERVISOR_API_BASE_URL: input.supervisorApiBaseUrl,
-		SUPERVISOR_API_SHARED_SECRET: input.supervisorApiSharedSecret,
+		EXECUTION_GATEWAY_BASE_URL: input.supervisorApiBaseUrl,
+		EXECUTION_GATEWAY_SHARED_SECRET: input.supervisorApiSharedSecret,
 	};
 }
 

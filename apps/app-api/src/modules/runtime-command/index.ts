@@ -3,7 +3,7 @@ export {
 	type ChatConversationStore,
 	DRAFT_CONVERSATION_TITLE,
 } from "../chat";
-export { SupervisorTransportError } from "../integration";
+export { ExecutionGatewayTransportError } from "../integration";
 export type { ProfileMemoryProjectionStore } from "../profile-memory";
 export {
 	buildChatCommandService,

@@ -157,18 +157,18 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 
 		expect(events.map((event) => event.event)).toEqual(["request.accepted", "request.failed"]);
 		expect(events.at(-1)?.data.error).toMatchObject({
-			code: "supervisor_invalid_response",
+			code: "execution_gateway_invalid_response",
 			retryable: true,
 		});
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
-				errorCode: "supervisor_invalid_response",
+				errorCode: "execution_gateway_invalid_response",
 				status: "error",
 			},
 		});
 		expect(telemetry.recordRequestTransportError).toHaveBeenCalledWith(
 			expect.objectContaining({
-				errorCode: "supervisor_invalid_response",
+				errorCode: "execution_gateway_invalid_response",
 				retryable: true,
 			}),
 		);

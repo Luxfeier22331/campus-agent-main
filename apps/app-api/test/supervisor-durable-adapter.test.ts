@@ -3,9 +3,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-	createSupervisorDurableRuntimeClient,
-	isSupervisorDurableRuntimeConfigured,
-} from "../src/modules/integration/supervisor";
+	createExecutionGatewayRuntimeClient,
+	isExecutionGatewayRuntimeConfigured,
+} from "../src/modules/integration/execution-gateway";
 
 function readMockRequestBody(fetchImplementation: ReturnType<typeof vi.fn>, index: number): string {
 	const body = fetchImplementation.mock.calls[index]?.[1]?.body;
@@ -42,38 +42,44 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 	};
 }
 
-describe("supervisor durable runtime adapter", () => {
-	it("reports durable runtime configured only when base URL and shared secret are present", () => {
+describe("execution gateway runtime adapter", () => {
+	it("reports execution gateway configured only when new base URL and shared secret are present", () => {
 		expect(
-			isSupervisorDurableRuntimeConfigured({
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			isExecutionGatewayRuntimeConfigured({
+				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
+				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(true);
 		expect(
-			isSupervisorDurableRuntimeConfigured({
-				SUPERVISOR_API_BASE_URL: " ",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			isExecutionGatewayRuntimeConfigured({
+				EXECUTION_GATEWAY_BASE_URL: " ",
+				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(false);
 		expect(
-			isSupervisorDurableRuntimeConfigured({
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "",
+			isExecutionGatewayRuntimeConfigured({
+				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
+				EXECUTION_GATEWAY_SHARED_SECRET: "",
 			}),
+		).toBe(false);
+		expect(
+			isExecutionGatewayRuntimeConfigured({
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			} as never),
 		).toBe(false);
 	});
 
-	it("creates durable runs through the internal supervisor command endpoint", async () => {
+	it("creates execution runs through the internal execution command endpoint", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify(durableRunPayload()), {
 				status: 202,
 			}),
 		);
-		const client = createSupervisorDurableRuntimeClient(
+		const client = createExecutionGatewayRuntimeClient(
 			{
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
+				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -102,7 +108,7 @@ describe("supervisor durable runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://supervisor.internal/internal/durable/runs",
+			"https://execution-gateway.internal/internal/execution/runs",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
@@ -185,10 +191,10 @@ describe("supervisor durable runtime adapter", () => {
 					{ status: 200 },
 				),
 			);
-		const client = createSupervisorDurableRuntimeClient(
+		const client = createExecutionGatewayRuntimeClient(
 			{
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
+				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -204,7 +210,7 @@ describe("supervisor durable runtime adapter", () => {
 
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			1,
-			"https://supervisor.internal/internal/durable/runs/run_durable_001",
+			"https://execution-gateway.internal/internal/execution/runs/run_durable_001",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
@@ -216,7 +222,7 @@ describe("supervisor durable runtime adapter", () => {
 		);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			2,
-			"https://supervisor.internal/internal/durable/runs/run_durable_001/events",
+			"https://execution-gateway.internal/internal/execution/runs/run_durable_001/events",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
@@ -248,10 +254,10 @@ describe("supervisor durable runtime adapter", () => {
 				status: 200,
 			}),
 		);
-		const client = createSupervisorDurableRuntimeClient(
+		const client = createExecutionGatewayRuntimeClient(
 			{
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
+				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -263,7 +269,7 @@ describe("supervisor durable runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://supervisor.internal/internal/durable/runs/run_durable_001/events?after_sequence=7",
+			"https://execution-gateway.internal/internal/execution/runs/run_durable_001/events?after_sequence=7",
 			expect.objectContaining({
 				method: "GET",
 			}),
@@ -276,10 +282,10 @@ describe("supervisor durable runtime adapter", () => {
 				status: 202,
 			}),
 		);
-		const client = createSupervisorDurableRuntimeClient(
+		const client = createExecutionGatewayRuntimeClient(
 			{
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
+				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -291,7 +297,7 @@ describe("supervisor durable runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://supervisor.internal/internal/durable/runs/run_durable_001/cancel",
+			"https://execution-gateway.internal/internal/execution/runs/run_durable_001/cancel",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
@@ -308,7 +314,7 @@ describe("supervisor durable runtime adapter", () => {
 	});
 
 	it("fails closed when durable runtime configuration is missing", async () => {
-		const client = createSupervisorDurableRuntimeClient({});
+		const client = createExecutionGatewayRuntimeClient({});
 
 		await expect(
 			client.getRun({
@@ -335,10 +341,10 @@ describe("supervisor durable runtime adapter", () => {
 				{ status: 409 },
 			),
 		);
-		const client = createSupervisorDurableRuntimeClient(
+		const client = createExecutionGatewayRuntimeClient(
 			{
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
+				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -372,10 +378,10 @@ describe("supervisor durable runtime adapter", () => {
 				{ status: 202 },
 			),
 		);
-		const client = createSupervisorDurableRuntimeClient(
+		const client = createExecutionGatewayRuntimeClient(
 			{
-				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+				EXECUTION_GATEWAY_BASE_URL: "https://execution-gateway.internal",
+				EXECUTION_GATEWAY_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -392,7 +398,7 @@ describe("supervisor durable runtime adapter", () => {
 				turnId: "turn_durable_001",
 			}),
 		).rejects.toMatchObject({
-			code: "supervisor_invalid_response",
+			code: "execution_gateway_invalid_response",
 			retryable: true,
 			status: 502,
 		});

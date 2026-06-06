@@ -8,7 +8,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { createPgChatConversationStore } from "../src/modules/chat";
-import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
+import type {
+	SupervisorExecutionInput,
+	SupervisorExecutionResponse,
+} from "../src/modules/integration/execution-gateway";
 import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
 import {
 	buildSharedDbIntegrationEnv,
@@ -248,7 +251,9 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 		};
 		expect(createResponse.status).toBe(201);
 
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: {
+			execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
+		} = {
 			execute: vi
 				.fn()
 				.mockResolvedValueOnce({

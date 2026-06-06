@@ -3,8 +3,8 @@ import process from "node:process";
 
 const localRealProviderTimeoutMs =
 	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS?.trim() || "180000";
-const localRealProviderSupervisorTimeoutMs =
-	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_SUPERVISOR_TIMEOUT_MS?.trim() ||
+const localRealProviderExecutionTimeoutMs =
+	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_EXECUTION_TIMEOUT_MS?.trim() ||
 	localRealProviderTimeoutMs;
 
 const args = [
@@ -33,11 +33,10 @@ const child = spawn("pnpm", args, {
 		PROMPT_RUNTIME_PROVIDER: process.env.PROMPT_RUNTIME_PROVIDER || "openai-responses",
 		SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED:
 			process.env.SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED || "true",
-		SUPERVISOR_API_TIMEOUT_MS: process.env.SUPERVISOR_API_TIMEOUT_MS || localRealProviderTimeoutMs,
-		SUPERVISOR_API_REQUEST_TIMEOUT_MS:
-			process.env.SUPERVISOR_API_REQUEST_TIMEOUT_MS || localRealProviderSupervisorTimeoutMs,
+		EXECUTION_GATEWAY_TIMEOUT_MS:
+			process.env.EXECUTION_GATEWAY_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
 		SUPERVISOR_AGENT_WORKER_TIMEOUT_MS:
-			process.env.SUPERVISOR_AGENT_WORKER_TIMEOUT_MS || localRealProviderSupervisorTimeoutMs,
+			process.env.SUPERVISOR_AGENT_WORKER_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
 	},
 	stdio: "inherit",
 });

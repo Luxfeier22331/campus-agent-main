@@ -1,5 +1,5 @@
 import type { ResolvedAppPrincipal } from "../auth";
-import type { SupervisorDurableRuntimeClient } from "../integration";
+import type { ExecutionGatewayRuntimeClient } from "../integration";
 import type {
 	NormalizedOperatorAuditListFilters,
 	NormalizedOperatorOverviewFilters,
@@ -140,6 +140,6 @@ export interface OperatorQueryService {
 }
 
 export interface OperatorQueryServiceDependencies {
-	durableRuntime?: SupervisorDurableRuntimeClient | null;
+	durableRuntime?: ExecutionGatewayRuntimeClient | null;
 	store: OperatorQueryStore;
 }

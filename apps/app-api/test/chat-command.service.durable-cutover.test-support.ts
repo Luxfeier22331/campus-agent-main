@@ -1,9 +1,9 @@
 import type {
-	SupervisorDurableRun,
-	SupervisorDurableRunEvent,
-} from "../src/modules/integration/supervisor";
+	ExecutionGatewayRun,
+	ExecutionGatewayRunEvent,
+} from "../src/modules/integration/execution-gateway";
 
-export function durableRun(overrides: Partial<SupervisorDurableRun> = {}): SupervisorDurableRun {
+export function durableRun(overrides: Partial<ExecutionGatewayRun> = {}): ExecutionGatewayRun {
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -56,11 +56,11 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 }
 
 export function durableEvent(
-	overrides: Partial<SupervisorDurableRunEvent> & {
+	overrides: Partial<ExecutionGatewayRunEvent> & {
 		eventType: string;
 		sequence: number;
 	},
-): SupervisorDurableRunEvent {
+): ExecutionGatewayRunEvent {
 	const { eventType, sequence, ...rest } = overrides;
 	return {
 		conversationId: "conv_01HQ",

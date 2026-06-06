@@ -1,70 +1,69 @@
-import { DEFAULT_SUPERVISOR_API_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
+import { DEFAULT_EXECUTION_GATEWAY_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
 import { applyTracePropagationHeaders, resolveTracePropagationHeaders } from "../telemetry/trace";
 
 import type { SupervisorExecutionInput } from "./supervisor-types";
 
-type SupervisorReadyzRecord = Record<string, unknown>;
-type SupervisorReadinessCheckStatus = "ready" | "not_ready" | "not_reported";
+type ExecutionGatewayReadyzRecord = Record<string, unknown>;
+type ExecutionGatewayReadinessCheckStatus = "ready" | "not_ready" | "not_reported";
 
-export interface SupervisorCampusServicesProductPathPreflight {
+export interface ExecutionGatewayCampusServicesProductPathPreflight {
 	status: "ready" | "blocked" | "not_reported";
 	capabilityGate: "open" | "closed" | "not_reported";
 	projectionSource: string;
 	checks: {
-		contactDirectoryProjection: SupervisorReadinessCheckStatus;
-		contactDirectoryReadModel: SupervisorReadinessCheckStatus;
-		serviceGuideProjection: SupervisorReadinessCheckStatus;
-		serviceGuideReadModel: SupervisorReadinessCheckStatus;
-		serviceStatusProjection: SupervisorReadinessCheckStatus;
-		serviceStatusReadModel: SupervisorReadinessCheckStatus;
-		structuredQueryRuntime: SupervisorReadinessCheckStatus;
-		transportSchedule: SupervisorReadinessCheckStatus;
-		transportScheduleReadModel: SupervisorReadinessCheckStatus;
+		contactDirectoryProjection: ExecutionGatewayReadinessCheckStatus;
+		contactDirectoryReadModel: ExecutionGatewayReadinessCheckStatus;
+		serviceGuideProjection: ExecutionGatewayReadinessCheckStatus;
+		serviceGuideReadModel: ExecutionGatewayReadinessCheckStatus;
+		serviceStatusProjection: ExecutionGatewayReadinessCheckStatus;
+		serviceStatusReadModel: ExecutionGatewayReadinessCheckStatus;
+		structuredQueryRuntime: ExecutionGatewayReadinessCheckStatus;
+		transportSchedule: ExecutionGatewayReadinessCheckStatus;
+		transportScheduleReadModel: ExecutionGatewayReadinessCheckStatus;
 	};
 	blockers: Record<string, string>;
 }
 
-export interface SupervisorDurableRuntimePreflight {
+export interface ExecutionGatewayRuntimePreflight {
 	status: "ready" | "blocked" | "not_reported";
 	checks: {
-		durableRuntimeStore: SupervisorReadinessCheckStatus;
-		durableWorkerLoop: SupervisorReadinessCheckStatus;
-		durableRecoveryLoop: SupervisorReadinessCheckStatus;
+		durableRuntimeStore: ExecutionGatewayReadinessCheckStatus;
+		temporalRuntime: ExecutionGatewayReadinessCheckStatus;
 	};
 	blockers: Record<string, string>;
 }
 
-export interface SupervisorReadinessProbeResult {
-	campusServicesProductPath: SupervisorCampusServicesProductPathPreflight;
-	durableRuntime: SupervisorDurableRuntimePreflight;
+export interface ExecutionGatewayReadinessProbeResult {
+	campusServicesProductPath: ExecutionGatewayCampusServicesProductPathPreflight;
+	durableRuntime: ExecutionGatewayRuntimePreflight;
 }
 
-export async function probeSupervisorApiReady(
+export async function probeExecutionGatewayReady(
 	env: Pick<
 		Env,
-		| "SUPERVISOR_API_ACCESS_CLIENT_ID"
-		| "SUPERVISOR_API_ACCESS_CLIENT_SECRET"
-		| "SUPERVISOR_API_BASE_URL"
-		| "SUPERVISOR_API_SHARED_SECRET"
-		| "SUPERVISOR_API_TIMEOUT_MS"
+		| "EXECUTION_GATEWAY_ACCESS_CLIENT_ID"
+		| "EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET"
+		| "EXECUTION_GATEWAY_BASE_URL"
+		| "EXECUTION_GATEWAY_SHARED_SECRET"
+		| "EXECUTION_GATEWAY_TIMEOUT_MS"
 	>,
 	input: {
 		fetchImplementation?: typeof fetch;
 	} = {},
-): Promise<SupervisorReadinessProbeResult> {
-	const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
+): Promise<ExecutionGatewayReadinessProbeResult> {
+	const baseUrl = env.EXECUTION_GATEWAY_BASE_URL?.trim();
 	if (!baseUrl) {
-		throw new SupervisorTransportError({
+		throw new ExecutionGatewayTransportError({
 			code: "dependency_not_ready",
-			message: "Supervisor runtime is not configured.",
+			message: "Execution gateway is not configured.",
 			retryable: true,
 			status: 503,
 		});
 	}
 
 	const timeoutMs = parsePositiveInteger(
-		env.SUPERVISOR_API_TIMEOUT_MS,
-		DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
+		env.EXECUTION_GATEWAY_TIMEOUT_MS,
+		DEFAULT_EXECUTION_GATEWAY_TIMEOUT_MS,
 	);
 	const fetchImplementation = input.fetchImplementation ?? fetch;
 
@@ -75,9 +74,9 @@ export async function probeSupervisorApiReady(
 			const timeoutId = setTimeout(() => {
 				controller.abort();
 				reject(
-					new SupervisorTransportError({
+					new ExecutionGatewayTransportError({
 						code: "execution_timeout",
-						message: `Supervisor readiness probe exceeded ${timeoutMs}ms timeout.`,
+						message: `Execution gateway readiness probe exceeded ${timeoutMs}ms timeout.`,
 						retryable: true,
 						status: 504,
 					}),
@@ -85,7 +84,7 @@ export async function probeSupervisorApiReady(
 			}, timeoutMs);
 
 			fetchImplementation(`${baseUrl}/readyz`, {
-				headers: createSupervisorReadinessHeaders(env),
+				headers: createExecutionGatewayReadinessHeaders(env),
 				method: "GET",
 				signal: controller.signal,
 			})
@@ -93,9 +92,9 @@ export async function probeSupervisorApiReady(
 				.catch((error) => {
 					if (error instanceof Error && error.name === "AbortError") {
 						reject(
-							new SupervisorTransportError({
+							new ExecutionGatewayTransportError({
 								code: "execution_timeout",
-								message: `Supervisor readiness probe exceeded ${timeoutMs}ms timeout.`,
+							message: `Execution gateway readiness probe exceeded ${timeoutMs}ms timeout.`,
 								retryable: true,
 								status: 504,
 							}),
@@ -110,41 +109,41 @@ export async function probeSupervisorApiReady(
 				});
 		});
 	} catch (error) {
-		if (error instanceof SupervisorTransportError) {
+		if (error instanceof ExecutionGatewayTransportError) {
 			throw error;
 		}
 
-		throw new SupervisorTransportError({
-			code: "supervisor_unavailable",
-			message: error instanceof Error ? error.message : "Supervisor readiness probe failed.",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_unavailable",
+			message: error instanceof Error ? error.message : "Execution gateway readiness probe failed.",
 			retryable: true,
 			status: 502,
 		});
 	}
 
 	if (response.status !== 200) {
-		throw new SupervisorTransportError({
+		throw new ExecutionGatewayTransportError({
 			code: mapStatusCodeToErrorCode(response.status),
-			message: `Supervisor readiness probe returned ${response.status}.`,
+			message: `Execution gateway readiness probe returned ${response.status}.`,
 			retryable: response.status >= 500,
 			status: response.status,
 		});
 	}
 
-	const payload = await parseSupervisorReadyzPayload(response);
+	const payload = await parseExecutionGatewayReadyzPayload(response);
 	return {
 		campusServicesProductPath: buildCampusServicesProductPathPreflight(payload),
 		durableRuntime: buildDurableRuntimePreflight(payload),
 	};
 }
 
-async function parseSupervisorReadyzPayload(response: Response): Promise<SupervisorReadyzRecord> {
+async function parseExecutionGatewayReadyzPayload(response: Response): Promise<ExecutionGatewayReadyzRecord> {
 	try {
-		return (await response.json()) as SupervisorReadyzRecord;
+		return (await response.json()) as ExecutionGatewayReadyzRecord;
 	} catch {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_response",
-			message: "Supervisor readiness probe returned an invalid JSON response.",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_response",
+			message: "Execution gateway readiness probe returned an invalid JSON response.",
 			retryable: true,
 			status: 502,
 		});
@@ -152,12 +151,12 @@ async function parseSupervisorReadyzPayload(response: Response): Promise<Supervi
 }
 
 function buildCampusServicesProductPathPreflight(
-	payload: SupervisorReadyzRecord | null,
-): SupervisorCampusServicesProductPathPreflight {
+	payload: ExecutionGatewayReadyzRecord | null,
+): ExecutionGatewayCampusServicesProductPathPreflight {
 	const capabilityGate = resolveCampusServicesCapabilityGate(payload);
 	const structuredRuntime = readRecord(payload?.structured_query_runtime);
 	const projectionSource = readString(structuredRuntime?.projection_source);
-	const checks: SupervisorCampusServicesProductPathPreflight["checks"] = {
+	const checks: ExecutionGatewayCampusServicesProductPathPreflight["checks"] = {
 		contactDirectoryProjection: readinessFromBoolean(
 			structuredRuntime?.contact_directory_projection_ready,
 		),
@@ -203,8 +202,8 @@ function buildCampusServicesProductPathPreflight(
 }
 
 function collectCampusServicesProductPathBlockers(
-	capabilityGate: SupervisorCampusServicesProductPathPreflight["capabilityGate"],
-	checks: SupervisorCampusServicesProductPathPreflight["checks"],
+	capabilityGate: ExecutionGatewayCampusServicesProductPathPreflight["capabilityGate"],
+	checks: ExecutionGatewayCampusServicesProductPathPreflight["checks"],
 ): Record<string, string> {
 	const blockers: Record<string, string> = {};
 	if (capabilityGate === "closed") {
@@ -214,7 +213,7 @@ function collectCampusServicesProductPathBlockers(
 		blockers.structuredQueryRuntime = "structured_query_runtime.configured is false";
 	}
 	const requiredChecks: readonly [
-		keyof SupervisorCampusServicesProductPathPreflight["checks"],
+		keyof ExecutionGatewayCampusServicesProductPathPreflight["checks"],
 		string,
 	][] = [
 		["serviceStatusProjection", "service_status_projection_ready is false"],
@@ -235,18 +234,19 @@ function collectCampusServicesProductPathBlockers(
 }
 
 function buildDurableRuntimePreflight(
-	payload: SupervisorReadyzRecord | null,
-): SupervisorDurableRuntimePreflight {
+	payload: ExecutionGatewayReadyzRecord | null,
+): ExecutionGatewayRuntimePreflight {
 	const durableRuntime = readRecord(payload?.durable_runtime);
-	const durableWorkerLoop = readRecord(payload?.durable_worker_loop);
-	const durableRecoveryLoop = readRecord(payload?.durable_recovery_loop);
-	const checks: SupervisorDurableRuntimePreflight["checks"] = {
+	const temporalRuntime = readRecord(payload?.temporal_runtime);
+	const checks: ExecutionGatewayRuntimePreflight["checks"] = {
 		durableRuntimeStore: readinessFromConfiguredAndHealthy(
 			durableRuntime?.configured,
 			durableRuntime?.healthy,
 		),
-		durableWorkerLoop: readinessFromEnabledConfiguredHealthyAndStarted(durableWorkerLoop),
-		durableRecoveryLoop: readinessFromEnabledConfiguredHealthyAndStarted(durableRecoveryLoop),
+		temporalRuntime: readinessFromConfiguredAndHealthy(
+			temporalRuntime?.configured,
+			temporalRuntime?.healthy,
+		),
 	};
 	const blockers = collectDurableRuntimeBlockers(checks);
 	const hasReportedCheck = Object.values(checks).some((status) => status !== "not_reported");
@@ -264,16 +264,12 @@ function buildDurableRuntimePreflight(
 }
 
 function collectDurableRuntimeBlockers(
-	checks: SupervisorDurableRuntimePreflight["checks"],
+	checks: ExecutionGatewayRuntimePreflight["checks"],
 ): Record<string, string> {
 	const blockers: Record<string, string> = {};
-	const requiredChecks: readonly [keyof SupervisorDurableRuntimePreflight["checks"], string][] = [
+	const requiredChecks: readonly [keyof ExecutionGatewayRuntimePreflight["checks"], string][] = [
 		["durableRuntimeStore", "durable_runtime store is not configured and healthy"],
-		["durableWorkerLoop", "durable_worker_loop is not enabled, configured, healthy, and started"],
-		[
-			"durableRecoveryLoop",
-			"durable_recovery_loop is not enabled, configured, healthy, and started",
-		],
+		["temporalRuntime", "temporal_runtime is not configured and healthy"],
 	];
 	for (const [key, message] of requiredChecks) {
 		if (checks[key] !== "ready") {
@@ -284,8 +280,8 @@ function collectDurableRuntimeBlockers(
 }
 
 function resolveCampusServicesCapabilityGate(
-	payload: SupervisorReadyzRecord | null,
-): SupervisorCampusServicesProductPathPreflight["capabilityGate"] {
+	payload: ExecutionGatewayReadyzRecord | null,
+): ExecutionGatewayCampusServicesProductPathPreflight["capabilityGate"] {
 	const capabilityGates = readRecord(payload?.capability_gates);
 	const campusServices = readRecord(capabilityGates?.campus_services);
 	if (campusServices?.open === true) {
@@ -297,7 +293,7 @@ function resolveCampusServicesCapabilityGate(
 	return "not_reported";
 }
 
-function readinessFromBoolean(value: unknown): SupervisorReadinessCheckStatus {
+function readinessFromBoolean(value: unknown): ExecutionGatewayReadinessCheckStatus {
 	if (value === true) {
 		return "ready";
 	}
@@ -310,39 +306,25 @@ function readinessFromBoolean(value: unknown): SupervisorReadinessCheckStatus {
 function readinessFromConfiguredAndHealthy(
 	configured: unknown,
 	healthy: unknown,
-): SupervisorReadinessCheckStatus {
+): ExecutionGatewayReadinessCheckStatus {
 	if (configured === undefined && healthy === undefined) {
 		return "not_reported";
 	}
 	return configured === true && healthy === true ? "ready" : "not_ready";
 }
 
-function readinessFromEnabledConfiguredHealthyAndStarted(
-	status: SupervisorReadyzRecord | null,
-): SupervisorReadinessCheckStatus {
-	if (!status) {
-		return "not_reported";
-	}
-	return status.enabled === true &&
-		status.configured === true &&
-		status.healthy === true &&
-		status.started === true
-		? "ready"
-		: "not_ready";
-}
-
-function readRecord(value: unknown): SupervisorReadyzRecord | null {
+function readRecord(value: unknown): ExecutionGatewayReadyzRecord | null {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return null;
 	}
-	return value as SupervisorReadyzRecord;
+	return value as ExecutionGatewayReadyzRecord;
 }
 
 function readString(value: unknown): string {
 	return typeof value === "string" ? value : "";
 }
 
-export class SupervisorTransportError extends Error {
+export class ExecutionGatewayTransportError extends Error {
 	readonly code: string;
 	readonly retryable: boolean;
 	readonly status: number;
@@ -354,41 +336,41 @@ export class SupervisorTransportError extends Error {
 		status: number;
 	}) {
 		super(input.message);
-		this.name = "SupervisorTransportError";
+		this.name = "ExecutionGatewayTransportError";
 		this.code = input.code;
 		this.retryable = input.retryable;
 		this.status = input.status;
 	}
 }
 
-export async function parseSupervisorJsonResponse(
+export async function parseExecutionGatewayJsonResponse(
 	response: Response,
 ): Promise<Record<string, unknown>> {
 	try {
 		const parsed = (await response.json()) as unknown;
 		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-			throw new Error("Supervisor JSON response must be an object.");
+			throw new Error("Execution gateway JSON response must be an object.");
 		}
 		return parsed as Record<string, unknown>;
 	} catch {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_response",
-			message: "Supervisor returned an invalid JSON response.",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_response",
+			message: "Execution gateway returned an invalid JSON response.",
 			retryable: true,
 			status: response.status === 200 || response.status === 202 ? 502 : response.status,
 		});
 	}
 }
 
-export function parseSupervisorErrorEnvelope(
+export function parseExecutionGatewayErrorEnvelope(
 	parsed: Record<string, unknown>,
 	status: number,
 ): { code: string; message: string; retryable: boolean } {
 	const error = parsed.error;
 	if (!error || typeof error !== "object" || Array.isArray(error)) {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_error_envelope",
-			message: "Supervisor returned an invalid error envelope.",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_error_envelope",
+			message: "Execution gateway returned an invalid error envelope.",
 			retryable: false,
 			status,
 		});
@@ -401,9 +383,9 @@ export function parseSupervisorErrorEnvelope(
 		record.message.trim() === "" ||
 		typeof record.retryable !== "boolean"
 	) {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_error_envelope",
-			message: "Supervisor returned an invalid error envelope.",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_error_envelope",
+			message: "Execution gateway returned an invalid error envelope.",
 			retryable: false,
 			status,
 		});
@@ -420,11 +402,14 @@ export function mapStatusCodeToErrorCode(status: number): string {
 		return "execution_timeout";
 	}
 
-	return "supervisor_unavailable";
+	return "execution_gateway_unavailable";
 }
 
-export function createSupervisorRequestHeaders(input: {
-	env: Pick<Env, "SUPERVISOR_API_ACCESS_CLIENT_ID" | "SUPERVISOR_API_ACCESS_CLIENT_SECRET">;
+export function createExecutionGatewayRequestHeaders(input: {
+	env: Pick<
+		Env,
+		"EXECUTION_GATEWAY_ACCESS_CLIENT_ID" | "EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET"
+	>;
 	payload: Pick<SupervisorExecutionInput, "traceHeaders" | "traceId">;
 	sharedSecret: string;
 	traceDataProvider: () => Record<string, unknown>;
@@ -454,10 +439,13 @@ export function createSupervisorRequestHeaders(input: {
 }
 
 function createCloudflareAccessServiceTokenHeaders(
-	env: Pick<Env, "SUPERVISOR_API_ACCESS_CLIENT_ID" | "SUPERVISOR_API_ACCESS_CLIENT_SECRET">,
+	env: Pick<
+		Env,
+		"EXECUTION_GATEWAY_ACCESS_CLIENT_ID" | "EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET"
+	>,
 ): Record<string, string> {
-	const clientId = env.SUPERVISOR_API_ACCESS_CLIENT_ID?.trim();
-	const clientSecret = env.SUPERVISOR_API_ACCESS_CLIENT_SECRET?.trim();
+	const clientId = env.EXECUTION_GATEWAY_ACCESS_CLIENT_ID?.trim();
+	const clientSecret = env.EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET?.trim();
 	if (!(clientId && clientSecret)) {
 		return {};
 	}
@@ -468,15 +456,15 @@ function createCloudflareAccessServiceTokenHeaders(
 	};
 }
 
-function createSupervisorReadinessHeaders(
+function createExecutionGatewayReadinessHeaders(
 	env: Pick<
 		Env,
-		| "SUPERVISOR_API_ACCESS_CLIENT_ID"
-		| "SUPERVISOR_API_ACCESS_CLIENT_SECRET"
-		| "SUPERVISOR_API_SHARED_SECRET"
+		| "EXECUTION_GATEWAY_ACCESS_CLIENT_ID"
+		| "EXECUTION_GATEWAY_ACCESS_CLIENT_SECRET"
+		| "EXECUTION_GATEWAY_SHARED_SECRET"
 	>,
 ): Record<string, string> {
-	const sharedSecret = env.SUPERVISOR_API_SHARED_SECRET?.trim();
+	const sharedSecret = env.EXECUTION_GATEWAY_SHARED_SECRET?.trim();
 	return {
 		...(sharedSecret ? { "x-worker-origin-auth": sharedSecret } : {}),
 		...createCloudflareAccessServiceTokenHeaders(env),

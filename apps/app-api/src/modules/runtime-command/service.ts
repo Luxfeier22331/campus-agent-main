@@ -2,7 +2,7 @@ import { type ChatConversation, DRAFT_CONVERSATION_TITLE, toConversationResponse
 import {
 	type SupervisorExecutionInput,
 	type SupervisorExecutionResponse,
-	SupervisorTransportError,
+	ExecutionGatewayTransportError,
 } from "../integration";
 import { type RuntimeRunPhase, runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
 
@@ -16,7 +16,6 @@ import {
 	createPreAcceptError,
 	toHandledErrorTransportOutcome,
 } from "./service/errors";
-import { streamLegacySupervisorExecution } from "./service/legacy-stream";
 import {
 	defaultComputeFingerprint,
 	defaultGenerateId,
@@ -356,7 +355,7 @@ export function buildChatCommandService(
 			};
 		}
 		if (!(context.runId && context.turnId)) {
-			throw new SupervisorTransportError({
+			throw new ExecutionGatewayTransportError({
 				code: "runtime_invariant_failed",
 				message: "Durable runtime command is missing run or turn id.",
 				retryable: false,
@@ -606,35 +605,16 @@ export function buildChatCommandService(
 		}
 	}
 
-	async function executeBlocking(context: AcceptedChatCommandContext): Promise<{
-		response: SupervisorExecutionResponse;
-		transportError: { code: string; retryable: boolean } | null;
-	}> {
+	async function buildThrottleResponseIfNeeded(
+		context: AcceptedChatCommandContext,
+	): Promise<SupervisorExecutionResponse | null> {
 		const abuseControlState = await getAbuseControlState(context);
 		if (abuseControlState?.shouldThrottle) {
-			return {
-				response: buildAbuseThrottleRejectedResponse({
-					traceId: context.traceId,
-				}),
-				transportError: null,
-			};
+			return buildAbuseThrottleRejectedResponse({
+				traceId: context.traceId,
+			});
 		}
-
-		try {
-			return {
-				response: await dependencies.supervisor.execute(await buildSupervisorInput(context)),
-				transportError: null,
-			};
-		} catch (error) {
-			const handled = toHandledErrorTransportOutcome(error);
-			return {
-				response: handled,
-				transportError: {
-					code: handled.error.code,
-					retryable: handled.error.retryable,
-				},
-			};
-		}
+		return null;
 	}
 
 	return {
@@ -644,6 +624,13 @@ export function buildChatCommandService(
 				return accepted.response;
 			}
 
+			const throttleResponse = await buildThrottleResponseIfNeeded(accepted.value);
+			if (throttleResponse) {
+				return finalizeAcceptedCommand({
+					context: accepted.value,
+					executionResponse: throttleResponse,
+				});
+			}
 			const durableRunCreate = await createDurableRunForAcceptedCommand(accepted.value);
 			if (durableRunCreate.response) {
 				return finalizeAcceptedCommand({
@@ -664,11 +651,11 @@ export function buildChatCommandService(
 					transportError: execution.transportError,
 				});
 			}
-			const execution = await executeBlocking(accepted.value);
-			return finalizeAcceptedCommand({
-				context: accepted.value,
-				executionResponse: execution.response,
-				transportError: execution.transportError,
+			throw createPreAcceptError({
+				code: "durable_runtime_required",
+				message: "Durable runtime is required for chat execution.",
+				retryable: true,
+				status: 503,
 			});
 		},
 
@@ -680,6 +667,18 @@ export function buildChatCommandService(
 			}
 
 			const context = accepted.value;
+			const throttleResponse = await buildThrottleResponseIfNeeded(context);
+			if (throttleResponse) {
+				const finalized = await finalizeAcceptedCommand({
+					context,
+					executionResponse: throttleResponse,
+				});
+				yield toTerminalChatStreamEvent({
+					occurredAt: now().toISOString(),
+					response: finalized,
+				});
+				return;
+			}
 
 			const durableRuntime = dependencies.durableRuntime;
 			if (durableRuntime) {
@@ -716,30 +715,11 @@ export function buildChatCommandService(
 				return;
 			}
 
-			yield acceptedStreamEvent(context);
-
-			const abuseControlState = await getAbuseControlState(context);
-			if (abuseControlState?.shouldThrottle) {
-				const finalized = await finalizeAcceptedCommand({
-					context,
-					executionResponse: buildAbuseThrottleRejectedResponse({
-						traceId: context.traceId,
-					}),
-				});
-				yield toTerminalChatStreamEvent({
-					occurredAt: now().toISOString(),
-					response: finalized,
-				});
-				return;
-			}
-
-			yield* streamLegacySupervisorExecution({
-				buildSupervisorInput,
-				context,
-				executeStream: dependencies.supervisor.executeStream,
-				finalizeAcceptedCommand,
-				now,
-				traceId: context.traceId,
+			throw createPreAcceptError({
+				code: "durable_runtime_required",
+				message: "Durable runtime is required for chat execution.",
+				retryable: true,
+				status: 503,
 			});
 		},
 	};

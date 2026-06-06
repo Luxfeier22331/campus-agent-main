@@ -18,9 +18,8 @@ import {
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
-	createSupervisorDurableRuntimeClient,
-	createSupervisorExecutionClient,
-	isSupervisorDurableRuntimeConfigured,
+	createExecutionGatewayRuntimeClient,
+	isExecutionGatewayRuntimeConfigured,
 } from "../modules/integration";
 import {
 	buildOfficialWebCommandService,
@@ -80,9 +79,9 @@ export function createRequestScopeFactory(input: {
 }) {
 	const environment = resolveEnvironment(input.env);
 	const requireDurableRuntime = isDeployedEnvironment(environment);
-	const durableRuntimeConfigured = isSupervisorDurableRuntimeConfigured(input.env);
+	const durableRuntimeConfigured = isExecutionGatewayRuntimeConfigured(input.env);
 	const durableRuntime = durableRuntimeConfigured
-		? createSupervisorDurableRuntimeClient(input.env)
+		? createExecutionGatewayRuntimeClient(input.env)
 		: undefined;
 	const officialWebExecutionStatusService =
 		input.dependencies.officialWebExecutionStatusService ??
@@ -212,7 +211,6 @@ export function createRequestScopeFactory(input: {
 					durableRuntime,
 					isDurableRuntimeConfigured: durableRuntimeConfigured,
 					requireDurableRuntime,
-					supervisor: createSupervisorExecutionClient(input.env),
 					telemetry: input.telemetry,
 					traceBacklinkRecorder: buildOperatorTraceBacklinkRecorder({
 						env: input.env,
@@ -330,7 +328,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				operatorQueryService = buildOperatorQueryService({
-					durableRuntime: createSupervisorDurableRuntimeClient(input.env),
+					durableRuntime: createExecutionGatewayRuntimeClient(input.env),
 					store: createPgOperatorQueryStore(input.env, { getDb: runtime.getDb }),
 				});
 				return operatorQueryService;
@@ -367,7 +365,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				runtimeRunService = buildRuntimeRunService({
-					durableRuntime: createSupervisorDurableRuntimeClient(input.env),
+					durableRuntime: createExecutionGatewayRuntimeClient(input.env),
 					store: createPgRuntimeRunStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return runtimeRunService;

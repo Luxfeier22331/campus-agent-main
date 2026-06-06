@@ -1,8 +1,8 @@
 import {
 	parseSupervisorExecutionResponsePayload,
-	type SupervisorDurableRunEvent,
+	type ExecutionGatewayRunEvent,
 	type SupervisorExecutionResponse,
-	SupervisorTransportError,
+	ExecutionGatewayTransportError,
 } from "../../integration";
 import { toHandledErrorTransportOutcome } from "./errors";
 import { supervisorStreamErrorResponse, toTerminalChatStreamEvent } from "./stream";
@@ -33,12 +33,12 @@ function asJsonRecord(value: unknown): Record<string, unknown> | null {
 
 function assertDurableEventRunMatches(
 	context: DurableRunEventContext,
-	event: SupervisorDurableRunEvent,
+	event: ExecutionGatewayRunEvent,
 	message: string,
 ) {
 	if (event.runId !== context.runId) {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_response",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_response",
 			message,
 			retryable: true,
 			status: 502,
@@ -48,7 +48,7 @@ function assertDurableEventRunMatches(
 
 export function lifecycleEventFromDurableRunEvent(
 	context: DurableRunEventContext,
-	event: SupervisorDurableRunEvent,
+	event: ExecutionGatewayRunEvent,
 ): ChatCommandStreamEvent | null {
 	assertDurableEventRunMatches(
 		context,
@@ -82,7 +82,7 @@ export function lifecycleEventFromDurableRunEvent(
 
 export function finalizationResponseFromDurableRunEvent(
 	context: DurableRunEventContext,
-	event: SupervisorDurableRunEvent,
+	event: ExecutionGatewayRunEvent,
 ): SupervisorExecutionResponse | null {
 	if (event.eventType !== "finalization.completed") {
 		return null;
@@ -93,16 +93,16 @@ export function finalizationResponseFromDurableRunEvent(
 		"Durable finalization event run_id does not match the accepted run.",
 	);
 	if (event.payload.request_id !== context.requestId) {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_response",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_response",
 			message: "Durable finalization event request_id does not match the accepted request.",
 			retryable: true,
 			status: 502,
 		});
 	}
 	if (event.payload.trace_id !== context.traceId) {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_response",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_response",
 			message: "Durable finalization event trace_id does not match the accepted request.",
 			retryable: true,
 			status: 502,
@@ -110,8 +110,8 @@ export function finalizationResponseFromDurableRunEvent(
 	}
 	const response = asJsonRecord(event.payload.response);
 	if (!response) {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_response",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_response",
 			message: "Durable finalization event response must be an object.",
 			retryable: true,
 			status: 502,
@@ -122,7 +122,7 @@ export function finalizationResponseFromDurableRunEvent(
 
 export function finalizationResponseFromDurableRunEvents(
 	context: DurableRunEventContext,
-	runEvents: SupervisorDurableRunEvent[],
+	runEvents: ExecutionGatewayRunEvent[],
 ): SupervisorExecutionResponse | null {
 	for (const runEvent of runEvents) {
 		const finalizationResponse = finalizationResponseFromDurableRunEvent(context, runEvent);
@@ -145,7 +145,7 @@ function validatePollingPolicy(
 	const pollIntervalMs =
 		policy?.pollIntervalMs ?? DEFAULT_DURABLE_EVENT_POLLING_POLICY.pollIntervalMs;
 	if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
-		throw new SupervisorTransportError({
+		throw new ExecutionGatewayTransportError({
 			code: "runtime_invariant_failed",
 			message: "Durable event polling maxAttempts must be a positive integer.",
 			retryable: false,
@@ -153,7 +153,7 @@ function validatePollingPolicy(
 		});
 	}
 	if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 0) {
-		throw new SupervisorTransportError({
+		throw new ExecutionGatewayTransportError({
 			code: "runtime_invariant_failed",
 			message: "Durable event polling pollIntervalMs must be a non-negative integer.",
 			retryable: false,
@@ -172,7 +172,7 @@ function validatePollingPolicy(
 function updateLastSequence(
 	context: DurableRunEventContext,
 	lastSequence: number,
-	runEvent: SupervisorDurableRunEvent,
+	runEvent: ExecutionGatewayRunEvent,
 ): number {
 	assertDurableEventRunMatches(
 		context,
@@ -180,8 +180,8 @@ function updateLastSequence(
 		"Durable run event run_id does not match the accepted run.",
 	);
 	if (!Number.isInteger(runEvent.sequence) || runEvent.sequence <= lastSequence) {
-		throw new SupervisorTransportError({
-			code: "supervisor_invalid_response",
+		throw new ExecutionGatewayTransportError({
+			code: "execution_gateway_invalid_response",
 			message: "Durable run event sequence must be strictly increasing.",
 			retryable: true,
 			status: 502,
@@ -205,7 +205,7 @@ export async function waitForDurableFinalizationResponse<
 	Context extends DurableRunEventContext,
 >(input: {
 	context: Context;
-	listRunEvents(afterSequence: number): Promise<SupervisorDurableRunEvent[]>;
+	listRunEvents(afterSequence: number): Promise<ExecutionGatewayRunEvent[]>;
 	polling?: DurableEventPollingPolicy;
 }): Promise<{
 	response: SupervisorExecutionResponse;
@@ -249,7 +249,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 		executionResponse: SupervisorExecutionResponse;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
-	listRunEvents(afterSequence: number): Promise<SupervisorDurableRunEvent[]>;
+	listRunEvents(afterSequence: number): Promise<ExecutionGatewayRunEvent[]>;
 	now: () => Date;
 	polling?: DurableEventPollingPolicy;
 }): AsyncIterable<ChatCommandStreamEvent> {
@@ -361,7 +361,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		executionResponse: SupervisorExecutionResponse;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
-	listRunEvents(afterSequence: number): Promise<SupervisorDurableRunEvent[]>;
+	listRunEvents(afterSequence: number): Promise<ExecutionGatewayRunEvent[]>;
 	now: () => Date;
 	polling?: DurableEventPollingPolicy;
 }): {

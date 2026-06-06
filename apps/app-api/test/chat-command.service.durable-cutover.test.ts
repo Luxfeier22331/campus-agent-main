@@ -2,8 +2,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { SupervisorDurableRuntimeClient } from "../src/modules/integration/supervisor";
-import { SupervisorTransportError } from "../src/modules/integration/supervisor";
+import type { ExecutionGatewayRuntimeClient } from "../src/modules/integration/execution-gateway";
+import { ExecutionGatewayTransportError } from "../src/modules/integration/execution-gateway";
 import {
 	answerResponsePayload,
 	durableEvent,
@@ -105,10 +105,10 @@ describe("chat command durable runtime cutover", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
-				new SupervisorTransportError({
+				new ExecutionGatewayTransportError({
 					code: "dependency_not_ready",
 					message: "Supervisor durable runtime is not configured.",
 					retryable: true,
@@ -159,7 +159,7 @@ describe("chat command durable runtime cutover", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
@@ -466,7 +466,7 @@ describe("chat command durable runtime cutover", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn(),
@@ -532,7 +532,7 @@ describe("chat command durable runtime cutover", () => {
 					sequence: 2,
 				}),
 			]);
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),

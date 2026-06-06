@@ -2,8 +2,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { SupervisorDurableRuntimeClient } from "../src/modules/integration/supervisor";
-import { SupervisorTransportError } from "../src/modules/integration/supervisor";
+import type { ExecutionGatewayRuntimeClient } from "../src/modules/integration/execution-gateway";
+import { ExecutionGatewayTransportError } from "../src/modules/integration/execution-gateway";
 import type { ChatCommandStreamEvent } from "../src/modules/runtime-command";
 import {
 	answerResponsePayload,
@@ -26,10 +26,10 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
-				new SupervisorTransportError({
+				new ExecutionGatewayTransportError({
 					code: "conversation_active_run",
 					message: "Conversation already has an active primary run.",
 					retryable: true,
@@ -91,10 +91,10 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
-				new SupervisorTransportError({
+				new ExecutionGatewayTransportError({
 					code: "invalid_request",
 					message: "metadata.execution_payload.trace.trace_id must match trace_id",
 					retryable: false,
@@ -167,7 +167,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
@@ -259,7 +259,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const durableRuntime: ExecutionGatewayRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
