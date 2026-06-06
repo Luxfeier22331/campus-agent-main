@@ -13,7 +13,7 @@ class SupervisorLocalRuntimeProjectionTest(unittest.TestCase):
             repo_env=textwrap.dedent(
                 """
                 CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
-                EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
+                EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
                 DOCUMENT_REGISTRY_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/campus_agent
                 OBJECT_STORE_ENDPOINT=http://localhost:9000
                 QDRANT_URL=http://127.0.0.1:6333
@@ -40,7 +40,7 @@ class SupervisorLocalRuntimeProjectionTest(unittest.TestCase):
             "postgresql://postgres:postgres@postgres:5432/campus_agent",
         )
         self.assertEqual(
-            projected["EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL"],
+            projected["EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"],
             "postgresql://postgres:postgres@postgres:5432/campus_agent",
         )
         self.assertEqual(projected["OBJECT_STORE_ENDPOINT"], "http://minio:9000")

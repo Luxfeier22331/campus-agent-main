@@ -293,11 +293,14 @@ execution_control_staging_compose() {
     RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL="${RAW_ASSET_REGISTRY_OPERATOR_DOCKER_DATABASE_URL:-${RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL}}" \
     OBJECT_STORE_ENDPOINT="${OBJECT_STORE_DOCKER_ENDPOINT:?OBJECT_STORE_DOCKER_ENDPOINT is required}" \
     QDRANT_URL="${QDRANT_DOCKER_URL:?QDRANT_DOCKER_URL is required}" \
-    EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL="${EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL:?EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required}" \
+    EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL="${EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL:?EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL is required}" \
     EXECUTION_CONTROL_TEMPORAL_ADDRESS="${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?EXECUTION_CONTROL_TEMPORAL_ADDRESS is required}" \
     EXECUTION_CONTROL_TEMPORAL_NAMESPACE="${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?EXECUTION_CONTROL_TEMPORAL_NAMESPACE is required}" \
     EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE="${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}" \
     EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY is required}" \
+    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY is required}" \
+    EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY is required}" \
+    EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY is required}" \
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT is required}" \
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS="${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}" \
     TEMPORAL_POSTGRES_PASSWORD="${TEMPORAL_POSTGRES_PASSWORD:?TEMPORAL_POSTGRES_PASSWORD is required}" \
@@ -312,10 +315,15 @@ execution_control_staging_compose_running_services() {
 execution_control_staging_compose_project_running() {
   local services
   services="$(execution_control_staging_compose_running_services 2>/dev/null || true)"
-  [[ "${services}" == *"otel-collector"* ]] && [[ "${services}" == *"execution-control"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
+  [[ "${services}" == *"otel-collector"* ]] &&
+    [[ "${services}" == *"execution-control"* ]] &&
+    [[ "${services}" == *"workflow-worker"* ]] &&
+    [[ "${services}" == *"activity-worker-rag"* ]] &&
+    [[ "${services}" == *"activity-worker-finalization"* ]] &&
+    [[ "${services}" == *"supervisor-agent-worker"* ]]
 }
 
-execution_control_staging_run_durable_schema_command() {
+execution_control_staging_run_projection_schema_command() {
   local mode="$1"
   local evidence_path="$2"
   local docker_bin
@@ -327,7 +335,7 @@ execution_control_staging_run_durable_schema_command() {
       container_evidence_path="/workspace/${evidence_path#"${execution_control_staging_repo_root}/"}"
       ;;
     *)
-      echo "Durable runtime schema evidence path must stay under repo root: ${evidence_path}" >&2
+      echo "Run projection store schema evidence path must stay under repo root: ${evidence_path}" >&2
       return 1
       ;;
   esac
@@ -340,23 +348,23 @@ execution_control_staging_run_durable_schema_command() {
       -e GOCACHE=/workspace/.tmp/go-cache \
       -e GOMODCACHE=/workspace/.tmp/go-mod-cache \
       golang:1.26.2-bookworm \
-      go run ./cmd/durable-runtime-schema \
+      go run ./cmd/run-projection-schema \
         --mode "${mode}" \
-        --database-url "${EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL:?EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required}" \
+        --database-url "${EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL:?EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL is required}" \
         --evidence-path "${container_evidence_path}"
   )
 }
 
-execution_control_staging_ensure_durable_runtime_schema() {
+execution_control_staging_ensure_run_projection_store_schema() {
   local evidence_dir="${execution_control_staging_runtime_dir}/evidence"
   mkdir -p "${evidence_dir}"
 
-  execution_control_staging_run_durable_schema_command \
+  execution_control_staging_run_projection_schema_command \
     install \
-    "${evidence_dir}/durable-runtime-schema-install.json"
-  execution_control_staging_run_durable_schema_command \
+    "${evidence_dir}/run-projection-schema-install.json"
+  execution_control_staging_run_projection_schema_command \
     check \
-    "${evidence_dir}/durable-runtime-schema-check.json"
+    "${evidence_dir}/run-projection-schema-check.json"
 }
 
 execution_control_staging_temporal_namespace_setup() {

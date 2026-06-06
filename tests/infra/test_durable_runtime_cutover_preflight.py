@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = REPO_ROOT / "scripts" / "check_durable_runtime_cutover_preflight.py"
+SCRIPT = REPO_ROOT / "scripts" / "check_run_projection_store_cutover_preflight.py"
 
 
 VALID_STAGING_ENV = textwrap.dedent(
@@ -43,12 +43,15 @@ VALID_STAGING_ENV = textwrap.dedent(
     EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics
     SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
     SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-    EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@example/campus_agent
+    EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@example/campus_agent
     TEMPORAL_POSTGRES_PASSWORD=temporal-postgres-password
     EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
     EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
     EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow
     EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
+    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001
+    EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:001
+    EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
     """
@@ -101,7 +104,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
 
         self.assertEqual(
             package_json["scripts"]["durable:cutover:preflight"],
-            "uv run --all-packages python -m scripts.check_durable_runtime_cutover_preflight",
+            "uv run --all-packages python -m scripts.check_run_projection_store_cutover_preflight",
         )
 
     def test_staging_runbook_uses_current_preflight_cli_shape(self) -> None:
@@ -119,12 +122,15 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
             {
                 ".env.staging.local": textwrap.dedent(
                     """
-                    EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@example/campus_agent
+                    EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@example/campus_agent
                     TEMPORAL_POSTGRES_PASSWORD=temporal-postgres-password
                     EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
                     EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
                     EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow
                     EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
+                    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001
+                    EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:001
+                    EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001
                     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
                     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
                     """

@@ -36,7 +36,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -63,7 +63,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -114,7 +114,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -162,7 +162,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
             registry_audit_payload="legacy",
@@ -203,7 +203,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
             rag_runtime_payload="blocked",

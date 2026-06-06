@@ -23,9 +23,9 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("execution_control_staging_ensure_durable_runtime_schema", script)
+        self.assertIn("execution_control_staging_ensure_run_projection_store_schema", script)
         self.assertLess(
-            script.index("execution_control_staging_ensure_durable_runtime_schema"),
+            script.index("execution_control_staging_ensure_run_projection_store_schema"),
             script.index("execution_control_staging_compose up -d --build"),
         )
 
@@ -49,16 +49,16 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("execution_control_staging_ensure_durable_runtime_schema", script)
-        self.assertIn("cmd/durable-runtime-schema", script)
+        self.assertIn("execution_control_staging_ensure_run_projection_store_schema", script)
+        self.assertIn("cmd/run-projection-schema", script)
         self.assertIn('--mode "${mode}"', script)
         self.assertIn("install \\", script)
         self.assertIn("check \\", script)
         self.assertIn("--network", script)
         self.assertIn("${execution_control_staging_data_plane_network}", script)
-        self.assertIn("EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL", script)
-        self.assertIn("durable-runtime-schema-install.json", script)
-        self.assertIn("durable-runtime-schema-check.json", script)
+        self.assertIn("EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL", script)
+        self.assertIn("run-projection-schema-install.json", script)
+        self.assertIn("run-projection-schema-check.json", script)
 
     def test_staging_start_ensures_data_plane_network_before_compose(self) -> None:
         script = (ROOT / "infra/local/staging/start-execution-control-staging.sh").read_text(

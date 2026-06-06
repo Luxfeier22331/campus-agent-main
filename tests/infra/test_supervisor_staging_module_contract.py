@@ -68,11 +68,14 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn('sourceEnvValue("API_WORKER_SHARED_SECRET") ||', env_script)
         self.assertIn('sourceEnvValue("EXECUTION_CONTROL_SHARED_SECRET") ||', env_script)
         for temporal_key in (
-            "EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL",
+            "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
             "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
             "EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
             "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
             "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
             "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
             "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
         ):
@@ -87,13 +90,13 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             self.assertIn("is retired; use Temporal execution-control settings", env_script)
             self.assertNotIn(f"{retired_key}=", env_example)
             self.assertNotIn(f"{retired_key}:", compose)
-        self.assertIn("EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL", env_script)
+        self.assertIn("EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL", env_script)
         self.assertIn(
-            "EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required",
+            "EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL is required",
             core_script,
         )
         self.assertIn(
-            'EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL="${EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL',
+            'EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL="${EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL',
             core_script,
         )
         self.assertNotIn(
@@ -125,9 +128,9 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         )
         self.assertIn("execution_control_staging_require_data_plane_ready", proof_script)
         self.assertIn("execution_control_staging_require_container_qdrant_ready", proof_script)
-        self.assertIn("local readyz payload is not durable_runtime ready", proof_script)
+        self.assertIn("local readyz payload is not run_projection_store ready", proof_script)
         self.assertIn("local readyz payload is not temporal_runtime ready", proof_script)
-        self.assertIn("local readyz payload is not temporal workers started", proof_script)
+        self.assertNotIn("temporal_runtime.workers.started", proof_script)
         self.assertIn("local temporal proof: ok", proof_script)
         self.assertNotIn("execution_control_staging_app_api_readyz_url", proof_script)
         self.assertNotIn("cloudflared", proof_script)
@@ -142,6 +145,9 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn(".local/bin/uv", core_script)
         self.assertIn("Operation not permitted", core_script)
         self.assertIn('[[ "${services}" == *"otel-collector"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"workflow-worker"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-rag"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-finalization"* ]]', core_script)
         self.assertIn("execution_control_staging_probe_http_url", core_script)
         self.assertIn("execution_control_staging_probe_json_path_equals", core_script)
 
@@ -239,11 +245,10 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "otel-collector recent log contains permanent exporter failures", status_script
         )
         self.assertIn("execution_control_staging_probe_json_path_equals", status_script)
-        self.assertIn('"temporal_runtime.workers.started"', status_script)
-        self.assertIn("local readyz payload is not durable_runtime ready", status_script)
+        self.assertNotIn("temporal_runtime.workers.started", status_script)
+        self.assertIn("local readyz payload is not run_projection_store ready", status_script)
         self.assertIn("local readyz payload is not temporal_runtime ready", status_script)
-        self.assertIn("local readyz payload is not temporal workers started", status_script)
-        self.assertIn("app-api readyz payload is not durableRuntime=ready", status_script)
+        self.assertIn("app-api readyz payload is not executionRuntime=ready", status_script)
         self.assertIn("execution_control_staging_require_status_env", status_script)
         self.assertNotIn("execution_control_staging_require_runtime_env", status_script)
         self.assertIn("strict_mode == 1", status_script)

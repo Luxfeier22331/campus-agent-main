@@ -46,18 +46,14 @@ local_readyz_status="$(
 if [[ "${local_readyz_status}" != "200" ]]; then
   failures+=("local readyz returned HTTP ${local_readyz_status}")
 fi
-if ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "durable_runtime.configured" "true" ||
-  ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "durable_runtime.healthy" "true"; then
-  failures+=("local readyz payload is not durable_runtime ready")
+if ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "run_projection_store.configured" "true" ||
+  ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "run_projection_store.healthy" "true"; then
+  failures+=("local readyz payload is not run_projection_store ready")
 fi
 if ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "temporal_runtime.configured" "true" ||
   ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "temporal_runtime.healthy" "true"; then
   failures+=("local readyz payload is not temporal_runtime ready")
 fi
-if ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "temporal_runtime.workers.started" "true"; then
-  failures+=("local readyz payload is not temporal workers started")
-fi
-
 local_metrics_status="$(
   execution_control_staging_probe_http_url \
     "${execution_control_staging_local_metrics_url}" \

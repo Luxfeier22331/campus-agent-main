@@ -88,8 +88,8 @@ def _prepare_process_smoke_runtime(
                     "notice_id": "notice:smoke:001",
                 }
             )
-        env_overlay["EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL"] = runtime_database_url
-        env_overlay["EXECUTION_CONTROL_DURABLE_RUNTIME_AUTO_MIGRATE"] = "true"
+        env_overlay["EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"] = runtime_database_url
+        env_overlay["EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE"] = "true"
         artifacts.append(
             {
                 "kind": "temporary_postgres_execution_projection_store",

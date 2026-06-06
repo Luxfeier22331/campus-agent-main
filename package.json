@@ -24,7 +24,7 @@
 		"web:typecheck": "turbo run typecheck",
 		"contracts:generate": "uv run --all-packages python -m scripts.generate_supervisor_execution_contracts",
 		"contracts:check": "uv run --all-packages python -m scripts.generate_supervisor_execution_contracts --check",
-		"durable:cutover:preflight": "uv run --all-packages python -m scripts.check_durable_runtime_cutover_preflight",
+		"durable:cutover:preflight": "uv run --all-packages python -m scripts.check_run_projection_store_cutover_preflight",
 		"eval:intent": "uv run --all-packages python -m scripts.intent_gate",
 		"eval:intent:release": "uv run --all-packages python -m scripts.intent_release_gate",
 		"eval:service-guide:release": "uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup --json",
