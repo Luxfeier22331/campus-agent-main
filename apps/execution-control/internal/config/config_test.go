@@ -559,6 +559,19 @@ func TestLoadFromEnvRejectsUnknownOpenCapabilities(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvAcceptsNavigationOpenCapability(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", "navigation")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if len(cfg.OpenCapabilities) != 1 || cfg.OpenCapabilities[0] != "navigation" {
+		t.Fatalf("open capabilities = %#v, want navigation", cfg.OpenCapabilities)
+	}
+}
+
 func TestCapabilityOpenDoesNotTreatWildcardAsRuntimeAllow(t *testing.T) {
 	cfg := Config{OpenCapabilities: []string{"*"}}
 

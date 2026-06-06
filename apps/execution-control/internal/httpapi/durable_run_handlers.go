@@ -113,6 +113,72 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 	writeJSON(response, http.StatusOK, map[string]any{"events": body})
 }
 
+func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *http.Request, runID string) {
+	if !s.internalWorkerAuthorized(request) {
+		setOutcome(response, "unauthorized")
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
+		return
+	}
+	if s.runProjectionStore == nil {
+		setOutcome(response, "projection_store_not_configured")
+		writeError(
+			response,
+			http.StatusServiceUnavailable,
+			"projection_store_not_configured",
+			"Execution projection store is not configured.",
+			true,
+		)
+		return
+	}
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		setOutcome(response, "invalid_request")
+		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
+		return
+	}
+	steps, err := s.runProjectionStore.ListRunSteps(request.Context(), runID)
+	if err != nil {
+		if errors.Is(err, execution.ErrDurableRunNotFound) {
+			setOutcome(response, "execution_run_not_found")
+			writeError(response, http.StatusNotFound, "execution_run_not_found", "Execution run not found.", false)
+			return
+		}
+		setOutcome(response, "execution_run_steps_query_failed")
+		writeError(response, http.StatusInternalServerError, "execution_run_steps_query_failed", err.Error(), true)
+		return
+	}
+	attempts, err := s.runProjectionStore.ListStepAttempts(request.Context(), runID)
+	if err != nil {
+		setOutcome(response, "execution_step_attempts_query_failed")
+		writeError(response, http.StatusInternalServerError, "execution_step_attempts_query_failed", err.Error(), true)
+		return
+	}
+	results, err := s.runProjectionStore.ListStepResults(request.Context(), runID)
+	if err != nil {
+		setOutcome(response, "execution_step_results_query_failed")
+		writeError(response, http.StatusInternalServerError, "execution_step_results_query_failed", err.Error(), true)
+		return
+	}
+	bodySteps := make([]map[string]any, 0, len(steps))
+	for _, step := range steps {
+		bodySteps = append(bodySteps, runStepProjectionResponse(step))
+	}
+	bodyAttempts := make([]map[string]any, 0, len(attempts))
+	for _, attempt := range attempts {
+		bodyAttempts = append(bodyAttempts, stepAttemptProjectionResponse(attempt))
+	}
+	bodyResults := make([]map[string]any, 0, len(results))
+	for _, result := range results {
+		bodyResults = append(bodyResults, stepResultProjectionResponse(result))
+	}
+	setOutcome(response, "execution_run_steps")
+	writeJSON(response, http.StatusOK, map[string]any{
+		"steps":    bodySteps,
+		"attempts": bodyAttempts,
+		"results":  bodyResults,
+	})
+}
+
 func readAfterSequenceQuery(request *http.Request) (int64, error) {
 	raw := strings.TrimSpace(request.URL.Query().Get("after_sequence"))
 	if raw == "" {
@@ -276,6 +342,77 @@ func durableRunEventResponse(event execution.DurableRunEvent) map[string]any {
 		"payload_schema_version": event.PayloadSchemaVersion,
 		"payload":                event.Payload,
 	}
+}
+
+func runStepProjectionResponse(step execution.RunStepProjection) map[string]any {
+	return map[string]any{
+		"step_id":                step.StepID,
+		"run_id":                 step.RunID,
+		"conversation_id":        step.ConversationID,
+		"step_kind":              step.StepKind,
+		"capability":             step.Capability,
+		"parent_step_id":         step.ParentStepID,
+		"status":                 step.Status,
+		"task_queue":             step.TaskQueue,
+		"worker_id":              step.WorkerID,
+		"started_at":             formatOptionalTime(step.StartedAt),
+		"completed_at":           formatOptionalTime(step.CompletedAt),
+		"updated_at":             formatOptionalTime(step.UpdatedAt),
+		"payload_schema_version": step.PayloadSchemaVersion,
+		"sanitized_payload":      sanitizeProjectionPayload(step.SanitizedPayload),
+	}
+}
+
+func stepAttemptProjectionResponse(attempt execution.StepAttemptProjection) map[string]any {
+	return map[string]any{
+		"attempt_id":             attempt.AttemptID,
+		"step_id":                attempt.StepID,
+		"run_id":                 attempt.RunID,
+		"attempt":                attempt.Attempt,
+		"status":                 attempt.Status,
+		"task_queue":             attempt.TaskQueue,
+		"worker_id":              attempt.WorkerID,
+		"started_at":             formatOptionalTime(attempt.StartedAt),
+		"completed_at":           formatOptionalTime(attempt.CompletedAt),
+		"updated_at":             formatOptionalTime(attempt.UpdatedAt),
+		"payload_schema_version": attempt.PayloadSchemaVersion,
+		"sanitized_payload":      sanitizeProjectionPayload(attempt.SanitizedPayload),
+	}
+}
+
+func stepResultProjectionResponse(result execution.StepResultProjection) map[string]any {
+	return map[string]any{
+		"result_id":              result.ResultID,
+		"step_id":                result.StepID,
+		"run_id":                 result.RunID,
+		"attempt_id":             result.AttemptID,
+		"status":                 result.Status,
+		"result_kind":            result.ResultKind,
+		"projection_ref":         result.ProjectionRef,
+		"created_at":             formatOptionalTime(result.CreatedAt),
+		"payload_schema_version": result.PayloadSchemaVersion,
+		"sanitized_payload":      sanitizeProjectionPayload(result.SanitizedPayload),
+	}
+}
+
+func sanitizeProjectionPayload(payload map[string]any) map[string]any {
+	if payload == nil {
+		return map[string]any{}
+	}
+	sanitized := map[string]any{}
+	for key, value := range payload {
+		normalizedKey := strings.ToLower(strings.TrimSpace(key))
+		if strings.Contains(normalizedKey, "raw_prompt") ||
+			strings.Contains(normalizedKey, "raw_answer") ||
+			strings.Contains(normalizedKey, "raw_provider") ||
+			strings.Contains(normalizedKey, "raw_source") ||
+			strings.Contains(normalizedKey, "cookie") ||
+			strings.Contains(normalizedKey, "authorization") {
+			continue
+		}
+		sanitized[key] = value
+	}
+	return sanitized
 }
 
 func requiredStringFromMap(payload map[string]any, key string) string {

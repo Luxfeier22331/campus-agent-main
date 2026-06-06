@@ -193,11 +193,12 @@ func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter,
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	return temporalruntime.NewStarter(ctx, temporalruntime.StarterOptions{
-		Address:      cfg.TemporalAddress,
-		Namespace:    cfg.TemporalNamespace,
-		TaskQueue:    cfg.TemporalTaskQueue,
-		WorkerID:     cfg.TemporalWorkerIdentity,
-		StartTimeout: time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
+		ActivityTaskQueues: requiredTemporalActivityTaskQueueNames(cfg),
+		Address:            cfg.TemporalAddress,
+		Namespace:          cfg.TemporalNamespace,
+		TaskQueue:          cfg.TemporalTaskQueue,
+		WorkerID:           cfg.TemporalWorkerIdentity,
+		StartTimeout:       time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
 	})
 }
 
@@ -319,6 +320,14 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleCancel(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/runs":
 		s.handleExecutionRunCreate(writer, request)
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
+		strings.HasSuffix(path, "/steps"):
+		if runID, ok := executionRunIDFromPath(path, "/steps"); ok {
+			s.handleExecutionRunSteps(writer, request, runID)
+		} else {
+			setOutcome(writer, "not_found")
+			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
+		}
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/events"):
 		if runID, ok := executionRunIDFromPath(path, "/events"); ok {

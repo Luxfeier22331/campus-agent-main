@@ -30,9 +30,9 @@ func durableRunCreateBodyForTest(runID string, conversationID string) string {
 	}`
 }
 
-func attachDurableRuntimeStoreForHandlerTest(
+func attachRunProjectionStoreForHandlerTest(
 	server *Server,
-	store execution.DurableRuntimeStore,
+	store execution.RunProjectionStore,
 ) {
 	server.runProjectionStore = store
 }

@@ -40,6 +40,9 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         worker_dockerfile = (ROOT / "apps/supervisor-agent-worker/Dockerfile").read_text(
             encoding="utf-8"
         )
+        execution_control_dockerfile = (ROOT / "apps/execution-control/Dockerfile").read_text(
+            encoding="utf-8"
+        )
         dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
 
         self.assertIn('"OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT"', env_script)
@@ -112,6 +115,8 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn('"packages/regulation-semantics"', worker_dockerfile)
         self.assertIn("/app/packages/prompt-runtime/src", worker_dockerfile)
         self.assertIn("/app/packages/regulation-semantics/src", worker_dockerfile)
+        self.assertIn("./cmd/worker-autoscaler", execution_control_dockerfile)
+        self.assertIn("/usr/local/bin/worker-autoscaler", execution_control_dockerfile)
         self.assertIn("!packages/prompt-runtime/", dockerignore)
         self.assertIn("!packages/prompt-runtime/**", dockerignore)
         self.assertIn("!packages/regulation-semantics/", dockerignore)

@@ -18,6 +18,9 @@ func routeLabelFor(method string, path string) string {
 	case method == http.MethodPost && path == "/internal/execution/runs":
 		return "/internal/execution/runs"
 	case method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
+		strings.HasSuffix(path, "/steps"):
+		return "/internal/execution/runs/:runId/steps"
+	case method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/events"):
 		return "/internal/execution/runs/:runId/events"
 	case method == http.MethodPost && strings.HasPrefix(path, "/internal/execution/runs/") &&

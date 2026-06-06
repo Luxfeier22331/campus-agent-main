@@ -609,7 +609,7 @@ func readOpenCapabilitiesStrict() ([]string, error) {
 	values := readStringList("EXECUTION_CONTROL_OPEN_CAPABILITIES")
 	for _, value := range values {
 		switch strings.TrimSpace(value) {
-		case "campus_services", "notice":
+		case "campus_services", "navigation", "notice":
 		case "*", "all":
 			return nil, fmt.Errorf("EXECUTION_CONTROL_OPEN_CAPABILITIES does not support wildcard value %q", value)
 		default:

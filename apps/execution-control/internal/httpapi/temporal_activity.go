@@ -486,8 +486,19 @@ func (s *Server) failTemporalPlanning(
 	failureKind string,
 	cause error,
 ) (temporalruntime.PlanChatAnswerActivityOutput, error) {
-	_, _ = s.failTemporalRun(ctx, run, failureKind, cause)
-	return temporalruntime.PlanChatAnswerActivityOutput{}, cause
+	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		FailureKind:   failureKind,
+		ProjectionRef: temporalProjectionRef(run.RunID, "plan"),
+		ResultKind:    "activity_failure",
+		StepID:        "planning",
+		StepKind:      "planning",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		Payload: map[string]any{
+			"failure_kind": failureKind,
+			"message":      cause.Error(),
+		},
+	}, cause)
+	return temporalruntime.PlanChatAnswerActivityOutput{}, err
 }
 
 func (s *Server) failSemanticWorkerActivity(
@@ -496,8 +507,19 @@ func (s *Server) failSemanticWorkerActivity(
 	failureKind string,
 	cause error,
 ) (temporalruntime.InvokeSemanticWorkerActivityOutput, error) {
-	_, _ = s.failTemporalRun(ctx, run, failureKind, cause)
-	return temporalruntime.InvokeSemanticWorkerActivityOutput{}, cause
+	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		FailureKind:   failureKind,
+		ProjectionRef: temporalProjectionRef(run.RunID, "semantic/rag"),
+		ResultKind:    "activity_failure",
+		StepID:        "semantic.rag",
+		StepKind:      "typed_activity",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		Payload: map[string]any{
+			"failure_kind": failureKind,
+			"message":      cause.Error(),
+		},
+	}, cause)
+	return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
 }
 
 func (s *Server) failFinalizationActivity(
@@ -506,8 +528,64 @@ func (s *Server) failFinalizationActivity(
 	failureKind string,
 	cause error,
 ) (temporalruntime.FinalizeChatAnswerActivityOutput, error) {
-	_, _ = s.failTemporalRun(ctx, run, failureKind, cause)
-	return temporalruntime.FinalizeChatAnswerActivityOutput{}, cause
+	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		FailureKind:   failureKind,
+		ProjectionRef: temporalProjectionRef(run.RunID, "finalization"),
+		ResultKind:    "activity_failure",
+		StepID:        "finalization",
+		StepKind:      "finalization",
+		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
+		Payload: map[string]any{
+			"failure_kind": failureKind,
+			"message":      cause.Error(),
+		},
+	}, cause)
+	return temporalruntime.FinalizeChatAnswerActivityOutput{}, err
+}
+
+type temporalStepFailureProjection struct {
+	FailureKind   string
+	Payload       map[string]any
+	ProjectionRef string
+	ResultKind    string
+	StepID        string
+	StepKind      string
+	TaskQueue     string
+}
+
+func (s *Server) failTemporalRunStep(
+	ctx context.Context,
+	run execution.DurableRun,
+	projection temporalStepFailureProjection,
+	cause error,
+) (execution.DurableRun, error) {
+	now := time.Now().UTC()
+	payload := projection.Payload
+	if payload == nil {
+		payload = map[string]any{
+			"failure_kind": projection.FailureKind,
+			"message":      cause.Error(),
+		}
+	}
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Capability:    "knowledge",
+		Run:           run,
+		Status:        "failed",
+		StepID:        projection.StepID,
+		StepKind:      projection.StepKind,
+		TaskQueue:     projection.TaskQueue,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     now,
+		CompletedAt:   now,
+		UpdatedAt:     now,
+		ResultKind:    projection.ResultKind,
+		ProjectionRef: projection.ProjectionRef,
+		Payload:       payload,
+	}); err != nil {
+		return execution.DurableRun{}, err
+	}
+	return s.failTemporalRun(ctx, run, projection.FailureKind, cause)
 }
 
 func (s *Server) failTemporalRun(

@@ -232,6 +232,95 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 	}
 }
 
+func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		OpenCapabilities:              []string{"notice"},
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		AgentPromptModel:              "gpt-agent",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body: json.RawMessage(`{
+				"status":"ready",
+				"prompt_runtime":{"admitted":true},
+				"prompt_http_pool":{"healthy":true}
+			}`),
+		},
+	})
+	server.temporalStarter = readyTemporalStarter{
+		readiness: temporalruntime.RuntimeReadiness{
+			Healthy: true,
+			TaskQueues: []temporalruntime.TaskQueueReadiness{
+				{
+					Name:    temporalruntime.WorkflowTaskQueue,
+					Type:    temporalruntime.TaskQueueTypeWorkflow,
+					Pollers: 1,
+					Healthy: true,
+				},
+				{
+					Name:    temporalruntime.ActivityTaskQueueRAG,
+					Type:    temporalruntime.TaskQueueTypeActivity,
+					Pollers: 1,
+					Healthy: true,
+				},
+				{
+					Name:    temporalruntime.ActivityTaskQueueFinalization,
+					Type:    temporalruntime.TaskQueueTypeActivity,
+					Pollers: 1,
+					Healthy: true,
+				},
+			},
+		},
+	}
+
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")
+	required, ok := temporalRuntime["task_queues"].([]any)
+	if !ok {
+		t.Fatalf("temporal_runtime.task_queues = %#v, want array", temporalRuntime["task_queues"])
+	}
+	if !containsStringValue(required, temporalruntime.ActivityTaskQueueNotice) {
+		t.Fatalf("required task queues = %#v, want notice activity queue", required)
+	}
+	if temporalRuntime["healthy"] != false {
+		t.Fatalf("temporal_runtime.healthy = %v, want false", temporalRuntime["healthy"])
+	}
+}
+
+func TestRequiredTemporalTaskQueuesIncludeOpenedCapabilityWorkers(t *testing.T) {
+	queues := requiredTemporalTaskQueueNames(config.Config{
+		TemporalTaskQueue: "custom.workflow",
+		OpenCapabilities:  []string{"campus_services", "navigation", "notice"},
+	})
+
+	for _, want := range []string{
+		"custom.workflow",
+		temporalruntime.ActivityTaskQueueRAG,
+		temporalruntime.ActivityTaskQueueFinalization,
+		temporalruntime.ActivityTaskQueueCampusService,
+		temporalruntime.ActivityTaskQueueNavigation,
+		temporalruntime.ActivityTaskQueueNotice,
+	} {
+		if !containsStringValue(anySlice(queues), want) {
+			t.Fatalf("required task queues = %#v, missing %s", queues, want)
+		}
+	}
+}
+
 func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:                       "campus-agent",

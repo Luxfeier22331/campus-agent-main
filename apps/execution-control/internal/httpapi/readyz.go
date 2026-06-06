@@ -192,11 +192,37 @@ func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 }
 
 func requiredTemporalTaskQueueNames(cfg config.Config) []string {
-	return []string{
+	return append([]string{
 		defaultString(strings.TrimSpace(cfg.TemporalTaskQueue), "campus-agent.workflow"),
-		"campus-agent.activity.rag",
-		"campus-agent.activity.finalization",
+	}, requiredTemporalActivityTaskQueueNames(cfg)...)
+}
+
+func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
+	required := []string{
+		temporalruntime.ActivityTaskQueueRAG,
+		temporalruntime.ActivityTaskQueueFinalization,
 	}
+	capabilityQueues := map[string]string{
+		"campus_services": temporalruntime.ActivityTaskQueueCampusService,
+		"navigation":      temporalruntime.ActivityTaskQueueNavigation,
+		"notice":          temporalruntime.ActivityTaskQueueNotice,
+	}
+	for _, capability := range cfg.OpenCapabilities {
+		queue := capabilityQueues[strings.TrimSpace(capability)]
+		if queue != "" {
+			required = appendUniqueString(required, queue)
+		}
+	}
+	return required
+}
+
+func appendUniqueString(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }
 
 func containsRequiredTemporalTaskQueues(
@@ -328,11 +354,15 @@ func (s *Server) capabilityGateStatus() map[string]any {
 		},
 		"campus_services": map[string]any{
 			"open": s.config.CapabilityOpen("campus_services"),
-			"gate": "structured_runtime",
+			"gate": "structured_runtime_and_activity_worker",
+		},
+		"navigation": map[string]any{
+			"open": s.config.CapabilityOpen("navigation"),
+			"gate": "activity_worker",
 		},
 		"notice": map[string]any{
 			"open": s.config.CapabilityOpen("notice"),
-			"gate": "structured_runtime",
+			"gate": "structured_runtime_and_activity_worker",
 		},
 	}
 }

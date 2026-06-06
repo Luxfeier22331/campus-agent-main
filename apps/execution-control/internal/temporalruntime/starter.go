@@ -38,19 +38,21 @@ type TaskQueueReadiness struct {
 }
 
 type StarterOptions struct {
-	Address      string
-	Namespace    string
-	TaskQueue    string
-	WorkerID     string
-	StartTimeout time.Duration
+	ActivityTaskQueues []string
+	Address            string
+	Namespace          string
+	TaskQueue          string
+	WorkerID           string
+	StartTimeout       time.Duration
 }
 
 type Starter struct {
-	client       client.Client
-	namespace    string
-	taskQueue    string
-	workerID     string
-	startTimeout time.Duration
+	activityTaskQueues []string
+	client             client.Client
+	namespace          string
+	taskQueue          string
+	workerID           string
+	startTimeout       time.Duration
 }
 
 func NewStarter(ctx context.Context, options StarterOptions) (*Starter, error) {
@@ -75,11 +77,12 @@ func NewStarter(ctx context.Context, options StarterOptions) (*Starter, error) {
 		startTimeout = 5 * time.Second
 	}
 	return &Starter{
-		client:       temporalClient,
-		namespace:    namespace,
-		taskQueue:    taskQueue,
-		workerID:     strings.TrimSpace(options.WorkerID),
-		startTimeout: startTimeout,
+		activityTaskQueues: normalizeActivityTaskQueues(options.ActivityTaskQueues),
+		client:             temporalClient,
+		namespace:          namespace,
+		taskQueue:          taskQueue,
+		workerID:           strings.TrimSpace(options.WorkerID),
+		startTimeout:       startTimeout,
 	}, nil
 }
 
@@ -134,8 +137,12 @@ func (s *Starter) CheckReadiness(ctx context.Context) RuntimeReadiness {
 	}
 	taskQueues := []TaskQueueReadiness{
 		s.checkTaskQueue(ctx, s.taskQueue, TaskQueueTypeWorkflow, enumspb.TASK_QUEUE_TYPE_WORKFLOW),
-		s.checkTaskQueue(ctx, ActivityTaskQueueRAG, TaskQueueTypeActivity, enumspb.TASK_QUEUE_TYPE_ACTIVITY),
-		s.checkTaskQueue(ctx, ActivityTaskQueueFinalization, TaskQueueTypeActivity, enumspb.TASK_QUEUE_TYPE_ACTIVITY),
+	}
+	for _, queue := range s.activityTaskQueues {
+		taskQueues = append(
+			taskQueues,
+			s.checkTaskQueue(ctx, queue, TaskQueueTypeActivity, enumspb.TASK_QUEUE_TYPE_ACTIVITY),
+		)
 	}
 	readiness := RuntimeReadiness{
 		Healthy:    true,
@@ -150,6 +157,30 @@ func (s *Starter) CheckReadiness(ctx context.Context) RuntimeReadiness {
 		}
 	}
 	return readiness
+}
+
+func normalizeActivityTaskQueues(values []string) []string {
+	queues := []string{
+		ActivityTaskQueueRAG,
+		ActivityTaskQueueFinalization,
+	}
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		queues = appendUnique(queues, normalized)
+	}
+	return queues
+}
+
+func appendUnique(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }
 
 func (s *Starter) checkTaskQueue(
