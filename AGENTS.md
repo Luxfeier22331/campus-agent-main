@@ -4,7 +4,8 @@
 
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
-- 当前主路径是 `execution-control -> supervisor-agent-worker -> agent -> retrieval-core`
+- 当前在线回答主路径是 `app-api -> execution-control -> Temporal -> activity worker
+  -> supervisor-agent-worker -> agent/tool capability -> retrieval-core`
 - 当前 product entry surface 已收口到 `hub-web -> app launcher / account shell`，`public-chat-web`、
   `public-docs`、`protected-panel-web` 作为并列 browser surface 进入 shared `app-api`
 - 架构目标是 capability-neutral orchestrated execution：顶层由 supervisor / execution
@@ -17,9 +18,10 @@
   `public-chat-web`、`public-docs`、`protected-panel-web`、`app-api` 等前向产品形态；
   但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
-- runtime 选择尚未 repo-wide 冻结；当前已明确冻结 `apps/app-api = Worker`，以及
-  `apps/execution-control = Docker-first internal execution service`；这不等于提前冻结
-  `apps/execution-control` 的单一 Python/HTTP 框架
+- runtime 当前事实是 `apps/app-api = Worker`，`apps/execution-control =
+  Docker-first internal execution-control service`，Temporal 是 execution
+  substrate，PG 只承载 sanitized run projection；worker plane / autoscaler 仍按
+  对应架构文档继续收口
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
 
 ### Branch Model

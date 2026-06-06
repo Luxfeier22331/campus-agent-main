@@ -32,10 +32,11 @@ fallback 重新启用。需要查看当前实现与缺口时，先看下面的 T
 
 ## Summary
 
-当前 repo 已经从 single-process execution protection 推进到 Postgres-backed
-run-centric durable runtime substrate，并完成 app-api / public-chat 的 durable run
-cutover foundation；它仍不能标记为 production-complete，因为真实 deployed reconnect /
-multi-worker recovery evidence 与 run-centric operator/eval consumption 还没有收口。
+截至本文原始收口时，repo 已经从 single-process execution protection 推进到
+Postgres-backed run-centric durable runtime substrate，并完成 app-api /
+public-chat 的 durable run cutover foundation。该 PG lease substrate 现在已被
+Temporal execution plane 取代为 active execution truth；本文后续 gap matrix 只作为
+历史背景和迁移审计材料。
 
 当前具备：
 
@@ -129,23 +130,23 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
   double-lease the same queued run, expired leases requeue until the bounded
   retry limit and then terminally expire, proof artifacts are exact-prefix
   cleaned, and the pre-existing lane budget is restored after the proof
-- repo-owned durable schema install/check command:
+- Superseded repo-owned PG lease schema install/check command:
   `go run ./cmd/durable-runtime-schema --mode install|check --database-url ...
-  --evidence-path ...` is the formal schema path for durable Postgres store. It
-  installs schema through `EnsureSchema` in `install` mode, verifies with
-  `HealthCheck` in both modes, and writes explicit JSON evidence. Staging
-  lifecycle runs `install` then `check` before Docker Compose runtime starts.
+  --evidence-path ...` was the formal schema path for the historical durable
+  Postgres store. Current staging lifecycle uses `cmd/run-projection-schema`
+  for the product run projection store; it must not install or check the old PG
+  lease scheduler as an online serving requirement.
 - Superseded deployed PG durable HTTP proof command:
   `cmd/durable-runtime-http-proof` was retired with the Temporal cutover. Current
   staging proof uses `cmd/temporal-runtime-http-proof` against the
   `execution-control` Temporal readiness surface and must not require PG worker
   loop / recovery loop readiness.
-- repo-owned durable-ready gate: app-api runtime readyz now parses supervisor
-  readyz `durable_runtime` / `durable_worker_loop` /
-  `durable_recovery_loop` status and requires `dependencies.durableRuntime=ready`
-  for `staging` / `production`; staging strict status additionally checks the
-  local supervisor readyz payload has durable store healthy plus worker /
-  recovery loops enabled, configured, healthy, and started
+- Superseded durable-ready gate: the previous app-api runtime readyz parsed
+  supervisor readyz `durable_runtime` / `durable_worker_loop` /
+  `durable_recovery_loop` status. Current app-api readyz gates
+  `dependencies.executionRuntime=ready` and current execution-control readyz
+  gates Temporal plus `run_projection_store`; worker / recovery loop readiness
+  must not reappear as active serving truth.
 
 当前缺失：
 
@@ -195,10 +196,10 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
   or its required supervisor URL / shared secret config is missing, submit and
   stream commands fail before accepting the request and do not call the legacy
   sync `/api/v1/answer` path.
-- Progress: app-api `/readyz` now exposes and gates deployed durable runtime
-  readiness through supervisor readyz durable store / worker loop / recovery
-  loop preflight; staging strict status also checks local supervisor durable
-  payload and app-api `dependencies.durableRuntime=ready`.
+- Progress: current app-api `/readyz` exposes and gates deployed execution
+  runtime readiness through execution-control Temporal readiness plus
+  `run_projection_store`; staging strict status checks app-api
+  `dependencies.executionRuntime=ready`.
 - Gap: 真实 staging reconnect evidence 尚未落盘；legacy sync `/api/v1/answer`
   仍保留为 local / development 显式 non-durable path。
   Durable Postgres schema 已有正式 install/check 命令和 staging lifecycle gate；
@@ -260,11 +261,13 @@ multi-worker recovery evidence 与 run-centric operator/eval consumption 还没�
   产品化为 repo-owned evidence command：它读取当前 active lease truth 后设置 proof
   所需 lane budget、验证 multi-worker single-lease、释放自身 proof lease、验证
   expired-lease retry / terminal recovery，并在结束时恢复原 lane budget。
-- Progress: schema readiness 不再靠 proof 副作用。`cmd/durable-runtime-schema`
-  是正式 schema install/check 入口，staging start 在 compose up 前通过 Docker
-  data-plane container 连到 `postgres:5432` 执行 `install` 与 `check`，并生成
-  `durable-runtime-schema-install.json` /
-  `durable-runtime-schema-check.json` evidence。
+- Progress: 当前 schema readiness 不再靠 proof 副作用。
+  `cmd/run-projection-schema` 是正式 run projection store schema
+  install/check 入口，staging start 在 compose up 前通过 Docker data-plane
+  container 连到 `postgres:5432` 执行 `install` 与 `check`，并生成
+  `run-projection-schema-install.json` /
+  `run-projection-schema-check.json` evidence。旧
+  `cmd/durable-runtime-schema` 只属于 historical PG lease baseline。
 - Gap: 还没有 multi-worker retry/recovery staging evidence；browser chat submit
   stream 的 pending-run product baseline、typed run phase projection 与 repo-owned
   staging reconnect harness 已完成，但仍需真实 staging evidence closeout。
@@ -445,10 +448,12 @@ Phase 2 / Phase 3 / Phase 4 foundation 已落地：
     run、推进 admitted/running、创建 lease 并写入 run events
   - in-memory contract substrate
   - Postgres store foundation 与 schema bootstrap
-- `EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL`
-  - durable runtime Postgres store 的显式配置入口
-  - 不从 `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL` 或
-    `CAMPUS_SHARED_POSTGRES_URL` 隐式推断
+- Historical retired env: `EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL`
+  - was the explicit Postgres store entry for the retired PG lease baseline
+  - current execution-control rejects it and requires
+    `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`
+  - it must not be inferred from `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL`
+    or `CAMPUS_SHARED_POSTGRES_URL`
 
 Phase 5 / Phase 6 / supervisor substrate 已部分落地：
 

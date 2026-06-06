@@ -60,18 +60,21 @@ document/index release`
   ingress，不是 browser surface upstream
 - `apps/execution-control` 是 Go-owned internal execution engine，不是产品后端
 - `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
-- `apps/execution-control` 是当前 Docker execution ingress，负责 execution HTTP surface
-  与 runtime hardening；Python `apps/supervisor-agent-worker` 只保留 private bridge worker
-- `execution-control` 是目标架构概念名；当前代码目录和 staging runtime 仍是
-  `apps/execution-control`
-- Temporal execution plane 已被目标架构接受，但当前 merged truth 尚未接入 Temporal；当前
-  execution truth 仍是 Go `execution-control` 的 PG-backed run-level durable baseline
-- `apps/execution-control` 当前已经具备 PG-backed run-level durable baseline：durable
-  run store、run events、execution leases、lane budgets、worker heartbeat、worker loop、
-  recovery loop、cancel/recovery/finalization revalidation，以及 app-api durable chat
-  cutover。仍未完成的是 step-level durable ledger、runtime role split、multi-lane
-  worker pool、worker autoscaler 与 typed-tool RAG 全量收口。目标 durable runtime 见
-  `docs/architecture/system/durable-agent-runtime-architecture.md`
+- `apps/execution-control` 是当前 Docker execution-control service，负责
+  internal workflow command/query、admission/policy gate、Temporal
+  start/cancel/query seam 与 sanitized projection writeback；Python
+  `apps/supervisor-agent-worker` 只保留 private semantic bridge worker
+- Temporal-backed chat execution path 已进入当前代码事实：`apps/app-api` 通过
+  `/internal/execution/runs*` 调用 `apps/execution-control`，`apps/execution-control`
+  启动 / 取消 `ChatAnswerWorkflow`，Temporal task queue 承担 execution substrate
+- PG 不再是 online execution queue truth；`runtime.agent_runs`、run events 与 step
+  tables 是 app-api / panel / eval 消费的 sanitized run projection store
+- 旧 `runtime.execution_leases`、lane budget、worker heartbeat、PG lease worker
+  loop 与 recovery loop 只允许作为 historical migration artifact / retired code
+  path 出现，不参与当前 online serving
+- 当前仍未完成的是 worker plane 全量收口、step-level projection 全量消费、worker
+  autoscaler、Temporal poller proof 与 typed-tool capability worker 全量拆分。目标 durable
+  runtime 见 `docs/architecture/system/durable-agent-runtime-architecture.md`
 - semantic delegate path 仍进入 Python private bridge；已打开的 deterministic
   structured capability 当前按 `runtime_posture` 分流：
   `typed_handoff_only` 的 payload 允许在 Go `apps/execution-control` 的 non-stream answer

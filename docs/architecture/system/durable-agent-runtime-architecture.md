@@ -557,41 +557,42 @@ worker autoscaler 边界固定为：
 - bridge circuit breaker
 - metrics / OTel / execution audit seam
 - `WorkflowRunStore` foundation for gated multi-step path
-- isolated durable runtime store kernel in `apps/execution-control/internal/execution`
+- isolated historical durable runtime store kernel in `apps/execution-control/internal/execution`
   for `DurableRun`、`RunEvent`、`ExecutionLease`、`LaneBudget` 与
   `WorkerHeartbeat`
-- Postgres-backed durable runtime store foundation with explicit
-  `EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL` configuration
+- Postgres-backed run projection store with explicit
+  `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL` configuration
 - retained PG lease coordinator / worker loop / recovery loop code exists as a
   migration artifact, but the online serving path is Temporal-backed. Staging and
   production env must reject `EXECUTION_CONTROL_DURABLE_WORKER_LOOP_*` and
   `EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_*` rather than re-enable PG lease
   execution.
 - Temporal owns queued workflow/activity execution, retry, timeout, and worker
-  poller readiness. PG durable runtime tables are the sanitized product
-  projection store, not the scheduler truth.
-- durable cancel command is coordinator-owned: queued / active runs transition
-  to `run.canceled`, active leases are released with `lease.released`, and
-  active worker execution must accept cooperative bridge cancel propagation
-  before the cancel endpoint reports success
-- worker completion is lease-owned until the last write: after the bridge returns
-  and before any `agent.completed`, browser-visible `finalization.completed` or
-  `run.completed` event is appended, the worker must re-read current run and
-  lease truth. Terminal run drift, released / expired lease state and lease
-  ownership drift fail closed and must not publish a late answer.
-- app-api durable runtime adapter and product request cutover foundation:
-  accepted chat requests create supervisor durable runs, persist `run_id`
-  backlinks in `runtime.request_execution`, and durable-configured blocking /
+  poller semantics. PG runtime tables are the sanitized product projection store,
+  not the scheduler truth.
+- cancel command is Temporal-owned first: execution-control cancels the
+  `ChatAnswerWorkflow` and then writes sanitized cancel projection; lease release
+  semantics are not part of the online cancel path.
+- app-api execution runtime adapter and product request cutover foundation:
+  accepted chat requests create execution-control runs, persist `run_id`
+  backlinks in `runtime.request_execution`, and execution-configured blocking /
   stream chat paths poll browser-visible run events by `after_sequence` cursor
-  and finalize from `finalization.completed` run event payloads; durable stream
-  submit now registers an app-api-owned `waitUntil` finalization closeout before
-  emitting `request.accepted`, so browser disconnect no longer owns finalization
+  and finalize from `finalization.completed` run event payloads; stream submit
+  registers an app-api-owned `waitUntil` finalization closeout before emitting
+  `request.accepted`, so browser disconnect no longer owns finalization
 - app-api product run command-query endpoints:
   `/api/chat/runs/:runId`, `/api/chat/runs/:runId/events`,
   `/api/chat/runs/:runId/events/stream`, and
   `/api/chat/runs/:runId/cancel` verify local request ownership before proxying
-  supervisor durable run status, browser-visible events, browser resume stream,
+  execution-control run status, browser-visible events, browser resume stream,
   and cancel commands
+- split execution worker binaries exist:
+  `cmd/workflow-worker`, `cmd/activity-worker-rag`, and
+  `cmd/activity-worker-finalization`; Docker Compose runs them as separate
+  services with explicit `<env>:<role>:<instance>` worker identity.
+- step projection writeback exists for the first chat trajectory:
+  `planning`、`semantic.rag`、`finalization` write sanitized step / attempt / result
+  projection rows.
 - repo-owned staging durable reconnect harness:
   `pnpm --dir apps/app-api chat:durable:e2e:staging` proves the product stream can
   be disconnected after `request.accepted` and resumed from the existing durable
@@ -605,7 +606,7 @@ worker autoscaler 边界固定为：
 - repo-owned deployed execution-control Temporal HTTP proof command:
   `apps/execution-control/cmd/temporal-runtime-http-proof` records deployed
   execution-control `/readyz` evidence and fails closed unless projection store,
-  Temporal runtime, and Temporal workers are all reported ready / started
+  and Temporal runtime are reported ready
 - public-chat pending-run product baseline: accepted durable run identity is
   persisted in tab-scoped storage, browser resume reads the existing run event
   stream by `run_id + after_sequence`, terminal events load canonical
@@ -618,15 +619,16 @@ worker autoscaler 边界固定为：
 
 当前缺口：
 
-- Temporal execution plane 尚未落地：当前仍是 PG-backed run-level durable baseline +
-  in-process worker/recovery loop，不是 target workflow/activity/task-queue substrate。
-- execution-control 概念尚未完成代码/部署收口：当前实现名仍是 `apps/execution-control`。
-- step-level durable runtime 尚未完整收口：需要补齐 `agent_run_steps`、
-  `agent_step_attempts`、`agent_step_results` 的 projection contract、Temporal activity
-  mapping、worker writeback 与 panel/eval projection。
-- capability worker pool 与 worker autoscaler 尚未落成：当前 worker loop 证明了 PG
-  lease-driven consumption foundation，但还没有按 Temporal task queue 独立 worker pool、
-  autoscaler desired replicas 与 downstream budget projection 收口。
+- Temporal poller proof 已进入 execution-control readyz：readyz 会检查
+  workflow、RAG activity 与 finalization activity task queue 的 recent poller。
+  schedule-to-start latency 仍需要进入 autoscaler / release evidence。
+- execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，但历史
+  `durable_runtime*.go` 文件与 PG lease proof command 仍作为 migration artifact 存在。
+- step-level projection 已有首条 chat trajectory 写入；panel/eval 仍需要把
+  `agent_run_steps`、`agent_step_attempts`、`agent_step_results` 作为诊断主线消费。
+- worker autoscaler 尚未落成：需要基于 Temporal task queue metrics、poller
+  health、downstream budget projection 计算 desired replicas，且不得写
+  workflow/run/step/event truth。
 - RAG 还需要接入 durable typed-tool step graph：retrieval/domain typed
   tools、evidence verifier、replan、synthesis、grounding 与 finalization 需要
   成为可审计 step trajectory，而不是只停在 answer-level run event。

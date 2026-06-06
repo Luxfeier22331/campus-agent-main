@@ -147,12 +147,13 @@ supervisor 不负责：
 - Go `execution-control` 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
   admission、bridge circuit breaker、bounded bridge transport retry、metrics、OTel seam
   与 execution audit backflow
-- 当前已经具备 PG-backed run-level durable baseline：durable run store、
-  events、leases、lane budgets、worker heartbeat、lease coordinator、worker
-  loop、recovery loop 与 app-api durable chat cutover。进程内 lifecycle、
-  active count 与 bounded queue 只保留为本进程 runtime protection。当前缺口是
-  step-level durable ledger、role split、multi-lane worker pool、worker
-  autoscaler 与 typed-tool RAG step graph。完整 target 见
+- 当前 active chat execution path 已硬切到 Temporal-backed
+  `execution-control -> ChatAnswerWorkflow`；PG `runtime.agent_runs`、events 与
+  step tables 是 sanitized projection store，不是 execution queue truth。旧 PG
+  lease coordinator / worker loop / recovery loop 只保留为 historical migration artifact。
+  进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection。
+  当前缺口是 Temporal poller proof、worker autoscaler、panel/eval step trajectory
+  consumption 与 typed-tool RAG step graph 全量收口。完整 target 见
   `docs/architecture/system/durable-agent-runtime-architecture.md`
 - Go `execution-control` 已补齐 Go -> Python cooperative cancel signal；Python bridge
   记录 active request id 的 cancel state，默认 supervisor orchestration 已在路由、

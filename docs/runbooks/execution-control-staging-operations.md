@@ -71,20 +71,21 @@ updated: 2026-06-06
 
 以上是当前 `nc-arm-6c` staging host 特定形态，不代表 production substrate。
 
-当前 staging durable runtime 口径：
+当前 staging execution runtime 口径：
 
-- staging 必须证明 run-level durable baseline：durable store、worker loop、
-  recovery loop 与 app-api durable chat cutover ready。
-- staging 还不是 Temporal execution plane：当前仍是 PG-backed run-level durable
-  baseline + execution-control / supervisor-agent-worker Docker runtime。
+- staging 必须证明 Temporal-backed execution path、run projection store、
+  workflow worker、RAG activity worker、finalization activity worker 与 app-api
+  execution runtime ready。
+- staging 不再使用 PG lease worker loop / recovery loop 作为 online serving path；旧 lease
+  表只允许作为 historical migration artifact 存在。
 - `execution-control-control`、`supervisor-scheduler`、`supervisor-recovery`、
   `supervisor-worker-{lane}` 与 `worker-autoscaler` 是 ADR-0047 时代的历史 target role
   label；target execution substrate 已由 ADR-0048 收口为
   `execution-control` + Temporal workflow/activity worker pools。
-- staging 的 Docker Compose / systemd / Cloudflare tunnel 只负责部署与连接；不拥有 run queue、
-  step queue、execution lease、event 或 terminal truth。
+- staging 的 Docker Compose / systemd / Cloudflare tunnel 只负责部署与连接；不拥有 workflow
+  history、task queue、run projection、event 或 terminal truth。
 - Redis 不参与 canonical execution queue。若以后用于 wakeup / fanout / cache，丢失或重启不得影响
-  durable run / step / lease / event truth。
+  execution workflow / run projection / step projection / event truth。
 
 ## 安装与重装
 
@@ -181,7 +182,7 @@ Compose。
   runtime/tunnel/public readiness，不要求持有 tunnel deployment secret。
 - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>`
 - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
-- `EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL=<durable runtime Postgres URL>`；
+- `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=<run projection Postgres URL>`；
   这是 execution projection store 的显式 URL，不从 `STAGING_INGESTION_SHARED_POSTGRES_URL`、
   `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL`、root `.env` 或
   `apps/app-api/.dev.vars` 推断。同机 self-hosted Postgres 场景通常写
@@ -193,6 +194,9 @@ Compose。
   - `EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging`
   - `EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow`
   - `EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=<workflow id salt>`
   - `EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000`
   缺任一 Temporal 必填配置时，lifecycle 必须 fail closed。
@@ -211,7 +215,7 @@ supervisor lifecycle 不会从 root `.env`、`apps/app-api/.dev.vars` 或
 generic `EMBEDDING_*` / `SPARSE_*` 不能替代 staging 的
 `STAGING_INGESTION_EMBEDDING_*` / `STAGING_INGESTION_SPARSE_*`。
 generic `CAMPUS_SHARED_POSTGRES_URL` 也不能替代
-`EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL`；durable run truth 必须有自己的
+`EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`；run projection store 必须有自己的
 显式配置入口。
 
 Cloudflare R2 staging object store 固定为：
@@ -267,24 +271,24 @@ systemctl --no-pager --full status cloudflared-execution-control-staging.service
 
 ### 4. 启动 execution runtime
 
-启动脚本会在 Docker Compose runtime 启动前完成 durable schema install/check：
+启动脚本会在 Docker Compose runtime 启动前完成 run projection schema install/check：
 
 - `infra/local/staging/start-execution-control-staging.sh` 先完成 env projection、
   Docker data-plane readiness 与 self-hosted dependency readiness，再执行
-  `execution_control_staging_ensure_durable_runtime_schema`
+  `execution_control_staging_ensure_run_projection_store_schema`
 - schema 命令入口是
-  `apps/execution-control/cmd/durable-runtime-schema`
-- `install` 模式调用 durable Postgres store `EnsureSchema` 后执行 `HealthCheck`
+  `apps/execution-control/cmd/run-projection-schema`
+- `install` 模式调用 run projection Postgres store `EnsureSchema` 后执行 `HealthCheck`
 - `check` 模式只执行 `HealthCheck`
-- 两个模式都通过 `EXECUTION_CONTROL_DURABLE_RUNTIME_DOCKER_DATABASE_URL` 访问容器侧
-  durable store，不从 generic Postgres env 推断
+- 两个模式都通过 `EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL` 访问容器侧
+  projection store，不从 generic Postgres env 推断
 - evidence 固定写入
   `${EXECUTION_CONTROL_STAGING_RUNTIME_DIR:-.tmp/execution-control-staging}/evidence/`
   下的：
-  - `durable-runtime-schema-install.json`
-  - `durable-runtime-schema-check.json`
+  - `run-projection-schema-install.json`
+  - `run-projection-schema-check.json`
 
-schema install/check 任一失败时启动直接失败；不要用 durable proof command 代替 schema
+schema install/check 任一失败时启动直接失败；不要用 proof command 代替 schema
 安装。
 
 ```bash
@@ -309,28 +313,28 @@ infra/local/staging/status-execution-control-staging.sh --check
 
 `--check` 通过标准：
 
-- `otel-collector`、`execution-control` 与
+- `otel-collector`、`execution-control`、`workflow-worker`、
+  `activity-worker-rag`、`activity-worker-finalization` 与
   `supervisor-agent-worker` 都在当前 compose project 中运行
 - `cloudflared-execution-control-staging.service` 处于 active/running，且 Cloudflare
   tunnel status 为 healthy
 - 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
   且 payload 明确报告：
-  - `durable_runtime.configured=true`
-  - `durable_runtime.healthy=true`
+  - `run_projection_store.configured=true`
+  - `run_projection_store.healthy=true`
   - `temporal_runtime.configured=true`
   - `temporal_runtime.healthy=true`
-  - `temporal_runtime.workers.started=true`
   - `temporal_runtime.namespace=campus-agent-staging`
   - `temporal_runtime.task_queue=campus-agent.workflow`
 - 本地 `<http://127.0.0.1:27051/metrics`> 带 bearer token 返回 `200`
 - `<https://api-staging.mucwiki-edge.link/readyz`> 返回 `200`
-- `api-staging` 的 `auth`、`database`、`executionControl` 与 `durableRuntime`
+- `api-staging` 的 `auth`、`database`、`executionControl` 与 `executionRuntime`
   都是 `ready`
 
-当前 strict check 证明的是 Temporal execution plane + projection store readiness；它不等于
-multi-lane worker pool 或 worker autoscaler 已完成。上线证据需要另行记录这些目标角色的部署与
-step ledger projection。
+当前 strict check 证明的是 Temporal execution plane + projection store + split
+worker process readiness；它不等于 worker autoscaler 已完成。上线证据需要另行
+记录 autoscaler proof 与 step trajectory projection。
 
 补充约束：
 
@@ -629,26 +633,14 @@ PATH=/home/deploy/.local/bin:/usr/local/bin:/usr/bin:/bin \
 `schema_ready=true`、`store=postgres`。schema evidence 来自启动脚本，不来自 proof：
 
 ```bash
-jq . .tmp/execution-control-staging/evidence/durable-runtime-schema-install.json
-jq . .tmp/execution-control-staging/evidence/durable-runtime-schema-check.json
+jq . .tmp/execution-control-staging/evidence/run-projection-schema-install.json
+jq . .tmp/execution-control-staging/evidence/run-projection-schema-check.json
 ```
 
-在把 Temporal execution runtime 标记为 staging-ready 前，对当前 projection store 运行
-repo-owned proof command。该命令只创建 `proof-*` exact-prefix artifacts，验证完成后删除自己的
-proof projection rows。
-
-```bash
-cd apps/execution-control
-evidence_dir="../../var/staging-evidence/<timestamp>"
-go run ./cmd/durable-runtime-proof \
-  --database-url "$EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL" \
-  --evidence-path "$evidence_dir/postgres-durable-runtime-proof.json" \
-  --prefix "proof-$(date -u +%Y%m%dT%H%M%SZ)"
-```
-
-再对当前 deployed execution-control HTTP runtime 运行 repo-owned Temporal-ready proof。该命令
+在把 Temporal execution runtime 标记为 staging-ready 前，对当前 deployed
+execution-control HTTP runtime 运行 repo-owned Temporal-ready proof。该命令
 只读取 `/readyz`，并要求 deployed payload 明确报告 projection store healthy、Temporal runtime
-healthy、worker pollers started：
+healthy：
 
 ```bash
 execution_control_url="${STAGING_EXECUTION_CONTROL_BASE_URL:-http://127.0.0.1:27051}"
@@ -674,17 +666,16 @@ reconnect；它只能作为 execution runtime substrate evidence，不能替代
 通过标准：
 
 - `passed=true`
-- HTTP proof 的 `readyz.durable_runtime.configured=true`
-- HTTP proof 的 `readyz.durable_runtime.healthy=true`
+- HTTP proof 的 `readyz.run_projection_store.configured=true`
+- HTTP proof 的 `readyz.run_projection_store.healthy=true`
 - HTTP proof 的 `readyz.temporal_runtime.configured=true`
 - HTTP proof 的 `readyz.temporal_runtime.healthy=true`
-- HTTP proof 的 `readyz.temporal_runtime.workers.started=true`
 
 该 proof 只证明 projection store / Temporal runtime 的生产不变量；它不能安装 schema，也不能替代真实
 deployed `chat-staging -> app-api-staging -> execution-control -> Temporal workflow/activity`
 reconnect evidence。`status-execution-control-staging.sh --check` 现在会显式拒绝
-projection store 或 Temporal workers 未 ready 的 execution-control readyz，也会拒绝
-`api-staging /readyz` 中 `dependencies.durableRuntime` 不是 `ready` 的状态。该 gate 只防止
+projection store 或 Temporal runtime 未 ready 的 execution-control readyz，也会拒绝
+`api-staging /readyz` 中 `dependencies.executionRuntime` 不是 `ready` 的状态。该 gate 只防止
 readiness 假绿；`pnpm --dir apps/app-api chat:durable:e2e:staging` 仍必须通过，且
 `request.accepted` 必须包含 durable `runId` 与 `runPhase`。
 

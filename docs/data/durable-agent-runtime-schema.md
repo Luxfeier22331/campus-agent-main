@@ -38,18 +38,22 @@ updated: 2026-06-06
 原因：
 
 - app-api 已拥有 `runtime.request_execution` 与 `runtime.projection_outbox`
-- durable run 是 product/runtime execution truth，不属于 `chat.*`
-- worker lease 与 scheduler truth 属于 runtime，而不是 `operator.*` read model
+- run projection 是 product/runtime projection truth，不属于 `chat.*`
+- worker lease 与 scheduler truth 已由 Temporal Task Queue / Activity policy 承接；
+  PG lease rows 只保留为 historical migration artifact
 
 ## Table Overview
 
-目标 logical tables：
+active product projection tables：
 
 - `runtime.agent_runs`
 - `runtime.agent_run_steps`
 - `runtime.agent_step_attempts`
 - `runtime.agent_step_results`
 - `runtime.agent_run_events`
+
+historical PG lease artifact tables：
+
 - `runtime.execution_leases`
 - `runtime.lane_budgets`
 - `runtime.worker_heartbeats`
@@ -82,12 +86,12 @@ target queue model：
 - worker polling
 - Temporal retry / timeout / heartbeat semantics
 
-current PG baseline queue 继续由 PG durable rows 表达：
+retired PG baseline queue 曾由 PG durable rows 表达：
 
 - run-level queue：`runtime.agent_runs.status='queued'`
 - step-level queue：`runtime.agent_run_steps.status='queued'`
 
-current baseline 消费规则：
+retired baseline 消费规则：
 
 - scheduler 使用 `FOR UPDATE SKIP LOCKED` 读取候选 queued rows
 - scheduler 在同一事务中检查 lane budget、worker readiness、dependency state 与 downstream
@@ -363,11 +367,11 @@ current baseline 消费规则：
 
 用途：
 
-- current PG baseline durable execution lease truth
+- historical PG baseline durable execution lease artifact
 
 target architecture 中 Temporal task queue / activity heartbeat / timeout 替代
-execution lease 作为 canonical dispatch substrate；本表只保留为 current baseline /
-migration projection。
+execution lease 作为 canonical dispatch substrate；本表只保留为 migration artifact，不参与
+online serving。
 
 最小列：
 
@@ -402,9 +406,9 @@ migration projection。
 - `expired`
 - `revoked`
 
-规则：
+历史规则：
 
-- worker 只有持有 `leased` 且未过期的 lease 才能执行
+- retired PG worker 只有持有 `leased` 且未过期的 lease 才能执行
 - lease heartbeat 必须更新 `heartbeat_at` 与可选 `expires_at`
 - lease expiry 由 scheduler 判断并写 terminal event / retry event；未达到显式
   retry 上限时，同一 run 可以回到 `queued`，下一条 lease 必须写递增后的
@@ -533,9 +537,9 @@ operator-facing read model 不直接读取 scheduler internals。
 
 ## Migration Boundary
 
-本文冻结 logical schema。当前 merged truth 已具备 PG-backed run-level durable
-baseline；target architecture 接受 Temporal 作为 canonical execution plane。
-step-level tables 在目标形态中是 product / panel / eval projection truth，不能用
+本文冻结 logical schema。当前 active serving path 使用 Temporal 作为 canonical execution
+plane；PG-backed run-level durable baseline 仅保留为 historical migration artifact。
+step-level tables 是 product / panel / eval projection truth，不能用
 Temporal raw history、runtime event 字符串或 provider trace 代替。
 
 实现必须遵守：

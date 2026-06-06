@@ -231,12 +231,12 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 - `apps/execution-control`
   - 当前 execution ingress
-  - 当前已具备 PG-backed run-level durable baseline：run store、events、
-    leases、lane budgets、worker heartbeat、worker loop、recovery loop、cancel /
-    timeout / recovery 与 app-api durable chat cutover
+  - 当前 active chat execution path 已硬切到 Temporal-backed
+    `ChatAnswerWorkflow`；run store、events 与 step ledger 是 app-api / panel /
+    eval 消费的 sanitized projection store
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
-    current baseline execution truth 在 durable run / event / lease store 中；target
-    execution substrate 已收口为 Temporal execution plane
+    canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store
+    只保留为 historical migration artifact
 - Python `apps/supervisor-agent-worker`
   - private orchestration bridge worker
   - 负责消费 Go 已投影的 private bridge request，并通过 worker 内部
