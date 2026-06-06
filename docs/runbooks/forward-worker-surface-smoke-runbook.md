@@ -170,7 +170,8 @@ profile 语义：
   `http://127.0.0.1:27011 -> service binding app-api -> http://127.0.0.1:27051`
   执行真实 public/chat 请求
 - `staging`：部署验收 profile，默认使用 `chat-staging` /
-  `api-staging` / `exec-staging`
+  `api-staging`；execution-control 只作为 app-api trusted machine upstream，不作为
+  public smoke surface
 - `local-real-provider`：复用 `dev` 的 public/chat 产品路径编排，但强制启用
   `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=true` 并默认使用真实
   `PROMPT_RUNTIME_PROVIDER=openai-responses`。它用于验证

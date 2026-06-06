@@ -54,11 +54,11 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn('"EXECUTION_CONTROL_OTEL_ENABLED"', env_script)
         self.assertIn('"SUPERVISOR_AGENT_WORKER_OTEL_ENABLED"', env_script)
         self.assertIn(".env.staging.local", env_script)
-        self.assertIn('"EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN"', env_script)
-        self.assertIn("remote-managed execution-control-staging tunnel", env_script)
+        self.assertNotIn('"EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN"', env_script)
+        self.assertNotIn("remote-managed execution-control-staging tunnel", env_script)
         self.assertIn("execution_control_staging_require_runtime_env_core", env_script)
         self.assertIn("execution_control_staging_require_status_env", env_script)
-        self.assertIn("execution_control_staging_require_tunnel_token", env_script)
+        self.assertNotIn("execution_control_staging_require_tunnel_token", env_script)
         self.assertIn("execution_control_staging_require_observability_sink_env", env_script)
         self.assertIn("execution_control_staging_require_local_temporal_proof_env", env_script)
         self.assertIn(
@@ -261,10 +261,33 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn(
             'echo "  ${execution_control_staging_otel_collector_log_file}"', status_script
         )
-        self.assertIn("TUNNEL_TOKEN=", start_script)
+        self.assertNotIn("TUNNEL_TOKEN=", start_script)
+        self.assertNotIn("cloudflared", start_script)
+        self.assertNotIn("cloudflared", status_script)
         self.assertNotIn("--config", start_script)
         self.assertNotIn("execution-control-staging-placeholder", start_script)
         self.assertNotIn("execution-control-staging-placeholder", status_script)
+
+    def test_machine_ingress_contract_replaces_exec_staging_tunnel_surface(self) -> None:
+        env_example = (ROOT / ".env.staging.local.example").read_text(encoding="utf-8")
+        common_script = (STAGING_DIR / "execution-control-staging-common.sh").read_text(
+            encoding="utf-8"
+        )
+        task_script = (STAGING_DIR / "install-execution-control-staging-task.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            "STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.internal.mucwiki-edge.link",
+            env_example,
+        )
+        self.assertNotIn("EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN", env_example)
+        self.assertNotIn("TUNNEL_TOKEN", env_example)
+        self.assertNotIn("exec-staging.mucwiki-edge.link", env_example)
+        self.assertNotIn("exec-staging.mucwiki-edge.link", common_script)
+        self.assertNotIn("EXECUTION_CONTROL_STAGING_PUBLIC_BASE_URL", common_script)
+        self.assertNotIn("EXECUTION_CONTROL_STAGING_TUNNEL_NAME", task_script)
+        self.assertNotIn("EXECUTION_CONTROL_STAGING_PUBLIC_BASE_URL", task_script)
 
 
 if __name__ == "__main__":

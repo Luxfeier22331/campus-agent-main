@@ -6,8 +6,6 @@ execution_control_staging_repo_root="$(cd "${execution_control_staging_script_di
 execution_control_staging_runtime_dir="${EXECUTION_CONTROL_STAGING_RUNTIME_DIR:-${execution_control_staging_repo_root}/.tmp/execution-control-staging}"
 execution_control_staging_log_dir="${execution_control_staging_runtime_dir}/logs"
 execution_control_staging_lock_file="${execution_control_staging_runtime_dir}/lifecycle.lock"
-execution_control_staging_cloudflared_pid_file="${execution_control_staging_runtime_dir}/cloudflared.pid"
-execution_control_staging_cloudflared_log_file="${execution_control_staging_log_dir}/cloudflared.log"
 execution_control_staging_execution_control_log_file="${execution_control_staging_log_dir}/execution-control.log"
 execution_control_staging_supervisor_agent_worker_log_file="${execution_control_staging_log_dir}/supervisor-agent-worker.log"
 execution_control_staging_otel_collector_log_file="${execution_control_staging_log_dir}/otel-collector.log"
@@ -23,14 +21,9 @@ execution_control_staging_minio_compose_file="${EXECUTION_CONTROL_STAGING_MINIO_
 execution_control_staging_minio_compose_project_name="${EXECUTION_CONTROL_STAGING_MINIO_COMPOSE_PROJECT_NAME:-campus-agent-local}"
 execution_control_staging_qdrant_compose_file="${EXECUTION_CONTROL_STAGING_QDRANT_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.qdrant-single-node.yml}"
 execution_control_staging_qdrant_compose_project_name="${EXECUTION_CONTROL_STAGING_QDRANT_COMPOSE_PROJECT_NAME:-local}"
-execution_control_staging_tunnel_name="${EXECUTION_CONTROL_STAGING_TUNNEL_NAME:-execution-control-staging}"
-execution_control_staging_public_base_url="${EXECUTION_CONTROL_STAGING_PUBLIC_BASE_URL:-https://exec-staging.mucwiki-edge.link}"
 execution_control_staging_app_api_base_url="${EXECUTION_CONTROL_STAGING_APP_API_BASE_URL:-https://api-staging.mucwiki-edge.link}"
-execution_control_staging_cloudflared_metrics_address="${EXECUTION_CONTROL_STAGING_CLOUDFLARED_METRICS_ADDRESS:-127.0.0.1:20245}"
-execution_control_staging_cloudflared_edge_ip_version="${EXECUTION_CONTROL_STAGING_CLOUDFLARED_EDGE_IP_VERSION:-4}"
 execution_control_staging_data_plane_network="${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}"
 execution_control_staging_lock_wait_seconds="${EXECUTION_CONTROL_STAGING_LOCK_WAIT_SECONDS:-180}"
-execution_control_staging_cloudflared_match_pattern="${EXECUTION_CONTROL_STAGING_CLOUDFLARED_MATCH_PATTERN:-cloudflared tunnel .* run}"
 execution_control_staging_log_rotate_max_bytes=$((20 * 1024 * 1024))
 execution_control_staging_log_rotate_keep_count=5
 
@@ -48,8 +41,6 @@ execution_control_staging_refresh_runtime_topology_from_env() {
   execution_control_staging_runtime_dir="${EXECUTION_CONTROL_STAGING_RUNTIME_DIR:-${execution_control_staging_repo_root}/.tmp/execution-control-staging}"
   execution_control_staging_log_dir="${execution_control_staging_runtime_dir}/logs"
   execution_control_staging_lock_file="${execution_control_staging_runtime_dir}/lifecycle.lock"
-  execution_control_staging_cloudflared_pid_file="${execution_control_staging_runtime_dir}/cloudflared.pid"
-  execution_control_staging_cloudflared_log_file="${execution_control_staging_log_dir}/cloudflared.log"
   execution_control_staging_execution_control_log_file="${execution_control_staging_log_dir}/execution-control.log"
   execution_control_staging_supervisor_agent_worker_log_file="${execution_control_staging_log_dir}/supervisor-agent-worker.log"
   execution_control_staging_otel_collector_log_file="${execution_control_staging_log_dir}/otel-collector.log"
@@ -67,8 +58,6 @@ execution_control_staging_runtime_globals_declared() {
   : "${execution_control_staging_runtime_dir}" \
     "${execution_control_staging_log_dir}" \
     "${execution_control_staging_lock_file}" \
-    "${execution_control_staging_cloudflared_pid_file}" \
-    "${execution_control_staging_cloudflared_log_file}" \
     "${execution_control_staging_execution_control_log_file}" \
     "${execution_control_staging_supervisor_agent_worker_log_file}" \
     "${execution_control_staging_otel_collector_log_file}" \
@@ -77,13 +66,8 @@ execution_control_staging_runtime_globals_declared() {
     "${execution_control_staging_port}" \
     "${execution_control_staging_compose_file}" \
     "${execution_control_staging_compose_project_name}" \
-    "${execution_control_staging_tunnel_name}" \
-    "${execution_control_staging_public_base_url}" \
     "${execution_control_staging_app_api_base_url}" \
-    "${execution_control_staging_cloudflared_metrics_address}" \
-    "${execution_control_staging_cloudflared_edge_ip_version}" \
     "${execution_control_staging_lock_wait_seconds}" \
-    "${execution_control_staging_cloudflared_match_pattern}" \
     "${execution_control_staging_log_rotate_max_bytes}" \
     "${execution_control_staging_log_rotate_keep_count}" \
     "${execution_control_staging_local_healthz_url}" \

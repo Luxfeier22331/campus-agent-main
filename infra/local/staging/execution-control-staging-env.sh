@@ -141,7 +141,6 @@ const keys = [
   "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME",
   "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
   "EXECUTION_CONTROL_STAGING_PORT",
-  "EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN",
 ];
 
 function projectLoopbackUrlHost(value, dockerHost, dockerPort) {
@@ -711,7 +710,6 @@ NODE
 execution_control_staging_require_runtime_env() {
   execution_control_staging_require_canonical_runtime_topology
   execution_control_staging_require_runtime_env_core
-  execution_control_staging_require_tunnel_token
   execution_control_staging_validate_axiom_collector_endpoint
 }
 
@@ -719,13 +717,6 @@ execution_control_staging_require_status_env() {
   execution_control_staging_require_canonical_runtime_topology
   execution_control_staging_require_runtime_env_core
   execution_control_staging_validate_axiom_collector_endpoint
-}
-
-execution_control_staging_require_tunnel_token() {
-  if [[ -z "${EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:-}}" ]]; then
-    echo "EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN is required for the remote-managed execution-control-staging tunnel." >&2
-    return 1
-  fi
 }
 
 execution_control_staging_require_local_temporal_proof_env() {

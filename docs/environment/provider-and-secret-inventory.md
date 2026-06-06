@@ -189,15 +189,17 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   Application Audience (AUD) Tag
 
 - Provider / system: Execution Control staging operator shell
-  作用: 这台开发机上的 staging named tunnel、execution-control 双容器 runtime、自愈任务与 strict
-  health check
-  主要 env keys: `EXECUTION_CONTROL_STAGING_TUNNEL_NAME`
-  `EXECUTION_CONTROL_STAGING_PUBLIC_BASE_URL`
+  作用: staging execution-control Docker runtime、machine ingress reverse proxy
+  contract、自愈任务与 strict health check
+  主要 env keys: `STAGING_EXECUTION_CONTROL_BASE_URL`
+  `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID`
+  `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
   `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL`
   `SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET`
   放置位置: operator shell / Windows scheduled task action
   何时必需: 当前 canonical staging execution runtime 需要
-  获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写
+  获取方式: `.env.staging.local` 写入 ignored secret；machine ingress 固定为
+  `execution-control-staging.internal.mucwiki-edge.link`
 
 - Provider / system: Supervisor local runtime command template
   作用: 本地 Docker 双容器 `execution-control` runtime 的 command-scoped override

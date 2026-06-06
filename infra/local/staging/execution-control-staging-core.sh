@@ -237,7 +237,6 @@ execution_control_staging_rotate_log_file_if_needed() {
 }
 
 execution_control_staging_rotate_logs_if_needed() {
-  execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_cloudflared_log_file}"
   execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_execution_control_log_file}"
   execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_supervisor_agent_worker_log_file}"
   execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_otel_collector_log_file}"

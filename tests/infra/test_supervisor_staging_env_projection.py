@@ -40,7 +40,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -129,7 +128,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_STAGING_RUNTIME_DIR=.tmp/execution-control-durable-staging
                 EXECUTION_CONTROL_STAGING_PORT=27061
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -190,7 +188,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 EXECUTION_CONTROL_STAGING_UV_BIN=/opt/campus/bin/uv
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
@@ -293,7 +290,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -335,7 +331,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -385,7 +380,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -420,7 +414,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
                 STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -465,7 +458,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -508,7 +500,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -608,7 +599,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -651,7 +641,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -691,7 +680,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -728,7 +716,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -766,7 +753,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret

@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 $principalUserId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $logonUser = $principalUserId.Split("\")[-1]
 $wslExecutable = Join-Path $env:SystemRoot "System32\wsl.exe"
-$bashCommand = "cd '$RepoPath' && export EXECUTION_CONTROL_STAGING_PORT='27051' && export EXECUTION_CONTROL_STAGING_TUNNEL_NAME='execution-control-staging' && export EXECUTION_CONTROL_STAGING_PUBLIC_BASE_URL='https://exec-staging.mucwiki-edge.link' && export EXECUTION_CONTROL_STAGING_APP_API_BASE_URL='https://api-staging.mucwiki-edge.link' && ./infra/local/staging/start-execution-control-staging.sh"
+$bashCommand = "cd '$RepoPath' && export EXECUTION_CONTROL_STAGING_PORT='27051' && export EXECUTION_CONTROL_STAGING_APP_API_BASE_URL='https://api-staging.mucwiki-edge.link' && ./infra/local/staging/start-execution-control-staging.sh"
 $actionArguments = "-d $WslDistroName -u $LinuxUser -- bash -lc `"$bashCommand`""
 
 $action = New-ScheduledTaskAction -Execute $wslExecutable -Argument $actionArguments

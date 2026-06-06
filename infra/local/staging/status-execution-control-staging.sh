@@ -27,15 +27,9 @@ if (( strict_mode == 1 )); then
   execution_control_staging_require_status_env
   execution_control_staging_require_data_plane_ready
 fi
-execution_control_staging_adopt_existing_process \
-  "cloudflared" \
-  "${execution_control_staging_cloudflared_pid_file}" \
-  "${execution_control_staging_cloudflared_match_pattern}" || true
 execution_control_staging_capture_compose_logs
 
 if (( strict_mode == 0 )); then
-  execution_control_staging_print_process_status "cloudflared" "${execution_control_staging_cloudflared_pid_file}" || true
-  echo
   echo "docker compose project: ${execution_control_staging_compose_project_name}"
   execution_control_staging_compose ps || true
 
@@ -67,7 +61,6 @@ if (( strict_mode == 0 )); then
   echo "  ${execution_control_staging_otel_collector_recent_log_file}"
   echo "  ${execution_control_staging_execution_control_log_file}"
   echo "  ${execution_control_staging_supervisor_agent_worker_log_file}"
-  echo "  ${execution_control_staging_cloudflared_log_file}"
   exit 0
 fi
 
@@ -83,10 +76,6 @@ if ! execution_control_staging_compose_project_running; then
   failures+=("execution-control compose project is not fully running")
 elif ! execution_control_staging_require_container_qdrant_ready; then
   failures+=("supervisor-agent-worker cannot reach Qdrant through container data-plane network")
-fi
-
-if [[ -n "${execution_control_staging_public_base_url}" ]] && ! execution_control_staging_pid_is_running "${execution_control_staging_cloudflared_pid_file}"; then
-  failures+=("cloudflared process is not running")
 fi
 
 local_healthz_status="$(

@@ -18,7 +18,9 @@ class DoctorEnvStagingTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_EXECUTION_CONTROL_BASE_URL": "https://supervisor-staging.example.com",
+                    "STAGING_EXECUTION_CONTROL_BASE_URL": "https://execution-control-staging.internal.mucwiki-edge.link",
+                    "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID": "execution-control-access-client-id",
+                    "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET": "execution-control-access-client-secret",
                     "STAGING_ACCESS_TEAM_DOMAIN": "https://mucwiki-edge.cloudflareaccess.com",
                     "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
                 },
@@ -41,7 +43,9 @@ class DoctorEnvStagingTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_EXECUTION_CONTROL_BASE_URL": "https://supervisor-staging.example.com",
+                    "STAGING_EXECUTION_CONTROL_BASE_URL": "https://execution-control-staging.internal.mucwiki-edge.link",
+                    "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID": "execution-control-access-client-id",
+                    "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET": "execution-control-access-client-secret",
                 },
                 clear=True,
             ):
@@ -52,6 +56,16 @@ class DoctorEnvStagingTest(unittest.TestCase):
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
                 status["settings"]["required"]["staging_execution_control_base_url"]["present"]
+            )
+            self.assertTrue(
+                status["settings"]["required"][
+                    "staging_execution_control_access_client_id"
+                ]["present"]
+            )
+            self.assertTrue(
+                status["settings"]["required"][
+                    "staging_execution_control_access_client_secret"
+                ]["present"]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 

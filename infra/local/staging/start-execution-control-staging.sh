@@ -17,13 +17,6 @@ execution_control_staging_ensure_self_hosted_data_plane_dependencies
 execution_control_staging_require_data_plane_ready
 execution_control_staging_ensure_run_projection_store_schema
 
-cloudflared_bin="$(execution_control_staging_require_command cloudflared)"
-
-execution_control_staging_adopt_existing_process \
-  "cloudflared" \
-  "${execution_control_staging_cloudflared_pid_file}" \
-  "${execution_control_staging_cloudflared_match_pattern}" || true
-
 if execution_control_staging_compose_project_running; then
   echo "execution-control staging runtime already running (${execution_control_staging_compose_project_name})"
 else
@@ -48,31 +41,6 @@ execution_control_staging_wait_for_http_ok \
 execution_control_staging_capture_compose_logs
 execution_control_staging_require_container_qdrant_ready
 
-if execution_control_staging_pid_is_running "${execution_control_staging_cloudflared_pid_file}"; then
-  echo "cloudflared already running (pid $(execution_control_staging_read_pid "${execution_control_staging_cloudflared_pid_file}"))"
-else
-  setsid -f env \
-    "TUNNEL_TOKEN=${EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:?EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN is required}}" \
-    -u HTTP_PROXY \
-    -u HTTPS_PROXY \
-    -u ALL_PROXY \
-    -u http_proxy \
-    -u https_proxy \
-    -u all_proxy \
-    "${cloudflared_bin}" tunnel \
-    --no-autoupdate \
-    --edge-ip-version "${execution_control_staging_cloudflared_edge_ip_version}" \
-    --metrics "${execution_control_staging_cloudflared_metrics_address}" \
-    run \
-    9>&- \
-    >>"${execution_control_staging_cloudflared_log_file}" 2>&1
-fi
-
-execution_control_staging_adopt_existing_process \
-  "cloudflared" \
-  "${execution_control_staging_cloudflared_pid_file}" \
-  "${execution_control_staging_cloudflared_match_pattern}" >/dev/null
-
 if [[ -n "${execution_control_staging_app_api_readyz_url}" ]]; then
   execution_control_staging_wait_for_http_ok "${execution_control_staging_app_api_readyz_url}" 30 2
 fi
@@ -90,4 +58,3 @@ echo "  ${execution_control_staging_otel_collector_log_file}"
 echo "  ${execution_control_staging_otel_collector_recent_log_file}"
 echo "  ${execution_control_staging_execution_control_log_file}"
 echo "  ${execution_control_staging_supervisor_agent_worker_log_file}"
-echo "  ${execution_control_staging_cloudflared_log_file}"

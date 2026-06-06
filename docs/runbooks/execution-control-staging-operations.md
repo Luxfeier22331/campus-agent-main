@@ -12,8 +12,12 @@ updated: 2026-06-06
 
 - 当前 repo-owned staging execution runtime 是
   `otel-collector + execution-control + supervisor-agent-worker` 三容器
-- `exec-staging.mucwiki-edge.link` 通过 Cloudflare remote-managed named tunnel 指向
-  `nc-arm-6c` 上的本地 `execution-control` runtime
+- `execution-control` 不作为 public staging surface 存在；用户、浏览器、panel、docs
+  与 chat 只进入 browser surface 或 `app-api`
+- `execution-control` 是 app-api-only trusted machine upstream。当前 machine
+  ingress 是 `https://execution-control-staging.internal.mucwiki-edge.link`，由
+  Cloudflare proxied DNS、Cloudflare Access service-token policy 与 VM origin
+  reverse proxy 承接
 
 它不覆盖 browser smoke 证据采集；那部分统一看
 `execution-control-staging-smoke-runbook.md`。
@@ -24,6 +28,8 @@ updated: 2026-06-06
 
 - `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
+- `app-api` 是唯一 product/API gateway；`execution-control` 不进入用户可见 endpoint
+  list，也不作为 QA public endpoint
 - 当前 repo-owned staging execution runtime：
   - `infra/local/docker-compose.execution-control-runtime.yml`
   - `otel-collector`
@@ -50,22 +56,18 @@ updated: 2026-06-06
     - dedicated Temporal Postgres persistence / visibility store
   - `temporal-ui`
     - local-only operator UI
-- named tunnel：
-  - tunnel name: `execution-control-staging`
-  - tunnel id: `7d0db8a7-53bd-417d-8028-548c35c8e30e`
-  - public hostname: `<https://exec-staging.mucwiki-edge.link`>
-  - Cloudflare remote config 必须把该 hostname 指到 connector 本机
-    `http://127.0.0.1:27051`
-  - DNS record:
-    `exec-staging.mucwiki-edge.link CNAME 7d0db8a7-53bd-417d-8028-548c35c8e30e.cfargotunnel.com`,
-    proxied
+- machine ingress：
+  - hostname: `execution-control-staging.internal.mucwiki-edge.link`
+  - Cloudflare DNS: proxied A/AAAA/CNAME 指向 staging VM
+  - Cloudflare Access application: only service-token policy
+  - VM reverse proxy: `443` -> `127.0.0.1:27051`
+  - app-api 调用时同时带 Cloudflare Access service token 与
+    `x-worker-origin-auth` shared secret；两者缺任一都必须 fail closed
 - shared staging `app-api`：
   - `<https://api-staging.mucwiki-edge.link`>
 - canonical staging host：`nc-arm-6c`, repo path `/srv/apps/campus-agent`
 - 常驻机制：
   - Docker Compose runtime: `infra/local/staging/start-execution-control-staging.sh`
-  - Cloudflare connector: systemd service
-    `cloudflared-execution-control-staging.service`
   - strict health check:
     `infra/local/staging/status-execution-control-staging.sh --check`
   - lifecycle lock: `.tmp/execution-control-staging/lifecycle.lock`
@@ -83,8 +85,9 @@ updated: 2026-06-06
   `supervisor-worker-{lane}` 与 `worker-autoscaler` 是 ADR-0047 时代的历史 target role
   label；target execution substrate 已由 ADR-0048 收口为
   `execution-control` + Temporal workflow/activity worker pools。
-- staging 的 Docker Compose / systemd / Cloudflare tunnel 只负责部署与连接；不拥有 workflow
-  history、task queue、run projection、event 或 terminal truth。
+- staging 的 Docker Compose、origin reverse proxy、Cloudflare DNS 与 Cloudflare Access
+  只负责部署与连接；不拥有 workflow history、task queue、run projection、event 或
+  terminal truth。
 - Redis 不参与 canonical execution queue。若以后用于 wakeup / fanout / cache，丢失或重启不得影响
   execution workflow / run projection / step projection / event truth。
 
@@ -103,11 +106,10 @@ canonical staging lifecycle 固定使用：
 `EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME`、
 `EXECUTION_CONTROL_STAGING_RUNTIME_DIR` 或 `EXECUTION_CONTROL_STAGING_PORT`。普通
 `start/status` 脚本会拒绝被指到 isolated proof runtime，避免
-`exec-staging.mucwiki-edge.link` 指向 `27051` 但生命周期脚本操作另一个 compose
-project。
+machine ingress 指向 `27051` 但生命周期脚本操作另一个 compose project。
 
-如果需要本机 durable proof，使用
-`infra/local/staging/proof-execution-control-durable-runtime-staging.sh`，并在该命令的
+如果需要本机 Temporal proof，使用
+`infra/local/staging/proof-execution-control-temporal-runtime-staging.sh`，并在该命令的
 执行环境中显式设置 isolated project/runtime/port；不要把这些 proof 变量写进
 canonical staging operator secret。
 
@@ -135,7 +137,12 @@ Compose。
 
 `.env.staging.local` 必须包含：
 
-- `STAGING_EXECUTION_CONTROL_BASE_URL=https://exec-staging.mucwiki-edge.link`
+- `STAGING_EXECUTION_CONTROL_BASE_URL`
+  = `https://execution-control-staging.internal.mucwiki-edge.link`
+- `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID`
+  = `<Cloudflare Access service token client id>`
+- `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
+  = `<Cloudflare Access service token client secret>`
 - `STAGING_INGESTION_SHARED_POSTGRES_URL=<staging shared Postgres URL>`；
   如果使用 Supabase，必须是 session pooler `:5432` DSN，并包含 `sslmode=require`
 - `STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=<registry Postgres URL>`；
@@ -177,10 +184,6 @@ Compose。
 - `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
 - `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN=<metrics bearer token>`
-- `EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token>`；只有
-  `start-execution-control-staging.sh` 在启动或接管 cloudflared connector 时需要该
-  token。`status-execution-control-staging.sh --check` 只验证既有
-  runtime/tunnel/public readiness，不要求持有 tunnel deployment secret。
 - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>`
 - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
 - `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=<run projection Postgres URL>`；
@@ -245,30 +248,63 @@ secret 或 `/srv/apps/campus-agent/.env.staging.local`，不得进入 repo。
 `apps/app-api/.dev.vars` 必须包含：
 
 - `EXECUTION_CONTROL_SHARED_SECRET`
+- `EXECUTION_CONTROL_ACCESS_CLIENT_ID`
+- `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
 - `APP_API_INTERNAL_SHARED_SECRET`
 - app-api runtime secrets；retrieval data-plane、object-store 与 supervisor-agent-worker
   query env 不放在这里，统一由 repo-root `.env.staging.local` 的
   `STAGING_INGESTION_*` 投影进入 Compose runtime
 
-### 3. 安装 cloudflared systemd service
+### 3. 配置 machine ingress reverse proxy
 
-在 `nc-arm-6c` 安装 `cloudflared` 到 `/usr/local/bin/cloudflared` 后执行：
+Cloudflare 侧必须配置：
 
-```bash
-cd /srv/apps/campus-agent
-sudo EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN=<Cloudflare tunnel token> \
-  infra/local/staging/install-execution-control-staging-cloudflared-service.sh
+- DNS:
+  `execution-control-staging.internal.mucwiki-edge.link` proxied 到 staging VM
+- Access application:
+  hostname `execution-control-staging.internal.mucwiki-edge.link`
+- Access policy:
+  only service-token allow policy；不允许 anonymous、email domain 或 public bypass
+
+VM 侧使用 Caddy 或 Nginx 监听 `443`，只反代到本机 `127.0.0.1:27051`。
+origin proxy 不直接暴露容器端口；execution-control container 继续只绑定本机 /
+Docker data-plane。
+
+Caddy 示例：
+
+```caddy
+execution-control-staging.internal.mucwiki-edge.link {
+  reverse_proxy 127.0.0.1:27051
+}
 ```
 
-确认：
+未带 Cloudflare Access service token 的请求必须被 Access 拒绝：
+
+```bash
+curl --noproxy '*' -sS -i \
+  https://execution-control-staging.internal.mucwiki-edge.link/readyz
+```
+
+带 service token 与 `x-worker-origin-auth` 的请求应到达本机 execution-control：
+
+```bash
+access_secret="$STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
+curl --noproxy '*' -sS -i \
+  -H "CF-Access-Client-Id: $STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID" \
+  -H "CF-Access-Client-Secret: $access_secret" \
+  -H "x-worker-origin-auth: $EXECUTION_CONTROL_SHARED_SECRET" \
+  https://execution-control-staging.internal.mucwiki-edge.link/readyz
+```
+
+通过标准：
 
 - 非登录 SSH shell 必须能执行 `uv`，或在 `.env.staging.local` 显式设置
   `EXECUTION_CONTROL_STAGING_UV_BIN=/home/deploy/.local/bin/uv`；staging lifecycle
   不会跳过 `doctor_env`。
-
-```bash
-systemctl --no-pager --full status cloudflared-execution-control-staging.service
-```
+- unauthenticated request 被 Cloudflare Access 拒绝
+- authenticated request 返回 `200`
+- payload 中 `run_projection_store` 与 `temporal_runtime` 都是 configured/healthy
+- VM 上没有任何 execution-control 容器端口直接公网裸露
 
 ### 4. 启动 execution runtime
 
@@ -317,8 +353,6 @@ infra/local/staging/status-execution-control-staging.sh --check
 - `otel-collector`、`execution-control`、`workflow-worker`、
   `activity-worker-rag`、`activity-worker-finalization` 与
   `supervisor-agent-worker` 都在当前 compose project 中运行
-- `cloudflared-execution-control-staging.service` 处于 active/running，且 Cloudflare
-  tunnel status 为 healthy
 - 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
   且 payload 明确报告：
@@ -329,6 +363,9 @@ infra/local/staging/status-execution-control-staging.sh --check
   - `temporal_runtime.namespace=campus-agent-staging`
   - `temporal_runtime.task_queue=campus-agent.workflow`
 - 本地 `<http://127.0.0.1:27051/metrics`> 带 bearer token 返回 `200`
+- machine ingress 未带 Access service token 时被 Cloudflare Access 拒绝
+- machine ingress 带 Access service token 与 `x-worker-origin-auth` 时返回
+  authenticated `/readyz 200`
 - `<https://api-staging.mucwiki-edge.link/readyz`> 返回 `200`
 - `api-staging` 的 `auth`、`database`、`executionControl` 与 `executionRuntime`
   都是 `ready`
@@ -373,11 +410,11 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 - staging profile 必须设置 `EXECUTION_CONTROL_METRICS_BEARER_TOKEN`；
   `status-execution-control-staging.sh` 会用该 token 拉取本地 `/metrics`，且不应把
   raw token 写入日志
-- staging profile 下，execution-control full `/readyz` 是内部 runtime probe；
+- staging profile 下，execution-control full `/readyz` 是 trusted machine probe；
   local lifecycle script 使用 `API_WORKER_SHARED_SECRET` 对本地 `/readyz` 加
-  `x-worker-origin-auth`。public deploy / smoke closure 不直接要求
-  `exec-staging.mucwiki-edge.link/readyz`，而是通过 `api-staging /readyz`
-  证明 app-api 已用内部 shared secret 完成 supervisor readiness probe
+  `x-worker-origin-auth`。release QA 不把 execution-control host 列为 public surface；
+  product smoke 通过 `api-staging /readyz` 证明 app-api 已用 Access service token 和内部
+  shared secret 完成 execution-control readiness probe
 - `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有
   admission queue 已不可接收、runtime draining 或 bridge 不健康时才视为 execution
   runtime 不 ready
@@ -471,12 +508,6 @@ runtime。不要在 retrieval/read path 增加 `student_handbook` alias。
   `EXECUTION_CONTROL_STAGING_PREFLIGHT_SKIP_REGISTRY=1` 跳过 registry 检查；这只应作为本机
   环境绕过，不表示 registry 依赖已恢复
 
-systemd 层状态：
-
-```bash
-systemctl --no-pager --full status cloudflared-execution-control-staging.service
-```
-
 ## 冷启动恢复
 
 当前 canonical 冷启动恢复流程：
@@ -484,7 +515,6 @@ systemctl --no-pager --full status cloudflared-execution-control-staging.service
 ```bash
 cd /srv/apps/campus-agent
 infra/local/staging/stop-execution-control-staging.sh
-sudo systemctl restart cloudflared-execution-control-staging.service
 infra/local/staging/start-execution-control-staging.sh
 until infra/local/staging/status-execution-control-staging.sh --check; do \
   sleep 2; done
@@ -492,8 +522,8 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 
 说明：
 
-- `cloudflared` connector 和 Docker Compose runtime 是两个独立常驻单元
-- `status --check` 要同时证明本地 runtime、Cloudflare tunnel 和 shared `app-api`
+- origin reverse proxy 和 Docker Compose runtime 是两个独立常驻单元
+- `status --check` 要同时证明本地 runtime、machine ingress contract 和 shared `app-api`
   readiness
 - 如果旧的 dev-backed runtime 还在运行，必须先停掉 legacy runtime，再启动 canonical
   runtime
@@ -506,7 +536,6 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - `.tmp/execution-control-staging/logs/otel-collector.recent.log`
 - `.tmp/execution-control-staging/logs/execution-control.log`
 - `.tmp/execution-control-staging/logs/supervisor-agent-worker.log`
-- `.tmp/execution-control-staging/logs/cloudflared.log`
 
 轮转规则：
 
@@ -589,14 +618,15 @@ infra/local/staging/stop-execution-control-staging.sh
 infra/local/staging/start-execution-control-staging.sh
 ```
 
-`status --check` 报 `public readyz returned HTTP ...`
+`status --check` 报 machine ingress request 被拒绝或 origin 不可达
 
-- 优先判断 named tunnel connector 是否掉线
-- 用 `systemctl status cloudflared-execution-control-staging.service` 与
-  Cloudflare tunnel status 确认 connector 是否注册成功
-- 如果 systemd 运行但 tunnel 仍 down，确认
-  `/etc/campus-agent/execution-control-staging-cloudflared.env` 中的 `TUNNEL_TOKEN`
-  是否来自当前 `execution-control-staging` tunnel
+- 先确认 Cloudflare DNS record 指向当前 staging VM，且 proxied 状态开启
+- 再确认 Access application 绑定
+  `execution-control-staging.internal.mucwiki-edge.link`，policy 只允许 service token
+- VM 上确认 Caddy/Nginx 正在监听 `443`，并只反代到 `127.0.0.1:27051`
+- 如果未带 Access token 请求返回 `200`，这是 Access policy blocker，不能继续标绿
+- 如果带 Access token 但缺 `x-worker-origin-auth` 返回 `200`，这是 execution-control auth
+  blocker，不能继续标绿
 
 `status --check` 报 `app-api readyz ...`
 
@@ -608,7 +638,10 @@ infra/local/staging/start-execution-control-staging.sh
 curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 ```
 
-- 如果只有 `supervisorApi` 失败，先回到这份 runbook 的冷启动恢复流程
+- 如果只有 `executionControl` 或 `executionRuntime` 失败，先确认 app-api staging
+  已配置 `EXECUTION_CONTROL_ACCESS_CLIENT_ID`、
+  `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET` 与 `EXECUTION_CONTROL_SHARED_SECRET`，
+  再回到这份 runbook 的冷启动恢复流程
 
 ## Durable Runtime Proof
 
@@ -652,7 +685,7 @@ go run ./cmd/temporal-runtime-http-proof \
   --evidence-path "$evidence_dir/execution-control-temporal-http-proof.json"
 ```
 
-如果 Cloudflare tunnel / app-api public deploy token 暂不可用，但需要先证明隔离目录中
+如果 machine ingress / app-api public deploy token 暂不可用，但需要先证明隔离目录中
 本机 execution control runtime 已经具备 projection store、Temporal workers 与 container
 data-plane readiness，可运行 local Temporal proof：
 
@@ -660,7 +693,7 @@ data-plane readiness，可运行 local Temporal proof：
 infra/local/staging/proof-execution-control-temporal-runtime-staging.sh
 ```
 
-该 proof 不检查 `cloudflared`、`api-staging.mucwiki-edge.link/readyz` 或 browser
+该 proof 不检查 machine ingress、`api-staging.mucwiki-edge.link/readyz` 或 browser
 reconnect；它只能作为 execution runtime substrate evidence，不能替代
 `status-execution-control-staging.sh --check` 或
 `pnpm --dir apps/app-api chat:durable:e2e:staging`。

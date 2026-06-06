@@ -34,6 +34,7 @@ async function probeUrl(input) {
 	const response = await fetch(input.url, {
 		headers: {
 			accept: "application/json",
+			...input.headers,
 		},
 		signal: AbortSignal.timeout(10_000),
 	});
@@ -45,17 +46,35 @@ async function probeUrl(input) {
 	}
 }
 
-async function probeSupervisorApiForStagingAppApi() {
+function requireTrimmedEnv(key) {
+	const value = process.env[key]?.trim();
+	if (!value) {
+		fail(`${key} is required for apps/app-api staging preflight.`);
+	}
+	return value;
+}
+
+async function probeExecutionControlForStagingAppApi() {
 	const upstream = process.env.STAGING_EXECUTION_CONTROL_BASE_URL?.trim();
 	if (!upstream) {
 		fail("STAGING_EXECUTION_CONTROL_BASE_URL is required for apps/app-api staging preflight.");
 	}
+	const accessClientId = requireTrimmedEnv("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
+	const accessClientSecret = requireTrimmedEnv("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
 
 	let baseUrl;
 	try {
 		baseUrl = new URL(upstream);
 	} catch {
 		fail("STAGING_EXECUTION_CONTROL_BASE_URL must be a valid absolute URL.");
+	}
+	if (baseUrl.protocol !== "https:") {
+		fail("STAGING_EXECUTION_CONTROL_BASE_URL must use https:// for machine ingress.");
+	}
+	if (baseUrl.hostname !== "execution-control-staging.internal.mucwiki-edge.link") {
+		fail(
+			"STAGING_EXECUTION_CONTROL_BASE_URL must point at execution-control-staging.internal.mucwiki-edge.link.",
+		);
 	}
 
 	baseUrl.pathname = "/";
@@ -68,6 +87,10 @@ async function probeSupervisorApiForStagingAppApi() {
 		await probeUrl({
 			label: `STAGING_EXECUTION_CONTROL_BASE_URL health probe (${healthUrl.toString()})`,
 			url: healthUrl,
+			headers: {
+				"CF-Access-Client-Id": accessClientId,
+				"CF-Access-Client-Secret": accessClientSecret,
+			},
 		});
 	} catch (error) {
 		if (error instanceof Error) {
@@ -204,7 +227,7 @@ async function main() {
 	]);
 
 	if (appPath === "apps/app-api") {
-		await probeSupervisorApiForStagingAppApi();
+		await probeExecutionControlForStagingAppApi();
 	}
 
 	for (const [command, args] of preflight.commands) {

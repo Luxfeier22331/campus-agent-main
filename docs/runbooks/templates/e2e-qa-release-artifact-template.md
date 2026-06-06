@@ -27,9 +27,9 @@ updated: 2026-06-03
   - `chat-staging.mucwiki-edge.link`
   - `docs-staging.mucwiki-edge.link`
   - `panel-staging.mucwiki-edge.link`
-  - `exec-staging.mucwiki-edge.link`
 - Explicitly excluded:
   - `hub.muc.wiki` production custom-hostname path
+  - `execution-control-staging.internal.mucwiki-edge.link` as public surface
 
 ## Repo Preflight
 
@@ -75,10 +75,11 @@ updated: 2026-06-03
   - URL: `https://docs-staging.mucwiki-edge.link/readyz`
   - Result:
   - Evidence file:
-- exec health
-  - URL: `https://exec-staging.mucwiki-edge.link/healthz`
-  - Result:
-  - Evidence file:
+- execution-control machine ingress
+  - Public surface: `no`
+  - Verified by: `status-execution-control-staging.sh --check`
+  - App-api readyz dependency evidence:
+  - Notes:
 
 ## Chat E2E Cases
 

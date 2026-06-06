@@ -50,11 +50,6 @@ stop_process() {
 execution_control_staging_ensure_runtime_dirs
 execution_control_staging_acquire_lock "${execution_control_staging_lock_wait_seconds}"
 execution_control_staging_load_env
-execution_control_staging_adopt_existing_process \
-  "cloudflared" \
-  "${execution_control_staging_cloudflared_pid_file}" \
-  "${execution_control_staging_cloudflared_match_pattern}" || true
 
 execution_control_staging_capture_compose_logs
 execution_control_staging_compose down --remove-orphans || true
-stop_process "cloudflared" "${execution_control_staging_cloudflared_pid_file}"

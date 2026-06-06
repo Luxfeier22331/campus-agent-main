@@ -190,30 +190,32 @@ updated: 2026-05-07
 - 判定 Access provision 完成的标准不是 `panel /readyz = 200`；真实浏览器首次访问必须先经过 Cloudflare
   Access 准入，不能停留在 worker 直接返回 `401 Missing Access JWT.`
 
-### 5. Supervisor upstream
+### 5. Execution-control trusted machine ingress
 
 - `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
-- 当前阶段仍不冻结 `apps/execution-control` 的 repo-level staging hostname
-- `apps/app-api` staging deploy 时必须显式注入一个真实可达的 execution upstream
-- 当前 repo-owned staging execution origin 默认继续复用
-  `<https://exec-staging.mucwiki-edge.link`>，但它背后承接的是
-  `infra/local/docker-compose.execution-control-runtime.yml`
-- canonical 常驻方式不是 ad-hoc quick tunnel；而是 `nc-arm-6c` 通过
-  Cloudflare remote-managed named tunnel `execution-control-staging` 持续承接
-  execution-control runtime
+- `execution-control` 不是 public staging surface；用户、浏览器、panel、docs 与 chat
+  都只进入 browser surface 或 `app-api`
+- `apps/app-api` staging deploy 时必须显式注入真实可达的 trusted machine upstream：
+  `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.internal.mucwiki-edge.link`
+- `apps/app-api` staging deploy 还必须配置
+  `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与
+  `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`，并把它们投影为 Worker runtime
+  `EXECUTION_CONTROL_ACCESS_CLIENT_ID` / `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
+- 当前 repo-owned staging execution-control runtime 由
+  `infra/local/docker-compose.execution-control-runtime.yml` 承接
+- canonical 常驻方式是 `nc-arm-6c` 上的 Docker Compose runtime，加 VM origin reverse
+  proxy、Cloudflare proxied DNS 与 Cloudflare Access service-token policy
 - 只要 production execution substrate 还没有接管，staging operator 就应优先维护
   `nc-arm-6c` 上的 canonical execution-control 常驻链路，而不是每轮重新发一个随机
-  quick tunnel
+  临时入口
 - 当前 repo-owned execution upstream 实际来自：
   - `nc-arm-6c:/srv/apps/campus-agent/infra/local/staging/start-execution-control-staging.sh`
-  - `cloudflared-execution-control-staging.service`
+  - `execution-control-staging.internal.mucwiki-edge.link` machine ingress
   - strict health gate
     `infra/local/staging/status-execution-control-staging.sh --check`
-- `exec-staging.mucwiki-edge.link` 的 Cloudflare tunnel remote config 必须指向
-  connector 本机 `http://127.0.0.1:27051`
-- `127.0.0.1` 只能留在 tunnel connector 所在机器的 process truth，不能作为
-  Cloudflare staging deploy truth
+- `127.0.0.1` 只能留在 origin reverse proxy 所在机器的 process truth，不能作为
+  Worker staging deploy truth
 - 当前 canonical execution host 的常驻安装、冷启动恢复与 `status --check`
   health gate，见 `docs/runbooks/execution-control-staging-operations.md`
 

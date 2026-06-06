@@ -212,9 +212,19 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).toContain("https://hub-staging.mucwiki-edge.link");
 		expect(runWithStagingDbEnvSource).toContain("https://chat-staging.mucwiki-edge.link");
 		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_BASE_URL");
+		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
+		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
 		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
 		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
+		expect(deployStagingSource).toContain("execution-control trusted machine ingress");
+		expect(deployStagingSource).toContain("EXECUTION_CONTROL_ACCESS_CLIENT_ID");
+		expect(deployStagingSource).toContain("EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
+		expect(deployStagingSource).not.toContain("EXECUTION_CONTROL_ACCESS_CLIENT_ID:${accessClientId}");
+		expect(deployStagingSource).not.toContain(
+			"EXECUTION_CONTROL_ACCESS_CLIENT_SECRET:${accessClientSecret}",
+		);
+		expect(deployStagingSource).not.toContain("supervisor origin");
 		expect(stagingPreflightSource).toContain("db:bootstrap:staging");
 	});
 
@@ -240,6 +250,8 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
 		expect(stagingSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_SHARED_SECRET"');
+		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_ACCESS_CLIENT_ID"');
+		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"');
 		expect(stagingSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
 		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');

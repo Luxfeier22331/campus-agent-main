@@ -12,11 +12,13 @@ updated: 2026-05-01
 
 - `public-chat-web`
 - `app-api`
-- `execution-control` 由 repo-owned `execution-control` staging runtime 承接
+- `execution-control` 由 repo-owned staging runtime 承接，但只作为 app-api-only
+  trusted machine upstream
 
 它回答的是：
 
-- 如何把 `chat-staging -> app-api-staging -> execution-control execution origin` 跑通
+- 如何把 `chat-staging -> app-api-staging -> execution-control trusted machine upstream`
+  跑通
 - 每轮 smoke 最少要验证哪些链路
 - 什么时候需要重新 deploy `app-api-staging`
 
@@ -28,11 +30,13 @@ execution origin 为准。
 - `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - 当前 repo-owned staging execution runtime 是 `nc-arm-6c` 上的
-  `otel-collector + execution-control + supervisor-agent-worker + named tunnel`
-- 如果继续复用 `<https://exec-staging.mucwiki-edge.link`> 作为 execution origin，就不需要为了
-  runtime hard cut 重新 deploy `app-api-staging`
-- 只有当 execution upstream URL 本身变化时，才需要重新设置
-  `STAGING_EXECUTION_CONTROL_BASE_URL` 并 redeploy `app-api`
+  `otel-collector + execution-control + supervisor-agent-worker + Temporal workers`
+- `execution-control` 不作为 public staging surface；machine ingress 固定为
+  `https://execution-control-staging.internal.mucwiki-edge.link`
+- `app-api-staging` 必须配置 execution-control Access service-token credentials 与
+  `x-worker-origin-auth` shared secret；缺任一都 fail closed
+- 只有当 trusted machine upstream URL 或 Access service-token credential 变化时，才需要重新
+  deploy `app-api`
 
 ## 判定标准
 
@@ -60,25 +64,22 @@ infra/local/staging/status-execution-control-staging.sh --check
 
 - `infra/local/staging/status-execution-control-staging.sh --check` 返回 `0`
 
-如果需要重装 Cloudflare connector systemd service，按
-`execution-control-staging-operations.md` 的 `安装与重装` 执行。
+如果需要重装 machine ingress reverse proxy 或 Cloudflare Access policy，按
+`execution-control-staging-operations.md` 的 `配置 machine ingress reverse proxy` 执行。
 
 ## Step 2. 判断是否需要重新 deploy app-api staging
 
-分两种情况：
-
-1. execution origin 继续使用 `<https://exec-staging.mucwiki-edge.link`>
-
-   - 不需要为了这次 hard cut 重新 deploy `app-api-staging`
-   - 直接进入下一步做 health/smoke
-
-1. execution origin 变成新的 URL
-
-   - 必须重新 deploy `app-api-staging`
+如果 `STAGING_EXECUTION_CONTROL_BASE_URL`、Cloudflare Access service-token credential、
+`EXECUTION_CONTROL_SHARED_SECRET` 或 app-api Worker secret 发生变化，必须重新 deploy
+`app-api-staging`。
 
 ```bash
-STAGING_EXECUTION_CONTROL_BASE_URL=https://<current-supervisor-upstream> \
-pnpm --dir apps/app-api deploy:staging
+base_url=https://execution-control-staging.internal.mucwiki-edge.link
+env \
+  STAGING_EXECUTION_CONTROL_BASE_URL="$base_url" \
+  STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID=<client-id> \
+  STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=<client-secret> \
+  pnpm --dir apps/app-api deploy:staging
 ```
 
 然后检查：
@@ -93,27 +94,24 @@ curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 - `healthz = 200`
 - `readyz = 200`
 
-## Step 3. Surface health smoke
+## Step 3. Product surface health smoke
 
-确认三个 staging surface 在线：
+确认 staging product surfaces 在线：
 
 ```bash
+curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/healthz
+curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/healthz
 curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/readyz
 curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/healthz
 curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/readyz
 ```
 
-同时确认：
+通过标准：
 
-```bash
-curl --noproxy '*' -sS -i https://exec-staging.mucwiki-edge.link/healthz
-```
-
-`exec-staging /readyz` 是 execution-control full runtime probe；staging profile 下它需要
-internal worker auth，不作为 public smoke gate。public smoke 通过
-`api-staging /readyz` 间接验证 app-api 已经能带内部 shared secret 探测
-execution runtime readiness。
+- product surface health / ready endpoints 返回预期 `200`
+- `api-staging /readyz` 中 `executionControl` 与 `executionRuntime` 为 `ready`
+- 不直接把 execution-control machine ingress 作为 public surface smoke endpoint
 
 ## Step 4. Authenticated Chat Smoke
 
@@ -174,19 +172,16 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 只有在明确做 transport-only 调试时，才允许临时追加
 `-- --expect-result-kind any`，该模式不作为 staging closeout gate。
 
-如果需要临时调试 execution tunnel，可以显式追加
-`-- --exec-readyz-url https://exec-staging.mucwiki-edge.link/readyz`。该模式只用于
-transport debug；默认 staging closeout 不直接探 supervisor full `/readyz`。
-
 ## Step 5. 记录链路证据
 
 至少记录：
 
 - `infra/local/staging/status-execution-control-staging.sh --check`
-- `https://exec-staging.mucwiki-edge.link/healthz`
 - `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
-- 当前 execution origin 是否复用了既有 `exec-staging.mucwiki-edge.link`
+- 当前 app-api Worker 配置的
+  `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.internal.mucwiki-edge.link`
+  与 Access service-token secret presence
 
 ## Rollback
 

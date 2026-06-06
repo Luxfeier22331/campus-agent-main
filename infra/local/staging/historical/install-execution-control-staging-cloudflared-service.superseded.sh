@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#
+# Superseded historical helper.
+#
+# The active staging ingress contract is DNS + Cloudflare Access service-token
+# + origin reverse proxy at execution-control-staging.internal.mucwiki-edge.link.
+# Do not use this helper for active execution-control staging lifecycle.
 
 set -euo pipefail
 

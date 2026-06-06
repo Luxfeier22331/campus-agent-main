@@ -81,8 +81,7 @@ for url in \
   https://hub-staging.mucwiki-edge.link/readyz \
   https://chat-staging.mucwiki-edge.link/healthz \
   https://chat-staging.mucwiki-edge.link/readyz \
-  https://docs-staging.mucwiki-edge.link/readyz \
-  https://exec-staging.mucwiki-edge.link/healthz
+  https://docs-staging.mucwiki-edge.link/readyz
 do
   echo "## $url"
   curl --noproxy '*' -sS -i "$url"
@@ -92,8 +91,10 @@ done | tee "$E2E_QA_EVIDENCE_DIR/surface-health.txt"
 通过标准：
 
 - API、hub、chat、docs health / ready endpoints 返回预期 `200`
-- exec `/healthz` 返回 `200`
-- 不把 exec `/readyz` 当 public gate；它属于 internal runtime readiness
+- endpoint list 只包含 user/product surfaces，不包含 execution-control machine ingress
+- execution-control readiness 由
+  `infra/local/staging/status-execution-control-staging.sh --check` 与
+  `api-staging /readyz` 的 `executionControl` / `executionRuntime` dependency 证明
 
 ## 4. Chat E2E
 
