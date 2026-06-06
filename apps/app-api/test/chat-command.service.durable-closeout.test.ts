@@ -100,7 +100,7 @@ describe("chat command durable stream closeout", () => {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),
@@ -120,7 +120,7 @@ describe("chat command durable stream closeout", () => {
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -166,12 +166,12 @@ describe("chat command durable stream closeout", () => {
 				status: "accepted",
 			},
 		});
-		expect(durableRuntime.createRun).toHaveBeenCalledOnce();
+		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
 		expect(waitUntilPromises).toHaveLength(1);
 		await waitUntilPromises[0];
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
@@ -198,7 +198,7 @@ describe("chat command durable stream closeout", () => {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),
@@ -218,7 +218,7 @@ describe("chat command durable stream closeout", () => {
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -246,7 +246,7 @@ describe("chat command durable stream closeout", () => {
 		await waitUntilPromises[0];
 		expect(events).toEqual(["request.accepted", "request.completed"]);
 		expect(finalWrites).toHaveLength(1);
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledTimes(1);
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
 	});

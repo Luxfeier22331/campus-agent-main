@@ -78,9 +78,9 @@ export function createRequestScopeFactory(input: {
 	telemetry: import("../modules/telemetry").AppTelemetry;
 }) {
 	const environment = resolveEnvironment(input.env);
-	const requireDurableRuntime = isDeployedEnvironment(environment);
-	const durableRuntimeConfigured = isExecutionControlRuntimeConfigured(input.env);
-	const durableRuntime = durableRuntimeConfigured
+	const requireExecutionRuntime = isDeployedEnvironment(environment);
+	const executionRuntimeConfigured = isExecutionControlRuntimeConfigured(input.env);
+	const executionRuntime = executionRuntimeConfigured
 		? createExecutionControlRuntimeClient(input.env)
 		: undefined;
 	const officialWebExecutionStatusService =
@@ -208,9 +208,9 @@ export function createRequestScopeFactory(input: {
 					}),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
-					durableRuntime,
-					isDurableRuntimeConfigured: durableRuntimeConfigured,
-					requireDurableRuntime,
+					executionRuntime,
+					isExecutionRuntimeConfigured: executionRuntimeConfigured,
+					requireExecutionRuntime,
 					telemetry: input.telemetry,
 					traceBacklinkRecorder: buildOperatorTraceBacklinkRecorder({
 						env: input.env,
@@ -328,7 +328,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				operatorQueryService = buildOperatorQueryService({
-					durableRuntime: createExecutionControlRuntimeClient(input.env),
+					executionRuntime: createExecutionControlRuntimeClient(input.env),
 					store: createPgOperatorQueryStore(input.env, { getDb: runtime.getDb }),
 				});
 				return operatorQueryService;
@@ -365,7 +365,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				runtimeRunService = buildRuntimeRunService({
-					durableRuntime: createExecutionControlRuntimeClient(input.env),
+					executionRuntime: createExecutionControlRuntimeClient(input.env),
 					store: createPgRuntimeRunStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return runtimeRunService;

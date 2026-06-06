@@ -123,12 +123,12 @@ export function buildChatCommandService(
 		const surface = input.surface?.trim() || "public_chat_web";
 		const validatedPayload = resolveValidatedPayload(input.payload, { surface });
 		if (
-			dependencies.requireDurableRuntime &&
-			!(dependencies.durableRuntime && dependencies.isDurableRuntimeConfigured !== false)
+			dependencies.requireExecutionRuntime &&
+			!(dependencies.executionRuntime && dependencies.isExecutionRuntimeConfigured !== false)
 		) {
 			throw createPreAcceptError({
-				code: "durable_runtime_required",
-				message: "Durable runtime is required for this environment.",
+				code: "execution_runtime_required",
+				message: "Execution runtime is required for this environment.",
 				retryable: true,
 				status: 503,
 			});
@@ -188,8 +188,8 @@ export function buildChatCommandService(
 
 		const requestId = generateId("req");
 		const traceId = generateId("trace");
-		const runId = dependencies.durableRuntime ? generateId("run") : null;
-		const turnId = dependencies.durableRuntime ? generateId("turn") : null;
+		const runId = dependencies.executionRuntime ? generateId("run") : null;
+		const turnId = dependencies.executionRuntime ? generateId("turn") : null;
 		const safetyIdentifier = deriveSafetyIdentifierForPrincipal(input.principal);
 		const acceptedAt = now().toISOString();
 		const userMessageId = generateId("msg");
@@ -348,7 +348,7 @@ export function buildChatCommandService(
 		response: SupervisorExecutionResponse | null;
 		transportError: { code: string; retryable: boolean } | null;
 	}> {
-		if (!dependencies.durableRuntime) {
+		if (!dependencies.executionRuntime) {
 			return {
 				response: null,
 				transportError: null,
@@ -357,7 +357,7 @@ export function buildChatCommandService(
 		if (!(context.runId && context.turnId)) {
 			throw new ExecutionControlTransportError({
 				code: "runtime_invariant_failed",
-				message: "Durable runtime command is missing run or turn id.",
+				message: "Execution runtime command is missing run or turn id.",
 				retryable: false,
 				status: 500,
 			});
@@ -365,7 +365,7 @@ export function buildChatCommandService(
 
 		const supervisorInput = await buildSupervisorInput(context);
 		try {
-			const run = await dependencies.durableRuntime.createRun({
+			const run = await dependencies.executionRuntime.createRun({
 				conversationId: context.conversation.id,
 				lane: "rag",
 				metadata: buildDurableRagRunMetadata(supervisorInput),
@@ -576,7 +576,7 @@ export function buildChatCommandService(
 
 	async function executeDurableBlocking(input: {
 		context: AcceptedChatCommandContext;
-		durableRuntime: NonNullable<ChatCommandServiceDependencies["durableRuntime"]>;
+		executionRuntime: NonNullable<ChatCommandServiceDependencies["executionRuntime"]>;
 	}): Promise<{
 		response: SupervisorExecutionResponse;
 		transportError: { code: string; retryable: boolean } | null;
@@ -585,7 +585,7 @@ export function buildChatCommandService(
 			return await waitForDurableFinalizationResponse({
 				context: input.context,
 				listRunEvents: (afterSequence) =>
-					input.durableRuntime.listRunEvents({
+					input.executionRuntime.listRunEvents({
 						afterSequence,
 						runId: input.context.runId ?? "",
 						traceHeaders: telemetry?.getTraceHeaders(),
@@ -639,11 +639,11 @@ export function buildChatCommandService(
 					transportError: durableRunCreate.transportError,
 				});
 			}
-			const durableRuntime = dependencies.durableRuntime;
-			if (durableRuntime) {
+			const executionRuntime = dependencies.executionRuntime;
+			if (executionRuntime) {
 				const execution = await executeDurableBlocking({
 					context: accepted.value,
-					durableRuntime,
+					executionRuntime,
 				});
 				return finalizeAcceptedCommand({
 					context: accepted.value,
@@ -652,8 +652,8 @@ export function buildChatCommandService(
 				});
 			}
 			throw createPreAcceptError({
-				code: "durable_runtime_required",
-				message: "Durable runtime is required for chat execution.",
+				code: "execution_runtime_required",
+				message: "Execution runtime is required for chat execution.",
 				retryable: true,
 				status: 503,
 			});
@@ -680,8 +680,8 @@ export function buildChatCommandService(
 				return;
 			}
 
-			const durableRuntime = dependencies.durableRuntime;
-			if (durableRuntime) {
+			const executionRuntime = dependencies.executionRuntime;
+			if (executionRuntime) {
 				const durableRunCreate = await createDurableRunForAcceptedCommand(context);
 				if (durableRunCreate.response) {
 					const finalized = await finalizeAcceptedCommand({
@@ -700,7 +700,7 @@ export function buildChatCommandService(
 					context,
 					finalizeAcceptedCommand,
 					listRunEvents: (afterSequence) =>
-						durableRuntime.listRunEvents({
+						executionRuntime.listRunEvents({
 							afterSequence,
 							runId: context.runId ?? "",
 							traceHeaders: telemetry?.getTraceHeaders(),
@@ -716,8 +716,8 @@ export function buildChatCommandService(
 			}
 
 			throw createPreAcceptError({
-				code: "durable_runtime_required",
-				message: "Durable runtime is required for chat execution.",
+				code: "execution_runtime_required",
+				message: "Execution runtime is required for chat execution.",
 				retryable: true,
 				status: 503,
 			});

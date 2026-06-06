@@ -140,6 +140,6 @@ export interface OperatorQueryService {
 }
 
 export interface OperatorQueryServiceDependencies {
-	durableRuntime?: ExecutionControlRuntimeClient | null;
+	executionRuntime?: ExecutionControlRuntimeClient | null;
 	store: OperatorQueryStore;
 }

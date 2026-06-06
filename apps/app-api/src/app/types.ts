@@ -80,14 +80,14 @@ export interface AppDocsReadinessResult {
 	failed: Partial<Record<AppDocsDependencyName, string>>;
 }
 
-type AppRuntimeDependencyName = "auth" | "database" | "durableRuntime" | "executionControl";
+type AppRuntimeDependencyName = "auth" | "database" | "executionRuntime" | "executionControl";
 
 export interface AppRuntimeReadinessResult {
 	dependencies: {
 		auth: "ready" | "not_ready";
 		authShellOrigin: "configured";
 		database: "ready" | "not_ready";
-		durableRuntime: "ready" | "not_ready" | "not_required";
+		executionRuntime: "ready" | "not_ready" | "not_required";
 		officialWebHandoff: "configured" | "not_configured";
 		operatorBridge: "configured";
 		publicChatCompatibilityOrigin: "configured";
@@ -96,7 +96,7 @@ export interface AppRuntimeReadinessResult {
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;
 	preflight?: {
 		campusServicesProductPath?: ExecutionControlCampusServicesProductPathPreflight;
-		durableRuntime?: ExecutionControlRuntimePreflight;
+		executionRuntime?: ExecutionControlRuntimePreflight;
 	};
 }
 

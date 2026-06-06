@@ -165,7 +165,7 @@ export function createPgRuntimeRunStore(
 }
 
 export function buildRuntimeRunService(input: {
-	durableRuntime: ExecutionControlRuntimeClient;
+	executionRuntime: ExecutionControlRuntimeClient;
 	store: RuntimeRunStore;
 }): RuntimeRunService {
 	function validateSubscriptionPolicy(
@@ -313,12 +313,12 @@ export function buildRuntimeRunService(input: {
 		runId: string;
 	}): Promise<{ events: RuntimeRunEventProjection[]; run: RuntimeRunSummary }> {
 		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
-		const run = await input.durableRuntime.getRun({
+		const run = await input.executionRuntime.getRun({
 			runId: owned.runId,
 			traceId: owned.traceId,
 		});
 		assertRunMatchesOwnership(owned, run);
-		const events = await input.durableRuntime.listRunEvents({
+		const events = await input.executionRuntime.listRunEvents({
 			afterSequence: eventsInput.afterSequence,
 			runId: owned.runId,
 			traceId: owned.traceId,
@@ -349,7 +349,7 @@ export function buildRuntimeRunService(input: {
 	return {
 		async cancel(cancelInput) {
 			const owned = await requireOwnedRun(cancelInput.principal, cancelInput.runId);
-			const run = await input.durableRuntime.cancelRun({
+			const run = await input.executionRuntime.cancelRun({
 				reason: cancelInput.reason.trim(),
 				runId: owned.runId,
 				traceId: owned.traceId,
@@ -359,7 +359,7 @@ export function buildRuntimeRunService(input: {
 		},
 		async getStatus(statusInput) {
 			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);
-			const run = await input.durableRuntime.getRun({
+			const run = await input.executionRuntime.getRun({
 				runId: owned.runId,
 				traceId: owned.traceId,
 			});
@@ -393,7 +393,7 @@ export function buildRuntimeRunService(input: {
 
 export function buildDefaultRuntimeRunService(env: Env): RuntimeRunService {
 	return buildRuntimeRunService({
-		durableRuntime: createExecutionControlRuntimeClient(env),
+		executionRuntime: createExecutionControlRuntimeClient(env),
 		store: createPgRuntimeRunStore(env),
 	});
 }

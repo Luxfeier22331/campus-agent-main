@@ -146,7 +146,7 @@ describe("operator query service aggregate summaries", () => {
 			listQualityEvalCandidates: vi.fn(),
 			listSafetyAnomalies: vi.fn(),
 		};
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue({
@@ -198,7 +198,7 @@ describe("operator query service aggregate summaries", () => {
 			]),
 		};
 		const service = buildOperatorQueryService({
-			durableRuntime,
+			executionRuntime,
 			store: store as never,
 		} as never);
 
@@ -207,11 +207,11 @@ describe("operator query service aggregate summaries", () => {
 			requestId: "req_01HQ",
 		});
 
-		expect(durableRuntime.getRun).toHaveBeenCalledWith({
+		expect(executionRuntime.getRun).toHaveBeenCalledWith({
 			runId: "run_01HQ",
 			traceId: "trace_01HQ",
 		});
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			runId: "run_01HQ",
 			traceId: "trace_01HQ",
 		});

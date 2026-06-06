@@ -10,12 +10,12 @@ function formatRuntimeDependencyFailure(error: unknown): string {
 }
 
 export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadinessResult> {
-	const requireDurableRuntime = isDeployedEnvironment(resolveEnvironment(env));
+	const requireExecutionRuntime = isDeployedEnvironment(resolveEnvironment(env));
 	const dependencies: AppRuntimeReadinessResult["dependencies"] = {
 		auth: "not_ready",
 		authShellOrigin: "configured",
 		database: "not_ready",
-		durableRuntime: requireDurableRuntime ? "not_ready" : "not_required",
+		executionRuntime: requireExecutionRuntime ? "not_ready" : "not_required",
 		officialWebHandoff:
 			env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
 				? "configured"
@@ -72,21 +72,21 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 	try {
 		const supervisorReadiness = await probeExecutionControlReady(env);
 		dependencies.executionControl = "ready";
-		preflight.durableRuntime = supervisorReadiness.durableRuntime;
-		if (requireDurableRuntime) {
-			if (supervisorReadiness.durableRuntime.status === "ready") {
-				dependencies.durableRuntime = "ready";
+		preflight.executionRuntime = supervisorReadiness.executionRuntime;
+		if (requireExecutionRuntime) {
+			if (supervisorReadiness.executionRuntime.status === "ready") {
+				dependencies.executionRuntime = "ready";
 			} else {
-				failed.durableRuntime = formatDurableRuntimePreflightFailure(
-					supervisorReadiness.durableRuntime,
+				failed.executionRuntime = formatExecutionRuntimePreflightFailure(
+					supervisorReadiness.executionRuntime,
 				);
 			}
 		}
 		preflight.campusServicesProductPath = supervisorReadiness.campusServicesProductPath;
 	} catch (error) {
 		failed.executionControl = formatRuntimeDependencyFailure(error);
-		if (requireDurableRuntime) {
-			failed.durableRuntime = formatRuntimeDependencyFailure(error);
+		if (requireExecutionRuntime) {
+			failed.executionRuntime = formatRuntimeDependencyFailure(error);
 		}
 	}
 
@@ -97,7 +97,7 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 	};
 }
 
-function formatDurableRuntimePreflightFailure(
+function formatExecutionRuntimePreflightFailure(
 	preflight: ExecutionControlRuntimePreflight,
 ): string {
 	if (!preflight) {

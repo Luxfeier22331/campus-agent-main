@@ -26,7 +26,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
 				new ExecutionControlTransportError({
@@ -41,7 +41,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -91,7 +91,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
 				new ExecutionControlTransportError({
@@ -106,7 +106,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -158,7 +158,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			},
 		});
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
-		expect(durableRuntime.listRunEvents).not.toHaveBeenCalled();
+		expect(executionRuntime.listRunEvents).not.toHaveBeenCalled();
 	});
 
 	it("finalizes blocking durable requests as execution timeouts when polling budget expires", async () => {
@@ -167,7 +167,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
@@ -216,7 +216,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				pollIntervalMs: 0,
 				sleep: vi.fn(async () => undefined),
 			},
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -259,7 +259,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
@@ -327,7 +327,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				pollIntervalMs: 0,
 				sleep: vi.fn(async () => undefined),
 			},
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -363,8 +363,8 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		}
 
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
-		expect(durableRuntime.createRun).toHaveBeenCalledOnce();
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
@@ -373,7 +373,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			},
 			traceId: "trace_0001",
 		});
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 2,
 			runId: "run_0001",
 			traceHeaders: {

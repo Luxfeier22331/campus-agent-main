@@ -36,7 +36,7 @@ describe("chat command service", () => {
 				surface: "public_chat_web",
 			}),
 		).rejects.toMatchObject({
-			code: "durable_runtime_required",
+			code: "execution_runtime_required",
 			retryable: true,
 			status: 503,
 		});

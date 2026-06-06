@@ -88,7 +88,7 @@ function createRuntimeReadinessResult() {
 			auth: "ready",
 			authShellOrigin: "configured",
 			database: "ready",
-			durableRuntime: "not_required",
+			executionRuntime: "not_required",
 			officialWebHandoff: "not_configured",
 			operatorBridge: "configured",
 			publicChatCompatibilityOrigin: "configured",
@@ -306,7 +306,7 @@ describe("app-api worker foundation", () => {
 				auth: "ready",
 				authShellOrigin: "configured",
 				database: "ready",
-				durableRuntime: "not_required",
+				executionRuntime: "not_required",
 				officialWebHandoff: "not_configured",
 				operatorBridge: "configured",
 				publicChatCompatibilityOrigin: "configured",
@@ -342,7 +342,7 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
-					durableRuntime: "not_required",
+					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
@@ -419,7 +419,7 @@ describe("app-api worker foundation", () => {
 					auth: "not_ready",
 					authShellOrigin: "configured",
 					database: "ready",
-					durableRuntime: "not_required",
+					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
@@ -462,26 +462,24 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
-					durableRuntime: "not_ready",
+					executionRuntime: "not_ready",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
 					supervisorApi: "ready",
 				},
 				failed: {
-					durableRuntime: "temporal_runtime is not configured and healthy",
+					executionRuntime: "temporal_runtime is not configured and healthy",
 				},
 				preflight: {
-					durableRuntime: {
+					executionRuntime: {
 						status: "blocked",
 						checks: {
-							durableRuntimeStore: "ready",
-							durableWorkerLoop: "not_ready",
-							durableRecoveryLoop: "ready",
+							runProjectionStore: "ready",
+							temporalRuntime: "not_ready",
 						},
 						blockers: {
-							durableWorkerLoop:
-								"temporal_runtime is not configured and healthy",
+							temporalRuntime: "temporal_runtime is not configured and healthy",
 						},
 					},
 				},
@@ -503,18 +501,17 @@ describe("app-api worker foundation", () => {
 				requestId: null,
 				details: {
 					failed: {
-						durableRuntime: "temporal_runtime is not configured and healthy",
+						executionRuntime: "temporal_runtime is not configured and healthy",
 					},
 					preflight: {
-						durableRuntime: {
+						executionRuntime: {
 							status: "blocked",
 							checks: {
-								durableRuntimeStore: "ready",
-								durableWorkerLoop: "not_ready",
-								durableRecoveryLoop: "ready",
+								runProjectionStore: "ready",
+								temporalRuntime: "not_ready",
 							},
 							blockers: {
-								durableWorkerLoop:
+								temporalRuntime:
 									"temporal_runtime is not configured and healthy",
 							},
 						},
@@ -531,7 +528,7 @@ describe("app-api worker foundation", () => {
 					auth: "ready",
 					authShellOrigin: "configured",
 					database: "ready",
-					durableRuntime: "not_required",
+					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",

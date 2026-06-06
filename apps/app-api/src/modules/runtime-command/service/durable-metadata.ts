@@ -40,7 +40,7 @@ export function buildDurableRagRunMetadata(
 		requested_capability: "knowledge",
 		requested_scope: requestedScope,
 		response_contract: SUPERVISOR_EXECUTION_CONTRACT.responseContract,
-		runtime_decisions: buildDurableRuntimeDecisions({
+		runtime_decisions: buildExecutionRuntimeDecisions({
 			actor,
 			context,
 			conversationId: supervisorInput.conversationId,
@@ -68,7 +68,7 @@ export function buildDurableRagRunMetadata(
 	};
 }
 
-function buildDurableRuntimeDecisions(input: {
+function buildExecutionRuntimeDecisions(input: {
 	actor: JsonRecord;
 	context: JsonRecord;
 	conversationId: string;

@@ -27,7 +27,7 @@ export interface ExecutionControlCampusServicesProductPathPreflight {
 export interface ExecutionControlRuntimePreflight {
 	status: "ready" | "blocked" | "not_reported";
 	checks: {
-		durableRuntimeStore: ExecutionControlReadinessCheckStatus;
+		runProjectionStore: ExecutionControlReadinessCheckStatus;
 		temporalRuntime: ExecutionControlReadinessCheckStatus;
 	};
 	blockers: Record<string, string>;
@@ -35,7 +35,7 @@ export interface ExecutionControlRuntimePreflight {
 
 export interface ExecutionControlReadinessProbeResult {
 	campusServicesProductPath: ExecutionControlCampusServicesProductPathPreflight;
-	durableRuntime: ExecutionControlRuntimePreflight;
+	executionRuntime: ExecutionControlRuntimePreflight;
 }
 
 export async function probeExecutionControlReady(
@@ -133,7 +133,7 @@ export async function probeExecutionControlReady(
 	const payload = await parseExecutionControlReadyzPayload(response);
 	return {
 		campusServicesProductPath: buildCampusServicesProductPathPreflight(payload),
-		durableRuntime: buildDurableRuntimePreflight(payload),
+		executionRuntime: buildExecutionRuntimePreflight(payload),
 	};
 }
 
@@ -233,22 +233,22 @@ function collectCampusServicesProductPathBlockers(
 	return blockers;
 }
 
-function buildDurableRuntimePreflight(
+function buildExecutionRuntimePreflight(
 	payload: ExecutionControlReadyzRecord | null,
 ): ExecutionControlRuntimePreflight {
-	const durableRuntime = readRecord(payload?.durable_runtime);
+	const runProjectionStore = readRecord(payload?.run_projection_store);
 	const temporalRuntime = readRecord(payload?.temporal_runtime);
 	const checks: ExecutionControlRuntimePreflight["checks"] = {
-		durableRuntimeStore: readinessFromConfiguredAndHealthy(
-			durableRuntime?.configured,
-			durableRuntime?.healthy,
+		runProjectionStore: readinessFromConfiguredAndHealthy(
+			runProjectionStore?.configured,
+			runProjectionStore?.healthy,
 		),
 		temporalRuntime: readinessFromConfiguredAndHealthy(
 			temporalRuntime?.configured,
 			temporalRuntime?.healthy,
 		),
 	};
-	const blockers = collectDurableRuntimeBlockers(checks);
+	const blockers = collectExecutionRuntimeBlockers(checks);
 	const hasReportedCheck = Object.values(checks).some((status) => status !== "not_reported");
 	const status = hasReportedCheck
 		? Object.keys(blockers).length === 0
@@ -263,12 +263,12 @@ function buildDurableRuntimePreflight(
 	};
 }
 
-function collectDurableRuntimeBlockers(
+function collectExecutionRuntimeBlockers(
 	checks: ExecutionControlRuntimePreflight["checks"],
 ): Record<string, string> {
 	const blockers: Record<string, string> = {};
 	const requiredChecks: readonly [keyof ExecutionControlRuntimePreflight["checks"], string][] = [
-		["durableRuntimeStore", "durable_runtime store is not configured and healthy"],
+		["runProjectionStore", "run_projection_store is not configured and healthy"],
 		["temporalRuntime", "temporal_runtime is not configured and healthy"],
 	];
 	for (const [key, message] of requiredChecks) {

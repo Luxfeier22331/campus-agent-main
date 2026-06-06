@@ -168,21 +168,21 @@ async function loadRuntimeRunSummary(
 	if (!runId) {
 		return null;
 	}
-	if (!dependencies.durableRuntime) {
+	if (!dependencies.executionRuntime) {
 		throw new AppApiRouteError({
-			code: "durable_runtime_not_configured",
-			message: "Durable runtime is required for request run observability.",
+			code: "execution_runtime_not_configured",
+			message: "Execution runtime is required for request run observability.",
 			retryable: true,
 			status: 503,
 		});
 	}
 
-	const run = await dependencies.durableRuntime.getRun({
+	const run = await dependencies.executionRuntime.getRun({
 		runId,
 		traceId: record.request.traceId,
 	});
 	assertDurableRunMatchesRequest(record.request, run);
-	const events = await dependencies.durableRuntime.listRunEvents({
+	const events = await dependencies.executionRuntime.listRunEvents({
 		runId,
 		traceId: record.request.traceId,
 	});

@@ -60,7 +60,7 @@ function durableEvent(
 
 describe("runtime run service", () => {
 	it("projects durable run statuses into product runtime phases", async () => {
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(
@@ -71,7 +71,7 @@ describe("runtime run service", () => {
 			listRunEvents: vi.fn().mockResolvedValue([]),
 		};
 		const service = buildRuntimeRunService({
-			durableRuntime,
+			executionRuntime,
 			store: {
 				getOwnedRun: vi.fn().mockResolvedValue({
 					conversationId: "conv_01HQ",
@@ -96,7 +96,7 @@ describe("runtime run service", () => {
 	});
 
 	it("rejects unknown durable run statuses instead of guessing a product phase", async () => {
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(
@@ -107,7 +107,7 @@ describe("runtime run service", () => {
 			listRunEvents: vi.fn().mockResolvedValue([]),
 		};
 		const service = buildRuntimeRunService({
-			durableRuntime,
+			executionRuntime,
 			store: {
 				getOwnedRun: vi.fn().mockResolvedValue({
 					conversationId: "conv_01HQ",
@@ -127,7 +127,7 @@ describe("runtime run service", () => {
 	});
 
 	it("rejects listed browser events that do not advance the requested cursor", async () => {
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun()),
@@ -139,7 +139,7 @@ describe("runtime run service", () => {
 			]),
 		};
 		const service = buildRuntimeRunService({
-			durableRuntime,
+			executionRuntime,
 			store: {
 				getOwnedRun: vi.fn().mockResolvedValue({
 					conversationId: "conv_01HQ",
@@ -180,14 +180,14 @@ describe("runtime run service", () => {
 					sequence: 4,
 				}),
 			]);
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun()),
 			listRunEvents,
 		};
 		const service = buildRuntimeRunService({
-			durableRuntime,
+			executionRuntime,
 			store: {
 				getOwnedRun: vi.fn().mockResolvedValue({
 					conversationId: "conv_01HQ",

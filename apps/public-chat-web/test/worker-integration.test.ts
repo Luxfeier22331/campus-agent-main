@@ -371,7 +371,7 @@ describe("public chat web chat integration", () => {
 			observedResults.push(response.result as Record<string, unknown>);
 			return response;
 		});
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(async (input) =>
 				durableRun({
@@ -388,7 +388,7 @@ describe("public chat web chat integration", () => {
 			),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(async (input) => {
-				const createInput = vi.mocked(durableRuntime.createRun).mock.calls.at(-1)?.[0];
+				const createInput = vi.mocked(executionRuntime.createRun).mock.calls.at(-1)?.[0];
 				if (!createInput) {
 					throw new Error("durable run was not created before event polling.");
 				}
@@ -427,7 +427,7 @@ describe("public chat web chat integration", () => {
 				maxAttempts: 1,
 				pollIntervalMs: 0,
 			},
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			store,
@@ -582,7 +582,7 @@ describe("public chat web chat integration", () => {
 			observedResults.push(response.result as Record<string, unknown>);
 			return response;
 		});
-		const durableRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(async (input) =>
 				durableRun({
@@ -599,7 +599,7 @@ describe("public chat web chat integration", () => {
 			),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(async (input) => {
-				const createInput = vi.mocked(durableRuntime.createRun).mock.calls.at(-1)?.[0];
+				const createInput = vi.mocked(executionRuntime.createRun).mock.calls.at(-1)?.[0];
 				if (!createInput) {
 					throw new Error("durable run was not created before event polling.");
 				}
@@ -638,7 +638,7 @@ describe("public chat web chat integration", () => {
 				maxAttempts: 1,
 				pollIntervalMs: 0,
 			},
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T10:00:00.000Z"),
 			store,

@@ -102,14 +102,14 @@ export interface ChatCommandServiceDependencies {
 	conversationStore: ChatConversationStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
 	generateId?: (prefix: string) => string;
-	isDurableRuntimeConfigured?: boolean;
+	isExecutionRuntimeConfigured?: boolean;
 	now?: () => Date;
 	profileMemoryStore?: ProfileMemoryProjectionStore;
-	requireDurableRuntime?: boolean;
+	requireExecutionRuntime?: boolean;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;
-	durableRuntime?: ExecutionControlRuntimeClient;
+	executionRuntime?: ExecutionControlRuntimeClient;
 	supervisor?: unknown;
 	telemetry?: AppTelemetry;
 	traceBacklinkRecorder?: {
