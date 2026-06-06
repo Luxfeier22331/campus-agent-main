@@ -40,7 +40,7 @@ services:
         max-size: "10m"
         max-file: "3"
     environment:
-      DB: postgresql
+      DB: postgres12
       DB_PORT: 5432
       POSTGRES_SEEDS: temporal-postgres
       POSTGRES_USER: ${TEMPORAL_POSTGRES_USER:-temporal}
