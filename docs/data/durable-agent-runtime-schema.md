@@ -13,8 +13,8 @@ updated: 2026-06-06
 它回答的是：
 
 - 哪些 logical tables / records 拥有 product runtime projection truth
-- conversation、run、step、attempt、result、event、lease、lane budget、
-  worker heartbeat 如何关联
+- conversation、run、step、attempt、result、event 如何关联
+- historical PG lease / lane budget / worker heartbeat artifact 如何被隔离
 - 哪些字段是 canonical truth，哪些只是 projection / correlation
 
 它不负责：
@@ -86,7 +86,8 @@ target queue model：
 - worker polling
 - Temporal retry / timeout / heartbeat semantics
 
-retired PG baseline queue 曾由 PG durable rows 表达：
+retired PG baseline queue 曾由 PG durable rows 表达；它不是当前 online serving
+truth，不得被重新作为 fallback 接回 app-api / execution-control：
 
 - run-level queue：`runtime.agent_runs.status='queued'`
 - step-level queue：`runtime.agent_run_steps.status='queued'`
@@ -273,7 +274,7 @@ retired baseline 消费规则：
 用途：
 
 - worker 对某个 step 的 attempt projection truth；target architecture 中来源是 Temporal
-  activity attempt，current baseline 中来源是 PG execution lease attempt
+  activity attempt；PG execution lease attempt 只属于 historical baseline
 
 最小列：
 
@@ -421,7 +422,11 @@ online serving。
 
 用途：
 
-- durable lane-level budget truth
+- historical PG baseline lane-level budget artifact
+
+target architecture 中 worker budget 与扩缩容决策来自 Temporal task queue metrics、
+downstream budget projection 与 operations-plane policy。本表不参与 online serving
+scheduler，不拥有当前 execution truth。
 
 最小列：
 
@@ -442,7 +447,7 @@ online serving。
 规则：
 
 - lane enum 第一版固定为 `rag`、`notice`、`navigation`、`campus_services`、`default`
-- disabled lane 不允许创建新 execution lease
+- disabled historical lane 不允许创建新 execution lease
 - lane budget 不替代 user / org / conversation budget
 
 ## `runtime.worker_heartbeats`

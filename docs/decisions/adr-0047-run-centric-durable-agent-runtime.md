@@ -30,7 +30,7 @@ projection 语义的历史依据；长期 execution substrate 已改为 Temporal
 - deterministic data access 以 typed tool 参与执行；semantic specialist 以 agent-as-tool
   参与执行
 
-当前实现已经具备 Go `execution-control` 的 execution ingress、PG run-level
+当前历史 baseline 曾具备 Go `execution-control` 的 execution ingress、PG run-level
 durable store、run events、execution leases、lane budgets、worker heartbeat、
 lease coordinator、worker loop、recovery loop、cancel / timeout / recovery 与
 app-api durable chat cutover。
@@ -73,18 +73,19 @@ canceled / expired`
   failure summary
 - worker process、HTTP handler、goroutine 或 SSE connection 都不能成为 run truth owner
 
-### 决策 2：production execution truth 由 durable runtime 拥有
+### 决策 2：production execution truth 由 Temporal durable runtime 拥有
 
-production admission 和 execution lease 不得只存在于单个 `execution-control` 进程内存。
+production admission 和 execution dispatch 不得只存在于单个 `execution-control` 进程内存。
 
 固定 owner：
 
-- durable run store 拥有 run lifecycle
-- durable step store 拥有 step lifecycle、attempt 与 result truth
-- scheduler / lease coordinator 拥有 run / step admission 与 execution lease
-- worker pool 只消费 lease，不拥有 global admission truth
-- `apps/execution-control` 继续拥有 deterministic control plane、scheduler adapter、
-  workflow planning、budget decision 与 finalization
+- Temporal 拥有 workflow execution state、task queue、activity retry / timeout /
+  heartbeat 与 signal / cancel delivery
+- PG run / step projection store 拥有 sanitized product projection，不拥有 execution
+  dispatch truth
+- worker pool 只消费 Temporal activity task，不拥有 global admission truth
+- `apps/execution-control` 继续拥有 deterministic control plane、workflow command/query、
+  admission / policy gate、projection writeback 与 finalization
 
 ### 决策 3：process-local admission limiter 只保留为 runtime protection
 
@@ -171,21 +172,22 @@ K8s 可以调度 pod、resource、rollout、readiness 与 service discovery。
 
 固定禁止：
 
-- K8s 不拥有 run queue、step queue、execution lease、lane budget、run event
+- K8s 不拥有 workflow queue、activity queue、run projection、step projection、run event
   或 terminal state
-- HPA / KEDA / CronJob 不能替代 scheduler / recovery
+- HPA / KEDA / CronJob 不能替代 Temporal execution substrate
 - pod readiness 不能被解释成 step execution success
 
-### 决策 9：worker autoscaler 只调整 lane worker replicas
+### 决策 9：worker autoscaler 只调整 capability worker replicas
 
-`worker-autoscaler` 只能读取 sanitized PG-derived backlog / lease /
-heartbeat / lane budget projection，并输出 `supervisor-worker-{lane}` desired
-replica count。
+`worker-autoscaler` 只能读取 Temporal task queue backlog / schedule-to-start
+latency / poller health、downstream budget projection 与当前 worker replica
+observation，并输出 workflow / activity worker desired replica count。
 
 固定禁止：
 
-- autoscaler 不写 run、step、lease、event 或 terminal state
-- autoscaler 不改变 lane budget
+- autoscaler 不写 workflow state、run projection、step projection、event projection
+  或 terminal state
+- autoscaler 不改变 downstream budget 或 execution policy
 - autoscaler 不基于 raw prompt、raw provider trace 或 raw source body 做决策
 
 ### 决策 10：domain capability 默认 tools-first

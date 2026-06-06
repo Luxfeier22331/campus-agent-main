@@ -13,7 +13,7 @@ updated: 2026-06-06
 它回答的是：
 
 - `Conversation`、`Run`、`RunStep`、`StepAttempt`、`StepResult`、`RunEvent`、
-  `ExecutionLease` 与 `LaneBudget` 的语义
+  historical `ExecutionLease` 与 historical `LaneBudget` 的语义
 - run lifecycle、step lifecycle、event lifecycle 与 activity attempt projection 如何流转
 - app-api、execution-control、Temporal execution plane 与 worker pool 在 durable
   runtime 中的 seam 如何分层
@@ -79,7 +79,8 @@ Run id 是一次 answer execution 的 canonical durable object id。
 
 - 每次 run 只能有一个 terminal state
 - run 可以被查询、取消、订阅、投影和评估
-- run id 必须贯穿 run events、lease、worker heartbeat、final answer 与 eval backlink
+- run id 必须贯穿 workflow/activity projection、run events、final answer 与 eval
+  backlink；historical PG lease / heartbeat artifact 只作为迁移审计材料
 - `request_id` 只能作为 compatibility / correlation id，不再作为 final runtime identity
 
 ### `step_id`
@@ -125,7 +126,7 @@ Run status enum 固定为：
   - run 已 durable 创建，但尚未进入 scheduler queue
 - `queued`
   - run 已进入 execution plane
-  - 等待 Temporal workflow/activity dispatch 或 current PG baseline lease
+  - 等待 Temporal workflow/activity dispatch
 - `admitted`
   - execution-control / workflow policy 已允许该 run / step 推进
 - `running`
@@ -139,7 +140,7 @@ Run status enum 固定为：
 - `canceled`
   - run 接受 explicit cancel command 后终止
 - `expired`
-  - run / lease 超过 durable timeout 或 heartbeat expiry 后终止
+  - workflow/activity 超过 durable timeout 或 heartbeat expiry 后终止
 
 固定规则：
 
@@ -170,7 +171,7 @@ Run step status enum 固定为：
 - `created`
   - workflow / planner 已创建 typed step，但尚未进入 step queue
 - `queued`
-  - step 已进入 Temporal activity task queue 或 current PG baseline queue
+  - step 已进入 Temporal activity task queue
 - `admitted`
   - workflow policy 已允许该 step dispatch
 - `running`
@@ -186,7 +187,7 @@ Run step status enum 固定为：
 - `canceled`
   - step 随 run explicit cancel 或 step-local cancel 终止
 - `expired`
-  - step / lease 超过 durable timeout 或 heartbeat expiry 后终止
+  - step / activity 超过 durable timeout 或 heartbeat expiry 后终止
 
 固定规则：
 
@@ -195,7 +196,7 @@ Run step status enum 固定为：
 - 每个非 terminal step 必须可被 workflow/projection 查询并与 lane budget 对齐
 - required dependency 未完成时不得执行 step
 - worker 不得直接把 step 从 `queued` 改成 terminal；必须由 Temporal
-  activity dispatch 或 current baseline active lease 授权
+  activity dispatch 授权
 - step terminal state 必须写 `terminal_reason` 或 `blocker_reason`
 
 ## Step Attempt Contract
@@ -205,7 +206,7 @@ Run step status enum 固定为：
 - `attempt_id`
 - `run_id`
 - `step_id`
-- `lease_id`
+- `lease_id`（historical PG baseline only）
 - `worker_id`
 - `attempt_no`
 - `status`
@@ -219,7 +220,7 @@ Run step status enum 固定为：
 
 - retry 必须递增 `attempt_no`
 - target architecture 中 attempt 必须关联 Temporal activity attempt / workflow
-  execution；current PG baseline 中 attempt 与 lease 必须一一关联
+  execution；historical PG baseline 中 attempt 与 lease 必须一一关联
 - attempt payload 必须是 sanitized execution summary，不保存 raw prompt、raw provider
   response、raw source body、auth material 或 object-store credentials
 - failed attempt 只能通过后续 attempt 或 terminal step event 关闭，不得原地改写为 success
@@ -357,7 +358,7 @@ Run event schema family 固定为：
 Target architecture 中 execution dispatch 由 Temporal workflow / activity task
 queue 承接。
 
-Current PG baseline 继续使用 execution lease projection，状态 enum 固定为：
+Historical PG baseline 使用 execution lease projection，状态 enum 固定为：
 
 - `available`
 - `leased`
@@ -382,38 +383,41 @@ Current PG baseline 继续使用 execution lease projection，状态 enum 固定
 
 固定规则：
 
-- target worker 只有收到 Temporal activity task 才能执行 step；current baseline
-  worker 只有持有 active lease 才能执行 run / step
-- activity 必须按 Temporal policy heartbeat；current baseline lease 必须定期 heartbeat
-- Temporal 根据 timeout / heartbeat 处理 activity retry；current baseline
-  scheduler 可以根据 expiry 回收 lease
-- expired lease recovery 未达到显式 retry 上限时，可以把同一 run 重新写为
+- worker 只有收到 Temporal activity task 才能执行 step；historical PG baseline worker
+  曾要求持有 active lease 才能执行 run / step
+- activity 必须按 Temporal policy heartbeat；historical PG baseline lease 必须定期
+  heartbeat
+- Temporal 根据 timeout / heartbeat 处理 activity retry；historical PG baseline
+  scheduler 曾根据 expiry 回收 lease
+- historical expired lease recovery 未达到显式 retry 上限时，可以把同一 run 重新写为
   `queued`，并必须通过新的 lease `attempt` 和 `run.queued` event 暴露 retry
   provenance；达到上限后才写 `run.expired`
 - worker 不得通过本地状态伪造全局 admission
-- lease release 必须写 run event
+- historical lease release 必须写 run event；当前 serving cancel / retry / timeout
+  provenance 来自 Temporal workflow/activity 与 sanitized projection
 
 ## Canonical Queue Contract
 
-target canonical execution queue 固定由 Temporal Task Queue 表达：
+canonical execution queue 固定由 Temporal Task Queue 表达：
 
 - workflow task queue
 - activity task queue
 - worker polling
 - Temporal retry / timeout / heartbeat semantics
 
-current PG baseline queue 继续由 PG durable rows 表达：
+historical PG baseline queue 曾由 PG durable rows 表达；它不是 current online
+serving truth：
 
 - queued run：`runtime.agent_runs.status='queued'`
 - queued step：`runtime.agent_run_steps.status='queued'`
 
 消费规则：
 
-- current scheduler 使用 `FOR UPDATE SKIP LOCKED` 选择候选 queued rows
-- scheduler 在同一事务内检查 lane budget、worker readiness、dependency state 与 downstream
-  budget
-- scheduler 创建 execution lease 并写 admission event 后，worker 才能执行
-- worker 不得直接扫描 queued rows 并绕过 lease
+- historical scheduler 使用 `FOR UPDATE SKIP LOCKED` 选择候选 queued rows
+- historical scheduler 在同一事务内检查 lane budget、worker readiness、dependency
+  state 与 downstream budget
+- historical scheduler 创建 execution lease 并写 admission event 后，worker 才能执行
+- 当前 online serving 不得直接扫描 queued rows 或重启 lease path
 - process-local queue 只能作为本进程 protection，不是 canonical queue
 - Redis 不得作为 canonical queue；只能作为非权威 wakeup、fanout、cache 或 derived counter
 
@@ -427,7 +431,7 @@ Lane enum 第一版固定为：
 - `campus_services`
 - `default`
 
-每个 lane budget 至少包含：
+historical PG baseline 每个 lane budget 至少包含：
 
 - `lane`
 - `max_active_leases`
@@ -439,9 +443,11 @@ Lane enum 第一版固定为：
 
 固定规则：
 
-- global budget 与 lane budget 必须同时满足
+- global budget、Temporal worker scaling policy 与 downstream budget 必须同时满足
+- historical lane budget 不参与当前 online serving scheduler
 - per-user / per-org / per-conversation budget 不得由 lane budget 代替
-- downstream resource budget 可以收敛到 scheduler input，但不得被 worker 私自绕过
+- downstream resource budget 可以收敛到 worker-autoscaler / execution policy input，
+  但不得被 worker 私自绕过
 
 ## Conversation Active Run Policy
 
@@ -516,8 +522,8 @@ Supervisor durable run create command 固定要求：
 
 worker pool owns：
 
-- lease consumption
-- heartbeat
+- Temporal workflow / activity task consumption
+- Temporal activity heartbeat where required by policy
 - typed tool / agent-as-tool step execution
 - run event writeback
 - step attempt / result writeback
@@ -528,7 +534,7 @@ worker pool does not own：
 - conversation ownership
 - global admission truth
 - public final response envelope
-- run / step / lease admission truth
+- run / step admission truth
 
 ## Compatibility Boundary
 
@@ -541,6 +547,7 @@ contract:
 - `POST /internal/execution/runs`
 - `GET /internal/execution/runs/:runId`
 - `GET /internal/execution/runs/:runId/events`
+- `GET /internal/execution/runs/:runId/steps`
 - `POST /internal/execution/runs/:runId/cancel`
 
 Implementation may bridge request execution into durable run records, but it must

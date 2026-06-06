@@ -1,0 +1,174 @@
+---
+doc_type: runbook
+status: active
+created: 2026-06-06
+updated: 2026-06-06
+---
+# Temporal Self-Hosted Operations
+
+## Scope
+
+This runbook covers the self-hosted Temporal execution substrate used by
+`apps/execution-control`.
+
+It does not define product request truth. Product-facing status, events, step
+trajectory, panel, and eval reads come from the repo-owned sanitized projection
+store.
+
+## Runtime Truth
+
+- Temporal owns workflow history, workflow/activity task queues, retry, timeout,
+  heartbeat, signal, query, and cancellation mechanics.
+- PG `runtime.agent_runs`, `runtime.agent_run_events`, `runtime.agent_run_steps`,
+  `runtime.agent_step_attempts`, and `runtime.agent_step_results` own product and
+  operator projection truth.
+- Temporal history must not be exposed directly to browser, panel, or eval
+  consumers.
+- Old PG lease / worker loop / recovery loop artifacts are historical migration
+  material and must not be used as an online serving fallback.
+
+## Persistence Backup
+
+Temporal uses a dedicated persistence / visibility Postgres database. It must not
+share the app product schema.
+
+Required backup evidence:
+
+- backup command timestamp
+- Temporal namespace list before backup
+- Postgres database name and host class, without password material
+- backup artifact path or object-store key
+- restore drill result or explicit blocker
+
+Example evidence fields:
+
+```json
+{
+  "component": "temporal-postgres",
+  "environment": "staging",
+  "backup_started_at": "2026-06-06T00:00:00Z",
+  "namespace": "campus-agent-staging",
+  "artifact_ref": "s3://ops-backups/temporal/staging/20260606T000000Z.dump",
+  "restore_drill": "not_run",
+  "blocker": ""
+}
+```
+
+## Namespace Bootstrap
+
+Required namespaces:
+
+- `campus-agent-staging`
+- `campus-agent-prod`
+
+Readiness must confirm:
+
+- Temporal frontend reachable
+- namespace exists
+- namespace retention matches release policy
+- workflow task queue has recent pollers
+- required activity task queues have recent pollers
+
+Required activity task queues:
+
+- `campus-agent.activity.rag`
+- `campus-agent.activity.finalization`
+
+Capability-gated activity task queues:
+
+- `campus-agent.activity.notice`
+- `campus-agent.activity.navigation`
+- `campus-agent.activity.campus_services`
+
+If `EXECUTION_CONTROL_OPEN_CAPABILITIES` opens one of these capabilities, the
+matching task queue must have a poller. Missing pollers are a readiness blocker.
+
+## Worker Identity
+
+Worker identity must be explicit:
+
+```text
+<env>:<role>:<instance>
+```
+
+Examples:
+
+- `staging:workflow:01`
+- `staging:rag:01`
+- `staging:finalization:01`
+- `staging:notice:01`
+- `staging:navigation:01`
+- `staging:campus_services:01`
+
+Do not rely on default PID / hostname identity as the operator-facing identity.
+
+## Poller Evidence
+
+Execution-control `/readyz` is the primary repo-owned readiness surface. It must
+report:
+
+- `temporal_runtime.configured=true`
+- `temporal_runtime.healthy=true`
+- `temporal_runtime.namespace=<environment namespace>`
+- `temporal_runtime.task_queues`
+- `temporal_runtime.task_queue_pollers`
+
+For release closeout, save the full `/readyz` body and the command that produced
+it.
+
+## Failure-Mode Evidence
+
+Release evidence must cover:
+
+- Temporal unavailable: app-api / execution-control fail closed and do not enter
+  a PG lease worker fallback.
+- Worker missing: execution-control `/readyz` is degraded because required
+  Temporal task queue pollers are missing.
+- Activity timeout/failure: run projection becomes `failed`, emits sanitized
+  `activity.failed` and `run.failed`, and writes failed step / attempt / result
+  projection.
+- Cancel: execution-control cancels the Temporal workflow first, then writes a
+  sanitized `canceled` projection.
+- Late activity completion: terminal `failed` / `canceled` projection must not be
+  overwritten by a late success path.
+
+Evidence must not contain raw prompt, raw answer, raw provider response, cookie,
+authorization header, raw source body, or object-store credentials.
+
+## Worker Autoscaler Proof
+
+The worker autoscaler belongs to the Execution Operations Plane. It reads task
+queue and downstream budget evidence, computes desired replicas, and writes only
+decision evidence.
+
+Dry-run command:
+
+```bash
+cd apps/execution-control
+go run ./cmd/worker-autoscaler \
+  --input-path /path/to/autoscaler-input.json \
+  --evidence-path /path/to/worker-autoscaler-evidence.json
+```
+
+The output must include:
+
+- `mode= dry_run`
+- `writes_execution_state=false`
+- one decision per observed queue
+- task queue name, current replicas, desired replicas, reason, pollers, backlog,
+  and schedule-to-start latency
+
+The autoscaler must not write workflow state, run projection, step projection,
+event projection, terminal state, or downstream budget.
+
+## Closeout
+
+A Temporal closeout is not complete until the evidence directory contains:
+
+- execution-control `/readyz` body
+- Temporal HTTP proof result
+- worker autoscaler dry-run evidence
+- chat E2E run id / trace id
+- step trajectory projection for at least one run
+- Sentry / Axiom evidence for the same time window
+- failure-mode evidence or explicit blocker

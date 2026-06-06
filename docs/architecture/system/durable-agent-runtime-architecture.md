@@ -187,9 +187,10 @@ canceled / expired`
 
 固定规则：
 
-- 每次 attempt 必须由 active execution lease 授权。
+- 每次 attempt 必须来自 Temporal activity task；PG execution lease attempt 只属于
+  historical baseline，不再授权 online serving。
 - retry 必须产生新的 attempt record，不得覆盖旧 attempt。
-- attempt status、worker id、lease id、started/completed time、terminal reason
+- attempt status、worker id、task queue、started/completed time、terminal reason
   与 safe failure summary 必须可审计。
 - provider / tool / retrieval 调用失败只能写入 bounded failure record，不得由 synthesis 补洞。
 
@@ -597,16 +598,19 @@ worker autoscaler 边界固定为：
   `pnpm --dir apps/app-api chat:durable:e2e:staging` proves the product stream can
   be disconnected after `request.accepted` and resumed from the existing durable
   run event stream by `run_id + after_sequence`
-- repo-owned Postgres durable runtime proof command:
-  `apps/execution-control/cmd/durable-runtime-proof` creates exact-prefix proof
-  artifacts in a real Postgres durable store, verifies multi-worker
-  single-lease acquisition, verifies expired-lease retry / terminal recovery,
-  writes JSON evidence, restores the pre-existing lane budget, and removes its
-  own proof runs / heartbeats
+- retired repo-owned Postgres durable runtime proof command:
+  `apps/execution-control/cmd/durable-runtime-proof` is only available with the
+  `retired_pg_lease` build tag for migration audits. It is not part of the
+  default build, staging closeout, or online serving proof.
 - repo-owned deployed execution-control Temporal HTTP proof command:
   `apps/execution-control/cmd/temporal-runtime-http-proof` records deployed
   execution-control `/readyz` evidence and fails closed unless projection store,
   and Temporal runtime are reported ready
+- repo-owned worker autoscaler dry-run proof command:
+  `apps/execution-control/cmd/worker-autoscaler` reads task queue / downstream
+  budget observations and writes desired-replica evidence without writing
+  workflow state, run projection, step projection, event projection, or terminal
+  state
 - public-chat pending-run product baseline: accepted durable run identity is
   persisted in tab-scoped storage, browser resume reads the existing run event
   stream by `run_id + after_sequence`, terminal events load canonical
@@ -620,15 +624,19 @@ worker autoscaler 边界固定为：
 当前缺口：
 
 - Temporal poller proof 已进入 execution-control readyz：readyz 会检查
-  workflow、RAG activity 与 finalization activity task queue 的 recent poller。
-  schedule-to-start latency 仍需要进入 autoscaler / release evidence。
-- execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，但历史
-  `durable_runtime*.go` 文件与 PG lease proof command 仍作为 migration artifact 存在。
-- step-level projection 已有首条 chat trajectory 写入；panel/eval 仍需要把
-  `agent_run_steps`、`agent_step_attempts`、`agent_step_results` 作为诊断主线消费。
-- worker autoscaler 尚未落成：需要基于 Temporal task queue metrics、poller
-  health、downstream budget projection 计算 desired replicas，且不得写
-  workflow/run/step/event truth。
+  workflow、RAG activity、finalization activity 与已打开 capability 对应 activity
+  task queue 的 recent poller。schedule-to-start latency 仍需要来自 Temporal metrics
+  的真实采样进入 release evidence。
+- execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，历史
+  PG lease proof command 已退出默认 build；`durable_runtime*.go` 仍有 projection store 与
+  historical schema artifact 混合命名，需要后续纯命名整理，但不得重新接回 serving。
+- step-level projection 已有首条 chat trajectory 写入；app-api operator query 与
+  protected panel 已开始消费 `agent_run_steps`、`agent_step_attempts`、
+  `agent_step_results` 作为诊断主线。eval / badcase 归因仍需要继续统一到 step
+  trajectory。
+- worker autoscaler 已有 dry-run proof：可以基于 task queue observation、poller
+  health 与 downstream budget projection 计算 desired replicas，且不写
+  workflow/run/step/event truth。真实基础设施扩缩容接入仍未启用。
 - RAG 还需要接入 durable typed-tool step graph：retrieval/domain typed
   tools、evidence verifier、replan、synthesis、grounding 与 finalization 需要
   成为可审计 step trajectory，而不是只停在 answer-level run event。
@@ -650,8 +658,8 @@ worker autoscaler 边界固定为：
   - isolated durable store kernel、lease coordinator、in-memory contract substrate
     与 Postgres store foundation
 - `apps/execution-control/cmd/durable-runtime-proof`
-  - Postgres-backed durable runtime proof command for multi-worker lease and
-    expired-lease recovery evidence
+  - retired Postgres-backed PG lease proof command, compiled only with
+    `retired_pg_lease`
 
 ## Related Documents
 

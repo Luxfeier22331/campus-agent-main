@@ -26,10 +26,11 @@ eval/badcase 闭环。
 此前 repo 已有 Go `apps/execution-control` 的 PG-backed run-level durable baseline：
 run store、events、execution leases、lane budgets、worker heartbeat、worker loop、
 recovery loop 与 app-api durable chat cutover。当前 active serving path 已硬切到
-Temporal-backed `execution-control` run command/query seam；PG durable baseline 保留为
-projection / migration artifact，不再作为 online execution queue truth。继续自研
-step-level scheduler、lease recovery、worker autoscaling 与 workflow history 会把大量精力投入到通用
-durable execution kernel，而不是产品能力、capability contract 与质量闭环。
+Temporal-backed `execution-control` run command/query seam；PG 只承载 sanitized product
+projection，旧 durable baseline 只保留为 migration artifact，不再作为 online execution
+queue truth。继续自研 step-level scheduler、lease recovery、worker autoscaling 与 workflow
+history 会把大量精力投入到通用 durable execution kernel，而不是产品能力、capability
+contract 与质量闭环。
 
 Temporal 的职责边界正好落在 execution plane：Workflow 承接确定性编排与 history，Activity
 承接外部 / 非确定性工作，Task Queue 连接 Temporal Service 与 worker，worker poll task queue

@@ -126,8 +126,8 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - hard reject
 - 明显 `out_of_scope`
 - per-user / per-org / per-conversation quota
-- run creation / execution lease 是否可被 admitted
-- durable step 是否可创建、排队和领取 lease
+- run creation / workflow start 是否可被 admitted
+- durable step 是否可创建、排队到 Temporal activity task queue 并被 worker 消费
 
 固定规则：
 

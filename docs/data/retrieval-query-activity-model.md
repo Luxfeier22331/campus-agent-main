@@ -106,7 +106,11 @@ RunStep(synthesis) -> RunStep(grounding) -> source card / reader target`
   debug fields
 - 它与 `sourceTrace.retrieved` / `sourceTrace.supporting` 互补，不互相替代
 - 它必须能按 `routing / planning / tool / retrieval / rerank / selection /
-  synthesis / grounding` 归因；不能只把失败归到最终 answer quality
+  synthesis / grounding / finalization` 归因；不能只把失败归到最终 answer
+  quality
+- operator quality badcase 与 eval-candidate 读取以 `diagnosisStage` 暴露上述归因；
+  legacy `causeClass` 仍是具体症状标签，但诊断主线以 step trajectory /
+  `diagnosisStage` 为准
 
 ## Logical Objects
 

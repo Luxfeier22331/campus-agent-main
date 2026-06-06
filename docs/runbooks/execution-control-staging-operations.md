@@ -38,6 +38,7 @@ updated: 2026-06-06
       `/internal/execution/runs`,
       `/internal/execution/runs/:runId`,
       `/internal/execution/runs/:runId/events`,
+      `/internal/execution/runs/:runId/steps`,
       `/internal/execution/runs/:runId/cancel`
     - PG-backed sanitized projection store：run store、events、step projection
       artifacts for app-api / panel / eval reads
@@ -334,7 +335,8 @@ infra/local/staging/status-execution-control-staging.sh --check
 
 当前 strict check 证明的是 Temporal execution plane + projection store + split
 worker process readiness；它不等于 worker autoscaler 已完成。上线证据需要另行
-记录 autoscaler proof 与 step trajectory projection。
+记录 autoscaler proof 与 step trajectory projection。Temporal 通用运维证据要求见
+`temporal-self-host-operations.md`。
 
 补充约束：
 
@@ -678,6 +680,76 @@ projection store 或 Temporal runtime 未 ready 的 execution-control readyz，�
 `api-staging /readyz` 中 `dependencies.executionRuntime` 不是 `ready` 的状态。该 gate 只防止
 readiness 假绿；`pnpm --dir apps/app-api chat:durable:e2e:staging` 仍必须通过，且
 `request.accepted` 必须包含 durable `runId` 与 `runPhase`。
+
+### Worker Autoscaler Dry-Run Evidence
+
+本轮 staging 不要求 autoscaler 真实扩缩容容器或 Pod，但上线证据必须证明它只读
+Temporal task queue / downstream budget observation，并只写 desired replica evidence。
+
+准备 observation JSON，例如：
+
+```json
+{
+  "environment": "staging",
+  "generated_at": "2026-06-06T00:00:00Z",
+  "queues": [
+    {
+      "name": "campus-agent.workflow",
+      "role": "workflow",
+      "pollers": 1,
+      "backlog": 0,
+      "schedule_to_start_ms": 0,
+      "current_replicas": 1,
+      "min_replicas": 1,
+      "max_replicas": 3,
+      "target_schedule_to_start_ms": 500
+    },
+    {
+      "name": "campus-agent.activity.rag",
+      "role": "rag",
+      "pollers": 1,
+      "backlog": 0,
+      "schedule_to_start_ms": 0,
+      "current_replicas": 1,
+      "min_replicas": 1,
+      "max_replicas": 4,
+      "target_schedule_to_start_ms": 500
+    },
+    {
+      "name": "campus-agent.activity.finalization",
+      "role": "finalization",
+      "pollers": 1,
+      "backlog": 0,
+      "schedule_to_start_ms": 0,
+      "current_replicas": 1,
+      "min_replicas": 1,
+      "max_replicas": 2,
+      "target_schedule_to_start_ms": 500
+    }
+  ],
+  "downstream_budgets": {
+    "workflow": {"available": true, "max_replicas": 3},
+    "rag": {"available": true, "max_replicas": 4},
+    "finalization": {"available": true, "max_replicas": 2}
+  }
+}
+```
+
+运行 dry-run：
+
+```bash
+go run ./cmd/worker-autoscaler \
+  --input-path "$evidence_dir/worker-autoscaler-input.json" \
+  --evidence-path "$evidence_dir/worker-autoscaler-evidence.json"
+```
+
+通过标准：
+
+- `mode="dry_run"`
+- `writes_execution_state=false`
+- 每个 observed queue 都有 desired replica decision
+- evidence 不包含 workflow/run/step/event/terminal state write 表述
+- 该命令不得写 PG projection、Temporal workflow history 或 downstream budget
 
 ## Recovery Boundary
 

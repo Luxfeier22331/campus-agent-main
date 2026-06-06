@@ -124,12 +124,11 @@ Temporal execution plane 取代为 active execution truth；本文后续 gap mat
   consume that projection instead of guessing queue or run state
 - supervisor durable run create now requires `metadata.execution_payload`
   and validates request / conversation / trace identity alignment
-- repo-owned Postgres durable runtime proof command:
-  `go run ./cmd/durable-runtime-proof --database-url ... --evidence-path ...`
-  verifies against a real Postgres durable store that concurrent workers do not
-  double-lease the same queued run, expired leases requeue until the bounded
-  retry limit and then terminally expire, proof artifacts are exact-prefix
-  cleaned, and the pre-existing lane budget is restored after the proof
+- Superseded repo-owned Postgres durable runtime proof command:
+  `go run -tags retired_pg_lease ./cmd/durable-runtime-proof --database-url ...
+  --evidence-path ...` remains only for historical PG lease migration audits.
+  The default build exits with a retired-command error, and active staging
+  closeout must use Temporal proof instead.
 - Superseded repo-owned PG lease schema install/check command:
   `go run ./cmd/durable-runtime-schema --mode install|check --database-url ...
   --evidence-path ...` was the formal schema path for the historical durable
@@ -249,18 +248,13 @@ Temporal execution plane 取代为 active execution truth；本文后续 gap mat
 
 - Current: bounded in-memory queue，按 lane round-robin dispatch。
 - Target: durable lane queue + lease heartbeat / expiry。
-- Progress: queued durable runs 可被 lease coordinator 按 lane 获取，并可通过
-  internal get/events query 审计；supervisor 已有显式启用的 durable worker loop，
-  启动时同步 configured lane budget，并按 lane polling 消费 lease。
-- Progress: durable store 已有 concurrent acquire contract：同一 queued run 在并发
-  worker poll 下只能产生一个 active lease，另一方必须看到 explicit empty queue /
-  budget gate；worker loop 遇到 lane budget backpressure 会保持常驻轮询，不把正常
-  调度背压当成 fatal process error；同一不变量已在真实 Postgres store 上通过
-  concurrent acquire test 覆盖，测试会清理自身 `pg-*` artifacts，避免持久 test DB
-  中的历史 active lease 污染 lane budget。`cmd/durable-runtime-proof` 进一步把该证明
-  产品化为 repo-owned evidence command：它读取当前 active lease truth 后设置 proof
-  所需 lane budget、验证 multi-worker single-lease、释放自身 proof lease、验证
-  expired-lease retry / terminal recovery，并在结束时恢复原 lane budget。
+- Superseded progress: historical queued durable runs 曾可被 PG lease coordinator
+  按 lane 获取，并通过 internal get/events query 审计。该 worker loop / recovery
+  loop / lease coordinator 已被 Temporal cutover 取代，不再作为 active serving path。
+- Superseded progress: historical durable store 曾覆盖 concurrent acquire contract：
+  同一 queued run 在并发 worker poll 下只能产生一个 active lease，另一方必须看到
+  explicit empty queue / budget gate。该证明现在只保留在 `retired_pg_lease` build tag
+  下用于迁移审计，不参与 release evidence。
 - Progress: 当前 schema readiness 不再靠 proof 副作用。
   `cmd/run-projection-schema` 是正式 run projection store schema
   install/check 入口，staging start 在 compose up 前通过 Docker data-plane
@@ -464,20 +458,17 @@ Phase 5 / Phase 6 / supervisor substrate 已部分落地：
 - `apps/execution-control/internal/bridge/*`
   - `ExecuteDurable` 调用 Python durable worker endpoint
 - `apps/execution-control/internal/httpapi/durable_worker_executor.go`
-  - 领取 durable lease、调用 durable bridge、写 `agent.started` /
-    `agent.completed` / `agent.failed`、run terminal event 与 `lease.released`
-  - 对 RAG lane，supervisor 负责从 durable `execution_payload` 生成
-    `rag-agent` handoff；app-api 不需要也不允许拥有 RAG handoff planning
+  - historical PG lease executor, compiled only with `retired_pg_lease`
+  - active Temporal activity path keeps only the bridge payload projection helper
 - `apps/execution-control/internal/httpapi/durable_run_handlers.go`
   - internal create / get / events / cancel command-query substrate
   - create command 要求 `metadata.execution_payload`，并校验
     `request_id` / `conversation_id` / `trace_id` 与外层 durable run identity
     对齐
 - `apps/execution-control/internal/httpapi/durable_worker_handlers.go`
-  - explicit `process-next` command；当前不是后台 scheduler loop
+  - retired `process-next` command returns not found in active build
 - `apps/execution-control/internal/httpapi/durable_recovery_loop.go`
-  - scheduler-owned recovery loop；只回收 expired lease / timed-out run，不领取
-    lease、不调用 bridge、不执行 agent work
+  - historical PG lease recovery loop, compiled only with `retired_pg_lease`
 - `apps/app-api/src/modules/integration/supervisor-durable.ts`
   - app-api execution control runtime adapter
   - 调用 supervisor internal create / get / events / cancel endpoint
