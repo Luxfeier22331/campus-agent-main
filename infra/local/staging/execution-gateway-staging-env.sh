@@ -2,14 +2,14 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154
 
-supervisor_api_staging_load_env() {
+execution_gateway_staging_load_env() {
   local node_bin
-  local repo_env_path="${supervisor_api_staging_repo_root}/.env"
-  local repo_staging_env_path="${supervisor_api_staging_repo_root}/.env.staging.local"
-  local app_api_dev_vars="${supervisor_api_staging_repo_root}/apps/app-api/.dev.vars"
+  local repo_env_path="${execution_gateway_staging_repo_root}/.env"
+  local repo_staging_env_path="${execution_gateway_staging_repo_root}/.env.staging.local"
+  local app_api_dev_vars="${execution_gateway_staging_repo_root}/apps/app-api/.dev.vars"
   local export_script
 
-  node_bin="$(supervisor_api_staging_require_command node)"
+  node_bin="$(execution_gateway_staging_require_command node)"
   export_script="$(
     "${node_bin}" - "${repo_env_path}" "${repo_staging_env_path}" "${app_api_dev_vars}" <<'NODE'
 const [repoEnvPath, repoStagingEnvPath, appApiDevVarsPath] = process.argv.slice(2);
@@ -71,19 +71,19 @@ const keys = [
   "AUDIT_LOG_PATH",
   "AUDIT_QUEUE_CAPACITY",
   "APP_API_INTERNAL_SHARED_SECRET",
-  "SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",
-  "SUPERVISOR_API_RUNTIME_PROFILE",
-  "SUPERVISOR_API_QUEUE_CAPACITY",
-  "SUPERVISOR_API_QUEUE_TIMEOUT_MS",
-  "SUPERVISOR_API_REQUEST_TIMEOUT_MS",
-  "SUPERVISOR_API_SHUTDOWN_GRACE_MS",
-  "SUPERVISOR_API_METRICS_BEARER_TOKEN",
-  "SUPERVISOR_API_OTEL_ENABLED",
-  "SUPERVISOR_API_OTEL_METRICS_ENABLED",
-  "SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS",
-  "SUPERVISOR_API_OTEL_SERVICE_NAME",
-  "SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS",
-  "SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS",
+  "EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS",
+  "EXECUTION_GATEWAY_RUNTIME_PROFILE",
+  "EXECUTION_GATEWAY_QUEUE_CAPACITY",
+  "EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS",
+  "EXECUTION_GATEWAY_REQUEST_TIMEOUT_MS",
+  "EXECUTION_GATEWAY_SHUTDOWN_GRACE_MS",
+  "EXECUTION_GATEWAY_METRICS_BEARER_TOKEN",
+  "EXECUTION_GATEWAY_OTEL_ENABLED",
+  "EXECUTION_GATEWAY_OTEL_METRICS_ENABLED",
+  "EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_HEADERS",
+  "EXECUTION_GATEWAY_OTEL_SERVICE_NAME",
+  "EXECUTION_GATEWAY_OTEL_EXPORT_TIMEOUT_MS",
+  "EXECUTION_GATEWAY_OTEL_EXPORT_INTERVAL_MS",
   "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED",
   "SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME",
   "SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION",
@@ -103,29 +103,26 @@ const keys = [
   "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
   "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
   "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
-  "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED",
-  "SUPERVISOR_API_EXECUTION_AUDIT_URL",
-  "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
-  "SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS",
-  "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL",
-  "SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED",
-  "SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID",
-  "SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE",
-  "SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID",
-  "SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
-  "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
-  "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
-  "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED",
-  "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
-  "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+  "EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED",
+  "EXECUTION_GATEWAY_EXECUTION_AUDIT_URL",
+  "EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET",
+  "EXECUTION_GATEWAY_EXECUTION_AUDIT_TIMEOUT_MS",
+  "EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL",
+  "TEMPORAL_POSTGRES_PASSWORD",
+  "EXECUTION_GATEWAY_TEMPORAL_ADDRESS",
+  "EXECUTION_GATEWAY_TEMPORAL_NAMESPACE",
+  "EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE",
+  "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY",
+  "EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT",
+  "EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS",
   "SUPERVISOR_AGENT_WORKER_THREADS",
   "SUPERVISOR_AGENT_WORKER_BASE_URL",
-  "SUPERVISOR_API_SHARED_SECRET",
+  "EXECUTION_GATEWAY_SHARED_SECRET",
   "SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
-  "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD",
-  "SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS",
-  "SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS",
-  "SUPERVISOR_API_BRIDGE_RETRY_BASE_MS",
+  "EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD",
+  "EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS",
+  "EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS",
+  "EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS",
   "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
   "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
   "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
@@ -137,11 +134,11 @@ const keys = [
   "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
   "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION",
   "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET",
-  "SUPERVISOR_API_STAGING_UV_BIN",
-  "SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME",
-  "SUPERVISOR_API_STAGING_RUNTIME_DIR",
-  "SUPERVISOR_API_STAGING_PORT",
-  "SUPERVISOR_API_STAGING_TUNNEL_TOKEN",
+  "EXECUTION_GATEWAY_STAGING_UV_BIN",
+  "EXECUTION_GATEWAY_STAGING_COMPOSE_PROJECT_NAME",
+  "EXECUTION_GATEWAY_STAGING_RUNTIME_DIR",
+  "EXECUTION_GATEWAY_STAGING_PORT",
+  "EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN",
 ];
 
 function projectLoopbackUrlHost(value, dockerHost, dockerPort) {
@@ -209,9 +206,28 @@ resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 const workerSharedSecret =
   sourceEnvValue("API_WORKER_SHARED_SECRET") ||
-  sourceEnvValue("SUPERVISOR_API_SHARED_SECRET") ||
+  sourceEnvValue("EXECUTION_GATEWAY_SHARED_SECRET") ||
   "";
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
+
+const retiredEnvErrors = [];
+for (const retiredKey of [
+  "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_ENABLED",
+  "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_WORKER_ID",
+  "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LANE",
+  "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_STEP_ID",
+  "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
+  "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
+  "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
+  "EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_ENABLED",
+  "EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
+  "EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+]) {
+  if (sourceEnvValue(retiredKey)) {
+    retiredEnvErrors.push(`${retiredKey} is retired; use Temporal execution-gateway settings`);
+  }
+}
+resolved.set("EXECUTION_GATEWAY_STAGING_RETIRED_ENV_ERRORS", retiredEnvErrors.join("\n"));
 
 const stagingRequiredMappings = [
   ["STAGING_INGESTION_SHARED_POSTGRES_URL", "CAMPUS_SHARED_POSTGRES_URL"],
@@ -385,11 +401,11 @@ const dataPlaneErrors = [];
 for (const [source, target] of stagingRequiredMappings) {
   const value = envValue(source);
   if (!value) {
-    dataPlaneErrors.push(`${source} is required for supervisor-api staging data plane`);
+    dataPlaneErrors.push(`${source} is required for execution-gateway staging data plane`);
     continue;
   }
   if (isLocalEndpoint(value) && !acceptsSameHostStagingEndpoint(source)) {
-    dataPlaneErrors.push(`${source} must not point at localhost for supervisor-api staging`);
+    dataPlaneErrors.push(`${source} must not point at localhost for execution-gateway staging`);
     continue;
   }
   if (
@@ -428,7 +444,7 @@ for (const [source, target] of stagingOptionalMappings) {
       ].includes(source) &&
       isLocalEndpoint(value)
     ) {
-      dataPlaneErrors.push(`${source} must not point at localhost for supervisor-api staging`);
+      dataPlaneErrors.push(`${source} must not point at localhost for execution-gateway staging`);
       continue;
     }
     if (
@@ -548,10 +564,10 @@ if (localPostgresConfigs.length > 0) {
       "repo-owned local Postgres requires database, username, and password in staging Postgres DSNs",
     );
   }
-  resolved.set("SUPERVISOR_API_STAGING_LOCAL_POSTGRES_DB", firstConfig.database);
-  resolved.set("SUPERVISOR_API_STAGING_LOCAL_POSTGRES_USER", firstConfig.username);
-  resolved.set("SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PASSWORD", firstConfig.password);
-  resolved.set("SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PORT", firstConfig.port);
+  resolved.set("EXECUTION_GATEWAY_STAGING_LOCAL_POSTGRES_DB", firstConfig.database);
+  resolved.set("EXECUTION_GATEWAY_STAGING_LOCAL_POSTGRES_USER", firstConfig.username);
+  resolved.set("EXECUTION_GATEWAY_STAGING_LOCAL_POSTGRES_PASSWORD", firstConfig.password);
+  resolved.set("EXECUTION_GATEWAY_STAGING_LOCAL_POSTGRES_PORT", firstConfig.port);
 }
 if (isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT"))) {
   if (hasSharedObjectStorePair && hasDerivedObjectStorePair) {
@@ -571,8 +587,8 @@ if (isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT"))) {
   const localMinioSecret = hasSharedObjectStorePair
     ? envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY")
     : envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY");
-  resolved.set("SUPERVISOR_API_STAGING_LOCAL_MINIO_ACCESS_KEY", localMinioAccess);
-  resolved.set("SUPERVISOR_API_STAGING_LOCAL_MINIO_SECRET_KEY", localMinioSecret);
+  resolved.set("EXECUTION_GATEWAY_STAGING_LOCAL_MINIO_ACCESS_KEY", localMinioAccess);
+  resolved.set("EXECUTION_GATEWAY_STAGING_LOCAL_MINIO_SECRET_KEY", localMinioSecret);
 }
 if (
   isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) &&
@@ -582,9 +598,9 @@ if (
     "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY is required for repo-owned local Qdrant",
   );
 }
-resolved.set("SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS", dataPlaneErrors.join("\n"));
+resolved.set("EXECUTION_GATEWAY_STAGING_DATA_PLANE_ERRORS", dataPlaneErrors.join("\n"));
 resolved.set(
-  "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_POSTGRES",
+  "EXECUTION_GATEWAY_STAGING_REQUIRES_LOCAL_POSTGRES",
   [
     envValue("STAGING_INGESTION_SHARED_POSTGRES_URL"),
     envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL"),
@@ -597,18 +613,30 @@ resolved.set(
     : "false",
 );
 resolved.set(
-  "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_MINIO",
+  "EXECUTION_GATEWAY_STAGING_REQUIRES_LOCAL_MINIO",
   isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT")) ? "true" : "false",
 );
 resolved.set(
-  "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_QDRANT",
+  "EXECUTION_GATEWAY_STAGING_REQUIRES_LOCAL_QDRANT",
   isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) ? "true" : "false",
 );
-if (envValue("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL")) {
+if (envValue("EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL")) {
   resolved.set(
-    "SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL",
-    projectPostgresForDocker(envValue("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL")),
+    "EXECUTION_GATEWAY_DURABLE_RUNTIME_DOCKER_DATABASE_URL",
+    projectPostgresForDocker(envValue("EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL")),
   );
+}
+if (!resolved.has("EXECUTION_GATEWAY_TEMPORAL_ADDRESS")) {
+  resolved.set("EXECUTION_GATEWAY_TEMPORAL_ADDRESS", "temporal:7233");
+}
+if (!resolved.has("EXECUTION_GATEWAY_TEMPORAL_NAMESPACE")) {
+  resolved.set("EXECUTION_GATEWAY_TEMPORAL_NAMESPACE", "campus-agent-staging");
+}
+if (!resolved.has("EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE")) {
+  resolved.set("EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE", "campus-agent.workflow");
+}
+if (!resolved.has("EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS")) {
+  resolved.set("EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS", "5000");
 }
 
 for (const [key, value] of resolved.entries()) {
@@ -618,35 +646,35 @@ for (const [key, value] of resolved.entries()) {
 NODE
   )"
   eval "${export_script}"
-  supervisor_api_staging_refresh_runtime_topology_from_env
-  export SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME="${supervisor_api_staging_compose_project_name}"
-  export SUPERVISOR_API_STAGING_RUNTIME_DIR="${supervisor_api_staging_runtime_dir}"
-  export SUPERVISOR_API_STAGING_PORT="${supervisor_api_staging_port}"
-  supervisor_api_staging_ensure_runtime_dirs
+  execution_gateway_staging_refresh_runtime_topology_from_env
+  export EXECUTION_GATEWAY_STAGING_COMPOSE_PROJECT_NAME="${execution_gateway_staging_compose_project_name}"
+  export EXECUTION_GATEWAY_STAGING_RUNTIME_DIR="${execution_gateway_staging_runtime_dir}"
+  export EXECUTION_GATEWAY_STAGING_PORT="${execution_gateway_staging_port}"
+  execution_gateway_staging_ensure_runtime_dirs
 
-  supervisor_api_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-}"
+  execution_gateway_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-}"
   if [[ -z "${API_WORKER_SHARED_SECRET:-}" ]]; then
-    echo "API_WORKER_SHARED_SECRET is required for supervisor-api staging trusted-worker auth; set API_WORKER_SHARED_SECRET or SUPERVISOR_API_SHARED_SECRET" >&2
+    echo "API_WORKER_SHARED_SECRET is required for execution-gateway staging trusted-worker auth; set API_WORKER_SHARED_SECRET or EXECUTION_GATEWAY_SHARED_SECRET" >&2
     return 1
   fi
-  if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_URL:-}" && -n "${supervisor_api_staging_app_api_base_url}" ]]; then
-    export SUPERVISOR_API_EXECUTION_AUDIT_URL="${supervisor_api_staging_app_api_base_url%/}/api/internal/execution/audit-events"
+  if [[ -z "${EXECUTION_GATEWAY_EXECUTION_AUDIT_URL:-}" && -n "${execution_gateway_staging_app_api_base_url}" ]]; then
+    export EXECUTION_GATEWAY_EXECUTION_AUDIT_URL="${execution_gateway_staging_app_api_base_url%/}/api/internal/execution/audit-events"
   fi
-  if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET:-}" && -n "${APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
-    export SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET="${APP_API_INTERNAL_SHARED_SECRET}"
+  if [[ -z "${EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET:-}" && -n "${APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
+    export EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET="${APP_API_INTERNAL_SHARED_SECRET}"
   fi
-  if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_ENABLED:-}" ]]; then
-    if [[ -n "${SUPERVISOR_API_EXECUTION_AUDIT_URL:-}" && -n "${SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET:-}" ]]; then
-      export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=true
+  if [[ -z "${EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED:-}" ]]; then
+    if [[ -n "${EXECUTION_GATEWAY_EXECUTION_AUDIT_URL:-}" && -n "${EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET:-}" ]]; then
+      export EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED=true
     else
-      export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=false
+      export EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED=false
     fi
   fi
-  export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS="${SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS:-500}"
-  export SUPERVISOR_API_OTEL_ENABLED="${SUPERVISOR_API_OTEL_ENABLED:-true}"
-  export SUPERVISOR_API_OTEL_METRICS_ENABLED="${SUPERVISOR_API_OTEL_METRICS_ENABLED:-true}"
-  export SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS="${SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS:-1000}"
-  export SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS="${SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS:-15000}"
+  export EXECUTION_GATEWAY_EXECUTION_AUDIT_TIMEOUT_MS="${EXECUTION_GATEWAY_EXECUTION_AUDIT_TIMEOUT_MS:-500}"
+  export EXECUTION_GATEWAY_OTEL_ENABLED="${EXECUTION_GATEWAY_OTEL_ENABLED:-true}"
+  export EXECUTION_GATEWAY_OTEL_METRICS_ENABLED="${EXECUTION_GATEWAY_OTEL_METRICS_ENABLED:-true}"
+  export EXECUTION_GATEWAY_OTEL_EXPORT_TIMEOUT_MS="${EXECUTION_GATEWAY_OTEL_EXPORT_TIMEOUT_MS:-1000}"
+  export EXECUTION_GATEWAY_OTEL_EXPORT_INTERVAL_MS="${EXECUTION_GATEWAY_OTEL_EXPORT_INTERVAL_MS:-15000}"
   export SUPERVISOR_AGENT_WORKER_OTEL_ENABLED="${SUPERVISOR_AGENT_WORKER_OTEL_ENABLED:-true}"
   export SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME="${SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME:-campus-supervisor-agent-worker}"
   export SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION="${SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION:-supervisor-agent-worker-otel-attrs-v1}"
@@ -662,151 +690,181 @@ NODE
   export OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE:-100}"
 }
 
-supervisor_api_staging_require_runtime_env() {
-  supervisor_api_staging_require_canonical_runtime_topology
-  supervisor_api_staging_require_runtime_env_core
-  supervisor_api_staging_require_tunnel_token
-  supervisor_api_staging_validate_axiom_collector_endpoint
+execution_gateway_staging_require_runtime_env() {
+  execution_gateway_staging_require_canonical_runtime_topology
+  execution_gateway_staging_require_runtime_env_core
+  execution_gateway_staging_require_tunnel_token
+  execution_gateway_staging_validate_axiom_collector_endpoint
 }
 
-supervisor_api_staging_require_status_env() {
-  supervisor_api_staging_require_canonical_runtime_topology
-  supervisor_api_staging_require_runtime_env_core
-  supervisor_api_staging_validate_axiom_collector_endpoint
+execution_gateway_staging_require_status_env() {
+  execution_gateway_staging_require_canonical_runtime_topology
+  execution_gateway_staging_require_runtime_env_core
+  execution_gateway_staging_validate_axiom_collector_endpoint
 }
 
-supervisor_api_staging_require_tunnel_token() {
-  if [[ -z "${SUPERVISOR_API_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:-}}" ]]; then
-    echo "SUPERVISOR_API_STAGING_TUNNEL_TOKEN is required for the remote-managed supervisor-api-staging tunnel." >&2
-    return 1
-  fi
-}
-
-supervisor_api_staging_require_local_durable_proof_env() {
-  if [[ "${SUPERVISOR_API_STAGING_RUNTIME_KIND:-}" != "local-durable-proof" ]]; then
-    echo "SUPERVISOR_API_STAGING_RUNTIME_KIND=local-durable-proof is required for the local durable proof script." >&2
-    return 1
-  fi
-  supervisor_api_staging_require_runtime_env_core
-  supervisor_api_staging_require_isolated_durable_proof_runtime
-  supervisor_api_staging_validate_axiom_collector_endpoint
-}
-
-supervisor_api_staging_require_canonical_runtime_topology() {
-  if [[ "${SUPERVISOR_API_STAGING_RUNTIME_KIND:-canonical}" != "canonical" ]]; then
-    echo "Canonical supervisor-api staging lifecycle requires SUPERVISOR_API_STAGING_RUNTIME_KIND=canonical or unset." >&2
-    return 1
-  fi
-  if [[ "${supervisor_api_staging_compose_project_name}" != "campus-supervisor-api-staging" ]]; then
-    echo "Canonical supervisor-api staging compose project must be campus-supervisor-api-staging." >&2
-    return 1
-  fi
-  if [[ "${supervisor_api_staging_runtime_dir}" != "${supervisor_api_staging_repo_root}/.tmp/supervisor-api-staging" ]]; then
-    echo "Canonical supervisor-api staging runtime dir must be ${supervisor_api_staging_repo_root}/.tmp/supervisor-api-staging." >&2
-    return 1
-  fi
-  if [[ "${supervisor_api_staging_port}" != "27051" ]]; then
-    echo "Canonical supervisor-api staging port must be 27051." >&2
+execution_gateway_staging_require_tunnel_token() {
+  if [[ -z "${EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:-}}" ]]; then
+    echo "EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN is required for the remote-managed execution-gateway-staging tunnel." >&2
     return 1
   fi
 }
 
-supervisor_api_staging_require_isolated_durable_proof_runtime() {
-  if [[ -z "${SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME:-}" ]]; then
-    echo "SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME is required for local durable proof; use an isolated compose project, not the canonical staging runtime." >&2
+execution_gateway_staging_require_local_temporal_proof_env() {
+  if [[ "${EXECUTION_GATEWAY_STAGING_RUNTIME_KIND:-}" != "local-temporal-proof" ]]; then
+    echo "EXECUTION_GATEWAY_STAGING_RUNTIME_KIND=local-temporal-proof is required for the local temporal proof script." >&2
     return 1
   fi
-  if [[ -z "${SUPERVISOR_API_STAGING_RUNTIME_DIR:-}" ]]; then
-    echo "SUPERVISOR_API_STAGING_RUNTIME_DIR is required for local durable proof; use an isolated runtime directory, not the canonical staging runtime." >&2
+  execution_gateway_staging_require_runtime_env_core
+  execution_gateway_staging_require_isolated_temporal_proof_runtime
+  execution_gateway_staging_validate_axiom_collector_endpoint
+}
+
+execution_gateway_staging_require_canonical_runtime_topology() {
+  if [[ "${EXECUTION_GATEWAY_STAGING_RUNTIME_KIND:-canonical}" != "canonical" ]]; then
+    echo "Canonical execution-gateway staging lifecycle requires EXECUTION_GATEWAY_STAGING_RUNTIME_KIND=canonical or unset." >&2
     return 1
   fi
-  if [[ -z "${SUPERVISOR_API_STAGING_PORT:-}" ]]; then
-    echo "SUPERVISOR_API_STAGING_PORT is required for local durable proof; use an isolated host port, not the canonical staging runtime." >&2
+  if [[ "${execution_gateway_staging_compose_project_name}" != "campus-execution-gateway-staging" ]]; then
+    echo "Canonical execution-gateway staging compose project must be campus-execution-gateway-staging." >&2
     return 1
   fi
-  if [[ "${SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME}" == "campus-supervisor-api-staging" ]]; then
-    echo "SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME must not be campus-supervisor-api-staging for local durable proof." >&2
+  if [[ "${execution_gateway_staging_runtime_dir}" != "${execution_gateway_staging_repo_root}/.tmp/execution-gateway-staging" ]]; then
+    echo "Canonical execution-gateway staging runtime dir must be ${execution_gateway_staging_repo_root}/.tmp/execution-gateway-staging." >&2
     return 1
   fi
-  if [[ "${SUPERVISOR_API_STAGING_RUNTIME_DIR}" == "${supervisor_api_staging_repo_root}/.tmp/supervisor-api-staging" ]]; then
-    echo "SUPERVISOR_API_STAGING_RUNTIME_DIR must not use the canonical staging runtime directory for local durable proof." >&2
-    return 1
-  fi
-  if [[ "${SUPERVISOR_API_STAGING_PORT}" == "27051" ]]; then
-    echo "SUPERVISOR_API_STAGING_PORT must not use canonical staging port 27051 for local durable proof." >&2
+  if [[ "${execution_gateway_staging_port}" != "27051" ]]; then
+    echo "Canonical execution-gateway staging port must be 27051." >&2
     return 1
   fi
 }
 
-supervisor_api_staging_require_runtime_env_core() {
-  supervisor_api_staging_require_observability_sink_env
+execution_gateway_staging_require_isolated_temporal_proof_runtime() {
+  if [[ -z "${EXECUTION_GATEWAY_STAGING_COMPOSE_PROJECT_NAME:-}" ]]; then
+    echo "EXECUTION_GATEWAY_STAGING_COMPOSE_PROJECT_NAME is required for local temporal proof; use an isolated compose project, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ -z "${EXECUTION_GATEWAY_STAGING_RUNTIME_DIR:-}" ]]; then
+    echo "EXECUTION_GATEWAY_STAGING_RUNTIME_DIR is required for local temporal proof; use an isolated runtime directory, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ -z "${EXECUTION_GATEWAY_STAGING_PORT:-}" ]]; then
+    echo "EXECUTION_GATEWAY_STAGING_PORT is required for local temporal proof; use an isolated host port, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ "${EXECUTION_GATEWAY_STAGING_COMPOSE_PROJECT_NAME}" == "campus-execution-gateway-staging" ]]; then
+    echo "EXECUTION_GATEWAY_STAGING_COMPOSE_PROJECT_NAME must not be campus-execution-gateway-staging for local temporal proof." >&2
+    return 1
+  fi
+  if [[ "${EXECUTION_GATEWAY_STAGING_RUNTIME_DIR}" == "${execution_gateway_staging_repo_root}/.tmp/execution-gateway-staging" ]]; then
+    echo "EXECUTION_GATEWAY_STAGING_RUNTIME_DIR must not use the canonical staging runtime directory for local temporal proof." >&2
+    return 1
+  fi
+  if [[ "${EXECUTION_GATEWAY_STAGING_PORT}" == "27051" ]]; then
+    echo "EXECUTION_GATEWAY_STAGING_PORT must not use canonical staging port 27051 for local temporal proof." >&2
+    return 1
+  fi
+}
 
-  if [[ -n "${SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS:-}" ]]; then
-    echo "supervisor-api staging data-plane env is invalid:" >&2
+execution_gateway_staging_require_runtime_env_core() {
+  execution_gateway_staging_require_observability_sink_env
+
+  if [[ -n "${EXECUTION_GATEWAY_STAGING_DATA_PLANE_ERRORS:-}" ]]; then
+    echo "execution-gateway staging data-plane env is invalid:" >&2
     while IFS= read -r data_plane_error; do
       if [[ -n "${data_plane_error}" ]]; then
         echo "  - ${data_plane_error}" >&2
       fi
-    done <<<"${SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS}"
+    done <<<"${EXECUTION_GATEWAY_STAGING_DATA_PLANE_ERRORS}"
     return 1
   fi
 
-  if [[ -z "${SUPERVISOR_API_SHARED_SECRET:-}" ]]; then
-    echo "SUPERVISOR_API_SHARED_SECRET is missing. Populate apps/app-api/.dev.vars first." >&2
+  if [[ -n "${EXECUTION_GATEWAY_STAGING_RETIRED_ENV_ERRORS:-}" ]]; then
+    echo "execution-gateway staging env contains retired PG lease loop settings:" >&2
+    while IFS= read -r retired_env_error; do
+      if [[ -n "${retired_env_error}" ]]; then
+        echo "  - ${retired_env_error}" >&2
+      fi
+    done <<<"${EXECUTION_GATEWAY_STAGING_RETIRED_ENV_ERRORS}"
     return 1
   fi
 
-  if [[ -z "${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}" ]]; then
-    echo "SUPERVISOR_API_METRICS_BEARER_TOKEN is required for staging supervisor metrics." >&2
+  if [[ -z "${EXECUTION_GATEWAY_SHARED_SECRET:-}" ]]; then
+    echo "EXECUTION_GATEWAY_SHARED_SECRET is missing. Populate apps/app-api/.dev.vars first." >&2
     return 1
   fi
 
-  if [[ -z "${supervisor_api_staging_bridge_shared_secret}" ]]; then
+  if [[ -z "${EXECUTION_GATEWAY_METRICS_BEARER_TOKEN:-}" ]]; then
+    echo "EXECUTION_GATEWAY_METRICS_BEARER_TOKEN is required for staging supervisor metrics." >&2
+    return 1
+  fi
+
+  if [[ -z "${execution_gateway_staging_bridge_shared_secret}" ]]; then
     echo "SUPERVISOR_AGENT_WORKER_SHARED_SECRET is missing. Set SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET or export SUPERVISOR_AGENT_WORKER_SHARED_SECRET." >&2
     return 1
   fi
 
   if [[ -z "${SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET:-}" ]]; then
-    echo "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET is required for supervisor-api staging structured query runtime." >&2
+    echo "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET is required for execution-gateway staging structured query runtime." >&2
     return 1
   fi
 
-  if [[ -z "${SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL:-}" ]]; then
-    echo "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL is required for supervisor-api staging durable runtime." >&2
+  if [[ -z "${EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL:-}" ]]; then
+    echo "EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL is required for execution-gateway staging durable runtime." >&2
     return 1
   fi
 
-  if [[ "${SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED:-}" == "true" ]]; then
-    local durable_worker_loop_required_keys=(
-      SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID
-      SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE
-      SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID
-      SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS
-      SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS
-      SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS
-    )
-    local durable_worker_loop_required_key
-    for durable_worker_loop_required_key in "${durable_worker_loop_required_keys[@]}"; do
-      if [[ -z "${!durable_worker_loop_required_key:-}" ]]; then
-        echo "${durable_worker_loop_required_key} is required when SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED=true." >&2
-        return 1
-      fi
-    done
+  if [[ -z "${TEMPORAL_POSTGRES_PASSWORD:-}" ]]; then
+    echo "TEMPORAL_POSTGRES_PASSWORD is required for self-hosted Temporal Postgres." >&2
+    return 1
   fi
 
-  if [[ "${SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED:-}" == "true" ]]; then
-    local durable_recovery_loop_required_keys=(
-      SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS
-      SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS
-    )
-    local durable_recovery_loop_required_key
-    for durable_recovery_loop_required_key in "${durable_recovery_loop_required_keys[@]}"; do
-      if [[ -z "${!durable_recovery_loop_required_key:-}" ]]; then
-        echo "${durable_recovery_loop_required_key} is required when SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED=true." >&2
-        return 1
-      fi
-    done
+  local temporal_required_keys=(
+    EXECUTION_GATEWAY_TEMPORAL_ADDRESS
+    EXECUTION_GATEWAY_TEMPORAL_NAMESPACE
+    EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE
+    EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY
+    EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT
+    EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS
+  )
+  local temporal_required_key
+  for temporal_required_key in "${temporal_required_keys[@]}"; do
+    if [[ -z "${!temporal_required_key:-}" ]]; then
+      echo "${temporal_required_key} is required for execution-gateway staging Temporal runtime." >&2
+      return 1
+    fi
+  done
+  if [[ "${EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY}" != *:*:* ]]; then
+    echo "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY must be <env>:<role>:<instance>." >&2
+    return 1
   fi
+  if ! [[ "${EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS must be a positive integer." >&2
+    return 1
+  fi
+  local accepted_temporal_namespaces=(
+    campus-agent-staging
+    campus-agent-prod
+  )
+  local temporal_namespace_accepted=0
+  local accepted_temporal_namespace
+  for accepted_temporal_namespace in "${accepted_temporal_namespaces[@]}"; do
+    if [[ "${EXECUTION_GATEWAY_TEMPORAL_NAMESPACE}" == "${accepted_temporal_namespace}" ]]; then
+      temporal_namespace_accepted=1
+    fi
+  done
+  if (( temporal_namespace_accepted != 1 )); then
+    echo "EXECUTION_GATEWAY_TEMPORAL_NAMESPACE must be campus-agent-staging or campus-agent-prod." >&2
+    return 1
+  fi
+  case "${EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE}" in
+    campus-agent.workflow)
+      ;;
+    *)
+      echo "EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE must be campus-agent.workflow." >&2
+      return 1
+      ;;
+  esac
 
   if [[ -z "${CAMPUS_SHARED_POSTGRES_URL:-}" ]]; then
     echo "CAMPUS_SHARED_POSTGRES_URL is required after STAGING_INGESTION_SHARED_POSTGRES_URL projection." >&2

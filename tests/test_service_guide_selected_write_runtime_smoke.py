@@ -10,7 +10,7 @@ import scripts.service_guide_selected_write_runtime_smoke as smoke
 
 
 class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):
-    def test_plan_starts_only_supervisor_api_against_current_postgres_projection(self) -> None:
+    def test_plan_starts_only_execution_gateway_against_current_postgres_projection(self) -> None:
         plan = smoke.build_service_guide_selected_write_runtime_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/service-guide-smoke"),
@@ -21,16 +21,16 @@ class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):
 
         self.assertEqual(len(plan.processes), 1)
         process = plan.processes[0]
-        self.assertEqual(process.label, "supervisor-api")
-        self.assertEqual(process.command, ("go", "run", "./cmd/supervisor-api"))
-        self.assertEqual(process.cwd, Path("/repo/apps/supervisor-api"))
+        self.assertEqual(process.label, "execution-gateway")
+        self.assertEqual(process.command, ("go", "run", "./cmd/execution-gateway"))
+        self.assertEqual(process.cwd, Path("/repo/apps/execution-gateway"))
         self.assertEqual(process.env["CAMPUS_AGENT_HTTP_PORT"], "19181")
         self.assertEqual(
             process.env["CAMPUS_SHARED_POSTGRES_URL"],
             "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
         )
         self.assertEqual(process.env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"], "query-secret")
-        self.assertNotIn("SUPERVISOR_API_OPEN_CAPABILITIES", process.env)
+        self.assertNotIn("EXECUTION_GATEWAY_OPEN_CAPABILITIES", process.env)
         command_words = [word for command in plan.processes for word in command.command]
         self.assertNotIn("docker", command_words)
         self.assertNotIn("wrangler", command_words)

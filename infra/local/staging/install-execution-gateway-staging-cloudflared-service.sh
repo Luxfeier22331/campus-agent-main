@@ -2,15 +2,15 @@
 
 set -euo pipefail
 
-service_name="${SUPERVISOR_API_STAGING_CLOUDFLARED_SERVICE_NAME:-cloudflared-supervisor-api-staging}"
-env_file="${SUPERVISOR_API_STAGING_CLOUDFLARED_ENV_FILE:-/etc/campus-agent/supervisor-api-staging-cloudflared.env}"
-tunnel_token="${SUPERVISOR_API_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:-}}"
-cloudflared_bin="${SUPERVISOR_API_STAGING_CLOUDFLARED_BIN:-/usr/local/bin/cloudflared}"
-cloudflared_metrics_address="${SUPERVISOR_API_STAGING_CLOUDFLARED_METRICS_ADDRESS:-127.0.0.1:20245}"
-cloudflared_edge_ip_version="${SUPERVISOR_API_STAGING_CLOUDFLARED_EDGE_IP_VERSION:-4}"
+service_name="${EXECUTION_GATEWAY_STAGING_CLOUDFLARED_SERVICE_NAME:-cloudflared-execution-gateway-staging}"
+env_file="${EXECUTION_GATEWAY_STAGING_CLOUDFLARED_ENV_FILE:-/etc/campus-agent/execution-gateway-staging-cloudflared.env}"
+tunnel_token="${EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:-}}"
+cloudflared_bin="${EXECUTION_GATEWAY_STAGING_CLOUDFLARED_BIN:-/usr/local/bin/cloudflared}"
+cloudflared_metrics_address="${EXECUTION_GATEWAY_STAGING_CLOUDFLARED_METRICS_ADDRESS:-127.0.0.1:20245}"
+cloudflared_edge_ip_version="${EXECUTION_GATEWAY_STAGING_CLOUDFLARED_EDGE_IP_VERSION:-4}"
 
 if [[ -z "${tunnel_token}" ]]; then
-  echo "SUPERVISOR_API_STAGING_TUNNEL_TOKEN is required." >&2
+  echo "EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN is required." >&2
   exit 1
 fi
 
@@ -27,7 +27,7 @@ EOF
 
 cat >"/etc/systemd/system/${service_name}.service" <<EOF
 [Unit]
-Description=Cloudflare Tunnel for campus-agent supervisor-api staging
+Description=Cloudflare Tunnel for campus-agent execution-gateway staging
 After=network-online.target
 Wants=network-online.target
 

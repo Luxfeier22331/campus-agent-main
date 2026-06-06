@@ -67,17 +67,29 @@ def profile_requires_workflow_run_store(profile: str) -> bool:
 
 
 def profile_requires_temporary_postgres(profile: str) -> bool:
+    return True
+
+
+def profile_execution_run_expectation(
+    profile: str,
+) -> tuple[dict[str, object], int, tuple[str, ...], str, tuple[int, ...]]:
+    request, expected_readyz_statuses = _profile_request(profile)
+    payload = _execution_run_payload(profile, request)
     return (
-        profile_requires_structured_projection(profile)
-        or profile_requires_notice_read_model(profile)
-        or profile_requires_workflow_run_store(profile)
+        payload,
+        202,
+        (
+            payload["run_id"],  # type: ignore[index]
+            payload["conversation_id"],  # type: ignore[index]
+            '"status": "queued"',
+        ),
+        "/internal/execution/runs",
+        expected_readyz_statuses,
     )
 
 
-def profile_answer_expectation(
-    profile: str,
-) -> tuple[dict[str, object], int, tuple[str, ...], str, str, tuple[int, ...]]:
-    context = {
+def _base_context() -> dict[str, object]:
+    return {
         "actor": {
             "user_id": "smoke-student",
             "principal_id": "smoke-student",
@@ -92,6 +104,10 @@ def profile_answer_expectation(
             }
         },
     }
+
+
+def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
+    context = _base_context()
     if profile == "closed_gate":
         return (
             {
@@ -100,10 +116,6 @@ def profile_answer_expectation(
                 "requested_capability": "campus_services",
                 "context": context,
             },
-            503,
-            ("structured_runtime_closed",),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "terminal_fail_close":
@@ -114,10 +126,6 @@ def profile_answer_expectation(
                 "requested_capability": "knowledge",
                 "context": context,
             },
-            200,
-            ("product_scope_boundary",),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "rag_delegate":
@@ -132,16 +140,6 @@ def profile_answer_expectation(
                 },
                 "context": context,
             },
-            200,
-            (
-                "workflow_trace_summary",
-                "agent_execution_projection",
-                "agent_plan",
-                "grounded_answer",
-                "中央民族大学学生公费医疗管理办法",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "rag_delegate_sdk_candidate":
@@ -156,18 +154,6 @@ def profile_answer_expectation(
                 },
                 "context": context,
             },
-            200,
-            (
-                "workflow_trace_summary",
-                "agent_execution_projection",
-                "rag-agent",
-                "retrieval.query",
-                "rag_sdk_completed",
-                "rag-sdk-trace-projection-v1",
-                "中央民族大学学生公费医疗管理办法",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "rag_delegate_institutional_rules":
@@ -193,17 +179,6 @@ def profile_answer_expectation(
                 },
                 "context": institutional_rules_context,
             },
-            200,
-            (
-                "workflow_trace_summary",
-                "agent_execution_projection",
-                "agent_plan",
-                "grounded_answer",
-                "中央民族大学研究生",
-                "三助",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "transport_schedule_sdk_opened":
@@ -214,18 +189,6 @@ def profile_answer_expectation(
                 "requested_capability": "campus_services",
                 "context": context,
             },
-            200,
-            (
-                "campus-services-agent",
-                "transport_schedule_lookup",
-                "resolved_current",
-                "single_handoff",
-                "sdk_completed",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "transport_schedule_sdk_opened_stream":
@@ -236,19 +199,6 @@ def profile_answer_expectation(
                 "requested_capability": "campus_services",
                 "context": context,
             },
-            200,
-            (
-                "event: execution.completed",
-                "campus-services-agent",
-                "transport_schedule_lookup",
-                "resolved_current",
-                "single_handoff",
-                "sdk_completed",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer/stream",
-            "sse",
             (200,),
         )
     if profile == "service_status_sdk_opened":
@@ -259,18 +209,6 @@ def profile_answer_expectation(
                 "requested_capability": "campus_services",
                 "context": context,
             },
-            200,
-            (
-                "campus-services-agent",
-                "service_status_lookup",
-                "resolved_current",
-                "single_handoff",
-                "sdk_completed",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "service_guide_sdk_opened":
@@ -281,18 +219,6 @@ def profile_answer_expectation(
                 "requested_capability": "campus_services",
                 "context": context,
             },
-            200,
-            (
-                "campus-services-agent",
-                "service_guide_lookup",
-                "resolved_current",
-                "single_handoff",
-                "sdk_completed",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "contact_directory_sdk_opened":
@@ -303,18 +229,6 @@ def profile_answer_expectation(
                 "requested_capability": "campus_services",
                 "context": context,
             },
-            200,
-            (
-                "campus-services-agent",
-                "contact_directory_lookup",
-                "resolved_current",
-                "single_handoff",
-                "sdk_completed",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "notice_discover_sdk_opened":
@@ -325,19 +239,6 @@ def profile_answer_expectation(
                 "requested_capability": "notice",
                 "context": context,
             },
-            200,
-            (
-                "notice-agent",
-                "campus_notice_discover",
-                "resolved_current",
-                "烟雾测试通知",
-                "single_handoff",
-                "sdk_completed",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "academic_calendar_sdk_opened":
@@ -348,18 +249,6 @@ def profile_answer_expectation(
                 "requested_capability": "campus_services",
                 "context": context,
             },
-            200,
-            (
-                "campus-services-agent",
-                "academic_calendar_lookup",
-                "resolved_current",
-                "single_handoff",
-                "sdk_completed",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "multi_step_notice_knowledge_followthrough":
@@ -386,23 +275,6 @@ def profile_answer_expectation(
                 },
                 "context": notice_context,
             },
-            200,
-            (
-                "workflow_trace_summary",
-                "multi_step",
-                "context_projections",
-                "notice_context",
-                "evidence_bundle",
-                "grounding_verdict",
-                "notice-agent",
-                "campus_notice_get",
-                "rag-agent",
-                "retrieval.query",
-                "agent_execution_projection",
-                "已读取的通知上下文",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "selected_notice_knowledge_followthrough_ineligible":
@@ -437,15 +309,6 @@ def profile_answer_expectation(
                 },
                 "context": notice_context,
             },
-            200,
-            (
-                "workflow_trace_summary",
-                "terminal",
-                "no_answer",
-                "selected_notice_target_surface_ineligible_for_knowledge_followthrough",
-            ),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     if profile == "transport_notice_override_multistep":
@@ -476,23 +339,6 @@ def profile_answer_expectation(
                 "requested_capability": "campus_services",
                 "context": notice_context,
             },
-            200,
-            (
-                "workflow_trace_summary",
-                "multi_step",
-                "transport_schedule_lookup",
-                "campus_notice_change_set_lookup",
-                "retrieval.query",
-                "schedule_baseline",
-                "notice_change_set",
-                "evidence_bundle",
-                "grounding_verdict",
-                "丰台到海淀通勤车",
-                "353903",
-                "南门外停车区",
-            ),
-            "/api/v1/answer",
-            "json",
             (200, 503),
         )
     if profile == "transactional_approval_required":
@@ -503,13 +349,103 @@ def profile_answer_expectation(
                 "requested_capability": "knowledge",
                 "context": context,
             },
-            200,
-            ("approval_required", "workflow_trace_summary", "selected_target"),
-            "/api/v1/answer",
-            "json",
             (200,),
         )
     raise ValueError(f"unsupported process smoke profile: {profile}")
+
+
+def _execution_run_payload(profile: str, request: dict[str, object]) -> dict[str, object]:
+    request_id = str(request["request_id"])
+    capability = str(request.get("requested_capability") or "knowledge")
+    run_id = request_id
+    conversation_id = f"conversation-{profile.replace('_', '-')}"
+    trace_id = f"trace-{request_id}"
+    context = request.get("context", {})
+    execution_payload = {
+        "user_goal": request["user_goal"],
+        "request_id": request_id,
+        "conversation_id": conversation_id,
+        "trace": {"trace_id": trace_id},
+        "runtime_decisions": {"runtime_decision_summary": {}},
+        "context": context,
+        "requested_capability": capability,
+    }
+    if "requested_scope" in request:
+        execution_payload["requested_scope"] = request["requested_scope"]
+    return {
+        **request,
+        "run_id": run_id,
+        "conversation_id": conversation_id,
+        "turn_id": f"turn-{profile.replace('_', '-')}",
+        "trace_id": trace_id,
+        "owner_user_id": _owner_user_id(context),
+        "surface": "local-process-smoke",
+        "selected_capability": capability,
+        "lane": _lane_for_capability(capability),
+        "runtime_versions": {"contract": "temporal-execution-gateway-v1"},
+        "metadata": {
+            "execution_payload": execution_payload,
+            "handoff": _handoff_for_request(capability, request),
+        },
+    }
+
+
+def _owner_user_id(context: object) -> str:
+    if isinstance(context, dict):
+        actor = context.get("actor")
+        if isinstance(actor, dict):
+            user_id = actor.get("user_id")
+            if isinstance(user_id, str) and user_id.strip():
+                return user_id.strip()
+    return "smoke-student"
+
+
+def _lane_for_capability(capability: str) -> str:
+    if capability == "knowledge":
+        return "rag"
+    if capability in {"campus_services", "notice"}:
+        return capability
+    return "default"
+
+
+def _handoff_for_request(capability: str, request: dict[str, object]) -> dict[str, object]:
+    user_goal = str(request["user_goal"])
+    if capability == "knowledge":
+        return {
+            "target": "rag-tool",
+            "payload_kind": "rag_request",
+            "allowed_tools": ["retrieval.query"],
+            "payload": {
+                "query_text": user_goal,
+                "requested_scope": request.get("requested_scope", {}),
+            },
+        }
+    if capability == "notice":
+        return {
+            "target": "notice-tool",
+            "payload_kind": "notice_request",
+            "allowed_tools": ["campus_notice_discover"],
+            "payload": {"query_text": user_goal},
+        }
+    if capability == "campus_services":
+        return {
+            "target": "campus-services-tool",
+            "payload_kind": "campus_services_request",
+            "allowed_tools": [
+                "transport_schedule_lookup",
+                "service_status_lookup",
+                "service_guide_lookup",
+                "contact_directory_lookup",
+                "academic_calendar_lookup",
+            ],
+            "payload": {"query_text": user_goal},
+        }
+    return {
+        "target": "default-tool",
+        "payload_kind": "default_request",
+        "allowed_tools": [],
+        "payload": {"query_text": user_goal},
+    }
 
 
 __all__ = [
@@ -522,7 +458,7 @@ __all__ = [
     "STRUCTURED_DIRECT_OPENED_TRUSTED_TIME",
     "TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME",
     "campus_services_sdk_profiles",
-    "profile_answer_expectation",
+    "profile_execution_run_expectation",
     "profile_requires_notice_read_model",
     "profile_requires_object_store",
     "profile_requires_structured_projection",

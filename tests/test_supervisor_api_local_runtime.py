@@ -15,7 +15,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("process.loadEnvFile", script)
         self.assertIn("DOCUMENT_REGISTRY_DATABASE_URL", script)
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL", script)
-        self.assertIn("SUPERVISOR_API_EXECUTION_AUDIT_URL", script)
+        self.assertIn("EXECUTION_GATEWAY_EXECUTION_AUDIT_URL", script)
         self.assertIn("projectLocalServiceDns", script)
         self.assertIn("postgres", script)
         self.assertIn("minio", script)
@@ -34,8 +34,8 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn('"${docker_bin}" compose', script)
         self.assertIn("docker-compose.supervisor-runtime.yml", script)
 
-    def test_supervisor_api_docker_build_uses_configurable_go_module_proxy(self) -> None:
-        dockerfile_path = ROOT / "apps/supervisor-api/Dockerfile"
+    def test_execution_gateway_docker_build_uses_configurable_go_module_proxy(self) -> None:
+        dockerfile_path = ROOT / "apps/execution-gateway/Dockerfile"
         compose_path = ROOT / "infra/local/docker-compose.supervisor-runtime.yml"
         script_path = ROOT / "infra/local/start-supervisor-runtime.sh"
 
@@ -48,11 +48,13 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("ENV GOPROXY=${GOPROXY}", dockerfile)
         self.assertIn("GOSUMDB=${GOSUMDB}", dockerfile)
         self.assertIn("apt-get install -y --no-install-recommends ca-certificates curl", dockerfile)
-        self.assertIn("COPY apps/supervisor-api/go.mod apps/supervisor-api/go.sum ./", dockerfile)
+        self.assertIn(
+            "COPY apps/execution-gateway/go.mod apps/execution-gateway/go.sum ./", dockerfile
+        )
         self.assertIn("RUN go mod download", dockerfile)
         self.assertLess(
             dockerfile.index("RUN go mod download"),
-            dockerfile.index("COPY apps/supervisor-api ./"),
+            dockerfile.index("COPY apps/execution-gateway ./"),
         )
         self.assertIn(
             "COPY configs/runtime/intent-policy.v1.json /src/configs/runtime/intent-policy.v1.json",
@@ -80,17 +82,17 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
-            "SUPERVISOR_API_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json",
+            "EXECUTION_GATEWAY_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json",
             dockerfile,
         )
         self.assertIn(
-            "SUPERVISOR_API_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json",
+            "EXECUTION_GATEWAY_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json",
             dockerfile,
         )
 
-        self.assertIn("SUPERVISOR_API_DOCKER_GOPROXY", compose)
+        self.assertIn("EXECUTION_GATEWAY_DOCKER_GOPROXY", compose)
         self.assertIn("https://goproxy.cn,direct", compose)
-        self.assertIn("SUPERVISOR_API_DOCKER_GOSUMDB", compose)
+        self.assertIn("EXECUTION_GATEWAY_DOCKER_GOSUMDB", compose)
         self.assertNotIn("GOSUMDB=off", compose)
         self.assertIn("healthcheck:", compose)
         self.assertIn("condition: service_healthy", compose)
@@ -101,8 +103,8 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("campus-agent-data-plane", compose)
         self.assertIn("external: true", compose)
 
-        self.assertIn('"SUPERVISOR_API_DOCKER_GOPROXY"', script)
-        self.assertIn('"SUPERVISOR_API_DOCKER_GOSUMDB"', script)
+        self.assertIn('"EXECUTION_GATEWAY_DOCKER_GOPROXY"', script)
+        self.assertIn('"EXECUTION_GATEWAY_DOCKER_GOSUMDB"', script)
         self.assertNotIn("GOSUMDB=off", script)
 
     def test_local_runtime_compose_includes_otel_collector_service_and_runtime_wiring(self) -> None:
@@ -117,7 +119,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", compose)
         self.assertNotIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", compose)
         self.assertIn(
-            "SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces",
+            "EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces",
             compose,
         )
         self.assertIn(
@@ -140,7 +142,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         compose = compose_path.read_text(encoding="utf-8")
         script = script_path.read_text(encoding="utf-8")
 
-        self.assertIn("SUPERVISOR_INTERNAL_QUERY_BASE_URL: http://supervisor-api:8000", compose)
+        self.assertIn("SUPERVISOR_INTERNAL_QUERY_BASE_URL: http://execution-gateway:8000", compose)
         self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", compose)
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL", compose)
         service_status_url_key = "SERVICE_STATUS" + "_READ_MODEL_DATABASE_URL"
@@ -235,26 +237,24 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("/healthz", script)
         self.assertIn("/readyz", script)
         self.assertIn("/metrics", script)
-        self.assertIn("/api/v1/answer", script)
+        self.assertIn("/internal/execution/runs", script)
+        self.assertNotIn("/api/v1/answer", script)
         self.assertIn("x-worker-origin-auth", script)
         self.assertIn('"context"', script)
         self.assertIn('"principal_type":"student"', script)
         self.assertIn('"policy_projection_version":"phase1-authorization-projection-v1"', script)
-        self.assertIn("structured_runtime_closed", script)
+        self.assertIn("execution_run_started", script)
+        self.assertIn("temporal-execution-gateway-v1", script)
         self.assertIn("SUPERVISOR_RUNTIME_SMOKE_SKIP_START", script)
         self.assertIn("SUPERVISOR_RUNTIME_SMOKE_KEEP_RUNNING", script)
         self.assertIn("SUPERVISOR_RUNTIME_SMOKE_ARTIFACT_DIR", script)
-        self.assertIn(".tmp/supervisor-api-local-smoke", script)
+        self.assertIn(".tmp/execution-gateway-local-smoke", script)
         self.assertIn("summary.json", script)
-        self.assertIn("campus_supervisor_runtime_smoke.v1", script)
+        self.assertIn("campus_execution_gateway_runtime_smoke.v1", script)
         self.assertIn("artifacts: ${artifact_dir}", script)
         self.assertIn('started_compose="true"\n    "${start_script}" up -d --build', script)
         self.assertIn("closed_gate", script)
-        self.assertIn("bridge_semantic", script)
-        self.assertIn("open_structured", script)
         self.assertIn("readyz_degraded", script)
-        self.assertIn("SUPERVISOR_API_OPEN_CAPABILITIES=campus_services", script)
-        self.assertIn("campus-ingestion-smoke-structured-projection-postgres", script)
         self.assertIn("docker compose", script)
 
 

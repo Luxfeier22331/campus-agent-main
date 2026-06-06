@@ -14,7 +14,7 @@ EXPECTED_WORKSPACES = {
     "apps/official-web-collector",
     "apps/protected-panel-web",
     "apps/public-chat-web",
-    "apps/supervisor-api",
+    "apps/execution-gateway",
     "apps/supervisor-agent-worker",
     "packages/contracts",
     "packages/evals",

@@ -126,7 +126,7 @@ class MultiAgentProductPathGateTest(unittest.TestCase):
                     "./internal/runtimepolicy",
                     "./internal/structuredquery",
                 ),
-                gate.SUPERVISOR_API_DIR,
+                gate.EXECUTION_GATEWAY_DIR,
             ),
             calls,
         )

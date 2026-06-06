@@ -245,7 +245,7 @@ def _collect_surface_conditions(
     settings: dict[str, dict[str, dict[str, object]]],
     postgres: dict[str, object],
 ) -> dict[str, dict[str, object]]:
-    if surface != "supervisor-api":
+    if surface != "execution-gateway":
         return {}
 
     conditions: dict[str, dict[str, object]] = {}
@@ -255,13 +255,13 @@ def _collect_surface_conditions(
         isinstance(shared_postgres_status, dict) and shared_postgres_status.get("present")
     )
 
-    execution_audit_enabled = read_bool_env(env, "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED")
+    execution_audit_enabled = read_bool_env(env, "EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED")
     audit_missing: list[str] = []
     if execution_audit_enabled:
         if not _setting_present(optional_settings, "execution_audit_url"):
-            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_URL")
+            audit_missing.append("EXECUTION_GATEWAY_EXECUTION_AUDIT_URL")
         if not _setting_present(optional_settings, "execution_audit_shared_secret"):
-            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET")
+            audit_missing.append("EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET")
     conditions["execution_audit_contract"] = {
         "required": execution_audit_enabled,
         "ready": len(audit_missing) == 0,
@@ -273,7 +273,7 @@ def _collect_surface_conditions(
     }
 
     opened_capabilities = read_capability_set(
-        env.get("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
+        env.get("EXECUTION_GATEWAY_OPEN_CAPABILITIES", ""),
     )
     structured_runtime_required = bool(
         opened_capabilities.intersection({"campus_services", "notice"})
@@ -511,7 +511,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "surface",
         choices=tuple(sorted(SURFACE_SPECS)),
-        help="Logical surface to diagnose, for example evals or supervisor-api.",
+        help="Logical surface to diagnose, for example evals or execution-gateway.",
     )
     parser.add_argument(
         "--repo-root",

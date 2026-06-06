@@ -18,7 +18,7 @@ class DoctorEnvStagingTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_SUPERVISOR_API_BASE_URL": "https://supervisor-staging.example.com",
+                    "STAGING_EXECUTION_GATEWAY_BASE_URL": "https://supervisor-staging.example.com",
                     "STAGING_ACCESS_TEAM_DOMAIN": "https://mucwiki-edge.cloudflareaccess.com",
                     "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
                 },
@@ -28,7 +28,7 @@ class DoctorEnvStagingTest(unittest.TestCase):
 
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
-                status["settings"]["required"]["staging_supervisor_api_base_url"]["present"]
+                status["settings"]["required"]["staging_execution_gateway_base_url"]["present"]
             )
             self.assertTrue(status["settings"]["required"]["staging_access_team_domain"]["present"])
             self.assertTrue(status["settings"]["required"]["staging_access_policy_aud"]["present"])
@@ -41,7 +41,7 @@ class DoctorEnvStagingTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_SUPERVISOR_API_BASE_URL": "https://supervisor-staging.example.com",
+                    "STAGING_EXECUTION_GATEWAY_BASE_URL": "https://supervisor-staging.example.com",
                 },
                 clear=True,
             ):
@@ -51,7 +51,7 @@ class DoctorEnvStagingTest(unittest.TestCase):
 
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
-                status["settings"]["required"]["staging_supervisor_api_base_url"]["present"]
+                status["settings"]["required"]["staging_execution_gateway_base_url"]["present"]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 

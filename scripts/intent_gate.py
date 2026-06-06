@@ -17,9 +17,9 @@ DEFAULT_SUITES = (
     "observed_regression",
     "synthetic_regression",
 )
-DEFAULT_RUNNER = "supervisor-api-go"
+DEFAULT_RUNNER = "execution-gateway-go"
 INTENT_SUITES = (*DEFAULT_SUITES, "synthetic_exploratory")
-INTENT_RUNNERS = ("supervisor-api-go",)
+INTENT_RUNNERS = ("execution-gateway-go",)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--runner",
         choices=INTENT_RUNNERS,
         default=DEFAULT_RUNNER,
-        help="Intent runner to use. Defaults to supervisor-api-go.",
+        help="Intent runner to use. Defaults to execution-gateway-go.",
     )
     parser.add_argument(
         "--report-only",

@@ -18,7 +18,9 @@ AGENT_HANDOFF_SCHEMA_PATH = Path("packages/contracts/schemas/agent-handoff.v1.sc
 GENERATED_TS_PATH = Path(
     "apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts"
 )
-GENERATED_GO_PATH = Path("apps/supervisor-api/internal/contracts/supervisor_execution_contract.go")
+GENERATED_GO_PATH = Path(
+    "apps/execution-gateway/internal/contracts/supervisor_execution_contract.go"
+)
 GENERATED_PY_PATH = Path(
     "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/"
     "supervisor_execution_contract.py"

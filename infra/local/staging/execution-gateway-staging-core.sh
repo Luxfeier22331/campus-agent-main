@@ -2,21 +2,21 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154
 
-supervisor_api_staging_ensure_runtime_dirs() {
-  mkdir -p "${supervisor_api_staging_log_dir}"
+execution_gateway_staging_ensure_runtime_dirs() {
+  mkdir -p "${execution_gateway_staging_log_dir}"
 }
 
-supervisor_api_staging_acquire_lock() {
-  local wait_seconds="${1:-${supervisor_api_staging_lock_wait_seconds}}"
+execution_gateway_staging_acquire_lock() {
+  local wait_seconds="${1:-${execution_gateway_staging_lock_wait_seconds}}"
 
-  exec 9>"${supervisor_api_staging_lock_file}"
+  exec 9>"${execution_gateway_staging_lock_file}"
   if ! flock -w "${wait_seconds}" 9; then
-    echo "Timed out waiting for ${supervisor_api_staging_lock_file}; another staging lifecycle command is still active." >&2
+    echo "Timed out waiting for ${execution_gateway_staging_lock_file}; another staging lifecycle command is still active." >&2
     return 1
   fi
 }
 
-supervisor_api_staging_require_command() {
+execution_gateway_staging_require_command() {
   local command_name="$1"
   local resolved
 
@@ -29,7 +29,7 @@ supervisor_api_staging_require_command() {
   printf '%s\n' "${resolved}"
 }
 
-supervisor_api_staging_read_pid() {
+execution_gateway_staging_read_pid() {
   local pid_file="$1"
 
   if [[ ! -f "${pid_file}" ]]; then
@@ -39,12 +39,12 @@ supervisor_api_staging_read_pid() {
   tr -d '[:space:]' <"${pid_file}"
 }
 
-supervisor_api_staging_pid_is_running() {
+execution_gateway_staging_pid_is_running() {
   local pid_file="$1"
   local pid
   local kill_output
 
-  pid="$(supervisor_api_staging_read_pid "${pid_file}" 2>/dev/null || true)"
+  pid="$(execution_gateway_staging_read_pid "${pid_file}" 2>/dev/null || true)"
   if [[ -z "${pid}" ]]; then
     return 1
   fi
@@ -61,22 +61,22 @@ supervisor_api_staging_pid_is_running() {
   return 1
 }
 
-supervisor_api_staging_cleanup_stale_pidfile() {
+execution_gateway_staging_cleanup_stale_pidfile() {
   local pid_file="$1"
 
-  if [[ -f "${pid_file}" ]] && ! supervisor_api_staging_pid_is_running "${pid_file}"; then
+  if [[ -f "${pid_file}" ]] && ! execution_gateway_staging_pid_is_running "${pid_file}"; then
     rm -f "${pid_file}"
   fi
 }
 
-supervisor_api_staging_adopt_existing_process() {
+execution_gateway_staging_adopt_existing_process() {
   local label="$1"
   local pid_file="$2"
   local match_pattern="$3"
   local -a matched_pids
 
-  supervisor_api_staging_cleanup_stale_pidfile "${pid_file}"
-  if supervisor_api_staging_pid_is_running "${pid_file}"; then
+  execution_gateway_staging_cleanup_stale_pidfile "${pid_file}"
+  if execution_gateway_staging_pid_is_running "${pid_file}"; then
     return 0
   fi
 
@@ -94,7 +94,7 @@ supervisor_api_staging_adopt_existing_process() {
   return 1
 }
 
-supervisor_api_staging_wait_for_http_ok() {
+execution_gateway_staging_wait_for_http_ok() {
   local url="$1"
   local attempts="${2:-30}"
   local sleep_seconds="${3:-1}"
@@ -105,7 +105,7 @@ supervisor_api_staging_wait_for_http_ok() {
   local -a curl_args
 
   curl_args=(-sS -o /dev/null -w "%{http_code}")
-  supervisor_api_staging_append_probe_auth_header curl_args "${header_value}" "${header_kind}"
+  execution_gateway_staging_append_probe_auth_header curl_args "${header_value}" "${header_kind}"
   curl_args+=("${url}")
 
   for ((attempt = 1; attempt <= attempts; attempt += 1)); do
@@ -120,7 +120,7 @@ supervisor_api_staging_wait_for_http_ok() {
   return 1
 }
 
-supervisor_api_staging_probe_http_url() {
+execution_gateway_staging_probe_http_url() {
   local url="$1"
   local body_file="$2"
   local use_noproxy="${3:-0}"
@@ -132,19 +132,19 @@ supervisor_api_staging_probe_http_url() {
   if [[ "${use_noproxy}" == "1" ]]; then
     curl_command+=(--noproxy '*')
   fi
-  supervisor_api_staging_append_probe_auth_header curl_command "${header_value}" "${header_kind}"
+  execution_gateway_staging_append_probe_auth_header curl_command "${header_value}" "${header_kind}"
   curl_command+=("${url}")
 
   "${curl_command[@]}" || true
 }
 
-supervisor_api_staging_probe_json_path_equals() {
+execution_gateway_staging_probe_json_path_equals() {
   local body_file="$1"
   local path="$2"
   local expected_json="$3"
   local node_bin
 
-  node_bin="$(supervisor_api_staging_require_command node)"
+  node_bin="$(execution_gateway_staging_require_command node)"
   "${node_bin}" - "${body_file}" "${path}" "${expected_json}" <<'NODE'
 const fs = require("node:fs");
 const [bodyPath, path, expectedJson] = process.argv.slice(2);
@@ -170,7 +170,7 @@ if (JSON.stringify(current) !== JSON.stringify(JSON.parse(expectedJson))) {
 NODE
 }
 
-supervisor_api_staging_append_probe_auth_header() {
+execution_gateway_staging_append_probe_auth_header() {
   local -n curl_args_ref="$1"
   local header_value="${2:-}"
   local header_kind="${3:-}"
@@ -196,10 +196,10 @@ supervisor_api_staging_append_probe_auth_header() {
   esac
 }
 
-supervisor_api_staging_rotate_log_file_if_needed() {
+execution_gateway_staging_rotate_log_file_if_needed() {
   local log_file="$1"
-  local max_bytes="${2:-${supervisor_api_staging_log_rotate_max_bytes}}"
-  local keep_count="${3:-${supervisor_api_staging_log_rotate_keep_count}}"
+  local max_bytes="${2:-${execution_gateway_staging_log_rotate_max_bytes}}"
+  local keep_count="${3:-${execution_gateway_staging_log_rotate_keep_count}}"
   local file_size
   local backup_index
   local backup_path
@@ -236,14 +236,14 @@ supervisor_api_staging_rotate_log_file_if_needed() {
   : >"${log_file}"
 }
 
-supervisor_api_staging_rotate_logs_if_needed() {
-  supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_cloudflared_log_file}"
-  supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_api_log_file}"
-  supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_agent_worker_log_file}"
-  supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_otel_collector_log_file}"
+execution_gateway_staging_rotate_logs_if_needed() {
+  execution_gateway_staging_rotate_log_file_if_needed "${execution_gateway_staging_cloudflared_log_file}"
+  execution_gateway_staging_rotate_log_file_if_needed "${execution_gateway_staging_execution_gateway_log_file}"
+  execution_gateway_staging_rotate_log_file_if_needed "${execution_gateway_staging_supervisor_agent_worker_log_file}"
+  execution_gateway_staging_rotate_log_file_if_needed "${execution_gateway_staging_otel_collector_log_file}"
 }
 
-supervisor_api_staging_kill_managed_process() {
+execution_gateway_staging_kill_managed_process() {
   local pid="$1"
   local signal="${2:-TERM}"
 
@@ -254,13 +254,13 @@ supervisor_api_staging_kill_managed_process() {
   kill "-${signal}" "${pid}" 2>/dev/null
 }
 
-supervisor_api_staging_print_process_status() {
+execution_gateway_staging_print_process_status() {
   local label="$1"
   local pid_file="$2"
 
-  supervisor_api_staging_cleanup_stale_pidfile "${pid_file}"
-  if supervisor_api_staging_pid_is_running "${pid_file}"; then
-    echo "${label}: running (pid $(supervisor_api_staging_read_pid "${pid_file}"))"
+  execution_gateway_staging_cleanup_stale_pidfile "${pid_file}"
+  if execution_gateway_staging_pid_is_running "${pid_file}"; then
+    echo "${label}: running (pid $(execution_gateway_staging_read_pid "${pid_file}"))"
     return 0
   fi
 
@@ -268,20 +268,20 @@ supervisor_api_staging_print_process_status() {
   return 1
 }
 
-supervisor_api_staging_compose() {
+execution_gateway_staging_compose() {
   local docker_bin
   local worker_shared_secret
   local bridge_shared_secret
-  docker_bin="$(supervisor_api_staging_require_command docker)"
-  worker_shared_secret="${SUPERVISOR_API_SHARED_SECRET:?SUPERVISOR_API_SHARED_SECRET is required}"
-  bridge_shared_secret="${supervisor_api_staging_bridge_shared_secret:?SUPERVISOR_AGENT_WORKER_SHARED_SECRET is required}"
+  docker_bin="$(execution_gateway_staging_require_command docker)"
+  worker_shared_secret="${EXECUTION_GATEWAY_SHARED_SECRET:?EXECUTION_GATEWAY_SHARED_SECRET is required}"
+  bridge_shared_secret="${execution_gateway_staging_bridge_shared_secret:?SUPERVISOR_AGENT_WORKER_SHARED_SECRET is required}"
 
   (
-    cd "${supervisor_api_staging_repo_root}" || exit
-    COMPOSE_PROJECT_NAME="${supervisor_api_staging_compose_project_name}" \
-    SUPERVISOR_API_HOST_PORT="${supervisor_api_staging_port}" \
-    CAMPUS_AGENT_DATA_PLANE_NETWORK="${supervisor_api_staging_data_plane_network}" \
-    SUPERVISOR_API_RUNTIME_PROFILE=staging \
+    cd "${execution_gateway_staging_repo_root}" || exit
+    COMPOSE_PROJECT_NAME="${execution_gateway_staging_compose_project_name}" \
+    EXECUTION_GATEWAY_HOST_PORT="${execution_gateway_staging_port}" \
+    CAMPUS_AGENT_DATA_PLANE_NETWORK="${execution_gateway_staging_data_plane_network}" \
+    EXECUTION_GATEWAY_RUNTIME_PROFILE=staging \
     API_AUTH_MODE=trusted-worker \
     API_WORKER_SHARED_SECRET="${worker_shared_secret}" \
     SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
@@ -293,31 +293,38 @@ supervisor_api_staging_compose() {
     RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL="${RAW_ASSET_REGISTRY_OPERATOR_DOCKER_DATABASE_URL:-${RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL}}" \
     OBJECT_STORE_ENDPOINT="${OBJECT_STORE_DOCKER_ENDPOINT:?OBJECT_STORE_DOCKER_ENDPOINT is required}" \
     QDRANT_URL="${QDRANT_DOCKER_URL:?QDRANT_DOCKER_URL is required}" \
-    SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL="${SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL:?SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required}" \
-    "${docker_bin}" compose -f "${supervisor_api_staging_compose_file}" "$@"
+    EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL="${EXECUTION_GATEWAY_DURABLE_RUNTIME_DOCKER_DATABASE_URL:?EXECUTION_GATEWAY_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required}" \
+    EXECUTION_GATEWAY_TEMPORAL_ADDRESS="${EXECUTION_GATEWAY_TEMPORAL_ADDRESS:?EXECUTION_GATEWAY_TEMPORAL_ADDRESS is required}" \
+    EXECUTION_GATEWAY_TEMPORAL_NAMESPACE="${EXECUTION_GATEWAY_TEMPORAL_NAMESPACE:?EXECUTION_GATEWAY_TEMPORAL_NAMESPACE is required}" \
+    EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE="${EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}" \
+    EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY="${EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY:?EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY is required}" \
+    EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT="${EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT:?EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT is required}" \
+    EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS="${EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS:-5000}" \
+    TEMPORAL_POSTGRES_PASSWORD="${TEMPORAL_POSTGRES_PASSWORD:?TEMPORAL_POSTGRES_PASSWORD is required}" \
+    "${docker_bin}" compose -f "${execution_gateway_staging_compose_file}" "$@"
   )
 }
 
-supervisor_api_staging_compose_running_services() {
-  supervisor_api_staging_compose ps --services --status running
+execution_gateway_staging_compose_running_services() {
+  execution_gateway_staging_compose ps --services --status running
 }
 
-supervisor_api_staging_compose_project_running() {
+execution_gateway_staging_compose_project_running() {
   local services
-  services="$(supervisor_api_staging_compose_running_services 2>/dev/null || true)"
-  [[ "${services}" == *"otel-collector"* ]] && [[ "${services}" == *"supervisor-api"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
+  services="$(execution_gateway_staging_compose_running_services 2>/dev/null || true)"
+  [[ "${services}" == *"otel-collector"* ]] && [[ "${services}" == *"execution-gateway"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
 }
 
-supervisor_api_staging_run_durable_schema_command() {
+execution_gateway_staging_run_durable_schema_command() {
   local mode="$1"
   local evidence_path="$2"
   local docker_bin
   local container_evidence_path
 
-  docker_bin="$(supervisor_api_staging_require_command docker)"
+  docker_bin="$(execution_gateway_staging_require_command docker)"
   case "${evidence_path}" in
-    "${supervisor_api_staging_repo_root}"/*)
-      container_evidence_path="/workspace/${evidence_path#"${supervisor_api_staging_repo_root}/"}"
+    "${execution_gateway_staging_repo_root}"/*)
+      container_evidence_path="/workspace/${evidence_path#"${execution_gateway_staging_repo_root}/"}"
       ;;
     *)
       echo "Durable runtime schema evidence path must stay under repo root: ${evidence_path}" >&2
@@ -325,41 +332,45 @@ supervisor_api_staging_run_durable_schema_command() {
       ;;
   esac
   (
-    cd "${supervisor_api_staging_repo_root}" || exit
+    cd "${execution_gateway_staging_repo_root}" || exit
     "${docker_bin}" run --rm \
-      --network "${supervisor_api_staging_data_plane_network}" \
-      -v "${supervisor_api_staging_repo_root}:/workspace" \
-      -w /workspace/apps/supervisor-api \
+      --network "${execution_gateway_staging_data_plane_network}" \
+      -v "${execution_gateway_staging_repo_root}:/workspace" \
+      -w /workspace/apps/execution-gateway \
       -e GOCACHE=/workspace/.tmp/go-cache \
       -e GOMODCACHE=/workspace/.tmp/go-mod-cache \
       golang:1.26.2-bookworm \
       go run ./cmd/durable-runtime-schema \
         --mode "${mode}" \
-        --database-url "${SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL:?SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required}" \
+        --database-url "${EXECUTION_GATEWAY_DURABLE_RUNTIME_DOCKER_DATABASE_URL:?EXECUTION_GATEWAY_DURABLE_RUNTIME_DOCKER_DATABASE_URL is required}" \
         --evidence-path "${container_evidence_path}"
   )
 }
 
-supervisor_api_staging_ensure_durable_runtime_schema() {
-  local evidence_dir="${supervisor_api_staging_runtime_dir}/evidence"
+execution_gateway_staging_ensure_durable_runtime_schema() {
+  local evidence_dir="${execution_gateway_staging_runtime_dir}/evidence"
   mkdir -p "${evidence_dir}"
 
-  supervisor_api_staging_run_durable_schema_command \
+  execution_gateway_staging_run_durable_schema_command \
     install \
     "${evidence_dir}/durable-runtime-schema-install.json"
-  supervisor_api_staging_run_durable_schema_command \
+  execution_gateway_staging_run_durable_schema_command \
     check \
     "${evidence_dir}/durable-runtime-schema-check.json"
 }
 
-supervisor_api_staging_resolve_uv_bin() {
-  local configured_uv_bin="${SUPERVISOR_API_STAGING_UV_BIN:-}"
+execution_gateway_staging_temporal_namespace_setup() {
+  execution_gateway_staging_compose up temporal-namespace-setup
+}
+
+execution_gateway_staging_resolve_uv_bin() {
+  local configured_uv_bin="${EXECUTION_GATEWAY_STAGING_UV_BIN:-}"
   local resolved_uv_bin
   local user_uv_bin
 
   if [[ -n "${configured_uv_bin}" ]]; then
     if [[ ! -x "${configured_uv_bin}" ]]; then
-      echo "SUPERVISOR_API_STAGING_UV_BIN is not executable: ${configured_uv_bin}" >&2
+      echo "EXECUTION_GATEWAY_STAGING_UV_BIN is not executable: ${configured_uv_bin}" >&2
       return 1
     fi
     printf '%s\n' "${configured_uv_bin}"
@@ -378,15 +389,15 @@ supervisor_api_staging_resolve_uv_bin() {
     return 0
   fi
 
-  echo "Missing required command: uv. Set SUPERVISOR_API_STAGING_UV_BIN or install uv at ~/.local/bin/uv." >&2
+  echo "Missing required command: uv. Set EXECUTION_GATEWAY_STAGING_UV_BIN or install uv at ~/.local/bin/uv." >&2
   return 1
 }
 
-supervisor_api_staging_run_doctor() {
+execution_gateway_staging_run_doctor() {
   local uv_bin
-  uv_bin="$(supervisor_api_staging_resolve_uv_bin)"
+  uv_bin="$(execution_gateway_staging_resolve_uv_bin)"
   (
-    cd "${supervisor_api_staging_repo_root}" || exit
-    "${uv_bin}" run --all-packages python -m scripts.doctor_env supervisor-api --json >/dev/null
+    cd "${execution_gateway_staging_repo_root}" || exit
+    "${uv_bin}" run --all-packages python -m scripts.doctor_env execution-gateway --json >/dev/null
   )
 }

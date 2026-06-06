@@ -43,19 +43,14 @@ def wait_for_json_status(
     raise RuntimeError(f"timed out waiting for {url}; last_status={last_response[0]}")
 
 
-def post_answer_probe(
+def post_execution_run_probe(
     url: str,
     payload: dict[str, object],
     *,
-    response_kind: str,
     headers: dict[str, str],
     timeout_seconds: float,
 ) -> tuple[int, object]:
-    if response_kind == "sse":
-        return _post_sse(url, payload, headers=headers, timeout_seconds=timeout_seconds)
-    if response_kind == "json":
-        return _post_json(url, payload, headers=headers, timeout_seconds=timeout_seconds)
-    raise ValueError(f"unsupported answer response kind: {response_kind}")
+    return _post_json(url, payload, headers=headers, timeout_seconds=timeout_seconds)
 
 
 def terminate_processes(processes: list[subprocess.Popen[bytes]]) -> None:
@@ -181,7 +176,7 @@ def _signal_process_group(process: subprocess.Popen[bytes], sig: signal.Signals)
 
 
 __all__ = [
-    "post_answer_probe",
+    "post_execution_run_probe",
     "terminate_processes",
     "wait_for_json_status",
     "wait_for_status",

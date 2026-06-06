@@ -42,7 +42,7 @@ class CampusServicesAgentTestPart04(unittest.TestCase):
             }
         )
         material_query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-gateway.internal",
             shared_secret="query-secret",
             transport=material_transport,
         )
@@ -71,7 +71,7 @@ class CampusServicesAgentTestPart04(unittest.TestCase):
             }
         )
         fail_close_query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-gateway.internal",
             shared_secret="query-secret",
             transport=fail_close_transport,
         )

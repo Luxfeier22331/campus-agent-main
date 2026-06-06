@@ -3,10 +3,10 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=infra/local/staging/supervisor-api-staging-common.sh
-source "${script_dir}/supervisor-api-staging-common.sh"
+# shellcheck source=infra/local/staging/execution-gateway-staging-common.sh
+source "${script_dir}/execution-gateway-staging-common.sh"
 
-supervisor_api_staging_preflight_bool_enabled() {
+execution_gateway_staging_preflight_bool_enabled() {
   local value="${1:-}"
   case "${value,,}" in
     1 | true | yes | y | on)
@@ -18,9 +18,9 @@ supervisor_api_staging_preflight_bool_enabled() {
   esac
 }
 
-docker_bin="$(supervisor_api_staging_require_command docker)"
-docker_timeout_seconds="${SUPERVISOR_API_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS:-10}"
-registry_timeout_seconds="${SUPERVISOR_API_STAGING_PREFLIGHT_REGISTRY_TIMEOUT_SECONDS:-30}"
+docker_bin="$(execution_gateway_staging_require_command docker)"
+docker_timeout_seconds="${EXECUTION_GATEWAY_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS:-10}"
+registry_timeout_seconds="${EXECUTION_GATEWAY_STAGING_PREFLIGHT_REGISTRY_TIMEOUT_SECONDS:-30}"
 
 echo "Running docker version"
 if command -v timeout >/dev/null 2>&1; then
@@ -43,13 +43,13 @@ elif ! "${docker_bin}" compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -f "${supervisor_api_staging_compose_file}" ]]; then
-  echo "Missing supervisor runtime compose file: ${supervisor_api_staging_compose_file}" >&2
+if [[ ! -f "${execution_gateway_staging_compose_file}" ]]; then
+  echo "Missing execution runtime compose file: ${execution_gateway_staging_compose_file}" >&2
   exit 1
 fi
 
-if supervisor_api_staging_preflight_bool_enabled "${SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY:-}"; then
-  echo "Skipping Docker registry preflight because SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY is enabled."
+if execution_gateway_staging_preflight_bool_enabled "${EXECUTION_GATEWAY_STAGING_PREFLIGHT_SKIP_REGISTRY:-}"; then
+  echo "Skipping Docker registry preflight because EXECUTION_GATEWAY_STAGING_PREFLIGHT_SKIP_REGISTRY is enabled."
   exit 0
 fi
 
@@ -64,7 +64,7 @@ run_registry_check() {
   local image="$1"
   local -a command
 
-  if supervisor_api_staging_preflight_bool_enabled "${SUPERVISOR_API_STAGING_PREFLIGHT_PULL:-}"; then
+  if execution_gateway_staging_preflight_bool_enabled "${EXECUTION_GATEWAY_STAGING_PREFLIGHT_PULL:-}"; then
     echo "Running docker pull ${image}"
     command=("${docker_bin}" pull "${image}")
   else
@@ -85,11 +85,11 @@ for image in "${images[@]}"; do
 Docker registry preflight failed for ${image}.
 This usually means Docker registry/proxy access is broken for the staging host.
 Fix Docker Desktop proxy/registry access, pre-pull the required base images, or set
-SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY=1 only when the images are already cached locally.
-Set SUPERVISOR_API_STAGING_PREFLIGHT_PULL=1 to verify with docker pull instead of buildx imagetools inspect.
+EXECUTION_GATEWAY_STAGING_PREFLIGHT_SKIP_REGISTRY=1 only when the images are already cached locally.
+Set EXECUTION_GATEWAY_STAGING_PREFLIGHT_PULL=1 to verify with docker pull instead of buildx imagetools inspect.
 EOF
     exit 1
   fi
 done
 
-echo "supervisor-api staging Docker preflight passed."
+echo "execution-gateway staging Docker preflight passed."

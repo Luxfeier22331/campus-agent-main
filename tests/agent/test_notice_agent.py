@@ -289,7 +289,7 @@ class NoticeAgentTest(unittest.TestCase):
             }
         )
         query_service = NoticeHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-gateway.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -383,7 +383,7 @@ class NoticeAgentTest(unittest.TestCase):
             }
         )
         query_service = NoticeHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-gateway.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -403,7 +403,7 @@ class NoticeAgentTest(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://supervisor-api.internal/internal/query/notices/discover",
+            "http://execution-gateway.internal/internal/query/notices/discover",
         )
         self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
         self.assertEqual(transport.calls[0][2]["payload"]["query_text"], "家具采购")
@@ -424,7 +424,7 @@ class NoticeAgentTest(unittest.TestCase):
 
     def test_http_query_service_rejects_discover_result_without_query_text(self) -> None:
         query_service = NoticeHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-gateway.internal",
             shared_secret="query-secret",
             transport=_RecordingNoticeHTTPTransport(
                 {
@@ -476,7 +476,7 @@ class NoticeAgentTest(unittest.TestCase):
             }
         )
         query_service = NoticeHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-gateway.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -494,7 +494,7 @@ class NoticeAgentTest(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://supervisor-api.internal/internal/query/notices/get",
+            "http://execution-gateway.internal/internal/query/notices/get",
         )
         self.assertEqual(transport.calls[0][2]["payload"]["notice_id"], "355222")
         self.assertEqual(result.outcome, "resolved_current")
@@ -515,7 +515,7 @@ class NoticeAgentTest(unittest.TestCase):
 
     def test_http_query_service_rejects_get_result_without_identity_fields(self) -> None:
         query_service = NoticeHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-gateway.internal",
             shared_secret="query-secret",
             transport=_RecordingNoticeHTTPTransport(
                 {
@@ -549,7 +549,7 @@ class NoticeAgentTest(unittest.TestCase):
             }
         )
         query_service = NoticeHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-gateway.internal",
             shared_secret="query-secret",
             transport=transport,
         )

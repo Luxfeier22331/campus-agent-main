@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 REQUIRED_STAGING_ENV_KEYS = [
-    "STAGING_SUPERVISOR_API_BASE_URL",
+    "STAGING_EXECUTION_GATEWAY_BASE_URL",
     "STAGING_INGESTION_SHARED_POSTGRES_URL",
     "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
     "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
@@ -33,20 +33,17 @@ REQUIRED_STAGING_ENV_KEYS = [
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
-    "SUPERVISOR_API_METRICS_BEARER_TOKEN",
+    "EXECUTION_GATEWAY_METRICS_BEARER_TOKEN",
     "SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
     "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
-    "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+    "EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL",
+    "TEMPORAL_POSTGRES_PASSWORD",
+    "EXECUTION_GATEWAY_TEMPORAL_ADDRESS",
+    "EXECUTION_GATEWAY_TEMPORAL_NAMESPACE",
+    "EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE",
+    "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY",
+    "EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT",
+    "EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS",
 ]
 
 OBJECT_STORE_CREDENTIAL_SETS = [
@@ -57,10 +54,10 @@ OBJECT_STORE_CREDENTIAL_SETS = [
     ("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY", "STAGING_INGESTION_OBJECT_STORE_SECRET_KEY"),
 ]
 
-REQUIRED_APP_API_DEV_VARS = ["SUPERVISOR_API_SHARED_SECRET"]
+REQUIRED_APP_API_DEV_VARS = ["EXECUTION_GATEWAY_SHARED_SECRET"]
 
 EXPECTED_STAGING_VALUES = {
-    "STAGING_SUPERVISOR_API_BASE_URL": "https://exec-staging.mucwiki-edge.link",
+    "STAGING_EXECUTION_GATEWAY_BASE_URL": "https://exec-staging.mucwiki-edge.link",
     "STAGING_INGESTION_EMBEDDING_PROVIDER": "gitee",
     "STAGING_INGESTION_EMBEDDING_BASE_URL": "https://ai.gitee.com/v1",
     "STAGING_INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
@@ -69,23 +66,18 @@ EXPECTED_STAGING_VALUES = {
     "STAGING_INGESTION_SPARSE_MODEL": "qdrant/bm25",
     "STAGING_INGESTION_SPARSE_TOKENIZER": "multilingual",
     "STAGING_INGESTION_SPARSE_LANGUAGE": "none",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED": "true",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE": "rag",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID": "handoff:rag-agent:rag_request",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED": "true",
+    "EXECUTION_GATEWAY_TEMPORAL_ADDRESS": "temporal:7233",
+    "EXECUTION_GATEWAY_TEMPORAL_NAMESPACE": "campus-agent-staging",
+    "EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE": "campus-agent.workflow",
 }
 
 POSITIVE_INTEGER_KEYS = [
     "STAGING_INGESTION_EMBEDDING_DIMENSIONS",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+    "EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS",
 ]
 
 URL_KEYS = [
-    "STAGING_SUPERVISOR_API_BASE_URL",
+    "STAGING_EXECUTION_GATEWAY_BASE_URL",
     "STAGING_INGESTION_SHARED_POSTGRES_URL",
     "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
     "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
@@ -95,7 +87,20 @@ URL_KEYS = [
     "AXIOM_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
-    "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL",
+    "EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL",
+]
+
+RETIRED_STAGING_ENV_KEYS = [
+    "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_ENABLED",
+    "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_WORKER_ID",
+    "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LANE",
+    "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_STEP_ID",
+    "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
+    "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
+    "EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
+    "EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_ENABLED",
+    "EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
+    "EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
 ]
 
 OBJECT_STORE_PROFILES = {
@@ -216,12 +221,12 @@ def invalid_contract_keys(values: dict[str, str]) -> list[str]:
         actual = values.get(key)
         if actual and not valid_url(actual):
             invalid.append(key)
-    heartbeat = positive_int(
-        values.get("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "")
-    )
-    ttl = positive_int(values.get("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS", ""))
-    if heartbeat is not None and ttl is not None and heartbeat >= ttl:
-        invalid.append("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS")
+    worker_identity = values.get("EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY", "")
+    if worker_identity and worker_identity.count(":") < 2:
+        invalid.append("EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY")
+    for key in RETIRED_STAGING_ENV_KEYS:
+        if values.get(key):
+            invalid.append(key)
     qdrant_url = values.get("STAGING_INGESTION_QDRANT_URL", "")
     if qdrant_url and urlparse(qdrant_url).scheme != "http":
         invalid.append("STAGING_INGESTION_QDRANT_URL")
@@ -262,7 +267,9 @@ def build_report(repo_root: Path, env: dict[str, str]) -> dict[str, object]:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Check durable runtime staging cutover inputs.")
+    parser = argparse.ArgumentParser(
+        description="Check Temporal execution-gateway staging cutover inputs."
+    )
     parser.add_argument("--repo-root", default=".", help="repository root to inspect")
     parser.add_argument("--json", action="store_true", help="emit JSON report")
     return parser.parse_args(argv)
@@ -274,9 +281,9 @@ def main(argv: list[str]) -> int:
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     elif report["status"] == "ready":
-        print("durable runtime cutover preflight: ready")
+        print("Temporal execution-gateway cutover preflight: ready")
     else:
-        print("durable runtime cutover preflight: blocked", file=sys.stderr)
+        print("Temporal execution-gateway cutover preflight: blocked", file=sys.stderr)
         for blocker in report["blockers"]:
             print(f"  - {blocker}", file=sys.stderr)
     return 0 if report["status"] == "ready" else 1

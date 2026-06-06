@@ -34,7 +34,7 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
         self.assertEqual(plan.profile, AGENTS_SDK_NOTICE_DISCOVER_E2E_PROFILE)
         process_by_label = {process.label: process for process in plan.processes}
         worker_env = process_by_label["supervisor-agent-worker"].env
-        api_env = process_by_label["supervisor-api"].env
+        api_env = process_by_label["execution-gateway"].env
 
         self.assertEqual(
             worker_env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],

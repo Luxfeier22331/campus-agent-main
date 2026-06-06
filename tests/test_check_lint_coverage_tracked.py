@@ -25,7 +25,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java",
             candidates,
         )
-        self.assertIn("apps/supervisor-api/internal/execution/request.go", candidates)
+        self.assertIn("apps/execution-gateway/internal/execution/request.go", candidates)
 
     def test_lint_families_map_known_paths_to_expected_lanes(self) -> None:
         self.assertEqual(lint_families_for_path("package.json"), ("web:lint",))
@@ -53,7 +53,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("py:lint", "py:format:check"),
         )
         self.assertEqual(
-            lint_families_for_path("apps/supervisor-api/internal/execution/request.go"),
+            lint_families_for_path("apps/execution-gateway/internal/execution/request.go"),
             ("go:static:check",),
         )
         self.assertEqual(
@@ -69,7 +69,9 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("sql:lint",),
         )
         self.assertEqual(
-            lint_families_for_path("infra/local/staging/install-supervisor-api-staging-task.ps1"),
+            lint_families_for_path(
+                "infra/local/staging/install-execution-gateway-staging-task.ps1"
+            ),
             (),
         )
 

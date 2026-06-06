@@ -2,15 +2,15 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154
 
-supervisor_api_staging_capture_compose_logs() {
-  supervisor_api_staging_compose logs --no-color otel-collector >"${supervisor_api_staging_otel_collector_log_file}" 2>&1 || true
-  supervisor_api_staging_compose logs --no-color --since 5m otel-collector >"${supervisor_api_staging_otel_collector_recent_log_file}" 2>&1 || true
-  supervisor_api_staging_compose logs --no-color supervisor-api >"${supervisor_api_staging_supervisor_api_log_file}" 2>&1 || true
-  supervisor_api_staging_compose logs --no-color supervisor-agent-worker >"${supervisor_api_staging_supervisor_agent_worker_log_file}" 2>&1 || true
+execution_gateway_staging_capture_compose_logs() {
+  execution_gateway_staging_compose logs --no-color otel-collector >"${execution_gateway_staging_otel_collector_log_file}" 2>&1 || true
+  execution_gateway_staging_compose logs --no-color --since 5m otel-collector >"${execution_gateway_staging_otel_collector_recent_log_file}" 2>&1 || true
+  execution_gateway_staging_compose logs --no-color execution-gateway >"${execution_gateway_staging_execution_gateway_log_file}" 2>&1 || true
+  execution_gateway_staging_compose logs --no-color supervisor-agent-worker >"${execution_gateway_staging_supervisor_agent_worker_log_file}" 2>&1 || true
 }
 
-supervisor_api_staging_collector_logs_have_export_errors() {
-  local log_file="${supervisor_api_staging_otel_collector_recent_log_file}"
+execution_gateway_staging_collector_logs_have_export_errors() {
+  local log_file="${execution_gateway_staging_otel_collector_recent_log_file}"
 
   if [[ ! -f "${log_file}" ]]; then
     return 1
@@ -19,7 +19,7 @@ supervisor_api_staging_collector_logs_have_export_errors() {
   grep -Eq 'Exporting failed\. Dropping data\.|not retryable error:|Permanent error:' "${log_file}"
 }
 
-supervisor_api_staging_validate_axiom_collector_endpoint() {
+execution_gateway_staging_validate_axiom_collector_endpoint() {
   local endpoint="${OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT:-}"
   local source_endpoint="${AXIOM_ENDPOINT:-}"
   local normalized_endpoint="${endpoint%/}"
@@ -51,7 +51,7 @@ EOF
   fi
 }
 
-supervisor_api_staging_require_observability_sink_env() {
+execution_gateway_staging_require_observability_sink_env() {
   local missing_keys=()
   local required_key
   for required_key in \
@@ -67,7 +67,7 @@ supervisor_api_staging_require_observability_sink_env() {
   done
 
   if (( ${#missing_keys[@]} > 0 )); then
-    echo "supervisor-api staging observability sink env is incomplete:" >&2
+    echo "execution-gateway staging observability sink env is incomplete:" >&2
     for required_key in "${missing_keys[@]}"; do
       echo "  - ${required_key} is required" >&2
     done

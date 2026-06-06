@@ -88,9 +88,17 @@ def _prepare_process_smoke_runtime(
                     "notice_id": "notice:smoke:001",
                 }
             )
+        env_overlay["EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL"] = runtime_database_url
+        env_overlay["EXECUTION_GATEWAY_DURABLE_RUNTIME_AUTO_MIGRATE"] = "true"
+        artifacts.append(
+            {
+                "kind": "temporary_postgres_execution_projection_store",
+                "schema": "runtime.agent_runs",
+            }
+        )
         if profile_requires_workflow_run_store(plan.profile):
-            env_overlay["SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"] = runtime_database_url
-            env_overlay["SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE"] = "true"
+            env_overlay["EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL"] = runtime_database_url
+            env_overlay["EXECUTION_GATEWAY_WORKFLOW_RUN_AUTO_MIGRATE"] = "true"
             artifacts.append(
                 {
                     "kind": "temporary_postgres_workflow_run_store",
@@ -382,7 +390,7 @@ def _seed_notice_read_model_smoke(
 def _processes_with_env_overlay(
     processes: tuple[ProcessCommandSpec, ...],
     env_overlay: dict[str, str],
-    target_labels: tuple[str, ...] = ("supervisor-api",),
+    target_labels: tuple[str, ...] = ("execution-gateway",),
 ) -> tuple[ProcessCommandSpec, ...]:
     if not env_overlay:
         return processes

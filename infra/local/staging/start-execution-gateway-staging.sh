@@ -3,55 +3,56 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=infra/local/staging/supervisor-api-staging-common.sh
-source "${script_dir}/supervisor-api-staging-common.sh"
+# shellcheck source=infra/local/staging/execution-gateway-staging-common.sh
+source "${script_dir}/execution-gateway-staging-common.sh"
 
-supervisor_api_staging_ensure_runtime_dirs
-supervisor_api_staging_acquire_lock "${supervisor_api_staging_lock_wait_seconds}"
-supervisor_api_staging_rotate_logs_if_needed
-supervisor_api_staging_load_env
-supervisor_api_staging_require_runtime_env
-supervisor_api_staging_run_doctor
-supervisor_api_staging_ensure_data_plane_network
-supervisor_api_staging_ensure_self_hosted_data_plane_dependencies
-supervisor_api_staging_require_data_plane_ready
-supervisor_api_staging_ensure_durable_runtime_schema
+execution_gateway_staging_ensure_runtime_dirs
+execution_gateway_staging_acquire_lock "${execution_gateway_staging_lock_wait_seconds}"
+execution_gateway_staging_rotate_logs_if_needed
+execution_gateway_staging_load_env
+execution_gateway_staging_require_runtime_env
+execution_gateway_staging_run_doctor
+execution_gateway_staging_ensure_data_plane_network
+execution_gateway_staging_ensure_self_hosted_data_plane_dependencies
+execution_gateway_staging_require_data_plane_ready
+execution_gateway_staging_ensure_durable_runtime_schema
 
-cloudflared_bin="$(supervisor_api_staging_require_command cloudflared)"
+cloudflared_bin="$(execution_gateway_staging_require_command cloudflared)"
 
-supervisor_api_staging_adopt_existing_process \
+execution_gateway_staging_adopt_existing_process \
   "cloudflared" \
-  "${supervisor_api_staging_cloudflared_pid_file}" \
-  "${supervisor_api_staging_cloudflared_match_pattern}" || true
+  "${execution_gateway_staging_cloudflared_pid_file}" \
+  "${execution_gateway_staging_cloudflared_match_pattern}" || true
 
-if supervisor_api_staging_compose_project_running; then
-  echo "supervisor-api staging runtime already running (${supervisor_api_staging_compose_project_name})"
+if execution_gateway_staging_compose_project_running; then
+  echo "execution-gateway staging runtime already running (${execution_gateway_staging_compose_project_name})"
 else
-  "${script_dir}/preflight-supervisor-api-staging.sh"
-  supervisor_api_staging_compose up -d --build
+  "${script_dir}/preflight-execution-gateway-staging.sh"
+  execution_gateway_staging_compose up -d --build
 fi
 
-supervisor_api_staging_wait_for_http_ok "${supervisor_api_staging_local_healthz_url}" 45 2
-supervisor_api_staging_wait_for_http_ok \
-  "${supervisor_api_staging_local_readyz_url}" \
+execution_gateway_staging_temporal_namespace_setup
+execution_gateway_staging_wait_for_http_ok "${execution_gateway_staging_local_healthz_url}" 45 2
+execution_gateway_staging_wait_for_http_ok \
+  "${execution_gateway_staging_local_readyz_url}" \
   45 \
   2 \
-  "${SUPERVISOR_API_SHARED_SECRET:?SUPERVISOR_API_SHARED_SECRET is required}" \
+  "${EXECUTION_GATEWAY_SHARED_SECRET:?EXECUTION_GATEWAY_SHARED_SECRET is required}" \
   "x-worker-origin-auth"
-supervisor_api_staging_wait_for_http_ok \
-  "${supervisor_api_staging_local_metrics_url}" \
+execution_gateway_staging_wait_for_http_ok \
+  "${execution_gateway_staging_local_metrics_url}" \
   15 \
   1 \
-  "${SUPERVISOR_API_METRICS_BEARER_TOKEN}" \
+  "${EXECUTION_GATEWAY_METRICS_BEARER_TOKEN}" \
   "authorization"
-supervisor_api_staging_capture_compose_logs
-supervisor_api_staging_require_container_qdrant_ready
+execution_gateway_staging_capture_compose_logs
+execution_gateway_staging_require_container_qdrant_ready
 
-if supervisor_api_staging_pid_is_running "${supervisor_api_staging_cloudflared_pid_file}"; then
-  echo "cloudflared already running (pid $(supervisor_api_staging_read_pid "${supervisor_api_staging_cloudflared_pid_file}"))"
+if execution_gateway_staging_pid_is_running "${execution_gateway_staging_cloudflared_pid_file}"; then
+  echo "cloudflared already running (pid $(execution_gateway_staging_read_pid "${execution_gateway_staging_cloudflared_pid_file}"))"
 else
   setsid -f env \
-    "TUNNEL_TOKEN=${SUPERVISOR_API_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:?SUPERVISOR_API_STAGING_TUNNEL_TOKEN is required}}" \
+    "TUNNEL_TOKEN=${EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN:-${TUNNEL_TOKEN:?EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN is required}}" \
     -u HTTP_PROXY \
     -u HTTPS_PROXY \
     -u ALL_PROXY \
@@ -60,33 +61,33 @@ else
     -u all_proxy \
     "${cloudflared_bin}" tunnel \
     --no-autoupdate \
-    --edge-ip-version "${supervisor_api_staging_cloudflared_edge_ip_version}" \
-    --metrics "${supervisor_api_staging_cloudflared_metrics_address}" \
+    --edge-ip-version "${execution_gateway_staging_cloudflared_edge_ip_version}" \
+    --metrics "${execution_gateway_staging_cloudflared_metrics_address}" \
     run \
     9>&- \
-    >>"${supervisor_api_staging_cloudflared_log_file}" 2>&1
+    >>"${execution_gateway_staging_cloudflared_log_file}" 2>&1
 fi
 
-supervisor_api_staging_adopt_existing_process \
+execution_gateway_staging_adopt_existing_process \
   "cloudflared" \
-  "${supervisor_api_staging_cloudflared_pid_file}" \
-  "${supervisor_api_staging_cloudflared_match_pattern}" >/dev/null
+  "${execution_gateway_staging_cloudflared_pid_file}" \
+  "${execution_gateway_staging_cloudflared_match_pattern}" >/dev/null
 
-if [[ -n "${supervisor_api_staging_app_api_readyz_url}" ]]; then
-  supervisor_api_staging_wait_for_http_ok "${supervisor_api_staging_app_api_readyz_url}" 30 2
+if [[ -n "${execution_gateway_staging_app_api_readyz_url}" ]]; then
+  execution_gateway_staging_wait_for_http_ok "${execution_gateway_staging_app_api_readyz_url}" 30 2
 fi
 
-echo "supervisor-api staging local healthz: ${supervisor_api_staging_local_healthz_url}"
-echo "supervisor-api staging local readyz: ${supervisor_api_staging_local_readyz_url}"
-echo "supervisor-api staging local metrics: ${supervisor_api_staging_local_metrics_url}"
-if [[ -n "${supervisor_api_staging_app_api_readyz_url}" ]]; then
-  echo "app-api staging public readyz: ${supervisor_api_staging_app_api_readyz_url}"
+echo "execution-gateway staging local healthz: ${execution_gateway_staging_local_healthz_url}"
+echo "execution-gateway staging local readyz: ${execution_gateway_staging_local_readyz_url}"
+echo "execution-gateway staging local metrics: ${execution_gateway_staging_local_metrics_url}"
+if [[ -n "${execution_gateway_staging_app_api_readyz_url}" ]]; then
+  echo "app-api staging public readyz: ${execution_gateway_staging_app_api_readyz_url}"
 else
-  echo "Set SUPERVISOR_API_STAGING_APP_API_BASE_URL to verify public app-api readiness."
+  echo "Set EXECUTION_GATEWAY_STAGING_APP_API_BASE_URL to verify public app-api readiness."
 fi
 echo "logs:"
-echo "  ${supervisor_api_staging_otel_collector_log_file}"
-echo "  ${supervisor_api_staging_otel_collector_recent_log_file}"
-echo "  ${supervisor_api_staging_supervisor_api_log_file}"
-echo "  ${supervisor_api_staging_supervisor_agent_worker_log_file}"
-echo "  ${supervisor_api_staging_cloudflared_log_file}"
+echo "  ${execution_gateway_staging_otel_collector_log_file}"
+echo "  ${execution_gateway_staging_otel_collector_recent_log_file}"
+echo "  ${execution_gateway_staging_execution_gateway_log_file}"
+echo "  ${execution_gateway_staging_supervisor_agent_worker_log_file}"
+echo "  ${execution_gateway_staging_cloudflared_log_file}"

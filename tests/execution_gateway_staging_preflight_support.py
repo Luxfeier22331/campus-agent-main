@@ -42,46 +42,48 @@ _PROJECTED_STAGING_KEYS = [
     "SPARSE_TOKENIZER",
     "SPARSE_LANGUAGE",
     "API_WORKER_SHARED_SECRET",
-    "SUPERVISOR_API_STAGING_LOCAL_POSTGRES_DB",
-    "SUPERVISOR_API_STAGING_LOCAL_POSTGRES_USER",
-    "SUPERVISOR_API_STAGING_LOCAL_POSTGRES_PORT",
-    "SUPERVISOR_API_STAGING_LOCAL_MINIO_ACCESS_KEY",
-    "SUPERVISOR_API_STAGING_UV_BIN",
-    "SUPERVISOR_API_STAGING_COMPOSE_PROJECT_NAME",
-    "SUPERVISOR_API_STAGING_RUNTIME_DIR",
-    "SUPERVISOR_API_STAGING_PORT",
-    "SUPERVISOR_API_OTEL_ENABLED",
-    "SUPERVISOR_API_OTEL_METRICS_ENABLED",
+    "EXECUTION_GATEWAY_STAGING_LOCAL_POSTGRES_DB",
+    "EXECUTION_GATEWAY_STAGING_LOCAL_POSTGRES_USER",
+    "EXECUTION_GATEWAY_STAGING_LOCAL_POSTGRES_PORT",
+    "EXECUTION_GATEWAY_STAGING_LOCAL_MINIO_ACCESS_KEY",
+    "EXECUTION_GATEWAY_STAGING_UV_BIN",
+    "EXECUTION_GATEWAY_STAGING_COMPOSE_PROJECT_NAME",
+    "EXECUTION_GATEWAY_STAGING_RUNTIME_DIR",
+    "EXECUTION_GATEWAY_STAGING_PORT",
+    "EXECUTION_GATEWAY_OTEL_ENABLED",
+    "EXECUTION_GATEWAY_OTEL_METRICS_ENABLED",
     "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED",
-    "SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL",
-    "SUPERVISOR_API_DURABLE_RUNTIME_DOCKER_DATABASE_URL",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
-    "SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
-    "SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+    "EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL",
+    "EXECUTION_GATEWAY_DURABLE_RUNTIME_DOCKER_DATABASE_URL",
+    "EXECUTION_GATEWAY_TEMPORAL_ADDRESS",
+    "EXECUTION_GATEWAY_TEMPORAL_NAMESPACE",
+    "EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE",
+    "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY",
+    "EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT",
+    "EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS",
     "AXIOM_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
-    "SUPERVISOR_API_STAGING_DATA_PLANE_ERRORS",
-    "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_POSTGRES",
-    "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_MINIO",
-    "SUPERVISOR_API_STAGING_REQUIRES_LOCAL_QDRANT",
+    "EXECUTION_GATEWAY_STAGING_DATA_PLANE_ERRORS",
+    "EXECUTION_GATEWAY_STAGING_REQUIRES_LOCAL_POSTGRES",
+    "EXECUTION_GATEWAY_STAGING_REQUIRES_LOCAL_MINIO",
+    "EXECUTION_GATEWAY_STAGING_REQUIRES_LOCAL_QDRANT",
 ]
 
 _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "CAMPUS_SHARED_POSTGRES_URL",
+    "EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL",
     "DOCUMENT_REGISTRY_DATABASE_URL",
     "OBJECT_STORE_ENDPOINT",
     "QDRANT_URL",
+    "TEMPORAL_POSTGRES_PASSWORD",
+    "EXECUTION_GATEWAY_TEMPORAL_ADDRESS",
+    "EXECUTION_GATEWAY_TEMPORAL_NAMESPACE",
+    "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY",
+    "EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT",
 ]
 
 _VALID_OBSERVABILITY_SINK_ENV = {
@@ -93,6 +95,16 @@ _VALID_OBSERVABILITY_SINK_ENV = {
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT": "https://us-east-1.aws.edge.axiom.co",
     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER": "Bearer axiom-ingest-token",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET": "campus-agent-runtime",
+}
+
+_VALID_TEMPORAL_ENV = {
+    "TEMPORAL_POSTGRES_PASSWORD": "temporal-postgres-password",
+    "EXECUTION_GATEWAY_TEMPORAL_ADDRESS": "temporal:7233",
+    "EXECUTION_GATEWAY_TEMPORAL_NAMESPACE": "campus-agent-staging",
+    "EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE": "campus-agent.workflow",
+    "EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY": "staging:execution-gateway:001",
+    "EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT": "workflow-salt",
+    "EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS": "5000",
 }
 
 
@@ -108,15 +120,15 @@ def run_common_script_with_env(
         temp_root = Path(temp_dir)
         staging_dir = temp_root / "infra" / "local" / "staging"
         staging_dir.mkdir(parents=True)
-        for source_path in (ROOT / "infra/local/staging").glob("supervisor-api-staging-*.sh"):
+        for source_path in (ROOT / "infra/local/staging").glob("execution-gateway-staging-*.sh"):
             (staging_dir / source_path.name).write_text(
                 source_path.read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
-        common_path = staging_dir / "supervisor-api-staging-common.sh"
+        common_path = staging_dir / "execution-gateway-staging-common.sh"
         (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
         (temp_root / ".env.staging.local").write_text(
-            _with_valid_observability_sink_env(staging_env) + "\n",
+            _with_valid_staging_fixture_env(staging_env) + "\n",
             encoding="utf-8",
         )
         app_api_dir = temp_root / "apps" / "app-api"
@@ -126,7 +138,7 @@ def run_common_script_with_env(
             if app_api_dev_vars is not None
             else "\n".join(
                 (
-                    "SUPERVISOR_API_SHARED_SECRET=worker-secret",
+                    "EXECUTION_GATEWAY_SHARED_SECRET=worker-secret",
                     "APP_API_INTERNAL_SHARED_SECRET=app-internal-secret",
                     "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                 )
@@ -139,11 +151,11 @@ def run_common_script_with_env(
         fake_uv_bin.chmod(0o755)
         command = f"""
         set -euo pipefail
-        export SUPERVISOR_API_STAGING_UV_BIN={shlex.quote(str(fake_uv_bin))}
+        export EXECUTION_GATEWAY_STAGING_UV_BIN={shlex.quote(str(fake_uv_bin))}
         source {shlex.quote(str(common_path))}
-        supervisor_api_staging_load_env
-        supervisor_api_staging_require_runtime_env
-        supervisor_api_staging_require_data_plane_ready
+        execution_gateway_staging_load_env
+        execution_gateway_staging_require_runtime_env
+        execution_gateway_staging_require_data_plane_ready
         node - <<'NODE'
         const keys = {json.dumps(_PROJECTED_STAGING_KEYS)};
         const projected = {{}};
@@ -158,8 +170,8 @@ def run_common_script_with_env(
             cwd=temp_root,
             env={
                 **os.environ,
-                "SUPERVISOR_API_STAGING_TEST_REGISTRY_AUDIT_PAYLOAD": registry_audit_payload,
-                "SUPERVISOR_API_STAGING_TEST_RAG_RUNTIME_PAYLOAD": rag_runtime_payload,
+                "EXECUTION_GATEWAY_STAGING_TEST_REGISTRY_AUDIT_PAYLOAD": registry_audit_payload,
+                "EXECUTION_GATEWAY_STAGING_TEST_RAG_RUNTIME_PAYLOAD": rag_runtime_payload,
             },
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -179,6 +191,20 @@ def _with_valid_observability_sink_env(staging_env: str) -> str:
         if key not in present_keys
     ]
     return "\n".join([*missing_fixture_lines, staging_env]).strip()
+
+
+def _with_valid_staging_fixture_env(staging_env: str) -> str:
+    present_keys = {
+        line.split("=", 1)[0].strip()
+        for line in staging_env.splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and "=" in line
+    }
+    missing_fixture_lines = [
+        f"{key}={value}" for key, value in _VALID_TEMPORAL_ENV.items() if key not in present_keys
+    ]
+    return _with_valid_observability_sink_env(
+        "\n".join([*missing_fixture_lines, staging_env]).strip()
+    )
 
 
 def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedProcess[str]:
@@ -221,7 +247,7 @@ def _fake_uv_script() -> str:
         set -euo pipefail
         joined_args="$*"
         if [[ "${joined_args}" == *"collection_rename_registry_backfill"* ]]; then
-          if [[ "${SUPERVISOR_API_STAGING_TEST_REGISTRY_AUDIT_PAYLOAD:-clean}" == "legacy" ]]; then
+          if [[ "${EXECUTION_GATEWAY_STAGING_TEST_REGISTRY_AUDIT_PAYLOAD:-clean}" == "legacy" ]]; then
           cat <<'JSON'
         {"command":"audit","targets":[{"kind":"document_registry","legacy_row_count":2,"sample_rows":[{"identity":"doc-001|track|v1","column_collection":"student_handbook","record_collection":"student_handbook"}],"table_name":"ingestion_registry.document_registry_records","target_names":["runtime_document_registry"],"updated_row_count":null}]}
         JSON
@@ -231,7 +257,7 @@ def _fake_uv_script() -> str:
         JSON
           fi
         elif [[ "${joined_args}" == *"probe_regulation_rag_release_runtime"* ]]; then
-          if [[ "${SUPERVISOR_API_STAGING_TEST_RAG_RUNTIME_PAYLOAD:-ready}" == "blocked" ]]; then
+          if [[ "${EXECUTION_GATEWAY_STAGING_TEST_RAG_RUNTIME_PAYLOAD:-ready}" == "blocked" ]]; then
             cat <<'JSON'
         {"schema_version":"rag_retrieval_runtime_readiness.v1","qdrant_ready":"not_ready","qdrant_checks":{"/readyz":{"status":404,"body_prefix":"404 page not found\\n"},"/livez":{"status":404,"body_prefix":"404 page not found\\n"},"/collections":{"status":404,"body_prefix":"404 page not found\\n"}},"surfaces":[{"scope":"regulations/student_rules","readiness_status":"blocked","readiness_blocker":"qdrant_endpoint_not_ready","alias_name":"student_rules","alias_target":null,"release_freshness_status":"unavailable","release_metadata_guard_status":"not_checked","alias_target_guard_status":"not_checked"}]}
         JSON

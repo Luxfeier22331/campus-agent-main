@@ -8,7 +8,7 @@ from campus_supervisor_agent_worker.app import create_bridge_app
 from campus_supervisor_agent_worker.asgi import SupervisorBridgeAsgiApp, dispatch_http_request
 from campus_supervisor_agent_worker.settings import ApiSettings
 
-from tests.api.supervisor_api_bridge_support import _bridge_v6_payload
+from tests.api.execution_gateway_bridge_support import _bridge_v6_payload
 
 
 class SupervisorApiAsgiTest(unittest.TestCase):

@@ -23,11 +23,11 @@ def release_gate_commands() -> tuple[tuple[str, ...], ...]:
             "-m",
             "scripts.intent_gate",
             "--runner",
-            "supervisor-api-go",
+            "execution-gateway-go",
             "--output",
             str(INTENT_GATE_OUTPUT),
         ),
-        ("bash", "-lc", "cd apps/supervisor-api && go test ./..."),
+        ("bash", "-lc", "cd apps/execution-gateway && go test ./..."),
         (
             "pnpm",
             "--dir",
@@ -64,7 +64,7 @@ def run_release_gate(
     policy_metadata = intent_policy_gate_metadata()
     return {
         "schema_version": 1,
-        "runner": "supervisor-api-go",
+        "runner": "execution-gateway-go",
         "case_set_version": policy_metadata["case_set_version"],
         "policy_artifact": {
             "schema_version": policy_metadata["schema_version"],

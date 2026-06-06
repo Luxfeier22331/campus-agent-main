@@ -109,7 +109,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
-    def test_dockerignore_keeps_supervisor_api_contract_fixture_inputs(self) -> None:
+    def test_dockerignore_keeps_execution_gateway_contract_fixture_inputs(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         patterns = _dockerignore_patterns(repo_root)
 
@@ -122,7 +122,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
-    def test_dockerignore_keeps_supervisor_api_runtime_policy_inputs(self) -> None:
+    def test_dockerignore_keeps_execution_gateway_runtime_policy_inputs(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         patterns = _dockerignore_patterns(repo_root)
 
@@ -145,9 +145,9 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         self.assertNotIn("!packages/calendar-agent/", patterns)
         self.assertNotIn("!packages/calendar-agent/**", patterns)
 
-    def test_supervisor_api_dockerfile_copies_contract_fixtures_before_tests(self) -> None:
+    def test_execution_gateway_dockerfile_copies_contract_fixtures_before_tests(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        dockerfile = (repo_root / "apps/supervisor-api/Dockerfile").read_text(encoding="utf-8")
+        dockerfile = (repo_root / "apps/execution-gateway/Dockerfile").read_text(encoding="utf-8")
 
         copy_statement = (
             "COPY tests/fixtures/supervisor_execution_contract "

@@ -100,7 +100,7 @@ class CheckShellTrackedTest(unittest.TestCase):
             "scripts.check_shell_tracked.tracked_shell_files",
             return_value=(
                 repo_root / "infra/local/minio/create_buckets.sh",
-                repo_root / "infra/local/staging/start-supervisor-api-staging.sh",
+                repo_root / "infra/local/staging/start-execution-gateway-staging.sh",
             ),
         ):
             run_mock.side_effect = [
@@ -126,7 +126,7 @@ class CheckShellTrackedTest(unittest.TestCase):
                     "-x",
                     "-s",
                     "bash",
-                    "infra/local/staging/start-supervisor-api-staging.sh",
+                    "infra/local/staging/start-execution-gateway-staging.sh",
                 ],
             ],
         )

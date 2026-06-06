@@ -20,10 +20,9 @@ class ProcessSmokePlan:
     profile: str
     api_base_url: str
     worker_base_url: str
-    answer_path: str
-    answer_response_kind: str
-    answer_payload: dict[str, object]
-    expected_status: int
+    execution_run_path: str
+    execution_run_payload: dict[str, object]
+    expected_run_status: int
     expected_readyz_statuses: tuple[int, ...]
-    expected_body_tokens: tuple[str, ...]
+    expected_run_body_tokens: tuple[str, ...]
     processes: tuple[ProcessCommandSpec, ...]

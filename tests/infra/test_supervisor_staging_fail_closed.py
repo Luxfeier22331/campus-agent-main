@@ -3,7 +3,7 @@ from __future__ import annotations
 import textwrap
 import unittest
 
-from tests.supervisor_api_staging_preflight_support import run_common_script_with_env
+from tests.execution_gateway_staging_preflight_support import run_common_script_with_env
 
 
 class SupervisorStagingFailClosedTest(unittest.TestCase):
@@ -32,11 +32,11 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
-                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                EXECUTION_GATEWAY_METRICS_BEARER_TOKEN=metrics-token
+                EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
@@ -58,18 +58,18 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
             ).strip(),
             staging_env=textwrap.dedent(
                 """
-                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                EXECUTION_GATEWAY_METRICS_BEARER_TOKEN=metrics-token
+                EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
-                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                EXECUTION_GATEWAY_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("supervisor-api staging data-plane env is invalid", result.stderr)
+        self.assertIn("execution-gateway staging data-plane env is invalid", result.stderr)
         self.assertIn("STAGING_INGESTION_SHARED_POSTGRES_URL is required", result.stderr)
         self.assertIn(
             "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL is required",
@@ -109,18 +109,18 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
-                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                EXECUTION_GATEWAY_METRICS_BEARER_TOKEN=metrics-token
+                EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
-                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                EXECUTION_GATEWAY_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
         )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("supervisor-api staging data-plane env is invalid", result.stderr)
+        self.assertIn("execution-gateway staging data-plane env is invalid", result.stderr)
         self.assertIn(
             "STAGING_INGESTION_SHARED_POSTGRES_URL must include sslmode=require",
             result.stderr,
@@ -157,12 +157,12 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
-                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                EXECUTION_GATEWAY_METRICS_BEARER_TOKEN=metrics-token
+                EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
-                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                EXECUTION_GATEWAY_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
             registry_audit_payload="legacy",
@@ -170,7 +170,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "supervisor-api staging registry collection rename is incomplete", result.stderr
+            "execution-gateway staging registry collection rename is incomplete", result.stderr
         )
         self.assertIn("student_handbook -> student_rules", result.stderr)
         self.assertIn("legacy rows remain", result.stderr)
@@ -198,19 +198,19 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
-                SUPERVISOR_API_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_API_STAGING_TUNNEL_TOKEN=tunnel-token
+                EXECUTION_GATEWAY_METRICS_BEARER_TOKEN=metrics-token
+                EXECUTION_GATEWAY_STAGING_TUNNEL_TOKEN=tunnel-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
-                SUPERVISOR_API_SHARED_SECRET=worker-secret
+                EXECUTION_GATEWAY_SHARED_SECRET=worker-secret
                 SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
-                SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
             rag_runtime_payload="blocked",
         )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("supervisor-api staging RAG runtime is not ready", result.stderr)
+        self.assertIn("execution-gateway staging RAG runtime is not ready", result.stderr)
         self.assertIn("qdrant_ready=not_ready", result.stderr)
         self.assertIn("regulations/student_rules: qdrant_endpoint_not_ready", result.stderr)
 

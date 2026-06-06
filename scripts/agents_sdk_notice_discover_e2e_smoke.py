@@ -63,14 +63,14 @@ def build_e2e_smoke_plan(
     api_env = {
         **common_env,
         "API_AUTH_MODE": "trusted-worker",
-        "API_WORKER_SHARED_SECRET": "supervisor-api-sdk-e2e-placeholder",
+        "API_WORKER_SHARED_SECRET": "execution-gateway-sdk-e2e-placeholder",
         "CAMPUS_AGENT_HTTP_HOST": api_host,
         "CAMPUS_AGENT_HTTP_PORT": str(api_port),
         "SUPERVISOR_AGENT_WORKER_BASE_URL": worker_base_url,
         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": _BRIDGE_SECRET,
-        "SUPERVISOR_API_OPEN_CAPABILITIES": "",
-        "SUPERVISOR_API_OTEL_ENABLED": "false",
-        "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED": "false",
+        "EXECUTION_GATEWAY_OPEN_CAPABILITIES": "",
+        "EXECUTION_GATEWAY_OTEL_ENABLED": "false",
+        "EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED": "false",
         "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": _QUERY_SECRET,
     }
     _assert_old_env_absent(worker_env)
@@ -109,11 +109,11 @@ def build_e2e_smoke_plan(
                 log_path=output_dir / "supervisor-agent-worker.log",
             ),
             ProcessCommandSpec(
-                label="supervisor-api",
-                command=("go", "run", "./cmd/supervisor-api"),
-                cwd=repo_root / "apps" / "supervisor-api",
+                label="execution-gateway",
+                command=("go", "run", "./cmd/execution-gateway"),
+                cwd=repo_root / "apps" / "execution-gateway",
                 env=api_env,
-                log_path=output_dir / "supervisor-api.log",
+                log_path=output_dir / "execution-gateway.log",
             ),
         ),
     )
@@ -150,7 +150,7 @@ def run_smoke(
         processes = _processes_with_env_overlay(
             runtime_plan.processes,
             runtime_preparation.process_env_overlay if runtime_preparation is not None else {},
-            target_labels=("supervisor-api",),
+            target_labels=("execution-gateway",),
         )
         process_by_label = {process.label: process for process in processes}
         for process_spec in processes:
