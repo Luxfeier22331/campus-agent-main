@@ -27,7 +27,7 @@ services:
       - supervisor-runtime
 
   temporal:
-    image: temporalio/auto-setup:1.29.1
+    image: temporalio/auto-setup:1.29.6.1
     restart: unless-stopped
     depends_on:
       temporal-postgres:
@@ -59,7 +59,7 @@ services:
       - supervisor-runtime
 
   temporal-namespace-setup:
-    image: temporalio/admin-tools:1.29.1
+    image: temporalio/admin-tools:1.29.6.1-tctl-1.18.4-cli-1.7.0
     restart: "no"
     depends_on:
       temporal:
