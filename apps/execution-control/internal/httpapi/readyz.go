@@ -10,6 +10,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 type promptConfigGate struct {
@@ -73,20 +74,20 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	defer structuredQueryCancel()
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
 	workflowRunStatus := s.workflowRunStoreStatus(request.Context())
-	temporalRuntimeStatus := s.temporalRuntimeStatus()
+	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	promptGate := evaluatePromptConfigGate(s.config)
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	structuredRuntimeHealthy := s.openStructuredRuntimeHealthy(structuredQueryStatus)
 	workflowRuntimeHealthy := !s.config.MultiStepWorkflowEnabled || workflowRunStatus["healthy"] == true
-	durableRuntimeStatus := s.durableRuntimeStatus(request.Context())
+	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
 	ready := bridgeHealthy &&
 		transportStatus.Healthy &&
 		telemetryHealthy &&
 		executionAuditHealthy &&
 		structuredRuntimeHealthy &&
 		workflowRuntimeHealthy &&
-		durableRuntimeStatus["healthy"] == true &&
+		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
 		promptGate.Admitted
 	statusCode := http.StatusOK
@@ -105,7 +106,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"execution_audit_runtime":  executionAuditStatus,
 		"structured_query_runtime": structuredQueryStatus,
 		"workflow_run_runtime":     workflowRunStatus,
-		"durable_runtime":          durableRuntimeStatus,
+		"run_projection_store":     runProjectionStoreStatus,
 		"temporal_runtime":         temporalRuntimeStatus,
 		"capability_gates":         s.capabilityGateStatus(),
 		"prompt_config_gate":       promptGate,
@@ -149,27 +150,71 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	writeJSON(response, statusCode, responseBody)
 }
 
-func (s *Server) temporalRuntimeStatus() map[string]any {
+func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 	configured := s.temporalStarter != nil
 	status := map[string]any{
-		"configured": configured,
-		"healthy":    configured && s.temporalStarterErr == nil && s.temporalWorkersStarted,
-		"last_error": "",
-		"namespace":  s.config.TemporalNamespace,
-		"task_queue": s.config.TemporalTaskQueue,
-		"worker_id":  s.config.TemporalWorkerIdentity,
-		"workers": map[string]any{
-			"started":        s.temporalWorkersStarted,
-			"workflow_queue": defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), "campus-agent.workflow"),
-			"rag_queue":      "campus-agent.activity.rag",
-		},
+		"configured":          configured,
+		"healthy":             false,
+		"last_error":          "",
+		"namespace":           s.config.TemporalNamespace,
+		"task_queue":          s.config.TemporalTaskQueue,
+		"worker_id":           s.config.TemporalWorkerIdentity,
+		"task_queues":         requiredTemporalTaskQueueNames(s.config),
+		"task_queue_pollers":  []map[string]any{},
+		"task_queue_gate":     "pollers_required",
+		"poller_window_notes": "Temporal DescribeTaskQueue reports recent pollers.",
 	}
 	if s.temporalStarterErr != nil {
 		status["last_error"] = "temporal starter could not be initialized"
-	} else if configured && !s.temporalWorkersStarted {
-		status["last_error"] = "temporal workers are not started"
+		return status
+	}
+	if !configured {
+		return status
+	}
+	readiness := s.temporalStarter.CheckReadiness(ctx)
+	taskQueues := []map[string]any{}
+	for _, taskQueue := range readiness.TaskQueues {
+		taskQueues = append(taskQueues, map[string]any{
+			"name":    taskQueue.Name,
+			"type":    taskQueue.Type,
+			"pollers": taskQueue.Pollers,
+			"healthy": taskQueue.Healthy,
+		})
+	}
+	status["task_queue_pollers"] = taskQueues
+	status["healthy"] = readiness.Healthy && containsRequiredTemporalTaskQueues(readiness.TaskQueues, requiredTemporalTaskQueueNames(s.config))
+	if !readiness.Healthy {
+		status["last_error"] = defaultString(readiness.LastError, "temporal task queue poller check failed")
+	} else if status["healthy"] != true {
+		status["last_error"] = "temporal required task queues are incomplete"
 	}
 	return status
+}
+
+func requiredTemporalTaskQueueNames(cfg config.Config) []string {
+	return []string{
+		defaultString(strings.TrimSpace(cfg.TemporalTaskQueue), "campus-agent.workflow"),
+		"campus-agent.activity.rag",
+		"campus-agent.activity.finalization",
+	}
+}
+
+func containsRequiredTemporalTaskQueues(
+	actual []temporalruntime.TaskQueueReadiness,
+	required []string,
+) bool {
+	seen := map[string]bool{}
+	for _, taskQueue := range actual {
+		if taskQueue.Healthy {
+			seen[strings.TrimSpace(taskQueue.Name)] = true
+		}
+	}
+	for _, queue := range required {
+		if !seen[queue] {
+			return false
+		}
+	}
+	return true
 }
 
 func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
@@ -238,22 +283,22 @@ func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {
 	return status
 }
 
-func (s *Server) durableRuntimeStatus(ctx context.Context) map[string]any {
-	configured := s.durableRuntime != nil
+func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
+	configured := s.runProjectionStore != nil
 	status := map[string]any{
 		"configured": configured,
 		"healthy":    true,
 		"last_error": "",
 	}
-	if s.durableRuntimeErr != nil {
+	if s.runProjectionStoreErr != nil {
 		status["healthy"] = false
-		status["last_error"] = "durable runtime store could not be initialized"
+		status["last_error"] = "run projection store could not be initialized"
 		return status
 	}
 	if !configured {
 		return status
 	}
-	checker, ok := s.durableRuntime.(interface{ HealthCheck(context.Context) error })
+	checker, ok := s.runProjectionStore.(interface{ HealthCheck(context.Context) error })
 	if !ok {
 		return status
 	}
@@ -261,92 +306,8 @@ func (s *Server) durableRuntimeStatus(ctx context.Context) map[string]any {
 	defer cancel()
 	if err := checker.HealthCheck(checkCtx); err != nil {
 		status["healthy"] = false
-		status["last_error"] = "durable runtime store health check failed"
+		status["last_error"] = "run projection store health check failed"
 		return status
-	}
-	return status
-}
-
-func (s *Server) durableWorkerLoopStatus() map[string]any {
-	status := map[string]any{
-		"enabled":           s.config.DurableWorkerLoopEnabled,
-		"configured":        s.durableWorkerLoop != nil,
-		"healthy":           true,
-		"last_error":        "",
-		"worker_id":         "",
-		"lane":              "",
-		"step_id":           "",
-		"started":           false,
-		"last_outcome":      "",
-		"last_run_id":       "",
-		"last_lease_id":     "",
-		"last_iteration_at": "",
-	}
-	if !s.config.DurableWorkerLoopEnabled {
-		return status
-	}
-	if s.durableWorkerLoopErr != nil {
-		status["healthy"] = false
-		status["last_error"] = "durable worker loop could not be configured"
-		return status
-	}
-	if s.durableWorkerLoop == nil {
-		status["healthy"] = false
-		status["last_error"] = "durable worker loop is enabled but not configured"
-		return status
-	}
-	loopStatus := s.durableWorkerLoop.Status()
-	status["worker_id"] = loopStatus.WorkerID
-	status["lane"] = string(loopStatus.Lane)
-	status["step_id"] = loopStatus.StepID
-	status["started"] = loopStatus.Started
-	status["last_outcome"] = string(loopStatus.LastOutcome)
-	status["last_run_id"] = loopStatus.LastRunID
-	status["last_lease_id"] = loopStatus.LastLeaseID
-	status["healthy"] = loopStatus.Healthy
-	if loopStatus.LastError != "" {
-		status["last_error"] = "durable worker loop iteration failed"
-	}
-	if !loopStatus.LastIterationAt.IsZero() {
-		status["last_iteration_at"] = loopStatus.LastIterationAt.UTC().Format(time.RFC3339Nano)
-	}
-	return status
-}
-
-func (s *Server) durableRecoveryLoopStatus() map[string]any {
-	status := map[string]any{
-		"enabled":             s.config.DurableRecoveryLoopEnabled,
-		"configured":          s.durableRecoveryLoop != nil,
-		"healthy":             true,
-		"last_error":          "",
-		"started":             false,
-		"last_iteration_at":   "",
-		"last_expired_leases": 0,
-		"last_timed_out_runs": 0,
-	}
-	if !s.config.DurableRecoveryLoopEnabled {
-		return status
-	}
-	if s.durableRecoveryLoopErr != nil {
-		status["healthy"] = false
-		status["last_error"] = "durable recovery loop could not be configured"
-		return status
-	}
-	if s.durableRecoveryLoop == nil {
-		status["healthy"] = false
-		status["last_error"] = "durable recovery loop is enabled but not configured"
-		return status
-	}
-	loopStatus := s.durableRecoveryLoop.Status()
-	status["started"] = loopStatus.Started
-	status["healthy"] = loopStatus.Healthy
-	status["last_expired_leases"] = loopStatus.LastExpiredLeases
-	status["last_timed_out_runs"] = loopStatus.LastTimedOutRuns
-	if loopStatus.LastError != "" {
-		status["last_error"] = "durable recovery loop iteration failed"
-	}
-	if !loopStatus.LastIterationAt.IsZero() {
-		status["last_iteration_at"] = loopStatus.LastIterationAt.UTC().Format(time.RFC3339Nano)
 	}
 	return status
 }

@@ -11,6 +11,7 @@ import (
 )
 
 var ErrInvalidDurableRuntimeStore = errors.New("invalid durable runtime store")
+var ErrInvalidRunProjectionStore = errors.New("invalid run projection store")
 
 type PostgresDurableRuntimeStoreOptions struct {
 	DatabaseURL string
@@ -53,6 +54,43 @@ func NewPostgresDurableRuntimeStore(
 	return store, nil
 }
 
+type PostgresRunProjectionStoreOptions struct {
+	DatabaseURL string
+	AutoMigrate bool
+}
+
+func NewPostgresRunProjectionStore(
+	ctx context.Context,
+	options PostgresRunProjectionStoreOptions,
+) (*PostgresDurableRuntimeStore, error) {
+	databaseURL := strings.TrimSpace(options.DatabaseURL)
+	if databaseURL == "" {
+		return nil, fmt.Errorf("%w: database url is required", ErrInvalidRunProjectionStore)
+	}
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse run projection database url: %w", err)
+	}
+	config.MaxConns = 8
+	config.MinConns = 0
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("create run projection postgres pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping run projection postgres: %w", err)
+	}
+	store := &PostgresDurableRuntimeStore{pool: pool}
+	if options.AutoMigrate {
+		if err := store.EnsureSchema(ctx); err != nil {
+			pool.Close()
+			return nil, err
+		}
+	}
+	return store, nil
+}
+
 func (s *PostgresDurableRuntimeStore) EnsureSchema(ctx context.Context) error {
 	_, err := s.pool.Exec(ctx, durableRuntimeSchemaSQL)
 	if err != nil {
@@ -63,14 +101,14 @@ func (s *PostgresDurableRuntimeStore) EnsureSchema(ctx context.Context) error {
 
 func (s *PostgresDurableRuntimeStore) HealthCheck(ctx context.Context) error {
 	if s == nil || s.pool == nil {
-		return fmt.Errorf("durable runtime store is not configured")
+		return fmt.Errorf("run projection store is not configured")
 	}
 	for _, tableName := range []string{
 		"runtime.agent_runs",
 		"runtime.agent_run_events",
-		"runtime.execution_leases",
-		"runtime.lane_budgets",
-		"runtime.worker_heartbeats",
+		"runtime.agent_run_steps",
+		"runtime.agent_step_attempts",
+		"runtime.agent_step_results",
 		"runtime.conversation_run_locks",
 	} {
 		var exists bool
@@ -162,6 +200,55 @@ create table if not exists runtime.agent_run_events (
 	created_at timestamptz not null default now()
 );
 
+create table if not exists runtime.agent_run_steps (
+	step_id text not null,
+	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
+	conversation_id text not null,
+	step_kind text not null,
+	capability text not null default '',
+	parent_step_id text not null default '',
+	status text not null,
+	task_queue text not null default '',
+	worker_id text not null default '',
+	started_at timestamptz,
+	completed_at timestamptz,
+	updated_at timestamptz not null,
+	payload_schema_version text not null,
+	sanitized_payload_json jsonb not null default '{}'::jsonb,
+	created_at timestamptz not null default now(),
+	primary key (run_id, step_id)
+);
+
+create table if not exists runtime.agent_step_attempts (
+	attempt_id text primary key,
+	step_id text not null,
+	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
+	attempt integer not null,
+	status text not null,
+	task_queue text not null default '',
+	worker_id text not null default '',
+	started_at timestamptz,
+	completed_at timestamptz,
+	updated_at timestamptz not null,
+	payload_schema_version text not null,
+	sanitized_payload_json jsonb not null default '{}'::jsonb,
+	created_at timestamptz not null default now(),
+	unique (run_id, step_id, attempt)
+);
+
+create table if not exists runtime.agent_step_results (
+	result_id text primary key,
+	step_id text not null,
+	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
+	attempt_id text not null default '',
+	status text not null,
+	result_kind text not null,
+	projection_ref text not null,
+	created_at timestamptz not null,
+	payload_schema_version text not null,
+	sanitized_payload_json jsonb not null default '{}'::jsonb
+);
+
 create table if not exists runtime.execution_leases (
 	lease_id text primary key,
 	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
@@ -232,6 +319,15 @@ create index if not exists agent_run_events_conversation_occurred_idx
 
 create index if not exists agent_run_events_type_occurred_idx
 	on runtime.agent_run_events (event_type, occurred_at desc);
+
+create index if not exists agent_run_steps_run_updated_idx
+	on runtime.agent_run_steps (run_id, updated_at);
+
+create index if not exists agent_step_attempts_run_step_idx
+	on runtime.agent_step_attempts (run_id, step_id, attempt);
+
+create index if not exists agent_step_results_run_step_idx
+	on runtime.agent_step_results (run_id, step_id, created_at);
 
 create unique index if not exists execution_leases_active_run_step_idx
 	on runtime.execution_leases (run_id, step_id)

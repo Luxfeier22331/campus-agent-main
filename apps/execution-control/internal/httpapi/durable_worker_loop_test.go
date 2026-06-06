@@ -421,7 +421,7 @@ func TestDurableWorkerLoopRunOnceFailsClosedWhenBridgeIsMissing(t *testing.T) {
 }
 
 func TestServerStartDurableWorkerLoopRejectsRetiredMode(t *testing.T) {
-	server := NewServerWithDependencies(configWithDurableWorkerLoopForTest(), &fakeBridge{configured: true}, nil, nil, nil)
+	server := NewServerWithDependencies(config.Config{AppName: "campus-agent"}, &fakeBridge{configured: true}, nil, nil, nil)
 
 	err := server.StartDurableWorkerLoop(context.Background())
 	if err == nil {
@@ -435,17 +435,9 @@ func TestServerStartDurableWorkerLoopRejectsRetiredMode(t *testing.T) {
 func TestServerConfigureDurableWorkerLoopDoesNotStartRetiredMode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	store := execution.NewInMemoryDurableRuntimeStore()
 	server := NewServerWithDependencies(config.Config{
-		AppName:                                   "campus-agent",
-		LaneBudgets:                               map[string]config.LaneBudget{"rag": {MaxConcurrent: 1, QueueCapacity: 4, QueueTimeoutMS: 30_000}},
-		DurableWorkerLoopEnabled:                  true,
-		DurableWorkerLoopWorkerID:                 "worker-loop-budget",
-		DurableWorkerLoopLane:                     "rag",
-		DurableWorkerLoopStepID:                   "handoff:rag-agent:rag_request",
-		DurableWorkerLoopPollIntervalMS:           1000,
-		DurableWorkerLoopLeaseTTLMS:               30_000,
-		DurableWorkerLoopLeaseHeartbeatIntervalMS: 5_000,
+		AppName:     "campus-agent",
+		LaneBudgets: map[string]config.LaneBudget{"rag": {MaxConcurrent: 1, QueueCapacity: 4, QueueTimeoutMS: 30_000}},
 	}, &fakeBridge{
 		configured: true,
 		executeDurableFn: func(context.Context, bridge.DurableExecutionRequest) (bridge.ExecuteResponse, error) {
@@ -456,32 +448,12 @@ func TestServerConfigureDurableWorkerLoopDoesNotStartRetiredMode(t *testing.T) {
 			}, nil
 		},
 	}, nil, nil, nil)
-	server.durableRuntime = store
-	server.durableLeaseCoordinator = execution.NewDurableLeaseCoordinator(store)
-	server.configureDurableWorkerLoop()
-
-	if server.durableWorkerLoop != nil {
-		t.Fatalf("durable worker loop = %#v, want nil for Temporal online serving", server.durableWorkerLoop)
-	}
 	err := server.StartDurableWorkerLoop(ctx)
 	if err == nil {
 		t.Fatal("start retired durable worker loop returned nil error")
 	}
 	if !errors.Is(err, errDurableLeaseLoopRetired) {
 		t.Fatalf("error = %v, want retired durable loop error", err)
-	}
-}
-
-func configWithDurableWorkerLoopForTest() config.Config {
-	return config.Config{
-		AppName:                                   "campus-agent",
-		DurableWorkerLoopEnabled:                  true,
-		DurableWorkerLoopWorkerID:                 "worker-loop",
-		DurableWorkerLoopLane:                     "rag",
-		DurableWorkerLoopStepID:                   "handoff:rag-agent:rag_request",
-		DurableWorkerLoopPollIntervalMS:           250,
-		DurableWorkerLoopLeaseTTLMS:               30_000,
-		DurableWorkerLoopLeaseHeartbeatIntervalMS: 5_000,
 	}
 }
 

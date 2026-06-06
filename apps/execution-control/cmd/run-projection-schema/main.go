@@ -20,7 +20,7 @@ const (
 	schemaModeInstall = "install"
 )
 
-var errInvalidOptions = errors.New("invalid durable runtime schema options")
+var errInvalidOptions = errors.New("invalid run projection schema options")
 
 type schemaOptions struct {
 	DatabaseURL  string
@@ -57,11 +57,11 @@ func main() {
 }
 
 func parseOptions(args []string) (schemaOptions, error) {
-	flags := flag.NewFlagSet("durable-runtime-schema", flag.ContinueOnError)
+	flags := flag.NewFlagSet("run-projection-schema", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	var options schemaOptions
-	flags.StringVar(&options.DatabaseURL, "database-url", "", "explicit Postgres durable runtime database URL")
-	flags.StringVar(&options.EvidencePath, "evidence-path", "", "path to write durable runtime schema evidence JSON")
+	flags.StringVar(&options.DatabaseURL, "database-url", "", "explicit Postgres run projection database URL")
+	flags.StringVar(&options.EvidencePath, "evidence-path", "", "path to write run projection schema evidence JSON")
 	flags.StringVar(&options.Mode, "mode", "", "schema operation mode: install or check")
 	if err := flags.Parse(args); err != nil {
 		return schemaOptions{}, err
@@ -89,7 +89,7 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
-	store, err := execution.NewPostgresDurableRuntimeStore(ctx, execution.PostgresDurableRuntimeStoreOptions{
+	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
 		DatabaseURL: options.DatabaseURL,
 		AutoMigrate: false,
 	})

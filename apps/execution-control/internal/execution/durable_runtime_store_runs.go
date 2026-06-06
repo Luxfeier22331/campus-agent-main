@@ -205,3 +205,53 @@ func (s *InMemoryDurableRuntimeStore) CancelRun(
 		ReleasedLease: releasedLease,
 	}, nil
 }
+
+func (s *InMemoryDurableRuntimeStore) CancelRunProjection(
+	_ context.Context,
+	request DurableRunCancelRequest,
+) (DurableRun, error) {
+	if err := validateDurableRunCancelRequest(request); err != nil {
+		return DurableRun{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, exists := s.runs[request.RunID]
+	if !exists {
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+	}
+	if !durableRunTransitionAllowed(run.Status, DurableRunStatusCanceled) {
+		return DurableRun{}, fmt.Errorf(
+			"%w: %s -> %s",
+			ErrInvalidRunTransition,
+			run.Status,
+			DurableRunStatusCanceled,
+		)
+	}
+	run.Status = DurableRunStatusCanceled
+	run.TerminalReason = DurableTerminalReasonUserCanceled
+	run.UpdatedAt = request.Now
+	recordDurableRunStatusTimestamp(&run, DurableRunStatusCanceled, request.Now)
+	if err := validateDurableRun(run); err != nil {
+		return DurableRun{}, err
+	}
+	s.runs[run.RunID] = cloneDurableRun(run)
+	delete(s.activeRunByConversation, run.ConversationID)
+	if err := s.appendRunEventLocked(run, DurableRunEvent{
+		EventID:              run.RunID + ":run-canceled",
+		RunID:                run.RunID,
+		ConversationID:       run.ConversationID,
+		EventType:            DurableRunEventTypeRunCanceled,
+		OccurredAt:           request.Now,
+		Visibility:           DurableRunEventVisibilityInternal,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload: map[string]any{
+			"status":          string(DurableRunStatusCanceled),
+			"terminal_reason": string(DurableTerminalReasonUserCanceled),
+			"reason":          request.Reason,
+			"projection_only": true,
+		},
+	}); err != nil {
+		return DurableRun{}, err
+	}
+	return cloneDurableRun(run), nil
+}

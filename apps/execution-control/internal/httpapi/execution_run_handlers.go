@@ -20,7 +20,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.durableRuntime == nil {
+	if s.runProjectionStore == nil {
 		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
@@ -52,7 +52,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	created, err := s.durableRuntime.CreateRun(request.Context(), run)
+	created, err := s.runProjectionStore.CreateRun(request.Context(), run)
 	if err != nil {
 		if errors.Is(err, execution.ErrConversationActiveRun) {
 			setOutcome(response, "conversation_active_run")
@@ -70,7 +70,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		return
 	}
 	queuedAt := time.Now().UTC()
-	queued, err := s.durableRuntime.TransitionRun(
+	queued, err := s.runProjectionStore.TransitionRun(
 		request.Context(),
 		created.RunID,
 		execution.DurableRunStatusQueued,
@@ -78,26 +78,26 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		queuedAt,
 	)
 	if err != nil {
-		_ = s.durableRuntime.DeleteRun(context.Background(), created.RunID)
+		_ = s.runProjectionStore.DeleteRun(context.Background(), created.RunID)
 		setOutcome(response, "execution_run_queue_failed")
 		writeError(response, http.StatusInternalServerError, "execution_run_queue_failed", err.Error(), true)
 		return
 	}
 	if err := s.appendExecutionRunStartEvents(request.Context(), created, queued, queuedAt); err != nil {
-		_ = s.durableRuntime.DeleteRun(context.Background(), created.RunID)
+		_ = s.runProjectionStore.DeleteRun(context.Background(), created.RunID)
 		setOutcome(response, "execution_run_event_failed")
 		writeError(response, http.StatusInternalServerError, "execution_run_event_failed", err.Error(), true)
 		return
 	}
 	workflowInput, err := s.workflowInputForQueuedRun(body, queued)
 	if err != nil {
-		_ = s.durableRuntime.DeleteRun(context.Background(), queued.RunID)
+		_ = s.runProjectionStore.DeleteRun(context.Background(), queued.RunID)
 		setOutcome(response, "execution_workflow_input_invalid")
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
 	if err := s.temporalStarter.StartChatAnswerWorkflow(request.Context(), workflowInput); err != nil {
-		_ = s.durableRuntime.DeleteRun(context.Background(), queued.RunID)
+		_ = s.runProjectionStore.DeleteRun(context.Background(), queued.RunID)
 		setOutcome(response, "temporal_workflow_start_failed")
 		writeError(
 			response,
@@ -118,7 +118,7 @@ func (s *Server) appendExecutionRunStartEvents(
 	queued execution.DurableRun,
 	queuedAt time.Time,
 ) error {
-	if _, err := s.durableRuntime.AppendRunEvent(ctx, execution.DurableRunEvent{
+	if _, err := s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              created.RunID + ":workflow-started",
 		RunID:                created.RunID,
 		ConversationID:       created.ConversationID,
@@ -130,7 +130,7 @@ func (s *Server) appendExecutionRunStartEvents(
 	}); err != nil {
 		return err
 	}
-	if _, err := s.durableRuntime.AppendRunEvent(ctx, execution.DurableRunEvent{
+	if _, err := s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              created.RunID + ":run-queued",
 		RunID:                queued.RunID,
 		ConversationID:       queued.ConversationID,
@@ -177,7 +177,7 @@ func (s *Server) handleExecutionRunCancel(
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.durableRuntime == nil {
+	if s.runProjectionStore == nil {
 		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
@@ -219,7 +219,7 @@ func (s *Server) handleExecutionRunCancel(
 		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
 		return
 	}
-	run, err := s.durableRuntime.GetRun(request.Context(), runID)
+	run, err := s.runProjectionStore.GetRun(request.Context(), runID)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
 			setOutcome(response, "execution_run_not_found")
@@ -249,11 +249,7 @@ func (s *Server) handleExecutionRunCancel(
 		return
 	}
 	canceledAt := time.Now().UTC()
-	coordinator := s.durableLeaseCoordinator
-	if coordinator == nil {
-		coordinator = execution.NewDurableLeaseCoordinator(s.durableRuntime)
-	}
-	canceled, err := coordinator.CancelRun(
+	canceled, err := s.runProjectionStore.CancelRunProjection(
 		request.Context(),
 		execution.DurableRunCancelRequest{
 			RunID:         run.RunID,
@@ -268,7 +264,7 @@ func (s *Server) handleExecutionRunCancel(
 		return
 	}
 	setOutcome(response, "execution_run_canceled")
-	writeJSON(response, http.StatusAccepted, durableRunResponse(canceled.Run))
+	writeJSON(response, http.StatusAccepted, durableRunResponse(canceled))
 }
 
 func executionRunIDFromPath(path string, suffix string) (string, bool) {

@@ -147,6 +147,51 @@ type DurableRunEvent struct {
 	PayloadSchemaVersion string
 }
 
+type RunStepProjection struct {
+	StepID               string
+	RunID                string
+	ConversationID       string
+	StepKind             string
+	Capability           string
+	ParentStepID         string
+	Status               string
+	TaskQueue            string
+	WorkerID             string
+	StartedAt            time.Time
+	CompletedAt          time.Time
+	UpdatedAt            time.Time
+	PayloadSchemaVersion string
+	SanitizedPayload     map[string]any
+}
+
+type StepAttemptProjection struct {
+	AttemptID            string
+	StepID               string
+	RunID                string
+	Attempt              int
+	Status               string
+	TaskQueue            string
+	WorkerID             string
+	StartedAt            time.Time
+	CompletedAt          time.Time
+	UpdatedAt            time.Time
+	PayloadSchemaVersion string
+	SanitizedPayload     map[string]any
+}
+
+type StepResultProjection struct {
+	ResultID             string
+	StepID               string
+	RunID                string
+	AttemptID            string
+	Status               string
+	ResultKind           string
+	ProjectionRef        string
+	CreatedAt            time.Time
+	PayloadSchemaVersion string
+	SanitizedPayload     map[string]any
+}
+
 type ExecutionLease struct {
 	LeaseID       string
 	RunID         string

@@ -280,9 +280,9 @@ func mustDefaultWorkflowArtifactRegistry() runtimepolicy.WorkflowArtifactRegistr
 func runtimeVersionSummary() map[string]any {
 	return map[string]any{
 		"execution_control_runtime": "go-runtime-control-plane-v1",
-		"bridge_contract":        contractsv1.BridgeVersion,
-		"response_contract":      contractsv1.ResponseContract,
-		"workflow_trace_summary": contractsv1.WorkflowTraceSummaryVersion,
+		"bridge_contract":           contractsv1.BridgeVersion,
+		"response_contract":         contractsv1.ResponseContract,
+		"workflow_trace_summary":    contractsv1.WorkflowTraceSummaryVersion,
 	}
 }
 

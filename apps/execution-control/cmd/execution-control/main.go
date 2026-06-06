@@ -13,7 +13,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func main() {
@@ -30,28 +29,6 @@ func main() {
 		cfg.BridgeResponseLimitBytes,
 	)
 	handler := httpapi.NewServerWithDependencies(cfg, bridgeClient, nil, logger, nil)
-	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
-	defer runtimeCancel()
-	temporalWorkers, err := temporalruntime.NewWorkerRuntime(runtimeCtx, temporalruntime.WorkerOptions{
-		Address:                cfg.TemporalAddress,
-		Namespace:              cfg.TemporalNamespace,
-		WorkflowQueue:          cfg.TemporalTaskQueue,
-		RAGQueue:               temporalruntime.ActivityTaskQueueRAG,
-		FinalizationQueue:      temporalruntime.ActivityTaskQueueFinalization,
-		WorkerID:               cfg.TemporalWorkerIdentity,
-		RAGActivities:          handler.TemporalWorkerActivities(),
-		FinalizationActivities: handler.TemporalWorkerActivities(),
-	})
-	if err != nil {
-		logger.Error("campus execution-control temporal worker invalid", "error", err.Error())
-		os.Exit(1)
-	}
-	if err := temporalWorkers.Start(); err != nil {
-		logger.Error("campus execution-control temporal worker start failed", "error", err.Error())
-		os.Exit(1)
-	}
-	handler.MarkTemporalWorkersStarted(true)
-	defer temporalWorkers.Stop()
 
 	server := &http.Server{
 		Addr:              address,
@@ -73,9 +50,6 @@ func main() {
 	select {
 	case signalValue := <-shutdownSignals:
 		logger.Info("campus execution-control draining", "signal", signalValue.String())
-		runtimeCancel()
-		handler.MarkTemporalWorkersStarted(false)
-		temporalWorkers.Stop()
 		handler.StartDraining()
 		ctx, cancel := context.WithTimeout(
 			context.Background(),

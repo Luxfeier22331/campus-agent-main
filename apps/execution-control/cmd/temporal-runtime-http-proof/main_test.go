@@ -36,7 +36,7 @@ func TestParseOptionsRequiresExecutionControlURLSharedSecretAndEvidencePath(t *t
 	}
 }
 
-func TestHTTPProofRejectsReadyzWithoutTemporalWorkers(t *testing.T) {
+func TestHTTPProofRejectsReadyzWithoutRequiredTaskQueues(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("x-worker-origin-auth") != "secret" {
 			t.Fatalf("missing worker origin auth header")
@@ -44,17 +44,24 @@ func TestHTTPProofRejectsReadyzWithoutTemporalWorkers(t *testing.T) {
 		response.Header().Set("content-type", "application/json")
 		_, _ = response.Write([]byte(`{
 			"status":"ready",
-			"durable_runtime":{"configured":true,"healthy":true},
-			"temporal_runtime":{"configured":true,"healthy":false,"workers":{"started":false}}
+			"run_projection_store":{"configured":true,"healthy":true},
+			"temporal_runtime":{
+				"configured":true,
+				"healthy":true,
+				"namespace":"campus-agent-staging",
+				"task_queue":"campus-agent.workflow",
+				"worker_id":"staging:execution-control:001",
+				"task_queues":["campus-agent.workflow","campus-agent.activity.rag"]
+			}
 		}`))
 	}))
 	defer server.Close()
 
 	_, err := runProof(t.Context(), proofOptions{
-		EvidencePath:  filepath.Join(t.TempDir(), "http-proof.json"),
-		Now:           time.Date(2026, 6, 4, 23, 0, 0, 0, time.UTC),
-		SharedSecret:  "secret",
-		GatewayURL:    server.URL,
+		EvidencePath: filepath.Join(t.TempDir(), "http-proof.json"),
+		Now:          time.Date(2026, 6, 4, 23, 0, 0, 0, time.UTC),
+		SharedSecret: "secret",
+		GatewayURL:   server.URL,
 	})
 	if !errors.Is(err, errTemporalReadyzBlocked) {
 		t.Fatalf("runProof error = %v, want errTemporalReadyzBlocked", err)
@@ -72,14 +79,18 @@ func TestHTTPProofWritesReadyzEvidenceForTemporalRuntime(t *testing.T) {
 		response.Header().Set("content-type", "application/json")
 		_, _ = response.Write([]byte(`{
 			"status":"ready",
-			"durable_runtime":{"configured":true,"healthy":true},
+			"run_projection_store":{"configured":true,"healthy":true},
 			"temporal_runtime":{
 				"configured":true,
 				"healthy":true,
 				"namespace":"campus-agent-staging",
 				"task_queue":"campus-agent.workflow",
 				"worker_id":"staging:execution-control:001",
-				"workers":{"started":true}
+				"task_queues":[
+					"campus-agent.workflow",
+					"campus-agent.activity.rag",
+					"campus-agent.activity.finalization"
+				]
 			}
 		}`))
 	}))
@@ -87,10 +98,10 @@ func TestHTTPProofWritesReadyzEvidenceForTemporalRuntime(t *testing.T) {
 
 	evidencePath := filepath.Join(t.TempDir(), "http-proof.json")
 	report, err := runProof(t.Context(), proofOptions{
-		EvidencePath:  evidencePath,
-		Now:           time.Date(2026, 6, 4, 23, 1, 0, 0, time.UTC),
-		SharedSecret:  "secret",
-		GatewayURL:    server.URL,
+		EvidencePath: evidencePath,
+		Now:          time.Date(2026, 6, 4, 23, 1, 0, 0, time.UTC),
+		SharedSecret: "secret",
+		GatewayURL:   server.URL,
 	})
 	if err != nil {
 		t.Fatalf("runProof: %v", err)

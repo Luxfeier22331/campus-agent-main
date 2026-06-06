@@ -49,7 +49,9 @@ type fakeBridge struct {
 	cancelFn         func(context.Context, bridge.CancelRequest) (bridge.CancelResponse, error)
 }
 
-type readyTemporalStarter struct{}
+type readyTemporalStarter struct {
+	readiness temporalruntime.RuntimeReadiness
+}
 
 func (readyTemporalStarter) StartChatAnswerWorkflow(
 	context.Context,
@@ -65,10 +67,38 @@ func (readyTemporalStarter) CancelChatAnswerWorkflow(
 	return nil
 }
 
+func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalruntime.RuntimeReadiness {
+	if starter.readiness.TaskQueues != nil || starter.readiness.LastError != "" {
+		return starter.readiness
+	}
+	return temporalruntime.RuntimeReadiness{
+		Healthy: true,
+		TaskQueues: []temporalruntime.TaskQueueReadiness{
+			{
+				Name:    temporalruntime.WorkflowTaskQueue,
+				Type:    temporalruntime.TaskQueueTypeWorkflow,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueRAG,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueFinalization,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+		},
+	}
+}
+
 func markTemporalReadyForTest(server *Server) {
 	server.temporalStarter = readyTemporalStarter{}
 	server.temporalStarterErr = nil
-	server.temporalWorkersStarted = true
 }
 
 var _ bridge.Client = (*fakeBridge)(nil)

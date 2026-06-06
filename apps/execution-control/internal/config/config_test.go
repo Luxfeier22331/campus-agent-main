@@ -173,27 +173,11 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.WorkflowRunAutoMigrate {
 		t.Fatal("workflow run auto migrate must be disabled by default")
 	}
-	if cfg.DurableRuntimeDatabaseURL != "" {
-		t.Fatalf("durable runtime database url = %q, want empty", cfg.DurableRuntimeDatabaseURL)
+	if cfg.RunProjectionDatabaseURL != "" {
+		t.Fatalf("run projection database url = %q, want empty", cfg.RunProjectionDatabaseURL)
 	}
-	if cfg.DurableRuntimeAutoMigrate {
-		t.Fatal("durable runtime auto migrate must be disabled by default")
-	}
-	if cfg.DurableWorkerLoopEnabled {
-		t.Fatal("durable worker loop must be disabled by default")
-	}
-	if cfg.DurableWorkerLoopWorkerID != "" ||
-		cfg.DurableWorkerLoopLane != "" ||
-		cfg.DurableWorkerLoopStepID != "" ||
-		cfg.DurableWorkerLoopPollIntervalMS != 0 ||
-		cfg.DurableWorkerLoopLeaseTTLMS != 0 ||
-		cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS != 0 {
-		t.Fatalf("unexpected durable worker loop defaults: %#v", cfg)
-	}
-	if cfg.DurableRecoveryLoopEnabled ||
-		cfg.DurableRecoveryLoopIntervalMS != 0 ||
-		cfg.DurableRecoveryLoopMaxRetryAttempts != 0 {
-		t.Fatalf("unexpected durable recovery loop defaults: %#v", cfg)
+	if cfg.RunProjectionAutoMigrate {
+		t.Fatal("run projection auto migrate must be disabled by default")
 	}
 	if cfg.TemporalAddress != "" ||
 		cfg.TemporalNamespace != "" ||
@@ -257,39 +241,47 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvReadsDurableRuntimeDatabaseSettingsExplicitly(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "postgres://runtime.example/campus_agent")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_AUTO_MIGRATE", "true")
+func TestLoadFromEnvReadsRunProjectionDatabaseSettingsExplicitly(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE", "true")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
-	if cfg.DurableRuntimeDatabaseURL != "postgresql://runtime.example/campus_agent" {
-		t.Fatalf("durable runtime database url = %q", cfg.DurableRuntimeDatabaseURL)
+	if cfg.RunProjectionDatabaseURL != "postgresql://runtime.example/campus_agent" {
+		t.Fatalf("run projection database url = %q", cfg.RunProjectionDatabaseURL)
 	}
-	if !cfg.DurableRuntimeAutoMigrate {
-		t.Fatal("durable runtime auto migrate = false, want true")
+	if !cfg.RunProjectionAutoMigrate {
+		t.Fatal("run projection auto migrate = false, want true")
 	}
 	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/campus_agent" {
 		t.Fatalf("workflow run database url = %q, want shared postgres normalized", cfg.WorkflowRunDatabaseURL)
 	}
 }
 
-func TestLoadFromEnvDoesNotInferDurableRuntimeDatabaseURLFromSharedPostgres(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "")
+func TestLoadFromEnvDoesNotInferRunProjectionDatabaseURLFromSharedPostgres(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
-	if cfg.DurableRuntimeDatabaseURL != "" {
+	if cfg.RunProjectionDatabaseURL != "" {
 		t.Fatalf(
-			"durable runtime database url = %q, want explicit setting only",
-			cfg.DurableRuntimeDatabaseURL,
+			"run projection database url = %q, want explicit setting only",
+			cfg.RunProjectionDatabaseURL,
 		)
+	}
+}
+
+func TestLoadFromEnvRejectsRetiredDurableRuntimeDatabaseSettings(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "postgres://runtime.example/campus_agent")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected retired durable runtime database env to fail")
 	}
 }
 

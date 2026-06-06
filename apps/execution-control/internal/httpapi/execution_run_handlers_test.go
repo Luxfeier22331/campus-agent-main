@@ -47,6 +47,32 @@ func (f *fakeTemporalStarter) CancelChatAnswerWorkflow(
 	return f.cancelErr
 }
 
+func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.RuntimeReadiness {
+	return temporalruntime.RuntimeReadiness{
+		Healthy: true,
+		TaskQueues: []temporalruntime.TaskQueueReadiness{
+			{
+				Name:    temporalruntime.WorkflowTaskQueue,
+				Type:    temporalruntime.TaskQueueTypeWorkflow,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueRAG,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueFinalization,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+		},
+	}
+}
+
 func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.T) {
 	store := execution.NewInMemoryDurableRuntimeStore()
 	starter := &fakeTemporalStarter{}

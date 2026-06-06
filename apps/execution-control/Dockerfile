@@ -21,7 +21,10 @@ COPY tests/fixtures/service_guide_vpn_grouped_procedure_result.json /src/tests/f
 COPY tests/fixtures/supervisor_execution_contract /src/tests/fixtures/supervisor_execution_contract
 
 RUN go test ./... \
-  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/workflow-worker ./cmd/workflow-worker \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-rag ./cmd/activity-worker-rag \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-finalization ./cmd/activity-worker-finalization
 
 FROM debian:bookworm-slim
 
@@ -31,6 +34,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/execution-control /usr/local/bin/execution-control
+COPY --from=build /out/workflow-worker /usr/local/bin/workflow-worker
+COPY --from=build /out/activity-worker-rag /usr/local/bin/activity-worker-rag
+COPY --from=build /out/activity-worker-finalization /usr/local/bin/activity-worker-finalization
 COPY configs/runtime/agents.v2.json /etc/campus-agent/agents.v2.json
 COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /etc/campus-agent/query-serving-scopes.v1.json

@@ -299,6 +299,70 @@ func (s *PostgresDurableRuntimeStore) CancelRun(
 	}, nil
 }
 
+func (s *PostgresDurableRuntimeStore) CancelRunProjection(
+	ctx context.Context,
+	request DurableRunCancelRequest,
+) (DurableRun, error) {
+	if err := validateDurableRunCancelRequest(request); err != nil {
+		return DurableRun{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DurableRun{}, err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+	run, err := scanDurableRun(
+		tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", request.RunID),
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		}
+		return DurableRun{}, err
+	}
+	if !durableRunTransitionAllowed(run.Status, DurableRunStatusCanceled) {
+		return DurableRun{}, fmt.Errorf(
+			"%w: %s -> %s",
+			ErrInvalidRunTransition,
+			run.Status,
+			DurableRunStatusCanceled,
+		)
+	}
+	run.Status = DurableRunStatusCanceled
+	run.TerminalReason = DurableTerminalReasonUserCanceled
+	run.UpdatedAt = request.Now
+	recordDurableRunStatusTimestamp(&run, DurableRunStatusCanceled, request.Now)
+	if err := validateDurableRun(run); err != nil {
+		return DurableRun{}, err
+	}
+	if err := updateDurableRunStatusInTx(ctx, tx, run); err != nil {
+		return DurableRun{}, err
+	}
+	if err := insertDurableRunEventInTx(ctx, tx, run, DurableRunEvent{
+		EventID:              run.RunID + ":run-canceled",
+		RunID:                run.RunID,
+		ConversationID:       run.ConversationID,
+		EventType:            DurableRunEventTypeRunCanceled,
+		OccurredAt:           request.Now,
+		Visibility:           DurableRunEventVisibilityInternal,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload: map[string]any{
+			"status":          string(DurableRunStatusCanceled),
+			"terminal_reason": string(DurableTerminalReasonUserCanceled),
+			"reason":          request.Reason,
+			"projection_only": true,
+		},
+	}); err != nil {
+		return DurableRun{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return DurableRun{}, err
+	}
+	return run, nil
+}
+
 func mapDurableRunUniqueViolation(
 	ctx context.Context,
 	store *PostgresDurableRuntimeStore,

@@ -34,5 +34,5 @@ func attachDurableRuntimeStoreForHandlerTest(
 	server *Server,
 	store execution.DurableRuntimeStore,
 ) {
-	server.durableRuntime = store
+	server.runProjectionStore = store
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
@@ -14,7 +15,26 @@ var ErrTemporalStarterNotConfigured = errors.New("temporal starter not configure
 
 type ChatWorkflowStarter interface {
 	CancelChatAnswerWorkflow(context.Context, ChatAnswerWorkflowCancelInput) error
+	CheckReadiness(context.Context) RuntimeReadiness
 	StartChatAnswerWorkflow(context.Context, ChatAnswerWorkflowInput) error
+}
+
+const (
+	TaskQueueTypeWorkflow = "workflow"
+	TaskQueueTypeActivity = "activity"
+)
+
+type RuntimeReadiness struct {
+	Healthy    bool
+	LastError  string
+	TaskQueues []TaskQueueReadiness
+}
+
+type TaskQueueReadiness struct {
+	Name    string
+	Type    string
+	Pollers int
+	Healthy bool
 }
 
 type StarterOptions struct {
@@ -108,6 +128,51 @@ func (s *Starter) CancelChatAnswerWorkflow(
 	return s.client.CancelWorkflow(cancelCtx, workflowID, "")
 }
 
+func (s *Starter) CheckReadiness(ctx context.Context) RuntimeReadiness {
+	if s == nil || s.client == nil {
+		return RuntimeReadiness{Healthy: false, LastError: "temporal client is not configured"}
+	}
+	taskQueues := []TaskQueueReadiness{
+		s.checkTaskQueue(ctx, s.taskQueue, TaskQueueTypeWorkflow, enumspb.TASK_QUEUE_TYPE_WORKFLOW),
+		s.checkTaskQueue(ctx, ActivityTaskQueueRAG, TaskQueueTypeActivity, enumspb.TASK_QUEUE_TYPE_ACTIVITY),
+		s.checkTaskQueue(ctx, ActivityTaskQueueFinalization, TaskQueueTypeActivity, enumspb.TASK_QUEUE_TYPE_ACTIVITY),
+	}
+	readiness := RuntimeReadiness{
+		Healthy:    true,
+		TaskQueues: taskQueues,
+	}
+	for _, taskQueue := range taskQueues {
+		if !taskQueue.Healthy {
+			readiness.Healthy = false
+			if readiness.LastError == "" {
+				readiness.LastError = "temporal task queue has no pollers"
+			}
+		}
+	}
+	return readiness
+}
+
+func (s *Starter) checkTaskQueue(
+	ctx context.Context,
+	name string,
+	queueType string,
+	temporalQueueType enumspb.TaskQueueType,
+) TaskQueueReadiness {
+	describeCtx, cancel := context.WithTimeout(ctx, s.startTimeout)
+	defer cancel()
+	response, err := s.client.DescribeTaskQueue(describeCtx, name, temporalQueueType)
+	if err != nil {
+		return TaskQueueReadiness{Name: name, Type: queueType, Healthy: false}
+	}
+	pollerCount := len(response.GetPollers())
+	return TaskQueueReadiness{
+		Name:    name,
+		Type:    queueType,
+		Pollers: pollerCount,
+		Healthy: pollerCount > 0,
+	}
+}
+
 func (s *Starter) Close() {
 	if s != nil && s.client != nil {
 		s.client.Close()
@@ -115,10 +180,8 @@ func (s *Starter) Close() {
 }
 
 type WorkerRuntime struct {
-	client             client.Client
-	workflowWorker     worker.Worker
-	ragWorker          worker.Worker
-	finalizationWorker worker.Worker
+	client  client.Client
+	workers []worker.Worker
 }
 
 type WorkerOptions struct {
@@ -164,35 +227,75 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if finalizationQueue == "" {
 		finalizationQueue = ActivityTaskQueueFinalization
 	}
+	workflowWorker := NewWorkflowWorker(temporalClient, workflowQueue)
+	ragWorker := NewRAGActivityWorker(temporalClient, ragQueue, options.RAGActivities)
+	finalizationWorker := NewFinalizationActivityWorker(
+		temporalClient,
+		finalizationQueue,
+		options.FinalizationActivities,
+	)
+	return &WorkerRuntime{
+		client:  temporalClient,
+		workers: []worker.Worker{workflowWorker, ragWorker, finalizationWorker},
+	}, nil
+}
+
+func NewTemporalClient(ctx context.Context, address string, namespace string, workerID string) (client.Client, error) {
+	address = strings.TrimSpace(address)
+	namespace = strings.TrimSpace(namespace)
+	if address == "" || namespace == "" {
+		return nil, ErrTemporalStarterNotConfigured
+	}
+	return client.DialContext(ctx, client.Options{
+		HostPort:  address,
+		Namespace: namespace,
+		Identity:  strings.TrimSpace(workerID),
+	})
+}
+
+func NewWorkflowWorker(temporalClient client.Client, queue string) worker.Worker {
+	workflowQueue := strings.TrimSpace(queue)
+	if workflowQueue == "" {
+		workflowQueue = WorkflowTaskQueue
+	}
 	workflowWorker := worker.New(temporalClient, workflowQueue, worker.Options{})
 	workflowWorker.RegisterWorkflow(ChatAnswerWorkflow)
+	return workflowWorker
+}
+
+func NewRAGActivityWorker(temporalClient client.Client, queue string, activities any) worker.Worker {
+	ragQueue := strings.TrimSpace(queue)
+	if ragQueue == "" {
+		ragQueue = ActivityTaskQueueRAG
+	}
 	ragWorker := worker.New(temporalClient, ragQueue, worker.Options{})
-	ragWorker.RegisterActivity(options.RAGActivities)
+	ragWorker.RegisterActivity(activities)
+	return ragWorker
+}
+
+func NewFinalizationActivityWorker(temporalClient client.Client, queue string, activities any) worker.Worker {
+	finalizationQueue := strings.TrimSpace(queue)
+	if finalizationQueue == "" {
+		finalizationQueue = ActivityTaskQueueFinalization
+	}
 	finalizationWorker := worker.New(temporalClient, finalizationQueue, worker.Options{})
-	finalizationWorker.RegisterActivity(options.FinalizationActivities)
-	return &WorkerRuntime{
-		client:             temporalClient,
-		workflowWorker:     workflowWorker,
-		ragWorker:          ragWorker,
-		finalizationWorker: finalizationWorker,
-	}, nil
+	finalizationWorker.RegisterActivity(activities)
+	return finalizationWorker
 }
 
 func (r *WorkerRuntime) Start() error {
 	if r == nil {
 		return ErrTemporalStarterNotConfigured
 	}
-	if err := r.workflowWorker.Start(); err != nil {
-		return err
-	}
-	if err := r.ragWorker.Start(); err != nil {
-		r.workflowWorker.Stop()
-		return err
-	}
-	if err := r.finalizationWorker.Start(); err != nil {
-		r.ragWorker.Stop()
-		r.workflowWorker.Stop()
-		return err
+	started := []worker.Worker{}
+	for _, runtimeWorker := range r.workers {
+		if err := runtimeWorker.Start(); err != nil {
+			for i := len(started) - 1; i >= 0; i-- {
+				started[i].Stop()
+			}
+			return err
+		}
+		started = append(started, runtimeWorker)
 	}
 	return nil
 }
@@ -201,14 +304,8 @@ func (r *WorkerRuntime) Stop() {
 	if r == nil {
 		return
 	}
-	if r.ragWorker != nil {
-		r.ragWorker.Stop()
-	}
-	if r.finalizationWorker != nil {
-		r.finalizationWorker.Stop()
-	}
-	if r.workflowWorker != nil {
-		r.workflowWorker.Stop()
+	for i := len(r.workers) - 1; i >= 0; i-- {
+		r.workers[i].Stop()
 	}
 	if r.client != nil {
 		r.client.Close()

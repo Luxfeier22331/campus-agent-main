@@ -12,107 +12,22 @@ import (
 )
 
 func (s *Server) handleDurableRunCreate(response http.ResponseWriter, request *http.Request) {
-	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
-		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
-		return
-	}
-	if s.durableRuntime == nil {
-		setOutcome(response, "durable_runtime_not_configured")
-		writeError(
-			response,
-			http.StatusServiceUnavailable,
-			"durable_runtime_not_configured",
-			"Durable runtime store is not configured.",
-			true,
-		)
-		return
-	}
-	body, ok := s.readJSONBody(response, request)
-	if !ok {
-		return
-	}
-	run, err := durableRunFromCreateBody(body, time.Now().UTC())
-	if err != nil {
-		setOutcome(response, "invalid_request")
-		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
-		return
-	}
-	created, err := s.durableRuntime.CreateRun(request.Context(), run)
-	if err != nil {
-		if errors.Is(err, execution.ErrConversationActiveRun) {
-			setOutcome(response, "conversation_active_run")
-			writeError(
-				response,
-				http.StatusConflict,
-				"conversation_active_run",
-				"Conversation already has an active primary run.",
-				true,
-			)
-			return
-		}
-		setOutcome(response, "durable_run_create_failed")
-		writeError(response, http.StatusBadRequest, "durable_run_create_failed", err.Error(), false)
-		return
-	}
-	if _, err := s.durableRuntime.AppendRunEvent(request.Context(), execution.DurableRunEvent{
-		EventID:              created.RunID + ":run-created",
-		RunID:                created.RunID,
-		ConversationID:       created.ConversationID,
-		EventType:            execution.DurableRunEventTypeRunCreated,
-		OccurredAt:           created.CreatedAt,
-		Visibility:           execution.DurableRunEventVisibilityInternal,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload:              map[string]any{"status": string(execution.DurableRunStatusCreated)},
-	}); err != nil {
-		setOutcome(response, "durable_run_event_failed")
-		writeError(response, http.StatusInternalServerError, "durable_run_event_failed", err.Error(), true)
-		return
-	}
-	queuedAt := time.Now().UTC()
-	queued, err := s.durableRuntime.TransitionRun(
-		request.Context(),
-		created.RunID,
-		execution.DurableRunStatusQueued,
-		"",
-		queuedAt,
-	)
-	if err != nil {
-		setOutcome(response, "durable_run_queue_failed")
-		writeError(response, http.StatusInternalServerError, "durable_run_queue_failed", err.Error(), true)
-		return
-	}
-	if _, err := s.durableRuntime.AppendRunEvent(request.Context(), execution.DurableRunEvent{
-		EventID:              created.RunID + ":run-queued",
-		RunID:                queued.RunID,
-		ConversationID:       queued.ConversationID,
-		EventType:            execution.DurableRunEventTypeRunQueued,
-		OccurredAt:           queuedAt,
-		Visibility:           execution.DurableRunEventVisibilityInternal,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload:              map[string]any{"status": string(execution.DurableRunStatusQueued)},
-	}); err != nil {
-		setOutcome(response, "durable_run_event_failed")
-		writeError(response, http.StatusInternalServerError, "durable_run_event_failed", err.Error(), true)
-		return
-	}
-	setOutcome(response, "durable_run_queued")
-	writeJSON(response, http.StatusAccepted, durableRunResponse(queued))
+	writeRetiredDurableRoute(response)
 }
 
-func (s *Server) handleDurableRunGet(response http.ResponseWriter, request *http.Request, runID string) {
+func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *http.Request, runID string) {
 	if !s.internalWorkerAuthorized(request) {
 		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.durableRuntime == nil {
-		setOutcome(response, "durable_runtime_not_configured")
+	if s.runProjectionStore == nil {
+		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
-			"durable_runtime_not_configured",
-			"Durable runtime store is not configured.",
+			"projection_store_not_configured",
+			"Execution projection store is not configured.",
 			true,
 		)
 		return
@@ -122,7 +37,7 @@ func (s *Server) handleDurableRunGet(response http.ResponseWriter, request *http
 		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
 		return
 	}
-	run, err := s.durableRuntime.GetRun(request.Context(), strings.TrimSpace(runID))
+	run, err := s.runProjectionStore.GetRun(request.Context(), strings.TrimSpace(runID))
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
 			setOutcome(response, "durable_run_not_found")
@@ -138,18 +53,22 @@ func (s *Server) handleDurableRunGet(response http.ResponseWriter, request *http
 }
 
 func (s *Server) handleDurableRunEvents(response http.ResponseWriter, request *http.Request, runID string) {
+	s.handleExecutionRunEvents(response, request, runID)
+}
+
+func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request *http.Request, runID string) {
 	if !s.internalWorkerAuthorized(request) {
 		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.durableRuntime == nil {
-		setOutcome(response, "durable_runtime_not_configured")
+	if s.runProjectionStore == nil {
+		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
-			"durable_runtime_not_configured",
-			"Durable runtime store is not configured.",
+			"projection_store_not_configured",
+			"Execution projection store is not configured.",
 			true,
 		)
 		return
@@ -165,7 +84,7 @@ func (s *Server) handleDurableRunEvents(response http.ResponseWriter, request *h
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	events, err := s.durableRuntime.ListRunEventsAfter(
+	events, err := s.runProjectionStore.ListRunEventsAfter(
 		request.Context(),
 		strings.TrimSpace(runID),
 		afterSequence,
@@ -207,82 +126,12 @@ func readAfterSequenceQuery(request *http.Request) (int64, error) {
 }
 
 func (s *Server) handleDurableRunCancel(response http.ResponseWriter, request *http.Request, runID string) {
-	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
-		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
-		return
-	}
-	if s.durableRuntime == nil {
-		setOutcome(response, "durable_runtime_not_configured")
-		writeError(
-			response,
-			http.StatusServiceUnavailable,
-			"durable_runtime_not_configured",
-			"Durable runtime store is not configured.",
-			true,
-		)
-		return
-	}
-	body, ok := s.readJSONBody(response, request)
-	if !ok {
-		return
-	}
-	payload, err := decodeJSONObject(body)
-	if err != nil {
-		setOutcome(response, "invalid_request")
-		writeError(response, http.StatusBadRequest, "invalid_request", "Cancel request body must be a JSON object.", false)
-		return
-	}
-	reason := optionalStringFromMap(payload, "reason")
-	if reason == "" {
-		reason = "user_requested"
-	}
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		setOutcome(response, "invalid_request")
-		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
-		return
-	}
-	canceledAt := time.Now().UTC()
-	coordinator := s.durableLeaseCoordinator
-	if coordinator == nil {
-		coordinator = execution.NewDurableLeaseCoordinator(s.durableRuntime)
-	}
-	canceled, err := coordinator.CancelRun(
-		request.Context(),
-		execution.DurableRunCancelRequest{
-			RunID:         runID,
-			Reason:        reason,
-			Now:           canceledAt,
-			ReleaseReason: string(execution.DurableTerminalReasonUserCanceled),
-		},
-	)
-	if err != nil {
-		if errors.Is(err, execution.ErrDurableRunNotFound) {
-			setOutcome(response, "durable_run_not_found")
-			writeError(response, http.StatusNotFound, "durable_run_not_found", "Durable run not found.", false)
-			return
-		}
-		setOutcome(response, "durable_run_cancel_failed")
-		writeError(response, http.StatusConflict, "durable_run_cancel_failed", err.Error(), false)
-		return
-	}
-	if canceled.ReleasedLease != nil {
-		cancelStatus := s.propagateBridgeCancel(canceled.Run.RequestID, reason)
-		if cancelStatus != "accepted" {
-			setOutcome(response, "durable_bridge_cancel_failed")
-			writeError(
-				response,
-				http.StatusBadGateway,
-				"durable_bridge_cancel_failed",
-				"Durable run was canceled but active worker cancel propagation did not complete.",
-				true,
-			)
-			return
-		}
-	}
-	setOutcome(response, "durable_run_canceled")
-	writeJSON(response, http.StatusAccepted, durableRunResponse(canceled.Run))
+	writeRetiredDurableRoute(response)
+}
+
+func writeRetiredDurableRoute(response http.ResponseWriter) {
+	setOutcome(response, "not_found")
+	writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 }
 
 func durableRunFromCreateBody(body json.RawMessage, now time.Time) (execution.DurableRun, error) {

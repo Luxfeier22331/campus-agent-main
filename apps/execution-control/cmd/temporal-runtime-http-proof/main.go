@@ -21,11 +21,11 @@ var (
 )
 
 type proofOptions struct {
-	EvidencePath  string
-	GatewayURL    string
-	Now           time.Time
-	SharedSecret  string
-	Timeout       time.Duration
+	EvidencePath string
+	GatewayURL   string
+	Now          time.Time
+	SharedSecret string
+	Timeout      time.Duration
 }
 
 type proofReport struct {
@@ -36,28 +36,24 @@ type proofReport struct {
 }
 
 type readyzReport struct {
-	DurableRuntime  durableRuntimeStatus `json:"durable_runtime"`
-	Status          string               `json:"status"`
-	TemporalRuntime temporalRuntimeStatus `json:"temporal_runtime"`
+	RunProjectionStore runProjectionStoreStatus `json:"run_projection_store"`
+	Status             string                   `json:"status"`
+	TemporalRuntime    temporalRuntimeStatus    `json:"temporal_runtime"`
 }
 
-type durableRuntimeStatus struct {
+type runProjectionStoreStatus struct {
 	Configured bool `json:"configured"`
 	Healthy    bool `json:"healthy"`
 }
 
 type temporalRuntimeStatus struct {
-	Configured bool            `json:"configured"`
-	Healthy    bool            `json:"healthy"`
-	LastError  string          `json:"last_error"`
-	Namespace  string          `json:"namespace"`
-	TaskQueue  string          `json:"task_queue"`
-	WorkerID   string          `json:"worker_id"`
-	Workers    temporalWorkers `json:"workers"`
-}
-
-type temporalWorkers struct {
-	Started bool `json:"started"`
+	Configured bool     `json:"configured"`
+	Healthy    bool     `json:"healthy"`
+	LastError  string   `json:"last_error"`
+	Namespace  string   `json:"namespace"`
+	TaskQueue  string   `json:"task_queue"`
+	TaskQueues []string `json:"task_queues"`
+	WorkerID   string   `json:"worker_id"`
 }
 
 func main() {
@@ -172,20 +168,37 @@ func requireDurableReadyz(report readyzReport) error {
 	switch {
 	case report.Status != "ready":
 		return fmt.Errorf("%w: status=%s", errTemporalReadyzBlocked, report.Status)
-	case !report.DurableRuntime.Configured || !report.DurableRuntime.Healthy:
-		return fmt.Errorf("%w: durable_runtime projection store is not configured and healthy", errTemporalReadyzBlocked)
+	case !report.RunProjectionStore.Configured || !report.RunProjectionStore.Healthy:
+		return fmt.Errorf("%w: run_projection_store is not configured and healthy", errTemporalReadyzBlocked)
 	case !report.TemporalRuntime.Configured || !report.TemporalRuntime.Healthy:
 		return fmt.Errorf("%w: temporal_runtime is not configured and healthy", errTemporalReadyzBlocked)
-	case !report.TemporalRuntime.Workers.Started:
-		return fmt.Errorf("%w: temporal workers are not started", errTemporalReadyzBlocked)
 	case strings.TrimSpace(report.TemporalRuntime.Namespace) == "":
 		return fmt.Errorf("%w: temporal namespace is empty", errTemporalReadyzBlocked)
 	case strings.TrimSpace(report.TemporalRuntime.TaskQueue) == "":
 		return fmt.Errorf("%w: temporal task queue is empty", errTemporalReadyzBlocked)
+	case !containsAllTaskQueues(report.TemporalRuntime.TaskQueues, []string{
+		"campus-agent.workflow",
+		"campus-agent.activity.rag",
+		"campus-agent.activity.finalization",
+	}):
+		return fmt.Errorf("%w: temporal required task queues are incomplete", errTemporalReadyzBlocked)
 	case strings.TrimSpace(report.TemporalRuntime.WorkerID) == "":
 		return fmt.Errorf("%w: temporal worker identity is empty", errTemporalReadyzBlocked)
 	}
 	return nil
+}
+
+func containsAllTaskQueues(actual []string, required []string) bool {
+	seen := map[string]bool{}
+	for _, queue := range actual {
+		seen[strings.TrimSpace(queue)] = true
+	}
+	for _, queue := range required {
+		if !seen[queue] {
+			return false
+		}
+	}
+	return true
 }
 
 func writeReport(path string, report proofReport) error {

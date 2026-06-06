@@ -25,30 +25,25 @@ import (
 )
 
 type Server struct {
-	config                  config.Config
-	bridge                  bridge.Client
-	bridgeBreaker           *bridge.CircuitBreaker
-	admission               *admission.Controller
-	lifecycle               *lifecycle.Registry
-	logger                  *slog.Logger
-	metrics                 *observability.Metrics
-	telemetry               *telemetry.Emitter
-	executionAudit          *executionaudit.Emitter
-	structuredQuery         *structuredquery.Runtime
-	workflowRuns            execution.WorkflowRunStore
-	workflowRunsErr         error
-	durableRuntime          execution.DurableRuntimeStore
-	durableRuntimeErr       error
-	durableLeaseCoordinator *execution.DurableLeaseCoordinator
-	durableWorkerLoop       *durableWorkerLoop
-	durableWorkerLoopErr    error
-	durableRecoveryLoop     *durableRecoveryLoop
-	durableRecoveryLoopErr  error
-	temporalStarter         temporalruntime.ChatWorkflowStarter
-	temporalStarterErr      error
-	temporalWorkersStarted  bool
-	intentPolicy            runtimepolicy.IntentPolicyArtifact
-	intentPolicyErr         error
+	config                 config.Config
+	bridge                 bridge.Client
+	bridgeBreaker          *bridge.CircuitBreaker
+	admission              *admission.Controller
+	lifecycle              *lifecycle.Registry
+	logger                 *slog.Logger
+	metrics                *observability.Metrics
+	telemetry              *telemetry.Emitter
+	executionAudit         *executionaudit.Emitter
+	structuredQuery        *structuredquery.Runtime
+	workflowRuns           execution.WorkflowRunStore
+	workflowRunsErr        error
+	runProjectionStore     execution.RunProjectionStore
+	runProjectionStoreErr  error
+	temporalStarter        temporalruntime.ChatWorkflowStarter
+	temporalStarterErr     error
+	temporalWorkersStarted bool
+	intentPolicy           runtimepolicy.IntentPolicyArtifact
+	intentPolicyErr        error
 }
 
 func (s *Server) TemporalWorkerActivities() any {
@@ -162,7 +157,7 @@ func NewServerWithDependencies(
 		NoticeBodyObjectStoreBodyLimitBytes: cfg.NoticeBodyObjectStoreBodyLimitBytes,
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
-	durableRuntime, durableRuntimeErr := newDurableRuntimeStore(cfg)
+	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
@@ -172,22 +167,21 @@ func NewServerWithDependencies(
 			FailureThreshold: cfg.BridgeBreakerFailureThreshold,
 			OpenDuration:     time.Duration(cfg.BridgeBreakerOpenMS) * time.Millisecond,
 		}),
-		admission:               admissionController,
-		lifecycle:               registry,
-		logger:                  logger,
-		metrics:                 metrics,
-		telemetry:               telemetryEmitter,
-		executionAudit:          executionAuditEmitter,
-		structuredQuery:         structuredQueryRuntime,
-		workflowRuns:            workflowRuns,
-		workflowRunsErr:         workflowRunsErr,
-		durableRuntime:          durableRuntime,
-		durableRuntimeErr:       durableRuntimeErr,
-		durableLeaseCoordinator: nil,
-		temporalStarter:         temporalStarter,
-		temporalStarterErr:      temporalStarterErr,
-		intentPolicy:            intentPolicy,
-		intentPolicyErr:         intentPolicyErr,
+		admission:             admissionController,
+		lifecycle:             registry,
+		logger:                logger,
+		metrics:               metrics,
+		telemetry:             telemetryEmitter,
+		executionAudit:        executionAuditEmitter,
+		structuredQuery:       structuredQueryRuntime,
+		workflowRuns:          workflowRuns,
+		workflowRunsErr:       workflowRunsErr,
+		runProjectionStore:    runProjectionStore,
+		runProjectionStoreErr: runProjectionStoreErr,
+		temporalStarter:       temporalStarter,
+		temporalStarterErr:    temporalStarterErr,
+		intentPolicy:          intentPolicy,
+		intentPolicyErr:       intentPolicyErr,
 	}
 	return server
 }
@@ -219,30 +213,20 @@ func newWorkflowRunStore(cfg config.Config) (execution.WorkflowRunStore, error) 
 	})
 }
 
-func newDurableRuntimeStore(cfg config.Config) (execution.DurableRuntimeStore, error) {
-	if strings.TrimSpace(cfg.DurableRuntimeDatabaseURL) == "" {
+func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, error) {
+	if strings.TrimSpace(cfg.RunProjectionDatabaseURL) == "" {
 		return nil, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	store, err := execution.NewPostgresDurableRuntimeStore(ctx, execution.PostgresDurableRuntimeStoreOptions{
-		DatabaseURL: strings.TrimSpace(cfg.DurableRuntimeDatabaseURL),
-		AutoMigrate: cfg.DurableRuntimeAutoMigrate,
+	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
+		DatabaseURL: strings.TrimSpace(cfg.RunProjectionDatabaseURL),
+		AutoMigrate: cfg.RunProjectionAutoMigrate,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return store, nil
-}
-
-func (s *Server) configureDurableWorkerLoop() {
-	s.durableWorkerLoop = nil
-	s.durableWorkerLoopErr = nil
-}
-
-func (s *Server) configureDurableRecoveryLoop() {
-	s.durableRecoveryLoop = nil
-	s.durableRecoveryLoopErr = nil
 }
 
 func generateDurableLeaseID() string {
@@ -275,49 +259,15 @@ func (s *Server) StartDraining() {
 }
 
 func (s *Server) StartDurableWorkerLoop(ctx context.Context) error {
-	if s.config.DurableWorkerLoopEnabled {
-		return errDurableLeaseLoopRetired
-	}
-	return nil
+	return errDurableLeaseLoopRetired
 }
 
 func (s *Server) StartDurableRecoveryLoop(ctx context.Context) error {
-	if s.config.DurableRecoveryLoopEnabled {
-		return errDurableLeaseLoopRetired
-	}
-	return nil
+	return errDurableLeaseLoopRetired
 }
 
 func (s *Server) syncDurableLaneBudgets(ctx context.Context) error {
-	if s.durableRuntime == nil {
-		return execution.ErrDurableRuntimeStoreNotConfigured
-	}
-	now := time.Now().UTC()
-	runTimeout := time.Duration(s.config.RequestTimeoutMS) * time.Millisecond
-	leaseTimeout := runTimeout
-	if s.config.DurableWorkerLoopLeaseTTLMS > 0 {
-		leaseTimeout = time.Duration(s.config.DurableWorkerLoopLeaseTTLMS) * time.Millisecond
-	}
-	workerHeartbeatTimeout := leaseTimeout * 2
-	for laneName, budget := range s.config.LaneBudgets {
-		if laneName == "" {
-			continue
-		}
-		if err := s.durableRuntime.UpsertLaneBudget(ctx, execution.LaneBudget{
-			Lane:                   execution.DurableLane(laneName),
-			MaxActiveLeases:        budget.MaxConcurrent,
-			MaxQueuedRuns:          budget.QueueCapacity,
-			QueueTimeout:           time.Duration(budget.QueueTimeoutMS) * time.Millisecond,
-			RunTimeout:             runTimeout,
-			LeaseTimeout:           leaseTimeout,
-			WorkerHeartbeatTimeout: workerHeartbeatTimeout,
-			Enabled:                true,
-			UpdatedAt:              now,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
+	return errDurableLeaseLoopRetired
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
@@ -336,7 +286,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if closer, ok := s.workflowRuns.(interface{ Close() }); ok {
 		closer.Close()
 	}
-	if closer, ok := s.durableRuntime.(interface{ Close() }); ok {
+	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	return firstErr
@@ -372,7 +322,7 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/events"):
 		if runID, ok := executionRunIDFromPath(path, "/events"); ok {
-			s.handleDurableRunEvents(writer, request, runID)
+			s.handleExecutionRunEvents(writer, request, runID)
 		} else {
 			setOutcome(writer, "not_found")
 			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
@@ -387,7 +337,7 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		}
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/"):
 		if runID, ok := executionRunIDFromPath(path, ""); ok {
-			s.handleDurableRunGet(writer, request, runID)
+			s.handleExecutionRunGet(writer, request, runID)
 		} else {
 			setOutcome(writer, "not_found")
 			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)

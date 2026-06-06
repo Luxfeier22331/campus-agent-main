@@ -14,6 +14,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
@@ -164,6 +165,70 @@ func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
 	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
 	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
 		t.Fatalf("prompt_config_gate = %#v, want admitted", promptConfigGate)
+	}
+}
+
+func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		AgentPromptModel:              "gpt-agent",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body: json.RawMessage(`{
+				"status":"ready",
+				"prompt_runtime":{"admitted":true},
+				"prompt_http_pool":{"healthy":true}
+			}`),
+		},
+	})
+	server.temporalStarter = readyTemporalStarter{
+		readiness: temporalruntime.RuntimeReadiness{
+			Healthy: false,
+			TaskQueues: []temporalruntime.TaskQueueReadiness{
+				{
+					Name:    temporalruntime.WorkflowTaskQueue,
+					Type:    temporalruntime.TaskQueueTypeWorkflow,
+					Pollers: 1,
+					Healthy: true,
+				},
+				{
+					Name:    temporalruntime.ActivityTaskQueueRAG,
+					Type:    temporalruntime.TaskQueueTypeActivity,
+					Pollers: 1,
+					Healthy: true,
+				},
+				{
+					Name:    temporalruntime.ActivityTaskQueueFinalization,
+					Type:    temporalruntime.TaskQueueTypeActivity,
+					Pollers: 0,
+					Healthy: false,
+				},
+			},
+		},
+	}
+
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")
+	if temporalRuntime["healthy"] != false {
+		t.Fatalf("temporal_runtime.healthy = %v, want false", temporalRuntime["healthy"])
+	}
+	if temporalRuntime["last_error"] == "" {
+		t.Fatalf("temporal_runtime.last_error missing: %#v", temporalRuntime)
 	}
 }
 

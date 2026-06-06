@@ -69,20 +69,11 @@ func TestDurableRecoveryLoopRunOnceExpiresTimedOutRunWithoutWorkerBridge(t *test
 func TestServerStartDurableRecoveryLoopRejectsRetiredOnlineServingMode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	store := execution.NewInMemoryDurableRuntimeStore()
-	now := time.Now().UTC().Add(-time.Second)
-	createHTTPAPIQueuedDurableRunForTest(t, store, "run-server-recovery-loop", "conv-server-recovery-loop", now, nil)
 	server := NewServerWithDependencies(config.Config{
-		AppName:                             "campus-agent",
-		LaneBudgets:                         map[string]config.LaneBudget{"rag": {MaxConcurrent: 1, QueueCapacity: 4, QueueTimeoutMS: 1}},
-		RequestTimeoutMS:                    60_000,
-		DurableRecoveryLoopEnabled:          true,
-		DurableRecoveryLoopIntervalMS:       10,
-		DurableRecoveryLoopMaxRetryAttempts: 2,
+		AppName:          "campus-agent",
+		LaneBudgets:      map[string]config.LaneBudget{"rag": {MaxConcurrent: 1, QueueCapacity: 4, QueueTimeoutMS: 1}},
+		RequestTimeoutMS: 60_000,
 	}, &fakeBridge{configured: true}, nil, nil, nil)
-	server.durableRuntime = store
-	server.durableLeaseCoordinator = execution.NewDurableLeaseCoordinator(store)
-	server.configureDurableRecoveryLoop()
 
 	err := server.StartDurableRecoveryLoop(ctx)
 	if err == nil {
@@ -95,10 +86,7 @@ func TestServerStartDurableRecoveryLoopRejectsRetiredOnlineServingMode(t *testin
 
 func TestReadyzDoesNotPublishRetiredRecoveryLoopStatus(t *testing.T) {
 	server := NewServerWithDependencies(config.Config{
-		AppName:                             "campus-agent",
-		DurableRecoveryLoopEnabled:          true,
-		DurableRecoveryLoopIntervalMS:       250,
-		DurableRecoveryLoopMaxRetryAttempts: 2,
+		AppName: "campus-agent",
 	}, &fakeBridge{
 		configured: true,
 		readyz: bridge.ReadyzResponse{
