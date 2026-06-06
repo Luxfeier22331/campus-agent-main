@@ -1,39 +1,48 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
-	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "")
+	t.Setenv("EXECUTION_GATEWAY_RUNTIME_PROFILE", "")
 	t.Setenv("API_DEFAULT_ACTOR_ID", "")
 	t.Setenv("API_DEFAULT_ACTOR_ROLES", "")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_BASE_URL", "")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "")
-	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "")
-	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "")
-	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS", "")
-	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", "")
+	t.Setenv("EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD", "")
+	t.Setenv("EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS", "")
+	t.Setenv("EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS", "")
+	t.Setenv("EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_HOST", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_PORT", "")
-	t.Setenv("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", "")
-	t.Setenv("SUPERVISOR_API_QUEUE_CAPACITY", "")
-	t.Setenv("SUPERVISOR_API_QUEUE_TIMEOUT_MS", "")
-	t.Setenv("SUPERVISOR_API_REQUEST_TIMEOUT_MS", "")
-	t.Setenv("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES", "")
+	t.Setenv("EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS", "")
+	t.Setenv("EXECUTION_GATEWAY_QUEUE_CAPACITY", "")
+	t.Setenv("EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS", "")
+	t.Setenv("EXECUTION_GATEWAY_REQUEST_TIMEOUT_MS", "")
+	t.Setenv("EXECUTION_GATEWAY_REQUEST_BODY_LIMIT_BYTES", "")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "")
-	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "")
-	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "")
-	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", "")
+	t.Setenv("EXECUTION_GATEWAY_SHUTDOWN_GRACE_MS", "")
+	t.Setenv("EXECUTION_GATEWAY_METRICS_BEARER_TOKEN", "")
+	t.Setenv("EXECUTION_GATEWAY_INTENT_POLICY_PATH", "")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "")
-	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "")
-	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "")
-	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "")
-	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "")
-	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_AUTO_MIGRATE", "")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED", "")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_URL", "")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET", "")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_TIMEOUT_MS", "")
+	t.Setenv("EXECUTION_GATEWAY_MULTI_STEP_WORKFLOW_ENABLED", "")
+	t.Setenv("EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL", "")
+	t.Setenv("EXECUTION_GATEWAY_WORKFLOW_RUN_AUTO_MIGRATE", "")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL", "")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_AUTO_MIGRATE", "")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_ADDRESS", "")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_NAMESPACE", "")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE", "")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY", "")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT", "")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
@@ -128,8 +137,8 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.OTelEnabled {
 		t.Fatal("otel enabled = true, want false by default")
 	}
-	if cfg.OTelServiceName != "campus-supervisor-api" {
-		t.Fatalf("otel service name = %q, want campus-supervisor-api", cfg.OTelServiceName)
+	if cfg.OTelServiceName != "campus-execution-gateway" {
+		t.Fatalf("otel service name = %q, want campus-execution-gateway", cfg.OTelServiceName)
 	}
 	if cfg.ExecutionAuditEnabled {
 		t.Fatal("execution audit enabled = true, want false by default")
@@ -143,7 +152,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.OTelSampleRatio != 1.0 {
 		t.Fatalf("otel sample ratio = %v, want 1.0", cfg.OTelSampleRatio)
 	}
-	if cfg.OTelAllowedAttributesVersion != "supervisor-api-otel-attrs-v1" {
+	if cfg.OTelAllowedAttributesVersion != "execution-gateway-otel-attrs-v1" {
 		t.Fatalf("otel allowed attrs version = %q", cfg.OTelAllowedAttributesVersion)
 	}
 	if cfg.NoticeReadModelDatabaseURL != "" {
@@ -186,6 +195,14 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 		cfg.DurableRecoveryLoopMaxRetryAttempts != 0 {
 		t.Fatalf("unexpected durable recovery loop defaults: %#v", cfg)
 	}
+	if cfg.TemporalAddress != "" ||
+		cfg.TemporalNamespace != "" ||
+		cfg.TemporalTaskQueue != "campus-agent.workflow" ||
+		cfg.TemporalWorkerIdentity != "" ||
+		cfg.TemporalWorkflowIDSalt != "" ||
+		cfg.TemporalStartTimeoutMS != 5000 {
+		t.Fatalf("unexpected temporal defaults: %#v", cfg)
+	}
 	if cfg.NoticeBodyObjectStoreBucket != "" {
 		t.Fatalf("notice body object store bucket = %q, want empty", cfg.NoticeBodyObjectStoreBucket)
 	}
@@ -203,9 +220,46 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
+	t.Setenv("EXECUTION_GATEWAY_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_GATEWAY_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_ADDRESS", "")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT", "salt")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("LoadFromEnv returned nil error, want missing Temporal address failure")
+	}
+}
+
+func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
+	t.Setenv("EXECUTION_GATEWAY_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_GATEWAY_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE", "campus-agent.workflow")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS", "7000")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if cfg.TemporalAddress != "temporal:7233" ||
+		cfg.TemporalNamespace != "campus-agent-staging" ||
+		cfg.TemporalTaskQueue != "campus-agent.workflow" ||
+		cfg.TemporalWorkerIdentity != "staging:gateway:001" ||
+		cfg.TemporalWorkflowIDSalt != "workflow-salt" ||
+		cfg.TemporalStartTimeoutMS != 7000 {
+		t.Fatalf("unexpected Temporal settings: %#v", cfg)
+	}
+}
+
 func TestLoadFromEnvReadsDurableRuntimeDatabaseSettingsExplicitly(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "postgres://runtime.example/campus_agent")
-	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_AUTO_MIGRATE", "true")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL", "postgres://runtime.example/campus_agent")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_AUTO_MIGRATE", "true")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
 
 	cfg, err := LoadFromEnv()
@@ -224,7 +278,7 @@ func TestLoadFromEnvReadsDurableRuntimeDatabaseSettingsExplicitly(t *testing.T) 
 }
 
 func TestLoadFromEnvDoesNotInferDurableRuntimeDatabaseURLFromSharedPostgres(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL", "")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
 
 	cfg, err := LoadFromEnv()
@@ -239,89 +293,68 @@ func TestLoadFromEnvDoesNotInferDurableRuntimeDatabaseURLFromSharedPostgres(t *t
 	}
 }
 
-func TestLoadFromEnvReadsExplicitDurableWorkerLoopSettings(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE", "rag")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-	if !cfg.DurableWorkerLoopEnabled {
-		t.Fatal("durable worker loop enabled = false, want true")
-	}
-	if cfg.DurableWorkerLoopWorkerID != "worker-staging-rag-001" {
-		t.Fatalf("worker id = %q", cfg.DurableWorkerLoopWorkerID)
-	}
-	if cfg.DurableWorkerLoopLane != "rag" {
-		t.Fatalf("lane = %q", cfg.DurableWorkerLoopLane)
-	}
-	if cfg.DurableWorkerLoopStepID != "handoff:rag-agent:rag_request" {
-		t.Fatalf("step id = %q", cfg.DurableWorkerLoopStepID)
-	}
-	if cfg.DurableWorkerLoopPollIntervalMS != 250 {
-		t.Fatalf("poll interval = %d", cfg.DurableWorkerLoopPollIntervalMS)
-	}
-	if cfg.DurableWorkerLoopLeaseTTLMS != 30000 {
-		t.Fatalf("lease ttl = %d", cfg.DurableWorkerLoopLeaseTTLMS)
-	}
-	if cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS != 5000 {
-		t.Fatalf("lease heartbeat interval = %d", cfg.DurableWorkerLoopLeaseHeartbeatIntervalMS)
-	}
-}
-
-func TestLoadFromEnvRejectsEnabledDurableWorkerLoopWithoutWorkerID(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID", "")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE", "rag")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
-	t.Setenv("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
+func TestLoadFromEnvRejectsRetiredDurableWorkerLoopSettings(t *testing.T) {
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_ENABLED", "true")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LANE", "rag")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
 
 	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected enabled durable worker loop without worker id to fail")
+		t.Fatal("expected retired durable worker loop env to fail")
 	}
 }
 
-func TestLoadFromEnvReadsExplicitDurableRecoveryLoopSettings(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250")
-	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "2")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-	if !cfg.DurableRecoveryLoopEnabled {
-		t.Fatal("durable recovery loop enabled = false, want true")
-	}
-	if cfg.DurableRecoveryLoopIntervalMS != 250 {
-		t.Fatalf("recovery interval = %d", cfg.DurableRecoveryLoopIntervalMS)
-	}
-	if cfg.DurableRecoveryLoopMaxRetryAttempts != 2 {
-		t.Fatalf("recovery max retry attempts = %d", cfg.DurableRecoveryLoopMaxRetryAttempts)
-	}
-}
-
-func TestLoadFromEnvRejectsEnabledDurableRecoveryLoopWithoutRetryLimit(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250")
-	t.Setenv("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "")
+func TestLoadFromEnvRejectsRetiredDurableRecoveryLoopSettings(t *testing.T) {
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_ENABLED", "true")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250")
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "2")
 
 	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected enabled durable recovery loop without max retry attempts to fail")
+		t.Fatal("expected retired durable recovery loop env to fail")
+	}
+}
+
+func TestLoadFromEnvRejectsAnyRetiredDurableLoopSetting(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001"},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LANE", "rag"},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request"},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250"},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000"},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000"},
+		{"EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250"},
+		{"EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(tc.name, tc.value)
+			if _, err := LoadFromEnv(); err == nil {
+				t.Fatalf("expected %s to be rejected", tc.name)
+			}
+		})
+	}
+}
+
+func TestLoadFromEnvReportsRetiredDurableLoopBeforeParsingOldValues(t *testing.T) {
+	t.Setenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "old-value")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected retired durable worker loop env to fail")
+	}
+	if !strings.Contains(err.Error(), "is retired") {
+		t.Fatalf("error = %q, want retired env error", err.Error())
 	}
 }
 
 func TestFromEnvRejectsNonLocalRuntimeProfileWithoutMetricsToken(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "staging")
-	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "")
+	t.Setenv("EXECUTION_GATEWAY_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_GATEWAY_METRICS_BEARER_TOKEN", "")
 
 	if _, err := LoadFromEnv(); err == nil {
 		t.Fatal("expected staging runtime profile without metrics token to fail")
@@ -329,8 +362,12 @@ func TestFromEnvRejectsNonLocalRuntimeProfileWithoutMetricsToken(t *testing.T) {
 }
 
 func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "staging")
-	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_GATEWAY_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_GATEWAY_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
+	t.Setenv("EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -342,7 +379,7 @@ func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
 }
 
 func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_QUEUE_CAPACITY", "not-a-number")
+	t.Setenv("EXECUTION_GATEWAY_QUEUE_CAPACITY", "not-a-number")
 
 	_, err := LoadFromEnv()
 	if err == nil {
@@ -371,40 +408,40 @@ func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 }
 
 func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", "4")
-	t.Setenv("SUPERVISOR_API_QUEUE_CAPACITY", "12")
-	t.Setenv("SUPERVISOR_API_QUEUE_TIMEOUT_MS", "2500")
-	t.Setenv("SUPERVISOR_API_REQUEST_TIMEOUT_MS", "30000")
+	t.Setenv("EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS", "4")
+	t.Setenv("EXECUTION_GATEWAY_QUEUE_CAPACITY", "12")
+	t.Setenv("EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS", "2500")
+	t.Setenv("EXECUTION_GATEWAY_REQUEST_TIMEOUT_MS", "30000")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048")
-	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3")
-	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "7500")
-	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS", "4")
-	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", "15")
-	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "20000")
-	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "metrics-token")
-	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", "/etc/campus-agent/intent-policy.v1.json")
-	t.Setenv("SUPERVISOR_API_LANE_RAG_MAX_CONCURRENT", "2")
-	t.Setenv("SUPERVISOR_API_LANE_RAG_QUEUE_CAPACITY", "5")
-	t.Setenv("SUPERVISOR_API_LANE_RAG_QUEUE_TIMEOUT_MS", "1500")
-	t.Setenv("SUPERVISOR_API_OTEL_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318/v1/traces")
-	t.Setenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS", "authorization=Bearer test")
-	t.Setenv("SUPERVISOR_API_OTEL_SERVICE_NAME", "custom-supervisor-api")
-	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", "750")
-	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", "15000")
-	t.Setenv("SUPERVISOR_API_OTEL_METRICS_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://collector:4318/v1/metrics")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "http://app-api:27031/api/internal/execution/audit-events")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "audit-secret")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "250")
-	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "0.25")
-	t.Setenv("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
-	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services, notice")
-	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "postgres://workflow.example/db")
-	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "true")
+	t.Setenv("EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3")
+	t.Setenv("EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS", "7500")
+	t.Setenv("EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS", "4")
+	t.Setenv("EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS", "15")
+	t.Setenv("EXECUTION_GATEWAY_SHUTDOWN_GRACE_MS", "20000")
+	t.Setenv("EXECUTION_GATEWAY_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_GATEWAY_INTENT_POLICY_PATH", "/etc/campus-agent/intent-policy.v1.json")
+	t.Setenv("EXECUTION_GATEWAY_LANE_RAG_MAX_CONCURRENT", "2")
+	t.Setenv("EXECUTION_GATEWAY_LANE_RAG_QUEUE_CAPACITY", "5")
+	t.Setenv("EXECUTION_GATEWAY_LANE_RAG_QUEUE_TIMEOUT_MS", "1500")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_ENABLED", "true")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318/v1/traces")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_HEADERS", "authorization=Bearer test")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_SERVICE_NAME", "custom-execution-gateway")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_EXPORT_TIMEOUT_MS", "750")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_EXPORT_INTERVAL_MS", "15000")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_METRICS_ENABLED", "true")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://collector:4318/v1/metrics")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED", "true")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_URL", "http://app-api:27031/api/internal/execution/audit-events")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET", "audit-secret")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_TIMEOUT_MS", "250")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_SAMPLE_RATIO", "0.25")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
+	t.Setenv("EXECUTION_GATEWAY_OPEN_CAPABILITIES", "campus_services, notice")
+	t.Setenv("EXECUTION_GATEWAY_MULTI_STEP_WORKFLOW_ENABLED", "true")
+	t.Setenv("EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL", "postgres://workflow.example/db")
+	t.Setenv("EXECUTION_GATEWAY_WORKFLOW_RUN_AUTO_MIGRATE", "true")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
 	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
@@ -439,7 +476,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		!cfg.OTelEnabled ||
 		cfg.OTelEndpoint != "http://collector:4318/v1/traces" ||
 		cfg.OTelHeaders != "authorization=Bearer test" ||
-		cfg.OTelServiceName != "custom-supervisor-api" ||
+		cfg.OTelServiceName != "custom-execution-gateway" ||
 		cfg.OTelExportTimeoutMS != 750 ||
 		cfg.OTelExportIntervalMS != 15000 ||
 		!cfg.OTelMetricsEnabled ||
@@ -507,11 +544,11 @@ func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsPromptRuntimeProvider(t *t
 func TestLoadFromEnvRejectsWildcardOpenCapabilities(t *testing.T) {
 	for _, value := range []string{"*", "all", "campus_services,all"} {
 		t.Run(value, func(t *testing.T) {
-			t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", value)
+			t.Setenv("EXECUTION_GATEWAY_OPEN_CAPABILITIES", value)
 
 			_, err := LoadFromEnv()
 			if err == nil {
-				t.Fatalf("expected SUPERVISOR_API_OPEN_CAPABILITIES=%q to fail", value)
+				t.Fatalf("expected EXECUTION_GATEWAY_OPEN_CAPABILITIES=%q to fail", value)
 			}
 		})
 	}
@@ -520,11 +557,11 @@ func TestLoadFromEnvRejectsWildcardOpenCapabilities(t *testing.T) {
 func TestLoadFromEnvRejectsUnknownOpenCapabilities(t *testing.T) {
 	for _, value := range []string{"campus_services,unknown_capability", "academic_calendar"} {
 		t.Run(value, func(t *testing.T) {
-			t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", value)
+			t.Setenv("EXECUTION_GATEWAY_OPEN_CAPABILITIES", value)
 
 			_, err := LoadFromEnv()
 			if err == nil {
-				t.Fatalf("expected SUPERVISOR_API_OPEN_CAPABILITIES=%q to fail", value)
+				t.Fatalf("expected EXECUTION_GATEWAY_OPEN_CAPABILITIES=%q to fail", value)
 			}
 		})
 	}
@@ -610,37 +647,37 @@ func TestLoadFromEnvUsesSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNot
 }
 
 func TestLoadFromEnvRejectsInvalidLaneAndOTelSettings(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_LANE_RAG_QUEUE_CAPACITY", "-1")
+	t.Setenv("EXECUTION_GATEWAY_LANE_RAG_QUEUE_CAPACITY", "-1")
 
 	_, err := LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected invalid lane queue capacity to fail")
 	}
 
-	t.Setenv("SUPERVISOR_API_LANE_RAG_QUEUE_CAPACITY", "")
-	t.Setenv("SUPERVISOR_API_OTEL_ENABLED", "maybe")
+	t.Setenv("EXECUTION_GATEWAY_LANE_RAG_QUEUE_CAPACITY", "")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_ENABLED", "maybe")
 	_, err = LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected invalid otel bool to fail")
 	}
 
-	t.Setenv("SUPERVISOR_API_OTEL_ENABLED", "")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "maybe")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_ENABLED", "")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED", "maybe")
 	_, err = LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected invalid execution audit bool to fail")
 	}
 
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "")
-	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "1.5")
+	t.Setenv("EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED", "")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_SAMPLE_RATIO", "1.5")
 	_, err = LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected invalid otel sample ratio to fail")
 	}
 
-	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "")
-	t.Setenv("SUPERVISOR_API_OTEL_METRICS_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", "0")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_SAMPLE_RATIO", "")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_METRICS_ENABLED", "true")
+	t.Setenv("EXECUTION_GATEWAY_OTEL_EXPORT_INTERVAL_MS", "0")
 	_, err = LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected invalid otel export interval to fail")

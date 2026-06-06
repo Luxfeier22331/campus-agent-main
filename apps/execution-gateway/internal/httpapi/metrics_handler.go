@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/observability"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/observability"
 )
 
 func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Request) {

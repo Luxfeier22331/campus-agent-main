@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -98,14 +98,14 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 		emitter.sampleRatio = 1.0
 	}
 	if emitter.allowedVersion == "" {
-		emitter.allowedVersion = "supervisor-api-otel-attrs-v1"
+		emitter.allowedVersion = "execution-gateway-otel-attrs-v1"
 	}
 	if !cfg.OTelEnabled {
 		return emitter
 	}
 	endpoint := strings.TrimSpace(cfg.OTelEndpoint)
 	if endpoint == "" {
-		emitter.setLastError("OTel endpoint is required when SUPERVISOR_API_OTEL_ENABLED=true.")
+		emitter.setLastError("OTel endpoint is required when EXECUTION_GATEWAY_OTEL_ENABLED=true.")
 		return emitter
 	}
 	timeout := time.Duration(cfg.OTelExportTimeoutMS) * time.Millisecond
@@ -131,18 +131,18 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	provider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(resource.NewSchemaless(
-			attribute.String("service.name", defaultString(cfg.OTelServiceName, "campus-supervisor-api")),
+			attribute.String("service.name", defaultString(cfg.OTelServiceName, "campus-execution-gateway")),
 		)),
 	)
 	emitter.tracerProvider = provider
-	emitter.tracer = provider.Tracer("campus-supervisor-api")
+	emitter.tracer = provider.Tracer("campus-execution-gateway")
 	emitter.exporterConfigured = true
 	otel.SetTracerProvider(provider)
 
 	if emitter.metricsEnabled {
 		metricsEndpoint := strings.TrimSpace(cfg.OTelMetricsEndpoint)
 		if metricsEndpoint == "" {
-			emitter.setLastError("OTel metrics endpoint is required when SUPERVISOR_API_OTEL_METRICS_ENABLED=true.")
+			emitter.setLastError("OTel metrics endpoint is required when EXECUTION_GATEWAY_OTEL_METRICS_ENABLED=true.")
 			return emitter
 		}
 		metricOptions := []otlpmetrichttp.Option{
@@ -169,11 +169,11 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 		meterProvider := sdkmetric.NewMeterProvider(
 			sdkmetric.WithReader(reader),
 			sdkmetric.WithResource(resource.NewSchemaless(
-				attribute.String("service.name", defaultString(cfg.OTelServiceName, "campus-supervisor-api")),
+				attribute.String("service.name", defaultString(cfg.OTelServiceName, "campus-execution-gateway")),
 			)),
 		)
 		emitter.meterProvider = meterProvider
-		emitter.meter = meterProvider.Meter("campus-supervisor-api")
+		emitter.meter = meterProvider.Meter("campus-execution-gateway")
 		emitter.metricsConfigured = true
 		otel.SetMeterProvider(meterProvider)
 		emitter.configureMetrics()
@@ -226,7 +226,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 	}
 	_, span := e.tracer.Start(
 		ctx,
-		"supervisor_api."+normalizeEventName(name),
+		"execution_gateway."+normalizeEventName(name),
 		trace.WithAttributes(attributes...),
 	)
 	span.End()
@@ -291,15 +291,15 @@ func (e *Emitter) configureMetrics() {
 	if e == nil || e.meter == nil {
 		return
 	}
-	requestCounter, err := e.meter.Int64Counter("campus.supervisor_api.runtime_requests")
+	requestCounter, err := e.meter.Int64Counter("campus.execution_gateway.runtime_requests")
 	if err == nil {
 		e.requestCounter = requestCounter
 	}
-	errorCounter, err := e.meter.Int64Counter("campus.supervisor_api.runtime_errors")
+	errorCounter, err := e.meter.Int64Counter("campus.execution_gateway.runtime_errors")
 	if err == nil {
 		e.errorCounter = errorCounter
 	}
-	bridgeDuration, err := e.meter.Float64Histogram("campus.supervisor_api.bridge_duration_ms")
+	bridgeDuration, err := e.meter.Float64Histogram("campus.execution_gateway.bridge_duration_ms")
 	if err == nil {
 		e.bridgeDuration = bridgeDuration
 	}
@@ -367,7 +367,7 @@ func (e *Emitter) setLastError(value string) {
 	e.lastError = value
 	e.failedCount++
 	if e.logger != nil {
-		e.logger.Warn("supervisor_api.telemetry_unavailable", "error", value)
+		e.logger.Warn("execution_gateway.telemetry_unavailable", "error", value)
 	}
 }
 

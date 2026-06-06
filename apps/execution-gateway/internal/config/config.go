@@ -67,6 +67,12 @@ type Config struct {
 	DurableRecoveryLoopEnabled                bool
 	DurableRecoveryLoopIntervalMS             int
 	DurableRecoveryLoopMaxRetryAttempts       int
+	TemporalAddress                           string
+	TemporalNamespace                         string
+	TemporalTaskQueue                         string
+	TemporalWorkerIdentity                    string
+	TemporalWorkflowIDSalt                    string
+	TemporalStartTimeoutMS                    int
 	QueryServingScopesPath                    string
 	InternalQuerySharedSecret                 string
 	StructuredQueryTrustedTimeRFC3339         string
@@ -99,7 +105,7 @@ type envValues struct {
 	AppName                                   string  `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
 	Host                                      string  `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
 	Port                                      int     `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
-	RuntimeProfile                            string  `env:"SUPERVISOR_API_RUNTIME_PROFILE" envDefault:"local"`
+	RuntimeProfile                            string  `env:"EXECUTION_GATEWAY_RUNTIME_PROFILE" envDefault:"local"`
 	AuthMode                                  string  `env:"API_AUTH_MODE" envDefault:"bearer"`
 	BearerToken                               string  `env:"API_BEARER_TOKEN"`
 	WorkerSharedSecret                        string  `env:"API_WORKER_SHARED_SECRET"`
@@ -107,39 +113,45 @@ type envValues struct {
 	BridgeBaseURL                             string  `env:"SUPERVISOR_AGENT_WORKER_BASE_URL"`
 	BridgeSharedSecret                        string  `env:"SUPERVISOR_AGENT_WORKER_SHARED_SECRET"`
 	BridgeResponseLimitBytes                  int64   `env:"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES" envDefault:"1048576"`
-	BridgeBreakerFailureThreshold             int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD" envDefault:"5"`
-	BridgeBreakerOpenMS                       int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS" envDefault:"10000"`
-	BridgeRetryMaxAttempts                    int     `env:"SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS" envDefault:"2"`
-	BridgeRetryBaseMS                         int     `env:"SUPERVISOR_API_BRIDGE_RETRY_BASE_MS" envDefault:"50"`
-	MaxConcurrentAnswers                      int     `env:"SUPERVISOR_API_MAX_CONCURRENT_ANSWERS" envDefault:"8"`
-	QueueCapacity                             int     `env:"SUPERVISOR_API_QUEUE_CAPACITY" envDefault:"24"`
-	QueueTimeoutMS                            int     `env:"SUPERVISOR_API_QUEUE_TIMEOUT_MS" envDefault:"3000"`
-	RequestTimeoutMS                          int     `env:"SUPERVISOR_API_REQUEST_TIMEOUT_MS" envDefault:"45000"`
-	RequestBodyLimitBytes                     int64   `env:"SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES" envDefault:"1048576"`
+	BridgeBreakerFailureThreshold             int     `env:"EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD" envDefault:"5"`
+	BridgeBreakerOpenMS                       int     `env:"EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS" envDefault:"10000"`
+	BridgeRetryMaxAttempts                    int     `env:"EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS" envDefault:"2"`
+	BridgeRetryBaseMS                         int     `env:"EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS" envDefault:"50"`
+	MaxConcurrentAnswers                      int     `env:"EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS" envDefault:"8"`
+	QueueCapacity                             int     `env:"EXECUTION_GATEWAY_QUEUE_CAPACITY" envDefault:"24"`
+	QueueTimeoutMS                            int     `env:"EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS" envDefault:"3000"`
+	RequestTimeoutMS                          int     `env:"EXECUTION_GATEWAY_REQUEST_TIMEOUT_MS" envDefault:"45000"`
+	RequestBodyLimitBytes                     int64   `env:"EXECUTION_GATEWAY_REQUEST_BODY_LIMIT_BYTES" envDefault:"1048576"`
 	BridgeTimeoutMS                           int     `env:"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS" envDefault:"35000"`
 	BridgeCancelTimeoutMS                     int     `env:"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
-	ShutdownGraceMS                           int     `env:"SUPERVISOR_API_SHUTDOWN_GRACE_MS" envDefault:"45000"`
-	MetricsBearerToken                        string  `env:"SUPERVISOR_API_METRICS_BEARER_TOKEN"`
-	IntentPolicyPath                          string  `env:"SUPERVISOR_API_INTENT_POLICY_PATH"`
-	OTelEndpoint                              string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT"`
-	OTelMetricsEndpoint                       string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"`
-	OTelHeaders                               string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS"`
-	OTelServiceName                           string  `env:"SUPERVISOR_API_OTEL_SERVICE_NAME" envDefault:"campus-supervisor-api"`
-	OTelExportTimeoutMS                       int     `env:"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS" envDefault:"1000"`
-	OTelExportIntervalMS                      int     `env:"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS" envDefault:"15000"`
-	OTelSampleRatio                           float64 `env:"SUPERVISOR_API_OTEL_SAMPLE_RATIO" envDefault:"1.0"`
-	OTelAllowedAttributesVersion              string  `env:"SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION" envDefault:"supervisor-api-otel-attrs-v1"`
-	ExecutionAuditURL                         string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_URL"`
-	ExecutionAuditSharedSecret                string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET"`
-	ExecutionAuditTimeoutMS                   int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS" envDefault:"500"`
-	WorkflowRunDatabaseURL                    string  `env:"SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"`
-	DurableRuntimeDatabaseURL                 string  `env:"SUPERVISOR_API_DURABLE_RUNTIME_DATABASE_URL"`
-	DurableWorkerLoopWorkerID                 string  `env:"SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID"`
-	DurableWorkerLoopLane                     string  `env:"SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE"`
-	DurableWorkerLoopStepID                   string  `env:"SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID"`
-	DurableWorkerLoopLeaseHeartbeatIntervalMS string  `env:"SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS"`
-	DurableRecoveryLoopMaxRetryAttempts       string  `env:"SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS"`
-	QueryServingScopesPath                    string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
+	ShutdownGraceMS                           int     `env:"EXECUTION_GATEWAY_SHUTDOWN_GRACE_MS" envDefault:"45000"`
+	MetricsBearerToken                        string  `env:"EXECUTION_GATEWAY_METRICS_BEARER_TOKEN"`
+	IntentPolicyPath                          string  `env:"EXECUTION_GATEWAY_INTENT_POLICY_PATH"`
+	OTelEndpoint                              string  `env:"EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelMetricsEndpoint                       string  `env:"EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"`
+	OTelHeaders                               string  `env:"EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_HEADERS"`
+	OTelServiceName                           string  `env:"EXECUTION_GATEWAY_OTEL_SERVICE_NAME" envDefault:"campus-execution-gateway"`
+	OTelExportTimeoutMS                       int     `env:"EXECUTION_GATEWAY_OTEL_EXPORT_TIMEOUT_MS" envDefault:"1000"`
+	OTelExportIntervalMS                      int     `env:"EXECUTION_GATEWAY_OTEL_EXPORT_INTERVAL_MS" envDefault:"15000"`
+	OTelSampleRatio                           float64 `env:"EXECUTION_GATEWAY_OTEL_SAMPLE_RATIO" envDefault:"1.0"`
+	OTelAllowedAttributesVersion              string  `env:"EXECUTION_GATEWAY_OTEL_ALLOWED_ATTRIBUTES_VERSION" envDefault:"execution-gateway-otel-attrs-v1"`
+	ExecutionAuditURL                         string  `env:"EXECUTION_GATEWAY_EXECUTION_AUDIT_URL"`
+	ExecutionAuditSharedSecret                string  `env:"EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET"`
+	ExecutionAuditTimeoutMS                   int     `env:"EXECUTION_GATEWAY_EXECUTION_AUDIT_TIMEOUT_MS" envDefault:"500"`
+	WorkflowRunDatabaseURL                    string  `env:"EXECUTION_GATEWAY_WORKFLOW_RUN_DATABASE_URL"`
+	DurableRuntimeDatabaseURL                 string  `env:"EXECUTION_GATEWAY_DURABLE_RUNTIME_DATABASE_URL"`
+	DurableWorkerLoopWorkerID                 string  `env:"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_WORKER_ID"`
+	DurableWorkerLoopLane                     string  `env:"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LANE"`
+	DurableWorkerLoopStepID                   string  `env:"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_STEP_ID"`
+	DurableWorkerLoopLeaseHeartbeatIntervalMS string  `env:"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS"`
+	DurableRecoveryLoopMaxRetryAttempts       string  `env:"EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS"`
+	TemporalAddress                           string  `env:"EXECUTION_GATEWAY_TEMPORAL_ADDRESS"`
+	TemporalNamespace                         string  `env:"EXECUTION_GATEWAY_TEMPORAL_NAMESPACE"`
+	TemporalTaskQueue                         string  `env:"EXECUTION_GATEWAY_TEMPORAL_TASK_QUEUE" envDefault:"campus-agent.workflow"`
+	TemporalWorkerIdentity                    string  `env:"EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY"`
+	TemporalWorkflowIDSalt                    string  `env:"EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT"`
+	TemporalStartTimeoutMS                    int     `env:"EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS" envDefault:"5000"`
+	QueryServingScopesPath                    string  `env:"EXECUTION_GATEWAY_QUERY_SERVING_SCOPES_PATH"`
 	InternalQuerySharedSecret                 string  `env:"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"`
 	StructuredQueryTrustedTimeRFC3339         string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
 	StructuredQueryTimeoutMS                  int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
@@ -160,15 +172,15 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	otelEnabled, err := readBoolStrict("SUPERVISOR_API_OTEL_ENABLED", false)
+	otelEnabled, err := readBoolStrict("EXECUTION_GATEWAY_OTEL_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
-	otelMetricsEnabled, err := readBoolStrict("SUPERVISOR_API_OTEL_METRICS_ENABLED", false)
+	otelMetricsEnabled, err := readBoolStrict("EXECUTION_GATEWAY_OTEL_METRICS_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
-	executionAuditEnabled, err := readBoolStrict("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", false)
+	executionAuditEnabled, err := readBoolStrict("EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
@@ -194,38 +206,44 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	multiStepWorkflowEnabled, err := readBoolStrict("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", false)
+	multiStepWorkflowEnabled, err := readBoolStrict("EXECUTION_GATEWAY_MULTI_STEP_WORKFLOW_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
-	workflowRunAutoMigrate, err := readBoolStrict("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", false)
+	workflowRunAutoMigrate, err := readBoolStrict("EXECUTION_GATEWAY_WORKFLOW_RUN_AUTO_MIGRATE", false)
 	if err != nil {
 		return Config{}, err
 	}
-	durableRuntimeAutoMigrate, err := readBoolStrict("SUPERVISOR_API_DURABLE_RUNTIME_AUTO_MIGRATE", false)
+	durableRuntimeAutoMigrate, err := readBoolStrict("EXECUTION_GATEWAY_DURABLE_RUNTIME_AUTO_MIGRATE", false)
 	if err != nil {
 		return Config{}, err
 	}
-	durableWorkerLoopEnabled, err := readBoolStrict("SUPERVISOR_API_DURABLE_WORKER_LOOP_ENABLED", false)
+	if err := rejectRetiredDurableWorkerLoopSettings(values); err != nil {
+		return Config{}, err
+	}
+	if err := rejectRetiredDurableRecoveryLoopSettings(values); err != nil {
+		return Config{}, err
+	}
+	durableWorkerLoopEnabled, err := readBoolStrict("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
 	durableWorkerLoopPollIntervalMS, err := readEnabledPositiveIntStrict(
-		"SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
+		"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
 		durableWorkerLoopEnabled,
 	)
 	if err != nil {
 		return Config{}, err
 	}
 	durableWorkerLoopLeaseTTLMS, err := readEnabledPositiveIntStrict(
-		"SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
+		"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
 		durableWorkerLoopEnabled,
 	)
 	if err != nil {
 		return Config{}, err
 	}
 	durableWorkerLoopLeaseHeartbeatIntervalMS, err := readEnabledPositiveIntStrict(
-		"SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
+		"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
 		durableWorkerLoopEnabled,
 	)
 	if err != nil {
@@ -240,19 +258,19 @@ func LoadFromEnv() (Config, error) {
 	); err != nil {
 		return Config{}, err
 	}
-	durableRecoveryLoopEnabled, err := readBoolStrict("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_ENABLED", false)
+	durableRecoveryLoopEnabled, err := readBoolStrict("EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
 	durableRecoveryLoopIntervalMS, err := readEnabledPositiveIntStrict(
-		"SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
+		"EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
 		durableRecoveryLoopEnabled,
 	)
 	if err != nil {
 		return Config{}, err
 	}
 	durableRecoveryLoopMaxRetryAttempts, err := readEnabledPositiveIntStrict(
-		"SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+		"EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
 		durableRecoveryLoopEnabled,
 	)
 	if err != nil {
@@ -263,6 +281,9 @@ func LoadFromEnv() (Config, error) {
 		durableRecoveryLoopIntervalMS,
 		durableRecoveryLoopMaxRetryAttempts,
 	); err != nil {
+		return Config{}, err
+	}
+	if err := validateTemporalSettings(values, runtimeProfile); err != nil {
 		return Config{}, err
 	}
 
@@ -299,11 +320,11 @@ func LoadFromEnv() (Config, error) {
 		OTelMetricsEnabled:                        otelMetricsEnabled,
 		OTelMetricsEndpoint:                       strings.TrimSpace(values.OTelMetricsEndpoint),
 		OTelHeaders:                               strings.TrimSpace(values.OTelHeaders),
-		OTelServiceName:                           defaultString(strings.TrimSpace(values.OTelServiceName), "campus-supervisor-api"),
+		OTelServiceName:                           defaultString(strings.TrimSpace(values.OTelServiceName), "campus-execution-gateway"),
 		OTelExportTimeoutMS:                       values.OTelExportTimeoutMS,
 		OTelExportIntervalMS:                      values.OTelExportIntervalMS,
 		OTelSampleRatio:                           values.OTelSampleRatio,
-		OTelAllowedAttributesVersion:              defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "supervisor-api-otel-attrs-v1"),
+		OTelAllowedAttributesVersion:              defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "execution-gateway-otel-attrs-v1"),
 		ExecutionAuditEnabled:                     executionAuditEnabled,
 		ExecutionAuditURL:                         strings.TrimSpace(values.ExecutionAuditURL),
 		ExecutionAuditSharedSecret:                strings.TrimSpace(values.ExecutionAuditSharedSecret),
@@ -324,6 +345,12 @@ func LoadFromEnv() (Config, error) {
 		DurableRecoveryLoopEnabled:                durableRecoveryLoopEnabled,
 		DurableRecoveryLoopIntervalMS:             durableRecoveryLoopIntervalMS,
 		DurableRecoveryLoopMaxRetryAttempts:       durableRecoveryLoopMaxRetryAttempts,
+		TemporalAddress:                           strings.TrimSpace(values.TemporalAddress),
+		TemporalNamespace:                         strings.TrimSpace(values.TemporalNamespace),
+		TemporalTaskQueue:                         defaultString(strings.TrimSpace(values.TemporalTaskQueue), "campus-agent.workflow"),
+		TemporalWorkerIdentity:                    strings.TrimSpace(values.TemporalWorkerIdentity),
+		TemporalWorkflowIDSalt:                    strings.TrimSpace(values.TemporalWorkflowIDSalt),
+		TemporalStartTimeoutMS:                    values.TemporalStartTimeoutMS,
 		QueryServingScopesPath:                    strings.TrimSpace(values.QueryServingScopesPath),
 		InternalQuerySharedSecret:                 strings.TrimSpace(values.InternalQuerySharedSecret),
 		StructuredQueryTrustedTimeRFC3339:         strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
@@ -350,7 +377,7 @@ func LoadFromEnv() (Config, error) {
 func parseEnvValues() (envValues, error) {
 	values := envValues{}
 	if err := env.Parse(&values); err != nil {
-		return envValues{}, fmt.Errorf("parse supervisor-api env: %w", err)
+		return envValues{}, fmt.Errorf("parse execution-gateway env: %w", err)
 	}
 	return values, nil
 }
@@ -361,20 +388,21 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		value int
 	}{
 		{"CAMPUS_AGENT_HTTP_PORT", values.Port},
-		{"SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", values.MaxConcurrentAnswers},
-		{"SUPERVISOR_API_QUEUE_TIMEOUT_MS", values.QueueTimeoutMS},
-		{"SUPERVISOR_API_REQUEST_TIMEOUT_MS", values.RequestTimeoutMS},
+		{"EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS", values.MaxConcurrentAnswers},
+		{"EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS", values.QueueTimeoutMS},
+		{"EXECUTION_GATEWAY_REQUEST_TIMEOUT_MS", values.RequestTimeoutMS},
 		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", values.BridgeTimeoutMS},
 		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", values.BridgeCancelTimeoutMS},
-		{"SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", values.BridgeBreakerFailureThreshold},
-		{"SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", values.BridgeBreakerOpenMS},
-		{"SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS", values.BridgeRetryMaxAttempts},
-		{"SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", values.BridgeRetryBaseMS},
-		{"SUPERVISOR_API_SHUTDOWN_GRACE_MS", values.ShutdownGraceMS},
-		{"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
-		{"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", values.OTelExportIntervalMS},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", values.ExecutionAuditTimeoutMS},
+		{"EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD", values.BridgeBreakerFailureThreshold},
+		{"EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS", values.BridgeBreakerOpenMS},
+		{"EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS", values.BridgeRetryMaxAttempts},
+		{"EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS", values.BridgeRetryBaseMS},
+		{"EXECUTION_GATEWAY_SHUTDOWN_GRACE_MS", values.ShutdownGraceMS},
+		{"EXECUTION_GATEWAY_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
+		{"EXECUTION_GATEWAY_OTEL_EXPORT_INTERVAL_MS", values.OTelExportIntervalMS},
+		{"EXECUTION_GATEWAY_EXECUTION_AUDIT_TIMEOUT_MS", values.ExecutionAuditTimeoutMS},
 		{"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", values.StructuredQueryTimeoutMS},
+		{"EXECUTION_GATEWAY_TEMPORAL_START_TIMEOUT_MS", values.TemporalStartTimeoutMS},
 	}
 	for _, check := range checks {
 		if check.value <= 0 {
@@ -382,10 +410,10 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		}
 	}
 	if values.QueueCapacity < 0 {
-		return fmt.Errorf("SUPERVISOR_API_QUEUE_CAPACITY must be a non-negative integer")
+		return fmt.Errorf("EXECUTION_GATEWAY_QUEUE_CAPACITY must be a non-negative integer")
 	}
 	if values.RequestBodyLimitBytes <= 0 {
-		return fmt.Errorf("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES must be a positive integer")
+		return fmt.Errorf("EXECUTION_GATEWAY_REQUEST_BODY_LIMIT_BYTES must be a positive integer")
 	}
 	if values.BridgeResponseLimitBytes <= 0 {
 		return fmt.Errorf("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES must be a positive integer")
@@ -394,13 +422,39 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		return fmt.Errorf("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES must be a positive integer")
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
-		return fmt.Errorf("SUPERVISOR_API_OTEL_SAMPLE_RATIO must be a number between 0 and 1")
+		return fmt.Errorf("EXECUTION_GATEWAY_OTEL_SAMPLE_RATIO must be a number between 0 and 1")
 	}
 	if runtimeProfile != "local" && strings.TrimSpace(values.MetricsBearerToken) == "" {
 		return fmt.Errorf(
-			"SUPERVISOR_API_METRICS_BEARER_TOKEN is required when SUPERVISOR_API_RUNTIME_PROFILE=%s",
+			"EXECUTION_GATEWAY_METRICS_BEARER_TOKEN is required when EXECUTION_GATEWAY_RUNTIME_PROFILE=%s",
 			runtimeProfile,
 		)
+	}
+	return nil
+}
+
+func validateTemporalSettings(values envValues, runtimeProfile string) error {
+	if runtimeProfile == "local" &&
+		strings.TrimSpace(values.TemporalAddress) == "" &&
+		strings.TrimSpace(values.TemporalNamespace) == "" {
+		return nil
+	}
+	required := []struct {
+		name  string
+		value string
+	}{
+		{"EXECUTION_GATEWAY_TEMPORAL_ADDRESS", values.TemporalAddress},
+		{"EXECUTION_GATEWAY_TEMPORAL_NAMESPACE", values.TemporalNamespace},
+		{"EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY", values.TemporalWorkerIdentity},
+		{"EXECUTION_GATEWAY_TEMPORAL_WORKFLOW_ID_SALT", values.TemporalWorkflowIDSalt},
+	}
+	for _, item := range required {
+		if strings.TrimSpace(item.value) == "" {
+			return fmt.Errorf("%s is required for execution gateway Temporal runtime", item.name)
+		}
+	}
+	if !strings.Contains(strings.TrimSpace(values.TemporalWorkerIdentity), ":") {
+		return fmt.Errorf("EXECUTION_GATEWAY_TEMPORAL_WORKER_IDENTITY must be <env>:<role>:<instance>")
 	}
 	return nil
 }
@@ -414,7 +468,7 @@ func normalizeRuntimeProfile(value string) (string, error) {
 	case "local", "staging", "production":
 		return profile, nil
 	default:
-		return "", fmt.Errorf("SUPERVISOR_API_RUNTIME_PROFILE contains unsupported profile %q", value)
+		return "", fmt.Errorf("EXECUTION_GATEWAY_RUNTIME_PROFILE contains unsupported profile %q", value)
 	}
 }
 
@@ -567,7 +621,7 @@ func readLaneBudgetsStrict(
 ) (map[string]LaneBudget, error) {
 	budgets := make(map[string]LaneBudget, len(laneNames()))
 	for _, lane := range laneNames() {
-		prefix := "SUPERVISOR_API_LANE_" + strings.ToUpper(lane) + "_"
+		prefix := "EXECUTION_GATEWAY_LANE_" + strings.ToUpper(lane) + "_"
 		maxConcurrent, err := readPositiveIntStrict(
 			prefix+"MAX_CONCURRENT",
 			globalMaxConcurrent,
@@ -616,9 +670,9 @@ func validateDurableWorkerLoopSettings(
 		name  string
 		value string
 	}{
-		{"SUPERVISOR_API_DURABLE_WORKER_LOOP_WORKER_ID", values.DurableWorkerLoopWorkerID},
-		{"SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE", values.DurableWorkerLoopLane},
-		{"SUPERVISOR_API_DURABLE_WORKER_LOOP_STEP_ID", values.DurableWorkerLoopStepID},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_WORKER_ID", values.DurableWorkerLoopWorkerID},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LANE", values.DurableWorkerLoopLane},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_STEP_ID", values.DurableWorkerLoopStepID},
 	}
 	for _, item := range required {
 		if strings.TrimSpace(item.value) == "" {
@@ -626,22 +680,43 @@ func validateDurableWorkerLoopSettings(
 		}
 	}
 	if pollIntervalMS <= 0 {
-		return fmt.Errorf("SUPERVISOR_API_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS is required when durable worker loop is enabled")
+		return fmt.Errorf("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS is required when durable worker loop is enabled")
 	}
 	if leaseTTLMS <= 0 {
-		return fmt.Errorf("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS is required when durable worker loop is enabled")
+		return fmt.Errorf("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS is required when durable worker loop is enabled")
 	}
 	if leaseHeartbeatIntervalMS <= 0 {
-		return fmt.Errorf("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS is required when durable worker loop is enabled")
+		return fmt.Errorf("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS is required when durable worker loop is enabled")
 	}
 	if leaseHeartbeatIntervalMS >= leaseTTLMS {
-		return fmt.Errorf("SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS must be shorter than SUPERVISOR_API_DURABLE_WORKER_LOOP_LEASE_TTL_MS")
+		return fmt.Errorf("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS must be shorter than EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS")
 	}
 	if !containsString(laneNames(), strings.TrimSpace(values.DurableWorkerLoopLane)) {
 		return fmt.Errorf(
-			"SUPERVISOR_API_DURABLE_WORKER_LOOP_LANE contains unsupported lane %q",
+			"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LANE contains unsupported lane %q",
 			values.DurableWorkerLoopLane,
 		)
+	}
+	return nil
+}
+
+func rejectRetiredDurableWorkerLoopSettings(values envValues) error {
+	retired := []struct {
+		name  string
+		value string
+	}{
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_ENABLED", os.Getenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_ENABLED")},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_WORKER_ID", values.DurableWorkerLoopWorkerID},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LANE", values.DurableWorkerLoopLane},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_STEP_ID", values.DurableWorkerLoopStepID},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", os.Getenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS")},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS", os.Getenv("EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_TTL_MS")},
+		{"EXECUTION_GATEWAY_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", values.DurableWorkerLoopLeaseHeartbeatIntervalMS},
+	}
+	for _, item := range retired {
+		if strings.TrimSpace(item.value) != "" {
+			return fmt.Errorf("%s is retired; use Temporal workers", item.name)
+		}
 	}
 	return nil
 }
@@ -655,10 +730,27 @@ func validateDurableRecoveryLoopSettings(
 		return nil
 	}
 	if intervalMS <= 0 {
-		return fmt.Errorf("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_INTERVAL_MS is required when durable recovery loop is enabled")
+		return fmt.Errorf("EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_INTERVAL_MS is required when durable recovery loop is enabled")
 	}
 	if maxRetryAttempts <= 0 {
-		return fmt.Errorf("SUPERVISOR_API_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS is required when durable recovery loop is enabled")
+		return fmt.Errorf("EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS is required when durable recovery loop is enabled")
+	}
+	return nil
+}
+
+func rejectRetiredDurableRecoveryLoopSettings(values envValues) error {
+	retired := []struct {
+		name  string
+		value string
+	}{
+		{"EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_ENABLED", os.Getenv("EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_ENABLED")},
+		{"EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_INTERVAL_MS", os.Getenv("EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_INTERVAL_MS")},
+		{"EXECUTION_GATEWAY_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", values.DurableRecoveryLoopMaxRetryAttempts},
+	}
+	for _, item := range retired {
+		if strings.TrimSpace(item.value) != "" {
+			return fmt.Errorf("%s is retired; use Temporal retry and timeout policies", item.name)
+		}
 	}
 	return nil
 }
@@ -697,14 +789,14 @@ func readStringList(name string) []string {
 }
 
 func readOpenCapabilitiesStrict() ([]string, error) {
-	values := readStringList("SUPERVISOR_API_OPEN_CAPABILITIES")
+	values := readStringList("EXECUTION_GATEWAY_OPEN_CAPABILITIES")
 	for _, value := range values {
 		switch strings.TrimSpace(value) {
 		case "campus_services", "notice":
 		case "*", "all":
-			return nil, fmt.Errorf("SUPERVISOR_API_OPEN_CAPABILITIES does not support wildcard value %q", value)
+			return nil, fmt.Errorf("EXECUTION_GATEWAY_OPEN_CAPABILITIES does not support wildcard value %q", value)
 		default:
-			return nil, fmt.Errorf("SUPERVISOR_API_OPEN_CAPABILITIES contains unsupported capability %q", value)
+			return nil, fmt.Errorf("EXECUTION_GATEWAY_OPEN_CAPABILITIES contains unsupported capability %q", value)
 		}
 	}
 	return values, nil

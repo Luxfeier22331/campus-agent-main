@@ -9,7 +9,7 @@ import (
 func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	metrics := NewMetrics()
 
-	finish := metrics.BeginRequest("/api/v1/answer")
+	finish := metrics.BeginRequest("/internal/execution/runs")
 	finish(200, "supervisor_response", 120*time.Millisecond)
 	metrics.RecordAdmissionDecision("queue_full", 0)
 	metrics.RecordAdmissionDecision("admitted_queued", 12*time.Millisecond)
@@ -55,29 +55,29 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	}))
 
 	expectedSnippets := []string{
-		`campus_supervisor_api_requests_total{route="/api/v1/answer",outcome="supervisor_response",status_class="2xx"} 1`,
-		`campus_supervisor_api_request_duration_ms_bucket{route="/api/v1/answer",le="250.000"} 1`,
-		`campus_supervisor_api_request_duration_ms_count{route="/api/v1/answer"} 1`,
-		`campus_supervisor_api_inflight_requests{route="/api/v1/answer"} 0`,
-		`campus_supervisor_api_admission_decisions_total{decision="queue_full"} 1`,
-		`campus_supervisor_api_admission_lane_decisions_total{lane="rag",decision="admitted_queued"} 1`,
-		`campus_supervisor_api_admission_queue_wait_ms_count 2`,
-		`campus_supervisor_api_admission_lane_queue_wait_ms_count{lane="rag"} 1`,
-		`campus_supervisor_api_bridge_duration_ms_count 1`,
-		`campus_supervisor_api_bridge_failures_total{kind="timeout"} 1`,
-		`campus_supervisor_api_capability_gate_decisions_total{capability="campus_services",gate="structured_runtime",decision="closed"} 1`,
-		`campus_supervisor_api_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned",selected_target="none",selected_tool="none",terminal_outcome="no_answer",fail_close_reason="product_scope_boundary"} 1`,
-		`campus_supervisor_api_lifecycle_completed_total{state="completed"} 1`,
-		`campus_supervisor_api_lifecycle_completed_total{state="failed"} 1`,
-		`campus_supervisor_api_telemetry_exported_total 5`,
-		`campus_supervisor_api_telemetry_failed_total 2`,
-		`campus_supervisor_api_telemetry_sample_ratio 0.25`,
-		`campus_supervisor_api_telemetry_metrics_enabled 1`,
-		`campus_supervisor_api_telemetry_metrics_exporter_configured 1`,
-		`campus_supervisor_api_execution_audit_emitted_total 7`,
-		`campus_supervisor_api_execution_audit_failed_total 1`,
-		`campus_supervisor_api_execution_audit_enabled 1`,
-		`campus_supervisor_api_execution_audit_configured 1`,
+		`campus_execution_gateway_requests_total{route="/internal/execution/runs",outcome="supervisor_response",status_class="2xx"} 1`,
+		`campus_execution_gateway_request_duration_ms_bucket{route="/internal/execution/runs",le="250.000"} 1`,
+		`campus_execution_gateway_request_duration_ms_count{route="/internal/execution/runs"} 1`,
+		`campus_execution_gateway_inflight_requests{route="/internal/execution/runs"} 0`,
+		`campus_execution_gateway_admission_decisions_total{decision="queue_full"} 1`,
+		`campus_execution_gateway_admission_lane_decisions_total{lane="rag",decision="admitted_queued"} 1`,
+		`campus_execution_gateway_admission_queue_wait_ms_count 2`,
+		`campus_execution_gateway_admission_lane_queue_wait_ms_count{lane="rag"} 1`,
+		`campus_execution_gateway_bridge_duration_ms_count 1`,
+		`campus_execution_gateway_bridge_failures_total{kind="timeout"} 1`,
+		`campus_execution_gateway_capability_gate_decisions_total{capability="campus_services",gate="structured_runtime",decision="closed"} 1`,
+		`campus_execution_gateway_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned",selected_target="none",selected_tool="none",terminal_outcome="no_answer",fail_close_reason="product_scope_boundary"} 1`,
+		`campus_execution_gateway_lifecycle_completed_total{state="completed"} 1`,
+		`campus_execution_gateway_lifecycle_completed_total{state="failed"} 1`,
+		`campus_execution_gateway_telemetry_exported_total 5`,
+		`campus_execution_gateway_telemetry_failed_total 2`,
+		`campus_execution_gateway_telemetry_sample_ratio 0.25`,
+		`campus_execution_gateway_telemetry_metrics_enabled 1`,
+		`campus_execution_gateway_telemetry_metrics_exporter_configured 1`,
+		`campus_execution_gateway_execution_audit_emitted_total 7`,
+		`campus_execution_gateway_execution_audit_failed_total 1`,
+		`campus_execution_gateway_execution_audit_enabled 1`,
+		`campus_execution_gateway_execution_audit_configured 1`,
 	}
 	for _, snippet := range expectedSnippets {
 		if !strings.Contains(output, snippet) {
@@ -93,16 +93,16 @@ func TestBridgeRuntimeSnapshotTracksLastSuccessAndFailure(t *testing.T) {
 	metrics.RecordBridgeSuccess()
 
 	snapshot := metrics.BridgeRuntimeSnapshot()
-	if snapshot.LastAnswerFailureCode != "unavailable" {
+	if snapshot.LastBridgeFailureCode != "unavailable" {
 		t.Fatalf(
-			"LastAnswerFailureCode = %q, want unavailable",
-			snapshot.LastAnswerFailureCode,
+			"LastBridgeFailureCode = %q, want unavailable",
+			snapshot.LastBridgeFailureCode,
 		)
 	}
-	if snapshot.LastAnswerFailureAt == "" {
-		t.Fatal("expected LastAnswerFailureAt to be populated")
+	if snapshot.LastBridgeFailureAt == "" {
+		t.Fatal("expected LastBridgeFailureAt to be populated")
 	}
-	if snapshot.LastAnswerSuccessAt == "" {
-		t.Fatal("expected LastAnswerSuccessAt to be populated")
+	if snapshot.LastBridgeSuccessAt == "" {
+		t.Fatal("expected LastBridgeSuccessAt to be populated")
 	}
 }

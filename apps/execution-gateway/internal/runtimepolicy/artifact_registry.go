@@ -167,7 +167,7 @@ func (a WorkflowArtifact) Validate(globalRawTokens map[string]struct{}) error {
 		return fmt.Errorf("%s owner_agent must not be empty", a.Kind)
 	}
 	if _, ok := supportedToolOwnerCapabilities[a.OwnerAgent]; !ok &&
-		a.OwnerAgent != "supervisor-api" {
+		a.OwnerAgent != "execution-gateway" {
 		return fmt.Errorf("%s owner_agent is unsupported: %s", a.Kind, a.OwnerAgent)
 	}
 	if strings.TrimSpace(a.SourceTruthOwner) == "" {
@@ -395,7 +395,7 @@ func resolveWorkflowArtifactRegistryPath(registryPath string) string {
 	if registryPath != "" {
 		return registryPath
 	}
-	if envRegistryPath := strings.TrimSpace(os.Getenv("SUPERVISOR_API_WORKFLOW_ARTIFACT_REGISTRY_PATH")); envRegistryPath != "" {
+	if envRegistryPath := strings.TrimSpace(os.Getenv("EXECUTION_GATEWAY_WORKFLOW_ARTIFACT_REGISTRY_PATH")); envRegistryPath != "" {
 		return envRegistryPath
 	}
 	workingDir, err := os.Getwd()

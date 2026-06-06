@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -93,8 +93,8 @@ func TestEmitterUnavailableLogUsesSupervisorAPIEventName(t *testing.T) {
 	}, logger)
 
 	logged := logBuffer.String()
-	if !strings.Contains(logged, "supervisor_api.telemetry_unavailable") {
-		t.Fatalf("log output = %q, want supervisor_api.telemetry_unavailable", logged)
+	if !strings.Contains(logged, "execution_gateway.telemetry_unavailable") {
+		t.Fatalf("log output = %q, want execution_gateway.telemetry_unavailable", logged)
 	}
 	staleNamespace := "go_" + "shell."
 	if strings.Contains(logged, staleNamespace) {
@@ -122,8 +122,8 @@ func TestEmitterSpanUsesSupervisorAPINamespace(t *testing.T) {
 	if len(spans) != 1 {
 		t.Fatalf("ended spans = %d, want 1", len(spans))
 	}
-	if spans[0].Name() != "supervisor_api.runtime.request.accepted" {
-		t.Fatalf("span name = %q, want supervisor_api.runtime.request.accepted", spans[0].Name())
+	if spans[0].Name() != "execution_gateway.runtime.request.accepted" {
+		t.Fatalf("span name = %q, want execution_gateway.runtime.request.accepted", spans[0].Name())
 	}
 }
 

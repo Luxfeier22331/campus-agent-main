@@ -2,14 +2,15 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 func TestDurableRecoveryLoopRunOnceExpiresTimedOutRunWithoutWorkerBridge(t *testing.T) {
@@ -65,7 +66,7 @@ func TestDurableRecoveryLoopRunOnceExpiresTimedOutRunWithoutWorkerBridge(t *test
 	}
 }
 
-func TestServerStartDurableRecoveryLoopSyncsLaneBudgetsAndRecoversWithoutWorkerLoop(t *testing.T) {
+func TestServerStartDurableRecoveryLoopRejectsRetiredOnlineServingMode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	store := execution.NewInMemoryDurableRuntimeStore()
@@ -83,13 +84,16 @@ func TestServerStartDurableRecoveryLoopSyncsLaneBudgetsAndRecoversWithoutWorkerL
 	server.durableLeaseCoordinator = execution.NewDurableLeaseCoordinator(store)
 	server.configureDurableRecoveryLoop()
 
-	if err := server.StartDurableRecoveryLoop(ctx); err != nil {
-		t.Fatalf("start durable recovery loop: %v", err)
+	err := server.StartDurableRecoveryLoop(ctx)
+	if err == nil {
+		t.Fatal("start retired durable recovery loop returned nil error")
 	}
-	waitForDurableRunStatus(t, store, "run-server-recovery-loop", execution.DurableRunStatusExpired)
+	if !errors.Is(err, errDurableLeaseLoopRetired) {
+		t.Fatalf("error = %v, want retired durable loop error", err)
+	}
 }
 
-func TestDurableReadyzIncludesRecoveryLoopStatus(t *testing.T) {
+func TestReadyzDoesNotPublishRetiredRecoveryLoopStatus(t *testing.T) {
 	server := NewServerWithDependencies(config.Config{
 		AppName:                             "campus-agent",
 		DurableRecoveryLoopEnabled:          true,
@@ -106,11 +110,7 @@ func TestDurableReadyzIncludesRecoveryLoopStatus(t *testing.T) {
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 	body := decodeBody(t, response)
-	recoveryLoop := expectRecord(t, body["durable_recovery_loop"], "durable_recovery_loop")
-	if recoveryLoop["enabled"] != true ||
-		recoveryLoop["configured"] != false ||
-		recoveryLoop["healthy"] != false ||
-		recoveryLoop["last_error"] == "" {
-		t.Fatalf("durable_recovery_loop = %#v, want enabled unconfigured degraded", recoveryLoop)
+	if _, ok := body["durable_recovery_loop"]; ok {
+		t.Fatalf("readyz must not publish retired durable_recovery_loop: %#v", body["durable_recovery_loop"])
 	}
 }

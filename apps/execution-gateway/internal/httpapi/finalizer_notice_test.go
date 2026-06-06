@@ -3,7 +3,7 @@ package httpapi
 import (
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testing.T) {

@@ -1,7 +1,7 @@
 package structuredplanning
 
 import (
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/runtimepolicy"
 	"regexp"
 	"strings"
 )

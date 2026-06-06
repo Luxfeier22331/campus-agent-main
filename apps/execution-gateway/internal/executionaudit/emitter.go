@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
 )
 
 type Event struct {

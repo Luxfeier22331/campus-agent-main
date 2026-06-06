@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/telemetry"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/lifecycle"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/telemetry"
 )
 
 func (s *Server) runMultiStepBridgeExecution(

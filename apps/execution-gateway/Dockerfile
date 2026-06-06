@@ -6,12 +6,12 @@ ARG GOSUMDB=sum.golang.org
 ENV GOPROXY=${GOPROXY} \
   GOSUMDB=${GOSUMDB}
 
-WORKDIR /src/apps/supervisor-api
+WORKDIR /src/apps/execution-gateway
 
-COPY apps/supervisor-api/go.mod apps/supervisor-api/go.sum ./
+COPY apps/execution-gateway/go.mod apps/execution-gateway/go.sum ./
 RUN go mod download
 
-COPY apps/supervisor-api ./
+COPY apps/execution-gateway ./
 COPY configs/runtime/agents.v2.json /src/configs/runtime/agents.v2.json
 COPY configs/runtime/intent-policy.v1.json /src/configs/runtime/intent-policy.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /src/configs/runtime/query-serving-scopes.v1.json
@@ -21,7 +21,7 @@ COPY tests/fixtures/service_guide_vpn_grouped_procedure_result.json /src/tests/f
 COPY tests/fixtures/supervisor_execution_contract /src/tests/fixtures/supervisor_execution_contract
 
 RUN go test ./... \
-  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/supervisor-api ./cmd/supervisor-api
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/execution-gateway ./cmd/execution-gateway
 
 FROM debian:bookworm-slim
 
@@ -30,7 +30,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /out/supervisor-api /usr/local/bin/supervisor-api
+COPY --from=build /out/execution-gateway /usr/local/bin/execution-gateway
 COPY configs/runtime/agents.v2.json /etc/campus-agent/agents.v2.json
 COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /etc/campus-agent/query-serving-scopes.v1.json
@@ -40,10 +40,10 @@ COPY configs/runtime/workflow-artifacts.v1.json /etc/campus-agent/workflow-artif
 USER appuser
 EXPOSE 8000
 ENV CAMPUS_AGENT_HTTP_HOST=0.0.0.0 \
-  SUPERVISOR_API_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json \
-  SUPERVISOR_API_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json \
-  SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH=/etc/campus-agent/query-serving-scopes.v1.json \
-  SUPERVISOR_API_TOOL_SPEC_PATH=/etc/campus-agent/tools.v2.json \
-  SUPERVISOR_API_WORKFLOW_ARTIFACT_REGISTRY_PATH=/etc/campus-agent/workflow-artifacts.v1.json
+  EXECUTION_GATEWAY_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json \
+  EXECUTION_GATEWAY_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json \
+  EXECUTION_GATEWAY_QUERY_SERVING_SCOPES_PATH=/etc/campus-agent/query-serving-scopes.v1.json \
+  EXECUTION_GATEWAY_TOOL_SPEC_PATH=/etc/campus-agent/tools.v2.json \
+  EXECUTION_GATEWAY_WORKFLOW_ARTIFACT_REGISTRY_PATH=/etc/campus-agent/workflow-artifacts.v1.json
 
-ENTRYPOINT ["/usr/local/bin/supervisor-api"]
+ENTRYPOINT ["/usr/local/bin/execution-gateway"]

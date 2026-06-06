@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/executionaudit"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/telemetry"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/executionaudit"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/telemetry"
 )
 
 func (s *Server) handleCancel(response http.ResponseWriter, request *http.Request) {

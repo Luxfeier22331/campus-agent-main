@@ -1,10 +1,10 @@
 package httpapi
 
 import (
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/executionaudit"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/observability"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/telemetry"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/executionaudit"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/observability"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/telemetry"
 )
 
 func (s *Server) recordRuntimeDecision(request execution.AnswerExecutionRequest) {

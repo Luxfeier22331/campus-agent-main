@@ -259,7 +259,7 @@ func resolveToolSpecPath(registryPath string) string {
 	if registryPath != "" {
 		return registryPath
 	}
-	if envRegistryPath := strings.TrimSpace(os.Getenv("SUPERVISOR_API_TOOL_SPEC_PATH")); envRegistryPath != "" {
+	if envRegistryPath := strings.TrimSpace(os.Getenv("EXECUTION_GATEWAY_TOOL_SPEC_PATH")); envRegistryPath != "" {
 		return envRegistryPath
 	}
 	workingDir, err := os.Getwd()

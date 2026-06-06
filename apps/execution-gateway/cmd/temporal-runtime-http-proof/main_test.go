@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-func TestParseOptionsRequiresSupervisorURLSharedSecretAndEvidencePath(t *testing.T) {
+func TestParseOptionsRequiresExecutionGatewayURLSharedSecretAndEvidencePath(t *testing.T) {
 	_, err := parseOptions([]string{
-		"--supervisor-url", "http://127.0.0.1:27051",
+		"--execution-gateway-url", "http://127.0.0.1:27051",
 		"--shared-secret", "secret",
 	})
 	if !errors.Is(err, errInvalidOptions) {
@@ -20,7 +20,7 @@ func TestParseOptionsRequiresSupervisorURLSharedSecretAndEvidencePath(t *testing
 	}
 
 	_, err = parseOptions([]string{
-		"--supervisor-url", "http://127.0.0.1:27051",
+		"--execution-gateway-url", "http://127.0.0.1:27051",
 		"--evidence-path", "proof.json",
 	})
 	if !errors.Is(err, errInvalidOptions) {
@@ -36,7 +36,7 @@ func TestParseOptionsRequiresSupervisorURLSharedSecretAndEvidencePath(t *testing
 	}
 }
 
-func TestHTTPProofRejectsDurableReadyzWithoutStartedWorkerLoop(t *testing.T) {
+func TestHTTPProofRejectsReadyzWithoutTemporalWorkers(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("x-worker-origin-auth") != "secret" {
 			t.Fatalf("missing worker origin auth header")
@@ -45,8 +45,7 @@ func TestHTTPProofRejectsDurableReadyzWithoutStartedWorkerLoop(t *testing.T) {
 		_, _ = response.Write([]byte(`{
 			"status":"ready",
 			"durable_runtime":{"configured":true,"healthy":true},
-			"durable_worker_loop":{"enabled":true,"configured":true,"healthy":true,"started":false},
-			"durable_recovery_loop":{"enabled":true,"configured":true,"healthy":true,"started":true}
+			"temporal_runtime":{"configured":true,"healthy":false,"workers":{"started":false}}
 		}`))
 	}))
 	defer server.Close()
@@ -55,14 +54,14 @@ func TestHTTPProofRejectsDurableReadyzWithoutStartedWorkerLoop(t *testing.T) {
 		EvidencePath:  filepath.Join(t.TempDir(), "http-proof.json"),
 		Now:           time.Date(2026, 6, 4, 23, 0, 0, 0, time.UTC),
 		SharedSecret:  "secret",
-		SupervisorURL: server.URL,
+		GatewayURL:    server.URL,
 	})
-	if !errors.Is(err, errDurableReadyzBlocked) {
-		t.Fatalf("runProof error = %v, want errDurableReadyzBlocked", err)
+	if !errors.Is(err, errTemporalReadyzBlocked) {
+		t.Fatalf("runProof error = %v, want errTemporalReadyzBlocked", err)
 	}
 }
 
-func TestHTTPProofWritesReadyzEvidenceForDurableRuntime(t *testing.T) {
+func TestHTTPProofWritesReadyzEvidenceForTemporalRuntime(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/readyz" {
 			t.Fatalf("path = %s, want /readyz", request.URL.Path)
@@ -74,8 +73,14 @@ func TestHTTPProofWritesReadyzEvidenceForDurableRuntime(t *testing.T) {
 		_, _ = response.Write([]byte(`{
 			"status":"ready",
 			"durable_runtime":{"configured":true,"healthy":true},
-			"durable_worker_loop":{"enabled":true,"configured":true,"healthy":true,"started":true,"worker_id":"worker-a"},
-			"durable_recovery_loop":{"enabled":true,"configured":true,"healthy":true,"started":true}
+			"temporal_runtime":{
+				"configured":true,
+				"healthy":true,
+				"namespace":"campus-agent-staging",
+				"task_queue":"campus-agent.workflow",
+				"worker_id":"staging:execution-gateway:001",
+				"workers":{"started":true}
+			}
 		}`))
 	}))
 	defer server.Close()
@@ -85,13 +90,15 @@ func TestHTTPProofWritesReadyzEvidenceForDurableRuntime(t *testing.T) {
 		EvidencePath:  evidencePath,
 		Now:           time.Date(2026, 6, 4, 23, 1, 0, 0, time.UTC),
 		SharedSecret:  "secret",
-		SupervisorURL: server.URL,
+		GatewayURL:    server.URL,
 	})
 	if err != nil {
 		t.Fatalf("runProof: %v", err)
 	}
-	if !report.Passed || report.Readyz.Status != "ready" || report.Readyz.DurableWorkerLoop.WorkerID != "worker-a" {
-		t.Fatalf("report = %#v, want durable ready evidence", report)
+	if !report.Passed ||
+		report.Readyz.Status != "ready" ||
+		report.Readyz.TemporalRuntime.WorkerID != "staging:execution-gateway:001" {
+		t.Fatalf("report = %#v, want Temporal ready evidence", report)
 	}
 	if _, err := os.Stat(evidencePath); err != nil {
 		t.Fatalf("stat evidence: %v", err)

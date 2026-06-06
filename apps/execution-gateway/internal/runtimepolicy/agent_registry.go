@@ -145,7 +145,7 @@ func resolveAgentSpecPath(registryPath string) string {
 	if registryPath != "" {
 		return registryPath
 	}
-	if envRegistryPath := strings.TrimSpace(os.Getenv("SUPERVISOR_API_AGENT_SPEC_PATH")); envRegistryPath != "" {
+	if envRegistryPath := strings.TrimSpace(os.Getenv("EXECUTION_GATEWAY_AGENT_SPEC_PATH")); envRegistryPath != "" {
 		return envRegistryPath
 	}
 	workingDir, err := os.Getwd()

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 func workflowHandoffPayloadSummary(handoff *execution.RuntimeHandoff) map[string]any {

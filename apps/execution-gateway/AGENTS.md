@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本文件补充根级 `AGENTS.md`，只描述 `apps/supervisor-api` 的局部规则。
+本文件补充根级 `AGENTS.md`，只描述 `apps/execution-gateway` 的局部规则。
 
 ## Role
 

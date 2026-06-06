@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredplanning"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredplanning"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredquery"
 )
 
 const (
-	runnerName = "supervisor-api-go"
+	runnerName = "execution-gateway-go"
 )
 
 type inputPayload struct {

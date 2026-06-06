@@ -1,12 +1,15 @@
-# supervisor-api
+# execution-gateway
 
-`apps/supervisor-api` is the Go-owned execution runtime for the Docker-side
+`apps/execution-gateway` is the Go-owned execution runtime for the Docker-side
 supervisor service.
 
 Current status:
 
 - Implements the Docker-side HTTP runtime for `GET /healthz`, `GET /readyz`,
-  `GET /metrics`, `POST /api/v1/answer`, `POST /api/v1/answer/stream`, and
+  `GET /metrics`, `POST /internal/execution/runs`,
+  `GET /internal/execution/runs/:runId`,
+  `GET /internal/execution/runs/:runId/events`,
+  `POST /internal/execution/runs/:runId/cancel`, and
   `POST /internal/execution/cancel`.
 - Owns request body limits, JSON parsing, `bearer` / `trusted-worker` caller
   auth, strict environment parsing, request projection, fail-closed bridge
@@ -55,10 +58,9 @@ Current status:
   Runtime policy decisions are projected into bridge v6 and summarized in
   Go-owned metrics, OTel attributes, and execution audit events without
   including raw user text.
-- Owns non-delegate terminal envelopes for clarify, approval-required,
-  out-of-scope and rejected decisions. Non-stream and lifecycle SSE answer
-  routes execute those terminal envelopes directly in Go; Python bridge only
-  receives delegate handoff requests.
+- Owns Temporal workflow command admission and sanitized run projection writes.
+  Terminal answer delivery is read from product projection through `app-api`,
+  not from a synchronous execution-gateway answer endpoint.
 - Owns the structured tool policy summary. Python only validates that the
   preplanned payload kind matches the Go-provided `allowed_tools`.
 - Hosts the gate-closed structured query runtime foundation for campus services
@@ -72,10 +74,9 @@ Current status:
   `campus_notice_get` read the internal notice PG read model and S3-compatible
   derived canonical bodies. This still does not open `campus_services` or
   `notice` product serving.
-- When `campus_services` or `notice` is explicitly opened, non-stream
-  `/api/v1/answer` and lifecycle SSE `/api/v1/answer/stream` can execute those
-  deterministic structured payloads directly in Go and shape a supervisor-style
-  response without calling the Python bridge.
+- When `campus_services` or `notice` is explicitly opened, deterministic
+  structured payloads run as typed Temporal activities and write sanitized
+  projections. `app-api` remains the browser-facing answer/status/event surface.
 - Owns bounded FIFO execution admission with queue full / lane queue full /
   queue timeout / lane queue timeout / draining outcomes, `Retry-After` hints,
   and graceful shutdown drain.
@@ -90,57 +91,53 @@ Current status:
   the semantic runtime checkpoints, bridge circuit state is exposed in
   `/readyz` / `/metrics`, and execution audit failure events carry measured
   bridge duration.
-- Repo-local lifecycle streaming is in place: `/api/v1/answer/stream` emits SSE
-  lifecycle events (`execution.started`, `execution.queued`,
-  `execution.running`, terminal completed / failed / cancelled) and does not
-  stream model token deltas.
+- Repo-local lifecycle streaming is owned by `app-api` over projection/event
+  reads. `execution-gateway` does not expose the retired lifecycle answer SSE
+  endpoint.
 
 Current admission boundary:
 
-- `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS` caps executions that can enter the
-  Python bridge concurrently.
-- `SUPERVISOR_API_QUEUE_CAPACITY` is a short in-process burst buffer, not a
-  durable task queue.
-- `SUPERVISOR_API_QUEUE_TIMEOUT_MS` bounds how long an answer request can wait
-  before returning `503 transport_queue_timeout`.
-- Full queues return `503 transport_queue_full` with `retryable=true` and
-  `Retry-After`.
+- Temporal task queues own durable workflow/activity scheduling. The legacy
+  in-process answer queue no longer participates in online serving.
+- `EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS` and lane budget env remain
+  admission/policy knobs for request validation and future activity budgeting,
+  not the canonical execution queue.
 - Lane budgets are configured with
-  `SUPERVISOR_API_LANE_<LANE>_MAX_CONCURRENT`,
-  `SUPERVISOR_API_LANE_<LANE>_QUEUE_CAPACITY`, and
-  `SUPERVISOR_API_LANE_<LANE>_QUEUE_TIMEOUT_MS`.
+  `EXECUTION_GATEWAY_LANE_<LANE>_MAX_CONCURRENT`,
+  `EXECUTION_GATEWAY_LANE_<LANE>_QUEUE_CAPACITY`, and
+  `EXECUTION_GATEWAY_LANE_<LANE>_QUEUE_TIMEOUT_MS`.
 - Current lanes are `rag`, `navigation`, `campus_services`, `notice`, and
   `default`; unset lane budgets inherit the global budget.
 - `active_answers == max_concurrent_answers` does not by itself make `/readyz`
   degraded if the queue can still accept short bursts.
-- `SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD` defaults to `5` consecutive
+- `EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD` defaults to `5` consecutive
   bridge transport / protocol failures before opening the circuit.
-- `SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS` defaults to `10000`; while open, answer
+- `EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS` defaults to `10000`; while open, answer
   requests fail fast instead of occupying execution slots on a known-bad bridge.
-- `SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS` defaults to `2`; only transient
+- `EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS` defaults to `2`; only transient
   bridge transport unavailable errors are retried. Cancellations, request
   timeouts, oversized responses, invalid envelopes and `bridge_invalid_request`
   responses are not retried.
-- `SUPERVISOR_API_BRIDGE_RETRY_BASE_MS` defaults to `50`; retry delay is bounded
+- `EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS` defaults to `50`; retry delay is bounded
   by the same bridge timeout budget as the original attempt.
-- `SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH` points at the Go-owned
+- `EXECUTION_GATEWAY_QUERY_SERVING_SCOPES_PATH` points at the Go-owned
   query-serving scope allowlist. When unset, local repo runs discover
   `configs/runtime/query-serving-scopes.v1.json` from the repo root; if no
   policy file is found, knowledge scoped requests fail closed. The Docker image
   sets this env var to `/etc/campus-agent/query-serving-scopes.v1.json`.
-- `SUPERVISOR_API_INTENT_POLICY_PATH` points at the Go-owned intent policy
+- `EXECUTION_GATEWAY_INTENT_POLICY_PATH` points at the Go-owned intent policy
   artifact. The server loads this artifact once at startup and uses that runtime
   snapshot for request routing; Docker sets it to
   `/etc/campus-agent/intent-policy.v1.json`.
 
 Current cancellation boundary:
 
-- Go `apps/supervisor-api` stops waiting on the Python bridge when the upstream
+- Go `apps/execution-gateway` stops waiting on the Python bridge when the upstream
   HTTP client disconnects or the runtime timeout fires.
 - `POST /internal/execution/cancel` accepts `{ "request_id": "..." }` with
   `x-worker-origin-auth` and marks the active Go execution as
   `cancel_requested`.
-- Go `apps/supervisor-api` also sends a cooperative cancel signal to the
+- Go `apps/execution-gateway` also sends a cooperative cancel signal to the
   Python bridge. The bridge marks active request ids as `cancel_requested`, and
   default supervisor orchestration stops at deterministic checkpoints. This
   does not guarantee provider / prompt executor mid-flight termination once a
@@ -150,13 +147,13 @@ Current structured query runtime boundary:
 
 - Internal query routes require `x-supervisor-query-auth`.
 - Structured product serving gates for `campus_services` and `notice` are
-  closed by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned
+  closed by default. `EXECUTION_GATEWAY_OPEN_CAPABILITIES` is the Go-owned
   allowlist for opening those capabilities after eval / product admission
   evidence exists. It only accepts `campus_services`, `notice`, or
   comma-separated combinations of these values; wildcard values such as `*` or
   `all` are rejected.
 - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth and is
-  injected by the supervisor runtime harness.
+  injected by the execution runtime harness.
 - `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by
   `service_status_lookup`, `transport_schedule_lookup`, `service_guide_lookup`,
   `contact_directory_lookup`, and `academic_calendar_lookup` for the release
@@ -184,13 +181,11 @@ Current structured query runtime boundary:
 - The runtime is not browser-facing and not an `app-api` product surface. It
   does not open `place_lookup`; navigation / map-backed place lookup remains
   deferred until the map product rollout.
-- Python orchestration can consume this seam only when the supervisor runtime
+- Python orchestration can consume this seam only when the execution runtime
   harness injects `SUPERVISOR_INTERNAL_QUERY_BASE_URL` and
   `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` into the worker container.
-- The Go direct structured answer path uses the same projection-backed query
-  runtime internally after the structured capability opening gate admits the
-  request; this applies to both non-stream answer and lifecycle SSE answer
-  routes.
+- Typed Temporal activities use the same projection-backed query runtime after
+  the structured capability opening gate admits the request.
 - `/readyz` reports `capability_gates` so operators can see whether
   `campus_services` / `notice` are still closed, and `/metrics` reports
   capability gate open / closed decisions.
@@ -206,20 +201,20 @@ Current observability boundary:
   outcomes, structured capability gate decisions, bounded runtime policy
   decision summaries, bridge circuit state, bridge circuit open / reject totals,
   and aggregate request outcomes.
-- `SUPERVISOR_API_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
+- `EXECUTION_GATEWAY_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
   is reachable outside a trusted local network; local development leaves it
   empty by default.
 - OTel trace export is disabled by default. When enabled,
-  `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured. Configured
+  `EXECUTION_GATEWAY_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured. Configured
   answer paths fail closed with `telemetry_delivery_failed` when telemetry
   delivery fails; `/readyz` and `/metrics` expose exported / sampled-dropped /
   failed / sample-ratio / last-error state for diagnosis.
-- `apps/supervisor-api` is the online trace owner. It extracts inbound
+- `apps/execution-gateway` is the online trace owner. It extracts inbound
   `traceparent` / `baggage`, accepts current `app-api` `sentry-trace` as an
   ingress compatibility source, and propagates only `traceparent`, `baggage`,
   `x-request-id`, and `x-trace-id` to `supervisor-agent-worker`.
 - Execution audit backflow is disabled by default. When enabled, Go
-  `apps/supervisor-api` sends only safe runtime event summaries for admission
+  `apps/execution-gateway` sends only safe runtime event summaries for admission
   rejection, cancel, bridge failure, and timeout to `app-api`; it never includes
   raw `user_goal`, prompt, answer, transcript, auth material, retrieval payload,
   or provider response. The runtime decision summary is limited to low-cardinality
@@ -249,30 +244,30 @@ Key env:
 ```bash
 export API_AUTH_MODE=trusted-worker
 export API_WORKER_SHARED_SECRET=worker-secret
-export SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8
-export SUPERVISOR_API_QUEUE_CAPACITY=24
-export SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000
-export SUPERVISOR_API_LANE_RAG_MAX_CONCURRENT=6
-export SUPERVISOR_API_LANE_RAG_QUEUE_CAPACITY=12
-export SUPERVISOR_API_LANE_RAG_QUEUE_TIMEOUT_MS=3000
-export SUPERVISOR_API_LANE_NAVIGATION_MAX_CONCURRENT=2
-export SUPERVISOR_API_LANE_NAVIGATION_QUEUE_CAPACITY=4
-export SUPERVISOR_API_LANE_NAVIGATION_QUEUE_TIMEOUT_MS=1500
-export SUPERVISOR_API_OPEN_CAPABILITIES=
-export SUPERVISOR_API_OTEL_ENABLED=false
-export SUPERVISOR_API_OTEL_SAMPLE_RATIO=1
-export SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION=supervisor-api-otel-attrs-v1
-export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=false
-export SUPERVISOR_API_EXECUTION_AUDIT_URL=http://127.0.0.1:27031/api/internal/execution/audit-events
-export SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET=app-api-internal-secret
-export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS=500
-export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
-export SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
-export SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000
-export SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS=2
-export SUPERVISOR_API_BRIDGE_RETRY_BASE_MS=50
-export SUPERVISOR_API_INTENT_POLICY_PATH=
-export SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH=
+export EXECUTION_GATEWAY_MAX_CONCURRENT_ANSWERS=8
+export EXECUTION_GATEWAY_QUEUE_CAPACITY=24
+export EXECUTION_GATEWAY_QUEUE_TIMEOUT_MS=3000
+export EXECUTION_GATEWAY_LANE_RAG_MAX_CONCURRENT=6
+export EXECUTION_GATEWAY_LANE_RAG_QUEUE_CAPACITY=12
+export EXECUTION_GATEWAY_LANE_RAG_QUEUE_TIMEOUT_MS=3000
+export EXECUTION_GATEWAY_LANE_NAVIGATION_MAX_CONCURRENT=2
+export EXECUTION_GATEWAY_LANE_NAVIGATION_QUEUE_CAPACITY=4
+export EXECUTION_GATEWAY_LANE_NAVIGATION_QUEUE_TIMEOUT_MS=1500
+export EXECUTION_GATEWAY_OPEN_CAPABILITIES=
+export EXECUTION_GATEWAY_OTEL_ENABLED=false
+export EXECUTION_GATEWAY_OTEL_SAMPLE_RATIO=1
+export EXECUTION_GATEWAY_OTEL_ALLOWED_ATTRIBUTES_VERSION=execution-gateway-otel-attrs-v1
+export EXECUTION_GATEWAY_EXECUTION_AUDIT_ENABLED=false
+export EXECUTION_GATEWAY_EXECUTION_AUDIT_URL=http://127.0.0.1:27031/api/internal/execution/audit-events
+export EXECUTION_GATEWAY_EXECUTION_AUDIT_SHARED_SECRET=app-api-internal-secret
+export EXECUTION_GATEWAY_EXECUTION_AUDIT_TIMEOUT_MS=500
+export EXECUTION_GATEWAY_REQUEST_TIMEOUT_MS=45000
+export EXECUTION_GATEWAY_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
+export EXECUTION_GATEWAY_BRIDGE_BREAKER_OPEN_MS=10000
+export EXECUTION_GATEWAY_BRIDGE_RETRY_MAX_ATTEMPTS=2
+export EXECUTION_GATEWAY_BRIDGE_RETRY_BASE_MS=50
+export EXECUTION_GATEWAY_INTENT_POLICY_PATH=
+export EXECUTION_GATEWAY_QUERY_SERVING_SCOPES_PATH=
 export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052
 export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
 export SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000
@@ -292,8 +287,8 @@ export SUPERVISOR_NOTICE_BODY_LIMIT_BYTES=1048576
 ```
 
 Staging lifecycle derives execution audit URL and shared secret from
-`SUPERVISOR_API_STAGING_APP_API_BASE_URL` and `APP_API_INTERNAL_SHARED_SECRET`
-when the explicit `SUPERVISOR_API_EXECUTION_AUDIT_*` variables are absent.
+`EXECUTION_GATEWAY_STAGING_APP_API_BASE_URL` and `APP_API_INTERNAL_SHARED_SECRET`
+when the explicit `EXECUTION_GATEWAY_EXECUTION_AUDIT_*` variables are absent.
 Generic local compose keeps execution audit disabled unless explicitly enabled.
 
 Local verification:
@@ -306,28 +301,30 @@ pnpm go:check
 Docker build:
 
 ```bash
-docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .
+docker build \
+  -f apps/execution-gateway/Dockerfile \
+  -t campus-execution-gateway:local .
 ```
 
 Direct local process smoke for development:
 
 ```bash
 uv run --all-packages python -m scripts.supervisor_runtime_process_smoke \
-  --output-dir .tmp/supervisor-api-process-smoke
+  --output-dir .tmp/execution-gateway-process-smoke
 ```
 
-This starts `apps/supervisor-agent-worker` with `uv` and `apps/supervisor-api`
-with `go run` on localhost, then probes bridge health, supervisor health,
-readiness, metrics, and the closed structured-runtime answer contract. It does
-not use Docker or Wrangler.
+This starts `apps/supervisor-agent-worker` with `uv` and `apps/execution-gateway`
+with `go run` on localhost, then probes bridge health, execution-gateway health,
+readiness, metrics, and the Temporal execution run command seam. It does not use
+Docker or Wrangler.
 
 Docker smoke:
 
 ```bash
-docker run --rm -p 27051:8000 campus-supervisor-api:local
+docker run --rm -p 27051:8000 campus-execution-gateway:local
 ```
 
-`docker run` 单容器只验证 `supervisor-api` 自身监听和 `/healthz` 路径；它不会覆盖
+`docker run` 单容器只验证 `execution-gateway` 自身监听和 `/healthz` 路径；它不会覆盖
 `supervisor-agent-worker` bridge、`/readyz` runtime aggregation 或 answer execution。
 
 Local two-container smoke:
@@ -339,7 +336,7 @@ infra/local/smoke-supervisor-runtime.sh closed_gate
 Smoke artifacts default to:
 
 ```bash
-.tmp/supervisor-api-local-smoke/<timestamp>-<profile>/
+.tmp/execution-gateway-local-smoke/<timestamp>-<profile>/
 ```
 
 Expected behavior:
@@ -352,8 +349,41 @@ curl -i -H 'content-type: application/json' \
   -H 'x-worker-origin-auth: worker-secret' \
   -d @<(cat <<'JSON'
 {
+  "run_id": "req-local-smoke-001",
+  "conversation_id": "conv-local-smoke-001",
+  "turn_id": "turn-local-smoke-001",
   "request_id": "req-local-smoke-001",
+  "trace_id": "trace-local-smoke-001",
+  "owner_user_id": "student-001",
+  "surface": "local-smoke",
+  "requested_capability": "knowledge",
+  "selected_capability": "knowledge",
+  "lane": "rag",
+  "runtime_versions": {
+    "contract": "temporal-execution-gateway-v1"
+  },
   "user_goal": "hello",
+  "metadata": {
+    "execution_payload": {
+      "user_goal": "hello",
+      "request_id": "req-local-smoke-001",
+      "conversation_id": "conv-local-smoke-001",
+      "trace": {
+        "trace_id": "trace-local-smoke-001"
+      },
+      "runtime_decisions": {
+        "runtime_decision_summary": {}
+      }
+    },
+    "handoff": {
+      "target": "rag-tool",
+      "payload_kind": "rag_request",
+      "allowed_tools": ["retrieval.query"],
+      "payload": {
+        "query_text": "hello"
+      }
+    }
+  },
   "context": {
     "actor": {
       "user_id": "student-001"
@@ -369,9 +399,9 @@ curl -i -H 'content-type: application/json' \
 }
 JSON
 ) \
-  http://127.0.0.1:27051/api/v1/answer
+  http://127.0.0.1:27051/internal/execution/runs
 ```
 
 Detailed local smoke / cutover / runback steps:
 
-- [supervisor-api-local-runtime-smoke.md](../../docs/runbooks/supervisor-api-local-runtime-smoke.md)
+- [execution-gateway-local-runtime-smoke.md](../../docs/runbooks/execution-gateway-local-runtime-smoke.md)

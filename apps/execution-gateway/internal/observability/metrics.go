@@ -77,9 +77,9 @@ type ExecutionAuditSnapshot struct {
 }
 
 type BridgeRuntimeSnapshot struct {
-	LastAnswerFailureCode string
-	LastAnswerFailureAt   string
-	LastAnswerSuccessAt   string
+	LastBridgeFailureCode string
+	LastBridgeFailureAt   string
+	LastBridgeSuccessAt   string
 }
 
 type BridgeCircuitSnapshot struct {
@@ -338,8 +338,8 @@ func (m *Metrics) BridgeRuntimeSnapshot() BridgeRuntimeSnapshot {
 	defer m.mu.Unlock()
 
 	return BridgeRuntimeSnapshot{
-		LastAnswerFailureCode: m.lastAnswerFailureCode,
-		LastAnswerFailureAt:   formatTime(m.lastAnswerFailureAt),
-		LastAnswerSuccessAt:   formatTime(m.lastAnswerSuccessAt),
+		LastBridgeFailureCode: m.lastAnswerFailureCode,
+		LastBridgeFailureAt:   formatTime(m.lastAnswerFailureAt),
+		LastBridgeSuccessAt:   formatTime(m.lastAnswerSuccessAt),
 	}
 }

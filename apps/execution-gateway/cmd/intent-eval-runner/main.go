@@ -8,12 +8,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 const (
-	runnerName       = "supervisor-api-go"
+	runnerName       = "execution-gateway-go"
 	evalSharedSecret = "intent-eval-worker-secret"
 )
 

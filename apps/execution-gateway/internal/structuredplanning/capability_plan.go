@@ -92,7 +92,7 @@ func selectedNoticeKnowledgeFollowthroughCapabilityPlan(request Request) Capabil
 			},
 		},
 		AnswerPolicy: CapabilityAnswerPolicy{
-			FinalAnswerOwner:             "supervisor-api-finalizer",
+			FinalAnswerOwner:             "execution-gateway-finalizer",
 			RequiresArtifactBackedAnswer: true,
 		},
 		GroundingPolicy: CapabilityGroundingPolicy{
@@ -142,7 +142,7 @@ func transportNoticeOverrideCapabilityPlan(request Request) CapabilityPlan {
 			},
 		},
 		AnswerPolicy: CapabilityAnswerPolicy{
-			FinalAnswerOwner:             "supervisor-api-finalizer",
+			FinalAnswerOwner:             "execution-gateway-finalizer",
 			RequiresArtifactBackedAnswer: true,
 		},
 		GroundingPolicy: CapabilityGroundingPolicy{

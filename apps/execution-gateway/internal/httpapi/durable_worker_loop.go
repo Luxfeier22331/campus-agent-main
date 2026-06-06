@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 var errDurableWorkerLoopBridgeNotConfigured = errors.New("durable worker loop bridge is not configured")
@@ -90,7 +90,7 @@ func newDurableWorkerLoop(options durableWorkerLoopOptions) *durableWorkerLoop {
 		coordinator:            options.Coordinator,
 		bridge:                 options.Bridge,
 		workerID:               strings.TrimSpace(options.WorkerID),
-		workerKind:             defaultString(strings.TrimSpace(options.WorkerKind), "supervisor-api"),
+		workerKind:             defaultString(strings.TrimSpace(options.WorkerKind), "execution-gateway"),
 		runtimeVersion:         strings.TrimSpace(options.RuntimeVersion),
 		lane:                   options.Lane,
 		stepID:                 strings.TrimSpace(options.StepID),

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
 )
 
 func TestEmitterDisabledNoops(t *testing.T) {
@@ -148,8 +148,8 @@ func TestEmitterUnavailableLogUsesSupervisorAPIEventName(t *testing.T) {
 	}, logger)
 
 	logged := logBuffer.String()
-	if !strings.Contains(logged, "supervisor_api.execution_audit_unavailable") {
-		t.Fatalf("log output = %q, want supervisor_api.execution_audit_unavailable", logged)
+	if !strings.Contains(logged, "execution_gateway.execution_audit_unavailable") {
+		t.Fatalf("log output = %q, want execution_gateway.execution_audit_unavailable", logged)
 	}
 	staleNamespace := "go_" + "shell."
 	if strings.Contains(logged, staleNamespace) {
@@ -214,7 +214,7 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 		if !ok {
 			t.Fatalf("event = %#v, want object", events[0])
 		}
-		if event["event_id"] != "supervisor-api:req-001:execution.bridge_failed" {
+		if event["event_id"] != "execution-gateway:req-001:execution.bridge_failed" {
 			t.Fatalf("event_id = %v", event["event_id"])
 		}
 		if event["event_type"] != "execution.bridge_failed" || event["request_id"] != "req-001" {

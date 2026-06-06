@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/contracts"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
@@ -445,7 +445,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				SelectedTarget:        "campus-services-agent",
 				SelectedTool:          "service_status_lookup",
 				RuntimeVersions: map[string]any{
-					"supervisor_api_runtime": "go-runtime-control-plane-v1",
+					"execution_gateway_runtime": "go-runtime-control-plane-v1",
 				},
 				PolicyArtifactVersions: map[string]any{
 					"intent_classifier": "go-runtime-policy-v2",
@@ -553,8 +553,8 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 		t.Fatalf("result_guardrail = %#v, want source-backed result guardrail", safeDetails["result_guardrail"])
 	}
 	runtimeVersions, ok := traceSummary["runtime_versions"].(map[string]any)
-	if !ok || runtimeVersions["supervisor_api_runtime"] != "go-runtime-control-plane-v1" {
-		t.Fatalf("runtime_versions = %#v, want supervisor_api_runtime", traceSummary["runtime_versions"])
+	if !ok || runtimeVersions["execution_gateway_runtime"] != "go-runtime-control-plane-v1" {
+		t.Fatalf("runtime_versions = %#v, want execution_gateway_runtime", traceSummary["runtime_versions"])
 	}
 	if fmt.Sprint(runtimeVersions["workflow_trace_summary"]) != "workflow-trace-summary-v4" {
 		t.Fatalf("runtime_versions = %#v, want workflow trace summary version", runtimeVersions)

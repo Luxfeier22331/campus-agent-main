@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 func TestParseOptionsRequiresExplicitDatabaseURLAndEvidencePath(t *testing.T) {
@@ -33,9 +33,9 @@ func TestValidateProofPrefixRejectsBroadOrNonProofPrefix(t *testing.T) {
 }
 
 func TestRunDurableRuntimeProofWithPostgresStore(t *testing.T) {
-	databaseURL := os.Getenv("SUPERVISOR_API_DURABLE_RUNTIME_TEST_DATABASE_URL")
+	databaseURL := os.Getenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_TEST_DATABASE_URL")
 	if databaseURL == "" {
-		t.Skip("SUPERVISOR_API_DURABLE_RUNTIME_TEST_DATABASE_URL is not configured")
+		t.Skip("EXECUTION_GATEWAY_DURABLE_RUNTIME_TEST_DATABASE_URL is not configured")
 	}
 
 	evidencePath := filepath.Join(t.TempDir(), "durable-runtime-proof.json")
@@ -90,9 +90,9 @@ func TestRunDurableRuntimeProofWithPostgresStore(t *testing.T) {
 }
 
 func TestRunProofRestoresExistingLaneBudget(t *testing.T) {
-	databaseURL := os.Getenv("SUPERVISOR_API_DURABLE_RUNTIME_TEST_DATABASE_URL")
+	databaseURL := os.Getenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_TEST_DATABASE_URL")
 	if databaseURL == "" {
-		t.Skip("SUPERVISOR_API_DURABLE_RUNTIME_TEST_DATABASE_URL is not configured")
+		t.Skip("EXECUTION_GATEWAY_DURABLE_RUNTIME_TEST_DATABASE_URL is not configured")
 	}
 
 	ctx := context.Background()

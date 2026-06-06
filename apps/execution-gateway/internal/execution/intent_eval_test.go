@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
 )
 
 func TestObserveIntentForEvalProjectsGoRuntimePolicyAndPlanning(t *testing.T) {

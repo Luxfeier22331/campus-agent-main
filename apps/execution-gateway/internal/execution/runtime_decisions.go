@@ -1,9 +1,9 @@
 package execution
 
 import (
-	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredplanning"
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/contracts"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredplanning"
 )
 
 func runtimeDecisions(
@@ -279,7 +279,7 @@ func mustDefaultWorkflowArtifactRegistry() runtimepolicy.WorkflowArtifactRegistr
 
 func runtimeVersionSummary() map[string]any {
 	return map[string]any{
-		"supervisor_api_runtime": "go-runtime-control-plane-v1",
+		"execution_gateway_runtime": "go-runtime-control-plane-v1",
 		"bridge_contract":        contractsv1.BridgeVersion,
 		"response_contract":      contractsv1.ResponseContract,
 		"workflow_trace_summary": contractsv1.WorkflowTraceSummaryVersion,

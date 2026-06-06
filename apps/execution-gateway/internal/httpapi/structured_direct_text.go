@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredquery"
 )
 
 func structuredAnswerText(payloadKind string, result map[string]any, status string) string {

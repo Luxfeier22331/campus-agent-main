@@ -33,7 +33,9 @@ var (
 
 type DurableRuntimeStore interface {
 	CreateRun(context.Context, DurableRun) (DurableRun, error)
+	DeleteRun(context.Context, string) error
 	GetRun(context.Context, string) (DurableRun, error)
+	ReplaceRunMetadata(context.Context, string, map[string]any) error
 	TransitionRun(context.Context, string, DurableRunStatus, DurableTerminalReason, time.Time) (
 		DurableRun,
 		error,

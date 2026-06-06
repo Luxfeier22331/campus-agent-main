@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 func TestDurableWorkerLoopRunOnceRegistersHeartbeatAndProcessesRun(t *testing.T) {
@@ -60,7 +60,7 @@ func TestDurableWorkerLoopRunOnceRegistersHeartbeatAndProcessesRun(t *testing.T)
 		Coordinator:            execution.NewDurableLeaseCoordinator(store),
 		Bridge:                 bridgeClient,
 		WorkerID:               "worker-loop-001",
-		WorkerKind:             "supervisor-api",
+		WorkerKind:             "execution-gateway",
 		Lane:                   execution.DurableLaneRAG,
 		StepID:                 "handoff:rag-agent:rag_request",
 		LeaseTTL:               20 * time.Second,
@@ -120,7 +120,7 @@ func TestDurableWorkerLoopRunOnceReturnsIdleWhenNoQueuedRun(t *testing.T) {
 			},
 		},
 		WorkerID:               "worker-loop-idle",
-		WorkerKind:             "supervisor-api",
+		WorkerKind:             "execution-gateway",
 		Lane:                   execution.DurableLaneRAG,
 		StepID:                 "handoff:rag-agent:rag_request",
 		LeaseTTL:               20 * time.Second,
@@ -164,7 +164,7 @@ func TestDurableWorkerLoopRunOnceDoesNotOwnExpiredLeaseRecovery(t *testing.T) {
 	}
 	if err := store.UpsertWorkerHeartbeat(ctx, execution.WorkerHeartbeat{
 		WorkerID:       "worker-loop-recovery",
-		WorkerKind:     "supervisor-api",
+		WorkerKind:     "execution-gateway",
 		Lanes:          []execution.DurableLane{execution.DurableLaneRAG},
 		RuntimeVersion: "test",
 		Status:         execution.WorkerHeartbeatStatusReady,
@@ -201,7 +201,7 @@ func TestDurableWorkerLoopRunOnceDoesNotOwnExpiredLeaseRecovery(t *testing.T) {
 			},
 		},
 		WorkerID:               "worker-loop-recovery",
-		WorkerKind:             "supervisor-api",
+		WorkerKind:             "execution-gateway",
 		Lane:                   execution.DurableLaneRAG,
 		StepID:                 "handoff:rag-agent:rag_request",
 		LeaseTTL:               20 * time.Second,
@@ -266,7 +266,7 @@ func TestDurableWorkerLoopRunOnceDoesNotOwnQueuedRunTimeoutRecovery(t *testing.T
 			},
 		},
 		WorkerID:               "worker-loop-timeout",
-		WorkerKind:             "supervisor-api",
+		WorkerKind:             "execution-gateway",
 		Lane:                   execution.DurableLaneRAG,
 		StepID:                 "handoff:rag-agent:rag_request",
 		LeaseTTL:               20 * time.Second,
@@ -315,7 +315,7 @@ func TestDurableWorkerLoopRunKeepsPollingAfterLaneBudgetBackpressure(t *testing.
 	}
 	if err := store.UpsertWorkerHeartbeat(ctx, execution.WorkerHeartbeat{
 		WorkerID:       "worker-loop-backpressure-active",
-		WorkerKind:     "supervisor-api",
+		WorkerKind:     "execution-gateway",
 		Lanes:          []execution.DurableLane{execution.DurableLaneRAG},
 		RuntimeVersion: "test",
 		Status:         execution.WorkerHeartbeatStatusReady,
@@ -354,7 +354,7 @@ func TestDurableWorkerLoopRunKeepsPollingAfterLaneBudgetBackpressure(t *testing.
 			},
 		},
 		WorkerID:               "worker-loop-backpressure-waiting",
-		WorkerKind:             "supervisor-api",
+		WorkerKind:             "execution-gateway",
 		Lane:                   execution.DurableLaneRAG,
 		StepID:                 "handoff:rag-agent:rag_request",
 		LeaseTTL:               20 * time.Second,
@@ -420,24 +420,22 @@ func TestDurableWorkerLoopRunOnceFailsClosedWhenBridgeIsMissing(t *testing.T) {
 	}
 }
 
-func TestServerStartDurableWorkerLoopFailsClosedWhenEnabledButNotConfigured(t *testing.T) {
+func TestServerStartDurableWorkerLoopRejectsRetiredMode(t *testing.T) {
 	server := NewServerWithDependencies(configWithDurableWorkerLoopForTest(), &fakeBridge{configured: true}, nil, nil, nil)
 
 	err := server.StartDurableWorkerLoop(context.Background())
 	if err == nil {
-		t.Fatal("start durable worker loop returned nil error")
+		t.Fatal("start retired durable worker loop returned nil error")
 	}
-	if !errors.Is(err, execution.ErrDurableRuntimeStoreNotConfigured) {
-		t.Fatalf("error = %v, want durable runtime store not configured", err)
+	if !errors.Is(err, errDurableLeaseLoopRetired) {
+		t.Fatalf("error = %v, want retired durable loop error", err)
 	}
 }
 
-func TestServerStartDurableWorkerLoopSyncsConfiguredLaneBudget(t *testing.T) {
+func TestServerConfigureDurableWorkerLoopDoesNotStartRetiredMode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	store := execution.NewInMemoryDurableRuntimeStore()
-	now := time.Date(2026, 6, 4, 16, 20, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(t, store, "run-loop-budget", "conv-loop-budget", now, nil)
 	server := NewServerWithDependencies(config.Config{
 		AppName:                                   "campus-agent",
 		LaneBudgets:                               map[string]config.LaneBudget{"rag": {MaxConcurrent: 1, QueueCapacity: 4, QueueTimeoutMS: 30_000}},
@@ -462,10 +460,16 @@ func TestServerStartDurableWorkerLoopSyncsConfiguredLaneBudget(t *testing.T) {
 	server.durableLeaseCoordinator = execution.NewDurableLeaseCoordinator(store)
 	server.configureDurableWorkerLoop()
 
-	if err := server.StartDurableWorkerLoop(ctx); err != nil {
-		t.Fatalf("start durable worker loop: %v", err)
+	if server.durableWorkerLoop != nil {
+		t.Fatalf("durable worker loop = %#v, want nil for Temporal online serving", server.durableWorkerLoop)
 	}
-	waitForDurableRunStatus(t, store, "run-loop-budget", execution.DurableRunStatusCompleted)
+	err := server.StartDurableWorkerLoop(ctx)
+	if err == nil {
+		t.Fatal("start retired durable worker loop returned nil error")
+	}
+	if !errors.Is(err, errDurableLeaseLoopRetired) {
+		t.Fatalf("error = %v, want retired durable loop error", err)
+	}
 }
 
 func configWithDurableWorkerLoopForTest() config.Config {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredquery"
 )
 
 type promptConfigGate struct {
@@ -73,16 +73,13 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	defer structuredQueryCancel()
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
 	workflowRunStatus := s.workflowRunStoreStatus(request.Context())
-	durableWorkerLoopStatus := s.durableWorkerLoopStatus()
-	durableRecoveryLoopStatus := s.durableRecoveryLoopStatus()
+	temporalRuntimeStatus := s.temporalRuntimeStatus()
 	promptGate := evaluatePromptConfigGate(s.config)
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	structuredRuntimeHealthy := s.openStructuredRuntimeHealthy(structuredQueryStatus)
 	workflowRuntimeHealthy := !s.config.MultiStepWorkflowEnabled || workflowRunStatus["healthy"] == true
 	durableRuntimeStatus := s.durableRuntimeStatus(request.Context())
-	durableWorkerLoopHealthy := durableWorkerLoopStatus["healthy"] == true
-	durableRecoveryLoopHealthy := durableRecoveryLoopStatus["healthy"] == true
 	ready := bridgeHealthy &&
 		transportStatus.Healthy &&
 		telemetryHealthy &&
@@ -90,8 +87,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		structuredRuntimeHealthy &&
 		workflowRuntimeHealthy &&
 		durableRuntimeStatus["healthy"] == true &&
-		durableWorkerLoopHealthy &&
-		durableRecoveryLoopHealthy &&
+		temporalRuntimeStatus["healthy"] == true &&
 		promptGate.Admitted
 	statusCode := http.StatusOK
 	statusText := "ready"
@@ -110,8 +106,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"structured_query_runtime": structuredQueryStatus,
 		"workflow_run_runtime":     workflowRunStatus,
 		"durable_runtime":          durableRuntimeStatus,
-		"durable_worker_loop":      durableWorkerLoopStatus,
-		"durable_recovery_loop":    durableRecoveryLoopStatus,
+		"temporal_runtime":         temporalRuntimeStatus,
 		"capability_gates":         s.capabilityGateStatus(),
 		"prompt_config_gate":       promptGate,
 		"bridge_runtime": map[string]any{
@@ -129,9 +124,9 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 			),
 			"status_code":                  bridgeStatusCode,
 			"last_error":                   bridgeLastError,
-			"last_answer_failure_code":     bridgeSnapshot.LastAnswerFailureCode,
-			"last_answer_failure_at":       bridgeSnapshot.LastAnswerFailureAt,
-			"last_answer_success_at":       bridgeSnapshot.LastAnswerSuccessAt,
+			"last_bridge_failure_code":     bridgeSnapshot.LastBridgeFailureCode,
+			"last_bridge_failure_at":       bridgeSnapshot.LastBridgeFailureAt,
+			"last_bridge_success_at":       bridgeSnapshot.LastBridgeSuccessAt,
 			"circuit_state":                bridgeCircuit.State,
 			"circuit_open_until":           bridgeCircuit.OpenUntil,
 			"circuit_consecutive_failures": bridgeCircuit.ConsecutiveFailures,
@@ -152,6 +147,29 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	}
 
 	writeJSON(response, statusCode, responseBody)
+}
+
+func (s *Server) temporalRuntimeStatus() map[string]any {
+	configured := s.temporalStarter != nil
+	status := map[string]any{
+		"configured": configured,
+		"healthy":    configured && s.temporalStarterErr == nil && s.temporalWorkersStarted,
+		"last_error": "",
+		"namespace":  s.config.TemporalNamespace,
+		"task_queue": s.config.TemporalTaskQueue,
+		"worker_id":  s.config.TemporalWorkerIdentity,
+		"workers": map[string]any{
+			"started":        s.temporalWorkersStarted,
+			"workflow_queue": defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), "campus-agent.workflow"),
+			"rag_queue":      "campus-agent.activity.rag",
+		},
+	}
+	if s.temporalStarterErr != nil {
+		status["last_error"] = "temporal starter could not be initialized"
+	} else if configured && !s.temporalWorkersStarted {
+		status["last_error"] = "temporal workers are not started"
+	}
+	return status
 }
 
 func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {

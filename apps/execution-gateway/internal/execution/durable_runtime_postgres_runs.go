@@ -77,6 +77,17 @@ func (s *PostgresDurableRuntimeStore) CreateRun(
 	return s.GetRun(ctx, run.RunID)
 }
 
+func (s *PostgresDurableRuntimeStore) DeleteRun(ctx context.Context, runID string) error {
+	commandTag, err := s.pool.Exec(ctx, `delete from runtime.agent_runs where run_id = $1`, runID)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	}
+	return nil
+}
+
 func (s *PostgresDurableRuntimeStore) GetRun(ctx context.Context, runID string) (DurableRun, error) {
 	run, err := scanDurableRun(
 		s.pool.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1", runID),
@@ -88,6 +99,39 @@ func (s *PostgresDurableRuntimeStore) GetRun(ctx context.Context, runID string) 
 		return DurableRun{}, err
 	}
 	return run, nil
+}
+
+func (s *PostgresDurableRuntimeStore) ReplaceRunMetadata(
+	ctx context.Context,
+	runID string,
+	metadata map[string]any,
+) error {
+	run, err := s.GetRun(ctx, runID)
+	if err != nil {
+		return err
+	}
+	run.Metadata = cloneAnyMap(metadata)
+	if err := validateDurableRun(run); err != nil {
+		return err
+	}
+	metadataJSON, err := jsonMapToBytes(run.Metadata)
+	if err != nil {
+		return err
+	}
+	commandTag, err := s.pool.Exec(
+		ctx,
+		`update runtime.agent_runs set metadata_json = $2::jsonb, updated_at = $3 where run_id = $1`,
+		runID,
+		metadataJSON,
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	}
+	return nil
 }
 
 func (s *PostgresDurableRuntimeStore) TransitionRun(

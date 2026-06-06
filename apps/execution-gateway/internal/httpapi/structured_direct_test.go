@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredquery"
 )
 
 func TestStructuredAnswerTextUsesServiceGuideRequiredMaterials(t *testing.T) {

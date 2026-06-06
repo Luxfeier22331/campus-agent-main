@@ -6,28 +6,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
 )
 
-func TestReadyzReportsDurableWorkerLoopConfigurationError(t *testing.T) {
+func TestReadyzReportsTemporalWorkerNotStarted(t *testing.T) {
 	server := NewServer(config.Config{
-		AppName:                                   "campus-agent",
-		MaxConcurrentAnswers:                      8,
-		DurableWorkerLoopEnabled:                  true,
-		DurableWorkerLoopWorkerID:                 "worker-loop",
-		DurableWorkerLoopLane:                     "rag",
-		DurableWorkerLoopStepID:                   "handoff:rag-agent:rag_request",
-		DurableWorkerLoopPollIntervalMS:           250,
-		DurableWorkerLoopLeaseTTLMS:               30_000,
-		DurableWorkerLoopLeaseHeartbeatIntervalMS: 5_000,
-		PromptRuntimeProvider:                     "openai-responses",
-		SupervisorPromptModel:                     "gpt-supervisor",
-		AgentPromptModel:                          "gpt-agent",
-		PromptRuntimeAPIKey:                       "test-key",
-		PromptRuntimeTransport:                    "responses",
-		PromptRuntimeBaseURL:                      "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs:             true,
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		TemporalAddress:               "127.0.0.1:7233",
+		TemporalNamespace:             "campus-agent-test",
+		TemporalTaskQueue:             "campus-agent.workflow",
+		TemporalWorkerIdentity:        "test:execution-gateway:readyz",
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		AgentPromptModel:              "gpt-agent",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
 	}, &fakeBridge{
 		configured: true,
 		readyz: bridge.ReadyzResponse{
@@ -43,11 +40,10 @@ func TestReadyzReportsDurableWorkerLoopConfigurationError(t *testing.T) {
 		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	workerLoop := expectRecord(t, body["durable_worker_loop"], "durable_worker_loop")
-	if workerLoop["enabled"] != true ||
-		workerLoop["configured"] != false ||
-		workerLoop["healthy"] != false ||
-		workerLoop["last_error"] == "" {
-		t.Fatalf("durable_worker_loop = %#v, want enabled unconfigured degraded", workerLoop)
+	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")
+	if temporalRuntime["configured"] != true ||
+		temporalRuntime["healthy"] != false ||
+		temporalRuntime["last_error"] == "" {
+		t.Fatalf("temporal_runtime = %#v, want unstarted degraded", temporalRuntime)
 	}
 }

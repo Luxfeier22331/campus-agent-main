@@ -3,7 +3,7 @@ package structuredplanning
 import (
 	"regexp"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/runtimepolicy"
 )
 
 var yearPattern = regexp.MustCompile(`(20\d{2})年`)

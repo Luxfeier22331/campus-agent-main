@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/contracts"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 var errInvalidAgentResponse = errors.New("invalid agent response")

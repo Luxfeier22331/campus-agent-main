@@ -1,13 +1,14 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 func TestNewDurableRuntimeStoreIsNilWhenDatabaseURLIsNotConfigured(t *testing.T) {
@@ -47,10 +48,10 @@ func TestNewDurableRuntimeStoreReturnsConnectionErrorForExplicitInvalidDatabaseU
 	}
 }
 
-func TestNewServerCreatesDurableLeaseCoordinatorWhenRuntimeStoreIsConfigured(t *testing.T) {
+func TestNewServerDoesNotCreateDurableLeaseCoordinatorForOnlineServing(t *testing.T) {
 	server := NewServerWithDependencies(config.Config{}, nil, nil, nil, nil)
-	if server.durableLeaseCoordinator == nil {
-		t.Fatal("durable lease coordinator must be initialized even when store is not configured")
+	if server.durableLeaseCoordinator != nil {
+		t.Fatal("durable lease coordinator must not be initialized for Temporal online serving")
 	}
 	if server.durableRuntime != nil {
 		t.Fatalf("durable runtime store = %#v, want nil without explicit durable runtime database url", server.durableRuntime)
@@ -78,7 +79,7 @@ func TestReadyzReportsDurableRuntimeStatus(t *testing.T) {
 	}
 }
 
-func TestNewServerDoesNotCreateDurableWorkerLoopWithoutRuntimeStore(t *testing.T) {
+func TestNewServerDoesNotCreateDurableWorkerLoopForOnlineServing(t *testing.T) {
 	server := NewServer(config.Config{
 		DurableWorkerLoopEnabled:                  true,
 		DurableWorkerLoopWorkerID:                 "worker-loop",
@@ -90,14 +91,14 @@ func TestNewServerDoesNotCreateDurableWorkerLoopWithoutRuntimeStore(t *testing.T
 	}, &fakeBridge{configured: true})
 
 	if server.durableWorkerLoop != nil {
-		t.Fatalf("durable worker loop = %#v, want nil when durable runtime store is not configured", server.durableWorkerLoop)
+		t.Fatalf("durable worker loop = %#v, want nil for Temporal online serving", server.durableWorkerLoop)
 	}
-	if server.durableWorkerLoopErr == nil {
-		t.Fatal("expected durable worker loop error when enabled without durable runtime store")
+	if server.durableWorkerLoopErr != nil {
+		t.Fatalf("durable worker loop error = %v, want nil because server wiring ignores retired loop", server.durableWorkerLoopErr)
 	}
 }
 
-func TestStartDurableWorkerLoopReturnsDurableRuntimeInitializationError(t *testing.T) {
+func TestStartDurableWorkerLoopRejectsRetiredOnlineServingMode(t *testing.T) {
 	server := NewServer(config.Config{
 		DurableRuntimeDatabaseURL:                 "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
 		DurableWorkerLoopEnabled:                  true,
@@ -111,14 +112,14 @@ func TestStartDurableWorkerLoopReturnsDurableRuntimeInitializationError(t *testi
 
 	err := server.StartDurableWorkerLoop(t.Context())
 	if err == nil {
-		t.Fatal("expected durable runtime initialization error")
+		t.Fatal("start retired durable worker loop returned nil error")
 	}
-	if !strings.Contains(err.Error(), "ping durable runtime postgres") {
-		t.Fatalf("error = %v, want durable postgres ping failure", err)
+	if !errors.Is(err, errDurableLeaseLoopRetired) {
+		t.Fatalf("error = %v, want retired durable loop error", err)
 	}
 }
 
-func TestNewServerCreatesDurableWorkerLoopWhenRuntimeStoreIsConfigured(t *testing.T) {
+func TestConfigureDurableWorkerLoopDoesNotReintroduceOnlineServingLoop(t *testing.T) {
 	store := execution.NewInMemoryDurableRuntimeStore()
 	server := NewServer(config.Config{
 		DurableWorkerLoopEnabled:                  true,
@@ -133,10 +134,10 @@ func TestNewServerCreatesDurableWorkerLoopWhenRuntimeStoreIsConfigured(t *testin
 	server.durableLeaseCoordinator = execution.NewDurableLeaseCoordinator(store)
 	server.configureDurableWorkerLoop()
 
-	if server.durableWorkerLoop == nil {
-		t.Fatal("durable worker loop must be configured when durable runtime store is configured")
+	if server.durableWorkerLoop != nil {
+		t.Fatalf("durable worker loop = %#v, want nil for Temporal online serving", server.durableWorkerLoop)
 	}
 	if server.durableWorkerLoopErr != nil {
-		t.Fatalf("durable worker loop error = %v", server.durableWorkerLoopErr)
+		t.Fatalf("durable worker loop error = %v, want nil", server.durableWorkerLoopErr)
 	}
 }

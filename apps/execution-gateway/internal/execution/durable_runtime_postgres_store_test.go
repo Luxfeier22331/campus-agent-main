@@ -191,9 +191,9 @@ func TestPostgresDurableRuntimeStoreAcquireNextConcurrentWorkersDoNotDoubleLease
 
 func requirePostgresDurableRuntimeTestDatabaseURL(t *testing.T) string {
 	t.Helper()
-	databaseURL := strings.TrimSpace(os.Getenv("SUPERVISOR_API_DURABLE_RUNTIME_TEST_DATABASE_URL"))
+	databaseURL := strings.TrimSpace(os.Getenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_TEST_DATABASE_URL"))
 	if databaseURL == "" {
-		t.Skip("SUPERVISOR_API_DURABLE_RUNTIME_TEST_DATABASE_URL is not configured")
+		t.Skip("EXECUTION_GATEWAY_DURABLE_RUNTIME_TEST_DATABASE_URL is not configured")
 	}
 	return databaseURL
 }

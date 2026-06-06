@@ -11,8 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/temporalruntime"
 )
 
 type failingReadCloser struct{}
@@ -46,6 +47,28 @@ type fakeBridge struct {
 	executeFn        func(context.Context, bridge.Request) (bridge.ExecuteResponse, error)
 	executeDurableFn func(context.Context, bridge.DurableExecutionRequest) (bridge.ExecuteResponse, error)
 	cancelFn         func(context.Context, bridge.CancelRequest) (bridge.CancelResponse, error)
+}
+
+type readyTemporalStarter struct{}
+
+func (readyTemporalStarter) StartChatAnswerWorkflow(
+	context.Context,
+	temporalruntime.ChatAnswerWorkflowInput,
+) error {
+	return nil
+}
+
+func (readyTemporalStarter) CancelChatAnswerWorkflow(
+	context.Context,
+	temporalruntime.ChatAnswerWorkflowCancelInput,
+) error {
+	return nil
+}
+
+func markTemporalReadyForTest(server *Server) {
+	server.temporalStarter = readyTemporalStarter{}
+	server.temporalStarterErr = nil
+	server.temporalWorkersStarted = true
 }
 
 var _ bridge.Client = (*fakeBridge)(nil)

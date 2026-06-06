@@ -16,30 +16,29 @@ import (
 )
 
 var (
-	errDurableReadyzBlocked = errors.New("durable readyz blocked")
-	errInvalidOptions       = errors.New("invalid durable runtime http proof options")
+	errTemporalReadyzBlocked = errors.New("temporal readyz blocked")
+	errInvalidOptions        = errors.New("invalid temporal runtime http proof options")
 )
 
 type proofOptions struct {
 	EvidencePath  string
+	GatewayURL    string
 	Now           time.Time
 	SharedSecret  string
-	SupervisorURL string
 	Timeout       time.Duration
 }
 
 type proofReport struct {
-	GeneratedAt   string       `json:"generated_at"`
-	Passed        bool         `json:"passed"`
-	Readyz        readyzReport `json:"readyz"`
-	SupervisorURL string       `json:"supervisor_url"`
+	ExecutionGatewayURL string       `json:"execution_gateway_url"`
+	GeneratedAt         string       `json:"generated_at"`
+	Passed              bool         `json:"passed"`
+	Readyz              readyzReport `json:"readyz"`
 }
 
 type readyzReport struct {
-	DurableRecoveryLoop durableLoopStatus    `json:"durable_recovery_loop"`
-	DurableRuntime      durableRuntimeStatus `json:"durable_runtime"`
-	DurableWorkerLoop   durableLoopStatus    `json:"durable_worker_loop"`
-	Status              string               `json:"status"`
+	DurableRuntime  durableRuntimeStatus `json:"durable_runtime"`
+	Status          string               `json:"status"`
+	TemporalRuntime temporalRuntimeStatus `json:"temporal_runtime"`
 }
 
 type durableRuntimeStatus struct {
@@ -47,12 +46,18 @@ type durableRuntimeStatus struct {
 	Healthy    bool `json:"healthy"`
 }
 
-type durableLoopStatus struct {
-	Configured bool   `json:"configured"`
-	Enabled    bool   `json:"enabled"`
-	Healthy    bool   `json:"healthy"`
-	Started    bool   `json:"started"`
-	WorkerID   string `json:"worker_id,omitempty"`
+type temporalRuntimeStatus struct {
+	Configured bool            `json:"configured"`
+	Healthy    bool            `json:"healthy"`
+	LastError  string          `json:"last_error"`
+	Namespace  string          `json:"namespace"`
+	TaskQueue  string          `json:"task_queue"`
+	WorkerID   string          `json:"worker_id"`
+	Workers    temporalWorkers `json:"workers"`
+}
+
+type temporalWorkers struct {
+	Started bool `json:"started"`
 }
 
 func main() {
@@ -75,26 +80,26 @@ func main() {
 }
 
 func parseOptions(args []string) (proofOptions, error) {
-	flags := flag.NewFlagSet("durable-runtime-http-proof", flag.ContinueOnError)
+	flags := flag.NewFlagSet("temporal-runtime-http-proof", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	var timeoutMS int
 	var options proofOptions
-	flags.StringVar(&options.EvidencePath, "evidence-path", "", "path to write durable runtime HTTP proof evidence JSON")
-	flags.StringVar(&options.SharedSecret, "shared-secret", "", "supervisor internal worker shared secret")
-	flags.StringVar(&options.SupervisorURL, "supervisor-url", "", "deployed supervisor base URL")
+	flags.StringVar(&options.EvidencePath, "evidence-path", "", "path to write Temporal runtime HTTP proof evidence JSON")
+	flags.StringVar(&options.GatewayURL, "execution-gateway-url", "", "deployed execution-gateway base URL")
+	flags.StringVar(&options.SharedSecret, "shared-secret", "", "execution-gateway internal shared secret")
 	flags.IntVar(&timeoutMS, "timeout-ms", 8000, "HTTP proof timeout in milliseconds")
 	if err := flags.Parse(args); err != nil {
 		return proofOptions{}, err
 	}
 	options.EvidencePath = strings.TrimSpace(options.EvidencePath)
+	options.GatewayURL = strings.TrimRight(strings.TrimSpace(options.GatewayURL), "/")
 	options.SharedSecret = strings.TrimSpace(options.SharedSecret)
-	options.SupervisorURL = strings.TrimRight(strings.TrimSpace(options.SupervisorURL), "/")
 	options.Timeout = time.Duration(timeoutMS) * time.Millisecond
-	if options.SupervisorURL == "" {
-		return proofOptions{}, fmt.Errorf("%w: --supervisor-url is required", errInvalidOptions)
+	if options.GatewayURL == "" {
+		return proofOptions{}, fmt.Errorf("%w: --execution-gateway-url is required", errInvalidOptions)
 	}
-	if _, err := url.ParseRequestURI(options.SupervisorURL); err != nil {
-		return proofOptions{}, fmt.Errorf("%w: --supervisor-url must be an absolute URL", errInvalidOptions)
+	if _, err := url.ParseRequestURI(options.GatewayURL); err != nil {
+		return proofOptions{}, fmt.Errorf("%w: --execution-gateway-url must be an absolute URL", errInvalidOptions)
 	}
 	if options.SharedSecret == "" {
 		return proofOptions{}, fmt.Errorf("%w: --shared-secret is required", errInvalidOptions)
@@ -124,10 +129,10 @@ func runProof(ctx context.Context, options proofOptions) (proofReport, error) {
 		return proofReport{}, err
 	}
 	report := proofReport{
-		GeneratedAt:   now.Format(time.RFC3339Nano),
-		Passed:        true,
-		Readyz:        readyz,
-		SupervisorURL: options.SupervisorURL,
+		ExecutionGatewayURL: options.GatewayURL,
+		GeneratedAt:         now.Format(time.RFC3339Nano),
+		Passed:              true,
+		Readyz:              readyz,
 	}
 	if err := writeReport(options.EvidencePath, report); err != nil {
 		return proofReport{}, err
@@ -141,7 +146,7 @@ func probeReadyz(ctx context.Context, options proofOptions) (readyzReport, error
 	request, err := http.NewRequestWithContext(
 		probeCtx,
 		http.MethodGet,
-		options.SupervisorURL+"/readyz",
+		options.GatewayURL+"/readyz",
 		nil,
 	)
 	if err != nil {
@@ -154,7 +159,7 @@ func probeReadyz(ctx context.Context, options proofOptions) (readyzReport, error
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return readyzReport{}, fmt.Errorf("%w: supervisor readyz returned HTTP %d", errDurableReadyzBlocked, response.StatusCode)
+		return readyzReport{}, fmt.Errorf("%w: execution-gateway readyz returned HTTP %d", errTemporalReadyzBlocked, response.StatusCode)
 	}
 	var report readyzReport
 	if err := json.NewDecoder(response.Body).Decode(&report); err != nil {
@@ -166,19 +171,21 @@ func probeReadyz(ctx context.Context, options proofOptions) (readyzReport, error
 func requireDurableReadyz(report readyzReport) error {
 	switch {
 	case report.Status != "ready":
-		return fmt.Errorf("%w: status=%s", errDurableReadyzBlocked, report.Status)
+		return fmt.Errorf("%w: status=%s", errTemporalReadyzBlocked, report.Status)
 	case !report.DurableRuntime.Configured || !report.DurableRuntime.Healthy:
-		return fmt.Errorf("%w: durable_runtime is not configured and healthy", errDurableReadyzBlocked)
-	case !loopReady(report.DurableWorkerLoop):
-		return fmt.Errorf("%w: durable_worker_loop is not enabled, configured, healthy, and started", errDurableReadyzBlocked)
-	case !loopReady(report.DurableRecoveryLoop):
-		return fmt.Errorf("%w: durable_recovery_loop is not enabled, configured, healthy, and started", errDurableReadyzBlocked)
+		return fmt.Errorf("%w: durable_runtime projection store is not configured and healthy", errTemporalReadyzBlocked)
+	case !report.TemporalRuntime.Configured || !report.TemporalRuntime.Healthy:
+		return fmt.Errorf("%w: temporal_runtime is not configured and healthy", errTemporalReadyzBlocked)
+	case !report.TemporalRuntime.Workers.Started:
+		return fmt.Errorf("%w: temporal workers are not started", errTemporalReadyzBlocked)
+	case strings.TrimSpace(report.TemporalRuntime.Namespace) == "":
+		return fmt.Errorf("%w: temporal namespace is empty", errTemporalReadyzBlocked)
+	case strings.TrimSpace(report.TemporalRuntime.TaskQueue) == "":
+		return fmt.Errorf("%w: temporal task queue is empty", errTemporalReadyzBlocked)
+	case strings.TrimSpace(report.TemporalRuntime.WorkerID) == "":
+		return fmt.Errorf("%w: temporal worker identity is empty", errTemporalReadyzBlocked)
 	}
 	return nil
-}
-
-func loopReady(status durableLoopStatus) bool {
-	return status.Enabled && status.Configured && status.Healthy && status.Started
 }
 
 func writeReport(path string, report proofReport) error {

@@ -83,7 +83,7 @@ func TestInMemoryDurableRuntimeStoreExpiresRunningRunsAfterLaneRunTimeout(t *tes
 	}
 	if err := store.UpsertWorkerHeartbeat(ctx, WorkerHeartbeat{
 		WorkerID:       "worker-run-timeout",
-		WorkerKind:     "supervisor-api",
+		WorkerKind:     "execution-gateway",
 		Lanes:          []DurableLane{DurableLaneRAG},
 		RuntimeVersion: "test",
 		Status:         WorkerHeartbeatStatusReady,

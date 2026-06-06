@@ -3,7 +3,7 @@ package structuredplanning
 import (
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/runtimepolicy"
 )
 
 func TestPlanSkipsTransactionalStructuredRequests(t *testing.T) {

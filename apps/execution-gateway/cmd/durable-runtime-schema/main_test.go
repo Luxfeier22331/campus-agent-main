@@ -47,9 +47,9 @@ func TestParseOptionsRejectsUnknownMode(t *testing.T) {
 }
 
 func TestDurableRuntimeSchemaInstallAndCheckWriteEvidence(t *testing.T) {
-	databaseURL := os.Getenv("SUPERVISOR_API_DURABLE_RUNTIME_TEST_DATABASE_URL")
+	databaseURL := os.Getenv("EXECUTION_GATEWAY_DURABLE_RUNTIME_TEST_DATABASE_URL")
 	if databaseURL == "" {
-		t.Skip("SUPERVISOR_API_DURABLE_RUNTIME_TEST_DATABASE_URL is not configured")
+		t.Skip("EXECUTION_GATEWAY_DURABLE_RUNTIME_TEST_DATABASE_URL is not configured")
 	}
 
 	installPath := filepath.Join(t.TempDir(), "install.json")

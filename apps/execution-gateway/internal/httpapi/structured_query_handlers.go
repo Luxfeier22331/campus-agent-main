@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredquery"
 )
 
 func (s *Server) handleStructuredQuery(

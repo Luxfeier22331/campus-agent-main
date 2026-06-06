@@ -1,10 +1,8 @@
 package httpapi
 
 import (
-	"context"
-	"log/slog"
 	"net/http"
-	"time"
+	"strings"
 )
 
 func routeLabelFor(method string, path string) string {
@@ -15,12 +13,18 @@ func routeLabelFor(method string, path string) string {
 		return "/readyz"
 	case method == http.MethodGet && path == "/metrics":
 		return "/metrics"
-	case method == http.MethodPost && path == "/api/v1/answer":
-		return "/api/v1/answer"
-	case method == http.MethodPost && path == "/api/v1/answer/stream":
-		return "/api/v1/answer/stream"
 	case method == http.MethodPost && path == "/internal/execution/cancel":
 		return "/internal/execution/cancel"
+	case method == http.MethodPost && path == "/internal/execution/runs":
+		return "/internal/execution/runs"
+	case method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
+		strings.HasSuffix(path, "/events"):
+		return "/internal/execution/runs/:runId/events"
+	case method == http.MethodPost && strings.HasPrefix(path, "/internal/execution/runs/") &&
+		strings.HasSuffix(path, "/cancel"):
+		return "/internal/execution/runs/:runId/cancel"
+	case method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/"):
+		return "/internal/execution/runs/:runId"
 	case method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		return "/internal/query/campus-services/service-status"
 	case method == http.MethodPost && path == "/internal/query/campus-services/service-guide":
@@ -57,44 +61,6 @@ func defaultOutcome(path string, statusCode int) string {
 		return "not_found"
 	}
 	return "unknown"
-}
-
-func (s *Server) logAnswerRequest(
-	ctx context.Context,
-	traceID string,
-	statusCode int,
-	outcome string,
-	duration time.Duration,
-) {
-	level := slog.LevelInfo
-	switch {
-	case outcome == "transport_queue_full":
-		level = slog.LevelWarn
-	case outcome == "transport_queue_timeout":
-		level = slog.LevelWarn
-	case outcome == "transport_draining":
-		level = slog.LevelWarn
-	case outcome == "transport_request_timeout":
-		level = slog.LevelWarn
-	case outcome == "supervisor_bridge_timeout":
-		level = slog.LevelWarn
-	case outcome == "supervisor_bridge_unavailable":
-		level = slog.LevelWarn
-	case outcome == "supervisor_bridge_invalid_response":
-		level = slog.LevelWarn
-	case statusCode >= 500:
-		level = slog.LevelWarn
-	}
-	s.logger.LogAttrs(
-		ctx,
-		level,
-		"supervisor_api.answer_request",
-		slog.String("route", "/api/v1/answer"),
-		slog.String("trace_id", traceID),
-		slog.Int("status_code", statusCode),
-		slog.String("outcome", outcome),
-		slog.Int64("duration_ms", duration.Milliseconds()),
-	)
 }
 
 type observedResponseWriter struct {

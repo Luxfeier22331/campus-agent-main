@@ -3,8 +3,8 @@ package httpapi
 import (
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/runtimepolicy"
 )
 
 func TestDirectStructuredHandoffDecisionSkipsSdkAdmittedTools(t *testing.T) {

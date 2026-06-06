@@ -3,7 +3,7 @@ package structuredplanning
 import (
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/runtimepolicy"
 )
 
 func TestPlanWithPolicyAttachesInternalCapabilityPlanForSelectedNoticeFollowthrough(t *testing.T) {
@@ -99,7 +99,7 @@ func TestPlanWithPolicyAttachesInternalCapabilityPlanForSelectedNoticeFollowthro
 		capabilityPlan.Constraints.RequestedScope.Collection != "student_rules" {
 		t.Fatalf("requested scope = %#v", capabilityPlan.Constraints.RequestedScope)
 	}
-	if capabilityPlan.AnswerPolicy.FinalAnswerOwner != "supervisor-api-finalizer" ||
+	if capabilityPlan.AnswerPolicy.FinalAnswerOwner != "execution-gateway-finalizer" ||
 		!capabilityPlan.AnswerPolicy.RequiresArtifactBackedAnswer {
 		t.Fatalf("answer policy = %#v", capabilityPlan.AnswerPolicy)
 	}

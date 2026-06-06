@@ -39,6 +39,26 @@ func (s *InMemoryDurableRuntimeStore) CreateRun(
 	return cloneDurableRun(run), nil
 }
 
+func (s *InMemoryDurableRuntimeStore) DeleteRun(_ context.Context, runID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, exists := s.runs[runID]
+	if !exists {
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	}
+	delete(s.runs, runID)
+	delete(s.runEvents, runID)
+	delete(s.activeRunByConversation, run.ConversationID)
+	for leaseID, lease := range s.leases {
+		if lease.RunID != runID {
+			continue
+		}
+		delete(s.leases, leaseID)
+		delete(s.activeLeaseByRunAndStep, executionLeaseActiveKey(lease.RunID, lease.StepID))
+	}
+	return nil
+}
+
 func (s *InMemoryDurableRuntimeStore) GetRun(_ context.Context, runID string) (DurableRun, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -47,6 +67,25 @@ func (s *InMemoryDurableRuntimeStore) GetRun(_ context.Context, runID string) (D
 		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
 	}
 	return cloneDurableRun(run), nil
+}
+
+func (s *InMemoryDurableRuntimeStore) ReplaceRunMetadata(
+	_ context.Context,
+	runID string,
+	metadata map[string]any,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, exists := s.runs[runID]
+	if !exists {
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	}
+	run.Metadata = cloneAnyMap(metadata)
+	if err := validateDurableRun(run); err != nil {
+		return err
+	}
+	s.runs[runID] = cloneDurableRun(run)
+	return nil
 }
 
 func (s *InMemoryDurableRuntimeStore) TransitionRun(

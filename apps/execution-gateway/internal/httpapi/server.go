@@ -4,22 +4,24 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/admission"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/executionaudit"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/observability"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/telemetry"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/admission"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/executionaudit"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/lifecycle"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/observability"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/telemetry"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/temporalruntime"
 )
 
 type Server struct {
@@ -42,8 +44,19 @@ type Server struct {
 	durableWorkerLoopErr    error
 	durableRecoveryLoop     *durableRecoveryLoop
 	durableRecoveryLoopErr  error
+	temporalStarter         temporalruntime.ChatWorkflowStarter
+	temporalStarterErr      error
+	temporalWorkersStarted  bool
 	intentPolicy            runtimepolicy.IntentPolicyArtifact
 	intentPolicyErr         error
+}
+
+func (s *Server) TemporalWorkerActivities() any {
+	return s
+}
+
+func (s *Server) MarkTemporalWorkersStarted(started bool) {
+	s.temporalWorkersStarted = started
 }
 
 type errorInfo struct {
@@ -62,6 +75,8 @@ type bridgeWriteOutcome struct {
 }
 
 const statusClientClosedRequest = 499
+
+var errDurableLeaseLoopRetired = errors.New("durable PG lease loop is retired; use Temporal workers")
 
 func NewServer(cfg config.Config, bridgeClient bridge.Client) *Server {
 	return NewServerWithDependencies(
@@ -148,7 +163,7 @@ func NewServerWithDependencies(
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	durableRuntime, durableRuntimeErr := newDurableRuntimeStore(cfg)
-	durableLeaseCoordinator := execution.NewDurableLeaseCoordinator(durableRuntime)
+	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
 		config: cfg,
@@ -168,13 +183,28 @@ func NewServerWithDependencies(
 		workflowRunsErr:         workflowRunsErr,
 		durableRuntime:          durableRuntime,
 		durableRuntimeErr:       durableRuntimeErr,
-		durableLeaseCoordinator: durableLeaseCoordinator,
+		durableLeaseCoordinator: nil,
+		temporalStarter:         temporalStarter,
+		temporalStarterErr:      temporalStarterErr,
 		intentPolicy:            intentPolicy,
 		intentPolicyErr:         intentPolicyErr,
 	}
-	server.configureDurableWorkerLoop()
-	server.configureDurableRecoveryLoop()
 	return server
+}
+
+func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
+	if strings.TrimSpace(cfg.TemporalAddress) == "" && strings.TrimSpace(cfg.TemporalNamespace) == "" {
+		return nil, temporalruntime.ErrTemporalStarterNotConfigured
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return temporalruntime.NewStarter(ctx, temporalruntime.StarterOptions{
+		Address:      cfg.TemporalAddress,
+		Namespace:    cfg.TemporalNamespace,
+		TaskQueue:    cfg.TemporalTaskQueue,
+		WorkerID:     cfg.TemporalWorkerIdentity,
+		StartTimeout: time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
+	})
 }
 
 func newWorkflowRunStore(cfg config.Config) (execution.WorkflowRunStore, error) {
@@ -206,58 +236,12 @@ func newDurableRuntimeStore(cfg config.Config) (execution.DurableRuntimeStore, e
 }
 
 func (s *Server) configureDurableWorkerLoop() {
-	if !s.config.DurableWorkerLoopEnabled {
-		s.durableWorkerLoop = nil
-		s.durableWorkerLoopErr = nil
-		return
-	}
-	if s.durableRuntimeErr != nil {
-		s.durableWorkerLoop = nil
-		s.durableWorkerLoopErr = s.durableRuntimeErr
-		return
-	}
-	if s.durableRuntime == nil || s.durableLeaseCoordinator == nil {
-		s.durableWorkerLoop = nil
-		s.durableWorkerLoopErr = execution.ErrDurableRuntimeStoreNotConfigured
-		return
-	}
-	s.durableWorkerLoop = newDurableWorkerLoop(durableWorkerLoopOptions{
-		Store:                  s.durableRuntime,
-		Coordinator:            s.durableLeaseCoordinator,
-		Bridge:                 s.bridge,
-		WorkerID:               s.config.DurableWorkerLoopWorkerID,
-		WorkerKind:             s.config.AppName,
-		RuntimeVersion:         s.config.AppName,
-		Lane:                   execution.DurableLane(s.config.DurableWorkerLoopLane),
-		StepID:                 s.config.DurableWorkerLoopStepID,
-		LeaseTTL:               time.Duration(s.config.DurableWorkerLoopLeaseTTLMS) * time.Millisecond,
-		LeaseHeartbeatInterval: time.Duration(s.config.DurableWorkerLoopLeaseHeartbeatIntervalMS) * time.Millisecond,
-		GenerateLeaseID:        generateDurableLeaseID,
-	})
+	s.durableWorkerLoop = nil
 	s.durableWorkerLoopErr = nil
 }
 
 func (s *Server) configureDurableRecoveryLoop() {
-	if !s.config.DurableRecoveryLoopEnabled {
-		s.durableRecoveryLoop = nil
-		s.durableRecoveryLoopErr = nil
-		return
-	}
-	if s.durableRuntimeErr != nil {
-		s.durableRecoveryLoop = nil
-		s.durableRecoveryLoopErr = s.durableRuntimeErr
-		return
-	}
-	if s.durableRuntime == nil || s.durableLeaseCoordinator == nil {
-		s.durableRecoveryLoop = nil
-		s.durableRecoveryLoopErr = execution.ErrDurableRuntimeStoreNotConfigured
-		return
-	}
-	s.durableRecoveryLoop = newDurableRecoveryLoop(durableRecoveryLoopOptions{
-		Store:            s.durableRuntime,
-		Coordinator:      s.durableLeaseCoordinator,
-		MaxRetryAttempts: s.config.DurableRecoveryLoopMaxRetryAttempts,
-	})
+	s.durableRecoveryLoop = nil
 	s.durableRecoveryLoopErr = nil
 }
 
@@ -291,75 +275,17 @@ func (s *Server) StartDraining() {
 }
 
 func (s *Server) StartDurableWorkerLoop(ctx context.Context) error {
-	if !s.config.DurableWorkerLoopEnabled {
-		return nil
+	if s.config.DurableWorkerLoopEnabled {
+		return errDurableLeaseLoopRetired
 	}
-	if s.durableWorkerLoopErr != nil {
-		return s.durableWorkerLoopErr
-	}
-	if s.durableWorkerLoop == nil {
-		return execution.ErrDurableRuntimeStoreNotConfigured
-	}
-	if err := s.syncDurableLaneBudgets(ctx); err != nil {
-		return err
-	}
-	interval := time.Duration(s.config.DurableWorkerLoopPollIntervalMS) * time.Millisecond
-	started := make(chan error, 1)
-	go func() {
-		err := s.durableWorkerLoop.Run(ctx, interval)
-		if err != nil && ctx.Err() != nil {
-			err = nil
-		}
-		select {
-		case started <- err:
-		default:
-			if err != nil {
-				s.logger.Error("durable worker loop stopped", "error", err.Error())
-			}
-		}
-	}()
-	select {
-	case err := <-started:
-		return err
-	default:
-		return nil
-	}
+	return nil
 }
 
 func (s *Server) StartDurableRecoveryLoop(ctx context.Context) error {
-	if !s.config.DurableRecoveryLoopEnabled {
-		return nil
+	if s.config.DurableRecoveryLoopEnabled {
+		return errDurableLeaseLoopRetired
 	}
-	if s.durableRecoveryLoopErr != nil {
-		return s.durableRecoveryLoopErr
-	}
-	if s.durableRecoveryLoop == nil {
-		return execution.ErrDurableRuntimeStoreNotConfigured
-	}
-	if err := s.syncDurableLaneBudgets(ctx); err != nil {
-		return err
-	}
-	interval := time.Duration(s.config.DurableRecoveryLoopIntervalMS) * time.Millisecond
-	started := make(chan error, 1)
-	go func() {
-		err := s.durableRecoveryLoop.Run(ctx, interval)
-		if err != nil && ctx.Err() != nil {
-			err = nil
-		}
-		select {
-		case started <- err:
-		default:
-			if err != nil {
-				s.logger.Error("durable recovery loop stopped", "error", err.Error())
-			}
-		}
-	}()
-	select {
-	case err := <-started:
-		return err
-	default:
-		return nil
-	}
+	return nil
 }
 
 func (s *Server) syncDurableLaneBudgets(ctx context.Context) error {
@@ -421,7 +347,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	path := request.URL.Path
 	routeLabel := routeLabelFor(request.Method, path)
 	startedAt := time.Now()
-	traceID := strings.TrimSpace(request.Header.Get("x-trace-id"))
 	writer := newObservedResponseWriter(response)
 	var finish func(statusCode int, outcome string, duration time.Duration)
 	if routeLabel != "/metrics" {
@@ -440,34 +365,28 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	case request.Method == http.MethodGet && path == "/metrics":
 		setOutcome(writer, "ok")
 		s.handleMetrics(writer, request)
-	case request.Method == http.MethodPost && path == "/api/v1/answer":
-		s.handleAnswer(writer, request)
-	case request.Method == http.MethodPost && path == "/api/v1/answer/stream":
-		s.handleAnswerStream(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/cancel":
 		s.handleCancel(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/durable/runs":
-		s.handleDurableRunCreate(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/durable/workers/process-next":
-		s.handleDurableWorkerProcessNext(writer, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/durable/runs/") &&
+	case request.Method == http.MethodPost && path == "/internal/execution/runs":
+		s.handleExecutionRunCreate(writer, request)
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/events"):
-		if runID, ok := durableRunIDFromPath(path, "/events"); ok {
+		if runID, ok := executionRunIDFromPath(path, "/events"); ok {
 			s.handleDurableRunEvents(writer, request, runID)
 		} else {
 			setOutcome(writer, "not_found")
 			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/durable/runs/") &&
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/cancel"):
-		if runID, ok := durableRunIDFromPath(path, "/cancel"); ok {
-			s.handleDurableRunCancel(writer, request, runID)
+		if runID, ok := executionRunIDFromPath(path, "/cancel"); ok {
+			s.handleExecutionRunCancel(writer, request, runID)
 		} else {
 			setOutcome(writer, "not_found")
 			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/durable/runs/"):
-		if runID, ok := durableRunIDFromPath(path, ""); ok {
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/"):
+		if runID, ok := executionRunIDFromPath(path, ""); ok {
 			s.handleDurableRunGet(writer, request, runID)
 		} else {
 			setOutcome(writer, "not_found")
@@ -507,11 +426,5 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	if finish != nil {
 		finish(statusCode, outcome, time.Since(startedAt))
-	}
-	if path == "/api/v1/answer" {
-		if observedTraceID := writer.traceID(); observedTraceID != "" {
-			traceID = observedTraceID
-		}
-		s.logAnswerRequest(request.Context(), traceID, statusCode, outcome, time.Since(startedAt))
 	}
 }

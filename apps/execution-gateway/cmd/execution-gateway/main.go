@@ -10,16 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/httpapi"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/httpapi"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/temporalruntime"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg, err := config.LoadFromEnv()
 	if err != nil {
-		logger.Error("campus supervisor-api config invalid", "error", err.Error())
+		logger.Error("campus execution-gateway config invalid", "error", err.Error())
 		os.Exit(1)
 	}
 	address := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
@@ -31,14 +32,26 @@ func main() {
 	handler := httpapi.NewServerWithDependencies(cfg, bridgeClient, nil, logger, nil)
 	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
 	defer runtimeCancel()
-	if err := handler.StartDurableWorkerLoop(runtimeCtx); err != nil {
-		logger.Error("campus supervisor-api durable worker loop failed to start", "error", err.Error())
+	temporalWorkers, err := temporalruntime.NewWorkerRuntime(runtimeCtx, temporalruntime.WorkerOptions{
+		Address:                cfg.TemporalAddress,
+		Namespace:              cfg.TemporalNamespace,
+		WorkflowQueue:          cfg.TemporalTaskQueue,
+		RAGQueue:               temporalruntime.ActivityTaskQueueRAG,
+		FinalizationQueue:      temporalruntime.ActivityTaskQueueFinalization,
+		WorkerID:               cfg.TemporalWorkerIdentity,
+		RAGActivities:          handler.TemporalWorkerActivities(),
+		FinalizationActivities: handler.TemporalWorkerActivities(),
+	})
+	if err != nil {
+		logger.Error("campus execution-gateway temporal worker invalid", "error", err.Error())
 		os.Exit(1)
 	}
-	if err := handler.StartDurableRecoveryLoop(runtimeCtx); err != nil {
-		logger.Error("campus supervisor-api durable recovery loop failed to start", "error", err.Error())
+	if err := temporalWorkers.Start(); err != nil {
+		logger.Error("campus execution-gateway temporal worker start failed", "error", err.Error())
 		os.Exit(1)
 	}
+	handler.MarkTemporalWorkersStarted(true)
+	defer temporalWorkers.Stop()
 
 	server := &http.Server{
 		Addr:              address,
@@ -49,7 +62,7 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	logger.Info("campus supervisor-api listening", "address", address)
+	logger.Info("campus execution-gateway listening", "address", address)
 	serverErrors := make(chan error, 1)
 	go func() {
 		serverErrors <- server.ListenAndServe()
@@ -59,8 +72,10 @@ func main() {
 	signal.Notify(shutdownSignals, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case signalValue := <-shutdownSignals:
-		logger.Info("campus supervisor-api draining", "signal", signalValue.String())
+		logger.Info("campus execution-gateway draining", "signal", signalValue.String())
 		runtimeCancel()
+		handler.MarkTemporalWorkersStarted(false)
+		temporalWorkers.Stop()
 		handler.StartDraining()
 		ctx, cancel := context.WithTimeout(
 			context.Background(),
@@ -68,22 +83,22 @@ func main() {
 		)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			logger.Error("campus supervisor-api graceful shutdown failed", "error", err.Error())
+			logger.Error("campus execution-gateway graceful shutdown failed", "error", err.Error())
 			os.Exit(1)
 		}
 		if err := handler.Shutdown(ctx); err != nil {
-			logger.Error("campus supervisor-api telemetry shutdown failed", "error", err.Error())
+			logger.Error("campus execution-gateway telemetry shutdown failed", "error", err.Error())
 		}
 	case err := <-serverErrors:
 		if err != nil && err != http.ErrServerClosed {
-			logger.Error("campus supervisor-api failed", "error", err.Error())
+			logger.Error("campus execution-gateway failed", "error", err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 
 	if err := <-serverErrors; err != nil && err != http.ErrServerClosed {
-		logger.Error("campus supervisor-api failed", "error", err.Error())
+		logger.Error("campus execution-gateway failed", "error", err.Error())
 		os.Exit(1)
 	}
 }

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/admission"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/admission"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/structuredquery"
 )
 
 func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
@@ -37,13 +37,9 @@ func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
 	if bridgeRuntime["configured"] != false {
 		t.Fatalf("bridge configured = %v, want false", bridgeRuntime["configured"])
 	}
-	workerLoop := expectRecord(t, body["durable_worker_loop"], "durable_worker_loop")
-	if workerLoop["enabled"] != false || workerLoop["healthy"] != true {
-		t.Fatalf("durable_worker_loop = %#v, want disabled healthy", workerLoop)
-	}
-	recoveryLoop := expectRecord(t, body["durable_recovery_loop"], "durable_recovery_loop")
-	if recoveryLoop["enabled"] != false || recoveryLoop["healthy"] != true {
-		t.Fatalf("durable_recovery_loop = %#v, want disabled healthy", recoveryLoop)
+	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")
+	if temporalRuntime["configured"] != false || temporalRuntime["healthy"] != false {
+		t.Fatalf("temporal_runtime = %#v, want unconfigured degraded", temporalRuntime)
 	}
 }
 
@@ -131,6 +127,7 @@ func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
 			}`),
 		},
 	})
+	markTemporalReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -191,6 +188,7 @@ func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
 			}`),
 		},
 	})
+	markTemporalReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -230,6 +228,7 @@ func TestReadyzPromptConfigGateDoesNotRequireSupervisorTerminalModel(t *testing.
 			}`),
 		},
 	})
+	markTemporalReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -586,6 +585,7 @@ func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.
 	defer func() {
 		_ = server.Shutdown(context.Background())
 	}()
+	markTemporalReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -639,6 +639,7 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 		nil,
 		nil,
 	)
+	markTemporalReadyForTest(server)
 
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -695,96 +696,5 @@ func TestReadyzDegradesWhenOTelEnabledWithoutExporter(t *testing.T) {
 	}
 	if telemetryRuntime["last_error"] == "" {
 		t.Fatal("expected telemetry last_error to be populated")
-	}
-}
-
-func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
-	callCount := 0
-	server := NewServerWithDependencies(
-		config.Config{
-			AuthMode:                      "bearer",
-			BearerToken:                   "secret-token",
-			DefaultActorID:                "runtime-bearer-user",
-			RequestBodyLimitBytes:         1_048_576,
-			MaxConcurrentAnswers:          8,
-			PromptRuntimeProvider:         "openai-responses",
-			SupervisorPromptModel:         "gpt-supervisor",
-			AgentPromptModel:              "gpt-agent",
-			PromptRuntimeAPIKey:           "test-key",
-			PromptRuntimeTransport:        "responses",
-			PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-			PromptStrictStructuredOutputs: true,
-		},
-		&fakeBridge{
-			configured: true,
-			executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
-				callCount++
-				if callCount == 1 {
-					return bridge.ExecuteResponse{}, context.DeadlineExceeded
-				}
-				return bridge.ExecuteResponse{
-					StatusCode: http.StatusOK,
-					Kind:       "agent_response",
-					Body: json.RawMessage(
-						`{"selected_target":"rag-agent","status":"completed","answer_text":"ok","follow_up_question":"","confidence":"high"}`,
-					),
-				}, nil
-			},
-			readyz: bridge.ReadyzResponse{
-				StatusCode: http.StatusOK,
-				Body: json.RawMessage(`{
-					"status":"ready",
-					"runtime_provider":"mock-runtime",
-					"prompt_runtime":{"provider":"mock-runtime","admitted":true},
-					"prompt_http_pool":{"healthy":true,"max_connections":32},
-					"audit_runtime":{"healthy":true,"queue_depth":0}
-				}`),
-			},
-		},
-		nil,
-		nil,
-		nil,
-	)
-
-	timeoutRequest := newTestRequest(
-		http.MethodPost,
-		"/api/v1/answer",
-		delegateAnswerBody("req-readyz-timeout"),
-	)
-	timeoutRequest.Header.Set("authorization", "Bearer secret-token")
-	timeoutResponse := httptest.NewRecorder()
-	server.ServeHTTP(timeoutResponse, timeoutRequest)
-	assertError(t, timeoutResponse, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
-
-	successRequest := newTestRequest(
-		http.MethodPost,
-		"/api/v1/answer",
-		delegateAnswerBody("req-readyz-success"),
-	)
-	successRequest.Header.Set("authorization", "Bearer secret-token")
-	successResponse := httptest.NewRecorder()
-	server.ServeHTTP(successResponse, successRequest)
-	if successResponse.Code != http.StatusOK {
-		t.Fatalf("success status = %d, want 200", successResponse.Code)
-	}
-
-	readyzResponse := httptest.NewRecorder()
-	server.ServeHTTP(readyzResponse, newTestRequest(http.MethodGet, "/readyz", nil))
-	if readyzResponse.Code != http.StatusOK {
-		t.Fatalf("readyz status = %d, want 200", readyzResponse.Code)
-	}
-	body := decodeBody(t, readyzResponse)
-	bridgeRuntime := expectRecord(t, body["bridge_runtime"], "bridge_runtime")
-	if bridgeRuntime["last_answer_failure_code"] != "timeout" {
-		t.Fatalf(
-			"bridge_runtime.last_answer_failure_code = %v, want timeout",
-			bridgeRuntime["last_answer_failure_code"],
-		)
-	}
-	if bridgeRuntime["last_answer_failure_at"] == "" {
-		t.Fatal("expected bridge_runtime.last_answer_failure_at to be populated")
-	}
-	if bridgeRuntime["last_answer_success_at"] == "" {
-		t.Fatal("expected bridge_runtime.last_answer_success_at to be populated")
 	}
 }

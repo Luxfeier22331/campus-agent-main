@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/config"
 )
 
 func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T) {
@@ -78,7 +78,7 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
 	if !strings.Contains(
 		metricsResponse.Body.String(),
-		`campus_supervisor_api_structured_query_requests_total{tool="service_status_lookup",outcome="resolved_current",status_class="2xx"} 1`,
+		`campus_execution_gateway_structured_query_requests_total{tool="service_status_lookup",outcome="resolved_current",status_class="2xx"} 1`,
 	) {
 		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
 	}
@@ -165,7 +165,7 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
 	if !strings.Contains(
 		metricsResponse.Body.String(),
-		`campus_supervisor_api_structured_query_requests_total{tool="transport_schedule_lookup",outcome="resolved_current",status_class="2xx"} 1`,
+		`campus_execution_gateway_structured_query_requests_total{tool="transport_schedule_lookup",outcome="resolved_current",status_class="2xx"} 1`,
 	) {
 		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
 	}
@@ -281,7 +281,7 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
 	if !strings.Contains(
 		metricsResponse.Body.String(),
-		`campus_supervisor_api_structured_query_requests_total{tool="service_guide_lookup",outcome="resolved_current",status_class="2xx"} 1`,
+		`campus_execution_gateway_structured_query_requests_total{tool="service_guide_lookup",outcome="resolved_current",status_class="2xx"} 1`,
 	) {
 		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
 	}
@@ -372,7 +372,7 @@ func TestStructuredQueryContactDirectoryUsesConfiguredProjectionBundle(t *testin
 	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
 	if !strings.Contains(
 		metricsResponse.Body.String(),
-		`campus_supervisor_api_structured_query_requests_total{tool="contact_directory_lookup",outcome="resolved_current",status_class="2xx"} 1`,
+		`campus_execution_gateway_structured_query_requests_total{tool="contact_directory_lookup",outcome="resolved_current",status_class="2xx"} 1`,
 	) {
 		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
 	}
@@ -440,7 +440,7 @@ func TestStructuredQueryAcademicCalendarUsesConfiguredProjectionBundle(t *testin
 	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
 	if !strings.Contains(
 		metricsResponse.Body.String(),
-		`campus_supervisor_api_structured_query_requests_total{tool="academic_calendar_lookup",outcome="resolved_current",status_class="2xx"} 1`,
+		`campus_execution_gateway_structured_query_requests_total{tool="academic_calendar_lookup",outcome="resolved_current",status_class="2xx"} 1`,
 	) {
 		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
 	}

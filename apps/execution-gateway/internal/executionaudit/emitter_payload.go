@@ -36,7 +36,7 @@ func eventPayload(event Event) map[string]any {
 }
 
 func buildEventID(requestID string, eventType string) string {
-	return "supervisor-api:" + strings.TrimSpace(requestID) + ":" + strings.TrimSpace(eventType)
+	return "execution-gateway:" + strings.TrimSpace(requestID) + ":" + strings.TrimSpace(eventType)
 }
 
 func durationMilliseconds(duration time.Duration) any {

@@ -214,7 +214,7 @@ func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
 	if err := os.WriteFile(policyPath, []byte(envPolicy), 0o600); err != nil {
 		t.Fatalf("write env intent policy: %v", err)
 	}
-	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", policyPath)
+	t.Setenv("EXECUTION_GATEWAY_INTENT_POLICY_PATH", policyPath)
 
 	policy, err := LoadIntentPolicy("")
 	if err != nil {

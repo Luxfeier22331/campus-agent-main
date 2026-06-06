@@ -3,8 +3,8 @@ package httpapi
 import (
 	"strings"
 
-	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
-	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/contracts"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-gateway/internal/execution"
 )
 
 func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[string]any {
