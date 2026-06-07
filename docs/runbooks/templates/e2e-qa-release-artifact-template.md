@@ -29,7 +29,8 @@ updated: 2026-06-03
   - `panel-staging.mucwiki-edge.link`
 - Explicitly excluded:
   - `hub.muc.wiki` production custom-hostname path
-  - `execution-control-staging.mucwiki-edge.link` as public surface
+  - `execution-control-staging.mucwiki-edge.link` as a public surface; it is only
+    the trusted machine ingress used by `app-api`
 
 ## Repo Preflight
 

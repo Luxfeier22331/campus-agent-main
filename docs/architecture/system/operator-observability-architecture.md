@@ -335,7 +335,7 @@ dump 或 raw vendor payload 直接暴露给 panel。
   `sdk_tool_missing`、`tool_not_admitted`、`plan_not_admitted`、`sdk_timeout` 与
   `sdk_guardrail_failed`；这些 reason 只能表达 degraded/fail-close，不得暗示存在
   alternate runtime path
-- 对 `single_handoff` 不能包装成 `multi_step`；对 direct structured runtime 不能伪造 agent
+- 对 `single_step` 不能包装成 `multi_step`；对 typed structured activity 不能伪造 agent
   collaboration trace
 - 需要区分“multi-agent 规划正确但某个 step 证据不足”和“顶层 routing / workflow plan 错误”
 

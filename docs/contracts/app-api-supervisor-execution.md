@@ -120,7 +120,7 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 `schema_version=workflow-plan-v1`。它只记录 workflow mode、step / edge skeleton、
 terminal policy、resume policy 与 semantic retry policy；真实 delegate payload 仍只通过
 `runtime_decisions.handoff.agent_request` 进入 Python bridge。当前 runtime 可发出
-`terminal`、`direct_runtime`、`single_handoff`，以及受 gate 保护的 `multi_step`。
+`terminal`、`single_step`，以及受 gate 保护的 `multi_step`。
 首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
 `notice-agent internal selected notice resolve
 (payload_kind=campus_notice_get) -> rag-agent retrieval.query`。notice step 输出会被
@@ -331,7 +331,7 @@ product/control-plane endpoint。
   `payload + access_context` envelope 以在 Go 内执行 restricted notice fail-close
   authorization
 - Python orchestration 仅在 execution runtime harness 注入
-  `SUPERVISOR_INTERNAL_QUERY_BASE_URL` 与 `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
+  `EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL` 与 `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
   时消费该 internal query seam
 - 这不打开 `campus_services` 或 `notice` 产品 serving surface；产品主路由 opening gate 仍需
   release-gate regression / eval evidence

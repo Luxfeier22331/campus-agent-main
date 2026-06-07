@@ -109,8 +109,8 @@ recovery 模板继续放在 `env/commands/historical/*.env.example`。
   s-agent/env/commands/release-registry-scope.env.example)
 - [`env/commands/legacy-office-conversion-service.env.example`](/home/reptilian/
   code/campus-agent/env/commands/legacy-office-conversion-service.env.example)
-- [`env/commands/supervisor-runtime.env.example`](/home/reptilian/code/campus-ag
-  ent/env/commands/supervisor-runtime.env.example)
+- [`env/commands/execution-control-runtime.env.example`](/home/reptilian/code/campus-ag
+  ent/env/commands/execution-control-runtime.env.example)
 
 ### Historical / narrow-use override
 

@@ -28,7 +28,7 @@ updated: 2026-04-26
 ## 当前 rollout 状态
 
 - Go `apps/execution-control` 当前拥有 `place_lookup` admission / framing，并可在
-  direct runtime 中使用 repo-owned `place_catalog` 回答地点查询
+  typed tool runtime 中使用 repo-owned `place_catalog` 回答地点查询
 - 本文保留的是 repo-owned contract truth，不代表当前浏览器地图产品面已经开放
 - 地图 UI、route planning 与更完整的 `place_card` product consumption 等到地图产品上线后再开放
 - `place_card` / map consumption 已转入地图实际上线后的 backlog
@@ -152,7 +152,7 @@ updated: 2026-04-26
 当前说明：
 
 - 这份 normalization shape 继续保留为 future navigation rollout contract
-- 当前 Go direct runtime 可以完成地点目录查询，但尚未打开 browser map /
+- 当前 Go typed tool runtime 可以完成地点目录查询，但尚未打开 browser map /
   `place_card` consumption
 - 因此 `place_card` 当前不是浏览器已开放能力
 

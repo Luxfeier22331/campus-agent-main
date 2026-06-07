@@ -65,7 +65,7 @@ Conditional readiness:
   `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` and
   `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
 - if `EXECUTION_CONTROL_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
-  doctor requires `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` and
+  doctor requires `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` and
   `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice
   read-model/object-store runtime dependencies
 
@@ -117,6 +117,10 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
   Binding + `https://app-api.internal`
 - deploy secret truth 继续留在 Cloudflare secret store，不写回 repo-tracked
   `.dev.vars.example`
+- Qdrant staging data-plane 是 self-hosted authenticated private service；
+  `QDRANT_API_KEY` / `QDRANT_READ_ONLY_API_KEY` 缺失必须 fail closed。若当前
+  `QDRANT_URL` 仍为 private-network `http://` endpoint，`api_key + http://` warning
+  记录为 transport hardening issue，不能通过删除 API key 消除。
 
 ## Staging Deploy Rules
 

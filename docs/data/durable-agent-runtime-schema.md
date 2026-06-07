@@ -51,13 +51,13 @@ active product projection tables：
 - `runtime.agent_step_attempts`
 - `runtime.agent_step_results`
 - `runtime.agent_run_events`
+- `runtime.conversation_run_locks`
 
 historical PG lease artifact tables：
 
-- `runtime.execution_leases`
-- `runtime.lane_budgets`
-- `runtime.worker_heartbeats`
-- `runtime.conversation_run_locks`
+- retired execution lease table
+- retired lane budget table
+- retired worker heartbeat table
 
 现有表关系：
 
@@ -76,8 +76,8 @@ historical PG lease artifact tables：
 
 ## Queue Model
 
-target canonical execution queue 固定由 Temporal Task Queue 表达；PG 表达的是
-product run / step projection、operator/eval read model 与 current PG baseline。
+canonical execution queue 固定由 Temporal Task Queue 表达；PG 表达的是
+product run / step projection 与 operator/eval read model。
 
 target queue model：
 
@@ -86,8 +86,9 @@ target queue model：
 - worker polling
 - Temporal retry / timeout / heartbeat semantics
 
-retired PG baseline queue 曾由 PG durable rows 表达；它不是当前 online serving
-truth，不得被重新作为 fallback 接回 app-api / execution-control：
+retired PG baseline queue 曾由 PG durable rows 表达；这些行现在只属于 historical
+artifact，不是当前 online serving truth，不得被重新作为 fallback 接回 app-api /
+execution-control：
 
 - run-level queue：`runtime.agent_runs.status='queued'`
 - step-level queue：`runtime.agent_run_steps.status='queued'`
@@ -96,7 +97,7 @@ retired baseline 消费规则：
 
 - scheduler 使用 `FOR UPDATE SKIP LOCKED` 读取候选 queued rows
 - scheduler 在同一事务中检查 lane budget、worker readiness、dependency state 与 downstream
-  budget，并写入 `runtime.execution_leases`
+  budget，并写入 retired execution lease table
 - worker 只消费 active lease，不直接扫描 queued rows 自行执行
 - process-local queue 只能作为本进程 protection，不是 canonical execution queue
 - Redis 只能用于非权威 wakeup、live fanout、cache 或 derived counter；不拥有 run、step、
@@ -364,7 +365,7 @@ retired baseline 消费规则：
 - synthesis / finalization 只能消费 admitted result，不得补造缺失 retrieval/tool result
 - browser / panel / eval 只能读取 projection 或 read model，不读取 raw provider trace
 
-## `runtime.execution_leases`
+## Retired PG Execution Lease Table
 
 用途：
 
@@ -454,7 +455,7 @@ scheduler，不拥有当前 execution truth。
 
 用途：
 
-- worker readiness / lease ownership observation
+- historical PG baseline worker readiness / lease ownership observation
 
 最小列：
 
@@ -472,10 +473,10 @@ scheduler，不拥有当前 execution truth。
 - primary key `(worker_id)`
 - `(status, heartbeat_at desc)`
 
-规则：
+历史规则：
 
-- heartbeat 只证明 worker liveness，不证明 run success
-- scheduler 可以拒绝 stale worker 获取新 lease
+- heartbeat 只证明 historical PG worker liveness，不证明 run success
+- historical scheduler 可以拒绝 stale worker 获取新 lease
 - metadata 不保存 secrets、raw prompt、provider payload 或 object-store credentials
 
 ## `runtime.conversation_run_locks`
@@ -519,7 +520,8 @@ operator-facing read model 不直接读取 scheduler internals。
 - run status
 - lane
 - queue wait duration
-- lease owner safe id
+- Temporal task queue
+- worker identity safe id
 - terminal reason
 - fail-close reason
 - workflow mode

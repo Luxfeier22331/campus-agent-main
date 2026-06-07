@@ -69,9 +69,9 @@ document/index release`
   启动 / 取消 `ChatAnswerWorkflow`，Temporal task queue 承担 execution substrate
 - PG 不再是 online execution queue truth；`runtime.agent_runs`、run events 与 step
   tables 是 app-api / panel / eval 消费的 sanitized run projection store
-- 旧 `runtime.execution_leases`、lane budget、worker heartbeat、PG lease worker
-  loop 与 recovery loop 只允许作为 historical migration artifact / retired code
-  path 出现，不参与当前 online serving
+- retired PG lease tables、lane budget、worker heartbeat、PG lease worker loop 与
+  recovery loop 只允许作为 historical migration artifact / retired code path 出现，
+  不参与当前 online serving
 - 当前仍未完成的是 worker plane 全量收口、step-level projection 全量消费、worker
   autoscaler、Temporal poller proof 与 typed-tool capability worker 全量拆分。目标 durable
   runtime 见 `docs/architecture/system/durable-agent-runtime-architecture.md`
@@ -79,7 +79,7 @@ document/index release`
   structured capability 当前按 `runtime_posture` 分流：
   `typed_handoff_only` 的 payload 允许在 Go `apps/execution-control` 的 non-stream answer
   path 与 lifecycle SSE answer path 直接完成，`sdk_adapter_admitted` 的 payload 则进入
-  Go-owned `single_handoff` plan，再由 Python worker 的 SDK-native agent runtime 执行
+  Go-owned `single_step` plan，再由 Python worker 的 SDK-native agent runtime 执行
 - Python bridge 返回 private `AgentResponse`；public `SupervisorResponse`
   finalization 与 response observability projection 由 Go
   `apps/execution-control` 执行
@@ -223,7 +223,7 @@ document/index release`
   `apps/execution-control/internal/structuredplanning`，`internal/execution`
   仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
 - `runtime_decisions.workflow_plan` 已作为 planner 的 canonical safe projection
-  落入 bridge contract；当前 runtime 默认只发出 `single_handoff` plan。受控
+  落入 bridge contract；当前 runtime 默认只发出 `single_step` plan。受控
   开启 `EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run
   store ready 后，可执行首条真实 `multi_step` path：selected notice context +
   knowledge follow-through 触发 notice-agent internal selected notice resolve
@@ -252,7 +252,7 @@ document/index release`
   `runtime_posture=typed_handoff_only` 的 payload 才允许作为 Go-owned typed
   activity 执行并写入 sanitized projection；
   `runtime_posture=sdk_adapter_admitted` 的 payload 进入 Go-owned
-  `single_handoff` plan，再由 Python worker 的 Agents SDK native substrate 执行
+  `single_step` plan，再由 Python worker 的 Agents SDK native substrate 执行
 - 通过 private bridge 调用 Python `apps/supervisor-agent-worker`
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning
@@ -263,8 +263,8 @@ document/index release`
 - 只接收 Go `execution-control` 已投影的 private bridge v6 delegate request
 - 装配默认 agent delegate map，并通过 worker 内部 `AgentDispatcher` 调用 agent
 - 只返回 `AgentResponse` 给 Go bridge；不再组装 public `SupervisorResponse`
-- 不再暴露 public `/api/v1/answer`；execution transport、admission、queue、
-  metrics 与 published `transport_runtime` 由 `apps/execution-control` 拥有
+- 不再暴露 public answer ingress；execution transport、admission、queue、metrics 与
+  published `transport_runtime` 由 `apps/execution-control` 拥有
 - 对 delegate request，bridge v6 parser 要求
   `runtime_decisions.workflow_plan` 与
   `runtime_decisions.handoff.agent_request.workflow_context` 同时存在，并校验二者的

@@ -236,7 +236,7 @@ raw/source-truth/projection/document/chunk/index`
   finalization
 - supervisor 长期必须是 neutral capability router，而不是默认把所有请求先压成 `rag-agent`
 - supervisor 长期拥有 workflow plan ownership：它决定本次请求是 terminal、
-  direct structured runtime、single-agent execution 还是 multi-agent workflow，并显式限制
+  typed structured activity、single-agent execution 还是 multi-agent workflow，并显式限制
   allowed agents、allowed tools、step budget、timeout 与 fail-close terminal policy
 - 长期必须有 repo-owned `AgentSpec` registry 作为 agent-level canonical artifact；新增稳定
   domain agent 不得只在 planner / prompt / runtime delegate map 中添加字符串 target

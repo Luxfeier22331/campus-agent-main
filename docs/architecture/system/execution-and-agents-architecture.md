@@ -25,17 +25,17 @@ agent -> retrieval-core -> evidence -> supervisor response`
 
 当前 execution runtime 已统一成三种受治理路径：
 
-- `direct_runtime`
-- `single_handoff`
+- `terminal`
+- `single_step`
 - `gated multi_step`
 
-其中，已打开但仍保持 `typed_handoff_only` 的 deterministic structured capability 是
-`direct_runtime` 分支：
+其中，`single_step` 只表示单个 typed tool 或 agent-as-tool step。已打开但仍保持
+`typed_handoff_only` 的 deterministic structured capability 作为 typed tool step 执行：
 
 `app-api -> execution-control -> Go structured runtime -> supervisor-style response`
 
 已进入 `runtime_posture=sdk_adapter_admitted` 的 structured tool 不再被公开 answer 入口的
-Go direct-runtime 抢走；它们走 Go-owned `single_handoff` plan，再由 Python worker 的
+Go typed-tool-runtime 抢走；它们走 Go-owned `single_step` plan，再由 Python worker 的
 OpenAI Agents SDK native runtime 调用 repo-owned structured query backend。
 
 目标态在同一 governance boundary 内扩展为：
@@ -186,9 +186,10 @@ supervisor 不负责：
   必须携带 bridge / response / runtime decision / workflow trace provenance；
   cancel / timeout / bridge unavailable 必须保留 typed fail-close reason
 - `workflow_trace_summary.workflow_mode` 是 execution wrapper 的 canonical enum，当前固定为
-  `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。`terminal` 表示未进入
-  agent/tool execution 的终局裁决，`direct_runtime` 表示 Go-owned projection-backed
-  structured runtime，`single_handoff` 表示 supervisor 只委派给一个 domain-agent。
+  `terminal`、`single_step`、`multi_step`。`terminal` 表示未进入
+  agent/tool execution 的终局裁决，`single_step` 表示只执行一个 typed tool 或
+  agent-as-tool step；step kind / branch metadata 负责区分 structured tool 与 semantic
+  delegate。
   `multi_step` 已有 gated runtime path，但默认关闭；当前只覆盖 selected notice context +
   knowledge follow-through 的两步链路：`notice-agent internal selected notice resolve
   (payload_kind=campus_notice_get) -> rag-agent retrieval.query`。第一步 notice
@@ -205,7 +206,7 @@ supervisor 不负责：
   `answer_artifact_projection_ids` 与 `answer_artifact_kinds`，用于证明最终答复使用了哪些
   bounded artifact。不得把单 handoff trace 包装成 `multi_step`
 - `runtime_decisions.workflow_plan` 是 Go planner 的 canonical safe projection，当前
-  `schema_version=workflow-plan-v1`，用于显式记录 `single_handoff` plan、step kind、
+  `schema_version=workflow-plan-v1`，用于显式记录 `single_step` plan、step kind、
   selected target / payload kind / allowed tools、terminal policy、resume policy 与
   semantic retry policy。`runtime_decisions.handoff.agent_request` 仍是 bridge 真实
   `AgentRequest`；`workflow_plan` 不复制完整 payload，也不替代 bridge request
@@ -249,7 +250,7 @@ supervisor 不负责：
 - Go `execution-control` 已拥有 non-stream 与 lifecycle SSE direct structured
   answer path，但 direct answer 只保留给 ToolSpec 中仍为
   `typed_handoff_only` 的 structured payload。`sdk_adapter_admitted` 的
-  structured payload 在公开 answer / stream 入口进入 `single_handoff` bridge
+  structured payload 在公开 answer / stream 入口进入 `single_step` bridge
   lane；Go 仍负责 opening gate、admission、
   `WorkflowPlan`、ToolSpec admission、structured query backend、fail-close envelope
   与 finalization
@@ -328,8 +329,8 @@ planning -> agent-owned execution -> Go supervisor finalization`
 固定规则：
 
 - 顶层先判 capability family，再判 family 内部 execution path
-- capability family 决策之后，supervisor 可以选择 `terminal`、`direct_runtime`、
-  `single_handoff` 或 admitted `multi_step` workflow
+- capability family 决策之后，supervisor 可以选择 `terminal`、`single_step`
+  或 admitted `multi_step` workflow
 - `requested_scope` 只属于 knowledge-family path，不是顶层所有请求共享的默认字段
 - `routing clarification` 由 supervisor 拥有，`agent clarification` 由 agent 拥有
 - 当前 merged truth 仍可以保持“公开主路径以 knowledge 为主”，但这不表示长期入口必须 `RAG-first`
@@ -549,7 +550,7 @@ semantic runtime 使用 OpenAI Agents SDK native substrate。它用来承接：
 但它不能替代以下 repo-owned truth：
 
 - Go `apps/execution-control` 的 deterministic runtime kernel、admission、routing policy、
-  posture-gated direct structured runtime branch、fail-close envelope 与 finalization
+  posture-gated typed structured activity branch、fail-close envelope 与 finalization
 - `apps/app-api` 的 surface capability policy、auth/session/principal、conversation、
   request projection 与 operator read model
 - `packages/contracts` 的 `AgentRequest` / `AgentResponse` seam
@@ -686,7 +687,7 @@ resolve runtime seam；它不是 structured handoff tool，也不是 provider/SD
 `contact_directory_lookup`、`academic_calendar_lookup` 与
 `campus_notice_change_set_lookup`。其中
 `service_status_lookup` 与 `transport_schedule_lookup`
-在公开 answer / stream 入口同样走 `single_handoff` bridge lane；SDK shell 只承接
+在公开 answer / stream 入口同样走 `single_step` bridge lane；SDK shell 只承接
 agent-side argument completion / tool loop，projection-backed structured query、
 temporal policy、source truth、Go opening gate/admission、ToolSpec gate 与 Go
 finalization 仍由 repo-owned runtime 承担。SDK runtime 默认开启；

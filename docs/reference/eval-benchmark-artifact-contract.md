@@ -183,7 +183,7 @@ uncorrelated cases with a reason.
   document payload 或 raw restricted payload
 - external trace ids / grader ids 只能作为 backlink；不能替代 repo-owned case truth 或
   release verdict
-- direct structured runtime case 与 Python delegate case 都必须可落到同一
+- typed structured activity case 与 Python delegate case 都必须可落到同一
   `workflow_trace_summary` shape，避免形成两套不可比的 artifact
 - repo-owned workflow trace runtime gate 固定由
   `campus_evals.workflow_trace_gate` 消费 `workflow_trace_summary`，并将
