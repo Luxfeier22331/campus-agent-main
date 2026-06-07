@@ -40,9 +40,9 @@ try {
 	if (parsed.protocol !== "https:") {
 		fail("STAGING_EXECUTION_CONTROL_BASE_URL must start with https://");
 	}
-	if (parsed.hostname !== "execution-control-staging.internal.mucwiki-edge.link") {
+	if (parsed.hostname !== "execution-control-staging.mucwiki-edge.link") {
 		fail(
-			"STAGING_EXECUTION_CONTROL_BASE_URL must point at execution-control-staging.internal.mucwiki-edge.link.",
+			"STAGING_EXECUTION_CONTROL_BASE_URL must point at execution-control-staging.mucwiki-edge.link.",
 		);
 	}
 	parsed.pathname = "";

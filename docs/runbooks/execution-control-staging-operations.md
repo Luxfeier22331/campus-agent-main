@@ -15,7 +15,7 @@ updated: 2026-06-06
 - `execution-control` 不作为 public staging surface 存在；用户、浏览器、panel、docs
   与 chat 只进入 browser surface 或 `app-api`
 - `execution-control` 是 app-api-only trusted machine upstream。当前 machine
-  ingress 是 `https://execution-control-staging.internal.mucwiki-edge.link`，由
+  ingress 是 `https://execution-control-staging.mucwiki-edge.link`，由
   Cloudflare proxied DNS、Cloudflare Access service-token policy 与 VM origin
   reverse proxy 承接
 
@@ -57,7 +57,7 @@ updated: 2026-06-06
   - `temporal-ui`
     - local-only operator UI
 - machine ingress：
-  - hostname: `execution-control-staging.internal.mucwiki-edge.link`
+  - hostname: `execution-control-staging.mucwiki-edge.link`
   - Cloudflare DNS: proxied A/AAAA/CNAME 指向 staging VM
   - Cloudflare Access application: only service-token policy
   - VM reverse proxy: `443` -> `127.0.0.1:27051`
@@ -138,7 +138,7 @@ Compose。
 `.env.staging.local` 必须包含：
 
 - `STAGING_EXECUTION_CONTROL_BASE_URL`
-  = `https://execution-control-staging.internal.mucwiki-edge.link`
+  = `https://execution-control-staging.mucwiki-edge.link`
 - `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID`
   = `<Cloudflare Access service token client id>`
 - `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
@@ -260,9 +260,9 @@ secret 或 `/srv/apps/campus-agent/.env.staging.local`，不得进入 repo。
 Cloudflare 侧必须配置：
 
 - DNS:
-  `execution-control-staging.internal.mucwiki-edge.link` proxied 到 staging VM
+  `execution-control-staging.mucwiki-edge.link` proxied 到 staging VM
 - Access application:
-  hostname `execution-control-staging.internal.mucwiki-edge.link`
+  hostname `execution-control-staging.mucwiki-edge.link`
 - Access policy:
   only service-token allow policy；不允许 anonymous、email domain 或 public bypass
 
@@ -273,7 +273,7 @@ Docker data-plane。
 Caddy 示例：
 
 ```caddy
-execution-control-staging.internal.mucwiki-edge.link {
+execution-control-staging.mucwiki-edge.link {
   reverse_proxy 127.0.0.1:27051
 }
 ```
@@ -282,7 +282,7 @@ execution-control-staging.internal.mucwiki-edge.link {
 
 ```bash
 curl --noproxy '*' -sS -i \
-  https://execution-control-staging.internal.mucwiki-edge.link/readyz
+  https://execution-control-staging.mucwiki-edge.link/readyz
 ```
 
 带 service token 与 `x-worker-origin-auth` 的请求应到达本机 execution-control：
@@ -293,7 +293,7 @@ curl --noproxy '*' -sS -i \
   -H "CF-Access-Client-Id: $STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID" \
   -H "CF-Access-Client-Secret: $access_secret" \
   -H "x-worker-origin-auth: $EXECUTION_CONTROL_SHARED_SECRET" \
-  https://execution-control-staging.internal.mucwiki-edge.link/readyz
+  https://execution-control-staging.mucwiki-edge.link/readyz
 ```
 
 通过标准：
@@ -622,7 +622,7 @@ infra/local/staging/start-execution-control-staging.sh
 
 - 先确认 Cloudflare DNS record 指向当前 staging VM，且 proxied 状态开启
 - 再确认 Access application 绑定
-  `execution-control-staging.internal.mucwiki-edge.link`，policy 只允许 service token
+  `execution-control-staging.mucwiki-edge.link`，policy 只允许 service token
 - VM 上确认 Caddy/Nginx 正在监听 `443`，并只反代到 `127.0.0.1:27051`
 - 如果未带 Access token 请求返回 `200`，这是 Access policy blocker，不能继续标绿
 - 如果带 Access token 但缺 `x-worker-origin-auth` 返回 `200`，这是 execution-control auth

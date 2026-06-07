@@ -71,9 +71,9 @@ async function probeExecutionControlForStagingAppApi() {
 	if (baseUrl.protocol !== "https:") {
 		fail("STAGING_EXECUTION_CONTROL_BASE_URL must use https:// for machine ingress.");
 	}
-	if (baseUrl.hostname !== "execution-control-staging.internal.mucwiki-edge.link") {
+	if (baseUrl.hostname !== "execution-control-staging.mucwiki-edge.link") {
 		fail(
-			"STAGING_EXECUTION_CONTROL_BASE_URL must point at execution-control-staging.internal.mucwiki-edge.link.",
+			"STAGING_EXECUTION_CONTROL_BASE_URL must point at execution-control-staging.mucwiki-edge.link.",
 		);
 	}
 

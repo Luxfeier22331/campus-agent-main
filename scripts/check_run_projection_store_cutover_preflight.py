@@ -62,7 +62,7 @@ OBJECT_STORE_CREDENTIAL_SETS = [
 REQUIRED_APP_API_DEV_VARS = ["EXECUTION_CONTROL_SHARED_SECRET"]
 
 EXPECTED_STAGING_VALUES = {
-    "STAGING_EXECUTION_CONTROL_BASE_URL": "https://execution-control-staging.internal.mucwiki-edge.link",
+    "STAGING_EXECUTION_CONTROL_BASE_URL": "https://execution-control-staging.mucwiki-edge.link",
     "STAGING_INGESTION_EMBEDDING_PROVIDER": "gitee",
     "STAGING_INGESTION_EMBEDDING_BASE_URL": "https://ai.gitee.com/v1",
     "STAGING_INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",

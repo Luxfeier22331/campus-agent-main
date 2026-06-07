@@ -331,7 +331,7 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${EXECUTION_CONTROL_PROXY_NETWORK:-proxy}
-      traefik.http.routers.execution-control-staging.rule: Host(`execution-control-staging.internal.mucwiki-edge.link`)
+      traefik.http.routers.execution-control-staging.rule: Host(`execution-control-staging.mucwiki-edge.link`)
       traefik.http.routers.execution-control-staging.entrypoints: websecure
       traefik.http.routers.execution-control-staging.tls: "true"
       traefik.http.services.execution-control-staging.loadbalancer.server.port: "8000"

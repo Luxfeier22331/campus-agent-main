@@ -127,7 +127,7 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("!packages/regulation-semantics/", dockerignore)
         self.assertIn("!packages/regulation-semantics/**", dockerignore)
         self.assertIn('traefik.enable: "true"', compose)
-        self.assertIn("execution-control-staging.internal.mucwiki-edge.link", compose)
+        self.assertIn("execution-control-staging.mucwiki-edge.link", compose)
         self.assertIn("EXECUTION_CONTROL_PROXY_NETWORK", compose)
         self.assertIn("name: ${EXECUTION_CONTROL_PROXY_NETWORK:-proxy}", compose)
 
@@ -287,7 +287,7 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.internal.mucwiki-edge.link",
+            "STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.mucwiki-edge.link",
             env_example,
         )
         self.assertNotIn("EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN", env_example)

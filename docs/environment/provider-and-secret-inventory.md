@@ -199,7 +199,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   放置位置: operator shell / Windows scheduled task action
   何时必需: 当前 canonical staging execution runtime 需要
   获取方式: `.env.staging.local` 写入 ignored secret；machine ingress 固定为
-  `execution-control-staging.internal.mucwiki-edge.link`
+  `execution-control-staging.mucwiki-edge.link`
 
 - Provider / system: Supervisor local runtime command template
   作用: 本地 Docker 双容器 `execution-control` runtime 的 command-scoped override

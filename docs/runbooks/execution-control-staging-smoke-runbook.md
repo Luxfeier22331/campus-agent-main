@@ -32,7 +32,7 @@ execution origin 为准。
 - 当前 repo-owned staging execution runtime 是 `nc-arm-6c` 上的
   `otel-collector + execution-control + supervisor-agent-worker + Temporal workers`
 - `execution-control` 不作为 public staging surface；machine ingress 固定为
-  `https://execution-control-staging.internal.mucwiki-edge.link`
+  `https://execution-control-staging.mucwiki-edge.link`
 - `app-api-staging` 必须配置 execution-control Access service-token credentials 与
   `x-worker-origin-auth` shared secret；缺任一都 fail closed
 - 只有当 trusted machine upstream URL 或 Access service-token credential 变化时，才需要重新
@@ -74,7 +74,7 @@ infra/local/staging/status-execution-control-staging.sh --check
 `app-api-staging`。
 
 ```bash
-base_url=https://execution-control-staging.internal.mucwiki-edge.link
+base_url=https://execution-control-staging.mucwiki-edge.link
 env \
   STAGING_EXECUTION_CONTROL_BASE_URL="$base_url" \
   STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID=<client-id> \
@@ -180,7 +180,7 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 - `https://api-staging.mucwiki-edge.link/readyz`
 - `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
 - 当前 app-api Worker 配置的
-  `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.internal.mucwiki-edge.link`
+  `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.mucwiki-edge.link`
   与 Access service-token secret presence
 
 ## Rollback

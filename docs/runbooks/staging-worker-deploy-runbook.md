@@ -197,7 +197,7 @@ updated: 2026-05-07
 - `execution-control` 不是 public staging surface；用户、浏览器、panel、docs 与 chat
   都只进入 browser surface 或 `app-api`
 - `apps/app-api` staging deploy 时必须显式注入真实可达的 trusted machine upstream：
-  `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.internal.mucwiki-edge.link`
+  `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.mucwiki-edge.link`
 - `apps/app-api` staging deploy 还必须配置
   `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与
   `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`，并把它们投影为 Worker runtime
@@ -211,7 +211,7 @@ updated: 2026-05-07
   临时入口
 - 当前 repo-owned execution upstream 实际来自：
   - `nc-arm-6c:/srv/apps/campus-agent/infra/local/staging/start-execution-control-staging.sh`
-  - `execution-control-staging.internal.mucwiki-edge.link` machine ingress
+  - `execution-control-staging.mucwiki-edge.link` machine ingress
   - strict health gate
     `infra/local/staging/status-execution-control-staging.sh --check`
 - `127.0.0.1` 只能留在 origin reverse proxy 所在机器的 process truth，不能作为
