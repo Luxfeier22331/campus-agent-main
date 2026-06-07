@@ -240,7 +240,7 @@ raw/source-truth/projection/document/chunk/index`
   allowed agents、allowed tools、step budget、timeout 与 fail-close terminal policy
 - 长期必须有 repo-owned `AgentSpec` registry 作为 agent-level canonical artifact；新增稳定
   domain agent 不得只在 planner / prompt / runtime delegate map 中添加字符串 target
-- durable runtime 的 canonical lifecycle 固定为
+- run projection 的 canonical lifecycle 固定为
   `Turn -> Run -> RunStep -> StepAttempt -> StepResult -> RunEvent -> Finalization`；
   multi-agent projection 可以在 step result 中表达 `AgentInvocation` / `ToolCall` graph；
   provider-native trace、SDK run state 或框架 agent graph 只能作为内部

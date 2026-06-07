@@ -17,8 +17,6 @@ updated: 2026-06-04
   - 全量 ADR corpus 的 drift、overlap 与分层审计记录
 - `runtime-serving-and-index-terms.md`
   - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
-- `qa-assistant-and-harness-gap-review.md`
-- `durable-agent-runtime-gap-matrix.md`
 - `testing-and-verification-lanes.md`
 - `eval-gold-truth-model.md`
 - `eval-benchmark-artifact-contract.md`

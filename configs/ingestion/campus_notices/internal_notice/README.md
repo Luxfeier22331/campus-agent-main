@@ -193,4 +193,4 @@ collection truth.
 - `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- git history archived internal-notice policy/regulation implementation plan

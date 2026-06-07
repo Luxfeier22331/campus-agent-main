@@ -133,7 +133,7 @@ Expected result: no matches; `rg` exits with `1`.
 ## Closeout Smoke
 
 The workstream-level acceptance record is
-`.planning/workstreams/runtime-otel-observability-bridge/ACCEPTANCE.md`.
+`git history runtime otel observability acceptance artifact`.
 
 Online runtime smoke through `execution-control`:
 

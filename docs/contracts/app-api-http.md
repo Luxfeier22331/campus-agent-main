@@ -779,7 +779,7 @@ terminal event 额外携带：
 
 规则：
 
-- durable runtime 启用时，`request.accepted` 在 app-api accept commit 与
+- run projection 启用时，`request.accepted` 在 app-api accept commit 与
   supervisor durable run create 均成功后发送；其 data 必须包含 `runId`
 - terminal event 在 finalization commit 后发送；因此 terminal `answer` 是
   app-owned DB/projection truth 的产物

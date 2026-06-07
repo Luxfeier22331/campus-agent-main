@@ -32,18 +32,14 @@ updated: 2026-04-21
 
 - 当前 merged truth 统一看 `../architecture/current-architecture.md`、`../architecture
   /operator-observability-architecture.md` 与 contract/data 文档
-- 当前 workstream registry 与单条线执行状态分别看 `README.md` 定义的通用执行态入口与
-  `../../.planning/workstreams/operator-observability-control-plane/STATE.md`
+- 当前 work map 与 live session state 分别看 `README.md` 定义的通用执行态入口与 GSD SDK /
+  Codex native session
 - `Requests` triage table 重构继续只作为 follow-up 入口，不自动并入当前 active workstream
 
-## Completed Plan
+## Historical Follow-up Material
 
-- `../plans/archive/completed/operator-observability-control-plane-foundation.md
-  `
-
-## Deferred Follow-up Plans
-
-- `../plans/protected-panel-requests-triage-table-redesign.md`
+- Operator-observability foundation 与 protected-panel requests triage redesign
+  的历史 plan 通过 git history 恢复；不要把旧 archive 当作当前 execution truth。
 
 ## Runbooks / smoke
 
@@ -61,6 +57,5 @@ updated: 2026-04-21
 
 - panel 只能读 `app-api` owned projections / rollups
 - `Sentry`、`Axiom`、grader 结果只作为 sink 或输入来源，不是 panel query backend
-- 如需判断当前 pending work，优先看 `README.md` 定义的通用执行态入口与 `../../.planning/workstreams/o
-  perator-observability-control-plane/STATE.md`，不要把 deferred follow-up 文档误读成当前
-  active lane
+- 如需判断当前 pending work，优先看 `README.md` 定义的通用执行态入口与 GSD SDK / Codex
+  native session，不要把历史 follow-up 文档误读成当前 active lane

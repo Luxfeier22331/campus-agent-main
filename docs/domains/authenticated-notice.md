@@ -31,28 +31,10 @@ updated: 2026-04-21
 
 ## 执行路由
 
-- repo 级当前真相与 registry 统一看 `README.md` 定义的通用执行态入口
-- 单条线的当前执行状态分别看：
-  - `../../.planning/workstreams/authenticated-notice-regulation-consumption/STA
-    TE.md`
-  - `../../.planning/workstreams/authenticated-notice-file-release-owner-recover
-    y/STATE.md`
-  - `../../.planning/workstreams/authenticated-notice-live-portal-control-plane/
-    STATE.md`
-- 需要恢复仍未关闭的前向工作时，优先从下面的 workstream
-  入口进入；`file_release owner recovery` 的已完成 closeout
-  改看 completed archive；需要 operator/replay/promotion 步骤时，
-  优先从 runbook 入口进入
-
-## Live Workstream Entry
-
-- `../../.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
-- `../../.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md`
-
-## Completed Closeout Plan
-
-- `../plans/archive/completed/authenticated-notice-file-release-owner-recovery.m
-  d`
+- repo 级当前真相与 active work map 统一看 `README.md` 定义的通用执行态入口。
+- 需要恢复 regulation consumption、file-release owner recovery 或 live portal / control-plane
+  相关历史材料时，通过 git history 提取具体片段，再提升到当前 docs / ADR / runbook。
+- operator、replay、promotion 步骤优先从 runbook 入口进入，不从历史 phase 目录恢复执行状态。
 
 ## Active Runbooks
 

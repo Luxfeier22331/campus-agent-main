@@ -68,11 +68,10 @@ browser -> protected-panel-web -> app-api
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
-  - 长期可引用的 architecture、decision、contract、data、runbook、policy 与 archived
-    implementation snapshots
+  - 长期可引用的 architecture、decision、contract、data、runbook 与 policy truth
 - [`.planning/`](./.planning/)
-  - 当前项目级 planning truth、workstream registry、native workstream 状态，以及 shared
-    quick/todo/research 资产
+  - 当前项目级 planning truth 与 compact active work map；历史 phase/archive material 通过
+    git history 恢复
 - [`tests/`](./tests/)
   - 仓库级 Python 回归；JS/TS surface 的测试在各 app 下配合 root `pnpm` 入口运行
 
@@ -107,13 +106,9 @@ browser -> protected-panel-web -> app-api
 - `.planning/PROJECT.md`
   - 当前项目级范围、关键决策与 merged/worktree truth
 - `.planning/WORKSTREAMS.md`
-  - 当前有哪些 active / deferred / backlog workstreams，以及各自对应的 native planning 目录
-- `.planning/workstreams/<slug>/README.md`
-  - 单条 native workstream 的人工入口；先看边界、状态，再进入 `STATE / ROADMAP / REQUIREMENTS`
-- `.planning/workstreams/<slug>/STATE.md`
-  - 单条 workstream 的 now / next / blockers / recent verification
-- `docs/plans/archive/`
-  - 已退出 live workstream 入口的 historical / superseded / completed plan snapshots
+  - compact active work map、owner areas、backlog triggers 与恢复规则
+- git history
+  - 已退出 live truth 的 historical / superseded / completed planning snapshots
 
 仓库协作规则见：
 
@@ -210,8 +205,8 @@ gsd-sdk query workstream.set <workstream-slug> --raw --cwd "$PWD"
 gsd-sdk query workstream.progress --raw --cwd "$PWD"
 ```
 
-tracked planning truth 继续写在 `.planning/WORKSTREAMS.md` 与
-`.planning/workstreams/<slug>/`；repo 不再维护本地 lease、heartbeat、hook 注入或 terminal-result
+tracked planning truth 只保留 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`；
+repo 不再维护 tracked phase tree、本地 lease、heartbeat、hook 注入或 terminal-result
 artifact。详细流程见
 [workstream-gsd-sdk-workflow](./docs/runbooks/workstream-gsd-sdk-workflow.md) 和
 [CONTRIBUTING.md](./CONTRIBUTING.md)。

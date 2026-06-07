@@ -117,7 +117,7 @@ pnpm --dir apps/app-api chat:e2e:staging -- \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-student-rule.json"
 ```
 
-运行 durable runtime 断线 / 恢复专项 smoke：
+运行 run projection 断线 / 恢复专项 smoke：
 
 ```bash
 pnpm --dir apps/app-api chat:durable:e2e:staging \

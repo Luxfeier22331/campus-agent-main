@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0047
 status: superseded
 created: 2026-06-04
-updated: 2026-06-06
+updated: 2026-06-08
 replacement: adr-0048-temporal-execution-plane.md
 ---
 # ADR-0047 Run And Step-Centric Durable Agent Runtime
@@ -14,8 +14,9 @@ Accepted on 2026-06-04.
 
 Superseded on 2026-06-06 by `adr-0048-temporal-execution-plane.md`.
 
-本 ADR 继续保留当前 PG-backed run-level durable baseline 与 run / step / event
-projection 语义的历史依据；长期 execution substrate 已改为 Temporal execution plane。
+本 ADR 只保留 PG-backed run-level durable baseline 与 run / step / event projection
+语义的历史依据；长期 execution substrate 已改为 Temporal execution plane。branch tip 不再保留
+PG lease runtime code、proof command 或 gap matrix。
 
 ## 背景
 
@@ -45,7 +46,7 @@ app-api durable chat cutover。
   selection、synthesis 与 grounding 全部落成 durable step trajectory
 - panel / eval / badcase / RAGAS 还没有统一消费 step-level sanitized projection
 
-如果不正式冻结 run + step-centric durable runtime，后续实现很容易退回以下形态：
+如果不正式冻结 run + step-centric run projection，后续实现很容易退回以下形态：
 
 - 用负载均衡和多个 supervisor 实例冒充 production scheduler
 - 在每个进程里维护各自的队列和 active count
@@ -73,7 +74,7 @@ canceled / expired`
   failure summary
 - worker process、HTTP handler、goroutine 或 SSE connection 都不能成为 run truth owner
 
-### 决策 2：production execution truth 由 Temporal durable runtime 拥有
+### 决策 2：production execution truth 由 Temporal run projection 拥有
 
 production admission 和 execution dispatch 不得只存在于单个 `execution-control` 进程内存。
 
@@ -208,7 +209,7 @@ agent-as-tool 参与 typed step。
 直接结果如下：
 
 - 新增 `docs/architecture/system/durable-agent-runtime-architecture.md`
-- `target-architecture.md` 必须把 run + step-centric durable runtime 写为
+- `target-architecture.md` 必须把 run + step-centric run projection 写为
   production execution shape
 - `current-architecture.md` 必须明确当前已具备 run-level durable baseline，同时列出 step-level
   ledger、role split、lane worker pool 与 autoscaler 缺口
@@ -241,5 +242,5 @@ agent-as-tool 参与 typed step。
 - `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 - `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`
 
-本 ADR 不 supersede 上述 ADR；它补充 production agent execution substrate 的 durable runtime
+本 ADR 不 supersede 上述 ADR；它补充 production agent execution substrate 的 run projection
 truth，并冻结 PG-backed step-level execution queue / lease / result model。

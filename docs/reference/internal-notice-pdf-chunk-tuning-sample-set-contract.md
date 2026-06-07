@@ -168,7 +168,7 @@ sample set 固定属于 operations truth，不属于 documents truth，也不属
 
 - 把 sample-set files 混写进 `campus_notices/documents/internal_notice/...`
 - 把 sample-set files 混写进 `campus_notices/releases/...`
-- 用 `.planning/quick/` 目录代替对象存储中的长期 sample-set truth
+- 用 `git history` 目录代替对象存储中的长期 sample-set truth
 
 ## `sample-set-manifest.json`
 

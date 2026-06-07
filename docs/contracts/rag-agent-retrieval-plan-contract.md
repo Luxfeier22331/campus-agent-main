@@ -66,7 +66,7 @@ step trajectory，而不是 prompt 内部不可见的自由文本状态。
   browser surface 不得依赖这组内部类型
 - operator / browser 最终只应看到衍生后的 supporting evidence 或 operator-safe execution
   summary，而不是 raw plan / raw vendor payload
-- durable runtime 可以保存 sanitized plan / step / result projection，用于 scheduler、
+- run projection 可以保存 sanitized plan / step / result projection，用于 scheduler、
   eval、panel 与 badcase 回链
 
 ## RetrievalPlan
@@ -112,7 +112,7 @@ RetrievalPlan
 - `source_trust_policy` 只表达 answer-bearing evidence 的最低可信门槛，不等于 remote tool
   router
 - `budget.max_steps` 计入 replan 后插入的新增 steps；预算耗尽固定 fail-close
-- `run_id` 是 durable runtime correlation，不由 retrieval-core 生成
+- `run_id` 是 run projection correlation，不由 retrieval-core 生成
 
 ## RetrievalStep
 

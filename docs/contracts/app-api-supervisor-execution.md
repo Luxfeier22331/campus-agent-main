@@ -65,12 +65,12 @@ handoff 的 `AgentRequest` / `AgentResponse`。它不承载 `runtime_decisions`�
 `supervisor_bridge_v6` 或具体 transport wrapper，避免把 execution runtime truth 泄漏进共享
 agent contract 包。
 
-Durable runtime compatibility note：
+Run projection compatibility note：
 
 - 本文冻结的是 current internal execution transport / bridge wrapper
 - `docs/contracts/durable-agent-runtime-contract.md` 冻结 forward production run /
   event / lease contract
-- durable runtime cutover 不能通过在本 schema 中塞入 vendor queue、worker process
+- run projection cutover 不能通过在本 schema 中塞入 vendor queue、worker process
   state 或 transient stream state 来替代 run store
 
 ## Strict Wire Policy
@@ -160,11 +160,10 @@ contract 承诺。
 - `GET /healthz`
 - `GET /readyz`
 
-`POST /api/v1/answer` 与 `POST /api/v1/answer/stream` 已从 active
-`app-api -> execution-control` submit path 退役；它们不得作为 runtime fallback、
-smoke shortcut 或兼容双路径恢复。Forward canonical seam 是 `app-api ->
-execution-control` 的 internal execution run command/query contract，不是
-browser-facing public API。
+retired legacy answer transport 已从 active `app-api -> execution-control`
+submit path 退役；它不得作为 runtime fallback、smoke shortcut 或兼容双路径恢复。
+Forward canonical seam 是 `app-api -> execution-control` 的 internal execution
+run command/query contract，不是 browser-facing public API。
 
 JSON 命名保持 `snake_case`，原因如下：
 

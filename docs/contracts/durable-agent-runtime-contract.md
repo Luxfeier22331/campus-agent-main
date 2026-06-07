@@ -538,8 +538,8 @@ worker pool does not own：
 
 ## Compatibility Boundary
 
-`POST /api/v1/answer` and `POST /api/v1/answer/stream` are retired from the
-active `app-api -> execution-control` serving path.
+The retired legacy answer transport is not part of the active `app-api ->
+execution-control` serving path.
 
 The active internal execution seam is the Temporal-backed run command/query
 contract:
@@ -552,4 +552,4 @@ contract:
 
 Implementation may bridge request execution into durable run records, but it must
 not add fallback behavior or silently synthesize missing run / step fields.
-Missing required durable runtime state must fail closed.
+Missing required run projection state must fail closed.

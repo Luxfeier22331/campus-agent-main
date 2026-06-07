@@ -43,10 +43,9 @@ Canonical references:
 Implementation references:
 
 - `apps/protected-panel-web/REACT-ADMIN-REFERENCE.md`
-- `docs/plans/shared-product-surfaces-acceptance-hardening.md`
-- `docs/plans/protected-panel-requests-triage-table-redesign.md`
-- `.planning/workstreams/shared-product-surfaces-acceptance-hardening/protected-
-  panel-runtime-api-inventory.md`
+- `git history shared product surfaces acceptance plan`
+- `git history protected panel requests triage redesign plan`
+- `git history protected panel runtime API inventory`
 
 Long-term operator access assumptions:
 

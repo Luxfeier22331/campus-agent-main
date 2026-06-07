@@ -289,7 +289,7 @@ JSON
 - 返回 `202`
 - 响应体包含 `run_id`
 - 响应体包含 `status=queued`
-- 不出现旧 `/api/v1/answer` 或 `/api/v1/answer/stream` fallback
+- 不出现 retired legacy answer transport fallback
 
 ## Step 5. Inspect Metrics And Logs
 

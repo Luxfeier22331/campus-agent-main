@@ -324,8 +324,8 @@ RAG release 或 regulation query-serving collection。
 ## Step 6A: Exact Target-Side Residue Cleanup
 
 当历史误流程已经把 held notice 写入 regulation target side，必须用 exact target identity
-清理残留；不得清理 source truth、`campus_notices/internal_notice`、`.planning/quick` 或无关
-target rows/objects/points。
+清理残留；不得清理 source truth、`campus_notices/internal_notice`、historical
+planning scratch 或无关 target rows/objects/points。
 
 dry-run 默认只备份与审计：
 
@@ -423,9 +423,9 @@ manifest build 与 target materialization 完成后，下一步固定进入：
 
 当前 regulation notice promotion quality gate 的 closeout truth 固定在：
 
-- `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/README.md`
-- `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/STATE.md`
-- `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-06-acceptance-freeze-and-closeout/SUMMARY.md`
+- `git history notice-derived regulation quality gate workstream`
+- `git history notice-derived regulation quality gate state`
+- `git history notice-derived regulation phase 06 closeout summary`
 
 固定 acceptance 口径：
 

@@ -64,7 +64,6 @@
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
@@ -76,7 +75,6 @@
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`
 - `.planning/WORKSTREAMS.md`
-- `.planning/legacy-flat/ROADMAP.md`
 
 工作规则：
 
@@ -92,14 +90,14 @@
   `docs/architecture/system/code-organization-and-decomposition-architecture.md`
   为准；`pnpm decomposition:lint` 只是基础行数 / baseline gate，不等于完整架构
   review
-- 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以
-  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应
-  `.planning/workstreams/<slug>/` 为准
-- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live
-  入口；`docs/plans/` 只保留 archive namespace，不再承载 active/deferred workstream entry
+- 当前 repo 级范围、pending work 信号与最新长期结论以 `.planning/PROJECT.md` 和
+  `.planning/WORKSTREAMS.md` 为准；本地会话状态由 GSD SDK / Codex native session
+  承接，不再写回 tracked phase 目录
+- tracked historical planning archives 已从 branch tip 清理；需要追溯时通过 git history 恢复具体
+  片段，再提升到当前 docs / ADR / runbook
 - 不要把 `docs/architecture/target-architecture.md` 当作当前 merged truth 或当前 GSD
   进度板；当前真相看 `current-architecture.md`，当前执行状态看
-  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream 目录
+  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native session
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 - 在引用 Source Of Truth 之前，先确认是否准确理解了用户当前问题；不得用文档权威覆盖对用户原意的错误理解
 
@@ -277,8 +275,8 @@
   workstream harness、lease/heartbeat 或 Codex hook 注入层
 - 多人并发推进不同 workstream 时，默认用 GSD SDK 查询、切换和维护 workstream
   registry，例如 `gsd-sdk query workstream.list/status/set/progress --raw --cwd "$PWD"`；
-  tracked planning truth 仍写在 `.planning/WORKSTREAMS.md` 与对应
-  `.planning/workstreams/<slug>/`，不要把本地会话状态写回 tracked planning 文档
+  tracked planning truth 只保留 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`，
+  不要把本地会话状态写回 tracked planning 文档
 - GSD SDK / Codex native workflow 的长期决策以
   `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md` 为准；日常命令和场景路由以
   `docs/runbooks/workstream-gsd-sdk-workflow.md` 为准

@@ -558,7 +558,7 @@ worker autoscaler 边界固定为：
 - bridge circuit breaker
 - metrics / OTel / execution audit seam
 - `WorkflowRunStore` foundation for gated multi-step path
-- isolated historical durable runtime store kernel in `apps/execution-control/internal/execution`
+- isolated historical run projection store kernel in `apps/execution-control/internal/execution`
   for `DurableRun`、`RunEvent`、`ExecutionLease`、`LaneBudget` 与
   `WorkerHeartbeat`
 - Postgres-backed run projection store with explicit
@@ -598,7 +598,7 @@ worker autoscaler 边界固定为：
   `pnpm --dir apps/app-api chat:durable:e2e:staging` proves the product stream can
   be disconnected after `request.accepted` and resumed from the existing durable
   run event stream by `run_id + after_sequence`
-- retired repo-owned Postgres durable runtime proof command:
+- retired repo-owned Postgres run projection proof command:
   `apps/execution-control/cmd/durable-runtime-proof` is only available with the
   `retired_pg_lease` build tag for migration audits. It is not part of the
   default build, staging closeout, or online serving proof.
@@ -628,7 +628,7 @@ worker autoscaler 边界固定为：
   task queue 的 recent poller。schedule-to-start latency 仍需要来自 Temporal metrics
   的真实采样进入 release evidence。
 - execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，历史
-  PG lease proof command 已退出默认 build；`durable_runtime*.go` 仍有 projection store 与
+  PG lease proof command 已退出默认 build；`run_projection*.go` 仍有 projection store 与
   historical schema artifact 混合命名，需要后续纯命名整理，但不得重新接回 serving。
 - step-level projection 已有首条 chat trajectory 写入；app-api operator query 与
   protected panel 已开始消费 `agent_run_steps`、`agent_step_attempts`、
@@ -648,13 +648,13 @@ worker autoscaler 边界固定为：
 
 当前落盘产物：
 
-- `docs/reference/durable-agent-runtime-gap-matrix.md`
+- `docs/decisions/adr-0048-temporal-execution-plane.md`
   - 当前实现差距矩阵
 - `docs/contracts/durable-agent-runtime-contract.md`
   - conversation / run / event / lease / lane 的概念 contract
 - `docs/data/durable-agent-runtime-schema.md`
-  - durable runtime logical schema
-- `apps/execution-control/internal/execution/durable_runtime*.go`
+  - run projection logical schema
+- `apps/execution-control/internal/execution/run_projection*.go`
   - isolated durable store kernel、lease coordinator、in-memory contract substrate
     与 Postgres store foundation
 - `apps/execution-control/cmd/durable-runtime-proof`
@@ -671,6 +671,4 @@ worker autoscaler 边界固定为：
 - `docs/architecture/system/operator-observability-architecture.md`
 - `docs/contracts/durable-agent-runtime-contract.md`
 - `docs/data/durable-agent-runtime-schema.md`
-- `docs/reference/durable-agent-runtime-gap-matrix.md`
-- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`

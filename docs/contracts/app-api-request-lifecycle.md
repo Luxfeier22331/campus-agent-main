@@ -95,7 +95,7 @@ updated: 2026-06-04
 `running` / `queued` 不写入 `runtime.request_execution.status`；它们只作为 lifecycle
 stream event 暴露给当前浏览器请求。
 
-Forward durable runtime 说明：
+Forward run projection 说明：
 
 - 最终 production execution status 不再由 `runtime.request_execution.status` 单独承载
 - answer-level execution truth 迁移到 durable `Run`
@@ -140,7 +140,7 @@ Forward durable runtime 说明：
 
 - `status=accepted`
 - 已记录 `requestId`、`traceId`
-- durable runtime cutover 后，已记录 durable `runId`
+- run projection cutover 后，已记录 durable `runId`
 - 已绑定 conversation / verified actor projection / requested scope
 
 当前说明：
@@ -195,8 +195,7 @@ fail-close checks。
 
 `app-api` 使用内部 execution contract 调用 `apps/execution-control`。当前 submit path
 只调用 `POST /internal/execution/runs` 启动 Temporal workflow；终端 answer 与 streaming
-均由 sanitized projection / run events 驱动，不调用旧 `/api/v1/answer` 或
-`/api/v1/answer/stream`。
+均由 sanitized projection / run events 驱动，不调用 retired legacy answer transport。
 
 该调用：
 
