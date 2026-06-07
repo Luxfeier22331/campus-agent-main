@@ -166,8 +166,8 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 	if wire.WorkflowTraceSummary == nil {
 		t.Fatal("workflow trace summary is nil")
 	}
-	if wire.WorkflowTraceSummary.WorkflowMode != "single_handoff" {
-		t.Fatalf("workflow_mode = %v, want single_handoff", wire.WorkflowTraceSummary.WorkflowMode)
+	if wire.WorkflowTraceSummary.WorkflowMode != "single_step" {
+		t.Fatalf("workflow_mode = %v, want single_step", wire.WorkflowTraceSummary.WorkflowMode)
 	}
 	if wire.WorkflowTraceSummary.SelectedTarget == nil ||
 		*wire.WorkflowTraceSummary.SelectedTarget != "rag-agent" {
@@ -240,8 +240,8 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 			traceSummary["direct_vs_delegate_branch"],
 		)
 	}
-	if traceSummary["workflow_mode"] != "single_handoff" {
-		t.Fatalf("workflow_mode = %v, want single_handoff", traceSummary["workflow_mode"])
+	if traceSummary["workflow_mode"] != "single_step" {
+		t.Fatalf("workflow_mode = %v, want single_step", traceSummary["workflow_mode"])
 	}
 	handoffChain, ok := traceSummary["handoff_chain"].([]map[string]any)
 	if !ok || len(handoffChain) != 1 || handoffChain[0]["target"] != "campus-services-agent" {
@@ -295,7 +295,7 @@ func TestWorkflowSourceIDsCollectsStringSliceRefs(t *testing.T) {
 func TestWorkflowSelectedToolsFromRunDoesNotSynthesizeFallbackTool(t *testing.T) {
 	selected := workflowTraceSelectedTools(
 		execution.WorkflowRun{
-			Mode:         execution.WorkflowModeSingleHandoff,
+			Mode:         execution.WorkflowModeSingleStep,
 			HandoffChain: []execution.HandoffStep{{Target: "campus-services-agent"}},
 		},
 		&execution.RuntimeHandoff{Target: "campus-services-agent"},
@@ -478,8 +478,8 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 		t.Fatalf("tool_name = %v, want service_status_lookup", toolCall["tool_name"])
 	}
 	if toolCall["schema_version"] != "tool-call-summary-v1" ||
-		toolCall["tool_call_id"] != "single_handoff:campus-services-agent:service_status_lookup:tool_call" ||
-		toolCall["workflow_run_ref"] != "single_handoff:campus-services-agent:service_status_lookup" ||
+		toolCall["tool_call_id"] != "single_step:campus-services-agent:service_status_lookup:tool_call" ||
+		toolCall["workflow_run_ref"] != "single_step:campus-services-agent:service_status_lookup" ||
 		toolCall["step_id"] != "tool_call" ||
 		toolCall["lifecycle_state"] != "completed" ||
 		toolCall["result_projection"] != "bounded_summary" ||

@@ -67,107 +67,6 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 	return nil
 }
 
-func validateExecutionLeaseRequest(request ExecutionLeaseRequest) error {
-	if request.LeaseID == "" {
-		return fmt.Errorf("%w: lease_id is required", ErrInvalidExecutionLease)
-	}
-	if request.RunID == "" {
-		return fmt.Errorf("%w: run_id is required", ErrInvalidExecutionLease)
-	}
-	if request.StepID == "" {
-		return fmt.Errorf("%w: step_id is required", ErrInvalidExecutionLease)
-	}
-	if !durableLaneValid(request.Lane) {
-		return fmt.Errorf("%w: unsupported lane %q", ErrInvalidExecutionLease, request.Lane)
-	}
-	if request.WorkerID == "" {
-		return fmt.Errorf("%w: worker_id is required", ErrInvalidExecutionLease)
-	}
-	if request.Attempt < 1 {
-		return fmt.Errorf("%w: attempt must be positive", ErrInvalidExecutionLease)
-	}
-	if request.Now.IsZero() {
-		return fmt.Errorf("%w: now is required", ErrInvalidExecutionLease)
-	}
-	if !request.ExpiresAt.After(request.Now) {
-		return fmt.Errorf("%w: expires_at must be after acquired_at", ErrInvalidExecutionLease)
-	}
-	return nil
-}
-
-func validateNextExecutionLeaseRequest(request NextExecutionLeaseRequest) error {
-	if request.LeaseID == "" {
-		return fmt.Errorf("%w: lease_id is required", ErrInvalidExecutionLease)
-	}
-	if request.StepID == "" {
-		return fmt.Errorf("%w: step_id is required", ErrInvalidExecutionLease)
-	}
-	if !durableLaneValid(request.Lane) {
-		return fmt.Errorf("%w: unsupported lane %q", ErrInvalidExecutionLease, request.Lane)
-	}
-	if request.WorkerID == "" {
-		return fmt.Errorf("%w: worker_id is required", ErrInvalidExecutionLease)
-	}
-	if request.Now.IsZero() {
-		return fmt.Errorf("%w: now is required", ErrInvalidExecutionLease)
-	}
-	if !request.ExpiresAt.After(request.Now) {
-		return fmt.Errorf("%w: expires_at must be after acquired_at", ErrInvalidExecutionLease)
-	}
-	return nil
-}
-
-func validateExecutionLease(lease ExecutionLease) error {
-	if lease.LeaseID == "" {
-		return fmt.Errorf("%w: lease_id is required", ErrInvalidExecutionLease)
-	}
-	if lease.RunID == "" {
-		return fmt.Errorf("%w: run_id is required", ErrInvalidExecutionLease)
-	}
-	if lease.StepID == "" {
-		return fmt.Errorf("%w: step_id is required", ErrInvalidExecutionLease)
-	}
-	if !durableLaneValid(lease.Lane) {
-		return fmt.Errorf("%w: unsupported lane %q", ErrInvalidExecutionLease, lease.Lane)
-	}
-	if lease.WorkerID == "" {
-		return fmt.Errorf("%w: worker_id is required", ErrInvalidExecutionLease)
-	}
-	if lease.Attempt < 1 {
-		return fmt.Errorf("%w: attempt must be positive", ErrInvalidExecutionLease)
-	}
-	if lease.Status == "" {
-		return fmt.Errorf("%w: status is required", ErrInvalidExecutionLease)
-	}
-	if lease.Status == ExecutionLeaseStatusLeased && !lease.ExpiresAt.After(lease.HeartbeatAt) {
-		return fmt.Errorf("%w: expires_at must be after heartbeat_at", ErrInvalidExecutionLease)
-	}
-	return nil
-}
-
-func validateExpiredLeaseRecoveryRequest(request ExpiredLeaseRecoveryRequest) error {
-	if request.Now.IsZero() {
-		return fmt.Errorf("%w: now is required", ErrInvalidExpiredLeaseRecovery)
-	}
-	if request.ReleaseReason == "" {
-		return fmt.Errorf("%w: release_reason is required", ErrInvalidExpiredLeaseRecovery)
-	}
-	if request.TerminalReason == "" {
-		return fmt.Errorf("%w: terminal_reason is required", ErrInvalidExpiredLeaseRecovery)
-	}
-	if request.TerminalReason != DurableTerminalReasonLeaseExpired {
-		return fmt.Errorf(
-			"%w: unsupported terminal_reason %q",
-			ErrInvalidExpiredLeaseRecovery,
-			request.TerminalReason,
-		)
-	}
-	if request.MaxRetryAttempts < 1 {
-		return fmt.Errorf("%w: max_retry_attempts must be positive", ErrInvalidExpiredLeaseRecovery)
-	}
-	return nil
-}
-
 func validateTimedOutRunRecoveryRequest(request TimedOutRunRecoveryRequest) error {
 	if request.Now.IsZero() {
 		return fmt.Errorf("%w: now is required", ErrInvalidTimedOutRunRecovery)
@@ -184,92 +83,6 @@ func validateDurableRunCancelRequest(request DurableRunCancelRequest) error {
 	}
 	if request.ReleaseReason == "" {
 		return fmt.Errorf("%w: release_reason is required", ErrInvalidDurableRunCancel)
-	}
-	return nil
-}
-
-func validateLaneBudget(budget LaneBudget) error {
-	if !durableLaneValid(budget.Lane) {
-		return fmt.Errorf("%w: unsupported lane %q", ErrInvalidLaneBudget, budget.Lane)
-	}
-	if budget.MaxActiveLeases < 1 {
-		return fmt.Errorf("%w: max_active_leases must be positive", ErrInvalidLaneBudget)
-	}
-	if budget.MaxQueuedRuns < 0 {
-		return fmt.Errorf("%w: max_queued_runs must not be negative", ErrInvalidLaneBudget)
-	}
-	if budget.QueueTimeout <= 0 {
-		return fmt.Errorf("%w: queue_timeout must be positive", ErrInvalidLaneBudget)
-	}
-	if budget.RunTimeout <= 0 {
-		return fmt.Errorf("%w: run_timeout must be positive", ErrInvalidLaneBudget)
-	}
-	if budget.LeaseTimeout <= 0 {
-		return fmt.Errorf("%w: lease_timeout must be positive", ErrInvalidLaneBudget)
-	}
-	if budget.WorkerHeartbeatTimeout <= 0 {
-		return fmt.Errorf("%w: worker_heartbeat_timeout must be positive", ErrInvalidLaneBudget)
-	}
-	return nil
-}
-
-func validateWorkerHeartbeat(heartbeat WorkerHeartbeat) error {
-	if heartbeat.WorkerID == "" {
-		return fmt.Errorf("%w: worker_id is required", ErrWorkerHeartbeatInvalid)
-	}
-	if heartbeat.WorkerKind == "" {
-		return fmt.Errorf("%w: worker_kind is required", ErrWorkerHeartbeatInvalid)
-	}
-	if len(heartbeat.Lanes) == 0 {
-		return fmt.Errorf("%w: lanes are required", ErrWorkerHeartbeatInvalid)
-	}
-	for _, lane := range heartbeat.Lanes {
-		if !durableLaneValid(lane) {
-			return fmt.Errorf("%w: unsupported lane %q", ErrWorkerHeartbeatInvalid, lane)
-		}
-	}
-	switch heartbeat.Status {
-	case WorkerHeartbeatStatusReady, WorkerHeartbeatStatusDraining, WorkerHeartbeatStatusOffline:
-	default:
-		return fmt.Errorf("%w: unsupported status %q", ErrWorkerHeartbeatInvalid, heartbeat.Status)
-	}
-	if heartbeat.HeartbeatAt.IsZero() {
-		return fmt.Errorf("%w: heartbeat_at is required", ErrWorkerHeartbeatInvalid)
-	}
-	if heartbeat.StartedAt.IsZero() {
-		return fmt.Errorf("%w: started_at is required", ErrWorkerHeartbeatInvalid)
-	}
-	return nil
-}
-
-func validateWorkerCanLease(
-	heartbeat WorkerHeartbeat,
-	lane DurableLane,
-	now time.Time,
-	budget LaneBudget,
-) error {
-	if heartbeat.Status != WorkerHeartbeatStatusReady {
-		return fmt.Errorf(
-			"%w: worker %s status is %s",
-			ErrWorkerHeartbeatInvalid,
-			heartbeat.WorkerID,
-			heartbeat.Status,
-		)
-	}
-	if !workerHeartbeatHasLane(heartbeat, lane) {
-		return fmt.Errorf(
-			"%w: worker %s does not serve lane %s",
-			ErrWorkerHeartbeatInvalid,
-			heartbeat.WorkerID,
-			lane,
-		)
-	}
-	if now.Sub(heartbeat.HeartbeatAt) > budget.WorkerHeartbeatTimeout {
-		return fmt.Errorf(
-			"%w: worker %s heartbeat is stale",
-			ErrWorkerHeartbeatInvalid,
-			heartbeat.WorkerID,
-		)
 	}
 	return nil
 }
@@ -372,29 +185,6 @@ func recordDurableRunStatusTimestamp(run *DurableRun, status DurableRunStatus, n
 	}
 }
 
-func executionLeaseActiveKey(runID string, stepID string) string {
-	return runID + "\x00" + stepID
-}
-
-func activeLeaseCountForLane(leases map[string]ExecutionLease, lane DurableLane) int {
-	count := 0
-	for _, lease := range leases {
-		if lease.Lane == lane && lease.Status == ExecutionLeaseStatusLeased {
-			count++
-		}
-	}
-	return count
-}
-
-func workerHeartbeatHasLane(heartbeat WorkerHeartbeat, lane DurableLane) bool {
-	for _, workerLane := range heartbeat.Lanes {
-		if workerLane == lane {
-			return true
-		}
-	}
-	return false
-}
-
 func cloneDurableRun(run DurableRun) DurableRun {
 	clone := run
 	clone.RuntimeVersions = cloneAnyMap(run.RuntimeVersions)
@@ -405,12 +195,5 @@ func cloneDurableRun(run DurableRun) DurableRun {
 func cloneDurableRunEvent(event DurableRunEvent) DurableRunEvent {
 	clone := event
 	clone.Payload = cloneAnyMap(event.Payload)
-	return clone
-}
-
-func cloneWorkerHeartbeat(heartbeat WorkerHeartbeat) WorkerHeartbeat {
-	clone := heartbeat
-	clone.Lanes = append([]DurableLane{}, heartbeat.Lanes...)
-	clone.Metadata = cloneAnyMap(heartbeat.Metadata)
 	return clone
 }

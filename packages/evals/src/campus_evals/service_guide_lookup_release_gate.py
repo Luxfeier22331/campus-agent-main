@@ -30,7 +30,7 @@ from campus_evals.service_guide_projection_eval import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
+EXECUTION_CONTROL_DIR = REPO_ROOT / "apps" / "execution-control"
 DEFAULT_REPORT_NAME = "service-guide-lookup-release-gate.json"
 DEFAULT_SOURCE_TRUTH_MANIFEST = (
     REPO_ROOT / "configs/ingestion/campus_services/service_guide/source-truth.v1.json"
@@ -192,7 +192,7 @@ def run_service_guide_lookup_release_gate(
             check_id="supervisor_go_service_guide_tests",
             command=SUPERVISOR_GO_SERVICE_GUIDE_TEST_COMMAND,
             command_runner=resolved_command_runner,
-            cwd=SUPERVISOR_API_DIR,
+            cwd=EXECUTION_CONTROL_DIR,
         ),
         _run_command_check(
             check_id="campus_services_agent_contract_tests",
@@ -438,7 +438,7 @@ def _run_selected_write_preview_runtime_verification(
 
 
 def _run_intent_cases(cases: tuple[IntentCase, ...]) -> IntentEvalReport:
-    return run_intent_cases(cases, runner="supervisor-api-go")
+    return run_intent_cases(cases, runner="execution-control-go")
 
 
 def _run_command(command: tuple[str, ...], *, cwd: Path | None = None) -> CommandResult:

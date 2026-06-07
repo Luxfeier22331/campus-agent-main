@@ -53,6 +53,32 @@ func (s *InMemoryDurableRuntimeStore) AppendRunEvent(
 	return cloneDurableRunEvent(eventClone), nil
 }
 
+func (s *InMemoryDurableRuntimeStore) appendRunEventLocked(
+	run DurableRun,
+	event DurableRunEvent,
+) error {
+	events := s.runEvents[run.RunID]
+	event.Sequence = int64(len(events) + 1)
+	if event.ConversationID != run.ConversationID {
+		return fmt.Errorf(
+			"%w: event conversation_id %s does not match run conversation_id %s",
+			ErrInvalidRunEvent,
+			event.ConversationID,
+			run.ConversationID,
+		)
+	}
+	if err := validateDurableRunEventBase(event); err != nil {
+		return err
+	}
+	for _, existing := range events {
+		if existing.EventID == event.EventID {
+			return fmt.Errorf("%w: event_id %s already exists", ErrInvalidRunEvent, event.EventID)
+		}
+	}
+	s.runEvents[run.RunID] = append(events, cloneDurableRunEvent(event))
+	return nil
+}
+
 func (s *InMemoryDurableRuntimeStore) ListRunEvents(
 	_ context.Context,
 	runID string,

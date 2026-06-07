@@ -58,8 +58,8 @@ func TestPlanWithPolicyProjectsCanonicalWorkflowPlan(t *testing.T) {
 	if plan.SchemaVersion != WorkflowPlanSchemaVersion {
 		t.Fatalf("schema version = %q, want %q", plan.SchemaVersion, WorkflowPlanSchemaVersion)
 	}
-	if plan.WorkflowMode != WorkflowModeSingleHandoff {
-		t.Fatalf("workflow mode = %q, want single_handoff", plan.WorkflowMode)
+	if plan.WorkflowMode != WorkflowModeSingleStep {
+		t.Fatalf("workflow mode = %q, want single_step", plan.WorkflowMode)
 	}
 	if plan.PlanID == "" {
 		t.Fatal("plan id must not be empty")
@@ -75,14 +75,14 @@ func TestPlanWithPolicyProjectsCanonicalWorkflowPlan(t *testing.T) {
 		t.Fatalf("selected tool = %q, want retrieval.query", step.SelectedTool)
 	}
 	if len(plan.Edges) != 0 {
-		t.Fatalf("edges = %#v, want none for single handoff", plan.Edges)
+		t.Fatalf("edges = %#v, want none for single step", plan.Edges)
 	}
 	if plan.SemanticRetryPolicy.MaxReplans != 0 {
 		t.Fatalf("semantic retry max replans = %d, want 0", plan.SemanticRetryPolicy.MaxReplans)
 	}
 	projection := plan.Map()
-	if projection["workflow_mode"] != "single_handoff" {
-		t.Fatalf("projection workflow_mode = %v, want single_handoff", projection["workflow_mode"])
+	if projection["workflow_mode"] != "single_step" {
+		t.Fatalf("projection workflow_mode = %v, want single_step", projection["workflow_mode"])
 	}
 	steps, ok := projection["steps"].([]map[string]any)
 	if !ok || len(steps) != 1 || steps[0]["target"] != "rag-agent" {
@@ -192,7 +192,7 @@ func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing
 }
 
 func TestValidateWorkflowPlanWithAgentSpecRejectsInactiveAgent(t *testing.T) {
-	plan := SingleHandoffPlan(Handoff{
+	plan := SingleStepPlan(Handoff{
 		Target:      "navigation-agent",
 		PayloadKind: "place_lookup",
 		Payload:     map[string]any{"query_text": "北楼在哪里"},
@@ -227,7 +227,7 @@ func TestValidateWorkflowPlanWithAgentSpecRejectsInactiveAgent(t *testing.T) {
 }
 
 func TestValidateWorkflowPlanWithAgentSpecRejectsPayloadKindOutsideAgentSpec(t *testing.T) {
-	plan := SingleHandoffPlan(Handoff{
+	plan := SingleStepPlan(Handoff{
 		Target:      "campus-services-agent",
 		PayloadKind: "campus_notice_discover",
 		Payload:     map[string]any{"query_text": "校历"},

@@ -127,7 +127,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "campus_services",
         )
         self.assertEqual(
-            transport_schedule.processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            transport_schedule.processes[1].env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
             "2026-04-24T20:30:00+08:00",
         )
         self.assertEqual(
@@ -137,15 +137,15 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         transport_processes = {process.label: process for process in transport_schedule.processes}
         self.assertEqual(
             transport_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
         self.assertEqual(
             transport_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"
             ],
-            transport_processes["execution-control"].env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
+            transport_processes["execution-control"].env["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
         )
         self.assertEqual(
             transport_processes["supervisor-agent-worker"].env[
@@ -154,8 +154,8 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "true",
         )
         for process in transport_schedule.processes:
-            self.assertNotIn("SUPERVISOR_STRUCTURED_QUERY_BASE_URL", process.env)
-            self.assertNotIn("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", process.env)
+            self.assertNotIn("EXECUTION_CONTROL_STRUCTURED_QUERY_BASE_URL", process.env)
+            self.assertNotIn("EXECUTION_CONTROL_STRUCTURED_QUERY_SHARED_SECRET", process.env)
         self.assertEqual(
             transport_schedule_stream.execution_run_path,
             "/internal/execution/runs",
@@ -208,7 +208,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         )
         self.assertEqual(
             notice_discover_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
@@ -223,7 +223,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "campus_services",
         )
         self.assertEqual(
-            academic_processes["supervisor-agent-worker"].env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],
+            academic_processes["supervisor-agent-worker"].env["EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"],
             "http://127.0.0.1:27051",
         )
         multi_step_processes = {process.label: process for process in multi_step_notice.processes}
@@ -251,16 +251,16 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         )
         self.assertEqual(
             multi_step_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
         self.assertEqual(
             multi_step_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"
             ],
             multi_step_processes["execution-control"].env[
-                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"
             ],
         )
         self.assertIn("s3-smoke-object-store", multi_step_processes)
@@ -292,7 +292,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
         )
         self.assertEqual(
             transport_override_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
@@ -333,11 +333,11 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "campus_services",
         )
         self.assertNotIn(
-            "SUPERVISOR_INTERNAL_QUERY_BASE_URL",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL",
             selected_notice_guardrail_processes["supervisor-agent-worker"].env,
         )
         self.assertNotIn(
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
             selected_notice_guardrail_processes["supervisor-agent-worker"].env,
         )
         self.assertNotIn("s3-smoke-object-store", selected_notice_guardrail_processes)
@@ -409,7 +409,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                     plan.processes,
                     {
                         "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
-                        "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                        "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
                         ),
                     },
@@ -420,7 +420,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                     "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_test",
                 )
                 self.assertEqual(
-                    processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+                    processes[1].env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
                     STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
                 )
                 self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", plan.processes[1].env)
@@ -503,7 +503,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                         "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": runtime_database_url,
                         "EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL": runtime_database_url,
-                        "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                        "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
                         ),
                     },

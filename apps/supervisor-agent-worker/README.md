@@ -4,10 +4,10 @@
 orchestration worker。
 
 当前 public/internal HTTP execution ingress 已 hardcut 到 Go `apps/execution-control`。
-本 package 不再暴露 public `/api/v1/answer`，也不再负责 bearer / trusted-worker
-caller auth、public request body limit、transport admission、queue、metrics 或
-published `transport_runtime`。Python ASGI 入口只保留 private bridge 的 defensive
-body cap，避免异常 bridge caller 在 auth / JSON parsing 前造成无界内存占用。
+本 package 不再暴露 public answer ingress，也不再负责 bearer / trusted-worker caller
+auth、public request body limit、transport admission、queue、metrics 或 published
+`transport_runtime`。Python ASGI 入口只保留 private bridge 的 defensive body cap，
+避免异常 bridge caller 在 auth / JSON parsing 前造成无界内存占用。
 
 ## Responsibilities
 
@@ -141,7 +141,7 @@ export PROMPT_RUNTIME_MAX_CONNECTIONS=32
 export PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS=16
 export PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS=30
 export SUPERVISOR_AGENT_WORKER_THREADS=8
-export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS=1
+export EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS=1
 ```
 
 `PROMPT_RUNTIME_MODEL` 是 shared default。未显式提供 `SUPERVISOR_PROMPT_MODEL` /
@@ -156,7 +156,7 @@ Python bridge 不再拥有本地 supervisor audit JSONL writer，也不在 publi
 签名中暴露 `audit_sink`。execution audit 由 Go `apps/execution-control` 的 allowlisted
 audit writer 负责回流到 `app-api` internal ingest。
 
-`SUPERVISOR_INTERNAL_QUERY_BASE_URL` / `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
+`EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL` / `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
 是 supervisor runtime harness 注入的内部 wiring，只用于 Python worker 调用同一
 supervisor runtime 内 Go `execution-control` 的 internal
 `/internal/query/campus-services/*` seam。普通 repo `.env` 不需要手写这两个值；

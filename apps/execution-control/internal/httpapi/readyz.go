@@ -73,20 +73,17 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	)
 	defer structuredQueryCancel()
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
-	workflowRunStatus := s.workflowRunStoreStatus(request.Context())
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	promptGate := evaluatePromptConfigGate(s.config)
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	structuredRuntimeHealthy := s.openStructuredRuntimeHealthy(structuredQueryStatus)
-	workflowRuntimeHealthy := !s.config.MultiStepWorkflowEnabled || workflowRunStatus["healthy"] == true
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
 	ready := bridgeHealthy &&
 		transportStatus.Healthy &&
 		telemetryHealthy &&
 		executionAuditHealthy &&
 		structuredRuntimeHealthy &&
-		workflowRuntimeHealthy &&
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
 		promptGate.Admitted
@@ -105,7 +102,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"telemetry_runtime":        telemetryStatus,
 		"execution_audit_runtime":  executionAuditStatus,
 		"structured_query_runtime": structuredQueryStatus,
-		"workflow_run_runtime":     workflowRunStatus,
 		"run_projection_store":     runProjectionStoreStatus,
 		"temporal_runtime":         temporalRuntimeStatus,
 		"capability_gates":         s.capabilityGateStatus(),

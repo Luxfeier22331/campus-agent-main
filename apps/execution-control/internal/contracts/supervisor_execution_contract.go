@@ -67,10 +67,9 @@ const (
 type WorkflowMode string
 
 const (
-	WorkflowModeTerminal      WorkflowMode = "terminal"
-	WorkflowModeDirectRuntime WorkflowMode = "direct_runtime"
-	WorkflowModeSingleHandoff WorkflowMode = "single_handoff"
-	WorkflowModeMultiStep     WorkflowMode = "multi_step"
+	WorkflowModeTerminal   WorkflowMode = "terminal"
+	WorkflowModeSingleStep WorkflowMode = "single_step"
+	WorkflowModeMultiStep  WorkflowMode = "multi_step"
 )
 
 type StepOutputProjectionKind string
@@ -561,7 +560,7 @@ func (value SupervisorStatus) Valid() bool {
 
 func (value WorkflowMode) Valid() bool {
 	switch value {
-	case WorkflowModeTerminal, WorkflowModeDirectRuntime, WorkflowModeSingleHandoff, WorkflowModeMultiStep:
+	case WorkflowModeTerminal, WorkflowModeSingleStep, WorkflowModeMultiStep:
 		return true
 	default:
 		return false

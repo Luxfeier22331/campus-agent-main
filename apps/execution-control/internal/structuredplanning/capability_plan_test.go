@@ -193,8 +193,8 @@ func TestPlanWithPolicyDoesNotAttachCapabilityPlanForIneligibleSelectedNotice(t 
 	if plan == nil {
 		t.Fatal("expected generated workflow plan")
 	}
-	if plan.WorkflowMode != WorkflowModeSingleHandoff {
-		t.Fatalf("workflow mode = %q, want single_handoff", plan.WorkflowMode)
+	if plan.WorkflowMode != WorkflowModeSingleStep {
+		t.Fatalf("workflow mode = %q, want single_step", plan.WorkflowMode)
 	}
 	if plan.CapabilityPlan() != nil {
 		t.Fatalf("ineligible selected notice must not attach capability plan: %#v", plan.CapabilityPlan())

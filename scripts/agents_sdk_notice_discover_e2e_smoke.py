@@ -55,9 +55,9 @@ def build_e2e_smoke_plan(
         "SUPERVISOR_AGENT_WORKER_HOST": worker_host,
         "SUPERVISOR_AGENT_WORKER_PORT": str(worker_port),
         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": _BRIDGE_SECRET,
-        "SUPERVISOR_INTERNAL_QUERY_BASE_URL": api_base_url,
-        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": _QUERY_SECRET,
-        "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "3.0",
+        "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL": api_base_url,
+        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": _QUERY_SECRET,
+        "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS": "3.0",
         "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
     }
     api_env = {
@@ -71,7 +71,7 @@ def build_e2e_smoke_plan(
         "EXECUTION_CONTROL_OPEN_CAPABILITIES": "",
         "EXECUTION_CONTROL_OTEL_ENABLED": "false",
         "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
-        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": _QUERY_SECRET,
+        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": _QUERY_SECRET,
     }
     _assert_old_env_absent(worker_env)
     _assert_old_env_absent(api_env)
@@ -520,8 +520,8 @@ def _env_checks(processes: tuple[ProcessCommandSpec, ...]) -> dict[str, bool]:
     )
     old_keys = _old_internal_query_env_keys()
     return {
-        "internal_query_base_url_present": "SUPERVISOR_INTERNAL_QUERY_BASE_URL=" in env_text,
-        "internal_query_secret_present": "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=" in env_text,
+        "internal_query_base_url_present": "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL=" in env_text,
+        "internal_query_secret_present": "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=" in env_text,
         "old_internal_query_env_absent": not any(key in env_text for key in old_keys),
     }
 

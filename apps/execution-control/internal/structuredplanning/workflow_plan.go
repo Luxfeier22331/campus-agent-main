@@ -11,20 +11,19 @@ const WorkflowPlanSchemaVersion = "workflow-plan-v1"
 type WorkflowMode string
 
 const (
-	WorkflowModeTerminal      WorkflowMode = "terminal"
-	WorkflowModeDirectRuntime WorkflowMode = "direct_runtime"
-	WorkflowModeSingleHandoff WorkflowMode = "single_handoff"
-	WorkflowModeMultiStep     WorkflowMode = "multi_step"
+	WorkflowModeTerminal   WorkflowMode = "terminal"
+	WorkflowModeSingleStep WorkflowMode = "single_step"
+	WorkflowModeMultiStep  WorkflowMode = "multi_step"
 )
 
 type WorkflowStepKind string
 
 const (
-	WorkflowStepKindTerminal      WorkflowStepKind = "terminal"
-	WorkflowStepKindDirectRuntime WorkflowStepKind = "direct_runtime"
-	WorkflowStepKindHandoff       WorkflowStepKind = "handoff"
-	WorkflowStepKindToolCall      WorkflowStepKind = "tool_call"
-	WorkflowStepKindValidation    WorkflowStepKind = "validation"
+	WorkflowStepKindTerminal   WorkflowStepKind = "terminal"
+	WorkflowStepKindTypedTool  WorkflowStepKind = "typed_tool"
+	WorkflowStepKindHandoff    WorkflowStepKind = "handoff"
+	WorkflowStepKindToolCall   WorkflowStepKind = "tool_call"
+	WorkflowStepKindValidation WorkflowStepKind = "validation"
 )
 
 type WorkflowPlan struct {
@@ -70,7 +69,7 @@ type SemanticRetryPolicy struct {
 	MaxReplans int
 }
 
-func SingleHandoffPlan(handoff Handoff) *WorkflowPlan {
+func SingleStepPlan(handoff Handoff) *WorkflowPlan {
 	selectedTool := selectedToolForHandoff(handoff)
 	step := WorkflowPlanStep{
 		StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
@@ -82,8 +81,8 @@ func SingleHandoffPlan(handoff Handoff) *WorkflowPlan {
 	}
 	return &WorkflowPlan{
 		SchemaVersion: WorkflowPlanSchemaVersion,
-		PlanID:        "plan:single_handoff:" + handoff.Target + ":" + handoff.PayloadKind,
-		WorkflowMode:  WorkflowModeSingleHandoff,
+		PlanID:        "plan:single_step:" + handoff.Target + ":" + handoff.PayloadKind,
+		WorkflowMode:  WorkflowModeSingleStep,
 		AllowedAgents: []string{handoff.Target},
 		Steps:         []WorkflowPlanStep{step},
 		Edges:         []WorkflowPlanEdge{},

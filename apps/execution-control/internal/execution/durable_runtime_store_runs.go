@@ -49,13 +49,6 @@ func (s *InMemoryDurableRuntimeStore) DeleteRun(_ context.Context, runID string)
 	delete(s.runs, runID)
 	delete(s.runEvents, runID)
 	delete(s.activeRunByConversation, run.ConversationID)
-	for leaseID, lease := range s.leases {
-		if lease.RunID != runID {
-			continue
-		}
-		delete(s.leases, leaseID)
-		delete(s.activeLeaseByRunAndStep, executionLeaseActiveKey(lease.RunID, lease.StepID))
-	}
 	return nil
 }
 
@@ -144,37 +137,6 @@ func (s *InMemoryDurableRuntimeStore) CancelRun(
 			DurableRunStatusCanceled,
 		)
 	}
-	var releasedLease *ExecutionLease
-	for leaseID, lease := range s.leases {
-		if lease.RunID != run.RunID || lease.Status != ExecutionLeaseStatusLeased {
-			continue
-		}
-		lease.Status = ExecutionLeaseStatusReleased
-		lease.ReleasedAt = request.Now
-		lease.ReleaseReason = request.ReleaseReason
-		s.leases[leaseID] = lease
-		delete(s.activeLeaseByRunAndStep, executionLeaseActiveKey(lease.RunID, lease.StepID))
-		if err := s.appendRunEventLocked(run, DurableRunEvent{
-			EventID:              lease.LeaseID + ":lease-released-cancel",
-			RunID:                run.RunID,
-			ConversationID:       run.ConversationID,
-			EventType:            DurableRunEventTypeLeaseReleased,
-			OccurredAt:           request.Now,
-			Visibility:           DurableRunEventVisibilityInternal,
-			PayloadSchemaVersion: "run-event-v1",
-			Payload: map[string]any{
-				"lease_id":       lease.LeaseID,
-				"worker_id":      lease.WorkerID,
-				"step_id":        lease.StepID,
-				"release_reason": request.ReleaseReason,
-			},
-		}); err != nil {
-			return DurableRunCancelResult{}, err
-		}
-		leaseCopy := lease
-		releasedLease = &leaseCopy
-		break
-	}
 	run.Status = DurableRunStatusCanceled
 	run.TerminalReason = DurableTerminalReasonUserCanceled
 	run.UpdatedAt = request.Now
@@ -201,8 +163,7 @@ func (s *InMemoryDurableRuntimeStore) CancelRun(
 		return DurableRunCancelResult{}, err
 	}
 	return DurableRunCancelResult{
-		Run:           cloneDurableRun(run),
-		ReleasedLease: releasedLease,
+		Run: cloneDurableRun(run),
 	}, nil
 }
 

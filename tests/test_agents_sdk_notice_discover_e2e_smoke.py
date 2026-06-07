@@ -37,12 +37,12 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
         api_env = process_by_label["execution-control"].env
 
         self.assertEqual(
-            worker_env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],
+            worker_env["EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"],
             "http://127.0.0.1:19080",
         )
         self.assertEqual(
-            worker_env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
-            api_env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
+            worker_env["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
+            api_env["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
         )
         self.assertEqual(worker_env["SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED"], "true")
         self.assertNotIn("SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TARGETS", worker_env)

@@ -159,7 +159,7 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
 
         self.assertEqual(
             workflow_modes,
-            ("terminal", "direct_runtime", "single_handoff", "multi_step"),
+            ("terminal", "single_step", "multi_step"),
         )
 
     def test_runtime_decisions_declares_canonical_workflow_plan_projection(self) -> None:

@@ -352,7 +352,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(workflowPlan).toMatchObject({
 			allowed_agents: ["rag-agent"],
 			edges: [],
-			plan_id: "plan:single_handoff:rag-agent:rag_request",
+			plan_id: "plan:single_step:rag-agent:rag_request",
 			schema_version: "workflow-plan-v1",
 			steps: [
 				{
@@ -364,7 +364,7 @@ describe("chat command durable runtime cutover", () => {
 					target: "rag-agent",
 				},
 			],
-			workflow_mode: "single_handoff",
+			workflow_mode: "single_step",
 		});
 		expect(executionRuntime.createRun).toHaveBeenCalledWith({
 			conversationId: "conv_01HQ",

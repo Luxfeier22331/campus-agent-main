@@ -1,3 +1,5 @@
+//go:build retired_pg_lease
+
 package httpapi
 
 import (

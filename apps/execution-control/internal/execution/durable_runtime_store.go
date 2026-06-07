@@ -20,17 +20,6 @@ var (
 	ErrInvalidRunStep                   = errors.New("invalid run step projection")
 	ErrInvalidStepAttempt               = errors.New("invalid step attempt projection")
 	ErrInvalidStepResult                = errors.New("invalid step result projection")
-	ErrExecutionLeaseNotFound           = errors.New("execution lease not found")
-	ErrInvalidExecutionLease            = errors.New("invalid execution lease")
-	ErrExecutionLeaseConflict           = errors.New("execution lease conflict")
-	ErrExecutionLeaseDrift              = errors.New("execution lease ownership drift")
-	ErrLaneBudgetNotFound               = errors.New("lane budget not found")
-	ErrInvalidLaneBudget                = errors.New("invalid lane budget")
-	ErrLaneBudgetDisabled               = errors.New("lane budget disabled")
-	ErrLaneBudgetExceeded               = errors.New("lane budget exceeded")
-	ErrWorkerHeartbeatNotFound          = errors.New("worker heartbeat not found")
-	ErrWorkerHeartbeatInvalid           = errors.New("invalid worker heartbeat")
-	ErrInvalidExpiredLeaseRecovery      = errors.New("invalid expired lease recovery")
 	ErrInvalidTimedOutRunRecovery       = errors.New("invalid timed out run recovery")
 	ErrInvalidDurableRunCancel          = errors.New("invalid durable run cancel")
 )
@@ -58,26 +47,11 @@ type RunProjectionStore interface {
 
 type DurableRuntimeStore interface {
 	RunProjectionStore
-	AcquireExecutionLease(context.Context, ExecutionLeaseRequest) (ExecutionLease, error)
-	AcquireNextExecutionLease(context.Context, NextExecutionLeaseRequest) (ExecutionLease, error)
-	GetExecutionLease(context.Context, string) (ExecutionLease, error)
-	HeartbeatExecutionLease(context.Context, string, string, time.Time, time.Time) (
-		ExecutionLease,
-		error,
-	)
-	ReleaseExecutionLease(context.Context, string, string, string, time.Time) (ExecutionLease, error)
-	ExpireExecutionLeases(context.Context, time.Time, string) ([]ExecutionLease, error)
-	RecoverExpiredExecutionLeases(context.Context, ExpiredLeaseRecoveryRequest) (
-		[]ExpiredLeaseRecoveryResult,
-		error,
-	)
 	RecoverTimedOutRuns(context.Context, TimedOutRunRecoveryRequest) (
 		[]TimedOutRunRecoveryResult,
 		error,
 	)
 	CancelRun(context.Context, DurableRunCancelRequest) (DurableRunCancelResult, error)
-	UpsertLaneBudget(context.Context, LaneBudget) error
-	UpsertWorkerHeartbeat(context.Context, WorkerHeartbeat) error
 }
 
 type InMemoryDurableRuntimeStore struct {
@@ -87,11 +61,7 @@ type InMemoryDurableRuntimeStore struct {
 	runSteps                map[string]RunStepProjection
 	stepAttempts            map[string]StepAttemptProjection
 	stepResults             map[string]StepResultProjection
-	leases                  map[string]ExecutionLease
-	activeLeaseByRunAndStep map[string]string
 	activeRunByConversation map[string]string
-	laneBudgets             map[DurableLane]LaneBudget
-	workerHeartbeats        map[string]WorkerHeartbeat
 }
 
 func NewInMemoryDurableRuntimeStore() *InMemoryDurableRuntimeStore {
@@ -101,10 +71,6 @@ func NewInMemoryDurableRuntimeStore() *InMemoryDurableRuntimeStore {
 		runSteps:                map[string]RunStepProjection{},
 		stepAttempts:            map[string]StepAttemptProjection{},
 		stepResults:             map[string]StepResultProjection{},
-		leases:                  map[string]ExecutionLease{},
-		activeLeaseByRunAndStep: map[string]string{},
 		activeRunByConversation: map[string]string{},
-		laneBudgets:             map[DurableLane]LaneBudget{},
-		workerHeartbeats:        map[string]WorkerHeartbeat{},
 	}
 }

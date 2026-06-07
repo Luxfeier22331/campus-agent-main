@@ -29,7 +29,7 @@
 		},
 		"planning_outcome": "preplanned",
 		"direct_vs_delegate_branch": "delegate",
-		"workflow_mode": "single_handoff",
+		"workflow_mode": "single_step",
 		"handoff": {
 			"target": "rag-agent",
 			"agent_request": {
@@ -46,7 +46,7 @@
 		"agent_invocations": [
 			{
 				"invocation_id": "agent-invocation:rag-agent:1",
-				"workflow_run_ref": "single_handoff:rag-agent:retrieval.query",
+				"workflow_run_ref": "single_step:rag-agent:retrieval.query",
 				"step_id": "handoff:rag-agent:rag_request",
 				"agent_id": "rag-agent",
 				"status": "completed",

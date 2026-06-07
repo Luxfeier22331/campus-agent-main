@@ -21,13 +21,13 @@ from campus_supervisor_agent_worker.openai_agents_workflow_plan import (
 
 
 class OpenAIAgentsWorkflowPlanTest(unittest.TestCase):
-    def test_compiles_go_single_handoff_plan_for_sdk_agent_execution(self) -> None:
+    def test_compiles_go_single_step_plan_for_sdk_agent_execution(self) -> None:
         plan = compile_openai_agents_workflow_plan(
-            _single_handoff_plan(),
+            _single_step_plan(),
             agent_request=_service_guide_request(),
         )
 
-        self.assertEqual(plan.workflow_mode, "single_handoff")
+        self.assertEqual(plan.workflow_mode, "single_step")
         self.assertEqual(len(plan.steps), 1)
         self.assertEqual(plan.steps[0].execution_mode, "sdk_agent_execution")
         self.assertEqual(
@@ -60,7 +60,7 @@ class OpenAIAgentsWorkflowPlanTest(unittest.TestCase):
     def test_rejects_request_target_not_admitted_by_go_plan(self) -> None:
         with self.assertRaisesRegex(OpenAIAgentsWorkflowPlanError, "plan_not_admitted"):
             compile_openai_agents_workflow_plan(
-                _single_handoff_plan(),
+                _single_step_plan(),
                 agent_request=AgentRequest(
                     target="notice-agent",
                     user_goal="找通知",
@@ -79,7 +79,7 @@ class OpenAIAgentsWorkflowPlanTest(unittest.TestCase):
         request = _service_guide_request(allowed_tools=("transport_schedule_lookup",))
 
         with self.assertRaisesRegex(OpenAIAgentsWorkflowPlanError, "tool_not_admitted"):
-            compile_openai_agents_workflow_plan(_single_handoff_plan(), agent_request=request)
+            compile_openai_agents_workflow_plan(_single_step_plan(), agent_request=request)
 
     def test_rejects_missing_go_workflow_context_for_sdk_execution(self) -> None:
         request = AgentRequest(
@@ -172,12 +172,12 @@ def _notice_get_request() -> AgentRequest:
     )
 
 
-def _single_handoff_plan() -> WorkflowPlanWire:
+def _single_step_plan() -> WorkflowPlanWire:
     return WorkflowPlanWire.model_validate(
         {
             "schema_version": "workflow-plan-v1",
-            "plan_id": "plan:single_handoff:campus-services-agent:service_guide_lookup",
-            "workflow_mode": "single_handoff",
+            "plan_id": "plan:single_step:campus-services-agent:service_guide_lookup",
+            "workflow_mode": "single_step",
             "allowed_agents": ["campus-services-agent"],
             "steps": [
                 {

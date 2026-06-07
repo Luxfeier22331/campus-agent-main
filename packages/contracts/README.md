@@ -15,7 +15,7 @@
 - runtime / framework / transport 类型
 - retrieval backend、Qdrant、MinIO、registry 或其他基础设施类型
 - agent 内部实现细节
-- `supervisor_bridge_v6`、`runtime_decisions` 或 app-api / supervisor-api execution
+- `supervisor_bridge_v6`、`runtime_decisions` 或 app-api / execution-control execution
   transport wrapper
 
 当前它已经不是 rag-only contract 面；共享 handoff 现在覆盖 `rag-agent`、`navigation-agent` 与已
@@ -28,7 +28,7 @@ response contract 名称。
 - `packages/contracts/schemas/agent-handoff.v1.schema.json` 是 package-owned agent
   handoff JSON Schema，覆盖 `AgentRequest` / `AgentResponse`
 - `docs/contracts/schemas/supervisor-execution.openapi.yaml` 是 app-api /
-  supervisor-api / supervisor-agent-worker execution wrapper 的 canonical OpenAPI
+  execution-control / supervisor-agent-worker execution wrapper 的 canonical OpenAPI
   schema
 - cross-language generated artifacts 由
   `uv run --all-packages python -m scripts.generate_supervisor_execution_contracts`

@@ -31,8 +31,8 @@ func TestPlanGoldenCases(t *testing.T) {
 			if plan == nil {
 				t.Fatal("expected preplanned workflow plan")
 			}
-			if plan.WorkflowMode != WorkflowModeSingleHandoff {
-				t.Fatalf("workflow mode = %q, want single_handoff", plan.WorkflowMode)
+			if plan.WorkflowMode != WorkflowModeSingleStep {
+				t.Fatalf("workflow mode = %q, want single_step", plan.WorkflowMode)
 			}
 			handoff := plan.SelectedHandoff()
 			if handoff == nil {

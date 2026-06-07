@@ -13,8 +13,8 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 		RunID:     "run-001",
 		RequestID: "req-001",
 		TraceID:   "trace-001",
-		PlanID:    "plan:single_handoff:rag-agent:rag_request",
-		Mode:      WorkflowModeSingleHandoff,
+		PlanID:    "plan:single_step:rag-agent:rag_request",
+		Mode:      WorkflowModeSingleStep,
 		Branch:    "delegate",
 		State:     WorkflowStatePending,
 	}

@@ -46,12 +46,12 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", "")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES", "")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION", "")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", "")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES", "")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "")
@@ -382,7 +382,7 @@ func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
 func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "   ")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "   ")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "   ")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION", "   ")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -442,7 +442,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "responses")
 	t.Setenv("PROMPT_RUNTIME_BASE_URL", "https://api.openai.com/v1")
 	t.Setenv("PROMPT_STRICT_STRUCTURED_OUTPUTS", "false")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES", "4096")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES", "4096")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -591,11 +591,11 @@ func TestCapabilityOpenDoesNotOpenPlaceLookupBeforeMapRollout(t *testing.T) {
 func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "postgres://notice.example/db")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "custom_schema.custom_notice_read_model")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "http://minio:9000")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "derived-access")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "derived-secret")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION", "us-east-1")
-	t.Setenv("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", "notice-body-test")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "http://minio:9000")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "derived-access")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "derived-secret")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION", "us-east-1")
+	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", "notice-body-test")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {

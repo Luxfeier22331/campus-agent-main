@@ -249,46 +249,6 @@ create table if not exists runtime.agent_step_results (
 	sanitized_payload_json jsonb not null default '{}'::jsonb
 );
 
-create table if not exists runtime.execution_leases (
-	lease_id text primary key,
-	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
-	step_id text not null,
-	lane text not null,
-	worker_id text not null,
-	attempt integer not null,
-	status text not null,
-	acquired_at timestamptz not null,
-	heartbeat_at timestamptz not null,
-	expires_at timestamptz not null,
-	released_at timestamptz,
-	release_reason text not null default '',
-	created_at timestamptz not null default now(),
-	updated_at timestamptz not null default now()
-);
-
-create table if not exists runtime.lane_budgets (
-	lane text primary key,
-	max_active_leases integer not null,
-	max_queued_runs integer not null,
-	queue_timeout_ms bigint not null,
-	run_timeout_ms bigint not null,
-	lease_timeout_ms bigint not null,
-	worker_heartbeat_timeout_ms bigint not null,
-	enabled boolean not null,
-	updated_at timestamptz not null
-);
-
-create table if not exists runtime.worker_heartbeats (
-	worker_id text primary key,
-	worker_kind text not null,
-	lanes_json jsonb not null,
-	runtime_version text not null,
-	status text not null,
-	heartbeat_at timestamptz not null,
-	started_at timestamptz not null,
-	metadata_json jsonb not null default '{}'::jsonb
-);
-
 create table if not exists runtime.conversation_run_locks (
 	conversation_id text primary key,
 	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
@@ -329,13 +289,4 @@ create index if not exists agent_step_attempts_run_step_idx
 create index if not exists agent_step_results_run_step_idx
 	on runtime.agent_step_results (run_id, step_id, created_at);
 
-create unique index if not exists execution_leases_active_run_step_idx
-	on runtime.execution_leases (run_id, step_id)
-	where status = 'leased';
-
-create index if not exists execution_leases_lane_status_expires_idx
-	on runtime.execution_leases (lane, status, expires_at);
-
-create index if not exists execution_leases_worker_status_idx
-	on runtime.execution_leases (worker_id, status);
 `

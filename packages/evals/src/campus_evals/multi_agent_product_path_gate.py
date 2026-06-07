@@ -17,7 +17,7 @@ from campus_evals.workflow_trace_gate import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
+EXECUTION_CONTROL_DIR = REPO_ROOT / "apps" / "execution-control"
 DEFAULT_REPORT_NAME = "multi-agent-runtime-contract-gate.json"
 DEFAULT_SCHEMA_VERSION = "multi_agent_runtime_contract_gate.v1"
 DEFAULT_GATE_ID = "multi_agent_runtime_contract"
@@ -99,7 +99,7 @@ def run_multi_agent_product_path_gate(
             check_id="supervisor_multi_agent_runtime_tests",
             command=_supervisor_multi_agent_runtime_command(),
             command_runner=command,
-            cwd=SUPERVISOR_API_DIR,
+            cwd=EXECUTION_CONTROL_DIR,
         ),
         _run_command_check(
             check_id="domain_agent_adapter_tests",
@@ -414,8 +414,8 @@ __all__ = [
     "DEFAULT_GATE_ID",
     "DEFAULT_REPORT_NAME",
     "DEFAULT_SCHEMA_VERSION",
+    "EXECUTION_CONTROL_DIR",
     "REPO_ROOT",
-    "SUPERVISOR_API_DIR",
     "CommandResult",
     "MultiAgentGateCheck",
     "MultiAgentProductPathGateReport",

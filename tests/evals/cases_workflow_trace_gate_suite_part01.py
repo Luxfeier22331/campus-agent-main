@@ -154,7 +154,7 @@ class WorkflowTraceGateFixtureTestPart01(unittest.TestCase):
 
     def test_delegate_trace_projection_requires_agent_invocations(self) -> None:
         summary = _trace_summary(
-            workflow_mode="single_handoff",
+            workflow_mode="single_step",
             direct_vs_delegate_branch="delegate",
             handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
             selected_target="rag-agent",
@@ -179,7 +179,7 @@ class WorkflowTraceGateFixtureTestPart01(unittest.TestCase):
 
     def test_delegate_trace_projection_requires_invocation_target_alignment(self) -> None:
         summary = _trace_summary(
-            workflow_mode="single_handoff",
+            workflow_mode="single_step",
             direct_vs_delegate_branch="delegate",
             handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
             selected_target="rag-agent",

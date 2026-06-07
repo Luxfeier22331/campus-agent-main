@@ -60,10 +60,6 @@ const (
 	DurableRunEventTypeRunFailed             DurableRunEventType = "run.failed"
 	DurableRunEventTypeRunCanceled           DurableRunEventType = "run.canceled"
 	DurableRunEventTypeRunExpired            DurableRunEventType = "run.expired"
-	DurableRunEventTypeLeaseAcquired         DurableRunEventType = "lease.acquired"
-	DurableRunEventTypeLeaseHeartbeat        DurableRunEventType = "lease.heartbeat"
-	DurableRunEventTypeLeaseReleased         DurableRunEventType = "lease.released"
-	DurableRunEventTypeLeaseExpired          DurableRunEventType = "lease.expired"
 	DurableRunEventTypeWorkflowStarted       DurableRunEventType = "workflow.started"
 	DurableRunEventTypeWorkflowPlanned       DurableRunEventType = "workflow.planned"
 	DurableRunEventTypeActivityStarted       DurableRunEventType = "activity.started"
@@ -87,24 +83,6 @@ const (
 	DurableRunEventVisibilityPanel    DurableRunEventVisibility = "panel"
 	DurableRunEventVisibilityBrowser  DurableRunEventVisibility = "browser"
 	DurableRunEventVisibilityEval     DurableRunEventVisibility = "eval"
-)
-
-type ExecutionLeaseStatus string
-
-const (
-	ExecutionLeaseStatusAvailable ExecutionLeaseStatus = "available"
-	ExecutionLeaseStatusLeased    ExecutionLeaseStatus = "leased"
-	ExecutionLeaseStatusReleased  ExecutionLeaseStatus = "released"
-	ExecutionLeaseStatusExpired   ExecutionLeaseStatus = "expired"
-	ExecutionLeaseStatusRevoked   ExecutionLeaseStatus = "revoked"
-)
-
-type WorkerHeartbeatStatus string
-
-const (
-	WorkerHeartbeatStatusReady    WorkerHeartbeatStatus = "ready"
-	WorkerHeartbeatStatusDraining WorkerHeartbeatStatus = "draining"
-	WorkerHeartbeatStatusOffline  WorkerHeartbeatStatus = "offline"
 )
 
 type DurableRun struct {
@@ -192,76 +170,6 @@ type StepResultProjection struct {
 	SanitizedPayload     map[string]any
 }
 
-type ExecutionLease struct {
-	LeaseID       string
-	RunID         string
-	StepID        string
-	Lane          DurableLane
-	WorkerID      string
-	Attempt       int
-	Status        ExecutionLeaseStatus
-	AcquiredAt    time.Time
-	HeartbeatAt   time.Time
-	ExpiresAt     time.Time
-	ReleasedAt    time.Time
-	ReleaseReason string
-}
-
-type ExecutionLeaseRequest struct {
-	LeaseID   string
-	RunID     string
-	StepID    string
-	Lane      DurableLane
-	WorkerID  string
-	Attempt   int
-	Now       time.Time
-	ExpiresAt time.Time
-}
-
-type NextExecutionLeaseRequest struct {
-	LeaseID   string
-	StepID    string
-	Lane      DurableLane
-	WorkerID  string
-	Now       time.Time
-	ExpiresAt time.Time
-}
-
-type LaneBudget struct {
-	Lane                   DurableLane
-	MaxActiveLeases        int
-	MaxQueuedRuns          int
-	QueueTimeout           time.Duration
-	RunTimeout             time.Duration
-	LeaseTimeout           time.Duration
-	WorkerHeartbeatTimeout time.Duration
-	Enabled                bool
-	UpdatedAt              time.Time
-}
-
-type WorkerHeartbeat struct {
-	WorkerID       string
-	WorkerKind     string
-	Lanes          []DurableLane
-	RuntimeVersion string
-	Status         WorkerHeartbeatStatus
-	HeartbeatAt    time.Time
-	StartedAt      time.Time
-	Metadata       map[string]any
-}
-
-type ExpiredLeaseRecoveryRequest struct {
-	Now              time.Time
-	ReleaseReason    string
-	TerminalReason   DurableTerminalReason
-	MaxRetryAttempts int
-}
-
-type ExpiredLeaseRecoveryResult struct {
-	Lease ExecutionLease
-	Run   DurableRun
-}
-
 type TimedOutRunRecoveryRequest struct {
 	Now time.Time
 }
@@ -279,6 +187,5 @@ type DurableRunCancelRequest struct {
 }
 
 type DurableRunCancelResult struct {
-	Run           DurableRun
-	ReleasedLease *ExecutionLease
+	Run DurableRun
 }

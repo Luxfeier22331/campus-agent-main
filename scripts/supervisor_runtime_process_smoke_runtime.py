@@ -65,7 +65,7 @@ def _prepare_process_smoke_runtime(
                 generated_at=trusted_time,
             )
             env_overlay["CAMPUS_SHARED_POSTGRES_URL"] = runtime_database_url
-            env_overlay["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = trusted_time
+            env_overlay["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = trusted_time
             artifacts.append(
                 {
                     "kind": "temporary_postgres_structured_projection",

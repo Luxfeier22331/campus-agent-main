@@ -183,7 +183,7 @@ func (s *InMemoryWorkflowRunStore) Complete(
 
 func validateWorkflowRun(run WorkflowRun) error {
 	switch run.Mode {
-	case "", WorkflowModeTerminal, WorkflowModeDirectRuntime, WorkflowModeSingleHandoff, WorkflowModeMultiStep:
+	case "", WorkflowModeTerminal, WorkflowModeSingleStep, WorkflowModeMultiStep:
 	default:
 		return fmt.Errorf("%w: unsupported workflow mode %q", ErrInvalidWorkflowRun, run.Mode)
 	}

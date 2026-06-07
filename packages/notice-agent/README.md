@@ -19,16 +19,16 @@ capability 的 owner package。
 
 当前这个 package 主要冻结 owner boundary、internal query service interface、
 bounded SDK executor seam 与 `campus_notice_get` internal runtime；internal
-notice 的 projected read-model 查询 runtime 已迁到 `apps/supervisor-api`。
+notice 的 projected read-model 查询 runtime 已迁到 `apps/execution-control`。
 
 当前已实现：
 
-- `NoticeHTTPQueryService`：调用 Go `apps/supervisor-api` internal query routes：
+- `NoticeHTTPQueryService`：调用 Go `apps/execution-control` internal query routes：
   `/internal/query/notices/discover` 与 `/internal/query/notices/get`
 - `sdk_tool_executor`：负责 admitted structured notice tools 的 bounded SDK result projection
 - `notice_get_runtime`：负责 internal selected notice resolve，不暴露为 structured tool
 
-Go `apps/supervisor-api` 现在负责：
+Go `apps/execution-control` 现在负责：
 
 - restricted internal notice authorization fail-close gate
 - 只读 `ingestion_projection.internal_notice_read_model`

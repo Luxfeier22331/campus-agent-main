@@ -73,7 +73,7 @@ def build_process_smoke_plan(
         "supervisor-agent-worker-local-placeholder",
     )
     structured_query_secret = _env_or_default(
-        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
         "supervisor-structured-query-local-placeholder",
     )
     api_base_url = f"http://{api_host}:{api_port}"
@@ -195,23 +195,23 @@ def _profile_api_env(
     if profile in campus_services_sdk_profiles():
         return {
             "EXECUTION_CONTROL_OPEN_CAPABILITIES": "campus_services",
-            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+            "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
             ),
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
     if profile == "notice_discover_sdk_opened":
         env = {
             "EXECUTION_CONTROL_OPEN_CAPABILITIES": "notice",
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
         if profile_requires_object_store(profile):
             env.update(
                 {
-                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
-                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
-                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
+                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
+                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
                 }
             )
         return env
@@ -219,22 +219,22 @@ def _profile_api_env(
         env = {
             "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED": "true",
             "EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE": "true",
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
-            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
-            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
-            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
+            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
         }
         if profile == "transport_notice_override_multistep":
             env["EXECUTION_CONTROL_OPEN_CAPABILITIES"] = "campus_services"
-            env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
+            env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
                 TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
             )
         return env
     if profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
         return {
             "EXECUTION_CONTROL_OPEN_CAPABILITIES": "campus_services",
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
     return {}
 
@@ -255,9 +255,9 @@ def _profile_worker_env(
     ):
         return {}
     return {
-        "SUPERVISOR_INTERNAL_QUERY_BASE_URL": api_base_url,
-        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
-        "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
+        "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL": api_base_url,
+        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+        "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
         "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
     }
 

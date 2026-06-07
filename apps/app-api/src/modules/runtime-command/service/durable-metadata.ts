@@ -136,7 +136,7 @@ function buildExecutionRuntimeDecisions(input: {
 		workflow_plan: {
 			allowed_agents: [DURABLE_RAG_HANDOFF.target],
 			edges: [],
-			plan_id: "plan:single_handoff:rag-agent:rag_request",
+			plan_id: "plan:single_step:rag-agent:rag_request",
 			resume_policy: {
 				resume_supported: false,
 			},
@@ -155,7 +155,7 @@ function buildExecutionRuntimeDecisions(input: {
 				},
 			],
 			terminal_policy: {},
-			workflow_mode: "single_handoff",
+			workflow_mode: "single_step",
 		},
 	};
 }

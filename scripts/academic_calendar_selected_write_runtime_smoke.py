@@ -79,8 +79,8 @@ def build_academic_calendar_selected_write_runtime_smoke_plan(
     )
     resolved_secret = _required_text(
         structured_query_secret
-        or os.getenv("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
-        or _root_env_value(repo_root, "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
+        or os.getenv("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
+        or _root_env_value(repo_root, "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
         or "query-secret",
         "structured_query_secret",
     )
@@ -111,14 +111,14 @@ def build_academic_calendar_selected_write_runtime_smoke_plan(
             ),
             "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
             "EXECUTION_CONTROL_OTEL_ENABLED": "false",
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": resolved_secret,
-            "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS": os.getenv(
-                "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": resolved_secret,
+            "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS": os.getenv(
+                "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS",
                 "2000",
             ),
-            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": _required_text(
+            "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": _required_text(
                 trusted_time_rfc3339
-                or os.getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339")
+                or os.getenv("EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339")
                 or "2026-05-04T00:00:01Z",
                 "trusted_time_rfc3339",
             ),

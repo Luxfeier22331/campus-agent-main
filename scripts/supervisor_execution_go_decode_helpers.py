@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 
-def go_decode_helpers() -> str:
-    return """
+
+def go_decode_helpers(workflow_modes: Iterable[str]) -> str:
+    workflow_mode_cases = ", ".join(
+        f"WorkflowMode{_go_const_suffix(value)}" for value in workflow_modes
+    )
+    template = """
 func DecodeBridgeV6RequestWireJSON(data []byte) (BridgeV6RequestWire, error) {
 \tvar wire BridgeV6RequestWire
 \tif err := decodeStrictJSON(data, &wire); err != nil {
@@ -304,7 +309,7 @@ func (value SupervisorStatus) Valid() bool {
 
 func (value WorkflowMode) Valid() bool {
 \tswitch value {
-\tcase WorkflowModeTerminal, WorkflowModeDirectRuntime, WorkflowModeSingleHandoff, WorkflowModeMultiStep:
+\tcase __WORKFLOW_MODE_CASES__:
 \t\treturn true
 \tdefault:
 \t\treturn false
@@ -325,3 +330,8 @@ func (value StepOutputProjectionKind) Valid() bool {
 \t}
 }
 """
+    return template.replace("__WORKFLOW_MODE_CASES__", workflow_mode_cases)
+
+
+def _go_const_suffix(value: str) -> str:
+    return "".join(part[:1].upper() + part[1:] for part in value.replace("_", "-").split("-"))

@@ -196,106 +196,12 @@ func (s *PostgresDurableRuntimeStore) CancelRun(
 	ctx context.Context,
 	request DurableRunCancelRequest,
 ) (DurableRunCancelResult, error) {
-	if err := validateDurableRunCancelRequest(request); err != nil {
-		return DurableRunCancelResult{}, err
-	}
-	tx, err := s.pool.Begin(ctx)
+	run, err := s.CancelRunProjection(ctx, request)
 	if err != nil {
-		return DurableRunCancelResult{}, err
-	}
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
-	run, err := scanDurableRun(
-		tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", request.RunID),
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return DurableRunCancelResult{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
-		}
-		return DurableRunCancelResult{}, err
-	}
-	if !durableRunTransitionAllowed(run.Status, DurableRunStatusCanceled) {
-		return DurableRunCancelResult{}, fmt.Errorf(
-			"%w: %s -> %s",
-			ErrInvalidRunTransition,
-			run.Status,
-			DurableRunStatusCanceled,
-		)
-	}
-	var releasedLease *ExecutionLease
-	lease, err := scanExecutionLease(tx.QueryRow(
-		ctx,
-		executionLeaseSelectSQL+`
-		where run_id = $1 and status = $2
-		order by acquired_at asc
-		limit 1
-		for update`,
-		run.RunID,
-		string(ExecutionLeaseStatusLeased),
-	))
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return DurableRunCancelResult{}, err
-	}
-	if err == nil {
-		lease.Status = ExecutionLeaseStatusReleased
-		lease.ReleasedAt = request.Now
-		lease.ReleaseReason = request.ReleaseReason
-		if _, err := updateExecutionLeaseTerminal(ctx, tx, lease, request.Now); err != nil {
-			return DurableRunCancelResult{}, err
-		}
-		if err := insertDurableRunEventInTx(ctx, tx, run, DurableRunEvent{
-			EventID:              lease.LeaseID + ":lease-released-cancel",
-			RunID:                run.RunID,
-			ConversationID:       run.ConversationID,
-			EventType:            DurableRunEventTypeLeaseReleased,
-			OccurredAt:           request.Now,
-			Visibility:           DurableRunEventVisibilityInternal,
-			PayloadSchemaVersion: "run-event-v1",
-			Payload: map[string]any{
-				"lease_id":       lease.LeaseID,
-				"worker_id":      lease.WorkerID,
-				"step_id":        lease.StepID,
-				"release_reason": request.ReleaseReason,
-			},
-		}); err != nil {
-			return DurableRunCancelResult{}, err
-		}
-		leaseCopy := lease
-		releasedLease = &leaseCopy
-	}
-	run.Status = DurableRunStatusCanceled
-	run.TerminalReason = DurableTerminalReasonUserCanceled
-	run.UpdatedAt = request.Now
-	recordDurableRunStatusTimestamp(&run, DurableRunStatusCanceled, request.Now)
-	if err := validateDurableRun(run); err != nil {
-		return DurableRunCancelResult{}, err
-	}
-	if err := updateDurableRunStatusInTx(ctx, tx, run); err != nil {
-		return DurableRunCancelResult{}, err
-	}
-	if err := insertDurableRunEventInTx(ctx, tx, run, DurableRunEvent{
-		EventID:              run.RunID + ":run-canceled",
-		RunID:                run.RunID,
-		ConversationID:       run.ConversationID,
-		EventType:            DurableRunEventTypeRunCanceled,
-		OccurredAt:           request.Now,
-		Visibility:           DurableRunEventVisibilityInternal,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload: map[string]any{
-			"status":          string(DurableRunStatusCanceled),
-			"terminal_reason": string(DurableTerminalReasonUserCanceled),
-			"reason":          request.Reason,
-		},
-	}); err != nil {
-		return DurableRunCancelResult{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return DurableRunCancelResult{}, err
 	}
 	return DurableRunCancelResult{
-		Run:           run,
-		ReleasedLease: releasedLease,
+		Run: run,
 	}, nil
 }
 

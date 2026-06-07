@@ -3,10 +3,9 @@ package execution
 type WorkflowMode string
 
 const (
-	WorkflowModeTerminal      WorkflowMode = "terminal"
-	WorkflowModeSingleHandoff WorkflowMode = "single_handoff"
-	WorkflowModeDirectRuntime WorkflowMode = "direct_runtime"
-	WorkflowModeMultiStep     WorkflowMode = "multi_step"
+	WorkflowModeTerminal   WorkflowMode = "terminal"
+	WorkflowModeSingleStep WorkflowMode = "single_step"
+	WorkflowModeMultiStep  WorkflowMode = "multi_step"
 )
 
 type WorkflowState string
@@ -89,7 +88,7 @@ type ToolCallSummary struct {
 }
 
 func (run WorkflowRun) HandoffChainMaps() []map[string]any {
-	if run.Mode != WorkflowModeSingleHandoff && run.Mode != WorkflowModeMultiStep {
+	if run.Mode != WorkflowModeSingleStep && run.Mode != WorkflowModeMultiStep {
 		return []map[string]any{}
 	}
 	items := make([]map[string]any, 0, len(run.HandoffChain))

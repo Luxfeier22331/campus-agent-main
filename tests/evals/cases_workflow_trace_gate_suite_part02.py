@@ -23,7 +23,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
     def test_validates_current_workflow_mode_and_handoff_chain_shape(self) -> None:
         delegate_case = _workflow_case(
             direct_vs_delegate_branch="delegate",
-            workflow_mode="single_handoff",
+            workflow_mode="single_step",
             selected_target="rag-agent",
             selected_tools=("retrieval.query",),
             handoff={"target": "rag-agent"},
@@ -41,7 +41,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             expected_source_ids=("student_rules:leave-policy",),
         )
         delegate_summary = _trace_summary(
-            workflow_mode="single_handoff",
+            workflow_mode="single_step",
             direct_vs_delegate_branch="delegate",
             selected_target="rag-agent",
             selected_tools=("retrieval.query",),
@@ -100,7 +100,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         self.assertTrue(terminal_results.handoff_correctness.passed)
         self.assertTrue(terminal_results.trace_projection_completeness.passed)
 
-    def test_multi_step_trace_requires_more_than_single_handoff_projection(self) -> None:
+    def test_multi_step_trace_requires_more_than_single_step_projection(self) -> None:
         multi_step_case = _workflow_case(
             direct_vs_delegate_branch="delegate",
             workflow_mode="multi_step",
@@ -120,7 +120,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                 },
             ),
         )
-        single_handoff_projection = _trace_summary(
+        single_step_projection = _trace_summary(
             workflow_mode="multi_step",
             direct_vs_delegate_branch="delegate",
             selected_target="rag-agent",
@@ -137,7 +137,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             ),
         )
 
-        results = evaluate_workflow_trace_case(multi_step_case, single_handoff_projection)
+        results = evaluate_workflow_trace_case(multi_step_case, single_step_projection)
 
         self.assertFalse(results.trace_projection_completeness.passed)
         self.assertIn("handoff_chain.multi_step", results.trace_projection_completeness.reason)
@@ -363,7 +363,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                                 "context_resolution": {"state": "ok"},
                                 "planning_outcome": "preplanned",
                                 "direct_vs_delegate_branch": "delegate",
-                                "workflow_mode": "single_handoff",
+                                "workflow_mode": "single_step",
                                 "handoff": {"target": "campus-services-agent"},
                                 "handoff_chain": [
                                     {
@@ -396,7 +396,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                                 "agent_invocations": [
                                     {
                                         "invocation_id": "agent-invocation:campus-services-agent:1",
-                                        "workflow_run_ref": "single_handoff:campus-services-agent:transport_schedule_lookup",
+                                        "workflow_run_ref": "single_step:campus-services-agent:transport_schedule_lookup",
                                         "step_id": "handoff:campus-services-agent:transport_schedule_lookup",
                                         "agent_id": "campus-services-agent",
                                         "status": "completed",

@@ -137,7 +137,7 @@ def _validate_agents(agents: tuple[AgentSpec, ...]) -> None:
 def _resolve_agent_spec_path(path: str | Path | None) -> Path:
     if path is not None:
         return Path(path)
-    env_path = os.environ.get("SUPERVISOR_API_AGENT_SPEC_PATH", "").strip()
+    env_path = os.environ.get("EXECUTION_CONTROL_AGENT_SPEC_PATH", "").strip()
     if env_path:
         return Path(env_path)
     root = _repo_root()

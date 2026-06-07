@@ -281,7 +281,7 @@ def _collect_surface_conditions(
     structured_missing: list[str] = []
     if structured_runtime_required:
         if not _setting_present(optional_settings, "internal_query_shared_secret"):
-            structured_missing.append("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
+            structured_missing.append("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
         if not shared_postgres_present:
             structured_missing.append("CAMPUS_SHARED_POSTGRES_URL")
     conditions["structured_runtime_contract"] = {
@@ -310,13 +310,13 @@ def _collect_surface_conditions(
                 "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
             )
         if not _setting_present(optional_settings, "notice_object_store_endpoint"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT")
+            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT")
         if not _setting_present(optional_settings, "notice_object_store_access_key"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY")
+            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY")
         if not _setting_present(optional_settings, "notice_object_store_secret_key"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY")
+            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY")
         if not _setting_present(optional_settings, "notice_object_store_bucket"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET")
+            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET")
     conditions["notice_runtime_contract"] = {
         "required": notice_capability_open,
         "ready": len(notice_missing) == 0,

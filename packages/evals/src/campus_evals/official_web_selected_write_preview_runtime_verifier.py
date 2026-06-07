@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Protocol
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
+EXECUTION_CONTROL_DIR = REPO_ROOT / "apps" / "execution-control"
 DEFAULT_GO_RUNNER_COMMAND = ("go", "run", "./cmd/official-web-preview-runtime-verifier")
 DEFAULT_REPORT_NAME = "official-web-selected-write-preview-runtime-verification.json"
 DEFAULT_TARGET_INVENTORY_PATH = (
@@ -318,7 +318,7 @@ def _run_go_preview_runtime_runner(
     }
     completed = subprocess.run(
         DEFAULT_GO_RUNNER_COMMAND,
-        cwd=SUPERVISOR_API_DIR,
+        cwd=EXECUTION_CONTROL_DIR,
         input=json.dumps(payload, ensure_ascii=False),
         text=True,
         capture_output=True,
@@ -455,7 +455,7 @@ def _case_results_from_payload(
     payload: dict[str, object],
 ) -> tuple[OfficialWebSelectedWritePreviewRuntimeCaseResult, ...]:
     raw_results = payload.get("results")
-    if payload.get("runner") != "supervisor-api-go":
+    if payload.get("runner") != "execution-control-go":
         raise RuntimeError(f"unexpected preview runtime runner: {payload.get('runner')}")
     if not isinstance(raw_results, list):
         raise RuntimeError("preview runtime verifier results must be a list")

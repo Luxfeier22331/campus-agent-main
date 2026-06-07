@@ -56,7 +56,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
         self.assertNotIn("OBJECT_STORE_ENDPOINT", process_by_label["execution-control"].env)
         self.assertEqual(
             process_by_label["execution-control"].env[
-                "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"
+                "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"
             ],
             "http://127.0.0.1:19082",
         )
@@ -123,12 +123,12 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
         process_by_label = {process.label: process for process in override_plan.processes}
 
         self.assertEqual(
-            default_plan.processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            default_plan.processes[1].env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
         )
         self.assertEqual(
             process_by_label["execution-control"].env[
-                "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"
+                "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"
             ],
             TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
         )
@@ -188,11 +188,11 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
                 patch.object(smoke, "_prepare_process_smoke_runtime", return_value=None),
                 patch.object(smoke.subprocess, "Popen", return_value=FakeProcess()),
                 patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
-                patch.object(
-                    smoke,
-                    "wait_for_json_status",
-                    return_value=(503, {"workflow_run_runtime": {"last_error": "init failed"}}),
-                ),
+				patch.object(
+					smoke,
+					"wait_for_json_status",
+					return_value=(503, {"temporal_runtime": {"last_error": "init failed"}}),
+				),
                 patch.object(smoke, "_request_status", return_value=200),
                 patch.object(
                     smoke,
@@ -209,10 +209,10 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             ):
                 summary = smoke.run_process_smoke(plan, timeout_seconds=1)
 
-        self.assertEqual(
-            summary["probes"]["readyz_body"],
-            {"workflow_run_runtime": {"last_error": "init failed"}},
-        )
+		self.assertEqual(
+			summary["probes"]["readyz_body"],
+			{"temporal_runtime": {"last_error": "init failed"}},
+		)
 
     def test_process_smoke_artifact_redacts_secret_env_values(self) -> None:
         plan = build_process_smoke_plan(

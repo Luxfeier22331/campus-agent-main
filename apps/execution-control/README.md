@@ -153,38 +153,38 @@ Current structured query runtime boundary:
   evidence exists. It accepts `campus_services`, `navigation`, `notice`, or
   comma-separated combinations of these values; wildcard values such as `*` or
   `all` are rejected.
-- `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth and is
-  injected by the execution runtime harness.
+- `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth
+  and is injected by the execution runtime harness.
 - `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by
   `service_status_lookup`, `transport_schedule_lookup`, `service_guide_lookup`,
   `contact_directory_lookup`, and `academic_calendar_lookup` for the release
   catalog, current pointer, and typed read models.
 - Structured projection schema and read-model table names are fixed by the
   `ingestion_projection` contract, not runtime env.
-- `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
-  for deterministic tests; production should normally omit it.
-- `SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
-- `SUPERVISOR_NOTICE_BODY_LIMIT_BYTES` bounds canonical notice body reads from
-  object storage.
+- `EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime
+  time for deterministic tests; production should normally omit it.
+- `EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
+- `EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES` bounds canonical notice body reads
+  from object storage.
 - `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` configures the notice read-model PG
   connection; if unset, the runtime uses `CAMPUS_SHARED_POSTGRES_URL` as the
   shared database connection.
 - `INTERNAL_NOTICE_READ_MODEL_TABLE` defaults to
   `ingestion_projection.internal_notice_read_model`.
-- `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT`,
-  `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY`,
-  `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY`,
-  `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION`, and
-  `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET` configure notice canonical body
-  reads from the S3-compatible notice body bucket. The bucket may physically be
-  the ingestion derived bucket, but the Go runtime does not read generic
+- `EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT`,
+  `EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY`,
+  `EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY`,
+  `EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION`, and
+  `EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET` configure notice canonical
+  body reads from the S3-compatible notice body bucket. The bucket may
+  physically be the ingestion derived bucket, but the Go runtime does not read generic
   ingestion `OBJECT_STORE_*` variables.
 - The runtime is not browser-facing and not an `app-api` product surface. It
   does not open `place_lookup`; navigation / map-backed place lookup remains
   deferred until the map product rollout.
 - Python orchestration can consume this seam only when the execution runtime
-  harness injects `SUPERVISOR_INTERNAL_QUERY_BASE_URL` and
-  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` into the worker container.
+  harness injects `EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL` and
+  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` into the worker container.
 - Typed Temporal activities use the same projection-backed query runtime after
   the structured capability opening gate admits the request.
 - `/readyz` reports `capability_gates` so operators can see whether
@@ -276,16 +276,16 @@ export SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000
 export SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS=500
 export SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES=1048576
 export CAMPUS_SHARED_POSTGRES_URL=
-export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
-export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000
+export EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
+export EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS=1000
 export INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=
 export INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model
-export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT=
-export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY=
-export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY=
-export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION=us-east-1
-export SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET=
-export SUPERVISOR_NOTICE_BODY_LIMIT_BYTES=1048576
+export EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT=
+export EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY=
+export EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY=
+export EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION=us-east-1
+export EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET=
+export EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES=1048576
 ```
 
 Staging lifecycle derives execution audit URL and shared secret from

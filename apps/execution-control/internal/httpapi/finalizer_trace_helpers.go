@@ -173,15 +173,15 @@ func workflowMode(
 		return "terminal"
 	}
 	if branch == "direct" {
-		return "direct_runtime"
+		return "single_step"
 	}
 	if branch == "delegate" || decisions.RoutingNextAction == "delegate" || handoff != nil {
-		return "single_handoff"
+		return "single_step"
 	}
 	if decisions.RoutingNextAction != "" && decisions.RoutingNextAction != "delegate" {
 		return "terminal"
 	}
-	return "direct_runtime"
+	return "single_step"
 }
 
 func workflowTraceSelectedTarget(workflowMode string, target string) string {
@@ -299,7 +299,7 @@ func workflowTraceRun(
 		Branch: branch,
 		State:  workflowStateForStatus(status),
 	}
-	if run.Mode == execution.WorkflowModeSingleHandoff && handoff != nil {
+	if run.Mode == execution.WorkflowModeSingleStep && handoff != nil {
 		run.HandoffChain = append(run.HandoffChain, execution.HandoffStep{
 			Target:       defaultString(handoff.Target, target),
 			PayloadKind:  handoff.PayloadKind,

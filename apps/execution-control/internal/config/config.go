@@ -137,19 +137,19 @@ type envValues struct {
 	TemporalWorkflowIDSalt              string  `env:"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"`
 	TemporalStartTimeoutMS              int     `env:"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS" envDefault:"5000"`
 	QueryServingScopesPath              string  `env:"EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH"`
-	InternalQuerySharedSecret           string  `env:"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"`
-	StructuredQueryTrustedTimeRFC3339   string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
-	StructuredQueryTimeoutMS            int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
+	InternalQuerySharedSecret           string  `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
+	StructuredQueryTrustedTimeRFC3339   string  `env:"EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
+	StructuredQueryTimeoutMS            int     `env:"EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
 	PromptRuntimeTransport              string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
 	PromptRuntimeBaseURL                string  `env:"PROMPT_RUNTIME_BASE_URL"`
 	PromptStrictStructuredOutputs       string  `env:"PROMPT_STRICT_STRUCTURED_OUTPUTS" envDefault:"true"`
 	NoticeReadModelTable                string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
-	NoticeBodyObjectStoreEndpoint       string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"`
-	NoticeBodyObjectStoreAccessKey      string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"`
-	NoticeBodyObjectStoreSecretKey      string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"`
-	NoticeBodyObjectStoreRegion         string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION" envDefault:"us-east-1"`
-	NoticeBodyObjectStoreBucket         string  `env:"SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET"`
-	NoticeBodyObjectStoreBodyLimitBytes int64   `env:"SUPERVISOR_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
+	NoticeBodyObjectStoreEndpoint       string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"`
+	NoticeBodyObjectStoreAccessKey      string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"`
+	NoticeBodyObjectStoreSecretKey      string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"`
+	NoticeBodyObjectStoreRegion         string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION" envDefault:"us-east-1"`
+	NoticeBodyObjectStoreBucket         string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET"`
+	NoticeBodyObjectStoreBodyLimitBytes int64   `env:"EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
 }
 
 func LoadFromEnv() (Config, error) {
@@ -323,7 +323,7 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		{"EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
 		{"EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS", values.OTelExportIntervalMS},
 		{"EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS", values.ExecutionAuditTimeoutMS},
-		{"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", values.StructuredQueryTimeoutMS},
+		{"EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS", values.StructuredQueryTimeoutMS},
 		{"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", values.TemporalStartTimeoutMS},
 	}
 	for _, check := range checks {
@@ -341,7 +341,7 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		return fmt.Errorf("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES must be a positive integer")
 	}
 	if values.NoticeBodyObjectStoreBodyLimitBytes <= 0 {
-		return fmt.Errorf("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES must be a positive integer")
+		return fmt.Errorf("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES must be a positive integer")
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("EXECUTION_CONTROL_OTEL_SAMPLE_RATIO must be a number between 0 and 1")

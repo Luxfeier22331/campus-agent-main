@@ -62,8 +62,8 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 	if workflowPlan["schema_version"] != "workflow-plan-v1" {
 		t.Fatalf("workflow_plan.schema_version = %v, want workflow-plan-v1", workflowPlan["schema_version"])
 	}
-	if workflowPlan["workflow_mode"] != "single_handoff" {
-		t.Fatalf("workflow_plan.workflow_mode = %v, want single_handoff", workflowPlan["workflow_mode"])
+	if workflowPlan["workflow_mode"] != "single_step" {
+		t.Fatalf("workflow_plan.workflow_mode = %v, want single_step", workflowPlan["workflow_mode"])
 	}
 	allowedAgents, ok := workflowPlan["allowed_agents"].([]any)
 	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "campus-services-agent" {

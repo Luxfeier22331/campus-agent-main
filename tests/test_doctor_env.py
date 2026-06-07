@@ -120,7 +120,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000",
                         "EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD=5",
                         "EXECUTION_CONTROL_OTEL_SAMPLE_RATIO=1",
-                        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model",
                         "EXECUTION_CONTROL_TRANSPORT_WORKER_THREADS=8",
                     ]
@@ -156,7 +156,7 @@ class DoctorEnvTest(unittest.TestCase):
             )
             self.assertEqual(
                 optional["internal_query_shared_secret"]["resolved_key"],
-                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
             )
             self.assertTrue(status["conditions"]["execution_audit_contract"]["ready"])
             self.assertFalse(status["conditions"]["execution_audit_contract"]["required"])
@@ -290,7 +290,7 @@ class DoctorEnvTest(unittest.TestCase):
             condition = status["conditions"]["structured_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", condition["error"])
+            self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", condition["error"])
             self.assertIn("CAMPUS_SHARED_POSTGRES_URL", condition["error"])
 
     def test_collect_env_doctor_status_execution_control_enforces_notice_runtime_when_opened(
@@ -307,7 +307,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "EXECUTION_CONTROL_OPEN_CAPABILITIES=notice",
-                        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://shared.example/postgres",
                     ]
                 )
@@ -324,8 +324,8 @@ class DoctorEnvTest(unittest.TestCase):
             condition = status["conditions"]["notice_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", condition["error"])
-            self.assertIn("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", condition["error"])
+            self.assertIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", condition["error"])
+            self.assertIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", condition["error"])
 
     def test_collect_env_doctor_status_execution_control_rejects_axiom_collector_signal_path(
         self,

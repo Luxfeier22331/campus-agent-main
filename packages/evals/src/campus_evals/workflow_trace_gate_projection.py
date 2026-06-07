@@ -4,7 +4,7 @@ from typing import Protocol
 
 from campus_evals.models import DimensionResult, WorkflowTraceSummary
 
-SUPPORTED_WORKFLOW_MODES = frozenset(("terminal", "direct_runtime", "single_handoff", "multi_step"))
+SUPPORTED_WORKFLOW_MODES = frozenset(("terminal", "single_step", "multi_step"))
 
 
 class WorkflowTraceProjectionExpectation(Protocol):
@@ -27,7 +27,11 @@ def _trace_projection_completeness(
         missing.append("selected_target")
     if summary.workflow_mode == "terminal" and summary.selected_target != "none":
         missing.append("selected_target.none_sentinel")
-    if summary.workflow_mode == "single_handoff" and not summary.handoff_chain:
+    if (
+        summary.workflow_mode == "single_step"
+        and summary.direct_vs_delegate_branch == "delegate"
+        and not summary.handoff_chain
+    ):
         missing.append("handoff_chain")
     if summary.workflow_mode == "multi_step" and len(summary.handoff_chain) < 2:
         missing.append("handoff_chain.multi_step")
@@ -54,9 +58,14 @@ def _trace_projection_completeness(
         missing.append("answer_artifact_kinds.expected")
     missing.extend(_context_projection_summary_gaps(summary))
     missing.extend(_answer_artifact_usage_gaps(summary))
-    if summary.workflow_mode in {"single_handoff", "multi_step"} and not summary.agent_invocations:
+    requires_agent_invocations = (
+        summary.workflow_mode == "single_step"
+        and summary.direct_vs_delegate_branch == "delegate"
+        and not summary.agent_invocations
+    ) or (summary.workflow_mode == "multi_step" and not summary.agent_invocations)
+    if requires_agent_invocations:
         missing.append("agent_invocations")
-    elif summary.workflow_mode in {"single_handoff", "multi_step"}:
+    elif summary.workflow_mode in {"single_step", "multi_step"}:
         missing.extend(_agent_invocation_graph_gaps(summary))
     if (
         not summary.selected_tools

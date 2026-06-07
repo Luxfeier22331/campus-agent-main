@@ -346,7 +346,7 @@ describe("request observability", () => {
 					toolArgumentSummary: {
 						payload_kind: "transport_schedule_lookup",
 					},
-					workflowMode: "direct_runtime",
+					workflowMode: "single_step",
 				},
 			}),
 			sourceDocIds: [],

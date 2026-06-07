@@ -48,7 +48,7 @@ func TestNewRunProjectionStoreReturnsConnectionErrorForExplicitInvalidDatabaseUR
 	}
 }
 
-func TestNewServerDoesNotCreateDurableLeaseCoordinatorForOnlineServing(t *testing.T) {
+func TestNewServerDoesNotCreateRetiredPGLeaseCoordinatorForOnlineServing(t *testing.T) {
 	server := NewServerWithDependencies(config.Config{}, nil, nil, nil, nil)
 	if server.runProjectionStore != nil {
 		t.Fatalf("run projection store = %#v, want nil without explicit run projection database url", server.runProjectionStore)
@@ -85,11 +85,14 @@ func TestNewServerDoesNotCreateDurableWorkerLoopForOnlineServing(t *testing.T) {
 	if _, ok := body["durable_worker_loop"]; ok {
 		t.Fatalf("readyz must not publish retired durable_worker_loop: %#v", body["durable_worker_loop"])
 	}
+	if _, ok := body["workflow_run_runtime"]; ok {
+		t.Fatalf("readyz must not publish retired workflow_run_runtime: %#v", body["workflow_run_runtime"])
+	}
 }
 
 func TestStartDurableWorkerLoopRejectsRetiredOnlineServingMode(t *testing.T) {
 	server := NewServer(config.Config{
-		RunProjectionDatabaseURL:                  "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
+		RunProjectionDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
 	}, &fakeBridge{configured: true})
 
 	err := server.StartDurableWorkerLoop(t.Context())

@@ -65,7 +65,7 @@ jobs:
           path: .tmp/evals/intent-release-gate.json
           if-no-files-found: warn
 
-  supervisor-api-go:
+  execution-control-go:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -75,22 +75,22 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.26.2"
-          cache-dependency-path: apps/supervisor-api/go.mod
+          cache-dependency-path: apps/execution-control/go.mod
 
       - name: Check Go formatting
-        run: test -z "$(gofmt -l apps/supervisor-api)"
+        run: test -z "$(gofmt -l apps/execution-control)"
 
       - name: Run Go vet
-        run: cd apps/supervisor-api && go vet ./...
+        run: cd apps/execution-control && go vet ./...
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.11.4
-          working-directory: apps/supervisor-api
+          working-directory: apps/execution-control
 
       - name: Run Go tests
-        run: cd apps/supervisor-api && go test ./...
+        run: cd apps/execution-control && go test ./...
 
   yaml-lint:
     runs-on: ubuntu-latest

@@ -530,7 +530,7 @@ type SupervisorResponseWire struct {
 \tTraceID string `json:"trace_id"`
 }
 """
-        + go_decode_helpers()
+        + go_decode_helpers(workflow_modes)
     )
 
 

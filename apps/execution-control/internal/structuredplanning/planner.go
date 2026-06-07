@@ -58,7 +58,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		}
 		serviceGuideFocus := classifyServiceGuideFocus(normalizedGoal, policy)
 		if runtimepolicy.IsAcademicCalendarFactQueryForPlanning(normalizedGoal, policy) {
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "academic_calendar_lookup",
 				Payload:      academicCalendarPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
@@ -67,7 +67,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		}
 		if isContactDirectoryLookup(normalizedGoal, policy) &&
 			!shouldPreferServiceGuideOverContactDirectory(normalizedGoal, policy) {
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "contact_directory_lookup",
 				Payload:      contactDirectoryPayload(request.UserGoal, normalizedGoal, policy),
@@ -75,7 +75,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			})
 		}
 		if isTransportBoardingStatusLookup(normalizedGoal, policy) {
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_status_lookup",
 				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
@@ -83,7 +83,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			})
 		}
 		if isTransportServiceGuideLookup(normalizedGoal, policy) {
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_guide_lookup",
 				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
@@ -91,7 +91,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			})
 		}
 		if shouldPreferServiceStatusLookup(normalizedGoal, policy) {
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_status_lookup",
 				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
@@ -99,7 +99,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			})
 		}
 		if containsAny(normalizedGoal, policy.Signals("structured_transport")) {
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "transport_schedule_lookup",
 				Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
@@ -109,7 +109,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		if isServiceGuideLookup(normalizedGoal, policy) &&
 			serviceGuideFocus != "contact" &&
 			serviceGuideFocus != "procedure" {
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_guide_lookup",
 				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
@@ -117,7 +117,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			})
 		}
 		if isServiceGuideLookup(normalizedGoal, policy) {
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_guide_lookup",
 				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
@@ -136,14 +136,14 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			if selectedNoticeRef.SourceFamily != "" {
 				payload["source_family"] = selectedNoticeRef.SourceFamily
 			}
-			return SingleHandoffPlan(Handoff{
+			return SingleStepPlan(Handoff{
 				Target:       "notice-agent",
 				PayloadKind:  "campus_notice_get",
 				Payload:      payload,
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_get"),
 			})
 		}
-		return SingleHandoffPlan(Handoff{
+		return SingleStepPlan(Handoff{
 			Target:       "notice-agent",
 			PayloadKind:  "campus_notice_discover",
 			Payload:      noticeDiscoverPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
@@ -157,7 +157,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				selectedNoticeKnowledgeFollowthroughCapabilityPlan(request),
 			)
 		}
-		return SingleHandoffPlan(Handoff{
+		return SingleStepPlan(Handoff{
 			Target:       "rag-agent",
 			PayloadKind:  "rag_request",
 			Payload:      ragRequestPayload(request),

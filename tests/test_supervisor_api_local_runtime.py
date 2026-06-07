@@ -142,8 +142,8 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         compose = compose_path.read_text(encoding="utf-8")
         script = script_path.read_text(encoding="utf-8")
 
-        self.assertIn("SUPERVISOR_INTERNAL_QUERY_BASE_URL: http://execution-control:8000", compose)
-        self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", compose)
+        self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL: http://execution-control:8000", compose)
+        self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", compose)
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL", compose)
         service_status_url_key = "SERVICE_STATUS" + "_READ_MODEL_DATABASE_URL"
         transport_url_key = "TRANSPORT_SCHEDULE" + "_READ_MODEL_DATABASE_URL"
@@ -161,7 +161,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertNotIn(structured_schema_key, compose)
         self.assertIn("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", compose)
         self.assertIn("OBJECT_STORE_ENDPOINT", compose)
-        self.assertIn('"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"', script)
+        self.assertIn('"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"', script)
         self.assertIn(
             '"supervisor-internal-query-local-placeholder"',
             script,
@@ -196,7 +196,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
                 self.assertEqual(compose.count(f"      {key}"), 2)
         self.assertIn('PROMPT_RUNTIME_PROVIDER="${PROMPT_RUNTIME_PROVIDER:-mock-runtime}"', script)
         self.assertIn(
-            'SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET="${SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET:-supervisor-internal-query-local-placeholder}"',
+            'EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET="${EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET:-supervisor-internal-query-local-placeholder}"',
             script,
         )
 
@@ -245,9 +245,9 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn('"policy_projection_version":"phase1-authorization-projection-v1"', script)
         self.assertIn("execution_run_started", script)
         self.assertIn("temporal-execution-control-v1", script)
-        self.assertIn("SUPERVISOR_RUNTIME_SMOKE_SKIP_START", script)
-        self.assertIn("SUPERVISOR_RUNTIME_SMOKE_KEEP_RUNNING", script)
-        self.assertIn("SUPERVISOR_RUNTIME_SMOKE_ARTIFACT_DIR", script)
+        self.assertIn("EXECUTION_CONTROL_RUNTIME_SMOKE_SKIP_START", script)
+        self.assertIn("EXECUTION_CONTROL_RUNTIME_SMOKE_KEEP_RUNNING", script)
+        self.assertIn("EXECUTION_CONTROL_RUNTIME_SMOKE_ARTIFACT_DIR", script)
         self.assertIn(".tmp/execution-control-local-smoke", script)
         self.assertIn("summary.json", script)
         self.assertIn("campus_execution_control_runtime_smoke.v1", script)

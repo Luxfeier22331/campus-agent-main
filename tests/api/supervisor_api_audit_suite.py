@@ -237,8 +237,8 @@ def _bridge_request_payload(
             },
             "workflow_plan": {
                 "schema_version": "workflow-plan-v1",
-                "plan_id": "plan:single_handoff:rag-agent:rag_request",
-                "workflow_mode": "single_handoff",
+                "plan_id": "plan:single_step:rag-agent:rag_request",
+                "workflow_mode": "single_step",
                 "allowed_agents": ["rag-agent"],
                 "steps": [
                     {

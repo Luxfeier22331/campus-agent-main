@@ -2,9 +2,9 @@ package execution
 
 import "testing"
 
-func TestWorkflowRunProjectsSingleHandoffTrace(t *testing.T) {
+func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 	run := WorkflowRun{
-		Mode:   WorkflowModeSingleHandoff,
+		Mode:   WorkflowModeSingleStep,
 		Branch: "delegate",
 		State:  WorkflowStateCompleted,
 		HandoffChain: []HandoffStep{

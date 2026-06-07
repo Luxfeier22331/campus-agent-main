@@ -15,7 +15,7 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
 )
 
 WORKFLOW_PLAN_ERROR_SCHEMA_VERSION = "openai-agents-workflow-plan-error-v1"
-SUPPORTED_WORKFLOW_MODES = frozenset({"single_handoff", "multi_step"})
+SUPPORTED_WORKFLOW_MODES = frozenset({"single_step", "multi_step"})
 
 
 class OpenAIAgentsWorkflowPlanError(ValueError):

@@ -352,7 +352,7 @@ def _validate_artifact(artifact: WorkflowArtifact, raw_tokens: set[str]) -> None
 def _resolve_workflow_artifact_registry_path(path: str | Path | None) -> Path:
     if path is not None:
         return Path(path)
-    env_path = os.environ.get("SUPERVISOR_API_WORKFLOW_ARTIFACT_REGISTRY_PATH", "").strip()
+    env_path = os.environ.get("EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH", "").strip()
     if env_path:
         return Path(env_path)
     root = _repo_root()

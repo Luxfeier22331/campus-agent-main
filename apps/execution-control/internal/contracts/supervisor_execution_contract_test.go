@@ -26,9 +26,9 @@ func TestDecodeBridgeV6RequestWireJSONAcceptsCanonicalFixture(t *testing.T) {
 	if wire.RuntimeDecisions.WorkflowPlan == nil {
 		t.Fatal("workflow_plan is nil, want canonical plan projection")
 	}
-	if wire.RuntimeDecisions.WorkflowPlan.WorkflowMode != WorkflowModeSingleHandoff {
+	if wire.RuntimeDecisions.WorkflowPlan.WorkflowMode != WorkflowModeSingleStep {
 		t.Fatalf(
-			"workflow mode = %q, want single_handoff",
+			"workflow mode = %q, want single_step",
 			wire.RuntimeDecisions.WorkflowPlan.WorkflowMode,
 		)
 	}
