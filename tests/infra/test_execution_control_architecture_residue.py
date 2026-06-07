@@ -7,15 +7,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 HISTORICAL_PATH_PARTS = (
-    "/.planning/legacy-flat/",
-    "/.planning/quick/",
-    "/.planning/research/",
     "/infra/local/staging/historical/",
-    "durable-agent-runtime-gap-matrix.md",
     "adr-0047-run-centric-durable-agent-runtime.md",
 )
-
-RETIRED_BUILD_TAG = "//go:build retired_pg_lease"
 
 ACTIVE_TRUTH_PREFIXES = (
     "/.github/",
@@ -44,7 +38,6 @@ ACTIVE_RUNTIME_PREFIXES = (
 ACTIVE_PLANNING_ENTRY_PREFIXES = (
     "/.planning/PROJECT.md",
     "/.planning/WORKSTREAMS.md",
-    "/.planning/codebase/",
 )
 
 ACTIVE_FORBIDDEN_TERMS = (
@@ -58,11 +51,29 @@ ACTIVE_FORBIDDEN_TERMS = (
     "campusRAG",
 )
 
+REMOVED_PLANNING_TREE_PATTERNS = (
+    ".planning/workstreams",
+    ".planning/quick",
+    ".planning/legacy-flat",
+    ".planning/milestones",
+    ".planning/research",
+    ".planning/todos",
+    ".planning/codebase",
+    ".planning/seeds",
+    "docs/plans",
+)
+
+REMOVED_PLANNING_TREE_ALLOWED_PATH_PARTS = (
+    "/.planning/PROJECT.md",
+    "/.planning/WORKSTREAMS.md",
+    "/docs/README.md",
+    "/docs/decisions/adr-0038-documentation-information-architecture-and-lifecycle.md",
+    "/tests/infra/test_execution_control_architecture_residue.py",
+    "/tests/test_check_markdown_tracked.py",
+)
+
 ACTIVE_SUPERVISOR_API_ALLOWED_PATH_PARTS = (
-    "/.planning/legacy-flat/",
-    "/.planning/quick/",
-    "/.planning/research/",
-    "/.planning/workstreams/",
+    "/docs/decisions/adr-0047-run-centric-durable-agent-runtime.md",
 )
 
 ACTIVE_SUPERVISOR_API_FORBIDDEN_TERMS = (
@@ -79,6 +90,7 @@ ONLINE_LEASE_FORBIDDEN_PATTERNS = (
 ONLINE_LEASE_ALLOWED_PATH_PARTS = (
     "/tests/infra/test_execution_control_architecture_residue.py",
     "/apps/execution-control/internal/execution/run_projection_postgres_store_test.go",
+    "/docs/decisions/adr-0047-run-centric-durable-agent-runtime.md",
 )
 
 LEGACY_ANSWER_ROUTE_FORBIDDEN_PATTERNS = (
@@ -89,13 +101,6 @@ LEGACY_ANSWER_ROUTE_FORBIDDEN_PATTERNS = (
 
 LEGACY_ANSWER_ROUTE_ALLOWED_PATH_PARTS = (
     "/tests/infra/test_execution_control_architecture_residue.py",
-    "/tests/test_supervisor_api_local_runtime.py",
-    "/apps/execution-control/internal/httpapi/durable_legacy_routes_test.go",
-    "/docs/contracts/app-api-request-lifecycle.md",
-    "/docs/contracts/app-api-supervisor-execution.md",
-    "/docs/contracts/durable-agent-runtime-contract.md",
-    "/docs/reference/durable-agent-runtime-gap-matrix.md",
-    "/docs/runbooks/execution-control-local-runtime-smoke.md",
 )
 
 READYZ_FORBIDDEN_PATTERNS = (
@@ -104,7 +109,7 @@ READYZ_FORBIDDEN_PATTERNS = (
 
 READYZ_ALLOWED_PATH_PARTS = (
     "/tests/infra/test_execution_control_architecture_residue.py",
-    "/apps/execution-control/internal/httpapi/durable_runtime_store_wiring_test.go",
+    "/apps/execution-control/internal/httpapi/run_projection_store_wiring_test.go",
 )
 
 
@@ -138,12 +143,6 @@ def is_historical(path: Path) -> bool:
     return any(part in relative for part in HISTORICAL_PATH_PARTS)
 
 
-def has_retired_pg_lease_build_tag(path: Path) -> bool:
-    if path.suffix != ".go":
-        return False
-    return RETIRED_BUILD_TAG in read_text(path).splitlines()[:5]
-
-
 def is_under(path: Path, prefixes: tuple[str, ...]) -> bool:
     relative = normalized_relative(path)
     return any(relative.startswith(prefix) for prefix in prefixes)
@@ -165,6 +164,24 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
             for term in ACTIVE_FORBIDDEN_TERMS:
                 if term in text:
                     offenders.append(f"{path.relative_to(ROOT)} contains {term}")
+
+        self.assertEqual(offenders, [])
+
+    def test_removed_planning_archive_trees_are_not_referenced_as_active_truth(self) -> None:
+        offenders: list[str] = []
+
+        for path in tracked_files():
+            relative = normalized_relative(path)
+            if any(part in relative for part in REMOVED_PLANNING_TREE_ALLOWED_PATH_PARTS):
+                continue
+            if is_historical(path):
+                continue
+            if not is_under(path, ACTIVE_TRUTH_PREFIXES + ACTIVE_RUNTIME_PREFIXES):
+                continue
+            text = read_text(path)
+            for pattern in REMOVED_PLANNING_TREE_PATTERNS:
+                if pattern in text:
+                    offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
 
         self.assertEqual(offenders, [])
 
@@ -199,8 +216,6 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
             relative = normalized_relative(path)
             if not is_under(path, ACTIVE_RUNTIME_PREFIXES):
                 continue
-            if has_retired_pg_lease_build_tag(path):
-                continue
             if any(part in relative for part in ONLINE_LEASE_ALLOWED_PATH_PARTS):
                 continue
             text = read_text(path)
@@ -215,7 +230,7 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
 
         for path in tracked_files():
             relative = normalized_relative(path)
-            if is_historical(path) or has_retired_pg_lease_build_tag(path):
+            if is_historical(path):
                 continue
             if any(part in relative for part in LEGACY_ANSWER_ROUTE_ALLOWED_PATH_PARTS):
                 continue
@@ -236,7 +251,7 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
 
         for path in tracked_files():
             relative = normalized_relative(path)
-            if is_historical(path) or has_retired_pg_lease_build_tag(path):
+            if is_historical(path):
                 continue
             if any(part in relative for part in READYZ_ALLOWED_PATH_PARTS):
                 continue

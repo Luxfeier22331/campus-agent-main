@@ -99,6 +99,12 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ),
             "binary_asset",
         )
+        self.assertEqual(
+            lint_exclusion_reason(
+                "docs/runbooks/muc-wiki-visual-modernization-assets/MUCWikiSkin/skin.json"
+            ),
+            "runbook_visual_asset_snapshot",
+        )
 
     def test_repo_inventory_has_no_uncovered_tracked_lint_candidates(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

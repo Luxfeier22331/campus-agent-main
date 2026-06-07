@@ -71,6 +71,7 @@ class WorkspaceLayoutTest(unittest.TestCase):
             {route.path for route in app.routes},
             {
                 "/internal/bridge/execution/cancel",
+                "/internal/bridge/semantic/execution",
                 "/internal/bridge/supervisor/answer",
                 "/internal/bridge/healthz",
                 "/internal/bridge/readyz",

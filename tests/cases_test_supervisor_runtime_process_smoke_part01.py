@@ -188,11 +188,11 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
                 patch.object(smoke, "_prepare_process_smoke_runtime", return_value=None),
                 patch.object(smoke.subprocess, "Popen", return_value=FakeProcess()),
                 patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
-				patch.object(
-					smoke,
-					"wait_for_json_status",
-					return_value=(503, {"temporal_runtime": {"last_error": "init failed"}}),
-				),
+                patch.object(
+                    smoke,
+                    "wait_for_json_status",
+                    return_value=(503, {"temporal_runtime": {"last_error": "init failed"}}),
+                ),
                 patch.object(smoke, "_request_status", return_value=200),
                 patch.object(
                     smoke,
@@ -209,10 +209,10 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             ):
                 summary = smoke.run_process_smoke(plan, timeout_seconds=1)
 
-		self.assertEqual(
-			summary["probes"]["readyz_body"],
-			{"temporal_runtime": {"last_error": "init failed"}},
-		)
+        self.assertEqual(
+            summary["probes"]["readyz_body"],
+            {"temporal_runtime": {"last_error": "init failed"}},
+        )
 
     def test_process_smoke_artifact_redacts_secret_env_values(self) -> None:
         plan = build_process_smoke_plan(

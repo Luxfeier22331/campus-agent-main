@@ -88,7 +88,6 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
         self.assertIn("packages/rag-agent/AGENTS.md", relative_paths)
         self.assertNotIn(".planning/PROJECT.md", relative_paths)
         self.assertNotIn("apps/public-chat-web/vendor/vercel-ai-chatbot/README.md", relative_paths)
-        self.assertNotIn("docs/plans/example.md", relative_paths)
 
     @patch("scripts.check_markdown_tracked.subprocess.run")
     def test_main_invokes_markdownlint_with_tracked_files(
@@ -151,7 +150,7 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
     if "/vendor/" in path or "/node_modules/" in path:
         return False
     if path.startswith("docs/"):
-        if "/archive/" in path or path.startswith("docs/plans/"):
+        if "/archive/" in path:
             return False
         return path.endswith(".md")
     if path in {"README.md", "AGENTS.md", "CONTRIBUTING.md", ".github/pull_request_template.md"}:

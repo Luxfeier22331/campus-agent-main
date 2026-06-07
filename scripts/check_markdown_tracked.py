@@ -38,7 +38,7 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
     if "/vendor/" in path or "/node_modules/" in path:
         return False
     if path.startswith("docs/"):
-        if "/archive/" in path or path.startswith("docs/plans/"):
+        if "/archive/" in path:
             return False
         return path.endswith(".md")
     if path in {"README.md", "AGENTS.md", "CONTRIBUTING.md", ".github/pull_request_template.md"}:

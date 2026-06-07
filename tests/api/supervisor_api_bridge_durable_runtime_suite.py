@@ -6,15 +6,15 @@ from campus_contracts import AgentResponse
 from campus_supervisor_agent_worker.api import build_bridge_routes
 from campus_supervisor_agent_worker.settings import ApiSettings
 
-from .execution_control_bridge_support import (
+from .supervisor_api_bridge_support import (
     SupervisorApiBridgeBaseTest,
     _bridge_v6_payload,
 )
 
 
-class SupervisorApiBridgeDurableRuntimeTest(SupervisorApiBridgeBaseTest):
-    def test_durable_execution_route_requires_lease_metadata(self) -> None:
-        route = _durable_execution_route(
+class SupervisorApiBridgeSemanticExecutionTest(SupervisorApiBridgeBaseTest):
+    def test_semantic_execution_route_requires_step_execution_metadata(self) -> None:
+        route = _semantic_execution_route(
             agent_handler=lambda _request, _agent_request: AgentResponse(
                 target="rag-agent",
                 status="ok",
@@ -25,17 +25,17 @@ class SupervisorApiBridgeDurableRuntimeTest(SupervisorApiBridgeBaseTest):
         response = route.handler(
             {"x-supervisor-bridge-auth": "secret"},
             {
-                "bridge_version": "supervisor_durable_worker_v1",
-                "run_id": "run-durable-missing",
-                "execution": _bridge_v6_payload(request_id="req-durable-missing"),
+                "bridge_version": "semantic_bridge_execution_v1",
+                "run_id": "run-semantic-missing",
+                "execution": _bridge_v6_payload(request_id="req-semantic-missing"),
             },
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
-        self.assertIn("lease_id", response.json_body["error"]["message"])
+        self.assertIn("step_execution_id", response.json_body["error"]["message"])
 
-    def test_durable_execution_route_dispatches_agent_request_with_lease_context(self) -> None:
+    def test_semantic_execution_route_dispatches_agent_request_with_step_context(self) -> None:
         seen: dict[str, object] = {}
 
         def _handler(request, agent_request):
@@ -45,40 +45,40 @@ class SupervisorApiBridgeDurableRuntimeTest(SupervisorApiBridgeBaseTest):
             return AgentResponse(
                 target=agent_request.target,
                 status="completed",
-                answer_text="durable answer",
+                answer_text="semantic answer",
                 confidence="high",
             )
 
-        route = _durable_execution_route(agent_handler=_handler)
+        route = _semantic_execution_route(agent_handler=_handler)
         response = route.handler(
             {"x-supervisor-bridge-auth": "secret"},
             {
-                "bridge_version": "supervisor_durable_worker_v1",
-                "run_id": "run-durable-001",
-                "lease_id": "lease-durable-001",
+                "bridge_version": "semantic_bridge_execution_v1",
+                "run_id": "run-semantic-001",
+                "step_execution_id": "step-execution-semantic-001",
                 "step_id": "primary",
                 "lane": "rag",
-                "worker_id": "worker-durable-001",
+                "worker_id": "worker-semantic-001",
                 "attempt": 1,
-                "execution": _bridge_v6_payload(request_id="req-durable-001"),
+                "execution": _bridge_v6_payload(request_id="req-semantic-001"),
             },
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "durable_agent_response")
-        self.assertEqual(response.json_body["answer_text"], "durable answer")
-        self.assertEqual(seen["request_id"], "req-durable-001")
-        self.assertEqual(seen["agent_request_id"], "req-durable-001")
+        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "semantic_agent_response")
+        self.assertEqual(response.json_body["answer_text"], "semantic answer")
+        self.assertEqual(seen["request_id"], "req-semantic-001")
+        self.assertEqual(seen["agent_request_id"], "req-semantic-001")
         workflow_context = seen["workflow_context"]
         self.assertIsInstance(workflow_context, dict)
-        self.assertEqual(workflow_context["workflow_run_ref"], "run-durable-001")
+        self.assertEqual(workflow_context["workflow_run_ref"], "run-semantic-001")
         self.assertEqual(workflow_context["step_id"], "primary")
 
 
-def _durable_execution_route(*, agent_handler):
+def _semantic_execution_route(*, agent_handler):
     settings = ApiSettings(bridge_shared_secret="secret")
     routes = build_bridge_routes(settings, agent_handler=agent_handler)
     for route in routes:
-        if route.method == "POST" and route.path == "/internal/bridge/durable/execution":
+        if route.method == "POST" and route.path == "/internal/bridge/semantic/execution":
             return route
-    raise AssertionError("durable execution route not found")
+    raise AssertionError("semantic execution route not found")

@@ -1,4 +1,4 @@
-from .execution_control_bridge_support import *
+from .supervisor_api_bridge_support import *
 
 
 class SupervisorApiBridgeRuntimeTest(SupervisorApiBridgeBaseTest):

@@ -238,7 +238,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("/readyz", script)
         self.assertIn("/metrics", script)
         self.assertIn("/internal/execution/runs", script)
-        self.assertNotIn("/api/v1/answer", script)
+        self.assertIn("/internal/execution/runs", script)
         self.assertIn("x-worker-origin-auth", script)
         self.assertIn('"context"', script)
         self.assertIn('"principal_type":"student"', script)

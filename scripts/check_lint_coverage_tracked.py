@@ -121,10 +121,10 @@ def lint_exclusion_reason(path: str) -> str | None:
         return "vendor_snapshot"
     if path.startswith("apps/app-api/drizzle/meta/"):
         return "generated_drizzle_metadata"
+    if path.startswith("docs/runbooks/muc-wiki-visual-modernization-assets/"):
+        return "runbook_visual_asset_snapshot"
     if path in _EXCLUDED_GENERATED_FILES:
         return _EXCLUDED_GENERATED_FILES[path]
-    if path.startswith("docs/plans/"):
-        return "archived_plan_documentation"
     if path.startswith("docs/") and "/archive/" in path:
         return "archived_reference_documentation"
     if Path(path).suffix.lower() in _BINARY_SUFFIXES:
@@ -207,9 +207,7 @@ def _is_markdown_tracked_file(path: str) -> bool:
     if path in _MARKDOWN_ROOT_FILES:
         return True
     if path.startswith("docs/"):
-        return (
-            path.endswith(".md") and "/archive/" not in path and not path.startswith("docs/plans/")
-        )
+        return path.endswith(".md") and "/archive/" not in path
     if path.startswith("apps/public-docs/docs/"):
         return False
     if path.startswith(("apps/", "packages/", "configs/", "infra/")):
