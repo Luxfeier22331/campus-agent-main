@@ -111,7 +111,7 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
         self.assertIn("temporalio/ui:", compose)
         self.assertIn("postgres:16-alpine", compose)
         self.assertIn("POSTGRES_DB: temporal", compose)
-        self.assertIn("DB: postgresql", compose)
+        self.assertIn("DB: postgres12", compose)
         self.assertIn("VISIBILITY_STORE: visibility", compose)
         self.assertIn("TEMPORAL_ADDRESS: temporal:7233", compose)
         self.assertIn("campus-agent-staging", compose)
@@ -178,6 +178,8 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
         )
 
         self.assertIn("docker version", script)
+        self.assertIn("execution_control_staging_require_deploy_checkout_clean", script)
+        self.assertIn("execution_control_staging_load_env", script)
         self.assertIn("--format", script)
         self.assertIn("EXECUTION_CONTROL_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS", script)
         self.assertIn("EXECUTION_CONTROL_STAGING_PREFLIGHT_SKIP_REGISTRY", script)

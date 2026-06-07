@@ -107,8 +107,9 @@ curl -fsS -H "api-key: $QDRANT_API_KEY" http://127.0.0.1:6333/collections
 
 ## Staging Env Projection
 
-`/srv/apps/campus-agent/.env.staging.local` must point retrieval runtime at this
-node:
+The staging runtime env file must point retrieval runtime at this node:
+
+- `/srv/docker/campus-agent/staging/env/runtime.env`
 
 ```bash
 STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333

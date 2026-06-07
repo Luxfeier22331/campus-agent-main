@@ -31,6 +31,9 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
     def test_env_module_loads_staging_observability_and_secret_contract(self) -> None:
         env_script = (STAGING_DIR / "execution-control-staging-env.sh").read_text(encoding="utf-8")
         env_example = (ROOT / ".env.staging.local.example").read_text(encoding="utf-8")
+        common_script = (STAGING_DIR / "execution-control-staging-common.sh").read_text(
+            encoding="utf-8"
+        )
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
             encoding="utf-8"
         )
@@ -53,7 +56,8 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertNotIn('"OTEL_COLLECTOR_AXIOM_METRICS_DATASET"', env_script)
         self.assertIn('"EXECUTION_CONTROL_OTEL_ENABLED"', env_script)
         self.assertIn('"SUPERVISOR_AGENT_WORKER_OTEL_ENABLED"', env_script)
-        self.assertIn(".env.staging.local", env_script)
+        self.assertIn("EXECUTION_CONTROL_STAGING_ENV_FILE", env_script)
+        self.assertNotIn(".env.staging.local", env_script)
         self.assertNotIn('"EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN"', env_script)
         self.assertNotIn("remote-managed execution-control-staging tunnel", env_script)
         self.assertIn("execution_control_staging_require_runtime_env_core", env_script)
@@ -68,7 +72,11 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("EXECUTION_CONTROL_STAGING_HOST", env_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_PORT", env_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_RUNTIME_DIR", env_script)
-        self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET is required", env_script)
+        self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET is required", env_script)
+        self.assertIn(
+            "/srv/docker/campus-agent/staging/env/runtime.env",
+            common_script,
+        )
         self.assertIn('sourceEnvValue("API_WORKER_SHARED_SECRET") ||', env_script)
         self.assertIn('sourceEnvValue("EXECUTION_CONTROL_SHARED_SECRET") ||', env_script)
         for temporal_key in (
@@ -99,6 +107,8 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL is required",
             core_script,
         )
+        self.assertIn("--env-file", core_script)
+        self.assertIn('"${execution_control_staging_env_file}"', core_script)
         self.assertIn(
             'EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL="${EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL',
             core_script,

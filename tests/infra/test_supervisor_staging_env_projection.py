@@ -42,7 +42,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 TEMPORAL_POSTGRES_PASSWORD=temporal-password
                 EXECUTION_CONTROL_OTEL_ENABLED=true
@@ -131,7 +131,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 TEMPORAL_POSTGRES_PASSWORD=temporal-password
                 EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
@@ -178,7 +178,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 TEMPORAL_POSTGRES_PASSWORD=temporal-password
                 EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
@@ -239,7 +239,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_STAGING_UV_BIN=/opt/campus/bin/uv
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 TEMPORAL_POSTGRES_PASSWORD=temporal-password
                 EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
@@ -282,20 +282,20 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         self.assertEqual(projected["OBJECT_STORE_DERIVED_ACCESS_KEY"], "derived-access")
         self.assertEqual(projected["OBJECT_STORE_BUCKET_DERIVED"], "campus-rag-derived-staging")
         self.assertEqual(
-            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"],
+            projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"],
             "https://s3.staging.example.com",
         )
         self.assertEqual(
-            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"],
+            projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"],
             "derived-access",
         )
         self.assertEqual(
-            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"],
+            projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"],
             "derived-secret",
         )
-        self.assertEqual(projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION"], "auto")
+        self.assertEqual(projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION"], "auto")
         self.assertEqual(
-            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET"],
+            projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET"],
             "campus-rag-derived-staging",
         )
         self.assertEqual(projected["QDRANT_URL"], "https://qdrant.staging.example.com")
@@ -340,7 +340,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 """
             ).strip(),
         )
@@ -381,7 +381,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
                 EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
@@ -430,7 +430,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://runtime:secret@127.0.0.1:5432/campus_agent
                 """
             ).strip(),
@@ -464,7 +464,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
@@ -508,7 +508,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
@@ -550,7 +550,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://runtime:secret@127.0.0.1:5432/campus_agent
                 """
             ).strip(),
@@ -585,20 +585,20 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         self.assertEqual(projected["OBJECT_STORE_ENDPOINT"], "http://localhost:9000")
         self.assertEqual(projected["OBJECT_STORE_DOCKER_ENDPOINT"], "http://minio:9000")
         self.assertEqual(
-            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"],
+            projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"],
             "http://minio:9000",
         )
         self.assertEqual(
-            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"],
+            projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"],
             "derived-access",
         )
         self.assertEqual(
-            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"],
+            projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY"],
             "derived-secret",
         )
-        self.assertEqual(projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION"], "auto")
+        self.assertEqual(projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION"], "auto")
         self.assertEqual(
-            projected["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET"],
+            projected["EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET"],
             "campus-rag-derived-staging",
         )
         self.assertEqual(projected["QDRANT_URL"], "http://127.0.0.1:6333")
@@ -649,7 +649,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
@@ -691,7 +691,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
@@ -730,7 +730,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
@@ -766,7 +766,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),
@@ -803,7 +803,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
             ).strip(),

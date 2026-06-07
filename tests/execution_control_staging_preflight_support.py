@@ -24,11 +24,11 @@ _PROJECTED_STAGING_KEYS = [
     "OBJECT_STORE_DOCKER_ENDPOINT",
     "OBJECT_STORE_DERIVED_ACCESS_KEY",
     "OBJECT_STORE_BUCKET_DERIVED",
-    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
-    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
-    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
-    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION",
-    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
+    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
     "QDRANT_URL",
     "QDRANT_DOCKER_URL",
     "QDRANT_TIMEOUT_SECONDS",
@@ -136,32 +136,25 @@ def run_common_script_with_env(
                 encoding="utf-8",
             )
         common_path = staging_dir / "execution-control-staging-common.sh"
-        (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
-        (temp_root / ".env.staging.local").write_text(
+        if repo_env:
+            (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
+        runtime_env_path = temp_root / "ops" / "staging" / "runtime.env"
+        runtime_env_path.parent.mkdir(parents=True)
+        runtime_env_path.write_text(
             _with_valid_staging_fixture_env(staging_env) + "\n",
             encoding="utf-8",
         )
         app_api_dir = temp_root / "apps" / "app-api"
         app_api_dir.mkdir(parents=True)
-        (app_api_dir / ".dev.vars").write_text(
-            app_api_dev_vars
-            if app_api_dev_vars is not None
-            else "\n".join(
-                (
-                    "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
-                    "APP_API_INTERNAL_SHARED_SECRET=app-internal-secret",
-                    "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
-                )
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        if app_api_dev_vars is not None:
+            (app_api_dir / ".dev.vars").write_text(app_api_dev_vars + "\n", encoding="utf-8")
         fake_uv_bin = temp_root / "fake-uv"
         fake_uv_bin.write_text(_fake_uv_script(), encoding="utf-8")
         fake_uv_bin.chmod(0o755)
         command = f"""
         set -euo pipefail
         export EXECUTION_CONTROL_STAGING_UV_BIN={shlex.quote(str(fake_uv_bin))}
+        export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env_path))}
         source {shlex.quote(str(common_path))}
         execution_control_staging_load_env
         execution_control_staging_require_runtime_env

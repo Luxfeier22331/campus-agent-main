@@ -91,18 +91,88 @@ updated: 2026-06-06
 - Redis 不参与 canonical execution queue。若以后用于 wakeup / fanout / cache，丢失或重启不得影响
   execution workflow / run projection / step projection / event truth。
 
+## Deploy Checkout 与 Secret 边界
+
+`/srv/apps/campus-agent` 是 deploy checkout，不是开发 worktree。staging host 上不得保留
+tracked source 修改、临时 patch、未归档实验代码或 repo-local runtime secret。发现 dirty
+worktree 时，不能在原目录 `git reset` 后继续部署；必须先 quarantine，再重建干净 checkout。
+
+当前 forensic archive 保存在本地：
+
+- `var/remote-worktree-audit/20260607T053116Z-srv-campus-agent/`
+
+远端 quarantine 流程：
+
+```bash
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+cd /srv/apps
+if [ -d campus-agent ]; then
+  cd campus-agent
+  infra/local/staging/stop-execution-control-staging.sh || true
+  cd ..
+  mv campus-agent "campus-agent.quarantine-${timestamp}"
+fi
+git clone <repo-url> campus-agent
+cd campus-agent
+git fetch origin develop
+git checkout --detach <release-sha>
+git status --short --branch
+git rev-parse HEAD
+```
+
+Quarantine 目录至少保留 7 天或直到 staging closeout 完成。不要从 quarantine 整文件覆盖
+新 checkout；如果发现单个片段有价值，只能在本地以新 commit 移植并重新验证。
+
+deploy checkout 启动前必须设置：
+
+```bash
+export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=<release-sha>
+export EXECUTION_CONTROL_STAGING_EXPECTED_REF=origin/develop
+```
+
+`start/status/preflight` 会拒绝：
+
+- 缺 `EXECUTION_CONTROL_STAGING_EXPECTED_SHA`
+- `HEAD` 不等于 pinned SHA
+- tracked worktree dirty
+- repo checkout 中存在 `.env`、`.env.staging.local` 或 `apps/app-api/.dev.vars`
+- untracked 文件不匹配 `EXECUTION_CONTROL_STAGING_ALLOWED_UNTRACKED_REGEX`
+- 缺 ops-owned runtime env file
+
+`stop-execution-control-staging.sh` 允许在 dirty/quarantine 场景运行，避免无法停掉污染目录里的旧
+runtime。
+
+runtime env 与 secret 不属于 repo checkout。staging 默认读取：
+
+- env file: `/srv/docker/campus-agent/staging/env/runtime.env`
+- secret dir: `/srv/docker/campus-agent/staging/secrets/*.secret`
+
+权限约束：
+
+```bash
+sudo install -d -m 0750 -o root -g deploy /srv/docker/campus-agent/staging/env
+sudo install -d -m 0750 -o root -g deploy /srv/docker/campus-agent/staging/secrets
+sudo install -m 0640 -o root -g deploy runtime.env \
+  /srv/docker/campus-agent/staging/env/runtime.env
+```
+
+高敏值优先迁到 Compose `secrets:` 并挂载到 `/run/secrets/*`。暂不支持 `_FILE` 的服务可以
+继续由 `runtime.env` 注入，但不得把 `.env.staging.local`、`.env` 或
+`apps/app-api/.dev.vars` 放回 deploy checkout 作为 runtime dependency。
+
 ## 安装与重装
 
 ### 1. 同步 repo
 
-在本机 release branch 上把仓库同步到 `nc-arm-6c:/srv/apps/campus-agent`。
+在本机完成 commit/push 后，staging host 只 clone/fetch `origin/develop` 并 checkout pinned
+release SHA。不要用 rsync 把本机 worktree 同步到 `/srv/apps/campus-agent`。
 canonical staging lifecycle 固定使用：
 
 - compose project: `campus-execution-control-staging`
 - host port: `27051`
 - runtime dir: `.tmp/execution-control-staging`
 
-不要在 canonical `.env.staging.local` 中覆写
+不要在 canonical `runtime.env` 中覆写
 `EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME`、
 `EXECUTION_CONTROL_STAGING_RUNTIME_DIR` 或 `EXECUTION_CONTROL_STAGING_PORT`。普通
 `start/status` 脚本会拒绝被指到 isolated proof runtime，避免
@@ -110,32 +180,17 @@ machine ingress 指向 `27051` 但生命周期脚本操作另一个 compose proj
 
 如果需要本机 Temporal proof，使用
 `infra/local/staging/proof-execution-control-temporal-runtime-staging.sh`，并在该命令的
-执行环境中显式设置 isolated project/runtime/port；不要把这些 proof 变量写进
-canonical staging operator secret。
+执行环境中显式设置 isolated project/runtime/port；不要把这些 proof 变量写进 canonical
+staging runtime env。
 
-同步命令示例：
+### 2. 写入 Docker/ops runtime env
 
-```bash
-rsync -a --delete --exclude .git --exclude .worktrees --exclude node_modules \
-  --exclude .venv --exclude .tmp --exclude .env \
-  --exclude .env.staging.local --exclude .env.qdrant.local --exclude .dev.vars \
-  ./ nc-arm-6c:/srv/apps/campus-agent/
-```
+在 `/srv/docker/campus-agent/staging/env/runtime.env` 写入 staging runtime env。该文件由
+Docker/ops 管理，不放在 repo checkout。必要时可以通过
+`EXECUTION_CONTROL_STAGING_ENV_FILE=/custom/path/runtime.env` 显式覆盖，但 canonical
+staging 不应依赖 repo-root `.env.staging.local`。
 
-### 2. 写入 staging operator secret
-
-在 `nc-arm-6c:/srv/apps/campus-agent` 准备 ignored secret 文件：
-
-- repo-root `.env.staging.local`：Worker deploy/smoke 和 supervisor lifecycle 共享的
-  staging operator secret
-- `apps/app-api/.dev.vars`：`app-api` runtime secret 与 supervisor shared secret
-- 各 web app `.dev.vars`：只供 staging build/deploy secret presence gate 使用
-
-`infra/local/staging/start-execution-control-staging.sh` 会按顺序读取 `.env`、
-`.env.staging.local`、`apps/app-api/.dev.vars`，再把允许进入 runtime 的 key 注入
-Compose。
-
-`.env.staging.local` 必须包含：
+`runtime.env` 必须包含：
 
 - `STAGING_EXECUTION_CONTROL_BASE_URL`
   = `https://execution-control-staging.mucwiki-edge.link`
@@ -160,8 +215,8 @@ Compose。
 - `STAGING_INGESTION_OBJECT_STORE_REGION=auto`（Cloudflare R2 S3 endpoint）
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=<derived bucket access key>`
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=<derived bucket secret key>`
-- `SUPERVISOR_NOTICE_BODY_OBJECT_STORE_*` 不需要手写；staging env projection 会从
-  `STAGING_INGESTION_OBJECT_STORE_*` 明确生成 supervisor-owned notice body runtime
+- `EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_*` 不需要手写；staging env projection 会从
+  `STAGING_INGESTION_OBJECT_STORE_*` 明确生成 execution-control notice body runtime
   env。
 - `STAGING_INGESTION_QDRANT_URL=<staging self-hosted Qdrant REST URL>`；当前默认是
   `nc-arm-6c` 上的 self-hosted single-node Qdrant，本机/同主机 runtime 通常填
@@ -185,11 +240,11 @@ Compose。
 - `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN=<metrics bearer token>`
 - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>`
-- `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
+- `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
 - `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=<run projection Postgres URL>`；
   这是 execution projection store 的显式 URL，不从 `STAGING_INGESTION_SHARED_POSTGRES_URL`、
-  `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL`、root `.env` 或
-  `apps/app-api/.dev.vars` 推断。同机 self-hosted Postgres 场景通常写
+  `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL`、root `.env`、
+  `apps/app-api/.dev.vars` 或其他 repo-local secret 推断。同机 self-hosted Postgres 场景通常写
   `postgresql://<user>:<password>@127.0.0.1:5432/campus_agent`；lifecycle 会把容器侧
   URL 投影为 `postgres:5432`。
 - Temporal 必须显式配置：
@@ -213,7 +268,7 @@ Compose。
 `STAGING_INGESTION_SHARED_POSTGRES_URL` /
 `STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL` /
 `STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL`。
-supervisor lifecycle 不会从 root `.env`、`apps/app-api/.dev.vars` 或
+execution-control lifecycle 不会从 root `.env`、`apps/app-api/.dev.vars` 或
 `STAGING_APP_API_OPERATOR_DATABASE_URL` 猜测 retrieval runtime 数据面。缺任一
 `STAGING_INGESTION_*` 必填项时，`start-execution-control-staging.sh` 会 fail closed。
 generic `EMBEDDING_*` / `SPARSE_*` 不能替代 staging 的
@@ -229,30 +284,30 @@ Cloudflare R2 staging object store 固定为：
 - derived bucket: `campus-rag-derived-staging`
 
 `execution-control` 在线 notice body runtime 消费
-`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT`、
-`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY`、
-`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY`、
-`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION` 与
-`SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET`。这些 env 由 staging projection 从
-`STAGING_INGESTION_OBJECT_STORE_*` 显式生成；Go runtime 不读取 generic
+`EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT`、
+`EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY`、
+`EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY`、
+`EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION` 与
+`EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET`。这些 env 由 staging
+projection 从 `STAGING_INGESTION_OBJECT_STORE_*` 显式生成；Go runtime 不读取 generic
 `OBJECT_STORE_*` 或 ingestion bucket env。staging runtime 目前指向
 `campus-rag-derived-staging` 中的 canonical notice body object。按 Cloudflare R2 文档，
 R2 S3 凭据不是普通 bearer token：Access Key ID 是 API token id，Secret Access Key
 是 API token value 的 SHA-256。token value 只在创建时显示；创建后必须立即写入部署
-secret 或 `/srv/apps/campus-agent/.env.staging.local`，不得进入 repo。
+secret 或 `/srv/docker/campus-agent/staging/env/runtime.env`，不得进入 repo checkout。
 
 如果 query-serving index 或 notice read-model 已引用 `campus-rag-derived` 的 object key
 内容，不能只创建空的 `campus-rag-derived-staging` bucket 后宣布 staging 可用；必须先执行
 受控对象迁移或重新发布 staging seed，使 DB/read-model 与 R2 bucket 内容一致。
 
-`apps/app-api/.dev.vars` 必须包含：
+app-api Worker secrets 必须通过 Wrangler/Cloudflare secret 管理，至少包含：
 
 - `EXECUTION_CONTROL_SHARED_SECRET`
 - `EXECUTION_CONTROL_ACCESS_CLIENT_ID`
 - `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
 - `APP_API_INTERNAL_SHARED_SECRET`
 - app-api runtime secrets；retrieval data-plane、object-store 与 supervisor-agent-worker
-  query env 不放在这里，统一由 repo-root `.env.staging.local` 的
+  query env 不放在这里，统一由 ops-owned `runtime.env` 的
   `STAGING_INGESTION_*` 投影进入 Compose runtime
 
 ### 3. 配置 machine ingress reverse proxy
@@ -298,7 +353,7 @@ curl --noproxy '*' -sS -i \
 
 通过标准：
 
-- 非登录 SSH shell 必须能执行 `uv`，或在 `.env.staging.local` 显式设置
+- 非登录 SSH shell 必须能执行 `uv`，或在 ops-owned `runtime.env` 显式设置
   `EXECUTION_CONTROL_STAGING_UV_BIN=/home/deploy/.local/bin/uv`；staging lifecycle
   不会跳过 `doctor_env`。
 - unauthenticated request 被 Cloudflare Access 拒绝
@@ -419,13 +474,14 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
   admission queue 已不可接收、runtime draining 或 bridge 不健康时才视为 execution
   runtime 不 ready
 - `supervisor-agent-worker` 必须同时拿到 query runtime env，包括
-  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`、`QDRANT_URL`、`QDRANT_API_KEY`、
+  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`、`QDRANT_URL`、`QDRANT_API_KEY`、
   `QDRANT_TIMEOUT_SECONDS`、`DOCUMENT_REGISTRY_DATABASE_URL`、
   `RAW_ASSET_REGISTRY_DATABASE_URL`、`CAMPUS_SHARED_POSTGRES_URL`、`EMBEDDING_*`
   与 `SPARSE_*`
-- `infra/local/staging/start-execution-control-staging.sh` 会从 `.env`、
-  `.env.staging.local` 与 `apps/app-api/.dev.vars` 导入基础 secret，但 query/runtime
-  数据面只接受 repo-root `.env.staging.local` 中的 `STAGING_INGESTION_*`，再投影成
+- `infra/local/staging/start-execution-control-staging.sh` 只读取
+  `EXECUTION_CONTROL_STAGING_ENV_FILE` 指向的 ops-owned runtime env；默认路径是
+  `/srv/docker/campus-agent/staging/env/runtime.env`。query/runtime 数据面只接受该文件中的
+  `STAGING_INGESTION_*`，再投影成
   Compose 里的 `CAMPUS_SHARED_POSTGRES_URL`、`DOCUMENT_REGISTRY_DATABASE_URL`、
   `RAW_ASSET_REGISTRY_DATABASE_URL`、`CAMPUS_SHARED_POSTGRES_OPERATOR_URL`、
   `DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL`、`RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL`、
@@ -592,7 +648,7 @@ uv run --all-packages python -m scripts.doctor_env execution-control --json
 ```bash
 docker exec campus-execution-control-staging-supervisor-agent-worker-1 \
   sh -lc 'for k in QDRANT_URL DOCUMENT_REGISTRY_DATABASE_URL \
-  SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET EMBEDDING_MODEL; do \
+  EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET EMBEDDING_MODEL; do \
   eval v=\${$k:-}; [ -n "$v" ] && echo "$k=set" || echo "$k=unset"; done'
 ```
 
@@ -645,17 +701,17 @@ curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 
 ## Durable Runtime Proof
 
-先运行 durable cutover preflight。该命令只读取本地 repo secret 文件和当前
-process env，不部署、不写远端状态、不打印 secret value；缺 `STAGING_INGESTION_*`
-数据面配置、app-api supervisor shared secret 或 Cloudflare deploy token 时必须
-fail closed：
+先运行 durable cutover preflight。该命令只读取
+`EXECUTION_CONTROL_STAGING_ENV_FILE` 指向的 ops-owned runtime env 和当前 process env，
+不部署、不写远端状态、不打印 secret value；缺 `STAGING_INGESTION_*` 数据面配置、
+execution-control shared secret 或 Cloudflare deploy token 时必须 fail closed：
 
 ```bash
 pnpm durable:cutover:preflight --json
 ```
 
-`CLOUDFLARE_API_TOKEN` 是本次 deploy shell 的 process env，不写入
-`.env.staging.local`。如果在 `nc-arm-6c` 的非登录 SSH shell 中运行，必须先确认
+`CLOUDFLARE_API_TOKEN` 是本次 deploy shell 的 process env，不写入 repo checkout。
+如果在 `nc-arm-6c` 的非登录 SSH shell 中运行，必须先确认
 `pnpm` 与 `uv` 都能被找到；当前 host 可用路径为 `/usr/local/bin/pnpm` 与
 `/home/deploy/.local/bin/uv`，必要时用以下方式显式执行：
 

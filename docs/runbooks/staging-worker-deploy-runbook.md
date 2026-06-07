@@ -276,11 +276,11 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
   `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:e2e:staging` 与
   `docs:gated:smoke:staging`；本机 operator copy 可放在 ignored repo-root
-  `.env.staging.local`
+  `/srv/docker/campus-agent/staging/env/runtime.env`
 - 只有在你手工运行低层 smoke identity reset 时，shell 才需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
 
 `STAGING_APP_API_OPERATOR_DATABASE_URL` 是 app-api schema/bootstrap/operator 管理连接，不是
-supervisor retrieval runtime 数据面。`nc-arm-6c:/srv/apps/campus-agent/.env.staging.local`
+execution-control retrieval runtime 数据面。`nc-arm-6c:/srv/docker/campus-agent/staging/env/runtime.env`
 必须另外显式配置：
 
 - `STAGING_INGESTION_SHARED_POSTGRES_URL`
@@ -473,14 +473,14 @@ pnpm --dir apps/app-api docs:gated:smoke:staging
   `qdrant retrieval failed`，不要在 retrieval/read path 增加 collection alias 或兜底查询；
   先在 `nc-arm-6c:/srv/apps/campus-agent` 执行
   `campus_ingestion_worker.probe_regulation_rag_release_runtime`。`qdrant_endpoint_not_ready`
-  表示 `.env.staging.local` 的 `STAGING_INGESTION_QDRANT_URL` 不是可用 Qdrant REST
+  表示 ops-owned `runtime.env` 的 `STAGING_INGESTION_QDRANT_URL` 不是可用 Qdrant REST
   endpoint，必须修正 endpoint 后再重启 execution runtime。
 - `chat:e2e:staging` 默认要求 chat request 返回 `answer`
   (`request.resultKind`)；如果返回 `error` 等 typed outcome，脚本会退出非零并输出对应
   `requestId` / `traceId`，避免把 supervisor timeout 或 upstream failure 误判为通过
 - 它要求当前 shell 有 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
   `STAGING_APP_API_SMOKE_AUTH_SECRET`；repo-owned wrapper 会自动加载 ignored
-  `.env.staging.local`
+  `/srv/docker/campus-agent/staging/env/runtime.env`
 - 它不要求本机 staging DB URL，不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，
   也不要求 agent 通过真实 Turnstile challenge
 - 低层手动重置命令仍保留：

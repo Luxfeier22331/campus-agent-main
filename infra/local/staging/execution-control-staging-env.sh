@@ -4,15 +4,22 @@
 
 execution_control_staging_load_env() {
   local node_bin
-  local repo_env_path="${execution_control_staging_repo_root}/.env"
-  local repo_staging_env_path="${execution_control_staging_repo_root}/.env.staging.local"
-  local app_api_dev_vars="${execution_control_staging_repo_root}/apps/app-api/.dev.vars"
+  local runtime_env_path="${execution_control_staging_env_file}"
   local export_script
+
+  if [[ -z "${runtime_env_path}" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_ENV_FILE is required for execution-control staging; default is ${execution_control_staging_default_env_file}." >&2
+    return 1
+  fi
+  if [[ ! -f "${runtime_env_path}" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_ENV_FILE is required for execution-control staging and must point to an existing ops-owned runtime env file: ${runtime_env_path} (default: ${execution_control_staging_default_env_file})." >&2
+    return 1
+  fi
 
   node_bin="$(execution_control_staging_require_command node)"
   export_script="$(
-    "${node_bin}" - "${repo_env_path}" "${repo_staging_env_path}" "${app_api_dev_vars}" <<'NODE'
-const [repoEnvPath, repoStagingEnvPath, appApiDevVarsPath] = process.argv.slice(2);
+    "${node_bin}" - "${runtime_env_path}" <<'NODE'
+const [runtimeEnvPath] = process.argv.slice(2);
 const loadedPaths = [];
 const fs = require("node:fs");
 const { parseEnv } = require("node:util");
@@ -21,7 +28,7 @@ if (typeof parseEnv !== "function") {
 }
 const fileEnv = new Map();
 
-for (const filePath of [repoEnvPath, repoStagingEnvPath, appApiDevVarsPath]) {
+for (const filePath of [runtimeEnvPath]) {
   if (!filePath) {
     continue;
   }
@@ -126,17 +133,17 @@ const keys = [
   "EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS",
   "EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS",
   "EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS",
-  "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
-  "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
-  "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
-  "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
+  "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
+  "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
+  "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS",
+  "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS",
   "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
   "INTERNAL_NOTICE_READ_MODEL_TABLE",
-  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
-  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
-  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
-  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION",
-  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
   "EXECUTION_CONTROL_STAGING_UV_BIN",
   "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME",
   "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
@@ -513,17 +520,17 @@ const supervisorNoticeBodySecretKey = hasDerivedObjectStorePair
   ? envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY")
   : envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY");
 resolved.set(
-  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
   projectObjectStoreForDocker(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT")),
 );
-resolved.set("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", supervisorNoticeBodyAccessKey);
-resolved.set("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", supervisorNoticeBodySecretKey);
+resolved.set("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", supervisorNoticeBodyAccessKey);
+resolved.set("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", supervisorNoticeBodySecretKey);
 resolved.set(
-  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_REGION",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
   envValue("STAGING_INGESTION_OBJECT_STORE_REGION") || "us-east-1",
 );
 resolved.set(
-  "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
   envValue("STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED"),
 );
 const localPostgresConfigs = [
@@ -673,7 +680,7 @@ NODE
 
   execution_control_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-}"
   if [[ -z "${API_WORKER_SHARED_SECRET:-}" ]]; then
-    echo "API_WORKER_SHARED_SECRET is required for execution-control staging trusted-worker auth; set API_WORKER_SHARED_SECRET or EXECUTION_CONTROL_SHARED_SECRET" >&2
+    echo "API_WORKER_SHARED_SECRET is required for execution-control staging trusted-worker auth; set API_WORKER_SHARED_SECRET or EXECUTION_CONTROL_SHARED_SECRET in ${execution_control_staging_env_file}." >&2
     return 1
   fi
   if [[ -z "${EXECUTION_CONTROL_EXECUTION_AUDIT_URL:-}" && -n "${execution_control_staging_app_api_base_url}" ]]; then
@@ -805,7 +812,7 @@ execution_control_staging_require_runtime_env_core() {
   fi
 
   if [[ -z "${EXECUTION_CONTROL_SHARED_SECRET:-}" ]]; then
-    echo "EXECUTION_CONTROL_SHARED_SECRET is missing. Populate apps/app-api/.dev.vars first." >&2
+    echo "EXECUTION_CONTROL_SHARED_SECRET is missing. Populate ${execution_control_staging_env_file} or the Docker/ops secret source that renders it." >&2
     return 1
   fi
 
@@ -819,8 +826,8 @@ execution_control_staging_require_runtime_env_core() {
     return 1
   fi
 
-  if [[ -z "${SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET:-}" ]]; then
-    echo "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET is required for execution-control staging structured query runtime." >&2
+  if [[ -z "${EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET:-}" ]]; then
+    echo "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET is required for execution-control staging structured query runtime." >&2
     return 1
   fi
 
@@ -908,18 +915,18 @@ execution_control_staging_require_runtime_env_core() {
     return 1
   fi
 
-  if [[ -z "${SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT:-}" ]]; then
-    echo "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT is required after staging notice body projection." >&2
+  if [[ -z "${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT:-}" ]]; then
+    echo "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT is required after staging notice body projection." >&2
     return 1
   fi
 
-  if [[ -z "${SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY:-}" || -z "${SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY:-}" ]]; then
-    echo "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY and SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY are required after staging notice body projection." >&2
+  if [[ -z "${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY:-}" || -z "${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY:-}" ]]; then
+    echo "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY and EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY are required after staging notice body projection." >&2
     return 1
   fi
 
-  if [[ -z "${SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET:-}" ]]; then
-    echo "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET is required after staging notice body projection." >&2
+  if [[ -z "${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET:-}" ]]; then
+    echo "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET is required after staging notice body projection." >&2
     return 1
   fi
 

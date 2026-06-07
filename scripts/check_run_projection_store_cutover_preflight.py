@@ -37,7 +37,7 @@ REQUIRED_STAGING_ENV_KEYS = [
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
     "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
     "SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
-    "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+    "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
     "TEMPORAL_POSTGRES_PASSWORD",
     "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
@@ -59,7 +59,7 @@ OBJECT_STORE_CREDENTIAL_SETS = [
     ("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY", "STAGING_INGESTION_OBJECT_STORE_SECRET_KEY"),
 ]
 
-REQUIRED_APP_API_DEV_VARS = ["EXECUTION_CONTROL_SHARED_SECRET"]
+DEFAULT_STAGING_ENV_FILE = "/srv/docker/campus-agent/staging/env/runtime.env"
 
 EXPECTED_STAGING_VALUES = {
     "STAGING_EXECUTION_CONTROL_BASE_URL": "https://execution-control-staging.mucwiki-edge.link",
@@ -255,13 +255,16 @@ def invalid_contract_keys(values: dict[str, str]) -> list[str]:
 
 
 def build_report(repo_root: Path, env: dict[str, str]) -> dict[str, object]:
-    staging_env_path = repo_root / ".env.staging.local"
-    app_api_dev_vars_path = repo_root / "apps" / "app-api" / ".dev.vars"
+    configured_env_path = env.get("EXECUTION_CONTROL_STAGING_ENV_FILE", "").strip()
+    staging_env_path = Path(configured_env_path or DEFAULT_STAGING_ENV_FILE)
+    if not staging_env_path.is_absolute():
+        staging_env_path = repo_root / staging_env_path
     staging_env = parse_env_file(staging_env_path)
-    app_api_dev_vars = parse_env_file(app_api_dev_vars_path)
     blockers: list[str] = []
+    if not staging_env_path.exists():
+        blockers.append("EXECUTION_CONTROL_STAGING_ENV_FILE")
     blockers.extend(missing_required_keys(staging_env, REQUIRED_STAGING_ENV_KEYS))
-    blockers.extend(missing_required_keys(app_api_dev_vars, REQUIRED_APP_API_DEV_VARS))
+    blockers.extend(missing_required_keys(staging_env, ["EXECUTION_CONTROL_SHARED_SECRET"]))
     blockers.extend(invalid_contract_keys(staging_env))
     if not has_object_store_credentials(staging_env):
         blockers.append("STAGING_INGESTION_OBJECT_STORE_CREDENTIAL_PAIR")
@@ -269,7 +272,6 @@ def build_report(repo_root: Path, env: dict[str, str]) -> dict[str, object]:
         blockers.append("CLOUDFLARE_API_TOKEN")
     blockers = sorted(set(blockers))
     return {
-        "app_api_dev_vars_path": str(app_api_dev_vars_path),
         "blockers": blockers,
         "repo_root": str(repo_root),
         "staging_env_path": str(staging_env_path),

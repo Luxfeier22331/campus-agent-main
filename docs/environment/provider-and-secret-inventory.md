@@ -196,16 +196,17 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
   `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL`
   `SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET`
-  放置位置: operator shell / Windows scheduled task action
+  放置位置: `/srv/docker/campus-agent/staging/env/runtime.env` 或 Docker/ops-owned
+  secret source
   何时必需: 当前 canonical staging execution runtime 需要
-  获取方式: `.env.staging.local` 写入 ignored secret；machine ingress 固定为
-  `execution-control-staging.mucwiki-edge.link`
+  获取方式: deploy host ops secret store 渲染，不放入 `/srv/apps/campus-agent`
+  deploy checkout；machine ingress 固定为 `execution-control-staging.mucwiki-edge.link`
 
 - Provider / system: Supervisor local runtime command template
   作用: 本地 Docker 双容器 `execution-control` runtime 的 command-scoped override
-  主要 env keys: `SUPERVISOR_RUNTIME_*` `EXECUTION_CONTROL_*`
-  `SUPERVISOR_AGENT_WORKER_*` `SUPERVISOR_STRUCTURED_QUERY_*`
-  放置位置: `env/commands/supervisor-runtime.env.example`
+  主要 env keys: `EXECUTION_CONTROL_RUNTIME_*` `EXECUTION_CONTROL_*`
+  `SUPERVISOR_AGENT_WORKER_*`
+  放置位置: `env/commands/execution-control-runtime.env.example`
   何时必需: 只在本地 smoke / 运维排障需要显式覆写默认值时
   获取方式: 直接基于 repo template；不要把 deploy-only secret 回写到 root `.env.example`
 

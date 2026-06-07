@@ -22,6 +22,9 @@ docker_bin="$(execution_control_staging_require_command docker)"
 docker_timeout_seconds="${EXECUTION_CONTROL_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS:-10}"
 registry_timeout_seconds="${EXECUTION_CONTROL_STAGING_PREFLIGHT_REGISTRY_TIMEOUT_SECONDS:-30}"
 
+execution_control_staging_require_deploy_checkout_clean
+execution_control_staging_load_env
+
 echo "Running docker version"
 if command -v timeout >/dev/null 2>&1; then
   if ! timeout "${docker_timeout_seconds}" "${docker_bin}" version --format '{{.Server.Version}}' >/dev/null 2>&1; then

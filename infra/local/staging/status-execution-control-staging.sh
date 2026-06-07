@@ -22,6 +22,7 @@ fi
 
 execution_control_staging_ensure_runtime_dirs
 execution_control_staging_acquire_lock 30
+execution_control_staging_require_deploy_checkout_clean
 execution_control_staging_load_env
 if (( strict_mode == 1 )); then
   execution_control_staging_require_status_env

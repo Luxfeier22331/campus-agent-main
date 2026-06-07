@@ -6,6 +6,79 @@ execution_control_staging_ensure_runtime_dirs() {
   mkdir -p "${execution_control_staging_log_dir}"
 }
 
+execution_control_staging_require_deploy_checkout_clean() {
+  local git_bin
+  local actual_head
+  local expected_ref="${EXECUTION_CONTROL_STAGING_EXPECTED_REF:-}"
+  local expected_sha="${EXECUTION_CONTROL_STAGING_EXPECTED_SHA:-}"
+  local untracked_allow_regex="${EXECUTION_CONTROL_STAGING_ALLOWED_UNTRACKED_REGEX:-^\\.tmp/}"
+  local tracked_status
+  local untracked_status
+  local untracked_offenders
+  local repo_local_secret_file
+  local repo_local_secret_files=(
+    ".env"
+    ".env.staging.local"
+    "apps/app-api/.dev.vars"
+  )
+
+  git_bin="$(execution_control_staging_require_command git)"
+  (
+    cd "${execution_control_staging_repo_root}" || exit
+    if ! "${git_bin}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo "Deploy checkout is not a git worktree: ${execution_control_staging_repo_root}" >&2
+      exit 1
+    fi
+
+    if [[ -z "${expected_sha}" ]]; then
+      echo "EXECUTION_CONTROL_STAGING_EXPECTED_SHA is required for pinned staging deploy checkout." >&2
+      exit 1
+    fi
+
+    actual_head="$("${git_bin}" rev-parse HEAD)"
+    if [[ -n "${expected_sha}" && "${actual_head}" != "${expected_sha}" ]]; then
+      echo "Deploy checkout HEAD does not match EXECUTION_CONTROL_STAGING_EXPECTED_SHA: expected ${expected_sha}, got ${actual_head}" >&2
+      exit 1
+    fi
+
+    if [[ -n "${expected_ref}" ]]; then
+      if ! "${git_bin}" merge-base --is-ancestor "${actual_head}" "${expected_ref}" >/dev/null 2>&1 &&
+        [[ "$("${git_bin}" rev-parse --abbrev-ref HEAD)" != "${expected_ref}" ]]; then
+        echo "Deploy checkout is not on expected ref ${expected_ref} at ${actual_head}" >&2
+        exit 1
+      fi
+    fi
+
+    tracked_status="$("${git_bin}" status --porcelain --untracked-files=no)"
+    if [[ -n "${tracked_status}" ]]; then
+      echo "Deploy checkout has tracked modifications; quarantine or rebuild instead of starting from a dirty worktree." >&2
+      echo "${tracked_status}" >&2
+      exit 1
+    fi
+
+    for repo_local_secret_file in "${repo_local_secret_files[@]}"; do
+      if [[ -e "${repo_local_secret_file}" ]]; then
+        echo "Deploy checkout contains repo-local runtime secret file: ${repo_local_secret_file}. Move staging secrets to ${execution_control_staging_env_file} or Docker/ops-owned secrets." >&2
+        exit 1
+      fi
+    done
+
+    untracked_status="$("${git_bin}" ls-files --others --exclude-standard)"
+    untracked_offenders="$(
+      while IFS= read -r untracked_path; do
+        if [[ -n "${untracked_path}" && ! "${untracked_path}" =~ ${untracked_allow_regex} ]]; then
+          printf '%s\n' "${untracked_path}"
+        fi
+      done <<<"${untracked_status}"
+    )"
+    if [[ -n "${untracked_offenders}" ]]; then
+      echo "Deploy checkout has unexpected untracked files; runtime artifacts must stay outside the repo or match EXECUTION_CONTROL_STAGING_ALLOWED_UNTRACKED_REGEX." >&2
+      echo "${untracked_offenders}" >&2
+      exit 1
+    fi
+  )
+}
+
 execution_control_staging_acquire_lock() {
   local wait_seconds="${1:-${execution_control_staging_lock_wait_seconds}}"
 
@@ -303,7 +376,7 @@ execution_control_staging_compose() {
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT is required}" \
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS="${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}" \
     TEMPORAL_POSTGRES_PASSWORD="${TEMPORAL_POSTGRES_PASSWORD:?TEMPORAL_POSTGRES_PASSWORD is required}" \
-    "${docker_bin}" compose -f "${execution_control_staging_compose_file}" "$@"
+    "${docker_bin}" compose --env-file "${execution_control_staging_env_file}" -f "${execution_control_staging_compose_file}" "$@"
   )
 }
 
