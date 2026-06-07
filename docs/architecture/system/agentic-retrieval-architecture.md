@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-20
-updated: 2026-06-06
+updated: 2026-06-08
 ---
 # Agentic Retrieval Architecture
 
@@ -42,6 +42,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 - evidence verifier
 - explicit freshness / historical routing
 - answer-bearing evidence 与 raw candidate trace 分层
+- step-level latency / token / cost / grounding evidence projection
 - fail-close by default
 
 它仍然不是：
@@ -93,6 +94,10 @@ grounding validation -> supervisor finalization`
 - Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
   repo-owned projection 负责 step attempt、result、event 与 eval/panel truth
 - evidence contract 驱动 replan / clarification / fail-close；synthesis 不得补洞
+- 当前实现中的 Temporal-visible RAG 仍是 coarse `semantic.rag` step；目标必须拆成
+  `rag.plan`、`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、
+  `evidence.selection`、`synthesis`、`grounding.verify`、`finalization.write` 等
+  durable steps，使 RAG 从“能答”升级为“可证明地答”
 
 当 retrieval 处于 multi-agent workflow 中时，长期片段固定为：
 
@@ -318,6 +323,12 @@ agentic RAG 不是对当前 gate 的替代，而是必须显式经过这些 gate
 - cross-step merge
 - title / entity / version-aware dedupe
 
+当前代码事实是：online rerank 主要依赖 Qdrant hybrid / RRF、heuristic ranking 与
+profile-gated rerank interface；未发现线上 cross-encoder、torch、ONNX 或
+sentence-transformers rerank 已接入为 current serving truth。后续是否引入
+cross-encoder / complex scoring 必须先由 step-level latency、CPU profile、
+quality eval 与 cost evidence 证明，不能作为默认假设。
+
 但它不能：
 
 - 改写产品 scope
@@ -373,6 +384,8 @@ agentic RAG 固定 fail-close 于以下分支：
 - grounding verdict
 - freshness branch outcome
 - live retrieval outcome
+- provider request ref、latency、input / output / cached token、estimated cost
+- cancel / timeout observed outcome
 
 这些 execution-side truth 用于 operator observability、quality grading 与 release
 gate， 但不应直接暴露 raw snippets 或 vendor payload。
@@ -389,6 +402,38 @@ badcase、RAGAS、golden dataset 与 operator panel 的阶段归因固定落到�
 - `grounding`
 
 低分样本必须能回链到 sanitized step trajectory；不得只保留最终 answer 文本和一组 raw logs。
+
+## Prove-The-Answer Contract
+
+RAG 目标不是只返回一个看起来合理的 answer，而是为每个关键阶段留下可诊断证据：
+
+- retrieval step 必须投影 admitted query、filters、candidate summary 与 bounded query activity。
+- selection step 必须投影 supporting evidence id、span、coverage summary 与 reject reason。
+- synthesis step 必须投影 provider request ref、latency、token、estimated cost 与
+  claim support summary；不得把 raw provider response 作为 canonical truth。
+- grounding step 必须投影 claim / list item coverage verdict、missing support 与 fail-close
+  reason。
+- finalization 只能消费已通过 grounding 的 supporting evidence projection。
+
+如果缺少 retrieval result、supporting evidence、usage/cost accounting、grounding
+verdict 或 cancel outcome，run 不能被标记为“可证明地答”；只能作为诊断缺口或
+fail-close 分支进入 projection。
+
+## LlamaIndex Boundary
+
+LlamaIndex 是 ingestion / retrieval implementation dependency，不是 `campus-agent`
+架构层。
+
+固定规则：
+
+- LlamaIndex 不能进入 `packages/contracts`、`apps/execution-control`、panel / eval canonical
+  truth 或架构 vocabulary。
+- ingestion / retrieval adapter 可以在内部使用 LlamaIndex 做 chunking、embedding helper、
+  metadata helper 或 Qdrant integration glue，但跨层 contract 必须是 repo-owned DTO。
+- 长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter + sanitized
+  query activity projection；LlamaIndex 只能保留为可替换实现依赖。
+- eval、operator panel 与 badcase 只看 durable step/result projection，不以
+  LlamaIndex run object、node object 或 vendor metadata 作为 source truth。
 
 ## Internal Agents SDK Loop
 
@@ -417,8 +462,8 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 - Python SDK suite 必须证明 internal DTO、function tool boundary、guardrail、rollout mode、
   sanitized trace projection 与 worker runner contract 未漂移
 - public/chat product-path E2E 必须证明
-  `execution-control -> supervisor-agent-worker -> rag-agent SDK loop -> Go finalizer`
-  返回 canonical `SupervisorResponse`
+  `execution-control -> Temporal activity -> supervisor-agent-worker ->
+  rag-agent SDK loop -> Go finalizer` 返回 canonical `SupervisorResponse`
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker
 - SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；

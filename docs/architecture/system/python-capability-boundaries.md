@@ -2,14 +2,15 @@
 doc_type: architecture
 status: active
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-06-08
 ---
 # Python Capability Boundaries
 
 ## 文档边界
 
-本文冻结 Python side remaining-core 的内部治理边界。它不改变 Go / Python
-runtime ownership，只说明 Python 继续保留的 semantic capability 如何拆分。
+本文冻结 Python side current implementation boundary 与长期退出在线回答热路径的约束。它不改变
+Temporal / Go execution-control 的 ownership，只说明当前 Python bridge 承担什么、哪些职责必须迁出、
+以及 Python 后续只能保留在哪些非热路径场景。
 
 ## Runtime Boundary
 
@@ -20,14 +21,25 @@ Python 不再拥有 deterministic execution runtime truth。
 - Go `apps/execution-control` 继续拥有 admission、routing frame、structured runtime、
   lifecycle、observability、final response shaping 与 fail-close terminal envelope
 - Python worker 只消费 Go canonical bridge envelope 与 Go preplanned `AgentRequest`
+- 当前 online answer path 仍经过 Python `apps/supervisor-agent-worker`，这是 current
+  implementation gap，不是长期 target architecture
+- 长期 online answer hot path 必须迁到 Go-owned workflow / capability activity worker
+  envelope；Python 只允许保留 offline ingestion / eval / tooling，或迁移期受限 semantic bridge
+- Python 不得长期拥有 provider cancellation、token / estimated cost accounting、
+  sanitized step projection、workflow step truth 或 top-level semantic orchestration
 
 ## Agent Boundary
 
-`packages/rag-agent` 保留 knowledge-family semantic agent 能力：
+`packages/rag-agent` 当前保留 knowledge-family semantic agent 能力：
 
 - query framing、scope-specific semantic planning、answer synthesis、grounding validation
 - prompt packet assembly 与 provider-backed semantic execution
 - retrieval evidence 到 `AgentResponse` 的 contract 化
+
+长期上，这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个
+不可观测的 Python bridge 黑盒。RAG online path 目标 step graph 至少包括 `rag.plan`、
+`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、`evidence.selection`、
+`synthesis`、`grounding.verify` 与 `finalization.write`。
 
 内部拆分规则：
 
@@ -39,13 +51,21 @@ Python 不再拥有 deterministic execution runtime truth。
 
 ## Retrieval Boundary
 
-`packages/retrieval-core` 保留 online retrieval kernel：
+`packages/retrieval-core` 当前保留 online retrieval kernel：
 
 - Qdrant backend runtime adapter、embedding query cache、registry lookup、
   evidence shaping
 - retrieval request projection、step validation、step result construction、
   merge / dedupe
 - retrieval-core 不拥有 product capability admission，也不维护 query-enabled scope truth
+
+当前 retrieval implementation 可以在内部依赖 LlamaIndex adapter/helper，但 LlamaIndex 不是
+架构层，也不得进入 contracts、execution-control、panel/eval canonical truth。长期 online retrieval
+boundary 收口为 repo-owned DTO + Qdrant native adapter + sanitized query activity projection。
+
+当前 rerank 事实限定为 Qdrant hybrid / RRF、heuristic ranking 与 profile-gated rerank
+interface；未发现线上 cross-encoder、torch、ONNX 或 sentence-transformers rerank 作为 current
+serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 CPU hotspot 为前提。
 
 内部拆分规则：
 
@@ -74,3 +94,7 @@ Python 不再拥有 deterministic execution runtime truth。
 - 不把 ingestion source-truth / projection logic 拉入 `packages/rag-agent`
 - 不把 retrieval backend private helpers 重新塞进 agent service
 - 大模块出现增长时优先按 owner 拆文件，而不是在 facade 继续堆分支
+- 不把 Python 继续保留在长期 online answer hot path 当作默认扩容策略
+- 不用“provider stable”替代 provider adapter 的 latency、token、estimated cost、
+  request ref、cancel / timeout outcome projection
+- 不通过删除 Qdrant auth、弱化 data-plane boundary 或引入 fallback 来掩盖性能/诊断缺口

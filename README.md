@@ -16,7 +16,8 @@ browser -> hub-web -> app launcher / account shell
 hub-web same-site allowlisted /api/* -> app-api
 
 browser -> public-chat-web -> app-api -> execution-control
--> supervisor-agent-worker -> agent
+-> Temporal -> activity worker -> supervisor-agent-worker
+-> rag-agent / retrieval-core
 
 browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 
@@ -36,6 +37,8 @@ browser -> protected-panel-web -> app-api
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
+- 当前 online answer path 仍包含 Python `supervisor-agent-worker` bridge；它是当前实现事实和迁移缺口，
+  长期目标是 Go-owned workflow / capability activity worker plane
 - online query path 与 offline data plane 持续分层
 - `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
   第二产品后端或 MediaWiki 替代物

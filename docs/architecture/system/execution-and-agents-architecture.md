@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-06
+updated: 2026-06-08
 ---
 # Execution And Agents Architecture
 
@@ -20,8 +20,9 @@ updated: 2026-06-06
 
 当前主路径遵循：
 
-`app-api -> execution-control -> supervisor-agent-worker private bridge ->
-agent -> retrieval-core -> evidence -> supervisor response`
+`app-api -> execution-control -> Temporal workflow -> activity worker ->
+supervisor-agent-worker private bridge -> agent/tool capability ->
+retrieval-core -> evidence -> supervisor response`
 
 当前 execution runtime 已统一成三种受治理路径：
 
@@ -45,20 +46,25 @@ agent-as-tool activities -> sanitized step projection -> finalization projection
 
 这表示 repo 采用 supervisor-led governed multi-agent，而不是无中心 peer
 agent mesh。长期 deterministic workflow ownership 由 `execution-control` + Temporal
-workflow code 承接；typed activities 承接 deterministic data access；Python
-`apps/supervisor-agent-worker` 与 package-owned semantic specialists 只在 agent-as-tool
-activity 内承接 bounded semantic execution。
+workflow code 承接；typed activities 承接 deterministic data access；online capability
+activity worker 长期由 Go-owned runtime envelope 承接。Python
+`apps/supervisor-agent-worker` 是当前 private bridge implementation fact 与 migration
+gap，不是长期 online answer hot path。
 
 边界固定如下：
 
 - 当前 Go `apps/execution-control` 负责 Docker-side execution runtime control plane；长期概念名是
   `execution-control`
-- Python `apps/supervisor-agent-worker` 负责 private bridge worker、prompt runtime
+- 当前 Python `apps/supervisor-agent-worker` 负责 private bridge worker、prompt runtime
   assembly、provider client binding 与默认 agent delegate map 装配；worker 内部
   `AgentDispatcher` 消费
-  Go preplanned `AgentRequest` handoff，并调用注入的 agent delegate
+  Go preplanned `AgentRequest` handoff，并调用注入的 agent delegate。长期目标是让 Python
+  退出 online answer hot path，只保留 offline ingestion / eval / tooling 或迁移期临时 bridge
 - `packages/prompt-runtime` 负责 provider-facing prompt contract validation、structured
   output execution、provider response normalization 与 prompt trace construction
+- 长期 provider adapter 必须成为可取消成本闭环 owner：捕获 provider request ref，响应
+  activity cancel / timeout，执行下游 abort，提取 usage，投影 latency / token /
+  estimated cost 与 terminal outcome
 - typed tool 负责 deterministic data access；agent-as-tool 负责能力边界内的 semantic
   planning / evidence consumption / answer shaping
 - multi-agent path 只能通过 Go-owned `WorkflowPlan` admission 打开；agent 之间不得通过
@@ -159,6 +165,9 @@ supervisor 不负责：
   记录 active request id 的 cancel state，默认 supervisor orchestration 已在路由、
   RAG prompt execution 和 agent delegation checkpoints 观测取消；provider /
   prompt executor 已进入阻塞 HTTP 调用时仍不承诺 hard-abort
+- 当前 token / cost DTO 字段已经存在，但在线 provider usage extraction 与 sanitized
+  step/run projection 尚未形成闭环；latency、input/output/cached token、estimated cost 与
+  provider request ref 必须按 activity attempt 归因，而不是只出现在 provider raw trace
 - Go `execution-control` 的 execution envelope 已接受 `knowledge`、`place_lookup`、
   `campus_services`、`notice` capability label，并将它们映射到
   `rag`、`navigation`、`campus_services`、`notice` lane；`requested_scope` 仍只允许
@@ -173,8 +182,9 @@ supervisor 不负责：
   Python bridge hardcut 到 `supervisor_bridge_v6`，缺失 Go-owned
   `effective_capability` / `lane` / `runtime_decisions` 时 fail-closed；
   Python worker 不再重复做 capability keyword inference
-- `app-api -> execution-control -> supervisor-agent-worker` 的 execution /
-  bridge wrapper 由 `docs/contracts/schemas/supervisor-execution.openapi.yaml`
+- `app-api -> execution-control -> Temporal activity -> supervisor-agent-worker`
+  的 current execution / bridge wrapper 由
+  `docs/contracts/schemas/supervisor-execution.openapi.yaml`
   作为 OpenAPI 3.1.1 canonical schema，并生成 TS / Go / Python runtime
   artifact；`packages/contracts` 只承载 stable `AgentRequest` /
   `AgentResponse` handoff schema
@@ -296,17 +306,23 @@ supervisor 不负责：
   `/readyz` 发布 Go-owned `prompt_config_gate`；Python worker 继续实际创建
   provider client / prompt executor，只上报 executor admission 与 HTTP pool health
 
-Python semantic orchestration 长期继续负责：
+Python semantic bridge 当前继续负责：
 
 - `apps/supervisor-agent-worker` 的 private agent dispatch checkpoint
 - agent reasoning、prompt-owned clarification / answer synthesis 与 RAG grounding
-- RAG prompt stack semantic assembly 与 provider-backed structured output execution，除非
-  后续 profiling 证明它们是 Go runtime 稳定后的下一条瓶颈线
+- RAG prompt stack semantic assembly 与 provider-backed structured output execution，直到
+  Go-owned capability worker plane 与 provider adapter 完成迁移
 - Python bridge 不再拥有本地 supervisor audit JSONL writer；execution audit writer /
   backflow 属于 Go `apps/execution-control`
 - Python bridge readiness 只报告 `prompt_runtime`、`prompt_http_pool` 与 minimal
   `worker_runtime`；execution lifecycle / cancel counters / runtime truth 由 Go
   `apps/execution-control` 发布
+
+长期目标是 Python 退出在线回答热路径。Python 可以继续用于 offline ingestion / eval /
+tooling，或作为受限迁移 bridge；但不得长期拥有 online provider cancellation、token/cost
+accounting、workflow step truth、projection truth 或 top-level semantic orchestration。
+worker plane 先按 Temporal task queue 与 capability boundary 拆分；Rust 只在 step-level
+profiling 证明 CPU hotspot 后用于对应 activity backend，不作为默认重写方向。
 
 固定边界：
 
@@ -518,7 +534,8 @@ hash 与 safety posture，不承担下游 agent prompt context 传递。
 agent framework 是 domain-agent 内部实现 substrate，不是 repo-level orchestration owner。
 
 当前 accepted worker truth 是：Python `apps/supervisor-agent-worker` 的 provider-facing
-semantic runtime 使用 OpenAI Agents SDK native substrate。它用来承接：
+semantic runtime 使用 OpenAI Agents SDK native substrate；这是 current implementation
+truth，不是长期 online hot path target。它当前用来承接：
 
 - code-first tool loop 与 handoff object modeling
 - provider-native function calling adapter 与 strict function schema execution
@@ -566,6 +583,12 @@ semantic runtime 使用 OpenAI Agents SDK native substrate。它用来承接：
 SDK run / trace 只能作为内部 trace/debug input；进入 app-api / panel / eval 的内容必须先
 经过 repo-owned sanitized projection。不得把 SDK-native agent graph、tool schema 或 provider
 trace 直接写入 shared contracts。
+
+长期替换方向是把 provider-facing semantic activity 收敛到 repo-owned capability worker
+envelope：activity input 只携带 run / step / projection refs 与 bounded payload hash；
+activity attempt 记录 task queue、worker id、provider request ref、latency、token、
+estimated cost、cancel / timeout outcome；provider raw response、raw prompt 与
+SDK-native state 仍不出 sanitized projection 边界。
 
 Provider-native function calling 的默认接入点同样只能在 domain-agent 内部。它不能替代 Go
 `apps/execution-control` 的 `allowed_tools`、tool admission、opening gate、runtime policy
@@ -699,6 +722,10 @@ repo-owned ToolSpec 派生；SDK run / trace / native state 不得进入
 `packages/contracts`、panel、eval 或 `workflow_trace_summary`。缺 provider、model、
 API key 或 SDK dependency 时只能返回稳定 fail-close 结果或 degraded readiness，不得恢复旧
 provider loop 或 non-SDK answer fallback。
+
+这条 Python worker path 的存在只描述当前实现，不构成长期语言边界。长期 online activity
+worker 需要以 Go-owned runtime envelope 承接 admission、cancel、usage/cost projection 与
+provider adapter；Python 不再是默认 production hot path 扩容单元。
 
 `rag-agent` 的 Agents SDK 接入是 SDK-native RAG synthesis runtime，不属于 ToolSpec
 structured handoff。它的内部 function 仍必须由 ToolSpec 注册与校验，但不得进入

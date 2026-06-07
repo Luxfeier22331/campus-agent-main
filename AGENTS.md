@@ -22,6 +22,10 @@
   Docker-first internal execution-control service`，Temporal 是 execution
   substrate，PG 只承载 sanitized run projection；worker plane / autoscaler 仍按
   对应架构文档继续收口
+- 当前 online answer path 仍包含 Python `apps/supervisor-agent-worker`
+  bridge；它是 current implementation gap，不是长期 online runtime target。
+  长期目标是 Go-owned workflow / capability activity worker plane，Python 只保留
+  offline ingestion / eval / tooling 或迁移期受限 semantic bridge
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
 
 ### Branch Model

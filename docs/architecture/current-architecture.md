@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-06
+updated: 2026-06-08
 ---
 # 当前架构
 
@@ -32,8 +32,8 @@ updated: 2026-06-06
 
 `hub-web same-site allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> execution-control -> supervisor-agent-worker
-private bridge -> agent`
+`browser -> public-chat-web -> app-api -> execution-control -> Temporal -> activity
+worker -> supervisor-agent-worker private bridge -> rag-agent / retrieval-core`
 
 `browser -> public-docs static reader assets`
 
@@ -72,6 +72,17 @@ document/index release`
 - retired PG lease tables、lane budget、worker heartbeat、PG lease worker loop 与
   recovery loop 只允许作为 historical migration artifact / retired code path 出现，
   不参与当前 online serving
+- 当前在线 RAG 路径仍包含 Python `apps/supervisor-agent-worker` private bridge；该 bridge 是
+  current implementation gap，不是长期 online answer hot path 目标。当前 bridge runtime 默认单
+  worker execution 模型会限制并发，除非部署侧显式配置 worker concurrency。
+- 当前 Temporal chat workflow 仍是粗粒度 step trajectory：`planning`、
+  `semantic.rag`、`finalization`。RAG package 内部已有 planner / retrieval /
+  evidence selection / synthesis / grounding 诊断概念，但它们尚未全部提升为
+  Temporal-visible durable step graph。
+- 当前 cancel / timeout 已进入 Go -> Python cooperative cancel path；但 provider
+  in-flight request hard-abort 尚不能被 projection 证明。token / estimated cost 字段已经
+  存在于 contract model，在线 provider usage extraction、latency / token / cost
+  projection 与 cancel 后停止继续 token 消耗的证据闭环仍是 implementation gap。
 - 当前仍未完成的是 worker plane 全量收口、step-level projection 全量消费、worker
   autoscaler、Temporal poller proof 与 typed-tool capability worker 全量拆分。目标 durable
   runtime 见 `docs/architecture/system/durable-agent-runtime-architecture.md`
@@ -214,6 +225,9 @@ document/index release`
   step projection rows 只作为 app-api、panel、eval 读取的 sanitized product
   projection truth。旧 PG lease worker loop / recovery loop 不再参与 online
   serving。
+- 当前 `ChatAnswerWorkflow` 已投影首条 chat trajectory，但粒度仍是
+  `planning`、`semantic.rag`、`finalization`；目标 RAG durable graph 需要继续拆成
+  retrieval / selection / synthesis / grounding 等可计量、可取消、可诊断 step。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
   解释为全局 scheduler。当前缺口是 step-level durable ledger 完整落地、lane
@@ -260,6 +274,9 @@ document/index release`
 ### `apps/supervisor-agent-worker`
 
 - Docker-first internal execution service 的 Python orchestration worker
+- 当前仍在 online answer hot path 中承接 private semantic bridge、provider client binding
+  与 RAG / domain agent delegate dispatch；这是 current implementation fact，也是一项需要退出的
+  long-term runtime gap
 - 只接收 Go `execution-control` 已投影的 private bridge v6 delegate request
 - 装配默认 agent delegate map，并通过 worker 内部 `AgentDispatcher` 调用 agent
 - 只返回 `AgentResponse` 给 Go bridge；不再组装 public `SupervisorResponse`
@@ -276,6 +293,9 @@ document/index release`
   WorkflowPlan、ToolSpec、budget、policy 或 finalization
 - SDK dependency、provider、model 或 API key 缺失时，worker readiness 以稳定原因降级并
   fail closed；不启用 non-SDK answer fallback
+- 当前 cancel 只保证 bridge / agent checkpoints 可以观测取消；当 provider request 已进入阻塞
+  HTTP / SDK 调用后，仍不能证明已 hard-abort 下游 token 消耗。长期 provider adapter 必须提供
+  request id capture、abort、usage extraction 与 sanitized cost projection。
 - 拥有 worker-side retrieval runtime observation bridge，把
   `retrieval.runtime_observation` 投影成 sanitized runtime event sink；不把 raw
   query / snippet / document body 写入 telemetry

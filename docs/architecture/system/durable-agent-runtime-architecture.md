@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-04
-updated: 2026-06-06
+updated: 2026-06-08
 ---
 # Durable Agent Runtime Architecture
 
@@ -55,6 +55,18 @@ app-api stream / projection -> browser surface`
   product run projection、event projection 或 terminal state truth。
 - K8s 只调度 pod / resource，不拥有 workflow history、task queue、product projection 或
   terminal truth。
+
+Current implementation baseline:
+
+- online chat path already enters Temporal-backed `ChatAnswerWorkflow`.
+- first chat trajectory projection currently has three coarse steps:
+  `planning`、`semantic.rag`、`finalization`.
+- this is sufficient to prove Temporal + projection wiring, but not sufficient for
+  production RAG diagnosis, cancellation accounting, token/cost attribution or worker
+  performance profiling.
+- target RAG execution must split `semantic.rag` into durable typed steps
+  instead of leaving retrieval, selection, synthesis and grounding inside one
+  opaque activity.
 
 ## Temporal Execution Plane
 
@@ -192,6 +204,10 @@ canceled / expired`
 - retry 必须产生新的 attempt record，不得覆盖旧 attempt。
 - attempt status、worker id、task queue、started/completed time、terminal reason
   与 safe failure summary 必须可审计。
+- attempt projection 必须记录 scheduled / started / completed timestamps、duration、
+  Temporal task queue、worker identity、activity attempt number、provider request ref、
+  latency summary、token usage、estimated cost、cancel / timeout outcome 与 retry
+  disposition。
 - provider / tool / retrieval 调用失败只能写入 bounded failure record，不得由 synthesis 补洞。
 
 ### Step Result
@@ -222,6 +238,12 @@ canceled / expired`
   finalization ordering。
 - workflow 不拥有 product auth/session/conversation source truth；它只消费 app-api /
   execution-control 投影后的 bounded context。
+- Temporal cancel / timeout 只提供 execution signal、timer、heartbeat 与 activity state
+  transition；它不自动停止外部 provider、Qdrant、HTTP 或 SDK 调用。activity implementation
+  与 provider adapter 必须监听 cancel context / heartbeat cancellation，并对下游请求执行
+  abort 或 close。无法证明 hard-abort 的 provider call 必须在 attempt projection 中标记为
+  `cancel_observed_abort_unproven` 或等价 terminal outcome，不得把 product canceled state
+  误写成 token cost 已停止。
 
 ### Activity Attempt
 
@@ -235,6 +257,42 @@ canceled / expired`
   synthesis 补洞。
 - activity payload 不得携带 raw browser token、cookie、provider raw trace 或
   unrestricted source body。
+- provider-facing activity 必须把 provider request ref、usage extraction、latency、
+  token / estimated cost 与 cancel / timeout outcome 写入 sanitized attempt/result
+  projection。provider raw response、raw prompt 与 SDK-native trace 不能作为 canonical
+  projection。
+
+### Target RAG Step Graph
+
+当前 coarse `semantic.rag` step 只是迁移中间态。目标 RAG durable graph 固定拆成：
+
+1. `rag.plan`
+1. `retrieval.indexed_lookup`
+1. `retrieval.expand_or_rescue`
+1. `evidence.selection`
+1. `synthesis`
+1. `grounding.verify`
+1. `finalization.write`
+
+固定规则：
+
+- `rag.plan` 输出 admitted query mode、scope、budget、required evidence
+  contract 与 no-widening policy。
+- `retrieval.indexed_lookup` 承接 Qdrant / retrieval-core indexed retrieval，输出 bounded
+  candidate summary 与 query activity projection。
+- `retrieval.expand_or_rescue` 只允许在 plan admission 的范围内执行 parent context expansion、
+  historical / freshness branch 或 rescue step；不得扩大 query-enabled surface。
+- `evidence.selection` 输出 answer-bearing supporting evidence，不得把 raw candidate
+  trace 当作 supporting evidence。
+- `synthesis` 只能消费 supporting evidence projection，必须记录 provider request ref、
+  latency、token、estimated cost 与 cancel / timeout outcome。
+- `grounding.verify` 必须检查 claim / list item support、source span、coverage
+  与 unsupported branch，不通过时进入 clarification 或 fail-closed terminal path。
+- `finalization.write` 只写 sanitized finalization projection 与 user-facing
+  answer event。
+
+每个 RAG step 都必须有 `RunStep -> StepAttempt -> StepResult` 轨迹；panel、eval 与
+badcase 诊断以这条 step trajectory 为主线，不读取 Temporal history 或 provider raw trace。
 
 ### Task Queue
 
@@ -349,9 +407,11 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
   - reads Temporal task queue metrics, worker poller health, downstream budget projection
     and SLO policy; adjusts worker replica count only.
 
-### `apps/supervisor-agent-worker`
+### Current Python Semantic Bridge
 
-`apps/supervisor-agent-worker` 长期是 semantic worker。
+`apps/supervisor-agent-worker` 当前是 Python semantic bridge worker；它在 current online
+answer path 中消费 Temporal activity 授权的 bounded step payload，但不是长期 online hot
+path target。
 
 它负责：
 
@@ -361,6 +421,9 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
 - agent-local tool loop
 - retrieval / tool result consumption
 - bounded `AgentResponse` / `StepOutputProjection` 产出
+
+长期目标是把 online capability activity worker 收口到 Go-owned runtime envelope。Python
+只允许继续用于 offline ingestion / eval / tooling，或在迁移期间作为受限 semantic bridge。
 
 它不负责：
 

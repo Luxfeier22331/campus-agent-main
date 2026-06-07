@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-05
+updated: 2026-06-08
 ---
 # 目标架构
 
@@ -34,6 +34,8 @@ updated: 2026-06-05
 - shared app runtime 与 execution engine 分层
 - Temporal-backed durable execution plane
 - execution-control + workflow / activity worker pools + worker autoscaler
+- Go-owned workflow worker 与 capability activity worker plane；Python 不作为长期
+  online answer hot path
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
 - eval-governed quality lifecycle
@@ -211,6 +213,10 @@ raw/source-truth/projection/document/chunk/index`
 - worker runtime 拆成 workflow worker 与 activity worker pools；deterministic
   workflow code 负责 orchestration，package-owned specialists 继续负责 bounded
   semantic reasoning
+- worker plane 拆分优先于语言重写：先把 workflow worker、RAG activity worker、
+  finalization / projection worker 与后续 notice / navigation / campus_services worker
+  拆成可独立扩容、可观测、可取消的能力池；Rust 只用于 profiling 已证明的 CPU hotspot，
+  例如 rerank / normalization / graph scoring，不作为 RAG worker 重构的默认假设
 
 ## 长期 execution / agent 形态
 
@@ -251,10 +257,12 @@ raw/source-truth/projection/document/chunk/index`
   workflow projection，不替代 product-visible run truth
 - execution-control 长期承接 deterministic machine ingress、workflow command/query、
   cancel/signal/update admission、runtime metrics、audit command 与 fail-close envelope
-- deterministic orchestration 长期由 Temporal workflow code 承接；Python /
-  package-owned specialists 只在 activity worker 或 agent-as-tool activity 内执行
-  prompt runtime assembly、provider binding 与 semantic dispatch，不再把 top-level
-  orchestration 放进 prompt 或 provider graph
+- deterministic orchestration 长期由 Temporal workflow code 承接；online answer hot path
+  的 capability activity worker 长期由 Go-owned runtime envelope 承接，
+  package-owned specialists 只以 repo-owned DTO 和 bounded result projection 参与。
+  Python 只允许作为 offline ingestion / eval / tooling runtime，或在迁移期间作为
+  临时 semantic bridge；不得作为长期在线回答热路径、top-level orchestration、
+  provider cancellation owner 或 product projection owner
 - typed tool 负责 deterministic data access；agent-as-tool 负责明确语义边界内的 planning /
   evidence consumption / answer shaping
 - agent-as-tool 可以作为 manager-style workflow 中的 bounded specialist；其输出必须先收敛为
@@ -278,6 +286,17 @@ raw/source-truth/projection/document/chunk/index`
   `packages/navigation-agent`
 - `rag-agent` 长期拆成 scope resolution、retrieval planning、answer
   synthesis、grounding validation 等内部角色；当前 runtime package 为 `packages/rag-agent`
+- RAG 在线目标不是单个 `semantic.rag` 黑盒 step，而是 durable typed step graph：
+  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
+  evidence.selection -> synthesis -> grounding.verify -> finalization.write`。每个
+  step 必须产生 sanitized result projection，供 panel / eval / badcase 诊断消费
+- provider adapter 是 execution cost / cancellation 的明确边界：必须记录 provider
+  request ref、latency、input / output / cached token、estimated cost 与 terminal
+  outcome；cancel / timeout 必须传递到 activity 与 provider adapter，并在可能时
+  abort in-flight request，不能只把 Temporal cancel 记录成产品终态后继续消耗 token
+- LLM 服务可用性不作为目标架构的主要风险假设；目标关注的是 latency、token、
+  estimated cost、budget enforcement、cancel / timeout 下游停止能力与 sanitized
+  projection
 - `rag-agent` 不再作为所有 campus 请求的默认 fallback；它是 knowledge / retrieval /
   grounding specialist，可以消费 notice、service、navigation step 产生的 bounded context，
   但不能代持这些 domain capability 的 source truth

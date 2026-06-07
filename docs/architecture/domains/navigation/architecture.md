@@ -36,8 +36,11 @@ updated: 2026-05-01
 
 长期导航主链路固定为：
 
-`web surface -> app-api -> execution-control -> supervisor-agent-worker -> navigation-agent
--> spatial truth / provider adapters -> supervisor response`
+```text
+web surface -> app-api -> execution-control -> Temporal activity
+-> capability worker -> navigation-agent / typed spatial tools
+-> spatial truth / provider adapters -> supervisor response
+```
 
 在长期 multi-agent workflow 中，`navigation-agent` 也可以作为 bounded spatial
 specialist 被调用，向其它 domain agent 或 Go finalizer 提供 `PlaceContext`、

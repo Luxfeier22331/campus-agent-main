@@ -26,8 +26,8 @@ supporting architecture。
 
 `hub-web same-site allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> execution-control -> supervisor-agent-worker
-private bridge`
+`browser -> public-chat-web -> app-api -> execution-control -> Temporal -> activity
+worker -> supervisor-agent-worker private bridge`
 
 `browser -> public-docs static reader assets`
 
@@ -238,7 +238,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
     canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store
     只保留为 historical migration artifact
 - Python `apps/supervisor-agent-worker`
-  - private orchestration bridge worker
+  - current private semantic bridge worker, not the long-term online hot path target
   - 负责消费 Go 已投影的 private bridge request，并通过 worker 内部
     agent dispatcher 调用 agent
   - 负责在 semantic orchestration checkpoints 观测 Go 投递的 cooperative cancel
@@ -348,8 +348,8 @@ contract 或 auth family route/endpoint truth。
 - `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
 - 这项冻结不等于提前冻结 `apps/execution-control` 的单一 Python/HTTP framework
 - execution public ingress 已 hardcut 到 Go `apps/execution-control`；Python
-  `apps/supervisor-agent-worker`
-  只保留 private orchestration bridge
+  `apps/supervisor-agent-worker` 只保留 current private semantic bridge，长期退出
+  online answer hot path
 
 ## Forbidden Shapes
 

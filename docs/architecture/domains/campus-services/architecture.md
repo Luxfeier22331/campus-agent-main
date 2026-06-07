@@ -35,8 +35,9 @@ capability，而不是 generic retrieval 的一个 collection alias。
 固定形态为：
 
 ```text
-app-api -> execution-control -> supervisor-agent-worker -> campus-services-agent
--> thin tool adapter -> internal query service -> projection-backed structured truth
+app-api -> execution-control -> Temporal activity -> capability worker
+-> campus-services-agent / typed tool -> internal query service
+-> projection-backed structured truth
 ```
 
 这意味着：
