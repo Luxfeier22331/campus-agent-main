@@ -7,6 +7,7 @@ import (
 	"time"
 
 	enumspb "go.temporal.io/api/enums/v1"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 )
@@ -222,8 +223,23 @@ type WorkerOptions struct {
 	RAGQueue               string
 	FinalizationQueue      string
 	WorkerID               string
-	RAGActivities          any
-	FinalizationActivities any
+	RAGActivities          RAGActivities
+	FinalizationActivities FinalizationActivities
+}
+
+type RAGActivities interface {
+	PlanChatAnswerActivity(context.Context, PlanChatAnswerActivityInput) (PlanChatAnswerActivityOutput, error)
+	InvokeSemanticWorkerActivity(
+		context.Context,
+		InvokeSemanticWorkerActivityInput,
+	) (InvokeSemanticWorkerActivityOutput, error)
+}
+
+type FinalizationActivities interface {
+	FinalizeChatAnswerActivity(
+		context.Context,
+		FinalizeChatAnswerActivityInput,
+	) (FinalizeChatAnswerActivityOutput, error)
 }
 
 func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntime, error) {
@@ -294,24 +310,42 @@ func NewWorkflowWorker(temporalClient client.Client, queue string) worker.Worker
 	return workflowWorker
 }
 
-func NewRAGActivityWorker(temporalClient client.Client, queue string, activities any) worker.Worker {
+func NewRAGActivityWorker(temporalClient client.Client, queue string, activities RAGActivities) worker.Worker {
 	ragQueue := strings.TrimSpace(queue)
 	if ragQueue == "" {
 		ragQueue = ActivityTaskQueueRAG
 	}
 	ragWorker := worker.New(temporalClient, ragQueue, worker.Options{})
-	ragWorker.RegisterActivity(activities)
+	ragWorker.RegisterActivityWithOptions(
+		activities.PlanChatAnswerActivity,
+		activityRegisterOptions(PlanChatAnswerActivityName),
+	)
+	ragWorker.RegisterActivityWithOptions(
+		activities.InvokeSemanticWorkerActivity,
+		activityRegisterOptions(InvokeSemanticWorkerActivityName),
+	)
 	return ragWorker
 }
 
-func NewFinalizationActivityWorker(temporalClient client.Client, queue string, activities any) worker.Worker {
+func NewFinalizationActivityWorker(
+	temporalClient client.Client,
+	queue string,
+	activities FinalizationActivities,
+) worker.Worker {
 	finalizationQueue := strings.TrimSpace(queue)
 	if finalizationQueue == "" {
 		finalizationQueue = ActivityTaskQueueFinalization
 	}
 	finalizationWorker := worker.New(temporalClient, finalizationQueue, worker.Options{})
-	finalizationWorker.RegisterActivity(activities)
+	finalizationWorker.RegisterActivityWithOptions(
+		activities.FinalizeChatAnswerActivity,
+		activityRegisterOptions(FinalizeChatAnswerActivityName),
+	)
 	return finalizationWorker
+}
+
+func activityRegisterOptions(name string) activity.RegisterOptions {
+	return activity.RegisterOptions{Name: name}
 }
 
 func (r *WorkerRuntime) Start() error {

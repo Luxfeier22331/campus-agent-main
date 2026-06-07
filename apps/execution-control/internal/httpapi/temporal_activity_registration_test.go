@@ -3,6 +3,9 @@ package httpapi
 import (
 	"reflect"
 	"testing"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/sdk/client"
 )
 
 func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
@@ -44,4 +47,39 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 			t.Fatalf("finalization activities expose %s", method)
 		}
 	}
+}
+
+func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
+	server := &Server{}
+	temporalClient, err := client.NewLazyClient(client.Options{})
+	if err != nil {
+		t.Fatalf("temporal client: %v", err)
+	}
+	defer temporalClient.Close()
+	assertDoesNotPanic(t, func() {
+		worker := temporalruntime.NewRAGActivityWorker(
+			temporalClient,
+			"test-rag",
+			server.TemporalRAGActivities(),
+		)
+		worker.Stop()
+	})
+	assertDoesNotPanic(t, func() {
+		worker := temporalruntime.NewFinalizationActivityWorker(
+			temporalClient,
+			"test-finalization",
+			server.TemporalFinalizationActivities(),
+		)
+		worker.Stop()
+	})
+}
+
+func assertDoesNotPanic(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("unexpected panic: %v", recovered)
+		}
+	}()
+	fn()
 }
