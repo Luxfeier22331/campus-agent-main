@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	answerPath           = "/internal/bridge/supervisor/answer"
-	durableExecutionPath = "/internal/bridge/durable/execution"
-	readyzPath           = "/internal/bridge/readyz"
-	cancelPath           = "/internal/bridge/execution/cancel"
+	answerPath            = "/internal/bridge/supervisor/answer"
+	semanticExecutionPath = "/internal/bridge/semantic/execution"
+	readyzPath            = "/internal/bridge/readyz"
+	cancelPath            = "/internal/bridge/execution/cancel"
 )
 
 const defaultResponseLimitBytes int64 = 1_048_576
@@ -71,19 +71,19 @@ func (c *HTTPClient) Execute(ctx context.Context, request Request) (ExecuteRespo
 	}, nil
 }
 
-func (c *HTTPClient) ExecuteDurable(
+func (c *HTTPClient) ExecuteSemantic(
 	ctx context.Context,
-	request DurableExecutionRequest,
+	request SemanticExecutionRequest,
 ) (ExecuteResponse, error) {
-	body, err := json.Marshal(durableExecutionWireRequest{
-		BridgeVersion: "supervisor_durable_worker_v1",
-		RunID:         request.RunID,
-		LeaseID:       request.LeaseID,
-		StepID:        request.StepID,
-		Lane:          request.Lane,
-		WorkerID:      request.WorkerID,
-		Attempt:       request.Attempt,
-		Execution:     request.Execution.Payload,
+	body, err := json.Marshal(semanticExecutionWireRequest{
+		BridgeVersion:   "semantic_bridge_execution_v1",
+		RunID:           request.RunID,
+		StepExecutionID: request.StepExecutionID,
+		StepID:          request.StepID,
+		Lane:            request.Lane,
+		WorkerID:        request.WorkerID,
+		Attempt:         request.Attempt,
+		Execution:       request.Execution.Payload,
 	})
 	if err != nil {
 		return ExecuteResponse{}, err
@@ -91,7 +91,7 @@ func (c *HTTPClient) ExecuteDurable(
 	response, err := c.do(
 		ctx,
 		http.MethodPost,
-		durableExecutionPath,
+		semanticExecutionPath,
 		body,
 		request.Execution.TraceHeaders,
 	)
@@ -131,15 +131,15 @@ func (c *HTTPClient) Cancel(ctx context.Context, request CancelRequest) (CancelR
 	}, nil
 }
 
-type durableExecutionWireRequest struct {
-	BridgeVersion string          `json:"bridge_version"`
-	RunID         string          `json:"run_id"`
-	LeaseID       string          `json:"lease_id"`
-	StepID        string          `json:"step_id"`
-	Lane          string          `json:"lane"`
-	WorkerID      string          `json:"worker_id"`
-	Attempt       int             `json:"attempt"`
-	Execution     json.RawMessage `json:"execution"`
+type semanticExecutionWireRequest struct {
+	BridgeVersion   string          `json:"bridge_version"`
+	RunID           string          `json:"run_id"`
+	StepExecutionID string          `json:"step_execution_id"`
+	StepID          string          `json:"step_id"`
+	Lane            string          `json:"lane"`
+	WorkerID        string          `json:"worker_id"`
+	Attempt         int             `json:"attempt"`
+	Execution       json.RawMessage `json:"execution"`
 }
 
 type rawResponse struct {

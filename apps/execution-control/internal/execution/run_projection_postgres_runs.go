@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *PostgresDurableRuntimeStore) CreateRun(
+func (s *PostgresRunProjectionStore) CreateRun(
 	ctx context.Context,
 	run DurableRun,
 ) (DurableRun, error) {
@@ -77,7 +77,7 @@ func (s *PostgresDurableRuntimeStore) CreateRun(
 	return s.GetRun(ctx, run.RunID)
 }
 
-func (s *PostgresDurableRuntimeStore) DeleteRun(ctx context.Context, runID string) error {
+func (s *PostgresRunProjectionStore) DeleteRun(ctx context.Context, runID string) error {
 	commandTag, err := s.pool.Exec(ctx, `delete from runtime.agent_runs where run_id = $1`, runID)
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func (s *PostgresDurableRuntimeStore) DeleteRun(ctx context.Context, runID strin
 	return nil
 }
 
-func (s *PostgresDurableRuntimeStore) GetRun(ctx context.Context, runID string) (DurableRun, error) {
+func (s *PostgresRunProjectionStore) GetRun(ctx context.Context, runID string) (DurableRun, error) {
 	run, err := scanDurableRun(
 		s.pool.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1", runID),
 	)
@@ -101,7 +101,7 @@ func (s *PostgresDurableRuntimeStore) GetRun(ctx context.Context, runID string) 
 	return run, nil
 }
 
-func (s *PostgresDurableRuntimeStore) ReplaceRunMetadata(
+func (s *PostgresRunProjectionStore) ReplaceRunMetadata(
 	ctx context.Context,
 	runID string,
 	metadata map[string]any,
@@ -134,7 +134,7 @@ func (s *PostgresDurableRuntimeStore) ReplaceRunMetadata(
 	return nil
 }
 
-func (s *PostgresDurableRuntimeStore) TransitionRun(
+func (s *PostgresRunProjectionStore) TransitionRun(
 	ctx context.Context,
 	runID string,
 	status DurableRunStatus,
@@ -192,20 +192,7 @@ func (s *PostgresDurableRuntimeStore) TransitionRun(
 	return s.GetRun(ctx, runID)
 }
 
-func (s *PostgresDurableRuntimeStore) CancelRun(
-	ctx context.Context,
-	request DurableRunCancelRequest,
-) (DurableRunCancelResult, error) {
-	run, err := s.CancelRunProjection(ctx, request)
-	if err != nil {
-		return DurableRunCancelResult{}, err
-	}
-	return DurableRunCancelResult{
-		Run: run,
-	}, nil
-}
-
-func (s *PostgresDurableRuntimeStore) CancelRunProjection(
+func (s *PostgresRunProjectionStore) CancelRunProjection(
 	ctx context.Context,
 	request DurableRunCancelRequest,
 ) (DurableRun, error) {
@@ -271,7 +258,7 @@ func (s *PostgresDurableRuntimeStore) CancelRunProjection(
 
 func mapDurableRunUniqueViolation(
 	ctx context.Context,
-	store *PostgresDurableRuntimeStore,
+	store *PostgresRunProjectionStore,
 	run DurableRun,
 ) error {
 	var existingRunID string

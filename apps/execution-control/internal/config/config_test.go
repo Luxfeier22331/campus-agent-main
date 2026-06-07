@@ -281,7 +281,7 @@ func TestLoadFromEnvRejectsRetiredDurableRuntimeDatabaseSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "postgres://runtime.example/campus_agent")
 
 	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected retired durable runtime database env to fail")
+		t.Fatal("expected retired run projection database env to fail")
 	}
 }
 

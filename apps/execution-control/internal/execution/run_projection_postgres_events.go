@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *PostgresDurableRuntimeStore) AppendRunEvent(
+func (s *PostgresRunProjectionStore) AppendRunEvent(
 	ctx context.Context,
 	event DurableRunEvent,
 ) (DurableRunEvent, error) {
@@ -90,14 +90,14 @@ func (s *PostgresDurableRuntimeStore) AppendRunEvent(
 	return cloneDurableRunEvent(event), nil
 }
 
-func (s *PostgresDurableRuntimeStore) ListRunEvents(
+func (s *PostgresRunProjectionStore) ListRunEvents(
 	ctx context.Context,
 	runID string,
 ) ([]DurableRunEvent, error) {
 	return s.ListRunEventsAfter(ctx, runID, 0)
 }
 
-func (s *PostgresDurableRuntimeStore) ListRunEventsAfter(
+func (s *PostgresRunProjectionStore) ListRunEventsAfter(
 	ctx context.Context,
 	runID string,
 	afterSequence int64,

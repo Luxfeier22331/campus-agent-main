@@ -30,7 +30,7 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionTablesOnly(t *testing
 		"unique index if not exists agent_run_events_run_sequence_idx",
 	}
 	for _, snippet := range requiredSnippets {
-		if !strings.Contains(durableRuntimeSchemaSQL, snippet) {
+		if !strings.Contains(runProjectionSchemaSQL, snippet) {
 			t.Fatalf("run projection schema missing %q", snippet)
 		}
 	}
@@ -41,7 +41,7 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionTablesOnly(t *testing
 		"execution_leases_active_run_step_idx",
 	}
 	for _, snippet := range forbiddenSnippets {
-		if strings.Contains(durableRuntimeSchemaSQL, snippet) {
+		if strings.Contains(runProjectionSchemaSQL, snippet) {
 			t.Fatalf("run projection schema must not include retired PG lease artifact %q", snippet)
 		}
 	}

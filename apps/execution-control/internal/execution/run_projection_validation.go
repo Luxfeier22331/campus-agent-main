@@ -67,22 +67,12 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 	return nil
 }
 
-func validateTimedOutRunRecoveryRequest(request TimedOutRunRecoveryRequest) error {
-	if request.Now.IsZero() {
-		return fmt.Errorf("%w: now is required", ErrInvalidTimedOutRunRecovery)
-	}
-	return nil
-}
-
 func validateDurableRunCancelRequest(request DurableRunCancelRequest) error {
 	if request.RunID == "" {
 		return fmt.Errorf("%w: run_id is required", ErrInvalidDurableRunCancel)
 	}
 	if request.Now.IsZero() {
 		return fmt.Errorf("%w: now is required", ErrInvalidDurableRunCancel)
-	}
-	if request.ReleaseReason == "" {
-		return fmt.Errorf("%w: release_reason is required", ErrInvalidDurableRunCancel)
 	}
 	return nil
 }

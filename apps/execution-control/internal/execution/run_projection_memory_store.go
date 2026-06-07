@@ -9,10 +9,8 @@ import (
 
 var (
 	ErrDurableRunExists                 = errors.New("durable run already exists")
-	ErrDurableRuntimeStoreNotConfigured = errors.New("durable runtime store not configured")
-	ErrRunProjectionStoreNotConfigured  = errors.New("run projection store not configured")
+	ErrRunProjectionStoreNotConfigured = errors.New("run projection store not configured")
 	ErrDurableRunNotFound               = errors.New("durable run not found")
-	ErrNoQueuedDurableRun               = errors.New("no queued durable run")
 	ErrInvalidDurableRun                = errors.New("invalid durable run")
 	ErrInvalidRunTransition             = errors.New("invalid durable run transition")
 	ErrConversationActiveRun            = errors.New("conversation active run")
@@ -20,7 +18,6 @@ var (
 	ErrInvalidRunStep                   = errors.New("invalid run step projection")
 	ErrInvalidStepAttempt               = errors.New("invalid step attempt projection")
 	ErrInvalidStepResult                = errors.New("invalid step result projection")
-	ErrInvalidTimedOutRunRecovery       = errors.New("invalid timed out run recovery")
 	ErrInvalidDurableRunCancel          = errors.New("invalid durable run cancel")
 )
 
@@ -45,16 +42,7 @@ type RunProjectionStore interface {
 	ListStepResults(context.Context, string) ([]StepResultProjection, error)
 }
 
-type DurableRuntimeStore interface {
-	RunProjectionStore
-	RecoverTimedOutRuns(context.Context, TimedOutRunRecoveryRequest) (
-		[]TimedOutRunRecoveryResult,
-		error,
-	)
-	CancelRun(context.Context, DurableRunCancelRequest) (DurableRunCancelResult, error)
-}
-
-type InMemoryDurableRuntimeStore struct {
+type InMemoryRunProjectionStore struct {
 	mu                      sync.RWMutex
 	runs                    map[string]DurableRun
 	runEvents               map[string][]DurableRunEvent
@@ -64,8 +52,8 @@ type InMemoryDurableRuntimeStore struct {
 	activeRunByConversation map[string]string
 }
 
-func NewInMemoryDurableRuntimeStore() *InMemoryDurableRuntimeStore {
-	return &InMemoryDurableRuntimeStore{
+func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
+	return &InMemoryRunProjectionStore{
 		runs:                    map[string]DurableRun{},
 		runEvents:               map[string][]DurableRunEvent{},
 		runSteps:                map[string]RunStepProjection{},

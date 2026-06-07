@@ -10,59 +10,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrInvalidDurableRuntimeStore = errors.New("invalid durable runtime store")
 var ErrInvalidRunProjectionStore = errors.New("invalid run projection store")
-
-type PostgresDurableRuntimeStoreOptions struct {
-	DatabaseURL string
-	AutoMigrate bool
-}
-
-type PostgresDurableRuntimeStore struct {
-	pool *pgxpool.Pool
-}
-
-func NewPostgresDurableRuntimeStore(
-	ctx context.Context,
-	options PostgresDurableRuntimeStoreOptions,
-) (*PostgresDurableRuntimeStore, error) {
-	databaseURL := strings.TrimSpace(options.DatabaseURL)
-	if databaseURL == "" {
-		return nil, fmt.Errorf("%w: database url is required", ErrInvalidDurableRuntimeStore)
-	}
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("parse durable runtime database url: %w", err)
-	}
-	config.MaxConns = 8
-	config.MinConns = 0
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("create durable runtime postgres pool: %w", err)
-	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("ping durable runtime postgres: %w", err)
-	}
-	store := &PostgresDurableRuntimeStore{pool: pool}
-	if options.AutoMigrate {
-		if err := store.EnsureSchema(ctx); err != nil {
-			pool.Close()
-			return nil, err
-		}
-	}
-	return store, nil
-}
 
 type PostgresRunProjectionStoreOptions struct {
 	DatabaseURL string
 	AutoMigrate bool
 }
 
+type PostgresRunProjectionStore struct {
+	pool *pgxpool.Pool
+}
+
 func NewPostgresRunProjectionStore(
 	ctx context.Context,
 	options PostgresRunProjectionStoreOptions,
-) (*PostgresDurableRuntimeStore, error) {
+) (*PostgresRunProjectionStore, error) {
 	databaseURL := strings.TrimSpace(options.DatabaseURL)
 	if databaseURL == "" {
 		return nil, fmt.Errorf("%w: database url is required", ErrInvalidRunProjectionStore)
@@ -81,7 +43,7 @@ func NewPostgresRunProjectionStore(
 		pool.Close()
 		return nil, fmt.Errorf("ping run projection postgres: %w", err)
 	}
-	store := &PostgresDurableRuntimeStore{pool: pool}
+	store := &PostgresRunProjectionStore{pool: pool}
 	if options.AutoMigrate {
 		if err := store.EnsureSchema(ctx); err != nil {
 			pool.Close()
@@ -91,15 +53,15 @@ func NewPostgresRunProjectionStore(
 	return store, nil
 }
 
-func (s *PostgresDurableRuntimeStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.pool.Exec(ctx, durableRuntimeSchemaSQL)
+func (s *PostgresRunProjectionStore) EnsureSchema(ctx context.Context) error {
+	_, err := s.pool.Exec(ctx, runProjectionSchemaSQL)
 	if err != nil {
-		return fmt.Errorf("ensure durable runtime schema: %w", err)
+		return fmt.Errorf("ensure run projection schema: %w", err)
 	}
 	return nil
 }
 
-func (s *PostgresDurableRuntimeStore) HealthCheck(ctx context.Context) error {
+func (s *PostgresRunProjectionStore) HealthCheck(ctx context.Context) error {
 	if s == nil || s.pool == nil {
 		return fmt.Errorf("run projection store is not configured")
 	}
@@ -122,7 +84,7 @@ func (s *PostgresDurableRuntimeStore) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-func (s *PostgresDurableRuntimeStore) Close() {
+func (s *PostgresRunProjectionStore) Close() {
 	if s != nil && s.pool != nil {
 		s.pool.Close()
 	}
@@ -156,7 +118,7 @@ func scanJSONMap(raw []byte) (map[string]any, error) {
 	return value, nil
 }
 
-const durableRuntimeSchemaSQL = `
+const runProjectionSchemaSQL = `
 create schema if not exists runtime;
 
 create table if not exists runtime.agent_runs (

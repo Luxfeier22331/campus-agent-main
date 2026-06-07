@@ -252,10 +252,9 @@ func (s *Server) handleExecutionRunCancel(
 	canceled, err := s.runProjectionStore.CancelRunProjection(
 		request.Context(),
 		execution.DurableRunCancelRequest{
-			RunID:         run.RunID,
-			Reason:        reason,
-			Now:           canceledAt,
-			ReleaseReason: string(execution.DurableTerminalReasonUserCanceled),
+			RunID:  run.RunID,
+			Reason: reason,
+			Now:    canceledAt,
 		},
 	)
 	if err != nil {

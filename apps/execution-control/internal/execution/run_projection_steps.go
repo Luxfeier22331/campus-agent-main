@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (s *InMemoryDurableRuntimeStore) UpsertRunStep(
+func (s *InMemoryRunProjectionStore) UpsertRunStep(
 	_ context.Context,
 	step RunStepProjection,
 ) (RunStepProjection, error) {
@@ -23,7 +23,7 @@ func (s *InMemoryDurableRuntimeStore) UpsertRunStep(
 	return cloneRunStepProjection(step), nil
 }
 
-func (s *InMemoryDurableRuntimeStore) UpsertStepAttempt(
+func (s *InMemoryRunProjectionStore) UpsertStepAttempt(
 	_ context.Context,
 	attempt StepAttemptProjection,
 ) (StepAttemptProjection, error) {
@@ -39,7 +39,7 @@ func (s *InMemoryDurableRuntimeStore) UpsertStepAttempt(
 	return cloneStepAttemptProjection(attempt), nil
 }
 
-func (s *InMemoryDurableRuntimeStore) UpsertStepResult(
+func (s *InMemoryRunProjectionStore) UpsertStepResult(
 	_ context.Context,
 	result StepResultProjection,
 ) (StepResultProjection, error) {
@@ -55,7 +55,7 @@ func (s *InMemoryDurableRuntimeStore) UpsertStepResult(
 	return cloneStepResultProjection(result), nil
 }
 
-func (s *InMemoryDurableRuntimeStore) ListRunSteps(
+func (s *InMemoryRunProjectionStore) ListRunSteps(
 	_ context.Context,
 	runID string,
 ) ([]RunStepProjection, error) {
@@ -80,7 +80,7 @@ func (s *InMemoryDurableRuntimeStore) ListRunSteps(
 	return steps, nil
 }
 
-func (s *InMemoryDurableRuntimeStore) ListStepAttempts(
+func (s *InMemoryRunProjectionStore) ListStepAttempts(
 	_ context.Context,
 	runID string,
 ) ([]StepAttemptProjection, error) {
@@ -105,7 +105,7 @@ func (s *InMemoryDurableRuntimeStore) ListStepAttempts(
 	return attempts, nil
 }
 
-func (s *InMemoryDurableRuntimeStore) ListStepResults(
+func (s *InMemoryRunProjectionStore) ListStepResults(
 	_ context.Context,
 	runID string,
 ) ([]StepResultProjection, error) {

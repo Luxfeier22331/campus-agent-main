@@ -27,7 +27,6 @@ const (
 	DurableTerminalReasonConversationActiveRun DurableTerminalReason = "conversation_active_run"
 	DurableTerminalReasonQuotaExceeded         DurableTerminalReason = "quota_exceeded"
 	DurableTerminalReasonQueueTimeout          DurableTerminalReason = "queue_timeout"
-	DurableTerminalReasonLeaseExpired          DurableTerminalReason = "lease_expired"
 	DurableTerminalReasonWorkerUnavailable     DurableTerminalReason = "worker_unavailable"
 	DurableTerminalReasonProviderUnavailable   DurableTerminalReason = "provider_unavailable"
 	DurableTerminalReasonRetrievalUnavailable  DurableTerminalReason = "retrieval_unavailable"
@@ -170,22 +169,8 @@ type StepResultProjection struct {
 	SanitizedPayload     map[string]any
 }
 
-type TimedOutRunRecoveryRequest struct {
-	Now time.Time
-}
-
-type TimedOutRunRecoveryResult struct {
-	Run            DurableRun
-	TerminalReason DurableTerminalReason
-}
-
 type DurableRunCancelRequest struct {
-	RunID         string
-	Reason        string
-	Now           time.Time
-	ReleaseReason string
-}
-
-type DurableRunCancelResult struct {
-	Run DurableRun
+	RunID  string
+	Reason string
+	Now    time.Time
 }

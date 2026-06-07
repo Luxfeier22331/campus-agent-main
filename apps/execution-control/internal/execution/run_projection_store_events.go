@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func (s *InMemoryDurableRuntimeStore) AppendRunEvent(
+func (s *InMemoryRunProjectionStore) AppendRunEvent(
 	_ context.Context,
 	event DurableRunEvent,
 ) (DurableRunEvent, error) {
@@ -53,7 +53,7 @@ func (s *InMemoryDurableRuntimeStore) AppendRunEvent(
 	return cloneDurableRunEvent(eventClone), nil
 }
 
-func (s *InMemoryDurableRuntimeStore) appendRunEventLocked(
+func (s *InMemoryRunProjectionStore) appendRunEventLocked(
 	run DurableRun,
 	event DurableRunEvent,
 ) error {
@@ -79,14 +79,14 @@ func (s *InMemoryDurableRuntimeStore) appendRunEventLocked(
 	return nil
 }
 
-func (s *InMemoryDurableRuntimeStore) ListRunEvents(
+func (s *InMemoryRunProjectionStore) ListRunEvents(
 	_ context.Context,
 	runID string,
 ) ([]DurableRunEvent, error) {
 	return s.ListRunEventsAfter(context.Background(), runID, 0)
 }
 
-func (s *InMemoryDurableRuntimeStore) ListRunEventsAfter(
+func (s *InMemoryRunProjectionStore) ListRunEventsAfter(
 	_ context.Context,
 	runID string,
 	afterSequence int64,

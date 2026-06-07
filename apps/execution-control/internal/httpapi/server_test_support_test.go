@@ -37,16 +37,16 @@ func delegateAnswerBody(requestID string) io.Reader {
 }
 
 type fakeBridge struct {
-	configured       bool
-	response         bridge.ExecuteResponse
-	readyz           bridge.ReadyzResponse
-	executeErr       error
-	readyzErr        error
-	seen             bridge.Request
-	seenDurable      bridge.DurableExecutionRequest
-	executeFn        func(context.Context, bridge.Request) (bridge.ExecuteResponse, error)
-	executeDurableFn func(context.Context, bridge.DurableExecutionRequest) (bridge.ExecuteResponse, error)
-	cancelFn         func(context.Context, bridge.CancelRequest) (bridge.CancelResponse, error)
+	configured        bool
+	response          bridge.ExecuteResponse
+	readyz            bridge.ReadyzResponse
+	executeErr        error
+	readyzErr         error
+	seen              bridge.Request
+	seenSemantic      bridge.SemanticExecutionRequest
+	executeFn         func(context.Context, bridge.Request) (bridge.ExecuteResponse, error)
+	executeSemanticFn func(context.Context, bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error)
+	cancelFn          func(context.Context, bridge.CancelRequest) (bridge.CancelResponse, error)
 }
 
 type readyTemporalStarter struct {
@@ -118,15 +118,15 @@ func (f *fakeBridge) Execute(ctx context.Context, request bridge.Request) (bridg
 	return f.response, nil
 }
 
-func (f *fakeBridge) ExecuteDurable(
+func (f *fakeBridge) ExecuteSemantic(
 	ctx context.Context,
-	request bridge.DurableExecutionRequest,
+	request bridge.SemanticExecutionRequest,
 ) (bridge.ExecuteResponse, error) {
-	f.seenDurable = request
-	if f.executeDurableFn != nil {
-		return f.executeDurableFn(ctx, request)
+	f.seenSemantic = request
+	if f.executeSemanticFn != nil {
+		return f.executeSemanticFn(ctx, request)
 	}
-	return bridge.ExecuteResponse{}, errors.New("unexpected durable bridge execution")
+	return bridge.ExecuteResponse{}, errors.New("unexpected semantic bridge execution")
 }
 
 func (f *fakeBridge) Readyz(_ context.Context) (bridge.ReadyzResponse, error) {

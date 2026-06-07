@@ -2,9 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -107,8 +104,6 @@ type bridgeWriteOutcome struct {
 }
 
 const statusClientClosedRequest = 499
-
-var errDurableLeaseLoopRetired = errors.New("durable PG lease loop is retired; use Temporal workers")
 
 func NewServer(cfg config.Config, bridgeClient bridge.Client) *Server {
 	return NewServerWithDependencies(
@@ -267,14 +262,6 @@ func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, err
 	return store, nil
 }
 
-func generateDurableLeaseID() string {
-	var buffer [16]byte
-	if _, err := rand.Read(buffer[:]); err != nil {
-		return ""
-	}
-	return "lease-" + hex.EncodeToString(buffer[:])
-}
-
 func newAdmissionController(cfg config.Config) *admission.Controller {
 	laneConfigs := make(map[string]admission.LaneConfig, len(cfg.LaneBudgets))
 	for lane, budget := range cfg.LaneBudgets {
@@ -294,18 +281,6 @@ func newAdmissionController(cfg config.Config) *admission.Controller {
 
 func (s *Server) StartDraining() {
 	s.admission.StartDraining()
-}
-
-func (s *Server) StartDurableWorkerLoop(ctx context.Context) error {
-	return errDurableLeaseLoopRetired
-}
-
-func (s *Server) StartDurableRecoveryLoop(ctx context.Context) error {
-	return errDurableLeaseLoopRetired
-}
-
-func (s *Server) syncDurableLaneBudgets(ctx context.Context) error {
-	return errDurableLeaseLoopRetired
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

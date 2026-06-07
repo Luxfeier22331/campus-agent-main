@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *PostgresDurableRuntimeStore) UpsertRunStep(
+func (s *PostgresRunProjectionStore) UpsertRunStep(
 	ctx context.Context,
 	step RunStepProjection,
 ) (RunStepProjection, error) {
@@ -61,7 +61,7 @@ func (s *PostgresDurableRuntimeStore) UpsertRunStep(
 	return step, nil
 }
 
-func (s *PostgresDurableRuntimeStore) UpsertStepAttempt(
+func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 	ctx context.Context,
 	attempt StepAttemptProjection,
 ) (StepAttemptProjection, error) {
@@ -109,7 +109,7 @@ func (s *PostgresDurableRuntimeStore) UpsertStepAttempt(
 	return attempt, nil
 }
 
-func (s *PostgresDurableRuntimeStore) UpsertStepResult(
+func (s *PostgresRunProjectionStore) UpsertStepResult(
 	ctx context.Context,
 	result StepResultProjection,
 ) (StepResultProjection, error) {
@@ -153,7 +153,7 @@ func (s *PostgresDurableRuntimeStore) UpsertStepResult(
 	return result, nil
 }
 
-func (s *PostgresDurableRuntimeStore) ListRunSteps(
+func (s *PostgresRunProjectionStore) ListRunSteps(
 	ctx context.Context,
 	runID string,
 ) ([]RunStepProjection, error) {
@@ -190,7 +190,7 @@ func (s *PostgresDurableRuntimeStore) ListRunSteps(
 	return steps, nil
 }
 
-func (s *PostgresDurableRuntimeStore) ListStepAttempts(
+func (s *PostgresRunProjectionStore) ListStepAttempts(
 	ctx context.Context,
 	runID string,
 ) ([]StepAttemptProjection, error) {
@@ -226,7 +226,7 @@ func (s *PostgresDurableRuntimeStore) ListStepAttempts(
 	return attempts, nil
 }
 
-func (s *PostgresDurableRuntimeStore) ListStepResults(
+func (s *PostgresRunProjectionStore) ListStepResults(
 	ctx context.Context,
 	runID string,
 ) ([]StepResultProjection, error) {

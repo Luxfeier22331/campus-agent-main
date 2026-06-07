@@ -8,7 +8,7 @@ import (
 )
 
 func TestInMemoryRunProjectionStoreCreatesRunsWithConversationActiveRunLock(t *testing.T) {
-	store := NewInMemoryDurableRuntimeStore()
+	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	createdAt := time.Date(2026, 6, 4, 8, 0, 0, 0, time.UTC)
 	run := DurableRun{
@@ -93,7 +93,7 @@ func TestInMemoryRunProjectionStoreCreatesRunsWithConversationActiveRunLock(t *t
 }
 
 func TestInMemoryRunProjectionStoreRejectsInvalidRunStateTransitions(t *testing.T) {
-	store := NewInMemoryDurableRuntimeStore()
+	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	now := time.Date(2026, 6, 4, 8, 5, 0, 0, time.UTC)
 
@@ -183,7 +183,7 @@ func TestInMemoryRunProjectionStoreRejectsInvalidRunStateTransitions(t *testing.
 }
 
 func TestInMemoryRunProjectionStoreAppendsRunEventsWithMonotonicSequence(t *testing.T) {
-	store := NewInMemoryDurableRuntimeStore()
+	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	now := time.Date(2026, 6, 4, 8, 10, 0, 0, time.UTC)
 	createRunProjectionForTest(t, store, "run-events", "conv-events", now)
@@ -283,7 +283,7 @@ func TestInMemoryRunProjectionStoreAppendsRunEventsWithMonotonicSequence(t *test
 }
 
 func TestInMemoryRunProjectionStoreWritesCancelProjectionEvent(t *testing.T) {
-	store := NewInMemoryDurableRuntimeStore()
+	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	now := time.Date(2026, 6, 4, 8, 15, 0, 0, time.UTC)
 	createRunProjectionForTest(t, store, "run-cancel", "conv-cancel", now)
@@ -292,10 +292,9 @@ func TestInMemoryRunProjectionStoreWritesCancelProjectionEvent(t *testing.T) {
 	}
 
 	canceled, err := store.CancelRunProjection(ctx, DurableRunCancelRequest{
-		RunID:         "run-cancel",
-		Reason:        "user_requested",
-		ReleaseReason: "temporal_cancel_requested",
-		Now:           now.Add(2 * time.Second),
+		RunID:  "run-cancel",
+		Reason: "user_requested",
+		Now:    now.Add(2 * time.Second),
 	})
 	if err != nil {
 		t.Fatalf("cancel run projection: %v", err)
@@ -320,7 +319,7 @@ func TestInMemoryRunProjectionStoreWritesCancelProjectionEvent(t *testing.T) {
 }
 
 func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
-	store := NewInMemoryDurableRuntimeStore()
+	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	now := time.Date(2026, 6, 4, 8, 20, 0, 0, time.UTC)
 	createRunProjectionForTest(t, store, "run-steps", "conv-steps", now)
@@ -406,7 +405,7 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 
 func createRunProjectionForTest(
 	t *testing.T,
-	store *InMemoryDurableRuntimeStore,
+	store *InMemoryRunProjectionStore,
 	runID string,
 	conversationID string,
 	now time.Time,

@@ -59,8 +59,8 @@ def build_bridge_routes(
         ),
         HttpRoute(
             "POST",
-            "/internal/bridge/durable/execution",
-            lambda headers, body: handle_bridge_durable_execution(
+            "/internal/bridge/semantic/execution",
+            lambda headers, body: handle_bridge_semantic_execution(
                 headers,
                 body,
                 settings,
@@ -171,7 +171,7 @@ def handle_bridge_answer(
     return _bridge_response(200, asdict(response), kind="agent_response")
 
 
-def handle_bridge_durable_execution(
+def handle_bridge_semantic_execution(
     headers: Mapping[str, str],
     body: dict[str, object] | None,
     settings: ApiSettings,
@@ -185,7 +185,7 @@ def handle_bridge_durable_execution(
 
     payload = body or {}
     try:
-        work_item = _parse_durable_execution_work_item(payload)
+        work_item = _parse_semantic_execution_work_item(payload)
         envelope = parse_bridge_supervisor_envelope(work_item.execution)
     except ValueError as exc:
         return _bridge_response(
@@ -208,7 +208,7 @@ def handle_bridge_durable_execution(
             },
             kind="bridge_invalid_request",
         )
-    runtime_agent_request = _bind_durable_work_item_to_agent_request(
+    runtime_agent_request = _bind_semantic_work_item_to_agent_request(
         runtime_agent_request,
         work_item,
     )
@@ -237,7 +237,7 @@ def handle_bridge_durable_execution(
     finally:
         runtime_cancel_flags.complete(request.request_id)
 
-    return _bridge_response(200, asdict(response), kind="durable_agent_response")
+    return _bridge_response(200, asdict(response), kind="semantic_agent_response")
 
 
 def handle_bridge_cancel(
@@ -277,9 +277,9 @@ def handle_bridge_cancel(
 
 
 @dataclass(frozen=True, slots=True)
-class DurableExecutionWorkItem:
+class SemanticExecutionWorkItem:
     run_id: str
-    lease_id: str
+    step_execution_id: str
     step_id: str
     lane: str
     worker_id: str
@@ -287,12 +287,15 @@ class DurableExecutionWorkItem:
     execution: dict[str, object]
 
 
-def _parse_durable_execution_work_item(payload: Mapping[str, object]) -> DurableExecutionWorkItem:
+def _parse_semantic_execution_work_item(payload: Mapping[str, object]) -> SemanticExecutionWorkItem:
     bridge_version = require_string(payload.get("bridge_version"), field_name="bridge_version")
-    if bridge_version != "supervisor_durable_worker_v1":
-        raise ValueError("bridge_version must be supervisor_durable_worker_v1")
+    if bridge_version != "semantic_bridge_execution_v1":
+        raise ValueError("bridge_version must be semantic_bridge_execution_v1")
     run_id = require_string(payload.get("run_id"), field_name="run_id")
-    lease_id = require_string(payload.get("lease_id"), field_name="lease_id")
+    step_execution_id = require_string(
+        payload.get("step_execution_id"),
+        field_name="step_execution_id",
+    )
     step_id = require_string(payload.get("step_id"), field_name="step_id")
     lane = require_string(payload.get("lane"), field_name="lane")
     worker_id = require_string(payload.get("worker_id"), field_name="worker_id")
@@ -302,9 +305,9 @@ def _parse_durable_execution_work_item(payload: Mapping[str, object]) -> Durable
     raw_execution = payload.get("execution")
     if not isinstance(raw_execution, dict):
         raise ValueError("execution must be an object")
-    return DurableExecutionWorkItem(
+    return SemanticExecutionWorkItem(
         run_id=run_id,
-        lease_id=lease_id,
+        step_execution_id=step_execution_id,
         step_id=step_id,
         lane=lane,
         worker_id=worker_id,
@@ -313,9 +316,9 @@ def _parse_durable_execution_work_item(payload: Mapping[str, object]) -> Durable
     )
 
 
-def _bind_durable_work_item_to_agent_request(
+def _bind_semantic_work_item_to_agent_request(
     runtime_agent_request: AgentRequest,
-    work_item: DurableExecutionWorkItem,
+    work_item: SemanticExecutionWorkItem,
 ) -> AgentRequest:
     workflow_context = runtime_agent_request.workflow_context
     return AgentRequest(

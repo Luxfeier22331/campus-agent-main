@@ -11,10 +11,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func (s *Server) handleDurableRunCreate(response http.ResponseWriter, request *http.Request) {
-	writeRetiredDurableRoute(response)
-}
-
 func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *http.Request, runID string) {
 	if !s.internalWorkerAuthorized(request) {
 		setOutcome(response, "unauthorized")
@@ -50,10 +46,6 @@ func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *ht
 	}
 	setOutcome(response, "durable_run")
 	writeJSON(response, http.StatusOK, durableRunResponse(run))
-}
-
-func (s *Server) handleDurableRunEvents(response http.ResponseWriter, request *http.Request, runID string) {
-	s.handleExecutionRunEvents(response, request, runID)
 }
 
 func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request *http.Request, runID string) {
@@ -191,15 +183,6 @@ func readAfterSequenceQuery(request *http.Request) (int64, error) {
 	return value, nil
 }
 
-func (s *Server) handleDurableRunCancel(response http.ResponseWriter, request *http.Request, runID string) {
-	writeRetiredDurableRoute(response)
-}
-
-func writeRetiredDurableRoute(response http.ResponseWriter) {
-	setOutcome(response, "not_found")
-	writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
-}
-
 func durableRunFromCreateBody(body json.RawMessage, now time.Time) (execution.DurableRun, error) {
 	payload, err := decodeJSONObject(body)
 	if err != nil {
@@ -283,24 +266,6 @@ func executionPayloadTraceID(executionPayload map[string]any) string {
 		return ""
 	}
 	return requiredStringFromMap(rawTrace, "trace_id")
-}
-
-func durableRunIDFromPath(path string, suffix string) (string, bool) {
-	const prefix = "/internal/durable/runs/"
-	if !strings.HasPrefix(path, prefix) {
-		return "", false
-	}
-	rest := strings.TrimPrefix(path, prefix)
-	if suffix != "" {
-		if !strings.HasSuffix(rest, suffix) {
-			return "", false
-		}
-		rest = strings.TrimSuffix(rest, suffix)
-	}
-	if strings.Contains(rest, "/") || strings.TrimSpace(rest) == "" {
-		return "", false
-	}
-	return rest, true
 }
 
 func durableRunResponse(run execution.DurableRun) map[string]any {

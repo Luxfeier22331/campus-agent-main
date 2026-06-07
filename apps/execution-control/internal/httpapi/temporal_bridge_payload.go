@@ -12,25 +12,25 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func durableFinalizationResponseForBridge(
+func semanticFinalizationResponseForBridge(
 	run execution.DurableRun,
 	response bridge.ExecuteResponse,
 ) (map[string]any, error) {
-	if response.Kind != "durable_agent_response" {
-		return nil, fmt.Errorf("durable bridge returned unsupported kind %q", response.Kind)
+	if response.Kind != "semantic_agent_response" {
+		return nil, fmt.Errorf("semantic bridge returned unsupported kind %q", response.Kind)
 	}
 	body, err := decodeJSONObject(response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("decode durable bridge response: %w", err)
+		return nil, fmt.Errorf("decode semantic bridge response: %w", err)
 	}
 	return finalizeAgentBridgeResponse(
 		body,
 		run.TraceID,
-		durableFinalizerContextForRun(run),
+		semanticFinalizerContextForRun(run),
 	)
 }
 
-func durableFinalizerContextForRun(run execution.DurableRun) supervisorFinalizerContext {
+func semanticFinalizerContextForRun(run execution.DurableRun) supervisorFinalizerContext {
 	return supervisorFinalizerContext{
 		RuntimeDecisions: execution.RuntimeDecisionSummary{
 			SelectedTarget: "rag-agent",
@@ -45,17 +45,17 @@ func durableFinalizerContextForRun(run execution.DurableRun) supervisorFinalizer
 	}
 }
 
-func durableExecutionRequestForRun(run execution.DurableRun) (json.RawMessage, error) {
+func semanticExecutionRequestForRun(run execution.DurableRun) (json.RawMessage, error) {
 	rawPayload, exists := run.Metadata["execution_payload"]
 	if !exists {
-		return nil, errors.New("durable run metadata.execution_payload is required")
+		return nil, errors.New("run projection metadata.execution_payload is required")
 	}
 	rawHandoff, exists := run.Metadata["handoff"]
 	payload, err := json.Marshal(rawPayload)
 	if err != nil {
-		return nil, fmt.Errorf("encode durable execution payload: %w", err)
+		return nil, fmt.Errorf("encode semantic execution payload: %w", err)
 	}
-	handoff, err := durableRuntimeHandoffForRun(run, rawPayload, rawHandoff, exists)
+	handoff, err := semanticBridgeHandoffForRun(run, rawPayload, rawHandoff, exists)
 	if err != nil {
 		return nil, err
 	}
@@ -66,26 +66,26 @@ func durableExecutionRequestForRun(run execution.DurableRun) (json.RawMessage, e
 	return projected, nil
 }
 
-func durableRuntimeHandoffForRun(
+func semanticBridgeHandoffForRun(
 	run execution.DurableRun,
 	rawPayload any,
 	rawHandoff any,
 	hasHandoff bool,
 ) (execution.RuntimeHandoff, error) {
 	if hasHandoff {
-		return durableRuntimeHandoffFromMetadata(rawHandoff)
+		return semanticBridgeHandoffFromMetadata(rawHandoff)
 	}
 	if run.Lane != execution.DurableLaneRAG {
-		return execution.RuntimeHandoff{}, errors.New("durable run metadata.handoff is required")
+		return execution.RuntimeHandoff{}, errors.New("run projection metadata.handoff is required")
 	}
 	payloadRecord, ok := rawPayload.(map[string]any)
 	if !ok {
-		return execution.RuntimeHandoff{}, errors.New("durable run metadata.execution_payload must be an object")
+		return execution.RuntimeHandoff{}, errors.New("run projection metadata.execution_payload must be an object")
 	}
 	userGoal, ok := payloadRecord["user_goal"].(string)
 	if !ok || strings.TrimSpace(userGoal) == "" {
 		return execution.RuntimeHandoff{}, errors.New(
-			"durable run metadata.execution_payload.user_goal is required for rag handoff planning",
+			"run projection metadata.execution_payload.user_goal is required for rag handoff planning",
 		)
 	}
 	return execution.RuntimeHandoff{
@@ -96,28 +96,28 @@ func durableRuntimeHandoffForRun(
 	}, nil
 }
 
-func durableRuntimeHandoffFromMetadata(raw any) (execution.RuntimeHandoff, error) {
+func semanticBridgeHandoffFromMetadata(raw any) (execution.RuntimeHandoff, error) {
 	record, ok := raw.(map[string]any)
 	if !ok {
-		return execution.RuntimeHandoff{}, errors.New("durable run metadata.handoff must be an object")
+		return execution.RuntimeHandoff{}, errors.New("run projection metadata.handoff must be an object")
 	}
-	target, err := requiredDurableString(record, "target")
+	target, err := requiredSemanticHandoffString(record, "target")
 	if err != nil {
 		return execution.RuntimeHandoff{}, err
 	}
-	payloadKind, err := requiredDurableString(record, "payload_kind")
+	payloadKind, err := requiredSemanticHandoffString(record, "payload_kind")
 	if err != nil {
 		return execution.RuntimeHandoff{}, err
 	}
 	payload, ok := record["payload"].(map[string]any)
 	if !ok {
-		return execution.RuntimeHandoff{}, errors.New("durable run metadata.handoff.payload must be an object")
+		return execution.RuntimeHandoff{}, errors.New("run projection metadata.handoff.payload must be an object")
 	}
-	allowedTools, err := durableStringSlice(record["allowed_tools"], "allowed_tools")
+	allowedTools, err := semanticStringSlice(record["allowed_tools"], "allowed_tools")
 	if err != nil {
 		return execution.RuntimeHandoff{}, err
 	}
-	expectedArtifacts, err := durableOptionalStringSlice(
+	expectedArtifacts, err := semanticOptionalStringSlice(
 		record["expected_artifacts"],
 		"expected_artifacts",
 	)
@@ -126,7 +126,7 @@ func durableRuntimeHandoffFromMetadata(raw any) (execution.RuntimeHandoff, error
 	}
 	requiredProjectionKind := ""
 	if rawRequiredProjectionKind, exists := record["required_projection_kind"]; exists {
-		requiredProjectionKind, err = durableOptionalString(
+		requiredProjectionKind, err = semanticOptionalString(
 			rawRequiredProjectionKind,
 			"required_projection_kind",
 		)
@@ -144,40 +144,40 @@ func durableRuntimeHandoffFromMetadata(raw any) (execution.RuntimeHandoff, error
 	}, nil
 }
 
-func requiredDurableString(record map[string]any, field string) (string, error) {
+func requiredSemanticHandoffString(record map[string]any, field string) (string, error) {
 	value, exists := record[field]
 	if !exists {
-		return "", fmt.Errorf("durable run metadata.handoff.%s is required", field)
+		return "", fmt.Errorf("run projection metadata.handoff.%s is required", field)
 	}
 	text, ok := value.(string)
 	if !ok || strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("durable run metadata.handoff.%s must be a non-empty string", field)
+		return "", fmt.Errorf("run projection metadata.handoff.%s must be a non-empty string", field)
 	}
 	return text, nil
 }
 
-func durableOptionalString(value any, field string) (string, error) {
+func semanticOptionalString(value any, field string) (string, error) {
 	if value == nil {
 		return "", nil
 	}
 	text, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("durable run metadata.handoff.%s must be a string", field)
+		return "", fmt.Errorf("run projection metadata.handoff.%s must be a string", field)
 	}
 	return strings.TrimSpace(text), nil
 }
 
-func durableStringSlice(value any, field string) ([]string, error) {
+func semanticStringSlice(value any, field string) ([]string, error) {
 	items, ok := value.([]any)
 	if !ok {
-		return nil, fmt.Errorf("durable run metadata.handoff.%s must be an array", field)
+		return nil, fmt.Errorf("run projection metadata.handoff.%s must be an array", field)
 	}
 	result := make([]string, 0, len(items))
 	for index, item := range items {
 		text, ok := item.(string)
 		if !ok || strings.TrimSpace(text) == "" {
 			return nil, fmt.Errorf(
-				"durable run metadata.handoff.%s[%d] must be a non-empty string",
+				"run projection metadata.handoff.%s[%d] must be a non-empty string",
 				field,
 				index,
 			)
@@ -187,9 +187,9 @@ func durableStringSlice(value any, field string) ([]string, error) {
 	return result, nil
 }
 
-func durableOptionalStringSlice(value any, field string) ([]string, error) {
+func semanticOptionalStringSlice(value any, field string) ([]string, error) {
 	if value == nil {
 		return nil, nil
 	}
-	return durableStringSlice(value, field)
+	return semanticStringSlice(value, field)
 }

@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -61,7 +60,7 @@ func TestReadyzReportsRunProjectionStoreStatus(t *testing.T) {
 		MaxConcurrentAnswers:     8,
 		RunProjectionDatabaseURL: "",
 	}, nil)
-	server.runProjectionStore = execution.NewInMemoryDurableRuntimeStore()
+	server.runProjectionStore = execution.NewInMemoryRunProjectionStore()
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -87,26 +86,5 @@ func TestNewServerDoesNotCreateDurableWorkerLoopForOnlineServing(t *testing.T) {
 	}
 	if _, ok := body["workflow_run_runtime"]; ok {
 		t.Fatalf("readyz must not publish retired workflow_run_runtime: %#v", body["workflow_run_runtime"])
-	}
-}
-
-func TestStartDurableWorkerLoopRejectsRetiredOnlineServingMode(t *testing.T) {
-	server := NewServer(config.Config{
-		RunProjectionDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
-	}, &fakeBridge{configured: true})
-
-	err := server.StartDurableWorkerLoop(t.Context())
-	if err == nil {
-		t.Fatal("start retired durable worker loop returned nil error")
-	}
-	if !errors.Is(err, errDurableLeaseLoopRetired) {
-		t.Fatalf("error = %v, want retired durable loop error", err)
-	}
-}
-
-func TestConfigureDurableWorkerLoopDoesNotReintroduceOnlineServingLoop(t *testing.T) {
-	server := NewServer(config.Config{}, &fakeBridge{configured: true})
-	if err := server.StartDurableWorkerLoop(t.Context()); !errors.Is(err, errDurableLeaseLoopRetired) {
-		t.Fatalf("start durable worker loop error = %v, want retired durable loop error", err)
 	}
 }

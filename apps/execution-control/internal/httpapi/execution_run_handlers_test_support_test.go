@@ -53,7 +53,7 @@ func durableRunCreateBodyForTest(runID string, conversationID string) string {
 
 func createHTTPAPIQueuedDurableRunForTest(
 	t *testing.T,
-	store *execution.InMemoryDurableRuntimeStore,
+	store *execution.InMemoryRunProjectionStore,
 	runID string,
 	conversationID string,
 	now time.Time,

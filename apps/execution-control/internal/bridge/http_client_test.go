@@ -78,13 +78,13 @@ func TestHTTPClientExecuteCallsPrivateBridgeEndpoint(t *testing.T) {
 	}
 }
 
-func TestHTTPClientExecuteDurableCallsPrivateDurableEndpoint(t *testing.T) {
+func TestHTTPClientExecuteSemanticCallsPrivateSemanticEndpoint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			t.Fatalf("method = %s, want POST", request.Method)
 		}
-		if request.URL.Path != durableExecutionPath {
-			t.Fatalf("path = %s, want %s", request.URL.Path, durableExecutionPath)
+		if request.URL.Path != semanticExecutionPath {
+			t.Fatalf("path = %s, want %s", request.URL.Path, semanticExecutionPath)
 		}
 		if request.Header.Get("x-supervisor-bridge-auth") != "bridge-secret" {
 			t.Fatalf(
@@ -104,16 +104,16 @@ func TestHTTPClientExecuteDurableCallsPrivateDurableEndpoint(t *testing.T) {
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(body, &payload); err != nil {
-			t.Fatalf("unmarshal durable payload: %v", err)
+			t.Fatalf("unmarshal semantic payload: %v", err)
 		}
-		if payload["bridge_version"] != "supervisor_durable_worker_v1" {
+		if payload["bridge_version"] != "semantic_bridge_execution_v1" {
 			t.Fatalf("bridge_version = %v", payload["bridge_version"])
 		}
 		if payload["run_id"] != "run-001" {
 			t.Fatalf("run_id = %v", payload["run_id"])
 		}
-		if payload["lease_id"] != "lease-001" {
-			t.Fatalf("lease_id = %v", payload["lease_id"])
+		if payload["step_execution_id"] != "step-execution-001" {
+			t.Fatalf("step_execution_id = %v", payload["step_execution_id"])
 		}
 		if payload["step_id"] != "primary" {
 			t.Fatalf("step_id = %v", payload["step_id"])
@@ -134,7 +134,7 @@ func TestHTTPClientExecuteDurableCallsPrivateDurableEndpoint(t *testing.T) {
 		if execution["user_goal"] != "hello" {
 			t.Fatalf("execution.user_goal = %v", execution["user_goal"])
 		}
-		writer.Header().Set("x-supervisor-bridge-kind", "durable_agent_response")
+		writer.Header().Set("x-supervisor-bridge-kind", "semantic_agent_response")
 		writer.Header().Set("content-type", "application/json")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte(`{"status":"completed"}`))
@@ -142,13 +142,13 @@ func TestHTTPClientExecuteDurableCallsPrivateDurableEndpoint(t *testing.T) {
 	defer server.Close()
 
 	client := NewHTTPClient(server.URL, "bridge-secret")
-	response, err := client.ExecuteDurable(context.Background(), DurableExecutionRequest{
-		RunID:    "run-001",
-		LeaseID:  "lease-001",
-		StepID:   "primary",
-		Lane:     "rag",
-		WorkerID: "worker-001",
-		Attempt:  2,
+	response, err := client.ExecuteSemantic(context.Background(), SemanticExecutionRequest{
+		RunID:           "run-001",
+		StepExecutionID: "step-execution-001",
+		StepID:          "primary",
+		Lane:            "rag",
+		WorkerID:        "worker-001",
+		Attempt:         2,
 		Execution: Request{
 			Payload: []byte(`{"user_goal":"hello"}`),
 			TraceHeaders: map[string]string{
@@ -158,10 +158,10 @@ func TestHTTPClientExecuteDurableCallsPrivateDurableEndpoint(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("execute durable returned error: %v", err)
+		t.Fatalf("execute semantic returned error: %v", err)
 	}
-	if response.Kind != "durable_agent_response" {
-		t.Fatalf("kind = %q, want durable_agent_response", response.Kind)
+	if response.Kind != "semantic_agent_response" {
+		t.Fatalf("kind = %q, want semantic_agent_response", response.Kind)
 	}
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
