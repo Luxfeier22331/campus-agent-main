@@ -69,9 +69,10 @@ services:
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_CLI_ADDRESS: temporal:7233
-    command:
+    entrypoint:
       - /bin/sh
       - -ec
+    command:
       - |
         for namespace in campus-agent-staging campus-agent-prod; do
           temporal operator namespace describe --namespace "$${namespace}" >/dev/null 2>&1 ||
