@@ -129,7 +129,7 @@ Goal: make validation expect campus-services ownership.
   - Remove standalone calendar-agent expectations.
 - Update process smoke.
   - Use `requested_capability=campus_services`.
-  - Expect `campus-services-agent`, `academic_calendar_lookup`, `single_handoff`,
+  - Expect `campus-services-agent`, `academic_calendar_lookup`, `single_step`,
     `sdk_completed`.
 - Keep data-plane smoke that verifies `calendar/academic_calendar` projection/read-model.
 - Update test names/profiles only if the old profile name encodes standalone capability ownership.

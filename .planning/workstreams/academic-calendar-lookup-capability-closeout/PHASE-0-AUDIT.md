@@ -67,7 +67,7 @@ Go structured query runtime:
 - `apps/supervisor-api/internal/structuredquery/academic_calendar_types.go`
 - `apps/supervisor-api/internal/structuredquery/academic_calendar_store.go`
 - `apps/supervisor-api/internal/httpapi/structured_query_handlers.go`
-- `apps/supervisor-api/internal/httpapi/structured_direct_runtime.go`
+- `apps/supervisor-api/internal/httpapi/structured_single_step.go`
 
 Data plane and publication:
 

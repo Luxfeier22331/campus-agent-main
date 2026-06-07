@@ -26,7 +26,7 @@ updated: 2026-05-06
 | Runtime capability | `campus_services` | Academic calendar opens through the existing campus services gate. |
 | Data-plane corpus/collection | `calendar/academic_calendar` | Keep source truth, projection, release target and typed read model. |
 | Structured query backend | Go `apps/supervisor-api/internal/structuredquery` | Keep existing academic calendar read-model query service. |
-| Python execution shell | `apps/supervisor-agent-worker` -> `campus-services-agent` | Keep SDK-admitted handoff path; do not create Go direct-runtime exception. |
+| Python execution shell | `apps/supervisor-agent-worker` -> `campus-services-agent` | Keep SDK-admitted handoff path; do not create Go typed-tool-runtime exception. |
 | Public product surface | No new surface | This is runtime-owner consolidation only. |
 
 ## Why The Boundary Moves
@@ -50,7 +50,7 @@ The correct long-term execution shape is:
 
 ```text
 supervisor-api
--> single_handoff plan
+-> single_step plan
 -> campus-services-agent
 -> academic_calendar_lookup thin adapter
 -> internal structured query service

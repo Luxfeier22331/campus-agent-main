@@ -11,7 +11,7 @@ updated: 2026-05-07
 
 ## Goal
 
-Make SDK-backed and direct-runtime steps converge on the same artifact envelope.
+Make SDK-backed and typed-tool-runtime steps converge on the same artifact envelope.
 
 ## Tasks
 

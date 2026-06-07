@@ -18,7 +18,7 @@ updated: 2026-04-27
   lifecycle SSE endpoint 已落地；Go handoff planner 已从 structured-only 扩展为
   all-delegate preplanned handoff，knowledge `rag_request` 也由 Go bridge v6 投影；
   Go 同时拥有 terminal envelope、non-delegate terminal direct answer path、
-  `place_lookup` Go direct runtime、structured tool policy summary、opened structured capability non-stream /
+  `place_lookup` Go typed tool runtime、structured tool policy summary、opened structured capability non-stream /
   lifecycle SSE direct answer path、runtime decision observability summary 与 full
   `AgentRequest` handoff projection，以及
   `AgentResponse -> SupervisorResponse` finalization；Python bridge 已收窄为
@@ -159,7 +159,7 @@ updated: 2026-04-27
   regression evidence、产品路由 admission 与真实 projection 数据接入决策。
 - `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；
   opening gate 仍需要 eval / regression evidence 与产品路由 admission 决策。
-- `place_lookup` 的 Go direct runtime 已实现；地图 UI、route planning 与
+- `place_lookup` 的 Go typed tool runtime 已实现；地图 UI、route planning 与
   `place_card` product consumption 仍属于 navigation rollout backlog，不在本线继续扩展。
 - `Phase 16-63` 已完成 repo-local implementation；剩余 opening gate 不在
   `go-shell` execution runtime control-plane 范围内。
@@ -854,7 +854,7 @@ updated: 2026-04-27
   agent requests from payload fragments.
 - Python bridge answer handling no longer emits runtime audit records; execution audit
   remains Go-owned.
-- Opened structured capabilities can complete through Go direct runtime on both
+- Opened structured capabilities can complete through Go typed tool runtime on both
   `/api/v1/answer` and lifecycle SSE `/api/v1/answer/stream`.
 - Production supervisor terminal prompt executor, prompt packets, registry and
   markdown templates have been removed from `packages/supervisor-core`; deterministic

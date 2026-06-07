@@ -90,7 +90,7 @@ Current decision:
 - Runtime target/tool eligibility is derived from AgentSpec, ToolSpec and Go
   `AgentRequest.allowed_tools`; worker env no longer carries a target/tool allowlist.
 - Public `/api/v1/answer` and `/api/v1/answer/stream` no longer direct-execute SDK-admitted
-  structured payloads in Go. They enter Go-owned `single_handoff` bridge execution, then the
+  structured payloads in Go. They enter Go-owned `single_step` bridge execution, then the
   Python worker routes the admitted tool through the Agents SDK adapter shell.
 
 ## Native Planning Truth

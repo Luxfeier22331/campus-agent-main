@@ -277,7 +277,7 @@ smoke, or runbook targets.
 - Current repo-wide `web:lint` is blocked by unrelated active worktree changes outside this
   workstream; do not reopen this workstream for those failures.
 - Current staging public-chat E2E is blocked before chat request submission by
-  `exec-staging` readiness (`supervisor_exec_not_ready` / HTTP 503), not by the
+  `execution-control-staging` readiness (`execution_control_not_ready` / HTTP 503), not by the
   document-site browser source contract.
 
 ## Verification
@@ -297,8 +297,8 @@ smoke, or runbook targets.
   - Fails on unrelated official-web / registry / fixture formatting and
     non-null assertion diagnostics already present in the active worktree.
 - Blocked outside this workstream: `pnpm --filter app-api chat:e2e:staging`
-  - Result: `blocked_by=supervisor_exec_not_ready`, `chat_request_attempted=false`.
-  - `exec-staging /readyz` returned `503`; bridge runtime was degraded with
+  - Result: `blocked_by=execution_control_not_ready`, `chat_request_attempted=false`.
+  - `execution-control-staging /readyz` returned `503`; bridge runtime was degraded with
     `Supervisor Python bridge readiness timed out.`
 
 - `uv run --all-packages python -m campus_ingestion_worker.publish_document_reader_assets --manifest-path var/docs-read-model-manifest.json --manifest-object-key manifests/public-docs-reader-assets.json`

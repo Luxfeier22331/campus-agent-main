@@ -40,7 +40,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   已从 structured-only handoff planner 扩展为 all-delegate handoff planner，knowledge
   `rag_request` 也由 bridge v6 preplanned；Go 同时拥有 terminal envelope、structured
   tool policy summary、non-delegate terminal direct answer path、`place_lookup`
-  Go direct runtime、opened structured capability 的 non-stream / lifecycle SSE direct answer path、runtime decision
+  Go typed tool runtime、opened structured capability 的 non-stream / lifecycle SSE direct answer path、runtime decision
   observability summary、canonical `AgentRequest` handoff projection 与
   `AgentResponse -> SupervisorResponse` finalization；Python
   `apps/supervisor-agent-worker` production path 已收口为 preplanned agent handoff
@@ -196,7 +196,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
     `tool_policy` 与 `runtime_decision_summary`
   - Python bridge 拒绝 v2 或缺少 Go-owned terminal / handoff payload 的请求
 - `Phase 31`
-  - `/api/v1/answer` 对已打开的 structured capability 执行 Go direct runtime path
+  - `/api/v1/answer` 对已打开的 structured capability 执行 Go typed tool runtime path
   - `campus_services` / `notice` deterministic payload 不再必须经过 Python bridge
   - notice direct path 携带 `payload + access_context` envelope
 - `Phase 32`
@@ -215,7 +215,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   - Python bridge execution audit emission 移出 runtime path
   - Go 继续作为 execution audit writer / observability owner
 - `Phase 36`
-  - `/api/v1/answer/stream` 对 opened structured capability 也可走 Go direct runtime
+  - `/api/v1/answer/stream` 对 opened structured capability 也可走 Go typed tool runtime
   - lifecycle SSE 返回 supervisor-style completed / failed event，不再强制经过 Python bridge
 - `Phase 37`
   - 删除 production supervisor terminal prompt executor、prompt packets、registry 与模板
@@ -245,7 +245,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
     不再执行 Python target/tool matrix
   - Python worker cancel flag store 瘦身为 request-scoped flag store，readyz 不再
     暴露 active execution / cancel count runtime truth
-  - 更新 docs / guard，防止 legacy helper 与 direct runtime truth 回流
+  - 更新 docs / guard，防止 legacy helper 与 typed tool runtime truth 回流
 - `Phase 55`
   - bridge envelope 升级为 `supervisor_bridge_v6`
   - Go `supervisor-api` 要求 Python bridge 返回 `agent_response` contract
@@ -280,7 +280,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
 ## Closeout State
 
 - repo 内当前没有 Phase 8-63 的剩余必做实现项
-- `place_lookup` 已由 Go direct runtime 承接 repo-owned place catalog 查询；
+- `place_lookup` 已由 Go typed tool runtime 承接 repo-owned place catalog 查询；
   地图 UI、route planning 与 `place_card` product consumption 仍属于 navigation
   rollout backlog
 - `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需 eval /

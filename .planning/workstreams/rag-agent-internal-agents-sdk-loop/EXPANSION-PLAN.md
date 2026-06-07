@@ -79,7 +79,7 @@ Exit evidence:
 
 - ToolSpec drift test proves no SDK-only tool exists.
 - SDK runner tests prove raw tool/provider payloads are not serialized into shared responses.
-- Product-path smoke proves `single_handoff` / `sdk_completed` for each newly admitted tool.
+- Product-path smoke proves `single_step` / `sdk_completed` for each newly admitted tool.
 
 ### Lane C: Multi-Step Workflow Runtime Integration
 

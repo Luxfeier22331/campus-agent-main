@@ -5,7 +5,7 @@
 ## Tech Debt
 
 **Supervisor runtime policy and agent dispatch are now split across Go and Python:**
-- Issue: deterministic admission/routing/finalization lives in Go `apps/supervisor-api`,
+- Issue: deterministic admission/routing/finalization lives in Go `apps/execution-control`,
   while semantic delegate execution lives in Python `apps/supervisor-agent-worker` and
   the concrete agent packages.
 - Why: this split intentionally prevents Python from republishing runtime truth while
@@ -34,12 +34,12 @@ No current query-scope crash is recorded here: the old `student_rules`-only rout
 
 ## Security Considerations
 
-**Bearer/internal caller mode still represents a coarse caller class (`apps/supervisor-api/internal/httpapi/auth.go`):**
+**Bearer/internal caller mode still represents a coarse caller class (`apps/execution-control/internal/httpapi/auth.go`):**
 - Risk: Bearer mode no longer trusts caller-supplied actor headers, but it still projects one configured default actor for every request that holds the shared token.
 - Current mitigation: `trusted-worker` mode derives caller identity from the forwarded Access JWT, and bearer mode is now explicit about its coarse identity posture.
 - Recommendations: Use `trusted-worker` or another signed-identity mode for any deployment that needs per-user enforcement rather than a shared caller class.
 
-**Audit persistence needs deployment sink hardening (`apps/supervisor-api/internal/executionaudit`):**
+**Audit persistence needs deployment sink hardening (`apps/execution-control/internal/executionaudit`):**
 - Risk: Audit sink wiring now exists, but it currently persists JSONL to the local audit path by default rather than a centralized durable observability pipeline.
 - Current mitigation: The API shell fail-closes if the configured audit sink cannot be written.
 - Recommendations: Promote audit output to a managed log pipeline or durable store before production-scale traffic so request history is not tied to one host filesystem.
@@ -88,8 +88,8 @@ No current query-scope crash is recorded here: the old `student_rules`-only rout
 
 ## Missing Critical Features
 
-**Execution audit/log pipeline still needs durable sink hardening (`apps/supervisor-api`):**
-- Problem: Go `apps/supervisor-api` owns execution audit projection, but production-grade
+**Execution audit/log pipeline still needs durable sink hardening (`apps/execution-control`):**
+- Problem: Go `apps/execution-control` owns execution audit projection, but production-grade
   durable sink and retention policy hardening still need explicit deployment work.
 - Current workaround: Consume the JSONL file directly during local verification and debugging.
 - Blocks: Centralized compliance monitoring, retention policy management, and cross-host audit search.
@@ -103,7 +103,7 @@ No current query-scope crash is recorded here: the old `student_rules`-only rout
 
 ## Test Coverage Gaps
 
-**`apps/supervisor-api` test surface still skews toward route-level behavior:**
+**`apps/execution-control` test surface still skews toward route-level behavior:**
 - What's not fully stressed: broader runtime-host permutations, log sink failure handling across deployment environments, and more exhaustive auth-mode matrix coverage beyond the current API tests.
 - Risk: Host-specific regressions or environment-specific auth/audit integration issues may slip through even though the core API path is covered.
 - Priority: Medium.

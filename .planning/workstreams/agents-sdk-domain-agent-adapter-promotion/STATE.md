@@ -17,7 +17,7 @@ updated: 2026-05-05
 **Last Activity:** 2026-05-05
 **Last Activity Description:** Promoted Agents SDK to the default worker-side domain-agent adapter
 for ToolSpec-admitted tools, expanded admission to notice discover / all campus-services
-read-only structured tools / academic calendar, cleared stale Go direct-runtime process smoke and
+read-only structured tools / academic calendar, cleared stale Go typed-tool-runtime process smoke and
 workflow eval cases, and added deterministic mock SDK process-smoke support for local public/chat
 style validation without fake provider keys.
 
@@ -33,9 +33,9 @@ style validation without fake provider keys.
   live read-only agent-facing ToolSpec SDK adapters with
   `runtime_posture=sdk_adapter_admitted`.
 - Public `/api/v1/answer` and `/api/v1/answer/stream` skip Go direct structured execution for
-  SDK-admitted structured handoffs and run them through the bridge-backed `single_handoff` lane.
+  SDK-admitted structured handoffs and run them through the bridge-backed `single_step` lane.
 - Local process smoke profiles for opened read-only structured tools use SDK profile names
-  (`*_sdk_opened`) and assert `single_handoff` / `sdk_completed`; public `notice_get` direct smoke
+  (`*_sdk_opened`) and assert `single_step` / `sdk_completed`; public `notice_get` direct smoke
   is no longer part of the opened profile denominator.
 - SDK target/tool eligibility is derived from AgentSpec, ToolSpec and Go
   `AgentRequest.allowed_tools`; worker env no longer carries a target/tool allowlist.

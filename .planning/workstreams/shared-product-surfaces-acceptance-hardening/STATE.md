@@ -82,7 +82,7 @@ updated: 2026-04-21
     - `conversationId=ee0e20ac-7e56-4705-8a5a-ed919911c0c4`
     - `requestId=req_e96b9a09ed374ec28ee6231000c5e0f8`
     - 浏览器答案不再出现 `中国民族史概要(一；`、`；展经济学` 等断裂片段
-  - local smoke 中出现的 `Invalid bearer token` 仅是 operator 启动 supervisor 时误用了 bearer 模式；repo 既有 contract 仍要求本地 `app-api -> supervisor-api` 走 `trusted-worker + API_WORKER_SHARED_SECRET`
+  - local smoke 中出现的 `Invalid bearer token` 仅是 operator 启动 supervisor 时误用了 bearer 模式；repo 既有 contract 仍要求本地 `app-api -> execution-control` 走 `trusted-worker + API_WORKER_SHARED_SECRET`
 - integrated acceptance continuity anchor remains:
   - `conversationId=9cb68dd1-9a74-4ed5-a616-308c41761a4c`
   - `requestId=req_4be3b117d87a40fc807d5644d06133d0`
@@ -92,8 +92,10 @@ updated: 2026-04-21
   - `https://campus-api-staging.ayafeed.com/healthz` -> ok
   - `https://campus-chat-staging.ayafeed.com/readyz` -> ready
   - `https://campus-chat-staging.ayafeed.com/healthz` -> ok
-  - fixed-domain supervisor upstream remains `https://exec-staging.ayafeed.com`
-  - named-tunnel persistence remains the Windows scheduled task `CampusAgent-DevBackedSupervisorStaging`
+  - fixed-domain execution-control upstream is now
+    `https://execution-control-staging.mucwiki-edge.link`
+  - named-tunnel persistence is superseded; execution-control staging uses
+    Cloudflare Access service-token ingress plus origin reverse proxy
 
 ## Blockers
 

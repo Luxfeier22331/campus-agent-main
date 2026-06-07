@@ -72,8 +72,8 @@ campus-services-agent
 - Do not move academic calendar into `navigation-agent` or `notice-agent`.
 - Do not reopen public product serving policy beyond replacing the independent
   `academic_calendar` capability flag with the existing `campus_services` gate.
-- Do not introduce a Go direct-runtime exception for calendar. The current long-term posture for
-  `sdk_adapter_admitted` structured tools remains Go-owned single handoff to Python domain-agent SDK
+- Do not introduce a Go typed-tool-runtime exception for calendar. The current long-term posture for
+  `sdk_adapter_admitted` structured tools remains Go-owned single step to Python domain-agent SDK
   shell.
 - Do not keep a compatibility alias for `calendar-agent`; Phase 0 found no external published
   contract requiring it. Repo-local tests and fixtures should migrate cleanly.

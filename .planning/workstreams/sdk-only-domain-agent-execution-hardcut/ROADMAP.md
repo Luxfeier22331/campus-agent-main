@@ -54,7 +54,7 @@ updated: 2026-05-08
 - Runtime cannot answer an SDK-admitted structured request without SDK runner admission.
 - No worker delegate branch says or behaves as SDK preferred / direct fallback.
 - Missing internal query service for an SDK-admitted structured tool returns SDK runtime
-  fail-close projection, not a package direct runtime error.
+  fail-close projection, not a package typed tool runtime error.
 
 ## Phase 2: Package-Owned SDK Tool Executors
 

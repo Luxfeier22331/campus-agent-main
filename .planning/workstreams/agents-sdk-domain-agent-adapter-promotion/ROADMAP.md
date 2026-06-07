@@ -16,8 +16,8 @@ updated: 2026-05-05
 - [x] **Phase 2: Pilot Debt Cleanup** — remove or quarantine stale `campus_notice_get` promotion assumptions after the new target matrix is fixed.
 - [x] **Phase 3: Real SDK Runner Builder And Admission** — connect `OpenAIAgentsSdkRunner` behind admission with fail-close, trace redaction and real smoke seam.
 - [x] **Phase 4: Notice Discover Promotion Slice** — run `notice-agent + campus_notice_discover` through SDK adapter under explicit gate.
-- [x] **Phase 5: Structured Tool Family Adoption Matrix** — decide per tool whether direct runtime, SDK adapter or defer is correct.
-- [x] **Phase 6: Eval And Parity Gate Expansion** — add shared SDK/provider/direct-runtime comparison cases and release gates.
+- [x] **Phase 5: Structured Tool Family Adoption Matrix** — decide per tool whether typed tool runtime, SDK adapter or defer is correct.
+- [x] **Phase 6: Eval And Parity Gate Expansion** — add shared SDK/provider/typed-tool-runtime comparison cases and release gates.
 - [x] **Phase 7: Observability, Cost And Rollback Evidence** — collect sanitized trace, latency, token/cost and error-budget evidence.
 - [x] **Phase 8: Promotion Decision Per Target** — decide promote / keep gated / reject per target and tool family.
 - [x] **Phase 9: Closeout And Architecture Update** — update docs, registry state and follow-up workstreams.
@@ -73,7 +73,7 @@ git diff --check
   implementation closeout below:
   - first candidate: `notice-agent + campus_notice_discover`
   - second-wave candidates: `service_guide_lookup`, `contact_directory_lookup`
-  - direct-runtime preferred by default: `service_status_lookup`, `transport_schedule_lookup`
+  - typed-tool-runtime preferred by default: `service_status_lookup`, `transport_schedule_lookup`
   - blocked/deferred: `campus_notice_get`, `retrieval.query`, `navigation-agent`
 - Add drift-test plan so SDK cannot admit tools outside AgentSpec/ToolSpec/Go handoff.
 
@@ -143,7 +143,7 @@ git diff --check
 - Route only when Go handoff target/tool and SDK gate both admit it.
 - Keep `campus_notice_get` as internal query function outside provider/SDK tool surface.
 - Ensure result cards remain title/url/card-first, not raw body serving.
-- Compare SDK output against existing provider loop or direct runtime for no-regression evidence.
+- Compare SDK output against existing provider loop or typed tool runtime for no-regression evidence.
 - Add tests for:
   - should call discover
   - wrong tool blocked
@@ -155,7 +155,7 @@ git diff --check
 **Exit Criteria:**
 
 - SDK path can execute `campus_notice_discover` under explicit gate.
-- SDK path preserves direct-runtime/provider-loop result semantics and source/card display policy.
+- SDK path preserves typed-tool-runtime/provider-loop result semantics and source/card display policy.
 - Default product path is unchanged until Phase 8 decision.
 
 ## Phase 5: Structured Tool Family Adoption Matrix
@@ -308,8 +308,8 @@ git diff --check
 - `service_status_lookup` and `transport_schedule_lookup` route through the SDK shell when
   admitted by ToolSpec and Go handoff; their data backing remains deterministic
   projection-backed structured query.
-- Public answer and answer stream entrypoints skip Go direct-runtime interception for
-  `sdk_adapter_admitted` ToolSpec tools and execute them through `single_handoff` bridge lane.
+- Public answer and answer stream entrypoints skip Go typed-tool-runtime interception for
+  `sdk_adapter_admitted` ToolSpec tools and execute them through `single_step` bridge lane.
 - `campus_notice_get` remains closed for SDK/provider routing.
 - Eval gate records the admitted SDK adapter matrix; latency/cost/error-rate evidence remains a
   release and observability signal, not a pre-production blocker.

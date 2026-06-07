@@ -5,7 +5,7 @@
 ## Languages
 
 **Primary:**
-- Go - owns `apps/supervisor-api`, the internal execution runtime, deterministic
+- Go - owns `apps/execution-control`, the internal execution runtime, deterministic
   runtime policy, structured planning, readiness, metrics, cancellation, finalization,
   and bridge projection.
 - TypeScript - owns Worker product/web surfaces such as `apps/app-api`,
@@ -20,7 +20,7 @@
 ## Runtime
 
 **Environment:**
-- Go module tooling for `apps/supervisor-api`.
+- Go module tooling for `apps/execution-control`.
 - Python 3.12 running inside the `uv` workspace for Python apps/packages.
 - Node / pnpm / Worker tooling for TypeScript apps.
 
@@ -30,7 +30,7 @@
 
 ## Workspace Layout
 
-- Transport/runtime boundaries in the current tracked tree span `apps/supervisor-api`,
+- Transport/runtime boundaries in the current tracked tree span `apps/execution-control`,
   `apps/supervisor-agent-worker`, `apps/ingestion-worker`, `apps/app-api`,
   `apps/public-chat-web`, `apps/public-docs`, and `apps/protected-panel-web`.
 - Historical 04.6/04.7 surfaces such as `public-entry-worker` and `public-consumer-chat` still appear in docs/planning history, but they are not current tracked app directories in merged truth.
@@ -39,10 +39,10 @@
 
 ## Apps & Packages Inventory
 
-- `apps/supervisor-api` – Go internal execution engine and deterministic runtime owner.
+- `apps/execution-control` – Go internal execution engine and deterministic runtime owner.
 - `apps/supervisor-agent-worker` – Python private bridge worker that dispatches injected
   agent delegates and returns `AgentResponse`.
-- `apps/ingestion-worker` – CLI shells (`apps/ingestion-worker/src/campus_ingestion_worker/*`) for importing campusRAG OCR assets, submitting ingestion jobs, and rebuilding local datasets, controlled by `apps/ingestion-worker/README.md`.
+- `apps/ingestion-worker` – CLI shells (`apps/ingestion-worker/src/campus_ingestion_worker/*`) for importing retired prototype OCR assets, submitting ingestion jobs, and rebuilding local datasets, controlled by `apps/ingestion-worker/README.md`.
 - `apps/app-api` – shared Worker application/control-plane backend with the TypeScript runtime, shared database/schema ownership, operator query APIs, `official_web` control-plane modules, telemetry hooks, and the retained Python `ContextProjection` seam.
 - `apps/public-chat-web` – public Worker web surface that proxies chat traffic into the shared `app-api` runtime and forwards trace headers.
 - `apps/protected-panel-web` – protected Worker operator surface that talks to runtime APIs only and now includes `Overview`, `Requests`, and `Official Web` domains.
@@ -94,15 +94,17 @@
 
 ## Local Dev Surfaces
 
-- Supervisor API: `apps/supervisor-api/cmd/supervisor-api` exposes `/api/v1/answer`,
-  `/api/v1/answer/stream`, `/healthz`, `/readyz`, `/metrics`, and cancellation.
+- Execution Control: `apps/execution-control/cmd/execution-control` exposes the internal
+  `/internal/execution/runs*` command/query contract plus `/healthz`, `/readyz`,
+  `/metrics`, and Temporal-backed cancellation. Legacy answer ingress routes are not
+  active serving surfaces.
 - Supervisor agent worker: `apps/supervisor-agent-worker` exposes only private bridge
   routes.
 - Ingestion tooling: `apps/ingestion-worker` (`import_campusrag_existing_ocr`, `process_raw_ingestion_job`, `submit_raw_ingestion_job`, `rebuild_local_data`) is described in `apps/ingestion-worker/README.md` and relies on `campus_ingestion_core` entry points.
 - `apps/app-api` now has both the retained Python projection seam and the merged TypeScript Worker runtime (`src/app.ts`, `src/index.ts`, `src/modules/*`).
 - `apps/public-chat-web/src/index.ts` and `apps/protected-panel-web/src/index.ts` are first-class tracked Worker surfaces in the current tree.
 - Tests: root `README.md` documents `uv run --all-packages python -m unittest discover
-  -s tests -t .`; Go supervisor-api tests run through the Go module and repo `pnpm`
+  -s tests -t .`; Go execution-control tests run through the Go module and repo `pnpm`
   wrappers where configured.
-- Trace/log surface: Go `apps/supervisor-api` owns metrics, readiness, OTel seams, and
+- Trace/log surface: Go `apps/execution-control` owns metrics, readiness, OTel seams, and
   execution audit projection.

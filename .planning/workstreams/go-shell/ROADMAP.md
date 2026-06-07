@@ -42,7 +42,7 @@ updated: 2026-04-27
   `supervisor-api`，Python bridge 对缺失 Go-owned handoff / terminal envelope 的请求
   fail-closed。
 - `Phase 31` 已为 opened `campus_services` / `notice` structured capability 增加
-  `/api/v1/answer` direct structured runtime path；deterministic structured payload
+  `/api/v1/answer` typed structured activity path；deterministic structured payload
   不再必须经过 Python bridge。
 - `Phase 32-33` 已把 selected target / tool、terminal outcome 与 fail-close reason
   纳入 metrics / OTel / execution audit 的低基数 runtime decision summary，并补齐
@@ -930,7 +930,7 @@ runtime 完成。
 
 **Scope:**
 
-- route `/api/v1/answer/stream` opened structured handoff to Go direct runtime before
+- route `/api/v1/answer/stream` opened structured handoff to Go typed tool runtime before
   Python bridge
 - emit queued / running / completed or failed SSE lifecycle events
 - keep closed structured runtime fail-closed semantics unchanged

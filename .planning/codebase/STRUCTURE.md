@@ -15,7 +15,7 @@
 │   ├── public-chat-web/      # Public chat Worker surface
 │   ├── public-docs/          # Public docs Worker surface
 │   ├── supervisor-agent-worker/ # Private Python bridge worker
-│   └── supervisor-api/       # Go execution engine
+│   └── execution-control/       # Go execution engine
 ├── configs/                  # Static corpus/runtime profiles for ingestion
 │   └── ingestion/
 │       ├── campus_services/
@@ -60,7 +60,7 @@
 
 **apps/**
 - Purpose: surface runtime adapters plus the current shared Worker/web product surfaces.
-- Contains: Go `apps/supervisor-api/internal/*`, Python
+- Contains: Go `apps/execution-control/internal/*`, Python
   `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*`,
   ingestion worker shells, `apps/app-api/src/*`, `apps/public-chat-web/src/*`,
   `apps/public-docs/*`, and `apps/protected-panel-web/src/*`.
@@ -122,9 +122,10 @@
 ## Key File Locations
 
 **Entry Points:**
-- `apps/supervisor-api/cmd/supervisor-api/main.go` – Go supervisor runtime entry.
-- `apps/supervisor-api/internal/httpapi/*.go` – `/api/v1/answer`, streaming,
-  readiness, metrics, cancellation, finalization, and bridge response handling.
+- `apps/execution-control/cmd/execution-control/main.go` – Go supervisor runtime entry.
+- `apps/execution-control/internal/httpapi/*.go` – internal `/internal/execution/runs*`
+  command/query handlers, readiness, metrics, Temporal cancellation, sanitized
+  projection, finalization, and bridge response handling.
 - `apps/app-api/src/index.ts` – Worker fetch/scheduled entrypoint for the shared app backend.
 - `apps/app-api/src/app.ts` – HTTP route composition for auth/chat/operator/official-web/runtime modules.
 - `apps/app-api/src/campus_app_api/projection.py` – retained Python `ContextProjection` seam used by shared contract-alignment tests.
@@ -140,12 +141,12 @@
 - `pyproject.toml` – root uv workspace setup and workspace membership (`apps/*`, `packages/*`).
 - `uv.lock` – pinned dependencies for uv.
 - `packages/retrieval-core/src/campus_retrieval_core/settings.py` – Qdrant/document registry/embedding config.
-- `apps/supervisor-api/internal/config/*.go` – supervisor runtime config.
+- `apps/execution-control/internal/config/*.go` – supervisor runtime config.
 
 **Core Logic:**
 - `packages/contracts/src/campus_contracts/models.py` – type-level contracts shared across packages.
-- `apps/supervisor-api/internal/runtimepolicy` and
-  `apps/supervisor-api/internal/structuredplanning` – deterministic runtime policy and
+- `apps/execution-control/internal/runtimepolicy` and
+  `apps/execution-control/internal/structuredplanning` – deterministic runtime policy and
   structured planner.
 - `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*.py` – bridge v6
   parsing, prompt runtime setup, and injected agent dispatch.
@@ -171,7 +172,7 @@
 
 **Files:**
 - `snake_case.py` for modules and helper scripts (e.g., `process_raw_ingestion_job.py`, `backend_qdrant.py`).
-- `kebab-case` for runtime directories (e.g., `apps/supervisor-api`, `apps/supervisor-agent-worker`).
+- `kebab-case` for runtime directories (e.g., `apps/execution-control`, `apps/supervisor-agent-worker`).
 - `test_*.py` for unit tests under `tests/` mirroring package names.
 
 **Directories:**
@@ -186,11 +187,11 @@
 ## Where to Add New Code
 
 **New Feature (query path):**
-- Primary deterministic/runtime code: `apps/supervisor-api/internal/*`.
+- Primary deterministic/runtime code: `apps/execution-control/internal/*`.
 - Primary semantic agent code: the relevant `packages/*-agent` package.
 - Bridge-only Python code: `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
   when private bridge parsing or agent delegate injection changes.
-- Tests: `tests/supervisor/`, Go package tests under `apps/supervisor-api`, plus relevant
+- Tests: `tests/supervisor/`, Go package tests under `apps/execution-control`, plus relevant
   domain suites.
 - Config: update `configs/ingestion` only when a new corpus or runtime profile is introduced.
 
@@ -211,7 +212,7 @@
 - Tests: `tests/contracts/` or package-specific suites as necessary.
 
 **Runtime Shells & Scripts:**
-- API adjustments: `apps/supervisor-api/internal/*`.
+- API adjustments: `apps/execution-control/internal/*`.
 - Ingestion shells: `apps/ingestion-worker/src/campus_ingestion_worker/`.
 - Shared app/backend runtime: `apps/app-api/src/`.
 - Worker web surfaces: `apps/public-chat-web/src/` and `apps/protected-panel-web/src/`.

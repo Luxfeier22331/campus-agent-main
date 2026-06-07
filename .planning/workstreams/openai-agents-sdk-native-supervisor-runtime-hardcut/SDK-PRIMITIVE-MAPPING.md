@@ -16,7 +16,7 @@ remain the canonical policy and projection truth.
 
 ## Repo Mode To SDK Primitive
 
-### Go `single_handoff`
+### Go `single_step`
 
 Repo truth:
 

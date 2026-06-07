@@ -4,16 +4,16 @@
 
 ## Repo invariants
 - `AGENTS.md` anchors the project as the v2 campus assistant, where the primary
-  semantic path flows `apps/supervisor-api -> apps/supervisor-agent-worker ->
-  packages/rag-agent -> packages/retrieval-core`; Go `apps/supervisor-api` owns
+  semantic path flows `apps/execution-control -> apps/supervisor-agent-worker ->
+  packages/rag-agent -> packages/retrieval-core`; Go `apps/execution-control` owns
   deterministic runtime/control-plane decisions.
 - The supervisor-led architecture described in `docs/architecture/target-architecture.md` and the phase-1 grounding in `docs/architecture/target-architecture.md` keep ingestion and serving clearly split while query-serving scope is controlled by collection runtime profiles rather than a single hardcoded default corpus.
 - Local object storage is only a temporary implementation detail; `docs/decisions/adr-0002-local-minio-conventions.md` treats MinIO as an S3-compatible facade so future cloud migration does not leak filesystem paths.
 
 ## Package boundaries
-- `apps/` directories (for example `apps/supervisor-api`) host transport/runtime shells while `packages/` folders declare stable capabilities such as `packages/contracts`, `packages/ingestion-core`, and `packages/retrieval-core` (see `AGENTS.md` and `docs/architecture/system/data-plane-architecture.md`).
+- `apps/` directories (for example `apps/execution-control`) host transport/runtime shells while `packages/` folders declare stable capabilities such as `packages/contracts`, `packages/ingestion-core`, and `packages/retrieval-core` (see `AGENTS.md` and `docs/architecture/system/data-plane-architecture.md`).
 - `packages/contracts` defines schema-only dataclasses
-  (`packages/contracts/src/campus_contracts/models.py`), Go `apps/supervisor-api`
+  (`packages/contracts/src/campus_contracts/models.py`), Go `apps/execution-control`
   coordinates runtime policy/finalization, `apps/supervisor-agent-worker` dispatches
   private agent requests, `packages/rag-agent` performs retrieval-oriented semantic
   work, and `packages/retrieval-core` is the evidence abstraction; retrieval details
@@ -63,7 +63,7 @@
 ## Logging
 - There is no shared Python logger yet; the codebase prefers returning structured
   responses or raising domain errors (`packages/rag-agent/src/campus_rag_agent/service.py`).
-  Go `apps/supervisor-api` owns runtime metrics/audit/telemetry. If logging is introduced,
+  Go `apps/execution-control` owns runtime metrics/audit/telemetry. If logging is introduced,
   place statements near transport or supervisor boundaries and keep low-level utilities
   log-free for easier testing.
 
@@ -85,7 +85,7 @@
 - Do not drag retrieval implementation details or vendor-specific objects (Agno,
   LlamaIndex, Qdrant, MinIO internals) into `packages/contracts` or other contract
   layers; infrastructure stays behind the supervisor runtime / agent boundary.
-- Avoid flattening the `campusRAG` stack back into a tool-adapter; follow the supervisor-led orchestration plan, not the old bootstrap path mentioned in `AGENTS.md`.
+- Avoid flattening the `retired prototype` stack back into a tool-adapter; follow the supervisor-led orchestration plan, not the old bootstrap path mentioned in `AGENTS.md`.
 - Never mix online query logic with ingestion/data-plane responsibilities; `docs/architecture/system/data-plane-architecture.md` spells out separate `Raw`/`Processed`/`Chunk/Index` layers.
 
 ## Workflow expectations

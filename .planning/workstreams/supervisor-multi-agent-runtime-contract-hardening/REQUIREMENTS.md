@@ -42,7 +42,7 @@ contract rather than a set of planner strings, prompt conventions, or framework-
   Phase 1 freezes its path and schema.
 - Go `WorkflowPlan.allowed_agents` and Python worker delegate map are derived from or checked
   against `AgentSpec`.
-- `AgentInvocation` projection exists and can represent single-handoff and multi-step workflows.
+- `AgentInvocation` projection exists and can represent single-step and multi-step workflows.
 - Cross-agent context projection has explicit kind, source step, content hash, visibility posture,
   length budget, source refs and safety summary.
 - Required context projection absence fails closed instead of falling back to raw prompt history.

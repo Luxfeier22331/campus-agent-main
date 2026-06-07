@@ -62,7 +62,7 @@ Target posture:
 ## Phase Handoff
 
 - Phase 1 owns contracts and ToolSpec.
-- Phase 2 owns Go planner, direct runtime, structured query and workflow trace guard.
+- Phase 2 owns Go planner, typed tool runtime, structured query and workflow trace guard.
 - Phase 3 owns Python notice-agent and provider/SDK adapters.
 - Phase 4 owns eval denominator and drift guards.
 - Phase 5 owns downstream bounded workflow context.

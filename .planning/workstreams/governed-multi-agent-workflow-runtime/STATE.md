@@ -33,7 +33,7 @@ recording the repo-owned decision to keep the second governed scenario closed.
 - Python `apps/supervisor-agent-worker` owns private semantic worker execution and domain-agent dispatch.
 - Provider-native function calling is a domain-agent adapter substrate only.
 - Cross-agent context must be bounded typed projection, not raw prompt/provider/source payload.
-- Current architecture remains mostly single handoff / direct structured runtime; this workstream must not rewrite current truth before implementation.
+- Current architecture remains mostly single step / typed structured activity; this workstream must not rewrite current truth before implementation.
 - Step-local Agents SDK runtime for future governed workflow steps now belongs here, not to
   `agents-sdk-runtime-surface-expansion`; SDK remains an admitted-step substrate and cannot own
   global workflow truth.

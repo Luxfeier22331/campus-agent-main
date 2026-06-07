@@ -22,7 +22,7 @@ artifact shape 推进为 repo-owned deterministic runtime gate。
   - deterministic evaluator
   - formal benchmark executor wrapper `attach_workflow_trace_gate(...)`
 - 新增 `packages/evals/fixtures/workflow_trace_gate_cases.v1.json`
-  - direct structured runtime branch
+  - typed structured activity branch
   - Python delegate branch
   - clarification branch
   - fail-close branch

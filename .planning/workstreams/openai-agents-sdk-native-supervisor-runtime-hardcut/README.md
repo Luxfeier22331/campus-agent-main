@@ -71,7 +71,7 @@ runtime 债务：
   `AgentsSdkRunResult` shell，实际继续模拟 SDK agent loop。
 - RAG SDK lane 曾经保留 `closed` / `shadow` / `candidate` / `default_on` rollout 语义。
 - `rag-agent` 主答复路径曾经以自研 pipeline 为 default，SDK 只是后置 synthesis lane。
-- `single_handoff`、agent-internal tools、RAG internal retrieval tool、multi-step workflow
+- `single_step`、agent-internal tools、RAG internal retrieval tool、multi-step workflow
   曾经缺少统一 SDK-native execution compiler。
 
 这些 runtime 债务已在 Phase 1-10 中收口；本 workstream 当前只保留完成账本与重开规则。

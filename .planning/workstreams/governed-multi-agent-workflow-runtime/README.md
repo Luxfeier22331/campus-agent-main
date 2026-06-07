@@ -11,8 +11,8 @@ updated: 2026-05-06
 
 这是 `governed-multi-agent-workflow-runtime` 的 native workstream 入口。
 
-本 workstream 负责把当前 repo 的 supervisor-led architecture 从“single handoff /
-direct structured runtime 为主”推进到受控 multi-agent workflow。它不把 Go
+本 workstream 负责把当前 repo 的 supervisor-led architecture 从“single step /
+typed structured activity 为主”推进到受控 multi-agent workflow。它不把 Go
 `supervisor-api` 改成 LLM triage agent，也不把 provider function calling 提升为顶层
 orchestration owner；目标是让 Go 继续拥有 deterministic governance，让 Python /
 domain-agent 在明确边界内执行 bounded semantic collaboration。

@@ -53,7 +53,7 @@ updated: 2026-05-01
 - Inventory contract payload/result classes.
 - Inventory Python agent delegates and thin adapters.
 - Inventory eval denominator and workflow trace fixtures.
-- Classify each tool as direct runtime, agent handoff, retrieval-internal, or
+- Classify each tool as typed tool runtime, agent handoff, retrieval-internal, or
   future/later-wave.
 
 **Deliverables:**
@@ -297,7 +297,7 @@ replacing Go supervisor admission.
 **Scope:**
 
 - Send only Go-admitted tool schemas.
-- Disable parallel tool calls for single-handoff runtime.
+- Disable parallel tool calls for single-step runtime.
 - Execute the repo-owned query service after provider arguments are validated.
 - Submit bounded `function_call_output` with the original provider `call_id`.
 - Use the second provider response only for final answer text.

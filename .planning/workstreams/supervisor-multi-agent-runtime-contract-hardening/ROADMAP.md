@@ -88,13 +88,13 @@ git diff --check
   - Go-internal execution schema if it remains private run-state only
 - `WorkflowRunStore` extension plan for invocation edges, statuses and projection refs.
 - Mapping from existing `workflow_trace_summary` to graph projection.
-- Example fixtures for single-handoff and current gated multi-step:
+- Example fixtures for single-step and current gated multi-step:
   - `tests/fixtures/supervisor_execution_contract/*`
   - `tests/fixtures/workflow_trace/*` or repo-equivalent eval fixture path
 
 **Exit Criteria:**
 
-- Graph represents current `single_handoff` and selected-notice + RAG `multi_step`.
+- Graph represents current `single_step` and selected-notice + RAG `multi_step`.
 - Raw provider/native trace remains excluded by schema.
 - Store/OpenAPI/shared-contract boundary is explicitly decided before implementation.
 
@@ -177,7 +177,7 @@ closed.
 - Go `WorkflowPlan.allowed_agents` projection.
 - Go `AgentSpec` planner validation.
 - Python dispatch `AgentSpec` admission fail-close.
-- `AgentInvocation` persistence and trace projection for single-handoff and current gated
+- `AgentInvocation` persistence and trace projection for single-step and current gated
   multi-step.
 
 ## Phase 5B: Runtime Wiring Readiness Plan
@@ -214,7 +214,7 @@ closed.
 
 **Delivered:**
 
-- `single_handoff` / `multi_step` traces must include `agent_invocations`.
+- `single_step` / `multi_step` traces must include `agent_invocations`.
 - Invocation target order must align with the handoff chain.
 - Multi-step invocation nodes must carry parent edges.
 - Downstream invocations must reference consumed context projection ids where projections exist.
@@ -228,7 +228,7 @@ closed.
 **Deliverables:**
 
 - Workflow trace eval case taxonomy.
-- Fixtures for terminal/direct_runtime/single_handoff/multi_step.
+- Fixtures for terminal/single_step/multi_step.
 - Cases for wrong handoff, overbroad allowed tools, raw context leak, missing projection,
   ungrounded finalizer and fail-close provenance.
 

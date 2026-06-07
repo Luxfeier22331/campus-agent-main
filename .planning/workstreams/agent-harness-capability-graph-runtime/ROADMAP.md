@@ -261,7 +261,7 @@ workflow truth.
 
 **Exit Criteria:**
 
-- SDK-backed and direct-runtime steps both produce the same artifact envelope.
+- SDK-backed and typed-tool-runtime steps both produce the same artifact envelope.
 - SDK failure maps to stable fail-close reasons.
 - SDK handoffs remain non-canonical unless a later phase explicitly admits them.
 

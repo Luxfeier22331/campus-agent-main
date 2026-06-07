@@ -7,13 +7,14 @@
 **Overall:** Supervisor-led layered orchestrator with a dedicated execution boundary, offline ingestion/data plane, and shared Worker application/web surfaces, keeping retrieval, storage, and contracts tightly separated.
 
 **Key Characteristics:**
-- Policy-driven multi-agent path: the current forward product topology is
-  `public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker -> agent`
-  for semantic answer execution and `protected-panel-web -> app-api` for operator read
-  surfaces. Go `apps/supervisor-api` owns admission, deterministic runtime policy,
-  structured planning, response finalization, observability, and bridge projection;
-  Python `apps/supervisor-agent-worker` only dispatches private `AgentRequest` objects
-  to concrete agent packages.
+- Policy-driven orchestrated execution path: the current forward product topology is
+  `public-chat-web -> app-api -> execution-control -> Temporal -> activity worker ->
+  supervisor-agent-worker -> agent/tool capability` for semantic answer execution and
+  `protected-panel-web -> app-api` for operator read surfaces. Go
+  `apps/execution-control` owns admission, deterministic runtime policy, Temporal
+  command/query, structured planning, response finalization, observability, and
+  sanitized run/step projection; Python `apps/supervisor-agent-worker` only dispatches
+  private semantic work items to concrete agent/tool packages.
 - Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_rules`/`curriculum_plan`, most of which is described in `docs/architecture/system/data-plane-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
 - Explicit boundary governance: `packages/contracts` holds allowed corpora, trace contexts, and error schemas, while `packages/shared` keeps only constants that other packages may import without pulling runtime infrastructure details into coordination logic.
 
@@ -21,7 +22,7 @@
 
 **Transport & Runtime Surfaces (`apps/`):**
 - Purpose: host execution, ingestion, the shared Worker application backend, and the current public/protected Worker web surfaces.
-- Contains: Go `apps/supervisor-api/internal/*`, Python
+- Contains: Go `apps/execution-control/internal/*`, Python
   `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*`,
   `apps/ingestion-worker/src/campus_ingestion_worker/*`, `apps/app-api/src/*`,
   `apps/public-chat-web/src/*`, `apps/public-docs/*`, and `apps/protected-panel-web/src/*`.
@@ -32,9 +33,9 @@
 **Supervisor Execution And Agent Worker Layer:**
 - Purpose: keep deterministic execution control in Go while preserving Python for
   semantic agent dispatch.
-- Contains: `apps/supervisor-api/internal/runtimepolicy`,
-  `apps/supervisor-api/internal/structuredplanning`,
-  `apps/supervisor-api/internal/httpapi`, and
+- Contains: `apps/execution-control/internal/runtimepolicy`,
+  `apps/execution-control/internal/structuredplanning`,
+  `apps/execution-control/internal/httpapi`, and
   `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*`.
 - Depends on: `packages/contracts` for schemas and the concrete agent packages
   injected by the worker runtime.
@@ -49,7 +50,7 @@
   `packages/notice-agent/src/campus_notice_agent/*`.
 - Depends on: `packages/contracts` for handoff models; `rag-agent` also depends on
   `packages/retrieval-core`.
-- Used by: Go direct runtime for opened structured paths and the Python agent worker
+- Used by: Go typed tool runtime for opened structured paths and the Python agent worker
   for semantic delegate paths.
 
 **Retrieval & Evidence Layer (`packages/retrieval-core`):**
@@ -75,18 +76,20 @@
 **Answer request flow:**
 
 1. Browser chat requests hit `apps/public-chat-web/src/index.ts`, which stays same-site to `apps/app-api`.
-2. `apps/app-api/src/app.ts` owns product-layer auth/session/principal mapping, request projection, telemetry hooks, and the internal bridge into `apps/supervisor-api` when a supervisor execution is needed.
-3. Go `apps/supervisor-api/internal/httpapi` admits the request, applies runtime
-   policy, performs deterministic direct execution when available, or builds bridge
-   v6 `runtime_decisions`.
-4. `apps/supervisor-api` calls Python `apps/supervisor-agent-worker` only through the
-   private bridge with a canonical `AgentRequest`.
-5. `apps/supervisor-agent-worker` parses the bridge v6 envelope and dispatches the
-   injected agent delegate without rebuilding routing, audit, or public response state.
-6. The selected agent validates the request, performs retrieval or semantic work, and
-   returns a typed `AgentResponse`.
-7. Go `apps/supervisor-api` finalizes `AgentResponse` into `SupervisorResponse`,
-   records execution audit/observability, and returns through `app-api`.
+2. `apps/app-api/src/app.ts` owns product-layer auth/session/principal mapping, request projection, telemetry hooks, and the internal bridge into `apps/execution-control` when a supervisor execution is needed.
+3. Go `apps/execution-control/internal/httpapi` accepts only the internal
+   `/internal/execution/runs*` command/query contract, admits the request, applies
+   runtime policy, creates sanitized run projection, and starts a Temporal workflow.
+4. Temporal schedules typed workflow/activity work on capability task queues. The active
+   answer serving path does not use PG lease acquisition or legacy answer routes.
+5. RAG / notice / navigation / campus services / finalization run as typed activities or
+   agent-as-tool activities. Semantic work reaches Python `apps/supervisor-agent-worker`
+   only through the private bridge with bounded projection refs and sanitized payloads.
+6. The selected capability validates the request, performs retrieval or semantic work,
+   and returns a typed projection result.
+7. Go `apps/execution-control` writes sanitized run/event/step projection and finalizes
+   product response state for `app-api`; browser and panel surfaces read product
+   projection, not Temporal history or raw provider traces.
 
 **Ingestion/data-plane flow:**
 
@@ -133,11 +136,13 @@
 **`apps/public-chat-web/src/index.ts` & `apps/protected-panel-web/src/index.ts`:**
 - Location: public and protected Worker web surfaces; responsibilities include browser-facing routing, internal proxy/BFF behavior, and trace propagation into `app-api`.
 
-**`apps/supervisor-api/cmd/supervisor-api` & `internal/httpapi`:**
-- Location: Go execution runtime surfaces, routing `/api/v1/answer`,
-  `/api/v1/answer/stream`, `/healthz`, `/readyz`, `/metrics`, and cancellation.
-- Triggers: internal HTTP requests from `apps/app-api`; responsibilities include
-  caller auth, runtime policy, bridge projection, finalization, metrics, and audit.
+**`apps/execution-control/cmd/execution-control` & `internal/httpapi`:**
+- Location: Go execution-control surface for `/internal/execution/runs*`, `/healthz`,
+  `/readyz`, `/metrics`, Temporal command/query, cancellation, sanitized projection,
+  finalization, and audit.
+- Triggers: internal HTTP requests from `apps/app-api`; responsibilities include caller
+  auth, runtime policy, Temporal workflow control, bridge projection, finalization,
+  metrics, and audit.
 
 **`apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/app.py` & `api.py`:**
 - Location: private Python bridge worker; responsibilities include bridge v6 parsing,
@@ -152,11 +157,11 @@
 
 ## Error Handling
 
-**Strategy:** Go runtime policy and bridge errors fail closed at `apps/supervisor-api`;
+**Strategy:** Go runtime policy and bridge errors fail closed at `apps/execution-control`;
 agent-level semantic errors return typed `AgentResponse` values for Go finalization.
 
 **Patterns:**
-- Go `apps/supervisor-api/internal/httpapi` maps admission, bridge, timeout, and direct
+- Go `apps/execution-control/internal/httpapi` maps admission, bridge, timeout, and direct
   runtime failures into terminal responses.
 - `packages/rag-agent/src/campus_rag_agent/service.py` catches
   `CorpusQueryDisabledError` and `RetrievalBackendError` from `packages/retrieval-core`,
@@ -165,7 +170,7 @@ agent-level semantic errors return typed `AgentResponse` values for Go finalizat
 
 ## Cross-Cutting Concerns
 
-**Authentication:** Go `apps/supervisor-api/internal/httpapi` verifies internal caller
+**Authentication:** Go `apps/execution-control/internal/httpapi` verifies internal caller
 auth and consumes the typed actor/context projection produced by `apps/app-api`.
 
 **Configuration:** Go supervisor config and Python package settings read runtime
@@ -174,7 +179,7 @@ URLs adjustable per deployment.
 
 **Validation:** Dataclasses across contracts (`packages/contracts/src/campus_contracts/models.py`), retrieval (`RetrievalRequest`), and ingestion (`CorpusRuntimeProfile`) run `__post_init__` checks so invalid corpora/top_k/artifact mode combinations fail fast.
 
-**Auditing & Trace:** Go `apps/supervisor-api` owns execution audit summary,
+**Auditing & Trace:** Go `apps/execution-control` owns execution audit summary,
 response observability, metrics, and OTel seams; the Python agent worker does not
 publish public runtime truth.
 

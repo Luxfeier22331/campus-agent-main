@@ -46,7 +46,7 @@ updated: 2026-05-10
   - `configs/runtime/agents.v1.json`
   - `configs/runtime/tools.v1.json`
 - Freeze the official SDK primitive mapping:
-  - Go-owned `single_handoff` -> run the admitted target SDK agent directly
+  - Go-owned `single_step` -> run the admitted target SDK agent directly
   - Go-owned manager-style `multi_step` -> SDK agents-as-tools or sequential SDK runs, with Go
     retaining final answer ownership
   - Go-owned ownership-transfer workflow -> SDK handoff only when WorkflowPlan explicitly says so
@@ -171,7 +171,7 @@ old custom runner deletion were completed by Phase 4 / Phase 8 on 2026-05-10.
 
 - `campus-services-agent` and `notice-agent` use the same SDK runtime factory as future agents.
 - Domain query service errors return SDK-native fail-close projections.
-- No direct structured runtime or custom SDK runner shell remains for these agents.
+- No typed structured activity or custom SDK runner shell remains for these agents.
 
 **Status:** completed on 2026-05-10.
 
@@ -230,7 +230,7 @@ old custom runner deletion were completed by Phase 4 / Phase 8 on 2026-05-10.
 - Add a compiler from Go-owned `WorkflowPlan` / `AgentRequest.workflow_context` into SDK execution
   steps.
 - Support currently admitted shapes:
-  - `single_handoff`
+  - `single_step`
   - selected notice context -> RAG follow-through
 - For manager-style workflows, use sequential SDK runs or agents-as-tools while Go remains final
   owner.

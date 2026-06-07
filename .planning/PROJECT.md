@@ -2,7 +2,7 @@
 
 ## What This Is
 
-`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-agent -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled；`campus_services` 已有 structured-query serving tools，但不进入 generic retrieval 默认 query scope。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
+`campus-agent` 是一个面向学生、教职工和潜在考生的校园能力助理仓库，长期形态是 `app-api -> execution-control -> Temporal -> capability workers` 的受控能力编排系统。`supervisor` 只保留为 admission、routing、workflow planning 与 finalization 的抽象角色；RAG、navigation、notice、campus services 等能力默认以 typed tool / agent-as-tool activity 进入。当前 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled；`campus_services` 已有 structured-query serving tools，但不进入 generic retrieval 默认 query scope。旧原型实现不再作为当前架构、代码扩展或 planning truth 的引用对象。
 
 ## Planning File Contract
 
@@ -36,7 +36,7 @@
   control-plane、restricted / historical reader handoff 与 chat `source_items`
   browser contract 已收口
 - `public-chat-web` 当前 public auth family 已覆盖 `/login`、`/register`、`/forgot-password`、`/reset-password`；`protected-panel-web` 的 `/login` 继续只代表 Cloudflare Access reentry
-- panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
+- panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/execution-control`
 - `official_web` control plane 已在 shared `apps/app-api` 落地，collector admission、crawl-run ledger、operator query 与 ingestion handoff 继续收口在同一 Worker backend；`apps/ingestion-worker` 继续只是 offline executor
 - canonical app identity、profile memory 与 session truth 归属 shared `app-api`；execution engine 只消费 typed projection
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
@@ -59,12 +59,12 @@
 - `campus_notices/internal_notice` 已在 local Postgres + local MinIO + cloud Qdrant 路径上完成 current-scope replay -> verified preparation -> single promote -> unpublished release：`promotion_id=promotion-0001`、`release_id=r20260411_090101`、physical collection `internal_notice__r20260411_090101`、`document_count=21`、`point_count=213`、`validation_status=passed`，且 serving alias `internal_notice` 仍未发布；runtime truth 继续保持 `restricted + offline_preparation`
 - authenticated-notice 的后续工作当前收口为两条前向线加三条已完成 closeout：`notice-consumption-layer` 已完成 implementation closeout，repo 现有 `source_notice -> derived consumption unit` persisted projection、显式 rebuild/status worker、import rebuild seam、regulation/scoped ready gate、non-regulation coverage 与 operator read-model truth；已捕获 corpus 的 bounded regulation/scoped downstream consumption 继续由独立 workstream 负责 target-side hardening；`file_release owner recovery` 的 auth-window readiness closeout 已完成，`351119` 已被显式排除，未来 target-specific recovery 必须先 admission 新的 non-excluded target 才能 reopen；`live portal / authenticated control-plane` 已完成本轮 repo-owned closeout，collector run admission、run ledger/artifact refs、live-historical reconcile 与 bounded operator status 均已落地。对 `355222` 比选公告与 `355325` 中选结果公示这类 procurement notice，当前已进入 `procurement_notice` notice category / projection truth；`service_status_override` 与 `attachment_form_template` 也只作为 held projection truth，不打开 campus-services runtime、document center、query-serving 或 panel surface
 - 当前 worktree 已完成 Wave E place-finding foundation 的 repo-internal 资产，并进一步由 Go
-  `supervisor-api` direct runtime 承接 `place_lookup` 地点目录查询；`place_card` / map
+  `execution-control` typed tool runtime 承接 `place_lookup` 地点目录查询；`place_card` / map
   consumption、route planning 与完整地图产品面仍延后到地图实际上线后再恢复。在合入
   `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
 - 当前 worktree 已完成 go-shell Phase 55：private bridge 升级为
   `supervisor_bridge_v6 + agent_response` contract，Python bridge 只返回
-  `AgentResponse`，Go `supervisor-api`
+  `AgentResponse`，Go `execution-control`
   统一 finalizes public `SupervisorResponse` 与 response observability；
   legacy Python `policy.py` / `response.py` / `handle_request` public handler
   已删除。在合入 `develop` 前，这仍属于
@@ -91,7 +91,7 @@
   `specialist` aliases 与 `supervisor-core-worker` runtime 名称已从 active code /
   tests / docs 中移除。在合入 `develop` 前，这仍属于 worktree-local progress，而不是
   merged truth
-- 当前 worktree 已完成 Phase 14 `产品主链路 Prompt Stack 与 System Prompt Runtime 收口`：`apps/supervisor-api`、`apps/supervisor-agent-worker`、`packages/rag-agent`、`apps/app-api` 与 `packages/evals` 现已统一收口 prompt metadata sink、typed prompt runtime state 与 deterministic-path regression coverage；在合入 `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
+- 当前 worktree 已完成 Phase 14 `产品主链路 Prompt Stack 与 System Prompt Runtime 收口`：`apps/execution-control`、`apps/supervisor-agent-worker`、`packages/rag-agent`、`apps/app-api` 与 `packages/evals` 现已统一收口 prompt metadata sink、typed prompt runtime state 与 deterministic-path regression coverage；在合入 `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
 - 当前 worktree 已完成 Phase 16 `OCR 资产分类与双渠道择优路由` closeout：compare lane 现已输出 `asset_typing` / `routing_recommendation`，`source_truth_only` 对 `generic_image` 现已支持 Paddle + MinerU 双跑判型、`ocr-routing-decision.json` evidence 与 raw-asset refined type 回写；当前冻结的 canonical scope 是 `pdf -> MinerU primary`、`simple_table_image -> Paddle primary`、`complex_table_image -> MinerU primary`、`spatial/office -> deferred`，而不是把 MinerU 升格成全局 canonical OCR provider
 - 当前 worktree 已完成 `shared-file-asset-loader-contract` 的 `Phase H`：legacy Office canonical path 现已切到 service-backed client，repo 已拥有 `JODConverter + LibreOffice` self-hosted conversion runtime、统一的 `LEGACY_OFFICE_CONVERSION_*` env/runbook truth，以及真实 authenticated notice `.doc/.xls` closeout evidence
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
@@ -105,7 +105,7 @@
 ### Validated
 
 - ✓ 仓库已经建立 supervisor-led 的长期架构边界与 phase-1 约束文档，明确 `apps/` 与 `packages/` 的职责划分 — existing
-- ✓ 已存在 `supervisor-api -> supervisor-agent-worker -> rag-agent -> retrieval-core` 的主链路骨架与共享 contract 边界 — existing
+- ✓ 已存在 `execution-control -> supervisor-agent-worker -> rag-agent -> retrieval-core` 的主链路骨架与共享 contract 边界 — existing
 - ✓ 已存在 ingestion/data plane 基础设施骨架，可支持 `student_rules` 与 `curriculum_plan` 的 raw / processed / chunk 路径演进 — existing
 - ✓ 已完成 `student_rules` 的 canonical raw onboarding、稳定逻辑文档 identity/version 规则与 machine-checkable duplicate/update import reporting — Validated in Phase 2
 - ✓ 已完成 `student_rules` 的 canonical processed artifact、chunk metadata 与 Qdrant/retrieval payload handoff 收口 — Validated in Phase 3
@@ -113,7 +113,7 @@
 - ✓ 已完成 `student_rules` 的 `rag-agent` answer path 收口，包括 grounded answer、chunk-level citation、`needs_clarification`、`no_answer` 与 `error` 语义 — Validated in Phase 4
 - ✓ 已完成 `student_rules` retrieval baseline 从 dense-only bootstrap 收口为 `dense + sparse hybrid + RRF + registry-backed evidence`，并通过 live handbook fixture 与 repo tests 验证 — Validated by 2026-03-27 live + automated verification
 - ✓ 已完成 `supervisor -> agent` 查询入口、typed actor propagation 与 durable audit logging 的 Phase 5 收口 — Validated in Phase 5
-- ✓ 已完成 Cloudflare public-entry Worker runtime shell、trusted-origin forwarding 与 `apps/supervisor-api` trusted-worker origin admission — Validated in Phase 04.6
+- ✓ 已完成 Cloudflare public-entry Worker runtime shell、trusted-origin forwarding 与 `apps/execution-control` trusted-worker origin admission — Validated in Phase 04.6
 - ✓ 已完成 `public-consumer-chat` 的 04.7 app boundary / frontend host / auth-and-storage closeout，并已把实现与文档基线合入 `main`；该实现现作为历史参考而非 forward backend truth — Validated in Phase 04.7
 - ✓ 已完成 shared `apps/app-api` Worker foundation、request projection API 与 `public-chat-web` / `protected-panel-web` 接线收口 — Validated on 2026-03-29
 - ✓ 已完成 `student_rules` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
@@ -124,7 +124,7 @@
 - ✓ 已完成 `official_web/stable_reference` 的首条真实 release-evidence 与 serving-side cleanup：repo 已记录真实 `stable_reference` physical release，并让 retrieval / agent / eval 辅助逻辑支持 split scope 与 mixed bridge 共存 — Validated in Phase 10.5
 - ✓ 已完成 `apps/public-chat-web` strict donor parity Wave 6 closeout：donor diff whitelist 已落盘，`share / visibility on launch path` blocker 已关闭，fresh local gate 与 authenticated staging smoke 已在 `.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/` 收口；`/api/models` staging `200`、`/api/history` 在真实 cookie session 下 `200` — Validated on 2026-04-09
 - ✓ 已在当前 worktree 完成 Wave E place-finding foundation，并由 Go
-  `supervisor-api` direct runtime 承接 `place_lookup` 地点目录查询；repo 现已具备
+  `execution-control` typed tool runtime 承接 `place_lookup` 地点目录查询；repo 现已具备
   `campus_navigation/place_catalog` seed/runtime-profile、`navigation-agent`、`place_lookup`
   contract/routing 与预留的 `place_card` consumer chain；`place_card` map consumption 与
   route planning 继续等待地图实际上线后再恢复 — Validated on 2026-04-11; Go direct
@@ -143,7 +143,7 @@
   独立 RAG release lane；新 target 尚未进入 RAG release / serving admission；
   public-chat citation 继续关闭。auth-dependent `file_release owner recovery` 仍由独立
   workstream 管理，不混入本线。
-- [ ] staging@mucwiki-edge.link 的项目隔离一级子域部署基线正在切换；`api-staging`、`chat-staging`、`docs-staging`、`panel-staging`、`hub-staging` 与 `exec-staging` 是当前 staging hostname truth，后续 release hardening 继续沿 Phase 1002 `Worker 部署与发布硬化收口` 执行
+- [ ] staging@mucwiki-edge.link 的项目隔离一级子域部署基线当前只把 `api-staging`、`chat-staging`、`docs-staging`、`panel-staging` 与 `hub-staging` 作为 product surface；`execution-control-staging.mucwiki-edge.link` 只作为 app-api trusted machine ingress，不是 browser surface
 - [ ] `shared product surfaces acceptance / hardening` 已在 `Phase I` closeout 之后继续 reopen 到 `Phase J` Turnstile posture productization：固定方向是 always-on verification、Cloudflare-managed adaptive interactive challenge only on elevated risk，以及 local / staging / prod runtime posture seam；`Phase K` 的 mature auth shell local cutover 已完成，但 workstream 当前仍只剩 `Phase J` 真实 staging 浏览器 closeout blocker；它继续只覆盖 shared backend、public chat 与 protected panel，不改 panel Access model
 - [ ] `official_web/fresh_news` / `official_web/news_archive` 的 repo-level runtime opening criteria 已在 Phase 1003 冻结；后续 opening execution / acceptance 已下调到 backlog `999.4`，当前只保留 `stable_reference` 与 default-off news contract，不在 active implementation lane
 - [ ] 校内导航当前只打开 Go direct `place_lookup` 地点目录查询；地图实际上线后再从 backlog
@@ -162,15 +162,15 @@
 
 ## Context
 
-当前真人答疑群里存在大量校园相关问题，需要人工持续回答，已经形成明显的人力消耗；这个项目的直接业务背景就是用结构正确的校园问答助理承接这些高频问答。仓库本身是 brownfield：`docs/` 中已有长期架构、phase-1、supervisor 架构与实施计划文档，`.planning/codebase/` 也已经记录了当前代码地图。技术上，新仓库采用 supervisor-led multi-agent 方向，`../campusRAG` 是旧的 RAG 实现，只作为迁移参考；迁移目标不是复制旧接口，而是用新的 contract、retrieval abstraction 和 supervisor/agent 边界重建主链路。
+当前真人答疑群里存在大量校园相关问题，需要人工持续回答，已经形成明显的人力消耗；这个项目的直接业务背景就是用结构正确的校园问答助理承接这些高频问答。仓库本身是 brownfield：`docs/` 中已有长期架构、phase-1、supervisor 架构与实施计划文档，`.planning/codebase/` 也已经记录了当前代码地图。技术上，新仓库采用 supervisor-led multi-agent 方向，`the retired prototype` 是旧的 RAG 实现，只作为迁移参考；迁移目标不是复制旧接口，而是用新的 contract、retrieval abstraction 和 supervisor/agent 边界重建主链路。
 
 ## Constraints
 
-- **Architecture**: `supervisor` 必须是唯一入口协调层，`agent` 作为稳定能力边界存在，不能退回成旧 `campusRAG` 的扁平 tool 模式 — 这是仓库长期架构和当前 supervisor 设计的核心前提
+- **Architecture**: `supervisor` 必须是唯一入口协调层，`agent` 作为稳定能力边界存在，不能退回成旧 `retired prototype` 的扁平 tool 模式 — 这是仓库长期架构和当前 supervisor 设计的核心前提
 - **Scope**: serving surface 由 runtime profile 显式控制；当前默认 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`，`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
 - **Contracts**: handoff 必须通过 `packages/contracts` 中的 schema 完成，不让 AgentOS / retrieval / infra 类型渗透进共享 contract — 这是未来可替换 agent / retrieval 的基础
 - **Runtime Boundary**: runtime、transport、deterministic routing/policy gate、audit projection、default agent delegate registry 与 public response finalization 留在 `apps/`；private injected-delegate dispatch helper 也已内联到 `apps/supervisor-agent-worker` — 避免 standalone core package 冒充长期 supervisor truth
-- **Product Identity**: product-layer auth/session/principal mapping 固定留在 `apps/app-api`；`apps/supervisor-api` 只做 internal execution caller admission，并消费显式 `actor` — 避免 execution engine 重新长出产品身份语义
+- **Product Identity**: product-layer auth/session/principal mapping 固定留在 `apps/app-api`；`apps/execution-control` 只做 internal execution caller admission，并消费显式 `actor` — 避免 execution engine 重新长出产品身份语义
 - **Security**: v1 必须做到身份透传、trace 透传、retrieval 前 ACL 过滤、最小审计和最小 source traceability — 这是面向不同权限用户上线前的最低治理要求
 - **Execution Goal**: 当前优先级是把新架构站稳，不以覆盖更多知识域或更复杂 agent 能力为第一目标 — 避免为了功能面牺牲边界正确性
 
@@ -185,7 +185,7 @@
 | 导航相关首个前向 slice 固定为 `place_lookup` / `place_finding`，`route_planning` 后置 | 当前最近用户价值是回答“xx楼在哪里”“补卡机在哪里”这类高频地点问题；先冻结 `place_catalog`、alias resolve 与地点答案 contract，比先做完整路线规划更低风险且更符合当前数据完备度 | — Accepted on 2026-04-05 |
 | Wave E 曾完成“文本答案 + location card + 可选单点预览”的 repo-local foundation，其中 `app-api` 可持久化 `place_card`、前端可映射中文地点卡片 | 这条 consumer chain 仍保留为后续地图上线后的恢复基础，但 2026-04-14 起不再代表当前已开放产品 truth | — Validated on 2026-04-11, superseded as current rollout truth on 2026-04-14 |
 | 权限最小闭环只做到 identity / groups 透传与 retrieval 前 ACL 过滤 | 先满足多类用户的最小访问控制，再延后更细粒度角色行为 | — Pending |
-| 旧 `../campusRAG` 仅作为迁移参考 | 新仓库目标是新架构落地，不是继续扩展旧实现 | — Pending |
+| 旧 `the retired prototype` 仅作为迁移参考 | 新仓库目标是新架构落地，不是继续扩展旧实现 | — Pending |
 | phase-1 先优先架构边界正确、handoff 清晰、tracing / audit / ACL 最小闭环 | 这是“符合最佳实践”的核心，也是后续扩展多 agent 的前置条件 | — Pending |
 | agent 表示稳定能力边界，不只等于 handbook RAG | 如果官网探活 / 可达性核验是长期稳定需求，应作为独立 agent 讨论，而不是退回 supervisor 内联 tool | — Pending |
 | 早期实验性的 `official-web` / `availability` placeholder 只用于验证多-agent seam，现已退休 | 继续把实验占位符保留为 current truth 会把边界验证误写成长期能力承诺；验证目标已完成，placeholder 应从 merged truth 清出 | — Superseded and retired on 2026-04-21 |
@@ -198,16 +198,16 @@
 | handbook chunk-truth 调整必须先经过真实 validation 与 sample markdown 复核，再允许继续 embedding 或进入 retrieval/eval 调参 | 这次问题说明仅靠单元测试不足以覆盖 handbook 的真实 cleanup/chunking 退化；必须把 live validation 和真实样本内容作为阶段门禁 | — Re-confirmed on 2026-03-26 |
 | `rag-agent` answer path now fail-closes ambiguous, empty-support, and retrieval-failure outcomes while composing grounded chunk-cited answers from the accepted hybrid evidence bundle | Phase 4 must close handbook answer semantics without reopening retrieval strategy or shifting policy back into supervisor | — Validated in Phase 4 |
 | `bearer` auth is now runtime-owned and no longer trusts client-supplied `x-actor-*` headers; `trusted-worker` projects final caller actor claims from forwarded Access JWT payload after origin trust is verified | Phase 5 must close actor propagation and ACL safety without moving auth/provider semantics into `packages/*` | — Validated in Phase 5 |
-| durable execution audit logging and response observability now live at `apps/supervisor-api`, while `apps/supervisor-agent-worker` only returns private `AgentResponse` | This keeps persistence, finalization, and runtime projection in the Go execution boundary while preserving Python as semantic agent worker | — Validated in Phase 5; boundary updated by go-shell Phase 55-63 |
+| durable execution audit logging and response observability now live at `apps/execution-control`, while `apps/supervisor-agent-worker` only returns private `AgentResponse` | This keeps persistence, finalization, and runtime projection in the Go execution boundary while preserving Python as semantic agent worker | — Validated in Phase 5; boundary updated by go-shell Phase 55-63 |
 | Cloudflare 并行后续工作拆成 `04.2` / `04.3` / `04.4` 三个 inserted phase | 主线被 chunk-truth 阻塞时，可以继续推进 edge/runtime/panel-shell 冻结，但必须避免把 provider、identity、ACL、audit 语义推入 `packages/*` 或提前吃掉 Phase 5 | — Pending in Phase 04.x |
-| Cloudflare public answer path now runs through `apps/public-entry-worker -> apps/supervisor-api` with explicit trusted-worker origin auth | 先把 public-entry runtime seam 做成真实可验证代码，再把 app-layer actor/ACL/audit留给 Phase 5 | — Validated in Phase 04.6 |
+| Cloudflare public answer path now runs through `apps/public-entry-worker -> apps/execution-control` with explicit trusted-worker origin auth | 先把 public-entry runtime seam 做成真实可验证代码，再把 app-layer actor/ACL/audit留给 Phase 5 | — Validated in Phase 04.6 |
 | public/protected product surface 收口为 `apps/public-chat-web` 与 `apps/protected-panel-web` 两个 Worker web surface | 浏览器保持 public/protected 分离，但不再各自长出独立产品后端 | — Accepted on 2026-03-28 |
 | `public-consumer-chat` 的 04.7 `Better Auth + Supabase Postgres` 与 `TanStack Start` 结论保留为历史实现参考，不再作为 forward backend truth | 这些结论解释了已合入 `main` 的 04.7 实现，但后续产品方向已经收口为 `public-chat-web` / `protected-panel-web` + shared `app-api` | — Superseded by ADR-0012 on 2026-03-28 |
 | shared `app-api` 作为 public chat 与 protected panel 的共同产品后端 | 需要把 auth/session/conversation、chat ingress、request ledger / projection input 与 operator query 收口在一个 shared app boundary，而不是继续分裂成 consumer full-stack app + operator query backend | — Accepted on 2026-03-28 |
-| `apps/supervisor-api` 退为 execution engine，不再承担 product-facing backend | shared app backend 可以承接浏览器产品 API，而 supervisor 继续只拥有 orchestrator execution path | — Accepted on 2026-03-28 |
+| `apps/execution-control` 退为 execution engine，不再承担 product-facing backend | shared app backend 可以承接浏览器产品 API，而 supervisor 继续只拥有 orchestrator execution path | — Accepted on 2026-03-28 |
 | `apps/app-api` runtime 冻结为 Worker，而不是继续保持 runtime-agnostic | 这能避免 shared product backend 再次滑回 Docker-first / 双后端裂缝，并保持与 Worker web surfaces 的 internal-only seam 一致 | — Accepted on 2026-03-28 |
-| canonical request projection 由 shared `apps/app-api` command path 一次产出，并由 `app-api` 暴露 panel `Requests` query surface | 这能避免把 panel、consumer chat、telemetry sink 或 `apps/supervisor-api` 错当成 request list/detail truth | — Accepted on 2026-03-28 |
-| `apps/app-api` 是唯一的 product-layer auth/session/principal owner；`apps/supervisor-api` 只做 internal execution caller admission | 这能避免 execution engine 继续从 edge/header 恢复最终业务 actor，并把 product identity 明确收口在 shared app boundary | — Accepted on 2026-03-28 |
+| canonical request projection 由 shared `apps/app-api` command path 一次产出，并由 `app-api` 暴露 panel `Requests` query surface | 这能避免把 panel、consumer chat、telemetry sink 或 `apps/execution-control` 错当成 request list/detail truth | — Accepted on 2026-03-28 |
+| `apps/app-api` 是唯一的 product-layer auth/session/principal owner；`apps/execution-control` 只做 internal execution caller admission | 这能避免 execution engine 继续从 edge/header 恢复最终业务 actor，并把 product identity 明确收口在 shared app boundary | — Accepted on 2026-03-28 |
 | repo 级执行面采用原生 GSD workstream-first 多线开发；repo 总览固定写入 `.planning/WORKSTREAMS.md`，单条线状态写入 `.planning/workstreams/<slug>/STATE.md` | 当前会话已按模块边界并行推进不同工作；继续维持共享根 `STATE.md` 会让 planning 入口真相失真，也会诱导会话互相改写不相关 workstream 状态 | — Accepted on 2026-04-19 |
 | repo-wide harness engineering 必须作为独立 execution infrastructure workstream 推进，并以 vendor-neutral contract + Codex first adapter 落地；不得把产品侧 `approval_required` 或任何产品 runtime state 复用到 harness | 这条线服务的是仓库执行语义，而不是产品请求生命周期；如果把 harness 混入 product/panel/runtime state，会污染产品 contract，也会让非产品 workstream 无法复用统一执行入口 | — Accepted on 2026-04-23 |
 | `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的后续验收 / 硬化必须作为单条 `shared product surfaces` workstream 推进，固定顺序为 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance` | 三者共享同一 product backend seam 与 request projection ownership；如果拆成三个并发 workstream，容易把 backend seam defect 错判成 surface 局部问题，并继续积累局部 patch | — Accepted on 2026-04-18 |

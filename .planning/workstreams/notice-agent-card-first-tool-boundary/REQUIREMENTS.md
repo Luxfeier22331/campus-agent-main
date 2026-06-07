@@ -13,7 +13,7 @@ updated: 2026-05-01
 ## Problem
 
 当前 notice runtime 同时承载了 source-truth body access、agent tool execution 与用户侧
-answer rendering。`campus_notice_get` 在 Python notice-agent 与 Go direct runtime 中都可能把
+answer rendering。`campus_notice_get` 在 Python notice-agent 与 Go typed tool runtime 中都可能把
 `normalized_body` 直接输出给用户。这与通知产品面应默认引导用户回官方页面的目标不一致，也让
 provider/SDK loop 更容易把“按 ID 取正文”当成可自由选择的 agent-facing tool。
 

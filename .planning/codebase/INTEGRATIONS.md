@@ -40,19 +40,19 @@
 
 ## Authentication & Identity
 
-**Supervisor API bearer auth**
-- Implementation: Go `apps/supervisor-api/internal/httpapi/auth.go` enforces internal
+**Execution Control bearer auth**
+- Implementation: Go `apps/execution-control/internal/httpapi/auth.go` enforces internal
   caller auth for the execution service.
   - Credentials: `API_BEARER_TOKEN` must match the `Authorization: bearer` header; bearer mode projects the configured default actor (`API_DEFAULT_ACTOR_ID`, `API_DEFAULT_ACTOR_GROUPS`, `API_DEFAULT_ACTOR_ROLES`, `API_DEFAULT_CAMPUS_SCOPE`) instead of trusting caller-supplied actor headers.
   - Sessions are stateless per request, and actor metadata is mapped into the `ActorContext` model from `packages/contracts`.
 
 **Trusted execution caller auth**
 - Implementation: `apps/app-api` owns product identity/session projection, while Go
-  `apps/supervisor-api` verifies the internal execution caller and consumes the typed
+  `apps/execution-control` verifies the internal execution caller and consumes the typed
   actor/context projection.
 
 **Prompt runtime metadata**
-- Go `apps/supervisor-api` owns deterministic prompt admission summary, while Python
+- Go `apps/execution-control` owns deterministic prompt admission summary, while Python
   `apps/supervisor-agent-worker` and `packages/rag-agent` own provider-backed prompt
   executor construction.
 
@@ -60,7 +60,7 @@
 
 **Tracing/logging**
 - All tracing toggles are environment-driven: `TRACE_ENABLED`/`TRACE_EXPORTER` are listed in `.env.example`, and the API defaults to console logging (`TRACE_EXPORTER=console`).
-- Execution audit/metrics/readiness are owned by Go `apps/supervisor-api`; deployment
+- Execution audit/metrics/readiness are owned by Go `apps/execution-control`; deployment
   sink configuration is environment-specific.
 
 **Error tracking / analytics**
@@ -74,7 +74,7 @@
 
 **Hosting:**
 - No hosted platform is codified; the repo intentionally keeps runtime choices open (`docs/architecture/target-architecture.md` emphasizes boundary-first design).
-- Local Python package commands use `uv`; Go `apps/supervisor-api` runs through its Go
+- Local Python package commands use `uv`; Go `apps/execution-control` runs through its Go
   module / repo wrapper commands when exercising the execution service.
 
 **CI Pipeline:**
@@ -99,8 +99,8 @@
 ## Webhooks & Callbacks
 
 **Incoming:**
-- None beyond the standard HTTP routes defined in Go `apps/supervisor-api`
-  (`/api/v1/answer`, `/api/v1/answer/stream`, `/healthz`, `/readyz`, `/metrics`, and
+- None beyond the internal HTTP routes defined in Go `apps/execution-control`
+  (`/internal/execution/runs*`, `/healthz`, `/readyz`, `/metrics`, and Temporal-backed
   cancellation); no webhook signatures or event handlers are registered.
 
 **Outgoing:**

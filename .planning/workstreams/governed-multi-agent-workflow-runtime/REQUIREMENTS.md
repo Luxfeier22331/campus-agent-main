@@ -29,7 +29,7 @@ updated: 2026-05-06
 - Each agent step must consume bounded typed input projection and return bounded typed output projection.
 - Cross-agent context must be represented as `StepOutputProjection` or a compatible private workflow projection, not raw text blobs.
 - First pilot must distinguish stable baseline schedule facts, notice-derived overrides, evidence bundle, and grounding verdict.
-- Workflow trace must distinguish terminal, direct runtime, single handoff, and multi-step manager-style execution.
+- Workflow trace must distinguish terminal, typed tool runtime, single step, and multi-step manager-style execution.
 - Operator/eval projection must expose agent step summaries, projection ids, hashes, safety summaries, source refs, business outcome, and fail-close reason without raw payload leakage.
 - Provider-native function calling must stay limited to Go `allowed_tools` and ToolSpec-derived schema.
 - Agents SDK, when used in this workstream, must stay inside an already admitted workflow step and
