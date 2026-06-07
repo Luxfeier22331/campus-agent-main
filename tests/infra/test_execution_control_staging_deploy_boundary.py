@@ -125,6 +125,16 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("UV_CACHE_DIR=", core_script)
         self.assertIn('${execution_control_staging_runtime_dir}/uv', core_script)
 
+    def test_staging_lifecycle_does_not_call_uv_run_without_runtime_wrapper(self) -> None:
+        for source_path in STAGING_DIR.glob("execution-control-staging-*.sh"):
+            with self.subTest(script=source_path.name):
+                script = source_path.read_text(encoding="utf-8")
+                if source_path.name == "execution-control-staging-core.sh":
+                    wrapper_body = script.split("execution_control_staging_uv_run()", 1)[1]
+                    script = script.replace(wrapper_body, "")
+                self.assertNotIn('"${uv_bin}" run', script)
+                self.assertNotIn("uv run --all-packages", script)
+
 
 def _copy_staging_modules(target_root: Path) -> Path:
     staging_dir = target_root / "infra" / "local" / "staging"

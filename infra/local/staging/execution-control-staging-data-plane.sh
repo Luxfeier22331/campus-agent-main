@@ -88,19 +88,14 @@ execution_control_staging_ensure_local_minio_volume() {
 }
 
 execution_control_staging_ensure_local_minio_bucket() {
-  local uv_bin
   execution_control_staging_wait_for_http_ok "http://127.0.0.1:9000/minio/health/ready" 45 2
-  uv_bin="$(execution_control_staging_resolve_uv_bin)"
-  (
-    cd "${execution_control_staging_repo_root}" || exit
-    "${uv_bin}" run --all-packages python - <<'PY'
+  execution_control_staging_uv_run --all-packages python - <<'PY'
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 settings = ObjectStoreSettings.from_env()
 S3ObjectStoreAdmin(settings).ensure_bucket(bucket=settings.bucket_derived)
 PY
-  )
 }
 
 execution_control_staging_ensure_self_hosted_data_plane_dependencies() {
