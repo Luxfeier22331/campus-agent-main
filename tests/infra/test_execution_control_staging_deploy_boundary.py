@@ -79,6 +79,19 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Deploy checkout has unexpected untracked files", result.stderr)
 
+    def test_checkout_guard_rejects_ignored_python_virtualenv_artifact(self) -> None:
+        result = _run_checkout_guard(
+            mutate="""
+            printf '.venv/\\n' >> .git/info/exclude
+            mkdir .venv
+            """,
+            expected_sha="HEAD",
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Deploy checkout contains repo-local runtime artifact", result.stderr)
+        self.assertIn(".venv", result.stderr)
+
     def test_checkout_guard_rejects_repo_local_runtime_secret_files(self) -> None:
         result = _run_checkout_guard(
             mutate="""
@@ -101,6 +114,16 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("EXECUTION_CONTROL_STAGING_EXPECTED_SHA is required", result.stderr)
+
+    def test_uv_runtime_wrapper_uses_runtime_dir_for_project_environment_and_cache(self) -> None:
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("execution_control_staging_uv_run", core_script)
+        self.assertIn("UV_PROJECT_ENVIRONMENT=", core_script)
+        self.assertIn("UV_CACHE_DIR=", core_script)
+        self.assertIn('${execution_control_staging_runtime_dir}/uv', core_script)
 
 
 def _copy_staging_modules(target_root: Path) -> Path:

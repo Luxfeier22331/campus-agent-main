@@ -521,11 +521,11 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 cd /srv/apps/campus-agent
 source infra/local/staging/execution-control-staging-common.sh
 execution_control_staging_load_env >/dev/null
-uv run --all-packages python -m \
+execution_control_staging_uv_run --all-packages python -m \
   campus_ingestion_worker.collection_rename_registry_backfill audit
-uv run --all-packages python -m \
+execution_control_staging_uv_run --all-packages python -m \
   campus_ingestion_worker.collection_rename_registry_backfill apply
-uv run --all-packages python -m \
+execution_control_staging_uv_run --all-packages python -m \
   campus_ingestion_worker.collection_rename_registry_backfill audit
 ```
 
@@ -634,7 +634,10 @@ docker compose -f infra/local/docker-compose.execution-control-runtime.yml ps
 - 先跑：
 
 ```bash
-uv run --all-packages python -m scripts.doctor_env execution-control --json
+source infra/local/staging/execution-control-staging-common.sh
+execution_control_staging_load_env >/dev/null
+execution_control_staging_uv_run --all-packages \
+  python -m scripts.doctor_env execution-control --json
 ```
 
 - 再看 `supervisor-agent-worker.log` 中缺的是 prompt runtime、HTTP pool 还是 worker runtime

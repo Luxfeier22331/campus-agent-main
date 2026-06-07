@@ -235,16 +235,13 @@ execution_control_staging_require_data_plane_ready() {
 }
 
 execution_control_staging_require_registry_collection_rename_closed() {
-  local uv_bin
   local node_bin
   local audit_json
   local legacy_summary
 
-  uv_bin="$(execution_control_staging_resolve_uv_bin)"
   node_bin="$(execution_control_staging_require_command node)"
   if ! audit_json="$(
-    cd "${execution_control_staging_repo_root}" || exit
-    "${uv_bin}" run --all-packages python -m \
+    execution_control_staging_uv_run --all-packages python -m \
       campus_ingestion_worker.collection_rename_registry_backfill audit
   )"; then
     echo "execution-control staging registry collection rename audit failed." >&2
@@ -302,16 +299,13 @@ NODE
 }
 
 execution_control_staging_require_rag_runtime_ready() {
-  local uv_bin
   local node_bin
   local readiness_json
   local readiness_summary
 
-  uv_bin="$(execution_control_staging_resolve_uv_bin)"
   node_bin="$(execution_control_staging_require_command node)"
   if ! readiness_json="$(
-    cd "${execution_control_staging_repo_root}" || exit
-    "${uv_bin}" run --all-packages python -m \
+    execution_control_staging_uv_run --all-packages python -m \
       campus_ingestion_worker.probe_regulation_rag_release_runtime \
       --scope regulations/student_rules \
       --scope regulations/institutional_rules \

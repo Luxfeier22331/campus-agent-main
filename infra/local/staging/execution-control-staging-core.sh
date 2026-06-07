@@ -15,6 +15,11 @@ execution_control_staging_require_deploy_checkout_clean() {
   local tracked_status
   local untracked_status
   local untracked_offenders
+  local repo_local_runtime_artifact
+  local repo_local_runtime_artifacts=(
+    ".venv"
+    "node_modules"
+  )
   local repo_local_secret_file
   local repo_local_secret_files=(
     ".env"
@@ -59,6 +64,13 @@ execution_control_staging_require_deploy_checkout_clean() {
     for repo_local_secret_file in "${repo_local_secret_files[@]}"; do
       if [[ -e "${repo_local_secret_file}" ]]; then
         echo "Deploy checkout contains repo-local runtime secret file: ${repo_local_secret_file}. Move staging secrets to ${execution_control_staging_env_file} or Docker/ops-owned secrets." >&2
+        exit 1
+      fi
+    done
+
+    for repo_local_runtime_artifact in "${repo_local_runtime_artifacts[@]}"; do
+      if [[ -e "${repo_local_runtime_artifact}" ]]; then
+        echo "Deploy checkout contains repo-local runtime artifact: ${repo_local_runtime_artifact}. Move runtime tool state to ${execution_control_staging_runtime_dir} or another ops-owned path outside source truth." >&2
         exit 1
       fi
     done
@@ -473,11 +485,22 @@ execution_control_staging_resolve_uv_bin() {
   return 1
 }
 
-execution_control_staging_run_doctor() {
+execution_control_staging_uv_run() {
   local uv_bin
+  local uv_state_dir="${execution_control_staging_runtime_dir}/uv"
+
   uv_bin="$(execution_control_staging_resolve_uv_bin)"
+  mkdir -p "${uv_state_dir}/project" "${uv_state_dir}/cache"
   (
     cd "${execution_control_staging_repo_root}" || exit
-    "${uv_bin}" run --all-packages python -m scripts.doctor_env execution-control --json >/dev/null
+    UV_PROJECT_ENVIRONMENT="${uv_state_dir}/project/.venv" \
+    UV_CACHE_DIR="${uv_state_dir}/cache" \
+    "${uv_bin}" run "$@"
   )
+}
+
+execution_control_staging_run_doctor() {
+  execution_control_staging_uv_run \
+    --all-packages \
+    python -m scripts.doctor_env execution-control --json >/dev/null
 }
