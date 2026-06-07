@@ -203,9 +203,11 @@ func (s *Server) InvokeSemanticWorkerActivity(
 	defer bridgeCancel()
 	response, bridgeErr := s.bridge.ExecuteDurable(bridgeCtx, bridge.DurableExecutionRequest{
 		RunID:    run.RunID,
+		LeaseID:  temporalSemanticBridgeLeaseID(run.RunID),
 		StepID:   "activity:rag",
 		Lane:     string(run.Lane),
 		WorkerID: s.config.TemporalWorkerIdentity,
+		Attempt:  1,
 		Execution: bridge.Request{
 			Payload: executionRequest,
 			TraceHeaders: telemetry.InjectBridgeTraceHeaders(
@@ -287,6 +289,10 @@ func (s *Server) InvokeSemanticWorkerActivity(
 		RunID:     run.RunID,
 		Status:    "completed",
 	}, nil
+}
+
+func temporalSemanticBridgeLeaseID(runID string) string {
+	return "temporal:" + strings.TrimSpace(runID) + ":semantic.rag"
 }
 
 func (s *Server) FinalizeChatAnswerActivity(

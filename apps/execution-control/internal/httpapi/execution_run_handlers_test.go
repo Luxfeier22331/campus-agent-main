@@ -552,6 +552,65 @@ func TestInvokeSemanticWorkerActivityTimeoutProjectsFailedRun(t *testing.T) {
 	}
 }
 
+func TestInvokeSemanticWorkerActivityBindsTemporalDurableWorkItem(t *testing.T) {
+	store := execution.NewInMemoryDurableRuntimeStore()
+	var seen bridge.DurableExecutionRequest
+	server := NewServer(config.Config{
+		BridgeTimeoutMS:        500,
+		TemporalWorkerIdentity: "test:rag:worker",
+	}, &fakeBridge{
+		configured: true,
+		executeDurableFn: func(_ context.Context, request bridge.DurableExecutionRequest) (bridge.ExecuteResponse, error) {
+			seen = request
+			return durableWorkerBridgeResponseForTest(), nil
+		},
+	})
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-temporal-work-item",
+		"conv-temporal-work-item",
+		now,
+		ragHandoffForDurableWorkerTest("hello"),
+	)
+	plan, err := server.PlanChatAnswerActivity(context.Background(), temporalruntime.PlanChatAnswerActivityInput{
+		ConversationID: "conv-temporal-work-item",
+		Namespace:      "campus-agent-test",
+		PayloadSHA256:  "hash",
+		RequestID:      "req-run-temporal-work-item",
+		RunID:          "run-temporal-work-item",
+		TraceID:        "trace-executor-001",
+		TurnID:         "turn-run-temporal-work-item",
+		WorkflowID:     "campus-agent.chat.run-temporal-work-item",
+	})
+	if err != nil {
+		t.Fatalf("plan activity: %v", err)
+	}
+
+	if _, err := server.InvokeSemanticWorkerActivity(
+		context.Background(),
+		temporalruntime.InvokeSemanticWorkerActivityInput{
+			PlanRef: plan.PlanRef,
+			RunID:   "run-temporal-work-item",
+			TraceID: "trace-executor-001",
+		},
+	); err != nil {
+		t.Fatalf("semantic activity: %v", err)
+	}
+
+	if seen.LeaseID != "temporal:run-temporal-work-item:semantic.rag" {
+		t.Fatalf("durable work item lease id = %q", seen.LeaseID)
+	}
+	if seen.StepID != "activity:rag" {
+		t.Fatalf("durable work item step id = %q", seen.StepID)
+	}
+	if seen.Attempt != 1 {
+		t.Fatalf("durable work item attempt = %d", seen.Attempt)
+	}
+}
+
 func TestSemanticActivityFailureFailsClosedWhenStepProjectionWriteFails(t *testing.T) {
 	baseStore := execution.NewInMemoryDurableRuntimeStore()
 	projectionStore := failingStepProjectionStore{InMemoryDurableRuntimeStore: baseStore}
