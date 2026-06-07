@@ -68,16 +68,18 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 	case RoleWorkflow:
 		return temporalruntime.NewWorkflowWorker(temporalClient, cfg.TemporalTaskQueue), nil
 	case RoleRAG:
+		server := newActivityServer(cfg)
 		return temporalruntime.NewRAGActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueRAG,
-			newActivityServer(cfg),
+			server.TemporalRAGActivities(),
 		), nil
 	case RoleFinalization:
+		server := newActivityServer(cfg)
 		return temporalruntime.NewFinalizationActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueFinalization,
-			newActivityServer(cfg),
+			server.TemporalFinalizationActivities(),
 		), nil
 	default:
 		return nil, fmt.Errorf("unsupported worker role %q", role)

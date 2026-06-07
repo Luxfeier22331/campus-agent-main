@@ -50,6 +50,43 @@ func (s *Server) TemporalWorkerActivities() any {
 	return s
 }
 
+type TemporalRAGActivities struct {
+	server *Server
+}
+
+func (s *Server) TemporalRAGActivities() TemporalRAGActivities {
+	return TemporalRAGActivities{server: s}
+}
+
+func (a TemporalRAGActivities) PlanChatAnswerActivity(
+	ctx context.Context,
+	input temporalruntime.PlanChatAnswerActivityInput,
+) (temporalruntime.PlanChatAnswerActivityOutput, error) {
+	return a.server.PlanChatAnswerActivity(ctx, input)
+}
+
+func (a TemporalRAGActivities) InvokeSemanticWorkerActivity(
+	ctx context.Context,
+	input temporalruntime.InvokeSemanticWorkerActivityInput,
+) (temporalruntime.InvokeSemanticWorkerActivityOutput, error) {
+	return a.server.InvokeSemanticWorkerActivity(ctx, input)
+}
+
+type TemporalFinalizationActivities struct {
+	server *Server
+}
+
+func (s *Server) TemporalFinalizationActivities() TemporalFinalizationActivities {
+	return TemporalFinalizationActivities{server: s}
+}
+
+func (a TemporalFinalizationActivities) FinalizeChatAnswerActivity(
+	ctx context.Context,
+	input temporalruntime.FinalizeChatAnswerActivityInput,
+) (temporalruntime.FinalizeChatAnswerActivityOutput, error) {
+	return a.server.FinalizeChatAnswerActivity(ctx, input)
+}
+
 func (s *Server) MarkTemporalWorkersStarted(started bool) {
 	s.temporalWorkersStarted = started
 }
