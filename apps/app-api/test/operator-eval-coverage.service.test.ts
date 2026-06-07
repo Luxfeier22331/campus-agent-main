@@ -242,7 +242,7 @@ describe("operator eval coverage service", () => {
 			service.ingestEvalCoverageSnapshot({
 				payload: {
 					...snapshot,
-					path: ".planning/workstreams/eval/evidence/raw.json",
+					path: "var/eval-evidence/raw.json",
 				},
 			}),
 		).rejects.toMatchObject({
