@@ -126,6 +126,10 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("!packages/prompt-runtime/**", dockerignore)
         self.assertIn("!packages/regulation-semantics/", dockerignore)
         self.assertIn("!packages/regulation-semantics/**", dockerignore)
+        self.assertIn('traefik.enable: "true"', compose)
+        self.assertIn("execution-control-staging.internal.mucwiki-edge.link", compose)
+        self.assertIn("EXECUTION_CONTROL_PROXY_NETWORK", compose)
+        self.assertIn("name: ${EXECUTION_CONTROL_PROXY_NETWORK:-proxy}", compose)
 
     def test_local_temporal_proof_script_does_not_replace_public_staging_gate(self) -> None:
         proof_script = (
