@@ -65,6 +65,7 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "execution_control_staging_require_isolated_temporal_proof_runtime", env_script
         )
         self.assertIn("EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME", env_script)
+        self.assertIn("EXECUTION_CONTROL_STAGING_HOST", env_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_PORT", env_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_RUNTIME_DIR", env_script)
         self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET is required", env_script)
@@ -100,6 +101,10 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         )
         self.assertIn(
             'EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL="${EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL',
+            core_script,
+        )
+        self.assertIn(
+            'EXECUTION_CONTROL_HOST_PORT="${execution_control_staging_host}:${execution_control_staging_port}"',
             core_script,
         )
         self.assertNotIn(

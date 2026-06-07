@@ -278,7 +278,7 @@ execution_control_staging_compose() {
   (
     cd "${execution_control_staging_repo_root}" || exit
     COMPOSE_PROJECT_NAME="${execution_control_staging_compose_project_name}" \
-    EXECUTION_CONTROL_HOST_PORT="${execution_control_staging_port}" \
+    EXECUTION_CONTROL_HOST_PORT="${execution_control_staging_host}:${execution_control_staging_port}" \
     CAMPUS_AGENT_DATA_PLANE_NETWORK="${execution_control_staging_data_plane_network}" \
     EXECUTION_CONTROL_RUNTIME_PROFILE=staging \
     API_AUTH_MODE=trusted-worker \

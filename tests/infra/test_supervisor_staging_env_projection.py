@@ -96,6 +96,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
             )
         )
         self.assertNotIn("durable-staging", projected["EXECUTION_CONTROL_STAGING_RUNTIME_DIR"])
+        self.assertEqual(projected["EXECUTION_CONTROL_STAGING_HOST"], "127.0.0.1")
         self.assertEqual(projected["EXECUTION_CONTROL_STAGING_PORT"], "27051")
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED", projected)
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED", projected)
@@ -146,6 +147,53 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
             "Canonical execution-control staging compose project must be campus-execution-control-staging",
+            result.stderr,
+        )
+
+    def test_canonical_staging_rejects_non_loopback_execution_control_host(self) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env=textwrap.dedent(
+                """
+                STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
+                STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw-registry@staging-raw-registry.example.com:5432/campus_agent
+                STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://s3.staging.example.com
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access
+                STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
+                STAGING_INGESTION_OBJECT_STORE_REGION=auto
+                STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+                STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
+                STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
+                STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
+                STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
+                STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
+                STAGING_INGESTION_SPARSE_PROVIDER=qdrant
+                STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
+                STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
+                STAGING_INGESTION_SPARSE_LANGUAGE=none
+                EXECUTION_CONTROL_STAGING_HOST=0.0.0.0
+                EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
+                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+                EXECUTION_CONTROL_SHARED_SECRET=worker-secret
+                SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
+                EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
+                TEMPORAL_POSTGRES_PASSWORD=temporal-password
+                EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
+                EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
+                EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow
+                EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
+                EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
+                EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
+                """
+            ).strip(),
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Canonical execution-control staging host must be 127.0.0.1",
             result.stderr,
         )
 

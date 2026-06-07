@@ -140,6 +140,7 @@ const keys = [
   "EXECUTION_CONTROL_STAGING_UV_BIN",
   "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME",
   "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
+  "EXECUTION_CONTROL_STAGING_HOST",
   "EXECUTION_CONTROL_STAGING_PORT",
 ];
 
@@ -666,6 +667,7 @@ NODE
   execution_control_staging_refresh_runtime_topology_from_env
   export EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME="${execution_control_staging_compose_project_name}"
   export EXECUTION_CONTROL_STAGING_RUNTIME_DIR="${execution_control_staging_runtime_dir}"
+  export EXECUTION_CONTROL_STAGING_HOST="${execution_control_staging_host}"
   export EXECUTION_CONTROL_STAGING_PORT="${execution_control_staging_port}"
   execution_control_staging_ensure_runtime_dirs
 
@@ -740,6 +742,10 @@ execution_control_staging_require_canonical_runtime_topology() {
   fi
   if [[ "${execution_control_staging_runtime_dir}" != "${execution_control_staging_repo_root}/.tmp/execution-control-staging" ]]; then
     echo "Canonical execution-control staging runtime dir must be ${execution_control_staging_repo_root}/.tmp/execution-control-staging." >&2
+    return 1
+  fi
+  if [[ "${execution_control_staging_host}" != "127.0.0.1" ]]; then
+    echo "Canonical execution-control staging host must be 127.0.0.1." >&2
     return 1
   fi
   if [[ "${execution_control_staging_port}" != "27051" ]]; then
