@@ -2,12 +2,13 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { SupervisorDurableRuntimeClient } from "../src/modules/integration/supervisor";
-import { SupervisorTransportError } from "../src/modules/integration/supervisor";
+import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
+import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
 import {
 	answerResponsePayload,
 	durableEvent,
 	durableRun,
+	emptyRunStepTrajectory,
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
@@ -29,10 +30,10 @@ describe("chat command durable runtime cutover", () => {
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
 			generateId: createDeterministicIdGenerator(),
-			isDurableRuntimeConfigured: false,
+			isExecutionRuntimeConfigured: false,
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
-			requireDurableRuntime: true,
+			requireExecutionRuntime: true,
 			store,
 			supervisor,
 		});
@@ -48,7 +49,7 @@ describe("chat command durable runtime cutover", () => {
 				surface: "public_chat_web",
 			}),
 		).rejects.toMatchObject({
-			code: "durable_runtime_required",
+			code: "execution_runtime_required",
 			retryable: true,
 			status: 503,
 		});
@@ -70,7 +71,7 @@ describe("chat command durable runtime cutover", () => {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
-			requireDurableRuntime: true,
+			requireExecutionRuntime: true,
 			store,
 			supervisor,
 		});
@@ -88,7 +89,7 @@ describe("chat command durable runtime cutover", () => {
 				throw new Error("stream should fail before emitting events");
 			}
 		}).rejects.toMatchObject({
-			code: "durable_runtime_required",
+			code: "execution_runtime_required",
 			retryable: true,
 			status: 503,
 		});
@@ -105,10 +106,10 @@ describe("chat command durable runtime cutover", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
-				new SupervisorTransportError({
+				new ExecutionControlTransportError({
 					code: "dependency_not_ready",
 					message: "Supervisor durable runtime is not configured.",
 					retryable: true,
@@ -117,15 +118,16 @@ describe("chat command durable runtime cutover", () => {
 			),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
-			isDurableRuntimeConfigured: false,
+			isExecutionRuntimeConfigured: false,
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
-			requireDurableRuntime: true,
+			requireExecutionRuntime: true,
 			store,
 			supervisor,
 		});
@@ -141,12 +143,12 @@ describe("chat command durable runtime cutover", () => {
 				surface: "public_chat_web",
 			}),
 		).rejects.toMatchObject({
-			code: "durable_runtime_required",
+			code: "execution_runtime_required",
 			retryable: true,
 			status: 503,
 		});
 
-		expect(durableRuntime.createRun).not.toHaveBeenCalled();
+		expect(executionRuntime.createRun).not.toHaveBeenCalled();
 		expect(acceptedWrites).toHaveLength(0);
 		expect(finalWrites).toHaveLength(0);
 		expect(supervisor.execute).not.toHaveBeenCalled();
@@ -159,7 +161,7 @@ describe("chat command durable runtime cutover", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
@@ -223,10 +225,11 @@ describe("chat command durable runtime cutover", () => {
 					visibility: "browser",
 				},
 			]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -249,8 +252,8 @@ describe("chat command durable runtime cutover", () => {
 			surface: "public_chat_web",
 		});
 
-		expect(durableRuntime.createRun).toHaveBeenCalledOnce();
-		const createRunInput = (durableRuntime.createRun as ReturnType<typeof vi.fn>).mock
+		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
+		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0];
 		const metadata = createRunInput?.metadata as Record<string, unknown>;
 		const executionPayload = metadata.execution_payload as Record<string, unknown>;
@@ -349,7 +352,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(workflowPlan).toMatchObject({
 			allowed_agents: ["rag-agent"],
 			edges: [],
-			plan_id: "plan:single_handoff:rag-agent:rag_request",
+			plan_id: "plan:single_step:rag-agent:rag_request",
 			schema_version: "workflow-plan-v1",
 			steps: [
 				{
@@ -361,9 +364,9 @@ describe("chat command durable runtime cutover", () => {
 					target: "rag-agent",
 				},
 			],
-			workflow_mode: "single_handoff",
+			workflow_mode: "single_step",
 		});
-		expect(durableRuntime.createRun).toHaveBeenCalledWith({
+		expect(executionRuntime.createRun).toHaveBeenCalledWith({
 			conversationId: "conv_01HQ",
 			lane: "rag",
 			metadata: expect.objectContaining({
@@ -439,7 +442,7 @@ describe("chat command durable runtime cutover", () => {
 			},
 		});
 		expect(supervisor.execute).not.toHaveBeenCalled();
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
@@ -466,15 +469,16 @@ describe("chat command durable runtime cutover", () => {
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -497,7 +501,7 @@ describe("chat command durable runtime cutover", () => {
 			status: 422,
 		});
 
-		expect(durableRuntime.createRun).not.toHaveBeenCalled();
+		expect(executionRuntime.createRun).not.toHaveBeenCalled();
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(acceptedWrites).toHaveLength(0);
 		expect(finalWrites).toHaveLength(0);
@@ -532,11 +536,12 @@ describe("chat command durable runtime cutover", () => {
 					sequence: 2,
 				}),
 			]);
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),
 			listRunEvents,
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -545,7 +550,7 @@ describe("chat command durable runtime cutover", () => {
 				pollIntervalMs: 0,
 				sleep: vi.fn(async () => undefined),
 			},
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,

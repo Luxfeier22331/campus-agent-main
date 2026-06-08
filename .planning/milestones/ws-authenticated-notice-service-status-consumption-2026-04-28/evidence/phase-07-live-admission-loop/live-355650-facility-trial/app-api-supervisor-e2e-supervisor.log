@@ -1,2 +1,0 @@
-{"time":"2026-04-28T11:22:42.321199074+08:00","level":"INFO","msg":"campus supervisor-api listening","address":"127.0.0.1:19089"}
-{"time":"2026-04-28T11:22:44.716177381+08:00","level":"INFO","msg":"supervisor_api.answer_request","route":"/api/v1/answer","trace_id":"trace_0001","status_code":200,"outcome":"supervisor_response","duration_ms":10}

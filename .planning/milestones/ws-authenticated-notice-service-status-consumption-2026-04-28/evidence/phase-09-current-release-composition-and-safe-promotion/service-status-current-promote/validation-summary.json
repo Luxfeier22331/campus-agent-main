@@ -1,9 +1,0 @@
-{
-  "schema_version": "service_status_projection_validation_report.v1",
-  "valid": true,
-  "issues": [],
-  "counts": {
-    "service_status_records": 2,
-    "rejected_sources": 5
-  }
-}

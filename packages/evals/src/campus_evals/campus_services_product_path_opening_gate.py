@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Protocol
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
+EXECUTION_CONTROL_DIR = REPO_ROOT / "apps" / "execution-control"
 DEFAULT_REPORT_NAME = "campus-services-product-path-opening-gate.json"
 DEFAULT_SCHEMA_VERSION = "campus_services_product_path_opening_gate.v2"
 DEFAULT_GATE_ID = "campus_services_product_path"
@@ -272,7 +272,7 @@ def run_campus_services_product_path_opening_gate(
             check_id="supervisor_go_structured_runtime_tests",
             command=_supervisor_go_structured_runtime_command(),
             command_runner=command,
-            cwd=SUPERVISOR_API_DIR,
+            cwd=EXECUTION_CONTROL_DIR,
         ),
         _run_command_check(
             check_id="campus_services_agent_adapter_tests",

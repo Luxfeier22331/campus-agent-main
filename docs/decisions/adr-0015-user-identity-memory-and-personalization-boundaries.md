@@ -40,7 +40,7 @@ Accepted on 2026-03-28.
 - canonical app identity 由 `apps/app-api` 拥有
 - browser cookie、Access JWT、Worker admission 或 edge trust material 只属于
   runtime-boundary input
-- `apps/supervisor-api`、`apps/supervisor-agent-worker`、`packages/rag-agent` 只消费
+- `apps/execution-control`、`apps/supervisor-agent-worker`、`packages/rag-agent` 只消费
   `app-api` 投影后的 typed actor context
 
 这意味着：
@@ -95,7 +95,7 @@ Accepted on 2026-03-28.
 
 ## 决策 4：跨边界只传 typed projection，不传 raw state
 
-`app-api -> supervisor-api -> agent` 链路默认只允许传递最小化、结构化的上下文投影。
+`app-api -> execution-control -> agent` 链路默认只允许传递最小化、结构化的上下文投影。
 
 长期默认允许的内容包括：
 
@@ -180,7 +180,7 @@ Accepted on 2026-03-28.
   memory telemetry 的最小化规则
 - `docs/decisions/adr-0004-evaluation-metrics.md` 负责 personalization / memory /
   authorization 相关 gate 指标
-- `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md` 负责某一轮
+- `.planning/WORKSTREAMS.md` 与 `GSD SDK / Codex native session state` 负责某一轮
   identity / authorization / memory / personalization 实现波次、文件落点与验收标准
 
 ## 结果

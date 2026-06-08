@@ -36,12 +36,7 @@ export const SUPERVISOR_STATUSES = [
 	"approval_required",
 	"cancelled",
 ] as const;
-export const WORKFLOW_MODES = [
-	"terminal",
-	"direct_runtime",
-	"single_handoff",
-	"multi_step",
-] as const;
+export const WORKFLOW_MODES = ["terminal", "single_step", "multi_step"] as const;
 export const STEP_OUTPUT_PROJECTION_KINDS = [
 	"notice_context",
 	"notice_change_set",

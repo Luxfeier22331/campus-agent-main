@@ -156,4 +156,4 @@ future guidance 存在，但它们只在 future default-query admission 时生�
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
 - `docs/reference/internal-notice-manual-review-future-query-contract.md`
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `git history authenticated-notice regulation consumption workstream`

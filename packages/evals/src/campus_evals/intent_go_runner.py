@@ -14,7 +14,7 @@ from campus_evals.intent_runner import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
+EXECUTION_CONTROL_DIR = REPO_ROOT / "apps" / "execution-control"
 DEFAULT_GO_RUNNER_COMMAND = ("go", "run", "./cmd/intent-eval-runner")
 
 
@@ -24,7 +24,7 @@ def run_intent_cases_with_go(
     command: Sequence[str] = DEFAULT_GO_RUNNER_COMMAND,
 ) -> IntentEvalReport:
     output = _run_go_runner(cases, command=command)
-    if output.get("runner") != "supervisor-api-go":
+    if output.get("runner") != "execution-control-go":
         raise RuntimeError(f"unexpected intent runner: {output.get('runner')}")
     raw_results = output.get("results")
     if not isinstance(raw_results, list):
@@ -49,7 +49,7 @@ def _run_go_runner(
     payload = {"cases": [_case_payload(case) for case in cases]}
     completed = subprocess.run(
         tuple(command),
-        cwd=SUPERVISOR_API_DIR,
+        cwd=EXECUTION_CONTROL_DIR,
         input=json.dumps(payload, ensure_ascii=False),
         text=True,
         capture_output=True,
@@ -146,6 +146,6 @@ def _string_tuple(value: object) -> tuple[str, ...]:
 
 __all__ = [
     "DEFAULT_GO_RUNNER_COMMAND",
-    "SUPERVISOR_API_DIR",
+    "EXECUTION_CONTROL_DIR",
     "run_intent_cases_with_go",
 ]

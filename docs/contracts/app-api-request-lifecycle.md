@@ -15,7 +15,7 @@ updated: 2026-06-04
 
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - internal eval ingress contract：`docs/contracts/app-api-eval-benchmark-http.md`
-- `app-api -> supervisor-api`
+- `app-api -> execution-control`
   契约：`docs/contracts/app-api-supervisor-execution.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
@@ -32,7 +32,7 @@ updated: 2026-06-04
 1. 生成 canonical `requestId` 与 `traceId`
 1. 在同库 command boundary durable 写入 `runtime.request_execution` 与首个
    `runtime.projection_outbox` 事件
-1. 调用 `apps/supervisor-api`
+1. 调用 `apps/execution-control`
 1. 写回最终 execution outcome，并追加最终 `runtime.projection_outbox` 事件
 1. projector 在同一 `app-api` boundary 内物化 `operator.request_projection`
 1. panel 只通过 `GET /api/operator/requests*` 读取 projection
@@ -95,7 +95,7 @@ updated: 2026-06-04
 `running` / `queued` 不写入 `runtime.request_execution.status`；它们只作为 lifecycle
 stream event 暴露给当前浏览器请求。
 
-Forward durable runtime 说明：
+Forward run projection 说明：
 
 - 最终 production execution status 不再由 `runtime.request_execution.status` 单独承载
 - answer-level execution truth 迁移到 durable `Run`
@@ -140,21 +140,20 @@ Forward durable runtime 说明：
 
 - `status=accepted`
 - 已记录 `requestId`、`traceId`
-- durable runtime cutover 后，已记录 durable `runId`
+- run projection cutover 后，已记录 durable `runId`
 - 已绑定 conversation / verified actor projection / requested scope
 
-当前兼容说明：
+当前说明：
 
-- cutover 前旧同步 `/api/v1/answer` 路径的 `runtime.request_execution.run_id`
-  可以为空
-- durable chat 主路径启用后，`run_id` 不得通过 diagnostics、projection payload 或
+- active chat 主路径启用后，`run_id` 不得通过 diagnostics、projection payload 或
   telemetry sink 间接承载；必须写入 `runtime.request_execution.run_id`
-- 当前 durable cutover 进度：`POST /api/chat/requests` 与
-  `POST /api/chat/requests/stream` 均在 app-api accept 后创建 supervisor durable
-  run，并将真实 `run_id` 写入 accepted / finalized
-  `runtime.request_execution`；blocking 与 stream final answer commit 均从
-  supervisor durable `finalization.completed` run event payload 产出。
-- durable stream path 的 `request.accepted` 必须在 supervisor durable run create
+- 当前 cutover 进度：`POST /api/chat/requests` 与
+  `POST /api/chat/requests/stream` 均在 app-api accept 后通过
+  `execution-control` 创建 Temporal-backed execution run，并将真实 `run_id`
+  写入 accepted / finalized `runtime.request_execution`；blocking 与 stream final
+  answer commit 均从 sanitized run projection / `finalization.completed` event
+  payload 产出。
+- durable stream path 的 `request.accepted` 必须在 execution run create
   成功后发送；浏览器连接断开不得取消 app-api finalization closeout。
 - `runtime.request_execution` finalization 只允许从 `status=accepted` 原子推进到
   terminal status；如果 request 已经被 finalized、取消或处于其他状态，finalization
@@ -173,7 +172,7 @@ Forward durable runtime 说明：
 
 ### Step 3: Execute
 
-在真正调用 `apps/supervisor-api` 之前，`app-api` 允许运行 repo-owned pre-execution
+在真正调用 `apps/execution-control` 之前，`app-api` 允许运行 repo-owned pre-execution
 fail-close checks。
 
 当前 contract 冻结为：
@@ -192,22 +191,20 @@ fail-close checks。
   - `status=rejected`
   - `error_code=rate_limit_exceeded`
   - chat-visible result 继续走既有 `error` kind
-- 这类 precheck reject 不调用 `apps/supervisor-api`
+- 这类 precheck reject 不调用 `apps/execution-control`
 
-`app-api` 使用内部 execution contract 调用 `apps/supervisor-api`。当前 submit path 会先创建
-durable run；随后最终 answer 仍由同步 `/api/v1/answer` 产出。产品级 lifecycle
-streaming 当前仍使用 `/api/v1/answer/stream`，但 browser 只消费 `app-api` 自己的
-`POST /api/chat/requests/stream` contract。后续 cutover 必须把 terminal answer 与 streaming
-迁移到 durable `run_events`，不得用旧 lifecycle stream 反推 durable truth。
+`app-api` 使用内部 execution contract 调用 `apps/execution-control`。当前 submit path
+只调用 `POST /internal/execution/runs` 启动 Temporal workflow；终端 answer 与 streaming
+均由 sanitized projection / run events 驱动，不调用 retired legacy answer transport。
 
 该调用：
 
 - 不暴露给 browser
-- 不把 supervisor-api 的 raw SSE event 直接暴露给 browser
+- 不把 execution-control / Temporal raw event 直接暴露给 browser
 - 不回写 panel projection
 - 只返回 typed execution outcome
 - forward deploy substrate 已冻结为 Docker-first internal execution service；当前 execution
-  origin 必须指向 Go `apps/supervisor-api`，而不是 Python private bridge worker
+  origin 必须指向 Go `apps/execution-control`，而不是 Python private bridge worker
 
 ### Step 4: Finalize
 
@@ -255,7 +252,7 @@ streaming 当前仍使用 `/api/v1/answer/stream`，但 browser 只消费 `app-a
 - `execution.completed` 且 semantic result 为 `needs_clarification` /
   `no_answer` 时，产品 SSE 仍用 `request.completed`，并在 `data.status` 与
   `data.answer.result.kind` 中表达语义分支
-- browser 不直连 `apps/supervisor-api`，也不消费 raw `execution.started` /
+- browser 不直连 `apps/execution-control`，也不消费 raw `execution.started` /
   `execution.completed` internal event
 
 ### Session Slot Finalize Rule
@@ -328,7 +325,7 @@ operator.request_projection`
 - chat response 可以先成功返回
 - panel list/detail 可以短时间内看不到刚完成的请求
 - 这不是让 panel 反查 `runtime.request_execution`、JSONL audit、telemetry sink 或
-  `apps/supervisor-api` 的理由
+  `apps/execution-control` 的理由
 
 ## Idempotency Rule
 

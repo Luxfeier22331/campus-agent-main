@@ -36,7 +36,7 @@
 			"answer_eligible": true,
 			"requires_grounding": true,
 			"freshness_policy": "selected_notice_current",
-			"allowed_consumers": ["rag-agent", "supervisor-api-finalizer"],
+			"allowed_consumers": ["rag-agent", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_html", "raw_ocr_dump", "object_locator"],
 			"notes": "Internal selected notice context; campus_notice_get remains agent-internal."
 		},
@@ -51,7 +51,7 @@
 			"answer_eligible": true,
 			"requires_grounding": true,
 			"freshness_policy": "effective_notice_window",
-			"allowed_consumers": ["campus-services-agent", "rag-agent", "supervisor-api-finalizer"],
+			"allowed_consumers": ["campus-services-agent", "rag-agent", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_html", "raw_ocr_dump", "object_locator"],
 			"notes": "Bounded transport notice override artifact produced from admitted notice/runtime truth."
 		},
@@ -66,7 +66,7 @@
 			"answer_eligible": true,
 			"requires_grounding": false,
 			"freshness_policy": "current_release",
-			"allowed_consumers": ["rag-agent", "supervisor-api-finalizer"],
+			"allowed_consumers": ["rag-agent", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_sql", "object_locator"],
 			"notes": "Stable route/schedule baseline; temporary changes must come from NoticeChangeSet."
 		},
@@ -81,7 +81,7 @@
 			"answer_eligible": true,
 			"requires_grounding": false,
 			"freshness_policy": "current_or_temporal",
-			"allowed_consumers": ["supervisor-api-finalizer", "rag-agent"],
+			"allowed_consumers": ["execution-control-finalizer", "rag-agent"],
 			"forbidden_raw_payload_keys": ["raw_sql", "object_locator"],
 			"notes": "Current/open/closed/temporary status facts; contract enum and Go constructor still need promotion."
 		},
@@ -96,7 +96,7 @@
 			"answer_eligible": true,
 			"requires_grounding": false,
 			"freshness_policy": "current_release",
-			"allowed_consumers": ["supervisor-api-finalizer", "rag-agent"],
+			"allowed_consumers": ["execution-control-finalizer", "rag-agent"],
 			"forbidden_raw_payload_keys": ["raw_sql", "object_locator"],
 			"notes": "Present in shared execution contract enum and AgentSpec, but not yet constructed by Go execution runtime."
 		},
@@ -111,7 +111,7 @@
 			"answer_eligible": true,
 			"requires_grounding": false,
 			"freshness_policy": "current_release",
-			"allowed_consumers": ["supervisor-api-finalizer", "rag-agent"],
+			"allowed_consumers": ["execution-control-finalizer", "rag-agent"],
 			"forbidden_raw_payload_keys": ["raw_sql", "object_locator"],
 			"notes": "Contact facts are not yet a workflow projection kind."
 		},
@@ -126,7 +126,7 @@
 			"answer_eligible": true,
 			"requires_grounding": false,
 			"freshness_policy": "current_or_academic_year",
-			"allowed_consumers": ["supervisor-api-finalizer", "rag-agent"],
+			"allowed_consumers": ["execution-control-finalizer", "rag-agent"],
 			"known_aliases": ["calendar_fact"],
 			"forbidden_raw_payload_keys": ["raw_sql", "object_locator", "raw_ocr_dump"],
 			"notes": "AgentSpec currently uses calendar_fact; Phase 2 must normalize or explicitly alias it."
@@ -142,7 +142,7 @@
 			"answer_eligible": true,
 			"requires_grounding": false,
 			"freshness_policy": "current_release",
-			"allowed_consumers": ["campus-services-agent", "supervisor-api-finalizer"],
+			"allowed_consumers": ["campus-services-agent", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_sql", "object_locator"],
 			"notes": "Navigation agent remains closed for current product runtime; artifact is contract-only."
 		},
@@ -157,7 +157,7 @@
 			"answer_eligible": true,
 			"requires_grounding": true,
 			"freshness_policy": "query_mode_bound",
-			"allowed_consumers": ["rag-agent", "supervisor-api-finalizer"],
+			"allowed_consumers": ["rag-agent", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["retrieval_backend_dump", "raw_response", "object_locator"],
 			"notes": "Bounded evidence summary only; raw snippets and backend dumps remain forbidden."
 		},
@@ -172,7 +172,7 @@
 			"answer_eligible": false,
 			"requires_grounding": false,
 			"freshness_policy": "derived_from_evidence_bundle",
-			"allowed_consumers": ["supervisor-api-finalizer"],
+			"allowed_consumers": ["execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_prompt", "raw_transcript", "provider_trace"],
 			"notes": "Verdict controls finalization; it is not answer-bearing evidence by itself."
 		}

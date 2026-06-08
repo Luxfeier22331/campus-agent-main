@@ -640,7 +640,7 @@ describe("request projection projector", () => {
 			),
 			listPendingEvents: vi.fn().mockResolvedValue([
 				createPendingEvent({
-					eventId: "supervisor-api:req_01HQ:execution.bridge_failed",
+					eventId: "execution-control:req_01HQ:execution.bridge_failed",
 					eventType: "execution.bridge_failed",
 					payload: {
 						bridgeDurationMs: 35000,
@@ -673,7 +673,7 @@ describe("request projection projector", () => {
 
 		expect(store.upsertAuditProjection).toHaveBeenCalledWith(
 			expect.objectContaining({
-				auditEventId: "supervisor-api:req_01HQ:execution.bridge_failed",
+				auditEventId: "execution-control:req_01HQ:execution.bridge_failed",
 				diagnostics: {
 					aclAnomalyCode: null,
 					bridgeDurationMs: 35000,

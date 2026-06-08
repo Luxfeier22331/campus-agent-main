@@ -106,7 +106,7 @@ class IntentEvalRunnerTest(unittest.TestCase):
     def test_run_intent_cases_reports_context_resolution_metrics(self) -> None:
         report = run_intent_cases(
             intent_context_follow_up_cases(),
-            runner="supervisor-api-go",
+            runner="execution-control-go",
         )
 
         self.assertGreaterEqual(report.total, 3)

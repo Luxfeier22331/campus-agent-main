@@ -49,7 +49,7 @@ protected panel 已经被长期文档冻结为：
 
 原因：
 
-- `apps/supervisor-api`、ingestion、agent 与其他 app boundary 仍有各自 runtime shape
+- `apps/execution-control`、ingestion、agent 与其他 app boundary 仍有各自 runtime shape
 - panel runtime freeze 不应反向扩大成仓库级单一 runtime 承诺
 
 ## 决策 3：UI shell 优先采用开源 admin framework 改造
@@ -125,7 +125,7 @@ panel 长期功能域固定为：
 - 不做数据库控制台
 - 不做对象存储/索引控制台
 - 不做任意 shell / SQL / 内部 API 代理
-- 不把 panel 做成 `apps/supervisor-api` hidden admin mode
+- 不把 panel 做成 `apps/execution-control` hidden admin mode
 - 不为 panel 打开 `packages/*` 直连路径
 
 ## 后果

@@ -27,8 +27,7 @@ updated: 2026-04-24
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
 - `var/ingestion-evidence/authenticated-notice-regulation-consumption/README.md`
-- `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery
-  .md`
+- git history archived file-release owner recovery plan
 
 ## Institution-Wide Current Target
 

@@ -31,7 +31,7 @@ from campus_evals.official_web_selected_write_tool_readiness_audit import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
+EXECUTION_CONTROL_DIR = REPO_ROOT / "apps" / "execution-control"
 DEFAULT_REPORT_NAME = "contact-directory-lookup-release-gate.json"
 DEFAULT_GENERATED_AT = "2026-04-27T00:00:00+08:00"
 DEFAULT_RELEASE_ID = "contact-directory-lookup-release-gate"
@@ -242,7 +242,7 @@ def run_contact_directory_lookup_release_gate(
             check_id="supervisor_go_contact_directory_tests",
             command=SUPERVISOR_GO_CONTACT_DIRECTORY_TEST_COMMAND,
             command_runner=resolved_command_runner,
-            cwd=SUPERVISOR_API_DIR,
+            cwd=EXECUTION_CONTROL_DIR,
         ),
         _run_command_check(
             check_id="campus_services_agent_contract_tests",
@@ -384,7 +384,7 @@ def _run_command_check(
 
 
 def _run_intent_cases(cases: tuple[IntentCase, ...]) -> IntentEvalReport:
-    return run_intent_cases(cases, runner="supervisor-api-go")
+    return run_intent_cases(cases, runner="execution-control-go")
 
 
 def _run_command(command: tuple[str, ...], *, cwd: Path | None = None) -> CommandResult:

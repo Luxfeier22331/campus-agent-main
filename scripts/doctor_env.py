@@ -245,7 +245,7 @@ def _collect_surface_conditions(
     settings: dict[str, dict[str, dict[str, object]]],
     postgres: dict[str, object],
 ) -> dict[str, dict[str, object]]:
-    if surface != "supervisor-api":
+    if surface != "execution-control":
         return {}
 
     conditions: dict[str, dict[str, object]] = {}
@@ -255,13 +255,13 @@ def _collect_surface_conditions(
         isinstance(shared_postgres_status, dict) and shared_postgres_status.get("present")
     )
 
-    execution_audit_enabled = read_bool_env(env, "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED")
+    execution_audit_enabled = read_bool_env(env, "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED")
     audit_missing: list[str] = []
     if execution_audit_enabled:
         if not _setting_present(optional_settings, "execution_audit_url"):
-            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_URL")
+            audit_missing.append("EXECUTION_CONTROL_EXECUTION_AUDIT_URL")
         if not _setting_present(optional_settings, "execution_audit_shared_secret"):
-            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET")
+            audit_missing.append("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET")
     conditions["execution_audit_contract"] = {
         "required": execution_audit_enabled,
         "ready": len(audit_missing) == 0,
@@ -273,7 +273,7 @@ def _collect_surface_conditions(
     }
 
     opened_capabilities = read_capability_set(
-        env.get("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
+        env.get("EXECUTION_CONTROL_OPEN_CAPABILITIES", ""),
     )
     structured_runtime_required = bool(
         opened_capabilities.intersection({"campus_services", "notice"})
@@ -281,7 +281,7 @@ def _collect_surface_conditions(
     structured_missing: list[str] = []
     if structured_runtime_required:
         if not _setting_present(optional_settings, "internal_query_shared_secret"):
-            structured_missing.append("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
+            structured_missing.append("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
         if not shared_postgres_present:
             structured_missing.append("CAMPUS_SHARED_POSTGRES_URL")
     conditions["structured_runtime_contract"] = {
@@ -310,13 +310,13 @@ def _collect_surface_conditions(
                 "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
             )
         if not _setting_present(optional_settings, "notice_object_store_endpoint"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT")
+            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT")
         if not _setting_present(optional_settings, "notice_object_store_access_key"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY")
+            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY")
         if not _setting_present(optional_settings, "notice_object_store_secret_key"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY")
+            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY")
         if not _setting_present(optional_settings, "notice_object_store_bucket"):
-            notice_missing.append("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET")
+            notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET")
     conditions["notice_runtime_contract"] = {
         "required": notice_capability_open,
         "ready": len(notice_missing) == 0,
@@ -511,7 +511,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "surface",
         choices=tuple(sorted(SURFACE_SPECS)),
-        help="Logical surface to diagnose, for example evals or supervisor-api.",
+        help="Logical surface to diagnose, for example evals or execution-control.",
     )
     parser.add_argument(
         "--repo-root",

@@ -34,7 +34,7 @@ describe("chat e2e package scripts", () => {
 			"utf8",
 		);
 
-		expect(scriptSource).toContain("infra/local/start-supervisor-runtime.sh");
+		expect(scriptSource).toContain("infra/local/start-execution-control-runtime.sh");
 		expect(scriptSource).toContain("isReadyzReady(args.execReadyzUrl)");
 		expect(scriptSource).toContain("db:bootstrap");
 		expect(scriptSource).toContain("smoke-identity:provision");
@@ -56,8 +56,8 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");
 		expect(scriptSource).toContain("SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED");
 		expect(scriptSource).toContain("PROMPT_RUNTIME_PROVIDER");
-		expect(scriptSource).toContain("SUPERVISOR_API_TIMEOUT_MS");
-		expect(scriptSource).toContain("SUPERVISOR_API_REQUEST_TIMEOUT_MS");
+		expect(scriptSource).toContain("EXECUTION_CONTROL_TIMEOUT_MS");
+		expect(scriptSource).not.toContain("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS");
 		expect(scriptSource).toContain("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS");
 		expect(scriptSource).toContain("CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS");
 		expect(scriptSource).toContain('"--restart-public-chat"');

@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { parseSupervisorExecutionResponsePayload } from "../src/modules/integration/supervisor";
+import { parseSupervisorExecutionResponsePayload } from "../src/modules/integration/execution-control";
 
 const fixtureDir = resolve(process.cwd(), "../..", "tests/fixtures/supervisor_execution_contract");
 

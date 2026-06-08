@@ -7,7 +7,7 @@ from campus_evals.intent_models import IntentCase
 
 
 class IntentGoRunnerTest(unittest.TestCase):
-    def test_go_runner_evaluates_cases_through_supervisor_api_runtime_policy(self) -> None:
+    def test_go_runner_evaluates_cases_through_execution_control_runtime_policy(self) -> None:
         report = run_intent_cases_with_go(
             (
                 IntentCase(

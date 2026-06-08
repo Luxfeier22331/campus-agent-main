@@ -7,12 +7,16 @@ import {
 } from "./types";
 
 const ALLOWED_FAILURE_STAGES = new Set([
+	"routing",
+	"planning",
+	"tool",
 	"retrieval",
 	"rerank",
 	"selection",
 	"evidence_selection",
 	"synthesis",
 	"grounding",
+	"finalization",
 	"diagnostic",
 ]);
 const FORBIDDEN_KEY_TOKENS = new Set([

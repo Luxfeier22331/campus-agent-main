@@ -447,8 +447,8 @@ def _workflow_plan_payload(
 ) -> dict[str, object]:
     return {
         "schema_version": "workflow-plan-v1",
-        "plan_id": f"plan:single_handoff:{target}:{payload_kind}",
-        "workflow_mode": "single_handoff",
+        "plan_id": f"plan:single_step:{target}:{payload_kind}",
+        "workflow_mode": "single_step",
         "allowed_agents": [target],
         "steps": [
             {

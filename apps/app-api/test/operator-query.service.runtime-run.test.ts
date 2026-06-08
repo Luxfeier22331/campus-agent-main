@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { SupervisorDurableRuntimeClient } from "../src/modules/integration";
+import type { ExecutionControlRuntimeClient } from "../src/modules/integration";
 import { buildOperatorQueryService } from "../src/modules/operator-query";
 import { createOperatorPrincipal } from "./operator-query.route.test-support";
 
@@ -146,7 +146,7 @@ describe("operator query service aggregate summaries", () => {
 			listQualityEvalCandidates: vi.fn(),
 			listSafetyAnomalies: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue({
@@ -196,9 +196,59 @@ describe("operator query service aggregate summaries", () => {
 					visibility: "browser",
 				},
 			]),
+			listRunSteps: vi.fn().mockResolvedValue({
+				attempts: [
+					{
+						attempt: 1,
+						attemptId: "planning:attempt:1",
+						completedAt: "2026-06-04T01:02:04.100Z",
+						payloadSchemaVersion: "step-attempt-projection-v1",
+						runId: "run_01HQ",
+						sanitizedPayload: { activityType: "PlanChatAnswerActivity" },
+						startedAt: "2026-06-04T01:02:04.000Z",
+						status: "completed",
+						stepId: "planning",
+						taskQueue: "campus-agent.activity.rag",
+						updatedAt: "2026-06-04T01:02:04.100Z",
+						workerId: "staging:rag:worker-1",
+					},
+				],
+				results: [
+					{
+						attemptId: "planning:attempt:1",
+						createdAt: "2026-06-04T01:02:04.100Z",
+						payloadSchemaVersion: "step-result-projection-v1",
+						projectionRef: "projection://runs/run_01HQ/planning",
+						resultId: "planning:result:1",
+						resultKind: "plan",
+						runId: "run_01HQ",
+						sanitizedPayload: { selectedCapability: "knowledge" },
+						status: "completed",
+						stepId: "planning",
+					},
+				],
+				steps: [
+					{
+						capability: "knowledge",
+						completedAt: "2026-06-04T01:02:04.100Z",
+						conversationId: "conv_01HQ",
+						parentStepId: "",
+						payloadSchemaVersion: "run-step-projection-v1",
+						runId: "run_01HQ",
+						sanitizedPayload: { rawPrompt: "must not leak" },
+						startedAt: "2026-06-04T01:02:04.000Z",
+						status: "completed",
+						stepId: "planning",
+						stepKind: "planning",
+						taskQueue: "campus-agent.activity.rag",
+						updatedAt: "2026-06-04T01:02:04.100Z",
+						workerId: "staging:rag:worker-1",
+					},
+				],
+			}),
 		};
 		const service = buildOperatorQueryService({
-			durableRuntime,
+			executionRuntime,
 			store: store as never,
 		} as never);
 
@@ -207,11 +257,15 @@ describe("operator query service aggregate summaries", () => {
 			requestId: "req_01HQ",
 		});
 
-		expect(durableRuntime.getRun).toHaveBeenCalledWith({
+		expect(executionRuntime.getRun).toHaveBeenCalledWith({
 			runId: "run_01HQ",
 			traceId: "trace_01HQ",
 		});
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
+			runId: "run_01HQ",
+			traceId: "trace_01HQ",
+		});
+		expect(executionRuntime.listRunSteps).toHaveBeenCalledWith({
 			runId: "run_01HQ",
 			traceId: "trace_01HQ",
 		});
@@ -245,6 +299,23 @@ describe("operator query service aggregate summaries", () => {
 				status: "completed",
 				terminalReason: "answer_completed",
 				traceId: "trace_01HQ",
+			},
+			stepTrajectory: {
+				attemptCount: 1,
+				resultCount: 1,
+				steps: [
+					{
+						attemptCount: 1,
+						capability: "knowledge",
+						latestResultRef: "projection://runs/run_01HQ/planning",
+						resultCount: 1,
+						status: "completed",
+						stepId: "planning",
+						stepKind: "planning",
+						taskQueue: "campus-agent.activity.rag",
+						workerId: "staging:rag:worker-1",
+					},
+				],
 			},
 		});
 		expect(JSON.stringify(result.runtimeRun)).not.toContain("must not leak");

@@ -16,22 +16,82 @@ x-campus-contract:
     runtime_decision_summary_schema_version: runtime decision summary shape changes must bump runtime_decision_summary_schema_version
     workflow_trace_summary_version: operator-visible workflow trace summary changes must bump workflow_trace_summary_version
 paths:
-  /api/v1/answer:
+  /internal/execution/runs:
     post:
-      summary: Internal supervisor answer execution.
+      summary: Start a Temporal-backed execution run.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SupervisorExecutionRequest"
+              $ref: "#/components/schemas/ExecutionRunCreateRequest"
       responses:
-        "200":
-          description: Accepted execution outcome.
+        "202":
+          description: Temporal workflow accepted and run projection queued.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SupervisorResponse"
+                $ref: "#/components/schemas/ExecutionRunResponse"
+  /internal/execution/runs/{runId}:
+    get:
+      summary: Read sanitized execution run projection.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Execution run projection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionRunResponse"
+  /internal/execution/runs/{runId}/events:
+    get:
+      summary: Read sanitized execution run events after an optional sequence.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - name: after_sequence
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Execution run events.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - events
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExecutionRunEvent"
+  /internal/execution/runs/{runId}/cancel:
+    post:
+      summary: Cancel a Temporal-backed execution run.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+      responses:
+        "202":
+          description: Temporal cancel accepted and projection marked canceled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionRunResponse"
   /internal/bridge/supervisor/answer:
     post:
       summary: Private supervisor bridge v6 delegate handoff.
@@ -49,7 +109,149 @@ paths:
               schema:
                 $ref: "#/components/schemas/AgentResponse"
 components:
+  parameters:
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
+    ExecutionRunStatus:
+      type: string
+      enum:
+        - created
+        - queued
+        - running
+        - completed
+        - failed
+        - canceled
+    ExecutionRunCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - conversation_id
+        - turn_id
+        - request_id
+        - owner_user_id
+        - surface
+        - lane
+        - metadata
+      properties:
+        run_id:
+          type: string
+        conversation_id:
+          type: string
+        turn_id:
+          type: string
+        request_id:
+          type: string
+        trace_id:
+          type: string
+        owner_user_id:
+          type: string
+        surface:
+          type: string
+        requested_capability:
+          type: string
+        selected_capability:
+          type: string
+        lane:
+          type: string
+        runtime_versions:
+          $ref: "#/components/schemas/SafeObject"
+        metadata:
+          $ref: "#/components/schemas/SafeObject"
+    ExecutionRunResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - conversation_id
+        - turn_id
+        - request_id
+        - owner_user_id
+        - surface
+        - lane
+        - status
+      properties:
+        run_id:
+          type: string
+        conversation_id:
+          type: string
+        turn_id:
+          type: string
+        request_id:
+          type: string
+        trace_id:
+          type: string
+        owner_user_id:
+          type: string
+        surface:
+          type: string
+        requested_capability:
+          type: string
+        selected_capability:
+          type: string
+        lane:
+          type: string
+        status:
+          $ref: "#/components/schemas/ExecutionRunStatus"
+        terminal_reason:
+          type: string
+        fail_close_reason:
+          type: string
+        created_at:
+          type: string
+        queued_at:
+          type: string
+        admitted_at:
+          type: string
+        started_at:
+          type: string
+        streaming_started_at:
+          type: string
+        completed_at:
+          type: string
+        updated_at:
+          type: string
+        workflow_plan_ref:
+          type: string
+        final_response_ref:
+          type: string
+    ExecutionRunEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - event_id
+        - run_id
+        - conversation_id
+        - event_type
+        - sequence
+        - occurred_at
+        - visibility
+        - payload_schema_version
+        - payload
+      properties:
+        event_id:
+          type: string
+        run_id:
+          type: string
+        conversation_id:
+          type: string
+        event_type:
+          type: string
+        sequence:
+          type: integer
+        occurred_at:
+          type: string
+        visibility:
+          type: string
+        payload_schema_version:
+          type: string
+        payload:
+          $ref: "#/components/schemas/SafeObject"
     AgentTarget:
       type: string
       enum:
@@ -91,8 +293,7 @@ components:
       type: string
       enum:
         - terminal
-        - direct_runtime
-        - single_handoff
+        - single_step
         - multi_step
     StepOutputProjectionKind:
       type: string

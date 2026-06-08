@@ -9,8 +9,8 @@ import type { ChatConversationService } from "../modules/chat";
 import type { DocsService } from "../modules/docs";
 import type { IdentityPlatformService } from "../modules/identity-platform";
 import type {
-	SupervisorCampusServicesProductPathPreflight,
-	SupervisorDurableRuntimePreflight,
+	ExecutionControlCampusServicesProductPathPreflight,
+	ExecutionControlRuntimePreflight,
 } from "../modules/integration";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
@@ -84,23 +84,23 @@ export interface AppDocsReadinessResult {
 	failed: Partial<Record<AppDocsDependencyName, string>>;
 }
 
-type AppRuntimeDependencyName = "auth" | "database" | "durableRuntime" | "supervisorApi";
+type AppRuntimeDependencyName = "auth" | "database" | "executionRuntime" | "executionControl";
 
 export interface AppRuntimeReadinessResult {
 	dependencies: {
 		auth: "ready" | "not_ready";
 		authShellOrigin: "configured";
 		database: "ready" | "not_ready";
-		durableRuntime: "ready" | "not_ready" | "not_required";
+		executionRuntime: "ready" | "not_ready" | "not_required";
 		officialWebHandoff: "configured" | "not_configured";
 		operatorBridge: "configured";
 		publicChatCompatibilityOrigin: "configured";
-		supervisorApi: "ready" | "not_ready";
+		executionControl: "ready" | "not_ready";
 	};
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;
 	preflight?: {
-		campusServicesProductPath?: SupervisorCampusServicesProductPathPreflight;
-		durableRuntime?: SupervisorDurableRuntimePreflight;
+		campusServicesProductPath?: ExecutionControlCampusServicesProductPathPreflight;
+		executionRuntime?: ExecutionControlRuntimePreflight;
 	};
 }
 

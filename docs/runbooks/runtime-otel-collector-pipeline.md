@@ -49,11 +49,11 @@ Start a local Collector with the debug profile:
 otelcol-contrib --config=infra/otel/collector-local-debug.yaml
 ```
 
-Enable `supervisor-api` OTLP export to the local Collector:
+Enable `execution-control` OTLP export to the local Collector:
 
 ```bash
-SUPERVISOR_API_OTEL_ENABLED=true
-SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318/v1/traces
+EXECUTION_CONTROL_OTEL_ENABLED=true
+EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318/v1/traces
 ```
 
 Expected local evidence:
@@ -133,19 +133,20 @@ Expected result: no matches; `rg` exits with `1`.
 ## Closeout Smoke
 
 The workstream-level acceptance record is
-`.planning/workstreams/runtime-otel-observability-bridge/ACCEPTANCE.md`.
+`git history runtime otel observability acceptance artifact`.
 
-Online runtime smoke through `supervisor-api`:
+Online runtime smoke through `execution-control`:
 
 ```bash
-cd apps/supervisor-api && \
+cd apps/execution-control && \
   go test ./internal/httpapi -run 'TestRuntimeOtel' -count=1
 ```
 
 Expected evidence:
 
-- `TestRuntimeOtelOnlineSmokeExportsSanitizedTraceToCollector` drives
-  `/api/v1/answer` through the Go runtime, bridge fake and OTLP HTTP exporter.
+- `TestRuntimeOtelOnlineSmokeExportsSanitizedTraceToCollector` drives an
+  execution command/projection path through the Go runtime, bridge fake and OTLP
+  HTTP exporter.
 - The in-test Collector receives `/v1/traces` with protobuf payload.
 - The payload includes runtime span names, request id and allowed telemetry version.
 - The payload does not include raw query, bearer token, auth header name, raw prompt, raw answer or

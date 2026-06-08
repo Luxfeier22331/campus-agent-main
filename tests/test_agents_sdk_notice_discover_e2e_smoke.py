@@ -34,15 +34,15 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
         self.assertEqual(plan.profile, AGENTS_SDK_NOTICE_DISCOVER_E2E_PROFILE)
         process_by_label = {process.label: process for process in plan.processes}
         worker_env = process_by_label["supervisor-agent-worker"].env
-        api_env = process_by_label["supervisor-api"].env
+        api_env = process_by_label["execution-control"].env
 
         self.assertEqual(
-            worker_env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],
+            worker_env["EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"],
             "http://127.0.0.1:19080",
         )
         self.assertEqual(
-            worker_env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
-            api_env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
+            worker_env["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
+            api_env["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
         )
         self.assertEqual(worker_env["SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED"], "true")
         self.assertNotIn("SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TARGETS", worker_env)
@@ -228,34 +228,17 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
                 patch.object(smoke, "_request_status", return_value=200),
                 patch.object(
                     smoke,
-                    "_post_json",
+                    "post_execution_run_probe",
                     return_value=(
-                        200,
+                        202,
                         {
-                            "target": "notice-agent",
-                            "status": "completed",
-                            "answer_text": (
-                                "找到烟雾测试通知：https://example.invalid/notices/smoke"
-                            ),
-                            "agent_observability": {
-                                "selected_tool": "campus_notice_discover",
-                                "tool_outcome": "sdk_completed",
-                                "source_ref_count": 1,
-                                "safe_details": {
-                                    "openai_agents_runtime_projection": {
-                                        "tool_call_count": 1,
-                                        "tool_execution_count": 1,
-                                        "tool_result_projection": {
-                                            "outcome": "resolved_current",
-                                            "notice_card_count": 1,
-                                            "titles": ["烟雾测试通知"],
-                                            "source_urls": [
-                                                "https://example.invalid/notices/smoke"
-                                            ],
-                                            "source_ref_count": 1,
-                                        },
-                                    }
-                                },
+                            "run_id": "agents-sdk-notice-discover-e2e-smoke",
+                            "status": "queued",
+                            "metadata": {
+                                "expected_handoff": {
+                                    "target": "notice-agent",
+                                    "allowed_tools": ["campus_notice_discover"],
+                                }
                             },
                         },
                     ),

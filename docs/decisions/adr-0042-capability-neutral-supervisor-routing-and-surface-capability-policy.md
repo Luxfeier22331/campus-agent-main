@@ -16,7 +16,7 @@ Accepted on 2026-04-23.
 `campus-agent` 当前已经冻结了以下方向：
 
 - `campus-agent` 是 institution-scoped campus assistant，而不是开放域 generalist
-- `apps/app-api -> apps/supervisor-api -> apps/supervisor-agent-worker -> agent`
+- `apps/app-api -> apps/execution-control -> apps/supervisor-agent-worker -> agent`
   是长期执行主链
 - `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent` 已作为当前或前向
   capability family 落盘
@@ -73,7 +73,7 @@ knowledge/RAG 问题。
 - `public-chat-web` 当前 knowledge-only 只是 current surface posture
 - `public-docs` 不自动进入 execution capability routing
 - future `服务状态`、`校园地图` 等 surface 可以拥有不同 capability set
-- `apps/supervisor-api` 与 agent 都不拥有 browser-facing capability allowlist
+- `apps/execution-control` 与 agent 都不拥有 browser-facing capability allowlist
   truth
 
 ### 决策 4：`requested_scope` 只属于 knowledge-family path
@@ -139,7 +139,7 @@ knowledge/RAG 问题。
 - 后续 architecture 文档必须把 capability-neutral routing 与 knowledge-family retrieval
   分开书写
 - `requested_scope` 的长期语义必须收窄为 knowledge-family-specific field
-- `apps/app-api`、`apps/supervisor-api`、`apps/supervisor-agent-worker` 与 agent
+- `apps/app-api`、`apps/execution-control`、`apps/supervisor-agent-worker` 与 agent
   的边界说明必须围绕 `surface policy -> admission -> routing -> agent` 收口
 - 当前 browser-facing / internal execution contract 若还保留 `requested_capability +
   requested_scope`，必须显式区分 current truth 与 forward evolution

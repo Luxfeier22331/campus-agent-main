@@ -45,20 +45,19 @@ updated: 2026-04-27
 
 - 当前 merged truth 统一看 `../architecture/current-architecture.md` 与
   `../architecture/system/identity-and-authorization-architecture.md`
-- 当前 pending work 统一看 `README.md` 定义的通用执行态入口，以及
-  `../../.planning/workstreams/restricted-document-rollout-verification/STATE.md`
+- 当前 pending work 统一看 `README.md` 定义的通用执行态入口与 GSD SDK / Codex native
+  session
 - foundation 文档只保留为关闭态基线；restricted rollout、legacy ACL sunset 与后续 memory
   productization 统一从下面的 follow-up 入口进入
 
 ## Follow-up Entry Points
 
-- restricted document
-  rollout：`../../.planning/workstreams/restricted-document-rollout-verification/README.md`
-- legacy ACL carrier sunset：`../../.planning/WORKSTREAMS.md` 中的 deferred
-  entry；历史背景只看
-  `../plans/archive/historical/legacy-acl-carrier-compatibility-sunset.md`
+- restricted document rollout：从 `.planning/WORKSTREAMS.md` 的 active work map
+  与 git history 恢复具体历史片段
+- legacy ACL carrier sunset：历史背景通过 git history 恢复对应 archived plan
 - memory / personalization productization：当前尚无 live workstream；恢复时必须新开
-  `.planning/workstreams/<slug>/README.md`，不得复用已关闭的 foundation plan
+  GSD SDK / Codex native session，并把长期结论提升到 docs / ADR / runbook，不得复用已关闭的
+  foundation plan
 
 ## Memory Productization Landing Rule
 
@@ -68,8 +67,7 @@ updated: 2026-04-27
    策略。
 2. `app-api` 再把 verified identity、profile memory summary、session summary 与 authz
    projection 组装成最小 `ContextProjection`。
-3. `supervisor-api`、`supervisor-agent-worker` 与 `rag-agent` 只消费 typed
-   projection；不得读取
+3. `execution-control`、`supervisor-agent-worker` 与 `rag-agent` 只消费 typed projection；不得读取
    raw memory、raw transcript、raw auth material 或产品层数据库对象。
 4. personalization 只允许影响 intent framing、retrieval planning、ranking /
    disambiguation、

@@ -6,7 +6,7 @@
 
 当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、`supervisor-led`
 的校园助理系统：`hub-web` 入口面、公开聊天面、公开文档站、受保护运营面、共享 `app-api`、内部
-`supervisor-api`，以及按能力边界拆分的 agent / retrieval / ingestion packages。
+`execution-control`，以及按能力边界拆分的 agent / retrieval / ingestion packages。
 
 当前 merged truth 的主路径为：
 
@@ -15,8 +15,9 @@ browser -> hub-web -> app launcher / account shell
 
 hub-web same-site allowlisted /api/* -> app-api
 
-browser -> public-chat-web -> app-api -> supervisor-api
--> supervisor-agent-worker -> agent
+browser -> public-chat-web -> app-api -> execution-control
+-> Temporal -> activity worker -> supervisor-agent-worker
+-> rag-agent / retrieval-core
 
 browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 
@@ -35,7 +36,9 @@ browser -> protected-panel-web -> app-api
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
-- `apps/supervisor-api` 是 Docker-first internal execution engine，不是产品后端
+- `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
+- 当前 online answer path 仍包含 Python `supervisor-agent-worker` bridge；它是当前实现事实和迁移缺口，
+  长期目标是 Go-owned workflow / capability activity worker plane
 - online query path 与 offline data plane 持续分层
 - `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
   第二产品后端或 MediaWiki 替代物
@@ -61,18 +64,17 @@ browser -> protected-panel-web -> app-api
 
 - [`apps/`](./apps/)
   - runtime shell 与 transport boundary，例如 `hub-web`、`public-chat-web`、`public-docs`、
-    `protected-panel-web`、`app-api`、`supervisor-api`、`ingestion-worker`
+    `protected-panel-web`、`app-api`、`execution-control`、`ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
     `rag-agent`、`retrieval-core`、`ingestion-core`、`contracts`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
-  - 长期可引用的 architecture、decision、contract、data、runbook、policy 与 archived
-    implementation snapshots
+  - 长期可引用的 architecture、decision、contract、data、runbook 与 policy truth
 - [`.planning/`](./.planning/)
-  - 当前项目级 planning truth、workstream registry、native workstream 状态，以及 shared
-    quick/todo/research 资产
+  - 当前项目级 planning truth 与 compact active work map；历史 phase/archive material 通过
+    git history 恢复
 - [`tests/`](./tests/)
   - 仓库级 Python 回归；JS/TS surface 的测试在各 app 下配合 root `pnpm` 入口运行
 
@@ -81,7 +83,7 @@ browser -> protected-panel-web -> app-api
 - [`apps/hub-web`](./apps/hub-web/)
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/public-docs`](./apps/public-docs/)
-- [`apps/supervisor-api`](./apps/supervisor-api/)
+- [`apps/execution-control`](./apps/execution-control/)
 - [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)
 - [`packages/rag-agent`](./packages/rag-agent/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
@@ -107,13 +109,9 @@ browser -> protected-panel-web -> app-api
 - `.planning/PROJECT.md`
   - 当前项目级范围、关键决策与 merged/worktree truth
 - `.planning/WORKSTREAMS.md`
-  - 当前有哪些 active / deferred / backlog workstreams，以及各自对应的 native planning 目录
-- `.planning/workstreams/<slug>/README.md`
-  - 单条 native workstream 的人工入口；先看边界、状态，再进入 `STATE / ROADMAP / REQUIREMENTS`
-- `.planning/workstreams/<slug>/STATE.md`
-  - 单条 workstream 的 now / next / blockers / recent verification
-- `docs/plans/archive/`
-  - 已退出 live workstream 入口的 historical / superseded / completed plan snapshots
+  - compact active work map、owner areas、backlog triggers 与恢复规则
+- git history
+  - 已退出 live truth 的 historical / superseded / completed planning snapshots
 
 仓库协作规则见：
 
@@ -210,8 +208,8 @@ gsd-sdk query workstream.set <workstream-slug> --raw --cwd "$PWD"
 gsd-sdk query workstream.progress --raw --cwd "$PWD"
 ```
 
-tracked planning truth 继续写在 `.planning/WORKSTREAMS.md` 与
-`.planning/workstreams/<slug>/`；repo 不再维护本地 lease、heartbeat、hook 注入或 terminal-result
+tracked planning truth 只保留 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`；
+repo 不再维护 tracked phase tree、本地 lease、heartbeat、hook 注入或 terminal-result
 artifact。详细流程见
 [workstream-gsd-sdk-workflow](./docs/runbooks/workstream-gsd-sdk-workflow.md) 和
 [CONTRIBUTING.md](./CONTRIBUTING.md)。

@@ -14,21 +14,14 @@ EXPECTED_DOC_DIRECTORIES = {
     "decisions": "decision",
     "domains": "index",
     "environment": "index",
-    "plans": "plan",
     "policies": "policy",
     "reference": "reference",
     "runbooks": "runbook",
 }
 
 DECISION_STATUSES = {"accepted", "deprecated", "proposed", "superseded"}
-PLAN_STATUSES = {"active", "completed", "deferred", "historical", "superseded"}
 ACTIVE_ONLY_STATUSES = {"active"}
 HISTORICAL_REFERENCE_STATUSES = {"active", "historical"}
-PLAN_ARCHIVE_STATUSES = {
-    "completed": {"completed"},
-    "historical": {"historical"},
-    "superseded": {"superseded"},
-}
 
 
 def _read_front_matter(path: Path) -> dict[str, str]:
@@ -78,42 +71,15 @@ class DocsStructureTest(unittest.TestCase):
                     self.assertEqual(front_matter.get("doc_type"), expected_doc_type, path)
                 if directory_name == "decisions":
                     self.assertIn(front_matter.get("status"), DECISION_STATUSES, path)
-                elif directory_name == "plans":
-                    self.assertIn(front_matter.get("status"), PLAN_STATUSES, path)
                 elif directory_name in {"reference", "runbooks"}:
                     self.assertIn(front_matter.get("status"), HISTORICAL_REFERENCE_STATUSES, path)
                 else:
                     self.assertIn(front_matter.get("status"), ACTIVE_ONLY_STATUSES, path)
 
-    def test_completed_plans_are_not_listed_in_default_docs_entry(self) -> None:
-        docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
-        completed_plans = []
-
-        for path in sorted((DOCS_ROOT / "plans" / "archive" / "completed").glob("*.md")):
-            if path.name == "README.md":
-                continue
-            front_matter = _read_front_matter(path)
-            if front_matter.get("status") == "completed":
-                completed_plans.append(path.name)
-                self.assertNotIn(path.name, docs_index)
-
-        self.assertNotEqual(completed_plans, [])
+    def test_docs_plans_archive_namespace_is_removed_from_branch_tip(self) -> None:
+        self.assertFalse((DOCS_ROOT / "plans").exists())
 
     def test_archive_subdirectories_use_expected_statuses(self) -> None:
-        plans_archive = DOCS_ROOT / "plans" / "archive"
-        self.assertTrue(plans_archive.is_dir())
-        for category, expected_statuses in PLAN_ARCHIVE_STATUSES.items():
-            directory = plans_archive / category
-            self.assertTrue(directory.is_dir(), directory)
-            for path in sorted(directory.glob("*.md")):
-                front_matter = _read_front_matter(path)
-                if path.name == "README.md":
-                    self.assertEqual(front_matter.get("doc_type"), "index", path)
-                    self.assertIn(front_matter.get("status"), ACTIVE_ONLY_STATUSES, path)
-                    continue
-                self.assertEqual(front_matter.get("doc_type"), "plan", path)
-                self.assertIn(front_matter.get("status"), expected_statuses, path)
-
         for root in (DOCS_ROOT / "reference" / "archive", DOCS_ROOT / "runbooks" / "archive"):
             self.assertTrue(root.is_dir(), root)
             for path in sorted(root.rglob("*.md")):
@@ -125,13 +91,6 @@ class DocsStructureTest(unittest.TestCase):
                 expected_doc_type = "reference" if "reference" in path.parts else "runbook"
                 self.assertEqual(front_matter.get("doc_type"), expected_doc_type, path)
                 self.assertIn(front_matter.get("status"), {"historical"}, path)
-
-    def test_root_plans_namespace_keeps_only_current_forward_entries(self) -> None:
-        for path in sorted((DOCS_ROOT / "plans").glob("*.md")):
-            if path.name == "README.md":
-                continue
-            front_matter = _read_front_matter(path)
-            self.assertIn(front_matter.get("status"), {"active", "deferred"}, path)
 
     def test_reference_and_runbook_root_namespaces_are_active_only(self) -> None:
         for directory_name, expected_doc_type in {
@@ -199,12 +158,12 @@ class DocsStructureTest(unittest.TestCase):
 
         self.assertIn("eval-benchmark-artifact-contract.md", reference_index)
 
-    def test_reference_index_lists_durable_runtime_gap_matrix(self) -> None:
+    def test_reference_index_does_not_list_removed_run_projection_gap_matrix(self) -> None:
         reference_index = (DOCS_ROOT / "reference" / "README.md").read_text(encoding="utf-8")
 
-        self.assertIn("durable-agent-runtime-gap-matrix.md", reference_index)
+        self.assertNotIn("durable-agent-runtime-gap-matrix.md", reference_index)
 
-    def test_durable_runtime_phase0_phase1_docs_are_linked(self) -> None:
+    def test_run_projection_phase0_phase1_docs_are_linked(self) -> None:
         architecture = (
             DOCS_ROOT / "architecture" / "system" / "durable-agent-runtime-architecture.md"
         ).read_text(encoding="utf-8")
@@ -214,18 +173,14 @@ class DocsStructureTest(unittest.TestCase):
         schema = (DOCS_ROOT / "data" / "durable-agent-runtime-schema.md").read_text(
             encoding="utf-8"
         )
-        gap_matrix = (DOCS_ROOT / "reference" / "durable-agent-runtime-gap-matrix.md").read_text(
-            encoding="utf-8"
-        )
 
-        self.assertIn("durable-agent-runtime-gap-matrix.md", architecture)
+        self.assertIn("adr-0048-temporal-execution-plane.md", architecture)
         self.assertIn("durable-agent-runtime-contract.md", architecture)
         self.assertIn("durable-agent-runtime-schema.md", architecture)
         self.assertIn("durable-agent-runtime-contract-v1", contract)
         self.assertIn("runtime.agent_runs", schema)
-        self.assertIn("in-process lifecycle registry", gap_matrix)
 
-    def test_durable_runtime_contract_freezes_run_and_lease_terms(self) -> None:
+    def test_run_projection_contract_freezes_temporal_run_projection_terms(self) -> None:
         contract = (DOCS_ROOT / "contracts" / "durable-agent-runtime-contract.md").read_text(
             encoding="utf-8"
         )
@@ -233,7 +188,8 @@ class DocsStructureTest(unittest.TestCase):
         for token in (
             "`run_id`",
             "`conversation_id`",
-            "Execution lease status enum",
+            "Temporal-backed run command/query",
+            "repo-owned projection",
             "`conversation_active_run`",
             "`rag`",
             "`campus_services`",
@@ -266,11 +222,8 @@ class DocsStructureTest(unittest.TestCase):
             )
             decision_ids[decision_id] = path
 
-    def test_historical_roadmap_does_not_assert_current_runtime_truth(self) -> None:
-        roadmap = (PLANNING_ROOT / "legacy-flat" / "ROADMAP.md").read_text(encoding="utf-8")
-
-        self.assertNotIn("Current roadmap truth still centers", roadmap)
-        self.assertNotIn("Current serving truth is profile-driven", roadmap)
+    def test_historical_planning_archive_tree_is_removed_from_branch_tip(self) -> None:
+        self.assertFalse((PLANNING_ROOT / "legacy-flat").exists())
 
 
 if __name__ == "__main__":

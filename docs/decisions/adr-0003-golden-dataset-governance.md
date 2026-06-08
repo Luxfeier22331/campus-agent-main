@@ -127,7 +127,7 @@ split 的职责边界在长期上固定，但每个 split 的样本数、命中�
 - `docs/architecture/target-architecture.md` 只保留 `evals` 边界与可替换性原则
 - 本 ADR 负责 golden dataset 的长期治理、不变量与边界
 - `docs/decisions/adr-0004-evaluation-metrics.md` 负责指标家族、指标分层与 gate 语义
-- `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md`
+- `.planning/WORKSTREAMS.md` 与 `GSD SDK / Codex native session state`
   负责当前阶段的落地步骤、文件布局、首批样本和验收标准
 
 换句话说，长期架构回答“为什么存在这个边界”，本 ADR 回答“这个边界长期遵守什么真值治理规则”，指标 ADR

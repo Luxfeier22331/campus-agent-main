@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
-import { SupervisorTransportError } from "../src/modules/integration";
+import { ExecutionControlTransportError } from "../src/modules/integration";
 import { AppApiRouteError } from "../src/modules/runtime-command";
 
 const env = {
@@ -12,8 +12,8 @@ const env = {
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -287,8 +287,8 @@ describe("chat durable run routes", () => {
 		const runtimeRunService = {
 			cancel: vi.fn(),
 			getStatus: vi.fn().mockRejectedValue(
-				new SupervisorTransportError({
-					code: "supervisor_invalid_response",
+				new ExecutionControlTransportError({
+					code: "execution_control_invalid_response",
 					message:
 						"Supervisor durable runtime response violates the contract: status must be a string.",
 					retryable: true,
@@ -315,7 +315,7 @@ describe("chat durable run routes", () => {
 		expect(response.status).toBe(502);
 		await expect(response.json()).resolves.toMatchObject({
 			error: {
-				code: "supervisor_invalid_response",
+				code: "execution_control_invalid_response",
 				message:
 					"Supervisor durable runtime response violates the contract: status must be a string.",
 				retryable: true,

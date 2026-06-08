@@ -132,7 +132,7 @@ promotion` 这条线在 2026-04-11 已经冻结出一批明确不应进入 `regu
 ## Related Docs
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `git history authenticated-notice regulation consumption workstream`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
-- `.planning/quick/260411-rho-institutional-regulations-promotion-adju/manual-re
+- `git history manual-review evidence fragment
   view-adjudication.md`

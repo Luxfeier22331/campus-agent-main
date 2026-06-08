@@ -200,7 +200,7 @@ Evaluation helpers for campus-agent v2.
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   service-guide-lookup`；
   它验证 service guide projection eval、service-guide intent 子集、
-  supervisor-api Go planning/runtime/query tests 与 Python campus-services-agent
+  execution-control Go planning/runtime/query tests 与 Python campus-services-agent
   contract tests，不打开 campus_services serving surface，也不产生 operator
   observability live case-results publish。需要对真实 official-web selected-write candidate
   做 answer-facing 审计时，可额外传入 `--selected-write-preview-report <path>`；这条附加检查只验证
@@ -209,7 +209,7 @@ Evaluation helpers for campus-agent v2.
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   contact-directory-lookup`；
   它验证 contact directory projection eval、contact intent 子集、
-  supervisor-api Go planning/runtime/query tests 与 Python campus-services-agent
+  execution-control Go planning/runtime/query tests 与 Python campus-services-agent
   contract tests，同样不产生 operator observability live case-results publish。需要对真实
   official-web selected-write candidate 做 answer-facing 审计时，同样可额外传入
   `--selected-write-preview-report <path>`；这条附加检查只审计 preview/tool-readiness，
@@ -225,14 +225,14 @@ Evaluation helpers for campus-agent v2.
   的确定性组合 gate，入口为：`uv run --all-packages python -m scripts.eval_gate
   accept --profile multi-agent-runtime-contract`；它组合 workflow trace eval、
   tool-family denominator、public-chat product-path eval、supervisor execution
-  schema/generated artifact 同步检查，以及 supervisor-api / app-api / panel targeted test
-  lanes。该 gate 不启动本地 live process，不运行 Docker smoke，不修改 serving
+  schema/generated artifact 同步检查，以及 execution-control / app-api / panel
+  targeted test lanes。该 gate 不启动本地 live process，不运行 Docker smoke，不修改 serving
   admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
   dry-run artifact。`multi-agent-product-path` 暂保留为 deprecated alias；真实产品路径 E2E 使用
   `public-chat-product-path --collect-runtime` 和后续 public chat acceptance lane。
 - `multi-agent-live-smoke` 是本地 direct-process live gate，入口为：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
-  multi-agent-live-smoke`；它顺序启动 `supervisor-agent-worker`、`supervisor-api`
+  multi-agent-live-smoke`；它顺序启动 `supervisor-agent-worker`、`execution-control`
   以及 notice profile 需要的本地最小 S3-compatible smoke endpoint，不启动 Docker /
   Wrangler。默认 profile 组只覆盖 governed workflow lane：closed structured gate、
   terminal fail-close、RAG delegate、selected notice context follow-through multi-step，
@@ -264,7 +264,8 @@ Evaluation helpers for campus-agent v2.
   curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent
   可直接调用的 flat tool。
 - `workflow_trace_summary.workflow_mode` 现在是 canonical enum：
-  `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。当前 live runtime 已验证前三种，
+  `terminal`、`single_step`、`multi_step`。当前 live runtime 已验证 terminal 与 single-step
+  execution shapes，
   并新增受 gate 保护的首条 `multi_step` profile：selected notice context + knowledge
   follow-through，执行 internal selected notice resolve -> `rag-agent retrieval.query`。
   workflow trace gate 会拒绝把单个 handoff projection 伪装成 `multi_step`；completed
@@ -455,7 +456,7 @@ shape，而是把更多真实产品路径和 domain-specific case 扩编进这�
 - `workflow_trace`
   - 已有 shared gate；当前覆盖 direct structured、campus-services handoff、notice handoff、
     knowledge delegate、ambiguous follow-up、fail-close 与 no-result 产品路径
-  - `workflow_mode` 只接受 `terminal`、`direct_runtime`、`single_handoff`、`multi_step`；
+  - `workflow_mode` 只接受 `terminal`、`single_step`、`multi_step`；
     `multi_step` trace 必须至少有两段 handoff chain，避免把当前单 handoff projection
     冒充成多步 workflow
 - `direct_vs_delegate`
@@ -781,7 +782,7 @@ student handbook formal benchmark：
     --reruns 3 --verbose --log-jsonl .tmp/evals/handbook-runtime-events.jsonl`
   - 默认入口现在优先通过 `app-api` internal eval ingress 进入真实产品 command path，生成 canonical
     `request_id` / `trace_id`
-  - 本地运行前，需要先启动 repo-local `supervisor-api` 与 `app-api` dev runtime，并在 root
+  - 本地运行前，需要先启动 repo-local `execution-control` 与 `app-api` dev runtime，并在 root
     `.env` 提供 `APP_API_BASE_URL`、`APP_API_INTERNAL_SHARED_SECRET`、`APP_API_EVAL_
     USER_EMAIL`
   - 这些 `APP_API_*` 只描述当前 worktree 的本地 eval ingress，不是远端部署环境真相；其中

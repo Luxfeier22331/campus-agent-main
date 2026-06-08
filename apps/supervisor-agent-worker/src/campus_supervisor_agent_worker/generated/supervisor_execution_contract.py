@@ -48,8 +48,7 @@ SupervisorStatus = Literal[
 
 WorkflowMode = Literal[
     "terminal",
-    "direct_runtime",
-    "single_handoff",
+    "single_step",
     "multi_step",
 ]
 StepOutputProjectionKind = Literal[

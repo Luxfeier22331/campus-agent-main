@@ -7,7 +7,7 @@ import type {
 } from "../service";
 import { decodeQualityBadcaseCursor, encodeQualityBadcaseCursor } from "./cursors";
 import type { OperatorQueryRuntime } from "./runtime";
-import { inferEvalFamilyFromCauseClass, toScore } from "./shared";
+import { inferEvalFamilyFromCauseClass, inferStepDiagnosisStage, toScore } from "./shared";
 
 type EvalDiagnosticCandidate = OperatorQualityEvalCandidateListResult["candidates"][number];
 type EvalDiagnosticBadcaseRow = typeof evalDiagnosticBadcaseProjection.$inferSelect;
@@ -33,6 +33,10 @@ function toCandidate(row: EvalDiagnosticBadcaseRow): EvalDiagnosticCandidate {
 	return {
 		candidateId: `eval_candidate:${row.badcaseId}`,
 		causeClass: row.causeClass,
+		diagnosisStage: inferStepDiagnosisStage({
+			causeClass: row.causeClass,
+			failureStage: row.failureStage,
+		}),
 		diagnostic: {
 			answerShape: row.answerShape ?? null,
 			caseId: row.caseId,

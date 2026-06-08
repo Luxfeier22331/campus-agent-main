@@ -77,17 +77,17 @@ def build_service_guide_selected_write_runtime_smoke_plan(
     )
     resolved_secret = _required_text(
         structured_query_secret
-        or os.getenv("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
-        or _root_env_value(repo_root, "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
+        or os.getenv("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
+        or _root_env_value(repo_root, "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
         or "query-secret",
         "structured_query_secret",
     )
     resolved_api_port = api_port if api_port > 0 else _available_tcp_port(api_host)
     api_base_url = f"http://{api_host}:{resolved_api_port}"
     process = ProcessCommandSpec(
-        label="supervisor-api",
-        command=("go", "run", "./cmd/supervisor-api"),
-        cwd=repo_root / "apps" / "supervisor-api",
+        label="execution-control",
+        command=("go", "run", "./cmd/execution-control"),
+        cwd=repo_root / "apps" / "execution-control",
         env={
             "API_AUTH_MODE": "trusted-worker",
             "API_WORKER_SHARED_SECRET": os.getenv(
@@ -107,19 +107,19 @@ def build_service_guide_selected_write_runtime_smoke_plan(
                 "PROMPT_STRICT_STRUCTURED_OUTPUTS",
                 "true",
             ),
-            "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED": "false",
-            "SUPERVISOR_API_OTEL_ENABLED": "false",
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": resolved_secret,
-            "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS": os.getenv(
-                "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
+            "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
+            "EXECUTION_CONTROL_OTEL_ENABLED": "false",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": resolved_secret,
+            "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS": os.getenv(
+                "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS",
                 "2000",
             ),
-            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": _required_text(
+            "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": _required_text(
                 trusted_time_rfc3339 or _resolve_trusted_time_rfc3339(repo_root=repo_root),
                 "trusted_time_rfc3339",
             ),
         },
-        log_path=output_dir / "supervisor-api.log",
+        log_path=output_dir / "execution-control.log",
     )
     return ServiceGuideSelectedWriteRuntimeSmokePlan(
         repo_root=repo_root,
@@ -260,7 +260,7 @@ def load_current_service_guide_projection_summary(
 
 
 def _resolve_trusted_time_rfc3339(*, repo_root: Path) -> str:
-    override = os.getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339", "").strip()
+    override = os.getenv("EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339", "").strip()
     if override:
         return override
     preview_report_path = (
@@ -522,7 +522,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--api-port",
         type=int,
         default=0,
-        help="Port for supervisor-api. Defaults to an available local port.",
+        help="Port for execution-control. Defaults to an available local port.",
     )
     parser.add_argument("--timeout-seconds", type=float, default=20.0)
     parser.add_argument("--startup-timeout-seconds", type=float, default=90.0)

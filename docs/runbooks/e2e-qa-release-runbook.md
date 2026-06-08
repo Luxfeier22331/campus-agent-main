@@ -15,7 +15,7 @@ runbook，不重复维护每个子流程的全部细节。
 
 - repo unit / typecheck / build gate
 - `docs/runbooks/staging-worker-deploy-runbook.md`
-- `docs/runbooks/supervisor-api-staging-smoke-runbook.md`
+- `docs/runbooks/execution-control-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 
 当前默认目标环境是 `mucwiki-edge.link` staging。`hub.muc.wiki` 不属于本文的当前 gate。
@@ -58,7 +58,7 @@ git diff --check | tee "$E2E_QA_EVIDENCE_DIR/git-diff-check.txt"
 ```bash
 ssh deploy@152.53.241.57 \
   'cd /srv/apps/campus-agent && \
-    ./infra/local/staging/status-supervisor-api-staging.sh --check' \
+    ./infra/local/staging/status-execution-control-staging.sh --check' \
   | tee "$E2E_QA_EVIDENCE_DIR/supervisor-status.txt"
 ```
 
@@ -81,8 +81,7 @@ for url in \
   https://hub-staging.mucwiki-edge.link/readyz \
   https://chat-staging.mucwiki-edge.link/healthz \
   https://chat-staging.mucwiki-edge.link/readyz \
-  https://docs-staging.mucwiki-edge.link/readyz \
-  https://exec-staging.mucwiki-edge.link/healthz
+  https://docs-staging.mucwiki-edge.link/readyz
 do
   echo "## $url"
   curl --noproxy '*' -sS -i "$url"
@@ -92,8 +91,10 @@ done | tee "$E2E_QA_EVIDENCE_DIR/surface-health.txt"
 通过标准：
 
 - API、hub、chat、docs health / ready endpoints 返回预期 `200`
-- exec `/healthz` 返回 `200`
-- 不把 exec `/readyz` 当 public gate；它属于 internal runtime readiness
+- endpoint list 只包含 user/product surfaces，不包含 execution-control machine ingress
+- execution-control readiness 由
+  `infra/local/staging/status-execution-control-staging.sh --check` 与
+  `api-staging /readyz` 的 `executionControl` / `executionRuntime` dependency 证明
 
 ## 4. Chat E2E
 
@@ -116,7 +117,7 @@ pnpm --dir apps/app-api chat:e2e:staging -- \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-student-rule.json"
 ```
 
-运行 durable runtime 断线 / 恢复专项 smoke：
+运行 run projection 断线 / 恢复专项 smoke：
 
 ```bash
 pnpm --dir apps/app-api chat:durable:e2e:staging \
@@ -260,7 +261,7 @@ ssh deploy@152.53.241.57 \
 
 检查项：
 
-- Qdrant、Postgres、MinIO、supervisor runtime 容器健康
+- Qdrant、Postgres、MinIO、execution runtime 容器健康
 - Qdrant 端口只绑定 host loopback 或 Docker data-plane，不公网暴露
 - query-enabled aliases 仍为当前 accepted surfaces
 - runtime release manifest 可被 guard 读取

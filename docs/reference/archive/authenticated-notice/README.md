@@ -24,11 +24,11 @@ updated: 2026-04-20
 
 ## Archived Plans
 
-- `docs/plans/archive/completed/authenticated-notice-source-foundation.md`
+- `git history authenticated-notice source foundation plan`
   - source-channel foundation closeout baseline
-- `docs/plans/archive/historical/authenticated-notice-historical-backfill-closeout.md`
+- `git history authenticated-notice historical backfill closeout plan`
   - legacy cumulative-prefix closeout baseline
-- `docs/plans/archive/historical/local-live-eval-canonical-registry-recovery.md`
+- `git history local live eval registry recovery plan`
   - 一次 repo-local recovery / closeout 叙事
 
 ## Archived Runbooks

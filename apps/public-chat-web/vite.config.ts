@@ -8,8 +8,8 @@ import { resolvePublicChatManualChunk } from "./config/build-chunks";
 const liveSmokeAppApiEnvPath = path.resolve(__dirname, "../app-api/.env");
 const liveSmokeAppApiConfigPath = path.resolve(__dirname, "../app-api/wrangler.local-smoke.toml");
 const liveSmokePublicChatConfigPath = path.resolve(__dirname, "wrangler.local-smoke.toml");
-const liveSmokeSupervisorApiBaseUrl = "http://127.0.0.1:27051";
-const liveSmokeSupervisorApiTimeoutMs = process.env.SUPERVISOR_API_TIMEOUT_MS?.trim();
+const liveSmokeExecutionControlBaseUrl = "http://127.0.0.1:27051";
+const liveSmokeExecutionControlTimeoutMs = process.env.EXECUTION_CONTROL_TIMEOUT_MS?.trim();
 const useLiveSmokeAuxiliaryWorker = process.env.PUBLIC_CHAT_LIVE_SMOKE === "1";
 
 if (useLiveSmokeAuxiliaryWorker) {
@@ -20,9 +20,9 @@ if (useLiveSmokeAuxiliaryWorker) {
 			throw error;
 		}
 	}
-	process.env.SUPERVISOR_API_BASE_URL = liveSmokeSupervisorApiBaseUrl;
-	if (liveSmokeSupervisorApiTimeoutMs) {
-		process.env.SUPERVISOR_API_TIMEOUT_MS = liveSmokeSupervisorApiTimeoutMs;
+	process.env.EXECUTION_CONTROL_BASE_URL = liveSmokeExecutionControlBaseUrl;
+	if (liveSmokeExecutionControlTimeoutMs) {
+		process.env.EXECUTION_CONTROL_TIMEOUT_MS = liveSmokeExecutionControlTimeoutMs;
 	}
 }
 
@@ -97,9 +97,9 @@ export default defineConfig({
 								config: (config) => ({
 									vars: {
 										...(config.vars ?? {}),
-										...(liveSmokeSupervisorApiTimeoutMs
+										...(liveSmokeExecutionControlTimeoutMs
 											? {
-													SUPERVISOR_API_TIMEOUT_MS: liveSmokeSupervisorApiTimeoutMs,
+													EXECUTION_CONTROL_TIMEOUT_MS: liveSmokeExecutionControlTimeoutMs,
 												}
 											: {}),
 									},

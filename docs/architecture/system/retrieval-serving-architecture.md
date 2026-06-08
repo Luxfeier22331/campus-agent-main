@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-07
+updated: 2026-06-05
 ---
 # Retrieval Serving Architecture
 
@@ -24,7 +24,7 @@ updated: 2026-05-07
   `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - 本文负责解释 retrieval / serving 模型、internal surface 类别与长期版本查询边界，不维护 phase 顺序或
   rollout closeout
-- full agentic retrieval 的长期 target truth 另见
+- durable typed-tool agentic RAG 的 target truth 另见
   `docs/architecture/system/agentic-retrieval-architecture.md`
 
 ## Knowledge-Family Position
@@ -39,7 +39,8 @@ truth。
   mode、retrieval planning 才开始成立
 - `service_status_lookup`、`campus_notice_discover`、internal selected notice resolve
   (`payload_kind=campus_notice_get`) 与 `place_lookup` 这类结构化 capability 不应再被误读成
-  retrieval scope 的旁支
+  retrieval scope 的旁支；它们默认是 typed domain tools / projection-backed internal query
+  service，只有需要语义 specialist 时才进入 agent-as-tool
 
 ## Accepted Retrieval Model
 
@@ -65,6 +66,7 @@ truth。
 - dense + sparse hybrid retrieval step
 - registry-backed evidence
 - multi-step execution / merge / dedupe
+- typed retrieval tool boundary
 - 对 resolved specific policy lookup，允许在 admitted document 内执行 broad lookup +
   focused lookup 的文档内多步检索
 - evidence bundle 回链
@@ -75,7 +77,7 @@ truth。
   `compare` 这四种 version query mode；`freshness_sensitive` 与 `live_assisted`
   仍未作为产品 route 默认开放
 
-这里的 `agent` 默认指 knowledge-family agent，而不是顶层 capability router。
+这里的 `agent` 默认指 knowledge-family `rag-agent` specialist，而不是顶层 capability router。
 
 ## Current Baseline Vs Target Agentic Retrieval
 
@@ -113,17 +115,19 @@ owner 分层固定为：
 
 ## Target Relation To Agentic Retrieval
 
-长期 target pipeline 固定升级为：
+target pipeline 固定升级为：
 
-`query framing -> scope / version / freshness admission -> retrieval planning ->
-multi-step execution -> rerank / merge / dedupe -> supporting evidence selection
--> grounding-aware synthesis`
+`durable RunStep(planning) -> typed retrieval/domain tools -> retrieval-core
+execution -> rerank / merge / dedupe -> evidence coverage verify -> supporting
+evidence selection -> synthesis -> grounding`
 
 补充约束：
 
 - planner-first target 不改变 serving truth owner
 - retrieval-core 仍不拥有产品级 capability admission
 - live branch 只允许进入 admitted source channel
+- synthesis 不得补齐 missing retrieval/tool result；evidence verifier 决定 replan /
+  clarification / fail-close
 
 ## Serving Policy
 

@@ -7,7 +7,7 @@ from tests.test_supervisor_runtime_process_smoke_support import *
 
 
 class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
-    def test_profiles_select_distinct_answer_payloads_and_expectations(self) -> None:
+    def test_profiles_select_distinct_execution_run_payloads_and_expectations(self) -> None:
         closed = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
@@ -89,78 +89,63 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             profile="transactional_approval_required",
         )
 
-        self.assertEqual(closed.expected_status, 503)
-        self.assertIn("structured_runtime_closed", closed.expected_body_tokens)
-        self.assertEqual(terminal.expected_status, 200)
-        self.assertEqual(terminal.answer_payload["requested_capability"], "knowledge")
-        self.assertIn("product_scope_boundary", terminal.expected_body_tokens)
-        self.assertEqual(rag.expected_status, 200)
-        self.assertIn("workflow_trace_summary", rag.expected_body_tokens)
-        self.assertIn("agent_execution_projection", rag.expected_body_tokens)
-        self.assertIn("agent_plan", rag.expected_body_tokens)
-        self.assertIn("grounded_answer", rag.expected_body_tokens)
-        self.assertIn("中央民族大学学生公费医疗管理办法", rag.expected_body_tokens)
-        self.assertEqual(rag.answer_payload["requested_capability"], "knowledge")
-        self.assertEqual(rag.answer_payload["user_goal"], "公费医疗报销")
+        self.assertEqual(closed.expected_run_status, 202)
+        self.assertEqual(closed.execution_run_path, "/internal/execution/runs")
+        self.assertIn('"status": "queued"', closed.expected_run_body_tokens)
+        self.assertEqual(terminal.expected_run_status, 202)
+        self.assertEqual(terminal.execution_run_payload["requested_capability"], "knowledge")
+        self.assertIn('"status": "queued"', terminal.expected_run_body_tokens)
+        self.assertEqual(rag.expected_run_status, 202)
+        self.assertEqual(rag.execution_run_path, "/internal/execution/runs")
+        self.assertEqual(rag.execution_run_payload["requested_capability"], "knowledge")
+        self.assertEqual(rag.execution_run_payload["user_goal"], "公费医疗报销")
         rag_sdk_processes = {process.label: process for process in rag_sdk.processes}
-        self.assertEqual(rag_sdk.expected_status, 200)
-        self.assertEqual(rag_sdk.answer_payload["requested_capability"], "knowledge")
-        self.assertEqual(rag_sdk.answer_payload["user_goal"], "公费医疗报销")
+        self.assertEqual(rag_sdk.expected_run_status, 202)
+        self.assertEqual(rag_sdk.execution_run_payload["requested_capability"], "knowledge")
+        self.assertEqual(rag_sdk.execution_run_payload["user_goal"], "公费医疗报销")
         self.assertEqual(
             rag_sdk_processes["supervisor-agent-worker"].env[
                 "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED"
             ],
             "true",
         )
-        self.assertIn("rag-agent", rag_sdk.expected_body_tokens)
-        self.assertIn("retrieval.query", rag_sdk.expected_body_tokens)
-        self.assertIn("rag_sdk_completed", rag_sdk.expected_body_tokens)
-        self.assertIn("rag-sdk-trace-projection-v1", rag_sdk.expected_body_tokens)
-        self.assertEqual(institutional_rag.expected_status, 200)
-        self.assertEqual(institutional_rag.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(institutional_rag.expected_run_status, 202)
         self.assertEqual(
-            institutional_rag.answer_payload["requested_scope"],
+            institutional_rag.execution_run_payload["requested_capability"], "knowledge"
+        )
+        self.assertEqual(
+            institutional_rag.execution_run_payload["requested_scope"],
             {"corpus": "regulations", "collection": "institutional_rules"},
         )
         self.assertEqual(
-            institutional_rag.answer_payload["user_goal"],
+            institutional_rag.execution_run_payload["user_goal"],
             "研究生助教助研助管工作应该依据哪份管理办法？",
         )
-        self.assertIn("workflow_trace_summary", institutional_rag.expected_body_tokens)
-        self.assertIn("agent_execution_projection", institutional_rag.expected_body_tokens)
-        self.assertIn("agent_plan", institutional_rag.expected_body_tokens)
-        self.assertIn("grounded_answer", institutional_rag.expected_body_tokens)
-        self.assertIn("中央民族大学研究生", institutional_rag.expected_body_tokens)
-        self.assertIn("三助", institutional_rag.expected_body_tokens)
-        self.assertEqual(transport_schedule.expected_status, 200)
+        self.assertEqual(transport_schedule.expected_run_status, 202)
         self.assertEqual(
-            transport_schedule.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            transport_schedule.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
-            transport_schedule.processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            transport_schedule.processes[1].env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
             "2026-04-24T20:30:00+08:00",
         )
-        self.assertIn("single_handoff", transport_schedule.expected_body_tokens)
-        self.assertIn("sdk_completed", transport_schedule.expected_body_tokens)
-        self.assertIn("agent_execution_projection", transport_schedule.expected_body_tokens)
-        self.assertIn("result_guardrail", transport_schedule.expected_body_tokens)
         self.assertEqual(
-            transport_schedule.answer_payload["requested_capability"],
+            transport_schedule.execution_run_payload["requested_capability"],
             "campus_services",
         )
         transport_processes = {process.label: process for process in transport_schedule.processes}
         self.assertEqual(
             transport_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
         self.assertEqual(
             transport_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"
             ],
-            transport_processes["supervisor-api"].env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
+            transport_processes["execution-control"].env["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"],
         )
         self.assertEqual(
             transport_processes["supervisor-agent-worker"].env[
@@ -169,180 +154,163 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             "true",
         )
         for process in transport_schedule.processes:
-            self.assertNotIn("SUPERVISOR_STRUCTURED_QUERY_BASE_URL", process.env)
-            self.assertNotIn("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", process.env)
-        self.assertEqual(transport_schedule_stream.answer_path, "/api/v1/answer/stream")
-        self.assertEqual(transport_schedule_stream.answer_response_kind, "sse")
-        self.assertIn("event: execution.completed", transport_schedule_stream.expected_body_tokens)
+            self.assertNotIn("EXECUTION_CONTROL_STRUCTURED_QUERY_BASE_URL", process.env)
+            self.assertNotIn("EXECUTION_CONTROL_STRUCTURED_QUERY_SHARED_SECRET", process.env)
         self.assertEqual(
-            transport_schedule_stream.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            transport_schedule_stream.execution_run_path,
+            "/internal/execution/runs",
+        )
+        self.assertIn('"status": "queued"', transport_schedule_stream.expected_run_body_tokens)
+        self.assertEqual(
+            transport_schedule_stream.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
-        self.assertEqual(service_status.expected_status, 200)
+        self.assertEqual(service_status.expected_run_status, 202)
         self.assertEqual(
-            service_status.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
-            "campus_services",
-        )
-        self.assertEqual(
-            service_status.answer_payload["requested_capability"],
-            "campus_services",
-        )
-        self.assertIn("service_status_lookup", service_status.expected_body_tokens)
-        self.assertIn("single_handoff", service_status.expected_body_tokens)
-        self.assertIn("sdk_completed", service_status.expected_body_tokens)
-        self.assertEqual(service_guide.expected_status, 200)
-        self.assertEqual(
-            service_guide.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            service_status.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
-            service_guide.answer_payload["requested_capability"],
+            service_status.execution_run_payload["requested_capability"],
             "campus_services",
         )
-        self.assertIn("service_guide_lookup", service_guide.expected_body_tokens)
-        self.assertIn("single_handoff", service_guide.expected_body_tokens)
-        self.assertIn("agent_execution_projection", service_guide.expected_body_tokens)
-        self.assertEqual(contact_directory.expected_status, 200)
+        self.assertEqual(service_guide.expected_run_status, 202)
         self.assertEqual(
-            contact_directory.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            service_guide.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
-            contact_directory.answer_payload["requested_capability"],
+            service_guide.execution_run_payload["requested_capability"],
             "campus_services",
         )
-        self.assertIn("contact_directory_lookup", contact_directory.expected_body_tokens)
-        self.assertIn("single_handoff", contact_directory.expected_body_tokens)
-        self.assertIn("result_guardrail", contact_directory.expected_body_tokens)
+        self.assertEqual(contact_directory.expected_run_status, 202)
+        self.assertEqual(
+            contact_directory.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
+            "campus_services",
+        )
+        self.assertEqual(
+            contact_directory.execution_run_payload["requested_capability"],
+            "campus_services",
+        )
         notice_discover_processes = {
             process.label: process for process in notice_discover.processes
         }
-        self.assertEqual(notice_discover.answer_payload["requested_capability"], "notice")
+        self.assertEqual(notice_discover.execution_run_payload["requested_capability"], "notice")
         self.assertEqual(
-            notice_discover_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            notice_discover_processes["execution-control"].env[
+                "EXECUTION_CONTROL_OPEN_CAPABILITIES"
+            ],
             "notice",
         )
         self.assertNotIn("s3-smoke-object-store", notice_discover_processes)
-        self.assertNotIn("OBJECT_STORE_ENDPOINT", notice_discover_processes["supervisor-api"].env)
-        self.assertIn("campus_notice_discover", notice_discover.expected_body_tokens)
-        self.assertIn("single_handoff", notice_discover.expected_body_tokens)
-        self.assertIn("sdk_completed", notice_discover.expected_body_tokens)
+        self.assertNotIn(
+            "OBJECT_STORE_ENDPOINT", notice_discover_processes["execution-control"].env
+        )
         self.assertEqual(
             notice_discover_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
         academic_processes = {process.label: process for process in academic_calendar.processes}
-        self.assertEqual(academic_calendar.expected_status, 200)
+        self.assertEqual(academic_calendar.expected_run_status, 202)
         self.assertEqual(
-            academic_calendar.answer_payload["requested_capability"],
+            academic_calendar.execution_run_payload["requested_capability"],
             "campus_services",
         )
         self.assertEqual(
-            academic_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            academic_processes["execution-control"].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
-            academic_processes["supervisor-agent-worker"].env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],
+            academic_processes["supervisor-agent-worker"].env["EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"],
             "http://127.0.0.1:27051",
         )
-        self.assertIn("campus-services-agent", academic_calendar.expected_body_tokens)
-        self.assertIn("academic_calendar_lookup", academic_calendar.expected_body_tokens)
-        self.assertIn("single_handoff", academic_calendar.expected_body_tokens)
-        self.assertIn("sdk_completed", academic_calendar.expected_body_tokens)
         multi_step_processes = {process.label: process for process in multi_step_notice.processes}
-        self.assertEqual(multi_step_notice.expected_status, 200)
-        self.assertEqual(multi_step_notice.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(multi_step_notice.expected_run_status, 202)
         self.assertEqual(
-            multi_step_notice.answer_payload["context"]["session"]["selected_notice_ref"][
+            multi_step_notice.execution_run_payload["requested_capability"], "knowledge"
+        )
+        self.assertEqual(
+            multi_step_notice.execution_run_payload["context"]["session"]["selected_notice_ref"][
                 "notice_id"
             ],
             "notice:smoke:001",
         )  # type: ignore[index]
         self.assertEqual(
-            multi_step_processes["supervisor-api"].env[
-                "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED"
+            multi_step_processes["execution-control"].env[
+                "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED"
             ],
             "true",
         )
         self.assertEqual(
-            multi_step_processes["supervisor-api"].env["SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE"],
+            multi_step_processes["execution-control"].env[
+                "EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE"
+            ],
             "true",
         )
         self.assertEqual(
             multi_step_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
         self.assertEqual(
             multi_step_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"
             ],
-            multi_step_processes["supervisor-api"].env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
+            multi_step_processes["execution-control"].env[
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"
+            ],
         )
         self.assertIn("s3-smoke-object-store", multi_step_processes)
-        self.assertIn("multi_step", multi_step_notice.expected_body_tokens)
-        self.assertIn("context_projections", multi_step_notice.expected_body_tokens)
-        self.assertIn("notice_context", multi_step_notice.expected_body_tokens)
-        self.assertIn("campus_notice_get", multi_step_notice.expected_body_tokens)
-        self.assertIn("retrieval.query", multi_step_notice.expected_body_tokens)
-        self.assertIn("已读取的通知上下文", multi_step_notice.expected_body_tokens)
         transport_override_processes = {
             process.label: process for process in transport_notice_override.processes
         }
-        self.assertEqual(transport_notice_override.expected_status, 200)
+        self.assertEqual(transport_notice_override.expected_run_status, 202)
         self.assertEqual(
-            transport_notice_override.answer_payload["requested_capability"],
+            transport_notice_override.execution_run_payload["requested_capability"],
             "campus_services",
         )
         self.assertEqual(
-            transport_notice_override.answer_payload["context"]["session"]["selected_notice_ref"][
-                "notice_id"
-            ],
+            transport_notice_override.execution_run_payload["context"]["session"][
+                "selected_notice_ref"
+            ]["notice_id"],
             "353903",
         )  # type: ignore[index]
         self.assertEqual(
-            transport_override_processes["supervisor-api"].env[
-                "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED"
+            transport_override_processes["execution-control"].env[
+                "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED"
             ],
             "true",
         )
         self.assertEqual(
-            transport_override_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            transport_override_processes["execution-control"].env[
+                "EXECUTION_CONTROL_OPEN_CAPABILITIES"
+            ],
             "campus_services",
         )
         self.assertEqual(
             transport_override_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
         self.assertIn("s3-smoke-object-store", transport_override_processes)
-        self.assertIn("multi_step", transport_notice_override.expected_body_tokens)
-        self.assertIn(
-            "campus_notice_change_set_lookup",
-            transport_notice_override.expected_body_tokens,
-        )
-        self.assertIn("schedule_baseline", transport_notice_override.expected_body_tokens)
-        self.assertIn("notice_change_set", transport_notice_override.expected_body_tokens)
-        self.assertIn("353903", transport_notice_override.expected_body_tokens)
-        self.assertIn("南门外停车区", transport_notice_override.expected_body_tokens)
         selected_notice_guardrail_processes = {
             process.label: process for process in selected_notice_guardrail.processes
         }
-        self.assertEqual(selected_notice_guardrail.expected_status, 200)
+        self.assertEqual(selected_notice_guardrail.expected_run_status, 202)
         self.assertEqual(
-            selected_notice_guardrail.answer_payload["requested_capability"],
+            selected_notice_guardrail.execution_run_payload["requested_capability"],
             "campus_services",
         )
         self.assertEqual(
-            selected_notice_guardrail.answer_payload["requested_scope"],
+            selected_notice_guardrail.execution_run_payload["requested_scope"],
             {"corpus": "regulations", "collection": "student_rules"},
         )
         self.assertEqual(
-            selected_notice_guardrail.answer_payload["context"]["authorization"][
+            selected_notice_guardrail.execution_run_payload["context"]["authorization"][
                 "retrieval_filter"
             ],
             {
@@ -353,42 +321,35 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
             },
         )  # type: ignore[index]
         self.assertEqual(
-            selected_notice_guardrail.answer_payload["context"]["session"]["selected_notice_ref"][
-                "notice_id"
-            ],
+            selected_notice_guardrail.execution_run_payload["context"]["session"][
+                "selected_notice_ref"
+            ]["notice_id"],
             "notice:transport:355122",
         )  # type: ignore[index]
         self.assertEqual(
-            selected_notice_guardrail_processes["supervisor-api"].env[
-                "SUPERVISOR_API_OPEN_CAPABILITIES"
+            selected_notice_guardrail_processes["execution-control"].env[
+                "EXECUTION_CONTROL_OPEN_CAPABILITIES"
             ],
             "campus_services",
         )
         self.assertNotIn(
-            "SUPERVISOR_INTERNAL_QUERY_BASE_URL",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL",
             selected_notice_guardrail_processes["supervisor-agent-worker"].env,
         )
         self.assertNotIn(
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
             selected_notice_guardrail_processes["supervisor-agent-worker"].env,
         )
         self.assertNotIn("s3-smoke-object-store", selected_notice_guardrail_processes)
-        self.assertIn("terminal", selected_notice_guardrail.expected_body_tokens)
-        self.assertIn(
-            "selected_notice_target_surface_ineligible_for_knowledge_followthrough",
-            selected_notice_guardrail.expected_body_tokens,
-        )
-        self.assertEqual(transactional.expected_status, 200)
-        self.assertEqual(transactional.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(transactional.expected_run_status, 202)
+        self.assertEqual(transactional.execution_run_payload["requested_capability"], "knowledge")
         self.assertEqual(
-            transactional.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            transactional.processes[1].env["EXECUTION_CONTROL_OPEN_CAPABILITIES"],
             "",
         )
-        self.assertIn("approval_required", transactional.expected_body_tokens)
-        self.assertIn("workflow_trace_summary", transactional.expected_body_tokens)
-        self.assertIn("selected_target", transactional.expected_body_tokens)
+        self.assertIn('"status": "queued"', transactional.expected_run_body_tokens)
 
-    def test_answer_probe_uses_process_smoke_timeout_budget(self) -> None:
+    def test_execution_run_probe_uses_process_smoke_timeout_budget(self) -> None:
         import inspect
 
         from scripts.supervisor_runtime_process_smoke_http import _post_json
@@ -406,7 +367,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
 
         self.assertIn("headers", parameters)
 
-    def test_sse_answer_probe_preserves_event_stream_text(self) -> None:
+    def test_sse_parser_preserves_event_stream_text_for_other_callers(self) -> None:
         from scripts.supervisor_runtime_process_smoke_http import _parse_sse_response
 
         payload = _parse_sse_response(
@@ -448,7 +409,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                     plan.processes,
                     {
                         "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
-                        "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                        "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
                         ),
                     },
@@ -459,7 +420,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                     "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_test",
                 )
                 self.assertEqual(
-                    processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+                    processes[1].env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
                     STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
                 )
                 self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", plan.processes[1].env)
@@ -492,7 +453,7 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                 process_by_label = {process.label: process for process in processes}
 
                 self.assertEqual(
-                    process_by_label["supervisor-api"].env[
+                    process_by_label["execution-control"].env[
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"
                     ],
                     "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_notice",
@@ -541,8 +502,8 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                     {
                         "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": runtime_database_url,
-                        "SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL": runtime_database_url,
-                        "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                        "EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL": runtime_database_url,
+                        "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
                         ),
                     },
@@ -550,19 +511,19 @@ class SupervisorRuntimeProcessSmokeTestPart02(unittest.TestCase):
                 process_by_label = {process.label: process for process in processes}
 
                 self.assertEqual(
-                    process_by_label["supervisor-api"].env[
+                    process_by_label["execution-control"].env[
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"
                     ],
                     f"postgresql://postgres:postgres@127.0.0.1:5432/{database_name}",
                 )
                 self.assertEqual(
-                    process_by_label["supervisor-api"].env[
-                        "SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"
+                    process_by_label["execution-control"].env[
+                        "EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL"
                     ],
                     f"postgresql://postgres:postgres@127.0.0.1:5432/{database_name}",
                 )
                 self.assertNotIn(
-                    "SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL",
+                    "EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL",
                     process_by_label["supervisor-agent-worker"].env,
                 )
 

@@ -74,7 +74,7 @@ describe("app-api smoke identity provisioning", () => {
 				password: "SmokePass!2026",
 				passwordEnvKey: "APP_API_SMOKE_IDENTITY_PASSWORD",
 				publicChatOrigin: "https://chat-staging.mucwiki-edge.link",
-				supervisorApiBaseUrl: "https://supervisor.internal",
+				supervisorApiBaseUrl: "https://execution-control.internal",
 				supervisorApiSharedSecret: "smoke-identity-supervisor-secret",
 			}),
 		).toThrow("operatorDatabaseUrl is required");

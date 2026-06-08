@@ -4,7 +4,6 @@ from importlib import import_module
 from typing import Any
 
 _EXPORTS: dict[str, tuple[str, str]] = {
-    "ANSWER_ROUTE": ("campus_shared.constants", "ANSWER_ROUTE"),
     "APP_NAME": ("campus_shared.constants", "APP_NAME"),
     "HEALTH_ROUTE": ("campus_shared.constants", "HEALTH_ROUTE"),
     "READY_ROUTE": ("campus_shared.constants", "READY_ROUTE"),

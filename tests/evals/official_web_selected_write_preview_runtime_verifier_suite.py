@@ -116,7 +116,7 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
             self.assertEqual(bundle_scope, BUNDLE_SCOPE_TASK_SCOPE)
             return {
                 "schema_version": "official_web_selected_write_preview_runtime_verification.v1",
-                "runner": "supervisor-api-go",
+                "runner": "execution-control-go",
                 "results": [
                     {
                         "case_id": "service-runtime-1",
@@ -274,7 +274,7 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
             self.assertEqual(len(selected_cases), 1)
             return {
                 "schema_version": "official_web_selected_write_preview_runtime_verification.v1",
-                "runner": "supervisor-api-go",
+                "runner": "execution-control-go",
                 "results": [
                     {
                         "case_id": "contact-runtime-full-impact",
@@ -357,7 +357,7 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
             )
             return {
                 "schema_version": "official_web_selected_write_preview_runtime_verification.v1",
-                "runner": "supervisor-api-go",
+                "runner": "execution-control-go",
                 "results": [
                     {
                         "case_id": case.case_id,
@@ -460,7 +460,7 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
             )
             return {
                 "schema_version": "official_web_selected_write_preview_runtime_verification.v1",
-                "runner": "supervisor-api-go",
+                "runner": "execution-control-go",
                 "results": [
                     {
                         "case_id": case.case_id,
@@ -555,7 +555,7 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
                 cases=cases,
                 runner=lambda **_: {
                     "schema_version": "official_web_selected_write_preview_runtime_verification.v1",
-                    "runner": "supervisor-api-go",
+                    "runner": "execution-control-go",
                     "results": [],
                 },
             )

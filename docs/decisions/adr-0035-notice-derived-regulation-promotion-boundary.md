@@ -171,7 +171,7 @@ release/index。
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `git history authenticated-notice regulation consumption workstream`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
   tial-review-boundary.md`

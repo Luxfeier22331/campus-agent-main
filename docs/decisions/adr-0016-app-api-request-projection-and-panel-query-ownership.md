@@ -14,9 +14,10 @@ projection、panel `Requests` domain 的长期 ownership
 
 当前仓库已经具备以下事实：
 
-- `apps/supervisor-api` 是 execution engine boundary
+- `apps/execution-control` 是 execution engine boundary
 - `apps/app-api` 已被接受并实现为 shared application/control-plane backend
-- `apps/supervisor-api` 当前拥有 execution audit summary 与 response observability projection
+- `apps/execution-control` 当前拥有 execution audit summary 与 response
+  observability projection
 - chat conversation history 会记录 `request_id`
 - protected panel 已冻结为 `runtime APIs only` 的 protected Worker shell；forward
   web-surface 名称为 `apps/protected-panel-web`
@@ -30,7 +31,7 @@ projection、panel `Requests` domain 的长期 ownership
 - panel 直接读 audit log 或 telemetry sink
 - conversation store 被误当成 request truth
 - `apps/supervisor-agent-worker` 被反向扩成 request read-model host
-- `apps/supervisor-api` 顺手继续长成 panel query backend
+- `apps/execution-control` 顺手继续长成 panel query backend
 
 ## 决策 1：canonical request facts 与 projection input 一次产出
 
@@ -67,17 +68,17 @@ projection、panel `Requests` domain 的长期 ownership
 
 - 本 ADR 不冻结具体 projection store 必须是某个数据库或托管产品
 
-## 决策 3：`apps/supervisor-api` 继续只是 execution engine
+## 决策 3：`apps/execution-control` 继续只是 execution engine
 
 结论：
 
-- `apps/supervisor-api` 继续负责 answer execution
+- `apps/execution-control` 继续负责 answer execution
 - 不负责 request projection store、list/detail API 或 panel query serving
 
 原因：
 
 - execution engine 与 operator query 是不同产品边界
-- 否则会重新把 `supervisor-api` 扩回产品 backend
+- 否则会重新把 `execution-control` 扩回产品 backend
 
 ## 决策 4：agent worker 不拥有 panel read model host
 
@@ -86,7 +87,7 @@ projection、panel `Requests` domain 的长期 ownership
 - `apps/supervisor-agent-worker` 只返回 private `AgentResponse`
 - 不拥有 request projection store、list/detail API 或面向 panel 的 read model host
 - execution audit summary、response observability projection 与 public
-  finalization 由 `apps/supervisor-api` 拥有
+  finalization 由 `apps/execution-control` 拥有
 
 原因：
 
@@ -138,7 +139,7 @@ projection、panel `Requests` domain 的长期 ownership
 - 不让 panel 直接读取 JSONL audit
 - 不让 telemetry sink 兼任 panel 主数据面
 - 不把 request projection read-model host 做进 `apps/supervisor-agent-worker`
-- 不让 `apps/supervisor-api` 顺手扩成 panel 查询后端
+- 不让 `apps/execution-control` 顺手扩成 panel 查询后端
 
 ## 相关文档
 

@@ -20,8 +20,8 @@ export function registerWorkerOperatorDomainsSuitePart02() {
 					APP_API_ENVIRONMENT: "test" as const,
 					BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 					PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
-					SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
-					SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+					EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+					EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 					APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 					APP_API_INTERNAL_SHARED_SECRET: "panel-bridge-secret",
 					APP_API_DB: {

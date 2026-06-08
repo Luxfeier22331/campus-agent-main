@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-20
-updated: 2026-05-06
+updated: 2026-06-08
 ---
 # Agentic Retrieval Architecture
 
@@ -12,9 +12,10 @@ updated: 2026-05-06
 
 它回答的是：
 
-- planner-first retrieval 在本仓库里长期应长成什么样
+- durable planner-first typed-tool retrieval 在本仓库里应长成什么样
 - `rag-agent`、`retrieval-core`、runtime truth 各自负责什么
-- multi-step retrieval、freshness / live branch、query activity 应如何收口
+- multi-step retrieval、freshness / live branch、query activity、durable step
+  trajectory 应如何收口
 
 它不负责：
 
@@ -28,17 +29,20 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 ## Core Conclusion
 
-`campus-agent` 的长期 retrieval 目标不是继续停留在 single-shot hybrid query， 而是演进为：
+`campus-agent` 的 retrieval 目标不是继续停留在 single-shot hybrid query，而是：
 
-`bounded campus agentic retrieval`
+`durable planner-first typed-tool agentic RAG`
 
-它的长期固定形态是：
+它的固定形态是：
 
 - planner-first
 - typed retrieval plan
-- multi-step execution
+- Temporal-backed durable step graph execution
+- typed retrieval / domain tools
+- evidence verifier
 - explicit freshness / historical routing
 - answer-bearing evidence 与 raw candidate trace 分层
+- step-level latency / token / cost / grounding evidence projection
 - fail-close by default
 
 它仍然不是：
@@ -67,19 +71,19 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 - `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover`
   与 internal selected notice resolve（`payload_kind=campus_notice_get`）这类结构化
-  runtime capability 不属于 agentic retrieval 本身
-- 它们应通过 projection-backed internal query service + domain-agent tool adapter
-  提供，而不是伪装成 retrieval step
-- `rag-agent` 可以消费这些 domain-agent 产出的 bounded context projection，但不能代持它们的
+  runtime capability 不属于 retrieval-core 本身
+- 它们应通过 projection-backed internal query service + typed domain tool 提供；只有需要语义判断时
+  才进入 agent-as-tool
+- `rag-agent` 可以消费这些 typed domain tool / agent-as-tool 产出的 bounded context projection，但不能代持它们的
   source truth、temporal semantics 或 opening gate
 
 ## Long-Term Execution Shape
 
-长期主链路中的 retrieval 片段固定为：
+主链路中的 RAG 片段固定为：
 
-`supervisor admission -> rag-agent scope resolution -> rag-agent retrieval
-planner -> typed retrieval plan -> retrieval-core executor -> query activity /
-step results -> supporting evidence selection -> rag-agent synthesis ->
+`supervisor typed step admission -> Temporal workflow activity -> rag-agent planner
+-> typed retrieval/domain activities -> retrieval-core executor / domain query service
+-> evidence verifier -> supporting evidence selection -> rag-agent synthesis ->
 grounding validation -> supervisor finalization`
 
 其中：
@@ -87,12 +91,19 @@ grounding validation -> supervisor finalization`
 - supervisor 负责 capability / policy / top-level routing admission
 - `rag-agent` 负责 plan 与 answer 语义
 - `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
+- Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
+  repo-owned projection 负责 step attempt、result、event 与 eval/panel truth
+- evidence contract 驱动 replan / clarification / fail-close；synthesis 不得补洞
+- 当前实现中的 Temporal-visible RAG 仍是 coarse `semantic.rag` step；目标必须拆成
+  `rag.plan`、`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、
+  `evidence.selection`、`synthesis`、`grounding.verify`、`finalization.write` 等
+  durable steps，使 RAG 从“能答”升级为“可证明地答”
 
 当 retrieval 处于 multi-agent workflow 中时，长期片段固定为：
 
-`upstream domain-agent StepOutputProjection -> rag-agent context framing ->
-typed retrieval plan -> retrieval-core executor -> supporting evidence ->
-grounding validation -> supervisor finalization`
+`upstream typed tool / agent-as-tool StepOutputProjection -> rag-agent context
+framing -> typed retrieval plan -> retrieval/domain tools -> evidence verifier ->
+supporting evidence -> grounding validation -> supervisor finalization`
 
 允许进入 `rag-agent` 的 upstream context 必须是 bounded projection，例如
 `CanonicalNoticeContext`、`NoticeChangeSet`、`ServiceGuideFacts`、`ScheduleBaseline`
@@ -110,6 +121,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 - replan decision
 - supporting evidence selection policy
 - grounded answer synthesis
+- evidence verifier / grounding validator policy
 
 不负责：
 
@@ -126,6 +138,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 - rerank / threshold / merge / dedupe
 - query activity / execution metadata
 - candidate set shaping
+- typed retrieval tool execution projection
 
 不负责：
 
@@ -138,12 +151,16 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
   - authz projection、identity projection、operator-facing read model
 - runtime profile / registry / release truth
   - collection posture、visibility、serving alias、version mode
-- `apps/supervisor-api`
+- `execution-control` / current `apps/execution-control`
   - policy / capability admission
+  - workflow/activity admission
+  - projection command and finalization
+- Temporal execution plane
+  - workflow history、task queue、retry、timeout、heartbeat 与 worker dispatch
 
 ## RetrievalPlan
 
-长期 `RetrievalPlan` 固定是 typed contract，而不是 prompt 内部不可见的推理副作用。
+`RetrievalPlan` 固定是 typed contract，而不是 prompt 内部不可见的推理副作用。
 
 它至少应显式表达：
 
@@ -157,6 +174,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
   - `freshness_sensitive`
   - `live_assisted`
 - ordered retrieval steps
+- corresponding durable `RunStep` ids
 - plan budget
 - source-trust / freshness requirements
 - fail-close condition
@@ -169,7 +187,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 
 ## RetrievalStep
 
-长期每个 `RetrievalStep` 都必须是 typed、可追溯、可观测的执行单元。
+每个 `RetrievalStep` 都必须映射到 typed、可追溯、可观测的 durable `RunStep`。
 
 每个 step 至少应表达：
 
@@ -181,19 +199,39 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 - freshness requirement
 - expected output class
 - step budget
+- durable stage attribution
+
+stage attribution 固定使用：
+
+- `planning`
+- `tool`
+- `retrieval`
+- `rerank`
+- `selection`
+- `synthesis`
+- `grounding`
 
 ## Allowed Step Types
 
-长期 admitted step types 固定优先包括：
+admitted retrieval/domain tool step types 固定优先包括：
 
-- `indexed_lookup`
+- `hybrid_search`
   - 面向单一 admitted collection 的普通索引检索
+- `document_section_read`
+  - 读取 canonical document section / root unit
+- `parent_context_expand`
+  - 在 admitted document 内扩展 parent/child context
+- `rerank`
+  - 对候选集合执行 admitted rerank profile
+- `evidence_coverage_verify`
+  - 检查 supporting evidence 是否覆盖问题要求
+- `supporting_evidence_select`
+  - 从 candidate set 中选择 answer-bearing evidence
 - `entity_resolution`
   - 面向课程、方案家族、制度对象、地点等实体分辨
 - `scope_follow_up`
   - 在已 admitted 的 capability 内切换到 internal retrieval surface
-  - 只保留给 future explicit admission；首轮稳定 contract 可以先把它作为 reserved value，而不是 初始
-    executor 必须支持的 execution value
+  - 只保留给显式 admission 的扩展；未 admission 时 executor 必须拒绝它
 - `historical_version_lookup`
   - 显式 historical / `as_of` 版本定位
 - `compare_pair_lookup`
@@ -203,7 +241,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 - `live_source_lookup`
   - 只允许命中 repo admitted 的 live source channel
 
-长期禁止新增：
+禁止新增：
 
 - general web browse fallback
 - 未经 repo 文档 admission 的 remote capability
@@ -211,7 +249,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 
 ## Plan Lifecycle
 
-长期 plan lifecycle 固定为：
+plan lifecycle 固定为：
 
 1. query framing
 1. policy / scope / authz admission
@@ -221,11 +259,13 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 1. optional bounded replan
 1. candidate merge / rerank / threshold
 1. supporting evidence selection
-1. synthesis + grounding validation
+1. evidence coverage verify
+1. synthesis
+1. grounding validation
 
 ## Budget Model
 
-长期 planner / executor 必须显式拥有 budget truth。
+planner / executor 必须显式拥有 budget truth。
 
 至少包括：
 
@@ -243,7 +283,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 
 ## Surface, Authz, Freshness, Source-Trust Gates
 
-agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这些 gate：
+agentic RAG 不是对当前 gate 的替代，而是必须显式经过这些 gate：
 
 - serving-surface gate
 - authz / visibility gate
@@ -260,7 +300,7 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 
 ## Candidate Set Vs Supporting Evidence
 
-长期固定区分两层 truth：
+固定区分两层 truth：
 
 - `candidate set`
   - planner / executor 在各 step 中看到的原始候选集合
@@ -275,13 +315,19 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 
 ## Rerank, Merge, And Dedupe
 
-长期 `retrieval-core` 可以执行：
+`retrieval-core` 可以执行：
 
 - rerank
 - thresholding
 - duplicate collapse
 - cross-step merge
 - title / entity / version-aware dedupe
+
+当前代码事实是：online rerank 主要依赖 Qdrant hybrid / RRF、heuristic ranking 与
+profile-gated rerank interface；未发现线上 cross-encoder、torch、ONNX 或
+sentence-transformers rerank 已接入为 current serving truth。后续是否引入
+cross-encoder / complex scoring 必须先由 step-level latency、CPU profile、
+quality eval 与 cost evidence 证明，不能作为默认假设。
 
 但它不能：
 
@@ -291,7 +337,7 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 
 ## Historical, Compare, And Freshness-Sensitive Queries
 
-长期 query mode 固定显式化：
+query mode 固定显式化：
 
 - `current`
 - `historical`
@@ -308,33 +354,86 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 
 ## Failure Semantics
 
-长期 agentic retrieval 固定 fail-close 于以下分支：
+agentic RAG 固定 fail-close 于以下分支：
 
 - no admitted plan
 - unauthorized target scope
 - unsupported query mode
 - insufficient freshness
 - insufficient answer-bearing evidence
+- evidence coverage verification failed
+- grounding validation failed
 - planner / executor budget exhausted
 - live branch unavailable
 
 ## Observability And Query Activity
 
-长期至少保留以下 agentic retrieval execution truth：
+至少保留以下 step-level RAG execution truth：
 
 - plan summary
 - step count
 - step latency
 - step outcome
 - replan count
+- tool result summary
 - rerank summary
 - merge / dedupe summary
 - final supporting evidence summary
+- evidence coverage verdict
+- synthesis summary
+- grounding verdict
 - freshness branch outcome
 - live retrieval outcome
+- provider request ref、latency、input / output / cached token、estimated cost
+- cancel / timeout observed outcome
 
 这些 execution-side truth 用于 operator observability、quality grading 与 release
 gate， 但不应直接暴露 raw snippets 或 vendor payload。
+
+badcase、RAGAS、golden dataset 与 operator panel 的阶段归因固定落到：
+
+- `routing`
+- `planning`
+- `tool`
+- `retrieval`
+- `rerank`
+- `selection`
+- `synthesis`
+- `grounding`
+
+低分样本必须能回链到 sanitized step trajectory；不得只保留最终 answer 文本和一组 raw logs。
+
+## Prove-The-Answer Contract
+
+RAG 目标不是只返回一个看起来合理的 answer，而是为每个关键阶段留下可诊断证据：
+
+- retrieval step 必须投影 admitted query、filters、candidate summary 与 bounded query activity。
+- selection step 必须投影 supporting evidence id、span、coverage summary 与 reject reason。
+- synthesis step 必须投影 provider request ref、latency、token、estimated cost 与
+  claim support summary；不得把 raw provider response 作为 canonical truth。
+- grounding step 必须投影 claim / list item coverage verdict、missing support 与 fail-close
+  reason。
+- finalization 只能消费已通过 grounding 的 supporting evidence projection。
+
+如果缺少 retrieval result、supporting evidence、usage/cost accounting、grounding
+verdict 或 cancel outcome，run 不能被标记为“可证明地答”；只能作为诊断缺口或
+fail-close 分支进入 projection。
+
+## LlamaIndex Boundary
+
+LlamaIndex 是 ingestion / retrieval implementation dependency，不是 `campus-agent`
+架构层。
+
+固定规则：
+
+- LlamaIndex 不能进入 `packages/contracts`、`apps/execution-control`、panel / eval canonical
+  truth 或架构 vocabulary。
+- ingestion / retrieval adapter 可以在内部使用 LlamaIndex 做 chunking、embedding helper、
+  metadata helper 或 Qdrant integration glue，但跨层 contract 必须是 repo-owned DTO。
+- 长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter + sanitized
+  query activity projection；LlamaIndex 只能保留为可替换实现依赖。
+- eval、operator panel 与 badcase 只看 durable step/result projection，不以
+  LlamaIndex run object、node object 或 vendor metadata 作为 source truth。
 
 ## Internal Agents SDK Loop
 
@@ -362,7 +461,8 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 
 - Python SDK suite 必须证明 internal DTO、function tool boundary、guardrail、rollout mode、
   sanitized trace projection 与 worker runner contract 未漂移
-- public/chat product-path E2E 必须证明 `supervisor-api -> supervisor-agent-worker ->
+- public/chat product-path E2E 必须证明
+  `execution-control -> Temporal activity -> supervisor-agent-worker ->
   rag-agent SDK loop -> Go finalizer` 返回 canonical `SupervisorResponse`
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker

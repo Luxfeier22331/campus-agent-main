@@ -18,7 +18,7 @@ document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 st
 本文回答三个问题：
 
 - 主流文档 AI / RAG 链路通常如何做归一化
-- 旧 `campusRAG` 实际采用了什么 handbook 归一化策略
+- 旧原型实际采用了什么 handbook 归一化策略
 - `campus-agent` 在当前阶段应该如何设计 handbook 的 source-level normalization
 
 本文只覆盖 chunking 上游 truth：
@@ -79,9 +79,9 @@ projection。
 
 因此 `layout-elements.jsonl` 的职责不是“多存一份文本”，而是把 provider truth 和 document truth 隔开。
 
-## `campusRAG` 旧策略
+## 旧原型策略
 
-旧 `campusRAG` 在 handbook 上实际已经验证了“单 PDF 多逻辑文档”的模型，但它的归一化起点更靠后。
+旧原型在 handbook 上实际已经验证了“单 PDF 多逻辑文档”的模型，但它的归一化起点更靠后。
 
 它的有效做法有三类：
 

@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=infra/local/staging/execution-control-staging-common.sh
+source "${script_dir}/execution-control-staging-common.sh"
+
+strict_mode=0
+if (( $# > 1 )); then
+  echo "Usage: $0 [--check]" >&2
+  exit 2
+fi
+
+if (( $# == 1 )); then
+  if [[ "$1" != "--check" ]]; then
+    echo "Usage: $0 [--check]" >&2
+    exit 2
+  fi
+  strict_mode=1
+fi
+
+execution_control_staging_ensure_runtime_dirs
+execution_control_staging_acquire_lock 30
+execution_control_staging_require_deploy_checkout_clean
+execution_control_staging_load_env
+if (( strict_mode == 1 )); then
+  execution_control_staging_require_status_env
+  execution_control_staging_require_data_plane_ready
+fi
+execution_control_staging_capture_compose_logs
+
+if (( strict_mode == 0 )); then
+  echo "docker compose project: ${execution_control_staging_compose_project_name}"
+  execution_control_staging_compose ps || true
+
+  echo
+  echo "local healthz: ${execution_control_staging_local_healthz_url}"
+  curl -sS -i "${execution_control_staging_local_healthz_url}" || true
+
+  echo
+  echo "local readyz: ${execution_control_staging_local_readyz_url}"
+  curl -sS -i \
+    -H "x-worker-origin-auth: ${EXECUTION_CONTROL_SHARED_SECRET:?EXECUTION_CONTROL_SHARED_SECRET is required}" \
+    "${execution_control_staging_local_readyz_url}" || true
+
+  echo
+  echo "local metrics: ${execution_control_staging_local_metrics_url}"
+  curl -sS -i \
+    -H "authorization: Bearer ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}" \
+    "${execution_control_staging_local_metrics_url}" || true
+
+  if [[ -n "${execution_control_staging_app_api_readyz_url}" ]]; then
+    echo
+    echo "app-api readyz: ${execution_control_staging_app_api_readyz_url}"
+    curl --noproxy '*' -sS -i "${execution_control_staging_app_api_readyz_url}" || true
+  fi
+
+  echo
+  echo "logs:"
+  echo "  ${execution_control_staging_otel_collector_log_file}"
+  echo "  ${execution_control_staging_otel_collector_recent_log_file}"
+  echo "  ${execution_control_staging_execution_control_log_file}"
+  echo "  ${execution_control_staging_supervisor_agent_worker_log_file}"
+  exit 0
+fi
+
+local_healthz_body="$(mktemp)"
+local_readyz_body="$(mktemp)"
+local_metrics_body="$(mktemp)"
+app_api_readyz_body="$(mktemp)"
+trap 'rm -f "${local_healthz_body}" "${local_readyz_body}" "${local_metrics_body}" "${app_api_readyz_body}"' EXIT
+
+failures=()
+
+if ! execution_control_staging_compose_project_running; then
+  failures+=("execution-control compose project is not fully running")
+elif ! execution_control_staging_require_container_qdrant_ready; then
+  failures+=("supervisor-agent-worker cannot reach Qdrant through container data-plane network")
+fi
+
+local_healthz_status="$(
+  execution_control_staging_probe_http_url "${execution_control_staging_local_healthz_url}" "${local_healthz_body}"
+)"
+if [[ "${local_healthz_status}" != "200" ]]; then
+  failures+=("local healthz returned HTTP ${local_healthz_status}")
+fi
+
+local_readyz_status="$(
+  execution_control_staging_probe_http_url \
+    "${execution_control_staging_local_readyz_url}" \
+    "${local_readyz_body}" \
+    0 \
+    "${EXECUTION_CONTROL_SHARED_SECRET:?EXECUTION_CONTROL_SHARED_SECRET is required}" \
+    "x-worker-origin-auth"
+)"
+if [[ "${local_readyz_status}" != "200" ]]; then
+  failures+=("local readyz returned HTTP ${local_readyz_status}")
+fi
+if ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "run_projection_store.configured" "true" ||
+  ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "run_projection_store.healthy" "true"; then
+  failures+=("local readyz payload is not run_projection_store ready")
+fi
+if ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "temporal_runtime.configured" "true" ||
+  ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "temporal_runtime.healthy" "true"; then
+  failures+=("local readyz payload is not temporal_runtime ready")
+fi
+local_metrics_status="$(
+  execution_control_staging_probe_http_url \
+    "${execution_control_staging_local_metrics_url}" \
+    "${local_metrics_body}" \
+    0 \
+    "${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}" \
+    "authorization"
+)"
+if [[ "${local_metrics_status}" != "200" ]]; then
+  failures+=("local metrics returned HTTP ${local_metrics_status}")
+fi
+
+if [[ -n "${execution_control_staging_app_api_readyz_url}" ]]; then
+  app_api_readyz_status="$(execution_control_staging_probe_http_url "${execution_control_staging_app_api_readyz_url}" "${app_api_readyz_body}" 1)"
+  app_api_readyz_payload="$(tr -d '[:space:]' <"${app_api_readyz_body}")"
+
+  if [[ "${app_api_readyz_status}" != "200" ]]; then
+    failures+=("app-api readyz returned HTTP ${app_api_readyz_status}")
+  fi
+  if [[ "${app_api_readyz_payload}" != *'"status":"ready"'* ]]; then
+    failures+=("app-api readyz payload is not status=ready")
+  fi
+  if [[ "${app_api_readyz_payload}" != *'"auth":"ready"'* ]]; then
+    failures+=("app-api readyz payload is not auth=ready")
+  fi
+  if [[ "${app_api_readyz_payload}" != *'"database":"ready"'* ]]; then
+    failures+=("app-api readyz payload is not database=ready")
+  fi
+  if [[ "${app_api_readyz_payload}" != *'"executionControl":"ready"'* ]]; then
+    failures+=("app-api readyz payload is not executionControl=ready")
+  fi
+  if ! execution_control_staging_probe_json_path_equals "${app_api_readyz_body}" "dependencies.executionRuntime" '"ready"'; then
+    failures+=("app-api readyz payload is not executionRuntime=ready")
+  fi
+fi
+
+if execution_control_staging_collector_logs_have_export_errors; then
+  failures+=("otel-collector recent log contains permanent exporter failures")
+fi
+
+if (( ${#failures[@]} > 0 )); then
+  echo "strict check: failed" >&2
+  for failure in "${failures[@]}"; do
+    echo "  - ${failure}" >&2
+  done
+  exit 1
+fi
+
+echo "strict check: ok"
+echo "  - local healthz: ${execution_control_staging_local_healthz_url}"
+echo "  - local readyz: ${execution_control_staging_local_readyz_url}"
+echo "  - local metrics: ${execution_control_staging_local_metrics_url}"
+if [[ -n "${execution_control_staging_app_api_readyz_url}" ]]; then
+  echo "  - app-api readyz: ${execution_control_staging_app_api_readyz_url}"
+fi

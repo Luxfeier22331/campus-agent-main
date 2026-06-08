@@ -16,7 +16,7 @@ export function registerOperatorQueryObservabilitySuite(): void {
 						latestTerminalCode: "completed",
 					},
 					links: {
-						issueFingerprint: "timeout:supervisor-api",
+						issueFingerprint: "timeout:execution-control",
 						issueLink: "https://sentry.example/issues/123",
 						traceLink: "https://sentry.example/traces/trace_01HQ",
 					},
@@ -153,7 +153,7 @@ export function registerOperatorQueryObservabilitySuite(): void {
 					latestTerminalCode: "completed",
 				},
 				links: {
-					issueFingerprint: "timeout:supervisor-api",
+					issueFingerprint: "timeout:execution-control",
 					issueLink: "https://sentry.example/issues/123",
 					traceLink: "https://sentry.example/traces/trace_01HQ",
 				},

@@ -93,7 +93,7 @@ formal benchmark case-results，也不支持 operator observability publish dry-
 
 - `service_guide` source-truth projection 的默认 eval cases
 - `service_guide_lookup` intent 子集，包括办理指南 lookup 与事务性代办 guardrail
-- supervisor-api Go 侧 service guide planning / runtime policy /
+- execution-control Go 侧 service guide planning / runtime policy /
   structured query / answer text
 - Python `campus-services-agent` tool adapter 与 HTTP query service contract
 
@@ -136,10 +136,10 @@ artifact 默认写入：
 这是 `campus-services-product-path` gate 对应的固定运营契约：
 
 - rollout flag（Go-owned）：
-  - `SUPERVISOR_API_OPEN_CAPABILITIES=campus_services`
+  - `EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services`
 - opening 前必须同时满足：
   - gate artifact `summary.failed_checks=0`
-  - `supervisor-api /readyz` 中 `capability_gates.campus_services.open=true`
+  - `execution-control /readyz` 中 `capability_gates.campus_services.open=true`
   - `app-api` 与 `public-chat-web` `/readyz` 中
     `preflight.campusServicesProductPath.status=ready`
 - rollback 条件（任一命中即回滚）：
@@ -147,7 +147,7 @@ artifact 默认写入：
   - `/readyz preflight` 出现 `status=blocked` 或关键 check `not_ready`
   - public/chat 回答出现 source trace 泄漏（如 release id/projection internals/raw ref id）
 - rollback 操作：
-  - 从 `SUPERVISOR_API_OPEN_CAPABILITIES` 移除 `campus_services` 后重新部署
+  - 从 `EXECUTION_CONTROL_OPEN_CAPABILITIES` 移除 `campus_services` 后重新部署
   - 复核 `/readyz` 已回到 capability gate closed
 
 source trace 观察点（browser-safe）：

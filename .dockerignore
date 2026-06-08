@@ -5,8 +5,8 @@
 !pnpm-workspace.yaml
 !apps/authenticated-notice-collector/
 !apps/authenticated-notice-collector/**
-!apps/supervisor-api/
-!apps/supervisor-api/**
+!apps/execution-control/
+!apps/execution-control/**
 !apps/supervisor-agent-worker/
 !apps/supervisor-agent-worker/**
 !apps/ingestion-worker/

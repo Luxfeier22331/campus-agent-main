@@ -110,7 +110,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 selected_tools=("transport_schedule_lookup",),
                 tool_argument_summary={"payload_kind": "transport_schedule_lookup"},
                 guardrail_outcomes={"scope_gate": "allow", "policy_gate": "allow"},
-                runtime_versions={"supervisor-api": "test"},
+                runtime_versions={"execution-control": "test"},
                 policy_artifact_versions={"intent-policy": "v1"},
             ),
         )

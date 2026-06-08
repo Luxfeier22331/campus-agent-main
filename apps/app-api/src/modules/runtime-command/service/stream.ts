@@ -205,7 +205,7 @@ export function parseSupervisorTerminalResponse(input: {
 				occurredAt,
 				requestId,
 				response: supervisorStreamErrorResponse({
-					code: "supervisor_invalid_response",
+					code: "execution_control_invalid_response",
 					message: "Supervisor stream completed without a response payload.",
 					retryable: true,
 					status: "error",

@@ -29,7 +29,7 @@ It owns:
 - `runtime.request_execution` and `runtime.projection_outbox`
 - `operator.request_projection` list/detail APIs
 - `operator.official_web_*` site/run/detail APIs
-- explicit `app-api -> supervisor-api` execution calls
+- explicit `app-api -> execution-control` workflow command calls
 - `docs.*` read model import/export for the document reader surface
 
 It does not own:
@@ -85,7 +85,7 @@ Runtime hardening baseline:
   limiting
 - the protected panel operator bridge is accepted only when allowlisted operator
   headers arrive with a matching internal shared secret
-- `app-api -> supervisor-api` uses a bounded timeout budget and typed
+- `app-api -> execution-control` uses a bounded timeout budget and typed
   invalid-response handling
 - successful chat/eval request ingress now opportunistically triggers a bounded
   request-projection drain via Worker `waitUntil`; scheduled drain remains the
@@ -102,7 +102,7 @@ Runtime hardening baseline:
   `projection.drain`
 - trace propagation keeps canonical `x-trace-id` and also forwards
   `sentry-trace` / `baggage` across `public-chat-web -> app-api ->
-  supervisor-api` and `protected-panel-web -> app-api`
+  execution-control` and `protected-panel-web -> app-api`
 - observability sinks are never the panel request truth source;
   `operator.request_projection` remains canonical
 
@@ -208,10 +208,10 @@ Environment:
 - `PUBLIC_CHAT_WEB_ORIGIN`
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST`
 - `APP_API_END_USER_EMAIL_ALLOWLIST`
-- `SUPERVISOR_API_BASE_URL`
-- `SUPERVISOR_API_SHARED_SECRET`
-- `SUPERVISOR_API_TIMEOUT_MS`
-- `SUPERVISOR_API_EVAL_TIMEOUT_MS`
+- `EXECUTION_CONTROL_BASE_URL`
+- `EXECUTION_CONTROL_SHARED_SECRET`
+- `EXECUTION_CONTROL_TIMEOUT_MS`
+- `EXECUTION_CONTROL_EVAL_TIMEOUT_MS`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST`
 - `APP_API_OPERATOR_TRACE_LINK_TEMPLATE`
 - `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
@@ -290,10 +290,11 @@ Deployment minimum gate:
   must not be committed.
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails
   expected to use the protected panel bridge
-- `SUPERVISOR_API_BASE_URL` and `SUPERVISOR_API_SHARED_SECRET` must be present
+- `EXECUTION_CONTROL_BASE_URL` and `EXECUTION_CONTROL_SHARED_SECRET` must be present
   together; partial configuration does not produce a ready runtime
-- `SUPERVISOR_API_ACCESS_CLIENT_ID` and `SUPERVISOR_API_ACCESS_CLIENT_SECRET`
-  are optional, and are sent only when the supervisor machine ingress is
+- `EXECUTION_CONTROL_ACCESS_CLIENT_ID` and
+  `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET` are optional, and are sent only when
+  the execution-control machine ingress is
   protected by Cloudflare Access service-token authentication
 - password reset callback is frozen to `AUTH_SHELL_ORIGIN`
   `/account/reset-password`; the Better Auth token URL remains under the

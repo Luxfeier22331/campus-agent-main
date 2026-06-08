@@ -15,7 +15,7 @@ ingress seam。
 
 - browser-facing app contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
-- `app-api -> supervisor-api`
+- `app-api -> execution-control`
   内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
 - operator observability ingest/query
   seam：`docs/contracts/app-api-operator-observability-http.md`

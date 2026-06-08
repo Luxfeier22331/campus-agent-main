@@ -103,7 +103,7 @@ updated: 2026-04-23
 
 推荐直接走 shared live benchmark acceptance flow：
 
-- 先启动 repo-local `supervisor-api` 与 `app-api` dev runtime
+- 先启动 repo-local `execution-control` 与 `app-api` dev runtime
 - root `.env` 需要补齐本地 eval ingress 参数，而不是远端部署变量：
   - `APP_API_BASE_URL`
   - `APP_API_INTERNAL_SHARED_SECRET`

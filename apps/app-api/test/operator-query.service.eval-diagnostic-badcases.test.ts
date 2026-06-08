@@ -47,6 +47,7 @@ describe("operator query service eval diagnostic badcases", () => {
 						candidateId:
 							"eval_candidate:ragas_diagnostic:student-scholarship-condition:faithfulness",
 						causeClass: "evidence_selection_failed",
+						diagnosisStage: "selection",
 						diagnostic: {
 							answerShape: "eligibility_judgment",
 							caseId: "student-scholarship-condition",

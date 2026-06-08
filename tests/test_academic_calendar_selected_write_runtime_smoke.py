@@ -11,7 +11,7 @@ import scripts.academic_calendar_selected_write_runtime_smoke as smoke
 
 
 class AcademicCalendarSelectedWriteRuntimeSmokeTest(unittest.TestCase):
-    def test_plan_starts_only_supervisor_api_against_current_postgres_projection(self) -> None:
+    def test_plan_starts_only_execution_control_against_current_postgres_projection(self) -> None:
         plan = smoke.build_academic_calendar_selected_write_runtime_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/academic-calendar-smoke"),
@@ -22,16 +22,16 @@ class AcademicCalendarSelectedWriteRuntimeSmokeTest(unittest.TestCase):
 
         self.assertEqual(len(plan.processes), 1)
         process = plan.processes[0]
-        self.assertEqual(process.label, "supervisor-api")
-        self.assertEqual(process.command, ("go", "run", "./cmd/supervisor-api"))
-        self.assertEqual(process.cwd, Path("/repo/apps/supervisor-api"))
+        self.assertEqual(process.label, "execution-control")
+        self.assertEqual(process.command, ("go", "run", "./cmd/execution-control"))
+        self.assertEqual(process.cwd, Path("/repo/apps/execution-control"))
         self.assertEqual(process.env["CAMPUS_AGENT_HTTP_PORT"], "19281")
         self.assertEqual(
             process.env["CAMPUS_SHARED_POSTGRES_URL"],
             "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
         )
-        self.assertEqual(process.env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"], "query-secret")
-        self.assertNotIn("SUPERVISOR_API_OPEN_CAPABILITIES", process.env)
+        self.assertEqual(process.env["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"], "query-secret")
+        self.assertNotIn("EXECUTION_CONTROL_OPEN_CAPABILITIES", process.env)
         command_words = [word for command in plan.processes for word in command.command]
         self.assertNotIn("docker", command_words)
         self.assertNotIn("wrangler", command_words)
@@ -47,7 +47,7 @@ class AcademicCalendarSelectedWriteRuntimeSmokeTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            plan.processes[0].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            plan.processes[0].env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
             "2026-05-04T00:00:01Z",
         )
 

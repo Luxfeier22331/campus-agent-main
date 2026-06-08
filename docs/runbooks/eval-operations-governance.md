@@ -67,7 +67,7 @@ The gate covers:
 - public-chat product-path evaluator, including sanitized
   `workflow_trace_summary` replay against selected target, branch and fail-close
   reason
-- targeted supervisor-api, app-api and protected-panel-web test lanes, including
+- targeted execution-control, app-api and protected-panel-web test lanes, including
   panel raw bridge/provider/prompt key non-exposure checks
 
 The gate does not start local live processes, does not run Docker smoke, does

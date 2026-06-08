@@ -70,7 +70,7 @@ updated: 2026-06-04
 
 - `apps/app-api = Cloudflare Worker`，见 `ADR-0013` 与
   `docs/architecture/system/product-runtime-architecture.md`。
-- `apps/supervisor-api = Docker-first internal execution service`，见
+- `apps/execution-control = Docker-first internal execution service`，见
   `ADR-0043` 与 `docs/architecture/current-architecture.md`。
 - product surface 收口到 `hub-web` / `public-chat-web` / `public-docs` /
   `protected-panel-web` + shared `app-api`，见 `ADR-0012`、`ADR-0013`、
@@ -182,7 +182,7 @@ updated: 2026-06-04
 
 ### L3: Placeholder paths are not broken links
 
-机械本地路径检查会把 `.planning/workstreams/<slug>/README.md`、`apps/*`、
+机械本地路径检查会把 `GSD SDK / Codex native session state`、`apps/*`、
 `packages/*` 等模板路径当成不存在。它们是 schema / pattern 表达，不是实际文件链接。
 
 状态：not an issue。

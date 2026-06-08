@@ -188,4 +188,4 @@ restricted rollout 边界
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
   .md`
-- `.planning/workstreams/restricted-document-rollout-verification/README.md`
+- `git history restricted-document rollout workstream`

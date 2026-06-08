@@ -1,8 +1,8 @@
 import { type Env, isDeployedEnvironment, readAppApiConfig, resolveEnvironment } from "../config";
 import { probeRuntimeDatabase } from "../db/runtime";
 import { buildBetterAuthConfig, probeAppAuthRuntime } from "../modules/auth";
-import type { SupervisorDurableRuntimePreflight } from "../modules/integration";
-import { probeSupervisorApiReady } from "../modules/integration";
+import type { ExecutionControlRuntimePreflight } from "../modules/integration";
+import { probeExecutionControlReady } from "../modules/integration";
 import type { AppRuntimeReadinessResult } from "./types";
 
 function formatRuntimeDependencyFailure(error: unknown): string {
@@ -10,19 +10,19 @@ function formatRuntimeDependencyFailure(error: unknown): string {
 }
 
 export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadinessResult> {
-	const requireDurableRuntime = isDeployedEnvironment(resolveEnvironment(env));
+	const requireExecutionRuntime = isDeployedEnvironment(resolveEnvironment(env));
 	const dependencies: AppRuntimeReadinessResult["dependencies"] = {
 		auth: "not_ready",
 		authShellOrigin: "configured",
 		database: "not_ready",
-		durableRuntime: requireDurableRuntime ? "not_ready" : "not_required",
+		executionRuntime: requireExecutionRuntime ? "not_ready" : "not_required",
 		officialWebHandoff:
 			env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
 				? "configured"
 				: "not_configured",
 		operatorBridge: "configured",
 		publicChatCompatibilityOrigin: "configured",
-		supervisorApi: "not_ready",
+		executionControl: "not_ready",
 	};
 	const failed: AppRuntimeReadinessResult["failed"] = {};
 	const preflight: AppRuntimeReadinessResult["preflight"] = {};
@@ -50,7 +50,7 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 			failed: {
 				auth: formatRuntimeDependencyFailure(error),
 				database: formatRuntimeDependencyFailure(error),
-				supervisorApi: formatRuntimeDependencyFailure(error),
+				executionControl: formatRuntimeDependencyFailure(error),
 			},
 		};
 	}
@@ -70,23 +70,23 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 	}
 
 	try {
-		const supervisorReadiness = await probeSupervisorApiReady(env);
-		dependencies.supervisorApi = "ready";
-		preflight.durableRuntime = supervisorReadiness.durableRuntime;
-		if (requireDurableRuntime) {
-			if (supervisorReadiness.durableRuntime.status === "ready") {
-				dependencies.durableRuntime = "ready";
+		const supervisorReadiness = await probeExecutionControlReady(env);
+		dependencies.executionControl = "ready";
+		preflight.executionRuntime = supervisorReadiness.executionRuntime;
+		if (requireExecutionRuntime) {
+			if (supervisorReadiness.executionRuntime.status === "ready") {
+				dependencies.executionRuntime = "ready";
 			} else {
-				failed.durableRuntime = formatDurableRuntimePreflightFailure(
-					supervisorReadiness.durableRuntime,
+				failed.executionRuntime = formatExecutionRuntimePreflightFailure(
+					supervisorReadiness.executionRuntime,
 				);
 			}
 		}
 		preflight.campusServicesProductPath = supervisorReadiness.campusServicesProductPath;
 	} catch (error) {
-		failed.supervisorApi = formatRuntimeDependencyFailure(error);
-		if (requireDurableRuntime) {
-			failed.durableRuntime = formatRuntimeDependencyFailure(error);
+		failed.executionControl = formatRuntimeDependencyFailure(error);
+		if (requireExecutionRuntime) {
+			failed.executionRuntime = formatRuntimeDependencyFailure(error);
 		}
 	}
 
@@ -97,15 +97,15 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 	};
 }
 
-function formatDurableRuntimePreflightFailure(
-	preflight: SupervisorDurableRuntimePreflight,
+function formatExecutionRuntimePreflightFailure(
+	preflight: ExecutionControlRuntimePreflight,
 ): string {
 	if (!preflight) {
-		return "Supervisor durable runtime readiness was not reported.";
+		return "Execution control runtime readiness was not reported.";
 	}
 	const messages = Object.values(preflight.blockers);
 	if (messages.length === 0) {
-		return "Supervisor durable runtime readiness was not reported.";
+		return "Execution control runtime readiness was not reported.";
 	}
 	return messages.join("; ");
 }

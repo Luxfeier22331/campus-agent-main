@@ -3,10 +3,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type {
-	SupervisorDurableRun,
-	SupervisorDurableRunEvent,
-	SupervisorDurableRuntimeClient,
-} from "../src/modules/integration/supervisor";
+	ExecutionControlRun,
+	ExecutionControlRunEvent,
+	ExecutionControlRuntimeClient,
+} from "../src/modules/integration/execution-control";
 import {
 	buildChatCommandService,
 	createCommandStore,
@@ -17,7 +17,7 @@ import {
 	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
-function durableRun(overrides: Partial<SupervisorDurableRun> = {}): SupervisorDurableRun {
+function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -70,11 +70,11 @@ function answerResponsePayload(text = "国家奖学金每学年评审一次。")
 }
 
 function durableEvent(
-	overrides: Partial<SupervisorDurableRunEvent> & {
+	overrides: Partial<ExecutionControlRunEvent> & {
 		eventType: string;
 		sequence: number;
 	},
-): SupervisorDurableRunEvent {
+): ExecutionControlRunEvent {
 	const { eventType, sequence, ...rest } = overrides;
 	return {
 		conversationId: "conv_01HQ",
@@ -100,7 +100,7 @@ describe("chat command durable stream closeout", () => {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),
@@ -117,10 +117,11 @@ describe("chat command durable stream closeout", () => {
 					sequence: 1,
 				}),
 			]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -166,12 +167,12 @@ describe("chat command durable stream closeout", () => {
 				status: "accepted",
 			},
 		});
-		expect(durableRuntime.createRun).toHaveBeenCalledOnce();
+		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
 		expect(waitUntilPromises).toHaveLength(1);
 		await waitUntilPromises[0];
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledWith({
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
@@ -198,7 +199,7 @@ describe("chat command durable stream closeout", () => {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
-		const durableRuntime: SupervisorDurableRuntimeClient = {
+		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),
@@ -215,10 +216,11 @@ describe("chat command durable stream closeout", () => {
 					sequence: 1,
 				}),
 			]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
-			durableRuntime,
+			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
@@ -246,7 +248,7 @@ describe("chat command durable stream closeout", () => {
 		await waitUntilPromises[0];
 		expect(events).toEqual(["request.accepted", "request.completed"]);
 		expect(finalWrites).toHaveLength(1);
-		expect(durableRuntime.listRunEvents).toHaveBeenCalledTimes(1);
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
 	});

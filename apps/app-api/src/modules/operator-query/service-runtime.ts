@@ -1,6 +1,10 @@
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
-import type { SupervisorDurableRun, SupervisorDurableRunEvent } from "../integration";
+import type {
+	ExecutionControlRun,
+	ExecutionControlRunEvent,
+	ExecutionControlRunStepTrajectory,
+} from "../integration";
 import { runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
 import {
 	isAllowedTimeseriesGranularity,
@@ -54,6 +58,7 @@ function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 		candidates: badcases.badcases.map((badcase) => ({
 			candidateId: `eval_candidate:${badcase.badcaseId}`,
 			causeClass: badcase.causeClass,
+			diagnosisStage: badcase.diagnosisStage,
 			grade: badcase.grade,
 			intake: {
 				createdAt: badcase.openedAt,
@@ -106,9 +111,7 @@ const TERMINAL_RUN_EVENT_TYPES = new Set([
 	"run.expired",
 ]);
 
-function toRuntimeRunEventSummary(
-	event: SupervisorDurableRunEvent,
-): OperatorRuntimeRunEventSummary {
+function toRuntimeRunEventSummary(event: ExecutionControlRunEvent): OperatorRuntimeRunEventSummary {
 	return {
 		eventType: event.eventType,
 		occurredAt: event.occurredAt,
@@ -119,7 +122,7 @@ function toRuntimeRunEventSummary(
 
 function assertDurableRunMatchesRequest(
 	request: OperatorRequestObservabilityRecord["request"],
-	run: SupervisorDurableRun,
+	run: ExecutionControlRun,
 ): void {
 	if (
 		run.runId !== request.runId ||
@@ -137,8 +140,8 @@ function assertDurableRunMatchesRequest(
 }
 
 function assertDurableEventMatchesRun(
-	run: SupervisorDurableRun,
-	event: SupervisorDurableRunEvent,
+	run: ExecutionControlRun,
+	event: ExecutionControlRunEvent,
 	lastSequence: number,
 ): number {
 	if (event.runId !== run.runId || event.conversationId !== run.conversationId) {
@@ -160,6 +163,29 @@ function assertDurableEventMatchesRun(
 	return event.sequence;
 }
 
+function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) {
+	return {
+		attemptCount: trajectory.attempts.length,
+		resultCount: trajectory.results.length,
+		steps: trajectory.steps.map((step) => {
+			const attempts = trajectory.attempts.filter((attempt) => attempt.stepId === step.stepId);
+			const results = trajectory.results.filter((result) => result.stepId === step.stepId);
+			const latestResult = results.at(-1);
+			return {
+				attemptCount: attempts.length,
+				capability: step.capability,
+				latestResultRef: latestResult?.projectionRef ?? null,
+				resultCount: results.length,
+				status: step.status,
+				stepId: step.stepId,
+				stepKind: step.stepKind,
+				taskQueue: step.taskQueue,
+				workerId: step.workerId,
+			};
+		}),
+	};
+}
+
 async function loadRuntimeRunSummary(
 	dependencies: OperatorQueryServiceDependencies,
 	record: OperatorRequestObservabilityRecord,
@@ -168,21 +194,25 @@ async function loadRuntimeRunSummary(
 	if (!runId) {
 		return null;
 	}
-	if (!dependencies.durableRuntime) {
+	if (!dependencies.executionRuntime) {
 		throw new AppApiRouteError({
-			code: "durable_runtime_not_configured",
-			message: "Durable runtime is required for request run observability.",
+			code: "execution_runtime_not_configured",
+			message: "Execution runtime is required for request run observability.",
 			retryable: true,
 			status: 503,
 		});
 	}
 
-	const run = await dependencies.durableRuntime.getRun({
+	const run = await dependencies.executionRuntime.getRun({
 		runId,
 		traceId: record.request.traceId,
 	});
 	assertDurableRunMatchesRequest(record.request, run);
-	const events = await dependencies.durableRuntime.listRunEvents({
+	const events = await dependencies.executionRuntime.listRunEvents({
+		runId,
+		traceId: record.request.traceId,
+	});
+	const stepTrajectory = await dependencies.executionRuntime.listRunSteps({
 		runId,
 		traceId: record.request.traceId,
 	});
@@ -224,6 +254,7 @@ async function loadRuntimeRunSummary(
 			terminalReason: run.terminalReason || null,
 			traceId: run.traceId,
 		},
+		stepTrajectory: summarizeStepTrajectory(stepTrajectory),
 	};
 }
 

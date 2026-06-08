@@ -87,7 +87,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_provider="openai-responses",
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
-                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_base_url="https://execution-control.internal",
                 internal_query_shared_secret="structured-secret",
             )
         )
@@ -158,6 +158,22 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertFalse(hasattr(settings, "agents_sdk_runtime_allowed_tools"))
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))
 
+    def test_api_settings_from_env_reads_execution_control_internal_query_contract(
+        self,
+    ) -> None:
+        env = {
+            "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL": "http://execution-control:8000",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": "query-secret",
+            "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS": "3.5",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertEqual(settings.internal_query_base_url, "http://execution-control:8000")
+        self.assertEqual(settings.internal_query_shared_secret, "query-secret")
+        self.assertEqual(settings.structured_query_timeout_seconds, 3.5)
+
     def test_bridge_readyz_requires_structured_query_runtime_for_agents_sdk_admission(
         self,
     ) -> None:
@@ -171,7 +187,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
                 agents_sdk_runtime_enabled=True,
-                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_base_url="https://execution-control.internal",
                 internal_query_shared_secret="structured-secret",
             )
         )
@@ -236,7 +252,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_api_key="",
                 prompt_runtime_base_url="https://api.openai.com/v1",
                 agents_sdk_runtime_enabled=True,
-                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_base_url="https://execution-control.internal",
                 internal_query_shared_secret="structured-secret",
             )
         )
@@ -376,7 +392,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         delegates = _build_agent_delegates(
             settings=ApiSettings(
                 agents_sdk_runtime_enabled=True,
-                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_base_url="https://execution-control.internal",
                 internal_query_shared_secret="structured-secret",
             ),
             rag_prompt_executor=None,
@@ -495,7 +511,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         invalid_envs = (
             {"SUPERVISOR_AGENT_WORKER_THREADS": "0"},
             {"SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES": "0"},
-            {"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "0"},
+            {"EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS": "0"},
         )
         for env in invalid_envs:
             with (

@@ -144,7 +144,7 @@ LLM，也不是把所有行为预先冻结成声明式大图。
 - 本 ADR 负责长期编排模式、agent 准入与安全边界
 - `docs/decisions/adr-0004-evaluation-metrics.md` 负责与编排变更相关的 workflow / safety /
   gate 指标语义
-- `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md`
+- `.planning/WORKSTREAMS.md` 与 `GSD SDK / Codex native session state`
   负责某一轮文档刷新或实现落地的任务分解、文件落点和验收标准
 
 换句话说，本文回答“长期允许什么样的编排与安全边界”，而不是“这轮代码怎么改”。

@@ -104,10 +104,10 @@ describe("chatbot vendor runtime parity", () => {
 	it("hydrates app-api local env before booting the live-smoke auxiliary worker", () => {
 		expect(viteConfigSource).toContain("process.loadEnvFile");
 		expect(viteConfigSource).toContain("../app-api/.env");
-		expect(viteConfigSource).toContain("liveSmokeSupervisorApiBaseUrl");
-		expect(viteConfigSource).toContain("liveSmokeSupervisorApiTimeoutMs");
-		expect(viteConfigSource).toContain("process.env.SUPERVISOR_API_BASE_URL");
-		expect(viteConfigSource).toContain("SUPERVISOR_API_TIMEOUT_MS");
+		expect(viteConfigSource).toContain("liveSmokeExecutionControlBaseUrl");
+		expect(viteConfigSource).toContain("liveSmokeExecutionControlTimeoutMs");
+		expect(viteConfigSource).toContain("process.env.EXECUTION_CONTROL_BASE_URL");
+		expect(viteConfigSource).toContain("EXECUTION_CONTROL_TIMEOUT_MS");
 		expect(viteConfigSource).toContain("http://127.0.0.1:27051");
 	});
 

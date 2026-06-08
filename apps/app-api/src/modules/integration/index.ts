@@ -2,34 +2,41 @@ export type {
 	OfficialWebHandoffPublisher,
 	OfficialWebIngestionHandoffPayload,
 } from "../official-web-projection";
-export {
-	createOfficialWebHandoffPublisher,
-	OfficialWebHandoffTransportError,
-} from "./official-web-handoff";
 export type {
+	ExecutionControlCampusServicesProductPathPreflight,
+	ExecutionControlReadinessProbeResult,
+	ExecutionControlRun,
+	ExecutionControlRunCancelInput,
+	ExecutionControlRunCreateInput,
+	ExecutionControlRunEvent,
+	ExecutionControlRunEventQuery,
+	ExecutionControlRunQuery,
+	ExecutionControlRunStep,
+	ExecutionControlRunStepTrajectory,
+	ExecutionControlRuntimeClient,
+	ExecutionControlRuntimePreflight,
+	ExecutionControlStepAttempt,
+	ExecutionControlStepResult,
 	RequestedScope,
-	SupervisorCampusServicesProductPathPreflight,
 	SupervisorContextProjection,
-	SupervisorDurableRun,
-	SupervisorDurableRunCancelInput,
-	SupervisorDurableRunCreateInput,
-	SupervisorDurableRunEvent,
-	SupervisorDurableRunEventQuery,
-	SupervisorDurableRunQuery,
-	SupervisorDurableRuntimeClient,
-	SupervisorDurableRuntimePreflight,
-	SupervisorExecutionClient,
 	SupervisorExecutionInput,
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
 	SupervisorExecutionWorkflowTraceSummary,
-	SupervisorReadinessProbeResult,
-} from "./supervisor";
+	SupervisorProfileMemoryItem,
+	SupervisorProfileMemorySummary,
+	SupervisorPromptTrace,
+	SupervisorSessionSlot,
+	SupervisorSessionSummary,
+} from "./execution-control";
 export {
-	createSupervisorDurableRuntimeClient,
-	createSupervisorExecutionClient,
-	isSupervisorDurableRuntimeConfigured,
+	createExecutionControlRuntimeClient,
+	ExecutionControlTransportError,
+	isExecutionControlRuntimeConfigured,
 	parseSupervisorExecutionResponsePayload,
-	probeSupervisorApiReady,
-	SupervisorTransportError,
-} from "./supervisor";
+	probeExecutionControlReady,
+} from "./execution-control";
+export {
+	createOfficialWebHandoffPublisher,
+	OfficialWebHandoffTransportError,
+} from "./official-web-handoff";

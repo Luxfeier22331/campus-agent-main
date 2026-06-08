@@ -18,7 +18,8 @@ updated: 2026-03-27
 - `中央民族大学校内常用电话` 不再属于 `regulations/student_rules` 的逻辑文档真相
 - handbook 电话页后续作为 `campus_services/contact_directory` 的派生输入，而不是继续留在
   `regulations` 查询面
-- `campusRAG` 中的 `service_portal` 只作为迁移输入与历史来源参考，不作为 `campus-agent` 的长期 corpus 名
+- 历史原型中的 `service_portal` 只作为迁移输入与历史来源参考，不作为
+  `campus-agent` 的长期 corpus 名
 
 ## 原因
 
@@ -49,7 +50,7 @@ updated: 2026-03-27
 ## 当前阶段约束
 
 - 两个 collection 当前都只进入 offline data-plane，不开放 retrieval 或默认 query-serving
-- 不在本轮把 `campusRAG` canonical 目录直接当成运行时真相
+- 不在本轮把历史原型 canonical 目录直接当成运行时真相
 - 不在本轮实现新的 retrieval 路由、agent 暴露或 query-serving 开关
 
 ## 对现有 handbook truth 的影响

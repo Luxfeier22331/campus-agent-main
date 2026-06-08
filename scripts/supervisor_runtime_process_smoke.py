@@ -10,7 +10,7 @@ from pathlib import Path
 from scripts import supervisor_runtime_process_smoke_runtime as _runtime
 from scripts.supervisor_runtime_process_smoke_http import (
     _request_status,
-    post_answer_probe,
+    post_execution_run_probe,
     terminate_processes,
     wait_for_json_status,
     wait_for_status,
@@ -25,7 +25,7 @@ from scripts.supervisor_runtime_process_smoke_profiles import (
     STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
     TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
     campus_services_sdk_profiles,
-    profile_answer_expectation,
+    profile_execution_run_expectation,
     profile_requires_object_store,
 )
 
@@ -67,13 +67,13 @@ def build_process_smoke_plan(
     object_store_host: str = "127.0.0.1",
     object_store_port: int = 27061,
 ) -> ProcessSmokePlan:
-    api_secret = os.getenv("API_WORKER_SHARED_SECRET", "supervisor-api-local-placeholder")
+    api_secret = os.getenv("API_WORKER_SHARED_SECRET", "execution-control-local-placeholder")
     bridge_secret = os.getenv(
         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
         "supervisor-agent-worker-local-placeholder",
     )
     structured_query_secret = _env_or_default(
-        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
         "supervisor-structured-query-local-placeholder",
     )
     api_base_url = f"http://{api_host}:{api_port}"
@@ -109,19 +109,19 @@ def build_process_smoke_plan(
         "CAMPUS_AGENT_HTTP_HOST": api_host,
         "CAMPUS_AGENT_HTTP_PORT": str(api_port),
         "SUPERVISOR_AGENT_WORKER_BASE_URL": worker_base_url,
-        "SUPERVISOR_API_OTEL_ENABLED": "false",
-        "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED": "false",
-        "SUPERVISOR_API_OPEN_CAPABILITIES": os.getenv("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
+        "EXECUTION_CONTROL_OTEL_ENABLED": "false",
+        "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
+        "EXECUTION_CONTROL_OPEN_CAPABILITIES": os.getenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", ""),
+        **_temporal_env(),
         **profile_api_env,
     }
     (
-        answer_payload,
-        expected_status,
-        expected_body_tokens,
-        answer_path,
-        answer_response_kind,
+        execution_run_payload,
+        expected_run_status,
+        expected_run_body_tokens,
+        execution_run_path,
         expected_readyz_statuses,
-    ) = profile_answer_expectation(profile)
+    ) = profile_execution_run_expectation(profile)
     processes = (
         ProcessCommandSpec(
             label="supervisor-agent-worker",
@@ -138,11 +138,11 @@ def build_process_smoke_plan(
             log_path=output_dir / "supervisor-agent-worker.log",
         ),
         ProcessCommandSpec(
-            label="supervisor-api",
-            command=("go", "run", "./cmd/supervisor-api"),
-            cwd=repo_root / "apps" / "supervisor-api",
+            label="execution-control",
+            command=("go", "run", "./cmd/execution-control"),
+            cwd=repo_root / "apps" / "execution-control",
             env=api_env,
-            log_path=output_dir / "supervisor-api.log",
+            log_path=output_dir / "execution-control.log",
         ),
     )
     if profile_requires_object_store(profile):
@@ -177,12 +177,11 @@ def build_process_smoke_plan(
         profile=profile,
         api_base_url=api_base_url,
         worker_base_url=worker_base_url,
-        answer_path=answer_path,
-        answer_response_kind=answer_response_kind,
-        answer_payload=answer_payload,
-        expected_status=expected_status,
+        execution_run_path=execution_run_path,
+        execution_run_payload=execution_run_payload,
+        expected_run_status=expected_run_status,
         expected_readyz_statuses=expected_readyz_statuses,
-        expected_body_tokens=expected_body_tokens,
+        expected_run_body_tokens=expected_run_body_tokens,
         processes=processes,
     )
 
@@ -195,47 +194,47 @@ def _profile_api_env(
 ) -> dict[str, str]:
     if profile in campus_services_sdk_profiles():
         return {
-            "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
-            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "campus_services",
+            "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
             ),
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
     if profile == "notice_discover_sdk_opened":
         env = {
-            "SUPERVISOR_API_OPEN_CAPABILITIES": "notice",
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "notice",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
         if profile_requires_object_store(profile):
             env.update(
                 {
-                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
-                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
-                    "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
+                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
+                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+                    "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
                 }
             )
         return env
     if profile in MULTI_STEP_WORKFLOW_PROFILES:
         env = {
-            "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED": "true",
-            "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE": "true",
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
-            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
-            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
-            "SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
+            "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED": "true",
+            "EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE": "true",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
+            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+            "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
         }
         if profile == "transport_notice_override_multistep":
-            env["SUPERVISOR_API_OPEN_CAPABILITIES"] = "campus_services"
-            env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
+            env["EXECUTION_CONTROL_OPEN_CAPABILITIES"] = "campus_services"
+            env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
                 TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
             )
         return env
     if profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
         return {
-            "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "campus_services",
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
     return {}
 
@@ -256,9 +255,9 @@ def _profile_worker_env(
     ):
         return {}
     return {
-        "SUPERVISOR_INTERNAL_QUERY_BASE_URL": api_base_url,
-        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
-        "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
+        "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL": api_base_url,
+        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+        "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
         "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
     }
 
@@ -266,6 +265,21 @@ def _profile_worker_env(
 def _env_or_default(key: str, default: str) -> str:
     value = os.getenv(key, "").strip()
     return value or default
+
+
+def _temporal_env() -> dict[str, str]:
+    values = {
+        key: os.getenv(key, "").strip()
+        for key in (
+            "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
+            "EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
+            "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
+            "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
+            "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
+        )
+    }
+    return {key: value for key, value in values.items() if value}
 
 
 def _notice_smoke_body() -> str:
@@ -342,30 +356,29 @@ def run_process_smoke(
             timeout_seconds=startup_timeout,
         )
         metrics_status = _request_status(f"{plan.api_base_url}/metrics")
-        answer_status, answer_body = post_answer_probe(
-            f"{plan.api_base_url}{plan.answer_path}",
-            plan.answer_payload,
-            response_kind=plan.answer_response_kind,
+        run_status, run_body = post_execution_run_probe(
+            f"{plan.api_base_url}{plan.execution_run_path}",
+            plan.execution_run_payload,
             headers={
-                "x-worker-origin-auth": process_by_label["supervisor-api"].env[
+                "x-worker-origin-auth": process_by_label["execution-control"].env[
                     "API_WORKER_SHARED_SECRET"
                 ]
             },
             timeout_seconds=timeout_seconds,
         )
-        answer_text = json.dumps(answer_body, ensure_ascii=False)
+        run_text = json.dumps(run_body, ensure_ascii=False)
         forbidden_body_tokens = _forbidden_body_tokens(plan.profile)
         passed = (
             worker_healthz == 200
             and api_healthz == 200
             and readyz[0] in plan.expected_readyz_statuses
             and metrics_status == 200
-            and answer_status == plan.expected_status
-            and all(token in answer_text for token in plan.expected_body_tokens)
-            and not any(token in answer_text for token in forbidden_body_tokens)
+            and run_status == plan.expected_run_status
+            and all(token in run_text for token in plan.expected_run_body_tokens)
+            and not any(token in run_text for token in forbidden_body_tokens)
         )
         summary = {
-            "schema_version": "supervisor_runtime_process_smoke.v1",
+            "schema_version": "execution_control_process_smoke.v1",
             "profile": plan.profile,
             "passed": passed,
             "api_base_url": plan.api_base_url,
@@ -380,16 +393,15 @@ def run_process_smoke(
                 "readyz_body": readyz[1],
                 "expected_readyz_statuses": plan.expected_readyz_statuses,
                 "metrics_status": metrics_status,
-                "answer_status": answer_status,
-                "expected_answer_status": plan.expected_status,
-                "answer_path": plan.answer_path,
-                "answer_response_kind": plan.answer_response_kind,
+                "execution_run_status": run_status,
+                "expected_execution_run_status": plan.expected_run_status,
+                "execution_run_path": plan.execution_run_path,
                 "startup_timeout_seconds": startup_timeout,
-                "answer_timeout_seconds": timeout_seconds,
-                "expected_body_tokens": plan.expected_body_tokens,
+                "execution_run_timeout_seconds": timeout_seconds,
+                "expected_run_body_tokens": plan.expected_run_body_tokens,
                 "forbidden_body_tokens": forbidden_body_tokens,
             },
-            "answer": answer_body,
+            "execution_run": run_body,
         }
     except Exception as exc:
         process_exit_states = {
@@ -397,7 +409,7 @@ def run_process_smoke(
             for spec, process in zip(plan.processes, started, strict=False)
         }
         summary = {
-            "schema_version": "supervisor_runtime_process_smoke.v1",
+            "schema_version": "execution_control_process_smoke.v1",
             "profile": plan.profile,
             "passed": False,
             "api_base_url": plan.api_base_url,
@@ -434,7 +446,7 @@ def _forbidden_body_tokens(profile: str) -> tuple[str, ...]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run supervisor-api + supervisor-agent-worker local process smoke."
+        description="Run execution-control + supervisor-agent-worker local process smoke."
     )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--profile", default="closed_gate")

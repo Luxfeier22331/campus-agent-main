@@ -6,10 +6,10 @@
 		{
 			"case_id": "workflow-service-status-sdk",
 			"family": "workflow_trace",
-			"description": "campus services status SDK-admitted single handoff branch",
+			"description": "campus services status SDK-admitted single step branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
-				"workflow_mode": "single_handoff",
+				"workflow_mode": "single_step",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["service_status_lookup"],
 				"handoff": {
@@ -50,10 +50,10 @@
 		{
 			"case_id": "workflow-transport-schedule-sdk",
 			"family": "workflow_trace",
-			"description": "campus services transport schedule SDK-admitted single handoff branch",
+			"description": "campus services transport schedule SDK-admitted single step branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
-				"workflow_mode": "single_handoff",
+				"workflow_mode": "single_step",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["transport_schedule_lookup"],
 				"handoff": {
@@ -94,10 +94,10 @@
 		{
 			"case_id": "workflow-service-guide-sdk",
 			"family": "workflow_trace",
-			"description": "campus services guide SDK-admitted single handoff branch",
+			"description": "campus services guide SDK-admitted single step branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
-				"workflow_mode": "single_handoff",
+				"workflow_mode": "single_step",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["service_guide_lookup"],
 				"handoff": {
@@ -142,10 +142,10 @@
 		{
 			"case_id": "workflow-contact-directory-sdk",
 			"family": "workflow_trace",
-			"description": "campus services contact directory SDK-admitted single handoff branch",
+			"description": "campus services contact directory SDK-admitted single step branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
-				"workflow_mode": "single_handoff",
+				"workflow_mode": "single_step",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["contact_directory_lookup"],
 				"handoff": {
@@ -190,10 +190,10 @@
 		{
 			"case_id": "workflow-notice-discover-sdk",
 			"family": "workflow_trace",
-			"description": "notice discover SDK-admitted single handoff branch",
+			"description": "notice discover SDK-admitted single step branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
-				"workflow_mode": "single_handoff",
+				"workflow_mode": "single_step",
 				"selected_target": "notice-agent",
 				"selected_tools": ["campus_notice_discover"],
 				"handoff": {
@@ -234,10 +234,10 @@
 		{
 			"case_id": "workflow-academic-calendar-sdk",
 			"family": "workflow_trace",
-			"description": "academic calendar SDK-admitted single handoff branch",
+			"description": "academic calendar SDK-admitted single step branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
-				"workflow_mode": "single_handoff",
+				"workflow_mode": "single_step",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["academic_calendar_lookup"],
 				"handoff": {
@@ -392,7 +392,7 @@
 			"description": "student rules knowledge family delegate branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
-				"workflow_mode": "single_handoff",
+				"workflow_mode": "single_step",
 				"selected_target": "rag-agent",
 				"selected_tools": ["retrieval.query"],
 				"handoff": {
@@ -515,7 +515,7 @@
 			"description": "curriculum plan knowledge family delegate branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
-				"workflow_mode": "single_handoff",
+				"workflow_mode": "single_step",
 				"selected_target": "rag-agent",
 				"selected_tools": ["retrieval.query"],
 				"handoff": {
@@ -613,7 +613,7 @@
 			"description": "service guide routes correctly but read model has no matching guide",
 			"expectation": {
 				"direct_vs_delegate_branch": "direct",
-				"workflow_mode": "direct_runtime",
+				"workflow_mode": "single_step",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["service_guide_lookup"],
 				"handoff": {

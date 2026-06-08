@@ -369,7 +369,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
             }
         )
         query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-control.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -386,7 +386,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://supervisor-api.internal/internal/query/campus-services/transport-schedule",
+            "http://execution-control.internal/internal/query/campus-services/transport-schedule",
         )
         self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
         self.assertEqual(transport.calls[0][2]["payload"]["intent"], "first_departure")
@@ -420,7 +420,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
             }
         )
         query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-control.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -437,7 +437,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://supervisor-api.internal/internal/query/campus-services/service-status",
+            "http://execution-control.internal/internal/query/campus-services/service-status",
         )
         self.assertEqual(transport.calls[0][2]["payload"]["campus_scope"], "fengtai")
         self.assertIn("access_context", transport.calls[0][2])
@@ -477,7 +477,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
             }
         )
         query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-control.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -494,7 +494,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://supervisor-api.internal/internal/query/campus-services/service-guide",
+            "http://execution-control.internal/internal/query/campus-services/service-guide",
         )
         self.assertEqual(transport.calls[0][2]["payload"]["guide_focus"], "procedure")
         self.assertIn("access_context", transport.calls[0][2])
@@ -534,7 +534,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
             }
         )
         query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-control.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -551,7 +551,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://supervisor-api.internal/internal/query/campus-services/contact-directory",
+            "http://execution-control.internal/internal/query/campus-services/contact-directory",
         )
         self.assertEqual(transport.calls[0][2]["payload"]["contact_focus"], "phone")
         self.assertIn("access_context", transport.calls[0][2])
@@ -719,7 +719,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
         for error_message, response_body, call in cases:
             with self.subTest(error_message=error_message):
                 query_service = CampusServicesHTTPQueryService(
-                    base_url="http://supervisor-api.internal",
+                    base_url="http://execution-control.internal",
                     shared_secret="query-secret",
                     transport=RecordingQueryHTTPTransport(response_body),
                 )

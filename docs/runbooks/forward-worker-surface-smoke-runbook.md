@@ -165,18 +165,19 @@ pnpm --dir apps/app-api chat:e2e:local-real-provider
 
 profile 语义：
 
-- `dev`：面向 repo-local dev URLs；wrapper 会启动 local supervisor runtime，
+- `dev`：面向 repo-local dev URLs；wrapper 会启动 local execution runtime，
   预置 smoke identity，启动或复用 `public-chat-web dev:live-smoke`，再通过
   `http://127.0.0.1:27011 -> service binding app-api -> http://127.0.0.1:27051`
   执行真实 public/chat 请求
 - `staging`：部署验收 profile，默认使用 `chat-staging` /
-  `api-staging` / `exec-staging`
+  `api-staging`；execution-control 只作为 app-api trusted machine upstream，不作为
+  public smoke surface
 - `local-real-provider`：复用 `dev` 的 public/chat 产品路径编排，但强制启用
   `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=true` 并默认使用真实
   `PROMPT_RUNTIME_PROVIDER=openai-responses`。它用于验证
-  `public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker -> rag-agent
-  SDK loop -> Go finalizer`，不是 deployed staging smoke，也不是 notice discover
-  专用 smoke
+  `public-chat-web -> app-api -> execution-control -> supervisor-agent-worker ->
+  rag-agent SDK loop -> Go finalizer`，不是 deployed staging smoke，也不是
+  notice discover 专用 smoke
 
 RAG SDK loop 的定位层 smoke 可以不经过前端直接执行：
 

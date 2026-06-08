@@ -103,7 +103,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertEqual(payload["surface"], "evals")
             self.assertTrue(payload["overall_ready"])
 
-    def test_collect_env_doctor_status_reports_current_supervisor_api_runtime_keys(
+    def test_collect_env_doctor_status_reports_current_execution_control_runtime_keys(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -116,13 +116,13 @@ class DoctorEnvTest(unittest.TestCase):
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
                         "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
-                        "SUPERVISOR_API_QUEUE_CAPACITY=24",
-                        "SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000",
-                        "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5",
-                        "SUPERVISOR_API_OTEL_SAMPLE_RATIO=1",
-                        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                        "EXECUTION_CONTROL_QUEUE_CAPACITY=24",
+                        "EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000",
+                        "EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD=5",
+                        "EXECUTION_CONTROL_OTEL_SAMPLE_RATIO=1",
+                        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model",
-                        "SUPERVISOR_API_TRANSPORT_WORKER_THREADS=8",
+                        "EXECUTION_CONTROL_TRANSPORT_WORKER_THREADS=8",
                     ]
                 )
                 + "\n",
@@ -131,7 +131,7 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
-                    surface="supervisor-api",
+                    surface="execution-control",
                 )
 
             self.assertTrue(status["overall_ready"])
@@ -148,15 +148,15 @@ class DoctorEnvTest(unittest.TestCase):
             )
             self.assertEqual(
                 optional["transport_queue_capacity"]["resolved_key"],
-                "SUPERVISOR_API_QUEUE_CAPACITY",
+                "EXECUTION_CONTROL_QUEUE_CAPACITY",
             )
             self.assertEqual(
                 optional["bridge_breaker_failure_threshold"]["resolved_key"],
-                "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD",
+                "EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
             )
             self.assertEqual(
                 optional["internal_query_shared_secret"]["resolved_key"],
-                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
             )
             self.assertTrue(status["conditions"]["execution_audit_contract"]["ready"])
             self.assertFalse(status["conditions"]["execution_audit_contract"]["required"])
@@ -169,7 +169,7 @@ class DoctorEnvTest(unittest.TestCase):
                 status["conditions"]["otel_axiom_collector_endpoint_contract"]["required"]
             )
 
-    def test_collect_env_doctor_status_supervisor_api_uses_prompt_runtime_api_key(
+    def test_collect_env_doctor_status_execution_control_uses_prompt_runtime_api_key(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -190,7 +190,7 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
-                    surface="supervisor-api",
+                    surface="execution-control",
                 )
 
             self.assertTrue(status["overall_ready"])
@@ -203,7 +203,7 @@ class DoctorEnvTest(unittest.TestCase):
                 ["PROMPT_RUNTIME_API_KEY"],
             )
 
-    def test_collect_env_doctor_status_supervisor_api_requires_bridge_contract(self) -> None:
+    def test_collect_env_doctor_status_execution_control_requires_bridge_contract(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
@@ -220,7 +220,7 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
-                    surface="supervisor-api",
+                    surface="execution-control",
                 )
 
             self.assertFalse(status["overall_ready"])
@@ -229,7 +229,7 @@ class DoctorEnvTest(unittest.TestCase):
                 status["settings"]["required"]["agent_worker_shared_secret"]["present"]
             )
 
-    def test_collect_env_doctor_status_supervisor_api_enforces_execution_audit_when_enabled(
+    def test_collect_env_doctor_status_execution_control_enforces_execution_audit_when_enabled(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -242,7 +242,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
                         "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
-                        "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=true",
+                        "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=true",
                     ]
                 )
                 + "\n",
@@ -251,17 +251,17 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
-                    surface="supervisor-api",
+                    surface="execution-control",
                 )
 
             self.assertFalse(status["overall_ready"])
             condition = status["conditions"]["execution_audit_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("SUPERVISOR_API_EXECUTION_AUDIT_URL", condition["error"])
-            self.assertIn("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", condition["error"])
+            self.assertIn("EXECUTION_CONTROL_EXECUTION_AUDIT_URL", condition["error"])
+            self.assertIn("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET", condition["error"])
 
-    def test_collect_env_doctor_status_supervisor_api_enforces_structured_runtime_when_opened(
+    def test_collect_env_doctor_status_execution_control_enforces_structured_runtime_when_opened(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -274,7 +274,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
                         "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
-                        "SUPERVISOR_API_OPEN_CAPABILITIES=campus_services",
+                        "EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services",
                     ]
                 )
                 + "\n",
@@ -283,17 +283,17 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
-                    surface="supervisor-api",
+                    surface="execution-control",
                 )
 
             self.assertFalse(status["overall_ready"])
             condition = status["conditions"]["structured_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", condition["error"])
+            self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", condition["error"])
             self.assertIn("CAMPUS_SHARED_POSTGRES_URL", condition["error"])
 
-    def test_collect_env_doctor_status_supervisor_api_enforces_notice_runtime_when_opened(
+    def test_collect_env_doctor_status_execution_control_enforces_notice_runtime_when_opened(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -306,8 +306,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
                         "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
-                        "SUPERVISOR_API_OPEN_CAPABILITIES=notice",
-                        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                        "EXECUTION_CONTROL_OPEN_CAPABILITIES=notice",
+                        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://shared.example/postgres",
                     ]
                 )
@@ -317,17 +317,17 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
-                    surface="supervisor-api",
+                    surface="execution-control",
                 )
 
             self.assertFalse(status["overall_ready"])
             condition = status["conditions"]["notice_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT", condition["error"])
-            self.assertIn("SUPERVISOR_NOTICE_BODY_OBJECT_STORE_BUCKET", condition["error"])
+            self.assertIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", condition["error"])
+            self.assertIn("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", condition["error"])
 
-    def test_collect_env_doctor_status_supervisor_api_rejects_axiom_collector_signal_path(
+    def test_collect_env_doctor_status_execution_control_rejects_axiom_collector_signal_path(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -349,7 +349,7 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
-                    surface="supervisor-api",
+                    surface="execution-control",
                 )
 
             self.assertFalse(status["overall_ready"])
@@ -358,7 +358,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertFalse(condition["ready"])
             self.assertIn("https://us-east-1.aws.edge.axiom.co", condition["error"])
 
-    def test_collect_env_doctor_status_supervisor_api_rejects_axiom_collector_endpoint_drift(
+    def test_collect_env_doctor_status_execution_control_rejects_axiom_collector_endpoint_drift(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -381,7 +381,7 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
                     repo_root=repo_root,
-                    surface="supervisor-api",
+                    surface="execution-control",
                 )
 
             self.assertFalse(status["overall_ready"])
@@ -425,8 +425,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "BETTER_AUTH_SECRET=dev-secret-dev-secret-dev-secret",
                         "AUTH_SHELL_ORIGIN=https://hub.example.com",
                         "PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com",
-                        "SUPERVISOR_API_BASE_URL=https://supervisor.internal",
-                        "SUPERVISOR_API_SHARED_SECRET=shared-secret",
+                        "EXECUTION_CONTROL_BASE_URL=https://execution-control.internal",
+                        "EXECUTION_CONTROL_SHARED_SECRET=shared-secret",
                         "APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn",
                         "APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com",
                         "APP_API_INTERNAL_SHARED_SECRET=internal-secret",

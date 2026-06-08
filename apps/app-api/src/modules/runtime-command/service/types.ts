@@ -1,9 +1,8 @@
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversationStore } from "../../chat";
 import type {
+	ExecutionControlRuntimeClient,
 	RequestedScope,
-	SupervisorDurableRuntimeClient,
-	SupervisorExecutionClient,
 	SupervisorExecutionResponse,
 } from "../../integration";
 import type { ProfileMemoryProjectionStore } from "../../profile-memory";
@@ -103,15 +102,15 @@ export interface ChatCommandServiceDependencies {
 	conversationStore: ChatConversationStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
 	generateId?: (prefix: string) => string;
-	isDurableRuntimeConfigured?: boolean;
+	isExecutionRuntimeConfigured?: boolean;
 	now?: () => Date;
 	profileMemoryStore?: ProfileMemoryProjectionStore;
-	requireDurableRuntime?: boolean;
+	requireExecutionRuntime?: boolean;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;
-	durableRuntime?: SupervisorDurableRuntimeClient;
-	supervisor: SupervisorExecutionClient;
+	executionRuntime?: ExecutionControlRuntimeClient;
+	supervisor?: unknown;
 	telemetry?: AppTelemetry;
 	traceBacklinkRecorder?: {
 		record(input: {

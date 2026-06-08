@@ -4,21 +4,21 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-WORKSTREAM_ROOT = REPO_ROOT / ".planning" / "workstreams" / "document-site-and-canonical-reader"
 
 
 class PublicDocsTruthDocsTest(unittest.TestCase):
-    def test_active_document_site_workstream_uses_promoted_public_docs_truth(self) -> None:
-        checked_files = tuple(sorted(WORKSTREAM_ROOT.rglob("*.md")))
+    def test_active_document_site_truth_no_longer_depends_on_workstream_archive(self) -> None:
+        planning_files = tuple(
+            (REPO_ROOT / ".planning" / filename).read_text(encoding="utf-8")
+            for filename in ("PROJECT.md", "WORKSTREAMS.md")
+        )
 
-        self.assertNotEqual(checked_files, ())
-
-        for path in checked_files:
-            text = path.read_text(encoding="utf-8")
-            self.assertNotIn("public-docs-web", text, path)
-            self.assertNotIn("public-docs-rspress", text, path)
-            self.assertNotIn("当前 `public-docs` app 还不存在", text, path)
-            self.assertNotIn("当前 docs site 还不存在", text, path)
+        self.assertFalse((REPO_ROOT / ".planning" / "workstreams").exists())
+        for text in planning_files:
+            self.assertNotIn("public-docs-web", text)
+            self.assertNotIn("public-docs-rspress", text)
+            self.assertNotIn("当前 `public-docs` app 还不存在", text)
+            self.assertNotIn("当前 docs site 还不存在", text)
 
     def test_repo_current_truth_promotes_public_docs_as_formal_surface(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
@@ -32,8 +32,9 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("apps/public-docs", readme)
-        self.assertIn("apps/public-docs", project)
-        self.assertIn("document-site-and-canonical-reader", workstreams)
+        self.assertIn("public-docs", project)
+        self.assertIn("public-docs", workstreams)
+        self.assertNotIn("document-site-and-canonical-reader", workstreams)
         self.assertIn("public-docs", workstreams)
         self.assertIn("browser -> public-docs", current_architecture)
         self.assertIn("apps/public-docs", current_architecture)

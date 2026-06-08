@@ -4,7 +4,11 @@ import { Client } from "pg";
 
 import { createApp } from "../src/app";
 import { createPgChatConversationStore } from "../src/modules/chat";
-import type { RequestedScope, SupervisorExecutionClient } from "../src/modules/integration";
+import type {
+	RequestedScope,
+	SupervisorExecutionInput,
+	SupervisorExecutionResponse,
+} from "../src/modules/integration";
 import {
 	buildRequestProjectionProjector,
 	createPgProjectionStore,
@@ -153,11 +157,17 @@ async function cleanupPreviousSmokeRequestArtifacts(
 	};
 }
 
-function buildScriptedSupervisor(scenarios: RequestSmokeSeedScenario[]): SupervisorExecutionClient {
+interface ScriptedSupervisorExecutionFixture {
+	execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
+}
+
+function buildScriptedSupervisor(
+	scenarios: RequestSmokeSeedScenario[],
+): ScriptedSupervisorExecutionFixture {
 	let currentIndex = 0;
 
 	return {
-		async execute(input) {
+		async execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse> {
 			const scenario = scenarios[currentIndex];
 			if (!scenario) {
 				throw new Error(`Unexpected extra request for prompt: ${input.userGoal}`);

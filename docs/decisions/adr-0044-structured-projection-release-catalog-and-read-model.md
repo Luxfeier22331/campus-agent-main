@@ -105,7 +105,7 @@ Redis 缺失、flush 或重启不得导致 canonical current projection 丢失�
 ### 决策 5：runtime 不支持 mounted current JSON
 
 mounted current JSON file 只能作为人工 artifact inspection 输入，不能作为
-`apps/supervisor-api` runtime path、local smoke path 或 Docker
+`apps/execution-control` runtime path、local smoke path 或 Docker
 compatibility path。runtime 必须读取 PG current pointer 与 typed read model。
 
 ### 决策 6：发布流程必须是 release transaction
@@ -129,10 +129,11 @@ build structured projection release
 直接结果如下：
 
 - `campus_services` structured tools 的数据入口是 PG current release + typed read model
-- object storage 与 PG 分层不变：对象 bytes 不迁入 PG，PG 保存 release metadata 与结构化查询视图
+- object storage 与 PG 分层不变：对象 bytes 不迁入 PG，PG 保存 release
+  metadata 与结构化查询视图
 - Redis 不进入 truth path
-- ingestion worker 负责离线 materialization 与 release publication；supervisor-api 只消费
-  current typed read model
+- ingestion worker 负责离线 materialization 与 release publication；
+  execution-control 只消费 current typed read model
 - release catalog、current pointer、typed read model 与 release-id cache 是 runtime
   consumption 的唯一 repo-supported path，不再扩展 mounted JSON
 
@@ -144,4 +145,4 @@ build structured projection release
 - `docs/architecture/target-architecture.md`
 - `docs/data/campus-services-transport-schedule-source-truth-schema.md`
 - `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
-- `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`
+- `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`

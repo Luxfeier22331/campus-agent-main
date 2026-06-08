@@ -31,12 +31,12 @@ updated: 2026-05-07
 
 当前补充真相：
 
-- `apps/supervisor-api` 的前向 deploy substrate 已正式冻结为 Docker-first internal
+- `apps/execution-control` 的前向 deploy substrate 已正式冻结为 Docker-first internal
   execution service
-- 当前 repo-owned staging execution runtime 已收敛到这台开发机上的
-  `supervisor-api + supervisor-agent-worker` 双容器
-- 这条 canonical execution runtime 的运维姿势、计划任务、自愈与日志规则统一记录在
-  `supervisor-api-staging-operations.md`
+- 当前 repo-owned staging execution runtime 已收敛到 `nc-arm-6c` 上的
+  `otel-collector + execution-control + supervisor-agent-worker` 三容器
+- 这条 canonical execution runtime 的运维姿势、systemd connector、自愈与日志规则统一记录在
+  `execution-control-staging-operations.md`
 - Python public compatibility ingress 已退出 active staging path
 
 ## Hostname Constraint
@@ -69,12 +69,12 @@ updated: 2026-05-07
   - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://chat-staging.mucwiki-edge.link`
   - `env.staging.vars.AUTH_SHELL_ORIGIN=https://hub-staging.mucwiki-edge.link`
 - `apps/app-api/package.json`
-  - `pnpm deploy:staging` 要求显式注入 `STAGING_SUPERVISOR_API_BASE_URL`
+  - `pnpm deploy:staging` 要求显式注入 `STAGING_EXECUTION_CONTROL_BASE_URL`
   - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env
     worker-staging-app-api`、Cloudflare secret presence、repo-owned staging config
     verification、`db:bootstrap:staging`、`db:migrate:staging` 与
     `db:reconcile-shared-drift:staging`
-  - deploy 时通过 `--var SUPERVISOR_API_BASE_URL:<url>` 注入当前 supervisor execution
+  - deploy 时通过 `--var EXECUTION_CONTROL_BASE_URL:<url>` 注入当前 supervisor execution
     upstream
   - `pnpm deploy:staging` 会在 publish 时自动注入
     `SENTRY_RELEASE=app-api@staging-<sha>`；只有需要固定 release 名时才覆写
@@ -196,28 +196,34 @@ updated: 2026-05-07
 - 判定 Access provision 完成的标准不是 `panel /readyz = 200`；真实浏览器首次访问必须先经过 Cloudflare
   Access 准入，不能停留在 worker 直接返回 `401 Missing Access JWT.`
 
-### 5. Supervisor upstream
+### 5. Execution-control trusted machine ingress
 
-- `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+- `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
-- 当前阶段仍不冻结 `apps/supervisor-api` 的 repo-level staging hostname
-- `apps/app-api` staging deploy 时必须显式注入一个真实可达的 execution upstream
-- 当前 repo-owned staging execution origin 默认继续复用
-  `https://exec-staging.mucwiki-edge.link`，但它背后承接的是
-  `infra/local/docker-compose.supervisor-runtime.yml`
-- canonical 常驻方式不是 ad-hoc quick tunnel；而是这台开发机通过 named tunnel
-  `supervisor-api-staging` 持续承接 supervisor-api runtime
-- 只要 production execution substrate 还没有接管，staging operator 就应优先维护这台主机上的
-  canonical supervisor-api 常驻链路，而不是每轮重新发一个随机 quick tunnel
+- `execution-control` 不是 public staging surface；用户、浏览器、panel、docs 与 chat
+  都只进入 browser surface 或 `app-api`
+- `apps/app-api` staging deploy 时必须显式注入真实可达的 trusted machine upstream：
+  `STAGING_EXECUTION_CONTROL_BASE_URL=https://execution-control-staging.mucwiki-edge.link`
+- `apps/app-api` staging deploy 还必须配置
+  `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与
+  `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`，并把它们投影为 Worker runtime
+  `EXECUTION_CONTROL_ACCESS_CLIENT_ID` / `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
+- 当前 repo-owned staging execution-control runtime 由
+  `infra/local/docker-compose.execution-control-runtime.yml` 承接
+- canonical 常驻方式是 `nc-arm-6c` 上的 Docker Compose runtime，加 VM origin reverse
+  proxy、Cloudflare proxied DNS 与 Cloudflare Access service-token policy
+- 只要 production execution substrate 还没有接管，staging operator 就应优先维护
+  `nc-arm-6c` 上的 canonical execution-control 常驻链路，而不是每轮重新发一个随机
+  临时入口
 - 当前 repo-owned execution upstream 实际来自：
-  - 本地 `infra/local/staging/start-supervisor-api-staging.sh`
-  - strict health gate `infra/local/staging/status-supervisor-api-staging.sh --check`
-- 如果 execution upstream URL 保持不变，就不需要为了这次 hard cut 重新 deploy `app-api`
-- 如果 repo 外已有稳定 Docker supervisor origin，可作为显式注入的上游；但它不由当前仓库 runbook
-  直接声明为 repo-owned canonical 现状
-- `127.0.0.1` 只能留在本地 process truth，不能作为 Cloudflare staging deploy truth
-- 当前这台 canonical execution host 的常驻安装、冷启动恢复与 `status --check`
-  health gate，见 `docs/runbooks/supervisor-api-staging-operations.md`
+  - `nc-arm-6c:/srv/apps/campus-agent/infra/local/staging/start-execution-control-staging.sh`
+  - `execution-control-staging.mucwiki-edge.link` machine ingress
+  - strict health gate
+    `infra/local/staging/status-execution-control-staging.sh --check`
+- `127.0.0.1` 只能留在 origin reverse proxy 所在机器的 process truth，不能作为
+  Worker staging deploy truth
+- 当前 canonical execution host 的常驻安装、冷启动恢复与 `status --check`
+  health gate，见 `docs/runbooks/execution-control-staging-operations.md`
 
 ## Secret Matrix
 
@@ -230,7 +236,7 @@ wrangler secret put BETTER_AUTH_SECRET --env staging
 wrangler secret put AUTH_TURNSTILE_SECRET_KEY --env staging
 wrangler secret put RESEND_API_KEY --env staging
 wrangler secret put AUTH_RESET_EMAIL_FROM --env staging
-wrangler secret put SUPERVISOR_API_SHARED_SECRET --env staging
+wrangler secret put EXECUTION_CONTROL_SHARED_SECRET --env staging
 wrangler secret put APP_API_INTERNAL_SHARED_SECRET --env staging
 wrangler secret put APP_API_STAGING_SMOKE_AUTH_SECRET --env staging
 wrangler secret put SENTRY_DSN --env staging
@@ -271,9 +277,28 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
   return URL
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
   `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:e2e:staging`、
-  `docs:gated:smoke:staging` 与 `account:smoke:staging`；验收机
-  operator copy 可放在 ignored repo-root `.env.staging.local`
+  `docs:gated:smoke:staging`、`account:smoke:staging` 与
+  `federation:smoke:staging`；验收机 operator copy 可放在
+  `nc-arm-6c:/srv/docker/campus-agent/staging/env/runtime.env`
 - 只有在你手工运行低层 smoke identity reset 时，shell 才需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
+
+`STAGING_APP_API_OPERATOR_DATABASE_URL` 是 app-api schema/bootstrap/operator 管理连接，不是
+execution-control retrieval runtime 数据面。`nc-arm-6c:/srv/docker/campus-agent/staging/env/runtime.env`
+必须另外显式配置：
+
+- `STAGING_INGESTION_SHARED_POSTGRES_URL`
+- `STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL`
+- `STAGING_INGESTION_OBJECT_STORE_ENDPOINT`
+- `STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY`
+- `STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY`
+- `STAGING_INGESTION_QDRANT_URL`
+- `STAGING_INGESTION_QDRANT_API_KEY`
+- `STAGING_INGESTION_EMBEDDING_*`
+- `STAGING_INGESTION_SPARSE_*`
+
+supervisor staging lifecycle 只把这些 `STAGING_INGESTION_*` 投影进 Docker runtime；
+不会从 root `.env`、app-api `.dev.vars` 或 `STAGING_APP_API_OPERATOR_DATABASE_URL`
+推断 retrieval 数据面。
 
 要求：
 
@@ -402,7 +427,7 @@ wrangler secret put SENTRY_DSN --env staging
   `app-api-staging`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke
   必须覆盖 `sign-up -> immediate sign-in`
-- `SUPERVISOR_API_BASE_URL` 在每次 staging deploy 时都必须显式注入，且当次值必须真实可达
+- `EXECUTION_CONTROL_BASE_URL` 在每次 staging deploy 时都必须显式注入，且当次值必须真实可达
 - `STAGING_ACCESS_TEAM_DOMAIN` / `STAGING_ACCESS_POLICY_AUD` 必须都是真实 Access
   值，不能使用 repo 占位默认值
 - `app-api /readyz` 必须先 ready，再允许 web surfaces 对外 smoke
@@ -461,13 +486,19 @@ pnpm --dir apps/hub-web account:smoke:staging
   `POST /api/internal/staging-smoke/auth/session` 重置 smoke identity 并铸造真实
   staging session cookie，然后真实请求 `chat-staging.mucwiki-edge.link`、
   `docs-staging.mucwiki-edge.link` 或 `hub-staging.mucwiki-edge.link`
+- 如果 `chat:e2e:staging` 返回 `retrieval_failed` 且 supervisor trace 显示
+  `qdrant retrieval failed`，不要在 retrieval/read path 增加 collection alias 或兜底查询；
+  先在 `nc-arm-6c:/srv/apps/campus-agent` 执行
+  `campus_ingestion_worker.probe_regulation_rag_release_runtime`。`qdrant_endpoint_not_ready`
+  表示 ops-owned `runtime.env` 的 `STAGING_INGESTION_QDRANT_URL` 不是可用 Qdrant REST
+  endpoint，必须修正 endpoint 后再重启 execution runtime。
 - `chat:e2e:staging` 默认要求 chat request 返回 `answer`
   (`request.resultKind`)；如果返回 `error` 等 typed outcome，脚本会退出非零并输出对应
   `requestId` / `traceId`，避免把 supervisor timeout 或 upstream failure 误判为通过
 - 它们要求当前 shell 有 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
   `STAGING_APP_API_SMOKE_AUTH_SECRET`；repo-owned wrapper 会自动加载 ignored
-  `.env.staging.local`
-- 它们不要求本机 staging DB URL，不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，
+  `/srv/docker/campus-agent/staging/env/runtime.env`
+- 它不要求本机 staging DB URL，不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，
   也不要求 agent 通过真实 Turnstile challenge
 - `account:smoke:staging` 是 Hub 身份功能链路的 canonical browser smoke。它必须在
   `nc-arm-6c:/srv/apps/campus-agent` 执行，只访问
@@ -611,7 +642,7 @@ pnpm --dir apps/app-api federation:provision-muc-wiki:staging
 ### 1. `apps/app-api`
 
 ```bash
-STAGING_SUPERVISOR_API_BASE_URL=https://<current-supervisor-upstream> \
+STAGING_EXECUTION_CONTROL_BASE_URL=https://<current-supervisor-upstream> \
 pnpm --dir apps/app-api deploy:staging
 ```
 

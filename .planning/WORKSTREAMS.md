@@ -1,175 +1,53 @@
----
-doc_type: index
-status: active
-created: 2026-04-19
-updated: 2026-05-10
----
+# Active Work Map
 
-<!-- markdownlint-disable MD013 MD060 -->
+## Status
 
-# Workstreams
+There are no tracked active workstream directories in this repo.
 
-`WORKSTREAMS.md` 是 repo 级 workstream registry。
-它负责记录哪些 workstreams 当前存在、状态如何、入口文档是什么，以及哪些条目已经落成原生 `.planning/workstreams/<slug>/` 目录。
+This file is the compact repo-level work map. It is not a completed-workstream
+ledger, phase archive, evidence tree, or session handoff store. Historical
+workstream and phase material is available through git history.
 
-它不替代每条 workstream 自己的 `STATE.md`、`ROADMAP.md`、`REQUIREMENTS.md`。
+## Working Model
 
-## Shared Planning Contract
+- Use GSD SDK and Codex native sessions for live workstream/session state.
+- Persist durable outcomes in the correct long-lived artifact:
+  - architecture truth -> `docs/architecture/`
+  - decisions -> `docs/decisions/`
+  - contracts -> `docs/contracts/`
+  - schemas/data truth -> `docs/data/`
+  - operations -> `docs/runbooks/`
+  - project-level map -> `.planning/PROJECT.md` and this file
+- Do not recreate tracked `.planning/workstreams`, `.planning/quick`,
+  `.planning/legacy-flat`, `.planning/milestones`, `.planning/research`,
+  `.planning/todos`, `.planning/codebase`, or `.planning/seeds`.
 
-- `PROJECT.md`
-  - repo 级产品范围、关键决策与 merged/worktree truth
-- `WORKSTREAMS.md`
-  - repo 级 workstream registry；active / deferred / backlog / legacy 的唯一总览
-- `.planning/workstreams/<slug>/README.md`
-  - native workstream 的人工入口；先解释这条线的边界、状态与应继续查看的 `REQUIREMENTS / ROADMAP / STATE`
-- `.planning/workstreams/<slug>/STATE.md`
-  - 单条 workstream 的当前状态、current slice、blockers、verification 与 continuity
-- `.planning/workstreams/<slug>/ROADMAP.md`
-  - 单条 workstream 的固定顺序与 phase 状态
-- `.planning/workstreams/<slug>/REQUIREMENTS.md`
-  - 单条 workstream 的目标、范围、non-goals 与 success criteria
-- `.planning/workstreams/<slug>/GAP-LEDGER.md`
-  - completed workstream 的缺口账本与 completion audit；用于把 success criteria 映射到
-    owner / files / tests / evidence，避免用 phase summary 或 registry 状态替代验收证据
-- `.planning/seeds/`
-  - dormant future follow-up；记录 why / trigger / breadcrumbs，供后续 milestone 或新 workstream 恢复时再拾起
-  - current seeds include `SEED-001` conditional moderation lane, `SEED-002` conditional HITL
-    approval recovery, `SEED-003` source-handoff runtime store adoption, and `SEED-005`
-    authenticated canonical regulation gap collection; `SEED-004` has already surfaced as a
-    completed native workstream
-- `.planning/runtime/`
-  - gitignored 的本地 operator scratch 与 session pointer 辅助状态；不承担 tracked planning truth，
-    也不再承载 repo-owned workstream harness、claim lease 或 heartbeat truth
-- `.planning/legacy-flat/`
-  - 迁移前的 flat planning archive；仅保留历史 phase / milestone 参考，不再承载当前执行真相
-- `.planning/quick/`、`.planning/todos/`、`.planning/codebase/`、`.planning/research/`
-  - 当前继续保持 repo 共享，不按 workstream 拆分
+## Owner Areas
 
-## Active
+| Area | Scope | Reopen Trigger |
+| --- | --- | --- |
+| Product Plane | `hub-web`, `public-chat-web`, `public-docs`, `protected-panel-web`, shared `app-api` | Product surface, auth/session, request projection, or browser contract changes |
+| Execution Plane | `execution-control`, Temporal workflows, run/step projection, readiness | Workflow topology, projection schema, execution ingress, cancel semantics, or worker readiness changes |
+| Capability Plane | RAG, navigation, notice, campus services, semantic worker | New typed tool/activity, agent-as-tool boundary, routing/admission, or capability evidence changes |
+| Data Plane | ingestion, object storage, Qdrant, source truth, read models | Source family admission, ingestion release, query-enabled surface, ACL, or data-plane transport changes |
+| Ops / QA | staging, release gates, observability, deploy hygiene | Staging closeout, release smoke, ingress, secrets, evidence, or monitoring changes |
 
-| Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
-|------------|------|------------|-------|---------------|---------------|
-| — | — | — | — | — | — |
+## Recovery Rule
 
-## Completed
+If a deleted planning archive contains useful context, recover only the specific
+decision, requirement, or evidence reference into an active doc/ADR/runbook with
+current terminology. Do not restore the archive directory or treat old phase
+status as current project truth.
 
-| Workstream | Slug | Native Dir | Entry | Reopen Rule |
-|------------|------|------------|-------|-------------|
-| `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | 只有在 shared eval substrate、profile registry、eval release gate、RAG coverage/audit、known-gap/no-hit contract、case governance admission 或 completed workstream 的 GAP-LEDGER evidence 漂移时恢复；认证态 canonical 文档补采属于 backlog `authenticated-canonical-regulation-gap-collection`，不单独重开 eval |
-| `OpenAI Agents SDK native supervisor runtime hardcut` | `openai-agents-sdk-native-supervisor-runtime-hardcut` | `yes` | `.planning/workstreams/openai-agents-sdk-native-supervisor-runtime-hardcut/README.md` | 只有在 Python semantic execution 重新引入 repo-owned provider loop、RAG answer path 恢复 non-SDK fallback / shadow / candidate runtime、structured 或 agent-internal tools 绕过 SDK-native `FunctionTool` admission、Go-owned WorkflowPlan / ToolSpec admission 被 SDK routing 绕过，或 SDK raw trace / native type 泄漏到 contracts/panel/eval/public response 时恢复 |
-| `academic calendar source truth reconciliation` | `academic-calendar-source-truth-reconciliation` | `yes` | `.planning/workstreams/academic-calendar-source-truth-reconciliation/README.md` | 只有在 `calendar/academic_calendar` current projection 再次只读单一 curated calendar、notice-derived calendar arrangement 无法通过 source-truth manifest admission、`2026-05-09` 回退成 `执行周一课表`、`春假` 被写成官方事件名或不再能以 colloquial alias 映射到官方组合安排，或 runtime 重新扫描 raw notice/RAG/OCR 资产时恢复 |
-| `answer-ready semantic extraction rearchitecture` | `answer-ready-semantic-extraction-rearchitecture` | `yes` | `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/README.md` | 只有在 `answer_ready_evidence.v3` schema / taxonomy governance / parent-child unit chain 漂移、`student_rules` 或 `institutional_rules` target release proof 失效、target regulation serving 重新允许 primary text-cue 或 old-index fallback、typed answer grounding 不再 fail-close，或 component eval / post-publish audit 不能拒绝 target-v3 fallback provenance 时恢复 |
-| `answer-ready evidence contract closeout` | `answer-ready-evidence-contract-closeout` | `yes` | `.planning/workstreams/answer-ready-evidence-contract-closeout/README.md` | 只有在 query-serving regulation-family answer-ready chunks 再次缺少 `answer_role` / `condition_subject` / `parent_unit_id` / `evidence_contract_version`、procedure typed fields、category overview member metadata，ranking/selection 回退到 text-cue primary path，release admission 不再 fail closed，或 component eval 无法归因 intent/retrieval/ranking/selection/draft/grounding/chunk-contract failure 时恢复 |
-| `SDK-only domain-agent execution hardcut` | `sdk-only-domain-agent-execution-hardcut` | `yes` | `.planning/workstreams/sdk-only-domain-agent-execution-hardcut/README.md` | 只有在 `sdk_adapter_admitted` structured tool 重新获得 direct adapter fallback、repo-owned provider-loop/pilot substrate 回流到 worker/package/test/eval、package-owned SDK executors 不再是唯一生产 structured runtime owner，或 ToolSpec/provider function schema drift guard 失效时恢复 |
-| `academic calendar lookup capability closeout` | `academic-calendar-lookup-capability-closeout` | `yes` | `.planning/workstreams/academic-calendar-lookup-capability-closeout/README.md` | 只有在 `academic_calendar_lookup` 停止返回 source-backed calendar facts、`春假` 不再只作为 source-backed colloquial alias 映射到官方组合安排、`2026-05-09` notice-derived `normal_rest_day` 回退、runtime 重新查询 raw official-web/RAG/image assets，或 planner routing 再次混淆 calendar fact / notice original / service-guide entry questions 时恢复 |
-| `academic calendar campus services consolidation` | `academic-calendar-campus-services-consolidation` | `yes` | `.planning/workstreams/academic-calendar-campus-services-consolidation/README.md` | 只有在 `calendar-agent` 被重新提出为 active runtime agent、`academic_calendar_lookup` owner/capability 漂移出 `campus-services-agent` / `campus_services`、standalone `requested_capability=academic_calendar` 或 `SUPERVISOR_API_OPEN_CAPABILITIES=academic_calendar` 被重新 admission，或 `calendar/academic_calendar` data-plane truth 与 campus-services runtime ownership 边界发生漂移时恢复 |
-| `agentic retrieval runtime completion` | `agentic-retrieval-runtime-completion` | `yes` | `.planning/workstreams/agentic-retrieval-runtime-completion/README.md` | 只有在 planner decision truth 再次退化为诊断摘要、非 live typed retrieval steps 退回 unsupported/opaque execution、semantic replan 可扩大 scope/selector/budget 或切 live branch、projection context 泄漏 raw payload 或无法归因到 planning framing、claim/evidence gate 不再约束 completed answer，或 eval 无法区分 planner/step graph/replan/claim graph 失败时恢复 |
-| `authenticated notice fetch admission operator wiring` | `authenticated-notice-fetch-admission-operator-wiring` | `yes` | `.planning/workstreams/authenticated-notice-fetch-admission-operator-wiring/README.md` | 只有在 authenticated-notice attachment fetch admission、target-blocking media lifecycle、closeout provenance、cleanup protection、search-only vs target-admission split，或 captured-content state-machine acceptance evidence 漂移时恢复；fresh collector smoke 仅作为 auth 可用后的 manifest-consumption proof |
-| `campus agentic RAG depth completion` | `campus-agentic-rag-depth-completion` | `yes` | `.planning/workstreams/campus-agentic-rag-depth-completion/README.md` | 只有在 planner decomposition 再次不可观测、projection context evidence use 无法审计、replan 原因不可归因、claim/evidence graph 缺失，或 eval 无法区分 decomposition/replan/claim graph 失败时恢复 |
-| `rag-agent agentic retrieval rearchitecture` | `agentic-rag-runtime-rearchitecture` | `yes` | `.planning/workstreams/agentic-rag-runtime-rearchitecture/README.md` | 只有在 `title_lookup` 或其他 answer-shape heuristic 再次绕过 answer-bearing evidence / grounding 决定 answer success、planner/retrieval/evidence_selection/synthesis/grounding observability 退化成 opaque prompt output、supporting evidence 丢失 retrieval plan / step / replan provenance、RAGAS diagnostic 无法按 stage 归因 relevancy / faithfulness failure，或 executable retrieval seam types 泄漏到 `packages/contracts` / 产品 scope owner 时恢复 |
-| `campus-bounded autonomous RAG completion` | `campus-bounded-autonomous-rag-completion` | `yes` | `.planning/workstreams/campus-bounded-autonomous-rag-completion/README.md` | 只有在 query-time RAG 再次依赖 unbounded web/source fetch、丢失显式 query mode/source-trust/fail-close planning、消费 raw cross-agent context 而不是 bounded projection refs、retrieved content 能改变 instruction/tool policy、失去 answer-quality stage attribution，或 production path regression 无法归因到 planner/retrieval/evidence/grounding/guardrail/runtime stage 时恢复 |
-| `supervisor multi-agent runtime contract hardening` | `supervisor-multi-agent-runtime-contract-hardening` | `yes` | `.planning/workstreams/supervisor-multi-agent-runtime-contract-hardening/README.md` | 只有在新增 agent/tool 绕过 AgentSpec/ToolSpec、workflow trace 缺少 invocation/projection/tool provenance、raw provider/source payload 泄漏到 contracts/eval/panel/workflow trace，或 deferred multi-agent runtime 实现改写 contract boundary 时恢复 |
-| `canonical retrieval release hardening` | `canonical-retrieval-release-hardening` | `yes` | `.planning/workstreams/canonical-retrieval-release-hardening/README.md` | 只有在新增 query-enabled scope 缺少 qrels / release acceptance coverage、release manifest / point payload provenance 与 runtime profile 漂移、runtime drift guard 失效、embedding cache identity 变更未失效旧 cache，或 retrieval tuning 开始无 deterministic evidence 地改写生产 profile 时恢复 |
-| `hub product entry and legacy wiki identity` | `hub-product-entry-and-legacy-wiki-identity` | `yes` | `.planning/workstreams/hub-product-entry-and-legacy-wiki-identity/README.md` | 只有在 `hub.muc.wiki/[slug]` route namespace、hub Worker + Vite React substrate、account shell ownership、app-api auth origin policy、MediaWiki external-link-only posture、generic app-api proxy guard 或 MediaWiki identity leakage guard 被显式改写时恢复 |
-| `canonical retrieval quality ops hardening` | `canonical-retrieval-quality-ops-hardening` | `yes` | `.planning/workstreams/canonical-retrieval-quality-ops-hardening/README.md` | 只有在新增默认 query-enabled scope 缺少 denominator policy 或 release acceptance coverage、release benchmark schema/dry-run posture 漂移、runtime observation 不能产出 sanitized durable event、reranker 可绕过 deterministic adoption evidence / runtime-profile opt-in / fail-closed observation、freshness/live 分支泄漏到默认 current retrieval，或 focused/repo-wide gate separation 再次不清晰时恢复 |
-| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | 只有在 docs control-plane / published reader asset contract 漂移、gated reader delivery 失效、chat `source_items` 重新暴露 raw retrieval / private notice locator、source jump 在真实 public-chat 入口失败，或 notice source serving 正式打开且需要补充端到端来源跳转验收时恢复 |
-| `execution tool calling governance` | `execution-tool-calling-governance` | `yes` | `.planning/workstreams/execution-tool-calling-governance/README.md` | 只有在新增 query-time tool 未同步 ToolSpec / provider function schema / eval denominator / Go runtimepolicy drift guard，provider-native function calling 越过 Go `allowed_tools` 或未 gated domain-agent adapter，或 raw provider/tool response 泄漏到 workflow trace、panel、eval、prompt 时恢复 |
-| `governed multi-agent workflow runtime` | `governed-multi-agent-workflow-runtime` | `yes` | `.planning/workstreams/governed-multi-agent-workflow-runtime/README.md` | 只有在 multi-step workflow 再次丢失 recorded step-level `tool_call_summaries`、bounded provenance replay、`needs_clarification` / `no_answer` completed terminal semantics，或 repo 显式决定 admission 第二个 governed scenario 时恢复 |
-| `rag-agent internal Agents SDK loop` | `rag-agent-internal-agents-sdk-loop` | `yes` | `.planning/workstreams/rag-agent-internal-agents-sdk-loop/README.md` | 只有在 `retrieval.query` 变成 public / structured handoff、SDK-native types 泄漏到 `packages/contracts`、SDK output 可绕过 claim/span support 完成回答、SDK tool input 可扩大 scope/authz/version selector、user-facing shadow/fallback mode 重新出现、raw SDK/provider trace 泄漏到 shared response/eval surface，或 category discovery 回归 premature clarification 时恢复 |
-| `agents sdk domain-agent adapter pilot` | `agents-sdk-domain-agent-adapter-pilot` | `yes` | `.planning/workstreams/agents-sdk-domain-agent-adapter-pilot/README.md` | 只有在 SDK target / tool expansion 被提出、SDK raw traces or native types leak into contracts/panel/eval/workflow trace、ToolSpec / Go allowed-tools derivation is bypassed、provider SDK version changes break runner/tool semantics、Phase 6 parity evidence 失效，或产品希望把 SDK lane 提升到显式 gate 之外时恢复 |
-| `agents sdk domain-agent adapter promotion` | `agents-sdk-domain-agent-adapter-promotion` | `yes` | `.planning/workstreams/agents-sdk-domain-agent-adapter-promotion/README.md` | 只有在已接纳 SDK adapter tools 的 default-on posture 被显式收缩或继续扩展、structured-query E2E evidence 漂移或失败、SDK raw traces or native types leak into contracts/panel/eval/workflow trace、ToolSpec / Go allowed-tools derivation 被绕过、provider SDK version changes break runner/tool semantics，或产品希望把 SDK lane 提升到显式 gate 之外时恢复 |
-| `official web consumer denominator recovery` | `official-web-consumer-denominator-recovery` | `yes` | `.planning/workstreams/official-web-consumer-denominator-recovery/README.md` | 只有在 consumer-denominator metadata 停止写入 retained source-truth、scheduler 默认再次包含 broad news recovery、contact/service/news candidate 绕过 review 写 current read model、stable-reference 绕过 release gate/alias admission，或 `fresh_news` / `news_archive` 被无独立 workstream 打开时恢复 |
-| `official web collection restart closeout` | `official-web-collection-restart-closeout` | `yes` | `.planning/workstreams/official-web-collection-restart-closeout/README.md` | 只有在 repo 明确放弃 target-first one-time source-pack 路线、恢复 recurring official-web collector automation 作为 forward scope owner，或需要重新审计旧 bounded crawl / projection replay 历史证据时恢复 |
-| `official web service guide consumption quality closeout` | `official-web-service-guide-consumption-quality-closeout` | `yes` | `.planning/workstreams/official-web-service-guide-consumption-quality-closeout/README.md` | 只有在 grouped procedure / focused section contract 在 Python、Go、runtime answer path 或 eval verifier 之间漂移，official-web service-guide role-driven composition 停止 fail-close，selected-write no-promotion / isolated publish proof 失效，或 admitted service-guide denominator 的 source-faithful focused answers 再次退化时恢复 |
-| `official web tool-driven source pack` | `official-web-tool-driven-source-pack` | `yes` | `.planning/workstreams/official-web-tool-driven-source-pack/README.md` | 只有在首期 source-pack 的 accepted demand matrix、source collection cases、owner surface、release target、information-disclosure composition contract、excluded/deferred posture 或 eval expectations 被显式改写时恢复；manifest/capture/replay/release implementation 继续归 `official-web-source-pack-collection-execution` 或 ingestion release lane |
-| `historical regulation canonical chunk backfill` | `historical-regulation-canonical-chunk-backfill` | `yes` | `.planning/workstreams/historical-regulation-canonical-chunk-backfill/README.md` | 只有在历史存量 regulation 的 canonical/chunk 质量门再次失败、对象存储 regulation document key contract 漂移、或 release lane 试图绕过 Phase 36 handoff 直接 embedding/index/release 时恢复 |
-| `historical regulation denominator expansion` | `historical-regulation-denominator-expansion` | `yes` | `.planning/workstreams/historical-regulation-denominator-expansion/README.md` | 只有在 run14 历史 regulation-like denominator 重新打开、blocked owner-source records 获得完整 owner source、校级/院级 downstream eligibility 基调被显式改写、`scoped_rules` 试图进入 document-site/RAG consumption，或 release lane 试图绕过 closeout 直接 embedding/index/release 时恢复 |
-| `official web targeted collection refactor` | `official-web-targeted-collection-refactor` | `yes` | `.planning/workstreams/official-web-targeted-collection-refactor/README.md` | 只有在 default official-web collection 重新绕过 app-api target workset admission、target lineage 停止贯通 source-truth/app-api/ingestion、protected panel 开始读取非 app-api official-web truth、legacy broad crawl 可绕过 `legacy_contract_excluded` dispatch/promote，或新 official-web downstream surface 缺少 target-source-map/no-promotion evidence 时恢复 |
-| `official web source pack collection execution` | `official-web-source-pack-collection-execution` | `yes` | `.planning/workstreams/official-web-source-pack-collection-execution/README.md` | 只有在 source-pack manifest validation、lineage-aware batch seam、artifact-resumable closeout、information-disclosure offline composition、或 no-promotion seam 的 selected-write release-task admission proof 发生漂移，或首期 source-pack 重新扩展到 broad crawl / app-api-owned release semantics 时恢复 |
-| `official web target inventory` | `official-web-target-inventory` | `yes` | `.planning/workstreams/official-web-target-inventory/README.md` | 只有在 target inventory manifest/report 漂移、新 official-web target surface 被 admission、app-api/panel operator projection 停止匹配 manifest，或 broad crawl/current-truth promotion 绕过 selected-write release evidence 时恢复 |
-| `official web service-info target expansion` | `official-web-service-info-target-expansion` | `yes` | `.planning/workstreams/official-web-service-info-target-expansion/README.md` | 只有在新的 public official-web 页面补齐 contact/service denominator、服务信息 denominator 被显式改写、selected-write machine field gate 漂移、或出现 ready service-info candidate 需要真实 selected-write release/runtime proof 时恢复 |
-| `official web service-info denominator realism` | `official-web-service-info-denominator-realism` | `yes` | `.planning/workstreams/official-web-service-info-denominator-realism/README.md` | 只有在 contact/service required/optional denominator 被改写、`source_not_provided` 语义漂移、target inventory/app-api/panel 不再暴露 optional metadata、selected-write release gate 再次要求 optional fields 全部 present，或新增 service-info source family 需要重新定义 release-blocking evidence 时恢复 |
-| `official web service-info source expansion` | `official-web-service-info-source-expansion` | `yes` | `.planning/workstreams/official-web-service-info-source-expansion/README.md` | 只有在新的 target-first official-web 服务信息 URL 被 admission、`met.muc.edu.cn` support-host contract 漂移、collector negative-pattern 分类再次误杀服务页，或准备做 service-guide multi-page composition 时恢复 |
-| `notice agent card-first tool boundary` | `notice-agent-card-first-tool-boundary` | `yes` | `.planning/workstreams/notice-agent-card-first-tool-boundary/README.md` | 只有在 notice body-serving path 重新进入 public answer、workflow trace、panel、eval asset 或 provider/SDK output，`campus_notice_get` / body-context function 重新进入 top-level ToolSpec/provider schema，SDK/provider runtime 绕过 Go allowed-tools / ToolSpec，restricted notice body/context 未授权暴露，或 downstream materialization 把 raw notice body 作为 cross-agent prompt context 时恢复 |
-| `public docs rolling publish automation` | `public-docs-rolling-publish-automation` | `yes` | `.planning/workstreams/public-docs-rolling-publish-automation/README.md` | 只有在 public-docs rolling publish manifest contract、scheduled cadence、deploy ledger、retry/rollback policy、hook nudger 或 production acceptance harness 被显式改写，或 operator evidence 与当前 pipeline 行为漂移时恢复 |
-| `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `yes` | `.planning/workstreams/wechat-official-account-public-source-channel/README.md` | 只有在 FeedWe discovery contract 漂移、`mp.weixin` page shape / anti-bot posture 破坏 canonical source-truth capture、WeChat source-truth/queryable gate 回归、multimodal attempt/runtime smoke 证据失效，或新增 WeChat notice source-family serving admission 时恢复 |
-| `collected notice consumption replay closeout` | `collected-notice-consumption-replay-closeout` | `yes` | `.planning/workstreams/collected-notice-consumption-replay-closeout/README.md` | 只有在 collected-notice replay evidence 漂移、新 downstream target 被显式 admission、service-status deferred candidates 获得 normalized multimodal evidence 需要重放、或 Phase 7 acceptance evidence 对当前 chain contract 失效时恢复 |
-| `notice ingest fact state machine` | `notice-ingest-fact-state-machine` | `yes` | `.planning/workstreams/notice-ingest-fact-state-machine/README.md` | 只有在 notice target replay 回退到 whole-notice media gating、source retention 回退到附件类型优先的 byte retention、新 target fact group 被 admission、OCR/owner-text normalized output contract 改写，或 `355881` / `355867` / service-status fact readiness guard 失败时恢复 |
-| `authenticated notice ingest queue e2e automation` | `authenticated-notice-ingest-queue-e2e-automation` | `yes` | `.planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/README.md` | 只有在 run-level queue payload / verified ledger handoff / queue consumer / child task evidence / OCR-first processor profile / media gate / downstream materialization / cleanup guard contract 漂移，或后置 live infra execute smoke 失败，或 operator 改写 historical local-only enqueue 政策时恢复 |
-| `runtime OTel observability bridge` | `runtime-otel-observability-bridge` | `yes` | `.planning/workstreams/runtime-otel-observability-bridge/README.md` | 只有在新 runtime path 绕过 OTel trace/request correlation、retrieval observation 停止产出 sanitized production event、ingestion release telemetry 丢失 run-level 覆盖、Collector redaction/fan-out config 漂移、raw sensitive field 进入 telemetry、exporter failure 开始破坏 product path，或 Sentry/Axiom integration 泄漏进 core packages 时恢复 |
-| `source handoff ingestion state machine design` | `source-handoff-ingestion-state-machine-design` | `yes` | `.planning/workstreams/source-handoff-ingestion-state-machine-design/README.md` | 只有在 source-specific collector/run-ledger ownership 被改写、canonical `SourceHandoff` / `ObjectVerification` / `IngestionExecution` / step / child-task 语义被改写、worker local JSON 或 queue row 重新被当作 canonical execution truth、app-api/panel 开始直读 raw ingestion-control/object/local/telemetry truth、新 source channel 需要加入该状态机，或 no-serving-opening gate 失败时恢复；普通生产 runtime adoption 走 `SEED-003` |
-| `authenticated notice object-native ingestion closeout` | `authenticated-notice-object-native-ingestion-closeout` | `yes` | `.planning/workstreams/authenticated-notice-object-native-ingestion-closeout/README.md` | 只有在 collector/worker handoff 回退到本机 export path、object locator audit 发现 required source object 缺失、run-ledger `run_id` import contract 失效，或 notice-family consumer 绕过 object/source-truth/projection/admission truth 时恢复 |
-| `authenticated notice run-level operator view` | `authenticated-notice-run-level-operator-view` | `yes` | `.planning/workstreams/authenticated-notice-run-level-operator-view/README.md` | 只有在 app-api owned run-processing projection 停止接收 sanitized snapshot、protected-panel 改为直读 queue/object/trace/raw ingestion truth、source-truth-only run 计数回归、或产品 admission 写操作型 collector control-plane 时恢复 |
-| `regulation RAG release lane` | `regulation-rag-release-lane` | `yes` | `.planning/workstreams/regulation-rag-release-lane/README.md` | 只有在 `regulations/*` reader publish 与 RAG release 状态重新耦合、candidate lifecycle/store 漂移、historical/search-only scoped rule 误进 current RAG alias、withdrawn/deleted cleanup 失效、operator projection 泄漏 raw/object/vector payload，新增 regulation query-enabled surface 缺少 release candidate/acceptance/publish gate，或 42 条校级 `institutional_rules` golden retrieval/no-hit/answer-quality/product-path baseline 回归时恢复 |
-| `institutional rules retrieval quality baseline` | `institutional-rules-retrieval-quality-baseline` | `yes` | `.planning/workstreams/institutional-rules-retrieval-quality-baseline/README.md` | 只有在 42 条 admitted institutional rules 的 manifest/version truth 漂移、新 institutional rule 被显式 admission 进入默认 consumption、no-hit policy 重新允许未发布校级制度/年度 scoped-rule/院级 scoped-rule decoy/虚构制度命中，或 answer source identity contract 允许 scoped-rule URL / 错误 institutional title 满足时恢复 |
-| `authenticated notice ingest operator panel` | `authenticated-notice-ingest-operator-panel` | `yes` | `.planning/workstreams/authenticated-notice-ingest-operator-panel/README.md` | 只有在 app-api owned authenticated-notice processing/run-processing projection 停止接收 sanitized snapshot、protected-panel 改为直读 queue/object/trace/raw ingestion truth、schedule 或 non-schedule notice acceptance evidence 漂移、redaction guard 允许 raw body/HTML/OCR/object locator 进入 operator response，或新增 authenticated notice downstream family 需要 panel-visible processing acceptance 时恢复 |
-| `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/archive/completed/execution-capability-family-convergence.md` | 只有在 repo 重新 admission raw runtime target family rename、显式改写 `selected_target` / `selectedTarget` 语义，或新增 capability family 需要重开 repo-wide naming / label convergence 规则时才恢复 |
-| `official web university-level collection dev closeout` | `official-web-university-level-collection-dev-closeout` | `yes` | `.planning/workstreams/official-web-university-level-collection-dev-closeout/README.md` | 只有在校级 `university-core-*` lane 的 crawl/projection/chunk audit/repeated-run/import dry-run gate 重新失败，或准备把 artifact-only replay 正式提升为 registry current truth 时才恢复 |
-| `handbook curriculum MinerU cutover` | `handbook-curriculum-mineru-cutover` | `yes` | `.planning/workstreams/handbook-curriculum-mineru-cutover/README.md` | 只有在 `student_rules` / `curriculum_plan` 需要重新切换 OCR provider、回滚 serving alias、或重开 Paddle/MinerU source-truth cutover 时才恢复 |
-| `bounded agentic retrieval productization` | `bounded-agentic-retrieval-productization` | `yes` | `docs/plans/archive/completed/bounded-agentic-retrieval-productization.md` | 只有在 repo 重新 admission 新的 retrieval step / planner-executor lifecycle、某个具体产品面决定正式消费 generic `live_source_lookup`、显式改写 raw retrieved trace / supporting evidence / operator observability contract，或把 non-current runtime acceptance 提升为 retrieval owner 时才恢复 |
-| `operator observability / control-plane` | `operator-observability-control-plane` | `yes` | `docs/plans/archive/completed/operator-observability-control-plane-foundation.md` | 只有在 repo 重新 admission 新的 operator observability domain、显式改写 `app-api` owned operator truth / sink participation contract，或 panel 需要从 read-only observability control-plane 扩成新的 write/action surface 时才恢复 |
-| `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` | 只有在 public auth family / same-site auth contract / Turnstile posture 被显式改写、public browser answer contract 再次出现 raw agent locator 泄漏或 curriculum semester chunk-boundary corruption，或 shared `app-api + public-chat-web + protected-panel-web` 联合验收被重新 admission 为 active hardening 时才恢复 |
-| `shared file asset loader contract` | `shared-file-asset-loader-contract` | `yes` | `docs/plans/archive/completed/shared-file-asset-loader-contract.md` | 只有在新的 admitted file asset family 被提升为 active、当前 canonical parser/normalization lane 被显式改写，或 deferred cross-scope adoption 被重新 admission 为 active implementation 时才恢复 |
-| `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md` | 只有 future product scope 扩到 open-ended public input，或重新引入 state-changing / externally side-effectful action execution，并命中 `.planning/seeds/SEED-001-conditional-moderation-lane.md` / `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md` 的 trigger 条件时才恢复 |
-| `campus services offline preparation hardening` | `campus-services-offline-preparation-hardening` | `yes` | `docs/plans/archive/completed/campus-services-offline-preparation-hardening.md` | 只有在产品范围重新提升 `campus_services/*` offline-preparation quality hardening 优先级，或明确 admission 新的 bounded target 时才恢复 |
-| `campus services / notices runtime admission` | `campus-services-notices-runtime-admission` | `yes` | `docs/plans/archive/completed/campus-services-notices-runtime-admission.md` | 只有在产品范围重新 admission 新的 runtime capability family、显式改写首发/后续 tool 边界，或需要重开 service / notice / contact / process runtime opening truth 时才恢复 |
-| `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery.md` | 只有在新的显式 non-excluded target 被 admission、认证窗口重新可用且产品范围重新恢复 bounded owner recovery 优先级时才恢复 |
-| `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md` | 只有在 authenticated portal policy 改变、认证窗口重新 admission 新 surface、需要产品/API scheduler，而不是 repo-owned collector CLI，或 live capture 与 historical replay 再次出现两套 truth 时恢复 |
-| `versioned history query foundation` | `versioned-history-query-foundation` | `yes` | `docs/plans/archive/completed/versioned-history-query-foundation.md` | 只有在 repo 重新 admission runtime-facing non-current query route contract、`app-api` live benchmark 正式承载 non-current `version_query`、或显式改写 `current / historical / as_of / compare` 的 request / resolution / retrieval / answer / eval truth 时才恢复 |
-| `repo-wide agent harness rollout` | `repo-wide-agent-harness-rollout` | `yes` | `.planning/workstreams/repo-wide-agent-harness-rollout/README.md` | retired；旧 repo-owned harness 已在 2026-06-04 被 GSD SDK + Codex 原生会话取代，不再按旧 hook / terminal-result / lease contract 恢复 |
-| `public chat campus services E2E acceptance` | `public-chat-campus-services-e2e-acceptance` | `yes` | `.planning/workstreams/public-chat-campus-services-e2e-acceptance/README.md` | 只有在 campus-services tool denominator 新增、tool-level opening verdict 改写、rollout/rollback contract 改写，或 staging opening evidence 与当前 verdict 发生漂移时才恢复 |
-| `campus services runtime tool gap closeout` | `campus-services-runtime-tool-gap-closeout` | `yes` | `.planning/workstreams/campus-services-runtime-tool-gap-closeout/README.md` | 只有在 campus-services tool denominator、新 product-path tool、admission profile、opening verdict 或 runtime gate contract 被显式改写，或 `public-chat-campus-services-e2e-acceptance` 发现真实入口证据与当前 local gate 漂移时才恢复 |
-| `agents sdk runtime surface expansion` | `agents-sdk-runtime-surface-expansion` | `yes` | `.planning/workstreams/agents-sdk-runtime-surface-expansion/README.md` | 只有在新增 admitted single-surface SDK runtime expansion slice、已完成 surface 的 SDK evidence/guardrail/product-path acceptance 漂移，或 repo 再次需要扩展 worker/domain-agent 内部 SDK substrate 且不属于 `governed-multi-agent-workflow-runtime` 时恢复 |
-| `authenticated-notice -> service status downstream consumption` | `authenticated-notice-service-status-consumption` | `yes` | `.planning/milestones/ws-authenticated-notice-service-status-consumption-2026-04-28/README.md` | 只有在 `service_status_lookup` denominator、release/read-model contract、current promotion gate 被显式改写，新 service-status notice family 重新 admission，PG current truth 与 object release evidence 漂移，或 public-chat campus-services E2E 发现 service-status runtime 证据漂移时恢复 |
-| `notice consumption layer` | `notice-consumption-layer` | `yes` | `.planning/workstreams/notice-consumption-layer/README.md` | 只有在 repo 重新 admission internal_notice consumption projection schema/route semantics、打开新的 notice-derived downstream target，或发现 projection store/rebuild/operator status truth 与代码漂移时恢复 |
-| `notice routing taxonomy and Web card consumption` | `notice-routing-taxonomy-and-web-card-consumption` | `yes` | `.planning/workstreams/notice-routing-taxonomy-and-web-card-consumption/README.md` | 只有在产品范围决定把 procurement 从 generic notice search/card 提升为 dedicated facet/history surface、新增 dedicated notice downstream family，或真实入口验收发现 generic notice title/url card contract 漂移时恢复 |
-| `notice-derived regulation consumption quality gate` | `notice-derived-regulation-consumption-quality-gate` | `yes` | `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/README.md` | 只有在新 regulation-like notice family 被 admission 到 target consumption、ADR-0035 或 `regulations/*` target boundary 改写、文档站/RAG 从 offline preparation 提升到真实用户入口、docs-only gated reader staging/browser acceptance 需要恢复且 staging readiness 已修复、PG/bucket audit 发现 partial notice 进入 `regulations/*`，或 owner-recovery 接受新的完整 owner source 需要 formal import evidence 时恢复 |
-| `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` | 只有在下一批 regulation candidates 被 admission、`32` 个 multimodal blocked 被解决、Phase 11 新 materialized targets 进入 RAG release / serving admission、`institutional_rules` / `scoped_rules` 边界被显式改写、`scoped_rules` 被提升为默认 query allowlist、public-chat citation / public reader 被显式打开，或 regulation serving evidence 与当前 runtime/profile/alias truth 漂移时恢复 |
-| `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | 只有在课程地图重新 admission 为 RAG/query-serving、source-truth canonical 或新的 multimodal extraction contract 时恢复；单纯 UI/UX 展示打磨走 `curriculum-course-map-docs-presentation-refinement` |
-| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | 只有在 repo 重新 admission 新的 supervisor execution runtime migration slice、显式改写 `supervisor-api -> supervisor-agent-worker` bridge contract、重新打开 Python public supervisor runtime entry，或 profiling 证明 prompt/provider executor 或其他 semantic runtime 成为下一条 Go migration 瓶颈时恢复 |
-| `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | 只有在 repo 重新 admission 新的 tracked handwritten code/test monolith decomposition inventory、`pnpm decomposition:lint` 发现新超阈值 tracked 文件、baseline 出现回流，或已拆文件重新长回阈值外时才恢复 |
-| `supervisor-api Docker/dev package hardening` | `supervisor-api-docker-dev-package-hardening` | `yes` | `.planning/workstreams/supervisor-api-docker-dev-package-hardening/README.md` | 只有在 runtime contract 变更导致 local/server evidence 失效、需要新增 smoke profile，或新增 supervisor runtime 部署 contract 变更时恢复 |
-| `supervisor-api server live acceptance` | `supervisor-api-server-live-acceptance` | `yes` | `.planning/workstreams/supervisor-api-server-live-acceptance/README.md` | 只有在新增 server-live smoke profile、runtime contract 变更导致当前 artifact 失效，或需要重新验证 non-WSL host acceptance 时恢复 |
-| `ingestion worker independent deployment hardening` | `ingestion-worker-independent-deployment-hardening` | `yes` | `.planning/workstreams/ingestion-worker-independent-deployment-hardening/README.md` | 只有在部署 substrate / runtime contract 变更导致当前 phase 7 证据失效，或资源画像持续越界需要重开 runtime migration 评估时恢复 |
-| `public chat answer feedback and quality signals` | `public-chat-answer-feedback-quality-signals` | `yes` | `.planning/workstreams/public-chat-answer-feedback-quality-signals/README.md` | 只有在 answer feedback contract、operator quality feedback denominator、negative feedback eval candidate intake、或 public-chat-web feedback rollout / rollback posture 被显式改写时恢复 |
-| `Rag-Agent Answer Contract Hardening` | `rag-agent-answer-contract-hardening` | `yes` | `.planning/workstreams/rag-agent-answer-contract-hardening/README.md` | 只有在 title / identity answers 重新扩成 summary chain、official-web brief answers超出受控 fact budget、general summary 重新获得主要 answer authority，或 stage diagnostics / ragas diagnostics 不能再暴露 `presentation_kind` 与明确失败归因时恢复 |
-| `Retrieval Intent Taxonomy Contract Closeout` | `retrieval-intent-taxonomy-contract-closeout` | `yes` | `.planning/workstreams/retrieval-intent-taxonomy-contract-closeout/README.md` | 只有在 covered serving surface 再次出现 `retrieval_intent` 缺口、answer-shape / SDK synthesis 回流成 raw-query 主分类、retrieval-core 恢复第二套 intent truth，或 stage diagnostics 失去阶段归因时恢复 |
+## Current Backlog Signals
 
-## Deferred
-
-| Workstream | Slug | Native Dir | Entry | Reopen Rule |
-|------------|------|------------|-------|-------------|
-| `curriculum course-map docs presentation refinement` | `curriculum-course-map-docs-presentation-refinement` | `yes` | `.planning/workstreams/curriculum-course-map-docs-presentation-refinement/README.md` | 当前 docs 课程地图展示可先保留 baseline；当产品范围决定继续打磨课程地图在文档站中的真实显示效果时恢复 |
-| `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `.planning/workstreams/restricted-document-rollout-verification/README.md` | 只有在产品范围显式决定打开 restricted 用户可见 surface、发布 restricted collection/query serving alias，或推进 authenticated document center / restricted reader / restricted retrieval 到真实用户路径时恢复 |
-
-## Backlog
-
-| Workstream | Slug | Native Dir | Entry | Reopen Rule |
-|------------|------|------------|-------|-------------|
-| `authenticated canonical regulation gap collection` | `authenticated-canonical-regulation-gap-collection` | `no` | `.planning/seeds/SEED-005-authenticated-canonical-regulation-gap-collection.md` | 当认证态 canonical source 可用、需要补采 `中央民族大学本科生创新教育学分认定管理办法` 等缺失制度，或需要把 known-gap RAG cases 晋升为 accepted qrels / answer truth 时恢复 |
-| `official-web source channel / news opening` | `official-web-source-channel-news-opening` | `no` | `docs/plans/archive/historical/official-web-source-channel-news-opening.md` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
-| `campus navigation rollout / place_card / map consumption` | `campus-navigation-rollout-map-consumption` | `no` | `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md` | 等待校园地图实际上线后再恢复 |
-| `internal-notice procurement publication history` | `internal-notice-procurement-publication-history` | `yes` | `.planning/workstreams/internal-notice-procurement-publication-history/README.md` | 只有在产品范围决定把采购类从 generic notice search/card 提升为 procurement-specific facet/history surface，或发现采购类 title/url card 与通用 notice search contract 漂移时恢复 |
-| `chat capacity and cancellation hardening` | `chat-capacity-and-cancellation-hardening` | `yes` | `.planning/workstreams/chat-capacity-and-cancellation-hardening/README.md` | 只有在产品范围决定为 public chat 正式收口 100 人同时提问、热点削峰、ChatGPT 式提交/中止体验或 K8s/多实例容量治理时恢复 |
-| `public web recent updates surface` | `public-web-recent-updates-surface` | `yes` | `.planning/workstreams/public-web-recent-updates-surface/README.md` | 只有在产品范围决定实现 public recent updates surface、`app-api` updates API，或需要把 admitted notice-derived read models 暴露给 public browser surface 时恢复 |
-| `public-chat profile memory management UI` | `public-chat-profile-memory-management-ui` | `yes` | `.planning/workstreams/public-chat-profile-memory-management-ui/README.md` | 只有在产品范围决定为 public-chat-web 暴露 end-user profile memory 列表、开关、删除与新增入口时恢复；不得重新打开 `app-api` owned memory truth、authorization semantics 或 serving-surface policy |
-| `supervisor Docker runtime language split` | `supervisor-docker-runtime-language-split` | `yes` | `.planning/workstreams/supervisor-docker-runtime-language-split/README.md` | 只有在 Docker 侧性能预算、服务器成本或 profiling 结果显示 Python execution runtime / CPU-heavy kernel 成为正式迁移瓶颈时恢复 |
-
-## Legacy / Follow-up References
-
-这些条目继续保留为 repo 级参考，但当前不是原生 workstream：
-
-- `docs/plans/archive/historical/protected-panel-requests-triage-table-redesign.md`
-- `docs/plans/archive/superseded/golden-dataset-execution-plan.md`
-- `docs/plans/archive/historical/legacy-acl-carrier-compatibility-sunset.md`
-- `docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md`
-
-## Usage Rules
-
-- 判断 repo 当前有哪些 workstreams、各自状态如何，先看这里
-- 进入 native workstream 时，先打开对应 `.planning/workstreams/<slug>/README.md`
-- 判断某条 workstream 的当前切片、blockers、verification，进入对应 `.planning/workstreams/<slug>/STATE.md`
-- 判断某条 workstream 的固定顺序，进入对应 `.planning/workstreams/<slug>/ROADMAP.md`
-- 判断某条 workstream 的范围、non-goals 与 success criteria，进入对应 `.planning/workstreams/<slug>/REQUIREMENTS.md`
-- 判断当前 workstream registry、单条状态、active workstream 与整体进度，使用 `gsd-sdk query workstream.list/status/set/progress --raw --cwd "$PWD"`；不要把本地会话状态写回 tracked planning 文档
-- 需要历史 phase / milestone 叙事时，进入 `.planning/legacy-flat/`
+- Temporal execution-control staging closeout still requires real machine
+  ingress, worker poller, projection, smoke, and observability evidence.
+- Step projection should become the panel/eval/operator diagnostic spine.
+- Worker autoscaler remains an operations-plane proof: read Temporal/task queue
+  metrics and downstream budgets, output desired replicas, never write
+  workflow/run/event/terminal state.
+- Notice, navigation, and campus-services capabilities should continue as typed
+  activity/tool contracts, not entry-level agents.
+- Remote deploy worktrees must remain clean pinned deploy checkouts; secrets and
+  runtime env belong to ops/Docker-managed config, not repo checkout state.

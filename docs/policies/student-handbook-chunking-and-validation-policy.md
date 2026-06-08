@@ -120,7 +120,7 @@ handbook markdown。
 
 ## 预算来源
 
-当前 `student_rules_semantic_v3` 预算不是从旧 `campusRAG` 机械照抄，而是基于下列约束冻结的：
+当前 `student_rules_semantic_v3` 预算不是从旧原型机械照抄，而是基于下列约束冻结的：
 
 1. 上限必须给 `title + section/article identity + policy_doc_no + 正文` 留出稳定空间。
 1. 预算对象是最终 contextualized text，因此不能把 header 当作“免费 token”。
@@ -452,7 +452,7 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 - 仅凭 sample 观感觉得 chunk 偏短
 - 仅因为还存在诊断级 `tiny_textual_chunk_count`
-- 仅因为想和旧 `campusRAG` 参数保持一致
+- 仅因为想和旧原型参数保持一致
 
 如果未来需要继续调参，必须同时更新：
 

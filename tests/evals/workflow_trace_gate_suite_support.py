@@ -36,14 +36,14 @@ def _trace_summary(**overrides):
         "routing_frame": {"intent": "campus_service_lookup"},
         "context_resolution": {"resolved_scope": "campus_services"},
         "planning_outcome": "direct_structured_tool",
-        "workflow_mode": "direct_runtime",
+        "workflow_mode": "single_step",
         "direct_vs_delegate_branch": "direct",
         "handoff": {"target": "campus-services-agent", "mode": "structured_runtime"},
         "handoff_chain": (),
         "agent_invocations": (
             {
                 "invocation_id": "agent-invocation:campus-services-agent:1",
-                "workflow_run_ref": "direct_runtime:campus-services-agent:transport_schedule_lookup",
+                "workflow_run_ref": "single_step:campus-services-agent:transport_schedule_lookup",
                 "agent_id": "campus-services-agent",
                 "status": "completed",
             },
@@ -95,8 +95,8 @@ def _trace_summary(**overrides):
         "tool_call_summaries": (
             {
                 "schema_version": "tool-call-summary-v1",
-                "tool_call_id": "direct_runtime:campus-services-agent:transport_schedule_lookup:tool_call",
-                "workflow_run_ref": "direct_runtime:campus-services-agent:transport_schedule_lookup",
+                "tool_call_id": "single_step:campus-services-agent:transport_schedule_lookup:tool_call",
+                "workflow_run_ref": "single_step:campus-services-agent:transport_schedule_lookup",
                 "step_id": "tool_call",
                 "lifecycle_state": "completed",
                 "result_projection": "bounded_summary",
@@ -111,7 +111,7 @@ def _trace_summary(**overrides):
                 "source_ids": ["transport_schedule:commute"],
             },
         ),
-        "runtime_versions": {"supervisor-api": "test"},
+        "runtime_versions": {"execution-control": "test"},
         "policy_artifact_versions": {"intent-policy": "v1"},
     }
     defaults.update(overrides)
@@ -121,7 +121,7 @@ def _trace_summary(**overrides):
 def _workflow_case(**expectation_overrides) -> WorkflowTraceCase:
     expectation_defaults = {
         "direct_vs_delegate_branch": "direct",
-        "workflow_mode": "direct_runtime",
+        "workflow_mode": "single_step",
         "selected_target": "campus-services-agent",
         "selected_tools": ("transport_schedule_lookup",),
         "expected_answer_artifact_kinds": ("schedule_baseline",),

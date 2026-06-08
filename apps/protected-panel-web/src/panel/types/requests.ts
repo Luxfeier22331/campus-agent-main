@@ -276,6 +276,21 @@ export interface RequestRuntimeRunSummary {
 		terminalReason: string | null;
 		traceId: string;
 	};
+	stepTrajectory?: {
+		attemptCount: number;
+		resultCount: number;
+		steps: Array<{
+			attemptCount: number;
+			capability: string;
+			latestResultRef: string | null;
+			resultCount: number;
+			status: string;
+			stepId: string;
+			stepKind: string;
+			taskQueue: string;
+			workerId: string;
+		}>;
+	};
 }
 
 export function normalizeRequestRecord(input: RawRequestProjectionRecord): RequestProjectionRecord {

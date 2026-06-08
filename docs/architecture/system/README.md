@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-06-04
+updated: 2026-06-06
 ---
 # System Architecture
 
@@ -18,6 +18,9 @@ execution、retrieval、data-plane、observability 等系统级边界。
 - `runtime-delivery-and-release-hardening-architecture.md`
 - `execution-and-agents-architecture.md`
 - `durable-agent-runtime-architecture.md`
+  - target execution plane is Temporal
+  - current PG-backed run-level baseline remains documented in
+    `../current-architecture.md`
 - `prompt-and-instruction-architecture.md`
 - `identity-and-authorization-architecture.md`
 - `identity-platform-architecture.md`

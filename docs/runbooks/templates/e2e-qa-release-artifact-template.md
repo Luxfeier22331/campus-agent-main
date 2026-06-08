@@ -27,9 +27,10 @@ updated: 2026-06-03
   - `chat-staging.mucwiki-edge.link`
   - `docs-staging.mucwiki-edge.link`
   - `panel-staging.mucwiki-edge.link`
-  - `exec-staging.mucwiki-edge.link`
 - Explicitly excluded:
   - `hub.muc.wiki` production custom-hostname path
+  - `execution-control-staging.mucwiki-edge.link` as a public surface; it is only
+    the trusted machine ingress used by `app-api`
 
 ## Repo Preflight
 
@@ -40,7 +41,7 @@ updated: 2026-06-03
 
 ## Staging Runtime Readiness
 
-- `status-supervisor-api-staging.sh --check`:
+- `status-execution-control-staging.sh --check`:
 - Qdrant runtime URL check:
 - Docker data-plane check:
 - Notes:
@@ -75,10 +76,11 @@ updated: 2026-06-03
   - URL: `https://docs-staging.mucwiki-edge.link/readyz`
   - Result:
   - Evidence file:
-- exec health
-  - URL: `https://exec-staging.mucwiki-edge.link/healthz`
-  - Result:
-  - Evidence file:
+- execution-control machine ingress
+  - Public surface: `no`
+  - Verified by: `status-execution-control-staging.sh --check`
+  - App-api readyz dependency evidence:
+  - Notes:
 
 ## Chat E2E Cases
 

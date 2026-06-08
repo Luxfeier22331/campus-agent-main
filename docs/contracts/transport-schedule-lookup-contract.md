@@ -35,8 +35,8 @@ updated: 2026-04-28
   tool；SDK 只承接 agent-side argument completion / single tool loop。projection-backed
   schedule query、route/snapshot temporal policy、source provenance、Go admission
   与 Go finalization 仍归 repo-owned runtime。
-- 公开 answer / stream 入口对该 tool 走 Go-owned `single_handoff` bridge lane，不再使用
-  Go direct-runtime 快捷路径。内部 structured query endpoint 仍由 Go runtime 提供，
+- 公开 answer / stream 入口对该 tool 走 Go-owned `single_step` bridge lane，不再使用
+  Go typed-tool-runtime 快捷路径。内部 structured query endpoint 仍由 Go runtime 提供，
   作为 SDK tool adapter 的只读 backend。
 - `packages/contracts`、Go structured query runtime、Python thin adapter 与
   projection-backed data-plane 均已纳入 opening gate denominator。
@@ -44,7 +44,7 @@ updated: 2026-04-28
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
 - rollout flag 仍由 Go runtime 持有：
-  `SUPERVISOR_API_OPEN_CAPABILITIES=campus_services`。
+  `EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services`。
 - 未设置该 flag 时，产品路径仍必须 fail-close。
 
 ## Core Conclusion
@@ -75,7 +75,7 @@ updated: 2026-04-28
 - 临时停运/调整写入 `transport_service_exceptions`
 - 对象存储保存 immutable versioned artifact；current artifact 只保留为
   compatibility surface
-- Go `apps/supervisor-api` 不直接读取对象存储或 mounted projection file；长期通过
+- Go `apps/execution-control` 不直接读取对象存储或 mounted projection file；长期通过
   projection-backed internal query service 读取 PostgreSQL current pointer 与 typed
   read model
 

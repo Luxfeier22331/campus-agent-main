@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-04
+updated: 2026-06-06
 ---
 # Product Runtime Architecture
 
@@ -26,9 +26,8 @@ supporting architecture。
 
 `hub-web same-site allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> supervisor-api ->
-supervisor-agent-worker
-private bridge`
+`browser -> public-chat-web -> app-api -> execution-control -> Temporal -> activity
+worker -> supervisor-agent-worker private bridge`
 
 `browser -> public-docs static reader assets`
 
@@ -53,7 +52,7 @@ model`
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
   runtime adapter role
-- `apps/supervisor-api` 是 Docker-first internal execution engine
+- `apps/execution-control` 是 Docker-first internal execution engine
 - 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
   应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
   subscription
@@ -162,7 +161,7 @@ model`
 - protected operator UI shell
 - 只消费 runtime APIs
 - fail-closed by default
-- 不导入 `packages/*`，不把自己做成 `apps/supervisor-api` 的 hidden admin mode
+- 不导入 `packages/*`，不把自己做成 `apps/execution-control` 的 hidden admin mode
 
 ### `apps/app-api`
 
@@ -198,7 +197,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - `public-chat-web` 当前只开放 `knowledge`，是 current surface posture
 - `public-docs` 是非执行 surface，不自动进入 capability routing
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
-- `apps/supervisor-api` 不拥有 browser-facing capability allowlist truth
+- `apps/execution-control` 不拥有 browser-facing capability allowlist truth
 
 固定规则：
 
@@ -207,17 +206,17 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - `app-api` 负责把 surface policy、identity / authz projection 与 request truth 组装为最小
   execution input
 
-### `apps/supervisor-api`
+### `apps/execution-control`
 
 - internal execution admission
 - typed execution transport
 - forward deploy substrate 已冻结为 Docker-first internal execution service
-- Docker-side Go `supervisor-api` 承担 execution-level
-  backpressure、timeout、readiness、
+- Docker-side Go `execution-control` 承担 execution-level backpressure、timeout、readiness、
   bridge circuit breaker、metrics 与 graceful drain；它不拥有 product-level 用户限流或
   browser-facing capability policy
-- 长期上，production run admission 与 execution lease 必须落在 durable scheduler /
-  lease coordinator；当前 Go 进程内 admission 只表达 single-process protection
+- 长期上，production run admission 与 workflow/activity dispatch 必须落在
+  `execution-control` + Temporal execution plane；当前 Go 进程内 admission 只表达
+  single-process protection
 - 不承担 browser-facing product backend 责任
 
 ## App-api / Ingestion Boundary
@@ -244,14 +243,16 @@ runtime`
 
 当前 Docker execution runtime 拆成：
 
-- `apps/supervisor-api`
+- `apps/execution-control`
   - 当前 execution ingress
-  - 拥有 execution-level lifecycle、explicit cancel、global / per-lane admission、
-    queue、timeout、bridge circuit breaker、readiness、metrics、OTel telemetry seam 与
-    graceful drain
-  - 当前 queue / active count 是进程内状态，不是最终 durable run queue
+  - 当前 active chat execution path 已硬切到 Temporal-backed
+    `ChatAnswerWorkflow`；run store、events 与 step ledger 是 app-api / panel /
+    eval 消费的 sanitized projection store
+  - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
+    canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store
+    只保留为 historical migration artifact
 - Python `apps/supervisor-agent-worker`
-  - private orchestration bridge worker
+  - current private semantic bridge worker, not the long-term online hot path target
   - 负责消费 Go 已投影的 private bridge request，并通过 worker 内部
     agent dispatcher 调用 agent
   - 负责在 semantic orchestration checkpoints 观测 Go 投递的 cooperative cancel
@@ -265,10 +266,10 @@ runtime`
   是 run event subscription，不是 execution ownership
 - Go execution runtime 不能反向拥有 browser-facing capability allowlist、用户级限流、
   duplicate-click UX、conversation truth 或 operator control plane
-- Go execution runtime 拥有 scheduler / lease coordinator 或其 adapter、workflow
-  planning、execution budget 与 finalization；process-local limiter 只能作为本进程
-  protection
-- Go runtime 可以继续吸收 deterministic supervisor runtime kernel，但不能因此把
+- 长期 `execution-control` 拥有 workflow command/query、admission、execution
+  budget projection 与 finalization；Temporal 拥有 workflow history、task queue、
+  retry、timeout 与 worker dispatch。process-local limiter 只能作为本进程 protection
+- Go runtime 可以继续吸收 deterministic execution runtime kernel，但不能因此把
   semantic orchestration、domain-agent reasoning 或 retrieval planning 塞进 `apps/*`
 
 ## Operator Projection And Read Model
@@ -286,7 +287,7 @@ panel `Requests` 的 canonical read path 固定为：
 
 - 直接读取 consumer chat tables 作为 request list/detail truth
 - 直接读取 audit logs 或 telemetry sink 作为 request truth
-- 让 panel 通过 `apps/supervisor-api` 旁路获取 operator list/detail
+- 让 panel 通过 `apps/execution-control` 旁路获取 operator list/detail
 
 future operator-facing observability 域也遵循同一 ownership rule：
 
@@ -359,17 +360,16 @@ contract 或 auth family route/endpoint truth。
 - shared `apps/app-api` runtime 已冻结为 Worker
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
-- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution
-  service
-- 这项冻结不等于提前冻结 `apps/supervisor-api` 的单一 Python/HTTP framework
-- execution public ingress 已 hardcut 到 Go `apps/supervisor-api`；Python
-  `apps/supervisor-agent-worker`
-  只保留 private orchestration bridge
+- `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
+- 这项冻结不等于提前冻结 `apps/execution-control` 的单一 Python/HTTP framework
+- execution public ingress 已 hardcut 到 Go `apps/execution-control`；Python
+  `apps/supervisor-agent-worker` 只保留 current private semantic bridge，长期退出
+  online answer hot path
 
 ## Forbidden Shapes
 
 - 不把 `apps/app-api` 重新拆回 consumer backend + panel backend
-- 不把 `apps/supervisor-api` 重新长成 product backend
+- 不把 `apps/execution-control` 重新长成 product backend
 - 不把 panel 做成直接连 `packages/*` 或数据库的内部控制台
 - 不把 request projection 退化成 chat transcript 或 telemetry replay 的别名
 
@@ -391,7 +391,7 @@ contract 或 auth family route/endpoint truth。
 - `docs/architecture/system/hub-account-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`
+- `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
   pation.md`
 - `docs/architecture/system/operator-observability-architecture.md`

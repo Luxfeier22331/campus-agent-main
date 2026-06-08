@@ -31,14 +31,14 @@ updated: 2026-04-25
   tool；SDK 只承接 agent-side argument completion / single tool loop。projection-backed
   structured query、current/effective temporal policy、source provenance、Go
   admission 与 Go finalization 仍归 repo-owned runtime。
-- 公开 answer / stream 入口对该 tool 走 Go-owned `single_handoff` bridge lane，不再使用
-  Go direct-runtime 快捷路径。内部 structured query endpoint 仍由 Go runtime 提供，
+- 公开 answer / stream 入口对该 tool 走 Go-owned `single_step` bridge lane，不再使用
+  Go typed-tool-runtime 快捷路径。内部 structured query endpoint 仍由 Go runtime 提供，
   作为 SDK tool adapter 的只读 backend。
 - local gate 判定命令：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
 - rollout flag 仍由 Go runtime 持有：
-  `SUPERVISOR_API_OPEN_CAPABILITIES=campus_services`。
+  `EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services`。
 - 未设置该 flag 时，运行时仍应 fail-close，不得把
   “tool verdict 为 open”等价成“环境已开放”。
 

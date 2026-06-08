@@ -429,6 +429,32 @@ export function buildRequestRuntimeRunEntries(run: RequestRuntimeRunSummary | nu
 	];
 }
 
+export function buildRequestStepTrajectoryEntries(
+	trajectory: RequestRuntimeRunSummary["stepTrajectory"] | null | undefined,
+) {
+	if (!trajectory) {
+		return [];
+	}
+
+	return [
+		{
+			label: "Step 总数",
+			value: `${trajectory.steps.length} · attempts=${trajectory.attemptCount} · results=${trajectory.resultCount}`,
+		},
+		...trajectory.steps.map((step) => ({
+			label: step.stepKind || step.stepId,
+			value: [
+				step.status || PANEL_COPY.unknown,
+				step.taskQueue || PANEL_COPY.unknown,
+				step.workerId || PANEL_COPY.unknown,
+				`attempts=${step.attemptCount}`,
+				`results=${step.resultCount}`,
+				step.latestResultRef || PANEL_COPY.none,
+			].join(" · "),
+		})),
+	];
+}
+
 function formatClaimSupportSummary(summary: RequestClaimSupportSummary | null | undefined) {
 	if (!summary) {
 		return PANEL_COPY.unknown;

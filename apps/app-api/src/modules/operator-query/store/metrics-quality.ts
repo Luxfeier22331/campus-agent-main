@@ -30,6 +30,7 @@ import {
 	buildGradeBucketMap,
 	buildResultWindow,
 	inferGradeDomainFromCauseClass,
+	inferStepDiagnosisStage,
 	loadRunBacklinksByRequestIds,
 	loadTraceBacklinksByRequestIds,
 	resolveBucketStart,
@@ -621,6 +622,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 				return {
 					badcaseId: row.badcaseId,
 					causeClass: row.causeClass,
+					diagnosisStage: inferStepDiagnosisStage({ causeClass: row.causeClass }),
 					detectedBy: row.detectedBy,
 					grade: latestGrade
 						? {
@@ -711,6 +713,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 					return {
 						candidateId: `eval_candidate:negative_feedback:${feedback.feedbackId}`,
 						causeClass,
+						diagnosisStage: inferStepDiagnosisStage({ causeClass }),
 						correlation: {
 							answerKind,
 							assistantMessageId: feedback.messageId,

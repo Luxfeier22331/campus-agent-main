@@ -13,11 +13,9 @@ browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
-- shared product
-  topology：`docs/architecture/system/product-runtime-architecture.md`
-- `app-api` runtime
-  与内部边界：`docs/architecture/system/product-runtime-architecture.md`
-- `app-api -> supervisor-api`
+- shared product topology：`docs/architecture/system/product-runtime-architecture.md`
+- `app-api` runtime 与内部边界：`docs/architecture/system/product-runtime-architecture.md`
+- `app-api -> execution-control`
   内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
 - internal eval benchmark
   ingress：`docs/contracts/app-api-eval-benchmark-http.md`
@@ -903,7 +901,7 @@ capability allowlist，不是长期产品入口原则；前向 routing 语义见
 ### `POST /api/chat/requests/stream`
 
 这是 public chat 的 lifecycle streaming 命令入口。它不提供 token delta，不暴露
-`supervisor-api` raw event；browser 只消费 `app-api` 产品级 SSE contract。
+`execution-control` raw event；browser 只消费 `app-api` 产品级 SSE contract。
 
 请求 headers 与 body 复用 `POST /api/chat/requests`。
 
@@ -960,7 +958,7 @@ terminal event 额外携带：
 
 规则：
 
-- durable runtime 启用时，`request.accepted` 在 app-api accept commit 与
+- run projection 启用时，`request.accepted` 在 app-api accept commit 与
   supervisor durable run create 均成功后发送；其 data 必须包含 `runId`
 - terminal event 在 finalization commit 后发送；因此 terminal `answer` 是
   app-owned DB/projection truth 的产物

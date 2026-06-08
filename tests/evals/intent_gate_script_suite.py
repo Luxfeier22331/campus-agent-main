@@ -20,7 +20,7 @@ class IntentGateScriptTest(unittest.TestCase):
             payload = json.loads(output_path.read_text(encoding="utf-8"))
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(payload["runner"], "supervisor-api-go")
+        self.assertEqual(payload["runner"], "execution-control-go")
         self.assertEqual(payload["case_set_version"], "intent-case-set-v2")
         self.assertEqual(payload["policy_artifact"]["policy_version"], "runtime-policy-v1")
         self.assertEqual(payload["policy_artifact"]["classifier_version"], "go-runtime-policy-v2")
@@ -42,7 +42,7 @@ class IntentGateScriptTest(unittest.TestCase):
     def test_report_only_intent_gate_writes_failures_without_failing_process(self) -> None:
         payload = {
             "schema_version": 1,
-            "runner": "supervisor-api-go",
+            "runner": "execution-control-go",
             "case_set_version": "intent-case-set-v2",
             "policy_artifact": {
                 "schema_version": "intent-policy-artifact-v1",

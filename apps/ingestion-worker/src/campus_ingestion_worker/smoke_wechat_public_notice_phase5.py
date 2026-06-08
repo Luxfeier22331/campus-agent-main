@@ -231,7 +231,7 @@ def build_phase5_smoke_summary(
         "runtime_gate_expectation": {
             "wechat_public_notice_runtime_open": False,
             "verification_hint": (
-                "Run go test ./internal/structuredquery -run Notice in apps/supervisor-api "
+                "Run go test ./internal/structuredquery -run Notice in apps/execution-control "
                 "to validate fail-close behavior for wechat_public_notice."
             ),
         },

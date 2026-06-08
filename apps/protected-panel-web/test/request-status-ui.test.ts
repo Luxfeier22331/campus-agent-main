@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildRequestDiagnosticEntries,
+	buildRequestStepTrajectoryEntries,
 	formatRequestDiagnosticReason,
 	formatStatusLabel,
 	formatSurfaceLabel,
@@ -107,5 +108,70 @@ describe("protected panel request status ui", () => {
 				value: "中央民族大学本科学生国家奖学金评审办法 · 中央民族大学本科学生综合素质测评办法",
 			},
 		]);
+	});
+
+	it("builds durable step trajectory rows without exposing raw payload fields", () => {
+		const entries = buildRequestStepTrajectoryEntries({
+			attemptCount: 3,
+			resultCount: 3,
+			steps: [
+				{
+					attemptCount: 1,
+					capability: "knowledge",
+					latestResultRef: "projection://runs/run_01HQ/planning",
+					resultCount: 1,
+					status: "completed",
+					stepId: "planning",
+					stepKind: "planning",
+					taskQueue: "campus-agent.activity.rag",
+					workerId: "staging:rag:worker-1",
+				},
+				{
+					attemptCount: 1,
+					capability: "knowledge",
+					latestResultRef: "projection://runs/run_01HQ/semantic/rag",
+					resultCount: 1,
+					status: "completed",
+					stepId: "semantic.rag",
+					stepKind: "semantic.rag",
+					taskQueue: "campus-agent.activity.rag",
+					workerId: "staging:rag:worker-1",
+				},
+				{
+					attemptCount: 1,
+					capability: "finalization",
+					latestResultRef: "projection://runs/run_01HQ/finalization",
+					resultCount: 1,
+					status: "completed",
+					stepId: "finalization",
+					stepKind: "finalization",
+					taskQueue: "campus-agent.activity.finalization",
+					workerId: "staging:finalization:worker-1",
+				},
+			],
+		});
+
+		expect(entries).toEqual([
+			{
+				label: "Step 总数",
+				value: "3 · attempts=3 · results=3",
+			},
+			{
+				label: "planning",
+				value:
+					"completed · campus-agent.activity.rag · staging:rag:worker-1 · attempts=1 · results=1 · projection://runs/run_01HQ/planning",
+			},
+			{
+				label: "semantic.rag",
+				value:
+					"completed · campus-agent.activity.rag · staging:rag:worker-1 · attempts=1 · results=1 · projection://runs/run_01HQ/semantic/rag",
+			},
+			{
+				label: "finalization",
+				value:
+					"completed · campus-agent.activity.finalization · staging:finalization:worker-1 · attempts=1 · results=1 · projection://runs/run_01HQ/finalization",
+			},
+		]);
+		expect(JSON.stringify(entries)).not.toContain("raw");
 	});
 });

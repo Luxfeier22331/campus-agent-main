@@ -21,6 +21,6 @@ updated: 2026-04-20
 
 - `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `git history authenticated-notice regulation consumption workstream`
 
 如需完整旧正文，请通过 git history 追溯。

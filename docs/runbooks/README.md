@@ -34,9 +34,13 @@ updated: 2026-04-27
 
 ## Environment-Specific Smoke / Evidence
 
-- `supervisor-api-staging-operations.md`
-- `supervisor-api-staging-smoke-runbook.md`
-- `supervisor-api-server-handoff.md`
+- `execution-control-staging-operations.md`
+- `execution-control-staging-smoke-runbook.md`
+- `temporal-self-host-operations.md`
+  - self-hosted Temporal substrate 运维入口；覆盖 persistence backup、namespace
+    bootstrap、worker identity、task queue poller evidence、failure-mode evidence
+    与 worker-autoscaler dry-run proof。
+- `execution-control-server-handoff.md`
 - `runtime-otel-collector-pipeline.md`
 - `worker-observability-smoke-runbook.md`
 - `templates/e2e-qa-release-artifact-template.md`
@@ -46,7 +50,7 @@ updated: 2026-04-27
 ## Local Infra / Recovery
 
 - `local-postgres-dev-recovery-runbook.md`
-- `supervisor-api-local-runtime-smoke.md`
+- `execution-control-local-runtime-smoke.md`
 - `self-hosted-qdrant-native-backup-runbook.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`

@@ -6,11 +6,11 @@ import { requestExecution } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
-	createSupervisorDurableRuntimeClient,
-	type SupervisorDurableRun,
-	type SupervisorDurableRunEvent,
-	type SupervisorDurableRuntimeClient,
-	SupervisorTransportError,
+	createExecutionControlRuntimeClient,
+	type ExecutionControlRun,
+	type ExecutionControlRunEvent,
+	type ExecutionControlRuntimeClient,
+	ExecutionControlTransportError,
 } from "../integration";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
@@ -71,8 +71,8 @@ export function runtimeRunPhaseFromSupervisorStatus(status: string): RuntimeRunP
 		case "expired":
 			return "expired";
 		default:
-			throw new SupervisorTransportError({
-				code: "supervisor_invalid_response",
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
 				message: "Supervisor durable run status is not supported.",
 				retryable: true,
 				status: 502,
@@ -165,7 +165,7 @@ export function createPgRuntimeRunStore(
 }
 
 export function buildRuntimeRunService(input: {
-	durableRuntime: SupervisorDurableRuntimeClient;
+	executionRuntime: ExecutionControlRuntimeClient;
 	store: RuntimeRunStore;
 }): RuntimeRunService {
 	function validateSubscriptionPolicy(
@@ -238,7 +238,7 @@ export function buildRuntimeRunService(input: {
 
 	function assertRunMatchesOwnership(
 		owned: RuntimeRunOwnershipRecord,
-		run: SupervisorDurableRun,
+		run: ExecutionControlRun,
 	): void {
 		if (
 			run.runId !== owned.runId ||
@@ -246,8 +246,8 @@ export function buildRuntimeRunService(input: {
 			run.conversationId !== owned.conversationId ||
 			run.traceId !== owned.traceId
 		) {
-			throw new SupervisorTransportError({
-				code: "supervisor_invalid_response",
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
 				message: "Supervisor durable run identity does not match app-api request ownership.",
 				retryable: true,
 				status: 502,
@@ -255,7 +255,7 @@ export function buildRuntimeRunService(input: {
 		}
 	}
 
-	function toRunSummary(run: SupervisorDurableRun): RuntimeRunSummary {
+	function toRunSummary(run: ExecutionControlRun): RuntimeRunSummary {
 		return {
 			conversationId: run.conversationId,
 			phase: runtimeRunPhaseFromSupervisorStatus(run.status),
@@ -267,7 +267,7 @@ export function buildRuntimeRunService(input: {
 		};
 	}
 
-	function toBrowserRunEvent(event: SupervisorDurableRunEvent): RuntimeRunEventProjection | null {
+	function toBrowserRunEvent(event: ExecutionControlRunEvent): RuntimeRunEventProjection | null {
 		if (event.visibility !== "browser") {
 			return null;
 		}
@@ -297,8 +297,8 @@ export function buildRuntimeRunService(input: {
 		event: Pick<RuntimeRunEventProjection, "sequence">,
 	): number {
 		if (!Number.isInteger(event.sequence) || event.sequence <= lastSequence) {
-			throw new SupervisorTransportError({
-				code: "supervisor_invalid_response",
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
 				message: "Supervisor durable run events must advance the requested cursor.",
 				retryable: true,
 				status: 502,
@@ -313,12 +313,12 @@ export function buildRuntimeRunService(input: {
 		runId: string;
 	}): Promise<{ events: RuntimeRunEventProjection[]; run: RuntimeRunSummary }> {
 		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
-		const run = await input.durableRuntime.getRun({
+		const run = await input.executionRuntime.getRun({
 			runId: owned.runId,
 			traceId: owned.traceId,
 		});
 		assertRunMatchesOwnership(owned, run);
-		const events = await input.durableRuntime.listRunEvents({
+		const events = await input.executionRuntime.listRunEvents({
 			afterSequence: eventsInput.afterSequence,
 			runId: owned.runId,
 			traceId: owned.traceId,
@@ -327,8 +327,8 @@ export function buildRuntimeRunService(input: {
 		const browserEvents: RuntimeRunEventProjection[] = [];
 		for (const event of events) {
 			if (event.runId !== owned.runId) {
-				throw new SupervisorTransportError({
-					code: "supervisor_invalid_response",
+				throw new ExecutionControlTransportError({
+					code: "execution_control_invalid_response",
 					message: "Supervisor durable run event identity does not match requested run.",
 					retryable: true,
 					status: 502,
@@ -349,7 +349,7 @@ export function buildRuntimeRunService(input: {
 	return {
 		async cancel(cancelInput) {
 			const owned = await requireOwnedRun(cancelInput.principal, cancelInput.runId);
-			const run = await input.durableRuntime.cancelRun({
+			const run = await input.executionRuntime.cancelRun({
 				reason: cancelInput.reason.trim(),
 				runId: owned.runId,
 				traceId: owned.traceId,
@@ -359,7 +359,7 @@ export function buildRuntimeRunService(input: {
 		},
 		async getStatus(statusInput) {
 			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);
-			const run = await input.durableRuntime.getRun({
+			const run = await input.executionRuntime.getRun({
 				runId: owned.runId,
 				traceId: owned.traceId,
 			});
@@ -393,7 +393,7 @@ export function buildRuntimeRunService(input: {
 
 export function buildDefaultRuntimeRunService(env: Env): RuntimeRunService {
 	return buildRuntimeRunService({
-		durableRuntime: createSupervisorDurableRuntimeClient(env),
+		executionRuntime: createExecutionControlRuntimeClient(env),
 		store: createPgRuntimeRunStore(env),
 	});
 }

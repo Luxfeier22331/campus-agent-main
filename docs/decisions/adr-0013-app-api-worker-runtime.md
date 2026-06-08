@@ -18,7 +18,7 @@ Accepted on 2026-03-28.
 - `apps/public-chat-web`
 - `apps/protected-panel-web`
 - shared `apps/app-api`
-- `apps/supervisor-api` execution engine
+- `apps/execution-control` execution engine
 
 但当时还没有关闭一个问题：
 
@@ -47,9 +47,9 @@ Accepted on 2026-03-28.
 这项决策同时冻结以下约束：
 
 - `apps/app-api` 不是 Docker-first 的默认长期形态
-- browser 不直接调用 `apps/supervisor-api`
+- browser 不直接调用 `apps/execution-control`
 - panel 不直接查询数据库
-- `apps/supervisor-api` 继续只是 execution engine
+- `apps/execution-control` 继续只是 execution engine
 - `conversation/message` truth 不等于 operator request truth
 
 ## 结果

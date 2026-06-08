@@ -29,12 +29,12 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            commands["supervisor-api"].command,
-            ("go", "run", "./cmd/supervisor-api"),
+            commands["execution-control"].command,
+            ("go", "run", "./cmd/execution-control"),
         )
-        self.assertEqual(commands["supervisor-api"].cwd, Path("/repo/apps/supervisor-api"))
+        self.assertEqual(commands["execution-control"].cwd, Path("/repo/apps/execution-control"))
         self.assertEqual(
-            commands["supervisor-api"].env["SUPERVISOR_AGENT_WORKER_BASE_URL"],
+            commands["execution-control"].env["SUPERVISOR_AGENT_WORKER_BASE_URL"],
             "http://127.0.0.1:19081",
         )
         command_words = [word for process in plan.processes for word in process.command]
@@ -53,9 +53,11 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
 
         process_by_label = {process.label: process for process in plan.processes}
         self.assertIn("s3-smoke-object-store", process_by_label)
-        self.assertNotIn("OBJECT_STORE_ENDPOINT", process_by_label["supervisor-api"].env)
+        self.assertNotIn("OBJECT_STORE_ENDPOINT", process_by_label["execution-control"].env)
         self.assertEqual(
-            process_by_label["supervisor-api"].env["SUPERVISOR_NOTICE_BODY_OBJECT_STORE_ENDPOINT"],
+            process_by_label["execution-control"].env[
+                "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"
+            ],
             "http://127.0.0.1:19082",
         )
         self.assertEqual(
@@ -121,16 +123,16 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
         process_by_label = {process.label: process for process in override_plan.processes}
 
         self.assertEqual(
-            default_plan.processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            default_plan.processes[1].env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
         )
         self.assertEqual(
-            process_by_label["supervisor-api"].env[
-                "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"
+            process_by_label["execution-control"].env[
+                "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"
             ],
             TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
         )
-        self.assertIn("2026-05-07", override_plan.answer_payload["user_goal"])
+        self.assertIn("2026-05-07", override_plan.execution_run_payload["user_goal"])
 
     def test_transport_override_profile_accepts_degraded_readyz_for_partial_structured_runtime(
         self,
@@ -189,12 +191,12 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
                 patch.object(
                     smoke,
                     "wait_for_json_status",
-                    return_value=(503, {"workflow_run_runtime": {"last_error": "init failed"}}),
+                    return_value=(503, {"temporal_runtime": {"last_error": "init failed"}}),
                 ),
                 patch.object(smoke, "_request_status", return_value=200),
                 patch.object(
                     smoke,
-                    "post_answer_probe",
+                    "post_execution_run_probe",
                     return_value=(
                         503,
                         {
@@ -209,7 +211,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
 
         self.assertEqual(
             summary["probes"]["readyz_body"],
-            {"workflow_run_runtime": {"last_error": "init failed"}},
+            {"temporal_runtime": {"last_error": "init failed"}},
         )
 
     def test_process_smoke_artifact_redacts_secret_env_values(self) -> None:
@@ -252,7 +254,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
         )
 
         process_by_label = {process.label: process for process in plan.processes}
-        api_env = process_by_label["supervisor-api"].env
+        api_env = process_by_label["execution-control"].env
 
         self.assertEqual(api_env["PROMPT_RUNTIME_PROVIDER"], "mock-runtime")
         self.assertEqual(api_env["PROMPT_RUNTIME_MODEL"], "gpt-5.5")
@@ -290,8 +292,15 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
                 patch.object(smoke, "_request_status", return_value=200),
                 patch.object(
                     smoke,
-                    "post_answer_probe",
-                    return_value=(503, {"failure_kind": "structured_runtime_closed"}),
+                    "post_execution_run_probe",
+                    return_value=(
+                        202,
+                        {
+                            "run_id": "process-smoke-structured-runtime-closed",
+                            "conversation_id": "conversation-closed-gate",
+                            "status": "queued",
+                        },
+                    ),
                 ),
             ):
                 summary = smoke.run_process_smoke(plan, timeout_seconds=1)
@@ -300,7 +309,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
         self.assertEqual(len(popen_kwargs), 2)
         self.assertTrue(all(kwargs.get("start_new_session") is True for kwargs in popen_kwargs))
 
-    def test_run_process_smoke_uses_separate_startup_and_answer_timeouts(self) -> None:
+    def test_run_process_smoke_uses_separate_startup_and_execution_run_timeouts(self) -> None:
         import scripts.supervisor_runtime_process_smoke as smoke
 
         class FakeProcess:
@@ -325,9 +334,16 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
                 patch.object(smoke, "_request_status", return_value=200),
                 patch.object(
                     smoke,
-                    "post_answer_probe",
-                    return_value=(503, {"failure_kind": "structured_runtime_closed"}),
-                ) as post_answer,
+                    "post_execution_run_probe",
+                    return_value=(
+                        202,
+                        {
+                            "run_id": "process-smoke-structured-runtime-closed",
+                            "conversation_id": "conversation-closed-gate",
+                            "status": "queued",
+                        },
+                    ),
+                ) as post_run,
             ):
                 summary = smoke.run_process_smoke(
                     plan,
@@ -342,9 +358,9 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             [17, 17],
         )
         self.assertEqual(wait_json.call_args.kwargs["timeout_seconds"], 17)
-        self.assertEqual(post_answer.call_args.kwargs["timeout_seconds"], 2)
+        self.assertEqual(post_run.call_args.kwargs["timeout_seconds"], 2)
         self.assertEqual(summary["probes"]["startup_timeout_seconds"], 17)
-        self.assertEqual(summary["probes"]["answer_timeout_seconds"], 2)
+        self.assertEqual(summary["probes"]["execution_run_timeout_seconds"], 2)
 
     def test_multi_step_smoke_fails_when_rag_retrieval_error_is_present(self) -> None:
         import scripts.supervisor_runtime_process_smoke as smoke
@@ -358,16 +374,10 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             def wait(self, timeout: float | None = None) -> int:
                 return 0
 
-        answer_body = {
-            "workflow_trace_summary": {
-                "workflow_mode": "multi_step",
-                "context_projections": [{"projection_kind": "notice_context"}],
-            },
-            "selected_target": "rag-agent",
-            "tool": "retrieval.query",
-            "agent_execution_projection": {"selected_tool": "retrieval.query"},
-            "notice_tool": "campus_notice_get",
-            "context": "notice-agent 已读取的通知上下文",
+        run_body = {
+            "run_id": "process-smoke-multi-step-notice-knowledge",
+            "conversation_id": "conversation-multi-step-notice-knowledge-followthrough",
+            "status": "queued",
             "error": {
                 "code": "retrieval_failed",
                 "message": "release metadata drift for student_rules/r1",
@@ -386,7 +396,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
                 patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
                 patch.object(smoke, "wait_for_json_status", return_value=(200, {})),
                 patch.object(smoke, "_request_status", return_value=200),
-                patch.object(smoke, "post_answer_probe", return_value=(200, answer_body)),
+                patch.object(smoke, "post_execution_run_probe", return_value=(202, run_body)),
             ):
                 summary = smoke.run_process_smoke(plan, timeout_seconds=1)
 
@@ -407,14 +417,10 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             def wait(self, timeout: float | None = None) -> int:
                 return 0
 
-        answer_body = {
-            "workflow_trace_summary": {
-                "workflow_mode": "terminal",
-            },
-            "status": "no_answer",
-            "observability": {
-                "policy_reason": "selected_notice_target_surface_ineligible_for_knowledge_followthrough",
-            },
+        run_body = {
+            "run_id": "process-smoke-selected-notice-knowledge-ineligible",
+            "conversation_id": "conversation-selected-notice-knowledge-followthrough-ineligible",
+            "status": "queued",
         }
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -429,7 +435,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
                 patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
                 patch.object(smoke, "wait_for_json_status", return_value=(200, {})),
                 patch.object(smoke, "_request_status", return_value=200),
-                patch.object(smoke, "post_answer_probe", return_value=(200, answer_body)),
+                patch.object(smoke, "post_execution_run_probe", return_value=(202, run_body)),
             ):
                 summary = smoke.run_process_smoke(plan, timeout_seconds=1)
 
@@ -448,12 +454,10 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             def wait(self, timeout: float | None = None) -> int:
                 return 0
 
-        answer_body = {
-            "workflow_trace_summary": {},
-            "agent_execution_projection": {"selected_tool": "retrieval.query"},
-            "agent_plan": {"selected_tool": "retrieval.query"},
+        run_body = {
+            "run_id": "process-smoke-rag-delegate",
+            "conversation_id": "conversation-rag-delegate",
             "status": "no_answer",
-            "result": {"diagnostics": {"semantic_outcome": "unsupported_by_evidence"}},
         }
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -468,7 +472,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
                 patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
                 patch.object(smoke, "wait_for_json_status", return_value=(200, {})),
                 patch.object(smoke, "_request_status", return_value=200),
-                patch.object(smoke, "post_answer_probe", return_value=(200, answer_body)),
+                patch.object(smoke, "post_execution_run_probe", return_value=(202, run_body)),
             ):
                 summary = smoke.run_process_smoke(plan, timeout_seconds=1)
 
@@ -487,7 +491,7 @@ class SupervisorRuntimeProcessSmokeTestPart01(unittest.TestCase):
             profile="rag_delegate_institutional_rules",
         )
 
-        context = plan.answer_payload["context"]  # type: ignore[index]
+        context = plan.execution_run_payload["context"]  # type: ignore[index]
         retrieval_filter = context["authorization"]["retrieval_filter"]  # type: ignore[index]
 
         self.assertEqual(

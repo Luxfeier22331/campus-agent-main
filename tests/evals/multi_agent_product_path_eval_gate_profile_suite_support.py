@@ -59,7 +59,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             target="rag-agent",
             tool="retrieval.query",
             branch="delegate",
-            mode="single_handoff",
+            mode="single_step",
             argument_summary={
                 "collection": "student_rules",
                 "corpus": "regulations",
@@ -470,7 +470,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             target="campus-services-agent",
             tool="transport_schedule_lookup",
             branch="delegate",
-            mode="single_handoff",
+            mode="single_step",
             argument_summary={
                 "payload_kind": "transport_schedule_lookup",
                 "selected_tool": "transport_schedule_lookup",
@@ -484,7 +484,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             target="campus-services-agent",
             tool="service_status_lookup",
             branch="delegate",
-            mode="single_handoff",
+            mode="single_step",
             argument_summary={
                 "payload_kind": "service_status_lookup",
                 "selected_tool": "service_status_lookup",
@@ -497,7 +497,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             target="campus-services-agent",
             tool="service_guide_lookup",
             branch="delegate",
-            mode="single_handoff",
+            mode="single_step",
             argument_summary={
                 "payload_kind": "service_guide_lookup",
                 "selected_tool": "service_guide_lookup",
@@ -512,7 +512,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             target="campus-services-agent",
             tool="contact_directory_lookup",
             branch="delegate",
-            mode="single_handoff",
+            mode="single_step",
             argument_summary={
                 "payload_kind": "contact_directory_lookup",
                 "selected_tool": "contact_directory_lookup",
@@ -527,7 +527,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             target="notice-agent",
             tool="campus_notice_discover",
             branch="delegate",
-            mode="single_handoff",
+            mode="single_step",
             argument_summary={
                 "payload_kind": "campus_notice_discover",
                 "selected_tool": "campus_notice_discover",
@@ -540,7 +540,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             target="campus-services-agent",
             tool="academic_calendar_lookup",
             branch="delegate",
-            mode="single_handoff",
+            mode="single_step",
             argument_summary={
                 "payload_kind": "academic_calendar_lookup",
                 "selected_tool": "academic_calendar_lookup",
@@ -604,7 +604,7 @@ def _tool_workflow_trace_summary(
         "workflow_mode": mode,
         "handoff": {"target": target},
         "handoff_chain": [{"target": target, "selected_tool": tool}]
-        if mode == "single_handoff"
+        if mode == "single_step"
         else [],
         "selected_target": target,
         "selected_tools": [tool],
@@ -633,7 +633,7 @@ def _tool_workflow_trace_summary(
                 "tool_name": tool,
                 "result_status": "completed",
                 "business_outcome": "sdk_completed"
-                if mode == "single_handoff"
+                if mode == "single_step"
                 else "resolved_current",
                 "argument_summary": argument_summary,
                 "source_ids": [f"smoke:{tool}"],
@@ -642,13 +642,13 @@ def _tool_workflow_trace_summary(
         "agent_invocations": [
             {
                 "invocation_id": f"agent-invocation:{target}:1",
-                "workflow_run_ref": f"single_handoff:{target}:{tool}",
+                "workflow_run_ref": f"single_step:{target}:{tool}",
                 "step_id": f"handoff:{target}:{tool}",
                 "agent_id": target,
                 "status": "completed",
             }
         ]
-        if mode == "single_handoff"
+        if mode == "single_step"
         else [],
         "guardrail_outcomes": {
             "context_preflight": "not_follow_up",

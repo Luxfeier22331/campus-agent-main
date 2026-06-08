@@ -17,9 +17,9 @@ from campus_evals.intent_models import (
 def run_intent_cases(
     cases: tuple[IntentCase, ...],
     *,
-    runner: str = "supervisor-api-go",
+    runner: str = "execution-control-go",
 ) -> IntentEvalReport:
-    if runner == "supervisor-api-go":
+    if runner == "execution-control-go":
         from campus_evals.intent_go_runner import run_intent_cases_with_go
 
         return run_intent_cases_with_go(cases)
@@ -204,8 +204,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--runner",
-        default="supervisor-api-go",
-        choices=("supervisor-api-go",),
+        default="execution-control-go",
+        choices=("execution-control-go",),
         help="Intent runner to use.",
     )
     args = parser.parse_args(argv)

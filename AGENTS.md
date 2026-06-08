@@ -4,20 +4,28 @@
 
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
-- 当前主路径是 `supervisor-api -> supervisor-agent-worker -> agent -> retrieval-core`
+- 当前在线回答主路径是 `app-api -> execution-control -> Temporal -> activity worker
+  -> supervisor-agent-worker -> agent/tool capability -> retrieval-core`
 - 当前 product entry surface 已收口到 `hub-web -> app launcher / account shell`，`public-chat-web`、
   `public-docs`、`protected-panel-web` 作为并列 browser surface 进入 shared `app-api`
-- 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平
-  tool
+- 架构目标是 capability-neutral orchestrated execution：顶层由 supervisor / execution
+  runtime 做 admission、routing、workflow planning 与 finalization；RAG、navigation、
+  notice、services 等能力默认以 typed tool / workflow capability 进入，只有存在明确语义职责时才表现为
+  agent-as-tool
 - 当前 accepted merged truth 已具备 `regulations/student_rules`、
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
   `official_web/stable_reference` 四条默认 query-enabled surface，以及 `hub-web`、
   `public-chat-web`、`public-docs`、`protected-panel-web`、`app-api` 等前向产品形态；
   但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
-- runtime 选择尚未 repo-wide 冻结；当前已明确冻结 `apps/app-api = Worker`，以及
-  `apps/supervisor-api = Docker-first internal execution service`；这不等于提前冻结
-  `apps/supervisor-api` 的单一 Python/HTTP 框架
+- runtime 当前事实是 `apps/app-api = Worker`，`apps/execution-control =
+  Docker-first internal execution-control service`，Temporal 是 execution
+  substrate，PG 只承载 sanitized run projection；worker plane / autoscaler 仍按
+  对应架构文档继续收口
+- 当前 online answer path 仍包含 Python `apps/supervisor-agent-worker`
+  bridge；它是 current implementation gap，不是长期 online runtime target。
+  长期目标是 Go-owned workflow / capability activity worker plane，Python 只保留
+  offline ingestion / eval / tooling 或迁移期受限 semantic bridge
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
 
 ### Branch Model
@@ -66,7 +74,7 @@
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
+- `docs/decisions/adr-0048-temporal-execution-plane.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
@@ -78,7 +86,6 @@
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`
 - `.planning/WORKSTREAMS.md`
-- `.planning/legacy-flat/ROADMAP.md`
 
 工作规则：
 
@@ -94,14 +101,14 @@
   `docs/architecture/system/code-organization-and-decomposition-architecture.md`
   为准；`pnpm decomposition:lint` 只是基础行数 / baseline gate，不等于完整架构
   review
-- 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以
-  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应
-  `.planning/workstreams/<slug>/` 为准
-- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live
-  入口；`docs/plans/` 只保留 archive namespace，不再承载 active/deferred workstream entry
+- 当前 repo 级范围、pending work 信号与最新长期结论以 `.planning/PROJECT.md` 和
+  `.planning/WORKSTREAMS.md` 为准；本地会话状态由 GSD SDK / Codex native session
+  承接，不再写回 tracked phase 目录
+- tracked historical planning archives 已从 branch tip 清理；需要追溯时通过 git history 恢复具体
+  片段，再提升到当前 docs / ADR / runbook
 - 不要把 `docs/architecture/target-architecture.md` 当作当前 merged truth 或当前 GSD
   进度板；当前真相看 `current-architecture.md`，当前执行状态看
-  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream 目录
+  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native session
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 - 在引用 Source Of Truth 之前，先确认是否准确理解了用户当前问题；不得用文档权威覆盖对用户原意的错误理解
 
@@ -226,7 +233,9 @@
 
 - 不要把 retrieval 实现细节、索引构建逻辑或向量数据库特定代码拉进 supervisor execution /
   agent-worker 层
-- 不要把 `campusRAG` 再建模成入口 agent 直接调用的扁平 tool；v2 的主模型是 supervisor -> agent handoff
+- 不要把旧 bootstrap 模式恢复为产品入口、顶层 router、hidden mega-agent
+  或扁平 retrieval tool；RAG 只能在已 admitted 的 knowledge-family / RAG capability 内部承担
+  retrieval planning、evidence verification、synthesis 与 grounding 语义
 - 不要让 `Agno`、`LlamaIndex`、`Qdrant`、`MinIO` 或其他具体基础设施类型泄漏进 `packages/contracts`
 - 不要把 online query path 和 offline ingestion/data plane 混在同一层
 - 不要把本机目录语义提升成长期对象存储真相源；当前阶段对象存储虽然可本机部署，但架构语义上仍是 `S3-compatible object storage`
@@ -277,8 +286,8 @@
   workstream harness、lease/heartbeat 或 Codex hook 注入层
 - 多人并发推进不同 workstream 时，默认用 GSD SDK 查询、切换和维护 workstream
   registry，例如 `gsd-sdk query workstream.list/status/set/progress --raw --cwd "$PWD"`；
-  tracked planning truth 仍写在 `.planning/WORKSTREAMS.md` 与对应
-  `.planning/workstreams/<slug>/`，不要把本地会话状态写回 tracked planning 文档
+  tracked planning truth 只保留 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`，
+  不要把本地会话状态写回 tracked planning 文档
 - GSD SDK / Codex native workflow 的长期决策以
   `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md` 为准；日常命令和场景路由以
   `docs/runbooks/workstream-gsd-sdk-workflow.md` 为准
@@ -402,15 +411,17 @@ pnpm web:build:affected
 
 ## Repo Map
 
-- `apps/supervisor-api`: Go-owned deterministic runtime/control-plane；负责
+- `apps/execution-control`: Go-owned deterministic runtime/control-plane；负责
   execution admission、capability / policy gate、structured runtime planning、
   Go finalization 与 runtime observability，不接管 agent semantic reasoning、
   prompt/provider execution 或 retrieval backend 细节
 - `apps/supervisor-agent-worker`: Python private semantic worker；负责 bridge DTO
   防御性校验、prompt runtime assembly、provider client binding 与 agent delegate dispatch
 - `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排
-- `packages/rag-agent`: 知识域 agent 入口；负责 retrieval 导向的
-  query/answer/confidence 逻辑
+- `packages/rag-agent`: knowledge-family / RAG capability 的 semantic specialist
+  package；负责 retrieval planning、evidence verification、grounded synthesis、
+  clarification 与 confidence 逻辑；不是 product entry、top-level router 或其他
+  capability 的 source-truth owner
 - `packages/prompt-runtime`: provider-facing prompt runtime；负责 prompt contract
   validation、Responses structured output execution、provider response
   normalization 与 prompt trace construction；不得通过 `packages/shared` 重新导出

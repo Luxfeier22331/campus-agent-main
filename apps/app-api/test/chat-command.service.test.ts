@@ -1,15 +1,48 @@
 // @vitest-environment node
 
-import { describe } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { registerChatCommandServiceCoreSuite } from "./chat-command.service.core.suite";
-import { registerChatCommandServiceCurriculumSuite } from "./chat-command.service.curriculum.suite";
-import { registerChatCommandServiceIdempotencySuite } from "./chat-command.service.idempotency.suite";
-import { registerChatCommandServiceObservabilitySuite } from "./chat-command.service.observability.suite";
+import {
+	buildChatCommandService,
+	createCommandStore,
+	createConversationStore,
+	createDeterministicIdGenerator,
+	createPrincipal,
+} from "./chat-command.service.test-support";
 
 describe("chat command service", () => {
-	registerChatCommandServiceCoreSuite();
-	registerChatCommandServiceCurriculumSuite();
-	registerChatCommandServiceObservabilitySuite();
-	registerChatCommandServiceIdempotencySuite();
+	it("fails closed instead of using a legacy direct supervisor execution path", async () => {
+		const { store, acceptedWrites, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const legacySupervisor = {
+			execute: vi.fn(),
+			executeStream: vi.fn(),
+		};
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-06T00:00:00.000Z"),
+			conversationStore,
+			store,
+			supervisor: legacySupervisor,
+		});
+
+		await expect(
+			service.submit({
+				payload: {
+					conversationId: "conv_01HQ",
+					prompt: "图书馆开放到几点？",
+				},
+				principal: createPrincipal(),
+				surface: "public_chat_web",
+			}),
+		).rejects.toMatchObject({
+			code: "execution_runtime_required",
+			retryable: true,
+			status: 503,
+		});
+		expect(legacySupervisor.execute).not.toHaveBeenCalled();
+		expect(legacySupervisor.executeStream).not.toHaveBeenCalled();
+		expect(acceptedWrites).toHaveLength(1);
+		expect(finalWrites).toHaveLength(0);
+	});
 });

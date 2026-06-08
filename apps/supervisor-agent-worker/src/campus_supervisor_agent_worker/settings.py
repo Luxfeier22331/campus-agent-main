@@ -235,15 +235,15 @@ class ApiSettings:
                 default=DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES,
             ),
             internal_query_base_url=os.getenv(
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL",
+                "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL",
                 "",
             ).strip(),
             internal_query_shared_secret=os.getenv(
-                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+                "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
                 "",
             ).strip(),
             structured_query_timeout_seconds=_read_float(
-                "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
+                "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS",
                 default=1.0,
             ),
             agents_sdk_runtime_enabled=_read_bool(

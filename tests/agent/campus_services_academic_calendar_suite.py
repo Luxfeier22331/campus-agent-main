@@ -110,7 +110,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             }
         )
         query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-control.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -127,7 +127,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://supervisor-api.internal/internal/query/calendar/academic-calendar",
+            "http://execution-control.internal/internal/query/calendar/academic-calendar",
         )
         self.assertEqual(transport.calls[0][2]["payload"]["query_text"], "今天第几教学周")
         self.assertIn("access_context", transport.calls[0][2])
@@ -172,7 +172,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             }
         )
         query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-control.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -205,7 +205,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
 
     def test_http_query_service_rejects_missing_academic_calendar_query_text(self) -> None:
         query_service = CampusServicesHTTPQueryService(
-            base_url="http://supervisor-api.internal",
+            base_url="http://execution-control.internal",
             shared_secret="query-secret",
             transport=RecordingQueryHTTPTransport(
                 {

@@ -153,7 +153,7 @@ def _minimal_registry() -> dict[str, object]:
                 "answer_eligible": True,
                 "requires_grounding": False,
                 "freshness_policy": "test",
-                "allowed_consumers": ["supervisor-api-finalizer"],
+                "allowed_consumers": ["execution-control-finalizer"],
                 "known_aliases": [],
                 "forbidden_raw_payload_keys": ["raw_response"],
                 "notes": "fixture",

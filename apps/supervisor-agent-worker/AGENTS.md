@@ -6,7 +6,7 @@
 
 这个 app 是 Python private semantic worker，不是 supervisor runtime owner。
 
-- 接收 Go `apps/supervisor-api` 已规范化的 bridge envelope
+- 接收 Go `apps/execution-control` 已规范化的 bridge envelope
 - 执行 prompt runtime assembly 与 agent delegate dispatch
 - 返回 `AgentResponse`，由 Go finalizer 生成 public supervisor response
 

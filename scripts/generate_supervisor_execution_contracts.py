@@ -15,7 +15,7 @@ OPENAPI_PATH = REPO_ROOT / "docs/contracts/schemas/supervisor-execution.openapi.
 TS_PATH = (
     REPO_ROOT / "apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts"
 )
-GO_PATH = REPO_ROOT / "apps/supervisor-api/internal/contracts/supervisor_execution_contract.go"
+GO_PATH = REPO_ROOT / "apps/execution-control/internal/contracts/supervisor_execution_contract.go"
 PY_PACKAGE_INIT_PATH = (
     REPO_ROOT
     / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/__init__.py"
@@ -530,7 +530,7 @@ type SupervisorResponseWire struct {
 \tTraceID string `json:"trace_id"`
 }
 """
-        + go_decode_helpers()
+        + go_decode_helpers(workflow_modes)
     )
 
 

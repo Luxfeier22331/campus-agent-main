@@ -32,7 +32,7 @@ updated: 2026-04-03
 - panel 直接嵌入 `Sentry` 或 `Axiom` 查询，变成 sink viewer
 - 继续只有 request list/detail，没有长期稳定的 quality / safety / cost control plane
 - sampled grading、runtime aggregate、release-gate eval 混成一套 truth
-- `apps/supervisor-api` 或 panel BFF 顺手长成 operator observability backend
+- `apps/execution-control` 或 panel BFF 顺手长成 operator observability backend
 
 ## 决策 1：operator-facing observability control plane 的第一 owner 固定为 `apps/app-api`
 
@@ -41,7 +41,7 @@ updated: 2026-04-03
 - operator-facing observability / audit / quality / safety / cost read model 的第一
   owner 固定为 `apps/app-api`
 - `protected-panel-web` 继续只消费这些 runtime-owned APIs
-- `apps/supervisor-api` 不承担 operator observability query backend
+- `apps/execution-control` 不承担 operator observability query backend
 
 原因：
 
@@ -285,7 +285,7 @@ updated: 2026-04-03
 明确不做：
 
 - 不把 panel 做成 `Sentry` 或 `Axiom` 嵌入式 viewer
-- 不让 `apps/supervisor-api` 继续长成 operator observability backend
+- 不让 `apps/execution-control` 继续长成 operator observability backend
 - 不把 sampled grading / release-gate eval / runtime aggregate 混成一张表
 - 不让 vendor-specific sink schema 反向定义 `packages/contracts`
 

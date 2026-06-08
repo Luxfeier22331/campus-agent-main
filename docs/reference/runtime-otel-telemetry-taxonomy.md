@@ -35,7 +35,7 @@ This taxonomy follows the OpenTelemetry direction that:
 
 | Runtime / Layer | OTel SDK Allowed | Responsibility |
 | ----------------- | ------------------ | ---------------- |
-| `apps/supervisor-api` | yes | Online trace owner for request admission, orchestration, bridge transport, tool/runtime dispatch, finalization, error and telemetry self-health |
+| `apps/execution-control` | yes | Online trace owner for request admission, orchestration, bridge transport, tool/runtime dispatch, finalization, error and telemetry self-health |
 | `apps/supervisor-agent-worker` | yes, or runtime event bridge | Bridge `retrieval.runtime_observation` and agent execution events into sanitized OTel-compatible logs/events/spans |
 | `apps/ingestion-worker` | yes, or runtime event bridge | Emit offline run telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events; not retrieval or ingestion telemetry truth |
@@ -54,14 +54,14 @@ explicitly allowed below.
 
 | Event / Span Family | Primary Owner | Signal Shape |
 | --------------------- | --------------- | -------------- |
-| `runtime.request.accepted` | `apps/supervisor-api`, `apps/app-api` | Request admitted, actor type, surface, capability, scope summary, trace/request correlation |
-| `runtime.request.finalized` | `apps/supervisor-api`, `apps/app-api` | Request terminal status, selected target/tool, duration, source count summary, fail-close reason |
+| `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, capability, scope summary, trace/request correlation |
+| `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected target/tool, duration, source count summary, fail-close reason |
 | `runtime.request.transport_error` | `apps/app-api` | Product entry to supervisor transport failure |
-| `agent.bridge.started` | `apps/supervisor-api` | Worker bridge call admitted with lane, timeout and request correlation |
-| `agent.bridge.completed` | `apps/supervisor-api` | Worker bridge terminal outcome, duration, queue wait, retry/cancel status |
-| `agent.bridge.failed` | `apps/supervisor-api` | Worker bridge failure code, retryability and circuit-breaker decision |
-| `agent.tool.dispatched` | `apps/supervisor-api` / worker | Tool call selected by allowed runtime policy |
-| `agent.tool.completed` | `apps/supervisor-api` / worker | Tool terminal state, latency and failure kind |
+| `agent.bridge.started` | `apps/execution-control` | Worker bridge call admitted with lane, timeout and request correlation |
+| `agent.bridge.completed` | `apps/execution-control` | Worker bridge terminal outcome, duration, queue wait, retry/cancel status |
+| `agent.bridge.failed` | `apps/execution-control` | Worker bridge failure code, retryability and circuit-breaker decision |
+| `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
+| `agent.tool.completed` | `apps/execution-control` / worker | Tool terminal state, latency and failure kind |
 | `retrieval.runtime_observation` | `apps/supervisor-agent-worker` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
 | `ingestion.run.started` | `apps/ingestion-worker` | Offline ingestion/index run start with run id, source family, surface and collection |
 | `ingestion.run.completed` | `apps/ingestion-worker` | Run count summary, duration, cost estimate, release id and audit result |
@@ -250,6 +250,6 @@ Phase implementations must add or maintain tests for:
 - exporter/sink failure fails closed on configured product paths
 - forbidden fields are absent from emitted attributes
 - `query_sha256` is present when retrieval observation is emitted
-- trace/request correlation propagates across app-api, supervisor-api and worker boundaries
+- trace/request correlation propagates across app-api, execution-control and worker boundaries
 - ingestion run telemetry summarizes counts and failure kind without raw body text
 - Collector/adapter config performs attribute filtering/redaction before sink export

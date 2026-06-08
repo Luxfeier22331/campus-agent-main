@@ -325,6 +325,91 @@ export function inferEvalFamilyFromCauseClass(
 	return "unknown";
 }
 
+export type StepDiagnosisStage =
+	| "routing"
+	| "planning"
+	| "tool"
+	| "retrieval"
+	| "rerank"
+	| "selection"
+	| "synthesis"
+	| "grounding"
+	| "finalization";
+
+export function inferStepDiagnosisStage(input: {
+	causeClass: string;
+	failureStage?: string | null;
+}): StepDiagnosisStage {
+	const normalizedFailureStage = input.failureStage?.trim().toLowerCase() ?? "";
+	if (
+		normalizedFailureStage === "routing" ||
+		normalizedFailureStage === "planning" ||
+		normalizedFailureStage === "tool" ||
+		normalizedFailureStage === "retrieval" ||
+		normalizedFailureStage === "rerank" ||
+		normalizedFailureStage === "selection" ||
+		normalizedFailureStage === "synthesis" ||
+		normalizedFailureStage === "grounding" ||
+		normalizedFailureStage === "finalization"
+	) {
+		return normalizedFailureStage;
+	}
+	if (normalizedFailureStage === "evidence_selection") {
+		return "selection";
+	}
+
+	const normalizedCause = input.causeClass.trim().toLowerCase();
+	if (
+		normalizedCause.includes("intent") ||
+		normalizedCause.includes("routing") ||
+		normalizedCause.includes("classifier") ||
+		normalizedCause.includes("context_resolution") ||
+		normalizedCause.includes("missing_slot") ||
+		normalizedCause.includes("handoff")
+	) {
+		return "routing";
+	}
+	if (normalizedCause.includes("plan")) {
+		return "planning";
+	}
+	if (
+		normalizedCause.includes("tool") ||
+		normalizedCause.includes("service") ||
+		normalizedCause.includes("navigation") ||
+		normalizedCause.includes("notice")
+	) {
+		return "tool";
+	}
+	if (
+		normalizedCause.includes("recall") ||
+		normalizedCause.includes("retrieval") ||
+		normalizedCause.includes("freshness")
+	) {
+		return "retrieval";
+	}
+	if (normalizedCause.includes("rerank")) {
+		return "rerank";
+	}
+	if (
+		normalizedCause.includes("ground") ||
+		normalizedCause.includes("unsupported") ||
+		normalizedCause.includes("faithfulness")
+	) {
+		return "grounding";
+	}
+	if (
+		normalizedCause.includes("selection") ||
+		normalizedCause.includes("citation") ||
+		normalizedCause.includes("evidence")
+	) {
+		return "selection";
+	}
+	if (normalizedCause.includes("synthesis") || normalizedCause.includes("answer_style")) {
+		return "synthesis";
+	}
+	return "finalization";
+}
+
 export function inferGradeDomainFromCauseClass(causeClass: string): string | null {
 	const family = inferEvalFamilyFromCauseClass(causeClass);
 	if (family === "unknown") {

@@ -1,0 +1,937 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2154
+
+execution_control_staging_load_env() {
+  local node_bin
+  local runtime_env_path="${execution_control_staging_env_file}"
+  local export_script
+
+  if [[ -z "${runtime_env_path}" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_ENV_FILE is required for execution-control staging; default is ${execution_control_staging_default_env_file}." >&2
+    return 1
+  fi
+  if [[ ! -f "${runtime_env_path}" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_ENV_FILE is required for execution-control staging and must point to an existing ops-owned runtime env file: ${runtime_env_path} (default: ${execution_control_staging_default_env_file})." >&2
+    return 1
+  fi
+
+  node_bin="$(execution_control_staging_require_command node)"
+  export_script="$(
+    "${node_bin}" - "${runtime_env_path}" <<'NODE'
+const [runtimeEnvPath] = process.argv.slice(2);
+const loadedPaths = [];
+const fs = require("node:fs");
+const { parseEnv } = require("node:util");
+if (typeof parseEnv !== "function") {
+  throw new Error("node:util.parseEnv is required for staging env projection");
+}
+const fileEnv = new Map();
+
+for (const filePath of [runtimeEnvPath]) {
+  if (!filePath) {
+    continue;
+  }
+  try {
+    const parsed = parseEnv(fs.readFileSync(filePath, "utf8"));
+    for (const [key, value] of Object.entries(parsed)) {
+      fileEnv.set(key, value);
+    }
+    loadedPaths.push(filePath);
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+}
+
+function sourceEnvValue(key) {
+  const processValue = process.env[key]?.trim() || "";
+  if (processValue) {
+    return processValue;
+  }
+  return fileEnv.get(key)?.trim() || "";
+}
+
+const keys = [
+  "CAMPUS_AGENT_APP_NAME",
+  "AGENT_RUNTIME_PROVIDER",
+  "PROMPT_RUNTIME_PROVIDER",
+  "PROMPT_RUNTIME_TRANSPORT",
+  "PROMPT_RUNTIME_MODEL",
+  "SUPERVISOR_PROMPT_MODEL",
+  "AGENT_PROMPT_MODEL",
+  "PROMPT_RUNTIME_API_KEY",
+  "PROMPT_RUNTIME_BASE_URL",
+  "PROMPT_RUNTIME_REASONING_EFFORT",
+  "PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
+  "PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
+  "PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",
+  "PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",
+  "PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",
+  "PROMPT_RUNTIME_MAX_CONNECTIONS",
+  "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
+  "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",
+  "PROMPT_STRICT_STRUCTURED_OUTPUTS",
+  "LLM_API_KEY",
+  "LLM_BASE_URL",
+  "AUDIT_LOG_PATH",
+  "AUDIT_QUEUE_CAPACITY",
+  "APP_API_INTERNAL_SHARED_SECRET",
+  "EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS",
+  "EXECUTION_CONTROL_RUNTIME_PROFILE",
+  "EXECUTION_CONTROL_QUEUE_CAPACITY",
+  "EXECUTION_CONTROL_QUEUE_TIMEOUT_MS",
+  "EXECUTION_CONTROL_REQUEST_TIMEOUT_MS",
+  "EXECUTION_CONTROL_SHUTDOWN_GRACE_MS",
+  "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
+  "EXECUTION_CONTROL_OTEL_ENABLED",
+  "EXECUTION_CONTROL_OTEL_METRICS_ENABLED",
+  "EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS",
+  "EXECUTION_CONTROL_OTEL_SERVICE_NAME",
+  "EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS",
+  "EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED",
+  "SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME",
+  "SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_HEADERS",
+  "OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT",
+  "OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT",
+  "OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT",
+  "OTEL_COLLECTOR_MEMORY_LIMIT_MIB",
+  "OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB",
+  "OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE",
+  "OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE",
+  "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
+  "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
+  "AXIOM_ENDPOINT",
+  "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
+  "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
+  "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+  "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED",
+  "EXECUTION_CONTROL_EXECUTION_AUDIT_URL",
+  "EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET",
+  "EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS",
+  "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
+  "TEMPORAL_POSTGRES_PASSWORD",
+  "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
+  "EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
+  "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
+  "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
+  "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
+  "SUPERVISOR_AGENT_WORKER_THREADS",
+  "SUPERVISOR_AGENT_WORKER_BASE_URL",
+  "EXECUTION_CONTROL_SHARED_SECRET",
+  "SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
+  "EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
+  "EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS",
+  "EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS",
+  "EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS",
+  "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
+  "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
+  "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS",
+  "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS",
+  "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+  "INTERNAL_NOTICE_READ_MODEL_TABLE",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
+  "EXECUTION_CONTROL_STAGING_UV_BIN",
+  "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME",
+  "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
+  "EXECUTION_CONTROL_STAGING_HOST",
+  "EXECUTION_CONTROL_STAGING_PORT",
+];
+
+function projectLoopbackUrlHost(value, dockerHost, dockerPort) {
+  if (!value) {
+    return value;
+  }
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") {
+      parsed.hostname = dockerHost;
+      if (dockerPort) {
+        parsed.port = dockerPort;
+      }
+      return parsed.toString().replace(/\/$/, "");
+    }
+  } catch {
+    return value;
+  }
+  return value;
+}
+
+function removeUrlSearchParam(value, name) {
+  if (!value) {
+    return value;
+  }
+  try {
+    const parsed = new URL(value);
+    parsed.searchParams.delete(name);
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return value;
+  }
+}
+
+function projectQdrantForDocker(value) {
+  return projectLoopbackUrlHost(value, "qdrant", "6333");
+}
+
+function projectPostgresForDocker(value) {
+  return removeUrlSearchParam(
+    projectLoopbackUrlHost(value, "campus-agent-postgres", "5432"),
+    "gssencmode",
+  );
+}
+
+function projectObjectStoreForDocker(value) {
+  return projectLoopbackUrlHost(value, "minio", "9000");
+}
+
+const resolved = new Map();
+for (const key of keys) {
+  const value = sourceEnvValue(key);
+  if (value) {
+    resolved.set(key, value);
+  }
+}
+
+const bridgeSharedSecret =
+  sourceEnvValue("SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET") ||
+  sourceEnvValue("SUPERVISOR_AGENT_WORKER_SHARED_SECRET") ||
+  "";
+const bridgeBaseUrl =
+  sourceEnvValue("SUPERVISOR_AGENT_WORKER_BASE_URL") || "http://supervisor-agent-worker:27052";
+resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
+resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
+const workerSharedSecret =
+  sourceEnvValue("API_WORKER_SHARED_SECRET") ||
+  sourceEnvValue("EXECUTION_CONTROL_SHARED_SECRET") ||
+  "";
+resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
+
+const retiredEnvErrors = [];
+for (const retiredKey of [
+  "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED",
+  "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID",
+  "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE",
+  "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID",
+  "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS",
+  "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS",
+  "EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS",
+  "EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED",
+  "EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_INTERVAL_MS",
+  "EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS",
+]) {
+  if (sourceEnvValue(retiredKey)) {
+    retiredEnvErrors.push(`${retiredKey} is retired; use Temporal execution-control settings`);
+  }
+}
+resolved.set("EXECUTION_CONTROL_STAGING_RETIRED_ENV_ERRORS", retiredEnvErrors.join("\n"));
+
+const stagingRequiredMappings = [
+  ["STAGING_INGESTION_SHARED_POSTGRES_URL", "CAMPUS_SHARED_POSTGRES_URL"],
+  ["STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL", "DOCUMENT_REGISTRY_DATABASE_URL"],
+  ["STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL", "RAW_ASSET_REGISTRY_DATABASE_URL"],
+  ["STAGING_INGESTION_OBJECT_STORE_ENDPOINT", "OBJECT_STORE_ENDPOINT"],
+  ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
+  ["STAGING_INGESTION_QDRANT_URL", "QDRANT_URL"],
+  ["STAGING_INGESTION_EMBEDDING_PROVIDER", "EMBEDDING_PROVIDER"],
+  ["STAGING_INGESTION_EMBEDDING_BASE_URL", "EMBEDDING_BASE_URL"],
+  ["STAGING_INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"],
+  ["STAGING_INGESTION_EMBEDDING_MODEL", "EMBEDDING_MODEL"],
+  ["STAGING_INGESTION_EMBEDDING_DIMENSIONS", "EMBEDDING_DIMENSIONS"],
+  ["STAGING_INGESTION_SPARSE_PROVIDER", "SPARSE_PROVIDER"],
+  ["STAGING_INGESTION_SPARSE_MODEL", "SPARSE_MODEL"],
+  ["STAGING_INGESTION_SPARSE_TOKENIZER", "SPARSE_TOKENIZER"],
+  ["STAGING_INGESTION_SPARSE_LANGUAGE", "SPARSE_LANGUAGE"],
+];
+const stagingOptionalMappings = [
+  ["STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL", "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"],
+  [
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+  ],
+  [
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+  ],
+  ["STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY", "OBJECT_STORE_ACCESS_KEY"],
+  ["STAGING_INGESTION_OBJECT_STORE_SECRET_KEY", "OBJECT_STORE_SECRET_KEY"],
+  ["STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_DERIVED_ACCESS_KEY"],
+  ["STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY", "OBJECT_STORE_DERIVED_SECRET_KEY"],
+  ["STAGING_INGESTION_OBJECT_STORE_REGION", "OBJECT_STORE_REGION"],
+  ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
+  ["STAGING_INGESTION_QDRANT_API_KEY", "QDRANT_API_KEY"],
+  ["STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY", "QDRANT_READ_ONLY_API_KEY"],
+  ["STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS", "QDRANT_TIMEOUT_SECONDS"],
+];
+
+function envValue(key) {
+  return sourceEnvValue(key);
+}
+
+function isLocalEndpoint(value) {
+  if (!value) {
+    return false;
+  }
+  try {
+    const parsed = new URL(value);
+    return ["127.0.0.1", "localhost"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isLocalPostgresEndpoint(value) {
+  if (!value) {
+    return false;
+  }
+  try {
+    const parsed = new URL(value);
+    return (
+      ["postgres:", "postgresql:"].includes(parsed.protocol) &&
+      ["127.0.0.1", "localhost"].includes(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function parseLocalPostgresConfig(source, value) {
+  if (!isLocalPostgresEndpoint(value)) {
+    return null;
+  }
+  const parsed = new URL(value);
+  return {
+    source,
+    database: decodeURIComponent(parsed.pathname.replace(/^\//, "")),
+    username: decodeURIComponent(parsed.username || ""),
+    password: decodeURIComponent(parsed.password || ""),
+    port: parsed.port || "5432",
+  };
+}
+
+function localPostgresConfigSignature(config) {
+  return JSON.stringify({
+    database: config.database,
+    username: config.username,
+    password: config.password,
+    port: config.port,
+  });
+}
+
+function acceptsSameHostStagingEndpoint(source) {
+  return [
+    "STAGING_INGESTION_SHARED_POSTGRES_URL",
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
+    "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL",
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+    "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",
+    "STAGING_INGESTION_QDRANT_URL",
+  ].includes(source);
+}
+
+function projectDataPlaneValue(source, value) {
+  if (
+    source === "STAGING_INGESTION_SHARED_POSTGRES_URL" ||
+    source === "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL" ||
+    source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL" ||
+    source === "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL" ||
+    source === "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL" ||
+    source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL"
+  ) {
+    return projectPostgresForDocker(value);
+  }
+  if (source === "STAGING_INGESTION_OBJECT_STORE_ENDPOINT") {
+    return projectObjectStoreForDocker(value);
+  }
+  if (source === "STAGING_INGESTION_QDRANT_URL") {
+    return projectQdrantForDocker(value);
+  }
+  return value;
+}
+
+function validateStagingPostgresRuntimeUrl(errors, source, value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    errors.push(`${source} must be a valid postgres URL`);
+    return;
+  }
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
+    errors.push(`${source} must be a postgres URL`);
+    return;
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  const isSupabaseSessionPooler = hostname.endsWith(".pooler.supabase.com");
+  const isSupabaseDirectHost = hostname.endsWith(".supabase.co") && hostname.startsWith("db.");
+  if (isSupabaseSessionPooler) {
+    if (parsed.port && parsed.port !== "5432") {
+      errors.push(`${source} must use the Supabase session pooler on port 5432`);
+      return;
+    }
+    if (parsed.searchParams.get("sslmode") !== "require") {
+      errors.push(`${source} must include sslmode=require for Supabase session pooler`);
+    }
+    return;
+  }
+  if (isSupabaseDirectHost) {
+    errors.push(`${source} must use the Supabase session pooler, not direct connection`);
+  }
+}
+
+function hasPair(accessKeyName, secretKeyName) {
+  return Boolean(envValue(accessKeyName) && envValue(secretKeyName));
+}
+
+function requireCompletePair(errors, accessKeyName, secretKeyName) {
+  const hasAccessKey = Boolean(envValue(accessKeyName));
+  const hasSecretKey = Boolean(envValue(secretKeyName));
+  if (hasAccessKey === hasSecretKey) {
+    return;
+  }
+  errors.push(`${accessKeyName} and ${secretKeyName} must be configured together`);
+}
+
+const dataPlaneErrors = [];
+for (const [source, target] of stagingRequiredMappings) {
+  const value = envValue(source);
+  if (!value) {
+    dataPlaneErrors.push(`${source} is required for execution-control staging data plane`);
+    continue;
+  }
+  if (isLocalEndpoint(value) && !acceptsSameHostStagingEndpoint(source)) {
+    dataPlaneErrors.push(`${source} must not point at localhost for execution-control staging`);
+    continue;
+  }
+  if (
+    source === "STAGING_INGESTION_SHARED_POSTGRES_URL" ||
+    source === "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL" ||
+    source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL"
+  ) {
+    validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
+  }
+  resolved.set(target, value);
+  const dockerValue = projectDataPlaneValue(source, value);
+  if (source === "STAGING_INGESTION_SHARED_POSTGRES_URL") {
+    resolved.set("CAMPUS_SHARED_POSTGRES_DOCKER_URL", dockerValue);
+  }
+  if (source === "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL") {
+    resolved.set("DOCUMENT_REGISTRY_DOCKER_DATABASE_URL", dockerValue);
+  }
+  if (source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL") {
+    resolved.set("RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL", dockerValue);
+  }
+  if (source === "STAGING_INGESTION_OBJECT_STORE_ENDPOINT") {
+    resolved.set("OBJECT_STORE_DOCKER_ENDPOINT", dockerValue);
+  }
+  if (source === "STAGING_INGESTION_QDRANT_URL") {
+    resolved.set("QDRANT_DOCKER_URL", dockerValue);
+  }
+}
+for (const [source, target] of stagingOptionalMappings) {
+  const value = envValue(source);
+  if (value) {
+    if (
+      [
+        "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
+        "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
+        "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",
+      ].includes(source) &&
+      isLocalEndpoint(value)
+    ) {
+      dataPlaneErrors.push(`${source} must not point at localhost for execution-control staging`);
+      continue;
+    }
+    if (
+      [
+        "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL",
+        "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+        "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+      ].includes(source)
+    ) {
+      validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
+    }
+    resolved.set(target, value);
+    const dockerValue = projectDataPlaneValue(source, value);
+    if (source === "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL") {
+      resolved.set("CAMPUS_SHARED_POSTGRES_OPERATOR_DOCKER_URL", dockerValue);
+    }
+    if (source === "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL") {
+      resolved.set("DOCUMENT_REGISTRY_OPERATOR_DOCKER_DATABASE_URL", dockerValue);
+    }
+    if (source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL") {
+      resolved.set("RAW_ASSET_REGISTRY_OPERATOR_DOCKER_DATABASE_URL", dockerValue);
+    }
+    if (source === "STAGING_INGESTION_OBJECT_STORE_ENDPOINT") {
+      resolved.set("OBJECT_STORE_DOCKER_ENDPOINT", dockerValue);
+    }
+    if (source === "STAGING_INGESTION_QDRANT_URL") {
+      resolved.set("QDRANT_DOCKER_URL", dockerValue);
+    }
+  }
+}
+requireCompletePair(
+  dataPlaneErrors,
+  "STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY",
+  "STAGING_INGESTION_OBJECT_STORE_SECRET_KEY",
+);
+requireCompletePair(
+  dataPlaneErrors,
+  "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY",
+);
+const hasSharedObjectStorePair = hasPair(
+  "STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY",
+  "STAGING_INGESTION_OBJECT_STORE_SECRET_KEY",
+);
+const hasDerivedObjectStorePair = hasPair(
+  "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY",
+);
+if (
+  !(
+    hasSharedObjectStorePair ||
+    hasDerivedObjectStorePair
+  )
+) {
+  dataPlaneErrors.push(
+    "staging supervisor object-store credentials are required: configure shared or derived credential pair",
+  );
+}
+const supervisorNoticeBodyAccessKey = hasDerivedObjectStorePair
+  ? envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY")
+  : envValue("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY");
+const supervisorNoticeBodySecretKey = hasDerivedObjectStorePair
+  ? envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY")
+  : envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY");
+resolved.set(
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+  projectObjectStoreForDocker(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT")),
+);
+resolved.set("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", supervisorNoticeBodyAccessKey);
+resolved.set("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", supervisorNoticeBodySecretKey);
+resolved.set(
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
+  envValue("STAGING_INGESTION_OBJECT_STORE_REGION") || "us-east-1",
+);
+resolved.set(
+  "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
+  envValue("STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED"),
+);
+const localPostgresConfigs = [
+  ["STAGING_INGESTION_SHARED_POSTGRES_URL", envValue("STAGING_INGESTION_SHARED_POSTGRES_URL")],
+  [
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL",
+    envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL"),
+  ],
+  [
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL",
+    envValue("STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL"),
+  ],
+  [
+    "STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL",
+    envValue("STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL"),
+  ],
+  [
+    "STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+    envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL"),
+  ],
+  [
+    "STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+    envValue("STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL"),
+  ],
+]
+  .map(([source, value]) => parseLocalPostgresConfig(source, value))
+  .filter(Boolean);
+if (localPostgresConfigs.length > 0) {
+  const firstConfig = localPostgresConfigs[0];
+  const firstSignature = localPostgresConfigSignature(firstConfig);
+  const mismatchedSources = localPostgresConfigs
+    .filter((config) => localPostgresConfigSignature(config) !== firstSignature)
+    .map((config) => config.source);
+  if (mismatchedSources.length > 0) {
+    dataPlaneErrors.push(
+      `repo-owned local Postgres uses one database/user/password/port; mismatched local DSNs: ${mismatchedSources.join(", ")}`,
+    );
+  }
+  if (!firstConfig.database || !firstConfig.username || !firstConfig.password) {
+    dataPlaneErrors.push(
+      "repo-owned local Postgres requires database, username, and password in staging Postgres DSNs",
+    );
+  }
+  resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_POSTGRES_DB", firstConfig.database);
+  resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_POSTGRES_USER", firstConfig.username);
+  resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_POSTGRES_PASSWORD", firstConfig.password);
+  resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_POSTGRES_PORT", firstConfig.port);
+}
+if (isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT"))) {
+  if (hasSharedObjectStorePair && hasDerivedObjectStorePair) {
+    const sharedAccess = envValue("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY");
+    const sharedSecret = envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY");
+    const derivedAccess = envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY");
+    const derivedSecret = envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY");
+    if (sharedAccess !== derivedAccess || sharedSecret !== derivedSecret) {
+      dataPlaneErrors.push(
+        "repo-owned local MinIO uses one credential pair; shared and derived object-store credentials must match or only one pair may be set",
+      );
+    }
+  }
+  const localMinioAccess = hasSharedObjectStorePair
+    ? envValue("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY")
+    : envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY");
+  const localMinioSecret = hasSharedObjectStorePair
+    ? envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY")
+    : envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY");
+  resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY", localMinioAccess);
+  resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_MINIO_SECRET_KEY", localMinioSecret);
+}
+if (
+  isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) &&
+  !envValue("STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY")
+) {
+  dataPlaneErrors.push(
+    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY is required for repo-owned local Qdrant",
+  );
+}
+resolved.set("EXECUTION_CONTROL_STAGING_DATA_PLANE_ERRORS", dataPlaneErrors.join("\n"));
+resolved.set(
+  "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_POSTGRES",
+  [
+    envValue("STAGING_INGESTION_SHARED_POSTGRES_URL"),
+    envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL"),
+    envValue("STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL"),
+    envValue("STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL"),
+    envValue("STAGING_INGESTION_DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL"),
+    envValue("STAGING_INGESTION_RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL"),
+  ].some(isLocalPostgresEndpoint)
+    ? "true"
+    : "false",
+);
+resolved.set(
+  "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_MINIO",
+  isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT")) ? "true" : "false",
+);
+resolved.set(
+  "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_QDRANT",
+  isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) ? "true" : "false",
+);
+if (envValue("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL")) {
+  resolved.set(
+    "EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL",
+    projectPostgresForDocker(envValue("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL")),
+  );
+}
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_ADDRESS")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233");
+}
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_NAMESPACE")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging");
+}
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE", "campus-agent.workflow");
+}
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "5000");
+}
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:execution-control:001");
+}
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY", "staging:workflow-worker:001");
+}
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY", "staging:activity-rag:001");
+}
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY")) {
+  resolved.set(
+    "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
+    "staging:activity-finalization:001",
+  );
+}
+
+for (const [key, value] of resolved.entries()) {
+  process.stdout.write(`export ${key}=${JSON.stringify(value)}\n`);
+}
+
+NODE
+  )"
+  eval "${export_script}"
+  execution_control_staging_refresh_runtime_topology_from_env
+  export EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME="${execution_control_staging_compose_project_name}"
+  export EXECUTION_CONTROL_STAGING_RUNTIME_DIR="${execution_control_staging_runtime_dir}"
+  export EXECUTION_CONTROL_STAGING_HOST="${execution_control_staging_host}"
+  export EXECUTION_CONTROL_STAGING_PORT="${execution_control_staging_port}"
+  execution_control_staging_ensure_runtime_dirs
+
+  execution_control_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-}"
+  if [[ -z "${API_WORKER_SHARED_SECRET:-}" ]]; then
+    echo "API_WORKER_SHARED_SECRET is required for execution-control staging trusted-worker auth; set API_WORKER_SHARED_SECRET or EXECUTION_CONTROL_SHARED_SECRET in ${execution_control_staging_env_file}." >&2
+    return 1
+  fi
+  if [[ -z "${EXECUTION_CONTROL_EXECUTION_AUDIT_URL:-}" && -n "${execution_control_staging_app_api_base_url}" ]]; then
+    export EXECUTION_CONTROL_EXECUTION_AUDIT_URL="${execution_control_staging_app_api_base_url%/}/api/internal/execution/audit-events"
+  fi
+  if [[ -z "${EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET:-}" && -n "${APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
+    export EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET="${APP_API_INTERNAL_SHARED_SECRET}"
+  fi
+  if [[ -z "${EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED:-}" ]]; then
+    if [[ -n "${EXECUTION_CONTROL_EXECUTION_AUDIT_URL:-}" && -n "${EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET:-}" ]]; then
+      export EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=true
+    else
+      export EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=false
+    fi
+  fi
+  export EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS="${EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS:-500}"
+  export EXECUTION_CONTROL_OTEL_ENABLED="${EXECUTION_CONTROL_OTEL_ENABLED:-true}"
+  export EXECUTION_CONTROL_OTEL_METRICS_ENABLED="${EXECUTION_CONTROL_OTEL_METRICS_ENABLED:-true}"
+  export EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS="${EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS:-1000}"
+  export EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS="${EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS:-15000}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_ENABLED="${SUPERVISOR_AGENT_WORKER_OTEL_ENABLED:-true}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME="${SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME:-campus-supervisor-agent-worker}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION="${SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION:-supervisor-agent-worker-otel-attrs-v1}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS="${SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS:-1}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS="${SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS:-5}"
+  export DEPLOYMENT_ENVIRONMENT="${DEPLOYMENT_ENVIRONMENT:-staging}"
+  export OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT="${OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT:-0.0.0.0:4317}"
+  export OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT="${OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT:-0.0.0.0:4318}"
+  export OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT="${OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT:-0.0.0.0:13133}"
+  export OTEL_COLLECTOR_MEMORY_LIMIT_MIB="${OTEL_COLLECTOR_MEMORY_LIMIT_MIB:-512}"
+  export OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB="${OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB:-128}"
+  export OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE:-100}"
+  export OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE:-100}"
+}
+
+execution_control_staging_require_runtime_env() {
+  execution_control_staging_require_canonical_runtime_topology
+  execution_control_staging_require_runtime_env_core
+  execution_control_staging_validate_axiom_collector_endpoint
+}
+
+execution_control_staging_require_status_env() {
+  execution_control_staging_require_canonical_runtime_topology
+  execution_control_staging_require_runtime_env_core
+  execution_control_staging_validate_axiom_collector_endpoint
+}
+
+execution_control_staging_require_local_temporal_proof_env() {
+  if [[ "${EXECUTION_CONTROL_STAGING_RUNTIME_KIND:-}" != "local-temporal-proof" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_RUNTIME_KIND=local-temporal-proof is required for the local temporal proof script." >&2
+    return 1
+  fi
+  execution_control_staging_require_runtime_env_core
+  execution_control_staging_require_isolated_temporal_proof_runtime
+  execution_control_staging_validate_axiom_collector_endpoint
+}
+
+execution_control_staging_require_canonical_runtime_topology() {
+  if [[ "${EXECUTION_CONTROL_STAGING_RUNTIME_KIND:-canonical}" != "canonical" ]]; then
+    echo "Canonical execution-control staging lifecycle requires EXECUTION_CONTROL_STAGING_RUNTIME_KIND=canonical or unset." >&2
+    return 1
+  fi
+  if [[ "${execution_control_staging_compose_project_name}" != "campus-execution-control-staging" ]]; then
+    echo "Canonical execution-control staging compose project must be campus-execution-control-staging." >&2
+    return 1
+  fi
+  if [[ "${execution_control_staging_runtime_dir}" != "${execution_control_staging_repo_root}/.tmp/execution-control-staging" ]]; then
+    echo "Canonical execution-control staging runtime dir must be ${execution_control_staging_repo_root}/.tmp/execution-control-staging." >&2
+    return 1
+  fi
+  if [[ "${execution_control_staging_host}" != "127.0.0.1" ]]; then
+    echo "Canonical execution-control staging host must be 127.0.0.1." >&2
+    return 1
+  fi
+  if [[ "${execution_control_staging_port}" != "27051" ]]; then
+    echo "Canonical execution-control staging port must be 27051." >&2
+    return 1
+  fi
+}
+
+execution_control_staging_require_isolated_temporal_proof_runtime() {
+  if [[ -z "${EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME:-}" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME is required for local temporal proof; use an isolated compose project, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ -z "${EXECUTION_CONTROL_STAGING_RUNTIME_DIR:-}" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_RUNTIME_DIR is required for local temporal proof; use an isolated runtime directory, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ -z "${EXECUTION_CONTROL_STAGING_PORT:-}" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_PORT is required for local temporal proof; use an isolated host port, not the canonical staging runtime." >&2
+    return 1
+  fi
+  if [[ "${EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME}" == "campus-execution-control-staging" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME must not be campus-execution-control-staging for local temporal proof." >&2
+    return 1
+  fi
+  if [[ "${EXECUTION_CONTROL_STAGING_RUNTIME_DIR}" == "${execution_control_staging_repo_root}/.tmp/execution-control-staging" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_RUNTIME_DIR must not use the canonical staging runtime directory for local temporal proof." >&2
+    return 1
+  fi
+  if [[ "${EXECUTION_CONTROL_STAGING_PORT}" == "27051" ]]; then
+    echo "EXECUTION_CONTROL_STAGING_PORT must not use canonical staging port 27051 for local temporal proof." >&2
+    return 1
+  fi
+}
+
+execution_control_staging_require_runtime_env_core() {
+  execution_control_staging_require_observability_sink_env
+
+  if [[ -n "${EXECUTION_CONTROL_STAGING_DATA_PLANE_ERRORS:-}" ]]; then
+    echo "execution-control staging data-plane env is invalid:" >&2
+    while IFS= read -r data_plane_error; do
+      if [[ -n "${data_plane_error}" ]]; then
+        echo "  - ${data_plane_error}" >&2
+      fi
+    done <<<"${EXECUTION_CONTROL_STAGING_DATA_PLANE_ERRORS}"
+    return 1
+  fi
+
+  if [[ -n "${EXECUTION_CONTROL_STAGING_RETIRED_ENV_ERRORS:-}" ]]; then
+    echo "execution-control staging env contains retired PG lease loop settings:" >&2
+    while IFS= read -r retired_env_error; do
+      if [[ -n "${retired_env_error}" ]]; then
+        echo "  - ${retired_env_error}" >&2
+      fi
+    done <<<"${EXECUTION_CONTROL_STAGING_RETIRED_ENV_ERRORS}"
+    return 1
+  fi
+
+  if [[ -z "${EXECUTION_CONTROL_SHARED_SECRET:-}" ]]; then
+    echo "EXECUTION_CONTROL_SHARED_SECRET is missing. Populate ${execution_control_staging_env_file} or the Docker/ops secret source that renders it." >&2
+    return 1
+  fi
+
+  if [[ -z "${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}" ]]; then
+    echo "EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required for staging supervisor metrics." >&2
+    return 1
+  fi
+
+  if [[ -z "${execution_control_staging_bridge_shared_secret}" ]]; then
+    echo "SUPERVISOR_AGENT_WORKER_SHARED_SECRET is missing. Set SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET or export SUPERVISOR_AGENT_WORKER_SHARED_SECRET." >&2
+    return 1
+  fi
+
+  if [[ -z "${EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET:-}" ]]; then
+    echo "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET is required for execution-control staging structured query runtime." >&2
+    return 1
+  fi
+
+  if [[ -z "${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:-}" ]]; then
+    echo "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL is required for execution-control staging run projection store." >&2
+    return 1
+  fi
+
+  if [[ -z "${TEMPORAL_POSTGRES_PASSWORD:-}" ]]; then
+    echo "TEMPORAL_POSTGRES_PASSWORD is required for self-hosted Temporal Postgres." >&2
+    return 1
+  fi
+
+  local temporal_required_keys=(
+    EXECUTION_CONTROL_TEMPORAL_ADDRESS
+    EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+    EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE
+    EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY
+    EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY
+    EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY
+    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT
+    EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS
+  )
+  local temporal_required_key
+  for temporal_required_key in "${temporal_required_keys[@]}"; do
+    if [[ -z "${!temporal_required_key:-}" ]]; then
+      echo "${temporal_required_key} is required for execution-control staging Temporal runtime." >&2
+      return 1
+    fi
+  done
+  if [[ "${EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY}" != *:*:* ]]; then
+    echo "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY must be <env>:<role>:<instance>." >&2
+    return 1
+  fi
+  for temporal_worker_identity_key in \
+    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY \
+    EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY \
+    EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY; do
+    if [[ "${!temporal_worker_identity_key}" != *:*:* ]]; then
+      echo "${temporal_worker_identity_key} must be <env>:<role>:<instance>." >&2
+      return 1
+    fi
+  done
+  if ! [[ "${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS must be a positive integer." >&2
+    return 1
+  fi
+  local accepted_temporal_namespaces=(
+    campus-agent-staging
+    campus-agent-prod
+  )
+  local temporal_namespace_accepted=0
+  local accepted_temporal_namespace
+  for accepted_temporal_namespace in "${accepted_temporal_namespaces[@]}"; do
+    if [[ "${EXECUTION_CONTROL_TEMPORAL_NAMESPACE}" == "${accepted_temporal_namespace}" ]]; then
+      temporal_namespace_accepted=1
+    fi
+  done
+  if (( temporal_namespace_accepted != 1 )); then
+    echo "EXECUTION_CONTROL_TEMPORAL_NAMESPACE must be campus-agent-staging or campus-agent-prod." >&2
+    return 1
+  fi
+  case "${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE}" in
+    campus-agent.workflow)
+      ;;
+    *)
+      echo "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE must be campus-agent.workflow." >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -z "${CAMPUS_SHARED_POSTGRES_URL:-}" ]]; then
+    echo "CAMPUS_SHARED_POSTGRES_URL is required after STAGING_INGESTION_SHARED_POSTGRES_URL projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${DOCUMENT_REGISTRY_DATABASE_URL:-}" ]]; then
+    echo "DOCUMENT_REGISTRY_DATABASE_URL is required after staging data-plane projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${OBJECT_STORE_ENDPOINT:-}" ]]; then
+    echo "OBJECT_STORE_ENDPOINT is required for ingestion/agent-worker data-plane projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT:-}" ]]; then
+    echo "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT is required after staging notice body projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY:-}" || -z "${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY:-}" ]]; then
+    echo "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY and EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY are required after staging notice body projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET:-}" ]]; then
+    echo "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET is required after staging notice body projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${QDRANT_URL:-}" ]]; then
+    echo "QDRANT_URL is required after STAGING_INGESTION_QDRANT_URL projection." >&2
+    return 1
+  fi
+}

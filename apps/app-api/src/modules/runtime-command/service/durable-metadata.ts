@@ -40,7 +40,7 @@ export function buildDurableRagRunMetadata(
 		requested_capability: "knowledge",
 		requested_scope: requestedScope,
 		response_contract: SUPERVISOR_EXECUTION_CONTRACT.responseContract,
-		runtime_decisions: buildDurableRuntimeDecisions({
+		runtime_decisions: buildExecutionRuntimeDecisions({
 			actor,
 			context,
 			conversationId: supervisorInput.conversationId,
@@ -68,7 +68,7 @@ export function buildDurableRagRunMetadata(
 	};
 }
 
-function buildDurableRuntimeDecisions(input: {
+function buildExecutionRuntimeDecisions(input: {
 	actor: JsonRecord;
 	context: JsonRecord;
 	conversationId: string;
@@ -136,7 +136,7 @@ function buildDurableRuntimeDecisions(input: {
 		workflow_plan: {
 			allowed_agents: [DURABLE_RAG_HANDOFF.target],
 			edges: [],
-			plan_id: "plan:single_handoff:rag-agent:rag_request",
+			plan_id: "plan:single_step:rag-agent:rag_request",
 			resume_policy: {
 				resume_supported: false,
 			},
@@ -155,7 +155,7 @@ function buildDurableRuntimeDecisions(input: {
 				},
 			],
 			terminal_policy: {},
-			workflow_mode: "single_handoff",
+			workflow_mode: "single_step",
 		},
 	};
 }

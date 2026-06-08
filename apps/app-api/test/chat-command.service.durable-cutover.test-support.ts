@@ -1,9 +1,10 @@
 import type {
-	SupervisorDurableRun,
-	SupervisorDurableRunEvent,
-} from "../src/modules/integration/supervisor";
+	ExecutionControlRun,
+	ExecutionControlRunEvent,
+	ExecutionControlRunStepTrajectory,
+} from "../src/modules/integration/execution-control";
 
-export function durableRun(overrides: Partial<SupervisorDurableRun> = {}): SupervisorDurableRun {
+export function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -27,6 +28,14 @@ export function durableRun(overrides: Partial<SupervisorDurableRun> = {}): Super
 		updatedAt: "2026-06-04T01:02:04Z",
 		workflowPlanRef: "",
 		...overrides,
+	};
+}
+
+export function emptyRunStepTrajectory(): ExecutionControlRunStepTrajectory {
+	return {
+		attempts: [],
+		results: [],
+		steps: [],
 	};
 }
 
@@ -56,11 +65,11 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 }
 
 export function durableEvent(
-	overrides: Partial<SupervisorDurableRunEvent> & {
+	overrides: Partial<ExecutionControlRunEvent> & {
 		eventType: string;
 		sequence: number;
 	},
-): SupervisorDurableRunEvent {
+): ExecutionControlRunEvent {
 	const { eventType, sequence, ...rest } = overrides;
 	return {
 		conversationId: "conv_01HQ",
