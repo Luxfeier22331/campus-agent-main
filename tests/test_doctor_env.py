@@ -17,6 +17,24 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _execution_control_required_env() -> list[str]:
+    return [
+        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+        "EXECUTION_CONTROL_SHARED_SECRET=control-secret",
+        "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
+        "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://runtime.example/campus_agent",
+        "EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233",
+        "EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging",
+        "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow",
+        "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001",
+        "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001",
+        "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:001",
+        "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001",
+        "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
+        "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
+    ]
+
+
 class DoctorEnvTest(unittest.TestCase):
     def test_collect_env_doctor_status_reports_eval_surface_bootstrap_and_checked_keys(
         self,
@@ -113,12 +131,9 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "PROMPT_RUNTIME_API_KEY=prompt-runtime-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
-                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        *_execution_control_required_env(),
                         "EXECUTION_CONTROL_QUEUE_CAPACITY=24",
                         "EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000",
-                        "EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD=5",
                         "EXECUTION_CONTROL_OTEL_SAMPLE_RATIO=1",
                         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model",
@@ -138,21 +153,24 @@ class DoctorEnvTest(unittest.TestCase):
             required = status["settings"]["required"]
             optional = status["settings"]["optional"]
             self.assertNotIn("transport_worker_threads", optional)
+            self.assertNotIn("agent_worker_base_url", required)
+            self.assertNotIn("agent_worker_shared_secret", required)
+            self.assertNotIn("bridge_breaker_failure_threshold", optional)
             self.assertEqual(
-                required["agent_worker_base_url"]["resolved_key"],
-                "SUPERVISOR_AGENT_WORKER_BASE_URL",
+                required["run_projection_database_url"]["resolved_key"],
+                "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
             )
             self.assertEqual(
-                required["agent_worker_shared_secret"]["resolved_key"],
-                "SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
+                required["temporal_address"]["resolved_key"],
+                "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
+            )
+            self.assertEqual(
+                required["temporal_rag_worker_identity"]["resolved_key"],
+                "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY",
             )
             self.assertEqual(
                 optional["transport_queue_capacity"]["resolved_key"],
                 "EXECUTION_CONTROL_QUEUE_CAPACITY",
-            )
-            self.assertEqual(
-                optional["bridge_breaker_failure_threshold"]["resolved_key"],
-                "EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
             )
             self.assertEqual(
                 optional["internal_query_shared_secret"]["resolved_key"],
@@ -179,9 +197,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "PROMPT_RUNTIME_API_KEY=prompt-runtime-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
-                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        *_execution_control_required_env(),
                     ]
                 )
                 + "\n",
@@ -203,7 +219,9 @@ class DoctorEnvTest(unittest.TestCase):
                 ["PROMPT_RUNTIME_API_KEY"],
             )
 
-    def test_collect_env_doctor_status_execution_control_requires_bridge_contract(self) -> None:
+    def test_collect_env_doctor_status_execution_control_requires_temporal_projection_contract(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
@@ -224,9 +242,12 @@ class DoctorEnvTest(unittest.TestCase):
                 )
 
             self.assertFalse(status["overall_ready"])
-            self.assertFalse(status["settings"]["required"]["agent_worker_base_url"]["present"])
             self.assertFalse(
-                status["settings"]["required"]["agent_worker_shared_secret"]["present"]
+                status["settings"]["required"]["run_projection_database_url"]["present"]
+            )
+            self.assertFalse(status["settings"]["required"]["temporal_address"]["present"])
+            self.assertFalse(
+                status["settings"]["required"]["temporal_rag_worker_identity"]["present"]
             )
 
     def test_collect_env_doctor_status_execution_control_enforces_execution_audit_when_enabled(
@@ -239,9 +260,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "LLM_API_KEY=shared-llm-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
-                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        *_execution_control_required_env(),
                         "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=true",
                     ]
                 )
@@ -271,9 +290,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "LLM_API_KEY=shared-llm-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
-                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        *_execution_control_required_env(),
                         "EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services",
                     ]
                 )
@@ -303,9 +320,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "LLM_API_KEY=shared-llm-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
-                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        *_execution_control_required_env(),
                         "EXECUTION_CONTROL_OPEN_CAPABILITIES=notice",
                         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://shared.example/postgres",
@@ -337,9 +352,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "LLM_API_KEY=shared-llm-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
-                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        *_execution_control_required_env(),
                         "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co/v1/traces",
                     ]
                 )
@@ -368,9 +381,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "LLM_API_KEY=shared-llm-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
-                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        *_execution_control_required_env(),
                         "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
                         "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://api.axiom.co",
                     ]
