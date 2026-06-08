@@ -15,6 +15,13 @@
       "input_microusd_per_1k_tokens": 1250,
       "cached_input_microusd_per_1k_tokens": 125,
       "output_microusd_per_1k_tokens": 10000
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.4",
+      "input_microusd_per_1k_tokens": 1250,
+      "cached_input_microusd_per_1k_tokens": 125,
+      "output_microusd_per_1k_tokens": 10000
     }
   ]
 }

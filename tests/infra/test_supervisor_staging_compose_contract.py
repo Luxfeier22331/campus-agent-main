@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -207,6 +208,15 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
         self.assertIn("prompt_config_gate.admitted", script)
         self.assertIn("prompt_config_gate.pricing_version", script)
         self.assertIn("provider-pricing-v1", script)
+
+    def test_provider_pricing_catalog_admits_staging_provider_model(self) -> None:
+        catalog = json.loads((ROOT / "configs/runtime/provider-pricing.v1.json").read_text())
+        admitted = {
+            (entry["provider"], entry["model"])
+            for entry in catalog["models"]
+        }
+
+        self.assertIn(("openai", "gpt-5.4"), admitted)
 
 
 if __name__ == "__main__":
