@@ -16,8 +16,8 @@ Temporal / Go execution-control 的 ownership，只说明当前 Python bridge �
 
 Python 不再拥有 deterministic execution runtime truth。
 
-- `apps/supervisor-agent-worker` 只负责 private bridge parsing、prompt runtime assembly
-  与 agent delegate dispatch
+- `apps/supervisor-agent-worker` 只负责 private bridge parsing、RAG semantic packet
+  assembly 与 agent delegate dispatch
 - Go `apps/execution-control` 继续拥有 admission、routing frame、structured runtime、
   lifecycle、observability、final response shaping 与 fail-close terminal envelope
 - Python worker 只消费 Go canonical bridge envelope 与 Go preplanned `AgentRequest`
@@ -25,15 +25,18 @@ Python 不再拥有 deterministic execution runtime truth。
   implementation gap，不是长期 target architecture
 - 长期 online answer hot path 必须迁到 Go-owned workflow / capability activity worker
   envelope；Python 只允许保留 offline ingestion / eval / tooling，或迁移期受限 semantic bridge
-- Python 不得长期拥有 provider cancellation、token / estimated cost accounting、
+- Python 不拥有 online RAG provider cancellation、token / estimated cost accounting、
   sanitized step projection、workflow step truth 或 top-level semantic orchestration
 
 ## Agent Boundary
 
 `packages/rag-agent` 当前保留 knowledge-family semantic agent 能力：
 
-- query framing、scope-specific semantic planning、answer synthesis、grounding validation
-- prompt packet assembly 与 provider-backed semantic execution
+- query framing、scope-specific semantic planning、bounded synthesis packet assembly、
+  grounding validation
+- online RAG provider-backed synthesis 已迁入 Go `SynthesizeRAGAnswerActivity`；
+  Python `OpenAIAgentsRagRuntime` 仅保留 non-serving / test artifact，不是默认 online
+  runtime
 - retrieval evidence 到 `AgentResponse` 的 contract 化
 
 长期上，这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个

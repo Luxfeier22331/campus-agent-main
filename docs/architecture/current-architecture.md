@@ -75,17 +75,31 @@ document/index release`
 - 当前在线 RAG 路径仍包含 Python `apps/supervisor-agent-worker` private bridge；该 bridge 是
   current implementation gap，不是长期 online answer hot path 目标。当前 bridge runtime 默认单
   worker execution 模型会限制并发，除非部署侧显式配置 worker concurrency。
-- 当前 Temporal chat workflow 仍是粗粒度 step trajectory：`planning`、
-  `semantic.rag`、`finalization`。RAG package 内部已有 planner / retrieval /
-  evidence selection / synthesis / grounding 诊断概念，但它们尚未全部提升为
-  Temporal-visible durable step graph。
-- 当前 cancel / timeout 已进入 Go -> Python cooperative cancel path；但 provider
-  in-flight request hard-abort 尚不能被 projection 证明。token / estimated cost 字段已经
-  存在于 contract model，在线 provider usage extraction、latency / token / cost
-  projection 与 cancel 后停止继续 token 消耗的证据闭环仍是 implementation gap。
-- 当前仍未完成的是 worker plane 全量收口、step-level projection 全量消费、worker
-  autoscaler、Temporal poller proof 与 typed-tool capability worker 全量拆分。目标 durable
-  runtime 见 `docs/architecture/system/durable-agent-runtime-architecture.md`
+- 当前 Temporal chat workflow 已显式拆出 provider 热路径 activity：
+  `planning -> semantic.rag -> synthesis -> finalization`。其中 `semantic.rag`
+  仍是 Python bridge coarse activity，承载 RAG planning / retrieval / evidence
+  selection / grounding 前置诊断；这些阶段尚未全部提升为 Temporal-visible
+  durable step graph。
+- Step attempt evidence spine 已进入当前代码事实：`runtime.agent_step_attempts`、
+  execution-control `/steps`、app-api operator summary 与 panel trajectory 已承载
+  activity metadata、queue wait、duration、provider/model、token/cost、cancel/timeout
+  outcome 字段。`provider_execution_summary_v1` 与 provider pricing readiness
+  contract 已存在；activity timeout / context cancel 可以投影为 first-class
+  `bridge_timeout` / `activity_context_canceled` outcome。
+- 当前 online RAG synthesis provider execution 已由独立
+  `SynthesizeRAGAnswerActivity` 接管：Python bridge 负责 RAG planning /
+  retrieval / evidence selection，并返回 bounded `rag_synthesis_packet`；
+  Go `activity-worker-rag` 在 `synthesis` activity 内执行 provider call、提取
+  usage、计算 estimated cost、记录 `provider_execution_summary_v1`。缺 packet
+  的在线 RAG bridge response 会 fail closed，不再接受 Python provider final
+  answer 作为 Temporal RAG 成功路径。
+- 当前 cancel / timeout 已具备两层证据：Go -> Python cooperative bridge cancel /
+  timeout，以及 Go provider adapter foreground HTTP connection abort proof。后续 staging
+  仍需要真实 provider call 的 cancel evidence，但 repo-local projection path 已能记录
+  `provider_connection_aborted`。
+- 当前仍未完成的是 RAG 七段 durable step graph、worker autoscaler、Temporal poller proof
+  与 typed-tool capability worker 全量拆分。目标 durable runtime 见
+  `docs/architecture/system/durable-agent-runtime-architecture.md`
 - semantic delegate path 仍进入 Python private bridge；已打开的 deterministic
   structured capability 当前按 `runtime_posture` 分流：
   `typed_handoff_only` 的 payload 允许在 Go `apps/execution-control` 的 non-stream answer
@@ -225,14 +239,17 @@ document/index release`
   step projection rows 只作为 app-api、panel、eval 读取的 sanitized product
   projection truth。旧 PG lease worker loop / recovery loop 不再参与 online
   serving。
-- 当前 `ChatAnswerWorkflow` 已投影首条 chat trajectory，但粒度仍是
-  `planning`、`semantic.rag`、`finalization`；目标 RAG durable graph 需要继续拆成
-  retrieval / selection / synthesis / grounding 等可计量、可取消、可诊断 step。
+- 当前 `ChatAnswerWorkflow` 已投影首条 chat trajectory，`planning`、
+  `semantic.rag`、`synthesis`、`finalization` 的 step / attempt / result
+  projection 已包含 Temporal activity metadata、queue wait、duration、
+  provider/model、token/cost、cancel/timeout outcome 字段。目标 RAG durable graph
+  仍需要继续把 `semantic.rag` 内部的 planning / retrieval / selection /
+  grounding 拆成可计量、可取消、可诊断 step。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
-  解释为全局 scheduler。当前缺口是 step-level durable ledger 完整落地、lane
-  activity worker pool、worker autoscaler、step trajectory 诊断，以及 RAG
-  typed retrieval/domain tools 与 durable step graph 的完整收口。
+  解释为全局 scheduler。当前缺口是真实 provider usage/cost/cancel evidence
+  填充、lane activity worker pool、worker autoscaler，以及 RAG typed
+  retrieval/domain tools 与 durable step graph 的完整收口。
 - 拥有 deterministic structured planner；当前实现位于
   `apps/execution-control/internal/structuredplanning`，`internal/execution`
   仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
@@ -287,10 +304,12 @@ document/index release`
   `runtime_decisions.handoff.agent_request.workflow_context` 同时存在，并校验二者的
   step、target、payload kind、allowed tools、projection kind 与 expected artifacts
   一致；Python 不再在 query time 发明 cross-agent route order
-- 当前 provider-facing semantic runtime 已收口到 OpenAI Agents SDK native substrate：
-  structured domain-agent execution 通过 ToolSpec 派生的 SDK `FunctionTool`，RAG
-  answer synthesis 通过 `OpenAIAgentsRagRuntime`；SDK 不接管 Go admission、
-  WorkflowPlan、ToolSpec、budget、policy 或 finalization
+- 当前 provider-facing semantic runtime 正在退出 online RAG synthesis 热路径：
+  structured domain-agent execution 仍可通过 ToolSpec 派生的 SDK `FunctionTool`；
+  online RAG answer synthesis 默认由 Python 生成 bounded `rag_synthesis_packet`，
+  再由 Go `SynthesizeRAGAnswerActivity` 执行 Responses call。
+  `OpenAIAgentsRagRuntime` 只保留为 non-serving / test artifact，不是当前默认
+  online RAG provider runtime。
 - SDK dependency、provider、model 或 API key 缺失时，worker readiness 以稳定原因降级并
   fail closed；不启用 non-SDK answer fallback
 - 当前 cancel 只保证 bridge / agent checkpoints 可以观测取消；当 provider request 已进入阻塞

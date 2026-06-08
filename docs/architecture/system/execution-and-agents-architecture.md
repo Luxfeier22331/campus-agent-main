@@ -303,15 +303,27 @@ supervisor 不负责：
   wildcard；关闭时 non-stream request 返回 `503 structured_runtime_closed`，
   lifecycle stream 返回 terminal `execution.failed`
 - Go `execution-control` 已拥有 prompt config admission summary：
-  `/readyz` 发布 Go-owned `prompt_config_gate`；Python worker 继续实际创建
+  `/readyz` 发布 Go-owned `prompt_config_gate`，并要求 admitted online provider
+  model 出现在 repo-owned `configs/runtime/provider-pricing.v1.json` 中；缺 pricing
+  metadata 是 config/readiness failure，不得静默按 zero-cost 执行。Python worker 继续实际创建
   provider client / prompt executor，只上报 executor admission 与 HTTP pool health
+
+Go `execution-control` 当前也拥有 step attempt evidence spine：Temporal activity metadata、
+task queue、worker id、queue wait、duration、provider/model、token/cost、cancel / timeout
+outcome 字段已进入 run projection store、`/internal/execution/runs/:runId/steps`、
+app-api operator runtime summary 与 protected panel step trajectory。在线 RAG synthesis
+provider execution 已由 Go `SynthesizeRAGAnswerActivity` 接管：Python bridge 只返回 bounded
+`rag_synthesis_packet`，Go activity-worker-rag 的 `SynthesizeRAGAnswerActivity`
+执行 Responses call 并记录 `provider_execution_summary_v1`、usage、estimated cost
+与 cancel / timeout outcome。
 
 Python semantic bridge 当前继续负责：
 
 - `apps/supervisor-agent-worker` 的 private agent dispatch checkpoint
-- agent reasoning、prompt-owned clarification / answer synthesis 与 RAG grounding
-- RAG prompt stack semantic assembly 与 provider-backed structured output execution，直到
-  Go-owned capability worker plane 与 provider adapter 完成迁移
+- agent reasoning、prompt-owned clarification 与 RAG grounding
+- RAG planning / retrieval / evidence selection，以及 bounded synthesis packet assembly；
+  online RAG provider-backed structured output execution 已迁入 Go
+  `SynthesizeRAGAnswerActivity`
 - Python bridge 不再拥有本地 supervisor audit JSONL writer；execution audit writer /
   backflow 属于 Go `apps/execution-control`
 - Python bridge readiness 只报告 `prompt_runtime`、`prompt_http_pool` 与 minimal
@@ -533,9 +545,9 @@ hash 与 safety posture，不承担下游 agent prompt context 传递。
 
 agent framework 是 domain-agent 内部实现 substrate，不是 repo-level orchestration owner。
 
-当前 accepted worker truth 是：Python `apps/supervisor-agent-worker` 的 provider-facing
-semantic runtime 使用 OpenAI Agents SDK native substrate；这是 current implementation
-truth，不是长期 online hot path target。它当前用来承接：
+当前 accepted worker truth 是：Python `apps/supervisor-agent-worker` 仍可在 structured
+domain-agent / non-serving RAG test surface 中使用 OpenAI Agents SDK native substrate；
+这是 current implementation dependency，不是长期 online hot path target。它当前用来承接：
 
 - code-first tool loop 与 handoff object modeling
 - provider-native function calling adapter 与 strict function schema execution

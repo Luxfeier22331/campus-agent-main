@@ -130,6 +130,10 @@ Current admission boundary:
   artifact. The server loads this artifact once at startup and uses that runtime
   snapshot for request routing; Docker sets it to
   `/etc/campus-agent/intent-policy.v1.json`.
+- `EXECUTION_CONTROL_PROVIDER_PRICING_PATH` points at the Go-owned online provider
+  pricing catalog. `/readyz` fails closed when an admitted online model lacks
+  pricing metadata; Docker sets it to
+  `/etc/campus-agent/provider-pricing.v1.json`.
 
 Current cancellation boundary:
 

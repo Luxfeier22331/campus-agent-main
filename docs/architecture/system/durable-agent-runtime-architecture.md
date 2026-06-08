@@ -59,11 +59,32 @@ app-api stream / projection -> browser surface`
 Current implementation baseline:
 
 - online chat path already enters Temporal-backed `ChatAnswerWorkflow`.
-- first chat trajectory projection currently has three coarse steps:
-  `planning`、`semantic.rag`、`finalization`.
-- this is sufficient to prove Temporal + projection wiring, but not sufficient for
-  production RAG diagnosis, cancellation accounting, token/cost attribution or worker
-  performance profiling.
+- first chat trajectory projection currently has four Temporal-visible steps:
+  `planning`、`semantic.rag`、`synthesis`、`finalization`.
+- first-class step attempt evidence fields now exist in the projection store,
+  execution-control `/steps` API, app-api operator summary and panel trajectory:
+  Temporal workflow/activity metadata, queue wait, duration, provider/model,
+  token/cost and cancel/timeout outcome.
+- `provider_execution_summary_v1` and provider pricing readiness are now
+  repo-owned contracts. Bridge timeout, activity context cancellation and Go
+  provider connection abort are projected as first-class attempt outcomes.
+- online RAG synthesis provider execution is now wired through the dedicated
+  `SynthesizeRAGAnswerActivity` on the Go RAG activity worker. Python bridge
+  returns a bounded `rag_synthesis_packet` for RAG planning / retrieval /
+  evidence selection output; Go executes the provider call, records usage /
+  estimated cost / cancel outcome and stores the sanitized final response
+  projection.
+- `RagSynthesisPacketProjection` is now a repo-owned DTO contract for the
+  migration seam from Python stage planning/retrieval/selection to Go provider
+  execution. It validates run/step/request identity, prompt/template refs,
+  selected evidence refs/excerpts, output schema id and payload hash, and
+  rejects raw prompt, provider trace, auth material or unbounded evidence.
+  It is exposed by the Python bridge route and consumed by online
+  activity-worker-rag for synthesis.
+- this is sufficient to prove Temporal + projection wiring and the first evidence
+  spine for provider synthesis. The remaining gap is that RAG planning /
+  retrieval / selection / grounding are still inside the coarse `semantic.rag`
+  activity instead of Temporal-visible durable steps.
 - target RAG execution must split `semantic.rag` into durable typed steps
   instead of leaving retrieval, selection, synthesis and grounding inside one
   opaque activity.
@@ -242,7 +263,7 @@ canceled / expired`
   transition；它不自动停止外部 provider、Qdrant、HTTP 或 SDK 调用。activity implementation
   与 provider adapter 必须监听 cancel context / heartbeat cancellation，并对下游请求执行
   abort 或 close。无法证明 hard-abort 的 provider call 必须在 attempt projection 中标记为
-  `cancel_observed_abort_unproven` 或等价 terminal outcome，不得把 product canceled state
+  `abort_unproven` 或等价 terminal outcome，不得把 product canceled state
   误写成 token cost 已停止。
 
 ### Activity Attempt
@@ -655,8 +676,14 @@ worker autoscaler 边界固定为：
   `cmd/activity-worker-finalization`; Docker Compose runs them as separate
   services with explicit `<env>:<role>:<instance>` worker identity.
 - step projection writeback exists for the first chat trajectory:
-  `planning`、`semantic.rag`、`finalization` write sanitized step / attempt / result
-  projection rows.
+  `planning`、`semantic.rag`、`synthesis`、`finalization` write sanitized step /
+  attempt / result projection rows. Attempt rows include Temporal activity
+  metadata, queue wait, duration, provider/model, token/cost and cancel/timeout
+  fields. Current online RAG synthesis provider calls run inside
+  `SynthesizeRAGAnswerActivity`, so synthesis usage / cost and
+  `provider_connection_aborted` evidence can be filled from provider execution.
+  RAG planning, retrieval, selection and grounding still need promotion from
+  `semantic.rag` internals to Temporal-visible durable steps.
 - repo-owned staging durable reconnect harness:
   `pnpm --dir apps/app-api chat:durable:e2e:staging` proves the product stream can
   be disconnected after `request.accepted` and resumed from the existing durable
