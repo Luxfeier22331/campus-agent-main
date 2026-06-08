@@ -1,16 +1,19 @@
 import { MapPin } from "lucide-react";
-import maplibregl from "maplibre-gl";
+import type maplibregl from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import { Card } from "@/components/ui/card";
 import { getCampusMapPlaces } from "@/features/map/api";
+import { loadMapLibre, type MapLibreRuntime } from "@/features/map/maplibre-runtime";
 import type { CampusMapPlace, CampusMapPlacesResponse } from "@/features/map/model";
 
 export function MapPage() {
 	const mapRef = useRef<HTMLDivElement | null>(null);
 	const mapInstanceRef = useRef<maplibregl.Map | null>(null);
+	const markerRefs = useRef<maplibregl.Marker[]>([]);
 	const [data, setData] = useState<CampusMapPlacesResponse | null>(null);
+	const [mapRuntime, setMapRuntime] = useState<MapLibreRuntime | null>(null);
 	const [selected, setSelected] = useState<CampusMapPlace | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
@@ -46,41 +49,72 @@ export function MapPage() {
 		if (!(data && mapRef.current && !mapInstanceRef.current)) {
 			return;
 		}
-		const map = new maplibregl.Map({
-			center: data.campus.defaultCenter,
-			container: mapRef.current,
-			style: {
-				version: 8,
-				sources: {},
-				layers: [
-					{
-						id: "background",
-						type: "background",
-						paint: {
-							"background-color": "#eef0f3",
-						},
+
+		let cancelled = false;
+		loadMapLibre()
+			.then((runtime) => {
+				if (cancelled || !mapRef.current) {
+					return;
+				}
+				const map = new runtime.Map({
+					center: data.campus.defaultCenter,
+					container: mapRef.current,
+					style: {
+						version: 8,
+						sources: {},
+						layers: [
+							{
+								id: "background",
+								type: "background",
+								paint: {
+									"background-color": "#eef0f3",
+								},
+							},
+						],
 					},
-				],
-			},
-			zoom: 16,
-		});
-		mapInstanceRef.current = map;
-		for (const place of filteredPlaces) {
+					zoom: 16,
+				});
+				mapInstanceRef.current = map;
+				setMapRuntime(runtime);
+			})
+			.catch((reason: unknown) => {
+				setError(reason instanceof Error ? reason.message : "地图运行时加载失败。");
+			});
+
+		return () => {
+			cancelled = true;
+			clearMapMarkers(markerRefs.current);
+			markerRefs.current = [];
+			mapInstanceRef.current?.remove();
+			mapInstanceRef.current = null;
+		};
+	}, [data]);
+
+	useEffect(() => {
+		const map = mapInstanceRef.current;
+		if (!(map && mapRuntime)) {
+			return;
+		}
+
+		clearMapMarkers(markerRefs.current);
+		markerRefs.current = filteredPlaces.map((place) => {
 			const marker = document.createElement("button");
 			marker.className = "campus-map-marker";
 			marker.type = "button";
 			marker.dataset.selected = String(selected?.id === place.id);
-			marker.innerHTML = `<span aria-hidden="true">•</span>`;
+			marker.innerHTML = `<span aria-hidden="true"></span>`;
+			marker.setAttribute("aria-label", place.title);
 			marker.addEventListener("click", () => setSelected(place));
-			new maplibregl.Marker({ element: marker })
+			return new mapRuntime.Marker({ element: marker })
 				.setLngLat(place.geojson.geometry.coordinates)
 				.addTo(map);
-		}
+		});
+
 		return () => {
-			map.remove();
-			mapInstanceRef.current = null;
+			clearMapMarkers(markerRefs.current);
+			markerRefs.current = [];
 		};
-	}, [data, filteredPlaces, selected?.id]);
+	}, [filteredPlaces, mapRuntime, selected?.id]);
 
 	useEffect(() => {
 		if (!data) {
@@ -152,4 +186,10 @@ export function MapPage() {
 			)}
 		</section>
 	);
+}
+
+function clearMapMarkers(markers: maplibregl.Marker[]) {
+	for (const marker of markers) {
+		marker.remove();
+	}
 }

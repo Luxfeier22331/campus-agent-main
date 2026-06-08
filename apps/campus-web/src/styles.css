@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "./design/tokens.css";
-@import "maplibre-gl/dist/maplibre-gl.css";
 
 @theme inline {
 	--color-background: var(--sys-bg-canvas);
@@ -54,6 +53,13 @@ textarea {
 	background: var(--map-marker);
 	box-shadow: var(--shadow-sm);
 	color: var(--neutral-0);
+}
+
+.campus-map-marker > span {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	background: currentColor;
 }
 
 .campus-map-marker[data-selected="true"] {

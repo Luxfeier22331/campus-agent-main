@@ -1,5 +1,6 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import { BookOpen, MapIcon, MessageSquareText, Send, Utensils } from "lucide-react";
+import { Suspense } from "react";
 
 import { cn } from "@/lib/utils";
 import { getCampusRuntimeConfig } from "@/platform/runtime/config";
@@ -54,7 +55,9 @@ export function RootLayout() {
 				</div>
 			</header>
 			<main>
-				<Outlet />
+				<Suspense fallback={<RoutePending />}>
+					<Outlet />
+				</Suspense>
 			</main>
 			<nav
 				aria-label="移动端主导航"
@@ -78,6 +81,14 @@ export function RootLayout() {
 				))}
 			</nav>
 		</div>
+	);
+}
+
+function RoutePending() {
+	return (
+		<section className="mx-auto flex min-h-[60dvh] max-w-[1440px] items-center px-5 py-6 lg:px-6">
+			<p className="text-sm text-[var(--sys-text-muted)]">正在加载</p>
+		</section>
 	);
 }
 

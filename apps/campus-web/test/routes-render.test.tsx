@@ -142,25 +142,28 @@ vi.mock("../src/features/map/api", () => ({
 	}),
 }));
 
-vi.mock("../src/features/dining/api", () => diningApiMock);
-
-vi.mock("maplibre-gl", () => ({
-	default: {
+vi.mock("../src/features/map/maplibre-runtime", () => ({
+	loadMapLibre: vi.fn().mockResolvedValue({
 		Map: class {
 			remove() {
 				return this;
 			}
 		},
 		Marker: class {
-			setLngLat() {
-				return this;
-			}
 			addTo() {
 				return this;
 			}
+			remove() {
+				return this;
+			}
+			setLngLat() {
+				return this;
+			}
 		},
-	},
+	}),
 }));
+
+vi.mock("../src/features/dining/api", () => diningApiMock);
 
 describe("campus routes", () => {
 	beforeEach(() => {

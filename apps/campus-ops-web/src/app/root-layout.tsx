@@ -6,6 +6,7 @@ import {
 	MessageSquare,
 	Utensils,
 } from "lucide-react";
+import { Suspense } from "react";
 
 const NAV_ITEMS = [
 	{ href: "/", icon: LayoutDashboard, label: "总览" },
@@ -47,10 +48,20 @@ export function RootLayout() {
 					})}
 				</nav>
 				<main>
-					<Outlet />
+					<Suspense fallback={<RoutePending />}>
+						<Outlet />
+					</Suspense>
 				</main>
 			</div>
 		</div>
+	);
+}
+
+function RoutePending() {
+	return (
+		<section className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
+			正在加载
+		</section>
 	);
 }
 

@@ -1,10 +1,31 @@
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
+import { lazy } from "react";
 import { NotFoundPage, RootLayout } from "./root-layout";
-import { AuditPage } from "./routes/audit-page";
-import { DiningWorkspacePage } from "./routes/dining-workspace-page";
-import { HomePage } from "./routes/home-page";
-import { PlaceholderPage } from "./routes/placeholder-page";
-import { ReleasesPage } from "./routes/releases-page";
+
+const AuditPage = lazy(() =>
+	import("./routes/audit-page").then((module) => ({ default: module.AuditPage })),
+);
+const DiningWorkspacePage = lazy(() =>
+	import("./routes/dining-workspace-page").then((module) => ({
+		default: module.DiningWorkspacePage,
+	})),
+);
+const HomePage = lazy(() =>
+	import("./routes/home-page").then((module) => ({ default: module.HomePage })),
+);
+const ReleasesPage = lazy(() =>
+	import("./routes/releases-page").then((module) => ({ default: module.ReleasesPage })),
+);
+const MapPlaceholderPage = lazy(() =>
+	import("./routes/placeholder-page").then((module) => ({
+		default: () => <module.PlaceholderPage description="空间数据运营入口" title="地图运营" />,
+	})),
+);
+const FeedbackPlaceholderPage = lazy(() =>
+	import("./routes/placeholder-page").then((module) => ({
+		default: () => <module.PlaceholderPage description="反馈分类与处理队列入口" title="反馈运营" />,
+	})),
+);
 
 const rootRoute = createRootRoute({
 	component: RootLayout,
@@ -42,13 +63,13 @@ const auditRoute = createRoute({
 });
 
 const mapRoute = createRoute({
-	component: () => <PlaceholderPage description="空间数据运营入口" title="地图运营" />,
+	component: MapPlaceholderPage,
 	getParentRoute: () => rootRoute,
 	path: "/map",
 });
 
 const feedbackRoute = createRoute({
-	component: () => <PlaceholderPage description="反馈分类与处理队列入口" title="反馈运营" />,
+	component: FeedbackPlaceholderPage,
 	getParentRoute: () => rootRoute,
 	path: "/feedback",
 });

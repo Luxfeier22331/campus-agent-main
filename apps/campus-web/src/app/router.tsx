@@ -1,11 +1,25 @@
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
+import { lazy } from "react";
 import { NotFoundPage, RootLayout } from "./root-layout";
-import { ConversationPage } from "./routes/conversation-page";
-import { DiningPage } from "./routes/dining-page";
-import { DocsPage } from "./routes/docs-page";
-import { FeedbackPage } from "./routes/feedback-page";
-import { HomePage } from "./routes/home-page";
-import { MapPage } from "./routes/map-page";
+
+const ConversationPage = lazy(() =>
+	import("./routes/conversation-page").then((module) => ({ default: module.ConversationPage })),
+);
+const DiningPage = lazy(() =>
+	import("./routes/dining-page").then((module) => ({ default: module.DiningPage })),
+);
+const DocsPage = lazy(() =>
+	import("./routes/docs-page").then((module) => ({ default: module.DocsPage })),
+);
+const FeedbackPage = lazy(() =>
+	import("./routes/feedback-page").then((module) => ({ default: module.FeedbackPage })),
+);
+const HomePage = lazy(() =>
+	import("./routes/home-page").then((module) => ({ default: module.HomePage })),
+);
+const MapPage = lazy(() =>
+	import("./routes/map-page").then((module) => ({ default: module.MapPage })),
+);
 
 const rootRoute = createRootRoute({
 	component: RootLayout,
