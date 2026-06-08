@@ -184,6 +184,71 @@ func TestQueryServingScopePolicyRejectsMismatchedPolicyVersion(t *testing.T) {
 	}
 }
 
+func TestInferKnowledgeQueryScopeSelectsUniqueAdmittedScope(t *testing.T) {
+	tests := []struct {
+		name           string
+		queryText      string
+		wantCorpus     string
+		wantCollection string
+	}{
+		{
+			name:           "student scholarship rule",
+			queryText:      "中央民族大学本科学生国家奖学金评审办法",
+			wantCorpus:     "regulations",
+			wantCollection: "student_rules",
+		},
+		{
+			name:           "student leave procedure",
+			queryText:      "学生请假手续怎么办",
+			wantCorpus:     "regulations",
+			wantCollection: "student_rules",
+		},
+		{
+			name:           "curriculum plan",
+			queryText:      "汉语言文学专业大二上学期培养方案和学分要求",
+			wantCorpus:     "curriculum",
+			wantCollection: "curriculum_plan",
+		},
+		{
+			name:           "official stable reference",
+			queryText:      "学校官网招生办公室联系方式在哪里",
+			wantCorpus:     "official_web",
+			wantCollection: "stable_reference",
+		},
+		{
+			name:           "institutional rule",
+			queryText:      "学校章程和党委常委会会议制度",
+			wantCorpus:     "regulations",
+			wantCollection: "institutional_rules",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scope, err := InferKnowledgeQueryScope(tt.queryText, "")
+			if err != nil {
+				t.Fatalf("infer scope: %v", err)
+			}
+			if scope.Corpus != tt.wantCorpus || scope.Collection != tt.wantCollection {
+				t.Fatalf("scope = %#v, want %s/%s", scope, tt.wantCorpus, tt.wantCollection)
+			}
+		})
+	}
+}
+
+func TestInferKnowledgeQueryScopeFailsClosedWhenNoUniqueScopeSignal(t *testing.T) {
+	scope, err := InferKnowledgeQueryScope("这个问题怎么处理", "")
+	if err == nil {
+		t.Fatal("ambiguous query must fail closed")
+	}
+	if scope.Corpus != "" || scope.Collection != "" {
+		t.Fatalf("scope = %#v, want empty scope on failure", scope)
+	}
+	if !strings.Contains(err.Error(), "could not select") {
+		t.Fatalf("error = %v, want selection failure", err)
+	}
+}
+
 func cloneSignalGroups(source map[string][]string) map[string][]string {
 	cloned := make(map[string][]string, len(source))
 	for key, values := range source {

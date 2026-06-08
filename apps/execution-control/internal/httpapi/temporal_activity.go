@@ -186,7 +186,7 @@ func (s *Server) PlanRAGActivity(
 			run.Status,
 		)
 	}
-	plan, err := ragPlanProjectionForRun(run)
+	plan, err := ragPlanProjectionForRun(run, s.config.QueryServingScopesPath)
 	if err != nil {
 		return s.failRAGPlanActivity(ctx, run, "rag_plan_invalid", err)
 	}

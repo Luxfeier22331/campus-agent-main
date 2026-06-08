@@ -341,6 +341,116 @@ func TestRetrieveIndexedLookupActivityFailsClosedWhenLookupUnavailable(t *testin
 	}
 }
 
+func TestPlanRAGActivitySelectsStudentRuleScopeWithoutExplicitRequestedScope(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := NewServer(config.Config{
+		TemporalWorkerIdentity: "test:activity-rag:001",
+	}, nil)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-scope-selection",
+		"conv-rag-scope-selection",
+		now,
+		ragHandoffForDurableWorkerTest("中央民族大学本科学生国家奖学金评审办法"),
+	)
+	workflowPlan, err := server.PlanChatAnswerActivity(
+		context.Background(),
+		temporalruntime.PlanChatAnswerActivityInput{
+			ConversationID: "conv-rag-scope-selection",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-executor-001",
+			RunID:          "run-rag-scope-selection",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-scope-selection",
+			WorkflowID:     "campus-agent.chat.run-rag-scope-selection",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan chat answer: %v", err)
+	}
+
+	output, err := server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-scope-selection",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan rag: %v", err)
+	}
+	run, getErr := store.GetRun(context.Background(), output.RunID)
+	if getErr != nil {
+		t.Fatalf("get run: %v", getErr)
+	}
+	plan, planErr := temporalRAGPlanProjectionFromRun(run, output.PlanRef)
+	if planErr != nil {
+		t.Fatalf("get rag plan projection: %v", planErr)
+	}
+	if plan.Corpus != "regulations" ||
+		plan.Collection != "student_rules" ||
+		plan.CollectionAlias != "student_rules" {
+		t.Fatalf("selected scope = %#v, want regulations/student_rules", plan)
+	}
+}
+
+func TestPlanRAGActivityFailsClosedWhenScopeCannotBeSelected(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := NewServer(config.Config{
+		TemporalWorkerIdentity: "test:activity-rag:001",
+	}, nil)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-scope-ambiguous",
+		"conv-rag-scope-ambiguous",
+		now,
+		ragHandoffForDurableWorkerTest("这个问题怎么处理"),
+	)
+	workflowPlan, err := server.PlanChatAnswerActivity(
+		context.Background(),
+		temporalruntime.PlanChatAnswerActivityInput{
+			ConversationID: "conv-rag-scope-ambiguous",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-executor-001",
+			RunID:          "run-rag-scope-ambiguous",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-scope-ambiguous",
+			WorkflowID:     "campus-agent.chat.run-rag-scope-ambiguous",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan chat answer: %v", err)
+	}
+
+	_, err = server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-scope-ambiguous",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err == nil {
+		t.Fatal("ambiguous rag scope must fail closed")
+	}
+	run, getErr := store.GetRun(context.Background(), "run-rag-scope-ambiguous")
+	if getErr != nil {
+		t.Fatalf("get run: %v", getErr)
+	}
+	if run.Status != execution.DurableRunStatusFailed {
+		t.Fatalf("run status = %q, want failed", run.Status)
+	}
+}
+
 func validLookupResultForTest(plan ragruntime.PlanProjection) ragruntime.RetrievalLookupResult {
 	result := ragruntime.RetrievalLookupResult{
 		CandidateCount: 1,

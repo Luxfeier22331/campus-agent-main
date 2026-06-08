@@ -8,6 +8,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 )
 
 type temporalRAGPlanMetadata struct {
@@ -40,7 +41,10 @@ func temporalRAGPlanFromRun(
 	return temporalRAGPlanMetadata{PlanRef: planRef, Plan: plan}, true
 }
 
-func ragPlanProjectionForRun(run execution.DurableRun) (ragruntime.PlanProjection, error) {
+func ragPlanProjectionForRun(
+	run execution.DurableRun,
+	queryServingScopesPath string,
+) (ragruntime.PlanProjection, error) {
 	payload, ok := run.Metadata["execution_payload"].(map[string]any)
 	if !ok {
 		return ragruntime.PlanProjection{}, errors.New("run metadata.execution_payload must be an object")
@@ -53,17 +57,9 @@ func ragPlanProjectionForRun(run execution.DurableRun) (ragruntime.PlanProjectio
 	if queryText == "" {
 		return ragruntime.PlanProjection{}, errors.New("rag query_text is required")
 	}
-	scope, ok := payload["requested_scope"].(map[string]any)
-	if !ok {
-		scope, _ = run.Metadata["requested_scope"].(map[string]any)
-	}
-	corpus := firstNonEmptyText(scope["corpus"], nestedAny(run.Metadata, "handoff", "payload", "corpus"))
-	collection := firstNonEmptyText(
-		scope["collection"],
-		nestedAny(run.Metadata, "handoff", "payload", "collection"),
-	)
-	if corpus == "" || collection == "" {
-		return ragruntime.PlanProjection{}, errors.New("rag requested_scope corpus and collection are required")
+	scope, err := ragScopeForRun(run, payload, queryText, queryServingScopesPath)
+	if err != nil {
+		return ragruntime.PlanProjection{}, err
 	}
 	topK := positiveIntFromAny(
 		nestedAny(run.Metadata, "handoff", "payload", "top_k"),
@@ -73,12 +69,12 @@ func ragPlanProjectionForRun(run execution.DurableRun) (ragruntime.PlanProjectio
 		topK = 8
 	}
 	plan := ragruntime.PlanProjection{
-		Collection: collection,
+		Collection: scope.Collection,
 		CollectionAlias: firstNonEmptyText(
 			nestedAny(run.Metadata, "handoff", "payload", "collection_alias"),
-			collection,
+			scope.Collection,
 		),
-		Corpus:                   corpus,
+		Corpus:                   scope.Corpus,
 		NoWideningPolicy:         true,
 		QueryMode:                "current",
 		QueryText:                queryText,
@@ -98,6 +94,37 @@ func ragPlanProjectionForRun(run execution.DurableRun) (ragruntime.PlanProjectio
 		return ragruntime.PlanProjection{}, err
 	}
 	return plan, nil
+}
+
+func ragScopeForRun(
+	run execution.DurableRun,
+	payload map[string]any,
+	queryText string,
+	queryServingScopesPath string,
+) (runtimepolicy.Scope, error) {
+	scope, ok := payload["requested_scope"].(map[string]any)
+	if !ok {
+		scope, _ = run.Metadata["requested_scope"].(map[string]any)
+	}
+	corpus := firstNonEmptyText(scope["corpus"], nestedAny(run.Metadata, "handoff", "payload", "corpus"))
+	collection := firstNonEmptyText(
+		scope["collection"],
+		nestedAny(run.Metadata, "handoff", "payload", "collection"),
+	)
+	if corpus != "" || collection != "" {
+		if corpus == "" || collection == "" {
+			return runtimepolicy.Scope{}, errors.New("rag requested_scope corpus and collection are required")
+		}
+		allowed, err := runtimepolicy.QueryScopeAllowed(corpus, collection, queryServingScopesPath)
+		if err != nil {
+			return runtimepolicy.Scope{}, err
+		}
+		if !allowed {
+			return runtimepolicy.Scope{}, fmt.Errorf("rag requested_scope %s/%s is not query-enabled", corpus, collection)
+		}
+		return runtimepolicy.Scope{Corpus: corpus, Collection: collection}, nil
+	}
+	return runtimepolicy.InferKnowledgeQueryScope(queryText, queryServingScopesPath)
 }
 
 func temporalRAGPlanProjectionFromRun(
