@@ -69,11 +69,19 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
+            "COPY configs/runtime/provider-pricing.v1.json /src/configs/runtime/provider-pricing.v1.json",
+            dockerfile,
+        )
+        self.assertIn(
             "COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json",
             dockerfile,
         )
         self.assertIn(
             "COPY configs/runtime/agents.v2.json /etc/campus-agent/agents.v2.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "COPY configs/runtime/provider-pricing.v1.json /etc/campus-agent/provider-pricing.v1.json",
             dockerfile,
         )
         self.assertIn(
@@ -87,6 +95,10 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         )
         self.assertIn(
             "EXECUTION_CONTROL_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "EXECUTION_CONTROL_PROVIDER_PRICING_PATH=/etc/campus-agent/provider-pricing.v1.json",
             dockerfile,
         )
 

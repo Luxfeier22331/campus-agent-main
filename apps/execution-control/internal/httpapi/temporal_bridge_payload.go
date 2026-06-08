@@ -8,42 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
-
-func semanticFinalizationResponseForBridge(
-	run execution.DurableRun,
-	response bridge.ExecuteResponse,
-) (map[string]any, error) {
-	if response.Kind != "semantic_agent_response" {
-		return nil, fmt.Errorf("semantic bridge returned unsupported kind %q", response.Kind)
-	}
-	body, err := decodeJSONObject(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("decode semantic bridge response: %w", err)
-	}
-	return finalizeAgentBridgeResponse(
-		body,
-		run.TraceID,
-		semanticFinalizerContextForRun(run),
-	)
-}
-
-func semanticFinalizerContextForRun(run execution.DurableRun) supervisorFinalizerContext {
-	return supervisorFinalizerContext{
-		RuntimeDecisions: execution.RuntimeDecisionSummary{
-			SelectedTarget: "rag-agent",
-			RuntimeVersions: map[string]any{
-				"durable_run_contract": "durable-agent-runtime-contract-v1",
-			},
-		},
-		Branch: "durable_run",
-		RuntimeVersions: map[string]any{
-			"durable_run_contract": "durable-agent-runtime-contract-v1",
-		},
-	}
-}
 
 func semanticExecutionRequestForRun(run execution.DurableRun) (json.RawMessage, error) {
 	rawPayload, exists := run.Metadata["execution_payload"]

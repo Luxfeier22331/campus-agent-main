@@ -52,6 +52,19 @@ type InvokeSemanticWorkerActivityOutput struct {
 	Status    string `json:"status"`
 }
 
+type SynthesizeRAGAnswerActivityInput struct {
+	BridgeRef string `json:"bridge_ref"`
+	PlanRef   string `json:"plan_ref"`
+	RunID     string `json:"run_id"`
+	TraceID   string `json:"trace_id"`
+}
+
+type SynthesizeRAGAnswerActivityOutput struct {
+	BridgeRef string `json:"bridge_ref"`
+	RunID     string `json:"run_id"`
+	Status    string `json:"status"`
+}
+
 type FinalizeChatAnswerActivityInput struct {
 	BridgeRef string `json:"bridge_ref"`
 	PlanRef   string `json:"plan_ref"`

@@ -9,6 +9,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -17,6 +18,7 @@ type promptConfigGate struct {
 	Admitted                bool   `json:"admitted"`
 	Reason                  string `json:"reason"`
 	Provider                string `json:"provider"`
+	PricingVersion          string `json:"pricing_version"`
 	Transport               string `json:"transport"`
 	SupervisorModel         string `json:"supervisor_model"`
 	AgentModel              string `json:"agent_model"`
@@ -240,15 +242,16 @@ func containsRequiredTemporalTaskQueues(
 }
 
 func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
-	provider := strings.TrimSpace(cfg.PromptRuntimeProvider)
+	providerName := strings.TrimSpace(cfg.PromptRuntimeProvider)
 	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
 	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
 	supervisorModel := strings.TrimSpace(cfg.SupervisorPromptModel)
 	agentModel := strings.TrimSpace(cfg.AgentPromptModel)
 	apiKey := strings.TrimSpace(cfg.PromptRuntimeAPIKey)
 	reason := ""
+	pricingVersion := ""
 	switch {
-	case provider == "":
+	case providerName == "":
 		reason = "prompt_provider_not_configured"
 	case agentModel == "":
 		reason = "prompt_models_not_configured"
@@ -261,15 +264,34 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 	case baseURL == "":
 		reason = "prompt_base_url_not_configured"
 	}
+	if reason == "" {
+		catalog, err := provider.LoadPricingCatalog(cfg.ProviderPricingPath)
+		switch {
+		case err != nil:
+			reason = "provider_pricing_not_configured"
+		case !promptModelHasPricing(catalog, providerName, agentModel):
+			reason = "agent_model_pricing_missing"
+		case supervisorModel != "" && !promptModelHasPricing(catalog, providerName, supervisorModel):
+			reason = "supervisor_model_pricing_missing"
+		default:
+			pricingVersion = catalog.SchemaVersion
+		}
+	}
 	return promptConfigGate{
 		Admitted:                reason == "",
 		Reason:                  reason,
-		Provider:                provider,
+		Provider:                providerName,
+		PricingVersion:          pricingVersion,
 		Transport:               transport,
 		SupervisorModel:         supervisorModel,
 		AgentModel:              agentModel,
 		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
 	}
+}
+
+func promptModelHasPricing(catalog provider.PricingCatalog, providerName string, modelName string) bool {
+	_, ok := catalog.Lookup(providerName, modelName)
+	return ok
 }
 
 func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {

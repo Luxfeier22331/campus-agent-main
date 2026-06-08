@@ -1,15 +1,31 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from campus_contracts import AgentRequest, AgentResponse, KnowledgeScope, RagRequestPayload
+from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
+    KnowledgeScope,
+    RagRequestPayload,
+)
+from campus_rag_agent.rag_sdk_models import (
+    RagQueryIntent,
+    RagSdkEvidenceProjection,
+    RagSdkRunRequest,
+    RagTaskKind,
+)
 from campus_supervisor_agent_worker.agent_delegates import (
     AgentRuntimeBuildError,
+    GoProviderSynthesisPacketRunner,
     _build_agent_delegates,
     _build_openai_agents_runtime,
     _build_rag_openai_runtime,
+    bind_agent_handler,
 )
+from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
+from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
@@ -45,6 +61,52 @@ class RagAgentsSdkDelegateTest(unittest.TestCase):
         self.assertEqual(delegate.call_count, 1)
         kwargs = delegate.call_args.kwargs
         self.assertIs(kwargs["rag_sdk_runner"], runner)
+
+    def test_default_worker_injects_go_provider_synthesis_packet_runner(self) -> None:
+        with patch(
+            "campus_supervisor_agent_worker.agent_delegates.delegate_to_rag_agent",
+            return_value=AgentResponse(
+                target="rag-agent",
+                status="error",
+                confidence="low",
+            ),
+        ) as delegate:
+            handler = bind_agent_handler(
+                ApiSettings(
+                    internal_query_base_url="https://query.internal",
+                    internal_query_shared_secret="query-secret",
+                    prompt_runtime_provider="openai",
+                    prompt_runtime_api_key="test-key",
+                    agent_prompt_model="gpt-5-mini",
+                    agents_sdk_runtime_enabled=True,
+                ),
+                agent_handler=dispatch_agent_request,
+                rag_prompt_executor=None,
+                cancel_flags=CancelFlagStore(),
+            )
+
+            handler(SimpleNamespace(request_id="req-rag-sdk-runner"), _request())
+
+        kwargs = delegate.call_args.kwargs
+        self.assertIsInstance(kwargs["rag_sdk_runner"], GoProviderSynthesisPacketRunner)
+
+    def test_go_provider_synthesis_packet_runner_requires_workflow_context(self) -> None:
+        with self.assertRaisesRegex(ValueError, "workflow_run_ref"):
+            GoProviderSynthesisPacketRunner()(
+                RagSdkRunRequest(
+                    user_goal="公费医疗报销需要什么材料",
+                    query_intent=RagQueryIntent(
+                        task_kind=RagTaskKind.FACT_LOOKUP,
+                        normalized_query="公费医疗报销需要什么材料",
+                    ),
+                    evidence=RagSdkEvidenceProjection(
+                        corpus="regulations",
+                        collection="student_rules",
+                        query_text="公费医疗报销需要什么材料",
+                    ),
+                    request_id="req-missing-workflow",
+                )
+            )
 
     def test_misconfigured_runtime_builder_raises_explicit_error(self) -> None:
         with self.assertRaisesRegex(AgentRuntimeBuildError, "rag_openai_runtime"):

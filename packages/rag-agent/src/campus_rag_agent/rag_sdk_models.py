@@ -91,6 +91,8 @@ class RagSdkRunRequest:
     evidence: RagSdkEvidenceProjection
     typed_answer: TypedAnswerDraft | None = None
     request_id: str = ""
+    workflow_run_ref: str = ""
+    workflow_step_id: str = ""
     selector_blocked_query_slot_ids: tuple[str, ...] = field(default_factory=tuple)
 
 

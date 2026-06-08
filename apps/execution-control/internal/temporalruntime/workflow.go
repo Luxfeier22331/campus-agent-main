@@ -44,13 +44,22 @@ func ChatAnswerWorkflow(
 	}).Get(ctx, &bridge); err != nil {
 		return ChatAnswerWorkflowResult{}, err
 	}
+	var synthesis SynthesizeRAGAnswerActivityOutput
+	if err := workflow.ExecuteActivity(ragCtx, SynthesizeRAGAnswerActivityName, SynthesizeRAGAnswerActivityInput{
+		BridgeRef: bridge.BridgeRef,
+		PlanRef:   plan.PlanRef,
+		RunID:     input.RunID,
+		TraceID:   input.TraceID,
+	}).Get(ctx, &synthesis); err != nil {
+		return ChatAnswerWorkflowResult{}, err
+	}
 	finalizationOptions := ragActivityOptions
 	finalizationOptions.StartToCloseTimeout = 30 * time.Second
 	finalizationOptions.TaskQueue = ActivityTaskQueueFinalization
 	finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
 	var finalization FinalizeChatAnswerActivityOutput
 	if err := workflow.ExecuteActivity(finalizationCtx, FinalizeChatAnswerActivityName, FinalizeChatAnswerActivityInput{
-		BridgeRef: bridge.BridgeRef,
+		BridgeRef: synthesis.BridgeRef,
 		PlanRef:   plan.PlanRef,
 		RunID:     input.RunID,
 		TraceID:   input.TraceID,

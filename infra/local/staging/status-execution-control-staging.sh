@@ -105,6 +105,10 @@ if ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "te
   ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "temporal_runtime.healthy" "true"; then
   failures+=("local readyz payload is not temporal_runtime ready")
 fi
+if ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "prompt_config_gate.admitted" "true" ||
+  ! execution_control_staging_probe_json_path_equals "${local_readyz_body}" "prompt_config_gate.pricing_version" '"provider-pricing-v1"'; then
+  failures+=("local readyz payload is not prompt_config_gate pricing ready")
+fi
 local_metrics_status="$(
   execution_control_staging_probe_http_url \
     "${execution_control_staging_local_metrics_url}" \

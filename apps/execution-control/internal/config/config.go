@@ -69,6 +69,7 @@ type Config struct {
 	StructuredQueryTimeoutMS            int
 	StructuredProjectionDatabaseURL     string
 	PromptRuntimeProvider               string
+	ProviderPricingPath                 string
 	SupervisorPromptModel               string
 	AgentPromptModel                    string
 	PromptRuntimeAPIKey                 string
@@ -142,6 +143,7 @@ type envValues struct {
 	StructuredQueryTimeoutMS            int     `env:"EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
 	PromptRuntimeTransport              string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
 	PromptRuntimeBaseURL                string  `env:"PROMPT_RUNTIME_BASE_URL"`
+	ProviderPricingPath                 string  `env:"EXECUTION_CONTROL_PROVIDER_PRICING_PATH" envDefault:"../../configs/runtime/provider-pricing.v1.json"`
 	PromptStrictStructuredOutputs       string  `env:"PROMPT_STRICT_STRUCTURED_OUTPUTS" envDefault:"true"`
 	NoticeReadModelTable                string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
 	NoticeBodyObjectStoreEndpoint       string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"`
@@ -279,6 +281,7 @@ func LoadFromEnv() (Config, error) {
 		StructuredQueryTimeoutMS:            values.StructuredQueryTimeoutMS,
 		StructuredProjectionDatabaseURL:     readStructuredProjectionDatabaseURL(),
 		PromptRuntimeProvider:               readString("PROMPT_RUNTIME_PROVIDER", ""),
+		ProviderPricingPath:                 strings.TrimSpace(values.ProviderPricingPath),
 		SupervisorPromptModel:               readPromptModel("SUPERVISOR_PROMPT_MODEL"),
 		AgentPromptModel:                    readPromptModel("AGENT_PROMPT_MODEL"),
 		PromptRuntimeAPIKey:                 readString("PROMPT_RUNTIME_API_KEY", ""),

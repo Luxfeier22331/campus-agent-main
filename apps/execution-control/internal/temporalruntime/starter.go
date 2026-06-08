@@ -233,6 +233,10 @@ type RAGActivities interface {
 		context.Context,
 		InvokeSemanticWorkerActivityInput,
 	) (InvokeSemanticWorkerActivityOutput, error)
+	SynthesizeRAGAnswerActivity(
+		context.Context,
+		SynthesizeRAGAnswerActivityInput,
+	) (SynthesizeRAGAnswerActivityOutput, error)
 }
 
 type FinalizationActivities interface {
@@ -323,6 +327,10 @@ func NewRAGActivityWorker(temporalClient client.Client, queue string, activities
 	ragWorker.RegisterActivityWithOptions(
 		activities.InvokeSemanticWorkerActivity,
 		activityRegisterOptions(InvokeSemanticWorkerActivityName),
+	)
+	ragWorker.RegisterActivityWithOptions(
+		activities.SynthesizeRAGAnswerActivity,
+		activityRegisterOptions(SynthesizeRAGAnswerActivityName),
 	)
 	return ragWorker
 }

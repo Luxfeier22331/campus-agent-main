@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 import httpx
 from campus_contracts import AgentObservability, AgentResponse, ErrorInfo, RagResultPayload
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService
 from campus_prompt_runtime import PromptRuntimeHTTPSettings, PromptRuntimeProviderConfig
+from campus_rag_agent.rag_sdk_models import RagSdkRunRequest, RagSdkRunResult
 from campus_rag_agent.service import delegate_to_rag_agent
 from campus_services_agent import (
     CampusServicesHTTPQueryService,
@@ -45,6 +49,16 @@ class QueryServiceRuntimeError(ValueError):
     pass
 
 
+class GoProviderSynthesisPacketRunner:
+    def __call__(self, request: RagSdkRunRequest) -> RagSdkRunResult:
+        return RagSdkRunResult(
+            output=None,
+            failure_class="go_provider_synthesis_required",
+            failure_detail="RAG synthesis must be executed by execution-control provider adapter.",
+            trace_projection=_rag_synthesis_packet_projection(request),
+        )
+
+
 def _require_structured_query_runtime(
     settings: ApiSettings,
     *,
@@ -81,10 +95,7 @@ def bind_agent_handler(
         notice_query_service=notice_query_service,
     )
     openai_agents_runtime = _build_openai_agents_runtime(settings)
-    rag_openai_runtime = _build_rag_openai_runtime(
-        settings,
-        tool_execution_session=tool_execution_session,
-    )
+    rag_openai_runtime = GoProviderSynthesisPacketRunner()
     agent_delegates = _build_agent_delegates(
         settings=settings,
         rag_prompt_executor=rag_prompt_executor,
@@ -297,6 +308,62 @@ def _build_rag_openai_runtime(
 
 def _resolve_rag_agents_sdk_model_name(settings: ApiSettings) -> str:
     return (settings.agent_prompt_model or settings.prompt_runtime_model).strip()
+
+
+def _rag_synthesis_packet_projection(request: RagSdkRunRequest) -> dict[str, object]:
+    packet = _rag_synthesis_packet_for_request(request)
+    return {
+        "schema_version": "rag-sdk-trace-projection-v1",
+        "runtime": "execution_control_go_provider_synthesis",
+        "failure_class": "go_provider_synthesis_required",
+        "rag_synthesis_packet": packet,
+    }
+
+
+def _rag_synthesis_packet_for_request(request: RagSdkRunRequest) -> dict[str, object]:
+    run_id = request.workflow_run_ref.strip()
+    if not run_id:
+        raise ValueError("workflow_run_ref is required for go provider synthesis packet")
+    evidence_refs: list[dict[str, object]] = []
+    for index, anchor in enumerate(request.evidence.anchors):
+        if not anchor.source_id.strip():
+            raise ValueError(f"evidence[{index}].source_id is required")
+        if not anchor.chunk_id.strip():
+            raise ValueError(f"evidence[{index}].chunk_id is required")
+        if not anchor.span_ref.strip():
+            raise ValueError(f"evidence[{index}].span_ref is required")
+        if not anchor.excerpt.strip():
+            raise ValueError(f"evidence[{index}].excerpt is required")
+        evidence_refs.append(
+            {
+                "source_id": anchor.source_id,
+                "chunk_id": anchor.chunk_id,
+                "span_ref": anchor.span_ref,
+                "excerpt": anchor.excerpt,
+                "source_ref": anchor.url or f"source://{anchor.source_id}",
+                "title": anchor.title,
+            }
+        )
+    if not evidence_refs:
+        raise ValueError("selected_evidence is required for go provider synthesis packet")
+    packet: dict[str, object] = {
+        "run_id": run_id,
+        "step_id": "synthesis",
+        "request_id": request.request_id,
+        "query_intent": request.query_intent.normalized_query,
+        "selected_evidence": tuple(evidence_refs),
+        "output_schema_id": "rag_answer_v1",
+        "prompt_refs": ("prompt://rag/rag_answer_v1",),
+    }
+    packet["payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            packet,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    return packet
 
 
 def _rag_runtime_unavailable_response(agent_request) -> AgentResponse:

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -99,6 +100,26 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 func markTemporalReadyForTest(server *Server) {
 	server.temporalStarter = readyTemporalStarter{}
 	server.temporalStarterErr = nil
+}
+
+func providerPricingCatalogForTest(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "provider-pricing.v1.json")
+	body := `{
+		"schema_version":"provider-pricing-v1",
+		"currency":"USD",
+		"models":[{
+			"provider":"openai",
+			"model":"gpt-5-mini",
+			"input_microusd_per_1k_tokens":250,
+			"cached_input_microusd_per_1k_tokens":25,
+			"output_microusd_per_1k_tokens":2000
+		}]
+	}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write provider pricing catalog: %v", err)
+	}
+	return path
 }
 
 var _ bridge.Client = (*fakeBridge)(nil)

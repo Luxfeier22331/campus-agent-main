@@ -10,7 +10,10 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragpacket"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/sdk/activity"
 )
 
 func (s *Server) temporalActivityRun(
@@ -146,13 +149,16 @@ func (s *Server) failFinalizationActivity(
 }
 
 type temporalStepFailureProjection struct {
-	FailureKind   string
-	Payload       map[string]any
-	ProjectionRef string
-	ResultKind    string
-	StepID        string
-	StepKind      string
-	TaskQueue     string
+	FailureKind     string
+	CancelOutcome   execution.CancelOutcome
+	Payload         map[string]any
+	ProjectionRef   string
+	ProviderSummary *provider.ExecutionSummary
+	ResultKind      string
+	StepID          string
+	StepKind        string
+	TaskQueue       string
+	TimeoutOutcome  execution.TimeoutOutcome
 }
 
 func (s *Server) failTemporalRunStep(
@@ -170,24 +176,57 @@ func (s *Server) failTemporalRunStep(
 		}
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       1,
-		Capability:    "knowledge",
-		Run:           run,
-		Status:        "failed",
-		StepID:        projection.StepID,
-		StepKind:      projection.StepKind,
-		TaskQueue:     projection.TaskQueue,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     now,
-		CompletedAt:   now,
-		UpdatedAt:     now,
-		ResultKind:    projection.ResultKind,
-		ProjectionRef: projection.ProjectionRef,
-		Payload:       payload,
+		Attempt:         1,
+		Capability:      "knowledge",
+		CancelOutcome:   temporalFailureCancelOutcome(ctx, projection.CancelOutcome),
+		Run:             run,
+		Status:          "failed",
+		StepID:          projection.StepID,
+		StepKind:        projection.StepKind,
+		TaskQueue:       projection.TaskQueue,
+		WorkerID:        s.config.TemporalWorkerIdentity,
+		StartedAt:       now,
+		CompletedAt:     now,
+		UpdatedAt:       now,
+		ResultKind:      projection.ResultKind,
+		ProjectionRef:   projection.ProjectionRef,
+		ProviderSummary: projection.ProviderSummary,
+		TimeoutOutcome:  temporalFailureTimeoutOutcome(ctx, projection.TimeoutOutcome, cause),
+		Payload:         payload,
 	}); err != nil {
 		return execution.DurableRun{}, err
 	}
 	return s.failTemporalRun(ctx, run, projection.FailureKind, cause)
+}
+
+func temporalFailureCancelOutcome(
+	ctx context.Context,
+	configured execution.CancelOutcome,
+) execution.CancelOutcome {
+	if configured != "" {
+		return configured
+	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return execution.CancelOutcomeActivityContextCanceled
+	}
+	return execution.CancelOutcomeNotRequested
+}
+
+func temporalFailureTimeoutOutcome(
+	ctx context.Context,
+	configured execution.TimeoutOutcome,
+	cause error,
+) execution.TimeoutOutcome {
+	if configured != "" {
+		return configured
+	}
+	if errors.Is(cause, context.DeadlineExceeded) {
+		return execution.TimeoutOutcomeBridgeTimeout
+	}
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return execution.TimeoutOutcomeActivityTimeout
+	}
+	return execution.TimeoutOutcomeNotTimedOut
 }
 
 func (s *Server) failTemporalRun(
@@ -248,17 +287,24 @@ func temporalFinalizedResponseFromRun(
 	if strings.TrimSpace(fmt.Sprint(raw["bridge_ref"])) != bridgeRef {
 		return nil, fmt.Errorf("semantic bridge ref drift")
 	}
-	response, ok := raw["finalized_response"].(map[string]any)
+	rawResponse, exists := raw["finalized_response"]
+	if !exists {
+		return nil, fmt.Errorf("run metadata.temporal_semantic_bridge.finalized_response is required")
+	}
+	response, ok := rawResponse.(map[string]any)
 	if ok {
 		return response, nil
 	}
-	encoded, err := json.Marshal(raw["finalized_response"])
+	encoded, err := json.Marshal(rawResponse)
 	if err != nil {
 		return nil, fmt.Errorf("encode finalized response projection: %w", err)
 	}
 	decoded := map[string]any{}
 	if err := json.Unmarshal(encoded, &decoded); err != nil {
 		return nil, fmt.Errorf("decode finalized response projection: %w", err)
+	}
+	if decoded == nil {
+		return nil, fmt.Errorf("run metadata.temporal_semantic_bridge.finalized_response must be an object")
 	}
 	return decoded, nil
 }
@@ -275,10 +321,42 @@ func temporalSemanticBridgeRefFromRun(run execution.DurableRun, planRef string) 
 	if bridgeRef == "" {
 		return "", false
 	}
-	if _, err := temporalFinalizedResponseFromRun(run, bridgeRef); err != nil {
-		return "", false
-	}
 	return bridgeRef, true
+}
+
+func temporalRAGSynthesisPacketFromRun(
+	run execution.DurableRun,
+	planRef string,
+	bridgeRef string,
+) (ragSynthesisPacket, error) {
+	raw, ok := run.Metadata["temporal_semantic_bridge"].(map[string]any)
+	if !ok {
+		return ragSynthesisPacket{}, fmt.Errorf("run metadata.temporal_semantic_bridge is required")
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["plan_ref"])) != strings.TrimSpace(planRef) {
+		return ragSynthesisPacket{}, fmt.Errorf("semantic bridge plan_ref drift")
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["bridge_ref"])) != strings.TrimSpace(bridgeRef) {
+		return ragSynthesisPacket{}, fmt.Errorf("semantic bridge ref drift")
+	}
+	encoded, err := json.Marshal(raw["rag_synthesis_packet"])
+	if err != nil {
+		return ragSynthesisPacket{}, fmt.Errorf("encode rag synthesis packet projection: %w", err)
+	}
+	var packet ragSynthesisPacket
+	if err := json.Unmarshal(encoded, &packet); err != nil {
+		return ragSynthesisPacket{}, fmt.Errorf("decode rag synthesis packet projection: %w", err)
+	}
+	if err := ragpacket.ValidateSynthesisPacket(packet); err != nil {
+		return ragSynthesisPacket{}, err
+	}
+	if packet.RunID != run.RunID {
+		return ragSynthesisPacket{}, fmt.Errorf("rag synthesis packet run_id drift")
+	}
+	if packet.RequestID != "" && packet.RequestID != run.RequestID {
+		return ragSynthesisPacket{}, fmt.Errorf("rag synthesis packet request_id drift")
+	}
+	return packet, nil
 }
 
 func temporalProjectionRef(runID string, suffix string) string {
@@ -328,28 +406,69 @@ func cloneTemporalMetadata(metadata map[string]any) map[string]any {
 	return cloned
 }
 
+func cloneAnyMapFromMetadata(value any) map[string]any {
+	source, ok := value.(map[string]any)
+	if !ok || source == nil {
+		return map[string]any{}
+	}
+	cloned := make(map[string]any, len(source)+1)
+	for key, item := range source {
+		cloned[key] = item
+	}
+	return cloned
+}
+
 type temporalStepProjection struct {
-	Attempt       int
-	Capability    string
-	Run           execution.DurableRun
-	Status        string
-	StepID        string
-	StepKind      string
-	TaskQueue     string
-	WorkerID      string
-	StartedAt     time.Time
-	CompletedAt   time.Time
-	UpdatedAt     time.Time
-	ResultKind    string
-	ProjectionRef string
-	Payload       map[string]any
+	ActivityAttempt       int
+	ActivityID            string
+	ActivityType          string
+	Attempt               int
+	Capability            string
+	CancelOutcome         execution.CancelOutcome
+	CompletedAt           time.Time
+	DurationMS            int64
+	EstimatedCostMicroUSD int64
+	InputTokens           int64
+	ModelName             string
+	ModelProvider         string
+	OutputTokens          int64
+	CachedInputTokens     int64
+	Payload               map[string]any
+	PricingVersion        string
+	ProjectionRef         string
+	ProviderRequestRef    string
+	ProviderResponseID    string
+	ProviderSummary       *provider.ExecutionSummary
+	ResultKind            string
+	Run                   execution.DurableRun
+	ScheduledAt           time.Time
+	ScheduleToStartMS     int64
+	StartedAt             time.Time
+	Status                string
+	StepID                string
+	StepKind              string
+	TaskQueue             string
+	TemporalRunID         string
+	TerminalReason        string
+	TimeoutOutcome        execution.TimeoutOutcome
+	UpdatedAt             time.Time
+	WorkerID              string
+	WorkflowID            string
 }
 
 func (s *Server) projectTemporalStep(ctx context.Context, projection temporalStepProjection) error {
 	if s == nil || s.runProjectionStore == nil {
 		return execution.ErrRunProjectionStoreNotConfigured
 	}
+	if projection.ProviderSummary != nil {
+		projection = projection.withProviderSummary(*projection.ProviderSummary)
+	}
 	attempt := projection.Attempt
+	if attempt <= 0 {
+		attempt = 1
+	}
+	projection = s.withTemporalActivityEvidence(ctx, projection, attempt)
+	attempt = projection.Attempt
 	if attempt <= 0 {
 		attempt = 1
 	}
@@ -376,18 +495,38 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	}
 	attemptID := temporalStepAttemptID(projection.Run.RunID, projection.StepID, attempt)
 	if _, err := s.runProjectionStore.UpsertStepAttempt(ctx, execution.StepAttemptProjection{
-		AttemptID:            attemptID,
-		StepID:               projection.StepID,
-		RunID:                projection.Run.RunID,
-		Attempt:              attempt,
-		Status:               projection.Status,
-		TaskQueue:            projection.TaskQueue,
-		WorkerID:             projection.WorkerID,
-		StartedAt:            projection.StartedAt,
-		CompletedAt:          projection.CompletedAt,
-		UpdatedAt:            updatedAt,
-		PayloadSchemaVersion: "step-attempt-projection-v1",
-		SanitizedPayload:     projection.Payload,
+		AttemptID:             attemptID,
+		StepID:                projection.StepID,
+		RunID:                 projection.Run.RunID,
+		Attempt:               attempt,
+		Status:                projection.Status,
+		TaskQueue:             projection.TaskQueue,
+		WorkerID:              projection.WorkerID,
+		WorkflowID:            projection.WorkflowID,
+		TemporalRunID:         projection.TemporalRunID,
+		ActivityID:            projection.ActivityID,
+		ActivityType:          projection.ActivityType,
+		ActivityAttempt:       projection.ActivityAttempt,
+		ScheduledAt:           projection.ScheduledAt,
+		StartedAt:             projection.StartedAt,
+		CompletedAt:           projection.CompletedAt,
+		ScheduleToStartMS:     projection.ScheduleToStartMS,
+		DurationMS:            projection.DurationMS,
+		ProviderRequestRef:    projection.ProviderRequestRef,
+		ProviderResponseID:    projection.ProviderResponseID,
+		ModelProvider:         projection.ModelProvider,
+		ModelName:             projection.ModelName,
+		InputTokens:           projection.InputTokens,
+		OutputTokens:          projection.OutputTokens,
+		CachedInputTokens:     projection.CachedInputTokens,
+		EstimatedCostMicroUSD: projection.EstimatedCostMicroUSD,
+		PricingVersion:        projection.PricingVersion,
+		CancelOutcome:         projection.CancelOutcome,
+		TimeoutOutcome:        projection.TimeoutOutcome,
+		TerminalReason:        projection.TerminalReason,
+		UpdatedAt:             updatedAt,
+		PayloadSchemaVersion:  "step-attempt-projection-v1",
+		SanitizedPayload:      projection.Payload,
 	}); err != nil {
 		return err
 	}
@@ -409,6 +548,118 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		return err
 	}
 	return nil
+}
+
+func (projection temporalStepProjection) withProviderSummary(
+	summary provider.ExecutionSummary,
+) temporalStepProjection {
+	projection.ProviderRequestRef = defaultString(projection.ProviderRequestRef, summary.ProviderRequestRef)
+	projection.ProviderResponseID = defaultString(projection.ProviderResponseID, summary.ProviderResponseID)
+	projection.ModelProvider = defaultString(projection.ModelProvider, summary.ModelProvider)
+	projection.ModelName = defaultString(projection.ModelName, summary.ModelName)
+	if projection.InputTokens == 0 {
+		projection.InputTokens = summary.InputTokens
+	}
+	if projection.OutputTokens == 0 {
+		projection.OutputTokens = summary.OutputTokens
+	}
+	if projection.CachedInputTokens == 0 {
+		projection.CachedInputTokens = summary.CachedInputTokens
+	}
+	if projection.EstimatedCostMicroUSD == 0 {
+		projection.EstimatedCostMicroUSD = summary.EstimatedCostMicroUSD
+	}
+	projection.PricingVersion = defaultString(projection.PricingVersion, summary.PricingVersion)
+	if projection.CancelOutcome == "" {
+		projection.CancelOutcome = execution.CancelOutcome(summary.CancelOutcome)
+	}
+	if projection.TimeoutOutcome == "" {
+		projection.TimeoutOutcome = execution.TimeoutOutcome(summary.TimeoutOutcome)
+	}
+	return projection
+}
+
+func (s *Server) withTemporalActivityEvidence(
+	ctx context.Context,
+	projection temporalStepProjection,
+	attempt int,
+) temporalStepProjection {
+	if projection.CancelOutcome == "" {
+		projection.CancelOutcome = execution.CancelOutcomeNotRequested
+	}
+	if projection.TimeoutOutcome == "" {
+		projection.TimeoutOutcome = execution.TimeoutOutcomeNotTimedOut
+	}
+	if activity.IsActivity(ctx) {
+		info := activity.GetInfo(ctx)
+		if projection.WorkflowID == "" {
+			projection.WorkflowID = info.WorkflowExecution.ID
+		}
+		if projection.TemporalRunID == "" {
+			projection.TemporalRunID = info.WorkflowExecution.RunID
+		}
+		if projection.ActivityID == "" {
+			projection.ActivityID = info.ActivityID
+		}
+		if projection.ActivityType == "" {
+			projection.ActivityType = info.ActivityType.Name
+		}
+		if projection.ActivityAttempt <= 0 {
+			projection.ActivityAttempt = int(info.Attempt)
+		}
+		if info.Attempt > 0 {
+			projection.Attempt = int(info.Attempt)
+		}
+		if projection.ScheduledAt.IsZero() {
+			projection.ScheduledAt = info.ScheduledTime
+		}
+		if projection.StartedAt.IsZero() {
+			projection.StartedAt = info.StartedTime
+		}
+		if projection.TaskQueue == "" {
+			projection.TaskQueue = info.TaskQueue
+		}
+	}
+	if projection.WorkflowID == "" {
+		projection.WorkflowID = "campus-agent.chat." + projection.Run.RunID
+	}
+	if projection.ActivityAttempt <= 0 {
+		projection.ActivityAttempt = attempt
+	}
+	if projection.Attempt <= 0 {
+		projection.Attempt = projection.ActivityAttempt
+	}
+	if projection.ActivityType == "" {
+		projection.ActivityType = temporalActivityTypeForStep(projection.StepID)
+	}
+	if projection.ScheduleToStartMS <= 0 &&
+		!projection.ScheduledAt.IsZero() &&
+		!projection.StartedAt.IsZero() &&
+		!projection.StartedAt.Before(projection.ScheduledAt) {
+		projection.ScheduleToStartMS = projection.StartedAt.Sub(projection.ScheduledAt).Milliseconds()
+	}
+	if projection.DurationMS <= 0 &&
+		!projection.StartedAt.IsZero() &&
+		!projection.CompletedAt.IsZero() &&
+		!projection.CompletedAt.Before(projection.StartedAt) {
+		projection.DurationMS = projection.CompletedAt.Sub(projection.StartedAt).Milliseconds()
+	}
+	return projection
+}
+
+func temporalActivityTypeForStep(stepID string) string {
+	switch strings.TrimSpace(stepID) {
+	case "planning":
+		return temporalruntime.PlanChatAnswerActivityName
+	case "semantic.rag":
+		return temporalruntime.InvokeSemanticWorkerActivityName
+	case "synthesis":
+		return temporalruntime.SynthesizeRAGAnswerActivityName
+	case "finalization":
+		return temporalruntime.FinalizeChatAnswerActivityName
+	default:
+		return ""
+	}
 }
 
 func temporalStepAttemptID(runID string, stepID string, attempt int) string {

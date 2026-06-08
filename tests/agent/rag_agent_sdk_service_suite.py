@@ -3,7 +3,13 @@ from __future__ import annotations
 import unittest
 from dataclasses import replace
 
-from campus_contracts import AgentRequest, EvidenceBundle, KnowledgeScope, RagRequestPayload
+from campus_contracts import (
+    AgentRequest,
+    EvidenceBundle,
+    KnowledgeScope,
+    RagRequestPayload,
+    WorkflowAgentContext,
+)
 from campus_rag_agent.rag_sdk_models import RagSdkEvidenceAnchor, RagSdkRunRequest, RagSdkRunResult
 from campus_rag_agent.rag_sdk_output import (
     RagSdkAnswerOutput,
@@ -21,6 +27,54 @@ from tests.agent.rag_agent_test_support_evidence import _make_program_semester_s
 
 
 class RagAgentSdkServiceTest(unittest.TestCase):
+    def test_sdk_runner_synthesis_required_returns_sanitized_packet_projection(self) -> None:
+        evidence = _evidence()
+
+        def runner(request: RagSdkRunRequest) -> RagSdkRunResult:
+            return RagSdkRunResult(
+                output=None,
+                failure_class="go_provider_synthesis_required",
+                failure_detail="RAG synthesis must be executed by execution-control provider adapter.",
+                trace_projection={
+                    "schema_version": "rag-sdk-trace-projection-v1",
+                    "runtime": "execution_control_go_provider_synthesis",
+                    "rag_synthesis_packet": {
+                        "run_id": "run-rag-packet",
+                        "step_id": "synthesis",
+                        "request_id": request.request_id,
+                        "query_intent": request.query_intent.normalized_query,
+                        "output_schema_id": "rag_answer_v1",
+                        "payload_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "prompt_refs": ("prompt://rag/rag_answer_v1",),
+                        "selected_evidence": (
+                            {
+                                "source_id": evidence.sources[0].doc_id,
+                                "chunk_id": evidence.sources[0].chunk_id,
+                                "span_ref": "chunk-0001:0-24",
+                                "excerpt": evidence.sources[0].snippet,
+                                "source_ref": "source://student_rules",
+                                "title": evidence.sources[0].source_title,
+                            },
+                        ),
+                    },
+                },
+            )
+
+        response = delegate_to_rag_agent(
+            _request_with_workflow_context(),
+            retriever=lambda *args, **kwargs: evidence,
+            rag_sdk_runner=runner,
+        )
+
+        self.assertEqual(response.status, "error")
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        packet = response.agent_observability.safe_details["rag_synthesis_packet"]
+        self.assertEqual(packet["run_id"], "run-rag-packet")
+        self.assertEqual(packet["step_id"], "synthesis")
+        self.assertEqual(packet["output_schema_id"], "rag_answer_v1")
+        self.assertNotIn("raw_prompt", str(packet))
+
     def test_sdk_runner_answers_after_deterministic_retrieval(self) -> None:
         captured: RagSdkRunRequest | None = None
         evidence = _evidence()
@@ -405,6 +459,18 @@ def _request() -> AgentRequest:
         user_goal="公费医疗报销需要什么材料",
         payload=RagRequestPayload(
             scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+        ),
+    )
+
+
+def _request_with_workflow_context() -> AgentRequest:
+    return replace(
+        _request(),
+        workflow_context=WorkflowAgentContext(
+            workflow_run_ref="run-rag-packet",
+            step_id="semantic.rag",
+            agent_id="rag-agent",
+            target="rag-agent",
         ),
     )
 

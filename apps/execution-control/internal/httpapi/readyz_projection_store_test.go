@@ -18,12 +18,13 @@ func TestReadyzReportsTemporalWorkerNotStarted(t *testing.T) {
 		TemporalNamespace:             "campus-agent-test",
 		TemporalTaskQueue:             "campus-agent.workflow",
 		TemporalWorkerIdentity:        "test:execution-control:readyz",
-		PromptRuntimeProvider:         "openai-responses",
-		SupervisorPromptModel:         "gpt-supervisor",
-		AgentPromptModel:              "gpt-agent",
+		PromptRuntimeProvider:         "openai",
+		SupervisorPromptModel:         "gpt-5-mini",
+		AgentPromptModel:              "gpt-5-mini",
 		PromptRuntimeAPIKey:           "test-key",
 		PromptRuntimeTransport:        "responses",
 		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		ProviderPricingPath:           providerPricingCatalogForTest(t),
 		PromptStrictStructuredOutputs: true,
 	}, &fakeBridge{
 		configured: true,
@@ -37,7 +38,7 @@ func TestReadyzReportsTemporalWorkerNotStarted(t *testing.T) {
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")

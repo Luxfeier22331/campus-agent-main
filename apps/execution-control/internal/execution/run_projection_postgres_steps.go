@@ -74,22 +74,7 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 	}
 	_, err = s.pool.Exec(
 		ctx,
-		`insert into runtime.agent_step_attempts (
-			attempt_id, step_id, run_id, attempt, status, task_queue, worker_id,
-			started_at, completed_at, updated_at, payload_schema_version, sanitized_payload_json
-		) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		on conflict (attempt_id) do update set
-			step_id = excluded.step_id,
-			run_id = excluded.run_id,
-			attempt = excluded.attempt,
-			status = excluded.status,
-			task_queue = excluded.task_queue,
-			worker_id = excluded.worker_id,
-			started_at = coalesce(excluded.started_at, runtime.agent_step_attempts.started_at),
-			completed_at = excluded.completed_at,
-			updated_at = excluded.updated_at,
-			payload_schema_version = excluded.payload_schema_version,
-			sanitized_payload_json = excluded.sanitized_payload_json`,
+		runProjectionPostgresStepAttemptUpsertSQL,
 		attempt.AttemptID,
 		attempt.StepID,
 		attempt.RunID,
@@ -97,8 +82,28 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 		attempt.Status,
 		attempt.TaskQueue,
 		attempt.WorkerID,
+		attempt.WorkflowID,
+		attempt.TemporalRunID,
+		attempt.ActivityID,
+		attempt.ActivityType,
+		attempt.ActivityAttempt,
+		nullableTime(attempt.ScheduledAt),
 		nullableTime(attempt.StartedAt),
 		nullableTime(attempt.CompletedAt),
+		attempt.ScheduleToStartMS,
+		attempt.DurationMS,
+		attempt.ProviderRequestRef,
+		attempt.ProviderResponseID,
+		attempt.ModelProvider,
+		attempt.ModelName,
+		attempt.InputTokens,
+		attempt.OutputTokens,
+		attempt.CachedInputTokens,
+		attempt.EstimatedCostMicroUSD,
+		attempt.PricingVersion,
+		string(attempt.CancelOutcome),
+		string(attempt.TimeoutOutcome),
+		attempt.TerminalReason,
 		attempt.UpdatedAt,
 		attempt.PayloadSchemaVersion,
 		payload,
@@ -108,6 +113,56 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 	}
 	return attempt, nil
 }
+
+const runProjectionPostgresStepAttemptUpsertSQL = `insert into runtime.agent_step_attempts (
+	attempt_id, step_id, run_id, attempt, status, task_queue, worker_id,
+	workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
+	scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
+	provider_request_ref, provider_response_id, model_provider, model_name,
+	input_tokens, output_tokens, cached_input_tokens, estimated_cost_microusd,
+	pricing_version, cancel_outcome, timeout_outcome, terminal_reason,
+	updated_at, payload_schema_version, sanitized_payload_json
+) values (
+	$1, $2, $3, $4, $5, $6, $7,
+	$8, $9, $10, $11, $12,
+	$13, $14, $15, $16, $17,
+	$18, $19, $20, $21,
+	$22, $23, $24, $25,
+	$26, $27, $28, $29,
+	$30, $31, $32
+)
+on conflict (attempt_id) do update set
+	step_id = excluded.step_id,
+	run_id = excluded.run_id,
+	attempt = excluded.attempt,
+	status = excluded.status,
+	task_queue = excluded.task_queue,
+	worker_id = excluded.worker_id,
+	workflow_id = excluded.workflow_id,
+	temporal_run_id = excluded.temporal_run_id,
+	activity_id = excluded.activity_id,
+	activity_type = excluded.activity_type,
+	activity_attempt = excluded.activity_attempt,
+	scheduled_at = coalesce(excluded.scheduled_at, runtime.agent_step_attempts.scheduled_at),
+	started_at = coalesce(excluded.started_at, runtime.agent_step_attempts.started_at),
+	completed_at = excluded.completed_at,
+	schedule_to_start_ms = excluded.schedule_to_start_ms,
+	duration_ms = excluded.duration_ms,
+	provider_request_ref = excluded.provider_request_ref,
+	provider_response_id = excluded.provider_response_id,
+	model_provider = excluded.model_provider,
+	model_name = excluded.model_name,
+	input_tokens = excluded.input_tokens,
+	output_tokens = excluded.output_tokens,
+	cached_input_tokens = excluded.cached_input_tokens,
+	estimated_cost_microusd = excluded.estimated_cost_microusd,
+	pricing_version = excluded.pricing_version,
+	cancel_outcome = excluded.cancel_outcome,
+	timeout_outcome = excluded.timeout_outcome,
+	terminal_reason = excluded.terminal_reason,
+	updated_at = excluded.updated_at,
+	payload_schema_version = excluded.payload_schema_version,
+	sanitized_payload_json = excluded.sanitized_payload_json`
 
 func (s *PostgresRunProjectionStore) UpsertStepResult(
 	ctx context.Context,
@@ -197,7 +252,12 @@ func (s *PostgresRunProjectionStore) ListStepAttempts(
 	rows, err := s.pool.Query(
 		ctx,
 		`select attempt_id, step_id, run_id, attempt, status, task_queue, worker_id,
-			started_at, completed_at, updated_at, payload_schema_version, sanitized_payload_json
+			workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
+			scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
+			provider_request_ref, provider_response_id, model_provider, model_name,
+			input_tokens, output_tokens, cached_input_tokens, estimated_cost_microusd,
+			pricing_version, cancel_outcome, timeout_outcome, terminal_reason,
+			updated_at, payload_schema_version, sanitized_payload_json
 		from runtime.agent_step_attempts
 		where run_id = $1
 		order by started_at nulls last, attempt_id`,
@@ -305,8 +365,11 @@ func scanRunStepProjection(row pgx.Row) (RunStepProjection, error) {
 func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 	var attempt StepAttemptProjection
 	var payloadRaw []byte
+	var scheduledAt *time.Time
 	var startedAt *time.Time
 	var completedAt *time.Time
+	var cancelOutcome string
+	var timeoutOutcome string
 	if err := row.Scan(
 		&attempt.AttemptID,
 		&attempt.StepID,
@@ -315,13 +378,36 @@ func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 		&attempt.Status,
 		&attempt.TaskQueue,
 		&attempt.WorkerID,
+		&attempt.WorkflowID,
+		&attempt.TemporalRunID,
+		&attempt.ActivityID,
+		&attempt.ActivityType,
+		&attempt.ActivityAttempt,
+		&scheduledAt,
 		&startedAt,
 		&completedAt,
+		&attempt.ScheduleToStartMS,
+		&attempt.DurationMS,
+		&attempt.ProviderRequestRef,
+		&attempt.ProviderResponseID,
+		&attempt.ModelProvider,
+		&attempt.ModelName,
+		&attempt.InputTokens,
+		&attempt.OutputTokens,
+		&attempt.CachedInputTokens,
+		&attempt.EstimatedCostMicroUSD,
+		&attempt.PricingVersion,
+		&cancelOutcome,
+		&timeoutOutcome,
+		&attempt.TerminalReason,
 		&attempt.UpdatedAt,
 		&attempt.PayloadSchemaVersion,
 		&payloadRaw,
 	); err != nil {
 		return StepAttemptProjection{}, err
+	}
+	if scheduledAt != nil {
+		attempt.ScheduledAt = *scheduledAt
 	}
 	if startedAt != nil {
 		attempt.StartedAt = *startedAt
@@ -329,6 +415,8 @@ func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 	if completedAt != nil {
 		attempt.CompletedAt = *completedAt
 	}
+	attempt.CancelOutcome = CancelOutcome(cancelOutcome)
+	attempt.TimeoutOutcome = TimeoutOutcome(timeoutOutcome)
 	payload, err := scanJSONMap(payloadRaw)
 	if err != nil {
 		return StepAttemptProjection{}, err

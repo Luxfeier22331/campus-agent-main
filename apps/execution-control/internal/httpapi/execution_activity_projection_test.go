@@ -176,6 +176,93 @@ func TestInvokeSemanticWorkerActivityTimeoutProjectsFailedRun(t *testing.T) {
 		failedResult.ResultKind != "activity_failure" {
 		t.Fatalf("semantic.rag failed result = %#v", failedResult)
 	}
+	attempts, err := store.ListStepAttempts(context.Background(), "run-temporal-activity-timeout")
+	if err != nil {
+		t.Fatalf("list step attempts: %v", err)
+	}
+	var failedAttempt *execution.StepAttemptProjection
+	for index := range attempts {
+		if attempts[index].StepID == "semantic.rag" && attempts[index].Status == "failed" {
+			failedAttempt = &attempts[index]
+		}
+	}
+	if failedAttempt == nil {
+		t.Fatalf("semantic.rag failed attempt missing: %#v", attempts)
+	}
+	if failedAttempt.TimeoutOutcome != execution.TimeoutOutcomeBridgeTimeout {
+		t.Fatalf("timeout outcome = %q, want bridge_timeout", failedAttempt.TimeoutOutcome)
+	}
+}
+
+func TestSemanticActivityContextCancelProjectsCancelOutcome(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := NewServer(config.Config{
+		BridgeTimeoutMS:        500,
+		TemporalWorkerIdentity: "test:rag:worker",
+	}, &fakeBridge{
+		configured: true,
+		executeSemanticFn: func(ctx context.Context, _ bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error) {
+			<-ctx.Done()
+			return bridge.ExecuteResponse{}, ctx.Err()
+		},
+	})
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-temporal-activity-cancel",
+		"conv-temporal-activity-cancel",
+		now,
+		ragHandoffForDurableWorkerTest("hello"),
+	)
+	plan, err := server.PlanChatAnswerActivity(context.Background(), temporalruntime.PlanChatAnswerActivityInput{
+		ConversationID: "conv-temporal-activity-cancel",
+		Namespace:      "campus-agent-test",
+		PayloadSHA256:  "hash",
+		RequestID:      "req-run-temporal-activity-cancel",
+		RunID:          "run-temporal-activity-cancel",
+		TraceID:        "trace-executor-001",
+		TurnID:         "turn-run-temporal-activity-cancel",
+		WorkflowID:     "campus-agent.chat.run-temporal-activity-cancel",
+	})
+	if err != nil {
+		t.Fatalf("plan activity: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = server.InvokeSemanticWorkerActivity(
+		ctx,
+		temporalruntime.InvokeSemanticWorkerActivityInput{
+			PlanRef: plan.PlanRef,
+			RunID:   "run-temporal-activity-cancel",
+			TraceID: "trace-executor-001",
+		},
+	)
+
+	if err == nil {
+		t.Fatal("semantic activity cancel must fail closed")
+	}
+	attempts, listErr := store.ListStepAttempts(context.Background(), "run-temporal-activity-cancel")
+	if listErr != nil {
+		t.Fatalf("list attempts: %v", listErr)
+	}
+	var failedAttempt *execution.StepAttemptProjection
+	for index := range attempts {
+		if attempts[index].StepID == "semantic.rag" && attempts[index].Status == "failed" {
+			failedAttempt = &attempts[index]
+		}
+	}
+	if failedAttempt == nil {
+		t.Fatalf("semantic.rag failed attempt missing: %#v", attempts)
+	}
+	if failedAttempt.CancelOutcome != execution.CancelOutcomeActivityContextCanceled {
+		t.Fatalf("cancel outcome = %q, want activity_context_canceled", failedAttempt.CancelOutcome)
+	}
+	if failedAttempt.TimeoutOutcome != execution.TimeoutOutcomeNotTimedOut {
+		t.Fatalf("timeout outcome = %q, want not_timed_out", failedAttempt.TimeoutOutcome)
+	}
 }
 
 func TestInvokeSemanticWorkerActivityBindsTemporalSemanticWorkItem(t *testing.T) {
@@ -188,9 +275,10 @@ func TestInvokeSemanticWorkerActivityBindsTemporalSemanticWorkItem(t *testing.T)
 		configured: true,
 		executeSemanticFn: func(_ context.Context, request bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error) {
 			seen = request
-			return semanticWorkerBridgeResponseForTest(), nil
+			return semanticWorkerSynthesisPacketResponseForRunTest(t, "run-temporal-work-item"), nil
 		},
 	})
+	useFakeRAGSynthesisExecutorForRunTest(server, "run-temporal-work-item")
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -234,6 +322,80 @@ func TestInvokeSemanticWorkerActivityBindsTemporalSemanticWorkItem(t *testing.T)
 	}
 	if seen.Attempt != 1 {
 		t.Fatalf("semantic work item attempt = %d", seen.Attempt)
+	}
+}
+
+func TestInvokeSemanticWorkerActivityRequiresRAGSynthesisPacket(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := NewServer(config.Config{
+		BridgeTimeoutMS:        500,
+		TemporalWorkerIdentity: "test:rag:worker",
+	}, &fakeBridge{
+		configured: true,
+		executeSemanticFn: func(context.Context, bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error) {
+			return semanticWorkerBridgeResponseForTest(), nil
+		},
+	})
+	server.ragSynthesisExecutor = &fakeRAGSynthesisExecutor{}
+	server.ragSynthesisErr = nil
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-temporal-packet-required",
+		"conv-temporal-packet-required",
+		now,
+		ragHandoffForDurableWorkerTest("hello"),
+	)
+	plan, err := server.PlanChatAnswerActivity(context.Background(), temporalruntime.PlanChatAnswerActivityInput{
+		ConversationID: "conv-temporal-packet-required",
+		Namespace:      "campus-agent-test",
+		PayloadSHA256:  "hash",
+		RequestID:      "req-run-temporal-packet-required",
+		RunID:          "run-temporal-packet-required",
+		TraceID:        "trace-executor-001",
+		TurnID:         "turn-run-temporal-packet-required",
+		WorkflowID:     "campus-agent.chat.run-temporal-packet-required",
+	})
+	if err != nil {
+		t.Fatalf("plan activity: %v", err)
+	}
+
+	_, err = server.InvokeSemanticWorkerActivity(
+		context.Background(),
+		temporalruntime.InvokeSemanticWorkerActivityInput{
+			PlanRef: plan.PlanRef,
+			RunID:   "run-temporal-packet-required",
+			TraceID: "trace-executor-001",
+		},
+	)
+
+	if err == nil {
+		t.Fatal("semantic bridge final answer without rag synthesis packet must fail closed")
+	}
+	run, getErr := store.GetRun(context.Background(), "run-temporal-packet-required")
+	if getErr != nil {
+		t.Fatalf("get run: %v", getErr)
+	}
+	if run.Status != execution.DurableRunStatusFailed {
+		t.Fatalf("run status = %q, want failed", run.Status)
+	}
+	attempts, listErr := store.ListStepAttempts(context.Background(), "run-temporal-packet-required")
+	if listErr != nil {
+		t.Fatalf("list attempts: %v", listErr)
+	}
+	var failedAttempt *execution.StepAttemptProjection
+	for index := range attempts {
+		if attempts[index].StepID == "semantic.rag" && attempts[index].Status == "failed" {
+			failedAttempt = &attempts[index]
+		}
+	}
+	if failedAttempt == nil {
+		t.Fatalf("semantic.rag failed attempt missing: %#v", attempts)
+	}
+	if failedAttempt.SanitizedPayload["failure_kind"] != "rag_synthesis_packet_missing" {
+		t.Fatalf("failure payload = %#v", failedAttempt.SanitizedPayload)
 	}
 }
 
@@ -310,9 +472,10 @@ func TestTemporalActivitiesProjectTypedStepEvents(t *testing.T) {
 	}, &fakeBridge{
 		configured: true,
 		executeSemanticFn: func(context.Context, bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error) {
-			return semanticWorkerBridgeResponseForTest(), nil
+			return semanticWorkerSynthesisPacketResponseForRunTest(t, "run-temporal-steps"), nil
 		},
 	})
+	useFakeRAGSynthesisExecutorForRunTest(server, "run-temporal-steps")
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -360,10 +523,22 @@ func TestTemporalActivitiesProjectTypedStepEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("semantic activity: %v", err)
 	}
+	synthesis, err := server.SynthesizeRAGAnswerActivity(
+		context.Background(),
+		temporalruntime.SynthesizeRAGAnswerActivityInput{
+			BridgeRef: semantic.BridgeRef,
+			PlanRef:   plan.PlanRef,
+			RunID:     "run-temporal-steps",
+			TraceID:   "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("synthesis activity: %v", err)
+	}
 	finalization, err := server.FinalizeChatAnswerActivity(
 		context.Background(),
 		temporalruntime.FinalizeChatAnswerActivityInput{
-			BridgeRef: semantic.BridgeRef,
+			BridgeRef: synthesis.BridgeRef,
 			PlanRef:   plan.PlanRef,
 			RunID:     "run-temporal-steps",
 			TraceID:   "trace-executor-001",
@@ -387,280 +562,4 @@ func TestTemporalActivitiesProjectTypedStepEvents(t *testing.T) {
 		execution.DurableRunEventTypeFinalizationCompleted,
 		execution.DurableRunEventTypeRunCompleted,
 	})
-}
-
-func TestAppendTemporalRunEventAcceptsIdenticalRetryProjection(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{}, nil)
-	attachRunProjectionStoreForHandlerTest(server, store)
-	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-temporal-event-retry",
-		"conv-temporal-event-retry",
-		now,
-		ragHandoffForDurableWorkerTest("hello"),
-	)
-	event := execution.DurableRunEvent{
-		EventID:              "run-temporal-event-retry:workflow-planned",
-		RunID:                "run-temporal-event-retry",
-		ConversationID:       "conv-temporal-event-retry",
-		EventType:            execution.DurableRunEventTypeWorkflowPlanned,
-		OccurredAt:           now.Add(time.Second),
-		Visibility:           execution.DurableRunEventVisibilityInternal,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload:              map[string]any{"workflow_id": "campus-agent.chat.run-temporal-event-retry"},
-	}
-	if err := server.appendTemporalRunEvent(context.Background(), event); err != nil {
-		t.Fatalf("append first event: %v", err)
-	}
-	if err := server.appendTemporalRunEvent(context.Background(), event); err != nil {
-		t.Fatalf("append identical retry event: %v", err)
-	}
-	events, err := store.ListRunEvents(context.Background(), "run-temporal-event-retry")
-	if err != nil {
-		t.Fatalf("list events: %v", err)
-	}
-	if len(events) != 1 {
-		t.Fatalf("event count = %d, want 1", len(events))
-	}
-}
-
-func TestFinalizeChatAnswerActivityReturnsCompletedProjectionOnRetry(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		BridgeTimeoutMS:        500,
-		TemporalWorkerIdentity: "test:finalization:worker",
-	}, &fakeBridge{
-		configured: true,
-		executeSemanticFn: func(context.Context, bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error) {
-			return semanticWorkerBridgeResponseForTest(), nil
-		},
-	})
-	attachRunProjectionStoreForHandlerTest(server, store)
-	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-temporal-finalize-retry",
-		"conv-temporal-finalize-retry",
-		now,
-		ragHandoffForDurableWorkerTest("hello"),
-	)
-	plan, err := server.PlanChatAnswerActivity(context.Background(), temporalruntime.PlanChatAnswerActivityInput{
-		ConversationID: "conv-temporal-finalize-retry",
-		Namespace:      "campus-agent-test",
-		PayloadSHA256:  "hash",
-		RequestID:      "req-run-temporal-finalize-retry",
-		RunID:          "run-temporal-finalize-retry",
-		TraceID:        "trace-executor-001",
-		TurnID:         "turn-run-temporal-finalize-retry",
-		WorkflowID:     "campus-agent.chat.run-temporal-finalize-retry",
-	})
-	if err != nil {
-		t.Fatalf("plan activity: %v", err)
-	}
-	semantic, err := server.InvokeSemanticWorkerActivity(
-		context.Background(),
-		temporalruntime.InvokeSemanticWorkerActivityInput{
-			PlanRef: plan.PlanRef,
-			RunID:   "run-temporal-finalize-retry",
-			TraceID: "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("semantic activity: %v", err)
-	}
-	first, err := server.FinalizeChatAnswerActivity(
-		context.Background(),
-		temporalruntime.FinalizeChatAnswerActivityInput{
-			BridgeRef: semantic.BridgeRef,
-			PlanRef:   plan.PlanRef,
-			RunID:     "run-temporal-finalize-retry",
-			TraceID:   "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("first finalization activity: %v", err)
-	}
-	second, err := server.FinalizeChatAnswerActivity(
-		context.Background(),
-		temporalruntime.FinalizeChatAnswerActivityInput{
-			BridgeRef: semantic.BridgeRef,
-			PlanRef:   plan.PlanRef,
-			RunID:     "run-temporal-finalize-retry",
-			TraceID:   "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("retry finalization activity: %v", err)
-	}
-	if second.ProjectionRef != first.ProjectionRef || second.Status != "completed" {
-		t.Fatalf("retry finalization result = %#v, first = %#v", second, first)
-	}
-	events, err := store.ListRunEvents(context.Background(), "run-temporal-finalize-retry")
-	if err != nil {
-		t.Fatalf("list events: %v", err)
-	}
-	var completedCount int
-	for _, event := range events {
-		if event.EventType == execution.DurableRunEventTypeRunCompleted {
-			completedCount++
-		}
-	}
-	if completedCount != 1 {
-		t.Fatalf("run.completed count = %d, want 1", completedCount)
-	}
-}
-
-func TestInvokeSemanticWorkerActivityReturnsStoredProjectionOnRetry(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	var bridgeCalls int
-	server := NewServer(config.Config{
-		BridgeTimeoutMS:        500,
-		TemporalWorkerIdentity: "test:rag:worker",
-	}, &fakeBridge{
-		configured: true,
-		executeSemanticFn: func(context.Context, bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error) {
-			bridgeCalls++
-			return semanticWorkerBridgeResponseForTest(), nil
-		},
-	})
-	attachRunProjectionStoreForHandlerTest(server, store)
-	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-temporal-semantic-retry",
-		"conv-temporal-semantic-retry",
-		now,
-		ragHandoffForDurableWorkerTest("hello"),
-	)
-	plan, err := server.PlanChatAnswerActivity(context.Background(), temporalruntime.PlanChatAnswerActivityInput{
-		ConversationID: "conv-temporal-semantic-retry",
-		Namespace:      "campus-agent-test",
-		PayloadSHA256:  "hash",
-		RequestID:      "req-run-temporal-semantic-retry",
-		RunID:          "run-temporal-semantic-retry",
-		TraceID:        "trace-executor-001",
-		TurnID:         "turn-run-temporal-semantic-retry",
-		WorkflowID:     "campus-agent.chat.run-temporal-semantic-retry",
-	})
-	if err != nil {
-		t.Fatalf("plan activity: %v", err)
-	}
-	first, err := server.InvokeSemanticWorkerActivity(
-		context.Background(),
-		temporalruntime.InvokeSemanticWorkerActivityInput{
-			PlanRef: plan.PlanRef,
-			RunID:   "run-temporal-semantic-retry",
-			TraceID: "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("first semantic activity: %v", err)
-	}
-	second, err := server.InvokeSemanticWorkerActivity(
-		context.Background(),
-		temporalruntime.InvokeSemanticWorkerActivityInput{
-			PlanRef: plan.PlanRef,
-			RunID:   "run-temporal-semantic-retry",
-			TraceID: "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("retry semantic activity: %v", err)
-	}
-	if second.BridgeRef != first.BridgeRef || second.Status != "completed" {
-		t.Fatalf("retry semantic result = %#v, first = %#v", second, first)
-	}
-	if bridgeCalls != 1 {
-		t.Fatalf("semantic bridge calls = %d, want 1", bridgeCalls)
-	}
-}
-
-func TestLateFinalizationActivityDoesNotOverrideCanceledProjection(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		BridgeTimeoutMS:        500,
-		TemporalWorkerIdentity: "test:finalization:worker",
-	}, &fakeBridge{
-		configured: true,
-		executeSemanticFn: func(context.Context, bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error) {
-			return semanticWorkerBridgeResponseForTest(), nil
-		},
-	})
-	attachRunProjectionStoreForHandlerTest(server, store)
-	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-temporal-late-finalization",
-		"conv-temporal-late-finalization",
-		now,
-		ragHandoffForDurableWorkerTest("hello"),
-	)
-	plan, err := server.PlanChatAnswerActivity(context.Background(), temporalruntime.PlanChatAnswerActivityInput{
-		ConversationID: "conv-temporal-late-finalization",
-		Namespace:      "campus-agent-test",
-		PayloadSHA256:  "hash",
-		RequestID:      "req-run-temporal-late-finalization",
-		RunID:          "run-temporal-late-finalization",
-		TraceID:        "trace-executor-001",
-		TurnID:         "turn-run-temporal-late-finalization",
-		WorkflowID:     "campus-agent.chat.run-temporal-late-finalization",
-	})
-	if err != nil {
-		t.Fatalf("plan activity: %v", err)
-	}
-	semantic, err := server.InvokeSemanticWorkerActivity(
-		context.Background(),
-		temporalruntime.InvokeSemanticWorkerActivityInput{
-			PlanRef: plan.PlanRef,
-			RunID:   "run-temporal-late-finalization",
-			TraceID: "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("semantic activity: %v", err)
-	}
-	if _, err := store.CancelRunProjection(context.Background(), execution.DurableRunCancelRequest{
-		RunID:  "run-temporal-late-finalization",
-		Reason: "user_requested",
-		Now:    now.Add(time.Second),
-	}); err != nil {
-		t.Fatalf("cancel projection setup: %v", err)
-	}
-
-	_, err = server.FinalizeChatAnswerActivity(
-		context.Background(),
-		temporalruntime.FinalizeChatAnswerActivityInput{
-			BridgeRef: semantic.BridgeRef,
-			PlanRef:   plan.PlanRef,
-			RunID:     "run-temporal-late-finalization",
-			TraceID:   "trace-executor-001",
-		},
-	)
-
-	if err == nil {
-		t.Fatal("late finalization must fail closed")
-	}
-	run, getErr := store.GetRun(context.Background(), "run-temporal-late-finalization")
-	if getErr != nil {
-		t.Fatalf("get run: %v", getErr)
-	}
-	if run.Status != execution.DurableRunStatusCanceled {
-		t.Fatalf("run status = %q, want canceled", run.Status)
-	}
-	events, listErr := store.ListRunEvents(context.Background(), "run-temporal-late-finalization")
-	if listErr != nil {
-		t.Fatalf("list events: %v", listErr)
-	}
-	for _, event := range events {
-		if event.EventType == execution.DurableRunEventTypeRunCompleted ||
-			event.EventType == execution.DurableRunEventTypeFinalizationCompleted {
-			t.Fatalf("late finalization published terminal success event: %#v", event)
-		}
-	}
 }

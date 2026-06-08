@@ -14,6 +14,7 @@ RUN go mod download
 COPY apps/execution-control ./
 COPY configs/runtime/agents.v2.json /src/configs/runtime/agents.v2.json
 COPY configs/runtime/intent-policy.v1.json /src/configs/runtime/intent-policy.v1.json
+COPY configs/runtime/provider-pricing.v1.json /src/configs/runtime/provider-pricing.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /src/configs/runtime/query-serving-scopes.v1.json
 COPY configs/runtime/tools.v2.json /src/configs/runtime/tools.v2.json
 COPY configs/runtime/workflow-artifacts.v1.json /src/configs/runtime/workflow-artifacts.v1.json
@@ -41,6 +42,7 @@ COPY --from=build /out/activity-worker-finalization /usr/local/bin/activity-work
 COPY --from=build /out/worker-autoscaler /usr/local/bin/worker-autoscaler
 COPY configs/runtime/agents.v2.json /etc/campus-agent/agents.v2.json
 COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
+COPY configs/runtime/provider-pricing.v1.json /etc/campus-agent/provider-pricing.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /etc/campus-agent/query-serving-scopes.v1.json
 COPY configs/runtime/tools.v2.json /etc/campus-agent/tools.v2.json
 COPY configs/runtime/workflow-artifacts.v1.json /etc/campus-agent/workflow-artifacts.v1.json
@@ -50,6 +52,7 @@ EXPOSE 8000
 ENV CAMPUS_AGENT_HTTP_HOST=0.0.0.0 \
   EXECUTION_CONTROL_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json \
   EXECUTION_CONTROL_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json \
+  EXECUTION_CONTROL_PROVIDER_PRICING_PATH=/etc/campus-agent/provider-pricing.v1.json \
   EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH=/etc/campus-agent/query-serving-scopes.v1.json \
   EXECUTION_CONTROL_TOOL_SPEC_PATH=/etc/campus-agent/tools.v2.json \
   EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH=/etc/campus-agent/workflow-artifacts.v1.json

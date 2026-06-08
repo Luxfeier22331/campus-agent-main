@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -225,18 +226,47 @@ func (s *Server) InvokeSemanticWorkerActivity(
 			fmt.Errorf("semantic bridge status %d", response.StatusCode),
 		)
 	}
-	finalizedResponse, err := semanticFinalizationResponseForBridge(run, response)
-	if err != nil {
-		return s.failSemanticWorkerActivity(ctx, run, "bridge_invalid_response", err)
+	if packet, ok, err := ragSynthesisPacketFromBridgeResponse(run, response); err != nil {
+		return s.failSemanticWorkerActivity(ctx, run, "bridge_invalid_synthesis_packet", err)
+	} else if ok {
+		return s.completeSemanticWorkerActivityWithSynthesisPacket(
+			ctx,
+			run,
+			input.PlanRef,
+			packet,
+			response,
+			startedAt,
+		)
 	}
+	return s.failSemanticWorkerActivity(
+		ctx,
+		run,
+		"rag_synthesis_packet_missing",
+		errRAGSynthesisPacketMissing,
+	)
+}
+
+func temporalSemanticBridgeStepExecutionID(runID string) string {
+	return "temporal:" + strings.TrimSpace(runID) + ":semantic.rag"
+}
+
+func (s *Server) completeSemanticWorkerActivityWithSynthesisPacket(
+	ctx context.Context,
+	run execution.DurableRun,
+	planRef string,
+	packet ragSynthesisPacket,
+	response bridge.ExecuteResponse,
+	semanticStartedAt time.Time,
+) (temporalruntime.InvokeSemanticWorkerActivityOutput, error) {
 	bridgeRef := temporalProjectionRef(run.RunID, "semantic/rag")
 	updatedRun := run
 	updatedRun.Metadata = cloneTemporalMetadata(run.Metadata)
 	updatedRun.Metadata["temporal_semantic_bridge"] = map[string]any{
-		"bridge_kind":        response.Kind,
-		"bridge_ref":         bridgeRef,
-		"finalized_response": finalizedResponse,
-		"plan_ref":           input.PlanRef,
+		"bridge_kind":          response.Kind,
+		"bridge_ref":           bridgeRef,
+		"plan_ref":             planRef,
+		"rag_synthesis_packet": packet,
+		"synthesis_packet_ref": temporalProjectionRef(run.RunID, "semantic/rag/synthesis-packet"),
 	}
 	if err := s.runProjectionStore.ReplaceRunMetadata(ctx, updatedRun.RunID, updatedRun.Metadata); err != nil {
 		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
@@ -251,15 +281,16 @@ func (s *Server) InvokeSemanticWorkerActivity(
 		StepKind:      "typed_activity",
 		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
 		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     startedAt,
+		StartedAt:     semanticStartedAt,
 		CompletedAt:   completedAt,
 		UpdatedAt:     completedAt,
 		ResultKind:    "semantic_bridge_projection",
 		ProjectionRef: bridgeRef,
 		Payload: map[string]any{
-			"bridge_kind": response.Kind,
-			"bridge_ref":  bridgeRef,
-			"plan_ref":    input.PlanRef,
+			"bridge_kind":          response.Kind,
+			"bridge_ref":           bridgeRef,
+			"plan_ref":             planRef,
+			"synthesis_packet_ref": temporalProjectionRef(run.RunID, "semantic/rag/synthesis-packet"),
 		},
 	}); err != nil {
 		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
@@ -273,10 +304,11 @@ func (s *Server) InvokeSemanticWorkerActivity(
 		Visibility:           execution.DurableRunEventVisibilityInternal,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
-			"activity":    "rag",
-			"bridge_kind": response.Kind,
-			"bridge_ref":  bridgeRef,
-			"plan_ref":    input.PlanRef,
+			"activity":             "rag",
+			"bridge_kind":          response.Kind,
+			"bridge_ref":           bridgeRef,
+			"plan_ref":             planRef,
+			"synthesis_packet_ref": temporalProjectionRef(run.RunID, "semantic/rag/synthesis-packet"),
 		},
 	}); err != nil {
 		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
@@ -288,8 +320,169 @@ func (s *Server) InvokeSemanticWorkerActivity(
 	}, nil
 }
 
-func temporalSemanticBridgeStepExecutionID(runID string) string {
-	return "temporal:" + strings.TrimSpace(runID) + ":semantic.rag"
+func (s *Server) SynthesizeRAGAnswerActivity(
+	ctx context.Context,
+	input temporalruntime.SynthesizeRAGAnswerActivityInput,
+) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
+	if strings.TrimSpace(input.PlanRef) == "" {
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, fmt.Errorf("plan_ref is required")
+	}
+	if strings.TrimSpace(input.BridgeRef) == "" {
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, fmt.Errorf("bridge_ref is required")
+	}
+	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
+	if err != nil {
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
+	}
+	if _, err := temporalFinalizedResponseFromRun(run, input.BridgeRef); err == nil {
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{
+			BridgeRef: input.BridgeRef,
+			RunID:     run.RunID,
+			Status:    "completed",
+		}, nil
+	}
+	packet, err := temporalRAGSynthesisPacketFromRun(run, input.PlanRef, input.BridgeRef)
+	if err != nil {
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			FailureKind:   "rag_synthesis_packet_missing",
+			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
+			ResultKind:    "activity_failure",
+			StepID:        "synthesis",
+			StepKind:      "synthesis",
+			TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+			Payload: map[string]any{
+				"failure_kind": "rag_synthesis_packet_missing",
+				"message":      err.Error(),
+			},
+		}, err)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
+	return s.completeRAGSynthesisActivity(ctx, run, input.PlanRef, input.BridgeRef, packet)
+}
+
+func (s *Server) completeRAGSynthesisActivity(
+	ctx context.Context,
+	run execution.DurableRun,
+	planRef string,
+	bridgeRef string,
+	packet ragSynthesisPacket,
+) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
+	if s.ragSynthesisErr != nil {
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			FailureKind:   "rag_synthesis_provider_not_configured",
+			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
+			ResultKind:    "activity_failure",
+			StepID:        "synthesis",
+			StepKind:      "synthesis",
+			TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+			Payload: map[string]any{
+				"failure_kind": "rag_synthesis_provider_not_configured",
+				"message":      s.ragSynthesisErr.Error(),
+			},
+		}, s.ragSynthesisErr)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
+	if s.ragSynthesisExecutor == nil {
+		cause := errors.New("rag synthesis executor is not configured")
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			FailureKind:   "rag_synthesis_provider_not_configured",
+			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
+			ResultKind:    "activity_failure",
+			StepID:        "synthesis",
+			StepKind:      "synthesis",
+			TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+			Payload: map[string]any{
+				"failure_kind": "rag_synthesis_provider_not_configured",
+				"message":      cause.Error(),
+			},
+		}, cause)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
+	synthesisStartedAt := time.Now().UTC()
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Capability:    "knowledge",
+		Run:           run,
+		Status:        "started",
+		StepID:        "synthesis",
+		StepKind:      "synthesis",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     synthesisStartedAt,
+		UpdatedAt:     synthesisStartedAt,
+		ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
+		Payload: map[string]any{
+			"output_schema_id": packet.OutputSchemaID,
+			"packet_ref":       temporalProjectionRef(run.RunID, "semantic/rag/synthesis-packet"),
+			"prompt_refs":      packet.PromptRefs,
+			"provider_ref":     providerRequestRefForPacket(packet),
+			"query_intent":     packet.QueryIntent,
+		},
+	}); err != nil {
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
+	}
+	synthesisResult, err := s.ragSynthesisExecutor.ExecuteRAGSynthesis(ctx, packet)
+	synthesisCompletedAt := time.Now().UTC()
+	if err != nil {
+		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			CancelOutcome:   execution.CancelOutcome(synthesisResult.ProviderSummary.CancelOutcome),
+			FailureKind:     "rag_synthesis_provider_failed",
+			ProjectionRef:   temporalProjectionRef(run.RunID, "synthesis/provider"),
+			ProviderSummary: &synthesisResult.ProviderSummary,
+			ResultKind:      "provider_execution_summary",
+			StepID:          "synthesis",
+			StepKind:        "synthesis",
+			TaskQueue:       temporalruntime.ActivityTaskQueueRAG,
+			TimeoutOutcome:  execution.TimeoutOutcome(synthesisResult.ProviderSummary.TimeoutOutcome),
+			Payload: map[string]any{
+				"failure_kind": "rag_synthesis_provider_failed",
+				"message":      err.Error(),
+				"provider_ref": providerRequestRefForPacket(packet),
+			},
+		}, err)
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
+	}
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:         1,
+		Capability:      "knowledge",
+		Run:             run,
+		Status:          "completed",
+		StepID:          "synthesis",
+		StepKind:        "synthesis",
+		TaskQueue:       temporalruntime.ActivityTaskQueueRAG,
+		WorkerID:        s.config.TemporalWorkerIdentity,
+		StartedAt:       synthesisStartedAt,
+		CompletedAt:     synthesisCompletedAt,
+		UpdatedAt:       synthesisCompletedAt,
+		ResultKind:      "provider_execution_summary",
+		ProjectionRef:   temporalProjectionRef(run.RunID, "synthesis/provider"),
+		ProviderSummary: &synthesisResult.ProviderSummary,
+		Payload: map[string]any{
+			"diagnostic_status": synthesisResult.ProviderSummary.DiagnosticStatus,
+			"provider_ref":      synthesisResult.ProviderSummary.ProviderRequestRef,
+			"provider_response": synthesisResult.ProviderSummary.ProviderResponseID,
+			"schema_version":    synthesisResult.ProviderSummary.SchemaVersion,
+		},
+	}); err != nil {
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
+	}
+	finalizedResponse := ragSynthesisFinalizedResponse(run, packet, synthesisResult)
+	updatedRun := run
+	updatedRun.Metadata = cloneTemporalMetadata(run.Metadata)
+	bridgeMetadata := cloneAnyMapFromMetadata(updatedRun.Metadata["temporal_semantic_bridge"])
+	bridgeMetadata["bridge_ref"] = bridgeRef
+	bridgeMetadata["finalized_response"] = finalizedResponse
+	bridgeMetadata["plan_ref"] = planRef
+	bridgeMetadata["synthesis_ref"] = temporalProjectionRef(run.RunID, "synthesis/provider")
+	updatedRun.Metadata["temporal_semantic_bridge"] = bridgeMetadata
+	if err := s.runProjectionStore.ReplaceRunMetadata(ctx, updatedRun.RunID, updatedRun.Metadata); err != nil {
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
+	}
+	return temporalruntime.SynthesizeRAGAnswerActivityOutput{
+		BridgeRef: bridgeRef,
+		RunID:     run.RunID,
+		Status:    "completed",
+	}, nil
 }
 
 func (s *Server) FinalizeChatAnswerActivity(

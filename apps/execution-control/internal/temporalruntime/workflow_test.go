@@ -40,6 +40,18 @@ func TestChatAnswerWorkflowExecutesTypedStepGraph(t *testing.T) {
 		nil,
 	)
 	env.OnActivity(
+		SynthesizeRAGAnswerActivityName,
+		mock.Anything,
+		mock.MatchedBy(synthesisInputMatcher("run-workflow-001")),
+	).Return(
+		SynthesizeRAGAnswerActivityOutput{
+			BridgeRef: "projection://runs/run-workflow-001/semantic/rag",
+			RunID:     "run-workflow-001",
+			Status:    "completed",
+		},
+		nil,
+	)
+	env.OnActivity(
 		FinalizeChatAnswerActivityName,
 		mock.Anything,
 		mock.MatchedBy(finalizeInputMatcher("run-workflow-001")),
@@ -125,6 +137,17 @@ func (Activities) InvokeSemanticWorkerActivity(
 	}, nil
 }
 
+func (Activities) SynthesizeRAGAnswerActivity(
+	_ context.Context,
+	input SynthesizeRAGAnswerActivityInput,
+) (SynthesizeRAGAnswerActivityOutput, error) {
+	return SynthesizeRAGAnswerActivityOutput{
+		BridgeRef: input.BridgeRef,
+		RunID:     input.RunID,
+		Status:    "completed",
+	}, nil
+}
+
 func (Activities) FinalizeChatAnswerActivity(
 	_ context.Context,
 	input FinalizeChatAnswerActivityInput,
@@ -150,6 +173,15 @@ func semanticInputMatcher(runID string) func(InvokeSemanticWorkerActivityInput) 
 		return input.RunID == runID &&
 			input.TraceID == "trace-workflow-001" &&
 			input.PlanRef == "projection://runs/run-workflow-001/plan"
+	}
+}
+
+func synthesisInputMatcher(runID string) func(SynthesizeRAGAnswerActivityInput) bool {
+	return func(input SynthesizeRAGAnswerActivityInput) bool {
+		return input.RunID == runID &&
+			input.TraceID == "trace-workflow-001" &&
+			input.PlanRef == "projection://runs/run-workflow-001/plan" &&
+			input.BridgeRef == "projection://runs/run-workflow-001/semantic/rag"
 	}
 }
 

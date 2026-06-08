@@ -147,6 +147,8 @@ def build_required_rag_sdk_response(
         evidence=RagSdkEvidenceProjection.from_evidence_bundle(answer_selected_evidence),
         typed_answer=answer_draft.typed_draft,
         request_id=request.request_id,
+        workflow_run_ref=request.workflow_context.workflow_run_ref,
+        workflow_step_id=request.workflow_context.step_id,
         selector_blocked_query_slot_ids=selector_blocked_query_slot_ids(retrieval_plan),
     )
     try:
@@ -184,6 +186,22 @@ def build_required_rag_sdk_response(
             projection_context_summaries=projection_context_summaries,
         )
     if result.failure_class.strip():
+        if result.failure_class.strip() == "go_provider_synthesis_required":
+            return _go_provider_synthesis_required_response(
+                request=request,
+                resolved_scope=resolved_scope,
+                evidence=answer_selected_evidence,
+                retrieved_evidence=retrieved_evidence,
+                retrieval_execution_result=retrieval_execution_result,
+                handbook_plan=handbook_plan,
+                curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
+                detail=result.failure_detail.strip() or result.failure_class.strip(),
+                result=result,
+                planner_information_needs=planner_information_needs,
+                projection_context_summaries=projection_context_summaries,
+            )
         return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
@@ -582,6 +600,70 @@ def _rag_sdk_runtime_error_response(
             projection_context_summaries=projection_context_summaries,
         ),
     )
+
+
+def _go_provider_synthesis_required_response(
+    *,
+    request: AgentRequest,
+    resolved_scope: KnowledgeScope,
+    evidence,
+    retrieved_evidence,
+    retrieval_execution_result,
+    handbook_plan,
+    curriculum_plan,
+    curriculum_course_plan,
+    curriculum_program_family_plan,
+    detail: str,
+    result: RagSdkRunResult,
+    planner_information_needs=(),
+    projection_context_summaries=(),
+) -> AgentResponse:
+    packet = _required_go_provider_synthesis_packet(result)
+    return AgentResponse(
+        target="rag-agent",
+        status="error",
+        confidence="low",
+        error=ErrorInfo(
+            code="go_provider_synthesis_required",
+            message=detail,
+            retryable=False,
+        ),
+        result=_build_rag_result_payload(
+            evidence=evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            resolved_scope=resolved_scope,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request.request_id,
+            no_answer_reason="",
+            fail_close_reason="go_provider_synthesis_required",
+            semantic_outcome="go_provider_synthesis_required",
+            retrieval_adequacy=sufficient_retrieval_adequacy(),
+            grounding_verdict="pending",
+            grounding_downgraded=False,
+            prompt_runtime_state="go_provider_synthesis_required",
+            prompt_runtime_detail=detail,
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        ),
+        agent_observability=AgentObservability(
+            safe_details={"rag_synthesis_packet": packet},
+        ),
+    )
+
+
+def _required_go_provider_synthesis_packet(result: RagSdkRunResult) -> dict[str, object]:
+    projection = result.trace_projection
+    if not isinstance(projection, dict):
+        raise ValueError("go provider synthesis trace projection is required")
+    reject_unsafe_rag_sdk_projection(projection)
+    packet = projection.get("rag_synthesis_packet")
+    if not isinstance(packet, dict):
+        raise ValueError("rag_synthesis_packet is required")
+    return dict(packet)
 
 
 __all__ = [

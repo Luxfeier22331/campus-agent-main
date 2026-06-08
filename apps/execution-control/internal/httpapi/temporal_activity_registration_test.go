@@ -29,7 +29,11 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	server := &Server{}
 
 	ragType := reflect.TypeOf(server.TemporalRAGActivities())
-	for _, method := range []string{"PlanChatAnswerActivity", "InvokeSemanticWorkerActivity"} {
+	for _, method := range []string{
+		"PlanChatAnswerActivity",
+		"InvokeSemanticWorkerActivity",
+		"SynthesizeRAGAnswerActivity",
+	} {
 		if _, ok := ragType.MethodByName(method); !ok {
 			t.Fatalf("rag activities missing %s", method)
 		}
@@ -42,7 +46,11 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	if _, ok := finalizationType.MethodByName("FinalizeChatAnswerActivity"); !ok {
 		t.Fatal("finalization activities missing FinalizeChatAnswerActivity")
 	}
-	for _, method := range []string{"PlanChatAnswerActivity", "InvokeSemanticWorkerActivity"} {
+	for _, method := range []string{
+		"PlanChatAnswerActivity",
+		"InvokeSemanticWorkerActivity",
+		"SynthesizeRAGAnswerActivity",
+	} {
 		if _, ok := finalizationType.MethodByName(method); ok {
 			t.Fatalf("finalization activities expose %s", method)
 		}

@@ -54,6 +54,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
                 EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
                 EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
+                EXECUTION_CONTROL_PROVIDER_PRICING_PATH=/etc/campus-agent/provider-pricing.v1.json
                 OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
                 """
             ).strip(),
@@ -86,6 +87,10 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         )
         self.assertEqual(projected["EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"], "workflow-salt")
         self.assertEqual(projected["EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS"], "5000")
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_PROVIDER_PRICING_PATH"],
+            "/etc/campus-agent/provider-pricing.v1.json",
+        )
         self.assertEqual(
             projected["EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME"],
             "campus-execution-control-staging",

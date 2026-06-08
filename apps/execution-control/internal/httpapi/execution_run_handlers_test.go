@@ -267,17 +267,37 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("upsert step: %v", err)
 	}
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
-		AttemptID:            "planning:attempt:1",
-		StepID:               "planning",
-		RunID:                "run-temporal-trajectory",
-		Attempt:              1,
-		Status:               "completed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueRAG,
-		WorkerID:             "staging:rag:worker-1",
-		StartedAt:            now,
-		CompletedAt:          now.Add(100 * time.Millisecond),
-		UpdatedAt:            now.Add(100 * time.Millisecond),
-		PayloadSchemaVersion: "step-attempt-projection-v1",
+		AttemptID:             "planning:attempt:1",
+		StepID:                "planning",
+		RunID:                 "run-temporal-trajectory",
+		Attempt:               1,
+		Status:                "completed",
+		TaskQueue:             temporalruntime.ActivityTaskQueueRAG,
+		WorkerID:              "staging:rag:worker-1",
+		WorkflowID:            "campus-agent.chat.run-temporal-trajectory",
+		TemporalRunID:         "temporal-run-trajectory",
+		ActivityID:            "activity-planning-1",
+		ActivityType:          "PlanChatAnswerActivity",
+		ActivityAttempt:       1,
+		ScheduledAt:           now.Add(-25 * time.Millisecond),
+		StartedAt:             now,
+		CompletedAt:           now.Add(100 * time.Millisecond),
+		ScheduleToStartMS:     25,
+		DurationMS:            100,
+		ProviderRequestRef:    "provider://requests/req_001",
+		ProviderResponseID:    "resp_001",
+		ModelProvider:         "openai",
+		ModelName:             "gpt-5-mini",
+		InputTokens:           120,
+		OutputTokens:          42,
+		CachedInputTokens:     10,
+		EstimatedCostMicroUSD: 321,
+		PricingVersion:        "provider-pricing-v1",
+		CancelOutcome:         execution.CancelOutcomeNotRequested,
+		TimeoutOutcome:        execution.TimeoutOutcomeNotTimedOut,
+		TerminalReason:        "answer_completed",
+		UpdatedAt:             now.Add(100 * time.Millisecond),
+		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload: map[string]any{
 			"activity_type": "PlanChatAnswerActivity",
 			"raw_answer":    "must not leak",
@@ -330,6 +350,32 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	attempts, ok := body["attempts"].([]any)
 	if !ok || len(attempts) != 1 {
 		t.Fatalf("attempts = %#v, want one attempt", body["attempts"])
+	}
+	attempt := expectRecord(t, attempts[0], "attempts[0]")
+	for key, want := range map[string]any{
+		"workflow_id":             "campus-agent.chat.run-temporal-trajectory",
+		"temporal_run_id":         "temporal-run-trajectory",
+		"activity_id":             "activity-planning-1",
+		"activity_type":           "PlanChatAnswerActivity",
+		"activity_attempt":        float64(1),
+		"schedule_to_start_ms":    float64(25),
+		"duration_ms":             float64(100),
+		"provider_request_ref":    "provider://requests/req_001",
+		"provider_response_id":    "resp_001",
+		"model_provider":          "openai",
+		"model_name":              "gpt-5-mini",
+		"input_tokens":            float64(120),
+		"output_tokens":           float64(42),
+		"cached_input_tokens":     float64(10),
+		"estimated_cost_microusd": float64(321),
+		"pricing_version":         "provider-pricing-v1",
+		"cancel_outcome":          string(execution.CancelOutcomeNotRequested),
+		"timeout_outcome":         string(execution.TimeoutOutcomeNotTimedOut),
+		"terminal_reason":         "answer_completed",
+	} {
+		if attempt[key] != want {
+			t.Fatalf("attempt[%s] = %#v, want %#v; attempt=%#v", key, attempt[key], want, attempt)
+		}
 	}
 	results, ok := body["results"].([]any)
 	if !ok || len(results) != 1 {

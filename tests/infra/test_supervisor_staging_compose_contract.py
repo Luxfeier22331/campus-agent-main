@@ -136,6 +136,10 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
             "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT: ${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?set EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT}",
             compose,
         )
+        self.assertIn(
+            "EXECUTION_CONTROL_PROVIDER_PRICING_PATH: ${EXECUTION_CONTROL_PROVIDER_PRICING_PATH:-/etc/campus-agent/provider-pricing.v1.json}",
+            compose,
+        )
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED:", compose)
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED:", compose)
 
@@ -196,6 +200,15 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
             "ghcr.io/astral-sh/uv:0.8.22-python3.12-bookworm-slim",
         ):
             self.assertIn(image, script)
+
+    def test_status_check_requires_provider_pricing_readyz_gate(self) -> None:
+        script = (ROOT / "infra/local/staging/status-execution-control-staging.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("prompt_config_gate.admitted", script)
+        self.assertIn("prompt_config_gate.pricing_version", script)
+        self.assertIn("provider-pricing-v1", script)
 
 
 if __name__ == "__main__":

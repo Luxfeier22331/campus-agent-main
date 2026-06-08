@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/observability"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
@@ -36,6 +38,8 @@ type Server struct {
 	workflowRunsErr        error
 	runProjectionStore     execution.RunProjectionStore
 	runProjectionStoreErr  error
+	ragSynthesisExecutor   ragSynthesisExecutor
+	ragSynthesisErr        error
 	temporalStarter        temporalruntime.ChatWorkflowStarter
 	temporalStarterErr     error
 	temporalWorkersStarted bool
@@ -67,6 +71,13 @@ func (a TemporalRAGActivities) InvokeSemanticWorkerActivity(
 	input temporalruntime.InvokeSemanticWorkerActivityInput,
 ) (temporalruntime.InvokeSemanticWorkerActivityOutput, error) {
 	return a.server.InvokeSemanticWorkerActivity(ctx, input)
+}
+
+func (a TemporalRAGActivities) SynthesizeRAGAnswerActivity(
+	ctx context.Context,
+	input temporalruntime.SynthesizeRAGAnswerActivityInput,
+) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
+	return a.server.SynthesizeRAGAnswerActivity(ctx, input)
 }
 
 type TemporalFinalizationActivities struct {
@@ -190,6 +201,7 @@ func NewServerWithDependencies(
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
+	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
@@ -210,12 +222,34 @@ func NewServerWithDependencies(
 		workflowRunsErr:       workflowRunsErr,
 		runProjectionStore:    runProjectionStore,
 		runProjectionStoreErr: runProjectionStoreErr,
+		ragSynthesisExecutor:  ragSynthesisExecutor,
+		ragSynthesisErr:       ragSynthesisErr,
 		temporalStarter:       temporalStarter,
 		temporalStarterErr:    temporalStarterErr,
 		intentPolicy:          intentPolicy,
 		intentPolicyErr:       intentPolicyErr,
 	}
 	return server
+}
+
+func newRAGSynthesisExecutor(cfg config.Config) (ragSynthesisExecutor, error) {
+	gate := evaluatePromptConfigGate(cfg)
+	if !gate.Admitted {
+		return nil, errors.New(gate.Reason)
+	}
+	catalog, err := provider.LoadPricingCatalog(cfg.ProviderPricingPath)
+	if err != nil {
+		return nil, err
+	}
+	return providerBackedRAGSynthesisExecutor{
+		client: provider.NewResponsesClient(provider.ResponsesClientConfig{
+			APIKey:        cfg.PromptRuntimeAPIKey,
+			BaseURL:       cfg.PromptRuntimeBaseURL,
+			ModelName:     cfg.AgentPromptModel,
+			ModelProvider: cfg.PromptRuntimeProvider,
+			Pricing:       catalog,
+		}),
+	}, nil
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {

@@ -345,18 +345,38 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 	step.SanitizedPayload["shape"] = "mutated"
 
 	attempt, err := store.UpsertStepAttempt(ctx, StepAttemptProjection{
-		AttemptID:            "attempt-planning-1",
-		StepID:               "step-planning",
-		RunID:                "run-steps",
-		Attempt:              1,
-		Status:               "completed",
-		TaskQueue:            "campus-agent.workflow",
-		WorkerID:             "staging:workflow:001",
-		StartedAt:            now.Add(time.Second),
-		CompletedAt:          now.Add(2 * time.Second),
-		UpdatedAt:            now.Add(2 * time.Second),
-		PayloadSchemaVersion: "step-attempt-v1",
-		SanitizedPayload:     map[string]any{"provider": "none"},
+		AttemptID:             "attempt-planning-1",
+		StepID:                "step-planning",
+		RunID:                 "run-steps",
+		Attempt:               1,
+		Status:                "completed",
+		TaskQueue:             "campus-agent.workflow",
+		WorkerID:              "staging:workflow:001",
+		WorkflowID:            "campus-agent.chat.run-steps",
+		TemporalRunID:         "temporal-run-001",
+		ActivityID:            "activity-planning-001",
+		ActivityType:          "PlanChatAnswerActivity",
+		ActivityAttempt:       1,
+		ScheduledAt:           now.Add(900 * time.Millisecond),
+		StartedAt:             now.Add(time.Second),
+		CompletedAt:           now.Add(2 * time.Second),
+		ScheduleToStartMS:     100,
+		DurationMS:            1000,
+		ProviderRequestRef:    "provider-request-ref",
+		ProviderResponseID:    "resp_001",
+		ModelProvider:         "openai",
+		ModelName:             "gpt-5-mini",
+		InputTokens:           100,
+		OutputTokens:          40,
+		CachedInputTokens:     20,
+		EstimatedCostMicroUSD: 123,
+		PricingVersion:        "provider-pricing-v1",
+		CancelOutcome:         CancelOutcomeNotRequested,
+		TimeoutOutcome:        TimeoutOutcomeNotTimedOut,
+		TerminalReason:        "answer_completed",
+		UpdatedAt:             now.Add(2 * time.Second),
+		PayloadSchemaVersion:  "step-attempt-v1",
+		SanitizedPayload:      map[string]any{"provider": "none"},
 	})
 	if err != nil {
 		t.Fatalf("upsert step attempt: %v", err)
@@ -393,6 +413,19 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 	}
 	if len(attempts) != 1 || attempts[0].SanitizedPayload["provider"] != "none" {
 		t.Fatalf("attempts = %#v, want defensive persisted attempt", attempts)
+	}
+	if attempts[0].WorkflowID != "campus-agent.chat.run-steps" ||
+		attempts[0].ActivityType != "PlanChatAnswerActivity" ||
+		attempts[0].ScheduleToStartMS != 100 ||
+		attempts[0].DurationMS != 1000 ||
+		attempts[0].ProviderResponseID != "resp_001" ||
+		attempts[0].InputTokens != 100 ||
+		attempts[0].OutputTokens != 40 ||
+		attempts[0].CachedInputTokens != 20 ||
+		attempts[0].EstimatedCostMicroUSD != 123 ||
+		attempts[0].CancelOutcome != CancelOutcomeNotRequested ||
+		attempts[0].TimeoutOutcome != TimeoutOutcomeNotTimedOut {
+		t.Fatalf("attempt evidence fields = %#v, want first-class temporal/provider evidence", attempts[0])
 	}
 	results, err := store.ListStepResults(ctx, "run-steps")
 	if err != nil {
