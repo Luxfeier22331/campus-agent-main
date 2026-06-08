@@ -20,6 +20,8 @@ updated: 2026-06-04
 - `app-api-identity-platform-http.md` (forward product projection; not current
   route inventory)
 - `app-api-federation-http.md` (forward federation provider surface)
+- `app-api-campus-ops-http.md`
+- `app-api-dining-ops-http.md`
 - `durable-agent-runtime-contract.md`
 
 ## Operator / Official Web contract

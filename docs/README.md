@@ -71,6 +71,12 @@ policy、reference、runbook，以及已归档的历史 plan。
   `architecture/system/identity-platform-architecture.md`、
   `architecture/system/hub-account-experience-architecture.md` 与
   `architecture/system/federation-and-mucwiki-login-architecture.md`
+- 需要回答“Campus Ops 运营工作台、饭堂地图编辑、draft/release/published projection 如何分层”，读
+  `architecture/system/campus-ops-web-architecture.md`、
+  `architecture/domains/dining/architecture.md`、
+  `contracts/app-api-campus-ops-http.md`、
+  `contracts/app-api-dining-ops-http.md` 与
+  `data/dining-operations-schema.md`
 - 需要回答“为什么接受这条边界”，读 `decisions/`
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
 - 需要回答“MUC Campus Q&A 前端设计稿、页面边界、截图和 design token 是什么”，读

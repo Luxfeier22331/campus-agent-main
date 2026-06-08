@@ -17,6 +17,7 @@ import {
 } from "../modules/authenticated-notice-run-processing-query";
 import { buildCampusExperienceService } from "../modules/campus-experience";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
+import { buildDiningOperationsService, createPgDiningOperationsStore } from "../modules/dining-ops";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
 	buildIdentityPlatformService,
@@ -113,6 +114,7 @@ export function createRequestScopeFactory(input: {
 			let campusExperienceService = input.dependencies.campusExperienceService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
+			let diningOperationsService = input.dependencies.diningOperationsService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
 			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
@@ -234,6 +236,17 @@ export function createRequestScopeFactory(input: {
 
 				campusExperienceService = buildCampusExperienceService();
 				return campusExperienceService;
+			}
+
+			function resolveDiningOperationsService() {
+				if (diningOperationsService) {
+					return diningOperationsService;
+				}
+
+				diningOperationsService = buildDiningOperationsService({
+					store: createPgDiningOperationsStore(input.env, { getDb: runtime.getFreshDb }),
+				});
+				return diningOperationsService;
 			}
 
 			function resolveOfficialWebCommandService() {
@@ -425,6 +438,7 @@ export function createRequestScopeFactory(input: {
 				resolveCampusExperienceService,
 				resolveChatCommandService,
 				resolveChatConversationService,
+				resolveDiningOperationsService,
 				resolveDocsService,
 				resolveIdentityPlatformService,
 				resolveOfficialWebCommandService,

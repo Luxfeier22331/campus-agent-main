@@ -60,6 +60,7 @@ updated: 2026-06-06
 - `adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `adr-0034-authorization-model-and-retrieval-filter-projection.md`
+- `adr-0049-campus-ops-control-plane.md`
 
 ## Retrieval、data plane 与基础设施
 

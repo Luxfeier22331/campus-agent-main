@@ -240,27 +240,27 @@ const MAP_PLACES: CampusMapPlace[] = [
 	}),
 ];
 
-type DiningStallSeed = DiningFloorResponse["stalls"][number];
+export type DiningStallSeed = DiningFloorResponse["stalls"][number];
 
-interface DiningFloorSeed {
+export interface DiningFloorSeed {
 	floorId: string;
 	label: string;
 	stalls: DiningStallSeed[];
 }
 
-interface DiningHallSeed {
+export interface DiningHallSeed {
 	campus: string;
 	floors: DiningFloorSeed[];
 	hallId: string;
 	name: string;
 }
 
-const DINING_SOURCE = {
+export const DINING_SOURCE = {
 	label: "校园食堂平面图整理",
 	updatedAt: "2026-06-08T00:00:00.000Z",
 };
 
-const DINING_HALL_SEEDS: DiningHallSeed[] = [
+export const DINING_HALL_SEEDS: DiningHallSeed[] = [
 	createSingleFloorHall("haidian-canteen-1", "海淀一食堂", "海淀校区", [
 		createStall("rice-bowl", "盖饭窗口", "入口左侧", "12-18 元", ["主食", "热餐"]),
 		createStall("noodle", "面食窗口", "中部东侧", "10-16 元", ["面食"]),

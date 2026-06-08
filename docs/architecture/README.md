@@ -37,6 +37,7 @@ architecture。它回答“系统是什么”“为什么这样分层”“哪�
 
 - `../data/official-web-source-truth-schema.md`
 - `../data/authenticated-notice-source-truth-schema.md`
+- `../data/dining-operations-schema.md`
 
 ## 使用规则
 

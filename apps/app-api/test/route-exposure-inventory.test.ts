@@ -12,6 +12,7 @@ const routeFiles = [
 	"auth.ts",
 	"campus-experience.ts",
 	"chat.ts",
+	"dining-ops.ts",
 	"docs.ts",
 	"federation.ts",
 	"identity-platform.ts",

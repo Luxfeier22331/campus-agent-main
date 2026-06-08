@@ -10,6 +10,7 @@ import type {
 import { registerAuthRoutes } from "./auth";
 import { registerCampusExperienceRoutes } from "./campus-experience";
 import { registerChatRoutes } from "./chat";
+import { registerDiningOpsRoutes } from "./dining-ops";
 import { registerDocsRoutes } from "./docs";
 import { registerFederationRoutes } from "./federation";
 import { registerIdentityPlatformRoutes } from "./identity-platform";
@@ -69,6 +70,12 @@ export function registerAppRoutes(input: {
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,
+	});
+	registerDiningOpsRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
 	});
 	registerDocsRoutes({
 		app: input.app,

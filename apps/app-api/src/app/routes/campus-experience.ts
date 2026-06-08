@@ -34,14 +34,14 @@ export function registerCampusExperienceRoutes(input: {
 
 	input.app.get("/api/dining/halls", async () => {
 		const scope = input.createRequestScope();
-		return jsonResponse(await scope.resolveCampusExperienceService().getDiningHalls());
+		return jsonResponse(await scope.resolveDiningOperationsService().getPublishedHalls());
 	});
 
 	input.app.get("/api/dining/halls/:hallId/floors/:floorId", async (c) => {
 		const scope = input.createRequestScope();
 		try {
 			return jsonResponse(
-				await scope.resolveCampusExperienceService().getDiningFloor({
+				await scope.resolveDiningOperationsService().getPublishedFloor({
 					floorId: c.req.param("floorId"),
 					hallId: c.req.param("hallId"),
 				}),

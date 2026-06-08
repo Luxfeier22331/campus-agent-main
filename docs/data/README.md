@@ -13,6 +13,7 @@ canonical truth”“哪些只是 projection carrier”。
 
 - `app-api-schema.md`
 - `app-api-official-web-schema.md`
+- `dining-operations-schema.md`
 - `identity-platform-schema.md`
 - `durable-agent-runtime-schema.md`
 - `canonical-document-reader-model.md`

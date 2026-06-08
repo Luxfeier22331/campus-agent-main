@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import type { CampusExperienceService } from "../src/modules/campus-experience";
+import {
+	buildDiningOperationsService,
+	createInMemoryDiningOperationsStore,
+} from "../src/modules/dining-ops";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
@@ -20,37 +24,8 @@ const env = {
 
 function createService(): CampusExperienceService {
 	return {
-		getDiningFloor: vi.fn().mockResolvedValue({
-			floor: {
-				floorId: "1f",
-				hallId: "haidian-canteen-1",
-				label: "海淀第一食堂一层",
-				svgAssetUrl: "/assets/dining/haidian-canteen-1-1f.svg",
-			},
-			source: {
-				label: "校园食堂平面图整理",
-				updatedAt: "2026-06-01T00:00:00.000Z",
-			},
-			stalls: [
-				{
-					id: "rice-bowl",
-					locationLabel: "入口左侧",
-					name: "盖饭窗口",
-					priceLabel: "12-18 元",
-					tags: ["主食"],
-				},
-			],
-		}),
-		getDiningHalls: vi.fn().mockResolvedValue({
-			halls: [
-				{
-					campus: "海淀校区",
-					floors: [{ floorId: "1f", label: "一层" }],
-					hallId: "haidian-canteen-1",
-					name: "第一食堂",
-				},
-			],
-		}),
+		getDiningFloor: vi.fn(),
+		getDiningHalls: vi.fn(),
 		getMapPlace: vi.fn().mockResolvedValue({
 			place: {
 				accessNote: null,
@@ -91,7 +66,12 @@ function createService(): CampusExperienceService {
 describe("campus experience routes", () => {
 	it("returns map and dining projections through app-api", async () => {
 		const service = createService();
-		const app = createApp(env, { campusExperienceService: service });
+		const app = createApp(env, {
+			campusExperienceService: service,
+			diningOperationsService: buildDiningOperationsService({
+				store: createInMemoryDiningOperationsStore(),
+			}),
+		});
 
 		const places = await app.fetch(new Request("https://app-api.internal/api/campus-map/places"));
 		const place = await app.fetch(
@@ -107,10 +87,13 @@ describe("campus experience routes", () => {
 		expect(halls.status).toBe(200);
 		expect(floor.status).toBe(200);
 		expect(service.getMapPlace).toHaveBeenCalledWith({ placeId: "library" });
-		expect(service.getDiningFloor).toHaveBeenCalledWith({
-			floorId: "1f",
-			hallId: "haidian-canteen-1",
+		await expect(floor.json()).resolves.toMatchObject({
+			floor: {
+				floorId: "1f",
+				hallId: "haidian-canteen-1",
+			},
 		});
+		expect(service.getDiningFloor).not.toHaveBeenCalled();
 	});
 
 	it("accepts global campus-web feedback with explicit route context", async () => {

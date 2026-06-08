@@ -22,6 +22,15 @@ describe("app-api shared product bootstrap contracts", () => {
 
 		expect(packageJson.scripts["db:bootstrap"]).toBeTruthy();
 		expect(packageJson.scripts["db:bootstrap:staging"]).toBeTruthy();
+		expect(packageJson.scripts["db:bootstrap"]).toContain(
+			"bootstrap-shared-product-with-seeds.mjs",
+		);
+		expect(packageJson.scripts["db:bootstrap:staging"]).toContain(
+			"bootstrap-shared-product-with-seeds.mjs",
+		);
+		expect(packageJson.scripts["dining:seed-initial-release"]).toContain(
+			"seed-initial-dining-release.ts",
+		);
 		expect(packageJson.scripts["db:ensure-app-auth-role-search-path"]).toBeTruthy();
 		expect(packageJson.scripts["db:print-auth-migration"]).toBeTruthy();
 		expect(packageJson.scripts["db:reconcile-shared-drift"]).toContain(
@@ -52,7 +61,10 @@ describe("app-api shared product bootstrap contracts", () => {
 			"db/shared-product-migrations/0004_chat_message_structured_parts.sql",
 			"db/shared-product-migrations/0005_profile_memory.sql",
 			"db/shared-product-migrations/0006_message_feedback.sql",
+			"db/shared-product-migrations/0007_dining_operations.sql",
+			"scripts/bootstrap-shared-product-with-seeds.mjs",
 			"scripts/bootstrap-shared-product-database.mjs",
+			"scripts/seed-initial-dining-release.ts",
 			"scripts/ensure-app-auth-role-search-path.mjs",
 			"scripts/print-shared-product-auth-migration.mjs",
 			"scripts/reconcile-shared-db-drift.mjs",
@@ -79,6 +91,7 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(APP_API_KNOWN_SCHEMAS).toEqual(
 			expect.arrayContaining([
 				"docs",
+				"dining",
 				"identity",
 				"official_web",
 				"operator",
@@ -128,6 +141,24 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(requestScopeSource.slice(identityServiceStart, identityServiceEnd)).toContain(
 			"profileMemoryStore: createPgProfileMemoryStore(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getFreshDb,",
 		);
+	});
+
+	it("wires dining operations through shared PG storage instead of process memory", () => {
+		const requestScopeSource = readAppFile("src/app/request-scope.ts");
+		const diningServiceStart = requestScopeSource.indexOf(
+			"diningOperationsService = buildDiningOperationsService({",
+		);
+		const diningServiceEnd = requestScopeSource.indexOf(
+			"function resolveOfficialWebCommandService()",
+			diningServiceStart,
+		);
+
+		expect(diningServiceStart).toBeGreaterThan(-1);
+		expect(diningServiceEnd).toBeGreaterThan(diningServiceStart);
+		const diningScopeSource = requestScopeSource.slice(diningServiceStart, diningServiceEnd);
+		expect(diningScopeSource).toContain("createPgDiningOperationsStore(input.env, {");
+		expect(diningScopeSource).toContain("getDb: runtime.getFreshDb");
+		expect(requestScopeSource).not.toContain("createProcessDiningOperationsStore");
 	});
 
 	it("cuts the worker app shell through app-local submodules instead of keeping helpers inline", () => {

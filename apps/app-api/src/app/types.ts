@@ -6,6 +6,7 @@ import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
 import type { CampusExperienceService } from "../modules/campus-experience";
 import type { ChatConversationService } from "../modules/chat";
+import type { DiningOperationsService } from "../modules/dining-ops";
 import type { DocsService } from "../modules/docs";
 import type { IdentityPlatformService } from "../modules/identity-platform";
 import type {
@@ -42,6 +43,7 @@ export interface AppDependencies {
 	campusExperienceService?: CampusExperienceService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
+	diningOperationsService?: DiningOperationsService;
 	docsService?: DocsService;
 	docsReadinessProbe?: () => Promise<AppDocsReadinessResult>;
 	getAppAuth?: AppAuthGetter;
@@ -113,6 +115,7 @@ export interface AppRequestScope {
 	resolveCampusExperienceService(): CampusExperienceService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
+	resolveDiningOperationsService(): DiningOperationsService;
 	resolveDocsService(): DocsService;
 	resolveIdentityPlatformService(): IdentityPlatformService;
 	resolveOfficialWebCommandService(): OfficialWebCommandService;

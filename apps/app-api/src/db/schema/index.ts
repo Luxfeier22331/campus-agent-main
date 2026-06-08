@@ -12,6 +12,19 @@ export {
 } from "./auth";
 export { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 export {
+	diningAuditEvents,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningSourceObservations,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
+export {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
@@ -79,6 +92,19 @@ import {
 	verification,
 } from "./auth";
 import { conversations, messageFeedback, messages, sessionSlots } from "./chat";
+import {
+	diningAuditEvents,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningSourceObservations,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
 import {
 	docsCollections,
 	docsDocuments,
@@ -154,6 +180,17 @@ export const appApiSchema = {
 	docsDocumentVersions,
 	docsReaderAssets,
 	docsSearchUnits,
+	diningHalls,
+	diningFloors,
+	diningWindows,
+	diningWindowAssignments,
+	diningStallProfiles,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningSourceObservations,
+	diningReleases,
+	diningReleaseSnapshots,
+	diningAuditEvents,
 	identityAccounts,
 	identityProfiles,
 	identityAccessSnapshots,

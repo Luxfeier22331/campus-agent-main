@@ -29,6 +29,8 @@ browser-facing HTTP contract。
 - identity platform product
   projection：`docs/contracts/app-api-identity-platform-http.md`
 - future federation provider surface：`docs/contracts/app-api-federation-http.md`
+- campus ops cross-cutting contract：`docs/contracts/app-api-campus-ops-http.md`
+- dining ops HTTP contract：`docs/contracts/app-api-dining-ops-http.md`
 
 这份文档不冻结：
 
@@ -133,6 +135,31 @@ campus metadata, place records, and point GeoJSON markers. Dining payloads
 return hall/floor identity, SVG asset URLs, and stall name / price / location
 rows only. Feedback accepts a global `category`, `routeContext`, `body`, and
 optional `contact`; it does not create per-page local feedback widgets.
+
+Student-facing dining routes read the latest published dining release snapshot.
+Dining draft, release command and audit routes are frozen separately in
+`docs/contracts/app-api-dining-ops-http.md`.
+
+### Campus Ops
+
+- `GET /api/ops/dining/halls`
+- `GET /api/ops/dining/halls/:hallId/floors/:floorId`
+- `PATCH /api/ops/dining/windows/:windowId`
+- `POST /api/ops/dining/window-assignments`
+- `PATCH /api/ops/dining/window-assignments/:assignmentId`
+- `POST /api/ops/dining/menu-items`
+- `PATCH /api/ops/dining/menu-items/:menuItemId`
+- `POST /api/ops/dining/menu-offerings`
+- `PATCH /api/ops/dining/menu-offerings/:offeringId`
+- `GET /api/ops/dining/releases`
+- `POST /api/ops/dining/releases`
+- `GET /api/ops/dining/releases/:releaseId/preview`
+- `POST /api/ops/dining/releases/:releaseId/publish`
+- `GET /api/ops/dining/audit-events`
+
+These routes are `operator-via-panel` caller class routes consumed by
+`campus-ops-web`, not `campus-web`. Source observation apply/reject routes are
+not implemented in the current inventory.
 
 ### Operator
 
