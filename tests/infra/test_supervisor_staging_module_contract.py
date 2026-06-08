@@ -121,6 +121,8 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-${EXECUTION_CONTROL_SHARED_SECRET:-}",
             env_script,
         )
+        self.assertIn("EXECUTION_CONTROL_SHARED_SECRET=", env_example)
+        self.assertNotIn("SUPERVISOR_AGENT_WORKER_SHARED_SECRET=", env_example)
         self.assertNotIn("supervisor-agent-worker:", compose)
         self.assertIn("activity-worker-rag:", compose)
         self.assertIn("activity-worker-finalization:", compose)
@@ -152,6 +154,16 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("local temporal proof: ok", proof_script)
         self.assertNotIn("execution_control_staging_app_api_readyz_url", proof_script)
         self.assertNotIn("cloudflared", proof_script)
+
+    def test_go_rag_runtime_compose_receives_projected_embedding_dimension(self) -> None:
+        compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
+            encoding="utf-8"
+        )
+        embedding_dimension_env = (
+            "EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:?set EMBEDDING_DIMENSIONS}"
+        )
+
+        self.assertEqual(compose.count(embedding_dimension_env), 2)
 
     def test_core_module_owns_process_compose_and_uv_helpers(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
