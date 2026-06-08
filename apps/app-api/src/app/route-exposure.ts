@@ -89,6 +89,30 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/campus-map/places",
+		callerClass: "browser-surface",
+		admission: "public campus map projection read",
+	},
+	{
+		method: "GET",
+		path: "/api/campus-map/places/:placeId",
+		callerClass: "browser-surface",
+		admission: "public campus map projection read",
+	},
+	{
+		method: "GET",
+		path: "/api/dining/halls",
+		callerClass: "browser-surface",
+		admission: "public dining floorplan projection read",
+	},
+	{
+		method: "GET",
+		path: "/api/dining/halls/:hallId/floors/:floorId",
+		callerClass: "browser-surface",
+		admission: "public dining floorplan projection read",
+	},
+	{
+		method: "GET",
 		path: "/api/docs/readyz",
 		callerClass: "browser-surface",
 		admission: "docs control-plane readiness probe",
@@ -170,6 +194,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/federation/logout",
 		callerClass: "browser-surface",
 		admission: "registered OAuth/OIDC client end-session request",
+	},
+	{
+		method: "POST",
+		path: "/api/feedback",
+		callerClass: "browser-surface",
+		admission: "public campus-web feedback submission",
 	},
 	{
 		method: "GET",

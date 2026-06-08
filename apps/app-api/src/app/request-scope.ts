@@ -15,6 +15,7 @@ import {
 	buildAuthenticatedNoticeRunProcessingQueryService,
 	createPgAuthenticatedNoticeRunProcessingQueryStore,
 } from "../modules/authenticated-notice-run-processing-query";
+import { buildCampusExperienceService } from "../modules/campus-experience";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
@@ -110,6 +111,7 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.authenticatedNoticeRunProcessingCommandService ?? null;
 			let authenticatedNoticeRunProcessingQueryService =
 				input.dependencies.authenticatedNoticeRunProcessingQueryService ?? null;
+			let campusExperienceService = input.dependencies.campusExperienceService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
@@ -225,6 +227,15 @@ export function createRequestScopeFactory(input: {
 					}),
 				});
 				return chatCommandService;
+			}
+
+			function resolveCampusExperienceService() {
+				if (campusExperienceService) {
+					return campusExperienceService;
+				}
+
+				campusExperienceService = buildCampusExperienceService();
+				return campusExperienceService;
 			}
 
 			function resolveOfficialWebCommandService() {
@@ -413,6 +424,7 @@ export function createRequestScopeFactory(input: {
 				resolveAuthenticatedNoticeProcessingQueryService,
 				resolveAuthenticatedNoticeRunProcessingCommandService,
 				resolveAuthenticatedNoticeRunProcessingQueryService,
+				resolveCampusExperienceService,
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDocsService,

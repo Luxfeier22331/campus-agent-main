@@ -122,6 +122,20 @@ Identity Platform detailed object families are frozen separately in
 - `POST /api/chat/requests`
 - `POST /api/chat/requests/stream`
 
+### Campus Experience
+
+- `GET /api/campus-map/places`
+- `GET /api/campus-map/places/:placeId`
+- `GET /api/dining/halls`
+- `GET /api/dining/halls/:hallId/floors/:floorId`
+- `POST /api/feedback`
+
+These routes serve `campus-web` product projections. Map payloads return
+campus metadata, place records, and point GeoJSON markers. Dining payloads
+return hall/floor identity, SVG asset URLs, and stall name / price / location
+rows only. Feedback accepts a global `category`, `routeContext`, `body`, and
+optional `contact`; it does not create per-page local feedback widgets.
+
 ### Operator
 
 - `GET /api/operator/overview`

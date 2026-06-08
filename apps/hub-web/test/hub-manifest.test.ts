@@ -13,22 +13,33 @@ import {
 describe("hub app launcher manifest", () => {
 	it("freezes the public launcher to the three product destinations", () => {
 		expect(HUB_LAUNCHER_ENTRIES.map((entry) => [entry.slug, entry.targetKind])).toEqual([
-			["chat", "app_link"],
+			["campus", "app_link"],
 			["docs", "app_link"],
 			["muc-wiki", "external"],
 		]);
 		expect(HUB_NAVIGATION_ENTRIES).toBe(HUB_LAUNCHER_ENTRIES);
 		expect(HUB_LAUNCHER_ENTRIES.map((entry) => entry.label)).toEqual([
-			"问答助手",
+			"校园服务",
 			"文档站",
 			"MUC Wiki",
 		]);
 		expect(findHubEntryByPath("/wiki")).toBeNull();
-		expect(findHubEntryByPath("/chat")?.targetKind).toBe("app_link");
+		expect(findHubEntryByPath("/campus")?.targetKind).toBe("app_link");
 		expect(findHubEntryByPath("/account/login")).toBeNull();
 	});
 
-	it("resolves the docs destination to hub production and local docs dev", () => {
+	it("resolves app destinations to production and local dev origins", () => {
+		const campusEntry = HUB_LAUNCHER_ENTRIES.find((entry) => entry.slug === "campus");
+		expect(campusEntry?.href).toBe("https://campus.muc.wiki");
+		expect(campusEntry && resolveHubEntryHref(campusEntry, { hostname: "hub.muc.wiki" })).toBe(
+			"https://campus.muc.wiki",
+		);
+		expect(campusEntry && resolveHubEntryHref(campusEntry, { hostname: "localhost" })).toBe(
+			"http://localhost:27014",
+		);
+		expect(campusEntry && resolveHubEntryHref(campusEntry, { hostname: "127.0.0.1" })).toBe(
+			"http://127.0.0.1:27014",
+		);
 		const docsEntry = HUB_LAUNCHER_ENTRIES.find((entry) => entry.slug === "docs");
 		expect(docsEntry?.href).toBe("https://hub.muc.wiki/docs");
 		expect(docsEntry && resolveHubEntryHref(docsEntry, { hostname: "hub.muc.wiki" })).toBe(
@@ -54,7 +65,7 @@ describe("hub app launcher manifest", () => {
 		]);
 		expect(HUB_OWNED_SHELL_PATHS).toEqual(["/", ...HUB_ACCOUNT_ROUTES]);
 		expect(isHubInternalSlug("account")).toBe(false);
-		expect(isHubInternalSlug("chat")).toBe(false);
+		expect(isHubInternalSlug("campus")).toBe(false);
 		expect(isHubInternalSlug("docs")).toBe(false);
 		expect(isHubInternalSlug("panel")).toBe(false);
 		expect(isHubInternalSlug("muc-wiki")).toBe(false);

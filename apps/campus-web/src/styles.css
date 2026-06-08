@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@import "./design/tokens.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@theme inline {
+	--color-background: var(--sys-bg-canvas);
+	--color-foreground: var(--sys-text-default);
+	--color-card: var(--card-bg);
+	--color-muted: var(--sys-bg-muted);
+	--color-muted-foreground: var(--sys-text-muted);
+	--color-primary: var(--sys-brand-interactive);
+	--color-primary-foreground: var(--sys-text-inverse);
+	--color-border: var(--sys-border-subtle);
+	--color-input: var(--input-border);
+	--color-ring: var(--sys-border-focus);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html {
+	background: var(--sys-bg-canvas);
+	color: var(--sys-text-default);
+	font-family: var(--font-sans);
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+	min-height: 100dvh;
+	background: var(--sys-bg-canvas);
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}
+
+.campus-map-marker {
+	display: grid;
+	width: 28px;
+	height: 28px;
+	place-items: center;
+	border: 2px solid var(--neutral-0);
+	border-radius: 999px;
+	background: var(--map-marker);
+	box-shadow: var(--shadow-sm);
+	color: var(--neutral-0);
+}
+
+.campus-map-marker[data-selected="true"] {
+	background: var(--map-marker-selected);
+}

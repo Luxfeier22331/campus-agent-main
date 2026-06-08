@@ -35,6 +35,14 @@ WORKER_STAGING_SURFACE_SPECS = {
         },
         "files": {},
     },
+    "worker-staging-campus-web": {
+        "providers": {},
+        "required_settings": {},
+        "optional_settings": {
+            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
+        },
+        "files": {},
+    },
     "worker-staging-hub-web": {
         "providers": {},
         "required_settings": {

@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, ExternalLink, FileText, MessageSquareText } from "lucide-react";
+import { ArrowRight, BookOpen, ExternalLink, FileText, Grid3X3 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -9,13 +9,13 @@ import {
 } from "../platform/launcher/manifest";
 
 const entryIcons = {
-	chat: MessageSquareText,
+	campus: Grid3X3,
 	docs: FileText,
 	"muc-wiki": BookOpen,
 } as const;
 
 const entryActions = {
-	chat: "开始提问",
+	campus: "进入校园服务",
 	docs: "浏览文档",
 	"muc-wiki": "访问主站",
 } as const;

@@ -23,7 +23,7 @@ export const HUB_TARGET_KINDS = ["internal", "app_link", "external", "planned"] 
 
 export type HubAccountRoute = (typeof HUB_ACCOUNT_ROUTES)[number];
 export type HubEntryState = (typeof HUB_ENTRY_STATES)[number];
-export type HubLauncherSlug = "chat" | "docs" | "muc-wiki";
+export type HubLauncherSlug = "campus" | "docs" | "muc-wiki";
 export type HubTargetKind = (typeof HUB_TARGET_KINDS)[number];
 
 export interface HubHrefLocation {
@@ -45,12 +45,12 @@ export interface HubLauncherEntry {
 export const HUB_LAUNCHER_ENTRIES: readonly HubLauncherEntry[] = [
 	{
 		auth_required: true,
-		capability_key: "public_chat",
-		description: "AI 智能问答，快速获取校园信息。",
-		href: "https://chat.muc.wiki/chat",
-		label: "问答助手",
+		capability_key: "campus_experience",
+		description: "助手、文档、地图、食堂与反馈的校园体验入口。",
+		href: "https://campus.muc.wiki",
+		label: "校园服务",
 		ownedByHub: false,
-		slug: "chat",
+		slug: "campus",
 		state: "available",
 		targetKind: "app_link",
 	},
@@ -108,11 +108,20 @@ export function resolveHubEntryHref(
 	entry: HubLauncherEntry,
 	location?: HubHrefLocation | null,
 ): string {
-	if (entry.slug !== "docs") {
+	if (entry.slug !== "docs" && entry.slug !== "campus") {
 		return entry.href;
 	}
 
 	const hostname = location?.hostname ?? getCurrentHostname();
+	if (entry.slug === "campus") {
+		if (hostname === "localhost") {
+			return "http://localhost:27014";
+		}
+		if (hostname === "127.0.0.1" || hostname === "::1") {
+			return "http://127.0.0.1:27014";
+		}
+		return entry.href;
+	}
 	if (hostname === "localhost") {
 		return "http://localhost:27013";
 	}

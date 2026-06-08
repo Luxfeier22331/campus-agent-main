@@ -8,6 +8,7 @@ import type {
 	AppRuntimeReadinessResult,
 } from "../types";
 import { registerAuthRoutes } from "./auth";
+import { registerCampusExperienceRoutes } from "./campus-experience";
 import { registerChatRoutes } from "./chat";
 import { registerDocsRoutes } from "./docs";
 import { registerFederationRoutes } from "./federation";
@@ -63,6 +64,11 @@ export function registerAppRoutes(input: {
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
+	});
+	registerCampusExperienceRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
 	});
 	registerDocsRoutes({
 		app: input.app,

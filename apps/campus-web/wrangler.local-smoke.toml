@@ -1,0 +1,16 @@
+name = "campus-web-local-smoke"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[vars]
+APP_API_BASE_URL = "https://app-api.internal"
+CAMPUS_WEB_HOSTNAME = "127.0.0.1:27014"
+HUB_WEB_ORIGIN = "http://127.0.0.1:27012"
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"

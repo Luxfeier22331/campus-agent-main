@@ -4,6 +4,7 @@ import type { AuthenticatedNoticeProcessingCommandService } from "../modules/aut
 import type { AuthenticatedNoticeProcessingQueryService } from "../modules/authenticated-notice-processing-query";
 import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/authenticated-notice-run-processing-command";
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
+import type { CampusExperienceService } from "../modules/campus-experience";
 import type { ChatConversationService } from "../modules/chat";
 import type { DocsService } from "../modules/docs";
 import type { IdentityPlatformService } from "../modules/identity-platform";
@@ -38,6 +39,7 @@ export interface AppDependencies {
 	authenticatedNoticeProcessingQueryService?: AuthenticatedNoticeProcessingQueryService;
 	authenticatedNoticeRunProcessingCommandService?: AuthenticatedNoticeRunProcessingCommandService;
 	authenticatedNoticeRunProcessingQueryService?: AuthenticatedNoticeRunProcessingQueryService;
+	campusExperienceService?: CampusExperienceService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
 	docsService?: DocsService;
@@ -108,6 +110,7 @@ export interface AppRequestScope {
 	resolveAuthenticatedNoticeProcessingQueryService(): AuthenticatedNoticeProcessingQueryService;
 	resolveAuthenticatedNoticeRunProcessingCommandService(): AuthenticatedNoticeRunProcessingCommandService;
 	resolveAuthenticatedNoticeRunProcessingQueryService(): AuthenticatedNoticeRunProcessingQueryService;
+	resolveCampusExperienceService(): CampusExperienceService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
 	resolveDocsService(): DocsService;

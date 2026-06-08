@@ -46,8 +46,10 @@ describe("hub source guardrails", () => {
 		expect(routeRegistrySource).not.toContain('slug: "wiki"');
 		expect(routeRegistrySource).not.toContain('slug: "legacy-wiki"');
 		expect(routeRegistrySource).toContain('slug: "muc-wiki"');
+		expect(routeRegistrySource).toContain('href: "https://campus.muc.wiki"');
 		expect(routeRegistrySource).toContain('href: "https://muc.wiki"');
 		expect(routeRegistrySource).toContain('href: "https://hub.muc.wiki/docs"');
+		expect(routeRegistrySource).toContain("http://localhost:27014");
 		expect(routeRegistrySource).toContain("http://localhost:27013");
 		expect(routeRegistrySource).not.toContain("docs.muc.wiki");
 		expect(routeSurfaceSource).not.toContain("旧版 MUC Wiki");
@@ -55,15 +57,17 @@ describe("hub source guardrails", () => {
 		expect(manifestSource).toContain("route-registry");
 	});
 
-	it("keeps the public launcher narrow and excludes account/admin/planned cards", () => {
+	it("keeps the public launcher narrow and excludes account/admin/planned sub-feature cards", () => {
 		expect(routeRegistrySource).not.toContain('slug: "account"');
 		expect(routeRegistrySource).not.toContain('slug: "panel"');
 		expect(routeRegistrySource).not.toContain('slug: "map"');
+		expect(routeRegistrySource).not.toContain('slug: "dining"');
 		expect(routeRegistrySource).not.toContain('slug: "services"');
 		expect(routeRegistrySource).not.toContain('slug: "notices"');
+		expect(routeRegistrySource).toContain('slug: "campus"');
 		expect(routeSurfaceSource).not.toContain("管理面板");
 		expect(routeSurfaceSource).not.toContain("校园地图");
-		expect(routeSurfaceSource).not.toContain("校园服务");
+		expect(routeSurfaceSource).not.toContain("饭堂");
 		expect(routeSurfaceSource).not.toContain("通知");
 		expect(routeSurfaceSource).not.toContain("刷新状态");
 		expect(routeSurfaceSource).not.toContain("Built for Academic Excellence");

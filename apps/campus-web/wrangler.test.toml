@@ -1,0 +1,16 @@
+name = "campus-web-test"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[vars]
+APP_API_BASE_URL = "https://app-api.internal"
+CAMPUS_WEB_HOSTNAME = "campus.muc.wiki"
+HUB_WEB_ORIGIN = "https://hub.muc.wiki"
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
