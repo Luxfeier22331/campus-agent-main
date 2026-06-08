@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0048
 status: accepted
 created: 2026-06-06
-updated: 2026-06-06
+updated: 2026-06-08
 supersedes:
   - adr-0047-run-centric-durable-agent-runtime.md
 ---
@@ -195,6 +195,101 @@ RAG 不作为 product entry agent 或 global router；它是 knowledge-family ca
 内部的 agentic retrieval specialist。notice / navigation / services 默认
 tools-first，只有需要语义消歧、摘要、跨工具编排或 answer shaping 时才表现为
 agent-as-tool。
+
+### 决策 9：RAG step boundary 必须是真实 DTO/activity 边界
+
+2026-06-08 补充评估：
+
+- 当前 online chat path 已经进入 Temporal-backed `ChatAnswerWorkflow`。
+- 当前第一条 RAG chat trajectory 只有四个 Temporal-visible steps：
+  `planning`、`semantic.rag`、`synthesis`、`finalization`。
+- `synthesis` provider execution 已从 Python bridge 迁入 Go
+  `SynthesizeRAGAnswerActivity`，并通过 repo-owned
+  `RagSynthesisPacketProjection`、`provider_execution_summary_v1` 与 step attempt
+  evidence 记录 provider request ref、latency、token、estimated cost、cancel /
+  timeout outcome。
+- Python `supervisor-agent-worker` 当前仍在 online path 中承接 RAG planning /
+  retrieval / evidence selection / grounding 的迁移职责。它是 current
+  implementation gap，不是长期 online execution owner。
+
+本 ADR 冻结以下判断：
+
+1. `semantic.rag` 是迁移中间态，不是长期 capability boundary。
+1. 真实 RAG boundary 不等于投影更多 step 名称；每个 durable step 必须有
+   repo-owned DTO input / output、Temporal Activity boundary、sanitized
+   `RunStep -> StepAttempt -> StepResult` projection、明确 failure / cancel /
+   timeout ownership。
+1. RAG target graph 固定为：
+
+   ```text
+   rag.plan
+   -> retrieval.indexed_lookup
+   -> retrieval.expand_or_rescue
+   -> evidence.selection
+   -> synthesis
+   -> grounding.verify
+   -> finalization.write
+   ```
+
+1. `synthesis` 只能消费 bounded supporting evidence projection，不得消费 raw prompt、
+   raw provider response、raw source body 或 SDK-native trace。
+1. `grounding.verify` 必须成为 Temporal-visible durable step；在真实 verifier
+   输出 claim / list-item support、source span、coverage 与 unsupported branch
+   之前，不得把 default `grounded` 当作证明。
+1. Python 可以作为迁移期 stage backend 被 activity 调用，但不得长期拥有 online
+   provider cancellation、token/cost accounting、workflow step truth、projection
+   truth 或 top-level semantic orchestration。
+1. Rust rewrite 不是默认下一步；只有 step-level latency / CPU profiling 证明某个
+   retrieval、selection、ranking 或 grounding stage 是 CPU 热点后，才允许把该 stage
+   迁入 Rust 或单独高性能 service。
+
+#### Step Contract Skeleton
+
+本 ADR 只冻结 boundary 不变量，不冻结最终 package 路径或字段全集。后续实现计划必须把
+以下 DTO family 落成 repo-owned contract，并由 tests 固定 raw payload 禁止项：
+
+- `RagPlanProjection`：admitted query mode、scope、collection / profile refs、
+  evidence budget、no-widening policy、required evidence contract。
+- `RetrievalLookupRequest` / `RetrievalLookupResult`：authorized filter refs、
+  retrieval profile refs、query activity summary、candidate summary、Qdrant /
+  retrieval latency、timeout outcome。
+- `RetrievalRescueRequest` / `RetrievalRescueResult`：只表达已 admission 的 parent
+  context expansion、freshness branch、same-document support 或 rescue branch，不扩大
+  query-enabled surface。
+- `EvidenceSelectionResult`：answer-bearing evidence refs、span refs、bounded excerpts、
+  rejection reasons、coverage status、payload hash。
+- `RagSynthesisPacketProjection`：已存在的 migration seam；长期应由
+  `EvidenceSelectionResult` assembly 得到，而不是由 Python bridge 黑盒直接产出。
+- `GroundingVerificationResult`：claim / list-item support verdict、unsupported fields、
+  source trust summary、clarification / fail-close branch。
+- `FinalizationPacket`：final answer projection input、source refs、policy closeout、
+  user-facing event material。
+
+#### Open Questions Before Implementation
+
+这些问题必须在具体改代码前确认，不能由 ADR 直接假定：
+
+- DTO family 放在 Go `execution-control` internal contract、shared repo contract，还是先以
+  execution-control-owned schema 开始，再在跨语言稳定后提升。
+- 初期 stage backend 是通过现有 Python bridge endpoint、单独 stage endpoint，还是直接把
+  first stages 迁入 Go implementation。
+- `retrieval.indexed_lookup` 的 first implementation 是否继续复用 Python
+  `retrieval-core` / Qdrant adapter，还是直接引入 Go Qdrant native adapter。
+- `grounding.verify` 的 first verifier 采用现有 Python grounding validation、Go
+  port，还是一个独立 deterministic verifier。
+- Panel / eval 需要的最小 first-class fields 哪些必须进入 column，哪些仍可暂存在
+  sanitized payload。
+
+#### Falsifier
+
+如果实现评估证明：
+
+- stage DTO 无法在不泄漏 raw prompt、raw source body、raw provider response 或 auth
+  material 的情况下表达 required semantics；或
+- step split 导致 online latency / operational complexity 明显恶化，且 step-level
+  evidence 不能改善 eval、badcase、cancel 或 autoscaling 决策；
+
+则应先设计更小的 semantic stage backend contract，而不是继续机械拆 activity。
 
 ## 结果
 
