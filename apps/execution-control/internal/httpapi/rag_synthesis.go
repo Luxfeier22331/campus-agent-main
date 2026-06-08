@@ -228,6 +228,7 @@ func ragSynthesisFinalizedResponse(
 		"selected_target":    "rag-agent",
 		"status":             "completed",
 		"answer_text":        strings.TrimSpace(result.AnswerText),
+		"error":              nil,
 		"follow_up_question": "",
 		"confidence":         confidence,
 		"result": map[string]any{
