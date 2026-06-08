@@ -61,7 +61,6 @@ if (( strict_mode == 0 )); then
   echo "  ${execution_control_staging_otel_collector_log_file}"
   echo "  ${execution_control_staging_otel_collector_recent_log_file}"
   echo "  ${execution_control_staging_execution_control_log_file}"
-  echo "  ${execution_control_staging_supervisor_agent_worker_log_file}"
   exit 0
 fi
 
@@ -76,7 +75,7 @@ failures=()
 if ! execution_control_staging_compose_project_running; then
   failures+=("execution-control compose project is not fully running")
 elif ! execution_control_staging_require_container_qdrant_ready; then
-  failures+=("supervisor-agent-worker cannot reach Qdrant through container data-plane network")
+  failures+=("Go RAG runtime cannot prove Qdrant/provider readiness through execution-control readyz")
 fi
 
 local_healthz_status="$(

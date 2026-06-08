@@ -143,7 +143,7 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED:", compose)
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED:", compose)
 
-    def test_supervisor_runtime_timeout_budget_wraps_agent_worker_budget(self) -> None:
+    def test_execution_control_runtime_timeout_budget_does_not_require_python_worker_budget(self) -> None:
         compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
             encoding="utf-8"
         )
@@ -152,10 +152,8 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
             "EXECUTION_CONTROL_REQUEST_TIMEOUT_MS: ${EXECUTION_CONTROL_REQUEST_TIMEOUT_MS:-95000}",
             compose,
         )
-        self.assertIn(
-            "SUPERVISOR_AGENT_WORKER_TIMEOUT_MS: ${SUPERVISOR_AGENT_WORKER_TIMEOUT_MS:-90000}",
-            compose,
-        )
+        self.assertNotIn("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", compose)
+        self.assertNotIn("EXECUTION_CONTROL_BRIDGE_BREAKER", compose)
 
     def test_local_data_plane_compose_files_join_repo_owned_network(self) -> None:
         for relative_path, alias in (

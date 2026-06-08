@@ -14,7 +14,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 """
                 EXECUTION_CONTROL_OTEL_ENABLED=false
                 EXECUTION_CONTROL_OTEL_METRICS_ENABLED=false
-                SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=false
                 OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
                 """
             ).strip(),
@@ -40,14 +39,12 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 TEMPORAL_POSTGRES_PASSWORD=temporal-password
                 EXECUTION_CONTROL_OTEL_ENABLED=true
                 EXECUTION_CONTROL_OTEL_METRICS_ENABLED=true
-                SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=true
                 EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233
                 EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
                 EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow
@@ -64,7 +61,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         projected = json.loads(result.stdout)
         self.assertEqual(projected["EXECUTION_CONTROL_OTEL_ENABLED"], "true")
         self.assertEqual(projected["EXECUTION_CONTROL_OTEL_METRICS_ENABLED"], "true")
-        self.assertEqual(projected["SUPERVISOR_AGENT_WORKER_OTEL_ENABLED"], "true")
+        self.assertNotIn("SUPERVISOR_AGENT_WORKER_OTEL_ENABLED", projected)
         self.assertEqual(
             projected["OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"],
             "campus-agent-runtime",
@@ -134,7 +131,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 EXECUTION_CONTROL_STAGING_RUNTIME_DIR=.tmp/execution-control-durable-staging
                 EXECUTION_CONTROL_STAGING_PORT=27061
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -181,7 +177,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_STAGING_HOST=0.0.0.0
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -242,7 +237,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 EXECUTION_CONTROL_STAGING_UV_BIN=/opt/campus/bin/uv
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -343,7 +337,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 """
@@ -384,7 +377,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -433,7 +425,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://runtime:secret@127.0.0.1:5432/campus_agent
@@ -467,7 +458,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
                 STAGING_INGESTION_SPARSE_PROVIDER=qdrant
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -511,7 +501,6 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent

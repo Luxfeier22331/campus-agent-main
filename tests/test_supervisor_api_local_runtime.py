@@ -22,8 +22,8 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("qdrant", script)
         self.assertNotIn("host.docker.internal", script)
         self.assertIn("read -r -d '' env_key", script)
-        self.assertIn('"SUPERVISOR_AGENT_WORKER_BASE_URL"', script)
-        self.assertIn('"http://supervisor-agent-worker:27052"', script)
+        self.assertNotIn('"SUPERVISOR_AGENT_WORKER_BASE_URL"', script)
+        self.assertNotIn('"http://supervisor-agent-worker:27052"', script)
         self.assertNotIn("eval ", script)
         self.assertIn("EXECUTION_CONTROL_RUNTIME_COMPOSE_PARALLEL_LIMIT", script)
         self.assertIn('COMPOSE_PARALLEL_LIMIT="${compose_parallel_limit}"', script)
@@ -111,7 +111,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("restart: unless-stopped", compose)
         self.assertIn("no-new-privileges:true", compose)
         self.assertIn('max-size: "10m"', compose)
-        self.assertIn("x-supervisor-bridge-auth", compose)
+        self.assertNotIn("x-supervisor-bridge-auth", compose)
         self.assertIn("campus-agent-data-plane", compose)
         self.assertIn("external: true", compose)
 
@@ -134,18 +134,9 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             "EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces",
             compose,
         )
-        self.assertIn(
-            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces",
-            compose,
-        )
-        self.assertIn(
-            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics",
-            compose,
-        )
-        self.assertIn(
-            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs",
-            compose,
-        )
+        self.assertNotIn("SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP", compose)
+        self.assertIn("activity-worker-rag:", compose)
+        self.assertIn("activity-worker-finalization:", compose)
 
     def test_local_runtime_wires_structured_query_from_go_api_to_core_worker(self) -> None:
         compose_path = ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
@@ -154,7 +145,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         compose = compose_path.read_text(encoding="utf-8")
         script = script_path.read_text(encoding="utf-8")
 
-        self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL: http://execution-control:8000", compose)
+        self.assertNotIn("EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL", compose)
         self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", compose)
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL", compose)
         service_status_url_key = "SERVICE_STATUS" + "_READ_MODEL_DATABASE_URL"
@@ -175,7 +166,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("OBJECT_STORE_ENDPOINT", compose)
         self.assertIn('"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"', script)
         self.assertIn(
-            '"supervisor-internal-query-local-placeholder"',
+            '"execution-control-internal-query-local-placeholder"',
             script,
         )
         self.assertNotIn(f'"{service_status_url_key}"', script)
@@ -198,7 +189,6 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             "PROMPT_RUNTIME_PROVIDER:",
             "PROMPT_RUNTIME_TRANSPORT:",
             "PROMPT_RUNTIME_MODEL:",
-            "SUPERVISOR_PROMPT_MODEL:",
             "AGENT_PROMPT_MODEL:",
             "PROMPT_RUNTIME_API_KEY:",
             "PROMPT_RUNTIME_BASE_URL:",
@@ -206,9 +196,10 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         ):
             with self.subTest(key=key):
                 self.assertEqual(compose.count(f"      {key}"), 2)
+        self.assertEqual(compose.count("      SUPERVISOR_PROMPT_MODEL:"), 1)
         self.assertIn('PROMPT_RUNTIME_PROVIDER="${PROMPT_RUNTIME_PROVIDER:-mock-runtime}"', script)
         self.assertIn(
-            'EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET="${EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET:-supervisor-internal-query-local-placeholder}"',
+            'EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET="${EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET:-execution-control-internal-query-local-placeholder}"',
             script,
         )
 

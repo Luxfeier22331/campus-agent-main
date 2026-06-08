@@ -40,9 +40,6 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
             encoding="utf-8"
         )
-        worker_dockerfile = (ROOT / "apps/supervisor-agent-worker/Dockerfile").read_text(
-            encoding="utf-8"
-        )
         execution_control_dockerfile = (ROOT / "apps/execution-control/Dockerfile").read_text(
             encoding="utf-8"
         )
@@ -56,6 +53,9 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertNotIn('"OTEL_COLLECTOR_AXIOM_METRICS_DATASET"', env_script)
         self.assertIn('"EXECUTION_CONTROL_OTEL_ENABLED"', env_script)
         self.assertIn('"SUPERVISOR_AGENT_WORKER_OTEL_ENABLED"', env_script)
+        self.assertIn("is retired; use Go Temporal RAG worker settings", env_script)
+        self.assertNotIn('resolved.set("SUPERVISOR_AGENT_WORKER', env_script)
+        self.assertNotIn("export SUPERVISOR_AGENT_WORKER", env_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_ENV_FILE", env_script)
         self.assertNotIn(".env.staging.local", env_script)
         self.assertNotIn('"EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN"', env_script)
@@ -99,7 +99,7 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED",
         ):
             self.assertIn(f'{retired_key}",', env_script)
-            self.assertIn("is retired; use Temporal execution-control settings", env_script)
+            self.assertIn("is retired; use Go Temporal RAG worker settings", env_script)
             self.assertNotIn(f"{retired_key}=", env_example)
             self.assertNotIn(f"{retired_key}:", compose)
         self.assertIn("EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL", env_script)
@@ -121,15 +121,9 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-${EXECUTION_CONTROL_SHARED_SECRET:-}",
             env_script,
         )
-        self.assertIn("COPY packages/prompt-runtime ./packages/prompt-runtime", worker_dockerfile)
-        self.assertIn(
-            "COPY packages/regulation-semantics ./packages/regulation-semantics",
-            worker_dockerfile,
-        )
-        self.assertIn('"packages/prompt-runtime"', worker_dockerfile)
-        self.assertIn('"packages/regulation-semantics"', worker_dockerfile)
-        self.assertIn("/app/packages/prompt-runtime/src", worker_dockerfile)
-        self.assertIn("/app/packages/regulation-semantics/src", worker_dockerfile)
+        self.assertNotIn("supervisor-agent-worker:", compose)
+        self.assertIn("activity-worker-rag:", compose)
+        self.assertIn("activity-worker-finalization:", compose)
         self.assertIn("./cmd/worker-autoscaler", execution_control_dockerfile)
         self.assertIn("/usr/local/bin/worker-autoscaler", execution_control_dockerfile)
         self.assertIn("!packages/prompt-runtime/", dockerignore)
@@ -217,10 +211,8 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("LOCAL_POSTGRES_USER", data_plane_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY", data_plane_script)
         self.assertIn("QDRANT_READ_ONLY_API_KEY", data_plane_script)
-        self.assertIn(
-            'base+"/readyz", headers={"api-key": os.environ.get("QDRANT_API_KEY", "")}',
-            data_plane_script,
-        )
+        self.assertIn("rag_runtime.lookup_healthy", data_plane_script)
+        self.assertIn("rag_runtime.synthesis_healthy", data_plane_script)
         self.assertIn(
             "execution_control_staging_requires_local_postgres_dependency", data_plane_script
         )
@@ -231,12 +223,8 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "execution_control_staging_requires_local_qdrant_dependency", data_plane_script
         )
         self.assertIn("execution_control_staging_require_container_qdrant_ready", data_plane_script)
-        self.assertIn("bm25_canary_", data_plane_script)
-        self.assertIn('model="qdrant/bm25"', data_plane_script)
-        self.assertIn("Qdrant server-side BM25 inference is not available", data_plane_script)
-        self.assertIn("collection_created = False", data_plane_script)
-        self.assertIn("collection_created = True", data_plane_script)
-        self.assertIn("if collection_created:", data_plane_script)
+        self.assertIn("execution-control Go RAG lookup runtime is not healthy", data_plane_script)
+        self.assertIn("execution-control Go RAG synthesis runtime is not healthy", data_plane_script)
         self.assertNotIn("host.docker.internal", data_plane_script)
         self.assertNotIn("rewriteLocalhostForDocker", data_plane_script)
 

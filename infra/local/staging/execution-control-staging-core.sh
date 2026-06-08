@@ -323,7 +323,6 @@ execution_control_staging_rotate_log_file_if_needed() {
 
 execution_control_staging_rotate_logs_if_needed() {
   execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_execution_control_log_file}"
-  execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_supervisor_agent_worker_log_file}"
   execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_otel_collector_log_file}"
 }
 
@@ -355,10 +354,8 @@ execution_control_staging_print_process_status() {
 execution_control_staging_compose() {
   local docker_bin
   local worker_shared_secret
-  local bridge_shared_secret
   docker_bin="$(execution_control_staging_require_command docker)"
   worker_shared_secret="${EXECUTION_CONTROL_SHARED_SECRET:?EXECUTION_CONTROL_SHARED_SECRET is required}"
-  bridge_shared_secret="${execution_control_staging_bridge_shared_secret:?SUPERVISOR_AGENT_WORKER_SHARED_SECRET is required}"
 
   (
     cd "${execution_control_staging_repo_root}" || exit
@@ -368,7 +365,6 @@ execution_control_staging_compose() {
     EXECUTION_CONTROL_RUNTIME_PROFILE=staging \
     API_AUTH_MODE=trusted-worker \
     API_WORKER_SHARED_SECRET="${worker_shared_secret}" \
-    SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
     CAMPUS_SHARED_POSTGRES_URL="${CAMPUS_SHARED_POSTGRES_DOCKER_URL:?CAMPUS_SHARED_POSTGRES_DOCKER_URL is required}" \
     DOCUMENT_REGISTRY_DATABASE_URL="${DOCUMENT_REGISTRY_DOCKER_DATABASE_URL:?DOCUMENT_REGISTRY_DOCKER_DATABASE_URL is required}" \
     RAW_ASSET_REGISTRY_DATABASE_URL="${RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL:?RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL is required}" \
@@ -403,8 +399,7 @@ execution_control_staging_compose_project_running() {
     [[ "${services}" == *"execution-control"* ]] &&
     [[ "${services}" == *"workflow-worker"* ]] &&
     [[ "${services}" == *"activity-worker-rag"* ]] &&
-    [[ "${services}" == *"activity-worker-finalization"* ]] &&
-    [[ "${services}" == *"supervisor-agent-worker"* ]]
+    [[ "${services}" == *"activity-worker-finalization"* ]]
 }
 
 execution_control_staging_run_projection_schema_command() {

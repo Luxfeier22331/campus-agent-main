@@ -37,7 +37,6 @@ class SupervisorStagingSelfHostedDependenciesTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://runtime:secret@127.0.0.1:5432/campus_agent
@@ -136,7 +135,6 @@ class SupervisorStagingSelfHostedDependenciesTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -178,7 +176,6 @@ class SupervisorStagingSelfHostedDependenciesTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -217,7 +214,6 @@ class SupervisorStagingSelfHostedDependenciesTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -253,7 +249,6 @@ class SupervisorStagingSelfHostedDependenciesTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -290,7 +285,6 @@ class SupervisorStagingSelfHostedDependenciesTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent

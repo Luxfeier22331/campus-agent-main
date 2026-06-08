@@ -10,7 +10,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
     def test_staging_runtime_rejects_missing_worker_shared_secret(self) -> None:
         result = run_common_script_with_env(
             repo_env="",
-            app_api_dev_vars="APP_API_INTERNAL_SHARED_SECRET=app-internal-secret\nSUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052\n",
+            app_api_dev_vars="APP_API_INTERNAL_SHARED_SECRET=app-internal-secret\n",
             staging_env=textwrap.dedent(
                 """
                 STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
@@ -33,7 +33,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
@@ -58,7 +57,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
             staging_env=textwrap.dedent(
                 """
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -108,7 +106,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -155,7 +152,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -195,7 +191,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent

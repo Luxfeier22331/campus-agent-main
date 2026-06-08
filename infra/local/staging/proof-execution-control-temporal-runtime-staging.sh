@@ -25,7 +25,7 @@ failures=()
 if ! execution_control_staging_compose_project_running; then
   failures+=("execution-control compose project is not fully running")
 elif ! execution_control_staging_require_container_qdrant_ready; then
-  failures+=("supervisor-agent-worker cannot reach Qdrant through container data-plane network")
+  failures+=("Go RAG runtime cannot prove Qdrant/provider readiness through execution-control readyz")
 fi
 
 local_healthz_status="$(

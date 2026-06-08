@@ -210,7 +210,6 @@ def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProces
                     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER=Bearer axiom",
                     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime",
                     "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
-                    "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                     "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://projection@staging-db.example.com:5432/campus_agent",
                     "TEMPORAL_POSTGRES_PASSWORD=temporal-password",

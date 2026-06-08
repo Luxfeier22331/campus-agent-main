@@ -9,7 +9,6 @@ execution_control_staging_env_file="${EXECUTION_CONTROL_STAGING_ENV_FILE:-${exec
 execution_control_staging_log_dir="${execution_control_staging_runtime_dir}/logs"
 execution_control_staging_lock_file="${execution_control_staging_runtime_dir}/lifecycle.lock"
 execution_control_staging_execution_control_log_file="${execution_control_staging_log_dir}/execution-control.log"
-execution_control_staging_supervisor_agent_worker_log_file="${execution_control_staging_log_dir}/supervisor-agent-worker.log"
 execution_control_staging_otel_collector_log_file="${execution_control_staging_log_dir}/otel-collector.log"
 execution_control_staging_otel_collector_recent_log_file="${execution_control_staging_log_dir}/otel-collector.recent.log"
 
@@ -37,15 +36,12 @@ if [[ -n "${execution_control_staging_app_api_base_url}" ]]; then
   execution_control_staging_app_api_readyz_url="${execution_control_staging_app_api_base_url%/}/readyz"
 fi
 
-execution_control_staging_bridge_shared_secret=""
-
 execution_control_staging_refresh_runtime_topology_from_env() {
   execution_control_staging_runtime_dir="${EXECUTION_CONTROL_STAGING_RUNTIME_DIR:-${execution_control_staging_repo_root}/.tmp/execution-control-staging}"
   execution_control_staging_env_file="${EXECUTION_CONTROL_STAGING_ENV_FILE:-${execution_control_staging_default_env_file}}"
   execution_control_staging_log_dir="${execution_control_staging_runtime_dir}/logs"
   execution_control_staging_lock_file="${execution_control_staging_runtime_dir}/lifecycle.lock"
   execution_control_staging_execution_control_log_file="${execution_control_staging_log_dir}/execution-control.log"
-  execution_control_staging_supervisor_agent_worker_log_file="${execution_control_staging_log_dir}/supervisor-agent-worker.log"
   execution_control_staging_otel_collector_log_file="${execution_control_staging_log_dir}/otel-collector.log"
   execution_control_staging_otel_collector_recent_log_file="${execution_control_staging_log_dir}/otel-collector.recent.log"
   execution_control_staging_host="${EXECUTION_CONTROL_STAGING_HOST:-127.0.0.1}"
@@ -63,7 +59,6 @@ execution_control_staging_runtime_globals_declared() {
     "${execution_control_staging_log_dir}" \
     "${execution_control_staging_lock_file}" \
     "${execution_control_staging_execution_control_log_file}" \
-    "${execution_control_staging_supervisor_agent_worker_log_file}" \
     "${execution_control_staging_otel_collector_log_file}" \
     "${execution_control_staging_otel_collector_recent_log_file}" \
     "${execution_control_staging_host}" \

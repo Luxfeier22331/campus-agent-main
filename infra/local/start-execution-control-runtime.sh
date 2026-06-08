@@ -110,14 +110,7 @@ const keys = [
   "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
   "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
-  "SUPERVISOR_AGENT_WORKER_THREADS",
-  "SUPERVISOR_AGENT_WORKER_BASE_URL",
   "EXECUTION_CONTROL_SHARED_SECRET",
-  "SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
-  "EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
-  "EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS",
-  "EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS",
-  "EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS",
   "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
   "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
   "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS",
@@ -175,22 +168,12 @@ const workerSharedSecret =
   process.env.API_WORKER_SHARED_SECRET?.trim() ||
   process.env.EXECUTION_CONTROL_SHARED_SECRET?.trim() ||
   "execution-control-local-placeholder";
-const bridgeSharedSecret =
-  process.env.SUPERVISOR_AGENT_WORKER_SHARED_SECRET?.trim() ||
-  process.env.SUPERVISOR_AGENT_WORKER_LOCAL_SHARED_SECRET?.trim() ||
-  process.env.EXECUTION_CONTROL_SHARED_SECRET?.trim() ||
-  "supervisor-agent-worker-local-placeholder";
 const internalQuerySharedSecret =
   process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET?.trim() ||
-  "supervisor-internal-query-local-placeholder";
-const bridgeBaseUrl =
-  process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
-  "http://supervisor-agent-worker:27052";
+  "execution-control-internal-query-local-placeholder";
 
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
-resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 resolved.set("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", internalQuerySharedSecret);
-resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY")) {
   resolved.set("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "local:execution-control:001");
 }
