@@ -187,6 +187,7 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 		"limit":        plan.TopK,
 		"with_payload": true,
 		"with_vector":  false,
+		"using":        "dense",
 		"query":        embedding,
 		"filter": map[string]any{
 			"must": []map[string]any{
