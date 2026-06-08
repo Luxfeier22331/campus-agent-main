@@ -59,35 +59,24 @@ app-api stream / projection -> browser surface`
 Current implementation baseline:
 
 - online chat path already enters Temporal-backed `ChatAnswerWorkflow`.
-- first chat trajectory projection currently has four Temporal-visible steps:
-  `planning`、`semantic.rag`、`synthesis`、`finalization`.
-- first-class step attempt evidence fields now exist in the projection store,
+- chat trajectory projection now uses the Temporal-visible seven-step graph:
+  `planning -> rag.plan -> retrieval.indexed_lookup ->
+  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
+  grounding.verify -> finalization.write`.
+- first-class step attempt evidence fields exist in the projection store,
   execution-control `/steps` API, app-api operator summary and panel trajectory:
   Temporal workflow/activity metadata, queue wait, duration, provider/model,
   token/cost and cancel/timeout outcome.
-- `provider_execution_summary_v1` and provider pricing readiness are now
-  repo-owned contracts. Bridge timeout, activity context cancellation and Go
+- `provider_execution_summary_v1` and provider pricing readiness are
+  repo-owned contracts. Activity context cancellation, timeout outcomes and Go
   provider connection abort are projected as first-class attempt outcomes.
-- online RAG synthesis provider execution is now wired through the dedicated
-  `SynthesizeRAGAnswerActivity` on the Go RAG activity worker. Python bridge
-  returns a bounded `rag_synthesis_packet` for RAG planning / retrieval /
-  evidence selection output; Go executes the provider call, records usage /
-  estimated cost / cancel outcome and stores the sanitized final response
-  projection.
-- `RagSynthesisPacketProjection` is now a repo-owned DTO contract for the
-  migration seam from Python stage planning/retrieval/selection to Go provider
-  execution. It validates run/step/request identity, prompt/template refs,
-  selected evidence refs/excerpts, output schema id and payload hash, and
-  rejects raw prompt, provider trace, auth material or unbounded evidence.
-  It is exposed by the Python bridge route and consumed by online
-  activity-worker-rag for synthesis.
-- this is sufficient to prove Temporal + projection wiring and the first evidence
-  spine for provider synthesis. The remaining gap is that RAG planning /
-  retrieval / selection / grounding are still inside the coarse `semantic.rag`
-  activity instead of Temporal-visible durable steps.
-- target RAG execution must split `semantic.rag` into durable typed steps
-  instead of leaving retrieval, selection, synthesis and grounding inside one
-  opaque activity.
+- online RAG lookup and synthesis are owned by Go `activity-worker-rag`:
+  retrieval uses the Qdrant native adapter against the authenticated private
+  data-plane, synthesis executes the provider call, records usage / estimated
+  cost / cancel outcome and stores sanitized finalization input.
+- Python `apps/supervisor-agent-worker` is not in the current online answer
+  path. It may remain as offline / eval / tooling / historical bridge reference,
+  but must not be restored as a serving fallback or readiness dependency.
 
 ## Temporal Execution Plane
 
@@ -283,9 +272,9 @@ canceled / expired`
   projection。provider raw response、raw prompt 与 SDK-native trace 不能作为 canonical
   projection。
 
-### Target RAG Step Graph
+### Current RAG Step Graph
 
-当前 coarse `semantic.rag` step 只是迁移中间态。目标 RAG durable graph 固定拆成：
+当前 online RAG durable graph 已硬切为：
 
 1. `rag.plan`
 1. `retrieval.indexed_lookup`
@@ -428,23 +417,11 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
   - reads Temporal task queue metrics, worker poller health, downstream budget projection
     and SLO policy; adjusts worker replica count only.
 
-### Current Python Semantic Bridge
+### Retired Python Semantic Bridge
 
-`apps/supervisor-agent-worker` 当前是 Python semantic bridge worker；它在 current online
-answer path 中消费 Temporal activity 授权的 bounded step payload，但不是长期 online hot
-path target。
-
-它负责：
-
-- 消费 Temporal activity task 或 activity 授权的 bounded step payload
-- domain-agent dispatch
-- prompt runtime / provider client binding
-- agent-local tool loop
-- retrieval / tool result consumption
-- bounded `AgentResponse` / `StepOutputProjection` 产出
-
-长期目标是把 online capability activity worker 收口到 Go-owned runtime envelope。Python
-只允许继续用于 offline ingestion / eval / tooling，或在迁移期间作为受限 semantic bridge。
+`apps/supervisor-agent-worker` 不参与当前 online answer path。它只保留为 offline /
+eval / tooling / historical bridge reference；不得作为 serving fallback、staging
+readiness dependency 或 Temporal workflow branch 恢复。
 
 它不负责：
 
@@ -452,6 +429,8 @@ path target。
 - global admission truth
 - product identity truth
 - final public response envelope
+- RAG DTO canonical boundary
+- provider hot path, token/cost accounting, cancel outcome truth
 
 ### Worker Pools
 
@@ -675,15 +654,15 @@ worker autoscaler 边界固定为：
   `cmd/workflow-worker`, `cmd/activity-worker-rag`, and
   `cmd/activity-worker-finalization`; Docker Compose runs them as separate
   services with explicit `<env>:<role>:<instance>` worker identity.
-- step projection writeback exists for the first chat trajectory:
-  `planning`、`semantic.rag`、`synthesis`、`finalization` write sanitized step /
-  attempt / result projection rows. Attempt rows include Temporal activity
-  metadata, queue wait, duration, provider/model, token/cost and cancel/timeout
-  fields. Current online RAG synthesis provider calls run inside
-  `SynthesizeRAGAnswerActivity`, so synthesis usage / cost and
-  `provider_connection_aborted` evidence can be filled from provider execution.
-  RAG planning, retrieval, selection and grounding still need promotion from
-  `semantic.rag` internals to Temporal-visible durable steps.
+- step projection writeback exists for the current seven-step chat trajectory:
+  `planning`、`rag.plan`、`retrieval.indexed_lookup`、
+  `retrieval.expand_or_rescue`、`evidence.selection`、`synthesis`、
+  `grounding.verify`、`finalization.write` write sanitized step / attempt /
+  result projection rows. Attempt rows include Temporal activity metadata,
+  queue wait, duration, provider/model, token/cost and cancel/timeout fields.
+  Online RAG lookup and synthesis run inside Go `activity-worker-rag`, so
+  lookup latency, provider usage / cost and `provider_connection_aborted`
+  evidence can be filled from activity execution.
 - repo-owned staging durable reconnect harness:
   `pnpm --dir apps/app-api chat:durable:e2e:staging` proves the product stream can
   be disconnected after `request.accepted` and resumed from the existing durable

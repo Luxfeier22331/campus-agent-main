@@ -895,10 +895,11 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - package-owned prompt registry、prompt packet 与 strict validation seam
   已成为 knowledge path 产品主链路的一部分
-- `apps/execution-control` 已承担 prompt config admission summary；Python
-  `apps/supervisor-agent-worker` 仍实际创建 RAG provider client，并通过
-  `packages/prompt-runtime` 执行 prompt contract validation、structured output 与
-  prompt trace 接入现有 diagnostics / observability
+- `apps/execution-control` 已承担 prompt config admission summary；online RAG
+  synthesis 由 Go provider adapter 创建 provider request、抽取 usage/cost、
+  记录 cancel/timeout outcome，并将 sanitized provider summary 写入 step
+  projection。Python `apps/supervisor-agent-worker` 不再拥有 online provider
+  hot path，只保留 offline / eval / tooling / historical bridge reference
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture
 - supervisor 的 `policy gate + scope gate` 与 knowledge-path grounding validator

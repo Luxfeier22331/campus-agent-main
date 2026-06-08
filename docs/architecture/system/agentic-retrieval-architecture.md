@@ -94,10 +94,11 @@ grounding validation -> supervisor finalization`
 - Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
   repo-owned projection 负责 step attempt、result、event 与 eval/panel truth
 - evidence contract 驱动 replan / clarification / fail-close；synthesis 不得补洞
-- 当前实现中的 Temporal-visible RAG 仍是 coarse `semantic.rag` step；目标必须拆成
+- 当前实现中的 Temporal-visible RAG 已拆成
   `rag.plan`、`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、
   `evidence.selection`、`synthesis`、`grounding.verify`、`finalization.write` 等
-  durable steps，使 RAG 从“能答”升级为“可证明地答”
+  durable steps；后续优化重点是让每个 step 的 evidence、latency、token/cost、
+  cancel/timeout 与 grounding verdict 更可证明，而不是恢复 coarse activity
 
 当 retrieval 处于 multi-agent workflow 中时，长期片段固定为：
 
@@ -459,11 +460,12 @@ guardrail ergonomics，不拥有 retrieval truth。
 
 SDK loop 的验收口径固定为产品 contract，而不是 provider run success：
 
-- Python SDK suite 必须证明 internal DTO、function tool boundary、guardrail、rollout mode、
-  sanitized trace projection 与 worker runner contract 未漂移
+- Python SDK suite 只覆盖 offline/eval/historical bridge behavior，不作为 online RAG
+  serving acceptance
 - public/chat product-path E2E 必须证明
-  `execution-control -> Temporal activity -> supervisor-agent-worker ->
-  rag-agent SDK loop -> Go finalizer` 返回 canonical `SupervisorResponse`
+  `execution-control -> Temporal seven-step graph -> Go activity-worker-rag /
+  activity-worker-finalization -> sanitized projection -> app-api` 返回 canonical
+  product response
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker
 - SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；

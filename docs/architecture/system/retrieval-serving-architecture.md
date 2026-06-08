@@ -278,9 +278,10 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
     completion、component-eval target pass 或 serving adoption truth
 - production observation 集成边界固定在 runtime adapter，不进入 `packages/retrieval-core`：
   retrieval-core 只暴露 `RetrievalObservationSink` /
-  `build_retrieval_observation_event_sink()` 这种注入 seam；`supervisor-agent-worker`
-  或后续 runtime shell 负责把 `retrieval.runtime_observation` 转成 OTel-compatible log/event、
-  derived metrics 或 backend-specific export
+  `build_retrieval_observation_event_sink()` 这种注入 seam；online path 由 Go
+  `activity-worker-rag` / `execution-control` runtime adapter 负责把
+  `retrieval.runtime_observation` 转成 OTel-compatible log/event、derived metrics 或
+  backend-specific export。Python bridge 只允许保留 offline / eval / historical sink。
 - OTel bridge 的默认映射是 log/event first：event name
   `retrieval.runtime_observation`，attributes 至少包含 `request_id`、`plan_id`、`step_id`、
   `scope.corpus`、`scope.collection`、`query_mode`、`retrieval_mode`、`terminal_state`、

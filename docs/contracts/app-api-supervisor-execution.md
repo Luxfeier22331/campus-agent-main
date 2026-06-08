@@ -35,8 +35,9 @@ updated: 2026-06-04
 
 ## Machine-Readable Contract Source
 
-`app-api -> execution-control -> supervisor-agent-worker` 的 execution /
-bridge wrapper 以机器可读 schema 为 canonical source：
+`app-api -> execution-control` 的 execution run command/query seam 以本文件与
+durable runtime contract 为当前 canonical source。`supervisor-execution.openapi.yaml`
+保留为历史 bridge wrapper / generated artifact source，不是当前 online RAG serving path。
 
 - `docs/contracts/schemas/supervisor-execution.openapi.yaml`：OpenAPI 3.1.1 +
   JSON Schema 2020-12，冻结 internal supervisor execution request / response、
@@ -48,7 +49,7 @@ bridge wrapper 以机器可读 schema 为 canonical source：
 - `apps/execution-control/internal/contracts/supervisor_execution_contract.go`：Go
   execution runtime 消费的 bridge version、response contract 与 wire DTO
 - `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/supervisor_execution_contract.py`：
-  Python private semantic worker 消费的 Pydantic DTO
+  retired Python bridge / offline eval tooling 仍可消费的 Pydantic DTO
 
 生成物必须通过以下命令保持同步：
 
@@ -79,14 +80,15 @@ internal execution seam 只接受 canonical `snake_case` JSON。
 
 固定规则：
 
-- `supervisor-execution.openapi.yaml` 是 `app-api -> execution-control ->
-  supervisor-agent-worker` wrapper 的唯一 schema truth；TS / Go / Python 生成物只能从它派生
+- `supervisor-execution.openapi.yaml` 是 retired bridge wrapper 与 generated
+  artifact 的 schema truth；当前 online run command/query 不能通过恢复 Python
+  bridge wrapper 实现 serving fallback
 - `app-api` adapter 必须 strict parse supervisor response；`200` body 如果出现 camelCase
   top-level field、未知 top-level field、非法 enum 或缺少必需字段，按
   `supervisor_invalid_response` transport/protocol failure 处理
-- Go `execution-control` 与 Python bridge 对 bridge v6 envelope 也必须 strict decode；缺少
-  `runtime_decisions`、`handoff.agent_request`、非法 `bridge_version`、非法 enum 或未知
-  canonical wrapper 字段都 fail-closed
+- Go `execution-control` 对当前 run command/query JSON 必须 strict decode；retired Python
+  bridge artifact 如果用于 offline/eval，也必须 strict decode，不得接受 unknown top-level
+  compatibility payload
 - browser / panel / public product API 可以继续使用产品层 camelCase projection，但不能把
   camelCase 反向带入 internal supervisor wire
 - panel 只能消费 `app-api` 物化后的 sanitized request / workflow trace projection；即使 projection
@@ -118,9 +120,8 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 
 `runtime_decisions.workflow_plan` 是 planner 的 safe projection，当前
 `schema_version=workflow-plan-v1`。它只记录 workflow mode、step / edge skeleton、
-terminal policy、resume policy 与 semantic retry policy；真实 delegate payload 仍只通过
-`runtime_decisions.handoff.agent_request` 进入 Python bridge。当前 runtime 可发出
-`terminal`、`single_step`，以及受 gate 保护的 `multi_step`。
+terminal policy、resume policy 与 semantic retry policy。当前 online RAG path 不再把
+真实 delegate payload 送入 Python bridge。
 首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
 `notice-agent internal selected notice resolve
 (payload_kind=campus_notice_get) -> rag-agent retrieval.query`。notice step 输出会被
@@ -136,7 +137,8 @@ contract 承诺。
 
 长期执行链路固定为：
 
-`public-chat-web -> app-api -> execution-control -> supervisor-agent-worker -> agent`
+`public-chat-web -> app-api -> execution-control -> Temporal ->
+workflow/activity workers -> sanitized projection -> app-api response / stream`
 
 这里的关键规则只有三条：
 
@@ -155,8 +157,8 @@ contract 承诺。
 - `POST /internal/execution/runs`
 - `GET /internal/execution/runs/:runId`
 - `GET /internal/execution/runs/:runId/events`
+- `GET /internal/execution/runs/:runId/steps`
 - `POST /internal/execution/runs/:runId/cancel`
-- `POST /internal/execution/cancel`
 - `GET /healthz`
 - `GET /readyz`
 
@@ -223,8 +225,8 @@ JSON 命名保持 `snake_case`，原因如下：
 
 ## Cancellation Endpoint
 
-`POST /internal/execution/cancel` 是 execution-side internal endpoint，只允许
-`app-api` 这类 trusted internal caller 使用，不暴露给 browser。
+`POST /internal/execution/runs/:runId/cancel` 是 active execution-side internal
+endpoint，只允许 `app-api` 这类 trusted internal caller 使用，不暴露给 browser。
 
 请求头继续复用：
 
@@ -235,7 +237,6 @@ JSON 命名保持 `snake_case`，原因如下：
 
 ```json
 {
-  "request_id": "req_01HQ...",
   "reason": "user_requested"
 }
 ```
@@ -243,49 +244,17 @@ JSON 命名保持 `snake_case`，原因如下：
 响应语义：
 
 - active execution 返回 `202`，body 中 `status=cancel_requested`
-- Go `apps/execution-control` 会在 body 中附带 `bridge_cancel_status`，取值为 `accepted`、
-  `not_found`、`not_configured` 或 `failed`；该字段只表示 Go -> Python
-  cooperative cancel signal 的投递结果，不改变 `app-api` 对 cancel request 的
-  canonical lifecycle 判断
+- Go `apps/execution-control` 先取消 Temporal `ChatAnswerWorkflow`，再写 sanitized
+  cancel projection；不得通过 PG lease release 或 Python cooperative bridge cancel
+  语义完成 online cancel
 - 找不到 active execution 返回 `404 execution_not_found`
 - 鉴权失败返回 `401 unauthorized`
 - malformed request 返回 `400 invalid_request`
 
-当前取消语义保证 Go `apps/execution-control` 停止等待、释放 execution admission slot，
-并把 lifecycle 标记为 `cancel_requested` / `cancelled`。Python bridge 已提供
-`/internal/bridge/execution/cancel` 并记录 active request id 的 cooperative cancel
-state；默认 supervisor orchestration 会在路由、prompt composition、agent
-delegation 和 finalization 前后检查该状态，并以 `499 execution_cancelled` 终止。
-已经进入阻塞 provider / prompt executor HTTP 调用的工作仍不承诺 hard-abort。
-
-## Bridge Circuit Breaker
-
-Go `apps/execution-control` 拥有 Python bridge transport / protocol health 的 circuit
-breaker。
-
-配置项：
-
-- `EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD`：默认 `5`
-- `EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS`：默认 `10000`
-- `EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS`：默认 `2`
-- `EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS`：默认 `50`
-
-语义：
-
-- 连续 bridge timeout / unavailable / invalid envelope 达到阈值后，circuit 进入 `open`
-- `open` 期间 answer path fail fast，返回 `503 supervisor_bridge_circuit_open`
-- `open` 状态会让 `/readyz` 降级，并在 `/metrics` 暴露 circuit state、open count
-  与 rejected count
-- 只有 transient bridge transport unavailable 会在同一 bridge timeout budget 内进行
-  有界 retry；request timeout、client / execution cancel、oversized response、invalid
-  envelope、`bridge_invalid_request` 与语义层 `supervisor_error` 不通过 bridge retry
-  掩盖
-- 恢复成功的 delegate response 会在 `workflow_trace_summary.trace_steps` 的
-  `finalization` step 中写出 `attempt_count` 与 `runtime_retry_count`；Prometheus
-  通过 `campus_execution_control_bridge_retries_total{kind=...}` 记录 retry attempt
-- 语义层 supervisor error 不代表 bridge transport 不健康；有效 bridge envelope 会重置 circuit
-- breaker 只保护 Docker-side execution runtime，不替代 `app-api` 的 product-layer
-  user limit、热点合并或 duplicate-submit UX
+当前取消语义要求 Go activity implementation 与 provider/Qdrant adapter 使用 cancellable
+context。无法证明下游 provider token 消耗已停止时，step attempt 必须记录
+`abort_unproven` 或对应 terminal outcome；不得把 product canceled state 误写成
+token cost 已停止。
 
 ## Structured Query Internal Runtime
 
@@ -631,9 +600,10 @@ payload 或 provider raw response。
   upstream cancel 后停止等待；它不是 semantic answer failure
 - `503 transport_lane_queue_full` 与 `503 transport_lane_queue_timeout` 表示特定
   workload lane 饱和，区别于全局 `transport_queue_full` / `transport_queue_timeout`
-- `503 supervisor_bridge_circuit_open` 表示 Go execution runtime 已确认 Python bridge
-  transport / protocol health 处于 open circuit，`app-api` 应按 retryable runtime
-  unavailability 处理，而不是生成新的 request identity 绕过 breaker
+- `503 temporal_runtime_unavailable`、`503 rag_runtime_unavailable` 或等价 stable
+  runtime code 表示 Go execution runtime 已确认 execution substrate / RAG activity
+  dependency 不健康，`app-api` 应按 retryable runtime unavailability 处理，而不是生成新的
+  request identity 绕过 run projection
 - `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection
   的最终状态，即使 browser chat surface 折叠为 `error`
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
@@ -666,8 +636,8 @@ shared product path 已收口为：
   identity header 来恢复最终业务 actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
-- Python `apps/supervisor-agent-worker` 只保留 private bridge worker，不再暴露 public
-  compatibility ingress
+- Python `apps/supervisor-agent-worker` 只保留 offline / eval / tooling / historical
+  bridge reference，不再暴露 public compatibility ingress，也不参与 online serving
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 

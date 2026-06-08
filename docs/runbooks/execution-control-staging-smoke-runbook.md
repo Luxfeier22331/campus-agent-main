@@ -30,7 +30,8 @@ execution origin 为准。
 - `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - 当前 repo-owned staging execution runtime 是 `nc-arm-6c` 上的
-  `otel-collector + execution-control + supervisor-agent-worker + Temporal workers`
+  `otel-collector + execution-control + workflow-worker + activity-worker-rag +
+  activity-worker-finalization + worker-autoscaler + Temporal`
 - `execution-control` 不作为 public staging surface；machine ingress 固定为
   `https://execution-control-staging.mucwiki-edge.link`
 - `app-api-staging` 必须配置 execution-control Access service-token credentials 与

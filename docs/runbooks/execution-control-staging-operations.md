@@ -11,7 +11,8 @@ updated: 2026-06-06
 这份 runbook 只回答当前 canonical staging execution upstream 的运维真相：
 
 - 当前 repo-owned staging execution runtime 是
-  `otel-collector + execution-control + supervisor-agent-worker` 三容器
+  `otel-collector + execution-control + workflow-worker + activity-worker-rag +
+  activity-worker-finalization + worker-autoscaler + Temporal`
 - `execution-control` 不作为 public staging surface 存在；用户、浏览器、panel、docs
   与 chat 只进入 browser surface 或 `app-api`
 - `execution-control` 是 app-api-only trusted machine upstream。当前 machine
@@ -49,8 +50,17 @@ updated: 2026-06-06
     - PG-backed sanitized projection store：run store、events、step projection
       artifacts for app-api / panel / eval reads
     - Temporal workflow/activity workers for execution scheduling and retry
-  - `supervisor-agent-worker`
-    - private `/internal/bridge/*`
+  - `workflow-worker`
+    - Temporal workflow task poller for `campus-agent.workflow`
+  - `activity-worker-rag`
+    - Go-owned RAG activity poller for `campus-agent.activity.rag`
+    - owns RAG plan, Qdrant lookup, rescue, evidence selection, synthesis and
+      grounding activities
+  - `activity-worker-finalization`
+    - Go-owned finalization activity poller for `campus-agent.activity.finalization`
+  - `worker-autoscaler`
+    - dry-run desired replica evidence only; does not write workflow/run/step/event
+      or terminal state
   - `temporal`
     - self-hosted Temporal frontend/history/matching/worker service
     - dedicated Temporal Postgres persistence / visibility store
@@ -239,7 +249,6 @@ staging 不应依赖 repo-root `.env.staging.local`。
 - `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
 - `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN=<metrics bearer token>`
-- `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>`
 - `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
 - `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=<run projection Postgres URL>`；
   这是 execution projection store 的显式 URL，不从 `STAGING_INGESTION_SHARED_POSTGRES_URL`、
@@ -306,8 +315,8 @@ app-api Worker secrets 必须通过 Wrangler/Cloudflare secret 管理，至少�
 - `EXECUTION_CONTROL_ACCESS_CLIENT_ID`
 - `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
 - `APP_API_INTERNAL_SHARED_SECRET`
-- app-api runtime secrets；retrieval data-plane、object-store 与 supervisor-agent-worker
-  query env 不放在这里，统一由 ops-owned `runtime.env` 的
+- app-api runtime secrets；retrieval data-plane、object-store 与 execution-control
+  compose runtime env 不放在这里，统一由 ops-owned `runtime.env` 的
   `STAGING_INGESTION_*` 投影进入 Compose runtime
 
 ### 3. 配置 machine ingress reverse proxy
@@ -406,8 +415,8 @@ infra/local/staging/status-execution-control-staging.sh --check
 `--check` 通过标准：
 
 - `otel-collector`、`execution-control`、`workflow-worker`、
-  `activity-worker-rag`、`activity-worker-finalization` 与
-  `supervisor-agent-worker` 都在当前 compose project 中运行
+  `activity-worker-rag`、`activity-worker-finalization`、`worker-autoscaler` 与
+  `temporal` 都在当前 compose project 中运行
 - 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
   且 payload 明确报告：
@@ -417,6 +426,9 @@ infra/local/staging/status-execution-control-staging.sh --check
   - `temporal_runtime.healthy=true`
   - `temporal_runtime.namespace=campus-agent-staging`
   - `temporal_runtime.task_queue=campus-agent.workflow`
+  - `rag_runtime.lookup_healthy=true`
+  - `rag_runtime.synthesis_healthy=true`
+  - `prompt_config_gate.admitted=true`
 - 本地 `<http://127.0.0.1:27051/metrics`> 带 bearer token 返回 `200`
 - machine ingress 未带 Access service token 时被 Cloudflare Access 拒绝
 - machine ingress 带 Access service token 与 `x-worker-origin-auth` 时返回
@@ -434,12 +446,9 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 
 - `execution-control` 默认 admission 参数为 `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS=8`、
   `EXECUTION_CONTROL_QUEUE_CAPACITY=24`、`EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000`、
-  `EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000` 与
-  `SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000`
-- 默认 bridge protection 参数为 `EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD=5`、
-  `EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS=10000`、
-  `EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS=2` 与
-  `EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS=50`
+  `EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000`
+- retired `SUPERVISOR_AGENT_WORKER_*` 与 `EXECUTION_CONTROL_BRIDGE_*` env 不得出现在
+  active staging runtime env；出现时 deploy/start preflight fail closed
 - 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
   `campus_services=2/4/1500ms`、`notice=2/4/1500ms`、`default=1/2/1500ms`；
   三元组含义为 `max_concurrent / queue_capacity / queue_timeout`
@@ -447,11 +456,8 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
   budget 与 lease timeout。上述 process-local 三元组只保留为当前 staging process protection，
   不得作为 worker autoscaling 或 production queue truth。
 - staging 默认启用 `EXECUTION_CONTROL_OTEL_ENABLED=true`、
-  `EXECUTION_CONTROL_OTEL_METRICS_ENABLED=true` 与
-  `SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=true`
+  `EXECUTION_CONTROL_OTEL_METRICS_ENABLED=true`
 - `execution-control` traces / metrics 都应发往本地 `otel-collector`
-- `supervisor-agent-worker` runtime events 可以同时保留 JSONL debug sink，并直接发往
-  本地 `otel-collector` 的 OTLP HTTP traces / metrics / logs endpoints
 - OTel attribute allowlist、forbidden fields 与 sink ownership 以
   `docs/reference/runtime-otel-telemetry-taxonomy.md` 为准；staging 不应把 raw prompt、
   raw query、raw answer、token、cookie、auth material 或正文片段发往 Sentry/Axiom
@@ -460,8 +466,7 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
   发给 Collector，vendor endpoint/header/dataset 由部署 secret 注入
 - `execution-control` 会从入口请求提取 `traceparent` / `baggage`；为兼容当前
   `app-api` 链路，也会把有效的 `sentry-trace` 转成标准 `traceparent`。向
-  `supervisor-agent-worker` 只传播 `traceparent`、`baggage`、`x-request-id`
-  与 `x-trace-id`
+  Temporal activity projection 只传播 sanitized trace/run/step context
 - staging profile 必须设置 `EXECUTION_CONTROL_METRICS_BEARER_TOKEN`；
   `status-execution-control-staging.sh` 会用该 token 拉取本地 `/metrics`，且不应把
   raw token 写入日志
@@ -471,13 +476,8 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
   product smoke 通过 `api-staging /readyz` 证明 app-api 已用 Access service token 和内部
   shared secret 完成 execution-control readiness probe
 - `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有
-  admission queue 已不可接收、runtime draining 或 bridge 不健康时才视为 execution
-  runtime 不 ready
-- `supervisor-agent-worker` 必须同时拿到 query runtime env，包括
-  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`、`QDRANT_URL`、`QDRANT_API_KEY`、
-  `QDRANT_TIMEOUT_SECONDS`、`DOCUMENT_REGISTRY_DATABASE_URL`、
-  `RAW_ASSET_REGISTRY_DATABASE_URL`、`CAMPUS_SHARED_POSTGRES_URL`、`EMBEDDING_*`
-  与 `SPARSE_*`
+  admission queue 已不可接收、runtime draining、Temporal / projection / RAG runtime
+  不健康时才视为 execution runtime 不 ready
 - `infra/local/staging/start-execution-control-staging.sh` 只读取
   `EXECUTION_CONTROL_STAGING_ENV_FILE` 指向的 ops-owned runtime env；默认路径是
   `/srv/docker/campus-agent/staging/env/runtime.env`。query/runtime 数据面只接受该文件中的
@@ -508,9 +508,9 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 - sparse retrieval / indexing 使用 self-hosted Qdrant server-side BM25 inference：
   Python runtime 发送 `qdrant/bm25` `Document`，不部署 Qdrant Cloud，不部署独立 BM25
   服务，也不在生产路径使用本地 FastEmbed。
-- staging runtime 启动前会确保 `campus-agent-data-plane` Docker network 存在；启动后会从
-  `supervisor-agent-worker` 容器内访问 Qdrant `/readyz` 与 `/collections`，该容器视角检查
-  失败时直接 fail closed。
+- staging runtime 启动前会确保 `campus-agent-data-plane` Docker network 存在；启动后通过
+  execution-control `/readyz` 的 `rag_runtime.lookup_healthy` 证明 Go RAG worker 能访问
+  authenticated Qdrant data-plane。该检查失败时直接 fail closed。
 - staging runtime 启动前会执行 ingestion registry collection rename audit：
   `campus_ingestion_worker.collection_rename_registry_backfill audit`。如果
   `regulations/student_handbook` 或 `regulations/institutional_regulations` 仍残留在
@@ -591,7 +591,10 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - `.tmp/execution-control-staging/logs/otel-collector.log`
 - `.tmp/execution-control-staging/logs/otel-collector.recent.log`
 - `.tmp/execution-control-staging/logs/execution-control.log`
-- `.tmp/execution-control-staging/logs/supervisor-agent-worker.log`
+- `.tmp/execution-control-staging/logs/workflow-worker.log`
+- `.tmp/execution-control-staging/logs/activity-worker-rag.log`
+- `.tmp/execution-control-staging/logs/activity-worker-finalization.log`
+- `.tmp/execution-control-staging/logs/worker-autoscaler.log`
 
 轮转规则：
 
@@ -608,7 +611,9 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 
 - 先看：
   - `.tmp/execution-control-staging/logs/execution-control.log`
-  - `.tmp/execution-control-staging/logs/supervisor-agent-worker.log`
+  - `.tmp/execution-control-staging/logs/workflow-worker.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-rag.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-finalization.log`
 - 如果 `start-execution-control-staging.sh` 在 build 前失败，先直接运行：
 
 ```bash
@@ -630,7 +635,8 @@ docker compose -f infra/local/docker-compose.execution-control-runtime.yml ps
 
 `status --check` 报 `local readyz returned HTTP ...`
 
-- 说明 `execution-control` 或 `supervisor-agent-worker` 还没达到真实 runtime ready
+- 说明 `execution-control`、Temporal poller、run projection store、RAG runtime 或
+  prompt pricing gate 还没达到真实 runtime ready
 - 先跑：
 
 ```bash
@@ -640,19 +646,12 @@ execution_control_staging_uv_run --all-packages \
   python -m scripts.doctor_env execution-control --json
 ```
 
-- 再看 `supervisor-agent-worker.log` 中缺的是 prompt runtime、HTTP pool 还是 worker runtime
-
-真实 chat smoke 返回 `supervisor_unavailable`，且 `supervisor-agent-worker.log` 中出现
-`QDRANT_URL is required`
-
-- 说明 transport ready，但 query runtime env 没有进入 Docker runtime
-- 先确认容器里变量存在：
+- 再看 execution-control `/readyz` 中 `temporal_runtime`、`run_projection_store`、
+  `rag_runtime` 与 `prompt_config_gate` 的具体 failure reason
 
 ```bash
-docker exec campus-execution-control-staging-supervisor-agent-worker-1 \
-  sh -lc 'for k in QDRANT_URL DOCUMENT_REGISTRY_DATABASE_URL \
-  EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET EMBEDDING_MODEL; do \
-  eval v=\${$k:-}; [ -n "$v" ] && echo "$k=set" || echo "$k=unset"; done'
+curl -sS -H "x-worker-origin-auth: ${API_WORKER_SHARED_SECRET}" \
+  http://127.0.0.1:27051/readyz
 ```
 
 execution audit 不出现在 panel 审计时间线
@@ -845,7 +844,7 @@ go run ./cmd/worker-autoscaler \
 
 ## Recovery Boundary
 
-当前 active recovery path 是重启 `execution-control + supervisor-agent-worker` 双容器 runtime。
+当前 active recovery path 是重启 execution-control compose runtime。
 仓库不再维护 dev-backed Python public ingress fallback。
 
 ## Staging RAG Release Manifest Recovery

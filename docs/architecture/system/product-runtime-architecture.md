@@ -26,8 +26,9 @@ supporting architecture。
 
 `hub-web same-site allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> execution-control -> Temporal -> activity
-worker -> supervisor-agent-worker private bridge`
+`browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
+workflow-worker / activity-worker-rag / activity-worker-finalization -> sanitized
+projection`
 
 `browser -> public-docs static reader assets`
 
@@ -234,15 +235,16 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   - 当前 active chat execution path 已硬切到 Temporal-backed
     `ChatAnswerWorkflow`；run store、events 与 step ledger 是 app-api / panel /
     eval 消费的 sanitized projection store
+  - online RAG 由 Go-owned seven-step Temporal activity graph 执行，不经过 Python
+    bridge
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
     canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store
     只保留为 historical migration artifact
 - Python `apps/supervisor-agent-worker`
-  - current private semantic bridge worker, not the long-term online hot path target
-  - 负责消费 Go 已投影的 private bridge request，并通过 worker 内部
-    agent dispatcher 调用 agent
-  - 负责在 semantic orchestration checkpoints 观测 Go 投递的 cooperative cancel
-  - 不再拥有 public execution ingress、caller auth 或 transport admission
+  - offline / eval / tooling / historical bridge reference
+  - 不参与 online answer serving、staging readiness 或 active product runtime
+  - 不拥有 public execution ingress、caller auth、transport admission、provider hot path
+    或 RAG step projection truth
 
 长期边界固定为：
 
@@ -346,10 +348,9 @@ contract 或 auth family route/endpoint truth。
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
 - `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
-- 这项冻结不等于提前冻结 `apps/execution-control` 的单一 Python/HTTP framework
 - execution public ingress 已 hardcut 到 Go `apps/execution-control`；Python
-  `apps/supervisor-agent-worker` 只保留 current private semantic bridge，长期退出
-  online answer hot path
+  `apps/supervisor-agent-worker` 只保留 offline / eval / tooling / historical bridge
+  reference，不参与 online answer hot path
 
 ## Forbidden Shapes
 

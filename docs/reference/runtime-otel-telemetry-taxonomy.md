@@ -35,8 +35,8 @@ This taxonomy follows the OpenTelemetry direction that:
 
 | Runtime / Layer | OTel SDK Allowed | Responsibility |
 | ----------------- | ------------------ | ---------------- |
-| `apps/execution-control` | yes | Online trace owner for request admission, orchestration, bridge transport, tool/runtime dispatch, finalization, error and telemetry self-health |
-| `apps/supervisor-agent-worker` | yes, or runtime event bridge | Bridge `retrieval.runtime_observation` and agent execution events into sanitized OTel-compatible logs/events/spans |
+| `apps/execution-control` | yes | Online trace owner for request admission, orchestration, Temporal workflow/activity attempts, Go RAG/finalization workers, finalization, error and telemetry self-health |
+| `apps/supervisor-agent-worker` | offline/eval only | Historical bridge reference; may emit sanitized offline/eval observations, but does not own online answer telemetry |
 | `apps/ingestion-worker` | yes, or runtime event bridge | Emit offline run telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events; not retrieval or ingestion telemetry truth |
 | `packages/retrieval-core` | no | Vendor-neutral `RetrievalObservationSink` only |
@@ -57,12 +57,15 @@ explicitly allowed below.
 | `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, capability, scope summary, trace/request correlation |
 | `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected target/tool, duration, source count summary, fail-close reason |
 | `runtime.request.transport_error` | `apps/app-api` | Product entry to supervisor transport failure |
-| `agent.bridge.started` | `apps/execution-control` | Worker bridge call admitted with lane, timeout and request correlation |
-| `agent.bridge.completed` | `apps/execution-control` | Worker bridge terminal outcome, duration, queue wait, retry/cancel status |
-| `agent.bridge.failed` | `apps/execution-control` | Worker bridge failure code, retryability and circuit-breaker decision |
+| `agent.bridge.started` | `apps/execution-control` | Historical/offline bridge call admitted with lane, timeout and request correlation |
+| `agent.bridge.completed` | `apps/execution-control` | Historical/offline bridge terminal outcome, duration, queue wait, retry/cancel status |
+| `agent.bridge.failed` | `apps/execution-control` | Historical/offline bridge failure code, retryability and circuit-breaker decision |
+| `execution.activity.started` | `apps/execution-control` / Go activity worker | Temporal activity attempt started with task queue, worker identity and request correlation |
+| `execution.activity.completed` | `apps/execution-control` / Go activity worker | Temporal activity attempt terminal outcome, duration, schedule-to-start, token/cost and cancel/timeout outcome |
+| `execution.activity.failed` | `apps/execution-control` / Go activity worker | Temporal activity attempt failure kind, retryability and terminal projection reason |
 | `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
 | `agent.tool.completed` | `apps/execution-control` / worker | Tool terminal state, latency and failure kind |
-| `retrieval.runtime_observation` | `apps/supervisor-agent-worker` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
+| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-rag` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
 | `ingestion.run.started` | `apps/ingestion-worker` | Offline ingestion/index run start with run id, source family, surface and collection |
 | `ingestion.run.completed` | `apps/ingestion-worker` | Run count summary, duration, cost estimate, release id and audit result |
 | `ingestion.run.failed` | `apps/ingestion-worker` | Run failure kind, stage and retryability |

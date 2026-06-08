@@ -16,8 +16,8 @@ browser -> hub-web -> app launcher / account shell
 hub-web same-site allowlisted /api/* -> app-api
 
 browser -> public-chat-web -> app-api -> execution-control
--> Temporal -> activity worker -> supervisor-agent-worker
--> rag-agent / retrieval-core
+-> Temporal -> workflow-worker / activity-worker-rag / activity-worker-finalization
+-> Go RAG DTO/runtime -> Qdrant / provider -> sanitized projection
 
 browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 
@@ -37,8 +37,9 @@ browser -> protected-panel-web -> app-api
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
-- 当前 online answer path 仍包含 Python `supervisor-agent-worker` bridge；它是当前实现事实和迁移缺口，
-  长期目标是 Go-owned workflow / capability activity worker plane
+- 当前 online answer path 已硬切为 Go-owned Temporal seven-step RAG graph；Python
+  `supervisor-agent-worker` 不参与 serving，只保留 offline / eval / tooling / historical
+  bridge reference
 - online query path 与 offline data plane 持续分层
 - `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
   第二产品后端或 MediaWiki 替代物
@@ -84,7 +85,8 @@ browser -> protected-panel-web -> app-api
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/public-docs`](./apps/public-docs/)
 - [`apps/execution-control`](./apps/execution-control/)
-- [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)
+- [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)（offline /
+  eval / historical bridge reference，不在 online serving path）
 - [`packages/rag-agent`](./packages/rag-agent/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)

@@ -1,7 +1,7 @@
 # execution-control
 
-`apps/execution-control` is the Go-owned execution runtime for the Docker-side
-supervisor service.
+`apps/execution-control` is the Go-owned execution-control runtime for the
+Docker-side Temporal execution plane.
 
 Current status:
 
@@ -10,23 +10,21 @@ Current status:
   `GET /internal/execution/runs/:runId`,
   `GET /internal/execution/runs/:runId/events`,
   `GET /internal/execution/runs/:runId/steps`,
-  `POST /internal/execution/runs/:runId/cancel`, and
-  `POST /internal/execution/cancel`.
+  and `POST /internal/execution/runs/:runId/cancel`.
 - Owns request body limits, JSON parsing, `bearer` / `trusted-worker` caller
-  auth, strict environment parsing, request projection, fail-closed bridge
-  handling, lifecycle registry, explicit cancel, and global / per-lane execution
+  auth, strict environment parsing, request projection, Temporal command/query/
+  cancel, lifecycle registry, explicit cancel, and global / per-lane execution
   admission.
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Projects the external execution request into private bridge v6
-  `SupervisorRequest -> AgentRequest -> AgentResponse` JSON for
-  semantic delegate requests, then finalizes the bridge `AgentResponse`
-  into the public `SupervisorResponse` envelope in Go. Non-delegate terminal
-  decisions and opened deterministic structured requests complete in Go without
-  calling the Python orchestration bridge.
-- Aggregates Python worker readiness into Go-owned `/readyz`, while keeping Go
-  transport admission as the published `transport_runtime`.
+- Starts Temporal `ChatAnswerWorkflow` and executes the current seven-step RAG
+  graph through Go worker roles:
+  `planning -> rag.plan -> retrieval.indexed_lookup ->
+  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
+  grounding.verify -> finalization.write`.
+- Reports Go-owned `/readyz` runtime health for Temporal, run projection store,
+  RAG lookup/synthesis, prompt pricing gate, capability gates and worker pollers.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
 - Keeps metrics route labels bounded; unknown routes are reported as
   `/__unknown__` instead of raw URL paths.
@@ -36,27 +34,21 @@ Current status:
   configured. Execution audit is disabled by default; when explicitly enabled,
   delivery is synchronous and fail-closed, so sink failures stop answer
   completion with a stable diagnostic error.
-- Propagates explicit cancel to the Python private bridge through
-  `/internal/bridge/execution/cancel`; Python records the cooperative cancel
-  signal and the semantic orchestration path checks it around routing, RAG
-  prompt execution and agent delegation. Provider / prompt calls that are
-  already in-flight still are not hard-aborted.
-- Owns the bridge circuit breaker for Python bridge transport / protocol
-  failures; open circuits short-circuit answer execution with
-  `503 supervisor_bridge_circuit_open` and degrade `/readyz`.
-- Bounds Python bridge response bodies with
-  `SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES`.
-- Owns deterministic delegate handoff planning in `internal/structuredplanning`,
-  including `rag-agent` `rag_request` payload projection and structured
-  campus-services / notice payload projection; `internal/execution` only adapts
-  planner output into bridge v6 `runtime_decisions`.
-- Bridge v6 handoff carries the full `AgentRequest` envelope under
-  `runtime_decisions.handoff.agent_request`; the older handoff-only payload
-  fragment is not an active compatibility path.
+- Owns Go RAG lookup via Qdrant native adapter and Go provider-backed synthesis;
+  provider usage, estimated cost, cancel outcome and timeout outcome are written
+  to sanitized step attempt/result projection.
+- Retired Python bridge env and bridge breaker env are rejected by config parsing;
+  they are not serving compatibility knobs.
+- Owns deterministic runtime planning in `internal/structuredplanning`,
+  including RAG DTO projection and structured campus-services / notice payload
+  projection; `internal/execution` adapts request projection into current
+  runtime decisions.
+- Retired bridge v6 handoff artifacts may remain for offline/eval compatibility
+  tests; they are not an active online serving compatibility path.
 - Owns deterministic runtime policy in `internal/runtimepolicy`, including
   product scope gate, high-risk approval / reject gate, context follow-up
   preflight, query-enabled scope admission, and structured tool policy version.
-  Runtime policy decisions are projected into bridge v6 and summarized in
+  Runtime policy decisions are projected into run metadata and summarized in
   Go-owned metrics, OTel attributes, and execution audit events without
   including raw user text.
 - Owns Temporal workflow command admission and sanitized run projection writes.
@@ -84,14 +76,12 @@ Current status:
 - Repo-local `Phase 1-7` implementation is in place:
   cancellation semantics, per-lane admission, Go-owned observability, local
   compose smoke, Python parity rerun, and runback docs are all landed.
-- Repo-local `Phase 8-12` implementation is in place:
-  cooperative Python bridge cancel signaling, the structured query runtime
-  foundation, and the transport schedule query kernel are landed without
-  opening `campus_services` product serving.
-- Repo-local bridge hardening is in place: Python cancellation is observed by
-  the semantic runtime checkpoints, bridge circuit state is exposed in
-  `/readyz` / `/metrics`, and execution audit failure events carry measured
-  bridge duration.
+- Repo-local `Phase 8-12` implementation is in place: the structured query runtime
+  foundation and transport schedule query kernel are landed without opening
+  `campus_services` product serving.
+- Python `apps/supervisor-agent-worker` is not part of online answer serving,
+  readiness aggregation or worker topology. It is retained only for offline /
+  eval / tooling / historical bridge reference.
 - Repo-local lifecycle streaming is owned by `app-api` over projection/event
   reads. `execution-control` does not expose the retired lifecycle answer SSE
   endpoint.
@@ -111,16 +101,9 @@ Current admission boundary:
   `default`; unset lane budgets inherit the global budget.
 - `active_answers == max_concurrent_answers` does not by itself make `/readyz`
   degraded if the queue can still accept short bursts.
-- `EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD` defaults to `5` consecutive
-  bridge transport / protocol failures before opening the circuit.
-- `EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS` defaults to `10000`; while open, answer
-  requests fail fast instead of occupying execution slots on a known-bad bridge.
-- `EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS` defaults to `2`; only transient
-  bridge transport unavailable errors are retried. Cancellations, request
-  timeouts, oversized responses, invalid envelopes and `bridge_invalid_request`
-  responses are not retried.
-- `EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS` defaults to `50`; retry delay is bounded
-  by the same bridge timeout budget as the original attempt.
+- Retired `EXECUTION_CONTROL_BRIDGE_*` and `SUPERVISOR_AGENT_WORKER_*` settings
+  fail closed in online execution-control config. Do not use them as local or
+  staging runtime inputs.
 - `EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH` points at the Go-owned
   query-serving scope allowlist. When unset, local repo runs discover
   `configs/runtime/query-serving-scopes.v1.json` from the repo root; if no
@@ -137,16 +120,14 @@ Current admission boundary:
 
 Current cancellation boundary:
 
-- Go `apps/execution-control` stops waiting on the Python bridge when the upstream
-  HTTP client disconnects or the runtime timeout fires.
-- `POST /internal/execution/cancel` accepts `{ "request_id": "..." }` with
-  `x-worker-origin-auth` and marks the active Go execution as
-  `cancel_requested`.
-- Go `apps/execution-control` also sends a cooperative cancel signal to the
-  Python bridge. The bridge marks active request ids as `cancel_requested`, and
-  default supervisor orchestration stops at deterministic checkpoints. This
-  does not guarantee provider / prompt executor mid-flight termination once a
-  blocking provider request is already running.
+- `POST /internal/execution/runs/:runId/cancel` is the active internal cancel
+  command. execution-control cancels the Temporal workflow first, then writes
+  sanitized cancel projection.
+- Activity cancel/timeout is projected through step attempts. Go lookup/provider
+  adapters must use cancellable context and record whether downstream work was
+  aborted, timed out, completed before cancel, or remained `abort_unproven`.
+- Old request-id cancel route and Python cooperative bridge cancel are retired
+  from online serving.
 
 Current structured query runtime boundary:
 
@@ -186,9 +167,6 @@ Current structured query runtime boundary:
 - The runtime is not browser-facing and not an `app-api` product surface. It
   does not open `place_lookup`; navigation / map-backed place lookup remains
   deferred until the map product rollout.
-- Python orchestration can consume this seam only when the execution runtime
-  harness injects `EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL` and
-  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` into the worker container.
 - Typed Temporal activities use the same projection-backed query runtime after
   the structured capability opening gate admits the request.
 - `/readyz` reports `capability_gates` so operators can see whether
@@ -202,11 +180,10 @@ Current observability boundary:
 
 - `/metrics` is an internal runtime surface, not part of the `app-api` contract.
 - Current Go-owned counters distinguish admission decisions, queue depth,
-  queue wait, lifecycle final states, bridge latency, bridge timeout /
-  unavailability, cooperative bridge cancel outcomes, structured query
-  outcomes, structured capability gate decisions, bounded runtime policy
-  decision summaries, bridge circuit state, bridge circuit open / reject totals,
-  and aggregate request outcomes.
+  queue wait, lifecycle final states, Temporal command/query/cancel, task queue
+  readiness, RAG lookup/synthesis outcomes, structured query outcomes,
+  structured capability gate decisions, bounded runtime policy decision
+  summaries and aggregate request outcomes.
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
   is reachable outside a trusted local network; local development leaves it
   empty by default.
@@ -217,8 +194,8 @@ Current observability boundary:
   failed / sample-ratio / last-error state for diagnosis.
 - `apps/execution-control` is the online trace owner. It extracts inbound
   `traceparent` / `baggage`, accepts current `app-api` `sentry-trace` as an
-  ingress compatibility source, and propagates only `traceparent`, `baggage`,
-  `x-request-id`, and `x-trace-id` to `supervisor-agent-worker`.
+  ingress compatibility source, and propagates sanitized trace/run/step context
+  into Temporal activity projection.
 - Execution audit backflow is disabled by default. When enabled, Go
   `apps/execution-control` sends only safe runtime event summaries for admission
   rejection, cancel, bridge failure, and timeout to `app-api`; it never includes
@@ -268,17 +245,26 @@ export EXECUTION_CONTROL_EXECUTION_AUDIT_URL=http://127.0.0.1:27031/api/internal
 export EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET=app-api-internal-secret
 export EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS=500
 export EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000
-export EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
-export EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS=10000
-export EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS=2
-export EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS=50
 export EXECUTION_CONTROL_INTENT_POLICY_PATH=
 export EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH=
-export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052
-export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
-export SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000
-export SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS=500
-export SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES=1048576
+export EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
+export EXECUTION_CONTROL_TEMPORAL_ADDRESS=127.0.0.1:7233
+export EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-local
+export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=local:workflow-worker:001
+export EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=local:activity-rag:001
+export EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=local:activity-finalization:001
+export QDRANT_URL=http://127.0.0.1:6333
+export QDRANT_API_KEY=qdrant-local-secret
+export EMBEDDING_BASE_URL=https://api.openai.com/v1
+export EMBEDDING_API_KEY=
+export EMBEDDING_MODEL=text-embedding-3-small
+export PROMPT_RUNTIME_PROVIDER=openai
+export PROMPT_RUNTIME_TRANSPORT=responses
+export PROMPT_RUNTIME_BASE_URL=https://api.openai.com/v1
+export PROMPT_RUNTIME_API_KEY=
+export AGENT_PROMPT_MODEL=gpt-5-mini
+export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
+export EXECUTION_CONTROL_PROVIDER_PRICING_PATH=configs/runtime/provider-pricing.v1.json
 export CAMPUS_SHARED_POSTGRES_URL=
 export EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS=1000
@@ -325,17 +311,16 @@ budget observations and writes desired-replica evidence only; it does not write
 Temporal workflow state, run projection, step projection, event projection, or
 terminal state.
 
-Direct local process smoke for development:
+Local runtime smoke:
 
 ```bash
-uv run --all-packages python -m scripts.supervisor_runtime_process_smoke \
-  --output-dir .tmp/execution-control-process-smoke
+infra/local/start-execution-control-runtime.sh
+infra/local/smoke-execution-control-runtime.sh closed_gate
 ```
 
-This starts `apps/supervisor-agent-worker` with `uv` and `apps/execution-control`
-with `go run` on localhost, then probes bridge health, execution-control health,
-readiness, metrics, and the Temporal execution run command seam. It does not use
-Docker or Wrangler.
+This starts the Docker compose execution runtime and verifies execution-control,
+Temporal, workflow worker, RAG activity worker, finalization activity worker,
+run projection store and RAG runtime readiness.
 
 Docker smoke:
 
@@ -344,7 +329,7 @@ docker run --rm -p 27051:8000 campus-execution-control:local
 ```
 
 `docker run` 单容器只验证 `execution-control` 自身监听和 `/healthz` 路径；它不会覆盖
-`supervisor-agent-worker` bridge、`/readyz` runtime aggregation 或 answer execution。
+Temporal pollers、RAG runtime、`/readyz` runtime aggregation 或 answer execution。
 
 Local two-container smoke:
 

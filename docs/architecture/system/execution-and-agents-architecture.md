@@ -12,7 +12,7 @@ updated: 2026-06-08
 
 它回答的是：
 
-- `apps/execution-control` 与 `apps/supervisor-agent-worker` 分别负责什么
+- `apps/execution-control`、Temporal worker plane 与 retired Python worker 分别负责什么
 - supervisor 如何调度 typed tools 与 agent-as-tool steps
 - RAG agent 与其他 domain capability family 的目标角色是什么
 
@@ -21,8 +21,8 @@ updated: 2026-06-08
 当前主路径遵循：
 
 `app-api -> execution-control -> Temporal workflow -> activity worker ->
-supervisor-agent-worker private bridge -> agent/tool capability ->
-retrieval-core -> evidence -> supervisor response`
+Go RAG DTO/runtime or typed capability worker -> data plane / provider ->
+sanitized step projection -> finalization projection`
 
 当前 execution runtime 已统一成三种受治理路径：
 
@@ -36,8 +36,8 @@ retrieval-core -> evidence -> supervisor response`
 `app-api -> execution-control -> Go structured runtime -> supervisor-style response`
 
 已进入 `runtime_posture=sdk_adapter_admitted` 的 structured tool 不再被公开 answer 入口的
-Go typed-tool-runtime 抢走；它们走 Go-owned `single_step` plan，再由 Python worker 的
-OpenAI Agents SDK native runtime 调用 repo-owned structured query backend。
+Go typed-tool-runtime 抢走；它们必须先落成 typed Temporal activity / worker contract，
+缺 contract、config 或 poller 时 fail closed。
 
 目标态在同一 governance boundary 内扩展为：
 
@@ -47,19 +47,17 @@ agent-as-tool activities -> sanitized step projection -> finalization projection
 这表示 repo 采用 supervisor-led governed multi-agent，而不是无中心 peer
 agent mesh。长期 deterministic workflow ownership 由 `execution-control` + Temporal
 workflow code 承接；typed activities 承接 deterministic data access；online capability
-activity worker 长期由 Go-owned runtime envelope 承接。Python
-`apps/supervisor-agent-worker` 是当前 private bridge implementation fact 与 migration
-gap，不是长期 online answer hot path。
+activity worker 由 Go-owned runtime envelope 承接。Python
+`apps/supervisor-agent-worker` 是 offline / eval / tooling / historical bridge
+reference，不是 online answer serving dependency。
 
 边界固定如下：
 
 - 当前 Go `apps/execution-control` 负责 Docker-side execution runtime control plane；长期概念名是
   `execution-control`
-- 当前 Python `apps/supervisor-agent-worker` 负责 private bridge worker、prompt runtime
-  assembly、provider client binding 与默认 agent delegate map 装配；worker 内部
-  `AgentDispatcher` 消费
-  Go preplanned `AgentRequest` handoff，并调用注入的 agent delegate。长期目标是让 Python
-  退出 online answer hot path，只保留 offline ingestion / eval / tooling 或迁移期临时 bridge
+- Python `apps/supervisor-agent-worker` 不参与 online answer path；它只保留 offline /
+  eval / tooling / historical bridge reference，不拥有 provider hot path、RAG step truth
+  或 finalization truth
 - `packages/prompt-runtime` 负责 provider-facing prompt contract validation、structured
   output execution、provider response normalization 与 prompt trace construction
 - 长期 provider adapter 必须成为可取消成本闭环 owner：捕获 provider request ref，响应
@@ -84,10 +82,9 @@ supervisor 长期负责：
 - response finalization
 - fail-close terminal semantics
 
-当前语言切分下，deterministic admission / routing / handoff projection 与
-`AgentResponse -> SupervisorResponse` finalization 由 Go `apps/execution-control`
-拥有；Python `apps/supervisor-agent-worker` 只装配 agent delegates 并执行 private
-agent dispatch。
+当前语言切分下，deterministic admission / routing / RAG DTO projection 与 finalization
+由 Go `apps/execution-control` 拥有；Python `apps/supervisor-agent-worker` 不参与
+online answer dispatch。
 
 supervisor 不负责：
 
@@ -150,24 +147,26 @@ supervisor 不负责：
 
 当前 repo-local runtime progress：
 
-- Go `execution-control` 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
-  admission、bridge circuit breaker、bounded bridge transport retry、metrics、OTel seam
-  与 execution audit backflow
+- Go `execution-control` 已拥有 execution ingress、lifecycle、Temporal cancel、
+  per-lane admission、metrics、OTel seam 与 execution audit backflow
 - 当前 active chat execution path 已硬切到 Temporal-backed
   `execution-control -> ChatAnswerWorkflow`；PG `runtime.agent_runs`、events 与
   step tables 是 sanitized projection store，不是 execution queue truth。旧 PG
   lease coordinator / worker loop / recovery loop 只保留为 historical migration artifact。
   进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection。
-  当前缺口是 Temporal poller proof、worker autoscaler、panel/eval step trajectory
-  consumption 与 typed-tool RAG step graph 全量收口。完整 target 见
+  当前 RAG path 已落成 Go-owned seven-step activity graph；剩余缺口是 staging
+  Temporal poller proof、worker autoscaler actuation、panel/eval step trajectory
+  深化，以及 notice / navigation / campus-services typed worker contract
+  全量接入。完整 target 见
   `docs/architecture/system/durable-agent-runtime-architecture.md`
-- Go `execution-control` 已补齐 Go -> Python cooperative cancel signal；Python bridge
-  记录 active request id 的 cancel state，默认 supervisor orchestration 已在路由、
-  RAG prompt execution 和 agent delegation checkpoints 观测取消；provider /
-  prompt executor 已进入阻塞 HTTP 调用时仍不承诺 hard-abort
-- 当前 token / cost DTO 字段已经存在，但在线 provider usage extraction 与 sanitized
-  step/run projection 尚未形成闭环；latency、input/output/cached token、estimated cost 与
-  provider request ref 必须按 activity attempt 归因，而不是只出现在 provider raw trace
+- Go `execution-control` 取消 path 已收口到 Temporal workflow cancel +
+  sanitized cancel projection；RAG lookup/provider adapter 必须使用 cancellable
+  context，并在 step attempt 上记录 cancel/timeout outcome。无法证明 provider
+  token 消耗停止时写
+  `abort_unproven`
+- provider usage extraction 与 sanitized step/run projection 已进入 online RAG
+  synthesis path；latency、input/output/cached token、estimated cost 与 provider
+  request ref 必须按 activity attempt 归因，而不是只出现在 provider raw trace
 - Go `execution-control` 的 execution envelope 已接受 `knowledge`、`place_lookup`、
   `campus_services`、`notice` capability label，并将它们映射到
   `rag`、`navigation`、`campus_services`、`notice` lane；`requested_scope` 仍只允许
@@ -178,23 +177,18 @@ supervisor 不负责：
   knowledge 请求仍保持 knowledge path；capability inference、runtime policy 与
   structured handoff planner 共用 `configs/runtime/intent-policy.v1.json` 作为 signal
   taxonomy 单一来源
-- Go `execution-control` 已拥有 private bridge v6 canonical request projection：
-  Python bridge hardcut 到 `supervisor_bridge_v6`，缺失 Go-owned
-  `effective_capability` / `lane` / `runtime_decisions` 时 fail-closed；
-  Python worker 不再重复做 capability keyword inference
-- `app-api -> execution-control -> Temporal activity -> supervisor-agent-worker`
-  的 current execution / bridge wrapper 由
-  `docs/contracts/schemas/supervisor-execution.openapi.yaml`
-  作为 OpenAPI 3.1.1 canonical schema，并生成 TS / Go / Python runtime
-  artifact；`packages/contracts` 只承载 stable `AgentRequest` /
-  `AgentResponse` handoff schema
-- execution wrapper 当前采用 strict wire policy：internal seam 固定 `snake_case`、
-  不接受 camelCase 或未知 top-level wrapper 字段；共享 valid / invalid fixture matrix
-  必须同时被 Python bridge、Go runtime 与 TypeScript app-api adapter 消费
-- Go finalizer 是 terminal response invariant owner：delegate branch 必须有 matching
-  handoff target，`selected_target` 必须与 handoff 一致，`runtime_versions`
-  必须携带 bridge / response / runtime decision / workflow trace provenance；
-  cancel / timeout / bridge unavailable 必须保留 typed fail-close reason
+- `docs/contracts/schemas/supervisor-execution.openapi.yaml` 仍生成 TS / Go /
+  Python historical bridge artifacts，但不再定义 current online RAG serving path；
+  current online run command/query path 是 `app-api -> execution-control -> Temporal`
+  与 PG sanitized projection
+- current internal run command/query seam 采用 strict wire policy：internal seam 固定
+  `snake_case`，不接受 camelCase 或未知 top-level wrapper 字段；retired bridge artifacts
+  如果用于 offline/eval，也必须保持 strict decode
+- Go finalizer 是 terminal response invariant owner：final answer 必须可追溯到
+  sanitized synthesis / grounding / finalization projection，`runtime_versions`
+  必须携带 response / runtime decision / workflow trace provenance；cancel /
+  timeout / Temporal unavailable / RAG runtime unavailable 必须保留 typed
+  fail-close reason
 - `workflow_trace_summary.workflow_mode` 是 execution wrapper 的 canonical enum，当前固定为
   `terminal`、`single_step`、`multi_step`。`terminal` 表示未进入
   agent/tool execution 的终局裁决，`single_step` 表示只执行一个 typed tool 或
@@ -241,27 +235,21 @@ supervisor 不负责：
   function，不进入 provider/SDK tool surface；其
   authenticated-notice-backed offline projection builder 属于 ingestion data plane，
   产品主路由 gate 仍保持关闭
-- Go `execution-control` 已拥有 deterministic delegate handoff planner，bridge v6
-  通过 `runtime_decisions.handoff.agent_request` 传递完整
-  `AgentRequest`、target、allowed tools 与 planning outcome；Python worker 只消费
-  Go handoff，不再在 Python query time 构造 RAG / navigation / 校车 /
-  service status / notice payload
+- Go `execution-control` 已拥有 deterministic planner 与 current RAG DTO projection；
+  online RAG 不再通过 bridge v6 delegate handoff 进入 Python worker。retired bridge v6
+  artifact 只能作为 offline / eval / historical reference。
 - planner 实现边界在 `apps/execution-control/internal/structuredplanning`；
-  `apps/execution-control/internal/execution` 只负责 request projection 与 bridge v6
-  `runtime_decisions` 适配；planner 不再维护独立 signal taxonomy，只消费 Go
+  `apps/execution-control/internal/execution` 只负责 request projection 与 current
+  runtime decisions 适配；planner 不再维护独立 signal taxonomy，只消费 Go
   runtime policy artifact 与 typed request
 - Go `execution-control` 已拥有 deterministic runtime policy foundation；当前实现位于
-  `apps/execution-control/internal/runtimepolicy`，bridge v6 delegate 请求传递
-  `scope_gate`、`policy_gate`、`context_preflight`、`tool_policy`、`routing_frame` 与
-  `handoff`。Python bridge 对缺失 Go-owned routing frame / delegate handoff 的 v6
-  请求 fail-closed，不再在 bridge 主路径重新做 product-scope、approval-required、
-  context-follow-up 或 terminal 裁决；non-delegate terminal routing 由 Go direct
-  terminal path 返回
-- Go `execution-control` 已拥有 non-stream 与 lifecycle SSE direct structured
-  answer path，但 direct answer 只保留给 ToolSpec 中仍为
-  `typed_handoff_only` 的 structured payload。`sdk_adapter_admitted` 的
-  structured payload 在公开 answer / stream 入口进入 `single_step` bridge
-  lane；Go 仍负责 opening gate、admission、
+  `apps/execution-control/internal/runtimepolicy`，run command projection 传递
+  `scope_gate`、`policy_gate`、`context_preflight`、`tool_policy` 与 `routing_frame`。
+  product-scope、approval-required、context-follow-up 与 terminal 裁决不得回退给
+  Python bridge 或 prompt fallback。
+- Go `execution-control` 已拥有 structured runtime foundation，但 structured payload
+  只有在 typed Temporal activity contract、config gate 与 task queue poller 都 ready 后
+  才能打开 serving；缺口必须 fail closed。Go 仍负责 opening gate、admission、
   `WorkflowPlan`、ToolSpec admission、structured query backend、fail-close envelope
   与 finalization
 - Go runtime policy 当前从 `configs/runtime/intent-policy.v1.json` 加载 versioned
@@ -277,24 +265,22 @@ supervisor 不负责：
   进入 ambiguous clarification，而不是继续让 prompt 或 Python fallback 猜测
 - Go runtime policy 已对显式 `campus_services` 但无法规划为
   `transport_schedule_lookup` / `service_status_lookup` 的 subtype 返回
-  `structured_subtype_missing` clarification，避免 delegate + nil handoff 进入 Python
-  bridge
+  `structured_subtype_missing` clarification，避免缺 typed activity contract 的 serving
+  请求被错误放行
 - Go `execution-control` 已把 runtime policy decision summary 纳入内部观测口径：
   `/metrics` 只用低基数 label 发布 `scope_gate`、`policy_gate`、
   `context_preflight`、`routing_next_action`、`planning_outcome`、selected target /
   tool、terminal outcome 与 fail-close reason；OTel 与 execution audit 同步携带这些安全摘要，
   不携带 raw `user_goal` 或 prompt/provider payload
-- Go `execution-control` 已拥有 bridge response finalization：Python bridge 只返回
-  `AgentResponse`，Go finalizer 统一生成 public `SupervisorResponse` 与
-  response-level observability；Python legacy `policy.py` / `response.py` 已删除
-- Standalone Python `packages/supervisor-core` 已退役；剩余
-  `AgentDispatcher` / `dispatch_agent_request` 已内联到
-  `apps/supervisor-agent-worker`，默认 agent delegate map 由 worker runtime
-  assembly 装配
+- Go `execution-control` 已拥有 response finalization：Go finalizer 统一生成 product-safe
+  finalization projection 与 response-level observability；Python legacy online finalization
+  path 不参与 serving
+- Standalone Python `packages/supervisor-core` 已退役；`apps/supervisor-agent-worker`
+  保留为 offline / eval / tooling / historical bridge reference
 - Go `execution-control` 已拥有 query-enabled scope admission；当前 allowlist 来自
   `configs/runtime/query-serving-scopes.v1.json`，并通过 drift test 与 ingestion
   runtime profile 的 `query_enabled_by_default=true` 保持一致。disabled knowledge
-  scope 在进入 Python bridge 前返回 `403 disallowed_knowledge_scope`
+  scope 在 workflow admission 前返回 `403 disallowed_knowledge_scope`
 - Go `execution-control` 已拥有 structured runtime opening gate：
   `campus_services` / `notice` 默认关闭，只有通过 `EXECUTION_CONTROL_OPEN_CAPABILITIES`
   显式开放后才允许进入 structured runtime；该变量只接受 `campus_services`、`notice`
@@ -305,35 +291,28 @@ supervisor 不负责：
 - Go `execution-control` 已拥有 prompt config admission summary：
   `/readyz` 发布 Go-owned `prompt_config_gate`，并要求 admitted online provider
   model 出现在 repo-owned `configs/runtime/provider-pricing.v1.json` 中；缺 pricing
-  metadata 是 config/readiness failure，不得静默按 zero-cost 执行。Python worker 继续实际创建
-  provider client / prompt executor，只上报 executor admission 与 HTTP pool health
+  metadata 是 config/readiness failure，不得静默按 zero-cost 执行。Go RAG synthesis
+  provider adapter 创建 online provider client / prompt executor，并记录 usage、
+  estimated cost 与 cancel / timeout outcome
 
 Go `execution-control` 当前也拥有 step attempt evidence spine：Temporal activity metadata、
-task queue、worker id、queue wait、duration、provider/model、token/cost、cancel / timeout
-outcome 字段已进入 run projection store、`/internal/execution/runs/:runId/steps`、
-app-api operator runtime summary 与 protected panel step trajectory。在线 RAG synthesis
-provider execution 已由 Go `SynthesizeRAGAnswerActivity` 接管：Python bridge 只返回 bounded
-`rag_synthesis_packet`，Go activity-worker-rag 的 `SynthesizeRAGAnswerActivity`
-执行 Responses call 并记录 `provider_execution_summary_v1`、usage、estimated cost
-与 cancel / timeout outcome。
+task queue、worker id、queue wait、duration、provider/model、token/cost、
+cancel / timeout outcome 字段已进入 run projection store、
+`/internal/execution/runs/:runId/steps`、app-api operator runtime summary 与
+protected panel step trajectory。在线 RAG graph 已由 Go `activity-worker-rag`
+承接：`rag.plan`、`retrieval.indexed_lookup`、
+`retrieval.expand_or_rescue`、`evidence.selection`、`synthesis` 与
+`grounding.verify` 均写 sanitized step projection；`finalization.write` 由
+Go `activity-worker-finalization` 承接。
 
-Python semantic bridge 当前继续负责：
+Python semantic bridge 只保留 offline / eval / tooling / historical reference：
 
-- `apps/supervisor-agent-worker` 的 private agent dispatch checkpoint
-- agent reasoning、prompt-owned clarification 与 RAG grounding
-- RAG planning / retrieval / evidence selection，以及 bounded synthesis packet assembly；
-  online RAG provider-backed structured output execution 已迁入 Go
-  `SynthesizeRAGAnswerActivity`
-- Python bridge 不再拥有本地 supervisor audit JSONL writer；execution audit writer /
-  backflow 属于 Go `apps/execution-control`
-- Python bridge readiness 只报告 `prompt_runtime`、`prompt_http_pool` 与 minimal
-  `worker_runtime`；execution lifecycle / cancel counters / runtime truth 由 Go
-  `apps/execution-control` 发布
+- 不参与 online answer dispatch checkpoint
+- 不创建 online provider client / prompt executor
+- 不拥有 RAG planning / retrieval / evidence selection / grounding serving truth
+- 不进入 staging readiness、worker topology 或 Temporal task queue poller gate
 
-长期目标是 Python 退出在线回答热路径。Python 可以继续用于 offline ingestion / eval /
-tooling，或作为受限迁移 bridge；但不得长期拥有 online provider cancellation、token/cost
-accounting、workflow step truth、projection truth 或 top-level semantic orchestration。
-worker plane 先按 Temporal task queue 与 capability boundary 拆分；Rust 只在 step-level
+worker plane 按 Temporal task queue 与 capability boundary 拆分；Rust 只在 step-level
 profiling 证明 CPU hotspot 后用于对应 activity backend，不作为默认重写方向。
 
 固定边界：
@@ -426,8 +405,9 @@ truth 仍由 durable `RunStep`、`StepAttempt`、`StepResult`、`WorkflowPlan`�
   - 拥有 workflow mode、allowed agents、allowed tools、step order、parallelism、
     timeout / budget、retry / replan posture、terminal fail-close policy 与 finalization
 - Python `apps/supervisor-agent-worker`
-  - 拥有 bounded agent-as-tool runtime、provider adapter、agent loop execution 与
-    step-local guardrail / tool result consumption
+  - 只拥有 offline / eval / tooling / historical bridge runtime；不拥有 online
+    provider adapter、agent loop execution、step-local serving truth 或 tool result
+    consumption
 - typed tool
   - 拥有 deterministic data access contract 与 sanitized result projection
 - agent-as-tool
@@ -545,9 +525,9 @@ hash 与 safety posture，不承担下游 agent prompt context 传递。
 
 agent framework 是 domain-agent 内部实现 substrate，不是 repo-level orchestration owner。
 
-当前 accepted worker truth 是：Python `apps/supervisor-agent-worker` 仍可在 structured
-domain-agent / non-serving RAG test surface 中使用 OpenAI Agents SDK native substrate；
-这是 current implementation dependency，不是长期 online hot path target。它当前用来承接：
+当前 accepted worker truth 是：Python `apps/supervisor-agent-worker` 只可在 offline /
+eval / tooling / historical bridge surface 中使用 OpenAI Agents SDK native substrate；
+它不是 online hot path target。它可用于承接：
 
 - code-first tool loop 与 handoff object modeling
 - provider-native function calling adapter 与 strict function schema execution
@@ -587,42 +567,46 @@ domain-agent / non-serving RAG test surface 中使用 OpenAI Agents SDK native s
   regression lifecycle
 - source-truth / projection-backed structured query service 的 data-plane truth
 
-当前 Agents SDK 路径固定为 SDK-native worker runtime：
+当前 online answer path 不再采用 SDK-native worker runtime。Python / Agents SDK path
+只保留为 offline / eval / tooling / historical candidate：
 
-`Go execution-control -> AgentRequest -> Python SDK-backed domain agent -> AgentResponse
--> Go finalization`
+`offline/eval harness -> Python SDK-backed domain agent -> sanitized fixture/projection`
 
-SDK run / trace 只能作为内部 trace/debug input；进入 app-api / panel / eval 的内容必须先
-经过 repo-owned sanitized projection。不得把 SDK-native agent graph、tool schema 或 provider
-trace 直接写入 shared contracts。
+online 等价链路必须是：
 
-长期替换方向是把 provider-facing semantic activity 收敛到 repo-owned capability worker
-envelope：activity input 只携带 run / step / projection refs 与 bounded payload hash；
-activity attempt 记录 task queue、worker id、provider request ref、latency、token、
-estimated cost、cancel / timeout outcome；provider raw response、raw prompt 与
-SDK-native state 仍不出 sanitized projection 边界。
+`Go execution-control -> Temporal activity DTO -> Go capability activity worker`
 
-Provider-native function calling 的默认接入点同样只能在 domain-agent 内部。它不能替代 Go
-`apps/execution-control` 的 `allowed_tools`、tool admission、opening gate、runtime policy
-或 fail-close finalization。Python adapter 只能把 Go handoff 中已经允许的 tool 子集编译成
-provider function schema，并把 tool output 先收敛为 repo-owned typed result，再返回
-`AgentResponse`。
+`-> sanitized projection -> Go finalization`
+
+SDK run / trace 只能作为 offline/eval debug input；进入 app-api / panel / eval 的内容
+必须先经过 repo-owned sanitized projection。不得把 SDK-native agent graph、tool
+schema 或 provider trace 直接写入 shared contracts。online provider-facing semantic
+activity 已收敛到 repo-owned capability worker envelope：activity input 只携带
+run / step / projection refs 与 bounded payload hash；activity attempt 记录 task
+queue、worker id、provider request ref、latency、token、estimated cost、cancel /
+timeout outcome；provider raw response、raw prompt 与 SDK-native state 仍不出
+sanitized projection 边界。
+
+Provider-native function calling 如果后续进入某个 capability，也只能由 repo-owned
+ToolSpec、Temporal activity DTO、runtime policy 与 eval denominator 先冻结，再由该
+capability worker 的 adapter 编译为 provider function schema。它不能替代 Go
+`apps/execution-control` 的 tool admission、opening gate、runtime policy 或 fail-close
+finalization。Python adapter 不能重新成为 online provider hot path。
 
 ### Agents SDK Admission Order
 
-SDK runtime 不是 repo-wide owner。后续新增 surface 按以下顺序 admission：
+SDK runtime 不是 repo-wide owner。若后续在 offline/eval 或某个 capability 内重新评估
+agent framework，按以下顺序 admission：
 
 1. Read-only structured domain-agent tools：必须先有 ToolSpec / Go runtime policy / eval
-   denominator，然后由 worker 将 `AgentRequest.allowed_tools` 编译为 SDK function tools。
-1. RAG-internal semantic loop：只能消费 `rag-agent` deterministic planner/retrieval 之后的
-   bounded evidence projection；`retrieval.query` 继续保持 agent-internal / closed。
-   RAG SDK loop 如果需要 provider/SDK function surface，只能使用
-   `runtime_posture=sdk_internal_admitted` 的 internal function，例如
-   `retrieve_evidence`，并且该 function 不进入 Go `allowed_tools` 或
-   structured handoff denominator。
-1. Multi-step workflow step internals：SDK 只能实现 Go `WorkflowPlan` 已 admission 的
-   step。Python bridge 必须校验 `runtime_decisions.workflow_plan` 与
-   `AgentRequest.workflow_context`，不能生成或改写全局 workflow plan。
+   denominator，然后由 capability worker adapter 将 admitted tool subset 编译为
+   SDK/provider function tools。
+1. RAG-internal semantic loop：当前 online RAG 不使用 SDK loop。offline/eval candidate
+   只能消费 Go RAG step graph 已产生的 bounded evidence projection；`retrieval.query`
+   继续保持 agent-internal / closed，不能重新打开为 serving retrieval path。
+1. Multi-step workflow step internals：SDK 只能用于 offline/eval/historical bridge
+   verification；online workflow step internals 由 Temporal activity DTO 与 projection
+   contract 表达，不能由 Python bridge 生成或改写全局 workflow plan。
 1. Offline notice multimodal / media review：只能作为 ingestion-side processing adapter，
    产出 normalized fact/classification projection，不进入 public query-time tool surface。
 
@@ -638,13 +622,14 @@ SDK runtime 不是 repo-wide owner。后续新增 surface 按以下顺序 admiss
 
 引入 SDK 或其他 agent framework 之前，repo-owned workflow runtime 仍需继续补齐：
 
-- resumable workflow state：当前已有 PostgreSQL `WorkflowRun` backend 与 readiness gate，
-  但还没有可恢复 resume token / replay protocol
+- resumable workflow state：Temporal 是 execution truth；PG 只保存 sanitized projection。
+  后续 resume / replay 必须围绕 Temporal workflow id、run id、step projection 与
+  policy version evidence 设计，不恢复 PG workflow backend
 - semantic retry/replan 计数与 policy execution，而不是只在 `WorkflowPlan` 中声明
   `semantic_retry_policy`
-- broader `multi_step` admission denominator：当前只开放 selected notice context + knowledge
-  follow-through 的两步链路；新增链路必须先补 handoff chain fixture、store invariant 与
-  sanitized `workflow_trace_summary.context_projections` projection
+- broader `multi_step` admission denominator：新增链路必须先补 Temporal activity graph
+  fixture、projection invariant 与 sanitized `workflow_trace_summary.context_projections`
+  projection
 - eval denominator：继续覆盖 resume、semantic retry/replan、agent-owned clarification
   与 fail-close provenance，避免把固定两步链路误当完整通用 agent graph
 
@@ -705,12 +690,12 @@ function calling 中自由并发。provider-native parallel tool call 只有在 
 runtime_posture、eval denominator 与 result merge policy 都明确允许时才可打开；否则
 domain-agent adapter 应保持 single-call loop 或 serial loop。
 
-当前 Python worker 只保留一条 structured domain-agent substrate：ToolSpec 驱动的 Agents
-SDK shell 加 package-owned SDK executor。不存在并行的 repo-owned provider function-call
-loop，也不存在 direct online adapter fallback。内部 deterministic query function，例如
-selected notice resolve/context，不能因为存在 DTO/schema 就进入 structured handoff tool
-loop。缺失 admission、wrong tool、非对象 arguments、schema 不存在、SDK 运行时缺失或 query
-service failure 都必须转成结构化 `AgentResponse` fail-close，而不是穿透为 bridge 500。sanitized
+Python worker 只保留 offline / eval / tooling / historical substrate：ToolSpec 驱动的
+Agents SDK shell 加 package-owned SDK executor 可以用于候选行为复核，但不存在 direct
+online adapter fallback。内部 deterministic query function，例如 selected notice
+resolve/context，不能因为存在 DTO/schema 就进入 structured handoff tool loop。缺失
+admission、wrong tool、非对象 arguments、schema 不存在、SDK 运行时缺失或 query service
+failure 必须转成结构化 fail-close evidence，而不是穿透为 bridge 500。sanitized
 trace/projection 可以记录 provider correlation，但 raw provider response 不进入
 `AgentResponse`、workflow trace、panel 或 eval canonical surface。
 
@@ -722,26 +707,18 @@ resolve runtime seam；它不是 structured handoff tool，也不是 provider/SD
 `contact_directory_lookup`、`academic_calendar_lookup` 与
 `campus_notice_change_set_lookup`。其中
 `service_status_lookup` 与 `transport_schedule_lookup`
-在公开 answer / stream 入口同样走 `single_step` bridge lane；SDK shell 只承接
-agent-side argument completion / tool loop，projection-backed structured query、
-temporal policy、source truth、Go opening gate/admission、ToolSpec gate 与 Go
-finalization 仍由 repo-owned runtime 承担。SDK runtime 默认开启；
-provider、model、API key 或 SDK dependency 缺失时 readiness 降级并 fail closed。唯一 runtime
-开关是 `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=false`；target/tool eligibility 由
-repo-owned AgentSpec、ToolSpec 与 Go handoff `AgentRequest.allowed_tools` 派生，不能再通过
-worker env 维护第二套 target/tool allowlist。SDK `FunctionTool` surface 只能由
+公开 answer / stream 入口不走 retired bridge lane；SDK shell 只可承接 offline/eval
+的 argument completion / tool loop 行为复核。projection-backed structured query、
+Temporal policy、source truth、Go opening gate/admission、ToolSpec gate 与 Go
+finalization 由 repo-owned runtime 承担。SDK `FunctionTool` surface 只能由
 repo-owned ToolSpec 派生；SDK run / trace / native state 不得进入
 `packages/contracts`、panel、eval 或 `workflow_trace_summary`。缺 provider、model、
-API key 或 SDK dependency 时只能返回稳定 fail-close 结果或 degraded readiness，不得恢复旧
-provider loop 或 non-SDK answer fallback。
+API key 或 SDK dependency 时只能返回稳定 fail-close evidence 或 degraded
+offline/eval readiness，不得恢复旧 provider loop 或 non-SDK answer fallback。
 
-这条 Python worker path 的存在只描述当前实现，不构成长期语言边界。长期 online activity
-worker 需要以 Go-owned runtime envelope 承接 admission、cancel、usage/cost projection 与
-provider adapter；Python 不再是默认 production hot path 扩容单元。
-
-`rag-agent` 的 Agents SDK 接入是 SDK-native RAG synthesis runtime，不属于 ToolSpec
-structured handoff。它的内部 function 仍必须由 ToolSpec 注册与校验，但不得进入
-structured handoff allowed-tools。它固定遵循：
+`rag-agent` 的 Agents SDK 接入只保留为 offline/eval candidate，不属于 current online
+RAG synthesis runtime，也不属于 ToolSpec structured handoff。它的内部 function 仍必须由
+ToolSpec 注册与校验，但不得进入 structured handoff allowed-tools。它固定遵循：
 
 - `retrieval.query` 保持 `agent_internal` / `closed`，不开放为 public ToolSpec、
   provider tool 或 Go preplanned structured handoff tool
@@ -749,7 +726,7 @@ structured handoff allowed-tools。它固定遵循：
   function，只返回已 admission 的 bounded evidence anchors；它不是用户意图级 tool，也不是
   Go preplanned structured handoff tool
 - Go supervisor 仍拥有 admission、capability routing、workflow plan、opening gate 与
-  finalization；SDK 只承接 Python `rag-agent` 内部 semantic synthesis loop
+  finalization；SDK 不承接 online RAG synthesis loop
 - `packages/rag-agent` 只定义 SDK-neutral `RagSdkRunRequest`、bounded evidence
   projection、claim/list-item support 与 sanitized trace projection；官方 SDK import
   保留在 `apps/supervisor-agent-worker`
@@ -763,8 +740,8 @@ structured handoff allowed-tools。它固定遵循：
   SDK run state 与 raw evidence dump 不得出现在 shared contracts、panel、
   workflow trace 或 eval canonical artifact
 - RAG query-enabled answer path 不再保留 `closed` / `candidate` / `shadow` /
-  `fallback_only` rollout runtime；SDK runtime unavailable 时 fail closed，不回退到旧
-  deterministic answer synthesis
+  `fallback_only` rollout runtime；SDK runtime unavailable 不影响 online serving
+  admission，也不得回退到旧 deterministic answer synthesis
 
 notice-family 的目标态需要把 agent-facing tool 与内部 query function 分开。通知用户面默认
 是 source-link / card-first：`title`、official URL、source family、发布时间、短摘要或
@@ -1031,17 +1008,18 @@ code 都必须继续留在 Python。
 当前重要的是：
 
 - transport 留在 `apps/*`
-- private agent dispatch checkpoint 留在 `apps/supervisor-agent-worker`
+- retired / offline private agent dispatch checkpoint 留在 `apps/supervisor-agent-worker`
 - agent behavior 留在 agent package
 - `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
 - Docker-side Go `execution-control` owns runtime hardening: request limits, caller
-  admission, in-flight lifecycle, explicit cancel, global / per-lane execution
-  queue / backpressure, bridge circuit breaker, timeout propagation, readiness,
+  admission, in-flight lifecycle, Temporal cancel, global / per-lane execution
+  queue / backpressure, timeout propagation, readiness,
   metrics, OTel telemetry seam and graceful drain
 - 这项冻结不改写 `app-api -> execution-control` contract，也不提前冻结单一 Python/HTTP
   framework
-- Python `apps/supervisor-agent-worker` 只保留 private bridge worker，不再保留 repo-local
-  public compatibility entry
+- Python `apps/supervisor-agent-worker` 只保留 offline / eval / tooling /
+  historical bridge reference，不再保留 repo-local public compatibility entry 或
+  online serving entry
 
 ## Prompt And Instruction Ownership
 
@@ -1051,8 +1029,8 @@ execution path 的 prompt / instruction 继续遵循 package-owned ownership：
   families
 - `packages/retrieval-core` 不拥有 top-level task prompt；只拥有 evidence retrieval 与
   serialization helper
-- `apps/supervisor-agent-worker` 不拥有长期 prompt truth；只负责 semantic runtime
-  assembly 与 provider client binding
+- `apps/supervisor-agent-worker` 不拥有长期 prompt truth；只负责 offline/eval semantic
+  runtime assembly 或 historical bridge reference
 - `packages/prompt-runtime` 拥有 provider-facing prompt contract validation、
   structured output execution、provider response normalization 与 prompt trace construction
 
@@ -1069,11 +1047,11 @@ task/evidence packet -> Go-side supervisor finalization`
 
 补充约束：
 
-- `apps/supervisor-agent-worker` 与后续 product runtime 只负责装配与执行，不拥有新的
-  monolithic mega system prompt
-- 当前 repo-default runtime assembly seam 已收口到
+- online product runtime 只负责装配与执行，不拥有新的 monolithic mega system prompt
+- retained offline/eval Python prompt assembly seam 位于
   `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_stack.py`；它必须把
-  trusted developer/task layers 与 untrusted user/evidence layers 分开表达
+  trusted developer/task layers 与 untrusted user/evidence layers 分开表达，且不得被恢复为
+  online serving prompt owner
 - `packages/retrieval-core` 继续只提供 evidence serialization helper，不拥有 top-level
   prompt truth
 - `system prompt` 这个词在 repo 里只保留为沟通简称；真正运行时应以 developer prompt + typed packets

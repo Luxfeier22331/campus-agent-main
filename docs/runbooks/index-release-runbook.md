@@ -479,10 +479,10 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   `failure_kind=telemetry_export_failed`；job 必须 fail closed，暴露 telemetry 配置、
   权限或存储问题。
 
-supervisor-agent-worker 可通过 `SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 显式注入
-retrieval observation JSONL sink。该 sink 只写 sanitized retrieval observation，用于
-eval / backlog intake，不反向改变 release manifest、runtime profile 或 serving alias；sink
-写入失败必须让在线 retrieval answer path fail closed。
+offline / eval runtime 可通过显式注入 JSONL sink 写入 retrieval observation。该 sink
+只写 sanitized retrieval observation，用于 eval / backlog intake，不反向改变 release
+manifest、runtime profile 或 serving alias；sink 写入失败不得被伪装成 serving
+success。
 
 生产观测接入不应继续依赖 JSONL 文件作为主通道。长期接法是：
 
@@ -490,9 +490,9 @@ eval / backlog intake，不反向改变 release manifest、runtime profile 或 s
    Collector 地址或 exporter 配置。
 2. runtime shell 用 `build_retrieval_observation_event_sink()` 把 observation 包成
    `retrieval.runtime_observation` 事件。
-3. `supervisor-agent-worker` 或后续 runtime adapter 将该事件转成 OTel-compatible log/event；
-   有当前 request trace context 时附带 trace/span correlation，没有 trace context 时至少保留
-   `request_id`、`plan_id`、`step_id`。
+3. Go `activity-worker-rag` / `execution-control` runtime adapter 将该事件转成
+   OTel-compatible log/event；有当前 request trace context 时附带 trace/span
+   correlation，没有 trace context 时至少保留 `request_id`、`plan_id`、`step_id`。
 4. 由 OTel Collector 或等价 telemetry pipeline 负责 batching、retry、memory limiting、
    attribute filtering、environment/resource attribute enrichment 和 backend export。
 5. metrics 从 event 派生，不由 retrieval-core 直接上报。首批 dashboard/alert 只看：

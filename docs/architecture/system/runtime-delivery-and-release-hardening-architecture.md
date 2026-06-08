@@ -48,10 +48,14 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   service
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
-- 当前 repo-owned staging execution runtime 已 hardcut 到 `execution-control + supervisor-agent-worker`
-  双容器；legacy dev-backed supervisor host 不再是 active runback path
-- `execution-control` readiness 代表 execution runtime 是否适合接收新请求；瞬时并发满载不单独定义为
-  runtime broken，queue full / draining / bridge unhealthy 才进入 degraded posture
+- 当前 repo-owned staging execution runtime 已 hardcut 到
+  `execution-control + Temporal + workflow-worker + activity-worker-rag +
+  activity-worker-finalization + worker-autoscaler`；
+  legacy dev-backed supervisor host 与 Python bridge serving path 不再是 active
+  runback path
+- `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
+  瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
+  projection / RAG runtime unhealthy 才进入 degraded posture
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
   共同决定
 
