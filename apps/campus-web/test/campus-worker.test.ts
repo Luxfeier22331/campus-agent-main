@@ -53,7 +53,7 @@ describe("campus worker boundary", () => {
 			"/api/campus-map/places",
 			"/api/campus-map/places/library",
 			"/api/dining/halls",
-			"/api/dining/halls/north-canteen/floors/1f",
+			"/api/dining/halls/haidian-canteen-1/floors/1f",
 			"/api/feedback",
 		];
 

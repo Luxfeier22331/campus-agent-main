@@ -59,7 +59,12 @@ export function DiningPage() {
 				<div className="flex flex-wrap gap-2">
 					<select
 						className="min-h-11 rounded-lg border border-input bg-white px-3 text-sm"
-						onChange={(event) => setSelectedHallId(event.target.value)}
+						onChange={(event) => {
+							const nextHallId = event.target.value;
+							const nextHall = halls.find((hall) => hall.hallId === nextHallId);
+							setSelectedHallId(nextHallId);
+							setSelectedFloorId(nextHall?.floors[0]?.floorId ?? "");
+						}}
 						value={selectedHallId}
 					>
 						{halls.map((hall) => (

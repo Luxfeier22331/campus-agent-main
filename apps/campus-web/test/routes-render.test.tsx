@@ -1,12 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundPage } from "../src/app/root-layout";
 import { ConversationPage } from "../src/app/routes/conversation-page";
+import { DiningPage } from "../src/app/routes/dining-page";
 import diningPageSource from "../src/app/routes/dining-page.tsx?raw";
 import { FeedbackPage } from "../src/app/routes/feedback-page";
 import { HomePage } from "../src/app/routes/home-page";
 import { MapPage } from "../src/app/routes/map-page";
 import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
+
+const diningApiMock = vi.hoisted(() => ({
+	getDiningFloor: vi.fn(),
+	getDiningHalls: vi.fn(),
+}));
 
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
@@ -135,6 +141,8 @@ vi.mock("../src/features/map/api", () => ({
 	}),
 }));
 
+vi.mock("../src/features/dining/api", () => diningApiMock);
+
 vi.mock("maplibre-gl", () => ({
 	default: {
 		Map: class {
@@ -154,6 +162,11 @@ vi.mock("maplibre-gl", () => ({
 }));
 
 describe("campus routes", () => {
+	beforeEach(() => {
+		diningApiMock.getDiningHalls.mockReset();
+		diningApiMock.getDiningFloor.mockReset();
+	});
+
 	it("renders the assistant-first home route", async () => {
 		render(<HomePage />);
 
@@ -193,6 +206,80 @@ describe("campus routes", () => {
 		expect(diningPageSource).not.toContain('id: "rice-bowl"');
 		expect(diningPageSource).not.toContain("x: 56");
 		expect(diningPageSource).not.toContain("y: 72");
+	});
+
+	it("resets the selected floor when switching to a dining hall with different floors", async () => {
+		diningApiMock.getDiningHalls.mockResolvedValue({
+			halls: [
+				{
+					campus: "海淀校区",
+					floors: [{ floorId: "1f", label: "一层" }],
+					hallId: "haidian-canteen-1",
+					name: "海淀一食堂",
+				},
+				{
+					campus: "丰台校区",
+					floors: [
+						{ floorId: "1f", label: "一层" },
+						{ floorId: "2f", label: "二层" },
+					],
+					hallId: "fengtai-huixian-canteen",
+					name: "汇贤食堂",
+				},
+			],
+		});
+		diningApiMock.getDiningFloor.mockImplementation(
+			({ floorId, hallId }: { floorId: string; hallId: string }) => {
+				const projections = {
+					"fengtai-huixian-canteen:1f": "汇贤食堂一层",
+					"fengtai-huixian-canteen:2f": "汇贤食堂二层",
+					"haidian-canteen-1:1f": "海淀一食堂一层",
+				} as const;
+				const label = projections[`${hallId}:${floorId}` as keyof typeof projections];
+				if (!label) {
+					return Promise.reject(new Error("missing dining projection"));
+				}
+				return Promise.resolve({
+					floor: {
+						floorId,
+						hallId,
+						label,
+						svgAssetUrl: `/assets/dining/${hallId}-${floorId}.svg`,
+					},
+					source: {
+						label: "campus experience mock projection seed",
+						updatedAt: "2026-06-08T00:00:00.000Z",
+					},
+					stalls: [
+						{
+							id: "stall-1",
+							locationLabel: "入口侧",
+							name: "测试档口",
+							priceLabel: "10-18 元",
+							tags: ["测试"],
+						},
+					],
+				});
+			},
+		);
+		render(<DiningPage />);
+
+		expect(await screen.findByText("海淀一食堂一层")).toBeInTheDocument();
+		let [hallSelect, floorSelect] = screen.getAllByRole("combobox");
+		fireEvent.change(hallSelect, { target: { value: "fengtai-huixian-canteen" } });
+
+		expect(await screen.findByText("汇贤食堂一层")).toBeInTheDocument();
+		[hallSelect, floorSelect] = screen.getAllByRole("combobox");
+		fireEvent.change(floorSelect, { target: { value: "2f" } });
+		expect(await screen.findByText("汇贤食堂二层")).toBeInTheDocument();
+		[hallSelect] = screen.getAllByRole("combobox");
+		fireEvent.change(hallSelect, { target: { value: "haidian-canteen-1" } });
+
+		expect(await screen.findByText("海淀一食堂一层")).toBeInTheDocument();
+		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalledWith({
+			floorId: "2f",
+			hallId: "haidian-canteen-1",
+		});
 	});
 
 	it("renders conversation streaming lifecycle states", async () => {

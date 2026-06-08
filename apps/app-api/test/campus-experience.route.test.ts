@@ -23,9 +23,9 @@ function createService(): CampusExperienceService {
 		getDiningFloor: vi.fn().mockResolvedValue({
 			floor: {
 				floorId: "1f",
-				hallId: "north-canteen",
-				label: "北区食堂一层",
-				svgAssetUrl: "/assets/dining/north-canteen-1f.svg",
+				hallId: "haidian-canteen-1",
+				label: "海淀第一食堂一层",
+				svgAssetUrl: "/assets/dining/haidian-canteen-1-1f.svg",
 			},
 			source: {
 				label: "校园食堂平面图整理",
@@ -46,8 +46,8 @@ function createService(): CampusExperienceService {
 				{
 					campus: "海淀校区",
 					floors: [{ floorId: "1f", label: "一层" }],
-					hallId: "north-canteen",
-					name: "北区食堂",
+					hallId: "haidian-canteen-1",
+					name: "第一食堂",
 				},
 			],
 		}),
@@ -99,7 +99,7 @@ describe("campus experience routes", () => {
 		);
 		const halls = await app.fetch(new Request("https://app-api.internal/api/dining/halls"));
 		const floor = await app.fetch(
-			new Request("https://app-api.internal/api/dining/halls/north-canteen/floors/1f"),
+			new Request("https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/1f"),
 		);
 
 		expect(places.status).toBe(200);
@@ -109,7 +109,7 @@ describe("campus experience routes", () => {
 		expect(service.getMapPlace).toHaveBeenCalledWith({ placeId: "library" });
 		expect(service.getDiningFloor).toHaveBeenCalledWith({
 			floorId: "1f",
-			hallId: "north-canteen",
+			hallId: "haidian-canteen-1",
 		});
 	});
 
