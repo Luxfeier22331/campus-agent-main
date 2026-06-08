@@ -53,13 +53,14 @@ git diff --check | tee "$E2E_QA_EVIDENCE_DIR/git-diff-check.txt"
 
 ## 2. Staging Runtime Readiness
 
-先确认 supervisor staging runtime：
+先确认 `nc-arm-6c` 上的 execution-control staging runtime。本机只允许作为开发与
+静态验证环境，不得作为 staging acceptance source of truth：
 
 ```bash
-ssh deploy@152.53.241.57 \
+ssh nc-arm-6c \
   'cd /srv/apps/campus-agent && \
     ./infra/local/staging/status-execution-control-staging.sh --check' \
-  | tee "$E2E_QA_EVIDENCE_DIR/supervisor-status.txt"
+  | tee "$E2E_QA_EVIDENCE_DIR/execution-control-status.txt"
 ```
 
 通过标准：
@@ -250,10 +251,10 @@ projection drain 时间段，并保存：
 
 ## 9. Data Plane Sanity
 
-只读检查远端容器与数据面：
+只读检查 `nc-arm-6c` 容器与数据面：
 
 ```bash
-ssh deploy@152.53.241.57 \
+ssh nc-arm-6c \
   'cd /srv/apps/campus-agent && \
     docker ps --format "{{.Names}}\t{{.Status}}\t{{.Ports}}"' \
   | tee "$E2E_QA_EVIDENCE_DIR/remote-containers.txt"
