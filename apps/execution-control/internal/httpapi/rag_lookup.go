@@ -23,13 +23,14 @@ type ragLookupExecutor interface {
 }
 
 type qdrantRAGLookupExecutor struct {
-	embeddingAPIKey  string
-	embeddingBaseURL string
-	embeddingModel   string
-	httpClient       *http.Client
-	qdrantAPIKey     string
-	qdrantURL        string
-	timeout          time.Duration
+	embeddingAPIKey     string
+	embeddingBaseURL    string
+	embeddingDimensions int
+	embeddingModel      string
+	httpClient          *http.Client
+	qdrantAPIKey        string
+	qdrantURL           string
+	timeout             time.Duration
 }
 
 func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
@@ -56,18 +57,22 @@ func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
 	if strings.TrimSpace(cfg.EmbeddingModel) == "" {
 		return nil, errors.New("EMBEDDING_MODEL is required for Go RAG lookup")
 	}
+	if cfg.EmbeddingDimensions <= 0 {
+		return nil, errors.New("EMBEDDING_DIMENSIONS is required for Go RAG lookup")
+	}
 	timeout := time.Duration(cfg.QdrantTimeoutSeconds * float64(time.Second))
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
 	return qdrantRAGLookupExecutor{
-		embeddingAPIKey:  strings.TrimSpace(cfg.EmbeddingAPIKey),
-		embeddingBaseURL: embeddingBaseURL,
-		embeddingModel:   strings.TrimSpace(cfg.EmbeddingModel),
-		httpClient:       &http.Client{Timeout: timeout},
-		qdrantAPIKey:     strings.TrimSpace(cfg.QdrantAPIKey),
-		qdrantURL:        qdrantURL,
-		timeout:          timeout,
+		embeddingAPIKey:     strings.TrimSpace(cfg.EmbeddingAPIKey),
+		embeddingBaseURL:    embeddingBaseURL,
+		embeddingDimensions: cfg.EmbeddingDimensions,
+		embeddingModel:      strings.TrimSpace(cfg.EmbeddingModel),
+		httpClient:          &http.Client{Timeout: timeout},
+		qdrantAPIKey:        strings.TrimSpace(cfg.QdrantAPIKey),
+		qdrantURL:           qdrantURL,
+		timeout:             timeout,
 	}, nil
 }
 
@@ -135,8 +140,9 @@ func (e qdrantRAGLookupExecutor) HealthCheck(ctx context.Context) error {
 
 func (e qdrantRAGLookupExecutor) embedQuery(ctx context.Context, queryText string) ([]float64, error) {
 	body, err := json.Marshal(map[string]any{
-		"model": e.embeddingModel,
-		"input": strings.TrimSpace(queryText),
+		"model":      e.embeddingModel,
+		"input":      strings.TrimSpace(queryText),
+		"dimensions": e.embeddingDimensions,
 	})
 	if err != nil {
 		return nil, err
@@ -174,6 +180,13 @@ func (e qdrantRAGLookupExecutor) embedQuery(ctx context.Context, queryText strin
 	}
 	if len(payload.Data) == 0 || len(payload.Data[0].Embedding) == 0 {
 		return nil, errors.New("embedding response did not contain embedding")
+	}
+	if e.embeddingDimensions > 0 && len(payload.Data[0].Embedding) != e.embeddingDimensions {
+		return nil, fmt.Errorf(
+			"embedding dimension = %d, want %d",
+			len(payload.Data[0].Embedding),
+			e.embeddingDimensions,
+		)
 	}
 	return payload.Data[0].Embedding, nil
 }

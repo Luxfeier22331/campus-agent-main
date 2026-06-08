@@ -89,6 +89,7 @@ type Config struct {
 	EmbeddingBaseURL                    string
 	EmbeddingAPIKey                     string
 	EmbeddingModel                      string
+	EmbeddingDimensions                 int
 }
 
 type LaneBudget struct {
@@ -155,6 +156,7 @@ type envValues struct {
 	EmbeddingBaseURL                    string  `env:"EMBEDDING_BASE_URL"`
 	EmbeddingAPIKey                     string  `env:"EMBEDDING_API_KEY"`
 	EmbeddingModel                      string  `env:"EMBEDDING_MODEL"`
+	EmbeddingDimensions                 int     `env:"EMBEDDING_DIMENSIONS"`
 }
 
 func LoadFromEnv() (Config, error) {
@@ -211,6 +213,10 @@ func LoadFromEnv() (Config, error) {
 		return Config{}, fmt.Errorf("EXECUTION_CONTROL_DURABLE_RUNTIME_AUTO_MIGRATE is retired; use EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE")
 	}
 	runProjectionAutoMigrate, err := readBoolStrict("EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE", false)
+	if err != nil {
+		return Config{}, err
+	}
+	embeddingDimensions, err := readPositiveIntStrict("EMBEDDING_DIMENSIONS", values.EmbeddingDimensions)
 	if err != nil {
 		return Config{}, err
 	}
@@ -300,6 +306,7 @@ func LoadFromEnv() (Config, error) {
 		EmbeddingBaseURL:                    strings.TrimRight(strings.TrimSpace(values.EmbeddingBaseURL), "/"),
 		EmbeddingAPIKey:                     strings.TrimSpace(values.EmbeddingAPIKey),
 		EmbeddingModel:                      strings.TrimSpace(values.EmbeddingModel),
+		EmbeddingDimensions:                 embeddingDimensions,
 	}, nil
 }
 

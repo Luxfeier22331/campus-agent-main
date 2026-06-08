@@ -3,8 +3,10 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,6 +66,65 @@ func TestQdrantRAGLookupQueryUsesDenseNamedVector(t *testing.T) {
 	}
 }
 
+func TestQdrantRAGLookupEmbeddingRequestUsesConfiguredDimensions(t *testing.T) {
+	var captured map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/embeddings" {
+			t.Fatalf("embedding path = %q, want /embeddings", request.URL.Path)
+		}
+		if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
+			t.Fatalf("decode embedding request: %v", err)
+		}
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(embeddingResponseForTest(2560)))
+	}))
+	defer server.Close()
+	executor := qdrantRAGLookupExecutor{
+		embeddingAPIKey:     "test-embedding-key",
+		embeddingBaseURL:    server.URL,
+		embeddingDimensions: 2560,
+		embeddingModel:      "Qwen3-Embedding-4B",
+		httpClient:          server.Client(),
+	}
+
+	embedding, err := executor.embedQuery(context.Background(), "学生请假手续")
+	if err != nil {
+		t.Fatalf("embed query: %v", err)
+	}
+	if len(embedding) != 2560 {
+		t.Fatalf("embedding dim = %d, want 2560", len(embedding))
+	}
+	if captured["model"] != "Qwen3-Embedding-4B" {
+		t.Fatalf("model = %#v", captured["model"])
+	}
+	if captured["dimensions"] != float64(2560) {
+		t.Fatalf("dimensions = %#v, want 2560", captured["dimensions"])
+	}
+}
+
+func TestQdrantRAGLookupEmbeddingFailsClosedOnDimensionMismatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3]}]}`))
+	}))
+	defer server.Close()
+	executor := qdrantRAGLookupExecutor{
+		embeddingAPIKey:     "test-embedding-key",
+		embeddingBaseURL:    server.URL,
+		embeddingDimensions: 2560,
+		embeddingModel:      "Qwen3-Embedding-4B",
+		httpClient:          server.Client(),
+	}
+
+	_, err := executor.embedQuery(context.Background(), "学生请假手续")
+	if err == nil {
+		t.Fatal("embedding dimension mismatch must fail closed")
+	}
+	if !strings.Contains(err.Error(), "embedding dimension") {
+		t.Fatalf("error = %v, want embedding dimension diagnostic", err)
+	}
+}
+
 func qdrantMustConditionsForTest(t *testing.T, captured map[string]any) map[string]any {
 	t.Helper()
 	filter, ok := captured["filter"].(map[string]any)
@@ -97,4 +158,12 @@ func assertQdrantMatchConditionForTest(
 	if must[key] != expected {
 		t.Fatalf("filter %s = %#v, want %#v", key, must[key], expected)
 	}
+}
+
+func embeddingResponseForTest(dimensions int) string {
+	values := make([]string, 0, dimensions)
+	for index := range dimensions {
+		values = append(values, fmt.Sprintf("%.1f", float64(index%3)/10))
+	}
+	return `{"data":[{"embedding":[` + strings.Join(values, ",") + `]}]}`
 }
