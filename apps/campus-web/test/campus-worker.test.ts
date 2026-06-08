@@ -83,4 +83,20 @@ describe("campus worker boundary", () => {
 			expect(response.headers.get("content-type")).toContain("text/html");
 		}
 	});
+
+	it("injects public runtime config from worker env into the shell", async () => {
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/", {
+				headers: { accept: "text/html" },
+			}),
+			createEnv(),
+		);
+
+		expect(response.status).toBe(200);
+		const html = await response.text();
+		expect(html).toContain("__CAMPUS_RUNTIME_CONFIG__");
+		expect(html).toContain("https://hub.muc.wiki/account");
+		expect(html).toContain("https://hub.muc.wiki/account/login");
+		expect(html).toContain('"loginReturnApp":"campus"');
+	});
 });

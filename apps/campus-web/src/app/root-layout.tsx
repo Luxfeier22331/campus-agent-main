@@ -2,6 +2,7 @@ import { Link, Outlet } from "@tanstack/react-router";
 import { BookOpen, MapIcon, MessageSquareText, Send, Utensils } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { getCampusRuntimeConfig } from "@/platform/runtime/config";
 
 const navItems = [
 	{ href: "/", icon: MessageSquareText, label: "助手" },
@@ -17,6 +18,7 @@ const navItems = [
 ] as const;
 
 export function RootLayout() {
+	const runtimeConfig = getCampusRuntimeConfig();
 	return (
 		<div className="min-h-dvh bg-background text-foreground">
 			<header className="sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur">
@@ -45,7 +47,7 @@ export function RootLayout() {
 					</nav>
 					<a
 						className="hidden min-h-10 items-center rounded-lg border border-border px-3 text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-subtle)] md:inline-flex"
-						href="https://hub.muc.wiki/account"
+						href={runtimeConfig.accountUrl}
 					>
 						账号
 					</a>

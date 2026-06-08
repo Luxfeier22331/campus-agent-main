@@ -20,7 +20,7 @@ export function FeedbackPage() {
 	const [category, setCategory] = useState<FeedbackCategory>("content_issue");
 	const [body, setBody] = useState("");
 	const [contact, setContact] = useState("");
-	const [routeContext, setRouteContext] = useState("/");
+	const [routeContext, setRouteContext] = useState(() => getCurrentRouteContext());
 	const [error, setError] = useState<string | null>(null);
 	const [receivedId, setReceivedId] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
@@ -110,4 +110,11 @@ export function FeedbackPage() {
 			</Card>
 		</section>
 	);
+}
+
+function getCurrentRouteContext(): string {
+	if (typeof window === "undefined") {
+		return "/";
+	}
+	return `${window.location.pathname}${window.location.search}${window.location.hash}` || "/";
 }

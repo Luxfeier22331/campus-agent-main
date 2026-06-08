@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { listConversations, submitChatRequest } from "@/features/conversation/api";
 import type { ConversationSummary } from "@/features/conversation/model";
 import { UnauthorizedError } from "@/platform/api/client";
+import { buildHubLoginUrlForCurrentRoute } from "@/platform/runtime/config";
 
 const examples = ["奖学金申请条件", "图书馆开放时间", "补办学生证需要什么材料"];
 
@@ -40,7 +41,7 @@ export function HomePage() {
 			});
 		} catch (reason) {
 			if (reason instanceof UnauthorizedError) {
-				window.location.href = "https://hub.muc.wiki/account/login";
+				window.location.href = buildHubLoginUrlForCurrentRoute();
 				return;
 			}
 			setError(reason instanceof Error ? reason.message : "发送失败。");

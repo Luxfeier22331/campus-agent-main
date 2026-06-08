@@ -36,6 +36,7 @@ export function normalizeTurnstileExecution(value: unknown): TurnstileExecution 
 }
 
 export function resolveTurnstileRuntimeConfig(config: {
+	publicCampusOrigin?: unknown;
 	publicChatOrigin?: unknown;
 	turnstileAppearance?: unknown;
 	turnstileExecution?: unknown;
@@ -43,6 +44,7 @@ export function resolveTurnstileRuntimeConfig(config: {
 }): TurnstileRuntimeConfig {
 	return {
 		authReturnOrigins: resolveHubAuthReturnOrigins({
+			publicCampusOrigin: config.publicCampusOrigin,
 			publicChatOrigin: config.publicChatOrigin,
 		}),
 		turnstileAppearance: normalizeTurnstileAppearance(config.turnstileAppearance),
@@ -61,6 +63,7 @@ export function parseTurnstileRuntimeConfigSource(
 	try {
 		const parsed = JSON.parse(source) as {
 			authReturnOrigins?: unknown;
+			publicCampusOrigin?: unknown;
 			publicChatOrigin?: unknown;
 			turnstileAppearance?: unknown;
 			turnstileExecution?: unknown;

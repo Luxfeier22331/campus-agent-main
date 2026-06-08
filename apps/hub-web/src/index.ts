@@ -17,6 +17,7 @@ export interface Env {
 	AUTH_TURNSTILE_APPEARANCE?: string;
 	AUTH_TURNSTILE_EXECUTION?: string;
 	AUTH_TURNSTILE_SITE_KEY?: string;
+	HUB_PUBLIC_CAMPUS_ORIGIN?: string;
 	HUB_PUBLIC_CHAT_ORIGIN?: string;
 	HUB_WEB_HOSTNAME?: string;
 	SENTRY_DSN?: string;
@@ -378,6 +379,7 @@ async function serveHubShell(
 function injectAuthRuntimeConfig(html: string, env: Env): string {
 	const serializedConfig = JSON.stringify(
 		resolveTurnstileRuntimeConfig({
+			publicCampusOrigin: env.HUB_PUBLIC_CAMPUS_ORIGIN,
 			publicChatOrigin: env.HUB_PUBLIC_CHAT_ORIGIN,
 			turnstileAppearance: env.AUTH_TURNSTILE_APPEARANCE,
 			turnstileExecution: env.AUTH_TURNSTILE_EXECUTION,

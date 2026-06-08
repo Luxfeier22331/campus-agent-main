@@ -41,6 +41,7 @@ export function ChatComposer({
 					aria-label="发送"
 					className="size-12 shrink-0 p-0"
 					disabled={disabled || !prompt.trim()}
+					type="submit"
 				>
 					<Send aria-hidden="true" className="size-5" />
 				</Button>

@@ -47,6 +47,7 @@ describe("hub source guardrails", () => {
 		expect(routeRegistrySource).not.toContain('slug: "legacy-wiki"');
 		expect(routeRegistrySource).toContain('slug: "muc-wiki"');
 		expect(routeRegistrySource).toContain('href: "https://campus.muc.wiki"');
+		expect(routeRegistrySource).toContain("campus-staging.mucwiki-edge.link");
 		expect(routeRegistrySource).toContain('href: "https://muc.wiki"');
 		expect(routeRegistrySource).toContain('href: "https://hub.muc.wiki/docs"');
 		expect(routeRegistrySource).toContain("http://localhost:27014");

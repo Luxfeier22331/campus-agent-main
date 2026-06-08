@@ -1,5 +1,6 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
+import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
 
 export interface Env {
@@ -200,7 +201,40 @@ async function serveCampusShell(request: Request, env: Env): Promise<Response> {
 	}
 
 	const response = await env.ASSETS.fetch(request);
+	const contentType = response.headers.get("content-type") ?? "";
+	if (contentType.includes("text/html")) {
+		const headers = new Headers(response.headers);
+		headers.set("cache-control", "no-store");
+		for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+			headers.set(key, value);
+		}
+		return new Response(injectCampusRuntimeConfig(await response.text(), env), {
+			headers,
+			status: response.status,
+			statusText: response.statusText,
+		});
+	}
 	return responseWithSecurityHeaders(response);
+}
+
+function injectCampusRuntimeConfig(html: string, env: Env): string {
+	const hubOrigin = env.HUB_WEB_ORIGIN?.trim();
+	const serializedConfig = JSON.stringify({
+		accountUrl: hubOrigin ? new URL("/account", hubOrigin).toString() : "",
+		loginReturnApp: "campus",
+		loginUrl: hubOrigin ? new URL("/account/login", hubOrigin).toString() : "",
+	}).replace(/</g, "\\u003c");
+	const scriptTag = `<script id="${CAMPUS_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">${serializedConfig}</script>`;
+
+	if (html.includes(`id="${CAMPUS_RUNTIME_CONFIG_SCRIPT_ID}"`)) {
+		return html;
+	}
+
+	if (html.includes("</body>")) {
+		return html.replace("</body>", `${scriptTag}</body>`);
+	}
+
+	return `${html}${scriptTag}`;
 }
 
 function isCampusShellPath(pathname: string): boolean {

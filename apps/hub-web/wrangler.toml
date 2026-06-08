@@ -11,6 +11,7 @@ service = "app-api"
 
 [env.local.vars]
 APP_API_BASE_URL = "http://127.0.0.1:27031"
+HUB_PUBLIC_CAMPUS_ORIGIN = "http://127.0.0.1:27014"
 HUB_PUBLIC_CHAT_ORIGIN = "http://127.0.0.1:27011"
 HUB_WEB_HOSTNAME = "127.0.0.1:27012"
 
@@ -20,6 +21,7 @@ service = "app-api-local"
 
 [env.staging.vars]
 APP_API_BASE_URL = "https://app-api.internal"
+HUB_PUBLIC_CAMPUS_ORIGIN = "https://campus-staging.mucwiki-edge.link"
 HUB_PUBLIC_CHAT_ORIGIN = "https://chat-staging.mucwiki-edge.link"
 HUB_WEB_HOSTNAME = "hub-staging.mucwiki-edge.link"
 SENTRY_ENVIRONMENT = "staging"

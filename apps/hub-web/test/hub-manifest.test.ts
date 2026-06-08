@@ -34,6 +34,10 @@ describe("hub app launcher manifest", () => {
 		expect(campusEntry && resolveHubEntryHref(campusEntry, { hostname: "hub.muc.wiki" })).toBe(
 			"https://campus.muc.wiki",
 		);
+		expect(
+			campusEntry &&
+				resolveHubEntryHref(campusEntry, { hostname: "hub-staging.mucwiki-edge.link" }),
+		).toBe("https://campus-staging.mucwiki-edge.link");
 		expect(campusEntry && resolveHubEntryHref(campusEntry, { hostname: "localhost" })).toBe(
 			"http://localhost:27014",
 		);

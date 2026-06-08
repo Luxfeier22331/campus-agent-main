@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 
 export function DiningPage() {
 	const [halls, setHalls] = useState<DiningHallSummary[]>([]);
-	const [selectedHallId, setSelectedHallId] = useState("north-canteen");
-	const [selectedFloorId, setSelectedFloorId] = useState("1f");
+	const [selectedHallId, setSelectedHallId] = useState("");
+	const [selectedFloorId, setSelectedFloorId] = useState("");
 	const [floor, setFloor] = useState<DiningFloorResponse | null>(null);
-	const [selectedStallId, setSelectedStallId] = useState<string | null>("rice-bowl");
+	const [selectedStallId, setSelectedStallId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -30,6 +30,9 @@ export function DiningPage() {
 	}, []);
 
 	useEffect(() => {
+		if (!(selectedFloorId && selectedHallId)) {
+			return;
+		}
 		getDiningFloor({ floorId: selectedFloorId, hallId: selectedHallId })
 			.then((nextFloor) => {
 				setFloor(nextFloor);
@@ -82,7 +85,7 @@ export function DiningPage() {
 			{floor ? (
 				<div className="grid gap-4 lg:grid-cols-[1fr_360px]">
 					<Card className="min-h-[var(--layout-dining-svg-min-height)] overflow-hidden p-4">
-						<DiningFloorSvg selectedStallId={selectedStallId} onSelect={setSelectedStallId} />
+						<DiningFloorProjection floor={floor} selectedStallId={selectedStallId} />
 					</Card>
 					<Card className="overflow-hidden">
 						<div className="border-b border-border p-4">
@@ -130,48 +133,29 @@ export function DiningPage() {
 	);
 }
 
-function DiningFloorSvg({
-	onSelect,
+function DiningFloorProjection({
+	floor,
 	selectedStallId,
 }: {
-	onSelect(stallId: string): void;
+	floor: DiningFloorResponse;
 	selectedStallId: string | null;
 }) {
-	const stalls = [
-		{ id: "rice-bowl", label: "盖饭", x: 56, y: 72 },
-		{ id: "noodle", label: "面食", x: 284, y: 72 },
-		{ id: "halal", label: "清真", x: 56, y: 256 },
-	] as const;
+	const selectedStall = floor.stalls.find((stall) => stall.id === selectedStallId) ?? null;
 	return (
-		<svg
-			aria-label="食堂一层档口布局"
-			className="h-full min-h-[520px] w-full rounded-xl bg-[var(--dining-svg-canvas-bg)]"
-			role="img"
-			viewBox="0 0 640 520"
-		>
-			<rect fill="#fff" height="448" rx="24" stroke="#d0d5dd" width="560" x="40" y="36" />
-			<rect fill="#eef0f3" height="96" rx="16" width="180" x="230" y="210" />
-			<text fill="#667085" fontSize="16" textAnchor="middle" x="320" y="262">
-				就餐区
-			</text>
-			<text fill="#667085" fontSize="14" x="276" y="462">
-				入口
-			</text>
-			{stalls.map((stall) => (
-				<foreignObject height="92" key={stall.id} width="160" x={stall.x} y={stall.y}>
-					<button
-						aria-pressed={selectedStallId === stall.id}
-						className={cn(
-							"grid h-full w-full place-items-center rounded-[14px] border-2 border-[#d0d5dd] bg-white text-lg font-semibold text-[#101828] outline-none focus-visible:shadow-[var(--state-focus-shadow)]",
-							selectedStallId === stall.id && "border-4 border-[#0b308f]",
-						)}
-						onClick={() => onSelect(stall.id)}
-						type="button"
-					>
-						{stall.label}
-					</button>
-				</foreignObject>
-			))}
-		</svg>
+		<div className="flex min-h-[520px] flex-col gap-4 rounded-xl bg-[var(--dining-svg-canvas-bg)] p-4">
+			<img
+				alt={`${floor.floor.label}平面图`}
+				className="min-h-0 flex-1 rounded-lg border border-border bg-white object-contain"
+				src={floor.floor.svgAssetUrl}
+			/>
+			{selectedStall ? (
+				<div className="rounded-lg border border-border bg-white px-4 py-3">
+					<p className="text-sm font-medium text-[var(--sys-text-strong)]">{selectedStall.name}</p>
+					<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
+						{selectedStall.locationLabel} · {selectedStall.priceLabel}
+					</p>
+				</div>
+			) : null}
+		</div>
 	);
 }

@@ -120,6 +120,9 @@ export function resolveHubEntryHref(
 		if (hostname === "127.0.0.1" || hostname === "::1") {
 			return "http://127.0.0.1:27014";
 		}
+		if (hostname === "hub-staging.mucwiki-edge.link") {
+			return "https://campus-staging.mucwiki-edge.link";
+		}
 		return entry.href;
 	}
 	if (hostname === "localhost") {

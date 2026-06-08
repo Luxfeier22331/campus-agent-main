@@ -8,16 +8,26 @@ import { ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import {
 	getConversationDetail,
 	listConversations,
-	submitChatRequest,
+	submitChatRequestStream,
 } from "@/features/conversation/api";
-import type { ConversationDetail, ConversationSummary } from "@/features/conversation/model";
+import {
+	buildAssistantMessageFromCompletedAnswer,
+	getLifecycleLabel,
+} from "@/features/conversation/lifecycle";
+import type {
+	ChatRequestStreamEvent,
+	ConversationDetail,
+	ConversationSummary,
+} from "@/features/conversation/model";
 import { UnauthorizedError } from "@/platform/api/client";
+import { buildHubLoginUrlForCurrentRoute } from "@/platform/runtime/config";
 
 export function ConversationPage() {
 	const { conversationId } = useParams({ from: "/c/$conversationId" });
 	const [conversations, setConversations] = useState<ConversationSummary[]>([]);
 	const [conversation, setConversation] = useState<ConversationDetail | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [lifecycleEvents, setLifecycleEvents] = useState<ChatRequestStreamEvent[]>([]);
 	const [submitting, setSubmitting] = useState(false);
 
 	useEffect(() => {
@@ -29,7 +39,7 @@ export function ConversationPage() {
 			})
 			.catch((reason: unknown) => {
 				if (reason instanceof UnauthorizedError) {
-					window.location.href = "https://hub.muc.wiki/account/login";
+					window.location.href = buildHubLoginUrlForCurrentRoute();
 					return;
 				}
 				setError(reason instanceof Error ? reason.message : "会话加载失败。");
@@ -38,10 +48,38 @@ export function ConversationPage() {
 
 	async function handleSubmit(prompt: string) {
 		setSubmitting(true);
+		setLifecycleEvents([]);
+		setError(null);
 		try {
-			const answer = await submitChatRequest({ conversationId, prompt });
-			setConversation(answer.conversation);
+			for await (const event of submitChatRequestStream({ conversationId, prompt })) {
+				setLifecycleEvents((current) => [...current, event]);
+				if (event.event === "request.completed" && event.data.answer) {
+					const answer = event.data.answer;
+					const assistantMessage = buildAssistantMessageFromCompletedAnswer(event);
+					setConversation(
+						assistantMessage && answer.conversation.messages.length === 0
+							? {
+									...answer.conversation,
+									messages: [
+										...((conversation?.messages ?? []) as ConversationDetail["messages"]),
+										assistantMessage,
+									],
+								}
+							: answer.conversation,
+					);
+				}
+				if (event.event === "request.failed") {
+					setError(event.data.error?.message ?? "请求失败。");
+				}
+				if (event.event === "request.cancelled") {
+					setError("请求已取消。");
+				}
+			}
 		} catch (reason) {
+			if (reason instanceof UnauthorizedError) {
+				window.location.href = buildHubLoginUrlForCurrentRoute();
+				return;
+			}
 			setError(reason instanceof Error ? reason.message : "发送失败。");
 		} finally {
 			setSubmitting(false);
@@ -55,6 +93,7 @@ export function ConversationPage() {
 				{error ? <ErrorPanel message={error} /> : null}
 				{conversation ? (
 					<div className="flex min-h-0 flex-1 flex-col">
+						<LifecycleStatus events={lifecycleEvents} />
 						<div className="flex-1 pb-32">
 							<MessageList messages={conversation.messages} />
 						</div>
@@ -66,6 +105,25 @@ export function ConversationPage() {
 					<LoadingPanel label="正在读取会话" />
 				)}
 			</section>
+		</div>
+	);
+}
+
+function LifecycleStatus({ events }: { events: ChatRequestStreamEvent[] }) {
+	if (events.length === 0) {
+		return null;
+	}
+
+	return (
+		<div className="mb-4 flex flex-wrap gap-2" role="status">
+			{events.map((event) => (
+				<span
+					className="rounded-full border border-border bg-white px-3 py-1 text-xs text-[var(--sys-text-muted)]"
+					key={`${event.event}:${event.data.requestId}:${event.data.occurredAt}`}
+				>
+					{getLifecycleLabel(event.event)}
+				</span>
+			))}
 		</div>
 	);
 }

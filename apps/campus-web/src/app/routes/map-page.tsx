@@ -1,6 +1,6 @@
 import { MapPin } from "lucide-react";
 import maplibregl from "maplibre-gl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import { Card } from "@/components/ui/card";
@@ -13,6 +13,23 @@ export function MapPage() {
 	const [data, setData] = useState<CampusMapPlacesResponse | null>(null);
 	const [selected, setSelected] = useState<CampusMapPlace | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [query, setQuery] = useState("");
+
+	const filteredPlaces = useMemo(() => {
+		if (!data) {
+			return [];
+		}
+		const normalizedQuery = query.trim().toLowerCase();
+		if (!normalizedQuery) {
+			return data.places;
+		}
+		return data.places.filter((place) =>
+			[place.title, place.description, place.campus, ...place.tags, ...place.sourceRefs]
+				.join(" ")
+				.toLowerCase()
+				.includes(normalizedQuery),
+		);
+	}, [data, query]);
 
 	useEffect(() => {
 		getCampusMapPlaces()
@@ -48,7 +65,7 @@ export function MapPage() {
 			zoom: 16,
 		});
 		mapInstanceRef.current = map;
-		for (const place of data.places) {
+		for (const place of filteredPlaces) {
 			const marker = document.createElement("button");
 			marker.className = "campus-map-marker";
 			marker.type = "button";
@@ -63,7 +80,20 @@ export function MapPage() {
 			map.remove();
 			mapInstanceRef.current = null;
 		};
-	}, [data, selected?.id]);
+	}, [data, filteredPlaces, selected?.id]);
+
+	useEffect(() => {
+		if (!data) {
+			return;
+		}
+		if (filteredPlaces.length === 0) {
+			setSelected(null);
+			return;
+		}
+		if (!(selected && filteredPlaces.some((place) => place.id === selected.id))) {
+			setSelected(filteredPlaces[0] ?? null);
+		}
+	}, [data, filteredPlaces, selected]);
 
 	return (
 		<section className="mx-auto max-w-[1440px] px-5 py-6 pb-24 lg:px-6">
@@ -76,7 +106,9 @@ export function MapPage() {
 				</div>
 				<input
 					className="min-h-11 rounded-lg border border-input px-3 text-sm outline-none focus:border-ring focus:shadow-[var(--state-focus-shadow)]"
-					placeholder="搜索地点"
+					onChange={(event) => setQuery(event.target.value)}
+					placeholder="筛选已投影地点"
+					value={query}
 				/>
 			</div>
 			{error ? <ErrorPanel message={error} /> : null}
@@ -97,6 +129,9 @@ export function MapPage() {
 								</h2>
 								<p className="mt-2 text-sm leading-6 text-[var(--sys-text-muted)]">
 									{selected.description}
+								</p>
+								<p className="mt-3 text-xs leading-5 text-[var(--sys-text-subtle)]">
+									投影来源：{selected.sourceRefs.join("、")}
 								</p>
 								<div className="mt-4 flex flex-wrap gap-2">
 									{selected.tags.map((tag) => (

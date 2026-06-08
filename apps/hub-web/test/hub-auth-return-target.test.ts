@@ -40,4 +40,43 @@ describe("hub auth return target", () => {
 			),
 		).toBe("https://chat.example.com/chat");
 	});
+
+	it("allows explicit campus app return targets only for campus origins and routes", () => {
+		const appOrigins = resolveHubAuthReturnOrigins({
+			publicCampusOrigin: "https://campus-staging.mucwiki-edge.link",
+		});
+
+		expect(
+			resolveHubAuthReturnTarget(
+				"return_app=campus&return_to=https%3A%2F%2Fcampus-staging.mucwiki-edge.link%2Fc%2Fconv_01HQ",
+				{
+					appOrigins,
+				},
+			),
+		).toBe("https://campus-staging.mucwiki-edge.link/c/conv_01HQ");
+		expect(
+			resolveHubAuthReturnTarget(
+				"return_app=campus&return_to=https%3A%2F%2Fcampus-staging.mucwiki-edge.link%2Ffeedback",
+				{
+					appOrigins,
+				},
+			),
+		).toBe("https://campus-staging.mucwiki-edge.link/feedback");
+		expect(
+			resolveHubAuthReturnTarget(
+				"return_app=campus&return_to=https%3A%2F%2Fevil.example.com%2Ffeedback",
+				{
+					appOrigins,
+				},
+			),
+		).toBe("https://campus-staging.mucwiki-edge.link/");
+		expect(
+			resolveHubAuthReturnTarget(
+				"return_app=campus&return_to=https%3A%2F%2Fcampus-staging.mucwiki-edge.link%2Fadmin",
+				{
+					appOrigins,
+				},
+			),
+		).toBe("https://campus-staging.mucwiki-edge.link/");
+	});
 });
