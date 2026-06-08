@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
@@ -13,30 +12,42 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
+func TestReadyzDoesNotRequirePythonBridgeForOnlineRAGRuntime(t *testing.T) {
 	server := NewServer(config.Config{
-		AppName:              "campus-agent",
-		MaxConcurrentAnswers: 8,
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		PromptRuntimeProvider:         "openai",
+		AgentPromptModel:              "gpt-5-mini",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		ProviderPricingPath:           providerPricingCatalogForTest(t),
+		PromptStrictStructuredOutputs: true,
 	}, nil)
+	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503", response.Code)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 
 	body := decodeBody(t, response)
-	if body["status"] != "degraded" {
-		t.Fatalf("status body = %v, want degraded", body["status"])
+	if body["status"] != "ready" {
+		t.Fatalf("status body = %v, want ready", body["status"])
 	}
-	bridgeRuntime := expectRecord(t, body["bridge_runtime"], "bridge_runtime")
-	if bridgeRuntime["configured"] != false {
-		t.Fatalf("bridge configured = %v, want false", bridgeRuntime["configured"])
+	if _, ok := body["bridge_runtime"]; ok {
+		t.Fatalf("readyz must not publish Python bridge runtime in online path: %#v", body["bridge_runtime"])
+	}
+	ragRuntime := expectRecord(t, body["rag_runtime"], "rag_runtime")
+	if ragRuntime["healthy"] != true {
+		t.Fatalf("rag_runtime = %#v, want healthy", ragRuntime)
 	}
 	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")
-	if temporalRuntime["configured"] != false || temporalRuntime["healthy"] != false {
-		t.Fatalf("temporal_runtime = %#v, want unconfigured degraded", temporalRuntime)
+	if temporalRuntime["healthy"] != true {
+		t.Fatalf("temporal_runtime = %#v, want healthy", temporalRuntime)
 	}
 }
 
@@ -65,7 +76,7 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	}
 }
 
-func TestReadyzRedactsBridgeReadinessTransportErrors(t *testing.T) {
+func TestReadyzIgnoresConfiguredPythonBridgeReadinessErrors(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:                       "campus-agent",
 		MaxConcurrentAnswers:          8,
@@ -81,27 +92,22 @@ func TestReadyzRedactsBridgeReadinessTransportErrors(t *testing.T) {
 		configured: true,
 		readyzErr:  errors.New("Get http://127.0.0.1:8888/internal/bridge/readyz?token=secret-token: dial tcp 127.0.0.1:8888: connect: connection refused"),
 	})
+	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	bridgeRuntime := expectRecord(t, body["bridge_runtime"], "bridge_runtime")
-	lastError, _ := bridgeRuntime["last_error"].(string)
-	if lastError != "Supervisor Python bridge readiness check failed." {
-		t.Fatalf("bridge_runtime.last_error = %q", lastError)
-	}
-	for _, secret := range []string{"secret-token", "127.0.0.1:8888", "/internal/bridge/readyz"} {
-		if strings.Contains(lastError, secret) {
-			t.Fatalf("bridge_runtime.last_error leaked %q: %s", secret, lastError)
-		}
+	if _, ok := body["bridge_runtime"]; ok {
+		t.Fatalf("readyz must not publish Python bridge runtime in online path: %#v", body["bridge_runtime"])
 	}
 }
 
-func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
+func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:                       "campus-agent",
 		MaxConcurrentAnswers:          8,
@@ -127,6 +133,7 @@ func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
 		},
 	})
 	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -139,9 +146,6 @@ func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
 	if body["status"] != "ready" {
 		t.Fatalf("status body = %v, want ready", body["status"])
 	}
-	if body["runtime_provider"] != "mock-runtime" {
-		t.Fatalf("runtime_provider = %v, want mock-runtime", body["runtime_provider"])
-	}
 	transportRuntime := expectRecord(t, body["transport_runtime"], "transport_runtime")
 	if transportRuntime["max_concurrent_answers"] != float64(8) {
 		t.Fatalf(
@@ -149,16 +153,15 @@ func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
 			transportRuntime["max_concurrent_answers"],
 		)
 	}
-	bridgeRuntime := expectRecord(t, body["bridge_runtime"], "bridge_runtime")
-	if bridgeRuntime["healthy"] != true {
-		t.Fatalf("bridge_runtime.healthy = %v, want true", bridgeRuntime["healthy"])
+	if _, ok := body["runtime_provider"]; ok {
+		t.Fatalf("readyz must not publish stale Python runtime_provider")
 	}
-	if _, ok := body["audit_runtime"]; ok {
-		t.Fatalf("readyz must not publish stale Python audit_runtime")
+	if _, ok := body["bridge_runtime"]; ok {
+		t.Fatalf("readyz must not publish Python bridge runtime in online path")
 	}
-	workerTransportKey := "worker_" + "transport_runtime"
-	if _, ok := bridgeRuntime[workerTransportKey]; ok {
-		t.Fatalf("bridge_runtime.%s must not be published", workerTransportKey)
+	ragRuntime := expectRecord(t, body["rag_runtime"], "rag_runtime")
+	if ragRuntime["healthy"] != true {
+		t.Fatalf("rag_runtime = %#v, want healthy", ragRuntime)
 	}
 	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
 	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
@@ -344,6 +347,7 @@ func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
 		},
 	})
 	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -385,6 +389,7 @@ func TestReadyzPromptConfigGateDoesNotRequireSupervisorTerminalModel(t *testing.
 		},
 	})
 	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))

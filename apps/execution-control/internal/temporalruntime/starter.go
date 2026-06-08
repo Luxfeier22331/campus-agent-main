@@ -229,21 +229,37 @@ type WorkerOptions struct {
 
 type RAGActivities interface {
 	PlanChatAnswerActivity(context.Context, PlanChatAnswerActivityInput) (PlanChatAnswerActivityOutput, error)
-	InvokeSemanticWorkerActivity(
+	PlanRAGActivity(
 		context.Context,
-		InvokeSemanticWorkerActivityInput,
-	) (InvokeSemanticWorkerActivityOutput, error)
+		PlanRAGActivityInput,
+	) (PlanRAGActivityOutput, error)
+	RetrieveIndexedLookupActivity(
+		context.Context,
+		RetrieveIndexedLookupActivityInput,
+	) (RetrieveIndexedLookupActivityOutput, error)
+	ExpandOrRescueRetrievalActivity(
+		context.Context,
+		ExpandOrRescueRetrievalActivityInput,
+	) (ExpandOrRescueRetrievalActivityOutput, error)
+	SelectEvidenceActivity(
+		context.Context,
+		SelectEvidenceActivityInput,
+	) (SelectEvidenceActivityOutput, error)
 	SynthesizeRAGAnswerActivity(
 		context.Context,
 		SynthesizeRAGAnswerActivityInput,
 	) (SynthesizeRAGAnswerActivityOutput, error)
+	VerifyGroundingActivity(
+		context.Context,
+		VerifyGroundingActivityInput,
+	) (VerifyGroundingActivityOutput, error)
 }
 
 type FinalizationActivities interface {
-	FinalizeChatAnswerActivity(
+	WriteFinalizationActivity(
 		context.Context,
-		FinalizeChatAnswerActivityInput,
-	) (FinalizeChatAnswerActivityOutput, error)
+		WriteFinalizationActivityInput,
+	) (WriteFinalizationActivityOutput, error)
 }
 
 func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntime, error) {
@@ -325,12 +341,28 @@ func NewRAGActivityWorker(temporalClient client.Client, queue string, activities
 		activityRegisterOptions(PlanChatAnswerActivityName),
 	)
 	ragWorker.RegisterActivityWithOptions(
-		activities.InvokeSemanticWorkerActivity,
-		activityRegisterOptions(InvokeSemanticWorkerActivityName),
+		activities.PlanRAGActivity,
+		activityRegisterOptions(PlanRAGActivityName),
+	)
+	ragWorker.RegisterActivityWithOptions(
+		activities.RetrieveIndexedLookupActivity,
+		activityRegisterOptions(RetrieveIndexedLookupActivityName),
+	)
+	ragWorker.RegisterActivityWithOptions(
+		activities.ExpandOrRescueRetrievalActivity,
+		activityRegisterOptions(ExpandOrRescueRetrievalActivityName),
+	)
+	ragWorker.RegisterActivityWithOptions(
+		activities.SelectEvidenceActivity,
+		activityRegisterOptions(SelectEvidenceActivityName),
 	)
 	ragWorker.RegisterActivityWithOptions(
 		activities.SynthesizeRAGAnswerActivity,
 		activityRegisterOptions(SynthesizeRAGAnswerActivityName),
+	)
+	ragWorker.RegisterActivityWithOptions(
+		activities.VerifyGroundingActivity,
+		activityRegisterOptions(VerifyGroundingActivityName),
 	)
 	return ragWorker
 }
@@ -346,8 +378,8 @@ func NewFinalizationActivityWorker(
 	}
 	finalizationWorker := worker.New(temporalClient, finalizationQueue, worker.Options{})
 	finalizationWorker.RegisterActivityWithOptions(
-		activities.FinalizeChatAnswerActivity,
-		activityRegisterOptions(FinalizeChatAnswerActivityName),
+		activities.WriteFinalizationActivity,
+		activityRegisterOptions(WriteFinalizationActivityName),
 	)
 	return finalizationWorker
 }

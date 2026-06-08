@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -52,6 +53,32 @@ type fakeBridge struct {
 
 type readyTemporalStarter struct {
 	readiness temporalruntime.RuntimeReadiness
+}
+
+type readyRAGLookupExecutor struct{}
+
+func (readyRAGLookupExecutor) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (readyRAGLookupExecutor) Lookup(
+	context.Context,
+	ragruntime.PlanProjection,
+) (ragruntime.RetrievalLookupResult, error) {
+	return ragruntime.RetrievalLookupResult{}, nil
+}
+
+type readyRAGSynthesisExecutor struct{}
+
+func (readyRAGSynthesisExecutor) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (readyRAGSynthesisExecutor) ExecuteRAGSynthesis(
+	context.Context,
+	ragSynthesisPacket,
+) (ragSynthesisResult, error) {
+	return ragSynthesisResult{}, nil
 }
 
 func (readyTemporalStarter) StartChatAnswerWorkflow(
@@ -100,6 +127,13 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 func markTemporalReadyForTest(server *Server) {
 	server.temporalStarter = readyTemporalStarter{}
 	server.temporalStarterErr = nil
+}
+
+func markRAGRuntimeReadyForTest(server *Server) {
+	server.ragLookupExecutor = readyRAGLookupExecutor{}
+	server.ragLookupErr = nil
+	server.ragSynthesisExecutor = readyRAGSynthesisExecutor{}
+	server.ragSynthesisErr = nil
 }
 
 func providerPricingCatalogForTest(t *testing.T) string {

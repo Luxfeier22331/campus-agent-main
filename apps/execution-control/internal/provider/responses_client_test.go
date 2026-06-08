@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -122,8 +123,7 @@ func TestResponsesClientDeadlineRecordsProviderTimeout(t *testing.T) {
 		Pricing:       catalog,
 		HTTPClient:    server.Client(),
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-	defer cancel()
+	ctx, expireDeadline := newManualDeadlineContext(context.Background())
 	resultCh := make(chan ResponsesClientResult, 1)
 	go func() {
 		resultCh <- client.Execute(ctx, ResponsesRequest{
@@ -136,6 +136,7 @@ func TestResponsesClientDeadlineRecordsProviderTimeout(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("provider request did not start")
 	}
+	expireDeadline()
 	select {
 	case <-requestClosed:
 	case <-time.After(time.Second):
@@ -154,6 +155,41 @@ func TestResponsesClientDeadlineRecordsProviderTimeout(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("provider client did not return after deadline")
+	}
+}
+
+type manualDeadlineContext struct {
+	context.Context
+	done chan struct{}
+	once sync.Once
+}
+
+func newManualDeadlineContext(parent context.Context) (*manualDeadlineContext, context.CancelFunc) {
+	ctx := &manualDeadlineContext{
+		Context: parent,
+		done:    make(chan struct{}),
+	}
+	return ctx, func() {
+		ctx.once.Do(func() {
+			close(ctx.done)
+		})
+	}
+}
+
+func (ctx *manualDeadlineContext) Deadline() (time.Time, bool) {
+	return time.Now().Add(time.Hour), true
+}
+
+func (ctx *manualDeadlineContext) Done() <-chan struct{} {
+	return ctx.done
+}
+
+func (ctx *manualDeadlineContext) Err() error {
+	select {
+	case <-ctx.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
 	}
 }
 

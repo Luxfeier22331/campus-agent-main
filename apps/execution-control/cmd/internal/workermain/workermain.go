@@ -11,7 +11,6 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -87,10 +86,5 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 }
 
 func newActivityServer(cfg config.Config) *httpapi.Server {
-	bridgeClient := bridge.NewHTTPClientWithResponseLimit(
-		cfg.BridgeBaseURL,
-		cfg.BridgeSharedSecret,
-		cfg.BridgeResponseLimitBytes,
-	)
-	return httpapi.NewServerWithDependencies(cfg, bridgeClient, nil, nil, nil)
+	return httpapi.NewServerWithDependencies(cfg, nil, nil, nil, nil)
 }

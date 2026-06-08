@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
 )
@@ -23,12 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 	address := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-	bridgeClient := bridge.NewHTTPClientWithResponseLimit(
-		cfg.BridgeBaseURL,
-		cfg.BridgeSharedSecret,
-		cfg.BridgeResponseLimitBytes,
-	)
-	handler := httpapi.NewServerWithDependencies(cfg, bridgeClient, nil, logger, nil)
+	handler := httpapi.NewServerWithDependencies(cfg, nil, nil, logger, nil)
 
 	server := &http.Server{
 		Addr:              address,

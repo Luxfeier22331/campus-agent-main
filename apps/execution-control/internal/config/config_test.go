@@ -10,12 +10,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "")
 	t.Setenv("API_DEFAULT_ACTOR_ID", "")
 	t.Setenv("API_DEFAULT_ACTOR_ROLES", "")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_BASE_URL", "")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_HOST", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_PORT", "")
 	t.Setenv("EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS", "")
@@ -23,11 +17,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_QUEUE_TIMEOUT_MS", "")
 	t.Setenv("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", "")
 	t.Setenv("EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES", "")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "")
 	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
 	t.Setenv("EXECUTION_CONTROL_INTENT_POLICY_PATH", "")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_URL", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET", "")
@@ -84,24 +76,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.DefaultActorID != "" {
 		t.Fatalf("default actor id = %q, want empty", cfg.DefaultActorID)
 	}
-	if cfg.BridgeBaseURL != "" {
-		t.Fatalf("bridge base url = %q, want empty", cfg.BridgeBaseURL)
-	}
-	if cfg.BridgeSharedSecret != "" {
-		t.Fatalf("bridge shared secret = %q, want empty", cfg.BridgeSharedSecret)
-	}
-	if cfg.BridgeBreakerFailureThreshold != 5 {
-		t.Fatalf("bridge breaker failure threshold = %d, want 5", cfg.BridgeBreakerFailureThreshold)
-	}
-	if cfg.BridgeBreakerOpenMS != 10_000 {
-		t.Fatalf("bridge breaker open ms = %d, want 10000", cfg.BridgeBreakerOpenMS)
-	}
-	if cfg.BridgeRetryMaxAttempts != 2 {
-		t.Fatalf("bridge retry max attempts = %d, want 2", cfg.BridgeRetryMaxAttempts)
-	}
-	if cfg.BridgeRetryBaseMS != 50 {
-		t.Fatalf("bridge retry base ms = %d, want 50", cfg.BridgeRetryBaseMS)
-	}
 	if cfg.MaxConcurrentAnswers != 8 {
 		t.Fatalf("max concurrent answers = %d, want 8", cfg.MaxConcurrentAnswers)
 	}
@@ -116,12 +90,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.RequestBodyLimitBytes != 1_048_576 {
 		t.Fatalf("body limit = %d, want 1048576", cfg.RequestBodyLimitBytes)
-	}
-	if cfg.BridgeTimeoutMS != 35_000 {
-		t.Fatalf("bridge timeout = %d, want 35000", cfg.BridgeTimeoutMS)
-	}
-	if cfg.BridgeResponseLimitBytes != 1_048_576 {
-		t.Fatalf("bridge response limit = %d, want 1048576", cfg.BridgeResponseLimitBytes)
 	}
 	if cfg.ShutdownGraceMS != 45_000 {
 		t.Fatalf("shutdown grace = %d, want 45000", cfg.ShutdownGraceMS)
@@ -404,12 +372,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_QUEUE_CAPACITY", "12")
 	t.Setenv("EXECUTION_CONTROL_QUEUE_TIMEOUT_MS", "2500")
 	t.Setenv("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", "30000")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "7500")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "4")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "15")
 	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "20000")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_INTENT_POLICY_PATH", "/etc/campus-agent/intent-policy.v1.json")
@@ -453,12 +415,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.QueueCapacity != 12 ||
 		cfg.QueueTimeoutMS != 2500 ||
 		cfg.RequestTimeoutMS != 30000 ||
-		cfg.BridgeTimeoutMS != 25000 ||
-		cfg.BridgeResponseLimitBytes != 2048 ||
-		cfg.BridgeBreakerFailureThreshold != 3 ||
-		cfg.BridgeBreakerOpenMS != 7500 ||
-		cfg.BridgeRetryMaxAttempts != 4 ||
-		cfg.BridgeRetryBaseMS != 15 ||
 		cfg.ShutdownGraceMS != 20000 ||
 		cfg.MetricsBearerToken != "metrics-token" ||
 		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||
@@ -494,6 +450,30 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.PromptStrictStructuredOutputs ||
 		cfg.NoticeBodyObjectStoreBodyLimitBytes != 4096 {
 		t.Fatalf("unexpected config: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvRejectsRetiredPythonBridgeSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{"SUPERVISOR_AGENT_WORKER_BASE_URL", "http://127.0.0.1:27052"},
+		{"SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "bridge-secret"},
+		{"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048"},
+		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000"},
+		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", "500"},
+		{"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3"},
+		{"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "7500"},
+		{"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "4"},
+		{"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "15"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(tc.name, tc.value)
+			if _, err := LoadFromEnv(); err == nil {
+				t.Fatalf("expected retired Python bridge setting %s to fail", tc.name)
+			}
+		})
 	}
 }
 

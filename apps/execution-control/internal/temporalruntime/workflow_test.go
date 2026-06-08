@@ -28,14 +28,51 @@ func TestChatAnswerWorkflowExecutesTypedStepGraph(t *testing.T) {
 		nil,
 	)
 	env.OnActivity(
-		InvokeSemanticWorkerActivityName,
+		PlanRAGActivityName,
 		mock.Anything,
-		mock.MatchedBy(semanticInputMatcher("run-workflow-001")),
+		mock.MatchedBy(ragPlanInputMatcher("run-workflow-001")),
 	).Return(
-		InvokeSemanticWorkerActivityOutput{
-			BridgeRef: "projection://runs/run-workflow-001/semantic/rag",
+		PlanRAGActivityOutput{
+			PlanRef: "projection://runs/run-workflow-001/rag/plan",
+			RunID:   "run-workflow-001",
+			Status:  "completed",
+		},
+		nil,
+	)
+	env.OnActivity(
+		RetrieveIndexedLookupActivityName,
+		mock.Anything,
+		mock.MatchedBy(retrievalLookupInputMatcher("run-workflow-001")),
+	).Return(
+		RetrieveIndexedLookupActivityOutput{
+			LookupRef: "projection://runs/run-workflow-001/retrieval/indexed-lookup",
 			RunID:     "run-workflow-001",
 			Status:    "completed",
+		},
+		nil,
+	)
+	env.OnActivity(
+		ExpandOrRescueRetrievalActivityName,
+		mock.Anything,
+		mock.MatchedBy(retrievalRescueInputMatcher("run-workflow-001")),
+	).Return(
+		ExpandOrRescueRetrievalActivityOutput{
+			LookupRef: "projection://runs/run-workflow-001/retrieval/indexed-lookup",
+			RescueRef: "projection://runs/run-workflow-001/retrieval/expand-or-rescue",
+			RunID:     "run-workflow-001",
+			Status:    "completed",
+		},
+		nil,
+	)
+	env.OnActivity(
+		SelectEvidenceActivityName,
+		mock.Anything,
+		mock.MatchedBy(evidenceSelectionInputMatcher("run-workflow-001")),
+	).Return(
+		SelectEvidenceActivityOutput{
+			EvidenceRef: "projection://runs/run-workflow-001/evidence/selection",
+			RunID:       "run-workflow-001",
+			Status:      "completed",
 		},
 		nil,
 	)
@@ -45,18 +82,30 @@ func TestChatAnswerWorkflowExecutesTypedStepGraph(t *testing.T) {
 		mock.MatchedBy(synthesisInputMatcher("run-workflow-001")),
 	).Return(
 		SynthesizeRAGAnswerActivityOutput{
-			BridgeRef: "projection://runs/run-workflow-001/semantic/rag",
-			RunID:     "run-workflow-001",
-			Status:    "completed",
+			SynthesisRef: "projection://runs/run-workflow-001/synthesis/provider",
+			RunID:        "run-workflow-001",
+			Status:       "completed",
 		},
 		nil,
 	)
 	env.OnActivity(
-		FinalizeChatAnswerActivityName,
+		VerifyGroundingActivityName,
+		mock.Anything,
+		mock.MatchedBy(groundingInputMatcher("run-workflow-001")),
+	).Return(
+		VerifyGroundingActivityOutput{
+			GroundingRef: "projection://runs/run-workflow-001/grounding/verify",
+			RunID:        "run-workflow-001",
+			Status:       "completed",
+		},
+		nil,
+	)
+	env.OnActivity(
+		WriteFinalizationActivityName,
 		mock.Anything,
 		mock.MatchedBy(finalizeInputMatcher("run-workflow-001")),
 	).Return(
-		FinalizeChatAnswerActivityOutput{
+		WriteFinalizationActivityOutput{
 			CompletedAt:   completedAt,
 			ProjectionRef: "projection://runs/run-workflow-001/finalization",
 			RunID:         "run-workflow-001",
@@ -126,14 +175,48 @@ func (Activities) PlanChatAnswerActivity(
 	}, nil
 }
 
-func (Activities) InvokeSemanticWorkerActivity(
+func (Activities) PlanRAGActivity(
 	_ context.Context,
-	input InvokeSemanticWorkerActivityInput,
-) (InvokeSemanticWorkerActivityOutput, error) {
-	return InvokeSemanticWorkerActivityOutput{
-		BridgeRef: "projection://runs/" + input.RunID + "/semantic/rag",
+	input PlanRAGActivityInput,
+) (PlanRAGActivityOutput, error) {
+	return PlanRAGActivityOutput{
+		PlanRef: "projection://runs/" + input.RunID + "/rag/plan",
+		RunID:   input.RunID,
+		Status:  "completed",
+	}, nil
+}
+
+func (Activities) RetrieveIndexedLookupActivity(
+	_ context.Context,
+	input RetrieveIndexedLookupActivityInput,
+) (RetrieveIndexedLookupActivityOutput, error) {
+	return RetrieveIndexedLookupActivityOutput{
+		LookupRef: "projection://runs/" + input.RunID + "/retrieval/indexed-lookup",
 		RunID:     input.RunID,
 		Status:    "completed",
+	}, nil
+}
+
+func (Activities) ExpandOrRescueRetrievalActivity(
+	_ context.Context,
+	input ExpandOrRescueRetrievalActivityInput,
+) (ExpandOrRescueRetrievalActivityOutput, error) {
+	return ExpandOrRescueRetrievalActivityOutput{
+		LookupRef: input.LookupRef,
+		RescueRef: "projection://runs/" + input.RunID + "/retrieval/expand-or-rescue",
+		RunID:     input.RunID,
+		Status:    "completed",
+	}, nil
+}
+
+func (Activities) SelectEvidenceActivity(
+	_ context.Context,
+	input SelectEvidenceActivityInput,
+) (SelectEvidenceActivityOutput, error) {
+	return SelectEvidenceActivityOutput{
+		EvidenceRef: "projection://runs/" + input.RunID + "/evidence/selection",
+		RunID:       input.RunID,
+		Status:      "completed",
 	}, nil
 }
 
@@ -142,17 +225,28 @@ func (Activities) SynthesizeRAGAnswerActivity(
 	input SynthesizeRAGAnswerActivityInput,
 ) (SynthesizeRAGAnswerActivityOutput, error) {
 	return SynthesizeRAGAnswerActivityOutput{
-		BridgeRef: input.BridgeRef,
-		RunID:     input.RunID,
-		Status:    "completed",
+		SynthesisRef: "projection://runs/" + input.RunID + "/synthesis/provider",
+		RunID:        input.RunID,
+		Status:       "completed",
 	}, nil
 }
 
-func (Activities) FinalizeChatAnswerActivity(
+func (Activities) VerifyGroundingActivity(
 	_ context.Context,
-	input FinalizeChatAnswerActivityInput,
-) (FinalizeChatAnswerActivityOutput, error) {
-	return FinalizeChatAnswerActivityOutput{
+	input VerifyGroundingActivityInput,
+) (VerifyGroundingActivityOutput, error) {
+	return VerifyGroundingActivityOutput{
+		GroundingRef: "projection://runs/" + input.RunID + "/grounding/verify",
+		RunID:        input.RunID,
+		Status:       "completed",
+	}, nil
+}
+
+func (Activities) WriteFinalizationActivity(
+	_ context.Context,
+	input WriteFinalizationActivityInput,
+) (WriteFinalizationActivityOutput, error) {
+	return WriteFinalizationActivityOutput{
 		CompletedAt:   time.Now().UTC(),
 		ProjectionRef: "projection://runs/" + input.RunID + "/finalization",
 		RunID:         input.RunID,
@@ -168,11 +262,38 @@ func planInputMatcher(runID string) func(PlanChatAnswerActivityInput) bool {
 	}
 }
 
-func semanticInputMatcher(runID string) func(InvokeSemanticWorkerActivityInput) bool {
-	return func(input InvokeSemanticWorkerActivityInput) bool {
+func ragPlanInputMatcher(runID string) func(PlanRAGActivityInput) bool {
+	return func(input PlanRAGActivityInput) bool {
 		return input.RunID == runID &&
 			input.TraceID == "trace-workflow-001" &&
-			input.PlanRef == "projection://runs/run-workflow-001/plan"
+			input.WorkflowPlanRef == "projection://runs/run-workflow-001/plan"
+	}
+}
+
+func retrievalLookupInputMatcher(runID string) func(RetrieveIndexedLookupActivityInput) bool {
+	return func(input RetrieveIndexedLookupActivityInput) bool {
+		return input.RunID == runID &&
+			input.TraceID == "trace-workflow-001" &&
+			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan"
+	}
+}
+
+func retrievalRescueInputMatcher(runID string) func(ExpandOrRescueRetrievalActivityInput) bool {
+	return func(input ExpandOrRescueRetrievalActivityInput) bool {
+		return input.RunID == runID &&
+			input.TraceID == "trace-workflow-001" &&
+			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan" &&
+			input.LookupRef == "projection://runs/run-workflow-001/retrieval/indexed-lookup"
+	}
+}
+
+func evidenceSelectionInputMatcher(runID string) func(SelectEvidenceActivityInput) bool {
+	return func(input SelectEvidenceActivityInput) bool {
+		return input.RunID == runID &&
+			input.TraceID == "trace-workflow-001" &&
+			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan" &&
+			input.LookupRef == "projection://runs/run-workflow-001/retrieval/indexed-lookup" &&
+			input.RescueRef == "projection://runs/run-workflow-001/retrieval/expand-or-rescue"
 	}
 }
 
@@ -180,16 +301,25 @@ func synthesisInputMatcher(runID string) func(SynthesizeRAGAnswerActivityInput) 
 	return func(input SynthesizeRAGAnswerActivityInput) bool {
 		return input.RunID == runID &&
 			input.TraceID == "trace-workflow-001" &&
-			input.PlanRef == "projection://runs/run-workflow-001/plan" &&
-			input.BridgeRef == "projection://runs/run-workflow-001/semantic/rag"
+			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan" &&
+			input.EvidenceRef == "projection://runs/run-workflow-001/evidence/selection"
 	}
 }
 
-func finalizeInputMatcher(runID string) func(FinalizeChatAnswerActivityInput) bool {
-	return func(input FinalizeChatAnswerActivityInput) bool {
+func groundingInputMatcher(runID string) func(VerifyGroundingActivityInput) bool {
+	return func(input VerifyGroundingActivityInput) bool {
 		return input.RunID == runID &&
 			input.TraceID == "trace-workflow-001" &&
-			input.PlanRef == "projection://runs/run-workflow-001/plan" &&
-			input.BridgeRef == "projection://runs/run-workflow-001/semantic/rag"
+			input.EvidenceRef == "projection://runs/run-workflow-001/evidence/selection" &&
+			input.SynthesisRef == "projection://runs/run-workflow-001/synthesis/provider"
+	}
+}
+
+func finalizeInputMatcher(runID string) func(WriteFinalizationActivityInput) bool {
+	return func(input WriteFinalizationActivityInput) bool {
+		return input.RunID == runID &&
+			input.TraceID == "trace-workflow-001" &&
+			input.GroundingRef == "projection://runs/run-workflow-001/grounding/verify" &&
+			input.SynthesisRef == "projection://runs/run-workflow-001/synthesis/provider"
 	}
 }

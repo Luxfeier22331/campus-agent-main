@@ -19,8 +19,6 @@ type Config struct {
 	WorkerSharedSecret                  string
 	DefaultActorID                      string
 	DefaultActorRoles                   []string
-	BridgeBaseURL                       string
-	BridgeSharedSecret                  string
 	BridgeResponseLimitBytes            int64
 	BridgeBreakerFailureThreshold       int
 	BridgeBreakerOpenMS                 int
@@ -84,6 +82,13 @@ type Config struct {
 	NoticeBodyObjectStoreRegion         string
 	NoticeBodyObjectStoreBucket         string
 	NoticeBodyObjectStoreBodyLimitBytes int64
+	QdrantURL                           string
+	QdrantAPIKey                        string
+	QdrantTimeoutSeconds                float64
+	EmbeddingProvider                   string
+	EmbeddingBaseURL                    string
+	EmbeddingAPIKey                     string
+	EmbeddingModel                      string
 }
 
 type LaneBudget struct {
@@ -101,20 +106,11 @@ type envValues struct {
 	BearerToken                         string  `env:"API_BEARER_TOKEN"`
 	WorkerSharedSecret                  string  `env:"API_WORKER_SHARED_SECRET"`
 	DefaultActorID                      string  `env:"API_DEFAULT_ACTOR_ID"`
-	BridgeBaseURL                       string  `env:"SUPERVISOR_AGENT_WORKER_BASE_URL"`
-	BridgeSharedSecret                  string  `env:"SUPERVISOR_AGENT_WORKER_SHARED_SECRET"`
-	BridgeResponseLimitBytes            int64   `env:"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES" envDefault:"1048576"`
-	BridgeBreakerFailureThreshold       int     `env:"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD" envDefault:"5"`
-	BridgeBreakerOpenMS                 int     `env:"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS" envDefault:"10000"`
-	BridgeRetryMaxAttempts              int     `env:"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS" envDefault:"2"`
-	BridgeRetryBaseMS                   int     `env:"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS" envDefault:"50"`
 	MaxConcurrentAnswers                int     `env:"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS" envDefault:"8"`
 	QueueCapacity                       int     `env:"EXECUTION_CONTROL_QUEUE_CAPACITY" envDefault:"24"`
 	QueueTimeoutMS                      int     `env:"EXECUTION_CONTROL_QUEUE_TIMEOUT_MS" envDefault:"3000"`
 	RequestTimeoutMS                    int     `env:"EXECUTION_CONTROL_REQUEST_TIMEOUT_MS" envDefault:"45000"`
 	RequestBodyLimitBytes               int64   `env:"EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES" envDefault:"1048576"`
-	BridgeTimeoutMS                     int     `env:"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS" envDefault:"35000"`
-	BridgeCancelTimeoutMS               int     `env:"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
 	ShutdownGraceMS                     int     `env:"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS" envDefault:"45000"`
 	MetricsBearerToken                  string  `env:"EXECUTION_CONTROL_METRICS_BEARER_TOKEN"`
 	IntentPolicyPath                    string  `env:"EXECUTION_CONTROL_INTENT_POLICY_PATH"`
@@ -152,6 +148,13 @@ type envValues struct {
 	NoticeBodyObjectStoreRegion         string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION" envDefault:"us-east-1"`
 	NoticeBodyObjectStoreBucket         string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET"`
 	NoticeBodyObjectStoreBodyLimitBytes int64   `env:"EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
+	QdrantURL                           string  `env:"QDRANT_URL"`
+	QdrantAPIKey                        string  `env:"QDRANT_API_KEY"`
+	QdrantTimeoutSeconds                float64 `env:"QDRANT_TIMEOUT_SECONDS" envDefault:"10"`
+	EmbeddingProvider                   string  `env:"EMBEDDING_PROVIDER"`
+	EmbeddingBaseURL                    string  `env:"EMBEDDING_BASE_URL"`
+	EmbeddingAPIKey                     string  `env:"EMBEDDING_API_KEY"`
+	EmbeddingModel                      string  `env:"EMBEDDING_MODEL"`
 }
 
 func LoadFromEnv() (Config, error) {
@@ -217,6 +220,9 @@ func LoadFromEnv() (Config, error) {
 	if err := rejectRetiredDurableRecoveryLoopSettings(); err != nil {
 		return Config{}, err
 	}
+	if err := rejectRetiredPythonBridgeSettings(); err != nil {
+		return Config{}, err
+	}
 	if err := validateTemporalSettings(values, runtimeProfile); err != nil {
 		return Config{}, err
 	}
@@ -231,20 +237,11 @@ func LoadFromEnv() (Config, error) {
 		WorkerSharedSecret:                  strings.TrimSpace(values.WorkerSharedSecret),
 		DefaultActorID:                      strings.TrimSpace(values.DefaultActorID),
 		DefaultActorRoles:                   readStringList("API_DEFAULT_ACTOR_ROLES"),
-		BridgeBaseURL:                       strings.TrimRight(strings.TrimSpace(values.BridgeBaseURL), "/"),
-		BridgeSharedSecret:                  strings.TrimSpace(values.BridgeSharedSecret),
-		BridgeResponseLimitBytes:            values.BridgeResponseLimitBytes,
-		BridgeBreakerFailureThreshold:       values.BridgeBreakerFailureThreshold,
-		BridgeBreakerOpenMS:                 values.BridgeBreakerOpenMS,
-		BridgeRetryMaxAttempts:              values.BridgeRetryMaxAttempts,
-		BridgeRetryBaseMS:                   values.BridgeRetryBaseMS,
 		MaxConcurrentAnswers:                values.MaxConcurrentAnswers,
 		QueueCapacity:                       values.QueueCapacity,
 		QueueTimeoutMS:                      values.QueueTimeoutMS,
 		RequestTimeoutMS:                    values.RequestTimeoutMS,
 		RequestBodyLimitBytes:               values.RequestBodyLimitBytes,
-		BridgeTimeoutMS:                     values.BridgeTimeoutMS,
-		BridgeCancelTimeoutMS:               values.BridgeCancelTimeoutMS,
 		ShutdownGraceMS:                     values.ShutdownGraceMS,
 		MetricsBearerToken:                  strings.TrimSpace(values.MetricsBearerToken),
 		IntentPolicyPath:                    strings.TrimSpace(values.IntentPolicyPath),
@@ -296,6 +293,13 @@ func LoadFromEnv() (Config, error) {
 		NoticeBodyObjectStoreRegion:         defaultString(strings.TrimSpace(values.NoticeBodyObjectStoreRegion), "us-east-1"),
 		NoticeBodyObjectStoreBucket:         strings.TrimSpace(values.NoticeBodyObjectStoreBucket),
 		NoticeBodyObjectStoreBodyLimitBytes: values.NoticeBodyObjectStoreBodyLimitBytes,
+		QdrantURL:                           strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
+		QdrantAPIKey:                        strings.TrimSpace(values.QdrantAPIKey),
+		QdrantTimeoutSeconds:                values.QdrantTimeoutSeconds,
+		EmbeddingProvider:                   strings.TrimSpace(values.EmbeddingProvider),
+		EmbeddingBaseURL:                    strings.TrimRight(strings.TrimSpace(values.EmbeddingBaseURL), "/"),
+		EmbeddingAPIKey:                     strings.TrimSpace(values.EmbeddingAPIKey),
+		EmbeddingModel:                      strings.TrimSpace(values.EmbeddingModel),
 	}, nil
 }
 
@@ -316,12 +320,6 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		{"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS", values.MaxConcurrentAnswers},
 		{"EXECUTION_CONTROL_QUEUE_TIMEOUT_MS", values.QueueTimeoutMS},
 		{"EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", values.RequestTimeoutMS},
-		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", values.BridgeTimeoutMS},
-		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", values.BridgeCancelTimeoutMS},
-		{"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", values.BridgeBreakerFailureThreshold},
-		{"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", values.BridgeBreakerOpenMS},
-		{"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", values.BridgeRetryMaxAttempts},
-		{"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", values.BridgeRetryBaseMS},
 		{"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", values.ShutdownGraceMS},
 		{"EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
 		{"EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS", values.OTelExportIntervalMS},
@@ -340,11 +338,11 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 	if values.RequestBodyLimitBytes <= 0 {
 		return fmt.Errorf("EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES must be a positive integer")
 	}
-	if values.BridgeResponseLimitBytes <= 0 {
-		return fmt.Errorf("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES must be a positive integer")
-	}
 	if values.NoticeBodyObjectStoreBodyLimitBytes <= 0 {
 		return fmt.Errorf("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES must be a positive integer")
+	}
+	if values.QdrantTimeoutSeconds <= 0 {
+		return fmt.Errorf("QDRANT_TIMEOUT_SECONDS must be greater than zero")
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("EXECUTION_CONTROL_OTEL_SAMPLE_RATIO must be a number between 0 and 1")
@@ -586,6 +584,26 @@ func rejectRetiredDurableRecoveryLoopSettings() error {
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
 			return fmt.Errorf("%s is retired; use Temporal retry and timeout policies", name)
+		}
+	}
+	return nil
+}
+
+func rejectRetiredPythonBridgeSettings() error {
+	retired := []string{
+		"SUPERVISOR_AGENT_WORKER_BASE_URL",
+		"SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
+		"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES",
+		"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
+		"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS",
+		"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
+		"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS",
+		"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS",
+		"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS",
+	}
+	for _, name := range retired {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return fmt.Errorf("%s is retired; online answer execution uses Temporal RAG activities", name)
 		}
 	}
 	return nil

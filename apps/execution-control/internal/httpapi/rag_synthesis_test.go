@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragpacket"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 )
 
 func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) {
@@ -72,10 +72,10 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 		StepID:         "synthesis",
 		RequestID:      "req-rag-provider",
 		QueryIntent:    "policy_answer",
-		OutputSchemaID: "rag_answer_v1",
+		OutputSchemaID: "rag_answer_v2",
 		PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		PromptRefs:     []string{"prompt://rag/rag_answer_v1"},
-		SelectedEvidence: []ragpacket.EvidenceRef{{
+		PromptRefs:     []string{"prompt://rag/rag_answer_v2"},
+		SelectedEvidence: []ragruntime.EvidenceRef{{
 			SourceID:  "student_rules",
 			ChunkID:   "chunk-1",
 			SpanRef:   "span://student_rules/chunk-1#0-24",

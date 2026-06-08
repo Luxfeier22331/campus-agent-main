@@ -36,33 +36,69 @@ func ChatAnswerWorkflow(
 	}).Get(ctx, &plan); err != nil {
 		return ChatAnswerWorkflowResult{}, err
 	}
-	var bridge InvokeSemanticWorkerActivityOutput
-	if err := workflow.ExecuteActivity(ragCtx, InvokeSemanticWorkerActivityName, InvokeSemanticWorkerActivityInput{
-		PlanRef: plan.PlanRef,
-		RunID:   input.RunID,
-		TraceID: input.TraceID,
-	}).Get(ctx, &bridge); err != nil {
+	var ragPlan PlanRAGActivityOutput
+	if err := workflow.ExecuteActivity(ragCtx, PlanRAGActivityName, PlanRAGActivityInput{
+		RunID:           input.RunID,
+		TraceID:         input.TraceID,
+		WorkflowPlanRef: plan.PlanRef,
+	}).Get(ctx, &ragPlan); err != nil {
+		return ChatAnswerWorkflowResult{}, err
+	}
+	var lookup RetrieveIndexedLookupActivityOutput
+	if err := workflow.ExecuteActivity(ragCtx, RetrieveIndexedLookupActivityName, RetrieveIndexedLookupActivityInput{
+		RAGPlanRef: ragPlan.PlanRef,
+		RunID:      input.RunID,
+		TraceID:    input.TraceID,
+	}).Get(ctx, &lookup); err != nil {
+		return ChatAnswerWorkflowResult{}, err
+	}
+	var rescue ExpandOrRescueRetrievalActivityOutput
+	if err := workflow.ExecuteActivity(ragCtx, ExpandOrRescueRetrievalActivityName, ExpandOrRescueRetrievalActivityInput{
+		LookupRef:  lookup.LookupRef,
+		RAGPlanRef: ragPlan.PlanRef,
+		RunID:      input.RunID,
+		TraceID:    input.TraceID,
+	}).Get(ctx, &rescue); err != nil {
+		return ChatAnswerWorkflowResult{}, err
+	}
+	var evidence SelectEvidenceActivityOutput
+	if err := workflow.ExecuteActivity(ragCtx, SelectEvidenceActivityName, SelectEvidenceActivityInput{
+		LookupRef:  lookup.LookupRef,
+		RAGPlanRef: ragPlan.PlanRef,
+		RescueRef:  rescue.RescueRef,
+		RunID:      input.RunID,
+		TraceID:    input.TraceID,
+	}).Get(ctx, &evidence); err != nil {
 		return ChatAnswerWorkflowResult{}, err
 	}
 	var synthesis SynthesizeRAGAnswerActivityOutput
 	if err := workflow.ExecuteActivity(ragCtx, SynthesizeRAGAnswerActivityName, SynthesizeRAGAnswerActivityInput{
-		BridgeRef: bridge.BridgeRef,
-		PlanRef:   plan.PlanRef,
-		RunID:     input.RunID,
-		TraceID:   input.TraceID,
+		EvidenceRef: evidence.EvidenceRef,
+		RAGPlanRef:  ragPlan.PlanRef,
+		RunID:       input.RunID,
+		TraceID:     input.TraceID,
 	}).Get(ctx, &synthesis); err != nil {
+		return ChatAnswerWorkflowResult{}, err
+	}
+	var grounding VerifyGroundingActivityOutput
+	if err := workflow.ExecuteActivity(ragCtx, VerifyGroundingActivityName, VerifyGroundingActivityInput{
+		EvidenceRef:  evidence.EvidenceRef,
+		RunID:        input.RunID,
+		SynthesisRef: synthesis.SynthesisRef,
+		TraceID:      input.TraceID,
+	}).Get(ctx, &grounding); err != nil {
 		return ChatAnswerWorkflowResult{}, err
 	}
 	finalizationOptions := ragActivityOptions
 	finalizationOptions.StartToCloseTimeout = 30 * time.Second
 	finalizationOptions.TaskQueue = ActivityTaskQueueFinalization
 	finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
-	var finalization FinalizeChatAnswerActivityOutput
-	if err := workflow.ExecuteActivity(finalizationCtx, FinalizeChatAnswerActivityName, FinalizeChatAnswerActivityInput{
-		BridgeRef: synthesis.BridgeRef,
-		PlanRef:   plan.PlanRef,
-		RunID:     input.RunID,
-		TraceID:   input.TraceID,
+	var finalization WriteFinalizationActivityOutput
+	if err := workflow.ExecuteActivity(finalizationCtx, WriteFinalizationActivityName, WriteFinalizationActivityInput{
+		GroundingRef: grounding.GroundingRef,
+		RunID:        input.RunID,
+		SynthesisRef: synthesis.SynthesisRef,
+		TraceID:      input.TraceID,
 	}).Get(ctx, &finalization); err != nil {
 		return ChatAnswerWorkflowResult{}, err
 	}

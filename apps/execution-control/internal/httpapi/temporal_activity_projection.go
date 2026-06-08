@@ -11,7 +11,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragpacket"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/activity"
 )
@@ -45,7 +44,7 @@ func (s *Server) temporalActivityRunAllowCompletedFinalization(
 	ctx context.Context,
 	runID string,
 	traceID string,
-	bridgeRef string,
+	synthesisRef string,
 ) (execution.DurableRun, error) {
 	if s == nil || s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
@@ -62,7 +61,7 @@ func (s *Server) temporalActivityRunAllowCompletedFinalization(
 		)
 	}
 	if run.Status == execution.DurableRunStatusCompleted {
-		if _, err := temporalFinalizedResponseFromRun(run, bridgeRef); err != nil {
+		if _, err := temporalFinalizedResponseFromRun(run, synthesisRef); err != nil {
 			return execution.DurableRun{}, err
 		}
 		return run, nil
@@ -106,25 +105,109 @@ func (s *Server) failTemporalPlanning(
 	return temporalruntime.PlanChatAnswerActivityOutput{}, err
 }
 
-func (s *Server) failSemanticWorkerActivity(
+func (s *Server) failRAGPlanActivity(
 	ctx context.Context,
 	run execution.DurableRun,
 	failureKind string,
 	cause error,
-) (temporalruntime.InvokeSemanticWorkerActivityOutput, error) {
+) (temporalruntime.PlanRAGActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
 		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "semantic/rag"),
+		ProjectionRef: temporalProjectionRef(run.RunID, "rag/plan"),
 		ResultKind:    "activity_failure",
-		StepID:        "semantic.rag",
-		StepKind:      "typed_activity",
+		StepID:        "rag.plan",
+		StepKind:      "planning",
 		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
 		},
 	}, cause)
-	return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
+	return temporalruntime.PlanRAGActivityOutput{}, err
+}
+
+func (s *Server) failRetrieveIndexedLookupActivity(
+	ctx context.Context,
+	run execution.DurableRun,
+	failureKind string,
+	cause error,
+) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
+	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		FailureKind:   failureKind,
+		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/indexed-lookup"),
+		ResultKind:    "activity_failure",
+		StepID:        "retrieval.indexed_lookup",
+		StepKind:      "retrieval",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		Payload: map[string]any{
+			"failure_kind": failureKind,
+			"message":      cause.Error(),
+		},
+	}, cause)
+	return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
+}
+
+func (s *Server) failExpandOrRescueRetrievalActivity(
+	ctx context.Context,
+	run execution.DurableRun,
+	failureKind string,
+	cause error,
+) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
+	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		FailureKind:   failureKind,
+		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue"),
+		ResultKind:    "activity_failure",
+		StepID:        "retrieval.expand_or_rescue",
+		StepKind:      "retrieval",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		Payload: map[string]any{
+			"failure_kind": failureKind,
+			"message":      cause.Error(),
+		},
+	}, cause)
+	return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
+}
+
+func (s *Server) failSelectEvidenceActivity(
+	ctx context.Context,
+	run execution.DurableRun,
+	failureKind string,
+	cause error,
+) (temporalruntime.SelectEvidenceActivityOutput, error) {
+	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		FailureKind:   failureKind,
+		ProjectionRef: temporalProjectionRef(run.RunID, "evidence/selection"),
+		ResultKind:    "activity_failure",
+		StepID:        "evidence.selection",
+		StepKind:      "selection",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		Payload: map[string]any{
+			"failure_kind": failureKind,
+			"message":      cause.Error(),
+		},
+	}, cause)
+	return temporalruntime.SelectEvidenceActivityOutput{}, err
+}
+
+func (s *Server) failVerifyGroundingActivity(
+	ctx context.Context,
+	run execution.DurableRun,
+	failureKind string,
+	cause error,
+) (temporalruntime.VerifyGroundingActivityOutput, error) {
+	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		FailureKind:   failureKind,
+		ProjectionRef: temporalProjectionRef(run.RunID, "grounding/verify"),
+		ResultKind:    "activity_failure",
+		StepID:        "grounding.verify",
+		StepKind:      "grounding",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		Payload: map[string]any{
+			"failure_kind": failureKind,
+			"message":      cause.Error(),
+		},
+	}, cause)
+	return temporalruntime.VerifyGroundingActivityOutput{}, err
 }
 
 func (s *Server) failFinalizationActivity(
@@ -132,12 +215,12 @@ func (s *Server) failFinalizationActivity(
 	run execution.DurableRun,
 	failureKind string,
 	cause error,
-) (temporalruntime.FinalizeChatAnswerActivityOutput, error) {
+) (temporalruntime.WriteFinalizationActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
 		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "finalization"),
+		ProjectionRef: temporalProjectionRef(run.RunID, "finalization/write"),
 		ResultKind:    "activity_failure",
-		StepID:        "finalization",
+		StepID:        "finalization.write",
 		StepKind:      "finalization",
 		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
 		Payload: map[string]any{
@@ -145,7 +228,7 @@ func (s *Server) failFinalizationActivity(
 			"message":      cause.Error(),
 		},
 	}, cause)
-	return temporalruntime.FinalizeChatAnswerActivityOutput{}, err
+	return temporalruntime.WriteFinalizationActivityOutput{}, err
 }
 
 type temporalStepFailureProjection struct {
@@ -221,7 +304,7 @@ func temporalFailureTimeoutOutcome(
 		return configured
 	}
 	if errors.Is(cause, context.DeadlineExceeded) {
-		return execution.TimeoutOutcomeBridgeTimeout
+		return execution.TimeoutOutcomeActivityTimeout
 	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return execution.TimeoutOutcomeActivityTimeout
@@ -278,18 +361,18 @@ func (s *Server) failTemporalRun(
 
 func temporalFinalizedResponseFromRun(
 	run execution.DurableRun,
-	bridgeRef string,
+	synthesisRef string,
 ) (map[string]any, error) {
-	raw, ok := run.Metadata["temporal_semantic_bridge"].(map[string]any)
+	raw, ok := run.Metadata["temporal_rag"].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("run metadata.temporal_semantic_bridge is required")
+		return nil, fmt.Errorf("run metadata.temporal_rag is required")
 	}
-	if strings.TrimSpace(fmt.Sprint(raw["bridge_ref"])) != bridgeRef {
-		return nil, fmt.Errorf("semantic bridge ref drift")
+	if strings.TrimSpace(fmt.Sprint(raw["synthesis_ref"])) != synthesisRef {
+		return nil, fmt.Errorf("rag synthesis ref drift")
 	}
 	rawResponse, exists := raw["finalized_response"]
 	if !exists {
-		return nil, fmt.Errorf("run metadata.temporal_semantic_bridge.finalized_response is required")
+		return nil, fmt.Errorf("run metadata.temporal_rag.finalized_response is required")
 	}
 	response, ok := rawResponse.(map[string]any)
 	if ok {
@@ -304,59 +387,9 @@ func temporalFinalizedResponseFromRun(
 		return nil, fmt.Errorf("decode finalized response projection: %w", err)
 	}
 	if decoded == nil {
-		return nil, fmt.Errorf("run metadata.temporal_semantic_bridge.finalized_response must be an object")
+		return nil, fmt.Errorf("run metadata.temporal_rag.finalized_response must be an object")
 	}
 	return decoded, nil
-}
-
-func temporalSemanticBridgeRefFromRun(run execution.DurableRun, planRef string) (string, bool) {
-	raw, ok := run.Metadata["temporal_semantic_bridge"].(map[string]any)
-	if !ok {
-		return "", false
-	}
-	if strings.TrimSpace(fmt.Sprint(raw["plan_ref"])) != strings.TrimSpace(planRef) {
-		return "", false
-	}
-	bridgeRef := strings.TrimSpace(fmt.Sprint(raw["bridge_ref"]))
-	if bridgeRef == "" {
-		return "", false
-	}
-	return bridgeRef, true
-}
-
-func temporalRAGSynthesisPacketFromRun(
-	run execution.DurableRun,
-	planRef string,
-	bridgeRef string,
-) (ragSynthesisPacket, error) {
-	raw, ok := run.Metadata["temporal_semantic_bridge"].(map[string]any)
-	if !ok {
-		return ragSynthesisPacket{}, fmt.Errorf("run metadata.temporal_semantic_bridge is required")
-	}
-	if strings.TrimSpace(fmt.Sprint(raw["plan_ref"])) != strings.TrimSpace(planRef) {
-		return ragSynthesisPacket{}, fmt.Errorf("semantic bridge plan_ref drift")
-	}
-	if strings.TrimSpace(fmt.Sprint(raw["bridge_ref"])) != strings.TrimSpace(bridgeRef) {
-		return ragSynthesisPacket{}, fmt.Errorf("semantic bridge ref drift")
-	}
-	encoded, err := json.Marshal(raw["rag_synthesis_packet"])
-	if err != nil {
-		return ragSynthesisPacket{}, fmt.Errorf("encode rag synthesis packet projection: %w", err)
-	}
-	var packet ragSynthesisPacket
-	if err := json.Unmarshal(encoded, &packet); err != nil {
-		return ragSynthesisPacket{}, fmt.Errorf("decode rag synthesis packet projection: %w", err)
-	}
-	if err := ragpacket.ValidateSynthesisPacket(packet); err != nil {
-		return ragSynthesisPacket{}, err
-	}
-	if packet.RunID != run.RunID {
-		return ragSynthesisPacket{}, fmt.Errorf("rag synthesis packet run_id drift")
-	}
-	if packet.RequestID != "" && packet.RequestID != run.RequestID {
-		return ragSynthesisPacket{}, fmt.Errorf("rag synthesis packet request_id drift")
-	}
-	return packet, nil
 }
 
 func temporalProjectionRef(runID string, suffix string) string {
@@ -416,6 +449,22 @@ func cloneAnyMapFromMetadata(value any) map[string]any {
 		cloned[key] = item
 	}
 	return cloned
+}
+
+func (s *Server) replaceTemporalRAGMetadata(
+	ctx context.Context,
+	run execution.DurableRun,
+	mutate func(map[string]any),
+) error {
+	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	metadata := cloneTemporalMetadata(latest.Metadata)
+	ragMetadata := cloneAnyMapFromMetadata(metadata["temporal_rag"])
+	mutate(ragMetadata)
+	metadata["temporal_rag"] = ragMetadata
+	return s.runProjectionStore.ReplaceRunMetadata(ctx, latest.RunID, metadata)
 }
 
 type temporalStepProjection struct {
@@ -651,12 +700,20 @@ func temporalActivityTypeForStep(stepID string) string {
 	switch strings.TrimSpace(stepID) {
 	case "planning":
 		return temporalruntime.PlanChatAnswerActivityName
-	case "semantic.rag":
-		return temporalruntime.InvokeSemanticWorkerActivityName
+	case "rag.plan":
+		return temporalruntime.PlanRAGActivityName
+	case "retrieval.indexed_lookup":
+		return temporalruntime.RetrieveIndexedLookupActivityName
+	case "retrieval.expand_or_rescue":
+		return temporalruntime.ExpandOrRescueRetrievalActivityName
+	case "evidence.selection":
+		return temporalruntime.SelectEvidenceActivityName
 	case "synthesis":
 		return temporalruntime.SynthesizeRAGAnswerActivityName
-	case "finalization":
-		return temporalruntime.FinalizeChatAnswerActivityName
+	case "grounding.verify":
+		return temporalruntime.VerifyGroundingActivityName
+	case "finalization.write":
+		return temporalruntime.WriteFinalizationActivityName
 	default:
 		return ""
 	}

@@ -362,6 +362,7 @@ func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.
 		_ = server.Shutdown(context.Background())
 	}()
 	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -417,6 +418,7 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 		nil,
 	)
 	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
 
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))

@@ -7,9 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -117,26 +116,23 @@ func (s *Server) PlanChatAnswerActivity(
 	}, nil
 }
 
-func (s *Server) InvokeSemanticWorkerActivity(
+func (s *Server) PlanRAGActivity(
 	ctx context.Context,
-	input temporalruntime.InvokeSemanticWorkerActivityInput,
-) (temporalruntime.InvokeSemanticWorkerActivityOutput, error) {
-	if strings.TrimSpace(input.PlanRef) == "" {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, fmt.Errorf("plan_ref is required")
+	input temporalruntime.PlanRAGActivityInput,
+) (temporalruntime.PlanRAGActivityOutput, error) {
+	if strings.TrimSpace(input.WorkflowPlanRef) == "" {
+		return temporalruntime.PlanRAGActivityOutput{}, fmt.Errorf("workflow_plan_ref is required")
 	}
 	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
 	if err != nil {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
+		return temporalruntime.PlanRAGActivityOutput{}, err
 	}
-	if existingBridgeRef, ok := temporalSemanticBridgeRefFromRun(run, input.PlanRef); ok {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{
-			BridgeRef: existingBridgeRef,
-			RunID:     run.RunID,
-			Status:    "completed",
+	if existingPlan, ok := temporalRAGPlanFromRun(run, input.WorkflowPlanRef); ok {
+		return temporalruntime.PlanRAGActivityOutput{
+			PlanRef: existingPlan.PlanRef,
+			RunID:   run.RunID,
+			Status:  "completed",
 		}, nil
-	}
-	if s.bridge == nil || !s.bridge.Configured() {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, fmt.Errorf("semantic bridge is not configured")
 	}
 	startedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
@@ -144,16 +140,16 @@ func (s *Server) InvokeSemanticWorkerActivity(
 		Capability:    "knowledge",
 		Run:           run,
 		Status:        "started",
-		StepID:        "semantic.rag",
-		StepKind:      "typed_activity",
+		StepID:        "rag.plan",
+		StepKind:      "planning",
 		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
-		ProjectionRef: temporalProjectionRef(run.RunID, "semantic/rag"),
-		Payload:       map[string]any{"plan_ref": input.PlanRef},
+		ProjectionRef: temporalProjectionRef(run.RunID, "rag/plan"),
+		Payload:       map[string]any{"workflow_plan_ref": input.WorkflowPlanRef},
 	}); err != nil {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
+		return temporalruntime.PlanRAGActivityOutput{}, err
 	}
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":activity-rag-started",
@@ -164,12 +160,12 @@ func (s *Server) InvokeSemanticWorkerActivity(
 		Visibility:           execution.DurableRunEventVisibilityInternal,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
-			"activity":   "rag",
-			"plan_ref":   input.PlanRef,
+			"activity":   "rag.plan",
+			"plan_ref":   input.WorkflowPlanRef,
 			"task_queue": temporalruntime.ActivityTaskQueueRAG,
 		},
 	}); err != nil {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
+		return temporalruntime.PlanRAGActivityOutput{}, err
 	}
 	if run.Status == execution.DurableRunStatusAdmitted {
 		run, err = s.runProjectionStore.TransitionRun(
@@ -180,96 +176,27 @@ func (s *Server) InvokeSemanticWorkerActivity(
 			startedAt,
 		)
 		if err != nil {
-			return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
+			return temporalruntime.PlanRAGActivityOutput{}, err
 		}
 	} else if run.Status != execution.DurableRunStatusRunning &&
 		run.Status != execution.DurableRunStatusStreaming {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, fmt.Errorf(
-			"run %s status %s cannot invoke semantic activity",
+		return temporalruntime.PlanRAGActivityOutput{}, fmt.Errorf(
+			"run %s status %s cannot plan rag",
 			run.RunID,
 			run.Status,
 		)
 	}
-	executionRequest, err := semanticExecutionRequestForRun(run)
+	plan, err := ragPlanProjectionForRun(run)
 	if err != nil {
-		return s.failSemanticWorkerActivity(ctx, run, "bridge_payload_invalid", err)
+		return s.failRAGPlanActivity(ctx, run, "rag_plan_invalid", err)
 	}
-	bridgeCtx, bridgeCancel := context.WithTimeout(
-		ctx,
-		time.Duration(s.config.BridgeTimeoutMS)*time.Millisecond,
-	)
-	defer bridgeCancel()
-	response, bridgeErr := s.bridge.ExecuteSemantic(bridgeCtx, bridge.SemanticExecutionRequest{
-		RunID:           run.RunID,
-		StepExecutionID: temporalSemanticBridgeStepExecutionID(run.RunID),
-		StepID:          "activity:rag",
-		Lane:            string(run.Lane),
-		WorkerID:        s.config.TemporalWorkerIdentity,
-		Attempt:         1,
-		Execution: bridge.Request{
-			Payload: executionRequest,
-			TraceHeaders: telemetry.InjectBridgeTraceHeaders(
-				ctx,
-				run.RequestID,
-				run.TraceID,
-			),
-		},
-	})
-	if bridgeErr != nil {
-		return s.failSemanticWorkerActivity(ctx, run, "bridge_error", bridgeErr)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return s.failSemanticWorkerActivity(
-			ctx,
-			run,
-			"bridge_status",
-			fmt.Errorf("semantic bridge status %d", response.StatusCode),
-		)
-	}
-	if packet, ok, err := ragSynthesisPacketFromBridgeResponse(run, response); err != nil {
-		return s.failSemanticWorkerActivity(ctx, run, "bridge_invalid_synthesis_packet", err)
-	} else if ok {
-		return s.completeSemanticWorkerActivityWithSynthesisPacket(
-			ctx,
-			run,
-			input.PlanRef,
-			packet,
-			response,
-			startedAt,
-		)
-	}
-	return s.failSemanticWorkerActivity(
-		ctx,
-		run,
-		"rag_synthesis_packet_missing",
-		errRAGSynthesisPacketMissing,
-	)
-}
-
-func temporalSemanticBridgeStepExecutionID(runID string) string {
-	return "temporal:" + strings.TrimSpace(runID) + ":semantic.rag"
-}
-
-func (s *Server) completeSemanticWorkerActivityWithSynthesisPacket(
-	ctx context.Context,
-	run execution.DurableRun,
-	planRef string,
-	packet ragSynthesisPacket,
-	response bridge.ExecuteResponse,
-	semanticStartedAt time.Time,
-) (temporalruntime.InvokeSemanticWorkerActivityOutput, error) {
-	bridgeRef := temporalProjectionRef(run.RunID, "semantic/rag")
-	updatedRun := run
-	updatedRun.Metadata = cloneTemporalMetadata(run.Metadata)
-	updatedRun.Metadata["temporal_semantic_bridge"] = map[string]any{
-		"bridge_kind":          response.Kind,
-		"bridge_ref":           bridgeRef,
-		"plan_ref":             planRef,
-		"rag_synthesis_packet": packet,
-		"synthesis_packet_ref": temporalProjectionRef(run.RunID, "semantic/rag/synthesis-packet"),
-	}
-	if err := s.runProjectionStore.ReplaceRunMetadata(ctx, updatedRun.RunID, updatedRun.Metadata); err != nil {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
+	planRef := temporalProjectionRef(run.RunID, "rag/plan")
+	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
+		metadata["workflow_plan_ref"] = input.WorkflowPlanRef
+		metadata["plan_ref"] = planRef
+		metadata["plan"] = plan
+	}); err != nil {
+		return temporalruntime.PlanRAGActivityOutput{}, err
 	}
 	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
@@ -277,26 +204,106 @@ func (s *Server) completeSemanticWorkerActivityWithSynthesisPacket(
 		Capability:    "knowledge",
 		Run:           run,
 		Status:        "completed",
-		StepID:        "semantic.rag",
-		StepKind:      "typed_activity",
+		StepID:        "rag.plan",
+		StepKind:      "planning",
 		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
 		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     semanticStartedAt,
+		StartedAt:     startedAt,
 		CompletedAt:   completedAt,
 		UpdatedAt:     completedAt,
-		ResultKind:    "semantic_bridge_projection",
-		ProjectionRef: bridgeRef,
+		ResultKind:    "rag_plan_projection",
+		ProjectionRef: planRef,
 		Payload: map[string]any{
-			"bridge_kind":          response.Kind,
-			"bridge_ref":           bridgeRef,
-			"plan_ref":             planRef,
-			"synthesis_packet_ref": temporalProjectionRef(run.RunID, "semantic/rag/synthesis-packet"),
+			"collection_alias":  plan.CollectionAlias,
+			"corpus":            plan.Corpus,
+			"payload_sha256":    plan.PayloadSHA256,
+			"query_mode":        plan.QueryMode,
+			"top_k":             plan.TopK,
+			"workflow_plan_ref": input.WorkflowPlanRef,
 		},
 	}); err != nil {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
+		return temporalruntime.PlanRAGActivityOutput{}, err
+	}
+	return temporalruntime.PlanRAGActivityOutput{
+		PlanRef: planRef,
+		RunID:   run.RunID,
+		Status:  "completed",
+	}, nil
+}
+
+func (s *Server) RetrieveIndexedLookupActivity(
+	ctx context.Context,
+	input temporalruntime.RetrieveIndexedLookupActivityInput,
+) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
+	if strings.TrimSpace(input.RAGPlanRef) == "" {
+		return temporalruntime.RetrieveIndexedLookupActivityOutput{}, fmt.Errorf("rag_plan_ref is required")
+	}
+	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
+	if err != nil {
+		return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
+	}
+	plan, err := temporalRAGPlanProjectionFromRun(run, input.RAGPlanRef)
+	if err != nil {
+		return s.failRetrieveIndexedLookupActivity(ctx, run, "rag_plan_projection_missing", err)
+	}
+	startedAt := time.Now().UTC()
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Capability:    "knowledge",
+		Run:           run,
+		Status:        "started",
+		StepID:        "retrieval.indexed_lookup",
+		StepKind:      "retrieval",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     startedAt,
+		UpdatedAt:     startedAt,
+		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/indexed-lookup"),
+		Payload: map[string]any{
+			"collection_alias": plan.CollectionAlias,
+			"query_mode":       plan.QueryMode,
+			"top_k":            plan.TopK,
+		},
+	}); err != nil {
+		return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
+	}
+	result, err := s.ragIndexedLookup(ctx, run, plan)
+	if err != nil {
+		return s.failRetrieveIndexedLookupActivity(ctx, run, "retrieval_lookup_failed", err)
+	}
+	lookupRef := temporalProjectionRef(run.RunID, "retrieval/indexed-lookup")
+	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
+		metadata["lookup_ref"] = lookupRef
+		metadata["lookup_result"] = result
+	}); err != nil {
+		return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
+	}
+	completedAt := time.Now().UTC()
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Capability:    "knowledge",
+		Run:           run,
+		Status:        "completed",
+		StepID:        "retrieval.indexed_lookup",
+		StepKind:      "retrieval",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     startedAt,
+		CompletedAt:   completedAt,
+		UpdatedAt:     completedAt,
+		ResultKind:    "retrieval_lookup_projection",
+		ProjectionRef: lookupRef,
+		Payload: map[string]any{
+			"candidate_count":  result.CandidateCount,
+			"lookup_ref":       lookupRef,
+			"payload_sha256":   result.PayloadSHA256,
+			"query_latency_ms": result.QueryLatencyMS,
+		},
+	}); err != nil {
+		return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
 	}
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":activity-rag-completed",
+		EventID:              run.RunID + ":activity-retrieval-indexed-lookup-completed",
 		RunID:                run.RunID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeActivityCompleted,
@@ -304,19 +311,142 @@ func (s *Server) completeSemanticWorkerActivityWithSynthesisPacket(
 		Visibility:           execution.DurableRunEventVisibilityInternal,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
-			"activity":             "rag",
-			"bridge_kind":          response.Kind,
-			"bridge_ref":           bridgeRef,
-			"plan_ref":             planRef,
-			"synthesis_packet_ref": temporalProjectionRef(run.RunID, "semantic/rag/synthesis-packet"),
+			"activity":        "retrieval.indexed_lookup",
+			"candidate_count": result.CandidateCount,
+			"lookup_ref":      lookupRef,
 		},
 	}); err != nil {
-		return temporalruntime.InvokeSemanticWorkerActivityOutput{}, err
+		return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
 	}
-	return temporalruntime.InvokeSemanticWorkerActivityOutput{
-		BridgeRef: bridgeRef,
+	return temporalruntime.RetrieveIndexedLookupActivityOutput{
+		LookupRef: lookupRef,
 		RunID:     run.RunID,
 		Status:    "completed",
+	}, nil
+}
+
+func (s *Server) ExpandOrRescueRetrievalActivity(
+	ctx context.Context,
+	input temporalruntime.ExpandOrRescueRetrievalActivityInput,
+) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
+	if strings.TrimSpace(input.LookupRef) == "" {
+		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, fmt.Errorf("lookup_ref is required")
+	}
+	if strings.TrimSpace(input.RAGPlanRef) == "" {
+		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, fmt.Errorf("rag_plan_ref is required")
+	}
+	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
+	if err != nil {
+		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
+	}
+	if _, err := temporalRAGLookupResultFromRun(run, input.LookupRef); err != nil {
+		return s.failExpandOrRescueRetrievalActivity(ctx, run, "retrieval_lookup_projection_missing", err)
+	}
+	startedAt := time.Now().UTC()
+	rescueRef := temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue")
+	result := ragruntime.RetrievalRescueResult{
+		LookupRef:     input.LookupRef,
+		RescueApplied: false,
+		RescueReason:  "not_admitted_or_not_required",
+		RescueRef:     rescueRef,
+		RunID:         run.RunID,
+		SchemaVersion: "retrieval_rescue_result_v1",
+	}
+	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
+		metadata["rescue_ref"] = rescueRef
+		metadata["rescue_result"] = result
+	}); err != nil {
+		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
+	}
+	completedAt := time.Now().UTC()
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Capability:    "knowledge",
+		Run:           run,
+		Status:        "completed",
+		StepID:        "retrieval.expand_or_rescue",
+		StepKind:      "retrieval",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     startedAt,
+		CompletedAt:   completedAt,
+		UpdatedAt:     completedAt,
+		ResultKind:    "retrieval_rescue_projection",
+		ProjectionRef: rescueRef,
+		Payload: map[string]any{
+			"lookup_ref":     input.LookupRef,
+			"rescue_applied": result.RescueApplied,
+			"rescue_reason":  result.RescueReason,
+			"rescue_ref":     rescueRef,
+		},
+	}); err != nil {
+		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
+	}
+	return temporalruntime.ExpandOrRescueRetrievalActivityOutput{
+		LookupRef: input.LookupRef,
+		RescueRef: rescueRef,
+		RunID:     run.RunID,
+		Status:    "completed",
+	}, nil
+}
+
+func (s *Server) SelectEvidenceActivity(
+	ctx context.Context,
+	input temporalruntime.SelectEvidenceActivityInput,
+) (temporalruntime.SelectEvidenceActivityOutput, error) {
+	if strings.TrimSpace(input.LookupRef) == "" {
+		return temporalruntime.SelectEvidenceActivityOutput{}, fmt.Errorf("lookup_ref is required")
+	}
+	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
+	if err != nil {
+		return temporalruntime.SelectEvidenceActivityOutput{}, err
+	}
+	lookup, err := temporalRAGLookupResultFromRun(run, input.LookupRef)
+	if err != nil {
+		return s.failSelectEvidenceActivity(ctx, run, "retrieval_lookup_projection_missing", err)
+	}
+	startedAt := time.Now().UTC()
+	selection, err := selectRAGEvidence(run, lookup)
+	if err != nil {
+		return s.failSelectEvidenceActivity(ctx, run, "evidence_selection_failed", err)
+	}
+	evidenceRef := temporalProjectionRef(run.RunID, "evidence/selection")
+	selection.EvidenceRef = evidenceRef
+	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
+		metadata["evidence_ref"] = evidenceRef
+		metadata["evidence_selection"] = selection
+	}); err != nil {
+		return temporalruntime.SelectEvidenceActivityOutput{}, err
+	}
+	completedAt := time.Now().UTC()
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Capability:    "knowledge",
+		Run:           run,
+		Status:        "completed",
+		StepID:        "evidence.selection",
+		StepKind:      "selection",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     startedAt,
+		CompletedAt:   completedAt,
+		UpdatedAt:     completedAt,
+		ResultKind:    "evidence_selection_projection",
+		ProjectionRef: evidenceRef,
+		Payload: map[string]any{
+			"candidate_count":             selection.CandidateCount,
+			"coverage_status":             selection.CoverageStatus,
+			"evidence_ref":                evidenceRef,
+			"supporting_evidence_count":   selection.SupportingEvidenceCount,
+			"selected_evidence_ref_count": len(selection.SelectedEvidence),
+		},
+	}); err != nil {
+		return temporalruntime.SelectEvidenceActivityOutput{}, err
+	}
+	return temporalruntime.SelectEvidenceActivityOutput{
+		EvidenceRef: evidenceRef,
+		RunID:       run.RunID,
+		Status:      "completed",
 	}, nil
 }
 
@@ -324,24 +454,24 @@ func (s *Server) SynthesizeRAGAnswerActivity(
 	ctx context.Context,
 	input temporalruntime.SynthesizeRAGAnswerActivityInput,
 ) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
-	if strings.TrimSpace(input.PlanRef) == "" {
+	if strings.TrimSpace(input.RAGPlanRef) == "" {
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, fmt.Errorf("plan_ref is required")
 	}
-	if strings.TrimSpace(input.BridgeRef) == "" {
-		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, fmt.Errorf("bridge_ref is required")
+	if strings.TrimSpace(input.EvidenceRef) == "" {
+		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, fmt.Errorf("evidence_ref is required")
 	}
 	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
 	if err != nil {
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
 	}
-	if _, err := temporalFinalizedResponseFromRun(run, input.BridgeRef); err == nil {
+	if existing, ok := temporalRAGSynthesisRefFromRun(run); ok {
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{
-			BridgeRef: input.BridgeRef,
-			RunID:     run.RunID,
-			Status:    "completed",
+			RunID:        run.RunID,
+			Status:       "completed",
+			SynthesisRef: existing,
 		}, nil
 	}
-	packet, err := temporalRAGSynthesisPacketFromRun(run, input.PlanRef, input.BridgeRef)
+	packet, err := temporalRAGSynthesisPacketForRun(run, input.RAGPlanRef, input.EvidenceRef)
 	if err != nil {
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
 			FailureKind:   "rag_synthesis_packet_missing",
@@ -357,14 +487,12 @@ func (s *Server) SynthesizeRAGAnswerActivity(
 		}, err)
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr
 	}
-	return s.completeRAGSynthesisActivity(ctx, run, input.PlanRef, input.BridgeRef, packet)
+	return s.completeRAGSynthesisActivity(ctx, run, packet)
 }
 
 func (s *Server) completeRAGSynthesisActivity(
 	ctx context.Context,
 	run execution.DurableRun,
-	planRef string,
-	bridgeRef string,
 	packet ragSynthesisPacket,
 ) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
 	if s.ragSynthesisErr != nil {
@@ -413,7 +541,7 @@ func (s *Server) completeRAGSynthesisActivity(
 		ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
 		Payload: map[string]any{
 			"output_schema_id": packet.OutputSchemaID,
-			"packet_ref":       temporalProjectionRef(run.RunID, "semantic/rag/synthesis-packet"),
+			"packet_ref":       temporalProjectionRef(run.RunID, "synthesis/packet"),
 			"prompt_refs":      packet.PromptRefs,
 			"provider_ref":     providerRequestRefForPacket(packet),
 			"query_intent":     packet.QueryIntent,
@@ -467,69 +595,133 @@ func (s *Server) completeRAGSynthesisActivity(
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
 	}
 	finalizedResponse := ragSynthesisFinalizedResponse(run, packet, synthesisResult)
-	updatedRun := run
-	updatedRun.Metadata = cloneTemporalMetadata(run.Metadata)
-	bridgeMetadata := cloneAnyMapFromMetadata(updatedRun.Metadata["temporal_semantic_bridge"])
-	bridgeMetadata["bridge_ref"] = bridgeRef
-	bridgeMetadata["finalized_response"] = finalizedResponse
-	bridgeMetadata["plan_ref"] = planRef
-	bridgeMetadata["synthesis_ref"] = temporalProjectionRef(run.RunID, "synthesis/provider")
-	updatedRun.Metadata["temporal_semantic_bridge"] = bridgeMetadata
-	if err := s.runProjectionStore.ReplaceRunMetadata(ctx, updatedRun.RunID, updatedRun.Metadata); err != nil {
+	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
+		metadata["finalized_response"] = finalizedResponse
+		metadata["synthesis_packet"] = packet
+		metadata["synthesis_ref"] = temporalProjectionRef(run.RunID, "synthesis/provider")
+		metadata["synthesis_result"] = map[string]any{
+			"answer_text":       strings.TrimSpace(synthesisResult.AnswerText),
+			"confidence":        strings.TrimSpace(synthesisResult.Confidence),
+			"semantic_outcome":  strings.TrimSpace(synthesisResult.SemanticOutcome),
+			"grounding_verdict": strings.TrimSpace(synthesisResult.GroundingVerdict),
+		}
+	}); err != nil {
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, err
 	}
 	return temporalruntime.SynthesizeRAGAnswerActivityOutput{
-		BridgeRef: bridgeRef,
-		RunID:     run.RunID,
-		Status:    "completed",
+		RunID:        run.RunID,
+		Status:       "completed",
+		SynthesisRef: temporalProjectionRef(run.RunID, "synthesis/provider"),
 	}, nil
 }
 
-func (s *Server) FinalizeChatAnswerActivity(
+func (s *Server) VerifyGroundingActivity(
 	ctx context.Context,
-	input temporalruntime.FinalizeChatAnswerActivityInput,
-) (temporalruntime.FinalizeChatAnswerActivityOutput, error) {
-	if strings.TrimSpace(input.PlanRef) == "" {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{}, fmt.Errorf("plan_ref is required")
+	input temporalruntime.VerifyGroundingActivityInput,
+) (temporalruntime.VerifyGroundingActivityOutput, error) {
+	if strings.TrimSpace(input.SynthesisRef) == "" {
+		return temporalruntime.VerifyGroundingActivityOutput{}, fmt.Errorf("synthesis_ref is required")
 	}
-	if strings.TrimSpace(input.BridgeRef) == "" {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{}, fmt.Errorf("bridge_ref is required")
+	if strings.TrimSpace(input.EvidenceRef) == "" {
+		return temporalruntime.VerifyGroundingActivityOutput{}, fmt.Errorf("evidence_ref is required")
 	}
-	run, err := s.temporalActivityRunAllowCompletedFinalization(ctx, input.RunID, input.TraceID, input.BridgeRef)
+	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
 	if err != nil {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{}, err
+		return temporalruntime.VerifyGroundingActivityOutput{}, err
+	}
+	result, err := temporalGroundingVerificationForRun(run, input.EvidenceRef, input.SynthesisRef)
+	if err != nil {
+		return s.failVerifyGroundingActivity(ctx, run, "grounding_verification_failed", err)
+	}
+	groundingRef := temporalProjectionRef(run.RunID, "grounding/verify")
+	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
+		metadata["grounding_ref"] = groundingRef
+		metadata["grounding_verification"] = result
+	}); err != nil {
+		return temporalruntime.VerifyGroundingActivityOutput{}, err
+	}
+	startedAt := time.Now().UTC()
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Capability:    "knowledge",
+		Run:           run,
+		Status:        "completed",
+		StepID:        "grounding.verify",
+		StepKind:      "grounding",
+		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     startedAt,
+		CompletedAt:   startedAt,
+		UpdatedAt:     startedAt,
+		ResultKind:    "grounding_verification_projection",
+		ProjectionRef: groundingRef,
+		Payload: map[string]any{
+			"claim_support_count": result.ClaimSupportCount,
+			"grounding_ref":       groundingRef,
+			"source_ref_count":    len(result.SourceRefs),
+			"verdict":             result.Verdict,
+		},
+	}); err != nil {
+		return temporalruntime.VerifyGroundingActivityOutput{}, err
+	}
+	return temporalruntime.VerifyGroundingActivityOutput{
+		GroundingRef: groundingRef,
+		RunID:        run.RunID,
+		Status:       "completed",
+	}, nil
+}
+
+func (s *Server) WriteFinalizationActivity(
+	ctx context.Context,
+	input temporalruntime.WriteFinalizationActivityInput,
+) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	if strings.TrimSpace(input.SynthesisRef) == "" {
+		return temporalruntime.WriteFinalizationActivityOutput{}, fmt.Errorf("synthesis_ref is required")
+	}
+	if strings.TrimSpace(input.GroundingRef) == "" {
+		return temporalruntime.WriteFinalizationActivityOutput{}, fmt.Errorf("grounding_ref is required")
+	}
+	run, err := s.temporalActivityRunAllowCompletedFinalization(
+		ctx,
+		input.RunID,
+		input.TraceID,
+		input.SynthesisRef,
+	)
+	if err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if run.Status == execution.DurableRunStatusCompleted {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{
+		return temporalruntime.WriteFinalizationActivityOutput{
 			CompletedAt:   run.CompletedAt,
-			ProjectionRef: temporalProjectionRef(run.RunID, "finalization"),
+			ProjectionRef: temporalProjectionRef(run.RunID, "finalization/write"),
 			RunID:         run.RunID,
 			Status:        string(run.Status),
 		}, nil
 	}
-	finalizedResponse, err := temporalFinalizedResponseFromRun(run, input.BridgeRef)
+	finalizedResponse, err := temporalFinalizedResponseFromRun(run, input.SynthesisRef)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "bridge_projection_missing", err)
+		return s.failFinalizationActivity(ctx, run, "finalization_packet_missing", err)
 	}
 	finalizationStartedAt := time.Now().UTC()
+	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
 		Capability:    "knowledge",
 		Run:           run,
 		Status:        "started",
-		StepID:        "finalization",
+		StepID:        "finalization.write",
 		StepKind:      "finalization",
 		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     finalizationStartedAt,
 		UpdatedAt:     finalizationStartedAt,
-		ProjectionRef: temporalProjectionRef(run.RunID, "finalization"),
+		ProjectionRef: finalizationRef,
 		Payload: map[string]any{
-			"bridge_ref": input.BridgeRef,
-			"plan_ref":   input.PlanRef,
+			"grounding_ref": input.GroundingRef,
+			"synthesis_ref": input.SynthesisRef,
 		},
 	}); err != nil {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{}, err
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":finalization-completed",
@@ -540,14 +732,14 @@ func (s *Server) FinalizeChatAnswerActivity(
 		Visibility:           execution.DurableRunEventVisibilityBrowser,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
-			"bridge_ref": input.BridgeRef,
-			"plan_ref":   input.PlanRef,
-			"request_id": run.RequestID,
-			"response":   finalizedResponse,
-			"trace_id":   run.TraceID,
+			"grounding_ref": input.GroundingRef,
+			"request_id":    run.RequestID,
+			"response":      finalizedResponse,
+			"synthesis_ref": input.SynthesisRef,
+			"trace_id":      run.TraceID,
 		},
 	}); err != nil {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{}, err
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	completedAt := time.Now().UTC()
 	completedRun, err := s.runProjectionStore.TransitionRun(
@@ -558,7 +750,7 @@ func (s *Server) FinalizeChatAnswerActivity(
 		completedAt,
 	)
 	if err != nil {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{}, err
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":run-completed",
@@ -569,19 +761,19 @@ func (s *Server) FinalizeChatAnswerActivity(
 		Visibility:           execution.DurableRunEventVisibilityBrowser,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
-			"projection_ref":  temporalProjectionRef(run.RunID, "finalization"),
+			"projection_ref":  finalizationRef,
 			"status":          string(execution.DurableRunStatusCompleted),
 			"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 		},
 	}); err != nil {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{}, err
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
 		Capability:    "knowledge",
 		Run:           run,
 		Status:        "completed",
-		StepID:        "finalization",
+		StepID:        "finalization.write",
 		StepKind:      "finalization",
 		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
 		WorkerID:      s.config.TemporalWorkerIdentity,
@@ -589,19 +781,19 @@ func (s *Server) FinalizeChatAnswerActivity(
 		CompletedAt:   completedAt,
 		UpdatedAt:     completedAt,
 		ResultKind:    "final_answer_projection",
-		ProjectionRef: temporalProjectionRef(run.RunID, "finalization"),
+		ProjectionRef: finalizationRef,
 		Payload: map[string]any{
-			"bridge_ref": input.BridgeRef,
-			"plan_ref":   input.PlanRef,
-			"request_id": run.RequestID,
-			"trace_id":   run.TraceID,
+			"grounding_ref": input.GroundingRef,
+			"request_id":    run.RequestID,
+			"synthesis_ref": input.SynthesisRef,
+			"trace_id":      run.TraceID,
 		},
 	}); err != nil {
-		return temporalruntime.FinalizeChatAnswerActivityOutput{}, err
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	return temporalruntime.FinalizeChatAnswerActivityOutput{
+	return temporalruntime.WriteFinalizationActivityOutput{
 		CompletedAt:   completedAt,
-		ProjectionRef: temporalProjectionRef(completedRun.RunID, "finalization"),
+		ProjectionRef: temporalProjectionRef(completedRun.RunID, "finalization/write"),
 		RunID:         completedRun.RunID,
 		Status:        string(completedRun.Status),
 	}, nil

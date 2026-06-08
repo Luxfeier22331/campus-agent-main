@@ -7,15 +7,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragpacket"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 )
 
 var errRAGSynthesisPacketMissing = errors.New("rag synthesis packet missing")
 
-type ragSynthesisPacket = ragpacket.SynthesisPacketProjection
+type ragSynthesisPacket = ragruntime.SynthesisPacketProjection
 
 type ragSynthesisResult struct {
 	AnswerText       string
@@ -28,47 +27,11 @@ type ragSynthesisResult struct {
 
 type ragSynthesisExecutor interface {
 	ExecuteRAGSynthesis(context.Context, ragSynthesisPacket) (ragSynthesisResult, error)
+	HealthCheck(context.Context) error
 }
 
 type providerBackedRAGSynthesisExecutor struct {
 	client *provider.ResponsesClient
-}
-
-func ragSynthesisPacketFromBridgeResponse(
-	run execution.DurableRun,
-	response bridge.ExecuteResponse,
-) (ragSynthesisPacket, bool, error) {
-	body, err := decodeJSONObject(response.Body)
-	if err != nil {
-		return ragSynthesisPacket{}, false, err
-	}
-	packetValue, ok := nestedMapValue(
-		body,
-		"agent_observability",
-		"safe_details",
-		"rag_synthesis_packet",
-	)
-	if !ok {
-		return ragSynthesisPacket{}, false, nil
-	}
-	encoded, err := json.Marshal(packetValue)
-	if err != nil {
-		return ragSynthesisPacket{}, true, fmt.Errorf("encode rag synthesis packet: %w", err)
-	}
-	var packet ragSynthesisPacket
-	if err := json.Unmarshal(encoded, &packet); err != nil {
-		return ragSynthesisPacket{}, true, fmt.Errorf("decode rag synthesis packet: %w", err)
-	}
-	if err := ragpacket.ValidateSynthesisPacket(packet); err != nil {
-		return ragSynthesisPacket{}, true, err
-	}
-	if packet.RunID != run.RunID {
-		return ragSynthesisPacket{}, true, fmt.Errorf("rag synthesis packet run_id drift")
-	}
-	if packet.RequestID != "" && packet.RequestID != run.RequestID {
-		return ragSynthesisPacket{}, true, fmt.Errorf("rag synthesis packet request_id drift")
-	}
-	return packet, true, nil
 }
 
 func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
@@ -78,7 +41,7 @@ func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 	if e.client == nil {
 		return ragSynthesisResult{}, errors.New("rag synthesis provider client is not configured")
 	}
-	if err := ragpacket.ValidateSynthesisPacket(packet); err != nil {
+	if err := validateRAGSynthesisPacket(packet); err != nil {
 		return ragSynthesisResult{}, err
 	}
 	result := e.client.Execute(ctx, provider.ResponsesRequest{
@@ -101,6 +64,13 @@ func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 		ProviderBody:     result.Body,
 		SemanticOutcome:  "grounded_answer",
 	}, nil
+}
+
+func (e providerBackedRAGSynthesisExecutor) HealthCheck(context.Context) error {
+	if e.client == nil {
+		return errors.New("rag synthesis provider client is not configured")
+	}
+	return nil
 }
 
 func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
@@ -155,7 +125,7 @@ func nestedMapValue(root map[string]any, path ...string) (any, bool) {
 func ragProviderTextSchema(packet ragSynthesisPacket) map[string]any {
 	schemaName := strings.TrimSpace(packet.OutputSchemaID)
 	if schemaName == "" {
-		schemaName = "rag_answer_v1"
+		schemaName = "rag_answer_v2"
 	}
 	return map[string]any{
 		"format": map[string]any{
@@ -273,7 +243,8 @@ func ragSynthesisFinalizedResponse(
 				"answer_artifact_ref":    providerRequestRefForPacket(packet),
 				"provider_response_ref":  result.ProviderSummary.ProviderResponseID,
 				"provider_pricing_ref":   result.ProviderSummary.PricingVersion,
-				"retrieval_stage_ref":    "projection://runs/" + run.RunID + "/semantic/rag",
+				"retrieval_stage_ref":    "projection://runs/" + run.RunID + "/retrieval/indexed-lookup",
+				"evidence_selection_ref": "projection://runs/" + run.RunID + "/evidence/selection",
 				"synthesis_step_ref":     "projection://runs/" + run.RunID + "/synthesis",
 				"step_projection_schema": "step-result-projection-v1",
 			},
@@ -297,7 +268,7 @@ func ragSynthesisFinalizedResponse(
 	}
 }
 
-func ragEvidenceSourcesForFinalization(evidence []ragpacket.EvidenceRef) []map[string]any {
+func ragEvidenceSourcesForFinalization(evidence []ragruntime.EvidenceRef) []map[string]any {
 	sources := make([]map[string]any, 0, len(evidence))
 	for _, item := range evidence {
 		sources = append(sources, map[string]any{
@@ -310,4 +281,8 @@ func ragEvidenceSourcesForFinalization(evidence []ragpacket.EvidenceRef) []map[s
 		})
 	}
 	return sources
+}
+
+func validateRAGSynthesisPacket(packet ragSynthesisPacket) error {
+	return ragruntime.ValidateSynthesisPacket(packet)
 }

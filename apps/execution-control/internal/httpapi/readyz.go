@@ -2,12 +2,10 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
@@ -31,41 +29,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid readiness auth.", false)
 		return
 	}
-	bridgeConfigured := s.bridge != nil && s.bridge.Configured()
-	bridgeReachable := false
-	bridgeHealthy := false
-	bridgeStatusCode := 0
-	bridgeStatus := ""
-	bridgeLastError := ""
-	readinessBody := map[string]any{}
-	bridgeCircuit := s.bridgeBreaker.Snapshot()
-	if bridgeConfigured && bridgeCircuit.State == string(bridge.CircuitOpen) {
-		bridgeLastError = "Supervisor Python bridge circuit is open."
-	} else if bridgeConfigured {
-		ctx, cancel := context.WithTimeout(request.Context(), time.Second)
-		defer cancel()
-
-		bridgeReadyz, err := s.bridge.Readyz(ctx)
-		if err == nil {
-			parsedBody, parseErr := decodeJSONObject(bridgeReadyz.Body)
-			if parseErr == nil {
-				readinessBody = parsedBody
-				bridgeReachable = true
-				bridgeStatusCode = bridgeReadyz.StatusCode
-				bridgeStatus, _ = readinessBody["status"].(string)
-				bridgeHealthy = bridgeReadyz.StatusCode == http.StatusOK && bridgeStatus == "ready"
-			} else {
-				bridgeLastError = "Supervisor Python bridge returned invalid readiness JSON."
-			}
-		} else {
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				bridgeLastError = "Supervisor Python bridge readiness timed out."
-			} else {
-				bridgeLastError = "Supervisor Python bridge readiness check failed."
-			}
-		}
-	}
-
 	transportStatus := s.admission.Status()
 	telemetryStatus := s.telemetry.Status()
 	executionAuditStatus := s.executionAudit.Status()
@@ -77,17 +40,18 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	promptGate := evaluatePromptConfigGate(s.config)
+	ragRuntimeStatus := s.ragRuntimeStatus(request.Context())
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	structuredRuntimeHealthy := s.openStructuredRuntimeHealthy(structuredQueryStatus)
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
-	ready := bridgeHealthy &&
-		transportStatus.Healthy &&
+	ready := transportStatus.Healthy &&
 		telemetryHealthy &&
 		executionAuditHealthy &&
 		structuredRuntimeHealthy &&
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
+		ragRuntimeStatus["healthy"] == true &&
 		promptGate.Admitted
 	statusCode := http.StatusOK
 	statusText := "ready"
@@ -96,7 +60,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		statusText = "degraded"
 	}
 
-	bridgeSnapshot := s.metrics.BridgeRuntimeSnapshot()
 	responseBody := map[string]any{
 		"status":                   statusText,
 		"transport_runtime":        transportStatus,
@@ -106,43 +69,9 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"structured_query_runtime": structuredQueryStatus,
 		"run_projection_store":     runProjectionStoreStatus,
 		"temporal_runtime":         temporalRuntimeStatus,
+		"rag_runtime":              ragRuntimeStatus,
 		"capability_gates":         s.capabilityGateStatus(),
 		"prompt_config_gate":       promptGate,
-		"bridge_runtime": map[string]any{
-			"configured": bridgeConfigured,
-			"reachable":  bridgeReachable,
-			"healthy":    bridgeHealthy,
-			"worker_status": defaultString(
-				bridgeStatus,
-				func() string {
-					if bridgeConfigured {
-						return "degraded"
-					}
-					return ""
-				}(),
-			),
-			"status_code":                  bridgeStatusCode,
-			"last_error":                   bridgeLastError,
-			"last_bridge_failure_code":     bridgeSnapshot.LastBridgeFailureCode,
-			"last_bridge_failure_at":       bridgeSnapshot.LastBridgeFailureAt,
-			"last_bridge_success_at":       bridgeSnapshot.LastBridgeSuccessAt,
-			"circuit_state":                bridgeCircuit.State,
-			"circuit_open_until":           bridgeCircuit.OpenUntil,
-			"circuit_consecutive_failures": bridgeCircuit.ConsecutiveFailures,
-			"circuit_open_count":           bridgeCircuit.OpenCount,
-			"circuit_rejected_count":       bridgeCircuit.RejectedCount,
-		},
-	}
-	for _, key := range []string{
-		"runtime_provider",
-		"supervisor_model",
-		"agent_model",
-		"prompt_runtime",
-		"prompt_http_pool",
-	} {
-		if value, ok := readinessBody[key]; ok {
-			responseBody[key] = value
-		}
 	}
 
 	writeJSON(response, statusCode, responseBody)
@@ -186,6 +115,48 @@ func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 	} else if status["healthy"] != true {
 		status["last_error"] = "temporal required task queues are incomplete"
 	}
+	return status
+}
+
+func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
+	status := map[string]any{
+		"healthy":                  false,
+		"lookup_configured":        s.ragLookupExecutor != nil,
+		"lookup_healthy":           false,
+		"lookup_last_error":        "",
+		"synthesis_configured":     s.ragSynthesisExecutor != nil,
+		"synthesis_healthy":        false,
+		"synthesis_last_error":     "",
+		"provider_execution_owner": "go",
+		"retrieval_adapter":        "qdrant_native",
+	}
+	if s.ragLookupErr != nil {
+		status["lookup_last_error"] = "rag lookup executor could not be initialized"
+	} else if s.ragLookupExecutor == nil {
+		status["lookup_last_error"] = "rag lookup executor is not configured"
+	} else {
+		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+		defer cancel()
+		if err := s.ragLookupExecutor.HealthCheck(checkCtx); err != nil {
+			status["lookup_last_error"] = "rag lookup health check failed"
+		} else {
+			status["lookup_healthy"] = true
+		}
+	}
+	if s.ragSynthesisErr != nil {
+		status["synthesis_last_error"] = "rag synthesis executor could not be initialized"
+	} else if s.ragSynthesisExecutor == nil {
+		status["synthesis_last_error"] = "rag synthesis executor is not configured"
+	} else {
+		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+		defer cancel()
+		if err := s.ragSynthesisExecutor.HealthCheck(checkCtx); err != nil {
+			status["synthesis_last_error"] = "rag synthesis health check failed"
+		} else {
+			status["synthesis_healthy"] = true
+		}
+	}
+	status["healthy"] = status["lookup_healthy"] == true && status["synthesis_healthy"] == true
 	return status
 }
 
