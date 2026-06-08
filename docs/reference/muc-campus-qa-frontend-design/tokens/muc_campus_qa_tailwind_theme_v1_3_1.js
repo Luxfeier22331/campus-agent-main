@@ -1,0 +1,85 @@
+/** @type {import('tailwindcss').Config['theme']} */
+module.exports = {
+  extend: {
+    colors: {
+      canvas: 'var(--sys-bg-canvas)',
+      surface: 'var(--sys-surface-default)',
+      muted: 'var(--sys-bg-muted)',
+      text: {
+        strong: 'var(--sys-text-strong)',
+        DEFAULT: 'var(--sys-text-default)',
+        muted: 'var(--sys-text-muted)',
+        subtle: 'var(--sys-text-subtle)',
+        inverse: 'var(--sys-text-inverse)',
+        link: 'var(--sys-text-link)',
+      },
+      border: {
+        subtle: 'var(--sys-border-subtle)',
+        DEFAULT: 'var(--sys-border-default)',
+        strong: 'var(--sys-border-strong)',
+        focus: 'var(--state-focus-border)',
+        error: 'var(--state-error-border)',
+        success: 'var(--state-success-border)',
+      },
+      brand: {
+        identity: 'var(--sys-brand-identity)',
+        interactive: 'var(--sys-brand-interactive)',
+      },
+      state: {
+        hover: 'var(--state-hover-bg)',
+        pressed: 'var(--state-pressed-bg)',
+        active: 'var(--state-active-bg)',
+        selected: 'var(--state-selected-bg)',
+        disabled: 'var(--state-disabled-bg)',
+        error: 'var(--state-error-bg)',
+        success: 'var(--state-success-bg)',
+        loading: 'var(--state-loading-bg)',
+      },
+    },
+    spacing: {
+      'mobile-x': 'var(--mobile-page-padding-x)',
+      'mobile-y': 'var(--mobile-page-padding-y)',
+      'mobile-card-gap': 'var(--mobile-card-gap)',
+      'mobile-card': 'var(--mobile-card-padding)',
+      'mobile-fixed-input': 'var(--mobile-fixed-input-area-height)',
+      'mobile-composer': 'var(--mobile-composer-min-height)',
+      'safe-b': 'var(--mobile-safe-area-bottom)',
+      'topbar': 'var(--layout-topbar-height)',
+      'chat-sidebar': 'var(--layout-chat-sidebar-width)',
+    },
+    minHeight: {
+      'mobile-touch': 'var(--mobile-touch-target-min)',
+      'mobile-composer': 'var(--mobile-composer-min-height)',
+      'mobile-map': 'var(--mobile-map-canvas-min-height)',
+      'mobile-dining-svg': 'var(--mobile-dining-svg-min-height)',
+    },
+    maxHeight: {
+      'mobile-composer': 'var(--mobile-composer-max-height)',
+      'mobile-bottom-sheet': 'var(--mobile-bottom-sheet-max-height)',
+    },
+    borderRadius: {
+      xs: 'var(--radius-xs)',
+      sm: 'var(--radius-sm)',
+      md: 'var(--radius-md)',
+      lg: 'var(--radius-lg)',
+      xl: 'var(--radius-xl)',
+      '2xl': 'var(--radius-xxl)',
+      composer: 'var(--mobile-composer-radius)',
+    },
+    boxShadow: {
+      focus: 'var(--state-focus-shadow)',
+      card: 'var(--card-shadow)',
+      composer: 'var(--chat-composer-shadow)',
+      'mobile-input': 'var(--mobile-fixed-input-area-shadow)',
+      'bottom-sheet': 'var(--mobile-bottom-sheet-shadow)',
+    },
+    transitionDuration: {
+      fast: 'var(--duration-fast)',
+      normal: 'var(--duration-normal)',
+      slow: 'var(--duration-slow)',
+    },
+    transitionTimingFunction: {
+      standard: 'var(--ease-standard)',
+    },
+  },
+};

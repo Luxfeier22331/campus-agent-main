@@ -66,6 +66,8 @@ policy、reference、runbook，以及已归档的历史 plan。
   `architecture/system/agentic-retrieval-architecture.md`
 - 需要回答“为什么接受这条边界”，读 `decisions/`
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
+- 需要回答“MUC Campus Q&A 前端设计稿、页面边界、截图和 design token 是什么”，读
+  `reference/muc-campus-qa-frontend-design/`
 - 需要回答“source-channel 的 canonical data truth 是什么”，优先从 `data/` 进入，例如
   `data/official-web-source-truth-schema.md`、
   `data/authenticated-notice-source-truth-schema.md`、
