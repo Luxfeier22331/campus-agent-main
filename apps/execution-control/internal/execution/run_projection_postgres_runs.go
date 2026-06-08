@@ -192,6 +192,72 @@ func (s *PostgresRunProjectionStore) TransitionRun(
 	return s.GetRun(ctx, runID)
 }
 
+func (s *PostgresRunProjectionStore) CompleteRunProjection(
+	ctx context.Context,
+	request DurableRunCompleteRequest,
+) (DurableRun, error) {
+	if err := validateDurableRunCompleteRequest(request); err != nil {
+		return DurableRun{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DurableRun{}, err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+	run, err := scanDurableRun(
+		tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", request.RunID),
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		}
+		return DurableRun{}, err
+	}
+	if !durableRunTransitionAllowed(run.Status, DurableRunStatusCompleted) {
+		return DurableRun{}, fmt.Errorf(
+			"%w: %s -> %s",
+			ErrInvalidRunTransition,
+			run.Status,
+			DurableRunStatusCompleted,
+		)
+	}
+	run.Status = DurableRunStatusCompleted
+	run.TerminalReason = request.TerminalReason
+	run.FinalResponseRef = request.FinalResponseRef
+	run.UpdatedAt = request.Now
+	recordDurableRunStatusTimestamp(&run, DurableRunStatusCompleted, request.Now)
+	if err := validateDurableRun(run); err != nil {
+		return DurableRun{}, err
+	}
+	_, err = tx.Exec(
+		ctx,
+		`update runtime.agent_runs
+		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
+			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
+			final_response_ref = $10
+		where run_id = $1`,
+		run.RunID,
+		string(run.Status),
+		string(run.TerminalReason),
+		nullableTime(run.QueuedAt),
+		nullableTime(run.AdmittedAt),
+		nullableTime(run.StartedAt),
+		nullableTime(run.StreamingStartedAt),
+		nullableTime(run.CompletedAt),
+		run.UpdatedAt,
+		run.FinalResponseRef,
+	)
+	if err != nil {
+		return DurableRun{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return DurableRun{}, err
+	}
+	return s.GetRun(ctx, request.RunID)
+}
+
 func (s *PostgresRunProjectionStore) CancelRunProjection(
 	ctx context.Context,
 	request DurableRunCancelRequest,

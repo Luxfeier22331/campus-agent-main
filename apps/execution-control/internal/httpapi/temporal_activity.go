@@ -742,12 +742,14 @@ func (s *Server) WriteFinalizationActivity(
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	completedAt := time.Now().UTC()
-	completedRun, err := s.runProjectionStore.TransitionRun(
+	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
-		run.RunID,
-		execution.DurableRunStatusCompleted,
-		execution.DurableTerminalReasonAnswerCompleted,
-		completedAt,
+		execution.DurableRunCompleteRequest{
+			FinalResponseRef: finalizationRef,
+			Now:              completedAt,
+			RunID:            run.RunID,
+			TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
+		},
 	)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err

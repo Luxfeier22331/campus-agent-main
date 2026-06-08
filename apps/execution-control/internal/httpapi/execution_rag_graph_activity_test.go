@@ -224,6 +224,17 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	if finalization.Status != string(execution.DurableRunStatusCompleted) {
 		t.Fatalf("finalization status = %q", finalization.Status)
 	}
+	completedRun, completedRunErr := store.GetRun(context.Background(), "run-rag-graph")
+	if completedRunErr != nil {
+		t.Fatalf("get completed run: %v", completedRunErr)
+	}
+	if completedRun.FinalResponseRef != finalization.ProjectionRef {
+		t.Fatalf(
+			"final response ref = %q, want %q",
+			completedRun.FinalResponseRef,
+			finalization.ProjectionRef,
+		)
+	}
 	if lookup.seenPlan.Collection != "student_rules" || lookup.seenPlan.Corpus != "regulations" {
 		t.Fatalf("lookup plan scope = %#v", lookup.seenPlan)
 	}

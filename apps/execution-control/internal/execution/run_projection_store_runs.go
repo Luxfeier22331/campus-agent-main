@@ -116,6 +116,40 @@ func (s *InMemoryRunProjectionStore) TransitionRun(
 	return cloneDurableRun(run), nil
 }
 
+func (s *InMemoryRunProjectionStore) CompleteRunProjection(
+	_ context.Context,
+	request DurableRunCompleteRequest,
+) (DurableRun, error) {
+	if err := validateDurableRunCompleteRequest(request); err != nil {
+		return DurableRun{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, exists := s.runs[request.RunID]
+	if !exists {
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+	}
+	if !durableRunTransitionAllowed(run.Status, DurableRunStatusCompleted) {
+		return DurableRun{}, fmt.Errorf(
+			"%w: %s -> %s",
+			ErrInvalidRunTransition,
+			run.Status,
+			DurableRunStatusCompleted,
+		)
+	}
+	run.Status = DurableRunStatusCompleted
+	run.TerminalReason = request.TerminalReason
+	run.FinalResponseRef = request.FinalResponseRef
+	run.UpdatedAt = request.Now
+	recordDurableRunStatusTimestamp(&run, DurableRunStatusCompleted, request.Now)
+	if err := validateDurableRun(run); err != nil {
+		return DurableRun{}, err
+	}
+	s.runs[request.RunID] = cloneDurableRun(run)
+	delete(s.activeRunByConversation, run.ConversationID)
+	return cloneDurableRun(run), nil
+}
+
 func (s *InMemoryRunProjectionStore) CancelRunProjection(
 	_ context.Context,
 	request DurableRunCancelRequest,

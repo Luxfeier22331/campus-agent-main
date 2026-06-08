@@ -77,6 +77,22 @@ func validateDurableRunCancelRequest(request DurableRunCancelRequest) error {
 	return nil
 }
 
+func validateDurableRunCompleteRequest(request DurableRunCompleteRequest) error {
+	if request.RunID == "" {
+		return fmt.Errorf("%w: run_id is required", ErrInvalidDurableRunComplete)
+	}
+	if request.TerminalReason == "" {
+		return fmt.Errorf("%w: terminal_reason is required", ErrInvalidDurableRunComplete)
+	}
+	if request.FinalResponseRef == "" {
+		return fmt.Errorf("%w: final_response_ref is required", ErrInvalidDurableRunComplete)
+	}
+	if request.Now.IsZero() {
+		return fmt.Errorf("%w: now is required", ErrInvalidDurableRunComplete)
+	}
+	return nil
+}
+
 func durableRunStatusValid(status DurableRunStatus) bool {
 	switch status {
 	case DurableRunStatusCreated, DurableRunStatusQueued, DurableRunStatusAdmitted,
