@@ -193,7 +193,9 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 			"must": []map[string]any{
 				qdrantMatchCondition("corpus", plan.Corpus),
 				qdrantMatchCondition("collection", plan.Collection),
-				qdrantMatchCondition("serving_status", "query_enabled"),
+				qdrantMatchCondition("status", "active"),
+				qdrantMatchCondition("is_current", true),
+				qdrantMatchCondition("visibility_level", "public"),
 			},
 		},
 	})
@@ -230,7 +232,7 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	return payload.Result.Points, nil
 }
 
-func qdrantMatchCondition(key string, value string) map[string]any {
+func qdrantMatchCondition(key string, value any) map[string]any {
 	return map[string]any{
 		"key":   key,
 		"match": map[string]any{"value": value},

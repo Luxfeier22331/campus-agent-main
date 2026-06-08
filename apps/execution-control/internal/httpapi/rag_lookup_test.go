@@ -53,4 +53,48 @@ func TestQdrantRAGLookupQueryUsesDenseNamedVector(t *testing.T) {
 	if !ok || len(vector) != 3 {
 		t.Fatalf("query = %#v, want 3-dimensional vector", captured["query"])
 	}
+	must := qdrantMustConditionsForTest(t, captured)
+	assertQdrantMatchConditionForTest(t, must, "corpus", "regulations")
+	assertQdrantMatchConditionForTest(t, must, "collection", "student_rules")
+	assertQdrantMatchConditionForTest(t, must, "status", "active")
+	assertQdrantMatchConditionForTest(t, must, "is_current", true)
+	assertQdrantMatchConditionForTest(t, must, "visibility_level", "public")
+	if _, ok := must["serving_status"]; ok {
+		t.Fatalf("serving_status filter must not be used: %#v", must["serving_status"])
+	}
+}
+
+func qdrantMustConditionsForTest(t *testing.T, captured map[string]any) map[string]any {
+	t.Helper()
+	filter, ok := captured["filter"].(map[string]any)
+	if !ok {
+		t.Fatalf("filter = %#v, want object", captured["filter"])
+	}
+	rawMust, ok := filter["must"].([]any)
+	if !ok {
+		t.Fatalf("filter.must = %#v, want array", filter["must"])
+	}
+	must := map[string]any{}
+	for _, rawCondition := range rawMust {
+		condition, ok := rawCondition.(map[string]any)
+		if !ok {
+			t.Fatalf("condition = %#v, want object", rawCondition)
+		}
+		key, _ := condition["key"].(string)
+		match, _ := condition["match"].(map[string]any)
+		must[key] = match["value"]
+	}
+	return must
+}
+
+func assertQdrantMatchConditionForTest(
+	t *testing.T,
+	must map[string]any,
+	key string,
+	expected any,
+) {
+	t.Helper()
+	if must[key] != expected {
+		t.Fatalf("filter %s = %#v, want %#v", key, must[key], expected)
+	}
 }
