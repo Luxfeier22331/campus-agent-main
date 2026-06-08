@@ -313,12 +313,22 @@ export interface OperatorRuntimeRunSummary {
 		steps: Array<{
 			attemptCount: number;
 			capability: string;
+			cancelOutcome: string | null;
+			durationMs: number | null;
+			estimatedCostMicrousd: number;
+			inputTokens: number;
 			latestResultRef: string | null;
+			modelName: string | null;
+			modelProvider: string | null;
+			outputTokens: number;
+			providerRequestRef: string | null;
+			queueWaitMs: number | null;
 			resultCount: number;
 			status: string;
 			stepId: string;
 			stepKind: string;
 			taskQueue: string;
+			timeoutOutcome: string | null;
 			workerId: string;
 		}>;
 	};

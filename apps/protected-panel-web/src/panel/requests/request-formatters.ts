@@ -17,7 +17,7 @@ export const CURRENT_RUNTIME_TARGET_OPTIONS = [
 ] as const;
 
 export function formatDuration(durationMs: number | null) {
-	if (durationMs === null) {
+	if (durationMs === null || !Number.isFinite(durationMs)) {
 		return PANEL_COPY.pending;
 	}
 
@@ -26,6 +26,20 @@ export function formatDuration(durationMs: number | null) {
 	}
 
 	return `${(durationMs / 1000).toFixed(2)} s`;
+}
+
+function formatTokenCostSummary(input: {
+	estimatedCostMicrousd: number;
+	inputTokens: number;
+	outputTokens: number;
+}) {
+	const inputTokens = Number.isFinite(input.inputTokens) ? input.inputTokens : 0;
+	const outputTokens = Number.isFinite(input.outputTokens) ? input.outputTokens : 0;
+	const estimatedCostMicrousd = Number.isFinite(input.estimatedCostMicrousd)
+		? input.estimatedCostMicrousd
+		: 0;
+	const cost = estimatedCostMicrousd > 0 ? `${estimatedCostMicrousd} microUSD` : "cost=0";
+	return `tokens=${inputTokens}/${outputTokens} · ${cost}`;
 }
 
 export function formatScope(scope: Record<string, unknown> | null) {
@@ -449,6 +463,14 @@ export function buildRequestStepTrajectoryEntries(
 				step.workerId || PANEL_COPY.unknown,
 				`attempts=${step.attemptCount}`,
 				`results=${step.resultCount}`,
+				`queue=${formatDuration(step.queueWaitMs)}`,
+				`duration=${formatDuration(step.durationMs)}`,
+				step.modelProvider && step.modelName
+					? `${step.modelProvider}/${step.modelName}`
+					: PANEL_COPY.notAvailable,
+				formatTokenCostSummary(step),
+				`cancel=${step.cancelOutcome || PANEL_COPY.none}`,
+				`timeout=${step.timeoutOutcome || PANEL_COPY.none}`,
 				step.latestResultRef || PANEL_COPY.none,
 			].join(" · "),
 		})),

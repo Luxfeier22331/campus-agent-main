@@ -108,18 +108,38 @@ export interface ExecutionControlRunStep {
 }
 
 export interface ExecutionControlStepAttempt {
+	activityAttempt: number;
+	activityId: string;
+	activityType: string;
 	attempt: number;
 	attemptId: string;
+	cachedInputTokens: number;
+	cancelOutcome: string;
 	completedAt: string;
+	durationMs: number;
+	estimatedCostMicrousd: number;
+	inputTokens: number;
+	modelName: string;
+	modelProvider: string;
+	outputTokens: number;
 	payloadSchemaVersion: string;
+	pricingVersion: string;
+	providerRequestRef: string;
+	providerResponseId: string;
 	runId: string;
 	sanitizedPayload: JsonRecord;
+	scheduleToStartMs: number;
+	scheduledAt: string;
 	startedAt: string;
 	status: string;
 	stepId: string;
 	taskQueue: string;
+	temporalRunId: string;
+	terminalReason: string;
+	timeoutOutcome: string;
 	updatedAt: string;
 	workerId: string;
+	workflowId: string;
 }
 
 export interface ExecutionControlStepResult {
@@ -443,18 +463,38 @@ function parseRunStep(value: unknown, index: number): ExecutionControlRunStep {
 function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAttempt {
 	const record = readArrayRecord(value, `attempts[${index}]`);
 	return {
+		activityAttempt: readRequiredNumber(record, "activity_attempt"),
+		activityId: readRequiredString(record, "activity_id"),
+		activityType: readRequiredString(record, "activity_type"),
 		attempt: readRequiredNumber(record, "attempt"),
 		attemptId: readRequiredString(record, "attempt_id"),
+		cachedInputTokens: readRequiredNumber(record, "cached_input_tokens"),
+		cancelOutcome: readRequiredString(record, "cancel_outcome"),
 		completedAt: readRequiredString(record, "completed_at"),
+		durationMs: readRequiredNumber(record, "duration_ms"),
+		estimatedCostMicrousd: readRequiredNumber(record, "estimated_cost_microusd"),
+		inputTokens: readRequiredNumber(record, "input_tokens"),
+		modelName: readRequiredString(record, "model_name"),
+		modelProvider: readRequiredString(record, "model_provider"),
+		outputTokens: readRequiredNumber(record, "output_tokens"),
 		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
+		pricingVersion: readRequiredString(record, "pricing_version"),
+		providerRequestRef: readRequiredString(record, "provider_request_ref"),
+		providerResponseId: readRequiredString(record, "provider_response_id"),
 		runId: readRequiredString(record, "run_id"),
 		sanitizedPayload: readRequiredRecord(record, "sanitized_payload"),
+		scheduleToStartMs: readRequiredNumber(record, "schedule_to_start_ms"),
+		scheduledAt: readRequiredString(record, "scheduled_at"),
 		startedAt: readRequiredString(record, "started_at"),
 		status: readRequiredString(record, "status"),
 		stepId: readRequiredString(record, "step_id"),
 		taskQueue: readRequiredString(record, "task_queue"),
+		temporalRunId: readRequiredString(record, "temporal_run_id"),
+		terminalReason: readRequiredString(record, "terminal_reason"),
+		timeoutOutcome: readRequiredString(record, "timeout_outcome"),
 		updatedAt: readRequiredString(record, "updated_at"),
 		workerId: readRequiredString(record, "worker_id"),
+		workflowId: readRequiredString(record, "workflow_id"),
 	};
 }
 
