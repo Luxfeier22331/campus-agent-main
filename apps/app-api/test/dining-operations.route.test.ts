@@ -168,11 +168,28 @@ describe("dining operations routes", () => {
 		);
 		expect(publicFloor.status).toBe(200);
 		const publicFloorBody = (await publicFloor.json()) as {
-			stalls: Array<{ name: string; priceLabel: string }>;
+			windows: Array<{
+				assignment: null | {
+					offerings: Array<{ name: string; priceLabel: string; specLabel: string | null }>;
+					stallProfile: { displayName: string };
+				};
+				windowId: string;
+			}>;
 		};
-		expect(publicFloorBody.stalls).toEqual(
+		expect(publicFloorBody.windows).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ name: "新风味窗口", priceLabel: "18 元" }),
+				expect.objectContaining({
+					assignment: expect.objectContaining({
+						offerings: expect.arrayContaining([
+							expect.objectContaining({
+								name: "番茄牛腩饭",
+								priceLabel: "18 元",
+								specLabel: "标准份",
+							}),
+						]),
+						stallProfile: expect.objectContaining({ displayName: "新风味窗口" }),
+					}),
+				}),
 			]),
 		);
 	});

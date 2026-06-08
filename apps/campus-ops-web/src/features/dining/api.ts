@@ -7,6 +7,7 @@ import type {
 	DiningOpsHall,
 	DiningRelease,
 	DiningStallProfile,
+	DiningWindow,
 	DiningWindowAssignment,
 } from "./model";
 
@@ -37,6 +38,27 @@ export function assignDiningWindow(input: {
 		body: input,
 		method: "POST",
 		path: "/api/ops/dining/window-assignments",
+	});
+}
+
+export function updateDiningWindow(input: {
+	geometry?: DiningWindow["geometry"];
+	label?: string;
+	locationLabel?: string;
+	status?: DiningWindow["status"];
+	tags?: string[];
+	windowId: string;
+}) {
+	return appApiJson<{ window: DiningWindow }>({
+		body: {
+			geometry: input.geometry,
+			label: input.label,
+			locationLabel: input.locationLabel,
+			status: input.status,
+			tags: input.tags,
+		},
+		method: "PATCH",
+		path: `/api/ops/dining/windows/${encodeURIComponent(input.windowId)}`,
 	});
 }
 

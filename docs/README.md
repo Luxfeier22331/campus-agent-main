@@ -75,6 +75,7 @@ policy、reference、runbook，以及已归档的历史 plan。
   `architecture/system/campus-ops-web-architecture.md`、
   `architecture/domains/dining/architecture.md`、
   `contracts/app-api-campus-ops-http.md`、
+  `contracts/app-api-dining-http.md`、
   `contracts/app-api-dining-ops-http.md` 与
   `data/dining-operations-schema.md`
 - 需要回答“为什么接受这条边界”，读 `decisions/`

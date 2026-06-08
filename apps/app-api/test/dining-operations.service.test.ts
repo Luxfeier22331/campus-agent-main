@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { AppApiRouteError } from "../src/http";
 import {
 	buildDiningOperationsService,
 	createInMemoryDiningOperationsStore,
@@ -73,9 +74,19 @@ describe("dining operations service", () => {
 			},
 			offeringId: existingOffering?.offeringId ?? "",
 		});
-		await service.createMenuItem({
+		const extraMenuItem = await service.createMenuItem({
 			actor: OPERATOR,
 			input: { name: "新增测试菜品", tags: ["测试"] },
+		});
+		await service.createMenuOffering({
+			actor: OPERATOR,
+			input: {
+				assignmentId: assignment.assignment.assignmentId,
+				menuItemId: extraMenuItem.menuItem.menuItemId,
+				priceLabel: "9 元",
+				saleStatus: "available",
+				specLabel: "小份",
+			},
 		});
 
 		const preview = await service.previewRelease({
@@ -101,10 +112,24 @@ describe("dining operations service", () => {
 			floorId: "1f",
 			hallId: "haidian-canteen-1",
 		});
-		expect(publishedFloor.stalls[0]).toMatchObject({
-			name: "新风味窗口",
-			priceLabel: "18 元",
+		expect(publishedFloor.source.releaseId).toBe(release.release.releaseId);
+		expect(publishedFloor.floor.canvas).toEqual({ height: 420, width: 720 });
+		const publishedWindow = publishedFloor.windows.find((item) => item.windowId === windowId);
+		expect(publishedWindow).toMatchObject({
+			assignment: {
+				stallProfile: { displayName: "新风味窗口" },
+			},
+			geometry: expect.objectContaining({ height: expect.any(Number), width: expect.any(Number) }),
+			windowId,
 		});
+		expect(publishedWindow?.assignment?.offerings).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ name: "番茄牛腩饭", priceLabel: "18 元" }),
+				expect.objectContaining({ name: "新增测试菜品", priceLabel: "9 元" }),
+			]),
+		);
+		expect(JSON.stringify(publishedFloor)).not.toContain("audit");
+		expect(JSON.stringify(publishedFloor)).not.toContain("operator_01");
 
 		const audit = await service.listAuditEvents();
 		expect(audit.events.map((event) => event.action)).toEqual(
@@ -222,5 +247,112 @@ describe("dining operations service", () => {
 				"menu_offering.updated",
 			]),
 		);
+	});
+
+	it("summarizes published halls for the student dining app grid", async () => {
+		const service = buildDiningOperationsService({
+			store: createInMemoryDiningOperationsStore(),
+		});
+
+		const halls = await service.getPublishedHalls();
+
+		expect(halls.halls[0]).toMatchObject({
+			campus: "海淀校区",
+			hallId: "haidian-canteen-1",
+			name: "海淀一食堂",
+			offeringCount: expect.any(Number),
+			priceRangeLabel: expect.any(String),
+			stallCount: expect.any(Number),
+			tags: expect.arrayContaining(["主食"]),
+		});
+		expect(halls.halls[0]?.stallCount).toBeGreaterThanOrEqual(5);
+		expect(halls.halls[0]?.offeringCount).toBeGreaterThanOrEqual(halls.halls[0]?.stallCount ?? 0);
+	});
+
+	it("excludes removed offerings from student dining projections", async () => {
+		const service = buildDiningOperationsService({
+			store: createInMemoryDiningOperationsStore(),
+		});
+		const floor = await service.getFloor({
+			floorId: "1f",
+			hallId: "haidian-canteen-1",
+		});
+		const assignment = floor.assignments[0];
+		const offering = floor.menuOfferings.find(
+			(item) => item.assignmentId === assignment?.assignmentId,
+		);
+		expect(offering).toBeTruthy();
+
+		await service.updateMenuOffering({
+			actor: OPERATOR,
+			input: {
+				priceLabel: offering?.priceLabel ?? "18 元",
+				saleStatus: "removed",
+				specLabel: offering?.specLabel ?? null,
+			},
+			offeringId: offering?.offeringId ?? "",
+		});
+		await service.publishRelease({
+			actor: OPERATOR,
+			input: { notes: "移除测试菜品" },
+		});
+
+		const publishedFloor = await service.getPublishedFloor({
+			floorId: "1f",
+			hallId: "haidian-canteen-1",
+		});
+		const publicOfferings =
+			publishedFloor.windows.find((window) => window.windowId === assignment?.windowId)?.assignment
+				?.offerings ?? [];
+		expect(publicOfferings.map((item) => item.offeringId)).not.toContain(offering?.offeringId);
+		expect(publicOfferings.map((item) => item.saleStatus)).not.toContain("removed");
+
+		const halls = await service.getPublishedHalls();
+		expect(halls.halls.find((hall) => hall.hallId === "haidian-canteen-1")?.offeringCount).toBe(
+			publishedFloor.windows.flatMap((window) => window.assignment?.offerings ?? []).length,
+		);
+	});
+
+	it("fails closed when a published dining snapshot is missing required projection objects", async () => {
+		const store = createInMemoryDiningOperationsStore();
+		const state = await store.getState();
+		const floor = state.publishedSnapshot?.floors["haidian-canteen-1:1f"];
+		expect(floor).toBeTruthy();
+		if (floor) {
+			floor.floor.canvas = undefined;
+			floor.menuItems = [];
+		}
+		await store.saveState(state);
+		const service = buildDiningOperationsService({ store });
+
+		await expect(
+			service.getPublishedFloor({
+				floorId: "1f",
+				hallId: "haidian-canteen-1",
+			}),
+		).rejects.toMatchObject({
+			code: "dining_projection_invalid",
+			name: "AppApiRouteError",
+			status: 500,
+		} satisfies Partial<AppApiRouteError>);
+		await expect(service.getPublishedHalls()).rejects.toMatchObject({
+			code: "dining_projection_invalid",
+			name: "AppApiRouteError",
+			status: 500,
+		} satisfies Partial<AppApiRouteError>);
+	});
+
+	it("keeps dining seed ownership inside dining operations domain", async () => {
+		const source = await import("../src/modules/dining-ops/initial-data");
+
+		expect(source.INITIAL_DINING_HALL_SEEDS.map((hall) => hall.hallId).sort()).toEqual([
+			"fengtai-huixian-canteen",
+			"fengtai-juya-canteen",
+			"haidian-canteen-1",
+			"haidian-canteen-2",
+			"haidian-canteen-3",
+			"haidian-canteen-4",
+			"haidian-canteen-5",
+		]);
 	});
 });

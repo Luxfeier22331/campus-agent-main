@@ -1,18 +1,35 @@
-import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
+import {
+	HallGrid,
+	InteractiveFloorplan,
+	TagFilters,
+	WindowDetail,
+	WindowList,
+} from "@/components/dining/dining-experience";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { getDiningFloor, getDiningHalls } from "@/features/dining/api";
-import type { DiningFloorResponse, DiningHallSummary } from "@/features/dining/model";
+import type {
+	DiningFloorResponse,
+	DiningHallSummary,
+	DiningWindowProjection,
+} from "@/features/dining/model";
 import { cn } from "@/lib/utils";
 
 export function DiningPage() {
 	const [halls, setHalls] = useState<DiningHallSummary[]>([]);
+	const [selectedCampus, setSelectedCampus] = useState("");
 	const [selectedHallId, setSelectedHallId] = useState("");
 	const [selectedFloorId, setSelectedFloorId] = useState("");
+	const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
+	const [selectedTag, setSelectedTag] = useState<string | null>(null);
+	const [query, setQuery] = useState("");
 	const [floor, setFloor] = useState<DiningFloorResponse | null>(null);
-	const [selectedStallId, setSelectedStallId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [isLoadingHalls, setIsLoadingHalls] = useState(true);
 
 	useEffect(() => {
 		getDiningHalls()
@@ -20,147 +37,220 @@ export function DiningPage() {
 				setHalls(payload.halls);
 				const firstHall = payload.halls[0];
 				if (firstHall) {
+					setSelectedCampus(firstHall.campus);
 					setSelectedHallId(firstHall.hallId);
-					setSelectedFloorId(firstHall.floors[0]?.floorId ?? "1f");
+					setSelectedFloorId(firstHall.floors[0]?.floorId ?? "");
 				}
 			})
 			.catch((reason: unknown) => {
 				setError(reason instanceof Error ? reason.message : "食堂列表加载失败。");
+			})
+			.finally(() => {
+				setIsLoadingHalls(false);
 			});
 	}, []);
 
 	useEffect(() => {
-		if (!(selectedFloorId && selectedHallId)) {
+		if (!(selectedHallId && selectedFloorId)) {
+			setFloor(null);
 			return;
 		}
 		getDiningFloor({ floorId: selectedFloorId, hallId: selectedHallId })
-			.then((nextFloor) => {
-				setFloor(nextFloor);
-				setSelectedStallId(nextFloor.stalls[0]?.id ?? null);
+			.then((payload) => {
+				setFloor(payload);
+				setSelectedWindowId(payload.windows[0]?.windowId ?? null);
+				setSelectedTag(null);
 				setError(null);
 			})
 			.catch((reason: unknown) => {
 				setFloor(null);
 				setError(reason instanceof Error ? reason.message : "食堂平面图加载失败。");
 			});
-	}, [selectedFloorId, selectedHallId]);
+	}, [selectedHallId, selectedFloorId]);
 
-	const selectedHall = halls.find((hall) => hall.hallId === selectedHallId);
+	const campuses = useMemo(() => uniqueStrings(halls.map((hall) => hall.campus)), [halls]);
+	const selectedHall = halls.find((hall) => hall.hallId === selectedHallId) ?? null;
+	const campusHalls = halls.filter((hall) => !selectedCampus || hall.campus === selectedCampus);
+	const filteredWindows = useMemo(
+		() =>
+			(floor?.windows ?? []).filter(
+				(window) =>
+					windowMatchesQuery(window, query) && (!selectedTag || window.tags.includes(selectedTag)),
+			),
+		[floor, query, selectedTag],
+	);
+	const selectedWindow =
+		filteredWindows.find((window) => window.windowId === selectedWindowId) ??
+		filteredWindows[0] ??
+		null;
+	const selectedHallMatchesLoadedFloor =
+		query.trim().length > 0 &&
+		selectedHall !== null &&
+		floor?.floor.hallId === selectedHall.hallId &&
+		filteredWindows.length > 0;
+	const filteredHalls = campusHalls.filter(
+		(hall) =>
+			hallMatchesQuery(hall, query) ||
+			(hall.hallId === selectedHall?.hallId && selectedHallMatchesLoadedFloor),
+	);
+
+	function selectHall(hall: DiningHallSummary) {
+		setSelectedCampus(hall.campus);
+		setSelectedHallId(hall.hallId);
+		setSelectedFloorId(hall.floors[0]?.floorId ?? "");
+	}
 
 	return (
 		<section className="mx-auto max-w-[1440px] px-5 py-6 pb-24 lg:px-6">
-			<div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+			<div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 				<div>
-					<p className="text-sm font-medium text-primary">饭堂分布图</p>
 					<h1 className="mt-1 text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-						食堂与档口
+						食堂
 					</h1>
 				</div>
-				<div className="flex flex-wrap gap-2">
-					<select
-						className="min-h-11 rounded-lg border border-input bg-white px-3 text-sm"
-						onChange={(event) => {
-							const nextHallId = event.target.value;
-							const nextHall = halls.find((hall) => hall.hallId === nextHallId);
-							setSelectedHallId(nextHallId);
-							setSelectedFloorId(nextHall?.floors[0]?.floorId ?? "");
-						}}
-						value={selectedHallId}
-					>
-						{halls.map((hall) => (
-							<option key={hall.hallId} value={hall.hallId}>
-								{hall.name}
-							</option>
+				<div className="grid gap-3 sm:grid-cols-[minmax(240px,320px)_auto]">
+					<label className="relative block" htmlFor="dining-search">
+						<Search
+							aria-hidden="true"
+							className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[var(--sys-text-subtle)]"
+						/>
+						<Input
+							aria-label="搜索食堂、窗口、菜品"
+							className="pl-9"
+							id="dining-search"
+							onChange={(event) => setQuery(event.target.value)}
+							placeholder="搜索食堂、窗口、菜品"
+							value={query}
+						/>
+					</label>
+					<div className="flex flex-wrap gap-2" role="tablist" aria-label="校区">
+						{campuses.map((campus) => (
+							<button
+								className={cn(
+									"min-h-11 rounded-lg border border-border bg-white px-4 text-sm text-[var(--sys-text-muted)]",
+									selectedCampus === campus &&
+										"border-[var(--sys-text-strong)] bg-[var(--sys-text-strong)] text-white",
+								)}
+								key={campus}
+								onClick={() => {
+									setSelectedCampus(campus);
+									const hall = halls.find((item) => item.campus === campus);
+									if (hall) {
+										selectHall(hall);
+									}
+								}}
+								aria-selected={selectedCampus === campus}
+								role="tab"
+								type="button"
+							>
+								{campus}
+							</button>
 						))}
-					</select>
-					<select
-						className="min-h-11 rounded-lg border border-input bg-white px-3 text-sm"
-						onChange={(event) => setSelectedFloorId(event.target.value)}
-						value={selectedFloorId}
-					>
-						{selectedHall?.floors.map((item) => (
-							<option key={item.floorId} value={item.floorId}>
-								{item.label}
-							</option>
-						))}
-					</select>
+					</div>
 				</div>
 			</div>
+
 			{error ? <ErrorPanel message={error} /> : null}
-			{floor ? (
-				<div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-					<Card className="min-h-[var(--layout-dining-svg-min-height)] overflow-hidden p-4">
-						<DiningFloorProjection floor={floor} selectedStallId={selectedStallId} />
-					</Card>
-					<Card className="overflow-hidden">
-						<div className="border-b border-border p-4">
-							<p className="text-sm font-medium text-[var(--sys-text-strong)]">
-								{floor.floor.label}
-							</p>
-							<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
-								{floor.source.label} ·{" "}
-								{new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
-							</p>
+			{isLoadingHalls && !error ? <LoadingPanel label="正在读取食堂数据" /> : null}
+			{!isLoadingHalls && halls.length === 0 && !error ? (
+				<EmptyPanel message="当前没有已发布的食堂数据。" />
+			) : null}
+			{halls.length > 0 ? (
+				<div className="space-y-5">
+					<HallGrid
+						halls={filteredHalls}
+						onSelectHall={selectHall}
+						selectedHallId={selectedHallId}
+					/>
+					{floor && selectedHall ? (
+						<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+							<Card className="overflow-hidden p-4">
+								<div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+									<div>
+										<p className="text-sm font-semibold text-[var(--sys-text-strong)]">
+											{floor.floor.label}
+										</p>
+										<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
+											{floor.source.label} · {floor.source.releaseId} ·{" "}
+											{new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
+										</p>
+									</div>
+									<div className="flex flex-wrap gap-2">
+										{selectedHall.floors.map((item) => (
+											<button
+												className={cn(
+													"min-h-9 rounded-md border border-border bg-white px-3 text-sm text-[var(--sys-text-muted)]",
+													selectedFloorId === item.floorId &&
+														"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
+												)}
+												key={item.floorId}
+												onClick={() => setSelectedFloorId(item.floorId)}
+												type="button"
+											>
+												{item.label}
+											</button>
+										))}
+									</div>
+								</div>
+								<TagFilters
+									onSelectTag={setSelectedTag}
+									selectedTag={selectedTag}
+									tags={floor.filters.tags}
+								/>
+								<div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+									<InteractiveFloorplan
+										floor={floor}
+										onSelectWindow={setSelectedWindowId}
+										selectedWindowId={selectedWindow?.windowId ?? selectedWindowId}
+										windows={filteredWindows}
+									/>
+									<WindowList
+										onSelectWindow={setSelectedWindowId}
+										selectedWindowId={selectedWindow?.windowId ?? null}
+										windows={filteredWindows}
+									/>
+								</div>
+							</Card>
+							<WindowDetail window={selectedWindow} />
 						</div>
-						{floor.stalls.length > 0 ? (
-							<div className="divide-y divide-border">
-								{floor.stalls.map((stall) => (
-									<button
-										className={cn(
-											"grid w-full grid-cols-[1fr_auto] gap-3 px-4 py-3 text-left hover:bg-[var(--sys-bg-subtle)]",
-											selectedStallId === stall.id && "bg-[var(--sys-brand-interactive-subtle)]",
-										)}
-										key={stall.id}
-										onClick={() => setSelectedStallId(stall.id)}
-										type="button"
-									>
-										<span>
-											<span className="block text-sm font-medium text-[var(--sys-text-strong)]">
-												{stall.name}
-											</span>
-											<span className="mt-1 block text-xs text-[var(--sys-text-muted)]">
-												{stall.locationLabel}
-											</span>
-										</span>
-										<span className="text-sm font-medium text-primary">{stall.priceLabel}</span>
-									</button>
-								))}
-							</div>
-						) : (
-							<EmptyPanel message="当前楼层没有档口投影。" />
-						)}
-					</Card>
+					) : (
+						<EmptyPanel message="当前没有已发布的食堂楼层数据。" />
+					)}
 				</div>
-			) : (
-				<LoadingPanel label="正在读取食堂平面图" />
-			)}
+			) : null}
 		</section>
 	);
 }
 
-function DiningFloorProjection({
-	floor,
-	selectedStallId,
-}: {
-	floor: DiningFloorResponse;
-	selectedStallId: string | null;
-}) {
-	const selectedStall = floor.stalls.find((stall) => stall.id === selectedStallId) ?? null;
-	return (
-		<div className="flex min-h-[520px] flex-col gap-4 rounded-xl bg-[var(--dining-svg-canvas-bg)] p-4">
-			<img
-				alt={`${floor.floor.label}平面图`}
-				className="min-h-0 flex-1 rounded-lg border border-border bg-white object-contain"
-				src={floor.floor.svgAssetUrl}
-			/>
-			{selectedStall ? (
-				<div className="rounded-lg border border-border bg-white px-4 py-3">
-					<p className="text-sm font-medium text-[var(--sys-text-strong)]">{selectedStall.name}</p>
-					<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
-						{selectedStall.locationLabel} · {selectedStall.priceLabel}
-					</p>
-				</div>
-			) : null}
-		</div>
+function hallMatchesQuery(hall: DiningHallSummary, query: string): boolean {
+	const normalized = query.trim().toLowerCase();
+	if (!normalized) {
+		return true;
+	}
+	return [hall.name, hall.campus, ...hall.tags].some((value) =>
+		value.toLowerCase().includes(normalized),
 	);
+}
+
+function windowMatchesQuery(window: DiningWindowProjection, query: string): boolean {
+	const normalized = query.trim().toLowerCase();
+	if (!normalized) {
+		return true;
+	}
+	const values = [
+		window.label,
+		window.locationLabel,
+		...(window.assignment ? [window.assignment.stallProfile.displayName] : []),
+		...window.tags,
+		...(window.assignment?.offerings.flatMap((offering) => [
+			offering.name,
+			offering.priceLabel,
+			...offering.tags,
+		]) ?? []),
+	];
+	return values.some((value) => value.toLowerCase().includes(normalized));
+}
+
+function uniqueStrings(values: string[]): string[] {
+	return [...new Set(values)];
 }

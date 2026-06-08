@@ -18,7 +18,6 @@ import {
 	diningWindowAssignments,
 	diningWindows,
 } from "../../db/schema";
-import { DINING_SOURCE } from "../campus-experience";
 import {
 	createInitialDiningOperationsState,
 	type DiningAuditEvent,
@@ -36,6 +35,7 @@ import {
 	type DiningWindowAssignment,
 	type DiningWindowStatus,
 } from ".";
+import { DINING_SOURCE } from "./initial-data";
 
 export function createPgDiningOperationsStore(
 	env: Env,

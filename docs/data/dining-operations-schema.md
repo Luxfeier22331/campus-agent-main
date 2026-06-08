@@ -20,6 +20,7 @@ updated: 2026-06-08
 它不负责：
 
 - app-api HTTP shape，见 `docs/contracts/app-api-dining-ops-http.md`
+- student public dining HTTP shape，见 `docs/contracts/app-api-dining-http.md`
 - campus ops web UI，见 `docs/architecture/system/campus-ops-web-architecture.md`
 - navigation spatial truth，见 `docs/architecture/domains/navigation/architecture.md`
 
@@ -219,6 +220,13 @@ Rules:
 - snapshots are not recomputed from draft at query time
 - missing published release yields empty/typed not-found behavior, not fallback
   seed data
+- student projection uses window -> assignment -> stall profile -> menu offering
+  -> menu item relations captured inside the snapshot
+- snapshot payload must include floor canvas and SVG asset URL for any
+  student-visible floor
+- missing floorplan, stall profile or menu item projection data is a data
+  integrity error; readers must fail closed rather than synthesize placeholder
+  geometry, food names, prices or tags
 
 ### `dining.audit_events`
 
@@ -250,6 +258,12 @@ Initial scope:
 
 - 海淀校区：1-5 食堂，每个单层
 - 丰台校区：汇贤、聚雅，每个两层
+- 每层至少 5 个窗口
+- 每个窗口至少 1 个 offering；部分窗口包含 2-3 个 offering
 
 After materialization, production student-facing routes must read the DB-backed
 published snapshot, not in-memory seed data.
+
+Initial seed ownership belongs to `apps/app-api/src/modules/dining-ops`, not
+`campus-experience`. `campus-experience` remains responsible for map and
+feedback product projections only.

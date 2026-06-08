@@ -24,8 +24,6 @@ const env = {
 
 function createService(): CampusExperienceService {
 	return {
-		getDiningFloor: vi.fn(),
-		getDiningHalls: vi.fn(),
 		getMapPlace: vi.fn().mockResolvedValue({
 			place: {
 				accessNote: null,
@@ -93,7 +91,6 @@ describe("campus experience routes", () => {
 				hallId: "haidian-canteen-1",
 			},
 		});
-		expect(service.getDiningFloor).not.toHaveBeenCalled();
 	});
 
 	it("accepts global campus-web feedback with explicit route context", async () => {

@@ -19,6 +19,7 @@ const diningApiMock = vi.hoisted(() => ({
 	listDiningAuditEvents: vi.fn(),
 	listDiningReleases: vi.fn(),
 	publishDiningRelease: vi.fn(),
+	updateDiningWindow: vi.fn(),
 	updateDiningMenuItem: vi.fn(),
 	updateDiningMenuOffering: vi.fn(),
 }));
@@ -77,6 +78,12 @@ const floorPayload = {
 			status: "active",
 			tags: ["主食"],
 		},
+		{
+			menuItemId: "menu:noodle",
+			name: "牛肉面",
+			status: "active",
+			tags: ["面食"],
+		},
 	],
 	menuOfferings: [
 		{
@@ -86,6 +93,14 @@ const floorPayload = {
 			priceLabel: "12-18 元",
 			saleStatus: "available",
 			specLabel: null,
+		},
+		{
+			assignmentId: "assignment:haidian-canteen-1:1f:window-01",
+			menuItemId: "menu:noodle",
+			offeringId: "offering:noodle",
+			priceLabel: "16 元",
+			saleStatus: "seasonal",
+			specLabel: "标准碗",
 		},
 	],
 	stallProfiles: [
@@ -146,6 +161,7 @@ describe("campus ops routes", () => {
 		diningApiMock.createDiningMenuOffering.mockResolvedValue({
 			offering: floorPayload.menuOfferings[0],
 		});
+		diningApiMock.updateDiningWindow.mockResolvedValue({ window: floorPayload.windows[0] });
 		diningApiMock.updateDiningMenuItem.mockResolvedValue({ menuItem: floorPayload.menuItems[0] });
 		diningApiMock.updateDiningMenuOffering.mockResolvedValue({
 			offering: floorPayload.menuOfferings[0],
@@ -185,25 +201,55 @@ describe("campus ops routes", () => {
 		expect(screen.getByText("食堂地图")).toBeInTheDocument();
 	});
 
-	it("loads dining workspace and submits assignment and menu edits", async () => {
+	it("loads dining workspace and submits window, assignment, and multiple menu offering edits", async () => {
 		renderWithQueryClient(<DiningWorkspacePage />);
 
 		expect(await screen.findByText("海淀一食堂")).toBeInTheDocument();
 		fireEvent.click(await screen.findByText("一号窗口"));
+		expect(screen.getByDisplayValue("一号窗口")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("盖饭窗口")).toBeInTheDocument();
+		expect(screen.getByDisplayValue("盖饭")).toBeInTheDocument();
+		expect(screen.getByDisplayValue("牛肉面")).toBeInTheDocument();
 
+		fireEvent.change(screen.getByLabelText("窗口名称"), {
+			target: { value: "南侧一号窗口" },
+		});
 		fireEvent.change(screen.getByLabelText("档口名称"), {
 			target: { value: "新风味窗口" },
 		});
-		fireEvent.change(screen.getByLabelText("菜品名称"), {
+		fireEvent.change(screen.getByLabelText("菜品名称 offering:rice"), {
 			target: { value: "番茄牛腩饭" },
 		});
-		fireEvent.change(screen.getByLabelText("价格"), {
+		fireEvent.change(screen.getByLabelText("价格 offering:rice"), {
 			target: { value: "18 元" },
+		});
+		fireEvent.change(screen.getByLabelText("售卖状态 offering:noodle"), {
+			target: { value: "paused" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "新增菜品" }));
+		fireEvent.click(screen.getByText("保存草稿"));
+		expect(await screen.findByText("菜品名称和价格不能为空。")).toBeInTheDocument();
+		expect(diningApiMock.updateDiningWindow).not.toHaveBeenCalled();
+		expect(diningApiMock.assignDiningWindow).not.toHaveBeenCalled();
+		expect(diningApiMock.createDiningMenuItem).not.toHaveBeenCalled();
+
+		const menuNameInputs = screen.getAllByLabelText(/^菜品名称 /);
+		const priceInputs = screen.getAllByLabelText(/^价格 /);
+		fireEvent.change(menuNameInputs.at(-1) as HTMLElement, {
+			target: { value: "新增粉面" },
+		});
+		fireEvent.change(priceInputs.at(-1) as HTMLElement, {
+			target: { value: "11 元" },
 		});
 		fireEvent.click(screen.getByText("保存草稿"));
 
 		await waitFor(() => {
+			expect(diningApiMock.updateDiningWindow).toHaveBeenCalledWith(
+				expect.objectContaining({
+					label: "南侧一号窗口",
+					windowId: "haidian-canteen-1:1f:window-01",
+				}),
+			);
 			expect(diningApiMock.assignDiningWindow).toHaveBeenCalledWith(
 				expect.objectContaining({
 					stallProfile: expect.objectContaining({ displayName: "新风味窗口" }),
@@ -219,6 +265,22 @@ describe("campus ops routes", () => {
 				expect.objectContaining({
 					offeringId: "offering:rice",
 					priceLabel: "18 元",
+				}),
+			);
+			expect(diningApiMock.updateDiningMenuOffering).toHaveBeenCalledWith(
+				expect.objectContaining({
+					offeringId: "offering:noodle",
+					saleStatus: "paused",
+				}),
+			);
+			expect(diningApiMock.createDiningMenuItem).toHaveBeenCalledWith({
+				name: "新增粉面",
+				tags: [],
+			});
+			expect(diningApiMock.createDiningMenuOffering).toHaveBeenCalledWith(
+				expect.objectContaining({
+					priceLabel: "11 元",
+					saleStatus: "available",
 				}),
 			);
 		});

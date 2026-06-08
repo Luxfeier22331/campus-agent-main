@@ -34,40 +34,6 @@ export interface CampusMapPlacesResponse {
 	places: CampusMapPlace[];
 }
 
-export interface DiningHallSummary {
-	campus: string;
-	floors: Array<{
-		floorId: string;
-		label: string;
-	}>;
-	hallId: string;
-	name: string;
-}
-
-export interface DiningHallsResponse {
-	halls: DiningHallSummary[];
-}
-
-export interface DiningFloorResponse {
-	floor: {
-		floorId: string;
-		hallId: string;
-		label: string;
-		svgAssetUrl: string;
-	};
-	source: {
-		label: string;
-		updatedAt: string;
-	};
-	stalls: Array<{
-		id: string;
-		locationLabel: string;
-		name: string;
-		priceLabel: string;
-		tags: string[];
-	}>;
-}
-
 export type FeedbackCategory =
 	| "content_issue"
 	| "dining_issue"
@@ -93,8 +59,6 @@ export interface SubmitFeedbackResponse {
 }
 
 export interface CampusExperienceService {
-	getDiningFloor(input: { floorId: string; hallId: string }): Promise<DiningFloorResponse>;
-	getDiningHalls(): Promise<DiningHallsResponse>;
 	getMapPlace(input: { placeId: string }): Promise<{ place: CampusMapPlace }>;
 	getMapPlaces(): Promise<CampusMapPlacesResponse>;
 	submitFeedback(input: SubmitFeedbackInput): Promise<SubmitFeedbackResponse>;
@@ -240,148 +204,8 @@ const MAP_PLACES: CampusMapPlace[] = [
 	}),
 ];
 
-export type DiningStallSeed = DiningFloorResponse["stalls"][number];
-
-export interface DiningFloorSeed {
-	floorId: string;
-	label: string;
-	stalls: DiningStallSeed[];
-}
-
-export interface DiningHallSeed {
-	campus: string;
-	floors: DiningFloorSeed[];
-	hallId: string;
-	name: string;
-}
-
-export const DINING_SOURCE = {
-	label: "校园食堂平面图整理",
-	updatedAt: "2026-06-08T00:00:00.000Z",
-};
-
-export const DINING_HALL_SEEDS: DiningHallSeed[] = [
-	createSingleFloorHall("haidian-canteen-1", "海淀一食堂", "海淀校区", [
-		createStall("rice-bowl", "盖饭窗口", "入口左侧", "12-18 元", ["主食", "热餐"]),
-		createStall("noodle", "面食窗口", "中部东侧", "10-16 元", ["面食"]),
-		createStall("breakfast", "早餐窗口", "入口右侧", "4-12 元", ["早餐", "轻食"]),
-		createStall("drinks", "饮品窗口", "出口侧", "3-10 元", ["饮品"]),
-		createStall("soup", "汤粥窗口", "北侧", "5-12 元", ["粥品", "汤品"]),
-	]),
-	createSingleFloorHall("haidian-canteen-2", "海淀二食堂", "海淀校区", [
-		createStall("self-service", "自选称重窗口", "入口左侧", "12-25 元", ["自选菜"]),
-		createStall("fried-rice", "炒饭炒面窗口", "中部", "10-18 元", ["快餐"]),
-		createStall("malatang", "麻辣烫窗口", "东侧", "15-28 元", ["热餐"]),
-		createStall("dumpling", "饺子馄饨窗口", "北侧", "10-18 元", ["面食"]),
-		createStall("fruit", "水果轻食窗口", "出口侧", "5-16 元", ["轻食"]),
-	]),
-	createSingleFloorHall("haidian-canteen-3", "海淀三食堂", "海淀校区", [
-		createStall("halal-noodle", "牛肉面窗口", "北侧", "12-22 元", ["清真", "面食"]),
-		createStall("halal-rice", "手抓饭窗口", "东侧", "15-26 元", ["清真", "米饭"]),
-		createStall("halal-set", "清真套餐窗口", "中部", "14-24 元", ["清真", "套餐"]),
-		createStall("bun", "包子饼类窗口", "入口侧", "4-12 元", ["早餐"]),
-		createStall("soup", "汤品窗口", "南侧", "6-14 元", ["汤品"]),
-	]),
-	createSingleFloorHall("haidian-canteen-4", "海淀四食堂", "海淀校区", [
-		createStall("home-style", "家常菜窗口", "入口左侧", "10-18 元", ["热餐"]),
-		createStall("clay-pot", "砂锅窗口", "西侧", "14-24 元", ["砂锅"]),
-		createStall("rice-noodle", "米粉窗口", "东侧", "10-18 元", ["粉面"]),
-		createStall("snack", "小吃窗口", "出口侧", "5-14 元", ["小吃"]),
-		createStall("tea", "茶饮窗口", "南侧", "5-16 元", ["饮品"]),
-	]),
-	createSingleFloorHall("haidian-canteen-5", "海淀五食堂", "海淀校区", [
-		createStall("set-meal", "套餐窗口", "中部", "14-22 元", ["套餐"]),
-		createStall("western", "简餐窗口", "西侧", "16-28 元", ["简餐"]),
-		createStall("baked-rice", "烤盘饭窗口", "东侧", "15-24 元", ["米饭"]),
-		createStall("bakery", "面包甜点窗口", "入口右侧", "5-18 元", ["甜品"]),
-		createStall("coffee", "咖啡饮品窗口", "出口侧", "8-20 元", ["饮品"]),
-	]),
-	{
-		campus: "丰台校区",
-		floors: [
-			createDiningFloor("1f", "一层", [
-				createStall("huixian-1f-breakfast", "早餐窗口", "入口左侧", "4-12 元", ["早餐"]),
-				createStall("huixian-1f-rice", "盖饭窗口", "中部", "12-20 元", ["米饭"]),
-				createStall("huixian-1f-noodle", "面食窗口", "东侧", "10-18 元", ["面食"]),
-				createStall("huixian-1f-soup", "汤粥窗口", "北侧", "5-14 元", ["汤品"]),
-				createStall("huixian-1f-drinks", "饮品窗口", "出口侧", "4-12 元", ["饮品"]),
-			]),
-			createDiningFloor("2f", "二层", [
-				createStall("huixian-2f-hot-pot", "小火锅窗口", "西侧", "18-30 元", ["热餐"]),
-				createStall("huixian-2f-bibimbap", "石锅拌饭窗口", "北侧", "15-24 元", ["米饭"]),
-				createStall("huixian-2f-dumpling", "饺子馄饨窗口", "东侧", "10-18 元", ["面食"]),
-				createStall("huixian-2f-light", "轻食窗口", "南侧", "12-24 元", ["轻食"]),
-				createStall("huixian-2f-dessert", "甜品窗口", "出口侧", "6-16 元", ["甜品"]),
-			]),
-		],
-		hallId: "fengtai-huixian-canteen",
-		name: "汇贤食堂",
-	},
-	{
-		campus: "丰台校区",
-		floors: [
-			createDiningFloor("1f", "一层", [
-				createStall("juya-1f-self-service", "自选称重窗口", "入口左侧", "12-26 元", ["自选菜"]),
-				createStall("juya-1f-set", "套餐窗口", "中部", "14-22 元", ["套餐"]),
-				createStall("juya-1f-noodle", "粉面窗口", "东侧", "10-18 元", ["粉面"]),
-				createStall("juya-1f-snack", "小吃窗口", "出口侧", "5-14 元", ["小吃"]),
-				createStall("juya-1f-tea", "茶饮窗口", "南侧", "5-18 元", ["饮品"]),
-			]),
-			createDiningFloor("2f", "二层", [
-				createStall("juya-2f-grill", "烤盘饭窗口", "西侧", "15-26 元", ["米饭"]),
-				createStall("juya-2f-spicy", "麻辣烫窗口", "北侧", "15-28 元", ["热餐"]),
-				createStall("juya-2f-sandwich", "简餐窗口", "东侧", "16-28 元", ["简餐"]),
-				createStall("juya-2f-fruit", "水果轻食窗口", "南侧", "5-18 元", ["轻食"]),
-				createStall("juya-2f-coffee", "咖啡窗口", "出口侧", "8-20 元", ["饮品"]),
-			]),
-		],
-		hallId: "fengtai-juya-canteen",
-		name: "聚雅食堂",
-	},
-];
-
-const DINING_HALLS: DiningHallSummary[] = DINING_HALL_SEEDS.map((hall) => ({
-	campus: hall.campus,
-	floors: hall.floors.map((floor) => ({ floorId: floor.floorId, label: floor.label })),
-	hallId: hall.hallId,
-	name: hall.name,
-}));
-
-const DINING_FLOORS: Record<string, DiningFloorResponse> = Object.fromEntries(
-	DINING_HALL_SEEDS.flatMap((hall) =>
-		hall.floors.map((floor) => [
-			`${hall.hallId}:${floor.floorId}`,
-			{
-				floor: {
-					floorId: floor.floorId,
-					hallId: hall.hallId,
-					label: `${hall.name}${floor.label}`,
-					svgAssetUrl: `/assets/dining/${hall.hallId}-${floor.floorId}.svg`,
-				},
-				source: DINING_SOURCE,
-				stalls: floor.stalls,
-			},
-		]),
-	),
-) as Record<string, DiningFloorResponse>;
-
 export function buildCampusExperienceService(): CampusExperienceService {
 	return {
-		async getDiningFloor(input) {
-			const floor = DINING_FLOORS[`${input.hallId}:${input.floorId}`];
-			if (!floor) {
-				throw new AppApiRouteError({
-					code: "dining_floor_not_found",
-					message: "Dining floor projection was not found.",
-					retryable: false,
-					status: 404,
-				});
-			}
-			return floor;
-		},
-		async getDiningHalls() {
-			return { halls: DINING_HALLS };
-		},
 		async getMapPlace(input) {
 			const place = MAP_PLACES.find((item) => item.id === input.placeId);
 			if (!place) {
@@ -477,44 +301,6 @@ function createMapPlace(input: {
 		sourceRefs: [`campus-map:projection:${input.id}`],
 		tags: input.tags,
 		title: input.title,
-	};
-}
-
-function createSingleFloorHall(
-	hallId: string,
-	name: string,
-	campus: string,
-	stalls: DiningStallSeed[],
-): DiningHallSeed {
-	return {
-		campus,
-		floors: [createDiningFloor("1f", "一层", stalls)],
-		hallId,
-		name,
-	};
-}
-
-function createDiningFloor(
-	floorId: string,
-	label: string,
-	stalls: DiningStallSeed[],
-): DiningFloorSeed {
-	return { floorId, label, stalls };
-}
-
-function createStall(
-	id: string,
-	name: string,
-	locationLabel: string,
-	priceLabel: string,
-	tags: string[],
-): DiningStallSeed {
-	return {
-		id,
-		locationLabel,
-		name,
-		priceLabel,
-		tags,
 	};
 }
 

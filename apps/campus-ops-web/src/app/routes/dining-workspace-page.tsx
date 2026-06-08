@@ -12,8 +12,14 @@ import {
 	getDiningOpsHalls,
 	updateDiningMenuItem,
 	updateDiningMenuOffering,
+	updateDiningWindow,
 } from "../../features/dining/api";
-import type { DiningOpsFloorResponse, DiningWindow } from "../../features/dining/model";
+import type {
+	DiningMenuItem,
+	DiningMenuOffering,
+	DiningOpsFloorResponse,
+	DiningWindow,
+} from "../../features/dining/model";
 
 export function DiningWorkspacePage() {
 	const params = useParams({ strict: false }) as Partial<{ floorId: string; hallId: string }>;
@@ -117,22 +123,36 @@ function WindowEditor(input: {
 		const stall = assignment
 			? input.floor.stallProfiles.find((item) => item.stallProfileId === assignment.stallProfileId)
 			: null;
-		const offering = assignment
-			? input.floor.menuOfferings.find((item) => item.assignmentId === assignment.assignmentId)
-			: null;
-		const menu = offering
-			? input.floor.menuItems.find((item) => item.menuItemId === offering.menuItemId)
-			: null;
-		return { assignment, menu, offering, stall };
+		const offerings = assignment
+			? input.floor.menuOfferings
+					.filter((item) => item.assignmentId === assignment.assignmentId)
+					.map((offering) => ({
+						menu:
+							input.floor?.menuItems.find((item) => item.menuItemId === offering.menuItemId) ??
+							null,
+						offering,
+					}))
+			: [];
+		return { assignment, offerings, stall };
 	}, [input.floor, input.selectedWindow]);
+	const [windowLabel, setWindowLabel] = useState("");
+	const [locationLabel, setLocationLabel] = useState("");
+	const [windowStatus, setWindowStatus] = useState<DiningWindow["status"]>("active");
 	const [stallName, setStallName] = useState("");
-	const [menuName, setMenuName] = useState("");
-	const [priceLabel, setPriceLabel] = useState("");
+	const [stallType, setStallType] = useState("food_window");
+	const [offeringDrafts, setOfferingDrafts] = useState<OfferingDraft[]>([]);
+	const [draftValidationError, setDraftValidationError] = useState<string | null>(null);
 
 	useEffect(() => {
+		setWindowLabel(input.selectedWindow?.label ?? "");
+		setLocationLabel(input.selectedWindow?.locationLabel ?? "");
+		setWindowStatus(input.selectedWindow?.status ?? "active");
 		setStallName(current?.stall?.displayName ?? input.selectedWindow?.label ?? "");
-		setMenuName(current?.menu?.name ?? "");
-		setPriceLabel(current?.offering?.priceLabel ?? "");
+		setStallType(current?.stall?.stallType ?? "food_window");
+		setOfferingDrafts(
+			current?.offerings.map(({ menu, offering }) => toOfferingDraft(offering, menu)) ?? [],
+		);
+		setDraftValidationError(null);
 	}, [current, input.selectedWindow]);
 
 	const saveMutation = useMutation({
@@ -140,40 +160,55 @@ function WindowEditor(input: {
 			if (!input.selectedWindowId) {
 				throw new Error("window is required");
 			}
+			const validationError = validateOfferingDrafts(offeringDrafts);
+			if (validationError) {
+				setDraftValidationError(validationError);
+				throw new Error(validationError);
+			}
+			setDraftValidationError(null);
+			await updateDiningWindow({
+				label: windowLabel,
+				locationLabel,
+				status: windowStatus,
+				tags: input.selectedWindow?.tags ?? [],
+				windowId: input.selectedWindowId,
+			});
 			const assignment = await assignDiningWindow({
 				stallProfile: {
 					displayName: stallName,
-					stallType: current?.stall?.stallType ?? "food_window",
+					stallType,
 					tags: current?.stall?.tags ?? input.selectedWindow?.tags ?? [],
 				},
 				windowId: input.selectedWindowId,
 			});
-			const menuItem = current?.menu
-				? await updateDiningMenuItem({
-						menuItemId: current.menu.menuItemId,
-						name: menuName,
-						tags: current.menu.tags,
-					})
-				: await createDiningMenuItem({
-						name: menuName,
-						tags: [],
+			for (const draft of offeringDrafts.filter((item) => item.name.trim())) {
+				const menuItem = draft.menuItemId
+					? await updateDiningMenuItem({
+							menuItemId: draft.menuItemId,
+							name: draft.name,
+							tags: draft.tags,
+						})
+					: await createDiningMenuItem({
+							name: draft.name,
+							tags: draft.tags,
+						});
+				if (draft.offeringId) {
+					await updateDiningMenuOffering({
+						offeringId: draft.offeringId,
+						priceLabel: draft.priceLabel,
+						saleStatus: draft.saleStatus,
+						specLabel: draft.specLabel || null,
 					});
-			if (current?.offering) {
-				await updateDiningMenuOffering({
-					offeringId: current.offering.offeringId,
-					priceLabel,
-					saleStatus: "available",
-					specLabel: current.offering.specLabel,
-				});
-				return;
+				} else {
+					await createDiningMenuOffering({
+						assignmentId: assignment.assignment.assignmentId,
+						menuItemId: menuItem.menuItem.menuItemId,
+						priceLabel: draft.priceLabel,
+						saleStatus: draft.saleStatus,
+						specLabel: draft.specLabel || null,
+					});
+				}
 			}
-			await createDiningMenuOffering({
-				assignmentId: assignment.assignment.assignmentId,
-				menuItemId: menuItem.menuItem.menuItemId,
-				priceLabel,
-				saleStatus: "available",
-				specLabel: null,
-			});
 		},
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ["dining-ops", "floor"] });
@@ -189,6 +224,7 @@ function WindowEditor(input: {
 					className="mt-4 space-y-4"
 					onSubmit={(event) => {
 						event.preventDefault();
+						setDraftValidationError(null);
 						saveMutation.mutate();
 					}}
 				>
@@ -197,22 +233,117 @@ function WindowEditor(input: {
 						<p className="font-medium text-sm">{input.selectedWindow.windowId}</p>
 					</div>
 					<label className="ops-field">
+						<span>窗口名称</span>
+						<input value={windowLabel} onChange={(event) => setWindowLabel(event.target.value)} />
+					</label>
+					<label className="ops-field">
+						<span>窗口位置</span>
+						<input
+							value={locationLabel}
+							onChange={(event) => setLocationLabel(event.target.value)}
+						/>
+					</label>
+					<label className="ops-field">
+						<span>窗口状态</span>
+						<select
+							value={windowStatus}
+							onChange={(event) => setWindowStatus(event.target.value as DiningWindow["status"])}
+						>
+							<option value="active">active</option>
+							<option value="closed">closed</option>
+							<option value="maintenance">maintenance</option>
+						</select>
+					</label>
+					<label className="ops-field">
 						<span>档口名称</span>
 						<input value={stallName} onChange={(event) => setStallName(event.target.value)} />
 					</label>
 					<label className="ops-field">
-						<span>菜品名称</span>
-						<input value={menuName} onChange={(event) => setMenuName(event.target.value)} />
+						<span>档口类型</span>
+						<input value={stallType} onChange={(event) => setStallType(event.target.value)} />
 					</label>
-					<label className="ops-field">
-						<span>价格</span>
-						<input value={priceLabel} onChange={(event) => setPriceLabel(event.target.value)} />
-					</label>
+					<div className="space-y-3">
+						<div className="flex items-center justify-between">
+							<p className="font-semibold text-sm">菜品价格</p>
+							<button
+								className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+								onClick={() => setOfferingDrafts((items) => [...items, createEmptyOfferingDraft()])}
+								type="button"
+							>
+								新增菜品
+							</button>
+						</div>
+						{offeringDrafts.map((draft) => (
+							<div className="rounded-lg border border-zinc-200 p-3" key={draft.key}>
+								<label className="ops-field">
+									<span>菜品名称</span>
+									<input
+										aria-label={`菜品名称 ${draft.offeringId || draft.key}`}
+										value={draft.name}
+										onChange={(event) =>
+											setOfferingDrafts((items) =>
+												updateOfferingDraft(items, draft.key, { name: event.target.value }),
+											)
+										}
+									/>
+								</label>
+								<div className="mt-3 grid gap-3 sm:grid-cols-2">
+									<label className="ops-field">
+										<span>价格</span>
+										<input
+											aria-label={`价格 ${draft.offeringId || draft.key}`}
+											value={draft.priceLabel}
+											onChange={(event) =>
+												setOfferingDrafts((items) =>
+													updateOfferingDraft(items, draft.key, { priceLabel: event.target.value }),
+												)
+											}
+										/>
+									</label>
+									<label className="ops-field">
+										<span>规格</span>
+										<input
+											value={draft.specLabel}
+											onChange={(event) =>
+												setOfferingDrafts((items) =>
+													updateOfferingDraft(items, draft.key, { specLabel: event.target.value }),
+												)
+											}
+										/>
+									</label>
+									<label className="ops-field sm:col-span-2">
+										<span>售卖状态</span>
+										<select
+											aria-label={`售卖状态 ${draft.offeringId || draft.key}`}
+											value={draft.saleStatus}
+											onChange={(event) =>
+												setOfferingDrafts((items) =>
+													updateOfferingDraft(items, draft.key, {
+														saleStatus: event.target.value as OfferingDraft["saleStatus"],
+													}),
+												)
+											}
+										>
+											<option value="available">available</option>
+											<option value="paused">paused</option>
+											<option value="seasonal">seasonal</option>
+											<option value="removed">removed</option>
+										</select>
+									</label>
+								</div>
+							</div>
+						))}
+					</div>
 					<button className="ops-primary-button" disabled={saveMutation.isPending} type="submit">
 						<Save aria-hidden="true" className="size-4" />
 						保存草稿
 					</button>
-					{saveMutation.isError ? <p className="text-red-600 text-sm">保存失败</p> : null}
+					{draftValidationError ? (
+						<p className="text-red-600 text-sm">{draftValidationError}</p>
+					) : null}
+					{saveMutation.isError && !draftValidationError ? (
+						<p className="text-red-600 text-sm">保存失败</p>
+					) : null}
 					{saveMutation.isSuccess ? <p className="text-emerald-700 text-sm">草稿已保存</p> : null}
 				</form>
 			) : (
@@ -220,4 +351,58 @@ function WindowEditor(input: {
 			)}
 		</aside>
 	);
+}
+
+interface OfferingDraft {
+	key: string;
+	menuItemId: string | null;
+	name: string;
+	offeringId: string | null;
+	priceLabel: string;
+	saleStatus: DiningMenuOffering["saleStatus"];
+	specLabel: string;
+	tags: string[];
+}
+
+function toOfferingDraft(offering: DiningMenuOffering, menu: DiningMenuItem | null): OfferingDraft {
+	return {
+		key: offering.offeringId,
+		menuItemId: offering.menuItemId,
+		name: menu?.name ?? "",
+		offeringId: offering.offeringId,
+		priceLabel: offering.priceLabel,
+		saleStatus: offering.saleStatus,
+		specLabel: offering.specLabel ?? "",
+		tags: menu?.tags ?? [],
+	};
+}
+
+function createEmptyOfferingDraft(): OfferingDraft {
+	return {
+		key: `new:${crypto.randomUUID()}`,
+		menuItemId: null,
+		name: "",
+		offeringId: null,
+		priceLabel: "",
+		saleStatus: "available",
+		specLabel: "",
+		tags: [],
+	};
+}
+
+function updateOfferingDraft(
+	items: OfferingDraft[],
+	key: string,
+	patch: Partial<OfferingDraft>,
+): OfferingDraft[] {
+	return items.map((item) => (item.key === key ? { ...item, ...patch } : item));
+}
+
+function validateOfferingDrafts(items: OfferingDraft[]): string | null {
+	for (const item of items) {
+		if (!(item.name.trim() && item.priceLabel.trim())) {
+			return "菜品名称和价格不能为空。";
+		}
+	}
+	return null;
 }

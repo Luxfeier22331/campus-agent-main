@@ -21,6 +21,7 @@ updated: 2026-06-04
   route inventory)
 - `app-api-federation-http.md` (forward federation provider surface)
 - `app-api-campus-ops-http.md`
+- `app-api-dining-http.md`
 - `app-api-dining-ops-http.md`
 - `durable-agent-runtime-contract.md`
 

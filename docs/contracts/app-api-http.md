@@ -30,6 +30,7 @@ browser-facing HTTP contract。
   projection：`docs/contracts/app-api-identity-platform-http.md`
 - future federation provider surface：`docs/contracts/app-api-federation-http.md`
 - campus ops cross-cutting contract：`docs/contracts/app-api-campus-ops-http.md`
+- student dining public contract：`docs/contracts/app-api-dining-http.md`
 - dining ops HTTP contract：`docs/contracts/app-api-dining-ops-http.md`
 
 这份文档不冻结：
@@ -131,10 +132,12 @@ Identity Platform detailed object families are frozen separately in
 - `POST /api/feedback`
 
 These routes serve `campus-web` product projections. Map payloads return
-campus metadata, place records, and point GeoJSON markers. Dining payloads
-return hall/floor identity, SVG asset URLs, and stall name / price / location
-rows only. Feedback accepts a global `category`, `routeContext`, `body`, and
-optional `contact`; it does not create per-page local feedback widgets.
+campus metadata, place records, and point GeoJSON markers. Dining payloads read
+latest published release snapshots and return hall summaries plus
+window/assignment/offering floor projections; detailed field shape is frozen in
+`docs/contracts/app-api-dining-http.md`. Feedback accepts a global `category`,
+`routeContext`, `body`, and optional `contact`; it does not create per-page
+local feedback widgets.
 
 Student-facing dining routes read the latest published dining release snapshot.
 Dining draft, release command and audit routes are frozen separately in

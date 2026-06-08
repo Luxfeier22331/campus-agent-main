@@ -38,42 +38,10 @@ describe("campus experience projection seed", () => {
 		}
 	});
 
-	it("provides multi-hall dining floorplan projections for visual review", async () => {
+	it("does not own dining floorplan projections", () => {
 		const service = buildCampusExperienceService();
-		const response = await service.getDiningHalls();
-		const expectedFloorsByHall = {
-			"fengtai-huixian-canteen": ["1f", "2f"],
-			"fengtai-juya-canteen": ["1f", "2f"],
-			"haidian-canteen-1": ["1f"],
-			"haidian-canteen-2": ["1f"],
-			"haidian-canteen-3": ["1f"],
-			"haidian-canteen-4": ["1f"],
-			"haidian-canteen-5": ["1f"],
-		} as const;
 
-		expect(response.halls.map((hall) => hall.hallId).sort()).toEqual(
-			Object.keys(expectedFloorsByHall).sort(),
-		);
-		for (const hall of response.halls) {
-			expect(hall.floors.map((floor) => floor.floorId)).toEqual(
-				expectedFloorsByHall[hall.hallId as keyof typeof expectedFloorsByHall],
-			);
-			expect(hall.campus).toMatch(/^(海淀校区|丰台校区)$/);
-			for (const floor of hall.floors) {
-				const projection = await service.getDiningFloor({
-					floorId: floor.floorId,
-					hallId: hall.hallId,
-				});
-				expect(projection.floor).toMatchObject({
-					floorId: floor.floorId,
-					hallId: hall.hallId,
-				});
-				expect(projection.floor.svgAssetUrl).toMatch(
-					new RegExp(`^/assets/dining/${hall.hallId}-${floor.floorId}\\.svg$`),
-				);
-				expect(projection.stalls.length).toBeGreaterThanOrEqual(5);
-				expect(projection.source.label).toBe("校园食堂平面图整理");
-			}
-		}
+		expect("getDiningHalls" in service).toBe(false);
+		expect("getDiningFloor" in service).toBe(false);
 	});
 });

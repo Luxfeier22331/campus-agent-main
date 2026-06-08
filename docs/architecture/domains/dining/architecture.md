@@ -19,6 +19,7 @@ updated: 2026-06-08
 
 它不负责：
 
+- student public HTTP 字段，见 `docs/contracts/app-api-dining-http.md`
 - ops HTTP 字段，见 `docs/contracts/app-api-dining-ops-http.md`
 - logical schema 字段，见 `docs/data/dining-operations-schema.md`
 - `campus-ops-web` Worker shell，见
@@ -70,8 +71,18 @@ GET /api/dining/halls
 GET /api/dining/halls/:hallId/floors/:floorId
 ```
 
-They return published hall/floor/stall rows suitable for `campus-web`. They do
-not expose:
+They return published hall summaries and floor projections suitable for
+`campus-web`:
+
+- hall summary includes campus, floors, stall count, offering count, tags and
+  price range label
+- floor projection includes SVG asset URL, canvas, windows, assignment, stall
+  profile, offerings and API-provided filter tags
+- window geometry is rendered as student-facing floorplan overlay, not as
+  navigation spatial truth
+- offerings are nested under assignment, not physical window
+
+They do not expose:
 
 - draft state
 - audit event
@@ -82,6 +93,9 @@ not expose:
 
 If no published release exists, the student route must return explicit empty or
 typed not-found behavior. It must not silently fall back to in-memory seed data.
+If a published snapshot is missing required floorplan, stall profile or menu item
+projection fields, the route must fail closed rather than synthesize placeholder
+food, price, geometry or tags.
 
 ## Ops Projection
 
@@ -134,9 +148,15 @@ The initial release covers:
 
 - 海淀校区 1-5 食堂，每个单层
 - 丰台校区 汇贤、聚雅，每个两层
+- 每层至少 5 个窗口
+- 部分窗口包含多个 offering，用于验证一个档口多个菜品/价格的学生端与 ops 端体验
 
 This is a seeded initial release, not a claim that all real dining data
 collection is complete.
+
+Initial release seed ownership lives in the dining operations domain, not
+`campus-experience`. `campus-experience` keeps map and feedback ownership and
+does not own dining floorplan/menu seed data.
 
 ## Non-Goals
 

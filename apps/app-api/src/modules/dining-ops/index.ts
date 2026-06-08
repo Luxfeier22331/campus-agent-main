@@ -1,5 +1,4 @@
 import { AppApiRouteError } from "../../http";
-import { DINING_HALL_SEEDS, DINING_SOURCE } from "../campus-experience";
 import {
 	definedFields,
 	requireAssignment,
@@ -8,11 +7,25 @@ import {
 	requireStallProfile,
 	requireWindow,
 } from "./guards";
+import {
+	DINING_SOURCE,
+	INITIAL_DINING_HALL_SEEDS,
+	type InitialDiningHallSeed,
+} from "./initial-data";
+import {
+	buildFloorResponse,
+	buildPublishedSnapshot,
+	floorKey,
+	toPublicFloor,
+	toPublicHallSummary,
+} from "./projection";
 
+export { DINING_CANVAS, DINING_SOURCE, INITIAL_DINING_HALL_SEEDS } from "./initial-data";
 export { createPgDiningOperationsStore, ensureInitialDiningOperationsRelease } from "./store";
 
 export type DiningWindowStatus = "active" | "closed" | "maintenance";
 export type DiningSaleStatus = "available" | "paused" | "seasonal" | "removed";
+export type DiningPublicSaleStatus = Exclude<DiningSaleStatus, "removed">;
 export type DiningReleaseStatus = "draft" | "published";
 
 export interface DiningOpsActor {
@@ -104,6 +117,7 @@ export interface DiningOpsHall {
 export interface DiningOpsFloorResponse {
 	assignments: DiningWindowAssignment[];
 	floor: {
+		canvas?: { height: number; width: number };
 		floorId: string;
 		hallId: string;
 		label: string;
@@ -120,6 +134,7 @@ export interface DiningPublishedSnapshot {
 	floors: Record<string, DiningOpsFloorResponse>;
 	source: {
 		label: string;
+		releaseId: string;
 		updatedAt: string;
 	};
 }
@@ -171,14 +186,42 @@ export interface DiningOperationsService {
 	}): Promise<{ offering: DiningMenuOffering }>;
 	getFloor(input: { floorId: string; hallId: string }): Promise<DiningOpsFloorResponse>;
 	getPublishedFloor(input: { floorId: string; hallId: string }): Promise<{
-		floor: { floorId: string; hallId: string; label: string; svgAssetUrl: string };
-		source: { label: string; updatedAt: string };
-		stalls: Array<{
-			id: string;
-			locationLabel: string;
-			name: string;
-			priceLabel: string;
+		filters: {
 			tags: string[];
+		};
+		floor: {
+			canvas: { height: number; width: number };
+			floorId: string;
+			hallId: string;
+			label: string;
+			svgAssetUrl: string;
+		};
+		source: { label: string; releaseId: string; updatedAt: string };
+		windows: Array<{
+			assignment: null | {
+				assignmentId: string;
+				offerings: Array<{
+					menuItemId: string;
+					name: string;
+					offeringId: string;
+					priceLabel: string;
+					saleStatus: DiningPublicSaleStatus;
+					specLabel: string | null;
+					tags: string[];
+				}>;
+				stallProfile: {
+					displayName: string;
+					stallProfileId: string;
+					stallType: string;
+					tags: string[];
+				};
+			};
+			geometry: DiningWindow["geometry"];
+			locationLabel: string;
+			label: string;
+			status: DiningWindowStatus;
+			tags: string[];
+			windowId: string;
 		}>;
 	}>;
 	getPublishedHalls(): Promise<{
@@ -187,6 +230,10 @@ export interface DiningOperationsService {
 			floors: Array<{ floorId: string; label: string }>;
 			hallId: string;
 			name: string;
+			offeringCount: number;
+			priceRangeLabel: string | null;
+			stallCount: number;
+			tags: string[];
 		}>;
 	}>;
 	listAuditEvents(): Promise<{ events: DiningAuditEvent[] }>;
@@ -374,16 +421,9 @@ export function buildDiningOperationsService(input: {
 			if (!state.publishedSnapshot) {
 				return { halls: [] };
 			}
+			const snapshot = state.publishedSnapshot;
 			return {
-				halls: state.publishedSnapshot.halls.map((hall) => ({
-					campus: hall.campus,
-					floors: hall.floors.map((floor) => ({
-						floorId: floor.floorId,
-						label: floor.label,
-					})),
-					hallId: hall.hallId,
-					name: hall.name,
-				})),
+				halls: snapshot.halls.map((hall) => toPublicHallSummary(hall, snapshot)),
 			};
 		},
 		async listAuditEvents() {
@@ -400,7 +440,7 @@ export function buildDiningOperationsService(input: {
 		},
 		async previewRelease() {
 			const state = await input.store.getState();
-			const preview = buildPublishedSnapshot(state);
+			const preview = buildPublishedSnapshot(state, "dining_release:preview", DINING_SOURCE);
 			return {
 				preview,
 				summary: {
@@ -421,7 +461,7 @@ export function buildDiningOperationsService(input: {
 				releaseId: `dining_release:${Date.parse(now).toString(36)}:${state.releases.length + 1}`,
 				status: "published",
 			};
-			const snapshot = buildPublishedSnapshot(state);
+			const snapshot = buildPublishedSnapshot(state, release.releaseId, DINING_SOURCE);
 			state.publishedRelease = release;
 			state.publishedSnapshot = snapshot;
 			state.releaseSnapshots[release.releaseId] = snapshot;
@@ -534,8 +574,10 @@ export function buildDiningOperationsService(input: {
 	};
 }
 
-export function createInitialDiningOperationsState(): DiningOperationsState {
-	const halls = DINING_HALL_SEEDS.map((hall) => ({
+export function createInitialDiningOperationsState(
+	seeds: InitialDiningHallSeed[] = INITIAL_DINING_HALL_SEEDS,
+): DiningOperationsState {
+	const halls = seeds.map((hall) => ({
 		campus: hall.campus,
 		floors: hall.floors.map((floor) => ({
 			floorId: floor.floorId,
@@ -546,7 +588,7 @@ export function createInitialDiningOperationsState(): DiningOperationsState {
 		name: hall.name,
 		status: "active" as const,
 	}));
-	const windows = DINING_HALL_SEEDS.flatMap((hall) =>
+	const windows = seeds.flatMap((hall) =>
 		hall.floors.flatMap((floor) =>
 			floor.stalls.map((stall, index) => ({
 				floorId: floor.floorId,
@@ -565,13 +607,12 @@ export function createInitialDiningOperationsState(): DiningOperationsState {
 	const menuItems: DiningMenuItem[] = [];
 	const menuOfferings: DiningMenuOffering[] = [];
 
-	for (const hall of DINING_HALL_SEEDS) {
+	for (const hall of seeds) {
 		for (const floor of hall.floors) {
 			for (const [index, stall] of floor.stalls.entries()) {
 				const windowId = windowIdFor(hall.hallId, floor.floorId, index);
 				const assignmentId = `assignment:${hall.hallId}:${floor.floorId}:${windowId}`;
 				const stallProfileId = `stall:${hall.hallId}:${floor.floorId}:${stall.id}`;
-				const menuItemId = `menu:${hall.hallId}:${floor.floorId}:${stall.id}`;
 				stallProfiles.push({
 					displayName: stall.name,
 					stallProfileId,
@@ -585,20 +626,23 @@ export function createInitialDiningOperationsState(): DiningOperationsState {
 					status: "active",
 					windowId,
 				});
-				menuItems.push({
-					menuItemId,
-					name: stall.name,
-					status: "active",
-					tags: stall.tags,
-				});
-				menuOfferings.push({
-					assignmentId,
-					menuItemId,
-					offeringId: `offering:${assignmentId}:${menuItemId}`,
-					priceLabel: stall.priceLabel,
-					saleStatus: "available",
-					specLabel: null,
-				});
+				for (const [offeringIndex, offering] of stall.offerings.entries()) {
+					const menuItemId = `menu:${hall.hallId}:${floor.floorId}:${stall.id}:${offeringIndex + 1}`;
+					menuItems.push({
+						menuItemId,
+						name: offering.name,
+						status: "active",
+						tags: offering.tags,
+					});
+					menuOfferings.push({
+						assignmentId,
+						menuItemId,
+						offeringId: `offering:${assignmentId}:${menuItemId}`,
+						priceLabel: offering.priceLabel,
+						saleStatus: "available",
+						specLabel: offering.specLabel,
+					});
+				}
 			}
 		}
 	}
@@ -616,7 +660,6 @@ export function createInitialDiningOperationsState(): DiningOperationsState {
 		stallProfiles,
 		windows,
 	};
-	const snapshot = buildPublishedSnapshot(draft);
 	const release: DiningRelease = {
 		createdAt: DINING_SOURCE.updatedAt,
 		createdBy: "system:initial-dining-seed",
@@ -626,6 +669,7 @@ export function createInitialDiningOperationsState(): DiningOperationsState {
 		releaseId: "dining_release:initial",
 		status: "published",
 	};
+	const snapshot = buildPublishedSnapshot(draft, release.releaseId, DINING_SOURCE);
 	return {
 		...draft,
 		publishedRelease: release,
@@ -639,96 +683,6 @@ export function createInitialDiningOperationsState(): DiningOperationsState {
 
 function toJsonRecord(value: unknown): Record<string, unknown> {
 	return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
-}
-
-function buildPublishedSnapshot(state: DiningOperationsState): DiningPublishedSnapshot {
-	const floors = Object.fromEntries(
-		state.halls.flatMap((hall) =>
-			hall.floors.map((floor) => {
-				const key = floorKey({ floorId: floor.floorId, hallId: hall.hallId });
-				return [
-					key,
-					buildFloorResponse(state, {
-						floorId: floor.floorId,
-						hallId: hall.hallId,
-					}),
-				];
-			}),
-		),
-	);
-	return {
-		floors,
-		halls: state.halls,
-		source: DINING_SOURCE,
-	};
-}
-
-function buildFloorResponse(
-	state: DiningOperationsState,
-	input: { floorId: string; hallId: string },
-): DiningOpsFloorResponse {
-	const hall = state.halls.find((item) => item.hallId === input.hallId);
-	const floor = hall?.floors.find((item) => item.floorId === input.floorId);
-	if (!(hall && floor)) {
-		throw new AppApiRouteError({
-			code: "dining_floor_not_found",
-			message: "Dining floor projection was not found.",
-			retryable: false,
-			status: 404,
-		});
-	}
-	const windows = state.windows.filter(
-		(window) => window.hallId === input.hallId && window.floorId === input.floorId,
-	);
-	const windowIds = new Set(windows.map((window) => window.windowId));
-	const assignments = state.assignments.filter((assignment) => windowIds.has(assignment.windowId));
-	const assignmentIds = new Set(assignments.map((assignment) => assignment.assignmentId));
-	const stallProfileIds = new Set(assignments.map((assignment) => assignment.stallProfileId));
-	const menuOfferings = state.menuOfferings.filter((offering) =>
-		assignmentIds.has(offering.assignmentId),
-	);
-	const menuItemIds = new Set(menuOfferings.map((offering) => offering.menuItemId));
-	return {
-		assignments,
-		floor: {
-			floorId: floor.floorId,
-			hallId: hall.hallId,
-			label: `${hall.name}${floor.label}`,
-			svgAssetUrl: floor.svgAssetUrl,
-		},
-		menuItems: state.menuItems.filter((item) => menuItemIds.has(item.menuItemId)),
-		menuOfferings,
-		stallProfiles: state.stallProfiles.filter((profile) =>
-			stallProfileIds.has(profile.stallProfileId),
-		),
-		windows,
-	};
-}
-
-function toPublicFloor(
-	floor: DiningOpsFloorResponse,
-	source: DiningPublishedSnapshot["source"],
-): Awaited<ReturnType<DiningOperationsService["getPublishedFloor"]>> {
-	return {
-		floor: floor.floor,
-		source,
-		stalls: floor.windows.map((window) => {
-			const assignment = floor.assignments.find((item) => item.windowId === window.windowId);
-			const stall = assignment
-				? floor.stallProfiles.find((item) => item.stallProfileId === assignment.stallProfileId)
-				: null;
-			const offering = assignment
-				? floor.menuOfferings.find((item) => item.assignmentId === assignment.assignmentId)
-				: null;
-			return {
-				id: window.windowId,
-				locationLabel: window.locationLabel,
-				name: stall?.displayName ?? window.label,
-				priceLabel: offering?.priceLabel ?? "未发布价格",
-				tags: stall?.tags ?? window.tags,
-			};
-		}),
-	};
 }
 
 function createAuditEvent(input: {
@@ -751,10 +705,6 @@ function createAuditEvent(input: {
 		objectKind: input.objectKind,
 		occurredAt,
 	};
-}
-
-function floorKey(input: { floorId: string; hallId: string }): string {
-	return `${input.hallId}:${input.floorId}`;
 }
 
 function stableId(value: string): string {

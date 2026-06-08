@@ -7,6 +7,7 @@ import diningPageSource from "../src/app/routes/dining-page.tsx?raw";
 import { FeedbackPage } from "../src/app/routes/feedback-page";
 import { HomePage } from "../src/app/routes/home-page";
 import { MapPage } from "../src/app/routes/map-page";
+import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
 
 const diningApiMock = vi.hoisted(() => ({
@@ -202,13 +203,19 @@ describe("campus routes", () => {
 	});
 
 	it("keeps dining floor rendering driven by the floor projection contract", () => {
-		expect(diningPageSource).toContain("floor.floor.svgAssetUrl");
+		expect(diningExperienceSource).toContain("floor.floor.svgAssetUrl");
+		expect(diningPageSource).toContain("floor.filters.tags");
+		expect(diningPageSource).toContain("payload.windows");
 		expect(diningPageSource).not.toContain('id: "rice-bowl"');
-		expect(diningPageSource).not.toContain("x: 56");
-		expect(diningPageSource).not.toContain("y: 72");
+		expect(diningExperienceSource).not.toContain("x: 56");
+		expect(diningExperienceSource).not.toContain("y: 72");
+		expect(diningPageSource).not.toContain("stalls");
+		expect(diningExperienceSource).not.toContain("stalls");
+		expect(diningExperienceSource).not.toContain("已下架");
+		expect(diningExperienceSource).not.toContain('?? "标准"');
 	});
 
-	it("resets the selected floor when switching to a dining hall with different floors", async () => {
+	it("renders dining hall grid, floor tabs, interactive windows, and menu offerings", async () => {
 		diningApiMock.getDiningHalls.mockResolvedValue({
 			halls: [
 				{
@@ -216,6 +223,10 @@ describe("campus routes", () => {
 					floors: [{ floorId: "1f", label: "一层" }],
 					hallId: "haidian-canteen-1",
 					name: "海淀一食堂",
+					offeringCount: 2,
+					priceRangeLabel: "9-18 元",
+					stallCount: 1,
+					tags: ["主食", "热餐"],
 				},
 				{
 					campus: "丰台校区",
@@ -225,6 +236,10 @@ describe("campus routes", () => {
 					],
 					hallId: "fengtai-huixian-canteen",
 					name: "汇贤食堂",
+					offeringCount: 1,
+					priceRangeLabel: "12 元",
+					stallCount: 1,
+					tags: ["面食"],
 				},
 			],
 		});
@@ -239,47 +254,50 @@ describe("campus routes", () => {
 				if (!label) {
 					return Promise.reject(new Error("missing dining projection"));
 				}
-				return Promise.resolve({
-					floor: {
-						floorId,
-						hallId,
-						label,
-						svgAssetUrl: `/assets/dining/${hallId}-${floorId}.svg`,
-					},
-					source: {
-						label: "campus experience mock projection seed",
-						updatedAt: "2026-06-08T00:00:00.000Z",
-					},
-					stalls: [
-						{
-							id: "stall-1",
-							locationLabel: "入口侧",
-							name: "测试档口",
-							priceLabel: "10-18 元",
-							tags: ["测试"],
-						},
-					],
-				});
+				return Promise.resolve(createDiningFloorPayload({ floorId, hallId, label }));
 			},
 		);
 		render(<DiningPage />);
 
+		expect(await screen.findByText("食堂")).toBeInTheDocument();
+		expect(await screen.findByText("海淀一食堂")).toBeInTheDocument();
+		expect(screen.getByText("1 层 · 1 个窗口")).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
+		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
+		expect(screen.getByText("18 元")).toBeInTheDocument();
+		expect(screen.getByLabelText("选择盖饭窗口")).toBeInTheDocument();
+		fireEvent.change(screen.getByPlaceholderText("搜索食堂、窗口、菜品"), {
+			target: { value: "牛腩" },
+		});
+		expect(screen.getByText("海淀一食堂")).toBeInTheDocument();
+		expect(screen.queryByText("没有匹配的食堂。")).not.toBeInTheDocument();
+		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "热餐" }));
+		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
+
 		expect(await screen.findByText("海淀一食堂一层")).toBeInTheDocument();
-		let [hallSelect, floorSelect] = screen.getAllByRole("combobox");
-		fireEvent.change(hallSelect, { target: { value: "fengtai-huixian-canteen" } });
+		fireEvent.click(screen.getByText("丰台校区"));
 
 		expect(await screen.findByText("汇贤食堂一层")).toBeInTheDocument();
-		[hallSelect, floorSelect] = screen.getAllByRole("combobox");
-		fireEvent.change(floorSelect, { target: { value: "2f" } });
+		fireEvent.click(screen.getByText("二层"));
 		expect(await screen.findByText("汇贤食堂二层")).toBeInTheDocument();
-		[hallSelect] = screen.getAllByRole("combobox");
-		fireEvent.change(hallSelect, { target: { value: "haidian-canteen-1" } });
+		fireEvent.click(screen.getByText("海淀校区"));
 
 		expect(await screen.findByText("海淀一食堂一层")).toBeInTheDocument();
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalledWith({
 			floorId: "2f",
 			hallId: "haidian-canteen-1",
 		});
+	});
+
+	it("renders dining empty state when no published halls exist", async () => {
+		diningApiMock.getDiningHalls.mockResolvedValue({ halls: [] });
+
+		render(<DiningPage />);
+
+		expect(await screen.findByText("当前没有已发布的食堂数据。")).toBeInTheDocument();
+		expect(screen.queryByText("正在读取食堂数据")).not.toBeInTheDocument();
+		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalled();
 	});
 
 	it("renders conversation streaming lifecycle states", async () => {
@@ -302,3 +320,60 @@ describe("campus routes", () => {
 		expect(screen.getByText("页面不存在")).toBeInTheDocument();
 	});
 });
+
+function createDiningFloorPayload(input: { floorId: string; hallId: string; label: string }) {
+	return {
+		filters: { tags: ["主食", "热餐"] },
+		floor: {
+			canvas: { height: 420, width: 720 },
+			floorId: input.floorId,
+			hallId: input.hallId,
+			label: input.label,
+			svgAssetUrl: `/assets/dining/${input.hallId}-${input.floorId}.svg`,
+		},
+		source: {
+			label: "校园食堂平面图整理",
+			releaseId: "dining_release:initial",
+			updatedAt: "2026-06-08T00:00:00.000Z",
+		},
+		windows: [
+			{
+				assignment: {
+					assignmentId: `assignment:${input.hallId}:${input.floorId}:window-01`,
+					offerings: [
+						{
+							menuItemId: "menu:rice:1",
+							name: "番茄牛腩饭",
+							offeringId: "offering:rice:1",
+							priceLabel: "18 元",
+							saleStatus: "available",
+							specLabel: "标准份",
+							tags: ["主食", "热餐"],
+						},
+						{
+							menuItemId: "menu:rice:2",
+							name: "鸡腿盖饭",
+							offeringId: "offering:rice:2",
+							priceLabel: "16 元",
+							saleStatus: "seasonal",
+							specLabel: "标准份",
+							tags: ["主食"],
+						},
+					],
+					stallProfile: {
+						displayName: "盖饭窗口",
+						stallProfileId: "stall:rice",
+						stallType: "hot_meal",
+						tags: ["主食"],
+					},
+				},
+				geometry: { height: 72, width: 150, x: 64, y: 72 },
+				label: "一号窗口",
+				locationLabel: "入口侧",
+				status: "active",
+				tags: ["主食", "热餐"],
+				windowId: `${input.hallId}:${input.floorId}:window-01`,
+			},
+		],
+	};
+}
