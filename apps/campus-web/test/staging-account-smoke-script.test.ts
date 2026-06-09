@@ -87,6 +87,9 @@ describe("campus staging account smoke script", () => {
 		expect(scriptSource).toContain("/account/forgot-password");
 		expect(scriptSource).toContain("/account/federation/consent");
 		expect(scriptSource).toContain("/account/federation/error");
+		expect(scriptSource).toContain("document.createTreeWalker");
+		expect(scriptSource).toContain("script,style,template,noscript");
+		expect(scriptSource).not.toContain('locator("body").textContent');
 		expect(scriptSource).not.toContain("Hub account browser smoke");
 		expect(scriptSource).not.toContain("hubBaseUrl");
 		expect(scriptSource).not.toContain("hub-staging.mucwiki-edge.link");

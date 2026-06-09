@@ -219,7 +219,32 @@ async function expectVisible(page, text) {
 }
 
 async function assertNoForbiddenUserCopy(page, label) {
-	const bodyText = (await page.locator("body").textContent({ timeout: 30_000 })) ?? "";
+	const bodyText = await page.locator("body").evaluate((body) => {
+		const ignoredSelectors = "script,style,template,noscript,[hidden],[aria-hidden='true']";
+		const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+			acceptNode(node) {
+				const parent = node.parentElement;
+				if (!parent || parent.closest(ignoredSelectors)) {
+					return NodeFilter.FILTER_REJECT;
+				}
+				const style = window.getComputedStyle(parent);
+				if (style.display === "none" || style.visibility === "hidden") {
+					return NodeFilter.FILTER_REJECT;
+				}
+				return NodeFilter.FILTER_ACCEPT;
+			},
+		});
+		const chunks = [];
+		let node = walker.nextNode();
+		while (node) {
+			const text = node.textContent?.trim();
+			if (text) {
+				chunks.push(text);
+			}
+			node = walker.nextNode();
+		}
+		return chunks.join("\n");
+	});
 	for (const phrase of ["OAuth", "staging", "Hub", "联邦", "campus-web", "redirect_uri"]) {
 		if (bodyText.includes(phrase)) {
 			throw new Error(`${label} exposes forbidden user copy: ${phrase}`);
