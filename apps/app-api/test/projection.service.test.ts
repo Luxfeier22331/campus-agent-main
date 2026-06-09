@@ -47,7 +47,7 @@ function createExecutionSource(
 			collection: "student_rules",
 			corpus: "regulations",
 		},
-		selectedTarget: "rag-agent",
+		selectedCapability: "knowledge",
 		sourceDocIds: ["handbook:library-hours"],
 		startedAt: "2026-03-28T08:00:00.000Z",
 		status: "completed",
@@ -135,7 +135,7 @@ describe("request projection projector", () => {
 				collection: "student_rules",
 				corpus: "regulations",
 			},
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 			sourceDocIds: ["handbook:library-hours"],
 			startedAt: "2026-03-28T08:00:00.000Z",
 			status: "completed",
@@ -158,7 +158,7 @@ describe("request projection projector", () => {
 			projectedAt: "2026-03-28T08:00:03.000Z",
 			requestId: "req_01HQ",
 			requestedCapability: "knowledge",
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 			status: "completed",
 			summary: "Knowledge request completed via rag agent.",
 			surface: "public_chat_web",
@@ -191,8 +191,8 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|5m|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_rules|_|req_01HQ",
-					selectedTarget: "rag-agent",
+						"quality|5m|2026-03-28T08:00:00.000Z|public_chat_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
+					selectedCapability: "knowledge",
 					surface: "public_chat_web",
 				},
 				{
@@ -218,8 +218,8 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|15m|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_rules|_|req_01HQ",
-					selectedTarget: "rag-agent",
+						"quality|15m|2026-03-28T08:00:00.000Z|public_chat_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
+					selectedCapability: "knowledge",
 					surface: "public_chat_web",
 				},
 				{
@@ -245,8 +245,8 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|1h|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_rules|_|req_01HQ",
-					selectedTarget: "rag-agent",
+						"quality|1h|2026-03-28T08:00:00.000Z|public_chat_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
+					selectedCapability: "knowledge",
 					surface: "public_chat_web",
 				},
 				{
@@ -272,8 +272,8 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|1d|2026-03-28T00:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_rules|_|req_01HQ",
-					selectedTarget: "rag-agent",
+						"quality|1d|2026-03-28T00:00:00.000Z|public_chat_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
+					selectedCapability: "knowledge",
 					surface: "public_chat_web",
 				},
 			],

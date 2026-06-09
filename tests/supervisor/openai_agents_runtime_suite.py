@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from campus_contracts import AgentRequest, CampusNoticeDiscoverPayload
+from campus_contracts import CampusNoticeDiscoverPayload, CapabilityRequest
 from campus_prompt_runtime import PromptRuntimeProviderConfig
 from campus_supervisor_agent_worker.agents_sdk_instruction_profiles import (
     instruction_profile_for_request,
@@ -45,9 +45,9 @@ class OpenAIAgentsNativeRuntimeTest(unittest.TestCase):
         captured = captures[-1]
         agent = captured["agent"]
         run_config = captured["run_config"]
-        self.assertEqual(agent.name, "notice-agent")
+        self.assertEqual(agent.name, "notice")
         self.assertEqual(agent.model, "gpt-5.4-mini")
-        self.assertIn("notice-agent card-search runtime", agent.instructions)
+        self.assertIn("notice card-search runtime", agent.instructions)
         self.assertEqual([tool.name for tool in agent.tools], ["campus_notice_discover"])
         self.assertEqual(agent.model_settings.tool_choice, "required")
         self.assertFalse(agent.model_settings.parallel_tool_calls)
@@ -163,7 +163,7 @@ class OpenAIAgentsNativeRuntimeTest(unittest.TestCase):
         )
 
         result = runtime.run(
-            agent_name="rag-agent-native-runtime",
+            agent_name="knowledge-native-runtime",
             instructions="Use only the supplied retrieve_evidence tool.",
             input_text="有哪些本科生可以申请的奖学金",
             context={"request_id": "req-rag-sdk-001"},
@@ -177,7 +177,7 @@ class OpenAIAgentsNativeRuntimeTest(unittest.TestCase):
 
         captured = captures[-1]
         agent = captured["agent"]
-        self.assertEqual(agent.name, "rag-agent-native-runtime")
+        self.assertEqual(agent.name, "knowledge-native-runtime")
         self.assertEqual(agent.model, "gpt-5.4-mini")
         self.assertIs(agent.output_type, dict)
         self.assertEqual(captured["input_text"], "有哪些本科生可以申请的奖学金")
@@ -246,9 +246,9 @@ def _record_invocation(
     }
 
 
-def _notice_request() -> AgentRequest:
-    return AgentRequest(
-        target="notice-agent",
+def _notice_request() -> CapabilityRequest:
+    return CapabilityRequest(
+        capability="notice",
         user_goal="找春假通知",
         request_id="req-native-sdk-001",
         payload=CampusNoticeDiscoverPayload(query_text="春假通知"),

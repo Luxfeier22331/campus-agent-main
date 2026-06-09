@@ -6,8 +6,8 @@ from pathlib import Path
 
 import httpx
 from campus_contracts import (
-    AgentRequest,
-    AgentResponse,
+    CapabilityRequest,
+    CapabilityResponse,
     ErrorInfo,
     EvidenceBundle,
     RagRequestPayload,
@@ -17,6 +17,7 @@ from campus_retrieval_core import RetrievalBackendError, retrieve_sources
 
 from campus_evals.app_api_chat_runtime import AppApiEvalClient, AppApiEvalClientSettings
 from campus_evals.formal_benchmark import repair_formal_benchmark, run_formal_benchmark
+from campus_evals.knowledge_inprocess_delegate import delegate_to_knowledge_capability_inprocess
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
     accept_live_benchmark_profile,
@@ -28,7 +29,6 @@ from campus_evals.live_benchmark import (
     build_default_output_dir as build_shared_default_output_dir,
 )
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
-from campus_evals.rag_inprocess_delegate import delegate_to_rag_agent_inprocess
 from campus_evals.ragas_adapter import build_ragas_supplemental_adapter_from_env
 from campus_evals.scenarios import curriculum_error_gate_cases, curriculum_release_gate_cases
 
@@ -41,7 +41,7 @@ CURRICULUM_PLAN_LIVE_GATE_POLICY_PATH = (
 )
 
 Retriever = Callable[..., EvidenceBundle]
-Delegate = Callable[..., AgentResponse]
+Delegate = Callable[..., CapabilityResponse]
 _DETERMINISTIC_ERROR_RESPONSES = {
     "evidence_shaping_failure": (
         "evidence_shaping_failed",
@@ -78,7 +78,7 @@ def build_curriculum_live_executor(
 def build_inprocess_curriculum_live_executor(
     *,
     retriever: Retriever = retrieve_sources,
-    delegate: Delegate = delegate_to_rag_agent_inprocess,
+    delegate: Delegate = delegate_to_knowledge_capability_inprocess,
 ) -> Callable[[GoldenCase], ExecutionResult]:
     def _execute(case: GoldenCase) -> ExecutionResult:
         retrieved_evidence: EvidenceBundle | None = None
@@ -90,8 +90,8 @@ def build_inprocess_curriculum_live_executor(
             retrieved_evidence = retriever(*args, **kwargs)
             return retrieved_evidence
 
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal=case.user_goal,
             payload=RagRequestPayload(scope=case.scope, version_query=case.version_query),
             actor=case.actor,
@@ -156,13 +156,13 @@ def build_app_api_curriculum_live_executor(
 
 
 def _build_deterministic_error_response(
-    request: AgentRequest,
+    request: CapabilityRequest,
     *,
     code: str,
     message: str,
-) -> AgentResponse:
-    return AgentResponse(
-        target="rag-agent",
+) -> CapabilityResponse:
+    return CapabilityResponse(
+        capability="knowledge",
         status="error",
         confidence="low",
         result=RagResultPayload(evidence=_build_empty_evidence(request)),
@@ -170,7 +170,7 @@ def _build_deterministic_error_response(
     )
 
 
-def _build_empty_evidence(request: AgentRequest) -> EvidenceBundle:
+def _build_empty_evidence(request: CapabilityRequest) -> EvidenceBundle:
     return EvidenceBundle(
         query_text=request.user_goal,
         corpus=request.payload.scope.corpus,

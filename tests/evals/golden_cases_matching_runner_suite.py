@@ -4,7 +4,7 @@ from tests.evals.golden_cases_test_support import (
     CURRICULUM_SCOPE,
     HANDBOOK_SCOPE,
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     ErrorInfo,
     EvidenceBundle,
     ExecutionResult,
@@ -76,8 +76,8 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
         def executor(case: GoldenCase) -> ExecutionResult:
             if case.case_id == "case-clarification-instead-of-guess":
                 return ExecutionResult(
-                    response=AgentResponse(
-                        target="rag-agent",
+                    response=CapabilityResponse(
+                        capability="knowledge",
                         status="needs_clarification",
                         answer_text="你想问的是哪一类奖学金评审办法？",
                         follow_up_question="你想问的是哪一类奖学金评审办法？",
@@ -104,8 +104,8 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                     ),
                 )
             return ExecutionResult(
-                response=AgentResponse(
-                    target="rag-agent",
+                response=CapabilityResponse(
+                    capability="knowledge",
                     status="no_answer",
                     answer_text="当前检索结果不足以支持开课单位和适用专业，请以原文为准。",
                     confidence="low",
@@ -177,7 +177,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
             if case.case_id == "policy-risk-release-gate-open-domain-political-fact":
                 return ExecutionResult(
                     response=SupervisorResponse(
-                        selected_target=None,
+                        selected_capability=None,
                         status="no_answer",
                         answer_text="这个问题不在当前支持范围内。",
                         confidence="low",
@@ -206,7 +206,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
             if case.case_id == "policy-risk-release-gate-political-persuasion-refusal":
                 return ExecutionResult(
                     response=SupervisorResponse(
-                        selected_target=None,
+                        selected_capability=None,
                         status="rejected",
                         answer_text="这个请求不在当前可执行范围内。",
                         confidence="low",
@@ -237,7 +237,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                 )
             return ExecutionResult(
                 response=SupervisorResponse(
-                    selected_target="rag-agent",
+                    selected_capability="knowledge",
                     status="no_answer",
                     answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
                     confidence="low",
@@ -434,8 +434,8 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
         report = run_cases(
             (case,),
             executor=lambda _: ExecutionResult(
-                response=AgentResponse(
-                    target="rag-agent",
+                response=CapabilityResponse(
+                    capability="knowledge",
                     status="needs_clarification",
                     follow_up_question="请具体说明你想咨询学生手册中的哪一项制度、流程或表格。",
                     result=RagResultPayload(
@@ -674,8 +674,8 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                 )
             if case.case_id == "clarify-accuracy":
                 return ExecutionResult(
-                    response=AgentResponse(
-                        target="rag-agent",
+                    response=CapabilityResponse(
+                        capability="knowledge",
                         status="needs_clarification",
                         result=RagResultPayload(
                             evidence=EvidenceBundle(
@@ -695,8 +695,8 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                 )
             if case.case_id == "no-answer-fail-close":
                 return ExecutionResult(
-                    response=AgentResponse(
-                        target="rag-agent",
+                    response=CapabilityResponse(
+                        capability="knowledge",
                         status="no_answer",
                         answer_text="当前未检索到足够依据支持回答该问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。",
                         result=RagResultPayload(
@@ -716,8 +716,8 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                     ),
                 )
             return ExecutionResult(
-                response=AgentResponse(
-                    target="rag-agent",
+                response=CapabilityResponse(
+                    capability="knowledge",
                     status="error",
                     confidence="low",
                     answer_text="retrieval failed",

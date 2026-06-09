@@ -83,14 +83,24 @@ ADD COLUMN "run_intent" text NOT NULL DEFAULT 'baseline';`),
 			existsKey: "runtime.request_execution:diagnostics_json",
 			kind: "column",
 		});
-		expect(
-			parseMigrationStatement(
-				'ALTER TABLE "runtime"."request_execution" ADD COLUMN "entitlement_snapshot_id" text;',
-			),
+			expect(
+				parseMigrationStatement(
+					'ALTER TABLE "runtime"."request_execution" ADD COLUMN "entitlement_snapshot_id" text;',
+				),
 		).toMatchObject({
-			existsKey: "runtime.request_execution:entitlement_snapshot_id",
-			kind: "column",
-		});
+				existsKey: "runtime.request_execution:entitlement_snapshot_id",
+				kind: "column",
+			});
+				expect(
+					parseMigrationStatement(
+						'ALTER TABLE "runtime"."request_execution" RENAME COLUMN "old_capability" TO "selected_capability";',
+					),
+				).toMatchObject({
+					existsKey: "runtime.request_execution:selected_capability",
+					fromColumn: "old_capability",
+					kind: "rename_column",
+					toColumn: "selected_capability",
+				});
 		expect(
 			parseMigrationStatement(
 				'ALTER TABLE "official_web"."run_outbox" ADD CONSTRAINT "run_outbox_run_id_crawl_runs_run_id_fk" FOREIGN KEY ("run_id") REFERENCES "official_web"."crawl_runs"("run_id") ON DELETE cascade ON UPDATE no action;',
@@ -139,17 +149,27 @@ ON "official_web"."crawl_runs" USING btree (
 			existsKey: "official_web.crawl_runs@official_web_crawl_runs_site_scheduler_idx",
 			kind: "index",
 		});
-		expect(
-			parseMigrationStatement(
-				'DROP INDEX "official_web"."official_web_crawl_runs_site_scheduler_idx";',
-			),
+			expect(
+				parseMigrationStatement(
+					'DROP INDEX "official_web"."official_web_crawl_runs_site_scheduler_idx";',
+				),
 		).toMatchObject({
-			existsKey: "official_web@official_web_crawl_runs_site_scheduler_idx",
-			kind: "drop_index",
-		});
-		expect(
-			parseMigrationStatement(
-				'ALTER TABLE "runtime"."request_execution" DROP COLUMN "actor_groups_json";',
+				existsKey: "official_web@official_web_crawl_runs_site_scheduler_idx",
+				kind: "drop_index",
+			});
+			expect(
+				parseMigrationStatement(
+					'ALTER INDEX IF EXISTS "operator"."operator_metric_rollup_domain_target_bucket_idx" RENAME TO "operator_metric_rollup_domain_capability_bucket_idx";',
+				),
+			).toMatchObject({
+				existsKey: "operator@operator_metric_rollup_domain_capability_bucket_idx",
+				fromIndex: "operator_metric_rollup_domain_target_bucket_idx",
+				index: "operator_metric_rollup_domain_capability_bucket_idx",
+				kind: "rename_index",
+			});
+			expect(
+				parseMigrationStatement(
+					'ALTER TABLE "runtime"."request_execution" DROP COLUMN "actor_groups_json";',
 			),
 		).toMatchObject({
 			existsKey: "runtime.request_execution:actor_groups_json",

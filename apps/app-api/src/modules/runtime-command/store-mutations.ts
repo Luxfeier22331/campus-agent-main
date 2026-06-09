@@ -61,7 +61,7 @@ export function buildAcceptRequestExecutionInsertValues(input: RequestExecutionW
 		requestedScopeJson: (input.requestedScope as Record<string, unknown> | null) ?? null,
 		versionQueryJson: input.versionQuery,
 		resolvedScopeJson: (input.resolvedScope as Record<string, unknown> | null) ?? null,
-		selectedTarget: null,
+		selectedCapability: null,
 		status: input.status,
 		errorCode: null,
 		questionPreview: input.questionPreview,
@@ -79,7 +79,7 @@ export function buildAcceptRequestExecutionInsertValues(input: RequestExecutionW
 export function buildFinalizeRequestExecutionUpdateValues(input: RequestExecutionWrite) {
 	return {
 		assistantMessageId: input.assistantMessageId,
-		selectedTarget: input.selectedTarget,
+		selectedCapability: input.selectedCapability,
 		status: input.status,
 		errorCode: input.errorCode,
 		requestedScopeJson: (input.requestedScope as Record<string, unknown> | null) ?? null,
@@ -181,7 +181,7 @@ function buildRequestObservabilityFactRecord(input: RequestObservabilityFactWrit
 		semanticOutcome: input.semanticOutcome,
 		retrievedSourceCount: input.retrievedSourceCount,
 		retrievalAttempted: input.retrievalAttempted,
-		selectedTarget: input.selectedTarget,
+		selectedCapability: input.selectedCapability,
 		selectedTool: input.selectedTool ?? null,
 		startedAt: new Date(input.startedAt),
 		status: input.status,

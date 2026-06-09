@@ -13,7 +13,7 @@ PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH = (
 
 @dataclass(frozen=True, slots=True)
 class PublicChatProductPathExpected:
-    selected_target: str
+    selected_capability: str
     terminal_outcome: str
     fail_close_reason: str = ""
     response_contract: dict[str, object] = field(default_factory=dict)
@@ -40,7 +40,7 @@ class PublicChatProductPathObservation:
     case_id: str
     request_id: str
     trace_id: str
-    selected_target: str
+    selected_capability: str
     terminal_outcome: str
     fail_close_reason: str = ""
     response_contract: dict[str, object] = field(default_factory=dict)
@@ -146,9 +146,9 @@ def _evaluate_case(
         failures.append("request_id missing")
     if not observation.trace_id.strip():
         failures.append("trace_id missing")
-    if observation.selected_target != case.expected.selected_target:
+    if observation.selected_capability != case.expected.selected_capability:
         failures.append(
-            f"selected_target expected {case.expected.selected_target!r}, got {observation.selected_target!r}"
+            f"selected_capability expected {case.expected.selected_capability!r}, got {observation.selected_capability!r}"
         )
     if observation.terminal_outcome != case.expected.terminal_outcome:
         failures.append(
@@ -193,7 +193,7 @@ def _parse_case(payload: object) -> PublicChatProductPathCase:
         user_goal=_required_string(item.get("user_goal"), "user_goal"),
         split=_required_string(item.get("split"), "split"),
         expected=PublicChatProductPathExpected(
-            selected_target=_required_string(expected.get("selected_target"), "selected_target"),
+            selected_capability=_required_string(expected.get("selected_capability"), "selected_capability"),
             terminal_outcome=_required_string(
                 expected.get("terminal_outcome"),
                 "terminal_outcome",
@@ -231,11 +231,11 @@ def _workflow_trace_mismatch_reasons(
     if not trace:
         return []
     failures: list[str] = []
-    trace_target = _normalized_trace_target(trace.get("selected_target"))
-    if trace_target != observation.selected_target:
+    trace_target = _normalized_trace_target(trace.get("selected_capability"))
+    if trace_target != observation.selected_capability:
         failures.append(
-            "workflow_trace_summary.selected_target expected "
-            f"{observation.selected_target!r}, got {trace_target!r}"
+            "workflow_trace_summary.selected_capability expected "
+            f"{observation.selected_capability!r}, got {trace_target!r}"
         )
     branch = str(trace.get("direct_vs_delegate_branch") or "").strip()
     expected_branches = _expected_trace_branches(case.expected.terminal_outcome)

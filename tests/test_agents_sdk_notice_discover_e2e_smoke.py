@@ -70,7 +70,7 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
         agent_request = handoff["agent_request"]  # type: ignore[index]
 
         self.assertEqual(payload["effective_capability"], "notice")
-        self.assertEqual(handoff["target"], "notice-agent")  # type: ignore[index]
+        self.assertEqual(handoff["target"], "notice")  # type: ignore[index]
         self.assertEqual(handoff["allowed_tools"], ["campus_notice_discover"])  # type: ignore[index]
         self.assertEqual(agent_request["payload"]["kind"], "campus_notice_discover")  # type: ignore[index]
         self.assertEqual(
@@ -80,10 +80,10 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
 
     def test_report_passes_only_when_sdk_tool_execution_returns_seed_notice_card(self) -> None:
         response_body = {
-            "target": "notice-agent",
+            "target": "notice",
             "status": "completed",
             "answer_text": "找到烟雾测试通知：https://example.invalid/notices/smoke",
-            "agent_observability": {
+            "capability_observability": {
                 "selected_tool": "campus_notice_discover",
                 "tool_outcome": "sdk_completed",
                 "source_ref_count": 1,
@@ -112,10 +112,10 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
 
     def test_report_fails_when_tool_result_was_not_executed(self) -> None:
         response_body = {
-            "target": "notice-agent",
+            "target": "notice",
             "status": "completed",
             "answer_text": "模型声称已找到烟雾测试通知。",
-            "agent_observability": {
+            "capability_observability": {
                 "selected_tool": "campus_notice_discover",
                 "tool_outcome": "sdk_completed",
                 "source_ref_count": 0,
@@ -236,7 +236,7 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
                             "status": "queued",
                             "metadata": {
                                 "expected_handoff": {
-                                    "target": "notice-agent",
+                                    "target": "notice",
                                     "allowed_tools": ["campus_notice_discover"],
                                 }
                             },

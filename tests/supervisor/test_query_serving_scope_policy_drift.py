@@ -22,7 +22,7 @@ class QueryServingScopePolicyDriftTest(unittest.TestCase):
 
     def test_active_structured_tools_match_structured_query_runtime_profiles(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
-        tool_spec_path = repo_root / "configs/runtime/tools.v2.json"
+        tool_spec_path = repo_root / "configs/runtime/tools.v3.json"
         tool_spec = json.loads(tool_spec_path.read_text(encoding="utf-8"))
         active_structured_tools = {
             tool["name"]

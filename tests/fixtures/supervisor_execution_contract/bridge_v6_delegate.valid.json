@@ -1,6 +1,6 @@
 {
 	"bridge_version": "supervisor_bridge_v6",
-	"response_contract": "agent_response",
+	"response_contract": "capability_response",
 	"user_goal": "学生手册请假制度怎么规定？",
 	"conversation_id": "conv-contract-001",
 	"request_id": "req-contract-001",
@@ -84,7 +84,7 @@
 			"context_preflight_state": "not_follow_up",
 			"routing_next_action": "delegate",
 			"planning_outcome": "preplanned",
-			"selected_target": "rag-agent",
+			"selected_capability": "knowledge",
 			"selected_tool": "retrieval.query",
 			"runtime_versions": {
 				"bridge_contract": "supervisor_bridge_v6"
@@ -95,14 +95,14 @@
 		},
 		"workflow_plan": {
 			"schema_version": "workflow-plan-v1",
-			"plan_id": "plan:single_step:rag-agent:rag_request",
+			"plan_id": "plan:single_step:knowledge:rag_request",
 			"workflow_mode": "single_step",
-			"allowed_agents": ["rag-agent"],
+			"allowed_capabilities": ["knowledge"],
 			"steps": [
 				{
-					"step_id": "handoff:rag-agent:rag_request",
+					"step_id": "capability:knowledge:rag_request",
 					"step_kind": "handoff",
-					"target": "rag-agent",
+					"capability": "knowledge",
 					"payload_kind": "rag_request",
 					"allowed_tools": [],
 					"selected_tool": "retrieval.query"
@@ -121,10 +121,10 @@
 		},
 		"handoff": {
 			"planning_outcome": "preplanned",
-			"target": "rag-agent",
+			"capability": "knowledge",
 			"allowed_tools": [],
-			"agent_request": {
-				"target": "rag-agent",
+			"capability_request": {
+				"capability": "knowledge",
 				"user_goal": "学生手册请假制度怎么规定？",
 				"conversation_id": "conv-contract-001",
 				"request_id": "req-contract-001",
@@ -159,11 +159,11 @@
 					}
 				},
 				"workflow_context": {
-					"schema_version": "workflow-agent-context-v1",
-					"visibility": "agent_private",
+					"schema_version": "workflow-capability-context-v1",
+					"visibility": "capability_private",
 					"workflow_run_ref": "workflow:req-contract-001",
-					"step_id": "handoff:rag-agent:rag_request",
-					"agent_id": "rag-agent",
+					"step_id": "capability:knowledge:rag_request",
+					"capability_id": "knowledge",
 					"expected_output_artifacts": ["evidence_bundle", "grounding_verdict"],
 					"projection_refs": []
 				},

@@ -4,7 +4,7 @@ import "testing"
 
 func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusTraceRefs(t *testing.T) {
 	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
+		"campus_services",
 		"completed",
 		map[string]any{
 			"subject_query":        "丰台校区通勤班车在哪里上车",
@@ -34,7 +34,7 @@ func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusTraceRefs(
 
 func TestBuildStructuredSupervisorObservabilityDoesNotInferSelectedToolFromResultShape(t *testing.T) {
 	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
+		"campus_services",
 		"completed",
 		map[string]any{
 			"subject_query": "丰台校区通勤班车在哪里上车",
@@ -53,7 +53,7 @@ func TestBuildStructuredSupervisorObservabilityDoesNotInferSelectedToolFromResul
 
 func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusFailClose(t *testing.T) {
 	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
+		"campus_services",
 		"no_answer",
 		map[string]any{
 			"subject_query":       "图书馆今天开门吗",

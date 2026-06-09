@@ -4,7 +4,7 @@ from tests.evals.golden_cases_test_support import (
     CURRICULUM_SCOPE,
     HANDBOOK_SCOPE,
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     ErrorInfo,
     EvidenceBundle,
     ExecutionResult,
@@ -300,7 +300,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
             (case,),
             executor=lambda _: ExecutionResult(
                 response=SupervisorResponse(
-                    selected_target=None,
+                    selected_capability=None,
                     status="needs_clarification",
                     follow_up_question="请先说明你想查询的知识范围或资料集合。",
                     confidence="low",
@@ -341,7 +341,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
             if case.case_id == "approval-required-1":
                 return ExecutionResult(
                     response=SupervisorResponse(
-                        selected_target=None,
+                        selected_capability=None,
                         status="approval_required",
                         answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
                         confidence="low",
@@ -349,7 +349,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
                 )
             return ExecutionResult(
                 response=SupervisorResponse(
-                    selected_target=None,
+                    selected_capability=None,
                     status="rejected",
                     confidence="low",
                     error=ErrorInfo(
@@ -372,8 +372,8 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
 
         def executor(case: GoldenCase) -> ExecutionResult:
             return ExecutionResult(
-                response=AgentResponse(
-                    target="rag-agent",
+                response=CapabilityResponse(
+                    capability="knowledge",
                     status="error",
                     confidence="low",
                     answer_text="",

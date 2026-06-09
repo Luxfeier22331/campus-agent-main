@@ -30,7 +30,7 @@ type runtimeCase struct {
 	InventoryID                 string            `json:"inventory_id"`
 	Mode                        string            `json:"mode"`
 	UserGoal                    string            `json:"user_goal"`
-	ExpectedTarget              string            `json:"expected_target"`
+	ExpectedCapability          string            `json:"expected_capability"`
 	ExpectedPayloadKind         string            `json:"expected_payload_kind"`
 	ExpectedSelectedTool        string            `json:"expected_selected_tool"`
 	ExpectedOutcome             string            `json:"expected_outcome"`
@@ -74,7 +74,6 @@ type caseResult struct {
 
 type observedResult struct {
 	Capability          string            `json:"capability"`
-	Target              string            `json:"target"`
 	PayloadKind         string            `json:"payload_kind"`
 	SelectedTool        string            `json:"selected_tool"`
 	Outcome             string            `json:"outcome"`
@@ -194,7 +193,7 @@ func evaluateCase(
 		if handoff == nil {
 			failures = append(failures, "selected_handoff_missing")
 		} else {
-			observed.Target = strings.TrimSpace(handoff.Target)
+			observed.Capability = strings.TrimSpace(handoff.Capability)
 			observed.PayloadKind = strings.TrimSpace(handoff.PayloadKind)
 			if len(handoff.AllowedTools) == 1 {
 				observed.SelectedTool = strings.TrimSpace(handoff.AllowedTools[0])
@@ -208,10 +207,10 @@ func evaluateCase(
 					)
 				}
 			}
-			if observed.Target != strings.TrimSpace(item.ExpectedTarget) {
+			if observed.Capability != strings.TrimSpace(item.ExpectedCapability) {
 				failures = append(
 					failures,
-					fmt.Sprintf("target=%s expected=%s", observed.Target, item.ExpectedTarget),
+					fmt.Sprintf("capability=%s expected=%s", observed.Capability, item.ExpectedCapability),
 				)
 			}
 			if observed.PayloadKind != strings.TrimSpace(item.ExpectedPayloadKind) {

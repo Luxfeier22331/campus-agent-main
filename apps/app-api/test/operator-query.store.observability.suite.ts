@@ -29,7 +29,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 						corpus: "curriculum",
 						collection: "curriculum_plan",
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					startedAt: new Date("2026-03-28T08:00:00.000Z"),
 					completedAt: new Date("2026-03-28T08:00:01.000Z"),
 					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
@@ -78,7 +78,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					workflowTraceSummaryJson: {
 						directVsDelegateBranch: "delegate",
 						planningOutcome: "preplanned",
-						selectedTarget: "rag-agent",
+						selectedCapability: "knowledge",
 						selectedTools: ["retrieval.query"],
 						toolArgumentSummary: {
 							collection: "curriculum_plan",
@@ -159,7 +159,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 		expect(result?.observability.workflowTrace).toMatchObject({
 			directVsDelegateBranch: "delegate",
 			planningOutcome: "preplanned",
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 			selectedTools: ["retrieval.query"],
 		});
 	});
@@ -214,7 +214,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 						corpus: "curriculum",
 						collection: "curriculum_plan",
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					startedAt: new Date("2026-03-28T08:00:00.000Z"),
 					completedAt: new Date("2026-03-28T08:00:01.000Z"),
 					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
@@ -343,7 +343,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					collection: "curriculum_plan",
 					corpus: "curriculum",
 				},
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 			},
 		});
 	});
@@ -370,7 +370,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 						corpus: "regulations",
 						collection: "student_rules",
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					startedAt: new Date("2026-03-28T08:00:00.000Z"),
 					completedAt: new Date("2026-03-28T08:00:01.000Z"),
 					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
@@ -400,7 +400,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 						corpus: "regulations",
 						collection: "student_rules",
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					startedAt: new Date("2026-03-28T08:00:00.000Z"),
 					completedAt: new Date("2026-03-28T08:00:01.000Z"),
 					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
@@ -615,7 +615,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 			modelName: null,
 			principalType: null,
 			requestedCapability: null,
-			selectedTarget: null,
+			selectedCapability: null,
 			surface: null,
 			window: "24h",
 		});

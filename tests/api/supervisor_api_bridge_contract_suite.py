@@ -2,12 +2,12 @@ from .supervisor_api_bridge_support import *
 
 
 class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
-    def test_bridge_answer_route_accepts_v6_agent_response_contract(self) -> None:
+    def test_bridge_answer_route_accepts_v6_capability_response_contract(self) -> None:
         captured_requests = []
 
         def fake_agent(request):
             captured_requests.append(request)
-            return AgentResponse(
+            return CapabilityResponse(
                 target=request.target,
                 status="completed",
                 answer_text="Agent response returned to Go finalizer.",
@@ -20,12 +20,12 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             trace_id="trace-v6-agent-response",
         )
         body["bridge_version"] = "supervisor_bridge_v6"
-        body["response_contract"] = "agent_response"
+        body["response_contract"] = "capability_response"
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=fake_agent,
+            capability_handler=fake_agent,
         )
 
         response = app.handle(
@@ -36,13 +36,13 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "agent_response")
-        self.assertEqual(response.json_body["target"], "rag-agent")
+        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "capability_response")
+        self.assertEqual(response.json_body["target"], "knowledge")
         self.assertEqual(response.json_body["status"], "completed")
         self.assertEqual(len(captured_requests), 1)
-        self.assertEqual(captured_requests[0].target, "rag-agent")
+        self.assertEqual(captured_requests[0].target, "knowledge")
 
-    def test_bridge_answer_route_rejects_bridge_v4_after_agent_response_hardcut(
+    def test_bridge_answer_route_rejects_bridge_v4_after_capability_response_hardcut(
         self,
     ) -> None:
         app = create_bridge_app(
@@ -70,7 +70,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
 
         def fake_agent(request):
             captured_requests.append(request)
-            return AgentResponse(
+            return CapabilityResponse(
                 target=request.target,
                 status="completed",
                 answer_text="Projected context reached supervisor.",
@@ -82,7 +82,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
                 app_name="campus-agent-v2",
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=fake_agent,
+            capability_handler=fake_agent,
         )
 
         body = _bridge_v6_payload(
@@ -124,10 +124,10 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["x-supervisor-bridge-kind"],
-            "agent_response",
+            "capability_response",
         )
         self.assertEqual(response.json_body["status"], "completed")
-        self.assertEqual(response.json_body["target"], "rag-agent")
+        self.assertEqual(response.json_body["target"], "knowledge")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].trace.trace_id, "trace-001")
         self.assertEqual(captured_requests[0].context.actor.user_id, "student@example.edu")
@@ -185,9 +185,9 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (
+            capability_handler=lambda request: (
                 captured_requests.append(request)
-                or AgentResponse(
+                or CapabilityResponse(
                     target=request.target,
                     status="completed",
                     answer_text="unexpected",
@@ -218,9 +218,9 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (
+            capability_handler=lambda request: (
                 captured_requests.append(request)
-                or AgentResponse(
+                or CapabilityResponse(
                     target=request.target,
                     status="completed",
                     answer_text="unexpected",
@@ -275,9 +275,9 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (
+            capability_handler=lambda request: (
                 captured_requests.append(request)
-                or AgentResponse(
+                or CapabilityResponse(
                     target=request.target,
                     status="completed",
                     answer_text="ok",
@@ -311,9 +311,9 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (
+            capability_handler=lambda request: (
                 captured_requests.append(request)
-                or AgentResponse(
+                or CapabilityResponse(
                     target=request.target,
                     status="completed",
                     answer_text="unexpected",
@@ -332,7 +332,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
                 trace_id="trace-reject-unsupported-nested-payload",
                 effective_capability="campus_services",
                 lane="campus_services",
-                handoff_target="campus-services-agent",
+                handoff_target="campus_services",
                 payload_kind="transport_schedule_lookup",
                 allowed_tools=["transport_schedule_lookup"],
                 payload={

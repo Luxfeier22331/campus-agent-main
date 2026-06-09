@@ -131,7 +131,7 @@ export function buildAcceptedWrite(input: {
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
 			resolvedScope: null,
-			selectedTarget: null,
+			selectedCapability: null,
 			status: "accepted",
 			errorCode: null,
 			questionPreview: previewText(input.prompt),
@@ -224,7 +224,7 @@ export function buildFinalizedWrite(input: {
 	const sourceDocIds = extractSourceDocIds(input.response.result);
 	const structuredParts = normalizeChatResponseStructuredParts({
 		result: input.response.result,
-		selectedTarget: input.response.selectedTarget,
+		selectedCapability: input.response.selectedCapability,
 		status: input.response.status,
 	});
 	const resolvedScope = resolveFinalizedScope({
@@ -368,7 +368,7 @@ export function buildFinalizedWrite(input: {
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
 			resolvedScope,
-			selectedTarget: input.response.selectedTarget,
+			selectedCapability: input.response.selectedCapability,
 			status,
 			errorCode,
 			questionPreview: "",
@@ -410,7 +410,7 @@ export function buildFinalizedWrite(input: {
 				traceId: normalizedTraceId,
 				conversationId: input.conversation.id,
 				status,
-				selectedTarget: input.response.selectedTarget,
+				selectedCapability: input.response.selectedCapability,
 				answerPreview: previewText(assistantText),
 				errorCode,
 				...(diagnostics ? { diagnostics } : {}),

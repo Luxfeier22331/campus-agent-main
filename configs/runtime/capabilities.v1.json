@@ -1,0 +1,59 @@
+{
+	"schema_version": "capability-spec-registry-v1",
+	"registry_version": "2026-06-09",
+	"capabilities": [
+		{
+			"id": "knowledge",
+			"owner_package": "packages/knowledge-capability",
+			"worker_role": "activity-worker-rag",
+			"runtime_adapter": "temporal_activity_worker",
+			"active": true,
+			"opening_gate": "open",
+			"allowed_structured_tools": [],
+			"context_projection_kinds": ["evidence_bundle"],
+			"description": "Knowledge retrieval, evidence selection, synthesis, and grounding capability."
+		},
+		{
+			"id": "navigation",
+			"owner_package": "packages/navigation-capability",
+			"worker_role": "activity-worker-navigation",
+			"runtime_adapter": "temporal_activity_worker",
+			"active": false,
+			"opening_gate": "closed",
+			"allowed_structured_tools": [],
+			"context_projection_kinds": ["place_context"],
+			"description": "Navigation and place lookup capability; registered before rollout."
+		},
+		{
+			"id": "campus_services",
+			"owner_package": "packages/campus-services-capability",
+			"worker_role": "activity-worker-campus-services",
+			"runtime_adapter": "temporal_activity_worker",
+			"active": true,
+			"opening_gate": "open",
+			"allowed_structured_tools": [
+				"service_status_lookup",
+				"service_guide_lookup",
+				"transport_schedule_lookup",
+				"contact_directory_lookup",
+				"academic_calendar_lookup"
+			],
+			"context_projection_kinds": ["service_guide_facts", "schedule_baseline", "calendar_fact"],
+			"description": "Campus services capability for deterministic structured service queries."
+		},
+		{
+			"id": "notice",
+			"owner_package": "packages/notice-capability",
+			"worker_role": "activity-worker-notice",
+			"runtime_adapter": "temporal_activity_worker",
+			"active": true,
+			"opening_gate": "open",
+			"allowed_structured_tools": [
+				"campus_notice_discover",
+				"campus_notice_change_set_lookup"
+			],
+			"context_projection_kinds": ["notice_context", "notice_change_set"],
+			"description": "Notice discovery and internal selected notice resolution capability."
+		}
+	]
+}

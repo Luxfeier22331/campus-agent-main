@@ -109,7 +109,7 @@ func (s *Server) streamBridgePayload(
 		return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid response envelope.")
 	}
 	switch bridgeResponse.Kind {
-	case "agent_response":
+	case "capability_response":
 		body, err := decodeJSONObject(bridgeResponse.Body)
 		if err != nil {
 			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid response body.")

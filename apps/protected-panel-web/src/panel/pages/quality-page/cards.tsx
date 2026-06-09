@@ -23,7 +23,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { PanelLineChart } from "../../panel-chart";
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
 import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
-import { formatSelectedTargetLabel, formatSurfaceLabel } from "../../requests/request-formatters";
+import { formatSelectedCapabilityLabel, formatSurfaceLabel } from "../../requests/request-formatters";
 import { buildRequestShowPath } from "../../requests/request-routes";
 import type {
 	OperatorOverviewWindow,
@@ -87,7 +87,7 @@ export function QualityHeaderSection(props: {
 	filterSummaryItems: string[];
 	filters: QualityFilterState;
 	isRefreshing: boolean;
-	onSelectedTargetChange(value: string): void;
+	onSelectedCapabilityChange(value: string): void;
 	onSurfaceChange(value: string): void;
 	onWindowChange(value: OperatorOverviewWindow): void;
 }) {
@@ -148,13 +148,13 @@ export function QualityHeaderSection(props: {
 							))}
 						</TextField>
 						<TextField
-							label={PANEL_COPY.qualityPage.filters.selectedTarget}
-							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
+							label={PANEL_COPY.qualityPage.filters.selectedCapability}
+							onChange={(event) => props.onSelectedCapabilityChange(event.target.value)}
 							select
 							size="small"
 							slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
-							value={props.filters.selectedTarget ?? ""}
+							value={props.filters.selectedCapability ?? ""}
 						>
 							{QUALITY_TARGET_OPTIONS.map((option) => (
 								<MenuItem key={option.value ?? "all"} value={option.value ?? ""}>
@@ -470,7 +470,7 @@ export function QualityQueueSection(props: {
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.detectedBy}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.status}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.surface}</TableCell>
-								<TableCell>{PANEL_COPY.qualityPage.queueColumns.selectedTarget}</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.selectedCapability}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.requestId}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.runId}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.actions}</TableCell>
@@ -487,7 +487,7 @@ export function QualityQueueSection(props: {
 									<TableCell>{formatQualityBadcaseDetectedBy(badcase.detectedBy)}</TableCell>
 									<TableCell>{formatQualityBadcaseStatus(badcase.status)}</TableCell>
 									<TableCell>{formatSurfaceLabel(badcase.surface)}</TableCell>
-									<TableCell>{formatSelectedTargetLabel(badcase.selectedTarget)}</TableCell>
+									<TableCell>{formatSelectedCapabilityLabel(badcase.selectedCapability)}</TableCell>
 									<TableCell>{badcase.requestId}</TableCell>
 									<TableCell>{badcase.runId ?? PANEL_COPY.pending}</TableCell>
 									<TableCell>
@@ -570,7 +570,7 @@ export function QualityEvalCandidateSection(props: {
 								<TableCell>复核标签</TableCell>
 								<TableCell>建议评测族</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.surface}</TableCell>
-								<TableCell>{PANEL_COPY.qualityPage.queueColumns.selectedTarget}</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.selectedCapability}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.requestId}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.runId}</TableCell>
 							</TableRow>
@@ -592,7 +592,7 @@ export function QualityEvalCandidateSection(props: {
 									</TableCell>
 									<TableCell>{candidate.intake.suggestedEvalFamily}</TableCell>
 									<TableCell>{formatSurfaceLabel(candidate.surface)}</TableCell>
-									<TableCell>{formatSelectedTargetLabel(candidate.selectedTarget)}</TableCell>
+									<TableCell>{formatSelectedCapabilityLabel(candidate.selectedCapability)}</TableCell>
 									<TableCell>
 										{candidate.requestId ? (
 											<Button
@@ -730,8 +730,8 @@ export function QualityDetailDrawer(props: {
 									{formatSurfaceLabel(props.selectedBadcase.surface)}
 								</Typography>
 								<Typography variant="body2">
-									<strong>{PANEL_COPY.qualityPage.queueColumns.selectedTarget}</strong>:{" "}
-									{formatSelectedTargetLabel(props.selectedBadcase.selectedTarget)}
+									<strong>{PANEL_COPY.qualityPage.queueColumns.selectedCapability}</strong>:{" "}
+									{formatSelectedCapabilityLabel(props.selectedBadcase.selectedCapability)}
 								</Typography>
 							</Stack>
 
@@ -776,9 +776,9 @@ export function buildQualityFilterSummaryItems(filters: QualityFilterState): str
 				? formatSurfaceLabel(filters.surface)
 				: PANEL_COPY.overviewPage.filters.allSurfaces
 		}`,
-		`${PANEL_COPY.qualityPage.filterSummary.selectedTarget}: ${
-			filters.selectedTarget
-				? formatSelectedTargetLabel(filters.selectedTarget)
+		`${PANEL_COPY.qualityPage.filterSummary.selectedCapability}: ${
+			filters.selectedCapability
+				? formatSelectedCapabilityLabel(filters.selectedCapability)
 				: PANEL_COPY.overviewPage.filters.allTargets
 		}`,
 	];

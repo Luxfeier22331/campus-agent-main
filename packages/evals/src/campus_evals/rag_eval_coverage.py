@@ -119,7 +119,7 @@ def build_rag_eval_coverage_report(
     registry_rag_surfaces = tuple(
         entry.surface_id
         for entry in registry.entries
-        if entry.capability_family == "rag-agent" and entry.admission_state == "admitted"
+        if entry.capability_family == "knowledge" and entry.admission_state == "admitted"
     )
     expected_registry_surfaces = tuple(
         _registry_surface_id(surface_key) for surface_key in CURRENT_RAG_CONSUMPTION_SURFACES

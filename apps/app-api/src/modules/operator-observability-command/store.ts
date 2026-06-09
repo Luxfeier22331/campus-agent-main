@@ -21,7 +21,7 @@ export interface StoredRequestObservabilitySeed {
 	surface: string;
 	requestStartedAt: string;
 	requestedScopeSummary: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	requestedCapability: string | null;
 	principalType: string;
 	collection: string | null;
@@ -34,7 +34,7 @@ export interface QualityGradeProjectionWrite {
 	traceId: string;
 	surface: string;
 	requestStartedAt: string;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	requestedCapability: string | null;
 	principalType: string;
 	collection: string | null;
@@ -91,7 +91,7 @@ function toStoredRequestObservabilitySeed(
 		requestedCapability: row.requestedCapability ?? null,
 		requestedScopeSummary: row.requestedScopeSummary ?? null,
 		requestStartedAt: row.startedAt.toISOString(),
-		selectedTarget: row.selectedTarget ?? null,
+		selectedCapability: row.selectedCapability ?? null,
 		surface: row.surface,
 		traceId: row.traceId,
 	};
@@ -230,7 +230,7 @@ export function createPgOperatorObservabilityCommandStore(
 							requestedCapability: grade.requestedCapability,
 							sampledAt: new Date(grade.sampledAt),
 							scoreMilli: grade.scoreMilli,
-							selectedTarget: grade.selectedTarget,
+							selectedCapability: grade.selectedCapability,
 							surface: grade.surface,
 							traceId: grade.traceId,
 							verdict: grade.verdict,
@@ -250,7 +250,7 @@ export function createPgOperatorObservabilityCommandStore(
 								requestedCapability: grade.requestedCapability,
 								sampledAt: new Date(grade.sampledAt),
 								scoreMilli: grade.scoreMilli,
-								selectedTarget: grade.selectedTarget,
+								selectedCapability: grade.selectedCapability,
 								surface: grade.surface,
 								traceId: grade.traceId,
 								verdict: grade.verdict,

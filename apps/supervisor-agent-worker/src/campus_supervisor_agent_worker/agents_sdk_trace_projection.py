@@ -5,7 +5,7 @@ from time import monotonic_ns
 
 AGENTS_SDK_TRACE_PROJECTION_SCHEMA_VERSION = "agents-sdk-trace-projection-v1"
 AGENTS_SDK_TOOL_LIFECYCLE_PROJECTION_SCHEMA_VERSION = "agents-sdk-tool-lifecycle-projection-v1"
-AGENTS_SDK_ADAPTER_LANE = "agents_sdk_domain_agent_adapter"
+AGENTS_SDK_ADAPTER_LANE = "agents_sdk_domain_capability_adapter"
 
 _UNSAFE_KEY_TOKENS = (
     "rawresponse",
@@ -66,7 +66,7 @@ def build_agents_sdk_trace_projection(
     estimated_cost_microusd: int | None = None,
     workflow_run_ref: str = "",
     step_id: str = "",
-    agent_id: str = "",
+    capability_id: str = "",
     step_status: str = "",
     terminal_reason: str = "",
     fail_close_reason: str = "",
@@ -95,7 +95,7 @@ def build_agents_sdk_trace_projection(
         "surface_execution_mode": surface_execution_mode.strip(),
         "workflow_run_ref": workflow_run_ref.strip(),
         "step_id": step_id.strip(),
-        "agent_id": agent_id.strip(),
+        "capability_id": capability_id.strip(),
         "step_status": step_status.strip(),
         "terminal_reason": terminal_reason.strip(),
         "fail_close_reason": fail_close_reason.strip(),

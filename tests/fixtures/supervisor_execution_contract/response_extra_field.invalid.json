@@ -1,5 +1,5 @@
 {
-	"selected_target": "rag-agent",
+	"selected_capability": "knowledge",
 	"status": "completed",
 	"answer_text": "请假制度以学生手册当前版本为准。",
 	"follow_up_question": "",

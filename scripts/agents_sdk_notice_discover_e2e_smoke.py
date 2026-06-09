@@ -87,7 +87,7 @@ def build_e2e_smoke_plan(
         expected_readyz_statuses=(200, 503),
         expected_run_body_tokens=(
             "agents-sdk-notice-discover-e2e-smoke",
-            "notice-agent",
+            "notice",
             "campus_notice_discover",
         ),
         processes=(
@@ -282,7 +282,7 @@ def _build_bridge_payload() -> dict[str, object]:
     trace_id = str(execution_payload["trace_id"])
     return {
         "bridge_version": "supervisor_bridge_v6",
-        "response_contract": "agent_response",
+        "response_contract": "capability_response",
         "user_goal": user_goal,
         "conversation_id": "",
         "request_id": request_id,
@@ -340,7 +340,7 @@ def _build_execution_run_payload() -> dict[str, object]:
                 "context": context,
             },
             "expected_handoff": {
-                "target": "notice-agent",
+                "target": "notice",
                 "allowed_tools": ["campus_notice_discover"],
                 "payload_kind": "campus_notice_discover",
                 "seed_notice_title": _SEED_NOTICE_TITLE,
@@ -414,10 +414,10 @@ def _bridge_runtime_decisions(
         },
         "handoff": {
             "planning_outcome": "preplanned",
-            "target": "notice-agent",
+            "target": "notice",
             "allowed_tools": ["campus_notice_discover"],
             "agent_request": {
-                "target": "notice-agent",
+                "target": "notice",
                 "user_goal": user_goal,
                 "conversation_id": "",
                 "request_id": request_id,
@@ -443,7 +443,7 @@ def _bridge_runtime_decisions(
 
 def _bridge_response_passed(status_code: int, body: object) -> tuple[bool, dict[str, bool]]:
     response = body if isinstance(body, dict) else {}
-    observability = _dict(response.get("agent_observability"))
+    observability = _dict(response.get("capability_observability"))
     safe_details = _dict(observability.get("safe_details"))
     runner_projection = _dict(safe_details.get("openai_agents_runtime_projection"))
     tool_result = _dict(runner_projection.get("tool_result_projection"))
@@ -453,7 +453,7 @@ def _bridge_response_passed(status_code: int, body: object) -> tuple[bool, dict[
     checks = {
         "status_code_ok": status_code == 200,
         "response_completed": response.get("status") == "completed",
-        "notice_agent_target": response.get("target") == "notice-agent",
+        "notice_capability_target": response.get("target") == "notice",
         "selected_tool_ok": observability.get("selected_tool") == "campus_notice_discover",
         "tool_outcome_ok": observability.get("tool_outcome") == "sdk_completed",
         "tool_called_once": runner_projection.get("tool_call_count") == 1,
@@ -564,7 +564,7 @@ def _load_repo_env() -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run OpenAI Agents SDK notice-agent discover E2E smoke through "
+            "Run OpenAI Agents SDK notice discover E2E smoke through "
             "Go structured-query and temporary PG notice read model."
         )
     )

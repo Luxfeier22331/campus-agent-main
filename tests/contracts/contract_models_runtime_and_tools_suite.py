@@ -37,13 +37,13 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             },
         )
 
-    def test_agent_response_serializes_safe_agent_observability(self) -> None:
-        response = AgentResponse(
-            target="campus-services-agent",
+    def test_capability_response_serializes_safe_capability_observability(self) -> None:
+        response = CapabilityResponse(
+            capability="campus_services",
             status="completed",
             answer_text="当前班车正常运行。",
             confidence="high",
-            agent_observability=AgentObservability(
+            capability_observability=CapabilityObservability(
                 selected_tool="transport_schedule_lookup",
                 tool_attempted=True,
                 tool_outcome="resolved_current",
@@ -56,14 +56,14 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         payload = asdict(response)
 
         self.assertEqual(
-            payload["agent_observability"]["selected_tool"],
+            payload["capability_observability"]["selected_tool"],
             "transport_schedule_lookup",
         )
-        self.assertEqual(payload["agent_observability"]["tool_attempted"], True)
-        self.assertEqual(payload["agent_observability"]["source_ref_count"], 2)
-        self.assertNotIn("raw_prompt", str(payload["agent_observability"]))
+        self.assertEqual(payload["capability_observability"]["tool_attempted"], True)
+        self.assertEqual(payload["capability_observability"]["source_ref_count"], 2)
+        self.assertNotIn("raw_prompt", str(payload["capability_observability"]))
 
-    def test_agent_observability_rejects_raw_or_auth_material_keys(self) -> None:
+    def test_capability_observability_rejects_raw_or_auth_material_keys(self) -> None:
         for key in (
             "raw_prompt",
             "rawPrompt",
@@ -79,14 +79,14 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     "forbidden raw workflow trace key",
                 ),
             ):
-                AgentObservability(
+                CapabilityObservability(
                     selected_tool="service_status_lookup",
                     safe_details={"debug": {key: "secret"}},
                 )
 
     def test_supervisor_response_serializes_workflow_trace_summary(self) -> None:
         response = SupervisorResponse(
-            selected_target="campus-services-agent",
+            selected_capability="campus_services",
             status="completed",
             confidence="high",
             workflow_trace_summary=WorkflowTraceSummary(
@@ -95,18 +95,18 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 planning_outcome="preplanned",
                 direct_vs_delegate_branch="delegate",
                 handoff={
-                    "target": "campus-services-agent",
+                    "target": "campus_services",
                     "payload_kind": "transport_schedule_lookup",
                 },
-                agent_invocations=(
+                capability_invocations=(
                     {
                         "invocation_id": "agent-invocation:1",
                         "workflow_run_ref": "workflow:req-1",
-                        "agent_id": "campus-services-agent",
+                        "capability_id": "campus_services",
                         "status": "completed",
                     },
                 ),
-                selected_target="campus-services-agent",
+                selected_capability="campus_services",
                 selected_tools=("transport_schedule_lookup",),
                 tool_argument_summary={"payload_kind": "transport_schedule_lookup"},
                 guardrail_outcomes={"scope_gate": "allow", "policy_gate": "allow"},
@@ -123,11 +123,11 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
         self.assertEqual(
             payload["workflow_trace_summary"]["handoff"]["target"],
-            "campus-services-agent",
+            "campus_services",
         )
         self.assertEqual(
-            payload["workflow_trace_summary"]["agent_invocations"][0]["agent_id"],
-            "campus-services-agent",
+            payload["workflow_trace_summary"]["capability_invocations"][0]["capability_id"],
+            "campus_services",
         )
 
     def test_workflow_trace_summary_rejects_nested_raw_or_auth_material_keys(self) -> None:
@@ -285,8 +285,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_agent_request_requires_explicit_payload(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules")
@@ -303,9 +303,9 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
         self.assertEqual(request.context.actor, ActorContext())
 
-    def test_agent_response_serializes_contact_directory_result_shape(self) -> None:
-        response = AgentResponse(
-            target="campus-services-agent",
+    def test_capability_response_serializes_contact_directory_result_shape(self) -> None:
+        response = CapabilityResponse(
+            capability="campus_services",
             status="completed",
             answer_text="招生办公室电话是010-68930001。",
             confidence="high",
@@ -389,8 +389,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             VersionQuery(mode="compare", compare_to_version_id="v2:student-handbook")
 
     def test_contract_request_shape_no_longer_owns_scope_catalog_validation(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(
@@ -404,8 +404,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(request.payload.scope.collection, "curriculum_plan")
 
     def test_request_accepts_offline_campus_services_scope(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="校园110电话是多少？",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(
@@ -419,8 +419,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(request.payload.scope.collection, "contact_directory")
 
     def test_response_serializes_rag_result_shape(self) -> None:
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="The library is open.",
             confidence="high",
@@ -457,7 +457,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "rag-agent")
+        self.assertEqual(payload["capability"], "knowledge")
         self.assertEqual(payload["status"], "completed")
         self.assertEqual(payload["confidence"], "high")
         self.assertEqual(payload["result"]["evidence"]["corpus"], "regulations")
@@ -529,22 +529,22 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 score=0.98,
             )
         self.assertEqual(
-            tuple(field.name for field in fields(AgentResponse)),
+            tuple(field.name for field in fields(CapabilityResponse)),
             (
-                "target",
+                "capability",
                 "status",
                 "answer_text",
                 "follow_up_question",
                 "confidence",
                 "result",
                 "error",
-                "agent_observability",
+                "capability_observability",
             ),
         )
 
     def test_response_serializes_place_lookup_result_shape(self) -> None:
-        response = AgentResponse(
-            target="navigation-agent",
+        response = CapabilityResponse(
+            capability="navigation",
             status="completed",
             answer_text="图书馆在海淀校区主教学区西侧，靠近校医院。",
             confidence="high",
@@ -582,7 +582,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "navigation-agent")
+        self.assertEqual(payload["capability"], "navigation")
         self.assertEqual(payload["result"]["query_text"], "图书馆在哪里")
         self.assertEqual(payload["result"]["matched_alias"], "图书馆")
         self.assertEqual(payload["result"]["resolved_place"]["place_id"], "muc.haidian.library")
@@ -597,8 +597,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_response_serializes_place_lookup_clarification_candidates(self) -> None:
-        response = AgentResponse(
-            target="navigation-agent",
+        response = CapabilityResponse(
+            capability="navigation",
             status="needs_clarification",
             follow_up_question="你要找海淀校区图书馆，还是丰台校区图书馆？",
             confidence="medium",
@@ -632,7 +632,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "navigation-agent")
+        self.assertEqual(payload["capability"], "navigation")
         self.assertEqual(len(payload["result"]["candidate_places"]), 2)
         self.assertEqual(
             payload["result"]["candidate_places"][1]["place"]["display_name"],
@@ -640,8 +640,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_response_serializes_place_lookup_result_without_point_geometry(self) -> None:
-        response = AgentResponse(
-            target="navigation-agent",
+        response = CapabilityResponse(
+            capability="navigation",
             status="completed",
             answer_text="民族博物馆在海淀校区西侧，靠近图书馆。",
             confidence="high",
@@ -682,8 +682,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             PlaceLookupPayload(query_text=" ")
 
     def test_response_serializes_rag_result_diagnostics_shape(self) -> None:
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="no_answer",
             confidence="low",
             result=RagResultPayload(
@@ -729,9 +729,9 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             ("中央民族大学本科学生国家奖学金评审办法",),
         )
 
-    def test_supervisor_response_serializes_selected_target_and_context_free_shape(self) -> None:
+    def test_supervisor_response_serializes_selected_capability_and_context_free_shape(self) -> None:
         response = SupervisorResponse(
-            selected_target="rag-agent",
+            selected_capability="knowledge",
             status="needs_clarification",
             follow_up_question="请说明你想咨询哪一类奖学金。",
             confidence="low",
@@ -739,7 +739,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["selected_target"], "rag-agent")
+        self.assertEqual(payload["selected_capability"], "knowledge")
         self.assertEqual(payload["status"], "needs_clarification")
         self.assertEqual(payload["follow_up_question"], "请说明你想咨询哪一类奖学金。")
-        self.assertNotIn("target", payload)
+        self.assertNotIn("capability", payload)

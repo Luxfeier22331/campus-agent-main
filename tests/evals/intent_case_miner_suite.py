@@ -19,7 +19,7 @@ class IntentCaseMinerTest(unittest.TestCase):
                     "intent_scope_class": "in_scope",
                     "intent_scope_reason": "structured_runtime_candidate_signal",
                     "intent_policy_reason": "",
-                    "selected_target": "rag-agent",
+                    "selected_capability": "knowledge",
                 },
                 {
                     "request_id": "req-stable-001",
@@ -30,7 +30,7 @@ class IntentCaseMinerTest(unittest.TestCase):
                     "intent_next_action": "delegate",
                     "intent_scope_class": "in_scope",
                     "intent_scope_reason": "campus_scope_signal",
-                    "selected_target": "rag-agent",
+                    "selected_capability": "knowledge",
                 },
             )
         )
@@ -84,7 +84,7 @@ class IntentCaseMinerTest(unittest.TestCase):
                     "intent_scope_reason": "campus_scope_signal",
                     "intent_context_resolution_state": "resolved",
                     "intent_context_reference_type": "curriculum_slot",
-                    "selected_target": "rag-agent",
+                    "selected_capability": "knowledge",
                 },
                 {
                     "request_id": "req-reviewed-001",
@@ -96,7 +96,7 @@ class IntentCaseMinerTest(unittest.TestCase):
                     "intent_scope_class": "in_scope",
                     "intent_scope_reason": "structured_runtime_candidate_signal",
                     "intent_review_verdict": "incorrect",
-                    "selected_target": "none",
+                    "selected_capability": "none",
                 },
             )
         )

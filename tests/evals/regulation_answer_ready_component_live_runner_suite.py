@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from campus_contracts import (
-    AgentResponse,
+    CapabilityResponse,
     ClaimSupport,
     EvidenceBundle,
     KnowledgeScope,
@@ -22,13 +22,13 @@ from campus_evals.answer_ready_component_eval import (
 from campus_evals.answer_ready_component_runtime import (
     AnswerReadyComponentRuntimeArtifact,
 )
-from campus_rag_agent.rag_sdk_models import (
+from campus_knowledge_capability.rag_sdk_models import (
     RagQueryIntent,
     RagSdkEvidenceProjection,
     RagSdkRunRequest,
     RagTaskKind,
 )
-from campus_rag_agent.typed_answer_drafts import (
+from campus_knowledge_capability.typed_answer_drafts import (
     ConditionTableDraftRow,
     EligibilityJudgmentDraft,
     PolicyListDraftItem,
@@ -36,8 +36,8 @@ from campus_rag_agent.typed_answer_drafts import (
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
-from tests.agent.rag_agent_test_support import (
-    AgentRequest,
+from tests.agent.knowledge_capability_test_support import (
+    CapabilityRequest,
     _make_handbook_source,
     _make_official_web_source,
 )
@@ -54,10 +54,12 @@ def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
 
 class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
     def test_inprocess_delegate_uses_default_retriever_when_not_provided(self) -> None:
-        from campus_evals.rag_inprocess_delegate import delegate_to_rag_agent_inprocess
+        from campus_evals.knowledge_inprocess_delegate import (
+            delegate_to_knowledge_capability_inprocess,
+        )
 
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="处分怎么消",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules")
@@ -70,8 +72,8 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
             query_text="处分怎么消",
             sources=(),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="按规定办理。",
             confidence="low",
@@ -79,16 +81,16 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
 
         with (
             patch(
-                "campus_evals.rag_inprocess_delegate._service_delegate_to_rag_agent"
+                "campus_evals.knowledge_inprocess_delegate._service_delegate_to_knowledge_capability"
             ) as service_delegate,
             patch(
-                "campus_evals.rag_inprocess_delegate._default_retriever",
+                "campus_evals.knowledge_inprocess_delegate._default_retriever",
                 return_value=evidence,
                 create=True,
             ) as default_retriever,
         ):
 
-            def _delegate_side_effect(request_arg: AgentRequest, *, retriever, **kwargs: object):
+            def _delegate_side_effect(request_arg: CapabilityRequest, *, retriever, **kwargs: object):
                 self.assertEqual(request_arg, request)
                 self.assertEqual(retriever("处分怎么消"), evidence)
                 default_retriever.assert_called_once_with("处分怎么消")
@@ -96,7 +98,7 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
 
             service_delegate.side_effect = _delegate_side_effect
 
-            actual = delegate_to_rag_agent_inprocess(request)
+            actual = delegate_to_knowledge_capability_inprocess(request)
 
         self.assertIs(actual, response)
 
@@ -213,8 +215,8 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
                 procedure_action="submit_materials",
             ),
         )
-        student_response = AgentResponse(
-            target="rag-agent",
+        student_response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="按规定提交解除处分申请表。",
             confidence="high",
@@ -247,7 +249,7 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
             )
         }
 
-        def delegate(request: AgentRequest, *, retrieval_observation_sink=None, **kwargs: object):
+        def delegate(request: CapabilityRequest, *, retrieval_observation_sink=None, **kwargs: object):
             self.assertIsInstance(request.payload, RagRequestPayload)
             self.assertEqual(request.payload.scope, KnowledgeScope("regulations", "student_rules"))
             if retrieval_observation_sink is not None:
@@ -334,11 +336,11 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
         )
 
         def delegate(
-            request: AgentRequest,
+            request: CapabilityRequest,
             *,
             retrieval_observation_sink=None,
             **kwargs: object,
-        ) -> AgentResponse:
+        ) -> CapabilityResponse:
             self.assertEqual(
                 request.payload.scope,
                 KnowledgeScope(corpus="regulations", collection="institutional_rules"),
@@ -375,8 +377,8 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
                 claim_supports = ()
                 answer_text = "当前未检索到足够依据。"
             status = "completed" if evidence else "no_answer"
-            return AgentResponse(
-                target="rag-agent",
+            return CapabilityResponse(
+                capability="knowledge",
                 status=status,
                 answer_text=answer_text,
                 confidence="high" if evidence else "low",
@@ -433,7 +435,9 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
     def test_inprocess_default_grounded_runner_preserves_policy_list_typed_answer_claims(
         self,
     ) -> None:
-        from campus_evals.rag_inprocess_delegate import _test_support_grounded_runner_for_evidence
+        from campus_evals.knowledge_inprocess_delegate import (
+            _test_support_grounded_runner_for_evidence,
+        )
 
         source = replace(
             _make_handbook_source(
@@ -507,7 +511,9 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
     def test_inprocess_default_grounded_runner_preserves_judgment_typed_answer_claims(
         self,
     ) -> None:
-        from campus_evals.rag_inprocess_delegate import _test_support_grounded_runner_for_evidence
+        from campus_evals.knowledge_inprocess_delegate import (
+            _test_support_grounded_runner_for_evidence,
+        )
 
         source = replace(
             _make_handbook_source(
@@ -567,7 +573,9 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
     def test_inprocess_default_grounded_runner_preserves_condition_table_typed_answer_claims(
         self,
     ) -> None:
-        from campus_evals.rag_inprocess_delegate import _test_support_grounded_runner_for_evidence
+        from campus_evals.knowledge_inprocess_delegate import (
+            _test_support_grounded_runner_for_evidence,
+        )
 
         source = replace(
             _make_official_web_source(

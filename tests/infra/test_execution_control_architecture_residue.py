@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -198,6 +199,66 @@ ACTIVE_EXECUTION_TRUTH_FORBIDDEN_SNIPPETS = (
     "在公开 answer / stream 入口同样走 `single_step` bridge lane",
 )
 
+DETERMINISTIC_AGENT_LABEL_FORBIDDEN_PATTERNS = (
+    "campus-services-agent",
+    "notice-agent",
+    "navigation-agent",
+    "rag-agent",
+    "campus_services_agent",
+    "campus_notice_agent",
+    "campus_navigation_agent",
+    "campus_rag_agent",
+    "delegate_to_rag_agent",
+    "delegate_to_navigation_agent",
+    "delegate_to_notice_agent",
+    "rag_agent_",
+    "notice_agent",
+    "navigation_agent",
+    "agent_dispatch",
+    "agent_delegates",
+    "AgentDispatcher",
+    "MissingAgentDelegateError",
+    "RagAgent",
+    "RAG agent",
+    "retrieval agent",
+    "agent-handoff",
+    "agent handoff",
+    "agent contract",
+    "supervisor -> agent",
+    "AgentInvocation",
+    "allowed agents",
+    "owner agent",
+)
+
+DETERMINISTIC_AGENT_LABEL_ALLOWED_PATH_PARTS = (
+    "/tests/infra/test_execution_control_architecture_residue.py",
+)
+
+DETERMINISTIC_AGENT_FIELD_FORBIDDEN_PATTERNS = (
+    "owner_agent",
+    "AgentSpec",
+    "allowed_agents",
+    "agent_id",
+    "selected_target",
+    "selected target",
+    "selected_target_label",
+    "agent_spec_admission_failed",
+)
+
+DETERMINISTIC_AGENT_FIELD_ALLOWED_PATH_PARTS = (
+    "/apps/app-api/drizzle/",
+    "/tests/infra/test_execution_control_architecture_residue.py",
+)
+
+KNOWLEDGE_CAPABILITY_SOURCE_PREFIX = (
+    "/packages/knowledge-capability/src/campus_knowledge_capability/",
+)
+
+KNOWLEDGE_CAPABILITY_FORBIDDEN_FILENAME_PREFIXES = (
+    "agent.py",
+    "agent_",
+)
+
 
 def tracked_files() -> list[Path]:
     result = subprocess.run(
@@ -262,7 +323,7 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
                 continue
             if is_historical(path):
                 continue
-            if not is_under(path, ACTIVE_TRUTH_PREFIXES + ACTIVE_RUNTIME_PREFIXES):
+            if not is_under(path, ACTIVE_TRUTH_PREFIXES + ACTIVE_RUNTIME_PREFIXES + ("/tests/",)):
                 continue
             text = read_text(path)
             for pattern in REMOVED_PLANNING_TREE_PATTERNS:
@@ -300,7 +361,7 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
 
         for path in tracked_files():
             relative = normalized_relative(path)
-            if not is_under(path, ACTIVE_RUNTIME_PREFIXES):
+            if not is_under(path, (*ACTIVE_RUNTIME_PREFIXES, "/tests/")):
                 continue
             if any(part in relative for part in ONLINE_LEASE_ALLOWED_PATH_PARTS):
                 continue
@@ -403,6 +464,58 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
             for snippet in ACTIVE_EXECUTION_TRUTH_FORBIDDEN_SNIPPETS:
                 if snippet in text:
                     offenders.append(f"{path.relative_to(ROOT)} contains {snippet}")
+
+        self.assertEqual(offenders, [])
+
+    def test_deterministic_capabilities_do_not_use_agent_runtime_labels(self) -> None:
+        offenders: list[str] = []
+
+        for path in tracked_files():
+            relative = normalized_relative(path)
+            if is_historical(path):
+                continue
+            if any(part in relative for part in DETERMINISTIC_AGENT_LABEL_ALLOWED_PATH_PARTS):
+                continue
+            if not is_under(path, ACTIVE_TRUTH_PREFIXES + ACTIVE_RUNTIME_PREFIXES):
+                continue
+            text = read_text(path)
+            for pattern in DETERMINISTIC_AGENT_LABEL_FORBIDDEN_PATTERNS:
+                if pattern in text:
+                    offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
+
+        self.assertEqual(offenders, [])
+
+    def test_knowledge_capability_source_uses_capability_runtime_names(self) -> None:
+        offenders: list[str] = []
+
+        for path in tracked_files():
+            relative = normalized_relative(path)
+            if not any(relative.startswith(prefix) for prefix in KNOWLEDGE_CAPABILITY_SOURCE_PREFIX):
+                continue
+            if any(
+                path.name == prefix or path.name.startswith(prefix)
+                for prefix in KNOWLEDGE_CAPABILITY_FORBIDDEN_FILENAME_PREFIXES
+            ):
+                offenders.append(f"{path.relative_to(ROOT)} uses retired agent module name")
+
+        self.assertEqual(offenders, [])
+
+    def test_active_contracts_use_capability_tool_fields_not_agent_fields(self) -> None:
+        offenders: list[str] = []
+
+        for path in tracked_files():
+            relative = normalized_relative(path)
+            if is_historical(path):
+                continue
+            if any(part in relative for part in DETERMINISTIC_AGENT_FIELD_ALLOWED_PATH_PARTS):
+                continue
+            if not is_under(path, ACTIVE_RUNTIME_PREFIXES):
+                continue
+            text = read_text(path)
+            for pattern in DETERMINISTIC_AGENT_FIELD_FORBIDDEN_PATTERNS:
+                token_pattern = rf"(?<![A-Za-z0-9_]){re.escape(pattern)}(?![A-Za-z0-9_])"
+                if re.search(token_pattern, text):
+                    offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
 
         self.assertEqual(offenders, [])
 

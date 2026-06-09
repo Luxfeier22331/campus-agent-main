@@ -7,9 +7,9 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 )
 
-func TestDirectStructuredHandoffDecisionSkipsSdkAdmittedTools(t *testing.T) {
+func TestDirectStructuredHandoffDecisionSkipsTypedActivityAdmittedTools(t *testing.T) {
 	handoff := &execution.RuntimeHandoff{
-		Target:       "campus-services-agent",
+		Capability:   "campus_services",
 		PayloadKind:  "service_status_lookup",
 		AllowedTools: []string{"service_status_lookup"},
 	}
@@ -19,7 +19,7 @@ func TestDirectStructuredHandoffDecisionSkipsSdkAdmittedTools(t *testing.T) {
 		Tools: []runtimepolicy.ToolSpec{
 			{
 				Name:             "service_status_lookup",
-				OwnerAgent:       "campus-services-agent",
+				OwnerCapability:  "campus_services",
 				Capability:       "campus_services",
 				PayloadKind:      "service_status_lookup",
 				PayloadSchemaRef: "campus_contracts.models_tools.ServiceStatusLookupPayload",
@@ -32,19 +32,19 @@ func TestDirectStructuredHandoffDecisionSkipsSdkAdmittedTools(t *testing.T) {
 					Available: true,
 					Strict:    true,
 				},
-				RuntimePosture: "sdk_adapter_admitted",
+				RuntimePosture: "typed_activity_admitted",
 			},
 		},
 	}
 
 	if directStructuredHandoffDecision(handoff, registry) {
-		t.Fatal("sdk_adapter_admitted tool must not direct-execute in Go answer path")
+		t.Fatal("typed_activity_admitted tool must not direct-execute in Go answer path")
 	}
 }
 
 func TestDirectStructuredHandoffDecisionAllowsTypedHandoffOnlyTools(t *testing.T) {
 	handoff := &execution.RuntimeHandoff{
-		Target:       "campus-services-agent",
+		Capability:   "campus_services",
 		PayloadKind:  "service_status_lookup",
 		AllowedTools: []string{"service_status_lookup"},
 	}
@@ -54,7 +54,7 @@ func TestDirectStructuredHandoffDecisionAllowsTypedHandoffOnlyTools(t *testing.T
 		Tools: []runtimepolicy.ToolSpec{
 			{
 				Name:             "service_status_lookup",
-				OwnerAgent:       "campus-services-agent",
+				OwnerCapability:  "campus_services",
 				Capability:       "campus_services",
 				PayloadKind:      "service_status_lookup",
 				PayloadSchemaRef: "campus_contracts.models_tools.ServiceStatusLookupPayload",
@@ -79,7 +79,7 @@ func TestDirectStructuredHandoffDecisionAllowsTypedHandoffOnlyTools(t *testing.T
 
 func TestShapeStructuredSupervisorResponseReturnsExplicitFinalizerFailureEnvelope(t *testing.T) {
 	response := shapeStructuredSupervisorResponse(
-		"campus-services-agent",
+		"campus_services",
 		"service_status_lookup",
 		map[string]any{
 			"outcome": "resolved_current",
@@ -88,12 +88,12 @@ func TestShapeStructuredSupervisorResponseReturnsExplicitFinalizerFailureEnvelop
 		supervisorFinalizerContext{
 			Branch: "delegate",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
-				SelectedTarget:    "rag-agent",
-				RoutingNextAction: "delegate",
-				PlanningOutcome:   "preplanned",
+				SelectedCapability: "knowledge",
+				RoutingNextAction:  "delegate",
+				PlanningOutcome:    "preplanned",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Target:       "rag-agent",
+				Capability:   "knowledge",
 				PayloadKind:  "rag_request",
 				AllowedTools: []string{"retrieval.query"},
 			},

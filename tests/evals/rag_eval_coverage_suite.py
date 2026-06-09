@@ -109,7 +109,7 @@ class RagEvalCoverageSuite(unittest.TestCase):
     {
       "surface_id": "student_rules",
       "domain_owner": "regulations/student_rules",
-      "capability_family": "rag-agent",
+      "capability_family": "knowledge",
       "admission_state": "admitted",
       "truth_scope": "denominator_expectation",
       "authors_domain_truth": false,
@@ -118,7 +118,7 @@ class RagEvalCoverageSuite(unittest.TestCase):
     {
       "surface_id": "official_web/fresh_news",
       "domain_owner": "official_web/fresh_news",
-      "capability_family": "rag-agent",
+      "capability_family": "knowledge",
       "admission_state": "admitted",
       "truth_scope": "denominator_expectation",
       "authors_domain_truth": false,

@@ -39,7 +39,7 @@ import {
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatCapabilityLabel,
 	formatPrincipalTypeLabel,
-	formatSelectedTargetLabel,
+	formatSelectedCapabilityLabel,
 	formatSurfaceLabel,
 } from "../requests/request-formatters";
 import { buildRequestShowPath } from "../requests/request-routes";
@@ -57,7 +57,7 @@ interface AuditFilterState {
 	perPage: number;
 	principalType: string;
 	requestId: string;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: string;
 	surface: string | null;
 	traceId: string;
@@ -161,7 +161,7 @@ export function AuditPage() {
 		perPage: 10,
 		principalType: "",
 		requestId: "",
-		selectedTarget: null,
+		selectedCapability: null,
 		status: "",
 		surface: null,
 		traceId: "",
@@ -171,7 +171,7 @@ export function AuditPage() {
 	const deferredTraceId = useDeferredValue(filters.traceId);
 	const deferredPrincipalType = useDeferredValue(filters.principalType);
 	const deferredSurface = useDeferredValue(filters.surface);
-	const deferredSelectedTarget = useDeferredValue(filters.selectedTarget);
+	const deferredSelectedCapability = useDeferredValue(filters.selectedCapability);
 	const deferredEventType = useDeferredValue(filters.eventType);
 	const deferredStatus = useDeferredValue(filters.status);
 
@@ -180,7 +180,7 @@ export function AuditPage() {
 		filters.traceId !== deferredTraceId ||
 		filters.principalType !== deferredPrincipalType ||
 		filters.surface !== deferredSurface ||
-		filters.selectedTarget !== deferredSelectedTarget ||
+		filters.selectedCapability !== deferredSelectedCapability ||
 		filters.eventType !== deferredEventType ||
 		filters.status !== deferredStatus;
 
@@ -192,7 +192,7 @@ export function AuditPage() {
 				perPage: filters.perPage,
 				principalType: normalizeFilterValue(deferredPrincipalType),
 				requestId: normalizeFilterValue(deferredRequestId),
-				selectedTarget: deferredSelectedTarget,
+				selectedCapability: deferredSelectedCapability,
 				signal,
 				status: normalizeFilterValue(deferredStatus),
 				surface: deferredSurface,
@@ -206,7 +206,7 @@ export function AuditPage() {
 			deferredTraceId,
 			deferredPrincipalType,
 			deferredSurface,
-			deferredSelectedTarget,
+			deferredSelectedCapability,
 			deferredEventType,
 			deferredStatus,
 		] as const,
@@ -260,8 +260,8 @@ export function AuditPage() {
 			filters.surface
 				? `${PANEL_COPY.auditPage.filterSummary.surface}: ${formatSurfaceLabel(filters.surface)}`
 				: null,
-			filters.selectedTarget
-				? `${PANEL_COPY.auditPage.filterSummary.selectedTarget}: ${formatSelectedTargetLabel(filters.selectedTarget)}`
+			filters.selectedCapability
+				? `${PANEL_COPY.auditPage.filterSummary.selectedCapability}: ${formatSelectedCapabilityLabel(filters.selectedCapability)}`
 				: null,
 			filters.eventType
 				? `${PANEL_COPY.auditPage.filterSummary.eventType}: ${filters.eventType}`
@@ -274,7 +274,7 @@ export function AuditPage() {
 		filters.eventType,
 		filters.principalType,
 		filters.requestId,
-		filters.selectedTarget,
+		filters.selectedCapability,
 		filters.status,
 		filters.surface,
 		filters.traceId,
@@ -400,13 +400,13 @@ export function AuditPage() {
 										))}
 									</TextField>
 									<TextField
-										label={PANEL_COPY.auditPage.filters.selectedTarget}
+										label={PANEL_COPY.auditPage.filters.selectedCapability}
 										onChange={(event) => {
 											startTransition(() => {
 												setFilters((current) => ({
 													...current,
 													page: 1,
-													selectedTarget: normalizeFilterValue(event.target.value),
+													selectedCapability: normalizeFilterValue(event.target.value),
 												}));
 											});
 										}}
@@ -414,7 +414,7 @@ export function AuditPage() {
 										size="small"
 										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 180, xs: "100%" } }}
-										value={filters.selectedTarget ?? ""}
+										value={filters.selectedCapability ?? ""}
 									>
 										{TARGET_OPTIONS.map((option) => (
 											<MenuItem key={option.value ?? "all"} value={option.value ?? ""}>
@@ -514,7 +514,7 @@ export function AuditPage() {
 												<TableCell>{PANEL_COPY.auditPage.columns.status}</TableCell>
 												<TableCell>{PANEL_COPY.auditPage.columns.surface}</TableCell>
 												<TableCell>{PANEL_COPY.auditPage.columns.principalType}</TableCell>
-												<TableCell>{PANEL_COPY.auditPage.columns.selectedTarget}</TableCell>
+												<TableCell>{PANEL_COPY.auditPage.columns.selectedCapability}</TableCell>
 												<TableCell>{PANEL_COPY.auditPage.columns.actions}</TableCell>
 											</TableRow>
 										</TableHead>
@@ -539,7 +539,7 @@ export function AuditPage() {
 														{formatPrincipalTypeLabel(event.principalType)}
 													</TableCell>
 													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
-														{formatSelectedTargetLabel(event.selectedTarget)}
+														{formatSelectedCapabilityLabel(event.selectedCapability)}
 													</TableCell>
 													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
 														<Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap" }}>
@@ -716,9 +716,9 @@ export function AuditPage() {
 									{formatCapabilityLabel(detailEvent?.requestedCapability ?? null)}
 								</Typography>
 								<Typography variant="body2">
-									<strong>{PANEL_COPY.auditPage.columns.selectedTarget}</strong>:{" "}
-									{formatSelectedTargetLabel(
-										detailEvent?.selectedTarget ?? selectedEvent?.selectedTarget ?? null,
+									<strong>{PANEL_COPY.auditPage.columns.selectedCapability}</strong>:{" "}
+									{formatSelectedCapabilityLabel(
+										detailEvent?.selectedCapability ?? selectedEvent?.selectedCapability ?? null,
 									)}
 								</Typography>
 								<Typography variant="body2">

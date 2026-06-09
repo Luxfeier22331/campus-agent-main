@@ -159,7 +159,7 @@ export async function listOperatorQualityBadcases(
 		buildQuery(query) {
 			appendOptionalQueryParam(query, "window", input?.window);
 			appendOptionalQueryParam(query, "surface", input?.surface);
-			appendOptionalQueryParam(query, "selectedTarget", input?.selectedTarget);
+			appendOptionalQueryParam(query, "selectedCapability", input?.selectedCapability);
 			appendOptionalQueryParam(query, "status", input?.status);
 			appendOptionalQueryParam(query, "causeClass", input?.causeClass);
 			appendOptionalQueryParam(query, "detectedBy", input?.detectedBy);
@@ -167,7 +167,7 @@ export async function listOperatorQualityBadcases(
 		cursorFilter: {
 			causeClass: input?.causeClass,
 			detectedBy: input?.detectedBy,
-			selectedTarget: input?.selectedTarget,
+			selectedCapability: input?.selectedCapability,
 			status: input?.status,
 			surface: input?.surface,
 			window: input?.window,
@@ -196,7 +196,7 @@ export async function listOperatorQualityEvalCandidates(
 		buildQuery(query) {
 			appendOptionalQueryParam(query, "window", input?.window);
 			appendOptionalQueryParam(query, "surface", input?.surface);
-			appendOptionalQueryParam(query, "selectedTarget", input?.selectedTarget);
+			appendOptionalQueryParam(query, "selectedCapability", input?.selectedCapability);
 			appendOptionalQueryParam(query, "status", input?.status);
 			appendOptionalQueryParam(query, "causeClass", input?.causeClass);
 			appendOptionalQueryParam(query, "detectedBy", input?.detectedBy);
@@ -204,7 +204,7 @@ export async function listOperatorQualityEvalCandidates(
 		cursorFilter: {
 			causeClass: input?.causeClass,
 			detectedBy: input?.detectedBy,
-			selectedTarget: input?.selectedTarget,
+			selectedCapability: input?.selectedCapability,
 			status: input?.status,
 			surface: input?.surface,
 			window: input?.window,
@@ -251,14 +251,14 @@ export async function listOperatorSafetyAnomalies(
 		buildQuery(query) {
 			appendOptionalQueryParam(query, "window", input?.window);
 			appendOptionalQueryParam(query, "surface", input?.surface);
-			appendOptionalQueryParam(query, "selectedTarget", input?.selectedTarget);
+			appendOptionalQueryParam(query, "selectedCapability", input?.selectedCapability);
 			appendOptionalQueryParam(query, "severity", input?.severity);
 			appendOptionalQueryParam(query, "status", input?.status);
 			appendOptionalQueryParam(query, "anomalyCode", input?.anomalyCode);
 		},
 		cursorFilter: {
 			anomalyCode: input?.anomalyCode,
-			selectedTarget: input?.selectedTarget,
+			selectedCapability: input?.selectedCapability,
 			severity: input?.severity,
 			status: input?.status,
 			surface: input?.surface,
@@ -338,7 +338,7 @@ export async function listOperatorAudit(
 			appendOptionalQueryParam(query, "traceId", input?.traceId);
 			appendOptionalQueryParam(query, "principalType", input?.principalType);
 			appendOptionalQueryParam(query, "surface", input?.surface);
-			appendOptionalQueryParam(query, "selectedTarget", input?.selectedTarget);
+			appendOptionalQueryParam(query, "selectedCapability", input?.selectedCapability);
 			appendOptionalQueryParam(query, "eventType", input?.eventType);
 			appendOptionalQueryParam(query, "status", input?.status);
 		},
@@ -346,7 +346,7 @@ export async function listOperatorAudit(
 			eventType: input?.eventType,
 			principalType: input?.principalType,
 			requestId: input?.requestId,
-			selectedTarget: input?.selectedTarget,
+			selectedCapability: input?.selectedCapability,
 			status: input?.status,
 			surface: input?.surface,
 			traceId: input?.traceId,

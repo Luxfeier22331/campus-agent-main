@@ -26,7 +26,7 @@ import { PanelPage } from "../panel-page";
 import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../panel-select";
 import {
 	CURRENT_RUNTIME_TARGET_OPTIONS,
-	formatSelectedTargetLabel,
+	formatSelectedCapabilityLabel,
 	formatSurfaceLabel,
 } from "../requests/request-formatters";
 import type {
@@ -46,7 +46,7 @@ import {
 } from "./overview-page/formatters";
 
 interface IntentFilterState {
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	surface: string | null;
 	window: OperatorOverviewWindow;
 }
@@ -195,25 +195,25 @@ export function IntentPage() {
 	useAuthenticated();
 	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
 	const [filters, setFilters] = useState<IntentFilterState>({
-		selectedTarget: null,
+		selectedCapability: null,
 		surface: null,
 		window: "24h",
 	});
 
 	const deferredWindow = useDeferredValue(filters.window);
 	const deferredSurface = useDeferredValue(filters.surface);
-	const deferredSelectedTarget = useDeferredValue(filters.selectedTarget);
+	const deferredSelectedCapability = useDeferredValue(filters.selectedCapability);
 	const isRefreshing =
 		filters.window !== deferredWindow ||
 		filters.surface !== deferredSurface ||
-		filters.selectedTarget !== deferredSelectedTarget;
+		filters.selectedCapability !== deferredSelectedCapability;
 
 	const [summaryQuery, timeseriesQuery] = useQueries({
 		queries: [
 			{
 				queryFn: ({ signal }) =>
 					dataProvider.getOperatorIntentSummary({
-						selectedTarget: deferredSelectedTarget,
+						selectedCapability: deferredSelectedCapability,
 						signal,
 						surface: deferredSurface,
 						window: deferredWindow,
@@ -222,7 +222,7 @@ export function IntentPage() {
 					"protected-panel-intent-summary",
 					deferredWindow,
 					deferredSurface,
-					deferredSelectedTarget,
+					deferredSelectedCapability,
 				] as const,
 				staleTime: 30_000,
 			},
@@ -230,7 +230,7 @@ export function IntentPage() {
 				queryFn: ({ signal }) =>
 					dataProvider.getOperatorIntentTimeseries({
 						granularity: resolveOverviewGranularity(deferredWindow),
-						selectedTarget: deferredSelectedTarget,
+						selectedCapability: deferredSelectedCapability,
 						signal,
 						surface: deferredSurface,
 						window: deferredWindow,
@@ -240,7 +240,7 @@ export function IntentPage() {
 					deferredWindow,
 					resolveOverviewGranularity(deferredWindow),
 					deferredSurface,
-					deferredSelectedTarget,
+					deferredSelectedCapability,
 				] as const,
 				staleTime: 30_000,
 			},
@@ -265,13 +265,13 @@ export function IntentPage() {
 					? formatSurfaceLabel(filters.surface)
 					: PANEL_COPY.overviewPage.filters.allSurfaces
 			}`,
-			`${PANEL_COPY.overviewPage.filterSummary.selectedTarget}: ${
-				filters.selectedTarget
-					? formatSelectedTargetLabel(filters.selectedTarget)
+			`${PANEL_COPY.overviewPage.filterSummary.selectedCapability}: ${
+				filters.selectedCapability
+					? formatSelectedCapabilityLabel(filters.selectedCapability)
 					: PANEL_COPY.overviewPage.filters.allTargets
 			}`,
 		],
-		[filters.selectedTarget, filters.surface, filters.window],
+		[filters.selectedCapability, filters.surface, filters.window],
 	);
 
 	return (
@@ -338,12 +338,12 @@ export function IntentPage() {
 										))}
 									</TextField>
 									<TextField
-										label={PANEL_COPY.overviewPage.filters.selectedTarget}
+										label={PANEL_COPY.overviewPage.filters.selectedCapability}
 										onChange={(event) => {
 											startTransition(() => {
 												setFilters((current) => ({
 													...current,
-													selectedTarget: normalizeFilterValue(event.target.value),
+													selectedCapability: normalizeFilterValue(event.target.value),
 												}));
 											});
 										}}
@@ -351,7 +351,7 @@ export function IntentPage() {
 										size="small"
 										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 220, xs: "100%" } }}
-										value={filters.selectedTarget ?? ""}
+										value={filters.selectedCapability ?? ""}
 									>
 										{TARGET_OPTIONS.map((option) => (
 											<MenuItem key={option.value ?? "all"} value={option.value ?? ""}>

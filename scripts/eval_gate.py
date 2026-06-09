@@ -440,11 +440,11 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
 
         return runner
     if normalized == "multi-agent-runtime-contract":
-        from campus_evals.multi_agent_runtime_contract_gate import main as runner
+        from campus_evals.multi_capability_runtime_contract_gate import main as runner
 
         return runner
     if normalized == "multi-agent-live-smoke":
-        from campus_evals.multi_agent_live_smoke_gate import main as runner
+        from campus_evals.multi_capability_live_smoke_gate import main as runner
 
         return runner
     if normalized == "public-chat-entry-e2e":

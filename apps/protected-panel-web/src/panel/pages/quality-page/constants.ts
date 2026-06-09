@@ -13,7 +13,7 @@ export interface QualityFilterState {
 	evalPage: number;
 	page: number;
 	perPage: number;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	surface: string | null;
 	window: OperatorOverviewWindow;
 }

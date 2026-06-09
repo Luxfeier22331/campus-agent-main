@@ -10,7 +10,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
         def fake_agent(request):
             started.set()
             release.wait(timeout=1.0)
-            return AgentResponse(
+            return CapabilityResponse(
                 target=request.target,
                 status="completed",
                 answer_text="completed after cancel signal",
@@ -21,7 +21,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=fake_agent,
+            capability_handler=fake_agent,
         )
 
         thread = threading.Thread(
@@ -141,7 +141,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
                     trace_id="trace-campus-services-query",
                     effective_capability="campus_services",
                     lane="campus_services",
-                    handoff_target="campus-services-agent",
+                    handoff_target="campus_services",
                     payload_kind="transport_schedule_lookup",
                     allowed_tools=["transport_schedule_lookup"],
                     payload={
@@ -159,7 +159,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
             thread.join(timeout=1.0)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json_body["target"], "campus-services-agent")
+        self.assertEqual(response.json_body["target"], "campus_services")
         self.assertEqual(response.json_body["status"], "completed")
         self.assertEqual(len(query_requests), 1)
         self.assertEqual(
@@ -233,7 +233,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
                     trace_id="trace-go-preplanned-transport",
                     effective_capability="campus_services",
                     lane="campus_services",
-                    handoff_target="campus-services-agent",
+                    handoff_target="campus_services",
                     payload_kind="transport_schedule_lookup",
                     allowed_tools=["transport_schedule_lookup"],
                     payload={
@@ -255,7 +255,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
             thread.join(timeout=1.0)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json_body["target"], "campus-services-agent")
+        self.assertEqual(response.json_body["target"], "campus_services")
         self.assertEqual(len(query_requests), 1)
         payload = query_requests[0]["payload"]
         self.assertEqual(payload["intent"], "first_departure")

@@ -43,7 +43,7 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
 
     if kind == "answer":
         return SupervisorResponse(
-            selected_target="rag-agent",
+            selected_capability="knowledge",
             status="completed",
             answer_text=_required_string(result.get("text"), "answer.result.text"),
             confidence="low",
@@ -52,7 +52,7 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
     if kind == "clarification":
         follow_up = _required_string(result.get("text"), "answer.result.text")
         return SupervisorResponse(
-            selected_target="rag-agent",
+            selected_capability="knowledge",
             status="needs_clarification",
             answer_text=follow_up,
             follow_up_question=follow_up,
@@ -61,7 +61,7 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
         )
     if kind == "no_answer":
         return SupervisorResponse(
-            selected_target="rag-agent",
+            selected_capability="knowledge",
             status="no_answer",
             answer_text=_required_string(result.get("text"), "answer.result.text"),
             confidence="low",
@@ -71,7 +71,7 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
         message = _required_string(result.get("message"), "answer.result.message")
         error_code = _required_string(result.get("errorCode"), "answer.result.errorCode")
         return SupervisorResponse(
-            selected_target=None,
+            selected_capability=None,
             status="error",
             answer_text=message,
             confidence="low",
@@ -87,7 +87,7 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
 
 def _build_supervisor_response_from_internal_eval(payload: dict[str, object]) -> SupervisorResponse:
     status = _required_string(payload.get("status"), "supervisor.status")
-    selected_target = _optional_string(payload.get("selectedTarget"))
+    selected_capability = _optional_string(payload.get("selectedCapability"))
     answer_text = _optional_string(payload.get("answerText")) or ""
     follow_up_question = _optional_string(payload.get("followUpQuestion")) or ""
     trace_id = _required_string(payload.get("traceId"), "supervisor.traceId")
@@ -103,7 +103,7 @@ def _build_supervisor_response_from_internal_eval(payload: dict[str, object]) ->
         )
 
     return SupervisorResponse(
-        selected_target=selected_target,
+        selected_capability=selected_capability,
         status=status,  # type: ignore[arg-type]
         answer_text=answer_text,
         follow_up_question=follow_up_question,
@@ -147,7 +147,7 @@ def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
         or "",
         handoff=_optional_record(record.get("handoff")) or {},
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
-        selected_target=_optional_string(_record_value(record, "selected_target", "selectedTarget"))
+        selected_capability=_optional_string(_record_value(record, "selected_capability", "selectedCapability"))
         or "",
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(

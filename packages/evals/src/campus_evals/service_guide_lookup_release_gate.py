@@ -51,7 +51,7 @@ CAMPUS_SERVICES_AGENT_TEST_COMMAND = (
     "python",
     "-m",
     "unittest",
-    "tests.agent.test_campus_services_agent",
+    "tests.agent.test_campus_services_capability",
 )
 APP_API_SERVICE_GUIDE_TEST_COMMAND = (
     "pnpm",
@@ -195,7 +195,7 @@ def run_service_guide_lookup_release_gate(
             cwd=EXECUTION_CONTROL_DIR,
         ),
         _run_command_check(
-            check_id="campus_services_agent_contract_tests",
+            check_id="campus_services_capability_contract_tests",
             command=CAMPUS_SERVICES_AGENT_TEST_COMMAND,
             command_runner=resolved_command_runner,
             cwd=REPO_ROOT,

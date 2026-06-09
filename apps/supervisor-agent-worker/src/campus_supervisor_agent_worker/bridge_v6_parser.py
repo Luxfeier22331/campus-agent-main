@@ -4,9 +4,9 @@ from dataclasses import dataclass
 
 from campus_contracts import (
     ALLOWED_REQUESTED_CAPABILITIES,
-    AgentRequest,
+    CapabilityRequest,
     SupervisorRequest,
-    WorkflowAgentContext,
+    WorkflowCapabilityContext,
 )
 from pydantic import ValidationError
 
@@ -44,7 +44,7 @@ from campus_supervisor_agent_worker.openai_agents_workflow_plan import (
 @dataclass(frozen=True, slots=True)
 class BridgeSupervisorEnvelope:
     request: SupervisorRequest
-    agent_request: AgentRequest | None = None
+    capability_request: CapabilityRequest | None = None
     routing_frame: dict[str, object] | None = None
 
 
@@ -79,7 +79,7 @@ def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuperv
             require_object(payload.get("version_query"), field_name="version_query")
         ),
     )
-    agent_request, routing_frame = _parse_runtime_decisions(
+    capability_request, routing_frame = _parse_runtime_decisions(
         payload.get("runtime_decisions"),
         effective_capability=effective_capability,
         lane=lane,
@@ -87,7 +87,7 @@ def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuperv
     )
     return BridgeSupervisorEnvelope(
         request=request,
-        agent_request=agent_request,
+        capability_request=capability_request,
         routing_frame=routing_frame,
     )
 
@@ -128,7 +128,7 @@ def _parse_runtime_decisions(
     effective_capability: str,
     lane: str,
     request: SupervisorRequest,
-) -> tuple[AgentRequest, dict[str, object]]:
+) -> tuple[CapabilityRequest, dict[str, object]]:
     decisions = require_object(raw_decisions, field_name="runtime_decisions")
     schema_version = require_string(
         decisions.get("schema_version"),
@@ -166,25 +166,25 @@ def _parse_runtime_decisions(
     )
     if planning_outcome != "preplanned":
         raise ValueError("runtime_decisions.handoff.planning_outcome must be preplanned")
-    target = require_string(
-        handoff.get("target"),
-        field_name="runtime_decisions.handoff.target",
+    capability = require_string(
+        handoff.get("capability"),
+        field_name="runtime_decisions.handoff.capability",
     )
     allowed_tools = parse_string_tuple(
         handoff.get("allowed_tools"),
         field_name="runtime_decisions.handoff.allowed_tools",
     )
-    agent_request = _parse_agent_handoff_request(
-        handoff.get("agent_request"),
-        expected_target=target,
+    capability_request = _parse_capability_handoff_request(
+        handoff.get("capability_request"),
+        expected_capability=capability,
         expected_allowed_tools=allowed_tools,
     )
     _validate_workflow_plan(
         decisions.get("workflow_plan"),
-        agent_request=agent_request,
+        capability_request=capability_request,
     )
-    _assert_agent_request_matches_supervisor_request(agent_request, request)
-    return agent_request, routing_frame
+    _assert_capability_request_matches_supervisor_request(capability_request, request)
+    return capability_request, routing_frame
 
 
 def _parse_routing_frame(
@@ -230,97 +230,99 @@ def _parse_routing_frame(
     return dict(frame), suggested_next_action
 
 
-def _parse_agent_handoff_request(
+def _parse_capability_handoff_request(
     raw_request: object,
     *,
-    expected_target: str,
+    expected_capability: str,
     expected_allowed_tools: tuple[str, ...],
-) -> AgentRequest:
+) -> CapabilityRequest:
     request = require_object(
         raw_request,
-        field_name="runtime_decisions.handoff.agent_request",
+        field_name="runtime_decisions.handoff.capability_request",
     )
-    target = require_string(
-        request.get("target"),
-        field_name="runtime_decisions.handoff.agent_request.target",
+    capability = require_string(
+        request.get("capability"),
+        field_name="runtime_decisions.handoff.capability_request.capability",
     )
-    if target != expected_target:
-        raise ValueError("runtime_decisions.handoff.agent_request.target must match target")
+    if capability != expected_capability:
+        raise ValueError(
+            "runtime_decisions.handoff.capability_request.capability must match capability"
+        )
     allowed_tools = parse_string_tuple(
         request.get("allowed_tools"),
-        field_name="runtime_decisions.handoff.agent_request.allowed_tools",
+        field_name="runtime_decisions.handoff.capability_request.allowed_tools",
     )
     if allowed_tools != expected_allowed_tools:
         raise ValueError(
-            "runtime_decisions.handoff.agent_request.allowed_tools must match allowed_tools"
+            "runtime_decisions.handoff.capability_request.allowed_tools must match allowed_tools"
         )
     payload_envelope = require_object(
         request.get("payload"),
-        field_name="runtime_decisions.handoff.agent_request.payload",
+        field_name="runtime_decisions.handoff.capability_request.payload",
     )
     payload_kind = require_string(
         payload_envelope.get("kind"),
-        field_name="runtime_decisions.handoff.agent_request.payload.kind",
+        field_name="runtime_decisions.handoff.capability_request.payload.kind",
     )
     payload = require_object(
         payload_envelope.get("payload"),
-        field_name="runtime_decisions.handoff.agent_request.payload.payload",
+        field_name="runtime_decisions.handoff.capability_request.payload.payload",
     )
-    return AgentRequest(
-        target=target,  # type: ignore[arg-type]
+    return CapabilityRequest(
+        capability=capability,  # type: ignore[arg-type]
         user_goal=require_string(
             request.get("user_goal"),
-            field_name="runtime_decisions.handoff.agent_request.user_goal",
+            field_name="runtime_decisions.handoff.capability_request.user_goal",
         ),
         conversation_id=(
             parse_optional_string(
                 request.get("conversation_id"),
-                field_name="runtime_decisions.handoff.agent_request.conversation_id",
+                field_name="runtime_decisions.handoff.capability_request.conversation_id",
             )
             or ""
         ),
         request_id=require_string(
             request.get("request_id"),
-            field_name="runtime_decisions.handoff.agent_request.request_id",
+            field_name="runtime_decisions.handoff.capability_request.request_id",
         ),
         safety_identifier=parse_optional_string(
             request.get("safety_identifier"),
-            field_name="runtime_decisions.handoff.agent_request.safety_identifier",
+            field_name="runtime_decisions.handoff.capability_request.safety_identifier",
         ),
         trace=parse_trace_context(request.get("trace")),
         actor=parse_actor_context(
             request.get("actor"),
-            field_prefix="runtime_decisions.handoff.agent_request.actor",
+            field_prefix="runtime_decisions.handoff.capability_request.actor",
         ),
         context=parse_bridge_context_projection(request.get("context")),
-        workflow_context=parse_workflow_agent_context(request.get("workflow_context")),
+        workflow_context=parse_workflow_capability_context(request.get("workflow_context")),
         payload=parse_agent_payload_by_kind(payload_kind, payload),
         allowed_tools=allowed_tools,  # type: ignore[arg-type]
     )
 
 
-def _validate_workflow_plan(raw_plan: object, *, agent_request: AgentRequest) -> None:
+def _validate_workflow_plan(raw_plan: object, *, capability_request: CapabilityRequest) -> None:
     if raw_plan is None:
         raise ValueError("runtime_decisions.workflow_plan must be present for delegate handoff")
     try:
-        compile_openai_agents_workflow_plan(raw_plan, agent_request=agent_request)
+        compile_openai_agents_workflow_plan(raw_plan, capability_request=capability_request)
     except OpenAIAgentsWorkflowPlanError as exc:
         raise ValueError(
             f"runtime_decisions.workflow_plan {exc.failure_class}: {exc.message}"
         ) from exc
 
 
-def parse_workflow_agent_context(raw_context: object) -> WorkflowAgentContext:
+def parse_workflow_capability_context(raw_context: object) -> WorkflowCapabilityContext:
     if raw_context is None:
-        return WorkflowAgentContext()
+        return WorkflowCapabilityContext()
     context = require_object(
         raw_context,
-        field_name="runtime_decisions.handoff.agent_request.workflow_context",
+        field_name="runtime_decisions.handoff.capability_request.workflow_context",
     )
     raw_projection_refs = context.get("projection_refs", [])
     if not isinstance(raw_projection_refs, list):
         raise ValueError(
-            "runtime_decisions.handoff.agent_request.workflow_context.projection_refs must be an array"
+            "runtime_decisions.handoff.capability_request.workflow_context.projection_refs must be an array"
         )
     projection_refs = []
     for item in raw_projection_refs:
@@ -328,43 +330,43 @@ def parse_workflow_agent_context(raw_context: object) -> WorkflowAgentContext:
             require_object(
                 item,
                 field_name=(
-                    "runtime_decisions.handoff.agent_request.workflow_context.projection_refs[]"
+                    "runtime_decisions.handoff.capability_request.workflow_context.projection_refs[]"
                 ),
             )
         )
-    return WorkflowAgentContext(
+    return WorkflowCapabilityContext(
         schema_version=(
             parse_optional_string(
                 context.get("schema_version"),
                 field_name=(
-                    "runtime_decisions.handoff.agent_request.workflow_context.schema_version"
+                    "runtime_decisions.handoff.capability_request.workflow_context.schema_version"
                 ),
             )
-            or "workflow-agent-context-v1"
+            or "workflow-capability-context-v1"
         ),
         visibility=(
             parse_optional_string(
                 context.get("visibility"),
-                field_name="runtime_decisions.handoff.agent_request.workflow_context.visibility",
+                field_name="runtime_decisions.handoff.capability_request.workflow_context.visibility",
             )
-            or "agent_private"
+            or "capability_private"
         ),
         workflow_run_ref=require_string(
             context.get("workflow_run_ref"),
-            field_name="runtime_decisions.handoff.agent_request.workflow_context.workflow_run_ref",
+            field_name="runtime_decisions.handoff.capability_request.workflow_context.workflow_run_ref",
         ),
         step_id=require_string(
             context.get("step_id"),
-            field_name="runtime_decisions.handoff.agent_request.workflow_context.step_id",
+            field_name="runtime_decisions.handoff.capability_request.workflow_context.step_id",
         ),
-        agent_id=require_string(
-            context.get("agent_id"),
-            field_name="runtime_decisions.handoff.agent_request.workflow_context.agent_id",
+        capability_id=require_string(
+            context.get("capability_id"),
+            field_name="runtime_decisions.handoff.capability_request.workflow_context.capability_id",
         ),
-        target=(
+        capability=(
             parse_optional_string(
-                context.get("target"),
-                field_name="runtime_decisions.handoff.agent_request.workflow_context.target",
+                context.get("capability"),
+                field_name="runtime_decisions.handoff.capability_request.workflow_context.capability",
             )
             or ""
         ),
@@ -372,7 +374,7 @@ def parse_workflow_agent_context(raw_context: object) -> WorkflowAgentContext:
             parse_optional_string(
                 context.get("required_projection_kind"),
                 field_name=(
-                    "runtime_decisions.handoff.agent_request.workflow_context."
+                    "runtime_decisions.handoff.capability_request.workflow_context."
                     "required_projection_kind"
                 ),
             )
@@ -381,35 +383,39 @@ def parse_workflow_agent_context(raw_context: object) -> WorkflowAgentContext:
         expected_output_artifacts=parse_string_tuple(
             context.get("expected_output_artifacts"),
             field_name=(
-                "runtime_decisions.handoff.agent_request.workflow_context.expected_output_artifacts"
+                "runtime_decisions.handoff.capability_request.workflow_context.expected_output_artifacts"
             ),
         ),
         projection_refs=tuple(projection_refs),
     )
 
 
-def _assert_agent_request_matches_supervisor_request(
-    agent_request: AgentRequest,
+def _assert_capability_request_matches_supervisor_request(
+    capability_request: CapabilityRequest,
     request: SupervisorRequest,
 ) -> None:
-    if agent_request.user_goal != request.user_goal:
-        raise ValueError("runtime_decisions.handoff.agent_request.user_goal must match user_goal")
-    if agent_request.conversation_id != request.conversation_id:
+    if capability_request.user_goal != request.user_goal:
         raise ValueError(
-            "runtime_decisions.handoff.agent_request.conversation_id must match conversation_id"
+            "runtime_decisions.handoff.capability_request.user_goal must match user_goal"
         )
-    if agent_request.request_id != request.request_id:
-        raise ValueError("runtime_decisions.handoff.agent_request.request_id must match request_id")
-    if agent_request.safety_identifier != request.safety_identifier:
+    if capability_request.conversation_id != request.conversation_id:
         raise ValueError(
-            "runtime_decisions.handoff.agent_request.safety_identifier must match safety_identifier"
+            "runtime_decisions.handoff.capability_request.conversation_id must match conversation_id"
         )
-    if agent_request.trace.trace_id != request.trace.trace_id:
+    if capability_request.request_id != request.request_id:
         raise ValueError(
-            "runtime_decisions.handoff.agent_request.trace.trace_id must match trace.trace_id"
+            "runtime_decisions.handoff.capability_request.request_id must match request_id"
         )
-    if agent_request.context != request.context:
-        raise ValueError("runtime_decisions.handoff.agent_request.context must match context")
+    if capability_request.safety_identifier != request.safety_identifier:
+        raise ValueError(
+            "runtime_decisions.handoff.capability_request.safety_identifier must match safety_identifier"
+        )
+    if capability_request.trace.trace_id != request.trace.trace_id:
+        raise ValueError(
+            "runtime_decisions.handoff.capability_request.trace.trace_id must match trace.trace_id"
+        )
+    if capability_request.context != request.context:
+        raise ValueError("runtime_decisions.handoff.capability_request.context must match context")
 
 
 def _wire_validation_error(exc: ValidationError) -> str:

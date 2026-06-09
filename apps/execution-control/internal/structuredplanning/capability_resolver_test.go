@@ -8,7 +8,7 @@ import (
 )
 
 func TestResolveCapabilityPlanBuildsNoticeKnowledgeWorkflowPlan(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 
 	plan, err := ResolveCapabilityPlan(
 		selectedNoticeKnowledgeFollowthroughCapabilityPlan(Request{
@@ -25,7 +25,7 @@ func TestResolveCapabilityPlanBuildsNoticeKnowledgeWorkflowPlan(t *testing.T) {
 				TargetSurface: "regulations/student_rules",
 			},
 		}),
-		agents,
+		capabilities,
 		tools,
 		artifacts,
 	)
@@ -39,13 +39,13 @@ func TestResolveCapabilityPlanBuildsNoticeKnowledgeWorkflowPlan(t *testing.T) {
 	if len(handoffs) != 2 {
 		t.Fatalf("handoff count = %d, want 2", len(handoffs))
 	}
-	if handoffs[0].Target != "notice-agent" || handoffs[0].PayloadKind != "campus_notice_get" {
+	if handoffs[0].Capability != "notice" || handoffs[0].PayloadKind != "campus_notice_get" {
 		t.Fatalf("first handoff = %#v", handoffs[0])
 	}
 	if len(handoffs[0].AllowedTools) != 0 {
 		t.Fatalf("first handoff allowed tools = %#v, want none", handoffs[0].AllowedTools)
 	}
-	if handoffs[1].Target != "rag-agent" || handoffs[1].PayloadKind != "rag_request" {
+	if handoffs[1].Capability != "knowledge" || handoffs[1].PayloadKind != "rag_request" {
 		t.Fatalf("second handoff = %#v", handoffs[1])
 	}
 	if len(handoffs[1].AllowedTools) != 0 {
@@ -57,7 +57,7 @@ func TestResolveCapabilityPlanBuildsNoticeKnowledgeWorkflowPlan(t *testing.T) {
 }
 
 func TestResolveCapabilityPlanBuildsTransportNoticeOverrideWorkflowPlan(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 
 	plan, err := ResolveCapabilityPlan(
 		transportNoticeOverrideCapabilityPlan(Request{
@@ -69,7 +69,7 @@ func TestResolveCapabilityPlanBuildsTransportNoticeOverrideWorkflowPlan(t *testi
 				TargetSurface: "campus_services/service_status_candidate",
 			},
 		}),
-		agents,
+		capabilities,
 		tools,
 		artifacts,
 	)
@@ -121,71 +121,71 @@ func TestResolveCapabilityPlanBuildsTransportNoticeOverrideWorkflowPlan(t *testi
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenArtifactOwnerIsMissing(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 	deleteArtifactBindingsForKinds(&artifacts, "notice_context")
 
-	_, err := ResolveCapabilityPlan(sampleResolverCapabilityPlan(), agents, tools, artifacts)
+	_, err := ResolveCapabilityPlan(sampleResolverCapabilityPlan(), capabilities, tools, artifacts)
 	assertResolverFailure(t, err, "artifact_owner_missing")
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenProducerIsClosed(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 	plan := sampleResolverCapabilityPlan()
 	plan.RequiredArtifacts = []string{"place_context"}
 
-	_, err := ResolveCapabilityPlan(plan, agents, tools, artifacts)
+	_, err := ResolveCapabilityPlan(plan, capabilities, tools, artifacts)
 	assertResolverFailure(t, err, "producer_closed")
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenToolGateIsClosed(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 	closeTool(&tools, "campus_notice_get")
 
-	_, err := ResolveCapabilityPlan(sampleResolverCapabilityPlan(), agents, tools, artifacts)
+	_, err := ResolveCapabilityPlan(sampleResolverCapabilityPlan(), capabilities, tools, artifacts)
 	assertResolverFailure(t, err, "tool_gate_closed")
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenArtifactProducerIsAmbiguous(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 	appendAmbiguousBinding(&artifacts, "notice_context")
 
-	_, err := ResolveCapabilityPlan(sampleResolverCapabilityPlan(), agents, tools, artifacts)
+	_, err := ResolveCapabilityPlan(sampleResolverCapabilityPlan(), capabilities, tools, artifacts)
 	assertResolverFailure(t, err, "ambiguous_producer")
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenDependencyCycleExists(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 	introduceCycle(&artifacts)
 
-	_, err := ResolveCapabilityPlan(sampleResolverCapabilityPlan(), agents, tools, artifacts)
+	_, err := ResolveCapabilityPlan(sampleResolverCapabilityPlan(), capabilities, tools, artifacts)
 	assertResolverFailure(t, err, "dependency_cycle")
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenBudgetIsExceeded(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 	plan := sampleResolverCapabilityPlan()
 	plan.Budget.MaxSteps = 1
 
-	_, err := ResolveCapabilityPlan(plan, agents, tools, artifacts)
+	_, err := ResolveCapabilityPlan(plan, capabilities, tools, artifacts)
 	assertResolverFailure(t, err, "budget_exceeded")
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenArtifactIsNotAnswerEligible(t *testing.T) {
-	agents, tools, artifacts := loadResolverRegistries(t)
+	capabilities, tools, artifacts := loadResolverRegistries(t)
 	plan := sampleResolverCapabilityPlan()
 	plan.RequiredArtifacts = []string{"grounding_verdict"}
 
-	_, err := ResolveCapabilityPlan(plan, agents, tools, artifacts)
+	_, err := ResolveCapabilityPlan(plan, capabilities, tools, artifacts)
 	assertResolverFailure(t, err, "ineligible_artifact_for_answer")
 }
 
 func loadResolverRegistries(
 	t *testing.T,
-) (runtimepolicy.AgentSpecRegistry, runtimepolicy.ToolSpecRegistry, runtimepolicy.WorkflowArtifactRegistry) {
+) (runtimepolicy.CapabilitySpecRegistry, runtimepolicy.ToolSpecRegistry, runtimepolicy.WorkflowArtifactRegistry) {
 	t.Helper()
-	agents, err := runtimepolicy.LoadAgentSpecRegistry("")
+	capabilities, err := runtimepolicy.LoadCapabilitySpecRegistry("")
 	if err != nil {
-		t.Fatalf("load agent spec: %v", err)
+		t.Fatalf("load capability spec: %v", err)
 	}
 	tools, err := runtimepolicy.LoadToolSpecRegistry("")
 	if err != nil {
@@ -195,7 +195,7 @@ func loadResolverRegistries(
 	if err != nil {
 		t.Fatalf("load workflow artifact registry: %v", err)
 	}
-	return agents, tools, artifacts
+	return capabilities, tools, artifacts
 }
 
 func sampleResolverCapabilityPlan() CapabilityPlan {
@@ -272,7 +272,7 @@ func appendAmbiguousBinding(
 		registry.Bindings,
 		runtimepolicy.WorkflowCapabilityBinding{
 			BindingID:       "duplicate." + artifactKind,
-			OwnerAgent:      "notice-agent",
+			OwnerCapability: "notice",
 			ToolName:        "campus_notice_get",
 			Produces:        []string{artifactKind},
 			Consumes:        []string{},

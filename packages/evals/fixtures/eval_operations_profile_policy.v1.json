@@ -106,7 +106,7 @@
 			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
 		},
 		{
-			"profile_id": "multi_agent_runtime_contract",
+			"profile_id": "multi_capability_runtime_contract",
 			"budget": { "max_cases_per_run": 100, "max_provider_calls_per_run": 0 },
 			"runtime_timeout_seconds": 900,
 			"max_retries": 0,

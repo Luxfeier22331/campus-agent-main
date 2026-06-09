@@ -44,7 +44,7 @@ export function readOperatorAggregateFilters(request: { query(name: string): str
 		modelName: request.query("modelName") ?? null,
 		principalType: request.query("principalType") ?? null,
 		requestedCapability: request.query("requestedCapability") ?? null,
-		selectedTarget: request.query("selectedTarget") ?? null,
+		selectedCapability: request.query("selectedCapability") ?? null,
 		surface: request.query("surface") ?? null,
 		window: request.query("window") ?? null,
 	};

@@ -3,14 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from campus_contracts import AgentResponse, ErrorInfo
+from campus_contracts import CapabilityResponse, ErrorInfo
 
-from campus_supervisor_agent_worker.agent_delegates import (
-    AgentRuntimeBuildError,
-    QueryServiceRuntimeError,
-    bind_agent_handler,
-)
-from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
 from campus_supervisor_agent_worker.agent_runtime import (
     AgentWorkerRuntime,
     PromptHTTPPoolRuntime,
@@ -21,6 +15,12 @@ from campus_supervisor_agent_worker.agents_sdk_runtime_policy import (
 )
 from campus_supervisor_agent_worker.api import build_bridge_routes
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
+from campus_supervisor_agent_worker.capability_delegates import (
+    AgentRuntimeBuildError,
+    QueryServiceRuntimeError,
+    bind_capability_handler,
+)
+from campus_supervisor_agent_worker.capability_dispatch import dispatch_capability_request
 from campus_supervisor_agent_worker.http_types import HttpResponse, HttpRoute
 from campus_supervisor_agent_worker.retrieval_observation_bridge import (
     build_runtime_event_emitter_status,
@@ -84,18 +84,18 @@ class SupervisorAgentWorkerApp:
 def create_bridge_app(
     *,
     settings: ApiSettings | None = None,
-    agent_handler=dispatch_agent_request,
+    capability_handler=dispatch_capability_request,
 ) -> SupervisorAgentWorkerApp:
     return _create_runtime_app(
         settings=settings,
-        agent_handler=agent_handler,
+        capability_handler=capability_handler,
     )
 
 
 def _create_runtime_app(
     *,
     settings: ApiSettings | None = None,
-    agent_handler=dispatch_agent_request,
+    capability_handler=dispatch_capability_request,
 ) -> SupervisorAgentWorkerApp:
     runtime_settings = settings or ApiSettings.from_env()
     (
@@ -110,9 +110,9 @@ def _create_runtime_app(
         "failure_detail": "",
     }
     try:
-        bound_agent_handler = bind_agent_handler(
+        bound_capability_handler = bind_capability_handler(
             runtime_settings,
-            agent_handler=agent_handler,
+            capability_handler=capability_handler,
             rag_prompt_executor=rag_prompt_executor,
             cancel_flags=cancel_flags,
             prompt_http_client=prompt_http_pool.client,
@@ -132,8 +132,8 @@ def _create_runtime_app(
             *,
             _failure_detail: str = failure_detail,
         ):
-            return AgentResponse(
-                target=runtime_agent_request.target,
+            return CapabilityResponse(
+                capability=runtime_agent_request.capability,
                 status="error",
                 confidence="low",
                 error=ErrorInfo(
@@ -142,10 +142,10 @@ def _create_runtime_app(
                 ),
             )
 
-        bound_agent_handler = _runtime_unavailable_handler
+        bound_capability_handler = _runtime_unavailable_handler
     routes = build_bridge_routes(
         runtime_settings,
-        agent_handler=bound_agent_handler,
+        capability_handler=bound_capability_handler,
         prompt_runtime=prompt_runtime,
         runtime_status_provider=lambda: {
             "prompt_http_pool": prompt_http_pool.status(admitted=prompt_runtime.admitted),

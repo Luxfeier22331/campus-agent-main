@@ -11,10 +11,12 @@ from unittest.mock import patch
 
 import campus_retrieval_core.backend_qdrant as backend_qdrant_module
 from campus_contracts import AuthorizedRetrievalFilter
-from campus_rag_agent.handbook_query_planning import plan_student_handbook_query
-from campus_rag_agent.institutional_rules_query_planning import plan_institutional_rules_query
-from campus_rag_agent.query_planning import plan_curriculum_query
-from campus_rag_agent.retrieval_intent import RetrievalIntent
+from campus_knowledge_capability.handbook_query_planning import plan_student_handbook_query
+from campus_knowledge_capability.institutional_rules_query_planning import (
+    plan_institutional_rules_query,
+)
+from campus_knowledge_capability.query_planning import plan_curriculum_query
+from campus_knowledge_capability.retrieval_intent import RetrievalIntent
 from campus_retrieval_core import RetrievalRequest, build_retrieval_backend
 from campus_retrieval_core.models import RetrievalSemanticHint
 from campus_shared import load_repo_env

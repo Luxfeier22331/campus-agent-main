@@ -8,7 +8,7 @@
 
 - 接收 Go `apps/execution-control` 已规范化的 bridge envelope
 - 执行 prompt runtime assembly 与 agent delegate dispatch
-- 返回 `AgentResponse`，由 Go finalizer 生成 public supervisor response
+- 返回 `CapabilityResponse`，由 Go finalizer 生成 public supervisor response
 
 ## Boundaries
 

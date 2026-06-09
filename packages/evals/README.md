@@ -84,12 +84,12 @@ Evaluation helpers for campus-agent v2.
   `smoke`、`regression_locked`、`release_gate` 与 `error_gate` 固定 case
   集；`release_gate` 继续服务 live gate，`smoke` / `regression_locked` 负责 repo-tracked
   常设回归样本
-- `TraceExpectation.expected_runtime_target` 固定断言 raw runtime target；如需 report /
+- `TraceExpectation.expected_capability` 固定断言 raw capability；如需 report /
   display / family wording，使用 `expected_capability_family`，不要再把两种语义混成单个 handoff
   字段
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case
   inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
-- deterministic runner 现在接受 `AgentResponse` 与 `SupervisorResponse`
+- deterministic runner 现在接受 `CapabilityResponse` 与 `SupervisorResponse`
   两种执行结果；supervisor-only 终态额外覆盖 `approval_required_accuracy` /
   `rejection_accuracy`
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental
@@ -132,8 +132,8 @@ Evaluation helpers for campus-agent v2.
 - public chat product-path eval 固定在
   `packages/evals/fixtures/public_chat_product_path_cases.v1.json` 与
   `campus_evals.public_chat_product_path_eval`；它只评估 sanitized request / trace
-  correlation、selected target、terminal outcome、response contract 与 operator backflow
-  summary，不保存 raw transcript 或 provider raw response
+  correlation、selected capability、terminal outcome、response contract 与
+  operator backflow summary，不保存 raw transcript 或 provider raw response
 - public chat entry E2E eval 固定在
   `packages/evals/fixtures/public_chat_entry_cases.v1.json` 与
   `campus_evals.public_chat_entry_e2e`；它验证 public chat 入口 request path、
@@ -200,7 +200,7 @@ Evaluation helpers for campus-agent v2.
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   service-guide-lookup`；
   它验证 service guide projection eval、service-guide intent 子集、
-  execution-control Go planning/runtime/query tests 与 Python campus-services-agent
+  execution-control Go planning/runtime/query tests 与 Python campus_services
   contract tests，不打开 campus_services serving surface，也不产生 operator
   observability live case-results publish。需要对真实 official-web selected-write candidate
   做 answer-facing 审计时，可额外传入 `--selected-write-preview-report <path>`；这条附加检查只验证
@@ -209,7 +209,7 @@ Evaluation helpers for campus-agent v2.
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   contact-directory-lookup`；
   它验证 contact directory projection eval、contact intent 子集、
-  execution-control Go planning/runtime/query tests 与 Python campus-services-agent
+  execution-control Go planning/runtime/query tests 与 Python campus_services
   contract tests，同样不产生 operator observability live case-results publish。需要对真实
   official-web selected-write candidate 做 answer-facing 审计时，同样可额外传入
   `--selected-write-preview-report <path>`；这条附加检查只审计 preview/tool-readiness，
@@ -255,7 +255,7 @@ Evaluation helpers for campus-agent v2.
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
   验证 `snake_case` strict wire、bridge version、enum、extra-field rejection、
   cancel / timeout / bridge unavailable terminal semantics。
-- public-chat product-path eval 会 replay `workflow_trace_summary`，检查 selected target、
+- public-chat product-path eval 会 replay `workflow_trace_summary`，检查 selected capability、
   direct/delegate/clarification/fail-close branch 与 fail-close reason 是否和产品路径 observation
   一致；panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
   provider / prompt key 做非暴露断言。
@@ -267,7 +267,7 @@ Evaluation helpers for campus-agent v2.
   `terminal`、`single_step`、`multi_step`。当前 live runtime 已验证 terminal 与 single-step
   execution shapes，
   并新增受 gate 保护的首条 `multi_step` profile：selected notice context + knowledge
-  follow-through，执行 internal selected notice resolve -> `rag-agent retrieval.query`。
+  follow-through，执行 internal selected notice resolve -> `knowledge retrieval.query`。
   workflow trace gate 会拒绝把单个 handoff projection 伪装成 `multi_step`；completed
   `multi_step` 至少需要两段 handoff chain，并且需要 cross-step context 的路径必须提供
   `workflow_trace_summary.context_projections` sanitized summary。resume 与 semantic
@@ -466,8 +466,9 @@ shape，而是把更多真实产品路径和 domain-specific case 扩编进这�
   - 验证 selected tools、retrieval plan、structured lookup subtype、source channel、temporal
     scope、doc / version / service id 等参数是否精确
 - `handoff_correctness`
-  - 验证 selected target、`AgentRequest` 的 capability family、target、allowed tools、
-    context resolution、missing slots 与 policy reason 是否和 case truth 对齐
+  - 验证 selected capability、`CapabilityRequest` 的 capability family、target、
+    allowed tools、context resolution、missing slots 与 policy reason 是否和
+    case truth 对齐
 - `agent_escalation_fail_close`
   - 验证 capability closed、scope disabled、policy unavailable、missing context、ambiguous
     follow-up 与 unauthorized visibility 的 terminal outcome
@@ -493,7 +494,7 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases
   tests.evals.test_retrieval_benchmark tests.evals.test_supplemental_adapters`
 - `uv run --all-packages python -m unittest
-  tests.supervisor.test_supervisor_core tests.agent.test_rag_agent
+  tests.supervisor.test_supervisor_core tests.agent.test_knowledge_capability
   tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
 - `curriculum` live benchmark 也复用同一 scorer，只需将 `--qrels` 切换为
   `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
@@ -792,7 +793,7 @@ student handbook formal benchmark：
     `APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE`
 - 当前模板变量固定为 `case_id`、`request_id`、`trace_id`、`conversation_id`、`status`、`select
   ed_target`、`corpus`、`collection`
-  - 其中 `selected_target` 继续只表示 raw runtime target correlation
+  - 其中 `selected_capability` 继续只表示 raw capability correlation
     field；report/display 需要 family wording 时应显式派生独立标签
   - 如需保留 trace-rich agent/retrieval 单元行为，测试或局部调试应显式使用
     `build_inprocess_handbook_live_executor(...)`

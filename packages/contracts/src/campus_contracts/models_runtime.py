@@ -21,14 +21,14 @@ from campus_contracts.models_retrieval import (
 )
 from campus_contracts.models_shared import (
     _SHA256_HEX_RE,
-    ALLOWED_AGENT_TARGETS,
-    ALLOWED_AGENT_TOOL_NAMES,
+    ALLOWED_CAPABILITY_IDS,
+    ALLOWED_CAPABILITY_TOOL_NAMES,
     ALLOWED_CONFIDENCE_LEVELS,
     ALLOWED_DELEGATE_STATUSES,
     ALLOWED_REQUESTED_CAPABILITIES,
     ALLOWED_SUPERVISOR_STATUSES,
-    AgentTarget,
-    AgentToolName,
+    CapabilityID,
+    CapabilityToolName,
     ConfidenceLevel,
     DelegateStatus,
     RequestedCapability,
@@ -146,7 +146,7 @@ class RagResultPayload:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentObservability:
+class CapabilityObservability:
     selected_tool: str = ""
     tool_attempted: bool | None = None
     tool_outcome: str = ""
@@ -171,8 +171,8 @@ class WorkflowTraceSummary:
     workflow_mode: str = ""
     handoff: dict[str, Any] = field(default_factory=dict)
     handoff_chain: tuple[dict[str, Any], ...] = field(default_factory=tuple)
-    agent_invocations: tuple[dict[str, Any], ...] = field(default_factory=tuple)
-    selected_target: str = ""
+    capability_invocations: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    selected_capability: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     context_projections: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     answer_artifact_projection_ids: tuple[str, ...] = field(default_factory=tuple)
@@ -191,7 +191,7 @@ class WorkflowTraceSummary:
             ("context_resolution", self.context_resolution),
             ("handoff", self.handoff),
             ("context_projections", self.context_projections),
-            ("agent_invocations", self.agent_invocations),
+            ("capability_invocations", self.capability_invocations),
             ("tool_argument_summary", self.tool_argument_summary),
             ("trace_steps", self.trace_steps),
             ("tool_call_summaries", self.tool_call_summaries),
@@ -210,27 +210,27 @@ class WorkflowTraceSummary:
 
 
 @dataclass(frozen=True, slots=True)
-class WorkflowAgentContext:
-    schema_version: str = "workflow-agent-context-v1"
-    visibility: str = "agent_private"
+class WorkflowCapabilityContext:
+    schema_version: str = "workflow-capability-context-v1"
+    visibility: str = "capability_private"
     workflow_run_ref: str = ""
     step_id: str = ""
-    agent_id: str = ""
-    target: str = ""
+    capability_id: str = ""
+    capability: str = ""
     required_projection_kind: str = ""
     expected_output_artifacts: tuple[str, ...] = field(default_factory=tuple)
     projection_refs: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
-        if self.schema_version != "workflow-agent-context-v1":
-            raise ValueError("workflow_context.schema_version must be workflow-agent-context-v1")
-        if self.visibility != "agent_private":
-            raise ValueError("workflow_context.visibility must be agent_private")
+        if self.schema_version != "workflow-capability-context-v1":
+            raise ValueError("workflow_context.schema_version must be workflow-capability-context-v1")
+        if self.visibility != "capability_private":
+            raise ValueError("workflow_context.visibility must be capability_private")
         workflow_used = bool(
             self.workflow_run_ref.strip()
             or self.step_id.strip()
-            or self.agent_id.strip()
-            or self.target.strip()
+            or self.capability_id.strip()
+            or self.capability.strip()
             or self.required_projection_kind.strip()
             or self.projection_refs
         )
@@ -239,8 +239,8 @@ class WorkflowAgentContext:
                 raise ValueError("workflow_context.workflow_run_ref is required")
             if not self.step_id.strip():
                 raise ValueError("workflow_context.step_id is required")
-            if self.agent_id not in ALLOWED_AGENT_TARGETS:
-                raise ValueError("workflow_context.agent_id is required")
+            if self.capability_id not in ALLOWED_CAPABILITY_IDS:
+                raise ValueError("workflow_context.capability_id is required")
         if self.required_projection_kind and not any(
             str(item.get("projection_kind") or "").strip() == self.required_projection_kind
             for item in self.projection_refs
@@ -329,7 +329,7 @@ def _normalize_optional_safety_identifier(value: str | None) -> str | None:
     return normalized
 
 
-def _coerce_context_projection(request: SupervisorRequest | AgentRequest) -> None:
+def _coerce_context_projection(request: SupervisorRequest | CapabilityRequest) -> None:
     default_actor = ActorContext()
     default_context = ContextProjection()
     if request.actor == default_actor and request.context == default_context:
@@ -376,8 +376,8 @@ class SupervisorRequest:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentRequest:
-    target: AgentTarget
+class CapabilityRequest:
+    capability: CapabilityID
     user_goal: str
     payload: (
         RagRequestPayload
@@ -391,20 +391,20 @@ class AgentRequest:
         | CampusNoticeDiscoverPayload
         | CampusNoticeGetPayload
     )
-    allowed_tools: tuple[AgentToolName, ...] = field(default_factory=tuple)
+    allowed_tools: tuple[CapabilityToolName, ...] = field(default_factory=tuple)
     conversation_id: str = ""
     request_id: str = ""
     safety_identifier: str | None = None
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
     context: ContextProjection = field(default_factory=ContextProjection)
-    workflow_context: WorkflowAgentContext = field(default_factory=WorkflowAgentContext)
+    workflow_context: WorkflowCapabilityContext = field(default_factory=WorkflowCapabilityContext)
 
     def __post_init__(self) -> None:
-        if self.target not in ALLOWED_AGENT_TARGETS:
-            raise ValueError(f"unsupported agent target: {self.target}")
+        if self.capability not in ALLOWED_CAPABILITY_IDS:
+            raise ValueError(f"unsupported capability: {self.capability}")
         for allowed_tool in self.allowed_tools:
-            if allowed_tool not in ALLOWED_AGENT_TOOL_NAMES:
+            if allowed_tool not in ALLOWED_CAPABILITY_TOOL_NAMES:
                 raise ValueError(f"unsupported allowed_tool: {allowed_tool}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
@@ -415,8 +415,8 @@ class AgentRequest:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentResponse:
-    target: AgentTarget
+class CapabilityResponse:
+    capability: CapabilityID
     status: DelegateStatus
     answer_text: str = ""
     follow_up_question: str = ""
@@ -435,11 +435,11 @@ class AgentResponse:
         | None
     ) = None
     error: ErrorInfo | None = None
-    agent_observability: AgentObservability | None = None
+    capability_observability: CapabilityObservability | None = None
 
     def __post_init__(self) -> None:
-        if self.target not in ALLOWED_AGENT_TARGETS:
-            raise ValueError(f"unsupported agent target: {self.target}")
+        if self.capability not in ALLOWED_CAPABILITY_IDS:
+            raise ValueError(f"unsupported capability: {self.capability}")
         if self.status not in ALLOWED_DELEGATE_STATUSES:
             raise ValueError(f"unsupported delegate status: {self.status}")
         if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:
@@ -448,7 +448,7 @@ class AgentResponse:
 
 @dataclass(frozen=True, slots=True)
 class SupervisorResponse:
-    selected_target: AgentTarget | None
+    selected_capability: CapabilityID | None
     status: SupervisorStatus
     answer_text: str = ""
     follow_up_question: str = ""
@@ -471,8 +471,11 @@ class SupervisorResponse:
     workflow_trace_summary: WorkflowTraceSummary | None = None
 
     def __post_init__(self) -> None:
-        if self.selected_target is not None and self.selected_target not in ALLOWED_AGENT_TARGETS:
-            raise ValueError(f"unsupported selected_target: {self.selected_target}")
+        if (
+            self.selected_capability is not None
+            and self.selected_capability not in ALLOWED_CAPABILITY_IDS
+        ):
+            raise ValueError(f"unsupported selected_capability: {self.selected_capability}")
         if self.status not in ALLOWED_SUPERVISOR_STATUSES:
             raise ValueError(f"unsupported supervisor status: {self.status}")
         if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:

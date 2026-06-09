@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from campus_contracts import (
-    AgentRequest,
+    CapabilityRequest,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
@@ -12,15 +12,15 @@ from campus_contracts import (
     VersionQuery,
 )
 from campus_ingestion_core.version_resolution import ResolvedVersionQuery, ResolvedVersionSelection
-from campus_rag_agent.query_planning import plan_student_handbook_query
-from campus_rag_agent.retrieval_plan import build_ordered_retrieval_plan
-from campus_rag_agent.service_retrieval import (
+from campus_knowledge_capability.query_planning import plan_student_handbook_query
+from campus_knowledge_capability.retrieval_plan import build_ordered_retrieval_plan
+from campus_knowledge_capability.service_retrieval import (
     build_rag_retrieval_context,
     build_retrieval_plan_for_context,
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
-from tests.agent.rag_agent_test_support import delegate_to_rag_agent
+from tests.agent.knowledge_capability_test_support import delegate_to_knowledge_capability
 
 
 class RagRetrievalPlanTest(unittest.TestCase):
@@ -47,8 +47,8 @@ class RagRetrievalPlanTest(unittest.TestCase):
     def test_category_discovery_retrieval_plan_uses_intent_derived_need_ids_and_budget(
         self,
     ) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="有哪些本科生可以申请的奖学金",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
@@ -85,8 +85,8 @@ class RagRetrievalPlanTest(unittest.TestCase):
         self.assertEqual(plan.steps[0].budget.top_k, 10)
 
     def test_resolved_policy_clause_query_uses_broad_and_focused_steps(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="国奖第九条怎么要求论文和著作？",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
@@ -148,8 +148,8 @@ class RagRetrievalPlanTest(unittest.TestCase):
         )
 
     def test_resolved_policy_procedure_focus_uses_larger_focused_candidate_budget(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="学生什么时候可以申请听证",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
@@ -188,8 +188,8 @@ class RagRetrievalPlanTest(unittest.TestCase):
         self.assertIn("10日内", plan.steps[1].query_text)
 
     def test_resolved_policy_historical_clause_query_uses_focused_historical_step(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="旧版国奖第九条怎么要求论文和著作？",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
@@ -276,8 +276,8 @@ class RagRetrievalPlanTest(unittest.TestCase):
         )
 
     def test_resolved_policy_compare_clause_query_uses_focused_compare_step(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="国奖第九条旧版和新版对论文、著作有什么变化？",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
@@ -403,7 +403,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
                 version_query=VersionQuery(mode="current"),
             )
 
-    def test_delegate_to_rag_agent_executes_compare_plan_as_dual_steps(self) -> None:
+    def test_delegate_to_knowledge_capability_executes_compare_plan_as_dual_steps(self) -> None:
         seen_version_ids: list[tuple[str, ...]] = []
 
         def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
@@ -461,11 +461,11 @@ class RagRetrievalPlanTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
+                "campus_knowledge_capability.service_retrieval.build_document_registry_from_env",
                 return_value=object(),
             ),
             patch(
-                "campus_rag_agent.service_retrieval.resolve_version_query",
+                "campus_knowledge_capability.service_retrieval.resolve_version_query",
                 return_value=ResolvedVersionQuery(
                     mode="compare",
                     status="resolved",
@@ -484,9 +484,9 @@ class RagRetrievalPlanTest(unittest.TestCase):
                 ),
             ),
         ):
-            response = delegate_to_rag_agent(
-                AgentRequest(
-                    target="rag-agent",
+            response = delegate_to_knowledge_capability(
+                CapabilityRequest(
+                    capability="knowledge",
                     user_goal="国奖第九条旧版和新版对论文、著作有什么变化？",
                     payload=RagRequestPayload(
                         scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
@@ -505,7 +505,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
             {"grounded_answer", "compare_grounded_answer"},
         )
 
-    def test_delegate_to_rag_agent_emits_sanitized_retrieval_observation(self) -> None:
+    def test_delegate_to_knowledge_capability_emits_sanitized_retrieval_observation(self) -> None:
         observations: list[dict[str, object]] = []
 
         def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
@@ -522,9 +522,9 @@ class RagRetrievalPlanTest(unittest.TestCase):
                 ),
             )
 
-        response = delegate_to_rag_agent(
-            AgentRequest(
-                target="rag-agent",
+        response = delegate_to_knowledge_capability(
+            CapabilityRequest(
+                capability="knowledge",
                 user_goal="国奖怎么办",
                 request_id="req-rag-observation",
                 payload=RagRequestPayload(
@@ -550,7 +550,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
             response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found"
         )
 
-    def test_delegate_to_rag_agent_uses_freshness_gate_and_skips_retriever_when_local_surface_is_not_fresh(
+    def test_delegate_to_knowledge_capability_uses_freshness_gate_and_skips_retriever_when_local_surface_is_not_fresh(
         self,
     ) -> None:
         retriever_calls: list[str] = []
@@ -563,9 +563,9 @@ class RagRetrievalPlanTest(unittest.TestCase):
                 collection=str(kwargs["collection"]),
             )
 
-        response = delegate_to_rag_agent(
-            AgentRequest(
-                target="rag-agent",
+        response = delegate_to_knowledge_capability(
+            CapabilityRequest(
+                capability="knowledge",
                 user_goal="中央民族大学今天有什么讲座",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="stable_reference"),

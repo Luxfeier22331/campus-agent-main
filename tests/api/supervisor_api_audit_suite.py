@@ -4,9 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from campus_contracts import AgentResponse, EvidenceBundle, RagResultPayload
-from campus_supervisor_agent_worker.agent_dispatch import MissingAgentDelegateError
+from campus_contracts import CapabilityResponse, EvidenceBundle, RagResultPayload
 from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.capability_dispatch import MissingCapabilityDelegateError
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
@@ -18,7 +18,7 @@ def _bridge_request_payload(
 ) -> dict[str, object]:
     return {
         "bridge_version": "supervisor_bridge_v6",
-        "response_contract": "agent_response",
+        "response_contract": "capability_response",
         "user_goal": user_goal,
         "conversation_id": "conv-audit-001",
         "request_id": request_id,
@@ -142,10 +142,10 @@ def _bridge_request_payload(
             },
             "handoff": {
                 "planning_outcome": "preplanned",
-                "target": "rag-agent",
+                "target": "knowledge",
                 "allowed_tools": [],
                 "agent_request": {
-                    "target": "rag-agent",
+                    "target": "knowledge",
                     "user_goal": user_goal,
                     "conversation_id": "conv-audit-001",
                     "request_id": request_id,
@@ -220,12 +220,12 @@ def _bridge_request_payload(
                     },
                     "allowed_tools": [],
                     "workflow_context": {
-                        "schema_version": "workflow-agent-context-v1",
-                        "visibility": "agent_private",
+                        "schema_version": "workflow-capability-context-v1",
+                        "visibility": "capability_private",
                         "workflow_run_ref": f"workflow:{request_id}",
-                        "step_id": "handoff:rag-agent:rag_request",
-                        "agent_id": "rag-agent",
-                        "target": "rag-agent",
+                        "step_id": "handoff:knowledge:rag_request",
+                        "capability_id": "knowledge",
+                        "target": "knowledge",
                         "required_projection_kind": "",
                         "expected_output_artifacts": [
                             "evidence_bundle",
@@ -237,14 +237,14 @@ def _bridge_request_payload(
             },
             "workflow_plan": {
                 "schema_version": "workflow-plan-v1",
-                "plan_id": "plan:single_step:rag-agent:rag_request",
+                "plan_id": "plan:single_step:knowledge:rag_request",
                 "workflow_mode": "single_step",
-                "allowed_agents": ["rag-agent"],
+                "allowed_capabilities": ["knowledge"],
                 "steps": [
                     {
-                        "step_id": "handoff:rag-agent:rag_request",
+                        "step_id": "handoff:knowledge:rag_request",
                         "step_kind": "handoff",
-                        "target": "rag-agent",
+                        "target": "knowledge",
                         "payload_kind": "rag_request",
                         "allowed_tools": [],
                         "selected_tool": "",
@@ -267,7 +267,7 @@ class SupervisorApiAuditTest(unittest.TestCase):
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
                 ),
-                agent_handler=lambda request: AgentResponse(
+                capability_handler=lambda request: CapabilityResponse(
                     target=request.target,
                     status="completed",
                     answer_text="按当前投影处理完成。",
@@ -300,8 +300,8 @@ class SupervisorApiAuditTest(unittest.TestCase):
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
                 ),
-                agent_handler=lambda request: (_ for _ in ()).throw(
-                    MissingAgentDelegateError("missing delegate for agent target: rag-agent")
+                capability_handler=lambda request: (_ for _ in ()).throw(
+                    MissingCapabilityDelegateError("missing delegate for capability: knowledge")
                 ),
             )
 
@@ -331,7 +331,7 @@ class SupervisorApiAuditTest(unittest.TestCase):
                     supervisor_prompt_model="gpt-supervisor",
                     agent_prompt_model="gpt-agent",
                 ),
-                agent_handler=lambda request: AgentResponse(
+                capability_handler=lambda request: CapabilityResponse(
                     target=request.target,
                     status="completed",
                     answer_text="The library is open from 08:00 to 22:00.",

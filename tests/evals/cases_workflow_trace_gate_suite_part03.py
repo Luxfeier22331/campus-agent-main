@@ -15,9 +15,9 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
             description="student handbook delegate branch",
             expectation=WorkflowTraceExpectation(
                 direct_vs_delegate_branch="delegate",
-                selected_target="rag-agent",
+                selected_capability="knowledge",
                 selected_tools=("retrieval.query",),
-                handoff={"target": "rag-agent"},
+                handoff={"target": "knowledge"},
                 tool_argument_summary={"collection": "student_rules"},
                 guardrail_outcomes={"scope_gate": "pass"},
                 fail_close_expected=False,
@@ -40,8 +40,8 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
                     context_resolution={"resolved_scope": "regulations/student_rules"},
                     planning_outcome="delegate",
                     direct_vs_delegate_branch="delegate",
-                    handoff={"target": "rag-agent"},
-                    selected_target="rag-agent",
+                    handoff={"target": "knowledge"},
+                    selected_capability="knowledge",
                     selected_tools=("retrieval.query",),
                     tool_argument_summary={"collection": "student_rules"},
                     guardrail_outcomes={"scope_gate": "pass"},
@@ -67,7 +67,7 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
             )
 
         result = payload["results"][0]
-        self.assertEqual(result["workflow_trace_summary"]["selected_target"], "rag-agent")
+        self.assertEqual(result["workflow_trace_summary"]["selected_capability"], "knowledge")
         self.assertTrue(
             result["orchestration_case_results"]["direct_vs_delegate_branch_correctness"]["passed"]
         )
@@ -84,9 +84,9 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
             description="student handbook delegate branch",
             expectation=WorkflowTraceExpectation(
                 direct_vs_delegate_branch="delegate",
-                selected_target="rag-agent",
+                selected_capability="knowledge",
                 selected_tools=("retrieval.query",),
-                handoff={"target": "rag-agent"},
+                handoff={"target": "knowledge"},
                 tool_argument_summary={"collection": "student_rules"},
                 guardrail_outcomes={"scope_gate": "pass"},
                 fail_close_expected=False,
@@ -109,8 +109,8 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
                     context_resolution={"resolved_scope": "regulations/student_rules"},
                     planning_outcome="delegate",
                     direct_vs_delegate_branch="delegate",
-                    handoff={"target": "rag-agent"},
-                    selected_target="rag-agent",
+                    handoff={"target": "knowledge"},
+                    selected_capability="knowledge",
                     selected_tools=("retrieval.query",),
                     tool_argument_summary={"collection": "curriculum_plan"},
                     guardrail_outcomes={"scope_gate": "pass"},

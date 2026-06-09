@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from campus_contracts import (
-    AgentResponse,
+    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
@@ -201,8 +201,8 @@ def _build_projection_diagnostic(
         return None
 
     execution = ExecutionResult(
-        response=AgentResponse(
-            target="rag-agent",
+        response=CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="artifact replay answer",
             confidence="high",

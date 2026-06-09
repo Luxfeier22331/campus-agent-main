@@ -3,13 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 
-from campus_contracts import AgentRequest, AgentResponse, ErrorInfo, SupervisorRequest
+from campus_contracts import CapabilityRequest, CapabilityResponse, ErrorInfo, SupervisorRequest
 
-from campus_supervisor_agent_worker.agent_dispatch import (
-    AgentDispatchError,
-    ExecutionCancelledError,
-    dispatch_agent_request,
-)
 from campus_supervisor_agent_worker.bridge_auth import error_response, require_bridge_auth
 from campus_supervisor_agent_worker.bridge_parse_utils import parse_optional_string, require_string
 from campus_supervisor_agent_worker.bridge_readiness import (
@@ -21,30 +16,35 @@ from campus_supervisor_agent_worker.bridge_v6_parser import (
     parse_bridge_supervisor_envelope,
 )
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
+from campus_supervisor_agent_worker.capability_dispatch import (
+    CapabilityDispatchError,
+    ExecutionCancelledError,
+    dispatch_capability_request,
+)
 from campus_supervisor_agent_worker.http_types import HttpResponse, HttpRoute
 from campus_supervisor_agent_worker.prompt_stack import PromptRuntimeSettings
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 AgentHandler = Callable[
-    [AgentRequest],
-    AgentResponse,
+    [CapabilityRequest],
+    CapabilityResponse,
 ]
 AgentEnvelopeHandler = Callable[
-    [SupervisorRequest, AgentRequest],
-    AgentResponse,
+    [SupervisorRequest, CapabilityRequest],
+    CapabilityResponse,
 ]
 
 
 def build_bridge_routes(
     settings: ApiSettings,
     *,
-    agent_handler: AgentEnvelopeHandler | None = None,
+    capability_handler: AgentEnvelopeHandler | None = None,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
     cancel_flags: CancelFlagStore | None = None,
 ) -> tuple[HttpRoute, ...]:
     runtime_cancel_flags = cancel_flags or CancelFlagStore()
-    runtime_agent_handler = agent_handler or _default_agent_envelope_handler
+    runtime_capability_handler = capability_handler or _default_agent_envelope_handler
     return (
         HttpRoute(
             "POST",
@@ -53,7 +53,7 @@ def build_bridge_routes(
                 headers,
                 body,
                 settings,
-                runtime_agent_handler,
+                runtime_capability_handler,
                 cancel_flags=runtime_cancel_flags,
             ),
         ),
@@ -64,7 +64,7 @@ def build_bridge_routes(
                 headers,
                 body,
                 settings,
-                runtime_agent_handler,
+                runtime_capability_handler,
                 cancel_flags=runtime_cancel_flags,
             ),
         ),
@@ -98,17 +98,17 @@ def build_bridge_routes(
 
 def _default_agent_envelope_handler(
     request: SupervisorRequest,
-    runtime_agent_request: AgentRequest,
-) -> AgentResponse:
+    runtime_agent_request: CapabilityRequest,
+) -> CapabilityResponse:
     _ = request
-    return dispatch_agent_request(runtime_agent_request)
+    return dispatch_capability_request(runtime_agent_request)
 
 
 def handle_bridge_answer(
     headers: Mapping[str, str],
     body: dict[str, object] | None,
     settings: ApiSettings,
-    agent_handler: AgentEnvelopeHandler,
+    capability_handler: AgentEnvelopeHandler,
     *,
     cancel_flags: CancelFlagStore | None = None,
 ) -> HttpResponse:
@@ -147,7 +147,7 @@ def handle_bridge_answer(
     try:
         if runtime_cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
-        response = agent_handler(
+        response = capability_handler(
             request,
             runtime_agent_request,
         )
@@ -159,7 +159,7 @@ def handle_bridge_answer(
             {"error": asdict(exc.to_error_info())},
             kind="supervisor_error",
         )
-    except AgentDispatchError as exc:
+    except CapabilityDispatchError as exc:
         return _bridge_response(
             exc.http_status_code,
             {"error": asdict(exc.to_error_info())},
@@ -168,14 +168,14 @@ def handle_bridge_answer(
     finally:
         runtime_cancel_flags.complete(request.request_id)
 
-    return _bridge_response(200, asdict(response), kind="agent_response")
+    return _bridge_response(200, asdict(response), kind="capability_response")
 
 
 def handle_bridge_semantic_execution(
     headers: Mapping[str, str],
     body: dict[str, object] | None,
     settings: ApiSettings,
-    agent_handler: AgentEnvelopeHandler,
+    capability_handler: AgentEnvelopeHandler,
     *,
     cancel_flags: CancelFlagStore | None = None,
 ) -> HttpResponse:
@@ -219,7 +219,7 @@ def handle_bridge_semantic_execution(
     try:
         if runtime_cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
-        response = agent_handler(request, runtime_agent_request)
+        response = capability_handler(request, runtime_agent_request)
         if runtime_cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
     except ExecutionCancelledError as exc:
@@ -228,7 +228,7 @@ def handle_bridge_semantic_execution(
             {"error": asdict(exc.to_error_info())},
             kind="supervisor_error",
         )
-    except AgentDispatchError as exc:
+    except CapabilityDispatchError as exc:
         return _bridge_response(
             exc.http_status_code,
             {"error": asdict(exc.to_error_info())},
@@ -237,7 +237,7 @@ def handle_bridge_semantic_execution(
     finally:
         runtime_cancel_flags.complete(request.request_id)
 
-    return _bridge_response(200, asdict(response), kind="semantic_agent_response")
+    return _bridge_response(200, asdict(response), kind="semantic_capability_response")
 
 
 def handle_bridge_cancel(
@@ -317,12 +317,12 @@ def _parse_semantic_execution_work_item(payload: Mapping[str, object]) -> Semant
 
 
 def _bind_semantic_work_item_to_agent_request(
-    runtime_agent_request: AgentRequest,
+    runtime_agent_request: CapabilityRequest,
     work_item: SemanticExecutionWorkItem,
-) -> AgentRequest:
+) -> CapabilityRequest:
     workflow_context = runtime_agent_request.workflow_context
-    return AgentRequest(
-        target=runtime_agent_request.target,
+    return CapabilityRequest(
+        capability=runtime_agent_request.capability,
         user_goal=runtime_agent_request.user_goal,
         conversation_id=runtime_agent_request.conversation_id,
         request_id=runtime_agent_request.request_id,
@@ -337,8 +337,8 @@ def _bind_semantic_work_item_to_agent_request(
             visibility=workflow_context.visibility,
             workflow_run_ref=work_item.run_id,
             step_id=work_item.step_id,
-            agent_id=workflow_context.agent_id,
-            target=workflow_context.target,
+            capability_id=workflow_context.capability_id,
+            capability=workflow_context.capability,
             required_projection_kind=workflow_context.required_projection_kind,
             expected_output_artifacts=workflow_context.expected_output_artifacts,
             projection_refs=workflow_context.projection_refs,

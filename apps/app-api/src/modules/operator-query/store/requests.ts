@@ -124,7 +124,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					principalType: row.principalType,
 					requestId: row.requestId,
 					requestedCapability: row.requestedCapability ?? null,
-					selectedTarget: row.selectedTarget ?? null,
+					selectedCapability: row.selectedCapability ?? null,
 					status: row.status,
 					summary: row.summary,
 					surface: row.surface,
@@ -313,7 +313,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 						requestedCapability: projection.requestedCapability ?? null,
 						requestedScope: projection.requestedScopeJson ?? null,
 						resolvedScope: projection.resolvedScopeJson ?? null,
-						selectedTarget: projection.selectedTarget ?? null,
+						selectedCapability: projection.selectedCapability ?? null,
 					},
 				},
 				request: {
@@ -325,7 +325,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					requestedScope: projection.requestedScopeJson ?? null,
 					...(projection.versionQueryJson ? { versionQuery: projection.versionQueryJson } : {}),
 					resolvedScope: projection.resolvedScopeJson ?? null,
-					selectedTarget: projection.selectedTarget ?? null,
+					selectedCapability: projection.selectedCapability ?? null,
 					startedAt: projection.startedAt.toISOString(),
 					status: projection.status as OperatorRequestObservabilityRecord["request"]["status"],
 					surface: projection.surface,
@@ -433,8 +433,8 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.surface) {
 				conditions.push(eq(requestAuditProjection.surface, filters.surface));
 			}
-			if (filters.selectedTarget) {
-				conditions.push(eq(requestAuditProjection.selectedTarget, filters.selectedTarget));
+			if (filters.selectedCapability) {
+				conditions.push(eq(requestAuditProjection.selectedCapability, filters.selectedCapability));
 			}
 			if (filters.eventType) {
 				conditions.push(eq(requestAuditProjection.eventType, filters.eventType));

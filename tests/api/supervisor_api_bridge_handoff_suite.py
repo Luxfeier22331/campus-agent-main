@@ -11,7 +11,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
 
         def fake_agent(request):
             captured_requests.append(request)
-            return AgentResponse(
+            return CapabilityResponse(
                 target=request.target,
                 status="completed",
                 answer_text="ok",
@@ -22,7 +22,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=fake_agent,
+            capability_handler=fake_agent,
         )
 
         response = app.handle(
@@ -40,7 +40,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(captured_requests), 1)
-        self.assertEqual(captured_requests[0].target, "campus-services-agent")
+        self.assertEqual(captured_requests[0].target, "campus_services")
 
     def test_bridge_answer_rejects_terminal_frame_because_go_handles_terminal_directly(
         self,
@@ -116,7 +116,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
                 "ambiguity_reason": "",
             },
             "terminal_envelope": {
-                "selected_target": None,
+                "selected_capability": None,
                 "status": "no_answer",
                 "answer_text": "Go terminal envelope says this is outside the product scope.",
                 "follow_up_question": "",
@@ -215,7 +215,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
             trace_id="trace-missing-workflow-plan",
             effective_capability="campus_services",
             lane="campus_services",
-            handoff_target="campus-services-agent",
+            handoff_target="campus_services",
             payload_kind="service_guide_lookup",
             allowed_tools=["service_guide_lookup"],
             payload={
@@ -251,7 +251,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
             trace_id="trace-workflow-plan-drift",
             effective_capability="campus_services",
             lane="campus_services",
-            handoff_target="campus-services-agent",
+            handoff_target="campus_services",
             payload_kind="service_guide_lookup",
             allowed_tools=["service_guide_lookup"],
             payload={
@@ -320,7 +320,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
             trace_id="trace-go-preplanned-knowledge",
             effective_capability="knowledge",
             lane="rag",
-            handoff_target="rag-agent",
+            handoff_target="knowledge",
             payload_kind="rag_request",
             allowed_tools=[],
             payload={
@@ -350,7 +350,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(envelope.request.requested_capability, "knowledge")
         self.assertIsNotNone(envelope.agent_request)
         assert envelope.agent_request is not None
-        self.assertEqual(envelope.agent_request.target, "rag-agent")
+        self.assertEqual(envelope.agent_request.target, "knowledge")
         self.assertEqual(
             envelope.agent_request.payload,
             RagRequestPayload(
@@ -370,7 +370,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
             trace_id="trace-go-preplanned-service-guide",
             effective_capability="campus_services",
             lane="campus_services",
-            handoff_target="campus-services-agent",
+            handoff_target="campus_services",
             payload_kind="service_guide_lookup",
             allowed_tools=["service_guide_lookup"],
             payload={
@@ -385,7 +385,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
 
         self.assertIsNotNone(envelope.agent_request)
         assert envelope.agent_request is not None
-        self.assertEqual(envelope.agent_request.target, "campus-services-agent")
+        self.assertEqual(envelope.agent_request.target, "campus_services")
         self.assertEqual(envelope.agent_request.allowed_tools, ("service_guide_lookup",))
         self.assertEqual(
             envelope.agent_request.payload,
@@ -402,7 +402,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
             trace_id="trace-go-preplanned-service-guide-missing-audience",
             effective_capability="campus_services",
             lane="campus_services",
-            handoff_target="campus-services-agent",
+            handoff_target="campus_services",
             payload_kind="service_guide_lookup",
             allowed_tools=["service_guide_lookup"],
             payload={

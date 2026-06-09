@@ -88,7 +88,7 @@ function toExecutionControlWireResponse(
 		follow_up_question: response.followUpQuestion,
 		observability: toSnakeCaseRecord(response.observability ?? null),
 		result: response.result && typeof response.result === "object" ? response.result : null,
-		selected_target: response.selectedTarget,
+		selected_capability: response.selectedCapability,
 		status: response.status,
 		trace_id: response.traceId,
 		workflow_trace_summary: toSnakeCaseRecord(response.workflowTraceSummary ?? null),
@@ -361,7 +361,7 @@ describe("public chat web chat integration", () => {
 		});
 	});
 
-	it("routes campus-services prompts through public-chat-web into structured agent handoffs", async () => {
+	it("routes campus-services prompts through public-chat-web into structured capability handoffs", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const observedResults: Record<string, unknown>[] = [];
@@ -545,7 +545,7 @@ describe("public chat web chat integration", () => {
 			expect(observedResults[index]).toMatchObject({
 				allowed_tools: [route.expectedTool],
 				payload_kind: route.expectedTool,
-				target: "campus-services-agent",
+				target: "campus_services",
 				tool_result: {
 					outcome: "resolved_current",
 				},
@@ -558,7 +558,7 @@ describe("public chat web chat integration", () => {
 					retrievedTitleSummary: [route.expectedTool],
 					semanticOutcome: "resolved_current",
 				},
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: "completed",
 				surface: "public_chat_web",
 			});
@@ -752,12 +752,12 @@ describe("public chat web chat integration", () => {
 			expect(observedResults[index]).toMatchObject({
 				allowed_tools: [currentCase.expectedTool],
 				payload_kind: currentCase.expectedTool,
-				target: "campus-services-agent",
+				target: "campus_services",
 			});
 
 			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
 			expect(finalizedWrite.requestExecution).toMatchObject({
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: currentCase.expectedStatus,
 				surface: "public_chat_web",
 			});

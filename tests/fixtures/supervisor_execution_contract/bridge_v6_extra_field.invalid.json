@@ -1,6 +1,6 @@
 {
 	"bridge_version": "supervisor_bridge_v6",
-	"response_contract": "agent_response",
+	"response_contract": "capability_response",
 	"user_goal": "学生手册请假制度怎么规定？",
 	"request_id": "req-contract-extra",
 	"trace": {

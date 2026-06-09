@@ -35,7 +35,7 @@ class ProviderFunctionSchemaTest(unittest.TestCase):
             self.assertEqual(schema["parameters"]["additionalProperties"], False)
             _assert_strict_object(schema["parameters"])
 
-    def test_agent_internal_tools_do_not_get_tool_function_schemas(self) -> None:
+    def test_capability_internal_tools_do_not_get_tool_function_schemas(self) -> None:
         schemas = generate_provider_function_schemas()
 
         self.assertNotIn("retrieval.query", {schema["name"] for schema in schemas})

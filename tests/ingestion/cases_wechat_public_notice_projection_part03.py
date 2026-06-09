@@ -97,7 +97,7 @@ class WeChatPublicNoticeProjectionTestPart03(unittest.TestCase):
             unit_id="notice_unit:wechat:woa_article_suppressed",
             primary_role="notice_window",
             semantic_owner="notice_body",
-            default_agent="notice-agent",
+            default_agent="notice",
             target_surface=NOTICE_TARGET_SURFACE_UNSUPPORTED,
             temporal_policy="announcement_window",
             completeness_status="reference_only",

@@ -80,7 +80,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			modelName: null,
 			principalType: null,
 			requestedCapability: null,
-			selectedTarget: null,
+			selectedCapability: null,
 			surface: null,
 			window: "1h",
 		});
@@ -188,7 +188,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			modelName: null,
 			principalType: null,
 			requestedCapability: null,
-			selectedTarget: null,
+			selectedCapability: null,
 			surface: null,
 			window: "1h",
 		});
@@ -221,7 +221,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 				aclAnomalyCode: "projection_missing",
 				failClosed: false,
 				requestedCapability: "knowledge",
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				status: "completed",
 			}),
 		).toBe("knowledge request finalized without the required policy projection for rag agent.");

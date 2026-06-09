@@ -2,21 +2,26 @@ from __future__ import annotations
 
 import time
 
-from campus_contracts import AgentResponse, RagResultPayload
-from campus_rag_agent import RagAgent
-from campus_rag_agent.agent_answer_shape import (
+from campus_contracts import CapabilityResponse, RagResultPayload
+from campus_knowledge_capability import KnowledgeCapability
+from campus_knowledge_capability.answer_shape import (
     answer_shape_from_retrieval_intent,
     infer_answer_shape,
 )
-from campus_rag_agent.institutional_rules_query_planning import plan_institutional_rules_query
-from campus_rag_agent.query_planning import plan_curriculum_query, plan_student_handbook_query
-from campus_rag_agent.retrieval_intent import (
+from campus_knowledge_capability.institutional_rules_query_planning import (
+    plan_institutional_rules_query,
+)
+from campus_knowledge_capability.query_planning import (
+    plan_curriculum_query,
+    plan_student_handbook_query,
+)
+from campus_knowledge_capability.retrieval_intent import (
     RetrievalIntent,
     RetrievalIntentExpectation,
     RetrievalIntentTarget,
     retrieval_intent_for_official_web_stable_reference,
 )
-from campus_rag_agent.service_clarification import _build_clarification_question
+from campus_knowledge_capability.service_clarification import _build_clarification_question
 from campus_retrieval_core import (
     RetrievalPlan,
     RetrievalPlanBudget,
@@ -99,7 +104,7 @@ def _build_projection_with_breakdown(
                 "answer_ms": answer_ms,
             },
         )
-    draft = RagAgent().build_answer(
+    draft = KnowledgeCapability().build_answer(
         bundle,
         query_text=case.query,
         retrieval_intent=retrieval_intent,
@@ -114,8 +119,8 @@ def _build_projection_with_breakdown(
         )
         presentation_kind = "clarification"
     answer_ms = _elapsed_ms(answer_started_at)
-    response = AgentResponse(
-        target="rag-agent",
+    response = CapabilityResponse(
+        capability="knowledge",
         status="completed",
         answer_text=answer_text,
         confidence="medium",

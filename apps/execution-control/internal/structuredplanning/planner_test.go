@@ -68,8 +68,8 @@ func TestPlanWithPolicyProjectsCanonicalWorkflowPlan(t *testing.T) {
 		t.Fatalf("step count = %d, want 1", len(plan.Steps))
 	}
 	step := plan.Steps[0]
-	if step.StepKind != WorkflowStepKindHandoff || step.Target != "rag-agent" {
-		t.Fatalf("step = %#v, want rag handoff", step)
+	if step.StepKind != WorkflowStepKindHandoff || step.Capability != "knowledge" {
+		t.Fatalf("step = %#v, want knowledge capability handoff", step)
 	}
 	if step.SelectedTool != "retrieval.query" {
 		t.Fatalf("selected tool = %q, want retrieval.query", step.SelectedTool)
@@ -85,8 +85,8 @@ func TestPlanWithPolicyProjectsCanonicalWorkflowPlan(t *testing.T) {
 		t.Fatalf("projection workflow_mode = %v, want single_step", projection["workflow_mode"])
 	}
 	steps, ok := projection["steps"].([]map[string]any)
-	if !ok || len(steps) != 1 || steps[0]["target"] != "rag-agent" {
-		t.Fatalf("projection steps = %#v, want typed rag step", projection["steps"])
+	if !ok || len(steps) != 1 || steps[0]["capability"] != "knowledge" {
+		t.Fatalf("projection steps = %#v, want typed knowledge step", projection["steps"])
 	}
 }
 
@@ -191,26 +191,26 @@ func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing
 	}
 }
 
-func TestValidateWorkflowPlanWithAgentSpecRejectsInactiveAgent(t *testing.T) {
+func TestValidateWorkflowPlanWithCapabilitySpecRejectsInactiveCapability(t *testing.T) {
 	plan := SingleStepPlan(Handoff{
-		Target:      "navigation-agent",
+		Capability:  "navigation",
 		PayloadKind: "place_lookup",
 		Payload:     map[string]any{"query_text": "北楼在哪里"},
 	})
-	registry := runtimepolicy.AgentSpecRegistry{
-		SchemaVersion:   runtimepolicy.AgentSpecSchemaVersion,
+	registry := runtimepolicy.CapabilitySpecRegistry{
+		SchemaVersion:   runtimepolicy.CapabilitySpecSchemaVersion,
 		RegistryVersion: "test",
-		Agents: []runtimepolicy.AgentSpec{
+		Capabilities: []runtimepolicy.CapabilitySpec{
 			{
-				ID:                            "navigation-agent",
-				Capability:                    "place_lookup",
-				OwnerPackage:                  "packages/navigation-agent",
-				RuntimeAdapter:                "worker_dispatch",
-				Active:                        false,
-				OpeningGate:                   "closed",
-				AllowedStructuredHandoffTools: []string{},
-				ContextProjectionKinds:        []string{"place_context"},
-				Description:                   "fixture",
+				ID:                     "navigation",
+				OwnerPackage:           "packages/navigation-capability",
+				WorkerRole:             "activity-worker-navigation",
+				RuntimeAdapter:         "temporal_activity_worker",
+				Active:                 false,
+				OpeningGate:            "closed",
+				AllowedStructuredTools: []string{},
+				ContextProjectionKinds: []string{"place_context"},
+				Description:            "fixture",
 			},
 		},
 	}
@@ -219,32 +219,32 @@ func TestValidateWorkflowPlanWithAgentSpecRejectsInactiveAgent(t *testing.T) {
 		t.Fatalf("load tool spec: %v", err)
 	}
 
-	err = ValidateWorkflowPlanWithAgentSpec(plan, registry, toolRegistry)
+	err = ValidateWorkflowPlanWithCapabilitySpec(plan, registry, toolRegistry)
 
 	if err == nil {
-		t.Fatal("expected inactive agent plan validation to fail")
+		t.Fatal("expected inactive capability plan validation to fail")
 	}
 }
 
-func TestValidateWorkflowPlanWithAgentSpecRejectsPayloadKindOutsideAgentSpec(t *testing.T) {
+func TestValidateWorkflowPlanWithCapabilitySpecRejectsPayloadKindOutsideCapabilitySpec(t *testing.T) {
 	plan := SingleStepPlan(Handoff{
-		Target:      "campus-services-agent",
+		Capability:  "campus_services",
 		PayloadKind: "campus_notice_discover",
 		Payload:     map[string]any{"query_text": "校历"},
 	})
-	registry, err := runtimepolicy.LoadAgentSpecRegistry("")
+	registry, err := runtimepolicy.LoadCapabilitySpecRegistry("")
 	if err != nil {
-		t.Fatalf("load agent spec: %v", err)
+		t.Fatalf("load capability spec: %v", err)
 	}
 	toolRegistry, err := runtimepolicy.LoadToolSpecRegistry("")
 	if err != nil {
 		t.Fatalf("load tool spec: %v", err)
 	}
 
-	err = ValidateWorkflowPlanWithAgentSpec(plan, registry, toolRegistry)
+	err = ValidateWorkflowPlanWithCapabilitySpec(plan, registry, toolRegistry)
 
 	if err == nil {
-		t.Fatal("expected payload kind outside AgentSpec to fail")
+		t.Fatal("expected payload kind outside CapabilitySpec to fail")
 	}
 }
 

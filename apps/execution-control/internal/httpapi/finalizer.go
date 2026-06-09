@@ -8,7 +8,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-var errInvalidAgentResponse = errors.New("invalid agent response")
+var errInvalidCapabilityResponse = errors.New("invalid agent response")
 var answerEligibleProjectionKinds = map[execution.ProjectionKind]struct{}{
 	execution.ProjectionKindNoticeContext:    {},
 	execution.ProjectionKindNoticeChangeSet:  {},
@@ -82,57 +82,51 @@ func finalizeAgentBridgeResponse(
 	traceID string,
 	context supervisorFinalizerContext,
 ) (map[string]any, error) {
-	target, err := optionalAgentResponseString(agentResponse, "target")
+	target, err := requiredCapabilityResponseString(agentResponse, "capability")
 	if err != nil {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
-	if target == "" {
-		target, err = optionalAgentResponseString(agentResponse, "selected_target")
-		if err != nil {
-			return nil, errInvalidAgentResponse
-		}
-	}
-	status, err := optionalAgentResponseString(agentResponse, "status")
+	status, err := optionalCapabilityResponseString(agentResponse, "status")
 	if err != nil {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
-	confidence, err := requiredAgentResponseString(agentResponse, "confidence")
+	confidence, err := requiredCapabilityResponseString(agentResponse, "confidence")
 	if err != nil {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
-	if !allowedAgentTarget(target) || !allowedDelegateStatus(status) || !allowedConfidence(confidence) {
-		return nil, errInvalidAgentResponse
+	if !allowedCapabilityID(target) || !allowedDelegateStatus(status) || !allowedConfidence(confidence) {
+		return nil, errInvalidCapabilityResponse
 	}
 	if !validFinalizerHandoffInvariant(target, context) {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
-	answerText, err := requiredAgentResponseString(agentResponse, "answer_text")
+	answerText, err := requiredCapabilityResponseString(agentResponse, "answer_text")
 	if err != nil {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
-	followUpQuestion, err := requiredAgentResponseString(agentResponse, "follow_up_question")
+	followUpQuestion, err := requiredCapabilityResponseString(agentResponse, "follow_up_question")
 	if err != nil {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
-	result, err := optionalAgentResponseObject(agentResponse, "result")
+	result, err := optionalCapabilityResponseObject(agentResponse, "result")
 	if err != nil || hasForbiddenWorkflowTraceKey(result) {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
-	errorBody, err := optionalAgentResponseObject(agentResponse, "error")
+	errorBody, err := optionalCapabilityResponseObject(agentResponse, "error")
 	if err != nil || hasForbiddenWorkflowTraceKey(errorBody) {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
-	if !validAgentResponseErrorBody(errorBody) {
-		return nil, errInvalidAgentResponse
+	if !validCapabilityResponseErrorBody(errorBody) {
+		return nil, errInvalidCapabilityResponse
 	}
-	agentObservability, err := optionalAgentResponseObject(agentResponse, "agent_observability")
+	agentObservability, err := optionalCapabilityResponseObject(agentResponse, "capability_observability")
 	if err != nil || hasForbiddenWorkflowTraceKey(agentObservability) {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
 	selectedTool := finalizerSelectedTool(agentObservability, context)
 	context.SelectedTool = selectedTool
 	response := map[string]any{
-		"selected_target":        target,
+		"selected_capability":    target,
 		"status":                 status,
 		"answer_text":            answerText,
 		"follow_up_question":     followUpQuestion,
@@ -156,43 +150,43 @@ func finalizerSelectedTool(
 	)
 }
 
-func optionalAgentResponseString(agentResponse map[string]any, field string) (string, error) {
+func optionalCapabilityResponseString(agentResponse map[string]any, field string) (string, error) {
 	value, exists := agentResponse[field]
 	if !exists || value == nil {
 		return "", nil
 	}
 	text, ok := value.(string)
 	if !ok {
-		return "", errInvalidAgentResponse
+		return "", errInvalidCapabilityResponse
 	}
 	return strings.TrimSpace(text), nil
 }
 
-func requiredAgentResponseString(agentResponse map[string]any, field string) (string, error) {
+func requiredCapabilityResponseString(agentResponse map[string]any, field string) (string, error) {
 	value, exists := agentResponse[field]
 	if !exists || value == nil {
-		return "", errInvalidAgentResponse
+		return "", errInvalidCapabilityResponse
 	}
 	text, ok := value.(string)
 	if !ok {
-		return "", errInvalidAgentResponse
+		return "", errInvalidCapabilityResponse
 	}
 	return strings.TrimSpace(text), nil
 }
 
-func optionalAgentResponseObject(agentResponse map[string]any, field string) (map[string]any, error) {
+func optionalCapabilityResponseObject(agentResponse map[string]any, field string) (map[string]any, error) {
 	value, exists := agentResponse[field]
 	if !exists || value == nil {
 		return nil, nil
 	}
 	object, ok := value.(map[string]any)
 	if !ok {
-		return nil, errInvalidAgentResponse
+		return nil, errInvalidCapabilityResponse
 	}
 	return object, nil
 }
 
-func validAgentResponseErrorBody(errorBody map[string]any) bool {
+func validCapabilityResponseErrorBody(errorBody map[string]any) bool {
 	if errorBody == nil {
 		return true
 	}
@@ -237,7 +231,7 @@ func buildWorkflowTraceSummaryWire(
 	if context.WorkflowRun != nil && context.WorkflowRun.Mode != "" {
 		workflowMode = string(context.WorkflowRun.Mode)
 	}
-	traceTarget := workflowTraceSelectedTarget(workflowMode, target)
+	traceTarget := workflowTraceSelectedCapability(workflowMode, target)
 	handoff := workflowHandoffSummary(context.Handoff, target, selectedTool)
 	selectedTools := workflowSelectedTools(context.Handoff, selectedTool)
 	failCloseReason := defaultString(
@@ -264,7 +258,7 @@ func buildWorkflowTraceSummaryWire(
 		}
 		selectedTools = workflowTraceSelectedTools(run, context.Handoff, selectedTool)
 		if traceTarget == "" && len(run.HandoffChain) > 0 {
-			traceTarget = run.HandoffChain[len(run.HandoffChain)-1].Target
+			traceTarget = run.HandoffChain[len(run.HandoffChain)-1].Capability
 		}
 		if len(handoff) == 0 && len(run.HandoffChain) > 0 {
 			handoff = run.HandoffChain[0].Map()
@@ -284,7 +278,7 @@ func buildWorkflowTraceSummaryWire(
 	if len(policyVersions) == 0 {
 		policyVersions = decisions.PolicyArtifactVersions
 	}
-	selectedTarget := traceTarget
+	selectedCapability := traceTarget
 	return contractsv1.WorkflowTraceSummaryWire{
 		RoutingFrame: map[string]any{
 			"scope_gate_decision":     decisions.ScopeGateDecision,
@@ -300,8 +294,8 @@ func buildWorkflowTraceSummaryWire(
 		WorkflowMode:                contractsv1.WorkflowMode(workflowMode),
 		Handoff:                     handoff,
 		HandoffChain:                run.HandoffChainMaps(),
-		AgentInvocations:            workflowAgentInvocationWire(run.AgentInvocations),
-		SelectedTarget:              &selectedTarget,
+		CapabilityInvocations:       workflowCapabilityInvocationWire(run.CapabilityInvocations),
+		SelectedCapability:          &selectedCapability,
 		SelectedTools:               selectedTools,
 		ContextProjections:          workflowContextProjectionWire(run.ContextProjections),
 		AnswerArtifactProjectionIDs: workflowAnswerArtifactProjectionIDs(run.ContextProjections),

@@ -23,7 +23,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 						sources: [{ doc_id: "handbook:library-hours:v2024" }],
 					},
 				},
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				status: "completed",
 				traceId: "trace_0002",
 			}),

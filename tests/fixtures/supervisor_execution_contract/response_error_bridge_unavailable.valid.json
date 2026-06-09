@@ -1,5 +1,5 @@
 {
-	"selected_target": null,
+	"selected_capability": null,
 	"status": "error",
 	"answer_text": "",
 	"follow_up_question": "",
@@ -18,8 +18,8 @@
 		"workflow_mode": "terminal",
 		"handoff": {},
 		"handoff_chain": [],
-		"agent_invocations": [],
-		"selected_target": "none",
+		"capability_invocations": [],
+		"selected_capability": "none",
 		"selected_tools": [],
 		"context_projections": [],
 		"answer_artifact_projection_ids": [],

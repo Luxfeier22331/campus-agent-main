@@ -27,8 +27,8 @@ func TestPlanNoticeOriginalSpringBreakStaysNoticeLookup(t *testing.T) {
 	if handoff == nil {
 		t.Fatal("expected selected handoff")
 	}
-	if handoff.Target != "notice-agent" {
-		t.Fatalf("target = %q, want notice-agent", handoff.Target)
+	if handoff.Capability != "notice" {
+		t.Fatalf("target = %q, want notice", handoff.Capability)
 	}
 	if handoff.PayloadKind != "campus_notice_discover" {
 		t.Fatalf("payload kind = %q, want campus_notice_discover", handoff.PayloadKind)

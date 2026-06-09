@@ -47,7 +47,7 @@ export interface RequestExecutionWrite {
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 	resolvedScope: RequestedScope | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -89,7 +89,7 @@ export interface RequestObservabilityFactWrite {
 	versionQuerySummary: string | null;
 	resolvedScopeSummary: string | null;
 	collection: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	selectedTool?: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;

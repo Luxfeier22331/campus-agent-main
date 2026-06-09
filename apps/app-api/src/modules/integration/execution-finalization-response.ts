@@ -30,7 +30,7 @@ const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"follow_up_question",
 	"observability",
 	"result",
-	"selected_target",
+	"selected_capability",
 	"status",
 	"trace_id",
 	"workflow_trace_summary",
@@ -42,7 +42,7 @@ const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"error",
 	"follow_up_question",
 	"result",
-	"selected_target",
+	"selected_capability",
 	"status",
 	"trace_id",
 ] as const;
@@ -119,9 +119,9 @@ function assertExecutionFinalizationResponseWire(
 	) {
 		throw new ExecutionFinalizationResponseContractError("confidence must be high, medium, or low");
 	}
-	if (!(record.selected_target === null || typeof record.selected_target === "string")) {
+	if (!(record.selected_capability === null || typeof record.selected_capability === "string")) {
 		throw new ExecutionFinalizationResponseContractError(
-			"selected_target must be a string or null",
+			"selected_capability must be a string or null",
 		);
 	}
 	if (!(record.result === null || getRecord(record.result))) {
@@ -384,7 +384,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 		),
 		routingFrame: normalizeWorkflowRecord(recordValue(record, "routing_frame")),
 		runtimeVersions: normalizeWorkflowRecord(recordValue(record, "runtime_versions")),
-		selectedTarget: normalizeRecordString(record, "selected_target"),
+		selectedCapability: normalizeRecordString(record, "selected_capability"),
 		selectedTools,
 		toolArgumentSummary: normalizeWorkflowRecord(recordValue(record, "tool_argument_summary")),
 		traceSteps,
@@ -393,7 +393,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 	};
 
 	if (
-		!(parsed.directVsDelegateBranch || parsed.planningOutcome || parsed.selectedTarget) &&
+		!(parsed.directVsDelegateBranch || parsed.planningOutcome || parsed.selectedCapability) &&
 		parsed.selectedTools.length === 0 &&
 		Object.values(parsed).every(
 			(item) =>
@@ -426,7 +426,7 @@ export function parseExecutionFinalizationResponsePayload(
 		followUpQuestion: parsed.follow_up_question,
 		observability: parseExecutionObservability(parsed.observability),
 		result: parsed.result ?? null,
-		selectedTarget: parsed.selected_target,
+		selectedCapability: parsed.selected_capability,
 		status: parsed.status,
 		traceId: parsed.trace_id,
 		...(workflowTraceSummary ? { workflowTraceSummary } : {}),

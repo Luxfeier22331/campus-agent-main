@@ -8,12 +8,12 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from campus_contracts import (
-    AgentRequest,
-    AgentResponse,
+    CapabilityRequest,
+    CapabilityResponse,
     KnowledgeScope,
     RagRequestPayload,
 )
-from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
+from campus_supervisor_agent_worker.capability_delegates import _build_capability_delegates
 from campus_supervisor_agent_worker.retrieval_observation_bridge import (
     build_jsonl_retrieval_observation_sink,
     build_retrieval_runtime_event_sink,
@@ -251,15 +251,15 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
                 retrieval_runtime_event_jsonl_path=str(runtime_event_path),
             )
             with patch(
-                "campus_supervisor_agent_worker.agent_delegates.delegate_to_rag_agent"
+                "campus_supervisor_agent_worker.capability_delegates.delegate_to_knowledge_capability"
             ) as delegate:
-                delegate.return_value = AgentResponse(
-                    target="rag-agent",
+                delegate.return_value = CapabilityResponse(
+                    capability="knowledge",
                     status="completed",
                     answer_text="ok",
                     confidence="high",
                 )
-                delegates = _build_agent_delegates(
+                delegates = _build_capability_delegates(
                     settings=settings,
                     rag_prompt_executor=None,
                     campus_services_query_service=None,
@@ -267,9 +267,9 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
                     rag_openai_runtime=object(),
                 )
 
-                response = delegates["rag-agent"](
-                    AgentRequest(
-                        target="rag-agent",
+                response = delegates["knowledge"](
+                    CapabilityRequest(
+                        capability="knowledge",
                         user_goal="校园卡丢了怎么办",
                         request_id="req-rag-runtime-event",
                         payload=RagRequestPayload(

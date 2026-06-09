@@ -55,8 +55,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
                 condition_polarity="negative",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="按规定提交解除处分申请表，经学院审核后报学生处。",
             confidence="high",
@@ -130,8 +130,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
                 ),
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="当前已收录依据中，本科生奖学金相关制度包括：国家奖学金、国家励志奖学金。",
             confidence="high",
@@ -202,8 +202,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
                 table_fact_type="amount_or_quota",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="专业奖学金一等奖奖励金额为 3000 元。",
             confidence="high",
@@ -291,8 +291,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
                 condition_polarity="positive",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="若成绩未进前10%，但仍位于前30%且满足其他要求，可以按例外条件参评。",
             confidence="high",
@@ -354,8 +354,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
                 condition_polarity="positive",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="论文可以作为国奖相关条件中的学术研究表现依据之一。",
             confidence="high",
@@ -417,8 +417,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
                 table_fact_type="amount_or_quota",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="专业奖学金一等奖奖励金额为 3000 元。",
             confidence="high",
@@ -454,8 +454,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
         self.assertEqual(observed.draft_kind, "condition_table")
 
     def test_builds_ambiguous_scholarship_clarification_observation(self) -> None:
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="needs_clarification",
             answer_text="你想查的是哪类奖学金？例如国家奖学金、国家励志奖学金、专项奖学金等。",
             follow_up_question=(
@@ -497,8 +497,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
         self.assertEqual(observed.selected_polarities, ())
 
     def test_builds_student_rules_no_hit_observation(self) -> None:
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="no_answer",
             answer_text="当前未检索到足够依据支持回答这个学生手册问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。",
             confidence="low",
@@ -559,8 +559,8 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
                 condition_polarity="positive",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="no_answer",
             answer_text="当前检索到相关依据，但答案草稿未通过结构化校验。",
             confidence="low",

@@ -8,7 +8,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
-func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *testing.T) {
+func TestParseAnswerRequestProjectsBridgeV5CapabilityRequestForTransportSchedule(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"我明天早上要去丰台上课，最早的班车是几点",
@@ -31,8 +31,8 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 	if payload["bridge_version"] != "supervisor_bridge_v6" {
 		t.Fatalf("bridge_version = %v, want supervisor_bridge_v6", payload["bridge_version"])
 	}
-	if payload["response_contract"] != "agent_response" {
-		t.Fatalf("response_contract = %v, want agent_response", payload["response_contract"])
+	if payload["response_contract"] != "capability_response" {
+		t.Fatalf("response_contract = %v, want capability_response", payload["response_contract"])
 	}
 	if payload["effective_capability"] != "campus_services" {
 		t.Fatalf("effective_capability = %v, want campus_services", payload["effective_capability"])
@@ -65,9 +65,9 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 	if workflowPlan["workflow_mode"] != "single_step" {
 		t.Fatalf("workflow_plan.workflow_mode = %v, want single_step", workflowPlan["workflow_mode"])
 	}
-	allowedAgents, ok := workflowPlan["allowed_agents"].([]any)
-	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "campus-services-agent" {
-		t.Fatalf("workflow_plan.allowed_agents = %#v, want campus-services-agent", workflowPlan["allowed_agents"])
+	allowedAgents, ok := workflowPlan["allowed_capabilities"].([]any)
+	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "campus_services" {
+		t.Fatalf("workflow_plan.allowed_capabilities = %#v, want campus_services", workflowPlan["allowed_capabilities"])
 	}
 	if workflowPlan["workflow_mode"] == "multi_step" {
 		t.Fatalf("transport preplan must not emit multi_step workflow plans: %#v", workflowPlan)
@@ -77,11 +77,11 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 		t.Fatalf("workflow_plan.steps = %#v, want one handoff step", workflowPlan["steps"])
 	}
 	planStep := expectExecutionRecord(t, planSteps[0], "workflow_plan.steps[0]")
-	if planStep["step_kind"] != "handoff" || planStep["target"] != "campus-services-agent" {
+	if planStep["step_kind"] != "handoff" || planStep["capability"] != "campus_services" {
 		t.Fatalf("workflow plan step = %#v, want campus-services handoff", planStep)
 	}
-	if handoff["target"] != "campus-services-agent" {
-		t.Fatalf("handoff.target = %v, want campus-services-agent", handoff["target"])
+	if handoff["capability"] != "campus_services" {
+		t.Fatalf("handoff.target = %v, want campus_services", handoff["capability"])
 	}
 	allowedTools, ok := handoff["allowed_tools"].([]any)
 	if !ok || len(allowedTools) != 1 || allowedTools[0] != "transport_schedule_lookup" {
@@ -91,18 +91,18 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 	if _, ok := handoff[legacyHandoffPayloadKey]; ok {
 		t.Fatalf("handoff must not expose legacy payload fragment: %#v", handoff)
 	}
-	agentRequest := expectExecutionRecord(t, handoff["agent_request"], "handoff.agent_request")
-	if agentRequest["target"] != "campus-services-agent" {
-		t.Fatalf("agent_request.target = %v, want campus-services-agent", agentRequest["target"])
+	agentRequest := expectExecutionRecord(t, handoff["capability_request"], "handoff.capability_request")
+	if agentRequest["capability"] != "campus_services" {
+		t.Fatalf("capability_request.target = %v, want campus_services", agentRequest["capability"])
 	}
 	if agentRequest["request_id"] != "req-transport-preplan" {
-		t.Fatalf("agent_request.request_id = %v, want req-transport-preplan", agentRequest["request_id"])
+		t.Fatalf("capability_request.request_id = %v, want req-transport-preplan", agentRequest["request_id"])
 	}
-	payloadRecord := expectExecutionRecord(t, agentRequest["payload"], "handoff.agent_request.payload")
+	payloadRecord := expectExecutionRecord(t, agentRequest["payload"], "handoff.capability_request.payload")
 	if payloadRecord["kind"] != "transport_schedule_lookup" {
-		t.Fatalf("agent_request.payload.kind = %v, want transport_schedule_lookup", payloadRecord["kind"])
+		t.Fatalf("capability_request.payload.kind = %v, want transport_schedule_lookup", payloadRecord["kind"])
 	}
-	payloadBody := expectExecutionRecord(t, payloadRecord["payload"], "handoff.agent_request.payload.payload")
+	payloadBody := expectExecutionRecord(t, payloadRecord["payload"], "handoff.capability_request.payload.payload")
 	if _, ok := payloadRecord["intent"]; ok {
 		t.Fatalf("legacy payload intent should not be present at payload wrapper level: %#v", payloadRecord)
 	}
@@ -154,8 +154,8 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 			request.RuntimeDecisions.PlanningOutcome,
 		)
 	}
-	if handoff["target"] != "rag-agent" {
-		t.Fatalf("handoff.target = %v, want rag-agent", handoff["target"])
+	if handoff["capability"] != "knowledge" {
+		t.Fatalf("handoff.target = %v, want knowledge", handoff["capability"])
 	}
 	if request.StructuredHandoff == nil {
 		t.Fatal("structured handoff must be present")
@@ -169,9 +169,9 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 			request.StructuredHandoff.ExpectedArtifacts,
 		)
 	}
-	allowedAgents, ok := workflowPlan["allowed_agents"].([]any)
-	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "rag-agent" {
-		t.Fatalf("workflow_plan.allowed_agents = %#v, want rag-agent", workflowPlan["allowed_agents"])
+	allowedAgents, ok := workflowPlan["allowed_capabilities"].([]any)
+	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "knowledge" {
+		t.Fatalf("workflow_plan.allowed_capabilities = %#v, want knowledge", workflowPlan["allowed_capabilities"])
 	}
 	allowedTools, ok := handoff["allowed_tools"].([]any)
 	if !ok || len(allowedTools) != 0 {
@@ -193,20 +193,20 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 	if _, ok := handoff[legacyHandoffPayloadKey]; ok {
 		t.Fatalf("handoff must not expose legacy payload fragment: %#v", handoff)
 	}
-	agentRequest := expectExecutionRecord(t, handoff["agent_request"], "handoff.agent_request")
-	if agentRequest["target"] != "rag-agent" {
-		t.Fatalf("agent_request.target = %v, want rag-agent", agentRequest["target"])
+	agentRequest := expectExecutionRecord(t, handoff["capability_request"], "handoff.capability_request")
+	if agentRequest["capability"] != "knowledge" {
+		t.Fatalf("capability_request.target = %v, want knowledge", agentRequest["capability"])
 	}
-	agentPayload := expectExecutionRecord(t, agentRequest["payload"], "agent_request.payload")
+	agentPayload := expectExecutionRecord(t, agentRequest["payload"], "capability_request.payload")
 	if agentPayload["kind"] != "rag_request" {
-		t.Fatalf("agent_request.payload.kind = %v, want rag_request", agentPayload["kind"])
+		t.Fatalf("capability_request.payload.kind = %v, want rag_request", agentPayload["kind"])
 	}
-	agentPayloadRecord := expectExecutionRecord(t, agentPayload["payload"], "agent_request.payload.payload")
-	scope := expectExecutionRecord(t, agentPayloadRecord["scope"], "agent_request.payload.payload.scope")
+	agentPayloadRecord := expectExecutionRecord(t, agentPayload["payload"], "capability_request.payload.payload")
+	scope := expectExecutionRecord(t, agentPayloadRecord["scope"], "capability_request.payload.payload.scope")
 	if scope["corpus"] != "regulations" || scope["collection"] != "student_rules" {
 		t.Fatalf("scope = %#v, want regulations/student_rules", scope)
 	}
-	versionQuery := expectExecutionRecord(t, agentPayloadRecord["version_query"], "agent_request.payload.payload.version_query")
+	versionQuery := expectExecutionRecord(t, agentPayloadRecord["version_query"], "capability_request.payload.payload.version_query")
 	if versionQuery["mode"] != "compare" ||
 		versionQuery["version_id"] != "v1:student-handbook" ||
 		versionQuery["compare_to_version_id"] != "v2:student-handbook" {
@@ -247,7 +247,7 @@ func TestParseAnswerRequestResolvesSelectedNoticeKnowledgeFollowthroughWorkflowP
 	if request.StructuredHandoff == nil {
 		t.Fatal("structured handoff must be present")
 	}
-	if request.StructuredHandoff.Target != "notice-agent" ||
+	if request.StructuredHandoff.Capability != "notice" ||
 		request.StructuredHandoff.PayloadKind != "campus_notice_get" {
 		t.Fatalf("first structured handoff = %#v", request.StructuredHandoff)
 	}
@@ -257,11 +257,11 @@ func TestParseAnswerRequestResolvesSelectedNoticeKnowledgeFollowthroughWorkflowP
 	if len(request.PlannedHandoffs) != 2 {
 		t.Fatalf("planned handoffs = %#v, want notice then rag", request.PlannedHandoffs)
 	}
-	if request.PlannedHandoffs[0].Target != "notice-agent" ||
+	if request.PlannedHandoffs[0].Capability != "notice" ||
 		request.PlannedHandoffs[0].PayloadKind != "campus_notice_get" {
 		t.Fatalf("planned handoff[0] = %#v", request.PlannedHandoffs[0])
 	}
-	if request.PlannedHandoffs[1].Target != "rag-agent" ||
+	if request.PlannedHandoffs[1].Capability != "knowledge" ||
 		request.PlannedHandoffs[1].PayloadKind != "rag_request" ||
 		len(request.PlannedHandoffs[1].AllowedTools) != 0 {
 		t.Fatalf("planned handoff[1] = %#v", request.PlannedHandoffs[1])
@@ -279,8 +279,8 @@ func TestParseAnswerRequestResolvesSelectedNoticeKnowledgeFollowthroughWorkflowP
 	if summary["planning_outcome"] != "preplanned" {
 		t.Fatalf("planning_outcome = %v, want preplanned", summary["planning_outcome"])
 	}
-	if summary["selected_target"] != "notice-agent" {
-		t.Fatalf("selected_target = %v, want notice-agent", summary["selected_target"])
+	if summary["selected_capability"] != "notice" {
+		t.Fatalf("selected_capability = %v, want notice", summary["selected_capability"])
 	}
 	if summary["selected_tool"] != "" {
 		t.Fatalf("selected_tool = %v, want empty for internal notice handoff", summary["selected_tool"])
@@ -295,8 +295,8 @@ func TestParseAnswerRequestResolvesSelectedNoticeKnowledgeFollowthroughWorkflowP
 	}
 	firstStep := expectExecutionRecord(t, steps[0], "workflow_plan.steps[0]")
 	secondStep := expectExecutionRecord(t, steps[1], "workflow_plan.steps[1]")
-	if firstStep["step_id"] != "handoff:notice-agent:campus_notice_get" ||
-		secondStep["step_id"] != "handoff:rag-agent:rag_request" {
+	if firstStep["step_id"] != "capability:notice:campus_notice_get" ||
+		secondStep["step_id"] != "capability:knowledge:rag_request" {
 		t.Fatalf("workflow_plan.steps = %#v", workflowPlan["steps"])
 	}
 	edges, ok := workflowPlan["edges"].([]any)
@@ -341,7 +341,7 @@ func TestParseAnswerRequestResolvesTransportNoticeOverrideWorkflowPlan(t *testin
 	if request.StructuredHandoff == nil {
 		t.Fatal("structured handoff must be present")
 	}
-	if request.StructuredHandoff.Target != "campus-services-agent" ||
+	if request.StructuredHandoff.Capability != "campus_services" ||
 		request.StructuredHandoff.PayloadKind != "transport_schedule_lookup" {
 		t.Fatalf("first structured handoff = %#v", request.StructuredHandoff)
 	}

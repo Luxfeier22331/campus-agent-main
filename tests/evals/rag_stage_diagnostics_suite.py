@@ -2,24 +2,24 @@ from __future__ import annotations
 
 import unittest
 
-from campus_contracts import AgentRequest, EvidenceBundle, KnowledgeScope, RagRequestPayload
+from campus_contracts import CapabilityRequest, EvidenceBundle, KnowledgeScope, RagRequestPayload
 from campus_evals.rag_stage_diagnostics import build_rag_stage_diagnostic_case
-from campus_rag_agent.service_stage_diagnostics import build_rag_stage_activity_summaries
+from campus_knowledge_capability.service_stage_diagnostics import build_rag_stage_activity_summaries
 
-from tests.agent.rag_agent_test_support import (
+from tests.agent.knowledge_capability_test_support import (
     _default_grounded_runner_for_evidence,
     _make_handbook_source,
     _make_official_web_source,
-    delegate_to_rag_agent,
+    delegate_to_knowledge_capability,
 )
 
 
 class RagStageDiagnosticsSuite(unittest.TestCase):
     def test_build_rag_stage_diagnostic_case_projects_single_sample_stage_chain(self) -> None:
         evidence = _medical_evidence()
-        response = delegate_to_rag_agent(
-            AgentRequest(
-                target="rag-agent",
+        response = delegate_to_knowledge_capability(
+            CapabilityRequest(
+                capability="knowledge",
                 user_goal="公费医疗报销需要什么材料",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_rules")
@@ -95,9 +95,9 @@ class RagStageDiagnosticsSuite(unittest.TestCase):
                 ),
             ),
         )
-        response = delegate_to_rag_agent(
-            AgentRequest(
-                target="rag-agent",
+        response = delegate_to_knowledge_capability(
+            CapabilityRequest(
+                capability="knowledge",
                 user_goal="中央民族大学学校简介",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="stable_reference")

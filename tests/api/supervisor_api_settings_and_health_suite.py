@@ -9,20 +9,20 @@ from unittest.mock import patch
 
 from campus_contracts import (
     ActorContext,
-    AgentRequest,
-    AgentResponse,
     AuthorizationProjection,
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
+    CapabilityRequest,
+    CapabilityResponse,
     ContextProjection,
     KnowledgeScope,
     RagRequestPayload,
-    WorkflowAgentContext,
+    WorkflowCapabilityContext,
 )
-from campus_notice_agent.query_service import NoticeGetQuery
-from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
-from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
+from campus_notice_capability.query_service import NoticeGetQuery
 from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.capability_delegates import _build_capability_delegates
+from campus_supervisor_agent_worker.capability_dispatch import dispatch_capability_request
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
@@ -59,7 +59,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertTrue(agents_sdk["enabled"])
         self.assertFalse(agents_sdk["admitted"])
         self.assertEqual(agents_sdk["admission_reason"], "provider_config_missing")
-        self.assertEqual(agents_sdk["runtime_posture"], "domain_agent_adapter_admitted")
+        self.assertEqual(agents_sdk["runtime_posture"], "domain_capability_adapter_admitted")
         self.assertNotIn("transport_runtime", ready.json_body)
         self.assertFalse(ready.json_body["prompt_http_pool"]["healthy"])
         self.assertNotIn("audit_runtime", ready.json_body)
@@ -337,15 +337,15 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 retrieval_observation_jsonl_path=str(observation_path),
             )
             with patch(
-                "campus_supervisor_agent_worker.agent_delegates.delegate_to_rag_agent"
+                "campus_supervisor_agent_worker.capability_delegates.delegate_to_knowledge_capability"
             ) as delegate:
-                delegate.return_value = AgentResponse(
-                    target="rag-agent",
+                delegate.return_value = CapabilityResponse(
+                    target="knowledge",
                     status="completed",
                     answer_text="ok",
                     confidence="high",
                 )
-                delegates = _build_agent_delegates(
+                delegates = _build_capability_delegates(
                     settings=settings,
                     rag_prompt_executor=None,
                     campus_services_query_service=None,
@@ -353,9 +353,9 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                     rag_openai_runtime=object(),
                 )
 
-                response = delegates["rag-agent"](
-                    AgentRequest(
-                        target="rag-agent",
+                response = delegates["knowledge"](
+                    CapabilityRequest(
+                        target="knowledge",
                         user_goal="校园卡丢了怎么办",
                         request_id="req-rag-jsonl",
                         payload=RagRequestPayload(
@@ -389,7 +389,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
     def test_notice_get_delegate_uses_internal_query_runtime(self) -> None:
         query_service = _FakeNoticeGetQueryService()
 
-        delegates = _build_agent_delegates(
+        delegates = _build_capability_delegates(
             settings=ApiSettings(
                 agents_sdk_runtime_enabled=True,
                 internal_query_base_url="https://execution-control.internal",
@@ -400,9 +400,9 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             notice_query_service=query_service,
         )
 
-        response = dispatch_agent_request(
-            AgentRequest(
-                target="notice-agent",
+        response = dispatch_capability_request(
+            CapabilityRequest(
+                target="notice",
                 user_goal="读取这条通知",
                 request_id="req-provider-tool",
                 payload=CampusNoticeGetPayload(
@@ -418,14 +418,14 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                         entitlement_groups=("students",),
                     ),
                 ),
-                workflow_context=WorkflowAgentContext(
-                    target="notice-agent",
+                workflow_context=WorkflowCapabilityContext(
+                    target="notice",
                     workflow_run_ref="workflow:req-provider-tool",
-                    step_id="handoff:notice-agent:campus_notice_get",
-                    agent_id="notice-agent",
+                    step_id="handoff:notice:campus_notice_get",
+                    capability_id="notice",
                 ),
             ),
-            agent_delegates=delegates,
+            capability_delegates=delegates,
         )
 
         self.assertEqual(response.status, "completed")

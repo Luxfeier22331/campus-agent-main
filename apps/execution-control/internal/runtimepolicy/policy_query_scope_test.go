@@ -7,24 +7,24 @@ import (
 	"testing"
 )
 
-func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
-	allowed := AllowedToolsForPayloadKind("notice-agent", "campus_notice_get")
+func TestAllowedToolsForCapabilityPayloadKindIsScopedToCapability(t *testing.T) {
+	allowed := AllowedToolsForCapabilityPayloadKind("notice", "campus_notice_get")
 	if allowed != nil {
 		t.Fatalf("allowed = %#v, want nil for closed campus_notice_get", allowed)
 	}
-	if AllowedToolsForPayloadKind("notice-agent", "service_status_lookup") != nil {
-		t.Fatal("notice-agent must not allow service_status_lookup")
+	if AllowedToolsForCapabilityPayloadKind("notice", "service_status_lookup") != nil {
+		t.Fatal("notice must not allow service_status_lookup")
 	}
-	serviceGuideAllowed := AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup")
+	serviceGuideAllowed := AllowedToolsForCapabilityPayloadKind("campus_services", "service_guide_lookup")
 	if len(serviceGuideAllowed) != 1 || serviceGuideAllowed[0] != "service_guide_lookup" {
 		t.Fatalf("service guide allowed = %#v, want service_guide_lookup", serviceGuideAllowed)
 	}
-	contactAllowed := AllowedToolsForPayloadKind("campus-services-agent", "contact_directory_lookup")
+	contactAllowed := AllowedToolsForCapabilityPayloadKind("campus_services", "contact_directory_lookup")
 	if len(contactAllowed) != 1 || contactAllowed[0] != "contact_directory_lookup" {
 		t.Fatalf("contact allowed = %#v, want contact_directory_lookup", contactAllowed)
 	}
-	if AllowedToolsForPayloadKind("navigation-agent", "place_lookup") != nil {
-		t.Fatal("navigation-agent must not allow place_lookup before map rollout")
+	if AllowedToolsForCapabilityPayloadKind("navigation", "place_lookup") != nil {
+		t.Fatal("navigation must not allow place_lookup before map rollout")
 	}
 }
 

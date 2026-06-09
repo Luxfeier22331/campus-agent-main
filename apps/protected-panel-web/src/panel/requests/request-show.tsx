@@ -29,7 +29,7 @@ import {
 	formatCapabilityLabel,
 	formatDuration,
 	formatPrincipalTypeLabel,
-	formatSelectedTargetLabel,
+	formatSelectedCapabilityLabel,
 	formatStatusLabel,
 	formatSurfaceLabel,
 	formatTimestamp,
@@ -262,7 +262,7 @@ function RequestShowContent() {
 								<RequestFieldRow label="请求范围" value={<RequestScopeSummary record={record} />} />
 								<RequestFieldRow
 									label="选定目标"
-									value={formatSelectedTargetLabel(record.selectedTarget)}
+									value={formatSelectedCapabilityLabel(record.selectedCapability)}
 								/>
 								<RequestIntentSummary entries={intentEntries} isLoading={isObservabilityLoading} />
 							</Stack>
@@ -561,7 +561,7 @@ function RequestShowContent() {
 											/>
 											<RequestFieldRow
 												label="Trace 目标"
-												value={formatSelectedTargetLabel(workflowTrace?.selectedTarget ?? null)}
+												value={formatSelectedCapabilityLabel(workflowTrace?.selectedCapability ?? null)}
 											/>
 										</Stack>
 										<Stack spacing={2}>

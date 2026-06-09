@@ -202,7 +202,7 @@ Current observability boundary:
   raw `user_goal`, prompt, answer, transcript, auth material, retrieval payload,
   or provider response. The runtime decision summary is limited to low-cardinality
   labels such as scope gate, policy gate, context preflight, routing next action,
-  planning outcome, selected target/tool, terminal outcome, and fail-close
+  planning outcome, selected capability/tool, terminal outcome, and fail-close
   reason.
 - `/readyz` reports `execution_audit_runtime`, and `/metrics` reports enabled,
   configured, emitted, and failed counters/gauges. `/readyz` degrades when

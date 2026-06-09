@@ -11,7 +11,7 @@ export function buildAxiomEnvelope(
 		requestedCapability?: string | null;
 		requestedScope?: RequestedScope | null;
 		requestedScopeSummary?: string | null;
-		selectedTarget?: string | null;
+		selectedCapability?: string | null;
 		status?: string | null;
 		surface?: string | null;
 		traceId?: string | null;
@@ -32,7 +32,7 @@ export function buildAxiomEnvelope(
 		request_id: input.requestId ?? null,
 		requested_capability: input.requestedCapability ?? null,
 		requested_scope_summary: input.requestedScopeSummary ?? toScopeSummary(input.requestedScope),
-		selected_target: input.selectedTarget ?? null,
+		selected_capability: input.selectedCapability ?? null,
 		status: input.status ?? null,
 		surface: input.surface ?? null,
 		trace_id: input.traceId ?? null,

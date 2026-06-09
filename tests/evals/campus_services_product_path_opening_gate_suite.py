@@ -52,7 +52,7 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
                 "service_guide_lookup_release_gate",
                 "contact_directory_lookup_release_gate",
                 "supervisor_go_structured_runtime_tests",
-                "campus_services_agent_adapter_tests",
+                "campus_services_capability_adapter_tests",
                 "app_api_campus_services_runtime_tests",
                 "public_chat_worker_e2e_tests",
                 "app_api_typecheck",

@@ -47,8 +47,8 @@ class SupervisorApiBridgeRuntimeTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (_ for _ in ()).throw(
-                MissingAgentDelegateError("missing delegate for agent target: rag-agent")
+            capability_handler=lambda request: (_ for _ in ()).throw(
+                MissingCapabilityDelegateError("missing delegate for capability: knowledge")
             ),
         )
 

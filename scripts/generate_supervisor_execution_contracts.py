@@ -12,18 +12,11 @@ from scripts.supervisor_execution_go_decode_helpers import go_decode_helpers
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPENAPI_PATH = REPO_ROOT / "docs/contracts/schemas/supervisor-execution.openapi.yaml"
-TS_PATH = (
-    REPO_ROOT / "apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts"
-)
+TS_PATH = REPO_ROOT / "apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts"
 GO_PATH = REPO_ROOT / "apps/execution-control/internal/contracts/supervisor_execution_contract.go"
-PY_PACKAGE_INIT_PATH = (
-    REPO_ROOT
-    / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/__init__.py"
-)
-PY_PATH = (
-    REPO_ROOT / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/"
-    "supervisor_execution_contract.py"
-)
+PY_GENERATED_DIR = REPO_ROOT / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated"
+PY_PACKAGE_INIT_PATH = PY_GENERATED_DIR / "__init__.py"
+PY_PATH = PY_GENERATED_DIR / "supervisor_execution_contract.py"
 
 HEADER = "AUTO-GENERATED FROM supervisor-execution.openapi.yaml"
 
@@ -112,7 +105,7 @@ def _contract_meta(contract: dict[str, Any]) -> dict[str, str]:
 
 def _generate_ts(contract: dict[str, Any]) -> str:
     meta = _contract_meta(contract)
-    agent_targets = _enum(contract, "AgentTarget")
+    capability_ids = _enum(contract, "CapabilityID")
     requested_capabilities = _enum(contract, "RequestedCapability")
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
@@ -129,7 +122,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         f"{_ts_quote(meta['runtime_decision_summary_schema_version'])},\n"
         f"\tworkflowTraceSummaryVersion: {_ts_quote(meta['workflow_trace_summary_version'])},\n"
         "} as const;\n\n"
-        + _ts_const_array("AGENT_TARGETS", agent_targets)
+        + _ts_const_array("CAPABILITY_IDS", capability_ids)
         + _ts_const_array("REQUESTED_CAPABILITIES", requested_capabilities)
         + _ts_const_array("CONFIDENCE_LEVELS", confidence_levels)
         + _ts_const_array("DELEGATE_STATUSES", delegate_statuses)
@@ -137,7 +130,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         + _ts_const_array("WORKFLOW_MODES", workflow_modes)
         + _ts_const_array("STEP_OUTPUT_PROJECTION_KINDS", projection_kinds)
         + "\n"
-        "export type AgentTarget = (typeof AGENT_TARGETS)[number];\n"
+        "export type CapabilityID = (typeof CAPABILITY_IDS)[number];\n"
         "export type RequestedCapability = (typeof REQUESTED_CAPABILITIES)[number];\n"
         "export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];\n"
         "export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];\n"
@@ -152,8 +145,9 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tcontext_preflight_state?: string;\n"
         "\trouting_next_action?: string;\n"
         "\tplanning_outcome: string;\n"
-        "\tselected_target?: string;\n"
+        "\tselected_capability?: string;\n"
         "\tselected_tool?: string;\n"
+        "\tworker_role?: string;\n"
         "\tterminal_outcome?: string;\n"
         "\tfail_close_reason?: string;\n"
         "\truntime_versions?: SafeRecord;\n"
@@ -162,7 +156,8 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "export interface WorkflowPlanStepWire {\n"
         "\tstep_id: string;\n"
         "\tstep_kind: string;\n"
-        "\ttarget?: string;\n"
+        "\tcapability?: CapabilityID | string;\n"
+        "\tworker_role?: string;\n"
         "\tpayload_kind?: string;\n"
         "\tallowed_tools?: string[];\n"
         "\tselected_tool?: string;\n"
@@ -194,13 +189,13 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tcontent_hash: string;\n"
         "\tsafety: ProjectionSafetySummaryWire;\n"
         "}\n\n"
-        "export interface WorkflowAgentContextWire {\n"
-        '\tschema_version: "workflow-agent-context-v1";\n'
-        '\tvisibility: "agent_private";\n'
+        "export interface WorkflowCapabilityContextWire {\n"
+        '\tschema_version: "workflow-capability-context-v1";\n'
+        '\tvisibility: "capability_private";\n'
         "\tworkflow_run_ref: string;\n"
         "\tstep_id: string;\n"
-        "\tagent_id: AgentTarget;\n"
-        "\ttarget?: AgentTarget;\n"
+        "\tcapability_id: CapabilityID;\n"
+        "\tworker_role?: string;\n"
         "\trequired_projection_kind?: StepOutputProjectionKind;\n"
         "\texpected_output_artifacts: StepOutputProjectionKind[];\n"
         "\tprojection_refs: WorkflowContextProjectionWire[];\n"
@@ -209,19 +204,19 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         '\tschema_version: "workflow-plan-v1";\n'
         "\tplan_id: string;\n"
         "\tworkflow_mode: WorkflowMode;\n"
-        "\tallowed_agents: AgentTarget[];\n"
+        "\tallowed_capabilities: CapabilityID[];\n"
         "\tsteps: WorkflowPlanStepWire[];\n"
         "\tedges: WorkflowPlanEdgeWire[];\n"
         "\tterminal_policy: SafeRecord;\n"
         "\tresume_policy: SafeRecord;\n"
         "\tsemantic_retry_policy: SafeRecord;\n"
         "}\n\n"
-        "export interface AgentInvocationWire {\n"
+        "export interface CapabilityInvocationWire {\n"
         "\tinvocation_id: string;\n"
         "\tparent_invocation_id?: string;\n"
         "\tworkflow_run_ref: string;\n"
         "\tstep_id: string;\n"
-        "\tagent_id: AgentTarget;\n"
+        "\tcapability_id: CapabilityID;\n"
         "\tstatus: string;\n"
         "\tallowed_tools: string[];\n"
         "\tused_tools: string[];\n"
@@ -243,15 +238,16 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tterminal_envelope?: SafeRecord;\n"
         "\t[key: string]: unknown;\n"
         "}\n\n"
-        "export interface AgentResponseWire {\n"
-        "\ttarget: AgentTarget;\n"
+        "export interface CapabilityResponseWire {\n"
+        "\tcapability: CapabilityID;\n"
+        "\tworker_role?: string;\n"
         "\tstatus: DelegateStatus;\n"
         "\tanswer_text?: string;\n"
         "\tfollow_up_question?: string;\n"
         "\tconfidence?: ConfidenceLevel;\n"
         "\tresult?: SafeRecord | null;\n"
         "\terror?: { code: string; message: string; retryable?: boolean } | null;\n"
-        "\tagent_observability?: SafeRecord | null;\n"
+        "\tcapability_observability?: SafeRecord | null;\n"
         "}\n\n"
         "export interface BridgeV6RequestWire {\n"
         "\tbridge_version: typeof SUPERVISOR_EXECUTION_CONTRACT.bridgeVersion;\n"
@@ -270,8 +266,9 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tversion_query: SafeRecord;\n"
         "\truntime_decisions: RuntimeDecisionsWire;\n"
         "}\n\n"
-        "export interface AgentRequestWire {\n"
-        "\ttarget: AgentTarget;\n"
+        "export interface CapabilityRequestWire {\n"
+        "\tcapability: CapabilityID;\n"
+        "\tworker_role?: string;\n"
         "\tuser_goal: string;\n"
         "\tconversation_id?: string;\n"
         "\trequest_id?: string;\n"
@@ -279,7 +276,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\ttrace?: { trace_id: string };\n"
         "\tactor?: SafeRecord;\n"
         "\tcontext?: SafeRecord;\n"
-        "\tworkflow_context?: WorkflowAgentContextWire;\n"
+        "\tworkflow_context?: WorkflowCapabilityContextWire;\n"
         "\tpayload: { kind: string; payload: SafeRecord };\n"
         "\tallowed_tools: string[];\n"
         "}\n\n"
@@ -291,8 +288,8 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tworkflow_mode: WorkflowMode;\n"
         "\thandoff: SafeRecord;\n"
         "\thandoff_chain: SafeRecord[];\n"
-        "\tagent_invocations: AgentInvocationWire[];\n"
-        "\tselected_target: AgentTarget | string | null;\n"
+        "\tcapability_invocations: CapabilityInvocationWire[];\n"
+        "\tselected_capability: CapabilityID | string | null;\n"
         "\tselected_tools: string[];\n"
         "\tcontext_projections: WorkflowContextProjectionWire[];\n"
         "\tanswer_artifact_projection_ids: string[];\n"
@@ -306,7 +303,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tpolicy_artifact_versions: SafeRecord;\n"
         "}\n\n"
         "export interface SupervisorExecutionResponseWire {\n"
-        "\tselected_target: AgentTarget | null;\n"
+        "\tselected_capability: CapabilityID | null;\n"
         "\tstatus: SupervisorStatus;\n"
         "\tanswer_text: string;\n"
         "\tfollow_up_question: string;\n"
@@ -322,7 +319,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
 
 def _generate_go(contract: dict[str, Any]) -> str:
     meta = _contract_meta(contract)
-    agent_targets = _enum(contract, "AgentTarget")
+    capability_ids = _enum(contract, "CapabilityID")
     requested_capabilities = _enum(contract, "RequestedCapability")
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
@@ -347,7 +344,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
         f"{_go_quote(meta['runtime_decision_summary_schema_version'])}\n"
         f"\tWorkflowTraceSummaryVersion = {_go_quote(meta['workflow_trace_summary_version'])}\n"
         ")\n\n"
-        + _go_string_type("AgentTarget", agent_targets)
+        + _go_string_type("CapabilityID", capability_ids)
         + _go_string_type("RequestedCapability", requested_capabilities)
         + _go_string_type("ConfidenceLevel", confidence_levels)
         + _go_string_type("DelegateStatus", delegate_statuses)
@@ -362,8 +359,9 @@ type RuntimeDecisionSummaryWire struct {
 \tContextPreflightState string `json:"context_preflight_state,omitempty"`
 \tRoutingNextAction string `json:"routing_next_action,omitempty"`
 \tPlanningOutcome string `json:"planning_outcome"`
-\tSelectedTarget string `json:"selected_target,omitempty"`
+\tSelectedCapability string `json:"selected_capability,omitempty"`
 \tSelectedTool string `json:"selected_tool,omitempty"`
+\tWorkerRole string `json:"worker_role,omitempty"`
 \tTerminalOutcome string `json:"terminal_outcome,omitempty"`
 \tFailCloseReason string `json:"fail_close_reason,omitempty"`
 \tRuntimeVersions map[string]any `json:"runtime_versions,omitempty"`
@@ -373,7 +371,8 @@ type RuntimeDecisionSummaryWire struct {
 type WorkflowPlanStepWire struct {
 \tStepID string `json:"step_id"`
 \tStepKind string `json:"step_kind"`
-\tTarget string `json:"target,omitempty"`
+\tCapability string `json:"capability,omitempty"`
+\tWorkerRole string `json:"worker_role,omitempty"`
 \tPayloadKind string `json:"payload_kind,omitempty"`
 \tAllowedTools []string `json:"allowed_tools,omitempty"`
 \tSelectedTool string `json:"selected_tool,omitempty"`
@@ -410,13 +409,13 @@ type WorkflowContextProjectionWire struct {
 \tSafety ProjectionSafetySummaryWire `json:"safety"`
 }
 
-type WorkflowAgentContextWire struct {
+type WorkflowCapabilityContextWire struct {
 \tSchemaVersion string `json:"schema_version"`
 \tVisibility string `json:"visibility"`
 \tWorkflowRunRef string `json:"workflow_run_ref"`
 \tStepID string `json:"step_id"`
-\tAgentID AgentTarget `json:"agent_id"`
-\tTarget AgentTarget `json:"target,omitempty"`
+\tCapabilityID CapabilityID `json:"capability_id"`
+\tWorkerRole string `json:"worker_role,omitempty"`
 \tRequiredProjectionKind StepOutputProjectionKind `json:"required_projection_kind,omitempty"`
 \tExpectedOutputArtifacts []StepOutputProjectionKind `json:"expected_output_artifacts"`
 \tProjectionRefs []WorkflowContextProjectionWire `json:"projection_refs"`
@@ -426,7 +425,7 @@ type WorkflowPlanWire struct {
 \tSchemaVersion string `json:"schema_version"`
 \tPlanID string `json:"plan_id"`
 \tWorkflowMode WorkflowMode `json:"workflow_mode"`
-\tAllowedAgents []AgentTarget `json:"allowed_agents"`
+\tAllowedCapabilities []CapabilityID `json:"allowed_capabilities"`
 \tSteps []WorkflowPlanStepWire `json:"steps"`
 \tEdges []WorkflowPlanEdgeWire `json:"edges"`
 \tTerminalPolicy map[string]any `json:"terminal_policy"`
@@ -434,12 +433,12 @@ type WorkflowPlanWire struct {
 \tSemanticRetryPolicy map[string]any `json:"semantic_retry_policy"`
 }
 
-type AgentInvocationWire struct {
+type CapabilityInvocationWire struct {
 \tInvocationID string `json:"invocation_id"`
 \tParentInvocationID string `json:"parent_invocation_id,omitempty"`
 \tWorkflowRunRef string `json:"workflow_run_ref"`
 \tStepID string `json:"step_id"`
-\tAgentID AgentTarget `json:"agent_id"`
+\tCapabilityID CapabilityID `json:"capability_id"`
 \tStatus string `json:"status"`
 \tAllowedTools []string `json:"allowed_tools"`
 \tUsedTools []string `json:"used_tools"`
@@ -480,8 +479,9 @@ type BridgeV6RequestWire struct {
 \tRuntimeDecisions RuntimeDecisionsWire `json:"runtime_decisions"`
 }
 
-type AgentRequestWire struct {
-\tTarget AgentTarget `json:"target"`
+type CapabilityRequestWire struct {
+\tCapability CapabilityID `json:"capability"`
+\tWorkerRole string `json:"worker_role,omitempty"`
 \tUserGoal string `json:"user_goal"`
 \tConversationID string `json:"conversation_id,omitempty"`
 \tRequestID string `json:"request_id,omitempty"`
@@ -489,7 +489,7 @@ type AgentRequestWire struct {
 \tTrace map[string]any `json:"trace,omitempty"`
 \tActor map[string]any `json:"actor,omitempty"`
 \tContext map[string]any `json:"context,omitempty"`
-\tWorkflowContext *WorkflowAgentContextWire `json:"workflow_context,omitempty"`
+\tWorkflowContext *WorkflowCapabilityContextWire `json:"workflow_context,omitempty"`
 \tPayload map[string]any `json:"payload"`
 \tAllowedTools []string `json:"allowed_tools"`
 }
@@ -502,8 +502,8 @@ type WorkflowTraceSummaryWire struct {
 \tWorkflowMode WorkflowMode `json:"workflow_mode"`
 \tHandoff map[string]any `json:"handoff"`
 \tHandoffChain []map[string]any `json:"handoff_chain"`
-\tAgentInvocations []AgentInvocationWire `json:"agent_invocations"`
-\tSelectedTarget *string `json:"selected_target"`
+\tCapabilityInvocations []CapabilityInvocationWire `json:"capability_invocations"`
+\tSelectedCapability *string `json:"selected_capability"`
 \tSelectedTools []string `json:"selected_tools"`
 \tContextProjections []WorkflowContextProjectionWire `json:"context_projections"`
 \tAnswerArtifactProjectionIDs []string `json:"answer_artifact_projection_ids"`
@@ -518,7 +518,7 @@ type WorkflowTraceSummaryWire struct {
 }
 
 type SupervisorResponseWire struct {
-\tSelectedTarget *AgentTarget `json:"selected_target"`
+\tSelectedCapability *CapabilityID `json:"selected_capability"`
 \tStatus SupervisorStatus `json:"status"`
 \tAnswerText string `json:"answer_text"`
 \tFollowUpQuestion string `json:"follow_up_question"`
@@ -540,7 +540,7 @@ def _generate_py_init() -> str:
 
 def _generate_py(contract: dict[str, Any]) -> str:
     meta = _contract_meta(contract)
-    agent_targets = _enum(contract, "AgentTarget")
+    capability_ids = _enum(contract, "CapabilityID")
     requested_capabilities = _enum(contract, "RequestedCapability")
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
@@ -558,7 +558,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         f"RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION = "
         f"{_py_quote(meta['runtime_decision_summary_schema_version'])}\n"
         f"WORKFLOW_TRACE_SUMMARY_VERSION = {_py_quote(meta['workflow_trace_summary_version'])}\n\n"
-        f"AgentTarget = {_py_literal(agent_targets)}\n"
+        f"CapabilityID = {_py_literal(capability_ids)}\n"
         f"RequestedCapability = {_py_literal(requested_capabilities)}\n"
         f"ConfidenceLevel = {_py_literal(confidence_levels)}\n"
         f"DelegateStatus = {_py_literal(delegate_statuses)}\n"
@@ -573,8 +573,9 @@ def _generate_py(contract: dict[str, Any]) -> str:
         '    policy_gate_decision: str = ""\n'
         '    context_preflight_state: str = ""\n'
         '    routing_next_action: str = ""\n'
-        '    selected_target: str = ""\n'
+        '    selected_capability: str = ""\n'
         '    selected_tool: str = ""\n'
+        '    worker_role: str = ""\n'
         '    terminal_outcome: str = ""\n'
         '    fail_close_reason: str = ""\n'
         "    runtime_versions: dict[str, Any] = Field(default_factory=dict)\n"
@@ -583,7 +584,8 @@ def _generate_py(contract: dict[str, Any]) -> str:
         '    model_config = ConfigDict(extra="forbid")\n\n'
         "    step_id: str\n"
         "    step_kind: str\n"
-        '    target: str = ""\n'
+        '    capability: str = ""\n'
+        '    worker_role: str = ""\n'
         '    payload_kind: str = ""\n'
         "    allowed_tools: list[str] = Field(default_factory=list)\n"
         '    selected_tool: str = ""\n\n\n'
@@ -614,14 +616,14 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    projection_kind: StepOutputProjectionKind\n"
         "    content_hash: str\n"
         "    safety: ProjectionSafetySummaryWire\n\n\n"
-        "class WorkflowAgentContextWire(BaseModel):\n"
+        "class WorkflowCapabilityContextWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
-        '    schema_version: Literal["workflow-agent-context-v1"]\n'
-        '    visibility: Literal["agent_private"]\n'
+        '    schema_version: Literal["workflow-capability-context-v1"]\n'
+        '    visibility: Literal["capability_private"]\n'
         "    workflow_run_ref: str\n"
         "    step_id: str\n"
-        "    agent_id: AgentTarget\n"
-        '    target: AgentTarget | str = ""\n'
+        "    capability_id: CapabilityID\n"
+        '    worker_role: str = ""\n'
         '    required_projection_kind: StepOutputProjectionKind | str = ""\n'
         "    expected_output_artifacts: list[StepOutputProjectionKind]\n"
         "    projection_refs: list[WorkflowContextProjectionWire]\n\n\n"
@@ -630,19 +632,19 @@ def _generate_py(contract: dict[str, Any]) -> str:
         '    schema_version: Literal["workflow-plan-v1"]\n'
         "    plan_id: str\n"
         "    workflow_mode: WorkflowMode\n"
-        "    allowed_agents: list[AgentTarget]\n"
+        "    allowed_capabilities: list[CapabilityID]\n"
         "    steps: list[WorkflowPlanStepWire]\n"
         "    edges: list[WorkflowPlanEdgeWire]\n"
         "    terminal_policy: dict[str, Any]\n"
         "    resume_policy: dict[str, Any]\n"
         "    semantic_retry_policy: dict[str, Any]\n\n\n"
-        "class AgentInvocationWire(BaseModel):\n"
+        "class CapabilityInvocationWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
         "    invocation_id: str\n"
         '    parent_invocation_id: str = ""\n'
         "    workflow_run_ref: str\n"
         "    step_id: str\n"
-        "    agent_id: AgentTarget\n"
+        "    capability_id: CapabilityID\n"
         "    status: str\n"
         "    allowed_tools: list[str]\n"
         "    used_tools: list[str]\n"
@@ -679,9 +681,10 @@ def _generate_py(contract: dict[str, Any]) -> str:
         '    conversation_id: str = ""\n'
         "    safety_identifier: str | None = None\n"
         "    requested_scope: dict[str, Any] | None = None\n\n\n"
-        "class AgentRequestWire(BaseModel):\n"
+        "class CapabilityRequestWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    target: AgentTarget\n"
+        "    capability: CapabilityID\n"
+        '    worker_role: str = ""\n'
         "    user_goal: str\n"
         "    payload: dict[str, Any]\n"
         "    allowed_tools: list[str]\n"
@@ -691,17 +694,18 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    trace: dict[str, Any] = Field(default_factory=dict)\n"
         "    actor: dict[str, Any] = Field(default_factory=dict)\n"
         "    context: dict[str, Any] = Field(default_factory=dict)\n"
-        "    workflow_context: WorkflowAgentContextWire | None = None\n\n\n"
-        "class AgentResponseWire(BaseModel):\n"
+        "    workflow_context: WorkflowCapabilityContextWire | None = None\n\n\n"
+        "class CapabilityResponseWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    target: AgentTarget\n"
+        "    capability: CapabilityID\n"
+        '    worker_role: str = ""\n'
         "    status: DelegateStatus\n"
         '    answer_text: str = ""\n'
         '    follow_up_question: str = ""\n'
         '    confidence: ConfidenceLevel = "low"\n'
         "    result: dict[str, Any] | None = None\n"
         "    error: dict[str, Any] | None = None\n"
-        "    agent_observability: dict[str, Any] | None = None\n\n\n"
+        "    capability_observability: dict[str, Any] | None = None\n\n\n"
         "class WorkflowTraceSummaryWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
         "    routing_frame: dict[str, Any]\n"
@@ -711,8 +715,8 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    workflow_mode: WorkflowMode\n"
         "    handoff: dict[str, Any]\n"
         "    handoff_chain: list[dict[str, Any]]\n"
-        "    agent_invocations: list[AgentInvocationWire]\n"
-        "    selected_target: str | None\n"
+        "    capability_invocations: list[CapabilityInvocationWire]\n"
+        "    selected_capability: str | None\n"
         "    selected_tools: list[str]\n"
         "    context_projections: list[WorkflowContextProjectionWire]\n"
         "    answer_artifact_projection_ids: list[str]\n"
@@ -726,7 +730,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    tool_call_summaries: list[dict[str, Any]] = Field(default_factory=list)\n\n\n"
         "class SupervisorResponseWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    selected_target: AgentTarget | None\n"
+        "    selected_capability: CapabilityID | None\n"
         "    status: SupervisorStatus\n"
         "    answer_text: str\n"
         "    follow_up_question: str\n"
@@ -759,16 +763,9 @@ def _go_const_suffix(value: str) -> str:
     return "".join(part[:1].upper() + part[1:] for part in value.replace("_", "-").split("-"))
 
 
-def _ts_quote(value: str) -> str:
-    return json.dumps(value)
-
-
-def _go_quote(value: str) -> str:
-    return json.dumps(value)
-
-
-def _py_quote(value: str) -> str:
-    return json.dumps(value)
+_ts_quote = json.dumps
+_go_quote = json.dumps
+_py_quote = json.dumps
 
 
 def _py_literal(values: tuple[str, ...]) -> str:

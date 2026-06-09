@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from tests.evals.curriculum_live_benchmark_test_support import (
     CURRICULUM_SCOPE,
-    AgentResponse,
+    CapabilityResponse,
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
@@ -47,8 +47,8 @@ class CurriculumLiveExecutorInprocessTest(unittest.TestCase):
 
         def fake_delegate(request, *, retriever):
             seen_requests.append(request)
-            return AgentResponse(
-                target="rag-agent",
+            return CapabilityResponse(
+                capability="knowledge",
                 status="completed",
                 answer_text="旧版课程安排如下。",
                 confidence="medium",

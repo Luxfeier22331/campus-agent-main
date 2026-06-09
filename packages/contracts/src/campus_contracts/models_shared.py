@@ -16,13 +16,13 @@ RemoteContentSuspicionLabel = Literal[
 ]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
-AgentTarget = Literal[
-    "rag-agent",
-    "navigation-agent",
-    "campus-services-agent",
-    "notice-agent",
+CapabilityID = Literal[
+    "knowledge",
+    "navigation",
+    "campus_services",
+    "notice",
 ]
-AgentToolName = Literal[
+CapabilityToolName = Literal[
     "service_status_lookup",
     "service_guide_lookup",
     "transport_schedule_lookup",
@@ -33,7 +33,7 @@ AgentToolName = Literal[
 ]
 RequestedCapability = Literal[
     "knowledge",
-    "place_lookup",
+    "navigation",
     "campus_services",
     "notice",
 ]
@@ -207,13 +207,13 @@ DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
-ALLOWED_AGENT_TARGETS = (
-    "rag-agent",
-    "navigation-agent",
-    "campus-services-agent",
-    "notice-agent",
+ALLOWED_CAPABILITY_IDS = (
+    "knowledge",
+    "navigation",
+    "campus_services",
+    "notice",
 )
-ALLOWED_AGENT_TOOL_NAMES = (
+ALLOWED_CAPABILITY_TOOL_NAMES = (
     "service_status_lookup",
     "service_guide_lookup",
     "transport_schedule_lookup",
@@ -224,7 +224,7 @@ ALLOWED_AGENT_TOOL_NAMES = (
 )
 ALLOWED_REQUESTED_CAPABILITIES = (
     "knowledge",
-    "place_lookup",
+    "navigation",
     "campus_services",
     "notice",
 )

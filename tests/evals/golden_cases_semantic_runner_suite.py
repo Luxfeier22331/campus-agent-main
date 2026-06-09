@@ -24,7 +24,7 @@ from tests.evals.golden_cases_test_support import (
 
 
 class RunCasesSemanticRunnerTest(unittest.TestCase):
-    def test_run_cases_grades_runtime_target_and_capability_family_separately(self) -> None:
+    def test_run_cases_grades_capability_and_capability_family_separately(self) -> None:
         matching_case = GoldenCase(
             case_id="case-runtime-target-and-family-match",
             split="release_gate",
@@ -38,8 +38,8 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                 retrieval_called=False,
                 clarification_expected=False,
                 error_expected=False,
-                expected_runtime_target="rag-agent",
-                expected_capability_family="rag-agent",
+                expected_capability="knowledge",
+                expected_capability_family="knowledge",
             ),
         )
         mismatched_family_case = GoldenCase(
@@ -55,7 +55,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                 retrieval_called=False,
                 clarification_expected=False,
                 error_expected=False,
-                expected_capability_family="navigation-agent",
+                expected_capability_family="navigation",
             ),
         )
 
@@ -63,7 +63,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             (matching_case, mismatched_family_case),
             executor=lambda _case: ExecutionResult(
                 response=SupervisorResponse(
-                    selected_target="rag-agent",
+                    selected_capability="knowledge",
                     status="no_answer",
                     answer_text="当前依据不足，暂时不能直接回答。",
                     confidence="low",
@@ -93,7 +93,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
 
         self.assertTrue(report.results[0].trace_result.passed)
         self.assertFalse(report.results[1].trace_result.passed)
-        self.assertEqual(report.results[1].trace_result.reason, "capability_family=rag-agent")
+        self.assertEqual(report.results[1].trace_result.reason, "capability_family=knowledge")
 
     def test_run_cases_grades_out_of_scope_semantic_truth(self) -> None:
         case = GoldenCase(
@@ -119,7 +119,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             (case,),
             executor=lambda _case: ExecutionResult(
                 response=SupervisorResponse(
-                    selected_target=None,
+                    selected_capability=None,
                     status="no_answer",
                     answer_text="这个问题不在当前支持范围内。",
                     confidence="low",
@@ -181,7 +181,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             executor=lambda case: ExecutionResult(
                 response=(
                     SupervisorResponse(
-                        selected_target="rag-agent",
+                        selected_capability="knowledge",
                         status="no_answer",
                         answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
                         confidence="low",
@@ -201,7 +201,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                     )
                     if case.case_id == "case-unsupported"
                     else SupervisorResponse(
-                        selected_target="rag-agent",
+                        selected_capability="knowledge",
                         status="no_answer",
                         answer_text="当前依据不足。",
                         confidence="low",
@@ -408,7 +408,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             executor=lambda case: ExecutionResult(
                 response=(
                     SupervisorResponse(
-                        selected_target=None,
+                        selected_capability=None,
                         status="rejected",
                         answer_text="这个请求不在当前可执行范围内。",
                         confidence="low",
@@ -432,7 +432,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                     )
                     if case.case_id == "case-policy-refusal"
                     else SupervisorResponse(
-                        selected_target="rag-agent",
+                        selected_capability="knowledge",
                         status="no_answer",
                         answer_text="当前无法提供这部分受限内容。",
                         confidence="low",

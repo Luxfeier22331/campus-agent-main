@@ -113,7 +113,7 @@ type RuntimeDecisionLabels struct {
 	ContextPreflightState string
 	RoutingNextAction     string
 	PlanningOutcome       string
-	SelectedTarget        string
+	SelectedCapability    string
 	SelectedTool          string
 	TerminalOutcome       string
 	FailCloseReason       string
@@ -127,7 +127,7 @@ type runtimeDecisionKey struct {
 	ContextPreflightState string
 	RoutingNextAction     string
 	PlanningOutcome       string
-	SelectedTarget        string
+	SelectedCapability    string
 	SelectedTool          string
 	TerminalOutcome       string
 	FailCloseReason       string
@@ -326,7 +326,7 @@ func (m *Metrics) RecordRuntimeDecision(labels RuntimeDecisionLabels) {
 		ContextPreflightState: defaultMetricLabel(labels.ContextPreflightState, "unknown"),
 		RoutingNextAction:     defaultMetricLabel(labels.RoutingNextAction, "unknown"),
 		PlanningOutcome:       defaultMetricLabel(labels.PlanningOutcome, "unknown"),
-		SelectedTarget:        defaultMetricLabel(labels.SelectedTarget, "none"),
+		SelectedCapability:    defaultMetricLabel(labels.SelectedCapability, "none"),
 		SelectedTool:          defaultMetricLabel(labels.SelectedTool, "none"),
 		TerminalOutcome:       defaultMetricLabel(labels.TerminalOutcome, "none"),
 		FailCloseReason:       defaultMetricLabel(labels.FailCloseReason, "none"),

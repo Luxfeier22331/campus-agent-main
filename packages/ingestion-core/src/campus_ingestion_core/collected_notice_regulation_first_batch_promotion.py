@@ -667,7 +667,7 @@ def _assert_no_unexpected_target_collisions(
                 or allowed["document_ids"].intersection(provenance["document_ids"])
             ):
                 raise ValueError(
-                    "unexpected existing target collision for selected target document id: "
+                    "unexpected existing target collision for selected source document id: "
                     f"{record.document_id}"
                 )
 

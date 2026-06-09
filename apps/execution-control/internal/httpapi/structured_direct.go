@@ -82,7 +82,7 @@ func (s *Server) handleDirectStructuredAnswer(
 	}
 
 	supervisorResponse := shapeStructuredSupervisorResponse(
-		handoff.Target,
+		handoff.Capability,
 		handoff.PayloadKind,
 		resultBody,
 		executionRequest.TraceID,
@@ -182,7 +182,7 @@ func (s *Server) handleDirectStructuredAnswerStream(
 	}
 
 	supervisorResponse := shapeStructuredSupervisorResponse(
-		handoff.Target,
+		handoff.Capability,
 		handoff.PayloadKind,
 		resultBody,
 		executionRequest.TraceID,

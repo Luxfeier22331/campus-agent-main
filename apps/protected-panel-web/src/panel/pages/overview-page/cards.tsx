@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
 import { PanelLineChart } from "../../panel-chart";
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
 import { PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
-import { formatSelectedTargetLabel, formatSurfaceLabel } from "../../requests/request-formatters";
+import { formatSelectedCapabilityLabel, formatSurfaceLabel } from "../../requests/request-formatters";
 import type {
 	OperatorOverviewAlert,
 	OperatorOverviewRecord,
@@ -246,7 +246,7 @@ export function OverviewHeaderSection(props: {
 	asOf: string | null;
 	filters: OverviewFilterState;
 	isRefreshing: boolean;
-	onSelectedTargetChange(value: string): void;
+	onSelectedCapabilityChange(value: string): void;
 	onSurfaceChange(value: string): void;
 	onWindowChange(value: string): void;
 }) {
@@ -257,9 +257,9 @@ export function OverviewHeaderSection(props: {
 				? formatSurfaceLabel(props.filters.surface)
 				: PANEL_COPY.overviewPage.filters.allSurfaces
 		}`,
-		`${PANEL_COPY.overviewPage.filterSummary.selectedTarget}: ${
-			props.filters.selectedTarget
-				? formatSelectedTargetLabel(props.filters.selectedTarget)
+		`${PANEL_COPY.overviewPage.filterSummary.selectedCapability}: ${
+			props.filters.selectedCapability
+				? formatSelectedCapabilityLabel(props.filters.selectedCapability)
 				: PANEL_COPY.overviewPage.filters.allTargets
 		}`,
 	];
@@ -321,14 +321,14 @@ export function OverviewHeaderSection(props: {
 							))}
 						</TextField>
 						<TextField
-							label={PANEL_COPY.overviewPage.filters.selectedTarget}
-							name="selectedTarget"
-							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
+							label={PANEL_COPY.overviewPage.filters.selectedCapability}
+							name="selectedCapability"
+							onChange={(event) => props.onSelectedCapabilityChange(event.target.value)}
 							select
 							size="small"
 							slotProps={PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
-							value={props.filters.selectedTarget ?? ""}
+							value={props.filters.selectedCapability ?? ""}
 						>
 							{TARGET_OPTIONS.map((option) => (
 								<option key={option.value ?? "all"} value={option.value ?? ""}>

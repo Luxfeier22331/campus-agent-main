@@ -61,11 +61,11 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
-            "COPY configs/runtime/agents.v2.json /src/configs/runtime/agents.v2.json",
+            "COPY configs/runtime/capabilities.v1.json /src/configs/runtime/capabilities.v1.json",
             dockerfile,
         )
         self.assertIn(
-            "COPY configs/runtime/tools.v2.json /src/configs/runtime/tools.v2.json",
+            "COPY configs/runtime/tools.v3.json /src/configs/runtime/tools.v3.json",
             dockerfile,
         )
         self.assertIn(
@@ -77,7 +77,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
-            "COPY configs/runtime/agents.v2.json /etc/campus-agent/agents.v2.json",
+            "COPY configs/runtime/capabilities.v1.json /etc/campus-agent/capabilities.v1.json",
             dockerfile,
         )
         self.assertIn(
@@ -94,7 +94,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
-            "EXECUTION_CONTROL_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json",
+            "EXECUTION_CONTROL_CAPABILITY_SPEC_PATH=/etc/campus-agent/capabilities.v1.json",
             dockerfile,
         )
         self.assertIn(

@@ -255,7 +255,7 @@ export function executionFinalizationErrorResponse(input: {
 		},
 		followUpQuestion: "",
 		result: null,
-		selectedTarget: null,
+		selectedCapability: null,
 		status: input.status ?? "error",
 		traceId: input.traceId,
 	};

@@ -26,7 +26,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 	};
 	followUpQuestion: string;
 	result: null;
-	selectedTarget: null;
+	selectedCapability: null;
 	status: "error";
 	traceId: string;
 } {
@@ -40,7 +40,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 			},
 			followUpQuestion: "",
 			result: null,
-			selectedTarget: null,
+			selectedCapability: null,
 			status: "error",
 			traceId: "",
 		};
@@ -55,7 +55,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 		},
 		followUpQuestion: "",
 		result: null,
-		selectedTarget: null,
+		selectedCapability: null,
 		status: "error",
 		traceId: "",
 	};
@@ -94,7 +94,7 @@ export function buildAbuseThrottleRejectedResponse(input: {
 			semanticOutcome: "policy_refusal",
 		},
 		result: null,
-		selectedTarget: null,
+		selectedCapability: null,
 		status: "rejected",
 		traceId: input.traceId,
 	};

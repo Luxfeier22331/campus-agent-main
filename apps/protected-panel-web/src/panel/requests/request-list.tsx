@@ -240,7 +240,7 @@ function RequestListContent() {
 					<FunctionField
 						label={PANEL_COPY.requestsList.columns.scope}
 						render={(record: RequestProjectionRecord) => <RequestScopeSummary record={record} />}
-						source="selectedTarget"
+						source="selectedCapability"
 					/>
 					<FunctionField
 						label={PANEL_COPY.requestsList.columns.outcome}

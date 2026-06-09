@@ -13,7 +13,7 @@ func TestBridgePayloadForHandoffUsesNoticeSummaryNotBodyLabel(t *testing.T) {
 		"runtime_decisions":{"runtime_decision_summary":{}}
 	}`)
 	projection, ok := NewNoticeContextProjection(
-		"handoff:notice-agent:campus_notice_get",
+		"capability:notice:campus_notice_get",
 		"烟雾测试通知",
 		"通知短摘要要求结合学生手册相关规定理解。",
 		"https://example.invalid/notices/smoke",
@@ -24,7 +24,8 @@ func TestBridgePayloadForHandoffUsesNoticeSummaryNotBodyLabel(t *testing.T) {
 	payload, err := BridgePayloadForHandoff(
 		base,
 		RuntimeHandoff{
-			Target:       "rag-agent",
+			Capability:   "knowledge",
+			WorkerRole:   "activity-worker-rag",
 			PayloadKind:  "rag_request",
 			AllowedTools: []string{"retrieval.query"},
 		},
@@ -61,7 +62,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 		"runtime_decisions":{"runtime_decision_summary":{}}
 	}`)
 	projection, ok := NewNoticeContextProjection(
-		"handoff:notice-agent:campus_notice_get",
+		"capability:notice:campus_notice_get",
 		"通勤班车班次调整通知",
 		"两校区通勤班车临时增加班次。",
 		"https://example.invalid/notices/355122",
@@ -73,7 +74,8 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 	payload, err := BridgePayloadForHandoff(
 		base,
 		RuntimeHandoff{
-			Target:                 "rag-agent",
+			Capability:             "knowledge",
+			WorkerRole:             "activity-worker-rag",
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
@@ -92,21 +94,21 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 	handoff := expectBridgePayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
 	agentRequest := expectBridgePayloadRecord(
 		t,
-		handoff["agent_request"],
-		"runtime_decisions.handoff.agent_request",
+		handoff["capability_request"],
+		"runtime_decisions.handoff.capability_request",
 	)
 	context := expectBridgePayloadRecord(
 		t,
 		agentRequest["context"],
-		"runtime_decisions.handoff.agent_request.context",
+		"runtime_decisions.handoff.capability_request.context",
 	)
 	if context["raw_transcript"] != nil {
-		t.Fatalf("agent_request.context leaked raw transcript: %#v", context)
+		t.Fatalf("capability_request.context leaked raw transcript: %#v", context)
 	}
 	workflowContext := expectBridgePayloadRecord(
 		t,
 		agentRequest["workflow_context"],
-		"runtime_decisions.handoff.agent_request.workflow_context",
+		"runtime_decisions.handoff.capability_request.workflow_context",
 	)
 	projectionRefs, ok := workflowContext["projection_refs"].([]any)
 	if !ok || len(projectionRefs) != 1 {
@@ -122,7 +124,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 		t.Fatalf("projection ref leaked payload: %#v", projected)
 	}
 	if workflowContext["required_projection_kind"] != "notice_context" ||
-		workflowContext["visibility"] != "agent_private" {
+		workflowContext["visibility"] != "capability_private" {
 		t.Fatalf("workflow_context = %#v, want required kind and private visibility", workflowContext)
 	}
 }
@@ -138,7 +140,7 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 		"runtime_decisions":{"runtime_decision_summary":{}}
 	}`)
 	projection, ok := NewNoticeContextProjection(
-		"handoff:notice-agent:campus_notice_get",
+		"capability:notice:campus_notice_get",
 		"通勤班车班次调整通知",
 		"两校区通勤班车临时增加班次。",
 		"https://example.invalid/notices/355122",
@@ -150,7 +152,8 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 	payload, err := BridgePayloadForHandoff(
 		base,
 		RuntimeHandoff{
-			Target:                 "rag-agent",
+			Capability:             "knowledge",
+			WorkerRole:             "activity-worker-rag",
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
@@ -169,22 +172,22 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 	handoff := expectBridgePayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
 	agentRequest := expectBridgePayloadRecord(
 		t,
-		handoff["agent_request"],
-		"runtime_decisions.handoff.agent_request",
+		handoff["capability_request"],
+		"runtime_decisions.handoff.capability_request",
 	)
 	workflowContext := expectBridgePayloadRecord(
 		t,
 		agentRequest["workflow_context"],
-		"runtime_decisions.handoff.agent_request.workflow_context",
+		"runtime_decisions.handoff.capability_request.workflow_context",
 	)
 	if workflowContext["workflow_run_ref"] != "workflow:req-001" {
 		t.Fatalf("workflow_context.workflow_run_ref = %#v, want workflow:req-001", workflowContext["workflow_run_ref"])
 	}
-	if workflowContext["step_id"] != "handoff:rag-agent:rag_request" {
-		t.Fatalf("workflow_context.step_id = %#v, want handoff:rag-agent:rag_request", workflowContext["step_id"])
+	if workflowContext["step_id"] != "capability:knowledge:rag_request" {
+		t.Fatalf("workflow_context.step_id = %#v, want capability:knowledge:rag_request", workflowContext["step_id"])
 	}
-	if workflowContext["agent_id"] != "rag-agent" {
-		t.Fatalf("workflow_context.agent_id = %#v, want rag-agent", workflowContext["agent_id"])
+	if workflowContext["capability_id"] != "knowledge" {
+		t.Fatalf("workflow_context.capability_id = %#v, want knowledge", workflowContext["capability_id"])
 	}
 	expectedArtifacts, ok := workflowContext["expected_output_artifacts"].([]any)
 	if !ok ||
@@ -208,7 +211,8 @@ func TestBridgePayloadForHandoffFailsClosedWhenRequiredProjectionMissing(t *test
 	_, err := BridgePayloadForHandoff(
 		base,
 		RuntimeHandoff{
-			Target:                 "rag-agent",
+			Capability:             "knowledge",
+			WorkerRole:             "activity-worker-rag",
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
@@ -229,7 +233,7 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 		"runtime_decisions":{"runtime_decision_summary":{}}
 	}`)
 	scheduleProjection, ok := NewScheduleBaselineProjection(
-		"handoff:campus-services-agent:transport_schedule_lookup",
+		"capability:campus_services:transport_schedule_lookup",
 		"route:intercampus:student",
 		"两校区学生通勤班车",
 		"intercampus_commute",
@@ -240,7 +244,7 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 		t.Fatal("expected schedule baseline projection")
 	}
 	noticeProjection, ok := NewNoticeContextProjection(
-		"handoff:notice-agent:campus_notice_get",
+		"capability:notice:campus_notice_get",
 		"关于两校区学生通勤班车增加班次的通知",
 		"自 3 月 18 日起增加若干学生通勤班车班次。",
 		"https://example.invalid/notices/355122",
@@ -252,7 +256,8 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 	payload, err := BridgePayloadForHandoff(
 		base,
 		RuntimeHandoff{
-			Target:                 "rag-agent",
+			Capability:             "knowledge",
+			WorkerRole:             "activity-worker-rag",
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
@@ -278,13 +283,13 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 	handoff := expectBridgePayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
 	agentRequest := expectBridgePayloadRecord(
 		t,
-		handoff["agent_request"],
-		"runtime_decisions.handoff.agent_request",
+		handoff["capability_request"],
+		"runtime_decisions.handoff.capability_request",
 	)
 	workflowContext := expectBridgePayloadRecord(
 		t,
 		agentRequest["workflow_context"],
-		"runtime_decisions.handoff.agent_request.workflow_context",
+		"runtime_decisions.handoff.capability_request.workflow_context",
 	)
 	projectionRefs, ok := workflowContext["projection_refs"].([]any)
 	if !ok || len(projectionRefs) != 2 {

@@ -5,16 +5,20 @@ from pathlib import Path
 
 from campus_contracts import (
     ActorContext,
-    AgentRequest,
     AuthorizationProjection,
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
+    CapabilityRequest,
     ContextProjection,
     RagRequestPayload,
     ServiceGuideLookupPayload,
     ServiceStatusLookupPayload,
 )
-from campus_rag_agent.rag_sdk_models import RagQueryIntent, RagSdkEvidenceProjection, RagTaskKind
+from campus_knowledge_capability.rag_sdk_models import (
+    RagQueryIntent,
+    RagSdkEvidenceProjection,
+    RagTaskKind,
+)
 from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
 from campus_supervisor_agent_worker.tool_execution import (
     ToolExecutionContext,
@@ -24,9 +28,9 @@ from campus_supervisor_agent_worker.tool_execution import (
 )
 from campus_supervisor_agent_worker.tool_spec_registry import default_tool_spec_registry
 
-from tests.agent.campus_services_agent_fakes import FakeCampusServicesQueryService
-from tests.agent.rag_agent_test_support import _make_handbook_source
-from tests.agent.test_notice_agent import _FakeNoticeQueryService
+from tests.agent.campus_services_capability_fakes import FakeCampusServicesQueryService
+from tests.agent.knowledge_capability_test_support import _make_handbook_source
+from tests.agent.test_notice_capability import _FakeNoticeQueryService
 
 
 class ToolExecutionRegistrySuite(unittest.TestCase):
@@ -36,7 +40,7 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
 
         self.assertIsNotNone(notice_get)
         assert notice_get is not None
-        self.assertEqual(notice_get.surface, "agent_internal")
+        self.assertEqual(notice_get.surface, "capability_internal")
         self.assertEqual(notice_get.runtime_posture, "internal_function")
         self.assertFalse(notice_get.function_schema.available)
 
@@ -56,8 +60,8 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
                 call_id="call-service-guide-001",
             ),
             context=ToolExecutionContext(
-                agent_request=AgentRequest(
-                    target="campus-services-agent",
+                agent_request=CapabilityRequest(
+                    capability="campus_services",
                     user_goal="校园卡丢了怎么办",
                     payload=ServiceGuideLookupPayload(
                         service_query="校园卡丢了怎么办",
@@ -80,8 +84,8 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
         result = registry.execute_internal_function(
             "campus_notice_get",
             context=ToolExecutionContext(
-                agent_request=AgentRequest(
-                    target="notice-agent",
+                agent_request=CapabilityRequest(
+                    capability="notice",
                     user_goal="读取这条通知",
                     payload=CampusNoticeGetPayload(
                         notice_id="notice:2026-spring-holiday",
@@ -101,7 +105,7 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
         )
 
         self.assertEqual(result.status, "completed")
-        self.assertEqual(result.target, "notice-agent")
+        self.assertEqual(result.capability, "notice")
         self.assertIn("原文链接", result.answer_text)
 
     def test_registry_executes_rag_sdk_internal_function(self) -> None:
@@ -142,8 +146,8 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
                     call_id="call-rag-closed-001",
                 ),
                 context=ToolExecutionContext(
-                    agent_request=AgentRequest(
-                        target="rag-agent",
+                    agent_request=CapabilityRequest(
+                        capability="knowledge",
                         user_goal="奖学金",
                         payload=RagRequestPayload(),
                     )
@@ -168,8 +172,8 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
                 call_id="call-notice-discover-001",
             ),
             context=ToolExecutionContext(
-                agent_request=AgentRequest(
-                    target="notice-agent",
+                agent_request=CapabilityRequest(
+                    capability="notice",
                     user_goal="找春假通知",
                     payload=CampusNoticeDiscoverPayload(query_text="春假通知"),
                     allowed_tools=("campus_notice_discover",),
@@ -179,8 +183,8 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
         internal_result = session.execute_internal_function(
             "campus_notice_get",
             context=ToolExecutionContext(
-                agent_request=AgentRequest(
-                    target="notice-agent",
+                agent_request=CapabilityRequest(
+                    capability="notice",
                     user_goal="读取通知",
                     payload=CampusNoticeGetPayload(
                         notice_id="notice:2026-spring-holiday",
@@ -219,8 +223,8 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
                     call_id="call-wrong-tool-001",
                 ),
                 context=ToolExecutionContext(
-                    agent_request=AgentRequest(
-                        target="campus-services-agent",
+                    agent_request=CapabilityRequest(
+                        capability="campus_services",
                         user_goal="校园卡丢了怎么办",
                         payload=ServiceGuideLookupPayload(
                             service_query="校园卡丢了怎么办",
@@ -247,8 +251,8 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
                 call_id="call-admitted-tool-001",
             ),
             context=ToolExecutionContext(
-                agent_request=AgentRequest(
-                    target="campus-services-agent",
+                agent_request=CapabilityRequest(
+                    capability="campus_services",
                     user_goal="图书馆今天开门吗",
                     payload=ServiceStatusLookupPayload(subject_query="图书馆今天开门吗"),
                     allowed_tools=("service_status_lookup",),
@@ -268,7 +272,7 @@ class ToolExecutionRegistrySuite(unittest.TestCase):
 
     def test_agent_delegate_source_does_not_call_domain_sdk_helpers_directly(self) -> None:
         source = Path(
-            "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/agent_delegates.py"
+            "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/capability_delegates.py"
         )
         text = source.read_text(encoding="utf-8")
 
@@ -287,7 +291,7 @@ def _rag_sdk_request():
 
 
 def _make_rag_sdk_request(projection: RagSdkEvidenceProjection):
-    from campus_rag_agent.rag_sdk_models import RagSdkRunRequest
+    from campus_knowledge_capability.rag_sdk_models import RagSdkRunRequest
 
     return RagSdkRunRequest(
         user_goal="有哪些本科生可以申请的奖学金",

@@ -7,14 +7,14 @@ from pathlib import Path
 
 import yaml
 from campus_contracts import (
-    ALLOWED_AGENT_TARGETS,
+    ALLOWED_CAPABILITY_IDS,
     ALLOWED_CONFIDENCE_LEVELS,
     ALLOWED_REQUESTED_CAPABILITIES,
     ALLOWED_SUPERVISOR_STATUSES,
 )
 
 OPENAPI_PATH = Path("docs/contracts/schemas/supervisor-execution.openapi.yaml")
-AGENT_HANDOFF_SCHEMA_PATH = Path("packages/contracts/schemas/agent-handoff.v1.schema.json")
+CAPABILITY_HANDOFF_SCHEMA_PATH = Path("packages/contracts/schemas/capability-handoff.v1.schema.json")
 GENERATED_TS_PATH = Path(
     "apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts"
 )
@@ -45,7 +45,7 @@ def _schema(name: str) -> dict[str, object]:
 class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
     def test_machine_readable_schema_sources_exist(self) -> None:
         self.assertTrue(OPENAPI_PATH.exists())
-        self.assertTrue(AGENT_HANDOFF_SCHEMA_PATH.exists())
+        self.assertTrue(CAPABILITY_HANDOFF_SCHEMA_PATH.exists())
 
     def test_supervisor_execution_openapi_uses_31_json_schema_2020_12(self) -> None:
         openapi = _load_openapi()
@@ -55,7 +55,7 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             openapi["jsonSchemaDialect"], "https://json-schema.org/draft/2020-12/schema"
         )
         self.assertEqual(openapi["x-campus-contract"]["bridge_version"], "supervisor_bridge_v6")
-        self.assertEqual(openapi["x-campus-contract"]["response_contract"], "agent_response")
+        self.assertEqual(openapi["x-campus-contract"]["response_contract"], "capability_response")
         self.assertEqual(
             openapi["x-campus-contract"]["runtime_decisions_schema_version"],
             "supervisor-runtime-decisions-v1",
@@ -119,18 +119,18 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         )
 
     def test_agent_request_declares_workflow_context_projection_envelope(self) -> None:
-        agent_request = _schema("AgentRequest")
-        workflow_context = _schema("WorkflowAgentContext")
+        agent_request = _schema("CapabilityRequest")
+        workflow_context = _schema("WorkflowCapabilityContext")
 
         self.assertEqual(
             agent_request["properties"]["workflow_context"],
-            {"$ref": "#/components/schemas/WorkflowAgentContext"},
+            {"$ref": "#/components/schemas/WorkflowCapabilityContext"},
         )
         self.assertIn("schema_version", workflow_context["required"])
         self.assertIn("visibility", workflow_context["required"])
         self.assertIn("workflow_run_ref", workflow_context["required"])
         self.assertIn("step_id", workflow_context["required"])
-        self.assertIn("agent_id", workflow_context["required"])
+        self.assertIn("capability_id", workflow_context["required"])
         self.assertIn("expected_output_artifacts", workflow_context["required"])
         self.assertIn("projection_refs", workflow_context["required"])
         self.assertEqual(
@@ -142,8 +142,8 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             {"type": "string"},
         )
         self.assertEqual(
-            workflow_context["properties"]["agent_id"],
-            {"$ref": "#/components/schemas/AgentTarget"},
+            workflow_context["properties"]["capability_id"],
+            {"$ref": "#/components/schemas/CapabilityID"},
         )
         self.assertEqual(
             workflow_context["properties"]["expected_output_artifacts"]["items"],
@@ -175,12 +175,12 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             workflow_plan["properties"]["workflow_mode"],
             {"$ref": "#/components/schemas/WorkflowMode"},
         )
-        self.assertIn("allowed_agents", workflow_plan["required"])
+        self.assertIn("allowed_capabilities", workflow_plan["required"])
         self.assertIn("steps", workflow_plan["required"])
         self.assertIn("semantic_retry_policy", workflow_plan["required"])
         self.assertEqual(
-            workflow_plan["properties"]["allowed_agents"]["items"],
-            {"$ref": "#/components/schemas/AgentTarget"},
+            workflow_plan["properties"]["allowed_capabilities"]["items"],
+            {"$ref": "#/components/schemas/CapabilityID"},
         )
         edge = _schema("WorkflowPlanEdge")
         self.assertEqual(
@@ -188,13 +188,13 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             {"$ref": "#/components/schemas/StepOutputProjectionKind"},
         )
 
-    def test_workflow_trace_summary_declares_agent_invocation_graph(self) -> None:
+    def test_workflow_trace_summary_declares_capability_invocation_graph(self) -> None:
         schema = _schema("WorkflowTraceSummary")
 
-        self.assertIn("agent_invocations", schema["required"])
+        self.assertIn("capability_invocations", schema["required"])
         self.assertEqual(
-            schema["properties"]["agent_invocations"]["items"],
-            {"$ref": "#/components/schemas/AgentInvocation"},
+            schema["properties"]["capability_invocations"]["items"],
+            {"$ref": "#/components/schemas/CapabilityInvocation"},
         )
 
     def test_contract_versioning_policy_is_declared_in_canonical_schema(self) -> None:
@@ -212,7 +212,7 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             },
         )
         self.assertIn("incompatible", policy["bridge_version"])
-        self.assertIn("AgentResponse", policy["response_contract"])
+        self.assertIn("CapabilityResponse", policy["response_contract"])
         self.assertIn("runtime_decisions", policy["runtime_decisions_schema_version"])
         self.assertIn("summary", policy["runtime_decision_summary_schema_version"])
         self.assertIn("operator", policy["workflow_trace_summary_version"])
@@ -220,25 +220,25 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
     def test_runtime_enums_match_python_contract_truth(self) -> None:
         supervisor_statuses = tuple(_schema("SupervisorStatus")["enum"])
 
-        self.assertEqual(tuple(_schema("AgentTarget")["enum"]), ALLOWED_AGENT_TARGETS)
+        self.assertEqual(tuple(_schema("CapabilityID")["enum"]), ALLOWED_CAPABILITY_IDS)
         self.assertEqual(
             tuple(_schema("RequestedCapability")["enum"]), ALLOWED_REQUESTED_CAPABILITIES
         )
         self.assertEqual(tuple(_schema("ConfidenceLevel")["enum"]), ALLOWED_CONFIDENCE_LEVELS)
         self.assertEqual(supervisor_statuses, (*ALLOWED_SUPERVISOR_STATUSES, "cancelled"))
 
-    def test_terminal_supervisor_response_keeps_selected_target_nullable(self) -> None:
-        selected_target_schema = _schema("SupervisorResponse")["properties"]["selected_target"]
+    def test_terminal_supervisor_response_keeps_selected_capability_nullable(self) -> None:
+        selected_capability_schema = _schema("SupervisorResponse")["properties"]["selected_capability"]
 
-        self.assertIn({"type": "null"}, selected_target_schema["oneOf"])
+        self.assertIn({"type": "null"}, selected_capability_schema["oneOf"])
         self.assertIn("cancelled", _schema("SupervisorStatus")["enum"])
 
-    def test_agent_handoff_schema_is_package_owned_without_runtime_wrapper_truth(self) -> None:
-        schema = json.loads(AGENT_HANDOFF_SCHEMA_PATH.read_text(encoding="utf-8"))
+    def test_capability_handoff_schema_is_package_owned_without_runtime_wrapper_truth(self) -> None:
+        schema = json.loads(CAPABILITY_HANDOFF_SCHEMA_PATH.read_text(encoding="utf-8"))
 
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
-        self.assertIn("AgentRequest", schema["$defs"])
-        self.assertIn("AgentResponse", schema["$defs"])
+        self.assertIn("CapabilityRequest", schema["$defs"])
+        self.assertIn("CapabilityResponse", schema["$defs"])
         serialized = json.dumps(schema, ensure_ascii=True)
         self.assertNotIn("runtime_decisions", serialized)
         self.assertNotIn("supervisor_bridge_v6", serialized)

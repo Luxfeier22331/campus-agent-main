@@ -14,26 +14,26 @@ func shapeStructuredSupervisorResponse(
 	answerText := structuredAnswerText(payloadKind, result, status)
 	supervisorResponse, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":              target,
-			"status":              status,
-			"answer_text":         answerText,
-			"follow_up_question":  "",
-			"confidence":          confidenceForStructuredOutcome(outcome),
-			"result":              result,
-			"error":               nil,
-			"agent_observability": structuredDirectAgentObservability(target, payloadKind, result),
+			"capability":               target,
+			"status":                   status,
+			"answer_text":              answerText,
+			"follow_up_question":       "",
+			"confidence":               confidenceForStructuredOutcome(outcome),
+			"result":                   result,
+			"error":                    nil,
+			"capability_observability": structuredDirectCapabilityObservability(target, payloadKind, result),
 		},
 		traceID,
 		structuredFinalizerContext(context, payloadKind),
 	)
 	if err != nil {
 		return map[string]any{
-			"selected_target":    target,
-			"status":             "error",
-			"answer_text":        "结构化查询结果未通过 supervisor finalization。",
-			"follow_up_question": "",
-			"confidence":         "low",
-			"result":             result,
+			"selected_capability": target,
+			"status":              "error",
+			"answer_text":         "结构化查询结果未通过 supervisor finalization。",
+			"follow_up_question":  "",
+			"confidence":          "low",
+			"result":              result,
 			"error": map[string]any{
 				"code":      "structured_finalization_failed",
 				"message":   "structured supervisor finalization invariant failed",
@@ -68,7 +68,7 @@ func shapeStructuredSupervisorResponse(
 	return supervisorResponse
 }
 
-func structuredDirectAgentObservability(
+func structuredDirectCapabilityObservability(
 	target string,
 	payloadKind string,
 	result map[string]any,
@@ -85,8 +85,8 @@ func structuredDirectAgentObservability(
 		"source_ref_count": sourceRefCount,
 		"access_decision":  "allowed",
 		"safe_details": map[string]any{
-			"agent_execution_projection": map[string]any{
-				"schema_version":        "agent-execution-projection-v1",
+			"capability_execution_projection": map[string]any{
+				"schema_version":        "capability-execution-projection-v1",
 				"projection_owner":      target,
 				"selected_tool":         payloadKind,
 				"payload_kind":          payloadKind,

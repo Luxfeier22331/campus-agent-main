@@ -12,7 +12,12 @@ from unittest.mock import patch
 import campus_retrieval_core.backend_qdrant as backend_qdrant_module
 import campus_retrieval_core.backend_qdrant_release_guard as release_guard_module
 import campus_retrieval_core.service as retrieval_service_module
-from campus_contracts import AgentRequest, AgentResponse, KnowledgeScope, RagRequestPayload
+from campus_contracts import (
+    CapabilityRequest,
+    CapabilityResponse,
+    KnowledgeScope,
+    RagRequestPayload,
+)
 from campus_shared import load_repo_env
 
 from campus_evals.answer_ready_component_eval import (
@@ -25,10 +30,10 @@ from campus_evals.answer_ready_component_runtime import (
     AnswerReadyComponentRuntimeArtifact,
     collect_answer_ready_component_runtime_observations,
 )
-from campus_evals.rag_inprocess_delegate import delegate_to_rag_agent_inprocess
+from campus_evals.knowledge_inprocess_delegate import delegate_to_knowledge_capability_inprocess
 
 SupportedRegulationCollection = Literal["student_rules", "institutional_rules"]
-Delegate = Callable[..., AgentResponse]
+Delegate = Callable[..., CapabilityResponse]
 RetrievalObservationSink = Callable[[dict[str, object]], None]
 
 
@@ -36,7 +41,7 @@ def build_runtime_artifacts(
     *,
     cases: Sequence[AnswerReadyComponentCase],
     collection: SupportedRegulationCollection,
-    delegate: Delegate = delegate_to_rag_agent_inprocess,
+    delegate: Delegate = delegate_to_knowledge_capability_inprocess,
     qdrant_collection_name: str | None = None,
     release_contract_status: str = "passed",
     release_contract_failure_classes: Sequence[str] = (),
@@ -54,8 +59,8 @@ def build_runtime_artifacts(
         ) -> None:
             _retrieval_observations.append(dict(observation))
 
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal=case.query,
             payload=RagRequestPayload(scope=scope),
             request_id=case.case_id,
@@ -91,7 +96,7 @@ def run_component_eval_for_collection(
     collection: SupportedRegulationCollection,
     summary_output_path: str | Path,
     retrieval_observations_output_path: str | Path | None = None,
-    delegate: Delegate = delegate_to_rag_agent_inprocess,
+    delegate: Delegate = delegate_to_knowledge_capability_inprocess,
     qdrant_collection_name: str | None = None,
     release_contract_status: str = "passed",
     release_contract_failure_classes: Sequence[str] = (),

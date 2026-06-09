@@ -49,11 +49,11 @@ export function inferSafetyAnomalySeverity(
 export function summarizeSafetyAnomaly(
 	row: Pick<
 		RequestObservabilityFactRow,
-		"aclAnomalyCode" | "failClosed" | "requestedCapability" | "selectedTarget" | "status"
+		"aclAnomalyCode" | "failClosed" | "requestedCapability" | "selectedCapability" | "status"
 	>,
 ): string {
 	const capability = row.requestedCapability ?? "request";
-	const target = formatOperatorTargetSummaryLabel(row.selectedTarget);
+	const target = formatOperatorTargetSummaryLabel(row.selectedCapability);
 
 	switch (row.aclAnomalyCode) {
 		case "projection_missing":

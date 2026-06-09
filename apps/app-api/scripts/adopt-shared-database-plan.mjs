@@ -8,6 +8,8 @@ import {
 	ALTER_TABLE_ADD_COLUMN_RE,
 	ALTER_TABLE_CONSTRAINT_RE,
 	ALTER_TABLE_DROP_COLUMN_RE,
+	ALTER_TABLE_RENAME_COLUMN_RE,
+	ALTER_INDEX_RENAME_RE,
 	CREATE_INDEX_RE,
 	CREATE_SCHEMA_RE,
 	CREATE_TABLE_RE,
@@ -60,6 +62,18 @@ export function parseMigrationStatement(statement) {
 			table: match[2],
 		};
 	}
+	match = trimmed.match(ALTER_TABLE_RENAME_COLUMN_RE);
+	if (match) {
+		return {
+			existsKey: `${qualifyTable(match[1], match[2])}:${match[4]}`,
+			fromColumn: match[3],
+			kind: "rename_column",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+			toColumn: match[4],
+		};
+	}
 	match = trimmed.match(ALTER_TABLE_CONSTRAINT_RE);
 	if (match) {
 		return {
@@ -88,6 +102,17 @@ export function parseMigrationStatement(statement) {
 			existsKey: `${match[1]}@${match[2]}`,
 			index: match[2],
 			kind: "drop_index",
+			schema: match[1],
+			statement: trimmed,
+		};
+	}
+	match = trimmed.match(ALTER_INDEX_RENAME_RE);
+	if (match) {
+		return {
+			existsKey: `${match[1]}@${match[3]}`,
+			fromIndex: match[2],
+			index: match[3],
+			kind: "rename_index",
 			schema: match[1],
 			statement: trimmed,
 		};
@@ -146,6 +171,11 @@ function targetExists(inventory, target) {
 			(table) => table.schema === target.schema && table.indexes.has(target.index),
 		);
 	}
+	if (target.kind === "rename_index") {
+		return [...inventory.tables.values()].some(
+			(table) => table.schema === target.schema && table.indexes.has(target.index),
+		);
+	}
 	const qualifiedName = qualifyTable(target.schema, target.table);
 	const table = inventory.tables.get(qualifiedName);
 	if (target.kind === "table") {
@@ -159,6 +189,9 @@ function targetExists(inventory, target) {
 	}
 	if (target.kind === "drop_column") {
 		return !table.columns.has(target.column);
+	}
+	if (target.kind === "rename_column") {
+		return table.columns.has(target.toColumn);
 	}
 	if (target.kind === "constraint") {
 		const normalizedConstraint = normalizePostgresIdentifier(target.constraint);
@@ -181,7 +214,13 @@ function latestSnapshotKeepsIndex(expectedLatestTables, target) {
 	);
 }
 
-function shouldApplyStatement(inventory, target, expectedTablesForMigration, expectedLatestTables) {
+function shouldApplyStatement(
+	inventory,
+	target,
+	expectedTablesForMigration,
+	expectedLatestTables,
+	renameIndexSourceKeys,
+) {
 	if (target.kind === "drop_index") {
 		const actualIndex = findInventoryIndex(inventory, target);
 		if (!actualIndex) {
@@ -195,7 +234,11 @@ function shouldApplyStatement(inventory, target, expectedTablesForMigration, exp
 	}
 	if (target.kind === "index") {
 		if (
-			!(latestSnapshotKeepsIndex(expectedLatestTables, target) || targetExists(inventory, target))
+			!(
+				latestSnapshotKeepsIndex(expectedLatestTables, target) ||
+				targetExists(inventory, target) ||
+				renameIndexSourceKeys.has(`${target.schema}@${target.index}`)
+			)
 		) {
 			return false;
 		}
@@ -229,6 +272,30 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 			}
 		}
 		return;
+	}
+
+	if (target.kind === "rename_index") {
+		for (const table of inventory.tables.values()) {
+			if (table.schema !== target.schema || !table.indexes.has(target.fromIndex)) {
+				continue;
+			}
+			const tableName = qualifyTable(table.schema, table.table);
+			const expectedIndex = expectedTablesForMigration.get(tableName)?.indexes.get(target.index);
+			if (!expectedIndex) {
+				throw new Error(
+					`Missing expected renamed index ${tableName}@${target.index} during adoption planning`,
+				);
+			}
+			table.indexes.delete(target.fromIndex);
+			table.indexes.set(target.index, {
+				...expectedIndex,
+				columns: [...expectedIndex.columns],
+			});
+			return;
+		}
+		throw new Error(
+			`Missing source index ${target.schema}@${target.fromIndex} during adoption planning`,
+		);
 	}
 
 	const qualifiedName = qualifyTable(target.schema, target.table);
@@ -265,6 +332,25 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 		return;
 	}
 
+	if (target.kind === "rename_column") {
+		const expectedColumn = expectedTablesForMigration
+			.get(qualifiedName)
+			?.columns.get(target.toColumn);
+		if (!expectedColumn) {
+			throw new Error(
+				`Missing expected renamed column ${qualifiedName}.${target.toColumn} during adoption planning`,
+			);
+		}
+		if (!table.columns.has(target.fromColumn)) {
+			throw new Error(
+				`Missing source column ${qualifiedName}.${target.fromColumn} during adoption planning`,
+			);
+		}
+		table.columns.delete(target.fromColumn);
+		table.columns.set(target.toColumn, { ...expectedColumn });
+		return;
+	}
+
 	if (target.kind === "constraint") {
 		table.constraints.add(target.constraint);
 		return;
@@ -281,6 +367,7 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 			...expectedIndex,
 			columns: [...expectedIndex.columns],
 		});
+		return;
 	}
 }
 
@@ -306,6 +393,15 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 			return [migration.tag, buildExpectedTableSpecs(snapshot)];
 		}),
 	);
+	const renameIndexSourceKeys = new Set();
+	for (const migration of migrationContext.migrations) {
+		for (const statement of migration.statements) {
+			const target = parseMigrationStatement(statement);
+			if (target.kind === "rename_index") {
+				renameIndexSourceKeys.add(`${target.schema}@${target.fromIndex}`);
+			}
+		}
+	}
 	for (const migration of migrationContext.migrations) {
 		const expectedTablesForMigration = expectedTablesByMigrationTag.get(migration.tag);
 		if (!expectedTablesForMigration) {
@@ -316,11 +412,12 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 			if (
 				shouldApplyStatement(
 					plannedInventory,
-					target,
-					expectedTablesForMigration,
-					expectedLatestTables,
-				)
-			) {
+						target,
+						expectedTablesForMigration,
+						expectedLatestTables,
+						renameIndexSourceKeys,
+					)
+				) {
 				statements.push({
 					migrationTag: migration.tag,
 					statement,

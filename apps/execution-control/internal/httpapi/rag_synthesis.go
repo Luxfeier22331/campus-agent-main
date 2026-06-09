@@ -225,12 +225,12 @@ func ragSynthesisFinalizedResponse(
 		groundingVerdict = "grounded"
 	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		SelectedTarget:   "rag-agent",
-		Status:           "completed",
-		AnswerText:       strings.TrimSpace(result.AnswerText),
-		Error:            nil,
-		FollowUpQuestion: "",
-		Confidence:       confidence,
+		SelectedCapability: "knowledge",
+		Status:             "completed",
+		AnswerText:         strings.TrimSpace(result.AnswerText),
+		Error:              nil,
+		FollowUpQuestion:   "",
+		Confidence:         confidence,
 		Result: map[string]any{
 			"evidence": map[string]any{
 				"query_text": packet.QueryIntent,
@@ -256,7 +256,7 @@ func ragSynthesisFinalizedResponse(
 		},
 		WorkflowTraceSummary: map[string]any{
 			"workflow_mode":         "single_step",
-			"selected_target":       "rag-agent",
+			"selected_capability":   "knowledge",
 			"selected_tools":        []string{"retrieval.query"},
 			"answer_artifact_kinds": []string{"provider_execution_summary"},
 			"answer_artifact_refs":  []string{providerRequestRefForPacket(packet)},

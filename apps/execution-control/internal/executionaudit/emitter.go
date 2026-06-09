@@ -31,7 +31,7 @@ type Event struct {
 	Retryable             bool
 	RoutingNextAction     string
 	ScopeGateDecision     string
-	SelectedTarget        string
+	SelectedCapability    string
 	SelectedTool          string
 	TerminalOutcome       string
 	FailCloseReason       string

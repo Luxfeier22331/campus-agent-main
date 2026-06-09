@@ -27,7 +27,7 @@ func eventPayload(event Event) map[string]any {
 		"retryable":               event.Retryable,
 		"routing_next_action":     nullableString(event.RoutingNextAction),
 		"scope_gate_decision":     nullableString(event.ScopeGateDecision),
-		"selected_target":         nullableString(event.SelectedTarget),
+		"selected_capability":     nullableString(event.SelectedCapability),
 		"selected_tool":           nullableString(event.SelectedTool),
 		"terminal_outcome":        nullableString(event.TerminalOutcome),
 		"fail_close_reason":       nullableString(event.FailCloseReason),

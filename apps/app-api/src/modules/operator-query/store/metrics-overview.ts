@@ -15,7 +15,7 @@ function hasNarrowingOverviewFilters(filters: NormalizedOperatorOverviewFilters)
 			filters.modelName ||
 			filters.principalType ||
 			filters.requestedCapability ||
-			filters.selectedTarget ||
+			filters.selectedCapability ||
 			filters.surface,
 	);
 }

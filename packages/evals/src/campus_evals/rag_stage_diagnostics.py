@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from campus_contracts import (
-    AgentRequest,
-    AgentResponse,
+    CapabilityRequest,
+    CapabilityResponse,
     KnowledgeScope,
     RagRequestPayload,
     RagResultDiagnostics,
     RagResultPayload,
 )
 from campus_ingestion_core import load_runtime_profile
-from campus_rag_agent.agent import RagAgent
-from campus_rag_agent.service_pipeline import build_rag_pipeline_context
-from campus_rag_agent.typed_answer_drafts import validate_typed_answer_draft
+from campus_knowledge_capability.answer_runtime import KnowledgeCapability
+from campus_knowledge_capability.service_pipeline import build_rag_pipeline_context
+from campus_knowledge_capability.typed_answer_drafts import validate_typed_answer_draft
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 
 
@@ -19,7 +19,7 @@ def build_rag_stage_diagnostic_case(
     *,
     case_id: str,
     user_goal: str,
-    response: AgentResponse,
+    response: CapabilityResponse,
 ) -> dict[str, object]:
     result = response.result
     if not isinstance(result, RagResultPayload):
@@ -33,7 +33,7 @@ def build_rag_stage_diagnostic_case(
         response=response,
         diagnostics=diagnostics,
     )
-    answer_draft = RagAgent().build_answer(
+    answer_draft = KnowledgeCapability().build_answer(
         result.evidence,
         retrieval_intent=retrieval_intent,
     )
@@ -166,13 +166,13 @@ def build_rag_stage_diagnostic_case(
 def _resolve_retrieval_intent_projection(
     *,
     user_goal: str,
-    response: AgentResponse,
+    response: CapabilityResponse,
     diagnostics: RagResultDiagnostics,
 ):
     scope = _resolve_scope(response=response, diagnostics=diagnostics)
     pipeline = build_rag_pipeline_context(
-        AgentRequest(
-            target="rag-agent",
+        CapabilityRequest(
+            capability="knowledge",
             user_goal=user_goal,
             payload=RagRequestPayload(scope=scope),
         ),
@@ -185,7 +185,7 @@ def _resolve_retrieval_intent_projection(
 
 def _resolve_scope(
     *,
-    response: AgentResponse,
+    response: CapabilityResponse,
     diagnostics: RagResultDiagnostics,
 ) -> KnowledgeScope:
     corpus = diagnostics.resolved_scope_corpus or response.result.evidence.corpus

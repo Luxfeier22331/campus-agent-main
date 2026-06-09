@@ -45,18 +45,18 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "full_body_forbidden must be true"):
             NoticeDisplayPolicy(full_body_forbidden=False)
 
-    def test_agent_request_rejects_notice_get_as_agent_facing_allowed_tool(self) -> None:
+    def test_agent_request_rejects_notice_get_as_capability_facing_allowed_tool(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported allowed_tool: campus_notice_get"):
-            AgentRequest(
-                target="notice-agent",
+            CapabilityRequest(
+                capability="notice",
                 user_goal="打开这条通知",
                 payload=CampusNoticeGetPayload(notice_id="notice:muc-spring-break-2026"),
                 allowed_tools=("campus_notice_get",),  # type: ignore[arg-type]
             )
 
     def test_agent_request_accepts_service_status_payload(self) -> None:
-        request = AgentRequest(
-            target="campus-services-agent",
+        request = CapabilityRequest(
+            capability="campus_services",
             user_goal="图书馆今天开门吗",
             payload=ServiceStatusLookupPayload(
                 subject_query="图书馆今天开门吗",
@@ -78,8 +78,8 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
         )
 
     def test_agent_request_accepts_service_guide_payload(self) -> None:
-        request = AgentRequest(
-            target="campus-services-agent",
+        request = CapabilityRequest(
+            capability="campus_services",
             user_goal="宿舍入住怎么办理",
             payload=ServiceGuideLookupPayload(
                 service_query="宿舍入住怎么办理",
@@ -91,9 +91,9 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
         self.assertEqual(asdict(request)["payload"]["guide_focus"], "procedure")
         self.assertEqual(tuple(asdict(request)["allowed_tools"]), ("service_guide_lookup",))
 
-    def test_agent_response_serializes_notice_get_result_shape(self) -> None:
-        response = AgentResponse(
-            target="rag-agent",
+    def test_capability_response_serializes_notice_get_result_shape(self) -> None:
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="这是当前可确认的春假通知正文。",
             confidence="high",
@@ -129,8 +129,8 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
 
     def test_agent_request_rejects_missing_payload(self) -> None:
         with self.assertRaises(TypeError):
-            AgentRequest(  # type: ignore[call-arg]
-                target="rag-agent",
+            CapabilityRequest(  # type: ignore[call-arg]
+                capability="knowledge",
                 user_goal="library hours",
             )
 

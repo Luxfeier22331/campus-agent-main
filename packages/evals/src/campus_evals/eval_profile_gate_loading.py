@@ -34,7 +34,7 @@ def _load_public_chat_observations(
             case_id=_required_string(item.get("case_id"), "case_id"),
             request_id=_required_string(item.get("request_id"), "request_id"),
             trace_id=_required_string(item.get("trace_id"), "trace_id"),
-            selected_target=_required_string(item.get("selected_target"), "selected_target"),
+            selected_capability=_required_string(item.get("selected_capability"), "selected_capability"),
             terminal_outcome=_required_string(item.get("terminal_outcome"), "terminal_outcome"),
             fail_close_reason=str(item.get("fail_close_reason") or ""),
             response_contract=_mapping(item.get("response_contract") or {}, "response_contract"),
@@ -174,11 +174,11 @@ def _public_chat_observation_from_response(
     supervisor = payload.get("supervisor") if isinstance(payload.get("supervisor"), dict) else {}
     request_id = str(result.get("requestId") or response.headers.get("x-request-id") or "")
     trace_id = str(result.get("traceId") or response.headers.get("x-trace-id") or "")
-    selected_target = str(
-        supervisor.get("selectedTarget")
-        or supervisor.get("selected_target")
-        or result.get("selectedTarget")
-        or result.get("selected_target")
+    selected_capability = str(
+        supervisor.get("selectedCapability")
+        or supervisor.get("selected_capability")
+        or result.get("selectedCapability")
+        or result.get("selected_capability")
         or "none"
     )
     terminal_outcome = str(supervisor.get("status") or result.get("status") or "")
@@ -193,7 +193,7 @@ def _public_chat_observation_from_response(
         case_id=case_id,
         request_id=request_id,
         trace_id=trace_id,
-        selected_target=selected_target,
+        selected_capability=selected_capability,
         terminal_outcome=terminal_outcome,
         fail_close_reason=fail_close_reason,
         response_contract={

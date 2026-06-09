@@ -214,7 +214,7 @@ describe("chat command durable runtime cutover", () => {
 									sources: [{ doc_id: "student_rules:national-scholarship" }],
 								},
 							},
-							selected_target: "rag-agent",
+							selected_capability: "knowledge",
 							status: "completed",
 							trace_id: "trace_0001",
 						},
@@ -283,7 +283,7 @@ describe("chat command durable runtime cutover", () => {
 		]);
 		expect(executionPayload).toMatchObject({
 			bridge_version: "supervisor_bridge_v6",
-			response_contract: "agent_response",
+			response_contract: "capability_response",
 			effective_capability: "knowledge",
 			lane: "rag",
 			requested_capability: "knowledge",
@@ -305,7 +305,7 @@ describe("chat command durable runtime cutover", () => {
 			}),
 			runtime_decision_summary: expect.objectContaining({
 				planning_outcome: "preplanned",
-				selected_target: "rag-agent",
+				selected_capability: "knowledge",
 				selected_tool: "retrieval.query",
 			}),
 			schema_version: "supervisor-runtime-decisions-v1",
@@ -313,7 +313,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(handoff).toMatchObject({
 			allowed_tools: [],
 			planning_outcome: "preplanned",
-			target: "rag-agent",
+			target: "knowledge",
 		});
 		expect(agentRequest).toMatchObject({
 			allowed_tools: [],
@@ -321,7 +321,7 @@ describe("chat command durable runtime cutover", () => {
 			conversation_id: "conv_01HQ",
 			request_id: "req_0001",
 			safety_identifier: expect.any(String),
-			target: "rag-agent",
+			target: "knowledge",
 			trace: {
 				trace_id: "trace_0001",
 			},
@@ -340,28 +340,28 @@ describe("chat command durable runtime cutover", () => {
 			},
 		});
 		expect(workflowContext).toMatchObject({
-			agent_id: "rag-agent",
+			capability_id: "knowledge",
 			expected_output_artifacts: ["evidence_bundle", "grounding_verdict"],
 			projection_refs: [],
-			schema_version: "workflow-agent-context-v1",
-			step_id: "handoff:rag-agent:rag_request",
-			target: "rag-agent",
-			visibility: "agent_private",
+			schema_version: "workflow-capability-context-v1",
+			step_id: "handoff:knowledge:rag_request",
+			target: "knowledge",
+			visibility: "capability_private",
 			workflow_run_ref: "workflow:req_0001",
 		});
 		expect(workflowPlan).toMatchObject({
-			allowed_agents: ["rag-agent"],
+			allowed_capabilities: ["knowledge"],
 			edges: [],
-			plan_id: "plan:single_step:rag-agent:rag_request",
+			plan_id: "plan:single_step:knowledge:rag_request",
 			schema_version: "workflow-plan-v1",
 			steps: [
 				{
 					allowed_tools: [],
 					payload_kind: "rag_request",
 					selected_tool: "retrieval.query",
-					step_id: "handoff:rag-agent:rag_request",
+					step_id: "handoff:knowledge:rag_request",
 					step_kind: "handoff",
-					target: "rag-agent",
+					target: "knowledge",
 				},
 			],
 			workflow_mode: "single_step",
@@ -407,7 +407,7 @@ describe("chat command durable runtime cutover", () => {
 					},
 					payload_kind: "rag_request",
 					required_projection_kind: "",
-					target: "rag-agent",
+					target: "knowledge",
 				},
 			}),
 			ownerUserId: "user_01HQ",

@@ -285,7 +285,7 @@ def _temporal_env() -> dict[str, str]:
 def _notice_smoke_body() -> str:
     return (
         "# 烟雾测试通知\n\n"
-        "这是一条用于 notice-agent direct runtime smoke 的通知正文。"
+        "这是一条用于 notice direct runtime smoke 的通知正文。"
         "通知事项需要结合学生手册相关规定理解。\n"
     )
 

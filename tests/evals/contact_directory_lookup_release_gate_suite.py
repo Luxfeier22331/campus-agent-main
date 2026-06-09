@@ -79,7 +79,7 @@ class ContactDirectoryLookupReleaseGateTest(unittest.TestCase):
                 "projection_default_cases",
                 "intent_contact_directory_cases",
                 "supervisor_go_contact_directory_tests",
-                "campus_services_agent_contract_tests",
+                "campus_services_capability_contract_tests",
                 "app_api_contact_directory_structured_answer_tests",
             ],
         )
@@ -101,7 +101,7 @@ class ContactDirectoryLookupReleaseGateTest(unittest.TestCase):
                 "python",
                 "-m",
                 "unittest",
-                "tests.agent.test_campus_services_agent",
+                "tests.agent.test_campus_services_capability",
             ),
             commands,
         )

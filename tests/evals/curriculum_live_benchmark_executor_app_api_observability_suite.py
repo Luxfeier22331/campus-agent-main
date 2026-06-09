@@ -46,7 +46,7 @@ class CurriculumLiveExecutorAppApiObservabilityTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "status": "no_answer",
                         "traceId": "trace_curriculum_eval_no_answer_01HQ",
                         "result": {

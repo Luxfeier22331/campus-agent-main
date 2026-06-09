@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from campus_contracts import (
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
@@ -53,9 +53,9 @@ def _response(
     answer_text: str = "",
     follow_up_question: str = "",
     sources: tuple[EvidenceSource, ...] = (),
-) -> AgentResponse:
-    return AgentResponse(
-        target="rag-agent",
+) -> CapabilityResponse:
+    return CapabilityResponse(
+        capability="knowledge",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",

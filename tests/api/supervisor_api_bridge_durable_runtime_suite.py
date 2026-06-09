@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from campus_contracts import AgentResponse
+from campus_contracts import CapabilityResponse
 from campus_supervisor_agent_worker.api import build_bridge_routes
 from campus_supervisor_agent_worker.settings import ApiSettings
 
@@ -15,8 +15,8 @@ from .supervisor_api_bridge_support import (
 class SupervisorApiBridgeSemanticExecutionTest(SupervisorApiBridgeBaseTest):
     def test_semantic_execution_route_requires_step_execution_metadata(self) -> None:
         route = _semantic_execution_route(
-            agent_handler=lambda _request, _agent_request: AgentResponse(
-                target="rag-agent",
+            capability_handler=lambda _request, _agent_request: CapabilityResponse(
+                target="knowledge",
                 status="ok",
                 content="unused",
             )
@@ -42,14 +42,14 @@ class SupervisorApiBridgeSemanticExecutionTest(SupervisorApiBridgeBaseTest):
             seen["request_id"] = request.request_id
             seen["agent_request_id"] = agent_request.request_id
             seen["workflow_context"] = asdict(agent_request.workflow_context)
-            return AgentResponse(
+            return CapabilityResponse(
                 target=agent_request.target,
                 status="completed",
                 answer_text="semantic answer",
                 confidence="high",
             )
 
-        route = _semantic_execution_route(agent_handler=_handler)
+        route = _semantic_execution_route(capability_handler=_handler)
         response = route.handler(
             {"x-supervisor-bridge-auth": "secret"},
             {
@@ -65,7 +65,7 @@ class SupervisorApiBridgeSemanticExecutionTest(SupervisorApiBridgeBaseTest):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "semantic_agent_response")
+        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "semantic_capability_response")
         self.assertEqual(response.json_body["answer_text"], "semantic answer")
         self.assertEqual(seen["request_id"], "req-semantic-001")
         self.assertEqual(seen["agent_request_id"], "req-semantic-001")
@@ -75,9 +75,9 @@ class SupervisorApiBridgeSemanticExecutionTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(workflow_context["step_id"], "primary")
 
 
-def _semantic_execution_route(*, agent_handler):
+def _semantic_execution_route(*, capability_handler):
     settings = ApiSettings(bridge_shared_secret="secret")
-    routes = build_bridge_routes(settings, agent_handler=agent_handler)
+    routes = build_bridge_routes(settings, capability_handler=capability_handler)
     for route in routes:
         if route.method == "POST" and route.path == "/internal/bridge/semantic/execution":
             return route

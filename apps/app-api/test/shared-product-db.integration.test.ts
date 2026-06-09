@@ -273,7 +273,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_eval_curriculum_01",
 				})
@@ -294,7 +294,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_eval_curriculum_02",
 				}),

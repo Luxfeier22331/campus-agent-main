@@ -124,7 +124,7 @@ func TestParseAnswerRequestClarifiesUnplannableCampusServicesSubtypeBeforeBridge
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
 	if request.StructuredHandoff != nil {
-		t.Fatalf("unplannable subtype must not preplan handoff: %#v", request.StructuredHandoff)
+		t.Fatalf("unplannable subtype must not preplan capability: %#v", request.StructuredHandoff)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")

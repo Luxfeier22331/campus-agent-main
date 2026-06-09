@@ -122,7 +122,8 @@ func isDelegatedTransactionAction(
 
 func (h Handoff) Map() map[string]any {
 	return map[string]any{
-		"target":        h.Target,
+		"capability":    h.Capability,
+		"worker_role":   runtimepolicy.WorkerRoleForCapability(h.Capability),
 		"payload_kind":  h.PayloadKind,
 		"payload":       h.Payload,
 		"allowed_tools": h.AllowedTools,

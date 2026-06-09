@@ -116,7 +116,7 @@ export interface ChatCommandServiceDependencies {
 		record(input: {
 			errorCode?: string | null;
 			requestId: string;
-			selectedTarget?: string | null;
+			selectedCapability?: string | null;
 			status?: string | null;
 			surface?: string | null;
 			traceId: string;

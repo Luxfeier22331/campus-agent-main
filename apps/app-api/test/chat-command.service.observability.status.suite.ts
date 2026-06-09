@@ -27,7 +27,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					error: null,
 					followUpQuestion: "你要问哪个校区？",
 					result: null,
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "needs_clarification",
 					traceId: "trace_0002",
 				}),
@@ -44,7 +44,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					error: null,
 					followUpQuestion: "",
 					result: null,
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "no_answer",
 					traceId: "trace_0002",
 				}),
@@ -122,7 +122,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							outcome: "clarification_required",
 						},
 					},
-					selectedTarget: "campus-services-agent",
+					selectedCapability: "campus_services",
 					status: "needs_clarification",
 					traceId: "trace_guardrail_01",
 				}),
@@ -146,7 +146,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							query_text: "招生办联系方式",
 						},
 					},
-					selectedTarget: "campus-services-agent",
+					selectedCapability: "campus_services",
 					status: "no_answer",
 					traceId: "trace_guardrail_02",
 				}),
@@ -170,7 +170,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							service_query: "地铁接驳车预约",
 						},
 					},
-					selectedTarget: "campus-services-agent",
+					selectedCapability: "campus_services",
 					status: "approval_required",
 					traceId: "trace_guardrail_03",
 				}),
@@ -197,7 +197,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							query_text: "招生办电话",
 						},
 					},
-					selectedTarget: "campus-services-agent",
+					selectedCapability: "campus_services",
 					status: "rejected",
 					traceId: "trace_guardrail_04",
 				}),
@@ -242,7 +242,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expectNoInternalLocators(clarification.answer.result.text);
 		expect(clarificationStore.finalWrites[0]).toMatchObject({
 			requestExecution: {
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: "needs_clarification",
 			},
 		});
@@ -257,7 +257,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expectNoInternalLocators(noAnswer.answer.result.text);
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
 			requestExecution: {
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: "no_answer",
 			},
 		});
@@ -269,7 +269,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(approval.answer.result.message).toContain("不能代你预约、提交、打电话或发邮件");
 		expect(approvalStore.finalWrites[0]).toMatchObject({
 			requestExecution: {
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: "approval_required",
 			},
 		});
@@ -282,7 +282,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
 			requestExecution: {
 				errorCode: "request_rejected",
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: "rejected",
 			},
 		});
@@ -304,7 +304,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					error: null,
 					followUpQuestion: "",
 					result: null,
-					selectedTarget: null,
+					selectedCapability: null,
 					status: "approval_required",
 					traceId: "trace_0002",
 				}),
@@ -326,7 +326,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					followUpQuestion: "",
 					result: null,
-					selectedTarget: null,
+					selectedCapability: null,
 					status: "rejected",
 					traceId: "trace_0002",
 				}),
@@ -362,14 +362,14 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 				eventType: "request.approval_required",
 			},
 			requestExecution: {
-				selectedTarget: null,
+				selectedCapability: null,
 				status: "approval_required",
 			},
 		});
 		expect(approvalTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				selectedTarget: null,
+				selectedCapability: null,
 				status: "approval_required",
 			}),
 		);
@@ -387,14 +387,14 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			},
 			requestExecution: {
 				errorCode: "request_rejected",
-				selectedTarget: null,
+				selectedCapability: null,
 				status: "rejected",
 			},
 		});
 		expect(rejectedTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				selectedTarget: null,
+				selectedCapability: null,
 				status: "rejected",
 			}),
 		);

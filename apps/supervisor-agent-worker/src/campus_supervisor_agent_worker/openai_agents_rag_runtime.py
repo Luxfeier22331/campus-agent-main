@@ -2,23 +2,23 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from campus_prompt_runtime import PromptRuntimeProviderConfig
-from campus_rag_agent.rag_sdk_models import (
+from campus_knowledge_capability.rag_sdk_models import (
     RagSdkEvidenceAnchor,
     RagSdkRunRequest,
     RagSdkRunResult,
 )
-from campus_rag_agent.rag_sdk_output import (
+from campus_knowledge_capability.rag_sdk_output import (
     RagSdkAnswerOutput,
     RagSdkClaim,
     RagSdkClaimSupport,
     RagSdkListItem,
     RagSdkListItemSupport,
 )
-from campus_rag_agent.rag_sdk_tools import (
+from campus_knowledge_capability.rag_sdk_tools import (
     RagSdkToolError,
 )
-from campus_rag_agent.rag_sdk_trace import build_rag_sdk_trace_projection
+from campus_knowledge_capability.rag_sdk_trace import build_rag_sdk_trace_projection
+from campus_prompt_runtime import PromptRuntimeProviderConfig
 from pydantic import BaseModel, ConfigDict, Field
 
 from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
@@ -126,7 +126,7 @@ class OpenAIAgentsRagRuntime:
 
     def __call__(self, request: RagSdkRunRequest) -> RagSdkRunResult:
         result = self._runtime.run(
-            agent_name="rag-agent-native-runtime",
+            agent_name="knowledge-native-runtime",
             instructions=self._instructions,
             input_text=request.user_goal,
             context=request,

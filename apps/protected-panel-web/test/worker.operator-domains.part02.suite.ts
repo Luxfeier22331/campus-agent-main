@@ -52,7 +52,7 @@ export function registerWorkerOperatorDomainsSuitePart02() {
 										collection: "student_rules",
 										corpus: "regulations",
 									},
-									selectedTarget: "rag-agent",
+									selectedCapability: "knowledge",
 									sourceDocIds: ["handbook:library-hours"],
 									startedAt: "2026-03-28T08:00:00.000Z",
 									status: "completed",

@@ -126,7 +126,7 @@ export interface SupervisorExecutionWorkflowTraceSummary {
 	policyArtifactVersions: Record<string, unknown>;
 	routingFrame: Record<string, unknown>;
 	runtimeVersions: Record<string, unknown>;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	selectedTools: string[];
 	toolArgumentSummary: Record<string, unknown>;
 	traceSteps?: Record<string, unknown>[];
@@ -144,7 +144,7 @@ export interface SupervisorExecutionResponse {
 	followUpQuestion: string;
 	observability?: SupervisorExecutionObservability | null;
 	result: unknown;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: ExecutionFinalizationStatus;
 	traceId: string;
 	workflowTraceSummary?: SupervisorExecutionWorkflowTraceSummary | null;

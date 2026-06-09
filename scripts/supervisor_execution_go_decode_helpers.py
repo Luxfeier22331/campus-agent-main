@@ -127,8 +127,8 @@ func (wire WorkflowPlanWire) Validate() error {
 \tif !wire.WorkflowMode.Valid() {
 \t\treturn fmt.Errorf("workflow_mode is invalid")
 \t}
-\tif wire.AllowedAgents == nil {
-\t\treturn fmt.Errorf("allowed_agents is required")
+\tif wire.AllowedCapabilities == nil {
+\t\treturn fmt.Errorf("allowed_capabilities is required")
 \t}
 \tif wire.Steps == nil {
 \t\treturn fmt.Errorf("steps is required")
@@ -192,8 +192,8 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 \tif wire.HandoffChain == nil {
 \t\treturn fmt.Errorf("handoff_chain is required")
 \t}
-\tif wire.SelectedTarget == nil || *wire.SelectedTarget == "" {
-\t\treturn fmt.Errorf("selected_target is required")
+\tif wire.SelectedCapability == nil || *wire.SelectedCapability == "" {
+\t\treturn fmt.Errorf("selected_capability is required")
 \t}
 \tif wire.SelectedTools == nil {
 \t\treturn fmt.Errorf("selected_tools is required")
@@ -231,8 +231,8 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 }
 
 func (wire SupervisorResponseWire) Validate() error {
-\tif wire.SelectedTarget != nil && !wire.SelectedTarget.Valid() {
-\t\treturn fmt.Errorf("selected_target is invalid")
+\tif wire.SelectedCapability != nil && !wire.SelectedCapability.Valid() {
+\t\treturn fmt.Errorf("selected_capability is invalid")
 \t}
 \tif !wire.Status.Valid() {
 \t\treturn fmt.Errorf("status is invalid")
@@ -262,9 +262,9 @@ func (wire SupervisorResponseWire) Validate() error {
 \treturn nil
 }
 
-func (value AgentTarget) Valid() bool {
+func (value CapabilityID) Valid() bool {
 \tswitch value {
-\tcase AgentTargetRagAgent, AgentTargetNavigationAgent, AgentTargetCampusServicesAgent, AgentTargetNoticeAgent:
+\tcase CapabilityIDKnowledge, CapabilityIDNavigation, CapabilityIDCampusServices, CapabilityIDNotice:
 \t\treturn true
 \tdefault:
 \t\treturn false
@@ -273,7 +273,7 @@ func (value AgentTarget) Valid() bool {
 
 func (value RequestedCapability) Valid() bool {
 \tswitch value {
-\tcase RequestedCapabilityKnowledge, RequestedCapabilityPlaceLookup, RequestedCapabilityCampusServices, RequestedCapabilityNotice:
+\tcase RequestedCapabilityKnowledge, RequestedCapabilityNavigation, RequestedCapabilityCampusServices, RequestedCapabilityNotice:
 \t\treturn true
 \tdefault:
 \t\treturn false

@@ -38,7 +38,7 @@ function requestExecutionWrite(
 		resolvedScope: null,
 		runId: "run_001",
 		safetyIdentifier: "safety_001",
-		selectedTarget: null,
+		selectedCapability: null,
 		sourceDocIds: [],
 		startedAt: "2026-06-04T01:02:03.000Z",
 		status: "accepted",

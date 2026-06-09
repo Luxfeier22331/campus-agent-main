@@ -35,7 +35,7 @@ export interface OperatorQualityBadcaseListFilters {
 	cursor?: string | null;
 	window?: string | null;
 	surface?: string | null;
-	selectedTarget?: string | null;
+	selectedCapability?: string | null;
 	status?: string | null;
 	causeClass?: string | null;
 	detectedBy?: string | null;
@@ -46,7 +46,7 @@ export interface NormalizedOperatorQualityBadcaseListFilters {
 	cursor: string | null;
 	window: OperatorOverviewWindow | null;
 	surface: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: string | null;
 	causeClass: string | null;
 	detectedBy: string | null;
@@ -59,7 +59,7 @@ export interface OperatorQualityBadcaseListResult {
 		runId: string | null;
 		traceId: string;
 		surface: string;
-		selectedTarget: string | null;
+		selectedCapability: string | null;
 		status: string;
 		causeClass: string;
 		diagnosisStage:
@@ -98,7 +98,7 @@ export interface OperatorQualityEvalCandidateListResult {
 		runId: string | null;
 		traceId: string | null;
 		surface: string;
-		selectedTarget: string | null;
+		selectedCapability: string | null;
 		causeClass: string;
 		diagnosisStage:
 			| "routing"

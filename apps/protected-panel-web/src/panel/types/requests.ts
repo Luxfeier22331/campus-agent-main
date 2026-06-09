@@ -17,7 +17,7 @@ export interface RawRequestProjectionRecord {
 	requestedCapability: string | null;
 	requestedScope: Record<string, unknown> | null;
 	resolvedScope: Record<string, unknown> | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	sourceDocIds: string[];
 	startedAt: string;
 	status: string;
@@ -87,7 +87,7 @@ export interface RequestWorkflowTraceSummary {
 	policyArtifactVersions?: Record<string, unknown>;
 	routingFrame?: Record<string, unknown>;
 	runtimeVersions?: Record<string, unknown>;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	selectedTools: string[];
 	toolArgumentSummary?: Record<string, unknown>;
 	traceSteps?: Record<string, unknown>[];
@@ -169,7 +169,7 @@ export interface RequestReplaySummary {
 		requestedCapability: string | null;
 		requestedScope: Record<string, unknown> | null;
 		resolvedScope: Record<string, unknown> | null;
-		selectedTarget: string | null;
+		selectedCapability: string | null;
 	};
 }
 
@@ -182,7 +182,7 @@ export interface RawRequestObservabilityRecord {
 		requestedCapability: string | null;
 		requestedScope: Record<string, unknown> | null;
 		resolvedScope?: Record<string, unknown> | null;
-		selectedTarget: string | null;
+		selectedCapability: string | null;
 		startedAt: string;
 		status: string;
 		surface: string;

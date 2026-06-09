@@ -86,7 +86,7 @@ export function buildChatCommandService(
 	async function recordTraceBacklink(input: {
 		errorCode?: string | null;
 		requestId: string;
-		selectedTarget?: string | null;
+		selectedCapability?: string | null;
 		status?: string | null;
 		surface: string;
 		traceId: string;
@@ -499,7 +499,7 @@ export function buildChatCommandService(
 		await recordTraceBacklink({
 			errorCode: finalized.write.requestExecution.errorCode,
 			requestId: context.requestId,
-			selectedTarget: finalized.write.requestExecution.selectedTarget,
+			selectedCapability: finalized.write.requestExecution.selectedCapability,
 			status: finalized.write.requestExecution.status,
 			surface: context.surface,
 			traceId: finalized.write.requestExecution.traceId,
@@ -528,7 +528,7 @@ export function buildChatCommandService(
 			resolvedScope: finalized.write.requestExecution.resolvedScope,
 			retryable: finalized.write.assistantMessage.retryable,
 			safetyIdentifier: context.safetyIdentifier,
-			selectedTarget: finalized.write.requestExecution.selectedTarget,
+			selectedCapability: finalized.write.requestExecution.selectedCapability,
 			sourceDocIds: finalized.write.requestExecution.sourceDocIds,
 			status: finalized.write.requestExecution.status as
 				| "completed"

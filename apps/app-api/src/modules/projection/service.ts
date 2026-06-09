@@ -32,7 +32,7 @@ export interface RequestExecutionProjectionSource {
 	requestedScope: Record<string, unknown> | null;
 	versionQuery: VersionQuery | null;
 	resolvedScope: Record<string, unknown> | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -68,7 +68,7 @@ export interface RequestProjectionMaterialization {
 	requestedScope: Record<string, unknown> | null;
 	versionQuery: VersionQuery | null;
 	resolvedScope: Record<string, unknown> | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -92,7 +92,7 @@ export interface RequestAuditProjectionMaterialization {
 	entitlementSnapshotId: string | null;
 	policyProjectionVersion: string | null;
 	requestedCapability: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: RequestExecutionStatus;
 	terminalCode: RequestExecutionStatus | null;
 	summary: string;
@@ -120,7 +120,7 @@ export interface MetricRollupMaterialization {
 	bucketStart: string;
 	bucketEnd: string;
 	surface: string;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	requestedCapability: string | null;
 	principalType: string;
 	collection: string | null;
@@ -144,7 +144,7 @@ export interface QualityBadcaseProjectionMaterialization {
 	requestId: string;
 	traceId: string;
 	surface: string;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: "open";
 	causeClass: string;
 	detectedBy: "runtime_monitor";
@@ -254,8 +254,8 @@ function buildAuditSummary(input: {
 	status: RequestExecutionStatus;
 }): string {
 	const capabilityLabel = toAuditCapabilityLabel(input.execution.requestedCapability);
-	const targetSuffix = input.execution.selectedTarget
-		? ` via ${formatOperatorTargetSummaryLabel(input.execution.selectedTarget)}`
+	const targetSuffix = input.execution.selectedCapability
+		? ` via ${formatOperatorTargetSummaryLabel(input.execution.selectedCapability)}`
 		: "";
 
 	if (input.eventType === "execution.admission_rejected") {
@@ -380,7 +380,7 @@ function buildMetricRollupId(input: {
 	granularity: MetricRollupMaterialization["granularity"];
 	bucketStart: string;
 	surface: string;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	requestedCapability: string | null;
 	principalType: string;
 	collection: string | null;
@@ -392,7 +392,7 @@ function buildMetricRollupId(input: {
 		input.granularity,
 		input.bucketStart,
 		input.surface,
-		input.selectedTarget ?? "_",
+		input.selectedCapability ?? "_",
 		input.requestedCapability ?? "_",
 		input.principalType,
 		input.collection ?? "_",
@@ -441,10 +441,10 @@ function buildQualityRollups(input: {
 				principalType: input.execution.principalType,
 				requestId: input.execution.requestId,
 				requestedCapability: input.execution.requestedCapability,
-				selectedTarget: input.execution.selectedTarget,
+				selectedCapability: input.execution.selectedCapability,
 				surface: input.execution.surface,
 			}),
-			selectedTarget: input.execution.selectedTarget,
+			selectedCapability: input.execution.selectedCapability,
 			surface: input.execution.surface,
 		};
 	});
@@ -513,7 +513,7 @@ function buildQualityBadcases(input: {
 		openedAt: input.execution.completedAt ?? input.execution.startedAt,
 		projectedAt: input.projectedAt,
 		requestId: input.execution.requestId,
-		selectedTarget: input.execution.selectedTarget,
+		selectedCapability: input.execution.selectedCapability,
 		status: "open",
 		summary: badcase.summary,
 		surface: input.execution.surface,
@@ -545,7 +545,7 @@ export function toRequestProjectionMaterialization(input: {
 		requestedScope: input.execution.requestedScope,
 		versionQuery: input.execution.versionQuery,
 		resolvedScope: input.execution.resolvedScope,
-		selectedTarget: input.execution.selectedTarget,
+		selectedCapability: input.execution.selectedCapability,
 		diagnostics: input.execution.diagnostics,
 		sourceDocIds: input.execution.sourceDocIds,
 		startedAt: input.execution.startedAt,
@@ -573,7 +573,7 @@ export function toRequestAuditProjectionMaterialization(input: {
 		projectedAt: input.projectedAt,
 		requestId: input.execution.requestId,
 		requestedCapability: input.execution.requestedCapability,
-		selectedTarget: input.execution.selectedTarget,
+		selectedCapability: input.execution.selectedCapability,
 		status,
 		summary: buildAuditSummary({
 			eventType: input.event.eventType,

@@ -25,7 +25,7 @@ describe("operator trace backlink recorder", () => {
 		await recorder.record({
 			errorCode: "supervisor_timeout",
 			requestId: "req_01HQ",
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 			surface: "public_chat_web",
 			traceId: "trace_01HQ",
 		});
@@ -34,7 +34,7 @@ describe("operator trace backlink recorder", () => {
 			payload: {
 				backlinks: [
 					{
-						issueFingerprint: "supervisor_timeout:rag-agent",
+						issueFingerprint: "supervisor_timeout:knowledge",
 						issueLink: "https://axiom.example/query?request=req_01HQ&error=supervisor_timeout",
 						requestId: "req_01HQ",
 						traceId: "trace_01HQ",
@@ -61,7 +61,7 @@ describe("operator trace backlink recorder", () => {
 		await recorder.record({
 			errorCode: "bridge_failed",
 			requestId: "req_01HQ",
-			selectedTarget: null,
+			selectedCapability: null,
 			surface: "app_api",
 			traceId: "trace_01HQ",
 		});

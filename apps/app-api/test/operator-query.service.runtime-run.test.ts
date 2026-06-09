@@ -118,7 +118,7 @@ describe("operator query service aggregate summaries", () => {
 						requestedCapability: "knowledge",
 						requestedScope: null,
 						resolvedScope: null,
-						selectedTarget: "rag-agent",
+						selectedCapability: "knowledge",
 					},
 				},
 				request: {
@@ -129,7 +129,7 @@ describe("operator query service aggregate summaries", () => {
 					requestedCapability: "knowledge",
 					requestedScope: null,
 					resolvedScope: null,
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					startedAt: "2026-06-04T01:02:03.000Z",
 					status: "completed",
 					surface: "public_chat_web",

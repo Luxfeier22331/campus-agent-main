@@ -6,7 +6,7 @@ import {
 	formatPrincipalTypeLabel,
 	formatRequestOutcomeDetail,
 	formatScope,
-	formatSelectedTargetLabel,
+	formatSelectedCapabilityLabel,
 	formatStatusLabel,
 	formatSurfaceLabel,
 } from "./request-formatters";
@@ -97,7 +97,7 @@ export function RequestScopeSummary({ record }: { record: RequestProjectionRecor
 	return (
 		<Stack spacing={0.25}>
 			<Typography fontWeight={500} variant="body2">
-				{formatSelectedTargetLabel(record.selectedTarget)}
+				{formatSelectedCapabilityLabel(record.selectedCapability)}
 			</Typography>
 			<Typography color="text.secondary" variant="caption">
 				{formatScope(record.requestedScope)}

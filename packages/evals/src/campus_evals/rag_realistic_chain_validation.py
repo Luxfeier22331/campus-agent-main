@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts import (
-    AgentRequest,
-    AgentResponse,
+    CapabilityRequest,
+    CapabilityResponse,
     EvidenceBundle,
     KnowledgeScope,
     RagRequestPayload,
@@ -26,8 +26,12 @@ from campus_ingestion_core import (
 )
 from campus_ingestion_core.in_memory_registries import InMemoryDocumentRegistry
 from campus_ingestion_core.models import DocumentRegistryRecord
-from campus_rag_agent.rag_sdk_models import RagSdkEvidenceAnchor, RagSdkRunRequest, RagSdkRunResult
-from campus_rag_agent.rag_sdk_output import (
+from campus_knowledge_capability.rag_sdk_models import (
+    RagSdkEvidenceAnchor,
+    RagSdkRunRequest,
+    RagSdkRunResult,
+)
+from campus_knowledge_capability.rag_sdk_output import (
     RagSdkAnswerOutput,
     RagSdkClaim,
     RagSdkClaimSupport,
@@ -133,7 +137,7 @@ def load_rag_realistic_chain_cases() -> tuple[RagRealisticChainCase, ...]:
         RagRealisticChainCase(
             case_id="scholarship-discovery-undergrad",
             query="本科生有哪些奖学金能申请？",
-            expected_target="rag-agent",
+            expected_capability="knowledge",
             validation_path="rag_retrieval",
             execute_with_rag=True,
             expected_status="completed",
@@ -151,7 +155,7 @@ def load_rag_realistic_chain_cases() -> tuple[RagRealisticChainCase, ...]:
         RagRealisticChainCase(
             case_id="scholarship-discovery-personal",
             query="我能申请哪些奖学金？",
-            expected_target="rag-agent",
+            expected_capability="knowledge",
             validation_path="rag_retrieval",
             execute_with_rag=True,
             expected_status="completed",
@@ -161,7 +165,7 @@ def load_rag_realistic_chain_cases() -> tuple[RagRealisticChainCase, ...]:
         RagRealisticChainCase(
             case_id="scholarship-ambiguous-procedure",
             query="奖学金怎么申请？",
-            expected_target="rag-agent",
+            expected_capability="knowledge",
             validation_path="rag_preflight",
             execute_with_rag=True,
             expected_status="needs_clarification",
@@ -170,7 +174,7 @@ def load_rag_realistic_chain_cases() -> tuple[RagRealisticChainCase, ...]:
         RagRealisticChainCase(
             case_id="national-scholarship-rank-top-ten",
             query="成绩没前十还能评国奖吗？",
-            expected_target="rag-agent",
+            expected_capability="knowledge",
             validation_path="rag_retrieval",
             execute_with_rag=True,
             expected_status="completed",
@@ -180,7 +184,7 @@ def load_rag_realistic_chain_cases() -> tuple[RagRealisticChainCase, ...]:
         RagRealisticChainCase(
             case_id="national-scholarship-paper-condition",
             query="论文能不能算国奖条件？",
-            expected_target="rag-agent",
+            expected_capability="knowledge",
             validation_path="rag_retrieval",
             execute_with_rag=True,
             expected_status="completed",
@@ -190,7 +194,7 @@ def load_rag_realistic_chain_cases() -> tuple[RagRealisticChainCase, ...]:
         RagRealisticChainCase(
             case_id=PORTAL_PASSWORD_CASE_ID,
             query="门户密码忘记了怎么办？",
-            expected_target="campus-services-agent",
+            expected_capability="campus_services",
             validation_path="supervisor_route",
             execute_with_rag=False,
         ),
@@ -271,9 +275,9 @@ def _execute_rag_case(
         )
         return current_evidence
 
-    response = _delegate_to_rag_agent_for_realistic_eval(
-        AgentRequest(
-            target="rag-agent",
+    response = _delegate_to_knowledge_capability_for_realistic_eval(
+        CapabilityRequest(
+            capability="knowledge",
             user_goal=case.query,
             payload=RagRequestPayload(scope=STUDENT_RULES_SCOPE),
         ),
@@ -302,11 +306,11 @@ def _execute_rag_case(
     )
 
 
-def _delegate_to_rag_agent_for_realistic_eval(
-    request: AgentRequest,
+def _delegate_to_knowledge_capability_for_realistic_eval(
+    request: CapabilityRequest,
     *,
     retriever,
-) -> AgentResponse:
+) -> CapabilityResponse:
     captured_bundle: EvidenceBundle | None = None
 
     def wrapped_retriever(*args, **kwargs):
@@ -314,9 +318,9 @@ def _delegate_to_rag_agent_for_realistic_eval(
         captured_bundle = retriever(*args, **kwargs)
         return captured_bundle
 
-    from campus_rag_agent.service import delegate_to_rag_agent
+    from campus_knowledge_capability.service import delegate_to_knowledge_capability
 
-    return delegate_to_rag_agent(
+    return delegate_to_knowledge_capability(
         request,
         retriever=wrapped_retriever,
         rag_sdk_runner=_realistic_eval_sdk_runner(lambda: captured_bundle),
@@ -453,7 +457,7 @@ def _source_anchor(source) -> RagSdkEvidenceAnchor:
 def _case_failure_reasons(
     *,
     case: RagRealisticChainCase,
-    response: AgentResponse,
+    response: CapabilityResponse,
     retrieval_called: bool,
     supporting_doc_ids: tuple[str, ...],
 ) -> tuple[str, ...]:
@@ -477,7 +481,7 @@ def _case_failure_reasons(
     return tuple(failures)
 
 
-def _supporting_doc_ids(response: AgentResponse) -> tuple[str, ...]:
+def _supporting_doc_ids(response: CapabilityResponse) -> tuple[str, ...]:
     if not isinstance(response.result, RagResultPayload):
         return ()
     return _evidence_doc_ids(response.result.evidence)

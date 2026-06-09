@@ -1,5 +1,5 @@
 {
-	"selectedTarget": "rag-agent",
+	"selectedCapability": "knowledge",
 	"status": "completed",
 	"answerText": "This is not canonical supervisor wire.",
 	"followUpQuestion": "",

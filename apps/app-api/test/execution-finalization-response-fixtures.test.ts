@@ -20,13 +20,13 @@ describe("execution finalization canonical response fixtures", () => {
 				loadFixture("response_completed_delegate.valid.json"),
 			),
 		).toMatchObject({
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 			status: "completed",
 			traceId: "trace-contract-completed",
 			workflowTraceSummary: {
 				contextProjections: [],
 				directVsDelegateBranch: "delegate",
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				selectedTools: ["retrieval.query"],
 			},
 		});
@@ -37,11 +37,11 @@ describe("execution finalization canonical response fixtures", () => {
 		).toMatchObject({
 			answerText: "国家奖学金按学校现行评审办法执行。",
 			error: null,
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 			status: "completed",
 			traceId: "trace-temporal-finalization",
 			workflowTraceSummary: {
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				selectedTools: ["retrieval.query"],
 			},
 		});
@@ -54,7 +54,7 @@ describe("execution finalization canonical response fixtures", () => {
 				code: "execution_cancelled",
 				retryable: false,
 			},
-			selectedTarget: null,
+			selectedCapability: null,
 			status: "cancelled",
 			traceId: "trace-contract-cancelled",
 		});
@@ -65,7 +65,7 @@ describe("execution finalization canonical response fixtures", () => {
 				code: "execution_timeout",
 				retryable: true,
 			},
-			selectedTarget: null,
+			selectedCapability: null,
 			status: "error",
 		});
 	});
@@ -88,7 +88,7 @@ describe("execution finalization canonical response fixtures", () => {
 			context_projections: [
 				{
 					projection_id: "projection:notice:001",
-					source_step_id: "handoff:notice-agent:campus_notice_get",
+					source_step_id: "capability:notice:campus_notice_get",
 					projection_kind: "notice_context",
 					content_hash: "sha256:test",
 					safety: {

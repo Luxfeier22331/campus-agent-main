@@ -84,7 +84,7 @@ func TestDecodeSupervisorResponseWireJSONRejectsNonCanonicalFixtures(t *testing.
 
 func TestDecodeSupervisorResponseWireJSONRejectsErrorWithoutRetryable(t *testing.T) {
 	payload := map[string]any{
-		"selected_target":        nil,
+		"selected_capability":    nil,
 		"status":                 "error",
 		"answer_text":            "",
 		"follow_up_question":     "",

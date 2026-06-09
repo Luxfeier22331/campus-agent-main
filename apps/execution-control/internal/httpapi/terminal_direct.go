@@ -104,7 +104,7 @@ func terminalSupervisorResponse(
 		response["error"] = nil
 	}
 	if _, exists := response["workflow_trace_summary"]; !exists {
-		target, _ := response["selected_target"].(string)
+		target, _ := response["selected_capability"].(string)
 		status, _ := response["status"].(string)
 		result, _ := response["result"].(map[string]any)
 		response["workflow_trace_summary"] = buildWorkflowTraceSummary(

@@ -103,7 +103,7 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 					"runtime_decisions":{"runtime_decision_summary":{}}
 				},
 				"handoff":{
-					"target":"rag-tool",
+					"capability":"rag-tool",
 					"payload_kind":"rag_request",
 					"allowed_tools":["retrieval.query"],
 					"payload":{"query_text":"hello"}

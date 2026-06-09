@@ -322,7 +322,7 @@ class OfficialWebHandoffConsumerStagingTestPart02(unittest.TestCase):
                 {
                     "consumerFamily": "contact_directory_candidate",
                     "ownerSurface": "contact_directory_lookup",
-                    "ownerAgentOrRuntime": "campus-services-agent",
+                    "ownerCapabilityOrRuntime": "campus_services",
                     "materializationPolicy": "candidate_only",
                     "selectedWriteTarget": "campus_services/contact_directory",
                     "reviewPolicy": "selected_write_requires_review",
@@ -413,7 +413,7 @@ class OfficialWebHandoffConsumerStagingTestPart02(unittest.TestCase):
                 {
                     "consumerFamily": "contact_directory_candidate",
                     "ownerSurface": "contact_directory_lookup",
-                    "ownerAgentOrRuntime": "campus-services-agent",
+                    "ownerCapabilityOrRuntime": "campus_services",
                     "materializationPolicy": "candidate_only",
                     "selectedWriteTarget": "campus_services/contact_directory",
                     "reviewPolicy": "selected_write_requires_review",

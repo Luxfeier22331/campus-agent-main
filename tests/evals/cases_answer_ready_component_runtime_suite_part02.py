@@ -29,8 +29,8 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
                 condition_polarity="negative",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="有规定情形的，不予解除处分。",
             confidence="high",
@@ -115,8 +115,8 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
                 condition_polarity="positive",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="应当在收到处理决定之日起 10 日内提出申诉。",
             confidence="high",
@@ -194,8 +194,8 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
                 condition_polarity="positive",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="应当在收到处理决定之日起 10 日内提出申诉。",
             confidence="high",
@@ -255,8 +255,8 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
                 procedure_action="submit_materials",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="先提交申请，再进入复核和决定程序。",
             confidence="high",
@@ -298,8 +298,8 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
     def test_builds_institutional_unsupported_observation_when_title_only_candidates_fail_closed(
         self,
     ) -> None:
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="no_answer",
             answer_text="当前未检索到足够依据支持回答这个校级制度问题，请确认它是否属于当前已开放的校级制度范围，或补充更具体的制度名称。",
             confidence="low",
@@ -354,8 +354,8 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
                 condition_polarity="positive",
             ),
         )
-        response = AgentResponse(
-            target="rag-agent",
+        response = CapabilityResponse(
+            capability="knowledge",
             status="completed",
             answer_text="按规定提交解除处分申请表。",
             confidence="high",

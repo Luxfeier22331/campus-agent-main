@@ -34,7 +34,7 @@ export interface RequestProjectionRecord {
 	requestedScope: Record<string, unknown> | null;
 	versionQuery?: VersionQuery;
 	resolvedScope: Record<string, unknown> | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -64,7 +64,7 @@ export interface OperatorAuditListFilters {
 	traceId?: string | null;
 	principalType?: string | null;
 	surface?: string | null;
-	selectedTarget?: string | null;
+	selectedCapability?: string | null;
 	eventType?: string | null;
 	status?: string | null;
 }
@@ -86,7 +86,7 @@ export interface NormalizedOperatorAuditListFilters {
 	traceId: string | null;
 	principalType: string | null;
 	surface: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	eventType: string | null;
 	status: string | null;
 }
@@ -95,7 +95,7 @@ export interface OperatorOverviewFilters {
 	window?: string | null;
 	granularity?: string | null;
 	surface?: string | null;
-	selectedTarget?: string | null;
+	selectedCapability?: string | null;
 	requestedCapability?: string | null;
 	principalType?: string | null;
 	collection?: string | null;
@@ -106,7 +106,7 @@ export interface NormalizedOperatorOverviewFilters {
 	window: OperatorOverviewWindow;
 	granularity: OperatorResultWindow["granularity"] | null;
 	surface: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	requestedCapability: string | null;
 	principalType: string | null;
 	collection: string | null;
@@ -153,7 +153,7 @@ export interface OperatorRequestObservabilityRecord {
 		requestedScope: Record<string, unknown> | null;
 		versionQuery?: VersionQuery;
 		resolvedScope: Record<string, unknown> | null;
-		selectedTarget: string | null;
+		selectedCapability: string | null;
 		startedAt: string;
 		completedAt: string | null;
 	};
@@ -230,7 +230,7 @@ export interface OperatorRequestObservabilityRecord {
 			requestedCapability: string | null;
 			requestedScope: Record<string, unknown> | null;
 			resolvedScope: Record<string, unknown> | null;
-			selectedTarget: string | null;
+			selectedCapability: string | null;
 			intent?: OperatorIntentObservabilitySummary;
 		};
 		execution: {
@@ -390,7 +390,7 @@ export interface OperatorAuditEventListItem {
 	eventType: string;
 	surface: string;
 	principalType: string;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: string;
 	summary: string;
 }
@@ -407,7 +407,7 @@ export interface OperatorAuditEventDetail {
 		entitlementSnapshotId: string | null;
 		policyProjectionVersion: string | null;
 		requestedCapability: string | null;
-		selectedTarget: string | null;
+		selectedCapability: string | null;
 		status: string;
 		terminalCode: string | null;
 		summary: string;

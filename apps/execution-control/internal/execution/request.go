@@ -46,8 +46,9 @@ type RuntimeDecisionSummary struct {
 	PlanningOutcome        string
 	WorkflowMode           WorkflowMode
 	WorkflowPlanID         string
-	SelectedTarget         string
+	SelectedCapability     string
 	SelectedTool           string
+	WorkerRole             string
 	TerminalOutcome        string
 	FailCloseReason        string
 	RuntimeVersions        map[string]any
@@ -63,8 +64,9 @@ func (s RuntimeDecisionSummary) Map() map[string]any {
 		"context_preflight_state":  s.ContextPreflightState,
 		"routing_next_action":      s.RoutingNextAction,
 		"planning_outcome":         s.PlanningOutcome,
-		"selected_target":          s.SelectedTarget,
+		"selected_capability":      s.SelectedCapability,
 		"selected_tool":            s.SelectedTool,
+		"worker_role":              s.WorkerRole,
 		"terminal_outcome":         s.TerminalOutcome,
 		"fail_close_reason":        s.FailCloseReason,
 		"runtime_versions":         cloneAnyMap(s.RuntimeVersions),
@@ -84,7 +86,8 @@ func cloneAnyMap(source map[string]any) map[string]any {
 }
 
 type RuntimeHandoff struct {
-	Target                 string
+	Capability             string
+	WorkerRole             string
 	PayloadKind            string
 	Payload                map[string]any
 	AllowedTools           []string

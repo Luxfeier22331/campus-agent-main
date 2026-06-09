@@ -3,9 +3,9 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import (
-    AgentRequest,
-    AgentResponse,
     CampusNoticeDiscoverPayload,
+    CapabilityRequest,
+    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     RagResultPayload,
@@ -13,12 +13,15 @@ from campus_contracts import (
     ServiceStatusLookupResult,
     TemporalQuery,
 )
-from campus_supervisor_agent_worker.agent_dispatch import ToolAdmissionError, dispatch_agent_request
+from campus_supervisor_agent_worker.capability_dispatch import (
+    ToolAdmissionError,
+    dispatch_capability_request,
+)
 
 
-def _make_rag_completed_response() -> AgentResponse:
-    return AgentResponse(
-        target="rag-agent",
+def _make_rag_completed_response() -> CapabilityResponse:
+    return CapabilityResponse(
+        capability="knowledge",
         status="completed",
         answer_text="The library is open from 08:00 to 22:00.",
         confidence="high",
@@ -48,9 +51,9 @@ def _make_rag_completed_response() -> AgentResponse:
     )
 
 
-def _make_curriculum_course_facts_response() -> AgentResponse:
-    return AgentResponse(
-        target="rag-agent",
+def _make_curriculum_course_facts_response() -> CapabilityResponse:
+    return CapabilityResponse(
+        capability="knowledge",
         status="completed",
         answer_text="根据培养方案和课程教学计划，习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)；当前还不能稳定确认开课学院。",
         confidence="high",
@@ -81,15 +84,15 @@ def _make_curriculum_course_facts_response() -> AgentResponse:
 
 
 class AgentHandoffTest(unittest.TestCase):
-    def test_dispatch_agent_request_preserves_structured_runtime_handoff_allowed_tools(
+    def test_dispatch_capability_request_preserves_structured_runtime_handoff_allowed_tools(
         self,
     ) -> None:
-        captured_requests: list[AgentRequest] = []
+        captured_requests: list[CapabilityRequest] = []
 
-        def fake_campus_services_agent(request: AgentRequest) -> AgentResponse:
+        def fake_campus_services_capability(request: CapabilityRequest) -> CapabilityResponse:
             captured_requests.append(request)
-            return AgentResponse(
-                target="campus-services-agent",
+            return CapabilityResponse(
+                capability="campus_services",
                 status="completed",
                 answer_text="海淀校区图书馆当前开放到 22:00。",
                 confidence="high",
@@ -104,8 +107,8 @@ class AgentHandoffTest(unittest.TestCase):
                 ),
             )
 
-        agent_request = AgentRequest(
-            target="campus-services-agent",
+        agent_request = CapabilityRequest(
+            capability="campus_services",
             user_goal="图书馆今天开门吗",
             payload=ServiceStatusLookupPayload(
                 subject_query="图书馆今天开门吗",
@@ -115,13 +118,13 @@ class AgentHandoffTest(unittest.TestCase):
             allowed_tools=("service_status_lookup",),
         )
 
-        response = dispatch_agent_request(
+        response = dispatch_capability_request(
             agent_request,
-            agent_delegates={"campus-services-agent": fake_campus_services_agent},
+            capability_delegates={"campus_services": fake_campus_services_capability},
         )
 
         self.assertEqual(len(captured_requests), 1)
-        self.assertEqual(captured_requests[0].target, "campus-services-agent")
+        self.assertEqual(captured_requests[0].capability, "campus_services")
         self.assertEqual(captured_requests[0].allowed_tools, ("service_status_lookup",))
         self.assertEqual(
             captured_requests[0].payload,
@@ -131,13 +134,13 @@ class AgentHandoffTest(unittest.TestCase):
                 campus_scope="haidian",
             ),
         )
-        self.assertEqual(response.target, "campus-services-agent")
+        self.assertEqual(response.capability, "campus_services")
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.observed_status, "open")
 
-    def test_dispatch_agent_request_rejects_go_preplanned_tool_policy_mismatch(self) -> None:
-        request = AgentRequest(
-            target="notice-agent",
+    def test_dispatch_capability_request_rejects_go_preplanned_tool_policy_mismatch(self) -> None:
+        request = CapabilityRequest(
+            capability="notice",
             user_goal="帮我找校历通知",
             payload=CampusNoticeDiscoverPayload(
                 query_text="校历通知",
@@ -145,16 +148,16 @@ class AgentHandoffTest(unittest.TestCase):
             ),
             allowed_tools=("service_status_lookup",),
         )
-        captured_requests: list[AgentRequest] = []
+        captured_requests: list[CapabilityRequest] = []
 
         with self.assertRaises(ToolAdmissionError):
-            dispatch_agent_request(
+            dispatch_capability_request(
                 request,
-                agent_delegates={
-                    "notice-agent": lambda inner_request: (
+                capability_delegates={
+                    "notice": lambda inner_request: (
                         captured_requests.append(inner_request)
-                        or AgentResponse(
-                            target="notice-agent",
+                        or CapabilityResponse(
+                            capability="notice",
                             status="completed",
                         )
                     )

@@ -321,7 +321,7 @@ class AppApiEvalClient:
             "conversation_id": conversation_id or "",
             "corpus": scope["corpus"],
             "request_id": request_id,
-            "selected_target": execution_response.selected_target or "",
+            "selected_capability": execution_response.selected_capability or "",
             "status": execution_response.status,
             "trace_id": trace_id,
         }

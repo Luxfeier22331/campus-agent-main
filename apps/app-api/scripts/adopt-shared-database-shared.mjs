@@ -19,10 +19,14 @@ export const ALTER_TABLE_ADD_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+COLUMN "([^"]+)"/i;
 export const ALTER_TABLE_DROP_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+DROP\s+COLUMN(?: IF EXISTS)? "([^"]+)"/i;
+export const ALTER_TABLE_RENAME_COLUMN_RE =
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+RENAME\s+COLUMN "([^"]+)" TO "([^"]+)";?$/i;
 export const ALTER_TABLE_CONSTRAINT_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+CONSTRAINT\s+"([^"]+)"/i;
 export const CREATE_INDEX_RE = /^CREATE (?:UNIQUE )?INDEX "([^"]+)"\s+ON\s+"([^"]+)"\."([^"]+)"/i;
 export const DROP_INDEX_RE = /^DROP INDEX "([^"]+)"\."([^"]+)";?$/i;
+export const ALTER_INDEX_RENAME_RE =
+	/^ALTER INDEX IF EXISTS "([^"]+)"\."([^"]+)"\s+RENAME TO "([^"]+)";?$/i;
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const appRoot = dirname(scriptsDir);

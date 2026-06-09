@@ -42,7 +42,7 @@ func durableRunCreateBodyForTest(runID string, conversationID string) string {
 				"runtime_decisions":{"runtime_decision_summary":{}}
 			},
 			"handoff":{
-				"target":"rag-tool",
+				"capability":"rag-tool",
 				"payload_kind":"rag_request",
 				"allowed_tools":["retrieval.query"],
 				"payload":{"query_text":"hello"}
@@ -104,7 +104,7 @@ func createHTTPAPIQueuedDurableRunForTest(
 
 func ragHandoffForDurableWorkerTest(queryText string) map[string]any {
 	return map[string]any{
-		"target":        "rag-agent",
+		"capability":        "knowledge",
 		"payload_kind":  "rag_request",
 		"allowed_tools": []any{"retrieval.query"},
 		"payload":       map[string]any{"query_text": queryText},
@@ -130,9 +130,9 @@ func assertHTTPAPIDurableEventTypes(
 	}
 }
 
-func durableAgentResponseBodyForTest(answerText string) json.RawMessage {
+func durableCapabilityResponseBodyForTest(answerText string) json.RawMessage {
 	body, err := json.Marshal(map[string]any{
-		"target":             "rag-agent",
+		"capability":             "knowledge",
 		"status":             "completed",
 		"answer_text":        answerText,
 		"follow_up_question": "",

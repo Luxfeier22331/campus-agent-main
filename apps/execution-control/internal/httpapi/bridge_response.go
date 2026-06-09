@@ -149,7 +149,7 @@ func (s *Server) prepareBridgeResponse(
 		)
 	}
 	switch bridgeResponse.Kind {
-	case "agent_response":
+	case "capability_response":
 		body, err := decodeJSONObject(bridgeResponse.Body)
 		if err != nil {
 			return s.invalidBridgePreparedResponse(
@@ -270,7 +270,7 @@ func mustMarshalErrorBody(code string, message string, retryable bool) []byte {
 
 func validBridgeResponseEnvelope(bridgeResponse bridge.ExecuteResponse) bool {
 	switch bridgeResponse.Kind {
-	case "agent_response":
+	case "capability_response":
 		return bridgeResponse.StatusCode >= 200 && bridgeResponse.StatusCode < 300
 	case "supervisor_error":
 		return bridgeResponse.StatusCode >= 400 && bridgeResponse.StatusCode < 600

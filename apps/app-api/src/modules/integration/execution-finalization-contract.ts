@@ -21,7 +21,7 @@ export interface ExecutionFinalizationResponseWire {
 	follow_up_question: string;
 	observability?: Record<string, unknown> | null;
 	result: Record<string, unknown> | null;
-	selected_target: string | null;
+	selected_capability: string | null;
 	status: ExecutionFinalizationStatus;
 	trace_id: string;
 	workflow_trace_summary?: Record<string, unknown> | null;

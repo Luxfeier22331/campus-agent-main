@@ -55,7 +55,7 @@ func semanticBridgeHandoffForRun(
 		)
 	}
 	return execution.RuntimeHandoff{
-		Target:       "rag-agent",
+		Capability:   "knowledge",
 		PayloadKind:  "rag_request",
 		Payload:      map[string]any{"query_text": strings.TrimSpace(userGoal)},
 		AllowedTools: []string{"retrieval.query"},
@@ -67,7 +67,7 @@ func semanticBridgeHandoffFromMetadata(raw any) (execution.RuntimeHandoff, error
 	if !ok {
 		return execution.RuntimeHandoff{}, errors.New("run projection metadata.handoff must be an object")
 	}
-	target, err := requiredSemanticHandoffString(record, "target")
+	target, err := requiredSemanticHandoffString(record, "capability")
 	if err != nil {
 		return execution.RuntimeHandoff{}, err
 	}
@@ -101,7 +101,7 @@ func semanticBridgeHandoffFromMetadata(raw any) (execution.RuntimeHandoff, error
 		}
 	}
 	return execution.RuntimeHandoff{
-		Target:                 target,
+		Capability:             target,
 		PayloadKind:            payloadKind,
 		Payload:                payload,
 		AllowedTools:           allowedTools,

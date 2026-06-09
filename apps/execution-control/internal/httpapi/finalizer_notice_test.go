@@ -9,7 +9,7 @@ import (
 func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             "notice-agent",
+			"capability":             "notice",
 			"status":             "completed",
 			"answer_text":        "已找到官方通知链接，请以原文为准。",
 			"follow_up_question": "",
@@ -29,10 +29,10 @@ func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testi
 				ContextPreflightState: "resolved",
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
-				SelectedTarget:        "notice-agent",
+				SelectedCapability:    "notice",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Target:       "notice-agent",
+				Capability:   "notice",
 				PayloadKind:  "campus_notice_get",
 				Payload:      map[string]any{"notice_id": "notice:muc-spring-break-2026"},
 				AllowedTools: []string{},
@@ -49,7 +49,7 @@ func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testi
 	}
 	selectedTools, ok := traceSummary["selected_tools"].([]string)
 	if !ok || len(selectedTools) != 0 {
-		t.Fatalf("selected_tools = %#v, want no agent-facing selected tool", selectedTools)
+		t.Fatalf("selected_tools = %#v, want no capability-facing selected tool", selectedTools)
 	}
 	toolSummary, ok := traceSummary["tool_argument_summary"].(map[string]any)
 	if !ok {
@@ -85,13 +85,13 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 		State:  execution.WorkflowStateCompleted,
 		HandoffChain: []execution.HandoffStep{
 			{
-				Target:       "notice-agent",
+				Capability:   "notice",
 				PayloadKind:  "campus_notice_get",
 				AllowedTools: []string{},
 				SelectedTool: "",
 			},
 			{
-				Target:       "rag-agent",
+				Capability:   "knowledge",
 				PayloadKind:  "rag_request",
 				AllowedTools: []string{"retrieval.query"},
 				SelectedTool: "retrieval.query",
@@ -99,30 +99,30 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 		},
 		Steps: []execution.WorkflowStep{
 			{
-				StepID:       "handoff:notice-agent:campus_notice_get",
+				StepID:       "capability:notice:campus_notice_get",
 				SpanKind:     "handoff",
-				Target:       "notice-agent",
+				Capability:   "notice",
 				Outcome:      "completed",
 				ResultStatus: "completed",
 			},
 			{
-				StepID:       "handoff:rag-agent:rag_request",
+				StepID:       "capability:knowledge:rag_request",
 				SpanKind:     "handoff",
-				Target:       "rag-agent",
+				Capability:   "knowledge",
 				Outcome:      "completed",
 				ResultStatus: "completed",
 			},
 		},
 		ToolCallSummaries: []execution.ToolCallSummary{
 			{
-				ToolCallID:        "run-multi-001:handoff:rag-agent:rag_request",
+				ToolCallID:        "run-multi-001:capability:knowledge:rag_request",
 				WorkflowRunRef:    "run-multi-001",
-				StepID:            "handoff:rag-agent:rag_request",
+				StepID:            "capability:knowledge:rag_request",
 				LifecycleState:    "completed",
 				ResultProjection:  "bounded_summary",
 				RawResultIncluded: false,
 				ToolName:          "retrieval.query",
-				Target:            "rag-agent",
+				Capability:        "knowledge",
 				ResultStatus:      "completed",
 				ArgumentSummary: map[string]any{
 					"payload_kind":  "campus_notice_get",
@@ -135,7 +135,7 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 	}
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             "rag-agent",
+			"capability":             "knowledge",
 			"status":             "completed",
 			"answer_text":        "这条通知可按学生手册相关规定理解。",
 			"follow_up_question": "",
@@ -145,7 +145,7 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 					"sources": []any{map[string]any{"doc_id": "handbook:rule-001"}},
 				},
 			},
-			"agent_observability": map[string]any{
+			"capability_observability": map[string]any{
 				"selected_tool": "retrieval.query",
 			},
 		},
@@ -159,7 +159,7 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 				ContextPreflightState: "resolved",
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
-				SelectedTarget:        "rag-agent",
+				SelectedCapability:    "knowledge",
 				SelectedTool:          "retrieval.query",
 			},
 			WorkflowRun: &workflowRun,
@@ -176,7 +176,7 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 	if !ok || len(handoffChain) != 2 {
 		t.Fatalf("handoff_chain = %#v, want two handoffs", traceSummary["handoff_chain"])
 	}
-	if handoffChain[0]["target"] != "notice-agent" || handoffChain[1]["target"] != "rag-agent" {
+	if handoffChain[0]["capability"] != "notice" || handoffChain[1]["capability"] != "knowledge" {
 		t.Fatalf("handoff_chain = %#v, want notice -> rag", handoffChain)
 	}
 	selectedTools, ok := traceSummary["selected_tools"].([]string)
@@ -188,7 +188,7 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 		t.Fatalf("tool_call_summaries = %#v, want one recorded tool summary", traceSummary["tool_call_summaries"])
 	}
 	if toolCallSummaries[0]["tool_name"] != "retrieval.query" ||
-		toolCallSummaries[0]["step_id"] != "handoff:rag-agent:rag_request" {
+		toolCallSummaries[0]["step_id"] != "capability:knowledge:rag_request" {
 		t.Fatalf("tool_call_summaries[0] = %#v, want recorded rag tool summary", toolCallSummaries[0])
 	}
 }

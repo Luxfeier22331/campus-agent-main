@@ -13,7 +13,7 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 		RunID:     "run-001",
 		RequestID: "req-001",
 		TraceID:   "trace-001",
-		PlanID:    "plan:single_step:rag-agent:rag_request",
+		PlanID:    "plan:single_step:knowledge:rag_request",
 		Mode:      WorkflowModeSingleStep,
 		Branch:    "delegate",
 		State:     WorkflowStatePending,
@@ -35,13 +35,13 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 
 	allowedTools := []string{"retrieval.query"}
 	withHandoff, err := store.AppendHandoff(ctx, "run-001", HandoffStep{
-		Target:       "rag-agent",
+		Capability:   "knowledge",
 		PayloadKind:  "rag_request",
 		AllowedTools: allowedTools,
 		SelectedTool: "retrieval.query",
 	})
 	if err != nil {
-		t.Fatalf("append handoff: %v", err)
+		t.Fatalf("append capability: %v", err)
 	}
 	allowedTools[0] = "mutated"
 	withHandoff.HandoffChain[0].AllowedTools[0] = "mutated-again"
@@ -50,7 +50,7 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 		StepID:       "tool_call",
 		SpanKind:     "tool_call",
 		ParentStepID: "handoff",
-		Target:       "rag-agent",
+		Capability:   "knowledge",
 		ToolName:     "retrieval.query",
 		Outcome:      "completed",
 		ResultStatus: "completed",
@@ -62,7 +62,7 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 
 	withProjection, err := store.AppendStepOutputProjection(ctx, "run-001", StepOutputProjection{
 		ProjectionID:   "proj-notice-001",
-		SourceStepID:   "handoff:notice-agent:campus_notice_get",
+		SourceStepID:   "capability:notice:campus_notice_get",
 		ProjectionKind: ProjectionKindNoticeContext,
 		ContentHash:    "sha256:test",
 		Payload: map[string]any{
@@ -79,11 +79,11 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 	withProjection.ContextProjections[0].Payload["title"] = "mutated"
 	withProjection.ContextProjections[0].Safety.FieldsPresent[0] = "mutated"
 
-	withInvocation, err := store.AppendAgentInvocation(ctx, "run-001", AgentInvocation{
-		InvocationID:   "agent-invocation:rag-agent:1",
+	withInvocation, err := store.AppendCapabilityInvocation(ctx, "run-001", CapabilityInvocation{
+		InvocationID:   "capability-invocation:knowledge:1",
 		WorkflowRunRef: "run-001",
-		StepID:         "handoff:rag-agent:rag_request",
-		AgentID:        "rag-agent",
+		StepID:         "capability:knowledge:rag_request",
+		CapabilityID:   "knowledge",
 		Status:         "completed",
 		AllowedTools:   []string{"retrieval.query"},
 		UsedTools:      []string{"retrieval.query"},
@@ -91,7 +91,7 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 	if err != nil {
 		t.Fatalf("append agent invocation: %v", err)
 	}
-	withInvocation.AgentInvocations[0].AllowedTools[0] = "mutated"
+	withInvocation.CapabilityInvocations[0].AllowedTools[0] = "mutated"
 
 	withToolCallSummary, err := store.AppendToolCallSummary(ctx, "run-001", ToolCallSummary{
 		ToolCallID:        "run-001:tool_call",
@@ -101,7 +101,7 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 		ResultProjection:  "bounded_summary",
 		RawResultIncluded: false,
 		ToolName:          "retrieval.query",
-		Target:            "rag-agent",
+		Capability:        "knowledge",
 		ResultStatus:      "completed",
 		ArgumentSummary:   map[string]any{"collection": "student_rules"},
 		SourceIDs:         []string{"student_rules:library"},
@@ -138,10 +138,10 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 			completed.ContextProjections[0].Safety,
 		)
 	}
-	if completed.AgentInvocations[0].AllowedTools[0] != "retrieval.query" {
+	if completed.CapabilityInvocations[0].AllowedTools[0] != "retrieval.query" {
 		t.Fatalf(
 			"stored agent invocation = %#v, want defensive copy",
-			completed.AgentInvocations[0],
+			completed.CapabilityInvocations[0],
 		)
 	}
 	if completed.ToolCallSummaries[0].ArgumentSummary["collection"] != "student_rules" {
@@ -179,16 +179,16 @@ func TestInMemoryWorkflowRunStoreRejectsInvalidRunTransitions(t *testing.T) {
 	if _, err := store.Complete(ctx, "run-multi", WorkflowStateCompleted); err == nil {
 		t.Fatal("expected completed multi-step run without handoff chain to fail")
 	}
-	_, err = store.AppendHandoff(ctx, "run-multi", HandoffStep{Target: "rag-agent"})
+	_, err = store.AppendHandoff(ctx, "run-multi", HandoffStep{Capability: "knowledge"})
 	if err != nil {
-		t.Fatalf("append first multi-step handoff: %v", err)
+		t.Fatalf("append first multi-step capability: %v", err)
 	}
 	if _, err := store.Complete(ctx, "run-multi", WorkflowStateCompleted); err == nil {
 		t.Fatal("expected completed multi-step run with one handoff to fail")
 	}
-	_, err = store.AppendHandoff(ctx, "run-multi", HandoffStep{Target: "notice-agent"})
+	_, err = store.AppendHandoff(ctx, "run-multi", HandoffStep{Capability: "notice"})
 	if err != nil {
-		t.Fatalf("append second multi-step handoff: %v", err)
+		t.Fatalf("append second multi-step capability: %v", err)
 	}
 	if _, err := store.Complete(ctx, "run-multi", WorkflowStateCompleted); err != nil {
 		t.Fatalf("complete valid multi-step run: %v", err)

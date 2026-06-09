@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from campus_contracts import (
-    AgentResponse,
+    CapabilityResponse,
     RagResultDiagnostics,
     RagResultPayload,
     SupervisorResponse,
@@ -14,7 +14,7 @@ from campus_evals.models import (
     DimensionResult,
     ExecutionResult,
     GoldenCase,
-    capability_family_for_runtime_target,
+    capability_family_for_capability,
 )
 
 KNOWN_DETERMINISTIC_METRICS = (
@@ -105,7 +105,7 @@ def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
 
 
 def _grade_status(
-    case: GoldenCase, response: AgentResponse | SupervisorResponse
+    case: GoldenCase, response: CapabilityResponse | SupervisorResponse
 ) -> DimensionResult:
     if not case.grader_policy.grade_status:
         return DimensionResult(True, "status grading disabled")
@@ -115,7 +115,7 @@ def _grade_status(
 
 
 def _grade_retrieval(
-    case: GoldenCase, response: AgentResponse | SupervisorResponse
+    case: GoldenCase, response: CapabilityResponse | SupervisorResponse
 ) -> DimensionResult:
     if not case.grader_policy.grade_retrieval:
         return DimensionResult(True, "retrieval grading disabled")
@@ -165,7 +165,7 @@ def _evidence_scope_matches_case(case: GoldenCase, corpus: str, collection: str)
 
 
 def _grade_answer(
-    case: GoldenCase, response: AgentResponse | SupervisorResponse
+    case: GoldenCase, response: CapabilityResponse | SupervisorResponse
 ) -> DimensionResult:
     if not case.grader_policy.grade_answer:
         return DimensionResult(True, "answer grading disabled")
@@ -204,19 +204,19 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
         and observed.retrieval_called != expected.retrieval_called
     ):
         return DimensionResult(False, f"retrieval_called={observed.retrieval_called}")
-    actual_runtime_target_value = (
-        response.selected_target if isinstance(response, SupervisorResponse) else response.target
+    actual_capability_value = (
+        response.selected_capability if isinstance(response, SupervisorResponse) else response.capability
     )
-    actual_runtime_target = (
-        "none" if actual_runtime_target_value in (None, "") else actual_runtime_target_value
+    actual_capability = (
+        "none" if actual_capability_value in (None, "") else actual_capability_value
     )
     if (
-        expected.expected_runtime_target is not None
-        and actual_runtime_target != expected.expected_runtime_target
+        expected.expected_capability is not None
+        and actual_capability != expected.expected_capability
     ):
-        return DimensionResult(False, f"selected_target={actual_runtime_target}")
+        return DimensionResult(False, f"selected_capability={actual_capability}")
     if expected.expected_capability_family is not None:
-        actual_family = capability_family_for_runtime_target(actual_runtime_target_value)
+        actual_family = capability_family_for_capability(actual_capability_value)
         if actual_family != expected.expected_capability_family:
             return DimensionResult(False, f"capability_family={actual_family}")
     if (
@@ -340,7 +340,7 @@ def _grade_forbidden_doc_miss(
 
 def _grade_citation_completeness(
     case: GoldenCase,
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
@@ -355,7 +355,7 @@ def _grade_citation_completeness(
 
 
 def _grade_source_locator_completeness(
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
@@ -370,7 +370,7 @@ def _grade_source_locator_completeness(
 
 def _grade_answer_completeness(
     case: GoldenCase,
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     normalized_answer = _normalize_text(response.answer_text)
     for fact in case.required_facts:
@@ -381,7 +381,7 @@ def _grade_answer_completeness(
 
 def _grade_forbidden_claim_free(
     case: GoldenCase,
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     normalized_answer = _normalize_text(response.answer_text)
     for claim in case.forbidden_claims:
@@ -391,7 +391,7 @@ def _grade_forbidden_claim_free(
 
 
 def _grade_procedure_directness(
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     normalized_answer = _normalize_text(response.answer_text)
     if not normalized_answer:
@@ -421,7 +421,7 @@ def _grade_procedure_directness(
 
 
 def _grade_clarification_accuracy(
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     if response.status != "needs_clarification":
         return DimensionResult(False, f"status={response.status}")
@@ -430,7 +430,7 @@ def _grade_clarification_accuracy(
     return DimensionResult(True, "ok")
 
 
-def _grade_no_answer_accuracy(response: AgentResponse | SupervisorResponse) -> DimensionResult:
+def _grade_no_answer_accuracy(response: CapabilityResponse | SupervisorResponse) -> DimensionResult:
     if response.status != "no_answer":
         return DimensionResult(False, f"status={response.status}")
     if not response.answer_text.strip() and not response.follow_up_question.strip():
@@ -441,22 +441,22 @@ def _grade_no_answer_accuracy(response: AgentResponse | SupervisorResponse) -> D
 
 
 def _grade_approval_required_accuracy(
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     if response.status != "approval_required":
         return DimensionResult(False, f"status={response.status}")
     if _response_targets_rag(response):
-        return DimensionResult(False, "approval_required response should not select agent target")
+        return DimensionResult(False, "approval_required response should not select capability")
     if not response.answer_text.strip() and not response.follow_up_question.strip():
         return DimensionResult(False, "approval_required response should include operator guidance")
     return DimensionResult(True, "ok")
 
 
-def _grade_rejection_accuracy(response: AgentResponse | SupervisorResponse) -> DimensionResult:
+def _grade_rejection_accuracy(response: CapabilityResponse | SupervisorResponse) -> DimensionResult:
     if response.status != "rejected":
         return DimensionResult(False, f"status={response.status}")
     if _response_targets_rag(response):
-        return DimensionResult(False, "rejected response should not select agent target")
+        return DimensionResult(False, "rejected response should not select capability")
     if response.error is None:
         return DimensionResult(False, "rejected response missing error payload")
     if not response.error.code.strip():
@@ -465,7 +465,7 @@ def _grade_rejection_accuracy(response: AgentResponse | SupervisorResponse) -> D
 
 
 def _grade_error_path_correctness(
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     if response.status != "error":
         return DimensionResult(False, f"status={response.status}")
@@ -478,7 +478,7 @@ def _grade_error_path_correctness(
 
 def _grade_semantic_outcome(
     case: GoldenCase,
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     semantic_outcome, scope_class, policy_reason = _extract_semantic_truth(response)
     if semantic_outcome != case.expected_semantic_outcome:
@@ -492,7 +492,7 @@ def _grade_semantic_outcome(
 
 def _grade_false_refusal(
     case: GoldenCase,
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     semantic_outcome, _scope_class, _policy_reason = _extract_semantic_truth(response)
     if response.status != "completed":
@@ -504,7 +504,7 @@ def _grade_false_refusal(
 
 def _grade_retrieval_adequacy_truth(
     case: GoldenCase,
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     diagnostics = _extract_rag_diagnostics(response)
     if diagnostics is None:
@@ -527,7 +527,7 @@ def _grade_retrieval_adequacy_truth(
 
 def _grade_grounding_claim_truth(
     case: GoldenCase,
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     diagnostics = _extract_rag_diagnostics(response)
     if diagnostics is None:
@@ -554,7 +554,7 @@ def _grade_grounding_claim_truth(
 
 def _grade_unsafe_false_allow(
     case: GoldenCase,
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> DimensionResult:
     semantic_outcome, _scope_class, _policy_reason = _extract_semantic_truth(response)
     if response.status == "completed" or semantic_outcome == "grounded_answer":
@@ -563,7 +563,7 @@ def _grade_unsafe_false_allow(
 
 
 def _extract_semantic_truth(
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> tuple[str, str, str]:
     observability = getattr(response, "observability", None)
     if observability is not None:
@@ -586,7 +586,7 @@ def _extract_semantic_truth(
 
 
 def _extract_rag_diagnostics(
-    response: AgentResponse | SupervisorResponse,
+    response: CapabilityResponse | SupervisorResponse,
 ) -> RagResultDiagnostics | None:
     if not isinstance(response.result, RagResultPayload):
         return None
@@ -599,7 +599,7 @@ def _case_requires_fail_closed(case: GoldenCase) -> bool:
     return case.expected_status == "no_answer" and not case.expected_sources
 
 
-def _grade_fail_closed(response: AgentResponse | SupervisorResponse) -> DimensionResult:
+def _grade_fail_closed(response: CapabilityResponse | SupervisorResponse) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
         if not _response_targets_rag(response):
@@ -652,20 +652,20 @@ def _matches_source_ref(source_ref, source) -> bool:
 
 def _require_supported_response(
     execution: ExecutionResult,
-) -> AgentResponse | SupervisorResponse:
+) -> CapabilityResponse | SupervisorResponse:
     response = execution.response
-    if not isinstance(response, (AgentResponse, SupervisorResponse)):
-        raise TypeError("execution.response must be AgentResponse or SupervisorResponse")
+    if not isinstance(response, (CapabilityResponse, SupervisorResponse)):
+        raise TypeError("execution.response must be CapabilityResponse or SupervisorResponse")
     return response
 
 
-def _response_targets_rag(response: AgentResponse | SupervisorResponse) -> bool:
-    if isinstance(response, AgentResponse):
-        return response.target == "rag-agent"
-    return response.selected_target == "rag-agent"
+def _response_targets_rag(response: CapabilityResponse | SupervisorResponse) -> bool:
+    if isinstance(response, CapabilityResponse):
+        return response.capability == "knowledge"
+    return response.selected_capability == "knowledge"
 
 
-def _extract_rag_evidence(response: AgentResponse | SupervisorResponse):
+def _extract_rag_evidence(response: CapabilityResponse | SupervisorResponse):
     if not isinstance(response.result, RagResultPayload):
         return None
     return response.result.evidence

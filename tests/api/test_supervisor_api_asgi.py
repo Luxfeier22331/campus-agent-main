@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from campus_contracts import AgentRequest
+from campus_contracts import CapabilityRequest
 from campus_supervisor_agent_worker.app import create_bridge_app
 from campus_supervisor_agent_worker.asgi import SupervisorBridgeAsgiApp, dispatch_http_request
 from campus_supervisor_agent_worker.settings import ApiSettings
@@ -156,12 +156,12 @@ class SupervisorApiAsgiTest(unittest.TestCase):
         app.close()
 
     def test_asgi_bridge_app_wraps_unexpected_worker_exception(self) -> None:
-        def exploding_agent(_request: AgentRequest):
+        def exploding_agent(_request: CapabilityRequest):
             raise RuntimeError("provider returned raw internal failure")
 
         app = create_bridge_app(
             settings=ApiSettings(bridge_shared_secret="bridge-secret"),
-            agent_handler=exploding_agent,
+            capability_handler=exploding_agent,
         )
         asgi_app = SupervisorBridgeAsgiApp(app)
         raw_body = json_bytes(

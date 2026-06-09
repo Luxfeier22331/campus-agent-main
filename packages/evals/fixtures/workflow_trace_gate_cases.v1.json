@@ -10,14 +10,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_target": "campus-services-agent",
+				"selected_capability": "campus_services",
 				"selected_tools": ["service_status_lookup"],
 				"handoff": {
-					"target": "campus-services-agent"
+					"target": "campus_services"
 				},
 				"handoff_chain": [
 					{
-						"target": "campus-services-agent",
+						"target": "campus_services",
 						"selected_tool": "service_status_lookup"
 					}
 				],
@@ -54,14 +54,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_target": "campus-services-agent",
+				"selected_capability": "campus_services",
 				"selected_tools": ["transport_schedule_lookup"],
 				"handoff": {
-					"target": "campus-services-agent"
+					"target": "campus_services"
 				},
 				"handoff_chain": [
 					{
-						"target": "campus-services-agent",
+						"target": "campus_services",
 						"selected_tool": "transport_schedule_lookup"
 					}
 				],
@@ -98,14 +98,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_target": "campus-services-agent",
+				"selected_capability": "campus_services",
 				"selected_tools": ["service_guide_lookup"],
 				"handoff": {
-					"target": "campus-services-agent"
+					"target": "campus_services"
 				},
 				"handoff_chain": [
 					{
-						"target": "campus-services-agent",
+						"target": "campus_services",
 						"selected_tool": "service_guide_lookup"
 					}
 				],
@@ -146,14 +146,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_target": "campus-services-agent",
+				"selected_capability": "campus_services",
 				"selected_tools": ["contact_directory_lookup"],
 				"handoff": {
-					"target": "campus-services-agent"
+					"target": "campus_services"
 				},
 				"handoff_chain": [
 					{
-						"target": "campus-services-agent",
+						"target": "campus_services",
 						"selected_tool": "contact_directory_lookup"
 					}
 				],
@@ -194,14 +194,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_target": "notice-agent",
+				"selected_capability": "notice",
 				"selected_tools": ["campus_notice_discover"],
 				"handoff": {
-					"target": "notice-agent"
+					"target": "notice"
 				},
 				"handoff_chain": [
 					{
-						"target": "notice-agent",
+						"target": "notice",
 						"selected_tool": "campus_notice_discover"
 					}
 				],
@@ -238,14 +238,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_target": "campus-services-agent",
+				"selected_capability": "campus_services",
 				"selected_tools": ["academic_calendar_lookup"],
 				"handoff": {
-					"target": "campus-services-agent"
+					"target": "campus_services"
 				},
 				"handoff_chain": [
 					{
-						"target": "campus-services-agent",
+						"target": "campus_services",
 						"selected_tool": "academic_calendar_lookup"
 					}
 				],
@@ -282,7 +282,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "multi_step",
 				"workflow_mode": "multi_step",
-				"selected_target": "rag-agent",
+				"selected_capability": "knowledge",
 				"selected_tools": [
 					"transport_schedule_lookup",
 					"campus_notice_change_set_lookup",
@@ -294,22 +294,22 @@
 					"evidence_bundle"
 				],
 				"handoff": {
-					"target": "campus-services-agent",
+					"target": "campus_services",
 					"payload_kind": "transport_schedule_lookup"
 				},
 				"handoff_chain": [
 					{
-						"target": "campus-services-agent",
+						"target": "campus_services",
 						"payload_kind": "transport_schedule_lookup",
 						"selected_tool": "transport_schedule_lookup"
 					},
 					{
-						"target": "notice-agent",
+						"target": "notice",
 						"payload_kind": "campus_notice_change_set_lookup",
 						"selected_tool": "campus_notice_change_set_lookup"
 					},
 					{
-						"target": "rag-agent",
+						"target": "knowledge",
 						"payload_kind": "rag_request",
 						"selected_tool": "retrieval.query"
 					}
@@ -393,14 +393,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_target": "rag-agent",
+				"selected_capability": "knowledge",
 				"selected_tools": ["retrieval.query"],
 				"handoff": {
-					"target": "rag-agent"
+					"target": "knowledge"
 				},
 				"handoff_chain": [
 					{
-						"target": "rag-agent",
+						"target": "knowledge",
 						"selected_tool": "retrieval.query"
 					}
 				],
@@ -430,19 +430,19 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "multi_step",
 				"workflow_mode": "multi_step",
-				"selected_target": "rag-agent",
+				"selected_capability": "knowledge",
 				"selected_tools": ["retrieval.query"],
 				"handoff": {
-					"target": "notice-agent",
+					"target": "notice",
 					"payload_kind": "campus_notice_get"
 				},
 				"handoff_chain": [
 					{
-						"target": "notice-agent",
+						"target": "notice",
 						"payload_kind": "campus_notice_get"
 					},
 					{
-						"target": "rag-agent",
+						"target": "knowledge",
 						"payload_kind": "rag_request",
 						"selected_tool": "retrieval.query"
 					}
@@ -491,7 +491,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "fail_close",
 				"workflow_mode": "terminal",
-				"selected_target": "none",
+				"selected_capability": "none",
 				"selected_tools": [],
 				"handoff": null,
 				"handoff_chain": [],
@@ -516,14 +516,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_target": "rag-agent",
+				"selected_capability": "knowledge",
 				"selected_tools": ["retrieval.query"],
 				"handoff": {
-					"target": "rag-agent"
+					"target": "knowledge"
 				},
 				"handoff_chain": [
 					{
-						"target": "rag-agent",
+						"target": "knowledge",
 						"selected_tool": "retrieval.query"
 					}
 				],
@@ -553,7 +553,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "clarification",
 				"workflow_mode": "terminal",
-				"selected_target": "none",
+				"selected_capability": "none",
 				"selected_tools": [],
 				"handoff": {},
 				"handoff_chain": [],
@@ -574,7 +574,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "fail_close",
 				"workflow_mode": "terminal",
-				"selected_target": "none",
+				"selected_capability": "none",
 				"selected_tools": [],
 				"handoff": {},
 				"handoff_chain": [],
@@ -594,7 +594,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "fail_close",
 				"workflow_mode": "terminal",
-				"selected_target": "none",
+				"selected_capability": "none",
 				"selected_tools": [],
 				"handoff": {},
 				"handoff_chain": [],
@@ -614,10 +614,10 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "direct",
 				"workflow_mode": "single_step",
-				"selected_target": "campus-services-agent",
+				"selected_capability": "campus_services",
 				"selected_tools": ["service_guide_lookup"],
 				"handoff": {
-					"target": "campus-services-agent"
+					"target": "campus_services"
 				},
 				"handoff_chain": [],
 				"tool_argument_summary": {

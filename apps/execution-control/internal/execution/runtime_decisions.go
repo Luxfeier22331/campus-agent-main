@@ -96,7 +96,7 @@ func runtimeDecisions(
 	if plan != nil && plan.CapabilityPlan() != nil {
 		resolvedPlan, err := structuredplanning.ResolveCapabilityPlan(
 			*plan.CapabilityPlan(),
-			mustDefaultAgentSpecRegistry(),
+			mustDefaultCapabilitySpecRegistry(),
 			mustDefaultToolSpecRegistry(),
 			mustDefaultWorkflowArtifactRegistry(),
 		)
@@ -108,11 +108,11 @@ func runtimeDecisions(
 			decisions["workflow_plan"] = plan.Map()
 			decisions["runtime_decision_summary"] = summary.Map()
 			decisions["terminal_envelope"] = map[string]any{
-				"selected_target":    nil,
-				"status":             "no_answer",
-				"answer_text":        "该请求无法进入当前已开放的校园助理执行链路。",
-				"follow_up_question": "",
-				"confidence":         "low",
+				"selected_capability": nil,
+				"status":              "no_answer",
+				"answer_text":         "该请求无法进入当前已开放的校园助理执行链路。",
+				"follow_up_question":  "",
+				"confidence":          "low",
 				"observability": map[string]any{
 					"fail_closed":       true,
 					"fail_close_reason": "capability_plan_resolution_failed",
@@ -125,26 +125,26 @@ func runtimeDecisions(
 	}
 	handoff := plan.SelectedHandoff()
 	if policyDecision.RoutingFrame.SuggestedNextAction == "delegate" && handoff != nil {
-		if err := structuredplanning.ValidateWorkflowPlanWithAgentSpec(
+		if err := structuredplanning.ValidateWorkflowPlanWithCapabilitySpec(
 			plan,
-			mustDefaultAgentSpecRegistry(),
+			mustDefaultCapabilitySpecRegistry(),
 			mustDefaultToolSpecRegistry(),
 		); err != nil {
 			summary.PlanningOutcome = "invalid_plan"
 			summary.WorkflowMode = WorkflowMode(plan.WorkflowMode)
 			summary.WorkflowPlanID = plan.PlanID
-			summary.FailCloseReason = "agent_spec_admission_failed"
+			summary.FailCloseReason = "capability_spec_admission_failed"
 			decisions["workflow_plan"] = plan.Map()
 			decisions["runtime_decision_summary"] = summary.Map()
 			decisions["terminal_envelope"] = map[string]any{
-				"selected_target":    nil,
-				"status":             "no_answer",
-				"answer_text":        "该请求无法进入当前已开放的校园助理执行链路。",
-				"follow_up_question": "",
-				"confidence":         "low",
+				"selected_capability": nil,
+				"status":              "no_answer",
+				"answer_text":         "该请求无法进入当前已开放的校园助理执行链路。",
+				"follow_up_question":  "",
+				"confidence":          "low",
 				"observability": map[string]any{
 					"fail_closed":       true,
-					"fail_close_reason": "agent_spec_admission_failed",
+					"fail_close_reason": "capability_spec_admission_failed",
 					"policy_reason":     err.Error(),
 				},
 			}
@@ -154,23 +154,26 @@ func runtimeDecisions(
 		summary.WorkflowMode = WorkflowMode(plan.WorkflowMode)
 		summary.WorkflowPlanID = plan.PlanID
 		summary.PlannedHandoffs = runtimeHandoffsFromPlan(plan)
-		summary.SelectedTarget = handoff.Target
+		summary.SelectedCapability = handoff.Capability
+		summary.WorkerRole = runtimepolicy.WorkerRoleForCapability(handoff.Capability)
 		if len(handoff.AllowedTools) == 1 {
 			summary.SelectedTool = handoff.AllowedTools[0]
 		}
 		runtimeHandoff := &RuntimeHandoff{
-			Target:                 handoff.Target,
+			Capability:             handoff.Capability,
+			WorkerRole:             runtimepolicy.WorkerRoleForCapability(handoff.Capability),
 			PayloadKind:            handoff.PayloadKind,
 			Payload:                handoff.Payload,
 			AllowedTools:           append([]string{}, handoff.AllowedTools...),
 			RequiredProjectionKind: firstRequiredProjectionForHandoff(plan, handoff),
-			ExpectedArtifacts:      plan.ExpectedArtifactsForStep("handoff:" + handoff.Target + ":" + handoff.PayloadKind),
+			ExpectedArtifacts:      plan.ExpectedArtifactsForStep(runtimeStepIDForHandoff(handoff.Capability, handoff.PayloadKind)),
 		}
 		decisions["handoff"] = map[string]any{
 			"planning_outcome": "preplanned",
-			"target":           handoff.Target,
+			"capability":       handoff.Capability,
+			"worker_role":      runtimepolicy.WorkerRoleForCapability(handoff.Capability),
 			"allowed_tools":    append([]string{}, handoff.AllowedTools...),
-			"agent_request": agentRequestProjection(
+			"capability_request": capabilityRequestProjection(
 				handoff,
 				userGoal,
 				conversationID,
@@ -211,9 +214,10 @@ func runtimeHandoffsFromPlan(plan *structuredplanning.WorkflowPlan) []RuntimeHan
 	handoffs := plan.Handoffs()
 	result := make([]RuntimeHandoff, 0, len(handoffs))
 	for _, handoff := range handoffs {
-		stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
+		stepID := runtimeStepIDForHandoff(handoff.Capability, handoff.PayloadKind)
 		result = append(result, RuntimeHandoff{
-			Target:                 handoff.Target,
+			Capability:             handoff.Capability,
+			WorkerRole:             runtimepolicy.WorkerRoleForCapability(handoff.Capability),
 			PayloadKind:            handoff.PayloadKind,
 			Payload:                cloneAnyMap(handoff.Payload),
 			AllowedTools:           append([]string{}, handoff.AllowedTools...),
@@ -231,7 +235,7 @@ func firstRequiredProjectionForHandoff(
 	if plan == nil || handoff == nil {
 		return ""
 	}
-	stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
+	stepID := runtimeStepIDForHandoff(handoff.Capability, handoff.PayloadKind)
 	for _, edge := range plan.Edges {
 		if edge.ToStepID == stepID {
 			return edge.RequiredProjectionKind
@@ -240,15 +244,19 @@ func firstRequiredProjectionForHandoff(
 	return ""
 }
 
-func mustDefaultAgentSpecRegistry() runtimepolicy.AgentSpecRegistry {
-	registry, ok := runtimepolicy.DefaultAgentSpecRegistry()
+func runtimeStepIDForHandoff(capability string, payloadKind string) string {
+	return "capability:" + capability + ":" + payloadKind
+}
+
+func mustDefaultCapabilitySpecRegistry() runtimepolicy.CapabilitySpecRegistry {
+	registry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
 	if ok {
 		return registry
 	}
-	return runtimepolicy.AgentSpecRegistry{
-		SchemaVersion:   runtimepolicy.AgentSpecSchemaVersion,
+	return runtimepolicy.CapabilitySpecRegistry{
+		SchemaVersion:   runtimepolicy.CapabilitySpecSchemaVersion,
 		RegistryVersion: "unavailable",
-		Agents:          []runtimepolicy.AgentSpec{},
+		Capabilities:    []runtimepolicy.CapabilitySpec{},
 	}
 }
 
@@ -305,7 +313,7 @@ func policyArtifactVersionSummary(
 	return summary
 }
 
-func agentRequestProjection(
+func capabilityRequestProjection(
 	handoff *structuredplanning.Handoff,
 	userGoal string,
 	conversationID string,
@@ -320,7 +328,8 @@ func agentRequestProjection(
 		safetyValue = safetyIdentifier
 	}
 	return map[string]any{
-		"target":            handoff.Target,
+		"capability":        handoff.Capability,
+		"worker_role":       runtimepolicy.WorkerRoleForCapability(handoff.Capability),
 		"user_goal":         userGoal,
 		"conversation_id":   conversationID,
 		"request_id":        requestID,
@@ -342,38 +351,38 @@ func terminalEnvelope(frame runtimepolicy.RoutingFrame) map[string]any {
 	switch frame.SuggestedNextAction {
 	case "clarify":
 		return map[string]any{
-			"selected_target":    nil,
-			"status":             "needs_clarification",
-			"answer_text":        "",
-			"follow_up_question": clarificationQuestion(frame),
-			"confidence":         "low",
-			"observability":      terminalObservability(frame, "needs_clarification", false),
+			"selected_capability": nil,
+			"status":              "needs_clarification",
+			"answer_text":         "",
+			"follow_up_question":  clarificationQuestion(frame),
+			"confidence":          "low",
+			"observability":       terminalObservability(frame, "needs_clarification", false),
 		}
 	case "approval_required":
 		return map[string]any{
-			"selected_target":    nil,
-			"status":             "approval_required",
-			"answer_text":        "该请求涉及需要人工确认的操作，必须先经过审批。",
-			"follow_up_question": "",
-			"confidence":         "low",
-			"observability":      terminalObservability(frame, "approval_required", true),
+			"selected_capability": nil,
+			"status":              "approval_required",
+			"answer_text":         "该请求涉及需要人工确认的操作，必须先经过审批。",
+			"follow_up_question":  "",
+			"confidence":          "low",
+			"observability":       terminalObservability(frame, "approval_required", true),
 		}
 	case "out_of_scope":
 		return map[string]any{
-			"selected_target":    nil,
-			"status":             "no_answer",
-			"answer_text":        outOfScopeAnswerText(frame.PolicyReason),
-			"follow_up_question": "",
-			"confidence":         "low",
-			"observability":      terminalObservability(frame, "out_of_scope", true),
+			"selected_capability": nil,
+			"status":              "no_answer",
+			"answer_text":         outOfScopeAnswerText(frame.PolicyReason),
+			"follow_up_question":  "",
+			"confidence":          "low",
+			"observability":       terminalObservability(frame, "out_of_scope", true),
 		}
 	case "rejected":
 		return map[string]any{
-			"selected_target":    nil,
-			"status":             "rejected",
-			"answer_text":        "这个请求不在当前可执行范围内。",
-			"follow_up_question": "",
-			"confidence":         "low",
+			"selected_capability": nil,
+			"status":              "rejected",
+			"answer_text":         "这个请求不在当前可执行范围内。",
+			"follow_up_question":  "",
+			"confidence":          "low",
 			"error": map[string]any{
 				"code":    "request_rejected",
 				"message": "request was rejected by supervisor policy",

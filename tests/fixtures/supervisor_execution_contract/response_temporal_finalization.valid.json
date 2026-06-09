@@ -1,5 +1,5 @@
 {
-	"selected_target": "rag-agent",
+	"selected_capability": "knowledge",
 	"status": "completed",
 	"answer_text": "国家奖学金按学校现行评审办法执行。",
 	"error": null,
@@ -39,7 +39,7 @@
 	},
 	"workflow_trace_summary": {
 		"workflow_mode": "single_step",
-		"selected_target": "rag-agent",
+		"selected_capability": "knowledge",
 		"selected_tools": ["retrieval.query"],
 		"answer_artifact_kinds": ["provider_execution_summary"],
 		"answer_artifact_refs": ["provider://requests/run_temporal_finalization/synthesis"],

@@ -238,7 +238,7 @@ def run_service_guide_isolated_publish_proof(
     )
     management_url = _postgres_url_with_database(base_database_url, "postgres")
     database_name = _sanitize_postgres_database_name(
-        f"campus_agent_official_web_service_guide_proof_{uuid.uuid4().hex[:10]}"
+        f"campus_official_web_service_guide_proof_{uuid.uuid4().hex[:10]}"
     )
     runtime_database_url = _postgres_url_with_database(base_database_url, database_name)
     cleanup_database = _create_temporary_postgres_database(management_url, database_name)

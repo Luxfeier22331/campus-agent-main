@@ -247,7 +247,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 			key: string;
 			prompt: string;
 			requestId: string;
-			selectedTarget: string | null;
+			selectedCapability: string | null;
 			traceId: string;
 		}> = [];
 
@@ -297,7 +297,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 				key: scenario.key,
 				prompt: scenario.prompt,
 				requestId,
-				selectedTarget: scenario.response.selectedTarget,
+				selectedCapability: scenario.response.selectedCapability,
 				traceId: response.headers.get("x-trace-id") ?? payload.answer.result.traceId,
 			});
 		}
@@ -339,7 +339,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 
 		const verifiedRequests: Array<{
 			actualErrorCode: string | null;
-			actualSelectedTarget: string | null;
+			actualSelectedCapability: string | null;
 			actualStatus: string;
 			answerKind: string;
 			conversationId: string;
@@ -360,13 +360,13 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 				request: {
 					errorCode: string | null;
 					requestId: string;
-					selectedTarget: string | null;
+					selectedCapability: string | null;
 					status: string;
 				};
 			}>(detailResponse, 200);
 			verifiedRequests.push({
 				actualErrorCode: detailPayload.request.errorCode,
-				actualSelectedTarget: detailPayload.request.selectedTarget,
+				actualSelectedCapability: detailPayload.request.selectedCapability,
 				actualStatus: detailPayload.request.status,
 				answerKind: seededRequest.answerKind,
 				conversationId: seededRequest.conversationId,

@@ -155,7 +155,7 @@ describe("protected panel shell chinese copy", () => {
 	it("keeps overview select controls named for browser autofill and DevTools issue checks", () => {
 		expect(overviewPageCardsSource).toContain('name="window"');
 		expect(overviewPageCardsSource).toContain('name="surface"');
-		expect(overviewPageCardsSource).toContain('name="selectedTarget"');
+		expect(overviewPageCardsSource).toContain('name="selectedCapability"');
 		expect(overviewPageCardsSource).toContain("PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS");
 		expect(panelSelectSource).toContain("displayEmpty: true");
 		expect(panelSelectSource).toContain("shrink: true");

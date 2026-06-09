@@ -7,20 +7,20 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 BRIDGE_VERSION = "supervisor_bridge_v6"
-RESPONSE_CONTRACT = "agent_response"
+RESPONSE_CONTRACT = "capability_response"
 RUNTIME_DECISIONS_SCHEMA_VERSION = "supervisor-runtime-decisions-v1"
 RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION = "runtime-decision-summary-v1"
 WORKFLOW_TRACE_SUMMARY_VERSION = "workflow-trace-summary-v4"
 
-AgentTarget = Literal[
-    "rag-agent",
-    "navigation-agent",
-    "campus-services-agent",
-    "notice-agent",
+CapabilityID = Literal[
+    "knowledge",
+    "navigation",
+    "campus_services",
+    "notice",
 ]
 RequestedCapability = Literal[
     "knowledge",
-    "place_lookup",
+    "navigation",
     "campus_services",
     "notice",
 ]
@@ -71,8 +71,9 @@ class RuntimeDecisionSummaryWire(BaseModel):
     policy_gate_decision: str = ""
     context_preflight_state: str = ""
     routing_next_action: str = ""
-    selected_target: str = ""
+    selected_capability: str = ""
     selected_tool: str = ""
+    worker_role: str = ""
     terminal_outcome: str = ""
     fail_close_reason: str = ""
     runtime_versions: dict[str, Any] = Field(default_factory=dict)
@@ -84,7 +85,8 @@ class WorkflowPlanStepWire(BaseModel):
 
     step_id: str
     step_kind: str
-    target: str = ""
+    capability: str = ""
+    worker_role: str = ""
     payload_kind: str = ""
     allowed_tools: list[str] = Field(default_factory=list)
     selected_tool: str = ""
@@ -129,15 +131,15 @@ class WorkflowContextProjectionWire(BaseModel):
     safety: ProjectionSafetySummaryWire
 
 
-class WorkflowAgentContextWire(BaseModel):
+class WorkflowCapabilityContextWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["workflow-agent-context-v1"]
-    visibility: Literal["agent_private"]
+    schema_version: Literal["workflow-capability-context-v1"]
+    visibility: Literal["capability_private"]
     workflow_run_ref: str
     step_id: str
-    agent_id: AgentTarget
-    target: AgentTarget | str = ""
+    capability_id: CapabilityID
+    worker_role: str = ""
     required_projection_kind: StepOutputProjectionKind | str = ""
     expected_output_artifacts: list[StepOutputProjectionKind]
     projection_refs: list[WorkflowContextProjectionWire]
@@ -149,7 +151,7 @@ class WorkflowPlanWire(BaseModel):
     schema_version: Literal["workflow-plan-v1"]
     plan_id: str
     workflow_mode: WorkflowMode
-    allowed_agents: list[AgentTarget]
+    allowed_capabilities: list[CapabilityID]
     steps: list[WorkflowPlanStepWire]
     edges: list[WorkflowPlanEdgeWire]
     terminal_policy: dict[str, Any]
@@ -157,14 +159,14 @@ class WorkflowPlanWire(BaseModel):
     semantic_retry_policy: dict[str, Any]
 
 
-class AgentInvocationWire(BaseModel):
+class CapabilityInvocationWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     invocation_id: str
     parent_invocation_id: str = ""
     workflow_run_ref: str
     step_id: str
-    agent_id: AgentTarget
+    capability_id: CapabilityID
     status: str
     allowed_tools: list[str]
     used_tools: list[str]
@@ -209,10 +211,11 @@ class BridgeV6RequestWire(BaseModel):
     requested_scope: dict[str, Any] | None = None
 
 
-class AgentRequestWire(BaseModel):
+class CapabilityRequestWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target: AgentTarget
+    capability: CapabilityID
+    worker_role: str = ""
     user_goal: str
     payload: dict[str, Any]
     allowed_tools: list[str]
@@ -222,20 +225,21 @@ class AgentRequestWire(BaseModel):
     trace: dict[str, Any] = Field(default_factory=dict)
     actor: dict[str, Any] = Field(default_factory=dict)
     context: dict[str, Any] = Field(default_factory=dict)
-    workflow_context: WorkflowAgentContextWire | None = None
+    workflow_context: WorkflowCapabilityContextWire | None = None
 
 
-class AgentResponseWire(BaseModel):
+class CapabilityResponseWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target: AgentTarget
+    capability: CapabilityID
+    worker_role: str = ""
     status: DelegateStatus
     answer_text: str = ""
     follow_up_question: str = ""
     confidence: ConfidenceLevel = "low"
     result: dict[str, Any] | None = None
     error: dict[str, Any] | None = None
-    agent_observability: dict[str, Any] | None = None
+    capability_observability: dict[str, Any] | None = None
 
 
 class WorkflowTraceSummaryWire(BaseModel):
@@ -248,8 +252,8 @@ class WorkflowTraceSummaryWire(BaseModel):
     workflow_mode: WorkflowMode
     handoff: dict[str, Any]
     handoff_chain: list[dict[str, Any]]
-    agent_invocations: list[AgentInvocationWire]
-    selected_target: str | None
+    capability_invocations: list[CapabilityInvocationWire]
+    selected_capability: str | None
     selected_tools: list[str]
     context_projections: list[WorkflowContextProjectionWire]
     answer_artifact_projection_ids: list[str]
@@ -266,7 +270,7 @@ class WorkflowTraceSummaryWire(BaseModel):
 class SupervisorResponseWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    selected_target: AgentTarget | None
+    selected_capability: CapabilityID | None
     status: SupervisorStatus
     answer_text: str
     follow_up_question: str

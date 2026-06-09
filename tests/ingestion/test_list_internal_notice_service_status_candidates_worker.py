@@ -145,7 +145,7 @@ def _entry(
         if target_surface == NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE
         else NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
         semantic_owner="notice_body",
-        default_agent="campus-services-agent",
+        default_agent="campus_services",
         target_surface=target_surface,
         temporal_policy="current_override",
         completeness_status="complete",

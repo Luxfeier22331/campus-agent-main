@@ -5,13 +5,13 @@ info:
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
   bridge_version: supervisor_bridge_v6
-  response_contract: agent_response
+  response_contract: capability_response
   runtime_decisions_schema_version: supervisor-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
   workflow_trace_summary_version: workflow-trace-summary-v4
   versioning_policy:
     bridge_version: incompatible bridge envelope changes must bump bridge_version
-    response_contract: AgentResponse wire contract changes must bump response_contract
+    response_contract: CapabilityResponse wire contract changes must bump response_contract
     runtime_decisions_schema_version: runtime_decisions shape changes must bump runtime_decisions_schema_version
     runtime_decision_summary_schema_version: runtime decision summary shape changes must bump runtime_decision_summary_schema_version
     workflow_trace_summary_version: operator-visible workflow trace summary changes must bump workflow_trace_summary_version
@@ -94,7 +94,7 @@ paths:
                 $ref: "#/components/schemas/ExecutionRunResponse"
   /internal/bridge/supervisor/answer:
     post:
-      summary: Private supervisor bridge v6 delegate handoff.
+      summary: Private supervisor bridge v6 capability handoff.
       requestBody:
         required: true
         content:
@@ -103,11 +103,11 @@ paths:
               $ref: "#/components/schemas/BridgeV6Request"
       responses:
         "200":
-          description: Agent response.
+          description: Capability response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentResponse"
+                $ref: "#/components/schemas/CapabilityResponse"
 components:
   parameters:
     RunId:
@@ -252,18 +252,18 @@ components:
           type: string
         payload:
           $ref: "#/components/schemas/SafeObject"
-    AgentTarget:
+    CapabilityID:
       type: string
       enum:
-        - rag-agent
-        - navigation-agent
-        - campus-services-agent
-        - notice-agent
+        - knowledge
+        - navigation
+        - campus_services
+        - notice
     RequestedCapability:
       type: string
       enum:
         - knowledge
-        - place_lookup
+        - navigation
         - campus_services
         - notice
     ConfidenceLevel:
@@ -384,7 +384,7 @@ components:
           type: string
         safety:
           $ref: "#/components/schemas/ProjectionSafetySummary"
-    WorkflowAgentContext:
+    WorkflowCapabilityContext:
       type: object
       additionalProperties: false
       required:
@@ -392,22 +392,22 @@ components:
         - visibility
         - workflow_run_ref
         - step_id
-        - agent_id
+        - capability_id
         - expected_output_artifacts
         - projection_refs
       properties:
         schema_version:
-          const: workflow-agent-context-v1
+          const: workflow-capability-context-v1
         visibility:
-          const: agent_private
+          const: capability_private
         workflow_run_ref:
           type: string
         step_id:
           type: string
-        agent_id:
-          $ref: "#/components/schemas/AgentTarget"
-        target:
-          $ref: "#/components/schemas/AgentTarget"
+        capability_id:
+          $ref: "#/components/schemas/CapabilityID"
+        worker_role:
+          type: string
         required_projection_kind:
           $ref: "#/components/schemas/StepOutputProjectionKind"
         expected_output_artifacts:
@@ -418,14 +418,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkflowContextProjection"
-    AgentInvocation:
+    CapabilityInvocation:
       type: object
       additionalProperties: false
       required:
         - invocation_id
         - workflow_run_ref
         - step_id
-        - agent_id
+        - capability_id
         - status
         - allowed_tools
         - used_tools
@@ -439,8 +439,8 @@ components:
           type: string
         step_id:
           type: string
-        agent_id:
-          $ref: "#/components/schemas/AgentTarget"
+        capability_id:
+          $ref: "#/components/schemas/CapabilityID"
         status:
           type: string
         allowed_tools:
@@ -468,7 +468,11 @@ components:
           type: string
         step_kind:
           type: string
-        target:
+        capability:
+          oneOf:
+            - $ref: "#/components/schemas/CapabilityID"
+            - type: string
+        worker_role:
           type: string
         payload_kind:
           type: string
@@ -501,7 +505,7 @@ components:
         - schema_version
         - plan_id
         - workflow_mode
-        - allowed_agents
+        - allowed_capabilities
         - steps
         - edges
         - terminal_policy
@@ -514,10 +518,10 @@ components:
           type: string
         workflow_mode:
           $ref: "#/components/schemas/WorkflowMode"
-        allowed_agents:
+        allowed_capabilities:
           type: array
           items:
-            $ref: "#/components/schemas/AgentTarget"
+            $ref: "#/components/schemas/CapabilityID"
         steps:
           type: array
           items:
@@ -650,9 +654,11 @@ components:
           type: string
         planning_outcome:
           type: string
-        selected_target:
+        selected_capability:
           type: string
         selected_tool:
+          type: string
+        worker_role:
           type: string
         terminal_outcome:
           type: string
@@ -696,17 +702,19 @@ components:
           $ref: "#/components/schemas/SafeObject"
         runtime_decision_summary:
           $ref: "#/components/schemas/RuntimeDecisionSummary"
-    AgentRequest:
+    CapabilityRequest:
       type: object
       additionalProperties: false
       required:
-        - target
+        - capability
         - user_goal
         - payload
         - allowed_tools
       properties:
-        target:
-          $ref: "#/components/schemas/AgentTarget"
+        capability:
+          $ref: "#/components/schemas/CapabilityID"
+        worker_role:
+          type: string
         user_goal:
           type: string
         conversation_id:
@@ -724,7 +732,7 @@ components:
         context:
           $ref: "#/components/schemas/SafeObject"
         workflow_context:
-          $ref: "#/components/schemas/WorkflowAgentContext"
+          $ref: "#/components/schemas/WorkflowCapabilityContext"
         payload:
           type: object
           additionalProperties: false
@@ -740,15 +748,17 @@ components:
           type: array
           items:
             type: string
-    AgentResponse:
+    CapabilityResponse:
       type: object
       additionalProperties: false
       required:
-        - target
+        - capability
         - status
       properties:
-        target:
-          $ref: "#/components/schemas/AgentTarget"
+        capability:
+          $ref: "#/components/schemas/CapabilityID"
+        worker_role:
+          type: string
         status:
           $ref: "#/components/schemas/DelegateStatus"
         answer_text:
@@ -765,7 +775,7 @@ components:
           oneOf:
             - $ref: "#/components/schemas/ErrorInfo"
             - type: "null"
-        agent_observability:
+        capability_observability:
           oneOf:
             - $ref: "#/components/schemas/SafeObject"
             - type: "null"
@@ -789,7 +799,7 @@ components:
         bridge_version:
           const: supervisor_bridge_v6
         response_contract:
-          const: agent_response
+          const: capability_response
         user_goal:
           type: string
         conversation_id:
@@ -829,8 +839,8 @@ components:
         - workflow_mode
         - handoff
         - handoff_chain
-        - agent_invocations
-        - selected_target
+        - capability_invocations
+        - selected_capability
         - selected_tools
         - context_projections
         - answer_artifact_projection_ids
@@ -857,13 +867,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SafeObject"
-        agent_invocations:
+        capability_invocations:
           type: array
           items:
-            $ref: "#/components/schemas/AgentInvocation"
-        selected_target:
+            $ref: "#/components/schemas/CapabilityInvocation"
+        selected_capability:
           oneOf:
-            - $ref: "#/components/schemas/AgentTarget"
+            - $ref: "#/components/schemas/CapabilityID"
             - type: string
             - type: "null"
         selected_tools:
@@ -904,7 +914,7 @@ components:
       type: object
       additionalProperties: false
       required:
-        - selected_target
+        - selected_capability
         - status
         - answer_text
         - follow_up_question
@@ -913,9 +923,9 @@ components:
         - error
         - trace_id
       properties:
-        selected_target:
+        selected_capability:
           oneOf:
-            - $ref: "#/components/schemas/AgentTarget"
+            - $ref: "#/components/schemas/CapabilityID"
             - type: "null"
         status:
           $ref: "#/components/schemas/SupervisorStatus"

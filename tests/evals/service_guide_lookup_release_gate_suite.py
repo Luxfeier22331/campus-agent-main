@@ -75,7 +75,7 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
                 "projection_default_cases",
                 "intent_service_guide_cases",
                 "supervisor_go_service_guide_tests",
-                "campus_services_agent_contract_tests",
+                "campus_services_capability_contract_tests",
                 "app_api_service_guide_structured_answer_tests",
             ],
         )
@@ -97,7 +97,7 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
                 "python",
                 "-m",
                 "unittest",
-                "tests.agent.test_campus_services_agent",
+                "tests.agent.test_campus_services_capability",
             ),
             commands,
         )
@@ -256,7 +256,7 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
                 "projection_default_cases",
                 "intent_service_guide_cases",
                 "supervisor_go_service_guide_tests",
-                "campus_services_agent_contract_tests",
+                "campus_services_capability_contract_tests",
                 "app_api_service_guide_structured_answer_tests",
                 "selected_write_runtime_smoke",
             ],

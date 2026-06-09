@@ -21,19 +21,19 @@ export function OverviewPage() {
 	useAuthenticated();
 	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
 	const [filters, setFilters] = useState<OverviewFilterState>({
-		selectedTarget: null,
+		selectedCapability: null,
 		surface: null,
 		window: "24h",
 	});
 
 	const deferredWindow = useDeferredValue(filters.window);
 	const deferredSurface = useDeferredValue(filters.surface);
-	const deferredSelectedTarget = useDeferredValue(filters.selectedTarget);
+	const deferredSelectedCapability = useDeferredValue(filters.selectedCapability);
 
 	const isRefreshing =
 		filters.window !== deferredWindow ||
 		filters.surface !== deferredSurface ||
-		filters.selectedTarget !== deferredSelectedTarget;
+		filters.selectedCapability !== deferredSelectedCapability;
 
 	const [overviewQuery, qualityTimeseriesQuery, costTimeseriesQuery, runtimeDiagnosticsQuery] =
 		useQueries({
@@ -41,7 +41,7 @@ export function OverviewPage() {
 				{
 					queryFn: ({ signal }) =>
 						dataProvider.getOperatorOverview({
-							selectedTarget: deferredSelectedTarget,
+							selectedCapability: deferredSelectedCapability,
 							signal,
 							surface: deferredSurface,
 							window: deferredWindow,
@@ -50,7 +50,7 @@ export function OverviewPage() {
 						"protected-panel-overview",
 						deferredWindow,
 						deferredSurface,
-						deferredSelectedTarget,
+						deferredSelectedCapability,
 					] as const,
 					staleTime: 30_000,
 				},
@@ -58,7 +58,7 @@ export function OverviewPage() {
 					queryFn: ({ signal }) =>
 						dataProvider.getOperatorQualityTimeseries({
 							granularity: resolveOverviewGranularity(deferredWindow),
-							selectedTarget: deferredSelectedTarget,
+							selectedCapability: deferredSelectedCapability,
 							signal,
 							surface: deferredSurface,
 							window: deferredWindow,
@@ -68,7 +68,7 @@ export function OverviewPage() {
 						deferredWindow,
 						resolveOverviewGranularity(deferredWindow),
 						deferredSurface,
-						deferredSelectedTarget,
+						deferredSelectedCapability,
 					] as const,
 					staleTime: 30_000,
 				},
@@ -76,7 +76,7 @@ export function OverviewPage() {
 					queryFn: ({ signal }) =>
 						dataProvider.getOperatorCostTimeseries({
 							granularity: resolveOverviewGranularity(deferredWindow),
-							selectedTarget: deferredSelectedTarget,
+							selectedCapability: deferredSelectedCapability,
 							signal,
 							surface: deferredSurface,
 							window: deferredWindow,
@@ -86,7 +86,7 @@ export function OverviewPage() {
 						deferredWindow,
 						resolveOverviewGranularity(deferredWindow),
 						deferredSurface,
-						deferredSelectedTarget,
+						deferredSelectedCapability,
 					] as const,
 					staleTime: 30_000,
 				},
@@ -137,12 +137,12 @@ export function OverviewPage() {
 			}));
 		});
 	};
-	const handleSelectedTargetChange = (value: string) => {
+	const handleSelectedCapabilityChange = (value: string) => {
 		const nextTarget = normalizeFilterValue(value);
 		startTransition(() => {
 			setFilters((current) => ({
 				...current,
-				selectedTarget: nextTarget,
+				selectedCapability: nextTarget,
 			}));
 		});
 	};
@@ -156,7 +156,7 @@ export function OverviewPage() {
 						asOf={asOf}
 						filters={filters}
 						isRefreshing={isRefreshing}
-						onSelectedTargetChange={handleSelectedTargetChange}
+						onSelectedCapabilityChange={handleSelectedCapabilityChange}
 						onSurfaceChange={handleSurfaceChange}
 						onWindowChange={handleWindowChange}
 					/>

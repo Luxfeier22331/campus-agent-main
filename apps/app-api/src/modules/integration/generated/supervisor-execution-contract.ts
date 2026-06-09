@@ -2,21 +2,21 @@
 
 export const SUPERVISOR_EXECUTION_CONTRACT = {
 	bridgeVersion: "supervisor_bridge_v6",
-	responseContract: "agent_response",
+	responseContract: "capability_response",
 	runtimeDecisionsSchemaVersion: "supervisor-runtime-decisions-v1",
 	runtimeDecisionSummarySchemaVersion: "runtime-decision-summary-v1",
 	workflowTraceSummaryVersion: "workflow-trace-summary-v4",
 } as const;
 
-export const AGENT_TARGETS = [
-	"rag-agent",
-	"navigation-agent",
-	"campus-services-agent",
-	"notice-agent",
+export const CAPABILITY_IDS = [
+	"knowledge",
+	"navigation",
+	"campus_services",
+	"notice",
 ] as const;
 export const REQUESTED_CAPABILITIES = [
 	"knowledge",
-	"place_lookup",
+	"navigation",
 	"campus_services",
 	"notice",
 ] as const;
@@ -47,7 +47,7 @@ export const STEP_OUTPUT_PROJECTION_KINDS = [
 	"grounding_verdict",
 ] as const;
 
-export type AgentTarget = (typeof AGENT_TARGETS)[number];
+export type CapabilityID = (typeof CAPABILITY_IDS)[number];
 export type RequestedCapability = (typeof REQUESTED_CAPABILITIES)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];
@@ -65,8 +65,9 @@ export interface RuntimeDecisionSummaryWire {
 	context_preflight_state?: string;
 	routing_next_action?: string;
 	planning_outcome: string;
-	selected_target?: string;
+	selected_capability?: string;
 	selected_tool?: string;
+	worker_role?: string;
 	terminal_outcome?: string;
 	fail_close_reason?: string;
 	runtime_versions?: SafeRecord;
@@ -76,7 +77,8 @@ export interface RuntimeDecisionSummaryWire {
 export interface WorkflowPlanStepWire {
 	step_id: string;
 	step_kind: string;
-	target?: string;
+	capability?: CapabilityID | string;
+	worker_role?: string;
 	payload_kind?: string;
 	allowed_tools?: string[];
 	selected_tool?: string;
@@ -113,13 +115,13 @@ export interface WorkflowContextProjectionWire {
 	safety: ProjectionSafetySummaryWire;
 }
 
-export interface WorkflowAgentContextWire {
-	schema_version: "workflow-agent-context-v1";
-	visibility: "agent_private";
+export interface WorkflowCapabilityContextWire {
+	schema_version: "workflow-capability-context-v1";
+	visibility: "capability_private";
 	workflow_run_ref: string;
 	step_id: string;
-	agent_id: AgentTarget;
-	target?: AgentTarget;
+	capability_id: CapabilityID;
+	worker_role?: string;
 	required_projection_kind?: StepOutputProjectionKind;
 	expected_output_artifacts: StepOutputProjectionKind[];
 	projection_refs: WorkflowContextProjectionWire[];
@@ -129,7 +131,7 @@ export interface WorkflowPlanWire {
 	schema_version: "workflow-plan-v1";
 	plan_id: string;
 	workflow_mode: WorkflowMode;
-	allowed_agents: AgentTarget[];
+	allowed_capabilities: CapabilityID[];
 	steps: WorkflowPlanStepWire[];
 	edges: WorkflowPlanEdgeWire[];
 	terminal_policy: SafeRecord;
@@ -137,12 +139,12 @@ export interface WorkflowPlanWire {
 	semantic_retry_policy: SafeRecord;
 }
 
-export interface AgentInvocationWire {
+export interface CapabilityInvocationWire {
 	invocation_id: string;
 	parent_invocation_id?: string;
 	workflow_run_ref: string;
 	step_id: string;
-	agent_id: AgentTarget;
+	capability_id: CapabilityID;
 	status: string;
 	allowed_tools: string[];
 	used_tools: string[];
@@ -166,15 +168,16 @@ export interface RuntimeDecisionsWire {
 	[key: string]: unknown;
 }
 
-export interface AgentResponseWire {
-	target: AgentTarget;
+export interface CapabilityResponseWire {
+	capability: CapabilityID;
+	worker_role?: string;
 	status: DelegateStatus;
 	answer_text?: string;
 	follow_up_question?: string;
 	confidence?: ConfidenceLevel;
 	result?: SafeRecord | null;
 	error?: { code: string; message: string; retryable?: boolean } | null;
-	agent_observability?: SafeRecord | null;
+	capability_observability?: SafeRecord | null;
 }
 
 export interface BridgeV6RequestWire {
@@ -195,8 +198,9 @@ export interface BridgeV6RequestWire {
 	runtime_decisions: RuntimeDecisionsWire;
 }
 
-export interface AgentRequestWire {
-	target: AgentTarget;
+export interface CapabilityRequestWire {
+	capability: CapabilityID;
+	worker_role?: string;
 	user_goal: string;
 	conversation_id?: string;
 	request_id?: string;
@@ -204,7 +208,7 @@ export interface AgentRequestWire {
 	trace?: { trace_id: string };
 	actor?: SafeRecord;
 	context?: SafeRecord;
-	workflow_context?: WorkflowAgentContextWire;
+	workflow_context?: WorkflowCapabilityContextWire;
 	payload: { kind: string; payload: SafeRecord };
 	allowed_tools: string[];
 }
@@ -217,8 +221,8 @@ export interface SupervisorExecutionWorkflowTraceSummaryWire {
 	workflow_mode: WorkflowMode;
 	handoff: SafeRecord;
 	handoff_chain: SafeRecord[];
-	agent_invocations: AgentInvocationWire[];
-	selected_target: AgentTarget | string | null;
+	capability_invocations: CapabilityInvocationWire[];
+	selected_capability: CapabilityID | string | null;
 	selected_tools: string[];
 	context_projections: WorkflowContextProjectionWire[];
 	answer_artifact_projection_ids: string[];
@@ -233,7 +237,7 @@ export interface SupervisorExecutionWorkflowTraceSummaryWire {
 }
 
 export interface SupervisorExecutionResponseWire {
-	selected_target: AgentTarget | null;
+	selected_capability: CapabilityID | null;
 	status: SupervisorStatus;
 	answer_text: string;
 	follow_up_question: string;

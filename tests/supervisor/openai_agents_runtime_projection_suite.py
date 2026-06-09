@@ -3,9 +3,9 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import (
-    AgentRequest,
     CampusNoticeDiscoverPayload,
-    WorkflowAgentContext,
+    CapabilityRequest,
+    WorkflowCapabilityContext,
 )
 from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
     build_agents_sdk_tool_descriptors,
@@ -65,9 +65,9 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.answer_text, "已找到相关通知。")
-        assert response.agent_observability is not None
+        assert response.capability_observability is not None
         self.assertEqual(
-            response.agent_observability.safe_details["agents_sdk_trace_projection"][
+            response.capability_observability.safe_details["agents_sdk_trace_projection"][
                 "model_response_ref"
             ],
             "resp-native-001",
@@ -80,15 +80,15 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
             "OpenAI Agents native runtime is unavailable",
             bridge_reason="runner_unavailable",
             latency_ms=0,
-            runtime_posture="sdk_adapter_admitted",
+            runtime_posture="typed_activity_admitted",
         )
 
         self.assertEqual(response.status, "error")
         assert response.error is not None
         self.assertEqual(response.error.code, "agents_sdk_runtime_failed")
-        assert response.agent_observability is not None
+        assert response.capability_observability is not None
         self.assertEqual(
-            response.agent_observability.safe_details["openai_agents_runtime_error"][
+            response.capability_observability.safe_details["openai_agents_runtime_error"][
                 "bridge_reason"
             ],
             "runner_unavailable",
@@ -125,8 +125,8 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
     def test_projection_uses_tool_result_output_projection_ref(self) -> None:
         from campus_contracts import TransportScheduleLookupPayload
 
-        request = AgentRequest(
-            target="campus-services-agent",
+        request = CapabilityRequest(
+            capability="campus_services",
             user_goal="校车什么时候发车",
             request_id="req-native-projection-transport-001",
             payload=TransportScheduleLookupPayload(
@@ -134,11 +134,11 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
                 intent="next_departure",
             ),
             allowed_tools=("service_status_lookup", "transport_schedule_lookup"),
-            workflow_context=WorkflowAgentContext(
-                target="campus-services-agent",
+            workflow_context=WorkflowCapabilityContext(
+                capability="campus_services",
                 workflow_run_ref="workflow:req-native-projection-transport-001",
-                step_id="handoff:campus-services-agent:transport_schedule_lookup",
-                agent_id="campus-services-agent",
+                step_id="handoff:campus_services:transport_schedule_lookup",
+                capability_id="campus_services",
                 expected_output_artifacts=("schedule_baseline",),
             ),
         )
@@ -177,7 +177,7 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
                         "output_projection_ref": {
                             "projection_id": "projection:schedule_baseline:tool-owned",
                             "source_step_id": (
-                                "handoff:campus-services-agent:transport_schedule_lookup"
+                                "handoff:campus_services:transport_schedule_lookup"
                             ),
                             "projection_kind": "schedule_baseline",
                             "content_hash": "sha256:tool-owned",
@@ -195,8 +195,8 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
             require_tool_execution=True,
         )
 
-        assert response.agent_observability is not None
-        output_projection_ref = response.agent_observability.safe_details[
+        assert response.capability_observability is not None
+        output_projection_ref = response.capability_observability.safe_details[
             "agents_sdk_trace_projection"
         ]["output_projection_ref"]
         self.assertEqual(
@@ -220,18 +220,18 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
         self.assertEqual(projection["safe_nested"]["query_text"], "春假通知")
 
 
-def _request() -> AgentRequest:
-    return AgentRequest(
-        target="notice-agent",
+def _request() -> CapabilityRequest:
+    return CapabilityRequest(
+        capability="notice",
         user_goal="找春假通知",
         request_id="req-native-projection-001",
         payload=CampusNoticeDiscoverPayload(query_text="春假通知"),
         allowed_tools=("campus_notice_discover",),
-        workflow_context=WorkflowAgentContext(
-            target="notice-agent",
+        workflow_context=WorkflowCapabilityContext(
+            capability="notice",
             workflow_run_ref="workflow:req-native-projection-001",
-            step_id="handoff:notice-agent:campus_notice_discover",
-            agent_id="notice-agent",
+            step_id="handoff:notice:campus_notice_discover",
+            capability_id="notice",
         ),
     )
 

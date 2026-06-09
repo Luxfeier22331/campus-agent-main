@@ -245,7 +245,7 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 	for _, key := range sortedRuntimeDecisionKeys(m.runtimeDecisionTotals) {
 		fmt.Fprintf(
 			&builder,
-			"campus_execution_control_runtime_policy_decisions_total{capability=%q,lane=%q,scope_gate=%q,policy_gate=%q,context_preflight=%q,routing_next_action=%q,planning_outcome=%q,selected_target=%q,selected_tool=%q,terminal_outcome=%q,fail_close_reason=%q} %d\n",
+			"campus_execution_control_runtime_policy_decisions_total{capability=%q,lane=%q,scope_gate=%q,policy_gate=%q,context_preflight=%q,routing_next_action=%q,planning_outcome=%q,selected_capability=%q,selected_tool=%q,terminal_outcome=%q,fail_close_reason=%q} %d\n",
 			key.Capability,
 			key.Lane,
 			key.ScopeGate,
@@ -253,7 +253,7 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			key.ContextPreflightState,
 			key.RoutingNextAction,
 			key.PlanningOutcome,
-			key.SelectedTarget,
+			key.SelectedCapability,
 			key.SelectedTool,
 			key.TerminalOutcome,
 			key.FailCloseReason,

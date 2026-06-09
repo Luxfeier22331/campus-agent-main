@@ -20,22 +20,23 @@ const (
 )
 
 type WorkflowRun struct {
-	RunID              string
-	RequestID          string
-	TraceID            string
-	PlanID             string
-	Mode               WorkflowMode
-	Branch             string
-	State              WorkflowState
-	HandoffChain       []HandoffStep
-	Steps              []WorkflowStep
-	AgentInvocations   []AgentInvocation
-	ContextProjections []StepOutputProjection
-	ToolCallSummaries  []ToolCallSummary
+	RunID                 string
+	RequestID             string
+	TraceID               string
+	PlanID                string
+	Mode                  WorkflowMode
+	Branch                string
+	State                 WorkflowState
+	HandoffChain          []HandoffStep
+	Steps                 []WorkflowStep
+	CapabilityInvocations []CapabilityInvocation
+	ContextProjections    []StepOutputProjection
+	ToolCallSummaries     []ToolCallSummary
 }
 
 type HandoffStep struct {
-	Target       string
+	Capability   string
+	WorkerRole   string
 	PayloadKind  string
 	AllowedTools []string
 	SelectedTool string
@@ -45,7 +46,7 @@ type WorkflowStep struct {
 	StepID            string
 	SpanKind          string
 	ParentStepID      string
-	Target            string
+	Capability        string
 	ToolName          string
 	Outcome           string
 	ResultStatus      string
@@ -55,12 +56,13 @@ type WorkflowStep struct {
 	FailCloseReason   string
 }
 
-type AgentInvocation struct {
+type CapabilityInvocation struct {
 	InvocationID       string
 	ParentInvocationID string
 	WorkflowRunRef     string
 	StepID             string
-	AgentID            string
+	CapabilityID       string
+	WorkerRole         string
 	Status             string
 	AllowedTools       []string
 	UsedTools          []string
@@ -76,7 +78,7 @@ type ToolCallSummary struct {
 	ResultProjection           string
 	RawResultIncluded          bool
 	ToolName                   string
-	Target                     string
+	Capability                 string
 	ResultStatus               string
 	BusinessOutcome            string
 	FailCloseReason            string
@@ -100,7 +102,8 @@ func (run WorkflowRun) HandoffChainMaps() []map[string]any {
 
 func (handoff HandoffStep) Map() map[string]any {
 	item := map[string]any{
-		"target":        handoff.Target,
+		"capability":    handoff.Capability,
+		"worker_role":   handoff.WorkerRole,
 		"payload_kind":  handoff.PayloadKind,
 		"allowed_tools": append([]string{}, handoff.AllowedTools...),
 	}
@@ -122,9 +125,9 @@ func (run WorkflowRun) ContextProjectionMaps() []map[string]any {
 	return WorkflowContextProjectionMaps(run.ContextProjections)
 }
 
-func (run WorkflowRun) AgentInvocationMaps() []map[string]any {
-	items := make([]map[string]any, 0, len(run.AgentInvocations))
-	for _, invocation := range run.AgentInvocations {
+func (run WorkflowRun) CapabilityInvocationMaps() []map[string]any {
+	items := make([]map[string]any, 0, len(run.CapabilityInvocations))
+	for _, invocation := range run.CapabilityInvocations {
 		items = append(items, invocation.Map())
 	}
 	return items
@@ -145,8 +148,8 @@ func (step WorkflowStep) Map() map[string]any {
 		"parent_step_id": step.ParentStepID,
 		"outcome":        step.Outcome,
 	}
-	if step.Target != "" {
-		item["target"] = step.Target
+	if step.Capability != "" {
+		item["capability"] = step.Capability
 	}
 	if step.ToolName != "" {
 		item["tool_name"] = step.ToolName
@@ -169,12 +172,13 @@ func (step WorkflowStep) Map() map[string]any {
 	return item
 }
 
-func (invocation AgentInvocation) Map() map[string]any {
+func (invocation CapabilityInvocation) Map() map[string]any {
 	item := map[string]any{
 		"invocation_id":    invocation.InvocationID,
 		"workflow_run_ref": invocation.WorkflowRunRef,
 		"step_id":          invocation.StepID,
-		"agent_id":         invocation.AgentID,
+		"capability_id":    invocation.CapabilityID,
+		"worker_role":      invocation.WorkerRole,
 		"status":           invocation.Status,
 		"allowed_tools":    append([]string{}, invocation.AllowedTools...),
 		"used_tools":       append([]string{}, invocation.UsedTools...),
@@ -199,7 +203,7 @@ func (summary ToolCallSummary) Map() map[string]any {
 		"result_projection":   summary.ResultProjection,
 		"raw_result_included": summary.RawResultIncluded,
 		"tool_name":           summary.ToolName,
-		"target":              summary.Target,
+		"capability":          summary.Capability,
 		"result_status":       summary.ResultStatus,
 		"argument_summary":    cloneAnyMap(summary.ArgumentSummary),
 		"source_ids":          append([]string{}, summary.SourceIDs...),

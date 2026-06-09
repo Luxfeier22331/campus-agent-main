@@ -7,12 +7,12 @@ import (
 )
 
 type plannerGoldenCase struct {
-	name        string
-	request     Request
-	wantTarget  string
-	wantKind    string
-	wantTool    string
-	wantPayload map[string]any
+	name           string
+	request        Request
+	wantCapability string
+	wantKind       string
+	wantTool       string
+	wantPayload    map[string]any
 }
 
 func TestPlanGoldenCases(t *testing.T) {
@@ -38,7 +38,7 @@ func TestPlanGoldenCases(t *testing.T) {
 			if handoff == nil {
 				t.Fatal("expected preplanned handoff")
 			}
-			if handoff.Target != tt.wantTarget || handoff.PayloadKind != tt.wantKind {
+			if handoff.Capability != tt.wantCapability || handoff.PayloadKind != tt.wantKind {
 				t.Fatalf("handoff = %#v", handoff)
 			}
 			if tt.wantTool == "" {

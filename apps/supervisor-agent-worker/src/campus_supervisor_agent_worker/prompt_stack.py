@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from campus_knowledge_capability.prompt_packets import RagPromptPacket
+from campus_knowledge_capability.prompts.registry import get_rag_prompt_spec
 from campus_prompt_runtime import (
     REPO_GLOBAL_DEVELOPER_INVARIANTS_ID,
     REPO_GLOBAL_DEVELOPER_INVARIANTS_VERSION,
     get_repo_global_developer_invariants_text,
     serialize_prompt_payload,
 )
-from campus_rag_agent.prompt_packets import RagPromptPacket
-from campus_rag_agent.prompts.registry import get_rag_prompt_spec
 
 PromptMessageRole = Literal["developer", "user"]
 PromptMessageZone = Literal[

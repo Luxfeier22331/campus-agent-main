@@ -23,7 +23,7 @@ class SupervisorApiBridgeGoFixtureTest(unittest.TestCase):
         self.assertEqual(envelope.request.request_id, "req-go-fixture-001")
         self.assertIsNotNone(envelope.agent_request)
         assert envelope.agent_request is not None
-        self.assertEqual(envelope.agent_request.target, "rag-agent")
+        self.assertEqual(envelope.agent_request.target, "knowledge")
         self.assertIsNotNone(envelope.routing_frame)
         assert envelope.routing_frame is not None
         self.assertEqual(envelope.routing_frame["classifier_version"], "go-runtime-policy-v2")

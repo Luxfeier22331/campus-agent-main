@@ -69,7 +69,7 @@ function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 			links: badcase.links,
 			requestId: badcase.requestId,
 			runId: badcase.runId,
-			selectedTarget: badcase.selectedTarget,
+			selectedCapability: badcase.selectedCapability,
 			summary: badcase.summary,
 			surface: badcase.surface,
 			traceId: badcase.traceId,

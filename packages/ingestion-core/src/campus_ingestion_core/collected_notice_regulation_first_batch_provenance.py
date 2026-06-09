@@ -64,7 +64,7 @@ def harden_first_batch_regulation_registry_provenance(
 
     if missing_target_document_ids:
         raise ValueError(
-            "selected target registry records are missing: "
+            "selected source registry records are missing: "
             + ", ".join(sorted(missing_target_document_ids))
         )
     if execute and updated_records:

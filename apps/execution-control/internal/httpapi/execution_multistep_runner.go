@@ -176,12 +176,12 @@ func (s *Server) runMultiStepBridgeExecution(
 	totalRunState := bridgeExecutionRunState{}
 	var finalBridgeResponse bridge.ExecuteResponse
 	workflowContextProjections := []execution.StepOutputProjection{}
-	lastAgentInvocationID := ""
+	lastCapabilityInvocationID := ""
 	for index, handoff := range executionRequest.PlannedHandoffs {
 		selectedTool := runtimeSelectedTool(handoff)
 		var appendErr error
 		workflowRun, appendErr = s.workflowRuns.AppendHandoff(requestCtx, runID, execution.HandoffStep{
-			Target:       handoff.Target,
+			Capability:   handoff.Capability,
 			PayloadKind:  handoff.PayloadKind,
 			AllowedTools: append([]string{}, handoff.AllowedTools...),
 			SelectedTool: selectedTool,
@@ -277,8 +277,8 @@ func (s *Server) runMultiStepBridgeExecution(
 		resultStatus := workflowStepStatus(bridgeResponse)
 		bridgeBody, _ := decodeJSONObject(bridgeResponse.Body)
 		bridgeResult, _ := bridgeBody["result"].(map[string]any)
-		bridgeAgentObservability, _ := bridgeBody["agent_observability"].(map[string]any)
-		stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
+		bridgeCapabilityObservability, _ := bridgeBody["capability_observability"].(map[string]any)
+		stepID := "capability:" + handoff.Capability + ":" + handoff.PayloadKind
 		stepProjections := workflowProjectionsFromBridgeResponse(
 			handoff,
 			stepID,
@@ -289,12 +289,12 @@ func (s *Server) runMultiStepBridgeExecution(
 				StepID:          stepID,
 				SpanKind:        "handoff",
 				ParentStepID:    workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
-				Target:          handoff.Target,
+				Capability:      handoff.Capability,
 				ToolName:        selectedTool,
 				Outcome:         resultStatus,
 				ResultStatus:    resultStatus,
 				RetryCount:      bridgeRunState.RetryCount,
-				FailCloseReason: workflowFailCloseReason(bridgeResult, bridgeAgentObservability),
+				FailCloseReason: workflowFailCloseReason(bridgeResult, bridgeCapabilityObservability),
 			})
 			workflowRun, _ = s.workflowRuns.Complete(
 				requestCtx,
@@ -317,7 +317,7 @@ func (s *Server) runMultiStepBridgeExecution(
 				StepID:          stepID,
 				SpanKind:        "handoff",
 				ParentStepID:    workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
-				Target:          handoff.Target,
+				Capability:      handoff.Capability,
 				ToolName:        selectedTool,
 				Outcome:         "failed",
 				ResultStatus:    resultStatus,
@@ -357,23 +357,23 @@ func (s *Server) runMultiStepBridgeExecution(
 			StepID:       stepID,
 			SpanKind:     "handoff",
 			ParentStepID: workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
-			Target:       handoff.Target,
+			Capability:   handoff.Capability,
 			ToolName:     selectedTool,
 			Outcome:      resultStatus,
 			ResultStatus: resultStatus,
 			RetryCount:   bridgeRunState.RetryCount,
 		})
-		invocationID := "agent-invocation:" + handoff.Target + ":" + handoff.PayloadKind
+		invocationID := "capability-invocation:" + handoff.Capability + ":" + handoff.PayloadKind
 		parentInvocationID := ""
 		if index > 0 {
-			parentInvocationID = lastAgentInvocationID
+			parentInvocationID = lastCapabilityInvocationID
 		}
-		workflowRun, _ = s.workflowRuns.AppendAgentInvocation(requestCtx, runID, execution.AgentInvocation{
+		workflowRun, _ = s.workflowRuns.AppendCapabilityInvocation(requestCtx, runID, execution.CapabilityInvocation{
 			InvocationID:       invocationID,
 			ParentInvocationID: parentInvocationID,
 			WorkflowRunRef:     runID,
 			StepID:             stepID,
-			AgentID:            handoff.Target,
+			CapabilityID:       handoff.Capability,
 			Status:             resultStatus,
 			AllowedTools:       append([]string{}, handoff.AllowedTools...),
 			UsedTools:          workflowSelectedTools(nil, selectedTool),
@@ -391,28 +391,28 @@ func (s *Server) runMultiStepBridgeExecution(
 				ResultProjection:  "bounded_summary",
 				RawResultIncluded: false,
 				ToolName:          selectedTool,
-				Target:            handoff.Target,
+				Capability:        handoff.Capability,
 				ResultStatus:      resultStatus,
 				ArgumentSummary:   safeWorkflowMap(toolArgumentSummary),
 				SourceIDs: workflowSummarySourceIDs(
 					bridgeResult,
-					bridgeAgentObservability,
+					bridgeCapabilityObservability,
 				),
-				SafeDetails:                workflowSafeDetails(bridgeAgentObservability),
-				ProviderToolCallProjection: workflowProviderToolCallProjection(bridgeAgentObservability),
+				SafeDetails:                workflowSafeDetails(bridgeCapabilityObservability),
+				ProviderToolCallProjection: workflowProviderToolCallProjection(bridgeCapabilityObservability),
 			}
-			if businessOutcome := workflowBusinessOutcome(bridgeResult, bridgeAgentObservability); businessOutcome != "" {
+			if businessOutcome := workflowBusinessOutcome(bridgeResult, bridgeCapabilityObservability); businessOutcome != "" {
 				toolSummary.BusinessOutcome = businessOutcome
 			}
-			if failCloseReason := workflowFailCloseReason(bridgeResult, bridgeAgentObservability); failCloseReason != "" {
+			if failCloseReason := workflowFailCloseReason(bridgeResult, bridgeCapabilityObservability); failCloseReason != "" {
 				toolSummary.FailCloseReason = failCloseReason
 			}
-			if accessDecision := stringValue(bridgeAgentObservability["access_decision"]); accessDecision != "" {
+			if accessDecision := stringValue(bridgeCapabilityObservability["access_decision"]); accessDecision != "" {
 				toolSummary.AccessDecision = accessDecision
 			}
 			workflowRun, _ = s.workflowRuns.AppendToolCallSummary(requestCtx, runID, toolSummary)
 		}
-		lastAgentInvocationID = invocationID
+		lastCapabilityInvocationID = invocationID
 		finalBridgeResponse = bridgeResponse
 		if resultStatus != "completed" {
 			workflowRun, _ = s.workflowRuns.Complete(

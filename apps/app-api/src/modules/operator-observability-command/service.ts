@@ -142,7 +142,7 @@ export interface OperatorObservabilityCommandServiceDependencies {
 			requestedScopeSummary: string | null;
 			sampledAt: string;
 			scoreMilli: number | null;
-			selectedTarget: string | null;
+			selectedCapability: string | null;
 			surface: string;
 			traceId: string;
 			verdict: "pass" | "fail" | "needs_review";
@@ -596,7 +596,7 @@ export function buildOperatorObservabilityCommandService(
 					requestedScopeSummary: seed.requestedScopeSummary,
 					sampledAt,
 					scoreMilli: score.scoreMilli,
-					selectedTarget: seed.selectedTarget,
+					selectedCapability: seed.selectedCapability,
 					surface: seed.surface,
 					traceId,
 					verdict,
@@ -620,7 +620,7 @@ export function buildOperatorObservabilityCommandService(
 					requestedScopeSummary: grade.requestedScopeSummary,
 					sampledAt: grade.sampledAt,
 					scoreMilli: grade.scoreMilli,
-					selectedTarget: grade.selectedTarget,
+					selectedCapability: grade.selectedCapability,
 					surface: grade.surface,
 					traceId: grade.traceId,
 					verdict: grade.verdict,

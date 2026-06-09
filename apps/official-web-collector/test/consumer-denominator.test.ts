@@ -197,7 +197,7 @@ describe("official web consumer denominator", () => {
 						{
 							consumer_family: "contact_directory_candidate",
 							owner_surface: "contact_directory_lookup",
-							owner_agent_or_runtime: "campus-services-agent",
+							owner_capability_or_runtime: "campus_services",
 							materialization_policy: "emit_directly",
 							page_families: ["directory_page"],
 							title_keywords: ["联系"],

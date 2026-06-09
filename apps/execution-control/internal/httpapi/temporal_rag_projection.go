@@ -50,7 +50,7 @@ func ragPlanProjectionForRun(
 		return ragruntime.PlanProjection{}, errors.New("run metadata.execution_payload must be an object")
 	}
 	queryText := firstNonEmptyText(
-		nestedAny(payload, "runtime_decisions", "handoff", "agent_request", "payload", "payload", "query_text"),
+		nestedAny(payload, "runtime_decisions", "handoff", "capability_request", "payload", "payload", "query_text"),
 		nestedAny(run.Metadata, "handoff", "payload", "query_text"),
 		payload["user_goal"],
 	)
@@ -63,7 +63,7 @@ func ragPlanProjectionForRun(
 	}
 	topK := positiveIntFromAny(
 		nestedAny(run.Metadata, "handoff", "payload", "top_k"),
-		nestedAny(payload, "runtime_decisions", "handoff", "agent_request", "payload", "payload", "top_k"),
+		nestedAny(payload, "runtime_decisions", "handoff", "capability_request", "payload", "payload", "top_k"),
 	)
 	if topK <= 0 {
 		topK = 8

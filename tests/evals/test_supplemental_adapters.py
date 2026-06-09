@@ -7,7 +7,7 @@ from threading import Lock
 
 from campus_contracts import (
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
@@ -59,9 +59,9 @@ def _response(
     corpus: str = "regulations",
     collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
-) -> AgentResponse:
-    return AgentResponse(
-        target="rag-agent",
+) -> CapabilityResponse:
+    return CapabilityResponse(
+        capability="knowledge",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -277,7 +277,7 @@ class RagasProjectionTest(unittest.TestCase):
         )
         execution = ExecutionResult(
             response=SupervisorResponse(
-                selected_target="rag-agent",
+                selected_capability="knowledge",
                 status="completed",
                 answer_text="Library hours are 08:00 to 22:00.",
                 confidence="high",

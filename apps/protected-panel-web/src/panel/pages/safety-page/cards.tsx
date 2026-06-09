@@ -25,7 +25,7 @@ import { normalizeSafeExternalHref } from "../../panel-safe-links";
 import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
 import {
 	formatPrincipalTypeLabel,
-	formatSelectedTargetLabel,
+	formatSelectedCapabilityLabel,
 	formatSurfaceLabel,
 } from "../../requests/request-formatters";
 import { buildRequestShowPath } from "../../requests/request-routes";
@@ -124,7 +124,7 @@ export function SafetyHeaderSection(props: {
 	filterSummaryItems: string[];
 	filters: SafetyFilterState;
 	isRefreshing: boolean;
-	onSelectedTargetChange(value: string): void;
+	onSelectedCapabilityChange(value: string): void;
 	onSurfaceChange(value: string): void;
 	onWindowChange(value: OperatorOverviewWindow): void;
 }) {
@@ -187,13 +187,13 @@ export function SafetyHeaderSection(props: {
 							))}
 						</TextField>
 						<TextField
-							label={PANEL_COPY.safetyPage.filters.selectedTarget}
-							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
+							label={PANEL_COPY.safetyPage.filters.selectedCapability}
+							onChange={(event) => props.onSelectedCapabilityChange(event.target.value)}
 							select
 							size="small"
 							slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
-							value={props.filters.selectedTarget ?? ""}
+							value={props.filters.selectedCapability ?? ""}
 						>
 							{SAFETY_TARGET_OPTIONS.map((option) => (
 								<MenuItem key={option.value ?? "all"} value={option.value ?? ""}>
@@ -440,7 +440,7 @@ export function SafetyQueueSection(props: {
 								<TableCell>{PANEL_COPY.safetyPage.queueColumns.status}</TableCell>
 								<TableCell>{PANEL_COPY.safetyPage.queueColumns.principalType}</TableCell>
 								<TableCell>{PANEL_COPY.safetyPage.queueColumns.surface}</TableCell>
-								<TableCell>{PANEL_COPY.safetyPage.queueColumns.selectedTarget}</TableCell>
+								<TableCell>{PANEL_COPY.safetyPage.queueColumns.selectedCapability}</TableCell>
 								<TableCell>{PANEL_COPY.safetyPage.queueColumns.requestId}</TableCell>
 								<TableCell>{PANEL_COPY.safetyPage.queueColumns.actions}</TableCell>
 							</TableRow>
@@ -466,7 +466,7 @@ export function SafetyQueueSection(props: {
 									<TableCell>{formatSafetyAnomalyStatus(anomaly.status)}</TableCell>
 									<TableCell>{formatPrincipalTypeLabel(anomaly.principalType)}</TableCell>
 									<TableCell>{formatSurfaceLabel(anomaly.surface)}</TableCell>
-									<TableCell>{formatSelectedTargetLabel(anomaly.selectedTarget)}</TableCell>
+									<TableCell>{formatSelectedCapabilityLabel(anomaly.selectedCapability)}</TableCell>
 									<TableCell>{anomaly.requestId}</TableCell>
 									<TableCell>
 										<Button
@@ -576,8 +576,8 @@ export function SafetyDetailDrawer(props: {
 										{formatSurfaceLabel(props.selectedAnomaly.surface)}
 									</Typography>
 									<Typography variant="body2">
-										<strong>{PANEL_COPY.safetyPage.queueColumns.selectedTarget}</strong>:{" "}
-										{formatSelectedTargetLabel(props.selectedAnomaly.selectedTarget)}
+										<strong>{PANEL_COPY.safetyPage.queueColumns.selectedCapability}</strong>:{" "}
+										{formatSelectedCapabilityLabel(props.selectedAnomaly.selectedCapability)}
 									</Typography>
 									<Typography variant="body2">
 										<strong>{PANEL_COPY.safetyPage.queueColumns.detectedAt}</strong>:{" "}
@@ -628,9 +628,9 @@ export function buildSafetyFilterSummaryItems(filters: SafetyFilterState): strin
 				? formatSurfaceLabel(filters.surface)
 				: PANEL_COPY.overviewPage.filters.allSurfaces
 		}`,
-		`${PANEL_COPY.safetyPage.filterSummary.selectedTarget}: ${
-			filters.selectedTarget
-				? formatSelectedTargetLabel(filters.selectedTarget)
+		`${PANEL_COPY.safetyPage.filterSummary.selectedCapability}: ${
+			filters.selectedCapability
+				? formatSelectedCapabilityLabel(filters.selectedCapability)
 				: PANEL_COPY.overviewPage.filters.allTargets
 		}`,
 	];

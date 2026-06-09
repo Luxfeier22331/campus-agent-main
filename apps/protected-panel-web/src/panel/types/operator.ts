@@ -7,7 +7,7 @@ export interface OperatorAggregateFilterInput {
 	modelName?: string | null;
 	principalType?: string | null;
 	requestedCapability?: string | null;
-	selectedTarget?: string | null;
+	selectedCapability?: string | null;
 	surface?: string | null;
 	window?: OperatorOverviewWindow | null;
 }
@@ -24,7 +24,7 @@ export interface OperatorCursorPageInput {
 export interface OperatorQualityBadcaseListFilterInput extends OperatorCursorPageInput {
 	causeClass?: string | null;
 	detectedBy?: string | null;
-	selectedTarget?: string | null;
+	selectedCapability?: string | null;
 	status?: string | null;
 	surface?: string | null;
 	window?: OperatorOverviewWindow | null;
@@ -32,7 +32,7 @@ export interface OperatorQualityBadcaseListFilterInput extends OperatorCursorPag
 
 export interface OperatorSafetyAnomalyListFilterInput extends OperatorCursorPageInput {
 	anomalyCode?: string | null;
-	selectedTarget?: string | null;
+	selectedCapability?: string | null;
 	severity?: string | null;
 	status?: string | null;
 	surface?: string | null;
@@ -43,7 +43,7 @@ export interface OperatorAuditListFilterInput extends OperatorCursorPageInput {
 	eventType?: string | null;
 	principalType?: string | null;
 	requestId?: string | null;
-	selectedTarget?: string | null;
+	selectedCapability?: string | null;
 	status?: string | null;
 	surface?: string | null;
 	traceId?: string | null;
@@ -261,7 +261,7 @@ export interface RawOperatorQualityBadcaseRecord {
 	openedAt: string;
 	requestId: string;
 	runId: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: string;
 	summary: string;
 	surface: string;
@@ -351,7 +351,7 @@ export interface RawOperatorQualityEvalCandidateRecord {
 	};
 	requestId: string | null;
 	runId: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	summary: string;
 	surface: string;
 	traceId: string | null;
@@ -393,7 +393,7 @@ export interface RawOperatorSafetyAnomalyRecord {
 	links: RawOperatorTraceLinks;
 	principalType: string;
 	requestId: string;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	severity: "high" | "medium";
 	status: "open";
 	summary: string;
@@ -463,7 +463,7 @@ export interface RawOperatorAuditEventRecord {
 	occurredAt: string;
 	principalType: string;
 	requestId: string;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: string;
 	summary: string;
 	surface: string;
@@ -503,7 +503,7 @@ export interface RawOperatorAuditEventDetailRecord {
 	principalType: string;
 	requestId: string;
 	requestedCapability: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: string;
 	summary: string;
 	surface: string;

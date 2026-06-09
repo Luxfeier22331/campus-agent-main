@@ -399,8 +399,8 @@ class RunCasesHandbookInventoryTest(unittest.TestCase):
                 retrieval_called=True,
                 clarification_expected=False,
                 error_expected=False,
-                expected_runtime_target="rag-agent",
-                expected_capability_family="rag-agent",
+                expected_capability="knowledge",
+                expected_capability_family="knowledge",
             ),
         )
         self.assertEqual(
@@ -425,8 +425,8 @@ class RunCasesHandbookInventoryTest(unittest.TestCase):
                 clarification_expected=False,
                 error_expected=False,
                 fail_closed_expected=True,
-                expected_runtime_target="rag-agent",
-                expected_capability_family="rag-agent",
+                expected_capability="knowledge",
+                expected_capability_family="knowledge",
             ),
         )
         self.assertIn(

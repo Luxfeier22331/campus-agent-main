@@ -11,26 +11,26 @@ import (
 
 const (
 	BridgeVersion                       = "supervisor_bridge_v6"
-	ResponseContract                    = "agent_response"
+	ResponseContract                    = "capability_response"
 	RuntimeDecisionsSchemaVersion       = "supervisor-runtime-decisions-v1"
 	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
 	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v4"
 )
 
-type AgentTarget string
+type CapabilityID string
 
 const (
-	AgentTargetRagAgent            AgentTarget = "rag-agent"
-	AgentTargetNavigationAgent     AgentTarget = "navigation-agent"
-	AgentTargetCampusServicesAgent AgentTarget = "campus-services-agent"
-	AgentTargetNoticeAgent         AgentTarget = "notice-agent"
+	CapabilityIDKnowledge      CapabilityID = "knowledge"
+	CapabilityIDNavigation     CapabilityID = "navigation"
+	CapabilityIDCampusServices CapabilityID = "campus_services"
+	CapabilityIDNotice         CapabilityID = "notice"
 )
 
 type RequestedCapability string
 
 const (
 	RequestedCapabilityKnowledge      RequestedCapability = "knowledge"
-	RequestedCapabilityPlaceLookup    RequestedCapability = "place_lookup"
+	RequestedCapabilityNavigation     RequestedCapability = "navigation"
 	RequestedCapabilityCampusServices RequestedCapability = "campus_services"
 	RequestedCapabilityNotice         RequestedCapability = "notice"
 )
@@ -91,8 +91,9 @@ type RuntimeDecisionSummaryWire struct {
 	ContextPreflightState  string         `json:"context_preflight_state,omitempty"`
 	RoutingNextAction      string         `json:"routing_next_action,omitempty"`
 	PlanningOutcome        string         `json:"planning_outcome"`
-	SelectedTarget         string         `json:"selected_target,omitempty"`
+	SelectedCapability     string         `json:"selected_capability,omitempty"`
 	SelectedTool           string         `json:"selected_tool,omitempty"`
+	WorkerRole             string         `json:"worker_role,omitempty"`
 	TerminalOutcome        string         `json:"terminal_outcome,omitempty"`
 	FailCloseReason        string         `json:"fail_close_reason,omitempty"`
 	RuntimeVersions        map[string]any `json:"runtime_versions,omitempty"`
@@ -102,7 +103,8 @@ type RuntimeDecisionSummaryWire struct {
 type WorkflowPlanStepWire struct {
 	StepID       string   `json:"step_id"`
 	StepKind     string   `json:"step_kind"`
-	Target       string   `json:"target,omitempty"`
+	Capability   string   `json:"capability,omitempty"`
+	WorkerRole   string   `json:"worker_role,omitempty"`
 	PayloadKind  string   `json:"payload_kind,omitempty"`
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 	SelectedTool string   `json:"selected_tool,omitempty"`
@@ -139,13 +141,13 @@ type WorkflowContextProjectionWire struct {
 	Safety         ProjectionSafetySummaryWire `json:"safety"`
 }
 
-type WorkflowAgentContextWire struct {
+type WorkflowCapabilityContextWire struct {
 	SchemaVersion           string                          `json:"schema_version"`
 	Visibility              string                          `json:"visibility"`
 	WorkflowRunRef          string                          `json:"workflow_run_ref"`
 	StepID                  string                          `json:"step_id"`
-	AgentID                 AgentTarget                     `json:"agent_id"`
-	Target                  AgentTarget                     `json:"target,omitempty"`
+	CapabilityID            CapabilityID                    `json:"capability_id"`
+	WorkerRole              string                          `json:"worker_role,omitempty"`
 	RequiredProjectionKind  StepOutputProjectionKind        `json:"required_projection_kind,omitempty"`
 	ExpectedOutputArtifacts []StepOutputProjectionKind      `json:"expected_output_artifacts"`
 	ProjectionRefs          []WorkflowContextProjectionWire `json:"projection_refs"`
@@ -155,7 +157,7 @@ type WorkflowPlanWire struct {
 	SchemaVersion       string                 `json:"schema_version"`
 	PlanID              string                 `json:"plan_id"`
 	WorkflowMode        WorkflowMode           `json:"workflow_mode"`
-	AllowedAgents       []AgentTarget          `json:"allowed_agents"`
+	AllowedCapabilities []CapabilityID         `json:"allowed_capabilities"`
 	Steps               []WorkflowPlanStepWire `json:"steps"`
 	Edges               []WorkflowPlanEdgeWire `json:"edges"`
 	TerminalPolicy      map[string]any         `json:"terminal_policy"`
@@ -163,17 +165,17 @@ type WorkflowPlanWire struct {
 	SemanticRetryPolicy map[string]any         `json:"semantic_retry_policy"`
 }
 
-type AgentInvocationWire struct {
-	InvocationID       string      `json:"invocation_id"`
-	ParentInvocationID string      `json:"parent_invocation_id,omitempty"`
-	WorkflowRunRef     string      `json:"workflow_run_ref"`
-	StepID             string      `json:"step_id"`
-	AgentID            AgentTarget `json:"agent_id"`
-	Status             string      `json:"status"`
-	AllowedTools       []string    `json:"allowed_tools"`
-	UsedTools          []string    `json:"used_tools"`
-	ProjectionIDs      []string    `json:"projection_ids"`
-	FailCloseReason    string      `json:"fail_close_reason,omitempty"`
+type CapabilityInvocationWire struct {
+	InvocationID       string       `json:"invocation_id"`
+	ParentInvocationID string       `json:"parent_invocation_id,omitempty"`
+	WorkflowRunRef     string       `json:"workflow_run_ref"`
+	StepID             string       `json:"step_id"`
+	CapabilityID       CapabilityID `json:"capability_id"`
+	Status             string       `json:"status"`
+	AllowedTools       []string     `json:"allowed_tools"`
+	UsedTools          []string     `json:"used_tools"`
+	ProjectionIDs      []string     `json:"projection_ids"`
+	FailCloseReason    string       `json:"fail_close_reason,omitempty"`
 }
 
 type RuntimeDecisionsWire struct {
@@ -209,18 +211,19 @@ type BridgeV6RequestWire struct {
 	RuntimeDecisions    RuntimeDecisionsWire `json:"runtime_decisions"`
 }
 
-type AgentRequestWire struct {
-	Target           AgentTarget               `json:"target"`
-	UserGoal         string                    `json:"user_goal"`
-	ConversationID   string                    `json:"conversation_id,omitempty"`
-	RequestID        string                    `json:"request_id,omitempty"`
-	SafetyIdentifier *string                   `json:"safety_identifier,omitempty"`
-	Trace            map[string]any            `json:"trace,omitempty"`
-	Actor            map[string]any            `json:"actor,omitempty"`
-	Context          map[string]any            `json:"context,omitempty"`
-	WorkflowContext  *WorkflowAgentContextWire `json:"workflow_context,omitempty"`
-	Payload          map[string]any            `json:"payload"`
-	AllowedTools     []string                  `json:"allowed_tools"`
+type CapabilityRequestWire struct {
+	Capability       CapabilityID                   `json:"capability"`
+	WorkerRole       string                         `json:"worker_role,omitempty"`
+	UserGoal         string                         `json:"user_goal"`
+	ConversationID   string                         `json:"conversation_id,omitempty"`
+	RequestID        string                         `json:"request_id,omitempty"`
+	SafetyIdentifier *string                        `json:"safety_identifier,omitempty"`
+	Trace            map[string]any                 `json:"trace,omitempty"`
+	Actor            map[string]any                 `json:"actor,omitempty"`
+	Context          map[string]any                 `json:"context,omitempty"`
+	WorkflowContext  *WorkflowCapabilityContextWire `json:"workflow_context,omitempty"`
+	Payload          map[string]any                 `json:"payload"`
+	AllowedTools     []string                       `json:"allowed_tools"`
 }
 
 type WorkflowTraceSummaryWire struct {
@@ -231,8 +234,8 @@ type WorkflowTraceSummaryWire struct {
 	WorkflowMode                WorkflowMode                    `json:"workflow_mode"`
 	Handoff                     map[string]any                  `json:"handoff"`
 	HandoffChain                []map[string]any                `json:"handoff_chain"`
-	AgentInvocations            []AgentInvocationWire           `json:"agent_invocations"`
-	SelectedTarget              *string                         `json:"selected_target"`
+	CapabilityInvocations       []CapabilityInvocationWire      `json:"capability_invocations"`
+	SelectedCapability          *string                         `json:"selected_capability"`
 	SelectedTools               []string                        `json:"selected_tools"`
 	ContextProjections          []WorkflowContextProjectionWire `json:"context_projections"`
 	AnswerArtifactProjectionIDs []string                        `json:"answer_artifact_projection_ids"`
@@ -247,7 +250,7 @@ type WorkflowTraceSummaryWire struct {
 }
 
 type SupervisorResponseWire struct {
-	SelectedTarget       *AgentTarget              `json:"selected_target"`
+	SelectedCapability   *CapabilityID             `json:"selected_capability"`
 	Status               SupervisorStatus          `json:"status"`
 	AnswerText           string                    `json:"answer_text"`
 	FollowUpQuestion     string                    `json:"follow_up_question"`
@@ -378,8 +381,8 @@ func (wire WorkflowPlanWire) Validate() error {
 	if !wire.WorkflowMode.Valid() {
 		return fmt.Errorf("workflow_mode is invalid")
 	}
-	if wire.AllowedAgents == nil {
-		return fmt.Errorf("allowed_agents is required")
+	if wire.AllowedCapabilities == nil {
+		return fmt.Errorf("allowed_capabilities is required")
 	}
 	if wire.Steps == nil {
 		return fmt.Errorf("steps is required")
@@ -443,8 +446,8 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 	if wire.HandoffChain == nil {
 		return fmt.Errorf("handoff_chain is required")
 	}
-	if wire.SelectedTarget == nil || *wire.SelectedTarget == "" {
-		return fmt.Errorf("selected_target is required")
+	if wire.SelectedCapability == nil || *wire.SelectedCapability == "" {
+		return fmt.Errorf("selected_capability is required")
 	}
 	if wire.SelectedTools == nil {
 		return fmt.Errorf("selected_tools is required")
@@ -482,8 +485,8 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 }
 
 func (wire SupervisorResponseWire) Validate() error {
-	if wire.SelectedTarget != nil && !wire.SelectedTarget.Valid() {
-		return fmt.Errorf("selected_target is invalid")
+	if wire.SelectedCapability != nil && !wire.SelectedCapability.Valid() {
+		return fmt.Errorf("selected_capability is invalid")
 	}
 	if !wire.Status.Valid() {
 		return fmt.Errorf("status is invalid")
@@ -513,9 +516,9 @@ func (wire SupervisorResponseWire) Validate() error {
 	return nil
 }
 
-func (value AgentTarget) Valid() bool {
+func (value CapabilityID) Valid() bool {
 	switch value {
-	case AgentTargetRagAgent, AgentTargetNavigationAgent, AgentTargetCampusServicesAgent, AgentTargetNoticeAgent:
+	case CapabilityIDKnowledge, CapabilityIDNavigation, CapabilityIDCampusServices, CapabilityIDNotice:
 		return true
 	default:
 		return false
@@ -524,7 +527,7 @@ func (value AgentTarget) Valid() bool {
 
 func (value RequestedCapability) Valid() bool {
 	switch value {
-	case RequestedCapabilityKnowledge, RequestedCapabilityPlaceLookup, RequestedCapabilityCampusServices, RequestedCapabilityNotice:
+	case RequestedCapabilityKnowledge, RequestedCapabilityNavigation, RequestedCapabilityCampusServices, RequestedCapabilityNotice:
 		return true
 	default:
 		return false

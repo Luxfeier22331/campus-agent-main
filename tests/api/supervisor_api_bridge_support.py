@@ -6,12 +6,12 @@ import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from campus_contracts import (
-    AgentResponse,
+    CapabilityResponse,
     KnowledgeScope,
     RagRequestPayload,
     VersionQuery,
 )
-from campus_supervisor_agent_worker.agent_dispatch import MissingAgentDelegateError
+from campus_supervisor_agent_worker.capability_dispatch import MissingCapabilityDelegateError
 from campus_supervisor_agent_worker.app import create_bridge_app
 from campus_supervisor_agent_worker.bridge_v6_parser import parse_bridge_supervisor_envelope
 from campus_supervisor_agent_worker.settings import ApiSettings
@@ -49,7 +49,7 @@ def _bridge_v6_payload(
         version_query = {"mode": "current"}
     body: dict[str, object] = {
         "bridge_version": "supervisor_bridge_v6",
-        "response_contract": "agent_response",
+        "response_contract": "capability_response",
         "user_goal": user_goal,
         "conversation_id": conversation_id,
         "request_id": request_id,
@@ -148,7 +148,7 @@ def _handoff_fields_for_capability(
     version_query: dict[str, object],
 ) -> dict[str, object]:
     if effective_capability == "campus_services":
-        target = "campus-services-agent"
+        target = "campus_services"
         payload_kind = "transport_schedule_lookup"
         allowed_tools = ["transport_schedule_lookup"]
         return {
@@ -187,7 +187,7 @@ def _handoff_fields_for_capability(
             ),
         }
     if effective_capability == "notice":
-        target = "notice-agent"
+        target = "notice"
         payload_kind = "campus_notice_discover"
         allowed_tools = ["campus_notice_discover"]
         return {
@@ -224,7 +224,7 @@ def _handoff_fields_for_capability(
                 allowed_tools=allowed_tools,
             ),
         }
-    target = "rag-agent"
+    target = "knowledge"
     payload_kind = "rag_request"
     allowed_tools: list[str] = []
     return {
@@ -424,11 +424,11 @@ def _workflow_context_payload(
     request_id: str,
 ) -> dict[str, object]:
     return {
-        "schema_version": "workflow-agent-context-v1",
-        "visibility": "agent_private",
+        "schema_version": "workflow-capability-context-v1",
+        "visibility": "capability_private",
         "workflow_run_ref": f"workflow:{request_id}",
         "step_id": f"handoff:{target}:{payload_kind}",
-        "agent_id": target,
+        "capability_id": target,
         "target": target,
         "required_projection_kind": "",
         "expected_output_artifacts": _expected_artifacts_for_handoff(
@@ -449,7 +449,7 @@ def _workflow_plan_payload(
         "schema_version": "workflow-plan-v1",
         "plan_id": f"plan:single_step:{target}:{payload_kind}",
         "workflow_mode": "single_step",
-        "allowed_agents": [target],
+        "allowed_capabilities": [target],
         "steps": [
             {
                 "step_id": f"handoff:{target}:{payload_kind}",
@@ -468,13 +468,13 @@ def _workflow_plan_payload(
 
 
 def _expected_artifacts_for_handoff(*, target: str, payload_kind: str) -> list[str]:
-    if target == "notice-agent" and payload_kind == "campus_notice_get":
+    if target == "notice" and payload_kind == "campus_notice_get":
         return ["notice_context"]
-    if target == "notice-agent" and payload_kind == "campus_notice_change_set_lookup":
+    if target == "notice" and payload_kind == "campus_notice_change_set_lookup":
         return ["notice_change_set"]
-    if target == "campus-services-agent" and payload_kind == "transport_schedule_lookup":
+    if target == "campus_services" and payload_kind == "transport_schedule_lookup":
         return ["schedule_baseline"]
-    if target == "rag-agent" and payload_kind == "rag_request":
+    if target == "knowledge" and payload_kind == "rag_request":
         return ["evidence_bundle", "grounding_verdict"]
     return []
 
