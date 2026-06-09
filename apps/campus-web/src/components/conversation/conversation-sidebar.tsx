@@ -1,53 +1,97 @@
 import { Link } from "@tanstack/react-router";
-import { MessageSquareText, Plus, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+	ChevronUp,
+	HelpCircle,
+	LogIn,
+	LogOut,
+	Plus,
+	Search,
+	Settings,
+	Sparkles,
+	UserPlus,
+	UserRound,
+} from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { AccountSettingsDialog } from "@/app/routes/account-page";
+import type { AccountSettingsSectionId } from "@/app/routes/account-settings-content";
+import { getSessionPrincipal } from "@/features/conversation/api";
 import type { ConversationSummary } from "@/features/conversation/model";
 import { cn } from "@/lib/utils";
+import { UnauthorizedError } from "@/platform/api/client";
+import { signOutAccount } from "@/platform/auth/client";
+
+type AccountEntryState =
+	| {
+			status: "authenticated";
+			displayName: string;
+			email: string | null;
+	  }
+	| { status: "loading" | "unauthenticated" | "unavailable" };
 
 export function ConversationSidebar({
 	activeConversationId,
 	className,
 	conversations,
-	footerText = "历史会话只用于找回之前的问题；文档、校园地图和饭堂分布图保留在顶部导航中。",
 }: {
 	activeConversationId?: string;
 	className?: string;
 	conversations: ConversationSummary[];
-	footerText?: string;
 }) {
 	const [query, setQuery] = useState("");
+	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
 	const groupedConversations = useMemo(
 		() => groupConversations(filterConversations(conversations, query)),
 		[conversations, query],
 	);
 
+	useEffect(() => {
+		let cancelled = false;
+		getSessionPrincipal()
+			.then((session) => {
+				if (cancelled) {
+					return;
+				}
+				setAccountEntry({
+					displayName: session.principal.displayName,
+					email: session.principal.email,
+					status: "authenticated",
+				});
+			})
+			.catch((reason: unknown) => {
+				if (cancelled) {
+					return;
+				}
+				setAccountEntry({
+					status: reason instanceof UnauthorizedError ? "unauthenticated" : "unavailable",
+				});
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
 	return (
 		<aside
 			className={cn(
-				"w-[var(--layout-chat-sidebar-width)] shrink-0 flex-col border-r border-[var(--chat-sidebar-border)] bg-[var(--chat-sidebar-bg)] px-4 py-5",
+				"w-[var(--layout-chat-sidebar-width)] shrink-0 flex-col border-r border-[var(--chat-sidebar-border)] bg-[var(--chat-sidebar-bg)] px-3 py-3",
 				className,
 			)}
 		>
-			<div className="flex items-center gap-3">
-				<span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--sys-brand-identity)] text-sm font-semibold text-white">
-					民
-				</span>
-				<div className="min-w-0">
-					<p className="truncate text-base font-semibold text-[var(--sys-text-strong)]">
-						中央民族大学校园问答
-					</p>
-					<p className="text-xs text-[var(--sys-text-subtle)]">MUC Campus Q&A</p>
-				</div>
+			<div className="min-w-0 px-2 py-2">
+				<p className="truncate text-sm font-semibold text-[var(--sys-text-strong)]">
+					中央民族大学校园问答
+				</p>
+				<p className="mt-0.5 text-xs text-[var(--sys-text-subtle)]">MUC Campus Q&A</p>
 			</div>
 			<Link
-				className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[var(--sys-border-default)] bg-white px-3 text-sm font-semibold text-primary hover:bg-[var(--sys-brand-interactive-subtle)]"
+				className="mt-3 inline-flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
 				to="/"
 			>
-				<Plus aria-hidden="true" className="size-4" />
+				<Plus aria-hidden="true" className="size-4 text-[var(--sys-text-muted)]" />
 				新对话
 			</Link>
-			<label className="mt-5 flex min-h-10 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm text-[var(--sys-text-muted)]">
+			<label className="mt-1 flex min-h-10 items-center gap-2 rounded-lg px-2.5 text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)]">
 				<Search aria-hidden="true" className="size-4 shrink-0" />
 				<input
 					className="min-w-0 flex-1 border-0 bg-transparent outline-none placeholder:text-[var(--sys-text-subtle)]"
@@ -56,27 +100,26 @@ export function ConversationSidebar({
 					value={query}
 				/>
 			</label>
-			<div className="mt-5 min-h-0 flex-1 overflow-y-auto">
+			<div className="mt-4 min-h-0 flex-1 overflow-y-auto">
 				{groupedConversations.length > 0 ? (
-					<div className="space-y-5">
+					<div className="space-y-4">
 						{groupedConversations.map((group) => (
 							<section key={group.label}>
-								<p className="px-2 text-xs font-semibold text-[var(--sys-text-subtle)]">
+								<p className="px-2 text-xs font-medium text-[var(--sys-text-subtle)]">
 									{group.label}
 								</p>
 								<div className="mt-2 space-y-1">
 									{group.items.map((conversation) => (
 										<Link
 											className={cn(
-												"flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm text-[var(--sys-text-muted)] hover:bg-white hover:text-[var(--sys-text-strong)]",
+												"flex min-h-9 items-center rounded-lg px-2.5 text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]",
 												activeConversationId === conversation.id &&
-													"bg-[var(--sys-brand-interactive-subtle)] font-semibold text-primary",
+													"bg-[var(--sys-bg-muted)] font-medium text-[var(--sys-text-strong)]",
 											)}
 											key={conversation.id}
 											params={{ conversationId: conversation.id }}
 											to="/c/$conversationId"
 										>
-											<MessageSquareText aria-hidden="true" className="size-4 shrink-0" />
 											<span className="truncate">{conversation.title}</span>
 										</Link>
 									))}
@@ -84,20 +127,223 @@ export function ConversationSidebar({
 							</section>
 						))}
 					</div>
-				) : (
-					<p className="rounded-lg bg-white px-3 py-3 text-sm leading-6 text-[var(--sys-text-muted)]">
-						登录后会在这里显示历史会话。
-					</p>
-				)}
+				) : null}
 			</div>
-			<div className="mt-auto border-t border-border px-2 pt-4 text-xs leading-5 text-[var(--sys-text-subtle)]">
-				<p>{footerText}</p>
-				<a className="mt-3 inline-flex font-medium text-[var(--sys-text-muted)]" href="/account">
-					账号
-				</a>
-			</div>
+			<AccountEntry state={accountEntry} />
 		</aside>
 	);
+}
+
+function AccountEntry({ state }: { state: AccountEntryState }) {
+	const [open, setOpen] = useState(false);
+	const [settingsSection, setSettingsSection] = useState<AccountSettingsSectionId | null>(null);
+	const [signOutError, setSignOutError] = useState<string | null>(null);
+	const [signingOut, setSigningOut] = useState(false);
+	const label =
+		state.status === "authenticated" ? state.displayName.trim() || "账号" : getAccountLabel(state);
+	const detail = state.status === "authenticated" ? state.email : null;
+	const initial = state.status === "authenticated" ? label.trim().slice(0, 1).toUpperCase() : null;
+	const authenticated = state.status === "authenticated";
+
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.key === "Escape") {
+				setOpen(false);
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [open]);
+
+	async function handleSignOut() {
+		if (!authenticated || signingOut) {
+			return;
+		}
+		setSigningOut(true);
+		setSignOutError(null);
+		try {
+			await signOutAccount();
+			window.location.assign("/");
+		} catch {
+			setSignOutError("退出登录失败，请稍后再试。");
+			setSigningOut(false);
+		}
+	}
+
+	function openSettings(section: AccountSettingsSectionId) {
+		setOpen(false);
+		setSettingsSection(section);
+	}
+
+	return (
+		<div className="relative mt-auto pt-3">
+			<button
+				aria-expanded={open}
+				aria-haspopup="menu"
+				aria-label={detail ? `${label} ${detail}` : label}
+				className="group flex min-h-12 w-full items-center gap-3 rounded-xl px-2 text-left text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
+				onClick={() => setOpen(true)}
+				type="button"
+			>
+				<span
+					aria-hidden="true"
+					className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--sys-bg-muted)] text-xs font-semibold text-[var(--sys-text-muted)] group-hover:bg-white group-hover:text-[var(--sys-text-strong)]"
+				>
+					{initial ? initial : <UserRound aria-hidden="true" className="size-4" />}
+				</span>
+				<span className="min-w-0 flex-1">
+					<span className="block truncate font-medium text-[var(--sys-text-strong)]">{label}</span>
+					{detail ? (
+						<span className="block truncate text-xs text-[var(--sys-text-subtle)]">{detail}</span>
+					) : null}
+				</span>
+				<ChevronUp
+					aria-hidden="true"
+					className="size-4 shrink-0 text-[var(--sys-text-subtle)] opacity-0 transition-opacity group-hover:opacity-100"
+				/>
+			</button>
+			{open ? (
+				<AccountMenu
+					onSignOut={handleSignOut}
+					onSettingsOpen={openSettings}
+					signingOut={signingOut}
+					signOutError={signOutError}
+					state={state}
+				/>
+			) : null}
+			{settingsSection ? (
+				<AccountSettingsDialog
+					initialSection={settingsSection}
+					onClose={() => setSettingsSection(null)}
+				/>
+			) : null}
+		</div>
+	);
+}
+
+function AccountMenu({
+	onSettingsOpen,
+	onSignOut,
+	signingOut,
+	signOutError,
+	state,
+}: {
+	onSettingsOpen: (section: AccountSettingsSectionId) => void;
+	onSignOut: () => void;
+	signingOut: boolean;
+	signOutError: string | null;
+	state: AccountEntryState;
+}) {
+	const authenticated = state.status === "authenticated";
+
+	return (
+		<div className="fixed inset-0 z-50">
+			<div
+				aria-label="账号"
+				className="fixed bottom-[76px] left-3 w-[calc(var(--layout-chat-sidebar-width)-24px)] max-w-[calc(100vw-24px)] rounded-2xl border border-[var(--sys-border-subtle)] bg-white p-1.5 text-[var(--sys-text-default)] shadow-[var(--shadow-md)] lg:w-[280px]"
+				role="menu"
+			>
+				{authenticated ? (
+					<>
+						<AccountMenuButton
+							icon={<Settings aria-hidden="true" />}
+							label="账号设置"
+							onClick={() => onSettingsOpen("account")}
+						/>
+						<AccountMenuButton
+							icon={<Sparkles aria-hidden="true" />}
+							label="个性化"
+							onClick={() => onSettingsOpen("memory")}
+						/>
+						<AccountMenuLink
+							href="/feedback"
+							icon={<HelpCircle aria-hidden="true" />}
+							label="帮助与反馈"
+						/>
+						<div className="my-1 border-t border-[var(--sys-border-subtle)]" />
+						<AccountMenuButton
+							destructive
+							disabled={signingOut}
+							icon={<LogOut aria-hidden="true" />}
+							label={signingOut ? "正在退出" : "退出登录"}
+							onClick={onSignOut}
+						/>
+						{signOutError ? (
+							<p className="px-3 py-2 text-xs text-[var(--sys-status-danger)]">{signOutError}</p>
+						) : null}
+					</>
+				) : (
+					<>
+						<AccountMenuLink
+							href="/account/login"
+							icon={<LogIn aria-hidden="true" />}
+							label="登录"
+						/>
+						<AccountMenuLink
+							href="/account/register"
+							icon={<UserPlus aria-hidden="true" />}
+							label="创建账号"
+						/>
+					</>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function AccountMenuLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
+	return (
+		<a
+			className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
+			href={href}
+			role="menuitem"
+		>
+			<span className="grid size-5 place-items-center text-[var(--sys-text-muted)] [&_svg]:size-4">
+				{icon}
+			</span>
+			<span className="truncate">{label}</span>
+		</a>
+	);
+}
+
+function AccountMenuButton({
+	destructive,
+	disabled,
+	icon,
+	label,
+	onClick,
+}: {
+	destructive?: boolean;
+	disabled?: boolean;
+	icon: ReactNode;
+	label: string;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			className={cn(
+				"flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)] disabled:cursor-not-allowed disabled:opacity-60",
+				destructive && "text-[var(--sys-status-danger)]",
+			)}
+			disabled={disabled}
+			onClick={onClick}
+			role="menuitem"
+			type="button"
+		>
+			<span className="grid size-5 place-items-center text-current [&_svg]:size-4">{icon}</span>
+			<span className="truncate">{label}</span>
+		</button>
+	);
+}
+
+function getAccountLabel(state: AccountEntryState) {
+	if (state.status === "unauthenticated") {
+		return "登录";
+	}
+	return "账号";
 }
 
 function filterConversations(conversations: ConversationSummary[], query: string) {

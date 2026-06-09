@@ -3,6 +3,8 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
+import { SupportSurfaceShell } from "@/components/shell/support-surface-shell";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getDocsNavigation, resolveDocument, searchDocs } from "@/features/docs/api";
@@ -26,8 +28,13 @@ export function DocsPage() {
 	const [search, setSearch] = useState<DocsSearchResponse | null>(null);
 	const [query, setQuery] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
+		let cancelled = false;
+		setLoading(true);
+		setError(null);
+		setSearch(null);
 		Promise.all([
 			getDocsNavigation(routeParts),
 			resolveDocument({
@@ -36,13 +43,29 @@ export function DocsPage() {
 			}),
 		])
 			.then(([nextNavigation, nextDocument]) => {
+				if (cancelled) {
+					return;
+				}
 				setNavigation(nextNavigation);
 				setDocument(nextDocument);
 				setError(null);
 			})
 			.catch(() => {
+				if (cancelled) {
+					return;
+				}
+				setNavigation(null);
+				setDocument(null);
 				setError("文档暂时无法打开。");
+			})
+			.finally(() => {
+				if (!cancelled) {
+					setLoading(false);
+				}
 			});
+		return () => {
+			cancelled = true;
+		};
 	}, [routeParts]);
 
 	async function handleSearch() {
@@ -50,17 +73,43 @@ export function DocsPage() {
 			setSearch(null);
 			return;
 		}
+		setError(null);
 		try {
 			setSearch(await searchDocs({ ...routeParts, query }));
 		} catch {
+			setSearch(null);
 			setError("搜索暂时不可用。");
 		}
 	}
 
+	const toolbar = (
+		<div className="flex gap-2 md:w-[360px]">
+			<Input
+				aria-label="搜索文档"
+				onChange={(event) => setQuery(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") {
+						void handleSearch();
+					}
+				}}
+				placeholder="搜索文档"
+				value={query}
+			/>
+			<Button aria-label="搜索" className="size-11 shrink-0 px-0" onClick={handleSearch}>
+				<Search aria-hidden="true" className="size-5" />
+			</Button>
+		</div>
+	);
+
 	return (
-		<div className="mx-auto grid max-w-[1440px] gap-6 px-5 py-8 pb-24 lg:grid-cols-[var(--layout-docs-sidebar-width)_minmax(0,var(--layout-docs-content-width))_var(--layout-docs-toc-width)] lg:px-6">
+		<SupportSurfaceShell
+			contentClassName="grid gap-5 lg:grid-cols-[var(--layout-docs-sidebar-width)_minmax(0,var(--layout-docs-content-width))_var(--layout-docs-toc-width)]"
+			eyebrow={navigation?.collection.displayName ?? "校园文档"}
+			title="文档"
+			toolbar={toolbar}
+		>
 			<aside className="hidden lg:block">
-				<Card className="sticky top-20 p-3">
+				<Card className="sticky top-24 p-3">
 					<p className="px-3 py-2 text-xs font-medium text-[var(--sys-text-subtle)]">
 						{navigation?.collection.displayName ?? "文档"}
 					</p>
@@ -78,29 +127,11 @@ export function DocsPage() {
 				</Card>
 			</aside>
 			<section className="min-w-0">
-				<div className="mb-6 flex gap-2">
-					<Input
-						aria-label="搜索文档"
-						onChange={(event) => setQuery(event.target.value)}
-						onKeyDown={(event) => {
-							if (event.key === "Enter") {
-								void handleSearch();
-							}
-						}}
-						placeholder="搜索文档"
-						value={query}
-					/>
-					<button
-						aria-label="搜索"
-						className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary text-white"
-						onClick={handleSearch}
-						type="button"
-					>
-						<Search aria-hidden="true" className="size-5" />
-					</button>
-				</div>
-				{error ? <ErrorPanel message={error} /> : null}
-				{search ? (
+				{error ? (
+					<ErrorPanel message={error} />
+				) : loading ? (
+					<LoadingPanel label="正在读取文档" />
+				) : search ? (
 					<SearchResults search={search} />
 				) : document ? (
 					<DocumentReader
@@ -108,17 +139,17 @@ export function DocsPage() {
 						document={document}
 					/>
 				) : (
-					<LoadingPanel label="正在读取文档" />
+					<EmptyPanel message="当前文档暂无可展示正文。" />
 				)}
 			</section>
 			<aside className="hidden lg:block">
-				<Card className="sticky top-20 p-4 text-sm text-[var(--sys-text-muted)]">
+				<Card className="sticky top-24 p-4 text-sm text-[var(--sys-text-muted)]">
 					<p className="font-medium text-[var(--sys-text-strong)]">本页信息</p>
 					<p className="mt-3">资料来源：{navigation?.collection.displayName ?? "校园文档"}</p>
 					<p className="mt-2">版本：{document?.resolvedVersion.label ?? "当前版"}</p>
 				</Card>
 			</aside>
-		</div>
+		</SupportSurfaceShell>
 	);
 }
 
@@ -139,13 +170,16 @@ function DocumentReader({
 				更新：{new Date(document.document.updatedAt).toLocaleDateString("zh-CN")}
 			</p>
 			<div className="mt-8 rounded-xl bg-[var(--sys-bg-subtle)] p-5 text-sm leading-7 text-[var(--sys-text-muted)]">
-				<p>完整正文可在文档页面中查看。</p>
-				<a
-					className="mt-3 inline-flex font-medium text-primary"
-					href={document.readerAsset.contentUrl}
-				>
-					打开文档正文
-				</a>
+				{document.readerAsset.contentUrl ? (
+					<a
+						className="inline-flex font-medium text-primary"
+						href={document.readerAsset.contentUrl}
+					>
+						打开原文
+					</a>
+				) : (
+					<EmptyPanel message="当前文档暂无可展示正文。" />
+				)}
 			</div>
 		</article>
 	);

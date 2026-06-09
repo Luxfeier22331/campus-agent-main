@@ -44,22 +44,50 @@ describe("user-facing copy guard", () => {
 			},
 			{
 				fileName: "conversation-page.tsx",
-				phrases: ["hover 菜单"],
+				phrases: ["hover 菜单", "历史会话会显示在这里，方便继续查看之前的问题。"],
+				sourcePath: ["src", "app", "routes"],
+			},
+			{
+				fileName: "home-page.tsx",
+				phrases: [
+					"回答会在对话中给出，并在需要时打开文档、校园地图或饭堂分布图。",
+					"信息以原始来源和现场情况为准。",
+					"暂时无法读取历史会话。",
+				],
 				sourcePath: ["src", "app", "routes"],
 			},
 			{
 				fileName: "docs-page.tsx",
-				phrases: ["reader asset", "reader 内容", 'deliveryMode ?? "reader"'],
+				phrases: [
+					"reader asset",
+					"reader 内容",
+					'deliveryMode ?? "reader"',
+					"完整正文可在文档页面中查看。",
+					"打开文档正文",
+				],
 				sourcePath: ["src", "app", "routes"],
 			},
 			{
 				fileName: "map-page.tsx",
-				phrases: ["筛选已投影地点", "投影来源"],
+				phrases: ["筛选已投影地点", "投影来源", "...place.sourceRefs"],
+				sourcePath: ["src", "app", "routes"],
+			},
+			{
+				fileName: "feedback-page.tsx",
+				phrases: ["提交问题", "相关页面"],
 				sourcePath: ["src", "app", "routes"],
 			},
 			{
 				fileName: "message-list.tsx",
 				phrases: ["未返回来源卡片"],
+				sourcePath: ["src", "components", "conversation"],
+			},
+			{
+				fileName: "conversation-sidebar.tsx",
+				phrases: [
+					"登录后会在这里显示历史会话。",
+					"历史会话只用于找回之前的问题；文档、校园地图和饭堂分布图保留在顶部导航中。",
+				],
 				sourcePath: ["src", "components", "conversation"],
 			},
 		];

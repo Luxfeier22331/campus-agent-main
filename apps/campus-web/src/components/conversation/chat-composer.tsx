@@ -1,4 +1,4 @@
-import { Send } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -30,16 +30,16 @@ export function ChatComposer({
 	return (
 		<form
 			className={cn(
-				"border border-[var(--input-border)] bg-white p-2 shadow-[var(--shadow-sm)]",
-				variant === "hero" ? "rounded-[var(--radius-xxl)] p-4" : "rounded-2xl",
+				"border border-[var(--input-border)] bg-white p-2 shadow-[var(--shadow-xs)]",
+				variant === "hero" ? "rounded-[26px] p-3" : "rounded-[22px]",
 			)}
 			onSubmit={handleSubmit}
 		>
 			<div className="flex items-end gap-2">
 				<textarea
 					className={cn(
-						"max-h-40 flex-1 resize-none rounded-xl border-0 bg-transparent px-3 py-3 text-base outline-none placeholder:text-[var(--sys-text-subtle)]",
-						variant === "hero" ? "min-h-20" : "min-h-14",
+						"max-h-40 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-base outline-none placeholder:text-[var(--sys-text-subtle)]",
+						variant === "hero" ? "min-h-24" : "min-h-14",
 					)}
 					disabled={disabled}
 					onChange={(event) => setPrompt(event.target.value)}
@@ -48,11 +48,12 @@ export function ChatComposer({
 				/>
 				<Button
 					aria-label="发送"
-					className="size-12 shrink-0 p-0"
+					className="size-10 shrink-0 rounded-full bg-[var(--sys-text-strong)] p-0 text-white hover:bg-[var(--sys-text-default)] disabled:bg-[var(--state-disabled-bg)]"
 					disabled={disabled || !prompt.trim()}
+					variant="ghost"
 					type="submit"
 				>
-					<Send aria-hidden="true" className="size-5" />
+					<ArrowUp aria-hidden="true" className="size-5" />
 				</Button>
 			</div>
 		</form>

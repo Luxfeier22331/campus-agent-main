@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { ErrorPanel } from "@/components/shell/state-panels";
+import { SupportSurfaceShell } from "@/components/shell/support-surface-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,13 +48,12 @@ export function FeedbackPage() {
 	}
 
 	return (
-		<section className="mx-auto max-w-3xl px-5 py-10 pb-24">
-			<p className="text-sm font-medium text-primary">反馈</p>
-			<h1 className="mt-2 text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-				提交问题
-			</h1>
-			<Card className="mt-6 p-5 md:p-6">
+		<SupportSurfaceShell className="max-w-4xl" title="反馈">
+			<Card className="p-5 md:p-6">
 				<form className="space-y-5" onSubmit={handleSubmit}>
+					<div>
+						<h2 className="text-base font-semibold text-[var(--sys-text-strong)]">提交反馈</h2>
+					</div>
 					<label className="block" htmlFor="feedback-category">
 						<span className="text-sm font-medium text-[var(--sys-text-strong)]">问题类型</span>
 						<select
@@ -70,7 +70,7 @@ export function FeedbackPage() {
 						</select>
 					</label>
 					<label className="block" htmlFor="feedback-route-context">
-						<span className="text-sm font-medium text-[var(--sys-text-strong)]">相关页面</span>
+						<span className="text-sm font-medium text-[var(--sys-text-strong)]">当前页面</span>
 						<Input
 							id="feedback-route-context"
 							onChange={(event) => setRouteContext(event.target.value)}
@@ -108,7 +108,7 @@ export function FeedbackPage() {
 					</Button>
 				</form>
 			</Card>
-		</section>
+		</SupportSurfaceShell>
 	);
 }
 

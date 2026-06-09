@@ -21,42 +21,42 @@ export function QAShell({
 	activeConversationId,
 	children,
 	conversations,
-	footerText,
 	topTitle,
 }: {
 	activeConversationId?: string;
 	children: ReactNode;
 	conversations: ConversationSummary[];
-	footerText?: string;
 	topTitle: string;
 }) {
 	const [historyOpen, setHistoryOpen] = useState(false);
 
 	return (
-		<div className="min-h-dvh bg-[var(--sys-bg-subtle)] text-[var(--sys-text-default)]">
+		<div className="min-h-dvh bg-[var(--sys-bg-canvas)] text-[var(--sys-text-default)]">
 			<div className="grid min-h-dvh lg:grid-cols-[var(--layout-chat-sidebar-width)_minmax(0,1fr)]">
 				<ConversationSidebar
 					activeConversationId={activeConversationId}
 					className="hidden lg:flex"
 					conversations={conversations}
-					footerText={footerText}
 				/>
 				<div className="flex min-h-dvh min-w-0 flex-col">
-					<header className="flex min-h-16 items-center justify-between border-b border-[var(--topbar-border)] bg-[var(--topbar-bg)] px-4 lg:px-8">
-						<div className="flex min-w-0 items-center gap-3">
-							<button
-								aria-label="打开历史会话"
-								className="grid size-11 place-items-center rounded-lg border border-border bg-white text-[var(--sys-text-muted)] lg:hidden"
-								onClick={() => setHistoryOpen(true)}
-								type="button"
-							>
-								<Menu aria-hidden="true" className="size-5" />
-							</button>
-							<h1 className="truncate text-base font-semibold tracking-normal text-[var(--sys-text-strong)]">
-								{topTitle}
-							</h1>
+					<header className="bg-[var(--sys-bg-canvas)] px-4 lg:px-6">
+						<div className="flex min-h-14 items-center justify-between gap-4">
+							<div className="flex min-w-0 items-center gap-3">
+								<button
+									aria-label="打开历史会话"
+									className="grid size-10 place-items-center rounded-lg text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] lg:hidden"
+									onClick={() => setHistoryOpen(true)}
+									type="button"
+								>
+									<Menu aria-hidden="true" className="size-5" />
+								</button>
+								<h1 className="truncate text-sm font-medium tracking-normal text-[var(--sys-text-muted)]">
+									{topTitle}
+								</h1>
+							</div>
+							<SupportNavigation className="hidden md:flex" />
 						</div>
-						<SupportNavigation />
+						<SupportNavigation className="flex overflow-x-auto border-t border-[var(--sys-border-subtle)] py-1 md:hidden" />
 					</header>
 					<main className="relative flex min-h-0 flex-1 flex-col">{children}</main>
 				</div>
@@ -67,7 +67,7 @@ export function QAShell({
 						<div className="flex justify-end px-4 pt-4">
 							<button
 								aria-label="关闭历史会话"
-								className="grid size-11 place-items-center rounded-lg border border-border bg-white text-[var(--sys-text-muted)]"
+								className="grid size-10 place-items-center rounded-lg text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)]"
 								onClick={() => setHistoryOpen(false)}
 								type="button"
 							>
@@ -78,7 +78,6 @@ export function QAShell({
 							activeConversationId={activeConversationId}
 							className="flex min-h-0 flex-1 border-r-0 pt-2"
 							conversations={conversations}
-							footerText={footerText}
 						/>
 					</div>
 				</div>
@@ -95,7 +94,10 @@ export function SupportNavigation({
 	className?: string;
 }) {
 	return (
-		<nav aria-label="支撑页面导航" className={cn("hidden items-center gap-2 md:flex", className)}>
+		<nav
+			aria-label="支撑页面导航"
+			className={cn("items-center gap-5", className ?? "hidden md:flex")}
+		>
 			{supportNavItems.map((item) => {
 				const active =
 					activePath &&
@@ -103,8 +105,8 @@ export function SupportNavigation({
 				return (
 					<Link
 						className={cn(
-							"inline-flex min-h-10 items-center rounded-lg px-3 text-sm font-medium text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]",
-							active && "bg-[var(--sys-brand-interactive-subtle)] text-primary",
+							"inline-flex min-h-9 items-center border-b border-transparent text-sm font-medium text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]",
+							active && "border-[var(--sys-text-strong)] text-[var(--sys-text-strong)]",
 							"emphasis" in item &&
 								item.emphasis &&
 								"text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]",

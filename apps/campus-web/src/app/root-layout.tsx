@@ -22,16 +22,24 @@ export function RootLayout() {
 function SupportPageHeader({ activePath }: { activePath: string }) {
 	return (
 		<header className="sticky top-0 z-30 border-b border-border bg-white">
-			<div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between px-4 lg:px-8">
+			<div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 lg:px-6">
 				<Link className="flex min-w-0 items-center gap-3" to="/">
-					<span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--sys-brand-identity)] text-sm font-semibold text-white">
-						民
-					</span>
-					<span className="truncate text-sm font-semibold tracking-normal text-[var(--sys-text-strong)]">
-						中央民族大学校园问答
+					<span className="min-w-0">
+						<span className="block truncate text-sm font-semibold tracking-normal text-[var(--sys-text-strong)]">
+							中央民族大学校园问答
+						</span>
+						<span className="block truncate text-xs text-[var(--sys-text-subtle)]">
+							MUC Campus Q&A
+						</span>
 					</span>
 				</Link>
-				<SupportNavigation activePath={activePath} />
+				<SupportNavigation activePath={activePath} className="hidden md:flex" />
+			</div>
+			<div className="mx-auto max-w-[1440px] px-4 lg:px-6">
+				<SupportNavigation
+					activePath={activePath}
+					className="flex overflow-x-auto border-t border-[var(--sys-border-subtle)] py-1 md:hidden"
+				/>
 			</div>
 		</header>
 	);

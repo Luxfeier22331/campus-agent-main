@@ -2,8 +2,10 @@ import { MapPin } from "lucide-react";
 import type maplibregl from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
+import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
+import { SupportSurfaceShell } from "@/components/shell/support-surface-shell";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { getCampusMapPlaces } from "@/features/map/api";
 import { loadMapLibre, type MapLibreRuntime } from "@/features/map/maplibre-runtime";
 import type { CampusMapPlace, CampusMapPlacesResponse } from "@/features/map/model";
@@ -16,6 +18,7 @@ export function MapPage() {
 	const [mapRuntime, setMapRuntime] = useState<MapLibreRuntime | null>(null);
 	const [selected, setSelected] = useState<CampusMapPlace | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [loading, setLoading] = useState(true);
 	const [query, setQuery] = useState("");
 
 	const filteredPlaces = useMemo(() => {
@@ -27,7 +30,7 @@ export function MapPage() {
 			return data.places;
 		}
 		return data.places.filter((place) =>
-			[place.title, place.description, place.campus, ...place.tags, ...place.sourceRefs]
+			[place.title, place.description, place.campus, ...place.tags]
 				.join(" ")
 				.toLowerCase()
 				.includes(normalizedQuery),
@@ -35,13 +38,20 @@ export function MapPage() {
 	}, [data, query]);
 
 	useEffect(() => {
+		setLoading(true);
+		setError(null);
 		getCampusMapPlaces()
 			.then((nextData) => {
 				setData(nextData);
 				setSelected(nextData.places[0] ?? null);
 			})
 			.catch(() => {
+				setData(null);
+				setSelected(null);
 				setError("校园地图暂时无法打开。");
+			})
+			.finally(() => {
+				setLoading(false);
 			});
 	}, []);
 
@@ -129,24 +139,26 @@ export function MapPage() {
 		}
 	}, [data, filteredPlaces, selected]);
 
+	const toolbar = (
+		<Input
+			className="md:w-[320px]"
+			onChange={(event) => setQuery(event.target.value)}
+			placeholder="搜索地点"
+			value={query}
+		/>
+	);
+
 	return (
-		<section className="mx-auto max-w-[1440px] px-5 py-6 pb-24 lg:px-6">
-			<div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-				<div>
-					<p className="text-sm font-medium text-primary">{data?.campus.name ?? "校园地图"}</p>
-					<h1 className="mt-1 text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-						校园地图
-					</h1>
-				</div>
-				<input
-					className="min-h-11 rounded-lg border border-input px-3 text-sm outline-none focus:border-ring focus:shadow-[var(--state-focus-shadow)]"
-					onChange={(event) => setQuery(event.target.value)}
-					placeholder="搜索地点"
-					value={query}
-				/>
-			</div>
-			{error ? <ErrorPanel message={error} /> : null}
-			{data ? (
+		<SupportSurfaceShell
+			eyebrow={data?.campus.name ?? "校园地图"}
+			title="校园地图"
+			toolbar={toolbar}
+		>
+			{error ? (
+				<ErrorPanel message={error} />
+			) : loading ? (
+				<LoadingPanel label="正在读取地图" />
+			) : data ? (
 				<div className="grid gap-4 lg:grid-cols-[1fr_320px]">
 					<div
 						className="min-h-[var(--layout-map-canvas-min-height)] overflow-hidden rounded-2xl border border-border bg-[var(--map-canvas-bg)]"
@@ -178,13 +190,15 @@ export function MapPage() {
 									))}
 								</div>
 							</div>
-						) : null}
+						) : (
+							<EmptyPanel message="没有找到匹配地点。" />
+						)}
 					</Card>
 				</div>
 			) : (
-				<LoadingPanel label="正在读取地图" />
+				<EmptyPanel message="当前没有可展示的地图地点。" />
 			)}
-		</section>
+		</SupportSurfaceShell>
 	);
 }
 

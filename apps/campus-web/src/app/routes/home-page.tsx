@@ -26,12 +26,8 @@ export function HomePage() {
 	useEffect(() => {
 		listConversations()
 			.then(setConversations)
-			.catch((reason: unknown) => {
-				if (reason instanceof UnauthorizedError) {
-					setConversations([]);
-					return;
-				}
-				setError("暂时无法读取历史会话。");
+			.catch(() => {
+				setConversations([]);
 			});
 	}, []);
 
@@ -74,19 +70,12 @@ export function HomePage() {
 
 	return (
 		<QAShell conversations={conversations} topTitle="新对话">
-			<section className="relative flex min-h-0 flex-1 flex-col px-5">
-				<div className="mx-auto flex w-full max-w-[var(--layout-chat-content-width)] flex-1 flex-col justify-center py-14 text-center md:py-20">
-					<p className="mx-auto inline-flex min-h-8 items-center gap-2 rounded-full border border-border bg-white px-3 text-sm text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)]">
-						<span className="size-1.5 rounded-full bg-[var(--sys-brand-identity)]" />
-						中央民族大学
-					</p>
-					<h1 className="mt-6 text-balance text-4xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-5xl">
-						问校园信息，从这里开始。
+			<section className="relative flex min-h-0 flex-1 px-4">
+				<div className="mx-auto flex w-full max-w-[var(--layout-chat-content-width)] flex-1 flex-col justify-center pb-[14dvh] pt-14 text-center md:pb-[16dvh]">
+					<h1 className="text-balance text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-[2.5rem]">
+						想了解什么校园信息？
 					</h1>
-					<p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-7 text-[var(--sys-text-muted)]">
-						回答会在对话中给出，并在需要时打开文档、校园地图或饭堂分布图。
-					</p>
-					<div className="mt-9">
+					<div className="mx-auto mt-8 w-full max-w-[720px]">
 						<ChatComposer
 							disabled={submitting}
 							onSubmit={handleSubmit}
@@ -100,10 +89,10 @@ export function HomePage() {
 						</p>
 					) : null}
 					{error ? <p className="mt-3 text-sm text-[var(--sys-status-danger)]">{error}</p> : null}
-					<div className="mt-5 flex flex-wrap justify-center gap-2">
+					<div className="mx-auto mt-4 grid w-full max-w-[720px] grid-cols-1 gap-1.5 text-left sm:grid-cols-2">
 						{promptChips.map((chip) => (
 							<button
-								className="inline-flex min-h-9 items-center rounded-full border border-border bg-white px-4 text-sm text-[var(--sys-text-muted)] hover:border-primary hover:text-primary disabled:text-[var(--state-disabled-text)]"
+								className="min-h-10 rounded-xl px-3 text-left text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)] disabled:text-[var(--state-disabled-text)]"
 								disabled={submitting}
 								key={chip}
 								onClick={() => handleSubmit(chip)}
@@ -114,9 +103,6 @@ export function HomePage() {
 						))}
 					</div>
 				</div>
-				<p className="pb-8 text-center text-sm text-[var(--sys-text-subtle)]">
-					信息以原始来源和现场情况为准。
-				</p>
 			</section>
 		</QAShell>
 	);

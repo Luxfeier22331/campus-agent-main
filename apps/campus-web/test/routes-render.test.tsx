@@ -1,14 +1,16 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NotFoundPage } from "../src/app/root-layout";
+import { NotFoundPage, RootLayout } from "../src/app/root-layout";
 import rootLayoutSource from "../src/app/root-layout.tsx?raw";
 import { ConversationPage } from "../src/app/routes/conversation-page";
 import { DiningPage } from "../src/app/routes/dining-page";
 import diningPageSource from "../src/app/routes/dining-page.tsx?raw";
+import { DocsPage } from "../src/app/routes/docs-page";
 import { FeedbackPage } from "../src/app/routes/feedback-page";
 import { HomePage } from "../src/app/routes/home-page";
 import homePageSource from "../src/app/routes/home-page.tsx?raw";
 import { MapPage } from "../src/app/routes/map-page";
+import conversationSidebarSource from "../src/components/conversation/conversation-sidebar.tsx?raw";
 import { MessageList } from "../src/components/conversation/message-list";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
@@ -17,6 +19,17 @@ import type { ChatRequestStreamEvent } from "../src/features/conversation/model"
 const diningApiMock = vi.hoisted(() => ({
 	getDiningFloor: vi.fn(),
 	getDiningHalls: vi.fn(),
+}));
+const docsApiMock = vi.hoisted(() => ({
+	getDocsNavigation: vi.fn(),
+	resolveDocument: vi.fn(),
+	searchDocs: vi.fn(),
+}));
+const feedbackApiMock = vi.hoisted(() => ({
+	submitFeedback: vi.fn(),
+}));
+const conversationApiMock = vi.hoisted(() => ({
+	getSessionPrincipal: vi.fn(),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -39,7 +52,13 @@ vi.mock("@tanstack/react-router", async () => {
 				{children}
 			</a>
 		),
+		Outlet: () => <div>支撑页面内容</div>,
 		useParams: () => ({ conversationId: "conv_01" }),
+		useLocation: () => ({
+			hash: window.location.hash,
+			pathname: window.location.pathname,
+			search: window.location.search,
+		}),
 		useNavigate: () => navigateMock,
 	};
 });
@@ -52,6 +71,7 @@ vi.mock("../src/features/conversation/api", () => ({
 		title: "测试会话",
 		updatedAt: "2026-06-08T00:00:00.000Z",
 	}),
+	getSessionPrincipal: conversationApiMock.getSessionPrincipal,
 	listConversations: vi.fn().mockResolvedValue([
 		{
 			createdAt: "2026-06-08T00:00:00.000Z",
@@ -155,6 +175,9 @@ vi.mock("../src/features/map/api", () => ({
 	}),
 }));
 
+vi.mock("../src/features/docs/api", () => docsApiMock);
+vi.mock("../src/features/feedback/api", () => feedbackApiMock);
+
 vi.mock("../src/features/map/maplibre-runtime", () => ({
 	loadMapLibre: vi.fn().mockResolvedValue({
 		Map: class {
@@ -180,8 +203,94 @@ vi.mock("../src/features/dining/api", () => diningApiMock);
 
 describe("campus routes", () => {
 	beforeEach(() => {
+		conversationApiMock.getSessionPrincipal.mockReset();
+		conversationApiMock.getSessionPrincipal.mockResolvedValue({
+			permissions: {
+				chat: true,
+				operator: false,
+			},
+			principal: {
+				displayName: "测试用户",
+				email: "user@muc.edu.cn",
+				principalId: "principal_01",
+				type: "campus_member",
+			},
+			session: {
+				expiresAt: "2026-06-09T12:00:00.000Z",
+				sessionId: "session_01",
+			},
+		});
 		diningApiMock.getDiningHalls.mockReset();
 		diningApiMock.getDiningFloor.mockReset();
+		docsApiMock.getDocsNavigation.mockReset();
+		docsApiMock.resolveDocument.mockReset();
+		docsApiMock.searchDocs.mockReset();
+		docsApiMock.getDocsNavigation.mockResolvedValue({
+			collection: {
+				collection: "student_rules",
+				corpus: "regulations",
+				displayName: "学生手册",
+			},
+			nodes: [
+				{
+					canonicalUrl: "/docs/regulations/student_rules/index",
+					documentSlug: "index",
+					isCurrent: true,
+					kind: "document",
+					title: "总则",
+				},
+			],
+		});
+		docsApiMock.resolveDocument.mockResolvedValue({
+			document: {
+				canonicalUrl: "/docs/regulations/student_rules/index",
+				collection: "student_rules",
+				corpus: "regulations",
+				docId: "doc_01",
+				documentSlug: "index",
+				title: "学生手册",
+				updatedAt: "2026-06-08T00:00:00.000Z",
+				versionId: "version_01",
+				versionSlug: "2026",
+			},
+			readerAsset: {
+				canonicalUrl: "/docs/regulations/student_rules/index",
+				contentUrl: "/assets/docs/student-rules.html",
+				deliveryMode: "public_static_asset",
+				outlineUrl: "/assets/docs/student-rules-outline.json",
+			},
+			readerState: {
+				anchor: null,
+				highlightRootUnitIds: [],
+			},
+			resolvedVersion: {
+				isCurrent: true,
+				label: "2026",
+				versionId: "version_01",
+				versionSlug: "2026",
+			},
+		});
+		docsApiMock.searchDocs.mockResolvedValue({
+			query: "奖学金",
+			results: [
+				{
+					anchor: "scholarship",
+					canonicalUrl: "/docs/regulations/student_rules/scholarship",
+					documentTitle: "学生手册",
+					highlightRootUnitIds: ["unit_01"],
+					kind: "section_hit",
+					snippet: "奖学金评定需要满足对应条件。",
+					title: "奖学金评定",
+				},
+			],
+		});
+		feedbackApiMock.submitFeedback.mockReset();
+		feedbackApiMock.submitFeedback.mockResolvedValue({
+			feedback: {
+				feedbackId: "feedback_01",
+				receivedAt: "2026-06-08T00:00:00.000Z",
+			},
+		});
 		navigateMock.mockReset();
 	});
 
@@ -192,18 +301,42 @@ describe("campus routes", () => {
 		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "新对话" })).toBeInTheDocument();
 		expect(screen.getByPlaceholderText("搜索历史会话")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "校园地图" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "饭堂分布图" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
-		expect(screen.getByText("中央民族大学")).toBeInTheDocument();
-		expect(screen.getByRole("heading", { name: "问校园信息，从这里开始。" })).toBeInTheDocument();
-		expect(screen.getByText("信息以原始来源和现场情况为准。")).toBeInTheDocument();
+		expect(screen.getAllByRole("link", { name: "文档" }).length).toBeGreaterThan(0);
+		expect(screen.getAllByRole("link", { name: "校园地图" }).length).toBeGreaterThan(0);
+		expect(screen.getAllByRole("link", { name: "饭堂分布图" }).length).toBeGreaterThan(0);
+		expect(screen.getAllByRole("link", { name: "反馈" }).length).toBeGreaterThan(0);
+		expect(screen.getByRole("heading", { name: "想了解什么校园信息？" })).toBeInTheDocument();
+		expect(await screen.findByText("测试用户")).toBeInTheDocument();
+		expect(screen.getByText("user@muc.edu.cn")).toBeInTheDocument();
+		expect(screen.queryByRole("menu", { name: "账号" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "测试用户 user@muc.edu.cn" }));
+		expect(screen.getByRole("menu", { name: "账号" })).toBeInTheDocument();
+		expect(screen.getByRole("menuitem", { name: "账号设置" })).toBeInTheDocument();
+		expect(screen.getByRole("menuitem", { name: "个性化" })).toBeInTheDocument();
+		expect(screen.getByRole("menuitem", { name: "帮助与反馈" })).toHaveAttribute(
+			"href",
+			"/feedback",
+		);
+		expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("menuitem", { name: "账号设置" }));
+		expect(await screen.findByRole("dialog", { name: "账号设置" })).toBeInTheDocument();
 		expect(await screen.findByText("校园卡补办流程")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "中慧楼在哪里？" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "清真窗口在哪？" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "最近有哪些通知？" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "海淀校区饭堂分布图在哪看？" })).toBeInTheDocument();
+		expect(
+			screen.queryByText(
+				"历史会话只用于找回之前的问题；文档、校园地图和饭堂分布图保留在顶部导航中。",
+			),
+		).toBeNull();
+		expect(
+			screen.queryByText("回答会在对话中给出，并在需要时打开文档、校园地图或饭堂分布图。"),
+		).toBeNull();
+		expect(screen.queryByText("登录后会在这里显示历史会话。")).toBeNull();
+		expect(screen.queryByText("信息以原始来源和现场情况为准。")).toBeNull();
+		expect(screen.queryByText("中央民族大学")).toBeNull();
+		expect(screen.queryByText("民")).toBeNull();
 		expect(screen.queryByText("校园助手")).toBeNull();
 		expect(screen.queryByText("常用校园事务")).toBeNull();
 		expect(screen.queryByText("问政策、查地点、看食堂，都从这里开始。")).toBeNull();
@@ -214,22 +347,83 @@ describe("campus routes", () => {
 		expect(homePageSource).not.toContain("appCards");
 		expect(homePageSource).not.toContain("SupportCard");
 		expect(homePageSource).not.toContain("常用校园事务");
+		expect(homePageSource).not.toContain("rounded-full");
+		expect(conversationSidebarSource).not.toContain("rounded-full bg-[var(--sys-brand-identity)]");
+		expect(conversationSidebarSource).not.toContain(">民<");
+		expect(conversationSidebarSource).toContain("UserRound");
+		expect(conversationSidebarSource).toContain('role="menu"');
+		expect(conversationSidebarSource).toContain("ChevronUp");
+		expect(conversationSidebarSource).not.toContain("关闭账号面板");
 		expect(qaShellSource).toContain("饭堂分布图");
+		expect(qaShellSource).not.toContain("rounded-lg px-3 text-sm font-medium");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
+	});
+
+	it("renders support page header navigation on desktop and mobile surfaces", () => {
+		window.history.pushState({}, "", "/map");
+		render(<RootLayout />);
+
+		expect(screen.getByText("支撑页面内容")).toBeInTheDocument();
+		expect(screen.getByText("中央民族大学校园问答")).toBeInTheDocument();
+		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
+		expect(screen.getAllByRole("link", { name: "文档" })).toHaveLength(2);
+		expect(screen.getAllByRole("link", { name: "校园地图" })).toHaveLength(2);
+		expect(screen.getAllByRole("link", { name: "饭堂分布图" })).toHaveLength(2);
+		expect(screen.getAllByRole("link", { name: "反馈" })).toHaveLength(2);
+		expect(screen.queryByText("民")).toBeNull();
+	});
+
+	it("renders the account menu as same-context login actions when signed out", async () => {
+		conversationApiMock.getSessionPrincipal.mockRejectedValue(new Error("unauthorized"));
+		render(<HomePage />);
+
+		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "账号" }));
+
+		expect(screen.getByRole("menu", { name: "账号" })).toBeInTheDocument();
+		expect(screen.getByRole("menuitem", { name: "登录" })).toHaveAttribute(
+			"href",
+			"/account/login",
+		);
+		expect(screen.getByRole("menuitem", { name: "创建账号" })).toHaveAttribute(
+			"href",
+			"/account/register",
+		);
+		expect(screen.queryByRole("menuitem", { name: "账号设置" })).toBeNull();
 	});
 
 	it("renders global feedback form", () => {
 		render(<FeedbackPage />);
 
-		expect(screen.getByText("提交问题")).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "反馈" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "提交反馈" })).toBeInTheDocument();
 		expect(screen.getByLabelText("问题描述")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "提交反馈" })).toBeDisabled();
 	});
 
 	it("defaults feedback route context to the current route", () => {
 		window.history.pushState({}, "", "/feedback?source=map");
 		render(<FeedbackPage />);
 
-		expect(screen.getByLabelText("相关页面")).toHaveValue("/feedback?source=map");
+		expect(screen.getByLabelText("当前页面")).toHaveValue("/feedback?source=map");
+	});
+
+	it("submits feedback with the current route context and shows received status", async () => {
+		window.history.pushState({}, "", "/feedback?source=map");
+		render(<FeedbackPage />);
+
+		fireEvent.change(screen.getByLabelText("问题描述"), {
+			target: { value: "地图地点名称需要更新。" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "提交反馈" }));
+
+		expect(await screen.findByText("已收到：feedback_01")).toBeInTheDocument();
+		expect(feedbackApiMock.submitFeedback).toHaveBeenCalledWith(
+			expect.objectContaining({
+				body: "地图地点名称需要更新。",
+				routeContext: "/feedback?source=map",
+			}),
+		);
 	});
 
 	it("filters map places without exposing projection wording", async () => {
@@ -242,6 +436,61 @@ describe("campus routes", () => {
 
 		expect(await screen.findByText("学生事务中心")).toBeInTheDocument();
 		expect(screen.queryByText("图书馆与自习、借阅相关服务的主要位置。")).not.toBeInTheDocument();
+	});
+
+	it("does not match campus map search against internal source references", async () => {
+		render(<MapPage />);
+
+		expect(await screen.findByText("图书馆")).toBeInTheDocument();
+		fireEvent.change(screen.getByPlaceholderText("搜索地点"), {
+			target: { value: "projection" },
+		});
+
+		expect(await screen.findByText("没有找到匹配地点。")).toBeInTheDocument();
+		expect(screen.queryByText("图书馆与自习、借阅相关服务的主要位置。")).not.toBeInTheDocument();
+		expect(screen.queryByText("学生事务相关位置。")).not.toBeInTheDocument();
+	});
+
+	it("renders only map error state when the campus map API fails", async () => {
+		const { getCampusMapPlaces } = await import("../src/features/map/api");
+		vi.mocked(getCampusMapPlaces).mockRejectedValueOnce(new Error("network"));
+
+		render(<MapPage />);
+
+		expect(await screen.findByText("校园地图暂时无法打开。")).toBeInTheDocument();
+		expect(screen.queryByText("正在读取地图")).not.toBeInTheDocument();
+	});
+
+	it("renders docs reader, search results, empty search, and exclusive error state", async () => {
+		window.history.pushState({}, "", "/docs/regulations/student_rules/index");
+		const { unmount } = render(<DocsPage />);
+
+		expect(await screen.findByRole("heading", { name: "学生手册" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "打开原文" })).toHaveAttribute(
+			"href",
+			"/assets/docs/student-rules.html",
+		);
+		expect(screen.queryByText("完整正文可在文档页面中查看。")).toBeNull();
+
+		fireEvent.change(screen.getByLabelText("搜索文档"), {
+			target: { value: "奖学金" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+		expect(await screen.findByText("奖学金评定")).toBeInTheDocument();
+
+		docsApiMock.searchDocs.mockResolvedValueOnce({ query: "不存在", results: [] });
+		fireEvent.change(screen.getByLabelText("搜索文档"), {
+			target: { value: "不存在" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+		expect(await screen.findByText("没有找到匹配的文档结果。")).toBeInTheDocument();
+
+		docsApiMock.getDocsNavigation.mockRejectedValueOnce(new Error("network"));
+		docsApiMock.resolveDocument.mockRejectedValueOnce(new Error("network"));
+		unmount();
+		render(<DocsPage />);
+		expect(await screen.findByText("文档暂时无法打开。")).toBeInTheDocument();
+		expect(screen.queryByText("正在读取文档")).not.toBeInTheDocument();
 	});
 
 	it("keeps dining floor rendering driven by the floor projection contract", () => {

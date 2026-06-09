@@ -242,14 +242,20 @@ describe("campus account pages", () => {
 		expect(screen.getByText("账号信息")).toBeInTheDocument();
 		expect(screen.getByText("登录与安全")).toBeInTheDocument();
 		expect(screen.getByText("授权应用")).toBeInTheDocument();
-		expect(screen.getByText("个性化记忆")).toBeInTheDocument();
+		expect(screen.getByText("个性化")).toBeInTheDocument();
 		expect(screen.getByText("用户")).toBeInTheDocument();
 		expect(screen.getByText("问答 / 文档 / 账号")).toBeInTheDocument();
 		expect(screen.getByText("问答")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "登录与安全" }));
+
 		expect(screen.getByText("邮箱密码")).toBeInTheDocument();
 		expect(screen.getByText("Chrome / Windows")).toBeInTheDocument();
 		expect(screen.getByText("Safari / iOS")).toBeInTheDocument();
 		expect(screen.getByText("当前登录")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "授权应用" }));
+
 		expect(screen.getByText("MUC Wiki")).toBeInTheDocument();
 		expect(screen.getByText("基础登录信息 / 个人资料")).toBeInTheDocument();
 		expect(screen.queryByText("学生")).toBeNull();
@@ -261,6 +267,7 @@ describe("campus account pages", () => {
 		expect(screen.queryByText("better-auth")).toBeNull();
 		expect(screen.queryByText("claims_2026_06")).toBeNull();
 
+		fireEvent.click(screen.getByRole("button", { name: "登录与安全" }));
 		fireEvent.click(screen.getByRole("button", { name: "移除此设备" }));
 
 		await waitFor(() => {
@@ -269,6 +276,7 @@ describe("campus account pages", () => {
 			});
 		});
 
+		fireEvent.click(screen.getByRole("button", { name: "授权应用" }));
 		fireEvent.click(screen.getByRole("button", { name: "取消授权 MUC Wiki" }));
 
 		await waitFor(() => {
@@ -277,6 +285,7 @@ describe("campus account pages", () => {
 			});
 		});
 
+		fireEvent.click(screen.getByRole("button", { name: "个性化" }));
 		fireEvent.click(screen.getByRole("button", { name: "关闭个性化记忆" }));
 
 		await waitFor(() => {

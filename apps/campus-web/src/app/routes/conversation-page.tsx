@@ -160,7 +160,6 @@ export function ConversationPage() {
 		<QAShell
 			activeConversationId={conversationId}
 			conversations={conversations}
-			footerText="历史会话会显示在这里，方便继续查看之前的问题。"
 			topTitle={conversation?.title ?? "会话"}
 		>
 			<section className="flex min-h-0 flex-1 flex-col">
