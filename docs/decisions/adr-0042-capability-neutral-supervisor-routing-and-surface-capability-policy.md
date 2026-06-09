@@ -18,7 +18,7 @@ Accepted on 2026-04-23.
 - `campus-agent` 是 institution-scoped campus assistant，而不是开放域 generalist
 - `apps/app-api -> apps/execution-control -> apps/supervisor-agent-worker -> agent`
   是长期执行主链
-- `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent` 已作为当前或前向
+- `knowledge`、`navigation`、`campus_services`、`notice` 已作为当前或前向
   capability family 落盘
 - 当前公开产品能力最成熟的主路径仍是 knowledge question answering
 
@@ -31,7 +31,7 @@ Accepted on 2026-04-23.
 
 如果这条边界不冻结，后续实现很容易继续退化为：
 
-- 所有请求先进入 `rag-agent`，再在 knowledge path 内临时补 notice/service/navigation 分叉
+- 所有请求先进入 `knowledge`，再在 knowledge path 内临时补 notice/service/navigation 分叉
 - 用 `requested_scope` 代替 capability routing
 - 把 `public chat` 当前 knowledge-only 姿态写成整个 repo 的长期入口真相
 - 把 routing clarification 与 agent clarification 混成一个模糊 clarification 桶
@@ -45,7 +45,7 @@ knowledge/RAG 问题。
 
 直接含义：
 
-- `rag-agent` 仍是核心 capability family，但不再等于整个产品入口语义
+- `knowledge` 仍是核心 capability family，但不再等于整个产品入口语义
 - notice、service、navigation 与 future admitted capability 必须作为并列 family 被治理
 - capability routing 是 repo-owned architecture truth，不是 prompt 内部的临时推理副作用
 
@@ -115,7 +115,7 @@ knowledge/RAG 问题。
 - routing clarification precision
 - false handoff / false accept / false reject
 - approval-required recall
-- selected target / resolved scope / refusal class 的分层 observability
+- selected capability / resolved scope / refusal class 的分层 observability
 
 缺少这些证据时，不允许把新的 routing 变化视为稳定架构的一部分。
 

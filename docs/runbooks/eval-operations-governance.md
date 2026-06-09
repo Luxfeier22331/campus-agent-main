@@ -65,7 +65,7 @@ The gate covers:
 - workflow trace evaluator and fixture denominator
 - tool-family denominator evaluator and fixture denominator
 - public-chat product-path evaluator, including sanitized
-  `workflow_trace_summary` replay against selected target, branch and fail-close
+  `workflow_trace_summary` replay against selected capability, branch and fail-close
   reason
 - targeted execution-control, app-api and protected-panel-web test lanes, including
   panel raw bridge/provider/prompt key non-exposure checks

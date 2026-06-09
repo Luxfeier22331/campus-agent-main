@@ -53,7 +53,7 @@ updated: 2026-04-27
    策略。
 2. `app-api` 再把 verified identity、profile memory summary、session summary 与 authz
    projection 组装成最小 `ContextProjection`。
-3. `execution-control`、`supervisor-agent-worker` 与 `rag-agent` 只消费 typed projection；不得读取
+3. `execution-control`、`supervisor-agent-worker` 与 `knowledge` 只消费 typed projection；不得读取
    raw memory、raw transcript、raw auth material 或产品层数据库对象。
 4. personalization 只允许影响 intent framing、retrieval planning、ranking / disambiguation、
    clarification 与 answer wording；不得扩大 ACL、serving surface、approval 权限或 tool permission。

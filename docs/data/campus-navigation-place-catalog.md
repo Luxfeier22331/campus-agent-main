@@ -29,7 +29,7 @@ updated: 2026-04-14
 - seed：`configs/ingestion/campus_navigation/place_catalog/seed.v1.json`
 - runtime profile：`configs/ingestion/campus_navigation/place_catalog/runtime-pro
   file.json`
-- consumption owner：`packages/navigation-agent`
+- consumption owner：`packages/navigation-capability`
 - authoritative source
   inventory：`docs/reference/campus-navigation-authoritative-source-inventory.md`
 
@@ -37,7 +37,7 @@ updated: 2026-04-14
 
 `place_catalog` 当前是：
 
-- `navigation-agent` 的 repo-owned spatial truth 输入
+- `navigation` 的 repo-owned spatial truth 输入
 - alias-first place resolution 的 canonical source
 - 地图实际上线后 `place_card` / map surface 的预留 place truth
 
@@ -97,7 +97,7 @@ updated: 2026-04-14
 
 - alias 必须 institution-scoped
 - 相同 alias 可以跨校区或跨地点重复存在
-- 如果 alias 命中多个 canonical place，`navigation-agent` 必须返回 clarification，而不是 top1
+- 如果 alias 命中多个 canonical place，`navigation` 必须返回 clarification，而不是 top1
   猜测
 
 ### `point_geometry`
@@ -203,5 +203,5 @@ updated: 2026-04-14
 - `docs/domains/navigation.md`
 - `docs/reference/campus-navigation-authoritative-source-inventory.md`
 - `docs/architecture/domains/navigation/architecture.md`
-- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`

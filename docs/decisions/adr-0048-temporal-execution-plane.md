@@ -96,7 +96,7 @@ Repo owns：
 
 - product auth/session/conversation truth
 - request/run product projection
-- capability admission and ToolSpec / AgentSpec policy
+- capability admission and ToolSpec / CapabilitySpec policy
 - source-truth ownership
 - final answer contract
 - sanitized step / event / result projection

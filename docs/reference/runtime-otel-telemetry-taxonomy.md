@@ -40,7 +40,7 @@ This taxonomy follows the OpenTelemetry direction that:
 | `apps/ingestion-worker` | yes, or runtime event bridge | Emit offline run telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events; not retrieval or ingestion telemetry truth |
 | `packages/retrieval-core` | no | Vendor-neutral `RetrievalObservationSink` only |
-| `packages/rag-agent` | no | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency |
+| `packages/knowledge-capability | no | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency |
 | `packages/ingestion-core` | no by default | Business/data-plane logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
 | `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
 | OTel Collector / equivalent adapter | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
@@ -55,7 +55,7 @@ explicitly allowed below.
 | Event / Span Family | Primary Owner | Signal Shape |
 | --------------------- | --------------- | -------------- |
 | `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, capability, scope summary, trace/request correlation |
-| `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected target/tool, duration, source count summary, fail-close reason |
+| `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected capability/tool, duration, source count summary, fail-close reason |
 | `runtime.request.transport_error` | `apps/app-api` | Product entry to supervisor transport failure |
 | `agent.bridge.started` | `apps/execution-control` | Historical/offline bridge call admitted with lane, timeout and request correlation |
 | `agent.bridge.completed` | `apps/execution-control` | Historical/offline bridge terminal outcome, duration, queue wait, retry/cancel status |
@@ -103,7 +103,7 @@ explicitly allowed below.
 - `requested_capability`
 - `requested_scope`
 - `requested_scope_summary`
-- `selected_target`
+- `selected_capability`
 - `selected_tool`
 - `status`
 - `outcome`

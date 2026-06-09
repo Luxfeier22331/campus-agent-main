@@ -514,7 +514,7 @@ updated: 2026-05-01
 - `requested_scope_json` nullable
 - `version_query_json` nullable
 - `resolved_scope_json` nullable
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `error_code` nullable
 - `question_preview`
@@ -565,7 +565,7 @@ updated: 2026-05-01
   current
 - `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 agent
   自主解析 surface，这里必须落最终解析结果
-- `selected_target` 表示 finalized execution 实际选择的 current runtime target；它不承载
+- `selected_capability` 表示 finalized execution 实际选择的 capability id；它不承载
   forward family vocabulary，也不应被重载为 operator-facing display label
 - `run_id` 是 durable agent runtime 的 answer execution backlink；cutover 前旧同步执行
   路径可以为空，durable chat 主路径必须在第一次 command-side commit 后显式绑定真实
@@ -651,7 +651,7 @@ updated: 2026-05-01
 - `version_query_summary` nullable
 - `resolved_scope_summary` nullable
 - `collection` nullable
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `error_code` nullable
 - `started_at`
@@ -696,7 +696,7 @@ updated: 2026-05-01
 - `(started_at desc)`
 - `(status, started_at desc)`
 - `(surface, started_at desc)`
-- `(selected_target, started_at desc)`
+- `(selected_capability, started_at desc)`
 - `(principal_type, started_at desc)`
 - `(model_name, started_at desc)`
 - `(collection, started_at desc)`
@@ -708,7 +708,7 @@ updated: 2026-05-01
 - `accepted` 阶段的 `resolved_scope_summary` 与 `collection` 必须保持 `null`
 - `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection
   回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
-- `selected_target` 继续只保存 current runtime target，供 operator projection /
+- `selected_capability` 继续只保存 raw capability id，供 operator projection /
   aggregate 过滤；future family grouping 如有需要，应走显式新字段或 projection
 - `version_query_mode` / `version_query_summary` 只保存 operator-safe 版本查询摘要，不回放
   raw caller payload
@@ -756,7 +756,7 @@ updated: 2026-05-01
 - `requested_scope_json` nullable
 - `version_query_json` nullable
 - `resolved_scope_json` nullable
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `error_code` nullable
 - `question_preview`
@@ -807,7 +807,7 @@ updated: 2026-05-01
 - `entitlement_snapshot_id` nullable
 - `policy_projection_version` nullable
 - `requested_capability` nullable
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `terminal_code` nullable
 - `summary`
@@ -1059,7 +1059,7 @@ updated: 2026-05-01
 - `bucket_start`
 - `bucket_end`
 - `surface`
-- `selected_target` nullable
+- `selected_capability` nullable
 - `requested_capability` nullable
 - `principal_type`
 - `collection` nullable
@@ -1072,7 +1072,7 @@ updated: 2026-05-01
 - `(domain, granularity, bucket_start)`
 - `(request_id, granularity, bucket_start)`
 - `(domain, surface, bucket_start)`
-- `(domain, selected_target, bucket_start)`
+- `(domain, selected_capability, bucket_start)`
 
 规则：
 
@@ -1100,7 +1100,7 @@ updated: 2026-05-01
 - `request_id`
 - `trace_id`
 - `surface`
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `cause_class`
 - `detected_by`
@@ -1149,7 +1149,7 @@ updated: 2026-05-01
 - `trace_id`
 - `surface`
 - `request_started_at`
-- `selected_target` nullable
+- `selected_capability` nullable
 - `requested_capability` nullable
 - `principal_type`
 - `collection` nullable

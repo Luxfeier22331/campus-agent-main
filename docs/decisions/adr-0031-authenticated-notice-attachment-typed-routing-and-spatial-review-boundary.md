@@ -185,7 +185,7 @@ Accepted on 2026-04-08.
   extraction lane 决策
 - `internal_notice` 的 notice-level classification 只作为辅助 read model，不是主执行模型
 - 空间关系主导图片继续留在 relation truth + manual outcome，不进入当前 chunk / retrieval truth
-- 后续如果要支持校园导览图、位置图的自动理解，应沿 `navigation-agent` / spatial truth 方向另开能力，而不是继续加大 OCR
+- 后续如果要支持校园导览图、位置图的自动理解，应沿 `navigation` / spatial truth 方向另开能力，而不是继续加大 OCR
   lane
 
 ## Related Docs
@@ -196,4 +196,4 @@ Accepted on 2026-04-08.
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-and-spatial-truth.md`

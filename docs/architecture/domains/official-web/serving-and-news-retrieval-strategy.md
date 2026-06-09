@@ -94,9 +94,9 @@ updated: 2026-05-02
 - `stable_reference` 可以进入默认 institutional knowledge RAG。
 - `fresh_news` 必须作为时效内容 source family / tool-owned runtime surface 单独治理，而不是默认
   generic RAG collection。
-- `fresh_news` 与未来 `notice-agent` / news runtime 是同一类时效内容 owner；讲座、活动、公示、结果等
+- `fresh_news` 与未来 `notice` / news runtime 是同一类时效内容 owner；讲座、活动、公示、结果等
   notice-like 内容应按 routing 进入 notice discovery / canonical notice
-  reading，而不是自动并入 `rag-agent`。
+  reading，而不是自动并入 `knowledge`。
 - `regulations/*` 与 `curriculum/*` 继续是与 `official_web/*` 并列的正式语义 corpus，不应再派生出
   `official_web/regulation` 或 `official_web/curriculum` 这类镜像层。
 - `listing_page` 默认不作为新闻主 evidence；它主要承担 discovery、freshness trigger、navigation
@@ -106,7 +106,7 @@ updated: 2026-05-02
   document/version；多 URL 差异保留在 provenance/source observations，而不是扩成多份 evidence。
 - 对“最新”“今天”“最近”这类强时效 query，单靠本地 news index 不足以形成长期正确答案 contract；必须具备显式 freshness
   gate，并由 owning tool/runtime 执行 bounded live assist 或 fail-close，而不是落进
-  `rag-agent` 默认回答面。
+  `knowledge` 默认回答面。
 - 在当前 `muc_public_pages` workstream 中，`listing_page` 与 staged-only
   `generic_content_page` 仍允许存在于 replay/audit truth，但不得被重新包装成 promotable release
   truth。
@@ -119,25 +119,25 @@ updated: 2026-05-02
 
 固定规则：
 
-- `stable_reference` 仍可作为 `rag-agent` 的 `current` institutional reference
+- `stable_reference` 仍可作为 `knowledge` 的 `current` institutional reference
   surface
-- “今天 / 最新 / 最近 / 刚刚”这类官网时效问题，不应被路由到 `rag-agent`
+- “今天 / 最新 / 最近 / 刚刚”这类官网时效问题，不应被路由到 `knowledge`
 - `freshness_sensitive / live_assisted` 可以保留为 repo-level generic retrieval
   vocabulary，但对 `official_web` 的真实消费应由 tool/runtime path admission，而不是
-  `rag-agent` 自动升级
+  `knowledge` 自动升级
 - `listing_page` 即使在 tool-owned live path 中也默认不是 answer-bearing evidence
 
 ## Relationship To Structured Notice Runtime
 
-长期上，`official_web/fresh_news` 应作为时效内容 source family 被 `notice-agent` / news
-runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surface。
+长期上，`official_web/fresh_news` 应作为时效内容 source family 被 `notice` / news
+runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surface。
 
 固定区分如下：
 
 - `fresh_news`
   - 面向新闻、讲座、活动、公告等时效内容的 source family / projection owner
-  - 默认通过 tool/runtime 路由消费，而不是 `rag-agent` generic retrieval
-- `notice-agent`
+  - 默认通过 tool/runtime 路由消费，而不是 `knowledge` generic retrieval
+- `notice`
   - 面向“帮我找通知/讲座/公示/结果”“把这条通知打开”这类显式 notice task
   - 通过 discover / get contract 返回 canonical notice metadata 与 normalized content
   - 可以作为 future public notice source family 被 structured runtime 消费，但这不自动决定
@@ -149,8 +149,8 @@ runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surfa
   runtime
 - opening `fresh_news` 不等于所有 notice-like 页面都必须默认进入 generic RAG
 - 用户 intent 是“找 notice”或“问最近发生了什么/最新情况是什么”时，应先走 owning tool/runtime；若该 runtime
-  不可用，则 fail-close，而不是误路由到 `rag-agent`
-- public notice runtime 与 restricted notice runtime 是否共享同一个 `notice-agent`
+  不可用，则 fail-close，而不是误路由到 `knowledge`
+- public notice runtime 与 restricted notice runtime 是否共享同一个 `notice`
   source matrix，必须由显式 contract 冻结，而不是由 `fresh_news` opening 或 source-channel
   命名隐式决定
 - future public notice runtime 的 query seam 必须继续是 projection-backed：
@@ -249,7 +249,7 @@ runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surfa
 - query 进入条件由 intent routing 与 owning tool/runtime admission 决定
 - 强依赖 `published_at`、`crawled_at`、`last_seen_at` 等时间元数据
 - consuming runtime 可以带时间过滤、时间排序或 recency bias
-- 当 freshness 不满足阈值时，不得继续伪装成“最新事实”，也不得退回 `rag-agent` 继续回答旧索引
+- 当 freshness 不满足阈值时，不得继续伪装成“最新事实”，也不得退回 `knowledge` 继续回答旧索引
 
 ### News Archive
 
@@ -389,7 +389,7 @@ runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surfa
 `metadata pre-filter -> dense + sparse -> RRF -> registry-backed evidence
 shaping`
 
-但这不等于把 `fresh_news` 重新开放成 `rag-agent` 的 query-serving collection；它需要的是
+但这不等于把 `fresh_news` 重新开放成 `knowledge` 的 query-serving collection；它需要的是
 collection-specific tool/runtime policy：
 
 - 默认启用时间相关 metadata filter
@@ -468,7 +468,7 @@ runtime policy：
 - `news_archive` 的 profile 必须先表达 detail-only 主证据、必需时间元数据与 explicit-history gate
 - `stable_reference` 的 profile 保持默认 query-enabled，但不携带新闻面 freshness / history 语义
 - `fresh_news` / `news_archive` 的 profile 只表达 source-side readiness 与分类
-  truth，不自动开放 `rag-agent` 消费
+  truth，不自动开放 `knowledge` 消费
 
 ## Opening Contract
 
@@ -493,7 +493,7 @@ repo 当前只冻结长期 policy truth 与 runtime-profile contract，不直接
 
 - `official_web/*` 已经整体进入默认 query-serving
 - `fresh_news` 已经进入 query-serving
-- `fresh_news` 已经作为 `rag-agent` 消费面开放
+- `fresh_news` 已经作为 `knowledge` 消费面开放
 - 新闻发布日期抽取已经 repo-wide 稳定
 - 仅凭当前 `listing_page` projection 就足以支撑正式新闻问答
 

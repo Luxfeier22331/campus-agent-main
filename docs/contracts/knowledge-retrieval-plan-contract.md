@@ -4,12 +4,12 @@ status: active
 created: 2026-04-21
 updated: 2026-06-05
 ---
-# RAG Agent Retrieval Plan Contract
+# Knowledge Retrieval Plan Contract
 
 ## 文档边界
 
-本文冻结 `packages/rag-agent` 与 `packages/retrieval-core` 之间的 typed retrieval plan
-seam。
+本文冻结 `packages/knowledge-capability` 与 `packages/retrieval-core` 之间的
+typed retrieval plan seam。
 
 它回答的是：
 
@@ -22,7 +22,7 @@ seam。
 它不负责：
 
 - browser-facing HTTP schema
-- supervisor -> agent handoff schema
+- supervisor -> capability handoff schema
 - 当前 multi-step executor 的具体代码实现
 - 通用工具平台或开放域 browse contract
 
@@ -41,7 +41,7 @@ step trajectory，而不是 prompt 内部不可见的自由文本状态。
 
 固定结论：
 
-- `rag-agent` 负责生成 `RetrievalPlan`
+- `knowledge` 负责生成 `RetrievalPlan`
 - `retrieval-core` 负责执行 `RetrievalStep`
 - `RetrievalRequest` 是 executor kernel input，不等于 `RetrievalStep`
 - 每个 `RetrievalStep` 必须映射到 durable `RunStep`
@@ -57,7 +57,7 @@ step trajectory，而不是 prompt 内部不可见的自由文本状态。
 
 这组类型的首轮稳定 placement 固定为：
 
-`rag-agent planner -> retrieval plan contract -> retrieval-core executor`
+`knowledge planner -> retrieval plan contract -> retrieval-core executor`
 
 固定规则：
 
@@ -218,10 +218,10 @@ RetrievalStep
 - `historical / as_of` 通过 `version_query` 与 `historical_version_lookup` step 收口
 - `compare` 通过 `compare_pair_lookup` 与后续 merge / evidence selection 收口
 - `freshness_sensitive` 先走 `freshness_gate`，不能跳过 freshness admission
-- `live_assisted` 只表示“允许在 admitted 条件下进入 bounded live branch”，不表示 `rag-agent`
+- `live_assisted` 只表示“允许在 admitted 条件下进入 bounded live branch”，不表示 `knowledge`
   可以自动挑选 live target
 - `allow_live_source_lookup=true` 只表示 branch admission；具体 live target selection
-  仍由上层 admitted runtime / tool path 冻结，不属于 `rag-agent` collection runtime
+  仍由上层 admitted runtime / tool path 冻结，不属于 `knowledge` collection runtime
   profile truth
 
 ## StepResult
@@ -255,7 +255,7 @@ StepResult
 
 ## Planner And Executor Boundary
 
-### `rag-agent` planner 固定负责
+### `knowledge` planner 固定负责
 
 - query framing 后的 query mode 决定
 - admitted scopes 内的 step 排布
@@ -300,7 +300,7 @@ StepResult
 
 固定 bounded replan 语义：
 
-- replan 只能由 `rag-agent` 发起
+- replan 只能由 `knowledge` 发起
 - replan 只允许在以下分支触发：
   - step `empty`
   - non-terminal `blocked`

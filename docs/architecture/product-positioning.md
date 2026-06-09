@@ -35,7 +35,7 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 长期上，`campus-agent` 是一个：
 
 - shared control-plane 下的 multi-entry campus product
-- supervisor-led 的 multi-agent orchestration product
+- supervisor-led 的 multi-capability / agent-as-tool orchestration product
 - 以受控机构知识、校园服务与空间信息为核心能力面的校园入口体系
 
 ## 目标用户
@@ -131,10 +131,10 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 其中：
 
 - 稳定制度、材料、流程类问题继续由受控知识面回答
-- 服务开放状态、临时关闭、班车安排等结构化当前状态问题应由独立 domain-agent 承接
+- 服务开放状态、临时关闭、班车安排等结构化当前状态问题应由独立 domain capability 承接
 - 用户明确在找通知、讲座、公示或结果原文时，应优先进入 notice discovery / canonical notice reading
   路径，而不是默认混入 generic RAG
-- 顶层 supervisor 长期应先做 capability routing，而不是默认把所有请求先压成 knowledge / `rag-agent`
+- 顶层 supervisor 长期应先做 capability routing，而不是默认把所有请求先压成 knowledge / `knowledge`
 
 长期入口模型固定为：
 

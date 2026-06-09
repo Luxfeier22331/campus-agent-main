@@ -84,7 +84,7 @@ projection、panel `Requests` domain 的长期 ownership
 
 结论：
 
-- `apps/supervisor-agent-worker` 只返回 private `AgentResponse`
+- `apps/supervisor-agent-worker` 只返回 private `CapabilityResponse`
 - 不拥有 request projection store、list/detail API 或面向 panel 的 read model host
 - execution audit summary、response observability projection 与 public
   finalization 由 `apps/execution-control` 拥有

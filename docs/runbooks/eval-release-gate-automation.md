@@ -95,7 +95,7 @@ formal benchmark case-results，也不支持 operator observability publish dry-
 - `service_guide_lookup` intent 子集，包括办理指南 lookup 与事务性代办 guardrail
 - execution-control Go 侧 service guide planning / runtime policy /
   structured query / answer text
-- Python `campus-services-agent` tool adapter 与 HTTP query service contract
+- Python `campus_services` tool adapter 与 HTTP query service contract
 
 contact directory lookup：
 
@@ -121,7 +121,7 @@ uv run --all-packages python -m scripts.eval_gate accept \
 - `service-guide-lookup` deterministic gate
 - `contact-directory-lookup` deterministic gate
 - Go structured runtime matrix tests
-- Python `tests.agent.test_campus_services_agent`
+- Python `tests.agent.test_campus_services_capability`
 - `app-api` runtime tests + typecheck
 - `public-chat-web` worker E2E + typecheck
 
@@ -153,7 +153,7 @@ artifact 默认写入：
 source trace 观察点（browser-safe）：
 
 - chat structured parts：`campus_service_trace_cards`
-- app-api request projection：`selectedTarget`、`status`、`allowed_tool`、`payload_kind`
+- app-api request projection：`selectedCapability`、`status`、`allowed_tool`、`payload_kind`
 - preflight blocker：`preflight.campusServicesProductPath.blockers`
 
 ## Publish

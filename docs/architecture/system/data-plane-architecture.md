@@ -149,7 +149,7 @@ release 阶段。
   OCR soft-wrap repair 与中文可读性标点归一，并产出 normalization quality/provenance
 - document-units metadata 必须携带 `normalizer_version`、`cleaning_policy_version`、
   `document_units_schema_version` 与 `normalization_quality`
-- 非 `passed` 的 normalization quality 不得写入 selected target materialization；需要回到
+- 非 `passed` 的 normalization quality 不得写入 selected source materialization；需要回到
   manual review / owner recovery / cleaner hardening
 - 下游 reader publish 与 RAG release 只能消费 registry 指向的 canonical artifacts /
   document-units，不允许在下游重新修正文

@@ -76,7 +76,7 @@ answer 层长期至少保留以下指标族：
 
 ## 决策 4：Workflow 的核心指标族
 
-对 `supervisor -> agent -> retrieval` 这类 agentic workflow，长期至少保留以下指标族：
+对 `supervisor -> capability -> retrieval` 这类 agentic workflow，长期至少保留以下指标族：
 
 - `status accuracy` `completed`、`needs_clarification`、`no_answer`、`error` 是否与
   truth 一致

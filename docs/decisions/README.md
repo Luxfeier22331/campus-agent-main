@@ -80,7 +80,7 @@ updated: 2026-06-06
 
 - `adr-0005-campus-services-taxonomy.md`
 - `adr-0021-institution-scoped-entity-alias-governance.md`
-- `adr-0027-navigation-agent-and-spatial-truth.md`
+- `adr-0027-navigation-capability-and-spatial-truth.md`
 - `adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 
 ## Official Web 决策

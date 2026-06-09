@@ -15,7 +15,7 @@ Accepted on 2026-04-05.
 
 `ADR-0027` 已经冻结了以下长期边界：
 
-- 导航是独立 agent family
+- 导航是独立 capability family
 - 校园空间真相属于 repo-owned institutional knowledge 子域
 - 瓦片地图只是 runtime presentation concern
 - 外部地图 provider 只允许作为 adapter 参与
@@ -115,7 +115,7 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 - route polyline、waypoint、summary、warning 由产品 contract 提供
 - 前端 renderer 可以是 provider-neutral map renderer，也可以在局部适配某个底图 SDK
-- renderer 与底图切换不应反向改变 `app-api`、`supervisor` 或 `navigation-agent` 的 shared
+- renderer 与底图切换不应反向改变 `app-api`、`supervisor` 或 `navigation` 的 shared
   contract
 
 ### 决策 7：首个前向交付 slice 固定为地点寻找，而不是路线规划
@@ -183,6 +183,6 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 ## Related Docs
 
 - `docs/architecture/domains/navigation/architecture.md`
-- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-and-spatial-truth.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`

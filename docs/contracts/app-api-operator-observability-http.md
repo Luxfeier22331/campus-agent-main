@@ -86,7 +86,7 @@ contract。
   - 允许值：`15m`、`1h`、`24h`、`7d`、`30d`
   - 默认：`24h`
 - `surface`
-- `selectedTarget`
+- `selectedCapability`
 - `requestedCapability`
 - `principalType`
 - `collection`
@@ -108,11 +108,11 @@ list endpoints 额外支持：
 - `window` 与 `granularity` 的非法组合返回 `400 validation_failed`
 - 未传 filter 时表示查询当前 operator 可见范围内的全量 app-owned aggregate
 - 过滤只作用于 app-owned projection / rollup 维度，不隐式回源 raw sink
-- `selectedTarget` 继续只表示 current runtime target filter，不表示 forward family
+- `selectedCapability` 继续只表示 raw capability filter，不表示 forward family
   label，也不直接承担 localized display wording
 - 如果 operator surface 需要 capability family 或 display wording，必须通过独立 projection
-  field / mapping 提供；不得把 `rag-agent`、`navigation-agent` 之类派生标签直接写回
-  `selectedTarget`
+  field / mapping 提供；不得把 `knowledge`、`navigation` 之类派生标签直接写回
+  `selectedCapability`
 
 ## Endpoint Summary
 
@@ -438,7 +438,7 @@ list endpoints 额外支持：
       "corpus": "curriculum",
       "collection": "curriculum_plan"
     },
-    "selectedTarget": "rag-agent",
+    "selectedCapability": "knowledge",
     "startedAt": "2026-04-03T00:00:00.000Z",
     "completedAt": "2026-04-03T00:00:00.842Z"
   },
@@ -563,7 +563,7 @@ list endpoints 额外支持：
         "corpus": "curriculum",
         "collection": "curriculum_plan"
       },
-      "selectedTarget": "rag-agent"
+      "selectedCapability": "knowledge"
     },
     "execution": {
       "status": "completed",
@@ -772,7 +772,7 @@ list endpoints 额外支持：
 - `runtime` 与 `sampledGrades` 必须分块返回，不混成单一 truth
 - `runtime.feedback` 来自 `chat.message_feedback.request_id` 与
   `runtime.request_observability_fact.request_id` 的 app-api owned join；时间窗、surface、
-  selected target、capability、principal、collection 与 model 过滤均以 request observability
+  selected capability、capability、principal、collection 与 model 过滤均以 request observability
   fact 为准，不以 feedback `updatedAt` 重新定义窗口
 - `runtime.feedback.coverageRate.eligibleCount` 只统计可投票 assistant answer：`completed`、
   `needs_clarification` 与 `no_answer`；`error`、`rejected`、`approval_required` 不进入分母
@@ -857,7 +857,7 @@ list endpoints 额外支持：
       "requestId": "req_01HQ",
       "traceId": "trace_01HQ",
       "surface": "public_chat_web",
-      "selectedTarget": "rag-agent",
+      "selectedCapability": "knowledge",
       "status": "open",
       "causeClass": "citation_missing",
       "detectedBy": "runtime_monitor",
@@ -919,7 +919,7 @@ list endpoints 额外支持：
       "requestId": "req_01HQ",
       "traceId": "trace_01HQ",
       "surface": "public_chat_web",
-      "selectedTarget": "rag-agent",
+      "selectedCapability": "knowledge",
       "causeClass": "unsupported_by_evidence",
       "summary": "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
       "grade": {
@@ -944,7 +944,7 @@ list endpoints 额外支持：
       "requestId": "req_01HQ",
       "traceId": "trace_01HQ",
       "surface": "public_chat_web",
-      "selectedTarget": "rag-agent",
+      "selectedCapability": "knowledge",
       "causeClass": "wrong_intent",
       "summary": "Negative answer feedback for answer: wrong_intent.",
       "grade": null,
@@ -993,7 +993,7 @@ list endpoints 额外支持：
       "requestId": null,
       "traceId": null,
       "surface": "regulations/student_rules",
-      "selectedTarget": null,
+      "selectedCapability": null,
       "causeClass": "evidence_selection_failed",
       "summary": "RAGAS faithfulness=0.31 below 0.80 at evidence_selection.",
       "grade": {
@@ -1052,7 +1052,7 @@ list endpoints 额外支持：
   citation/source posture、reason codes 与 trace backlink；不得返回 raw transcript、
   raw auth material、provider raw response、raw prompt 或 retrieval payload
 - RAGAS diagnostic candidate 不携带 runtime request / trace correlation；`requestId`、
-  `traceId`、`selectedTarget` 和 `links.*` 固定允许为 `null`，panel 不得把它渲染成运行时
+  `traceId`、`selectedCapability` 和 `links.*` 固定允许为 `null`，panel 不得把它渲染成运行时
   request 链接
 - RAGAS diagnostic candidate 只返回 case / metric / failure stage / doc id 摘要；
   不得返回 raw answer、raw prompt、transcript、local artifact path、bucket / object key、
@@ -1223,7 +1223,7 @@ list endpoints 额外支持：
       "traceId": "trace_01HQ",
       "surface": "protected_panel_web",
       "principalType": "operator",
-      "selectedTarget": "rag-agent",
+      "selectedCapability": "knowledge",
       "anomalyCode": "projection_missing",
       "severity": "high",
       "status": "open",
@@ -1336,7 +1336,7 @@ list endpoints 额外支持：
 - `traceId`
 - `principalType`
 - `surface`
-- `selectedTarget`
+- `selectedCapability`
 - `eventType`
 - `status`
 
@@ -1353,7 +1353,7 @@ list endpoints 额外支持：
       "eventType": "authz.decision",
       "surface": "public_chat_web",
       "principalType": "campus_member",
-      "selectedTarget": "rag-agent",
+      "selectedCapability": "knowledge",
       "status": "allowed",
       "summary": "student_rules 请求通过 authz check"
     }
@@ -1394,7 +1394,7 @@ list endpoints 额外支持：
     "entitlementSnapshotId": "ent_01HQ",
     "policyProjectionVersion": "2026-04-02",
     "requestedCapability": "knowledge",
-    "selectedTarget": "rag-agent",
+    "selectedCapability": "knowledge",
     "status": "allowed",
     "terminalCode": "completed",
     "summary": "student_rules 请求通过 authz check",
@@ -1618,7 +1618,7 @@ list endpoints 额外支持：
 - app-api 内置 recorder 支持用
   `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` / `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
   生成同等 payload；支持的 placeholder 为 `{requestId}`、`{traceId}`、
-  `{errorCode}`、`{selectedTarget}`、`{surface}`、`{status}`
+  `{errorCode}`、`{selectedCapability}`、`{surface}`、`{status}`
 
 ## Explicit Non-Goals
 

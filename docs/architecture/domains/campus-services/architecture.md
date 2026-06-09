@@ -8,14 +8,14 @@ updated: 2026-05-01
 
 ## 文档边界
 
-本文冻结 `campus-services-agent` 的领域 supporting architecture。
+本文冻结 `campus_services` 的领域 supporting architecture。
 
 它回答的是：
 
-- `campus-services-agent` 长期负责哪些结构化校园服务能力
+- `campus_services` 长期负责哪些结构化校园服务能力
 - `transport_schedule_lookup`、`service_status_lookup`、`service_guide_lookup` 与后续
   contact / process runtime capability 应如何分层
-- supervisor、`campus-services-agent`、`navigation-agent`、query service 与 projection
+- supervisor、`campus_services`、`navigation`、query service 与 projection
   各自负责什么
 - structured campus services runtime 为什么不能回退成 generic retrieval 或 query-time
   raw scan
@@ -29,27 +29,28 @@ updated: 2026-05-01
 
 ## Core Conclusion
 
-长期上，`campus-services-agent` 承接的是 projection-backed structured runtime
+长期上，`campus_services` 承接的是 projection-backed structured runtime
 capability，而不是 generic retrieval 的一个 collection alias。
 
 固定形态为：
 
 ```text
 app-api -> execution-control -> Temporal activity -> capability worker
--> campus-services-agent / typed tool -> internal query service
+-> campus_services / typed tool -> internal query service
 -> projection-backed structured truth
 ```
 
 这意味着：
 
-- tool 只是 `campus-services-agent` 持有的 thin adapter
+- tool 只是 `campus_services` 持有的 thin adapter
 - runtime answer seam 是 repo-owned internal query service，不是 browser-facing API
 - internal query service 只读 projection / normalized truth
-- `campus-services-agent` 不在 query time 回扫 raw source bundle、notice HTML 或通用 chunk
-- `navigation-agent` 可消费 point refs，但不拥有 timetable truth 或 service-status truth
-- 在长期 multi-agent workflow 中，`campus-services-agent` 可以产出 bounded service /
-  schedule facts 供 `notice-agent`、`navigation-agent` 或 `rag-agent` 消费，但不得把 raw
-  read model rows、raw notice text 或 unbounded source evidence 直接传给下游 agent
+- `campus_services` 不在 query time 回扫 raw source bundle、notice HTML 或通用 chunk
+- `navigation` 可消费 point refs，但不拥有 timetable truth 或 service-status truth
+- 在长期 multi-capability / agent-as-tool workflow 中，`campus_services`
+  可以产出 bounded service / schedule facts 供 `notice`、`navigation` 或
+  `knowledge` 消费，但不得把 raw read model rows、raw notice text 或
+  unbounded source evidence 直接传给下游 agent
 
 ## Capability Boundary
 
@@ -67,7 +68,7 @@ app-api -> execution-control -> Temporal activity -> capability worker
 - `academic_calendar_lookup`
   - 回答第几教学周、学期日期窗口、节假日安排与补课/调休上课安排等校历事实
   - 只读 `calendar/academic_calendar` projection / typed read model；runtime
-    owner 是 `campus-services-agent`，data-plane owner 仍是
+    owner 是 `campus_services`，data-plane owner 仍是
     `calendar/academic_calendar`
 
 later-wave 已冻结方向包括：
@@ -76,14 +77,14 @@ later-wave 已冻结方向包括：
   - 回答已结构化的办理步骤、前置条件、材料、入口与办理节点
   - 只读，不生成可执行事务、预约、提交或工单 handoff
 
-不属于 `campus-services-agent` 的内容：
+不属于 `campus_services` 的内容：
 
 - 通用制度/流程问答
-  - 继续属于 `rag-agent`
+  - 继续属于 `knowledge`
 - notice 发现与 canonical notice 阅读
-  - 继续属于 `notice-agent`
+  - 继续属于 `notice`
 - 地点查找、路径规划、route geometry、spatial truth
-  - 继续属于 `navigation-agent`
+  - 继续属于 `navigation`
 - 事务执行、代办、提交、预约、支付、工单创建或任何状态变更
   - 当前中短期不进入产品规划；不得通过 tool handoff、表单自动化或 app-api loopback
     变相实现
@@ -92,10 +93,10 @@ later-wave 已冻结方向包括：
 
 - supervisor
   - 拥有 admission、capability routing、terminal semantics、clarification 分层
-- `campus-services-agent`
+- `campus_services`
   - 拥有 campus-services family 内的 tool selection、service-specific clarification、
     structured answer shaping 与 fail-close policy
-  - 在 manager-style multi-agent workflow 中产出 `ScheduleBaseline`、
+  - 在 manager-style multi-capability / agent-as-tool workflow 中产出 `ScheduleBaseline`、
     `ServiceGuideFacts`、`ServiceStatusFacts`、`ContactFacts` 等 bounded step output
     projection
 - thin tool adapter
@@ -116,7 +117,7 @@ later-wave 已冻结方向包括：
 - `transport_schedule_lookup`
   - 只读 route / service window / stop ref projection
   - 方向、班次类型、当前时间语义必须由 code-owned query policy 解释
-  - `navigation-agent` 只消费站点/地点引用，不拥有 timetable truth
+  - `navigation` 只消费站点/地点引用，不拥有 timetable truth
 - `contact_directory_lookup`
   - 只读 `campus_services/contact_directory` contact entity / entity-group projection
   - handbook 电话页、official-web 联系方式页与 future directory page 只作为 provenance 上游
@@ -199,21 +200,21 @@ workflow。
 
 ## Relation To Retrieval And Notice
 
-- `campus-services-agent` 不并回 `rag-agent`
+- `campus_services` 不并回 `knowledge`
 - `campus_services/*` 即使不进入 generic retrieval 默认 query scope，也不意味着 runtime
   seam 应该回退成 generic retrieval
 - structured campus services runtime 与 `official_web` / authenticated notice
   source-channel retrieval 可以并存，但不能互相冒充
-- 如果某个问题需要 canonical notice 正文或公告发现，应明确切到 `notice-agent`
-- 如果某个问题只需要地点引用或路线展示，应明确切到 `navigation-agent`
+- 如果某个问题需要 canonical notice 正文或公告发现，应明确切到 `notice`
+- 如果某个问题只需要地点引用或路线展示，应明确切到 `navigation`
 - 如果某个问题同时需要稳定班次基底与近期临时通知，应由 supervisor workflow plan 显式串联
-  `campus-services-agent` 与 `notice-agent`，再把 bounded `ScheduleBaseline` /
-  `NoticeChangeSet` 交给 finalizer 或 `rag-agent` grounding step；不得让任一 agent 在
+  `campus_services` 与 `notice`，再把 bounded `ScheduleBaseline` /
+  `NoticeChangeSet` 交给 finalizer 或 `knowledge` grounding step；不得让任一 agent 在
   query time 回扫对方的 raw source
 
 ## Opening Gate
 
-`campus-services-agent` 的 owner package、thin adapter 与 handoff seam 已存在，不等于这条
+`campus_services` 的 owner package、thin adapter 与 handoff seam 已存在，不等于这条
 runtime lane 已开放。
 
 固定规则：
@@ -264,7 +265,7 @@ Phase 6 后，这条线的产品路径缺口不再放在本架构文档分散维
 ## Forbidden Shapes
 
 - 不把班车/服务状态问题继续塞回 generic retrieval
-- 不让 `navigation-agent` 代持 timetable truth 或 service-status truth
+- 不让 `navigation` 代持 timetable truth 或 service-status truth
 - 不在 query time 扫描 raw source、notice bundle、portal HTML 或对象存储前缀
 - 不通过 `app-api` loopback HTTP 充当 internal query seam
 - 不把未通过 opening gate 的 runtime lane 冒充成已上线 product capability

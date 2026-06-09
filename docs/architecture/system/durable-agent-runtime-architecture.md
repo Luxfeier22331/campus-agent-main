@@ -96,7 +96,7 @@ Repo owns：
 
 - product auth/session/conversation truth
 - request/run product projection
-- capability admission, ToolSpec and AgentSpec policy
+- capability admission, ToolSpec and CapabilitySpec policy
 - source-truth ownership
 - final answer contract
 - sanitized step / event / result projection
@@ -390,7 +390,7 @@ Temporal Task Queue 是 worker dispatch substrate。
 
 - product-layer auth/session/conversation ownership
 - browser-facing capability policy
-- domain-agent semantic reasoning
+- capability / explicit agent-as-tool semantic reasoning
 - retrieval backend implementation
 - worker autoscaling decision
 

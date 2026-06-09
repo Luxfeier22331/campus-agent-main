@@ -199,7 +199,7 @@ agent-as-tool 参与 typed step。
 
 直接含义：
 
-- `notice-agent`、`campus-services-agent`、`navigation-agent` 等 label 表示 semantic
+- `notice`、`campus_services`、`navigation` 等 label 表示 semantic
   specialist family，不表示 source truth owner
 - supervisor 只调度 typed step，不调用自由 agent
 - RAG 目标形态是 durable planner-first typed-tool agentic RAG

@@ -68,7 +68,7 @@ browser -> protected-panel-web -> app-api
     `protected-panel-web`、`app-api`、`execution-control`、`ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
-    `rag-agent`、`retrieval-core`、`ingestion-core`、`contracts`
+    `knowledge-capability`、`retrieval-core`、`ingestion-core`、`contracts`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
@@ -87,7 +87,7 @@ browser -> protected-panel-web -> app-api
 - [`apps/execution-control`](./apps/execution-control/)
 - [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)（offline /
   eval / historical bridge reference，不在 online serving path）
-- [`packages/rag-agent`](./packages/rag-agent/)
+- [`packages/knowledge-capability`](./packages/knowledge-capability/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)
 

@@ -61,10 +61,11 @@ pnpm contracts:check
 version、runtime decision schema version、status enum 或 terminal response shape，都必须先更新
 canonical schema，再重新生成 artifact。
 
-`packages/contracts/schemas/agent-handoff.v1.schema.json` 只冻结 supervisor -> agent
-handoff 的 `AgentRequest` / `AgentResponse`。它不承载 `runtime_decisions`、
-`supervisor_bridge_v6` 或具体 transport wrapper，避免把 execution runtime truth 泄漏进共享
-agent contract 包。
+`packages/contracts/schemas/capability-handoff.v1.schema.json` 只冻结
+supervisor -> capability handoff 的 `CapabilityRequest` / `CapabilityResponse`。
+它不承载 `runtime_decisions`、`supervisor_bridge_v6` 或具体 transport wrapper，
+避免把 execution runtime truth 泄漏进共享
+capability contract 包。
 
 Run projection compatibility note：
 
@@ -102,7 +103,7 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 `x-campus-contract` 中的以下字段是可机器读取的版本治理口径：
 
 - `bridge_version`：bridge envelope 出现不兼容 shape 变化时必须 bump
-- `response_contract`：`AgentResponse` / terminal response wire 语义出现不兼容变化时
+- `response_contract`：`CapabilityResponse` / terminal response wire 语义出现不兼容变化时
   必须 bump
 - `runtime_decisions_schema_version`：`runtime_decisions` shape 或 required provenance
   变化时必须 bump
@@ -123,8 +124,8 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 terminal policy、resume policy 与 semantic retry policy。当前 online RAG path 不再把
 真实 delegate payload 送入 Python bridge。
 首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
-`notice-agent internal selected notice resolve
-(payload_kind=campus_notice_get) -> rag-agent retrieval.query`。notice step 输出会被
+`notice internal selected notice resolve
+(payload_kind=campus_notice_get) -> knowledge retrieval.query`。notice step 输出会被
 `execution-control` 投影成 canonical `StepOutputProjection`，再输入后续 RAG step；
 `workflow_plan.edges[].required_projection_kind` 声明跨 step 输入要求。operator / eval
 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
@@ -268,13 +269,13 @@ Go `apps/execution-control` 当前承载 gate-closed structured query runtime fo
 - `POST /internal/query/notices/discover`
 - `POST /internal/query/notices/get`
 
-这组 endpoint 是 `domain-agent -> thin adapter -> internal query
+这组 endpoint 是 `domain capability -> thin adapter -> internal query
 service` 的 Docker-local seam，不是 browser-facing API，也不是 `app-api`
 product/control-plane endpoint。
 
 调用规则：
 
-- 仅允许 Python orchestration bridge 这类 trusted internal caller 使用
+- 仅允许 repo-owned trusted internal runtime caller 使用
 - 请求头使用 `x-supervisor-query-auth`
 - JSON 命名保持 `snake_case`
 - response body 对齐对应 tool result contract 的 safe typed summary
@@ -408,7 +409,7 @@ payload 或 provider raw response。
   scope hint。如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许
   agent 自主解析最终 serving surface，而不是由 `app-api` 或 `execution-control` 伪造默认
   collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为
-  `place_catalog` 仍是 `navigation-agent` 消费的 internal spatial truth，而不是默认公开
+  `place_catalog` 仍是 `navigation` 消费的 internal spatial truth，而不是默认公开
   query-serving surface；`campus_services` 与 `notice` 同样不得携带
   `requested_scope`
 - `version_query` 可选；当前只允许与 `requested_capability=knowledge` 一起出现。`app-api` 负责把
@@ -434,7 +435,7 @@ payload 或 provider raw response。
 
 ```json
 {
-  "selected_target": "rag-agent",
+  "selected_capability": "knowledge",
   "status": "completed",
   "answer_text": "图书馆开放到 22:00。",
   "follow_up_question": "",
@@ -507,7 +508,7 @@ payload 或 provider raw response。
 
 - `status`
 - `trace_id`
-- `selected_target`
+- `selected_capability`
 - `answer_text`
 - `follow_up_question`
 - `error`
@@ -516,13 +517,13 @@ payload 或 provider raw response。
 
 其中：
 
-- `selected_target` 始终表示 execution path 实际选择的 current runtime target。 在当前 phase
-  它只能是 shared contract 中已 admitted 的 runtime label，例如
-  `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent`。 它不是
-  capability family label，也不是 operator-facing display label；当 current runtime
-  label 与 family label 一致时，serialized contract 直接承载这个 admitted runtime target。
+- `selected_capability` 始终表示 execution path 实际选择的 capability id。 在当前 phase
+  它只能是 shared contract 中已 admitted 的 capability label，例如
+  `knowledge`、`navigation`、`campus_services`、`notice`。 它不是
+  capability family label，也不是 operator-facing display label；当 capability id
+  与 family label 一致时，serialized contract 直接承载这个 admitted capability id。
 - `result` 仍由 agent / shared contract 拥有，不在这里完整重定义
-- 当 `selected_target = navigation-agent` 时，`result` 使用 `PlaceLookupResult` 的
+- 当 `selected_capability = navigation` 时，`result` 使用 `PlaceLookupResult` 的
   Python-side `snake_case` 形态：
   - `query_text`
   - `matched_alias`
@@ -532,7 +533,7 @@ payload 或 provider raw response。
     opening_note, service_tags, point_geometry, coordinate_reference_system,
     source_refs}`
   - `candidate_places[].{place, clarification_hint}`
-- 当 `selected_target = rag-agent` 且 `result.diagnostics` 存在时，`app-api` 当前会消费其中的
+- 当 `selected_capability = knowledge` 且 `result.diagnostics` 存在时，`app-api` 当前会消费其中的
   summary truth：
   - `retrieval_adequacy_verdict`
   - `retrieval_adequacy_reason`
@@ -612,17 +613,17 @@ payload 或 provider raw response。
 
 terminal response 的跨语言语义固定如下：
 
-- `completed`：必须有 canonical `selected_target` 与 response-level confidence
+- `completed`：必须有 canonical `selected_capability` 与 response-level confidence
 - `needs_clarification` / `no_answer`：仍是 typed execution outcome，不等价于
   transport failure
 - `error`：必须携带 safe `{ code, message, retryable }`，并在
   `workflow_trace_summary.fail_close_reason` 中保留 deterministic failure class
-- `cancelled`：允许 `selected_target=null`，表示 execution lifecycle 已终止，不要求 agent
+- `cancelled`：允许 `selected_capability=null`，表示 execution lifecycle 已终止，不要求 agent
   handoff 已发生
 - timeout / bridge unavailable / bridge circuit open 不能伪装成 completed answer；它们必须通过
   typed `error` / HTTP status / workflow trace summary 保留 fail-close provenance
 
-Go finalizer 必须保证 delegate branch 与 `handoff.agent_request.target`、`selected_target`、
+Go finalizer 必须保证 delegate branch 与 `handoff.agent_request.target`、`selected_capability`、
 runtime version provenance 一致；否则 fail-closed，而不是返回半结构化成功 body。
 
 ## Current Compatibility Note
@@ -649,7 +650,7 @@ shared product path 已收口为：
   capability-neutral routing 误写成“当前 wire 已经 capability-family-native”
 - `requested_scope` 的长期语义应收窄为 knowledge-family-specific field；它不能代替 capability
   routing，也不应要求非 knowledge path 伪造等价字段
-- `selected_target` 的语义不变：它继续序列化 current execution path 实际选中的 admitted runtime
+- `selected_capability` 的语义不变：它继续序列化 current execution path 实际选中的 admitted runtime
   target，而不是 future capability-family alias、surface label 或 operator-facing 名称
 - capability-neutral routing、surface capability policy 与 routing clarification
   的长期 supporting truth 见

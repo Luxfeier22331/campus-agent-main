@@ -77,7 +77,7 @@ truth。
   `compare` 这四种 version query mode；`freshness_sensitive` 与 `live_assisted`
   仍未作为产品 route 默认开放
 
-这里的 `agent` 默认指 knowledge-family `rag-agent` specialist，而不是顶层 capability router。
+这里的 `agent` 默认指 knowledge-family `knowledge` specialist，而不是顶层 capability router。
 
 ## Current Baseline Vs Target Agentic Retrieval
 
@@ -412,9 +412,10 @@ structured query seam。
 - structured runtime surface 与 `fresh_news` 一类 retrieval surface 可以并存，但不能互相冒充
 - structured campus-services runtime 不回退成 `service_catalog` reopening、generic
   retrieval alias 或 raw source scan
-- 在长期 multi-agent workflow 中，structured runtime surface 可以向 `rag-agent`
-  提供 bounded context projection，例如 notice context、service facts、schedule baseline
-  或 place context；这些 projection 只能辅助 retrieval framing / grounding validation，
+- 在长期 multi-capability / agent-as-tool workflow 中，structured runtime surface
+  可以向 `knowledge` 提供 bounded context projection，例如 notice context、
+  service facts、schedule baseline 或 place context；这些 projection 只能辅助
+  retrieval framing / grounding validation，
   不改变 query-serving collection allowlist，也不绕过 authz / freshness / source-trust gate
 
 ## Forbidden Shapes

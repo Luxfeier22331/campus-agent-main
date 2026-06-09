@@ -13,8 +13,8 @@ updated: 2026-04-28
 它覆盖：
 
 - 后续 `packages/contracts` 内 `ContactDirectoryLookupPayload / Result` 的稳定语义
-- `apps/supervisor-agent-worker -> packages/campus-services-agent` 的 handoff seam
-- `campus-services-agent -> thin tool adapter -> internal query service`
+- `apps/supervisor-agent-worker -> packages/campus_services` 的 handoff seam
+- `campus_services -> thin tool adapter -> internal query service`
   的 request/result seam
 - 部门、科室、服务点、公开职务联系人、电话、邮箱、办公地点、办公时间与 source refs
   的 typed 结果边界
@@ -62,7 +62,7 @@ updated: 2026-04-28
 - “帮我打电话”“帮我发邮件”“替我预约”不属于 `contact_directory_lookup`，必须由 supervisor
   保持 terminal guardrail / fail-close
 - tool 只返回 source-linked structured facts，不返回 executable communication payload
-- tool 不生成最终自然语言回答；最终回答组织属于 `campus-services-agent`
+- tool 不生成最终自然语言回答；最终回答组织属于 `campus_services`
 - tool 不回扫 raw handbook table、official web page、notice HTML、browser 页面或 generic
   retrieval chunk
 
@@ -71,7 +71,7 @@ updated: 2026-04-28
 - supervisor
   - 拥有 capability admission、transactional guardrail、terminal semantics 与 high-level
     routing clarification
-- `campus-services-agent`
+- `campus_services`
   - 拥有 campus-services family 内的 tool selection、contact-specific clarification、
     answer shaping 与 fail-close wording
 - `contact_directory_lookup` thin tool adapter
@@ -296,8 +296,8 @@ ContactDirectoryCandidate
   - “卡务中心今天开不开”
   - “班车乘车点现在在哪里”
 - 班次、首末班、下一班进入 `transport_schedule_lookup`
-- notice 正文、公告发现或临时活动联系人进入 `notice-agent`
-- 地点路线、怎么走、地图展示进入 `navigation-agent`
+- notice 正文、公告发现或临时活动联系人进入 `notice`
+- 地点路线、怎么走、地图展示进入 `navigation`
 
 ## Eval / Opening Gate
 
@@ -308,7 +308,7 @@ ContactDirectoryCandidate
     validation
   - structured query tests：resolved/ambiguity/fail-close/read-model 模式与 HTTP handler
     wiring
-  - campus-services-agent adapter tests：phone/email/location/hours
+  - campus_services adapter tests：phone/email/location/hours
     answer shaping 与
     candidate clarification
   - supervisor planner/router tests：联系方式路由到 `contact_directory_lookup`，并保持
@@ -348,7 +348,7 @@ Phase 6 snapshot（2026-04-27）：
 
 ## Prompt Policy
 
-第一版不为 `campus-services-agent` 增加独立 LLM prompt。正确性 owner 是：
+第一版不为 `campus_services` 增加独立 LLM prompt。正确性 owner 是：
 
 - supervisor deterministic routing / payload construction
 - strict typed payload/result contract

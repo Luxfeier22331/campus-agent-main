@@ -27,14 +27,14 @@ Python 不再拥有 deterministic execution runtime truth。
 
 ## Agent Boundary
 
-`packages/rag-agent` 当前保留 knowledge-family semantic agent 能力：
+`packages/knowledge-capability 当前保留 knowledge-family semantic agent 能力：
 
 - query framing、scope-specific semantic planning、bounded synthesis packet assembly、
   grounding validation
 - online RAG provider-backed synthesis 已迁入 Go `SynthesizeRAGAnswerActivity`；
   Python `OpenAIAgentsRagRuntime` 仅保留 non-serving / test artifact，不是默认 online
   runtime
-- retrieval evidence 到 `AgentResponse` 的 contract 化
+- retrieval evidence 到 `CapabilityResponse` 的 contract 化
 
 这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个
 不可观测的 Python bridge 黑盒。当前 RAG online path step graph 包括 `rag.plan`、
@@ -43,9 +43,9 @@ Python 不再拥有 deterministic execution runtime truth。
 
 内部拆分规则：
 
-- `service.py` 保持 agent service facade，不继续吸收 scope planning 大块逻辑
+- `service.py` 保持 capability service facade，不继续吸收 scope planning 大块逻辑
 - scope-specific logic 分到 `service_scope_*`
-- direct answer composition 分到 `agent_answering_*`
+- direct answer composition 分到 `answering_*`
 - grounding validation 的 result、trust policy、support policy、
   source-trust summary 分文件维护
 
@@ -91,7 +91,7 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 
 - 不把 Go runtime types、Qdrant / S3 / provider SDK types 写入 `packages/contracts`
 - 不把 deterministic supervisor admission、routing、structured payload planning 写回 Python
-- 不把 ingestion source-truth / projection logic 拉入 `packages/rag-agent`
+- 不把 ingestion source-truth / projection logic 拉入 `packages/knowledge-capability`
 - 不把 retrieval backend private helpers 重新塞进 agent service
 - 大模块出现增长时优先按 owner 拆文件，而不是在 facade 继续堆分支
 - 不把 Python 继续保留在长期 online answer hot path 当作默认扩容策略

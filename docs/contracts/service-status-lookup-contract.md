@@ -13,8 +13,8 @@ updated: 2026-04-25
 它覆盖：
 
 - `packages/contracts` 内 `ServiceStatusLookupPayload / Result` 的稳定语义
-- `apps/supervisor-agent-worker -> packages/campus-services-agent` 的 handoff seam
-- `campus-services-agent -> thin tool adapter -> internal query service`
+- `apps/supervisor-agent-worker -> packages/campus_services` 的 handoff seam
+- `campus_services -> thin tool adapter -> internal query service`
   的 request/result seam
 
 它不覆盖：
@@ -27,8 +27,8 @@ updated: 2026-04-25
 
 - `service_status_lookup` 已通过 `campus-services-product-path` opening gate，
   tool-level verdict 为 `open`（Phase 6，2026-04-27）。
-- `service_status_lookup` 当前是 ToolSpec-admitted Agents SDK domain-agent adapter
-  tool；SDK 只承接 agent-side argument completion / single tool loop。projection-backed
+- `service_status_lookup` 当前是 ToolSpec-admitted Agents SDK domain capability adapter
+  tool；SDK 只承接 capability-side argument completion / single tool loop。projection-backed
   structured query、current/effective temporal policy、source provenance、Go
   admission 与 Go finalization 仍归 repo-owned runtime。
 - 公开 answer / stream 入口对该 tool 走 Go-owned `single_step` bridge lane，不再使用
@@ -107,7 +107,7 @@ ServiceStatusLookupResult
   window，再优先选择更晚 `effective_from` / 更窄 effective window 的临时记录
 - matched record 的 effective window 已过期时，不得继续回答
   `resolved_current`；应返回 `temporarily_unverifiable/current_state_unverifiable`
-- 需要 canonical notice 正文或公告发现时，应切到 `notice-agent`
+- 需要 canonical notice 正文或公告发现时，应切到 `notice`
 
 ## Observability Summary
 

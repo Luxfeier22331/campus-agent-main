@@ -251,8 +251,8 @@ document/index release`
   落入 bridge contract；当前 runtime 默认只发出 `single_step` plan。受控
   开启 `EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run
   store ready 后，可执行首条真实 `multi_step` path：selected notice context +
-  knowledge follow-through 触发 notice-agent internal selected notice resolve
-  (`payload_kind=campus_notice_get`) -> `rag-agent retrieval.query`，并将 notice
+  knowledge follow-through 触发 notice internal selected notice resolve
+  (`payload_kind=campus_notice_get`) -> `knowledge retrieval.query`，并将 notice
   step 输出以 bounded internal workflow context projection 传给 RAG step。该 path 现已
   改为 planner 输出 internal `CapabilityPlan`，再由 artifact-registry resolver 编译
   `WorkflowPlan`；planner 不再手写 notice -> rag 固定 step shell。Go finalizer 同时在
@@ -306,13 +306,13 @@ document/index release`
 
 ## 当前 Package 边界
 
-- `packages/rag-agent` 当前默认 knowledge agent，负责 retrieval-specific
+- `packages/knowledge-capability 当前默认 knowledge agent，负责 retrieval-specific
   planning、clarification、grounded answer synthesis
-- `packages/navigation-agent` 是 navigation semantic specialist package；产品主路径对
+- `packages/navigation-capability 是 navigation semantic specialist package；产品主路径对
   `place_lookup` 仍保持 fail-close，直到地图产品正式上线。deterministic place / point
   reads 必须先表现为 typed tool 或 internal query service；navigation specialist 只能作为
   typed `agent_step` / agent-as-tool 消费这些工具，不拥有 spatial source truth
-- `packages/campus-services-agent` 是 campus services semantic specialist package；当前
+- `packages/campus_services` 是 campus services semantic specialist package；当前
   capability family 覆盖 `service_status_lookup`、`service_guide_lookup`、
   `transport_schedule_lookup`、`contact_directory_lookup` 与
   `academic_calendar_lookup`。这些能力的 deterministic data access 默认是 typed tool /
@@ -323,26 +323,26 @@ document/index release`
 - `packages/retrieval-core` retrieval abstraction、metadata pre-filter、evidence
   shaping
 - `packages/ingestion-core` ingestion/data-plane consumption logic
-- `packages/contracts` supervisor / agent handoff 与 shared typed seam
+- `packages/contracts` supervisor / capability handoff 与 shared typed seam
 
 ## 当前术语真相
 
 - 当前 accepted merged truth 的 runtime / package / ADR label 继续以 current-truth
   名称为准：
-  - `rag-agent`
-  - `navigation-agent`
+  - `knowledge`
+  - `navigation`
 - 当前额外冻结的 forward family label 继续包括：
-  - `campus-services-agent`
-  - `notice-agent`
+  - `campus_services`
+  - `notice`
   这些 label 表示 semantic specialist family，不表示 deterministic source truth owner；
   notice / services / navigation 的默认实现入口必须是 typed tool 或 projection-backed
   internal query service，只有需要语义判断、消歧、摘要或跨工具编排时才进入 agent-as-tool。
 - 对 `rag` / `navigation` 两条 capability family，forward family label 与 current
   runtime truth 已经对齐；active canonical surface 不再维护单独的 legacy
   current-truth alias。
-- shared DTO 的 canonical supervisor -> agent handoff 名称是 `AgentRequest` /
-  `AgentResponse`；active runtime / package implementation 叙述使用 agent dispatch /
-  agent handoff。
+- shared DTO 的 canonical supervisor -> capability handoff 名称是
+  `CapabilityRequest` / `CapabilityResponse`；active runtime / package
+  implementation 叙述使用 capability dispatch / capability handoff。
 - 未来新增 capability family 的命名规则与 reopen 条件，以已完成的
   `execution-capability-family-convergence` workstream 为准。
 

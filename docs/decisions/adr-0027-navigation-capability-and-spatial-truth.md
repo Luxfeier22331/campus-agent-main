@@ -5,7 +5,7 @@ status: accepted
 created: 2026-04-05
 updated: 2026-04-22
 ---
-# ADR-0027 Navigation Agent And Spatial Truth
+# ADR-0027 Navigation Capability And Spatial Truth
 
 ## 状态
 
@@ -16,41 +16,41 @@ Accepted on 2026-04-05.
 `campus-agent` 当前已经冻结了以下长期边界：
 
 - `supervisor` 是唯一顶层协调入口
-- agent 表示稳定 capability boundary
+- deterministic capability 表示稳定能力边界；agent 只保留给显式 semantic agent-as-tool
 - `apps/app-api` 是 canonical identity / authz / memory owner
 - execution path 只消费 typed projection
 - source truth 与 document / chunk / index truth 持续分层
 
 但仓库仍缺一条导航 / wayfinding 的长期 accepted decision：
 
-- 校园导航到底是不是独立 capability family / agent boundary
+- 校园导航到底是不是独立 capability family / execution boundary
 - 校园空间真相属于哪一层
 - 用户当前位置应该归属哪里
 - 外部地图 provider 与瓦片地图应如何参与
 
 如果这条边界不先冻结，后续实现很容易退化为：
 
-- 把导航继续塞进 `rag-agent` 或 supervisor inline tools
+- 把导航继续塞进 `knowledge` 或 supervisor inline tools
 - 把高德或其他 provider response 直接当成 canonical campus truth
 - 把当前位置写进 identity / authz / memory truth
 - 把前端地图 SDK payload 或 provider ID 泄漏进 shared contracts
 
 ## 决策
 
-### 决策 1：导航能力是独立 agent family
+### 决策 1：导航能力是独立 capability family
 
-长期上，校园导航 / wayfinding 作为独立 capability family 存在，并以 `navigation-agent` 进入
+长期上，校园导航 / wayfinding 作为独立 capability family 存在，并以 `navigation` 进入
 supervisor-led orchestration。
 
 术语补充：
 
-- 当前 accepted runtime / package / ADR label 继续是 `navigation-agent`
+- 当前 accepted runtime / package / ADR label 继续是 `navigation`
 - 这份 ADR 讨论的是 capability boundary；repo-wide rename 是否完成，以 current architecture 与
   active workstream closeout 为准
 
 直接含义：
 
-- 不把导航塞进 `rag-agent`
+- 不把导航塞进 `knowledge`
 - 不把导航退回成 supervisor inline tool
 - supervisor 继续只负责 routing、gate、handoff、finalization
 - 导航域的 planning / clarification / answer shaping 留在独立 capability boundary 内
@@ -108,7 +108,7 @@ identity / memory truth。
 
 直接含义：
 
-- alias resolution owner 在 `navigation-agent`
+- alias resolution owner 在 `navigation`
 - route executor 与 retrieval/facts 只消费 canonical entity truth
 - 高歧义地点默认走 clarification-first
 
@@ -125,7 +125,7 @@ identity / memory truth。
 它不是：
 
 - canonical spatial truth
-- navigation agent capability boundary
+- navigation capability boundary
 - shared contract vocabulary
 
 直接含义：

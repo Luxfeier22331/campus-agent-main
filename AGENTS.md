@@ -73,7 +73,7 @@
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
 - `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
@@ -302,7 +302,7 @@
 
 - 先判断是否存在独立子任务；如果可以拆开，优先按模块边界委派，而不是把所有工作串行堆给主代理
 - 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、
-  `supervisor-agent-worker` / `rag-agent`、`evals`
+  `supervisor-agent-worker` / `knowledge`、`evals`
 - 按依赖顺序并行，不要无视 contract 和强耦合关系；当前执行分批以 `.planning/` 中的 active phase/context/plan
   为准
 - 并行工作时避免共享写集；每个 subagent 应拥有明确的文件或模块责任
@@ -410,8 +410,9 @@ pnpm web:build:affected
   artifact；不参与 online answer serving，不拥有 execution truth、provider hot path 或
   retrieval canonical boundary
 - `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排
-- `packages/rag-agent`: knowledge-family / RAG capability 的 semantic specialist
-  package；负责 retrieval planning、evidence verification、grounded synthesis、
+- `packages/knowledge-capability`: knowledge-family / RAG capability 的
+  semantic specialist package；负责 retrieval planning、evidence verification、
+  grounded synthesis、
   clarification 与 confidence 逻辑；不是 product entry、top-level router 或其他
   capability 的 source-truth owner
 - `packages/prompt-runtime`: provider-facing prompt runtime；负责 prompt contract
@@ -422,7 +423,7 @@ pnpm web:build:affected
   的逻辑消费层，负责去重、版本推进、解析、chunking、索引写入编排
 - `packages/regulation-semantics`: regulations 领域语义 owner；负责 answer-ready evidence
   contract、answer role / condition / procedure taxonomy 与 regulation semantic registry
-- `packages/contracts`: supervisor -> agent handoff、evidence bundle 与共享
+- `packages/contracts`: supervisor -> capability handoff、evidence bundle 与共享
   schema；不要泄漏运行时或基础设施类型
 - `packages/evals`: 回归场景、基线与 smoke/eval 入口
 - `packages/shared`: 轻量共享常量和 env/provider config helper；不要演变成业务逻辑、

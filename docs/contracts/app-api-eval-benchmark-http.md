@@ -156,7 +156,7 @@ response body：
   },
   "supervisor": {
     "status": "completed",
-    "selectedTarget": "rag-agent",
+    "selectedCapability": "knowledge",
     "traceId": "trace_eval_01HQ",
     "answerText": "图书馆开放到 22:00。",
     "followUpQuestion": "",

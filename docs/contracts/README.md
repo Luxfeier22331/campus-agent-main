@@ -43,7 +43,7 @@ updated: 2026-06-04
 
 ## Retrieval internal contract
 
-- `rag-agent-retrieval-plan-contract.md`
+- `knowledge-retrieval-plan-contract.md`
 
 ## 使用规则
 

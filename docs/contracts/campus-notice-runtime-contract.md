@@ -16,7 +16,7 @@ It covers:
 - `packages/contracts` notice payload/result dataclasses
 - Go `apps/execution-control` ToolSpec, planner, typed tool runtime and internal
   query service
-- Python `apps/supervisor-agent-worker -> packages/notice-agent` handoff and
+- Python `apps/supervisor-agent-worker -> packages/notice` handoff and
   thin adapter
 - eval/provider/SDK guardrails that prevent raw notice body regressions
 
@@ -27,15 +27,15 @@ retention or downstream materialization ownership.
 
 Notice user-facing output is card-first and source-link-first.
 
-- `campus_notice_discover` remains the agent-facing notice tool.
-- `campus_notice_get` is not an agent-facing/provider/SDK tool.
+- `campus_notice_discover` remains the capability-facing notice tool.
+- `campus_notice_get` is not an capability-facing/provider/SDK tool.
 - `campus_notice_get` remains only as an internal selected notice
   resolve/context function.
 - Provider function schema generation must not emit `campus_notice_get`.
 - Agents SDK and provider-loop notice-get pilots are closed.
 - Agents SDK may only expose repo-owned ToolSpec-admitted read-only tools.
   `campus_notice_get` remains closed; current notice-family SDK exposure is
-  limited to `notice-agent + campus_notice_discover`.
+  limited to `notice + campus_notice_discover`.
 - Public answers, workflow traces, panel assets and eval canonical artifacts
   must not carry full `normalized_body`, OCR owner text, inline image text or
   attachment body.
@@ -127,7 +127,7 @@ Go `apps/execution-control` owns:
 - finalizer/workflow projection leak guards
 - runtime observability labels
 
-Python `notice-agent` owns:
+Python `notice` owns:
 
 - DTO-level defensive parsing
 - calling Go internal query service

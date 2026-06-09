@@ -170,7 +170,7 @@ updated: 2026-06-01
 
 - capability family 用于 surface admission、routing、guardrails 与 routing
   clarification
-- capability family 不等于 `corpus/collection`，也不要求与 `selected_target` 1:1 同名
+- capability family 不等于 `corpus/collection`，也不要求与 `selected_capability` 1:1 同名
 - 这里描述的是分类层，不在本文新增新的 capability 枚举命名
 
 ### Surface Capability Allowlist
@@ -235,7 +235,7 @@ updated: 2026-06-01
 - `RetrievalPlan` 属于 target-state contract，不表示当前所有 query path 都已采用 planner-first
   execution
 - plan 必须在 admitted scope、authz、version mode、freshness gate 之内生成
-- 细节冻结见 `docs/contracts/rag-agent-retrieval-plan-contract.md`
+- 细节冻结见 `docs/contracts/knowledge-retrieval-plan-contract.md`
 
 ### Retrieval Step
 
@@ -247,7 +247,7 @@ updated: 2026-06-01
 
 - step 至少携带 step type、target scope、query、filter、budget
 - step outcome 属于 query activity / execution metadata truth
-- 细节冻结见 `docs/contracts/rag-agent-retrieval-plan-contract.md`
+- 细节冻结见 `docs/contracts/knowledge-retrieval-plan-contract.md`
 
 ### Planner Budget
 

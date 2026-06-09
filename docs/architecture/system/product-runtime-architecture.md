@@ -258,7 +258,8 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   budget projection 与 finalization；Temporal 拥有 workflow history、task queue、
   retry、timeout 与 worker dispatch。process-local limiter 只能作为本进程 protection
 - Go runtime 可以继续吸收 deterministic execution runtime kernel，但不能因此把
-  semantic orchestration、domain-agent reasoning 或 retrieval planning 塞进 `apps/*`
+  semantic orchestration、explicit agent-as-tool reasoning 或 retrieval planning
+  塞进 `apps/*`
 
 ## Operator Projection And Read Model
 

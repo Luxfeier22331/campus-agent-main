@@ -13,8 +13,8 @@ updated: 2026-04-26
 它覆盖：
 
 - `packages/contracts` 内后续 `ServiceGuideLookupPayload / Result` 的稳定语义
-- `apps/supervisor-agent-worker -> packages/campus-services-agent` 的 handoff seam
-- `campus-services-agent -> thin tool adapter -> internal query service`
+- `apps/supervisor-agent-worker -> packages/campus_services` 的 handoff seam
+- `campus_services -> thin tool adapter -> internal query service`
   的 request/result seam
 - 办理指南、材料、入口说明、服务时间、联系方式、适用范围与 source refs 的 typed
   结果边界
@@ -49,7 +49,7 @@ updated: 2026-04-26
 - “帮我提交申请”“替我预约会议室”“代我办理校园卡”不属于
   `service_guide_lookup`
 - tool 只返回 source-linked structured facts，不返回 executable transaction payload
-- tool 不生成最终自然语言回答；最终回答组织属于 `campus-services-agent`
+- tool 不生成最终自然语言回答；最终回答组织属于 `campus_services`
 - tool 不回扫 raw source bundle、notice HTML、browser 页面或 generic retrieval chunk
 - service guide runtime backing 必须读取 normalized projection，而不是 query-time source
   scan
@@ -59,7 +59,7 @@ updated: 2026-04-26
 - supervisor
   - 拥有 capability admission、high-risk / transactional guardrail、terminal semantics
     与 routing clarification
-- `campus-services-agent`
+- `campus_services`
   - 拥有 campus-services family 内的 tool selection、service-specific clarification、
     answer shaping 与 fail-close wording
 - `service_guide_lookup` thin tool adapter
@@ -328,7 +328,7 @@ projection schema 细节见
 structured runtime summary 至少需要暴露低基数字段：
 
 ```text
-selected_target = campus-services-agent
+selected_capability = campus_services
 selected_tool = service_guide_lookup
 business_outcome = resolved_current | clarification_required | not_found | temporarily_unverifiable
 service_guide_focus = guide_focus

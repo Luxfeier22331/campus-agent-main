@@ -241,7 +241,7 @@ assistant message 可以包含 `feedback`：
     "corpus": "regulations",
     "collection": "student_rules"
   },
-  "selectedTarget": "rag-agent",
+  "selectedCapability": "knowledge",
   "questionPreview": "图书馆开放到几点？",
   "answerPreview": "图书馆开放到 22:00。",
   "errorCode": null,
@@ -255,7 +255,7 @@ assistant message 可以包含 `feedback`：
 
 补充约束：
 
-- `selectedTarget` 始终表示 request finalized 后的 current runtime target。
+- `selectedCapability` 始终表示 request finalized 后的 capability id。
 - 它当前只承载 raw contract truth，不承载 forward family label，也不承载 operator-facing
   localized wording。
 - 如果 browser 或 panel 需要展示友好名称，必须由 app-owned mapping / presentation layer
@@ -895,7 +895,7 @@ browser-visible run event projection：
       "corpus": "regulations",
       "collection": "student_rules"
     },
-    "selectedTarget": "rag-agent",
+    "selectedCapability": "knowledge",
     "questionPreview": "图书馆开放到几点？",
     "answerPreview": "图书馆开放到 22:00。",
     "errorCode": null,
