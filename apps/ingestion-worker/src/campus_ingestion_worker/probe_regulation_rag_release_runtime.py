@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import ssl
 from collections.abc import Sequence
 from types import SimpleNamespace
 from urllib.error import HTTPError, URLError
@@ -436,8 +437,16 @@ def _check_qdrant_endpoint(*, settings: RetrievalSettings, path: str) -> dict[st
     endpoint = urljoin(settings.qdrant_url.rstrip("/") + "/", path.lstrip("/"))
     headers = {"api-key": settings.qdrant_api_key} if settings.qdrant_api_key else {}
     request = Request(endpoint, headers=headers)
+    urlopen_kwargs: dict[str, object] = {"timeout": settings.qdrant_timeout_seconds}
+    if (
+        urlparse(settings.qdrant_url).scheme == "https"
+        and settings.qdrant_tls_ca_cert_path
+    ):
+        urlopen_kwargs["context"] = ssl.create_default_context(
+            cafile=settings.qdrant_tls_ca_cert_path
+        )
     try:
-        with urlopen(request, timeout=settings.qdrant_timeout_seconds) as response:
+        with urlopen(request, **urlopen_kwargs) as response:
             body = response.read(160).decode("utf-8", errors="replace")
             return {"status": response.status, "body_prefix": body}
     except HTTPError as exc:
