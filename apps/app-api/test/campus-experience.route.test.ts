@@ -77,7 +77,9 @@ describe("campus experience routes", () => {
 		);
 		const halls = await app.fetch(new Request("https://app-api.internal/api/dining/halls"));
 		const floor = await app.fetch(
-			new Request("https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/1f"),
+			new Request(
+				"https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f",
+			),
 		);
 
 		expect(places.status).toBe(200);
@@ -87,7 +89,7 @@ describe("campus experience routes", () => {
 		expect(service.getMapPlace).toHaveBeenCalledWith({ placeId: "library" });
 		await expect(floor.json()).resolves.toMatchObject({
 			floor: {
-				floorId: "1f",
+				floorId: "haidian-canteen-1-1f",
 				hallId: "haidian-canteen-1",
 			},
 		});

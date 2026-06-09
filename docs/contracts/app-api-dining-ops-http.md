@@ -69,7 +69,7 @@ GET    /api/ops/dining/audit-events
   "locationLabel": "入口左侧",
   "status": "active",
   "tags": ["热餐"],
-  "windowId": "haidian-canteen-1:1f:window-01"
+  "windowId": "haidian-canteen-1:haidian-canteen-1-1f:window-01"
 }
 ```
 
@@ -79,10 +79,10 @@ GET    /api/ops/dining/audit-events
 
 ```json
 {
-  "assignmentId": "assignment:haidian-canteen-1:1f:haidian-canteen-1:1f:window-01",
-  "stallProfileId": "stall:haidian-canteen-1:1f:rice",
+  "assignmentId": "assignment:haidian-canteen-1:haidian-canteen-1-1f:haidian-canteen-1:haidian-canteen-1-1f:window-01",
+  "stallProfileId": "stall:haidian-canteen-1:haidian-canteen-1-1f:rice",
   "status": "active",
-  "windowId": "haidian-canteen-1:1f:window-01"
+  "windowId": "haidian-canteen-1:haidian-canteen-1-1f:window-01"
 }
 ```
 
@@ -91,7 +91,7 @@ GET    /api/ops/dining/audit-events
 ```json
 {
   "displayName": "盖饭窗口",
-  "stallProfileId": "stall:haidian-canteen-1:1f:rice",
+  "stallProfileId": "stall:haidian-canteen-1:haidian-canteen-1-1f:rice",
   "stallType": "seeded_food_window",
   "status": "active",
   "tags": ["主食"]
@@ -102,7 +102,7 @@ GET    /api/ops/dining/audit-events
 
 ```json
 {
-  "menuItemId": "menu:haidian-canteen-1:1f:rice",
+  "menuItemId": "menu:haidian-canteen-1:haidian-canteen-1-1f:rice",
   "name": "盖饭",
   "status": "active",
   "tags": ["主食"]
@@ -113,8 +113,8 @@ GET    /api/ops/dining/audit-events
 
 ```json
 {
-  "assignmentId": "assignment:haidian-canteen-1:1f:haidian-canteen-1:1f:window-01",
-  "menuItemId": "menu:haidian-canteen-1:1f:rice",
+  "assignmentId": "assignment:haidian-canteen-1:haidian-canteen-1-1f:haidian-canteen-1:haidian-canteen-1-1f:window-01",
+  "menuItemId": "menu:haidian-canteen-1:haidian-canteen-1-1f:rice",
   "offeringId": "offering:assignment:...:menu:...",
   "priceLabel": "12-18 元",
   "saleStatus": "available",
@@ -194,7 +194,7 @@ GET    /api/ops/dining/audit-events
     "stallType": "hot_meal",
     "tags": ["热餐"]
   },
-  "windowId": "haidian-canteen-1:1f:window-01"
+  "windowId": "haidian-canteen-1:haidian-canteen-1-1f:window-01"
 }
 ```
 

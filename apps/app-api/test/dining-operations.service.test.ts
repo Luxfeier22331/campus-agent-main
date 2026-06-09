@@ -12,6 +12,7 @@ const OPERATOR = {
 	displayName: "Ops User",
 	principalId: "operator_01",
 };
+const HAIDIAN_CANTEEN_1_FLOOR_ID = "haidian-canteen-1-1f";
 
 describe("dining operations service", () => {
 	it("keeps physical windows separate from stall assignments and published menu offerings", async () => {
@@ -31,7 +32,7 @@ describe("dining operations service", () => {
 		]);
 
 		const floor = await service.getFloor({
-			floorId: "1f",
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
 		});
 		const windowId = floor.windows[0]?.windowId;
@@ -49,7 +50,7 @@ describe("dining operations service", () => {
 			},
 		});
 		const draftFloor = await service.getFloor({
-			floorId: "1f",
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
 		});
 		const existingOffering = draftFloor.menuOfferings.find(
@@ -95,7 +96,7 @@ describe("dining operations service", () => {
 		});
 		expect(preview.summary.changedWindowCount).toBeGreaterThanOrEqual(1);
 		expect(
-			preview.preview.floors["haidian-canteen-1:1f"]?.windows.find(
+			preview.preview.floors[`haidian-canteen-1:${HAIDIAN_CANTEEN_1_FLOOR_ID}`]?.windows.find(
 				(window) => window.windowId === windowId,
 			),
 		).toMatchObject({
@@ -109,7 +110,7 @@ describe("dining operations service", () => {
 		expect(release.release.status).toBe("published");
 
 		const publishedFloor = await service.getPublishedFloor({
-			floorId: "1f",
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
 		});
 		expect(publishedFloor.source.releaseId).toBe(release.release.releaseId);
@@ -148,7 +149,7 @@ describe("dining operations service", () => {
 			store: createInMemoryDiningOperationsStore(),
 		});
 		const floor = await service.getFloor({
-			floorId: "1f",
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
 		});
 		const windowId = floor.windows[0]?.windowId;
@@ -217,7 +218,7 @@ describe("dining operations service", () => {
 		});
 
 		const draft = await service.getFloor({
-			floorId: "1f",
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
 		});
 		expect(draft.windows.find((item) => item.windowId === windowId)).toMatchObject({
@@ -274,7 +275,7 @@ describe("dining operations service", () => {
 			store: createInMemoryDiningOperationsStore(),
 		});
 		const floor = await service.getFloor({
-			floorId: "1f",
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
 		});
 		const assignment = floor.assignments[0];
@@ -298,7 +299,7 @@ describe("dining operations service", () => {
 		});
 
 		const publishedFloor = await service.getPublishedFloor({
-			floorId: "1f",
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
 		});
 		const publicOfferings =
@@ -316,7 +317,8 @@ describe("dining operations service", () => {
 	it("fails closed when a published dining snapshot is missing required projection objects", async () => {
 		const store = createInMemoryDiningOperationsStore();
 		const state = await store.getState();
-		const floor = state.publishedSnapshot?.floors["haidian-canteen-1:1f"];
+		const floor =
+			state.publishedSnapshot?.floors[`haidian-canteen-1:${HAIDIAN_CANTEEN_1_FLOOR_ID}`];
 		expect(floor).toBeTruthy();
 		if (floor) {
 			floor.floor.canvas = undefined;
@@ -326,10 +328,10 @@ describe("dining operations service", () => {
 		const service = buildDiningOperationsService({ store });
 
 		await expect(
-			service.getPublishedFloor({
-				floorId: "1f",
-				hallId: "haidian-canteen-1",
-			}),
+				service.getPublishedFloor({
+					floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+					hallId: "haidian-canteen-1",
+				}),
 		).rejects.toMatchObject({
 			code: "dining_projection_invalid",
 			name: "AppApiRouteError",

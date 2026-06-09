@@ -21,6 +21,10 @@ const env = {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
 };
+const HAIDIAN_CANTEEN_1_FLOOR_PATH =
+	"https://app-api.internal/api/ops/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f";
+const HAIDIAN_CANTEEN_1_PUBLIC_FLOOR_PATH =
+	"https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f";
 
 function principal(input: { operator: boolean; type?: ResolvedAppPrincipal["principal"]["type"] }) {
 	return {
@@ -77,7 +81,7 @@ describe("dining operations routes", () => {
 		expect(halls.status).toBe(200);
 
 		const floor = await app.fetch(
-			new Request("https://app-api.internal/api/ops/dining/halls/haidian-canteen-1/floors/1f"),
+			new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH),
 		);
 		expect(floor.status).toBe(200);
 		const floorBody = (await floor.json()) as {
@@ -164,7 +168,7 @@ describe("dining operations routes", () => {
 		expect(publish.status).toBe(201);
 
 		const publicFloor = await app.fetch(
-			new Request("https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/1f"),
+			new Request(HAIDIAN_CANTEEN_1_PUBLIC_FLOOR_PATH),
 		);
 		expect(publicFloor.status).toBe(200);
 		const publicFloorBody = (await publicFloor.json()) as {
@@ -203,7 +207,7 @@ describe("dining operations routes", () => {
 		});
 
 		const floor = await app.fetch(
-			new Request("https://app-api.internal/api/ops/dining/halls/haidian-canteen-1/floors/1f"),
+			new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH),
 		);
 		const floorBody = (await floor.json()) as {
 			assignments: Array<{ assignmentId: string; windowId: string }>;
@@ -280,7 +284,7 @@ describe("dining operations routes", () => {
 		expect(offeringPatch.status).toBe(200);
 
 		const updatedFloor = await app.fetch(
-			new Request("https://app-api.internal/api/ops/dining/halls/haidian-canteen-1/floors/1f"),
+			new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH),
 		);
 		const updatedFloorBody = (await updatedFloor.json()) as {
 			menuItems: Array<{ menuItemId: string; name: string }>;

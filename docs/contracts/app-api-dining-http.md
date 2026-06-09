@@ -104,7 +104,7 @@ GET /api/dining/halls/:hallId/floors/:floorId
   },
   "windows": [
     {
-      "windowId": "haidian-canteen-1:1f:window-01",
+      "windowId": "haidian-canteen-1:haidian-canteen-1-1f:window-01",
       "label": "盖饭窗口",
       "locationLabel": "入口左侧",
       "status": "active",
@@ -116,9 +116,9 @@ GET /api/dining/halls/:hallId/floors/:floorId
         "height": 72
       },
       "assignment": {
-        "assignmentId": "assignment:haidian-canteen-1:1f:haidian-canteen-1:1f:window-01",
+        "assignmentId": "assignment:haidian-canteen-1:haidian-canteen-1-1f:haidian-canteen-1:haidian-canteen-1-1f:window-01",
         "stallProfile": {
-          "stallProfileId": "stall:haidian-canteen-1:1f:rice-bowl",
+          "stallProfileId": "stall:haidian-canteen-1:haidian-canteen-1-1f:rice-bowl",
           "displayName": "盖饭窗口",
           "stallType": "seeded_food_window",
           "tags": ["主食", "热餐"]
@@ -126,7 +126,7 @@ GET /api/dining/halls/:hallId/floors/:floorId
         "offerings": [
           {
             "offeringId": "offering:assignment:...:menu:...",
-            "menuItemId": "menu:haidian-canteen-1:1f:rice-bowl:1",
+            "menuItemId": "menu:haidian-canteen-1:haidian-canteen-1-1f:rice-bowl:1",
             "name": "番茄牛腩饭",
             "tags": ["主食", "热餐"],
             "priceLabel": "18 元",

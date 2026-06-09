@@ -263,7 +263,7 @@ export const INITIAL_DINING_HALL_SEEDS: InitialDiningHallSeed[] = [
 	{
 		campus: "丰台校区",
 		floors: [
-			createDiningFloor("1f", "一层", [
+			createDiningFloor("fengtai-huixian-canteen-1f", "一层", [
 				createStall(
 					"huixian-1f-breakfast",
 					"早餐窗口",
@@ -305,7 +305,7 @@ export const INITIAL_DINING_HALL_SEEDS: InitialDiningHallSeed[] = [
 					[createOffering("酸梅汤", "6 元", "杯", ["饮品"])],
 				),
 			]),
-			createDiningFloor("2f", "二层", [
+			createDiningFloor("fengtai-huixian-canteen-2f", "二层", [
 				createStall(
 					"huixian-2f-hot-pot",
 					"小火锅窗口",
@@ -354,7 +354,7 @@ export const INITIAL_DINING_HALL_SEEDS: InitialDiningHallSeed[] = [
 	{
 		campus: "丰台校区",
 		floors: [
-			createDiningFloor("1f", "一层", [
+			createDiningFloor("fengtai-juya-canteen-1f", "一层", [
 				createStall(
 					"juya-1f-self-service",
 					"自选称重窗口",
@@ -396,7 +396,7 @@ export const INITIAL_DINING_HALL_SEEDS: InitialDiningHallSeed[] = [
 					[createOffering("茉莉奶绿", "12 元", "杯", ["饮品"])],
 				),
 			]),
-			createDiningFloor("2f", "二层", [
+			createDiningFloor("fengtai-juya-canteen-2f", "二层", [
 				createStall(
 					"juya-2f-grill",
 					"烤盘饭窗口",
@@ -452,7 +452,7 @@ function createSingleFloorHall(
 ): InitialDiningHallSeed {
 	return {
 		campus,
-		floors: [createDiningFloor("1f", "一层", stalls)],
+		floors: [createDiningFloor(`${hallId}-1f`, "一层", stalls)],
 		hallId,
 		name,
 	};
