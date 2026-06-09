@@ -1,9 +1,10 @@
 import { summarizeObservedSources } from "../source-trace";
 
 import {
-	SUPERVISOR_STATUSES,
-	type SupervisorExecutionResponseWire,
-} from "./generated/supervisor-execution-contract";
+	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
+	EXECUTION_FINALIZATION_STATUSES,
+	type ExecutionFinalizationResponseWire,
+} from "./execution-finalization-contract";
 import type {
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
@@ -22,7 +23,7 @@ const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
 	"retrieval_backend_dump",
 ];
 
-const SUPERVISOR_RESPONSE_WIRE_KEYS = new Set([
+const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"answer_text",
 	"confidence",
 	"error",
@@ -35,7 +36,7 @@ const SUPERVISOR_RESPONSE_WIRE_KEYS = new Set([
 	"workflow_trace_summary",
 ]);
 
-const REQUIRED_SUPERVISOR_RESPONSE_WIRE_KEYS = [
+const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"answer_text",
 	"confidence",
 	"error",
@@ -46,10 +47,10 @@ const REQUIRED_SUPERVISOR_RESPONSE_WIRE_KEYS = [
 	"trace_id",
 ] as const;
 
-class SupervisorResponseContractError extends Error {
+class ExecutionFinalizationResponseContractError extends Error {
 	constructor(message: string) {
-		super(`supervisor response contract violation: ${message}`);
-		this.name = "SupervisorResponseContractError";
+		super(`execution finalization response contract violation: ${message}`);
+		this.name = "ExecutionFinalizationResponseContractError";
 	}
 }
 
@@ -71,50 +72,63 @@ function normalizeNullableString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value : null;
 }
 
-function isSupervisorStatus(value: unknown): value is SupervisorExecutionResponse["status"] {
-	return typeof value === "string" && (SUPERVISOR_STATUSES as readonly string[]).includes(value);
+function isExecutionFinalizationStatus(
+	value: unknown,
+): value is SupervisorExecutionResponse["status"] {
+	return (
+		typeof value === "string" &&
+		(EXECUTION_FINALIZATION_STATUSES as readonly string[]).includes(value)
+	);
 }
 
-function assertSupervisorExecutionResponseWire(
+function assertExecutionFinalizationResponseWire(
 	value: unknown,
-): asserts value is SupervisorExecutionResponseWire {
+): asserts value is ExecutionFinalizationResponseWire {
 	const record = getRecord(value);
 	if (!record) {
-		throw new SupervisorResponseContractError("response body must be an object");
+		throw new ExecutionFinalizationResponseContractError("response body must be an object");
 	}
 	for (const key of Object.keys(record)) {
-		if (!SUPERVISOR_RESPONSE_WIRE_KEYS.has(key)) {
-			throw new SupervisorResponseContractError(`unexpected top-level field ${key}`);
+		if (!EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS.has(key)) {
+			throw new ExecutionFinalizationResponseContractError(`unexpected top-level field ${key}`);
 		}
 	}
-	for (const key of REQUIRED_SUPERVISOR_RESPONSE_WIRE_KEYS) {
+	for (const key of REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS) {
 		if (!(key in record)) {
-			throw new SupervisorResponseContractError(`missing required field ${key}`);
+			throw new ExecutionFinalizationResponseContractError(`missing required field ${key}`);
 		}
 	}
 	if (!(typeof record.answer_text === "string")) {
-		throw new SupervisorResponseContractError("answer_text must be a string");
+		throw new ExecutionFinalizationResponseContractError("answer_text must be a string");
 	}
 	if (!(typeof record.follow_up_question === "string")) {
-		throw new SupervisorResponseContractError("follow_up_question must be a string");
+		throw new ExecutionFinalizationResponseContractError("follow_up_question must be a string");
 	}
 	if (!(typeof record.trace_id === "string")) {
-		throw new SupervisorResponseContractError("trace_id must be a string");
+		throw new ExecutionFinalizationResponseContractError("trace_id must be a string");
 	}
-	if (!isSupervisorStatus(record.status)) {
-		throw new SupervisorResponseContractError("status must be a known supervisor status");
+	if (!isExecutionFinalizationStatus(record.status)) {
+		throw new ExecutionFinalizationResponseContractError(
+			"status must be a known execution finalization status",
+		);
 	}
-	if (!["high", "medium", "low"].includes(String(record.confidence))) {
-		throw new SupervisorResponseContractError("confidence must be high, medium, or low");
+	if (
+		!(EXECUTION_FINALIZATION_CONFIDENCE_LEVELS as readonly string[]).includes(
+			String(record.confidence),
+		)
+	) {
+		throw new ExecutionFinalizationResponseContractError("confidence must be high, medium, or low");
 	}
 	if (!(record.selected_target === null || typeof record.selected_target === "string")) {
-		throw new SupervisorResponseContractError("selected_target must be a string or null");
+		throw new ExecutionFinalizationResponseContractError(
+			"selected_target must be a string or null",
+		);
 	}
 	if (!(record.result === null || getRecord(record.result))) {
-		throw new SupervisorResponseContractError("result must be an object or null");
+		throw new ExecutionFinalizationResponseContractError("result must be an object or null");
 	}
 	if (!(record.error === null || getRecord(record.error))) {
-		throw new SupervisorResponseContractError("error must be an object or null");
+		throw new ExecutionFinalizationResponseContractError("error must be an object or null");
 	}
 	if (record.error) {
 		const error = getRecord(record.error);
@@ -128,7 +142,7 @@ function assertSupervisorExecutionResponseWire(
 				typeof error.retryable === "boolean"
 			)
 		) {
-			throw new SupervisorResponseContractError(
+			throw new ExecutionFinalizationResponseContractError(
 				"error.code, error.message, and error.retryable are required",
 			);
 		}
@@ -137,13 +151,15 @@ function assertSupervisorExecutionResponseWire(
 		"observability" in record &&
 		!(record.observability === null || getRecord(record.observability))
 	) {
-		throw new SupervisorResponseContractError("observability must be an object or null");
+		throw new ExecutionFinalizationResponseContractError("observability must be an object or null");
 	}
 	if (
 		"workflow_trace_summary" in record &&
 		!(record.workflow_trace_summary === null || getRecord(record.workflow_trace_summary))
 	) {
-		throw new SupervisorResponseContractError("workflow_trace_summary must be an object or null");
+		throw new ExecutionFinalizationResponseContractError(
+			"workflow_trace_summary must be an object or null",
+		);
 	}
 }
 
@@ -392,10 +408,10 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 	return parsed;
 }
 
-export function parseSupervisorExecutionResponsePayload(
-	parsed: (Partial<SupervisorExecutionResponseWire> & Record<string, unknown>) | null | undefined,
+export function parseExecutionFinalizationResponsePayload(
+	parsed: (Partial<ExecutionFinalizationResponseWire> & Record<string, unknown>) | null | undefined,
 ): SupervisorExecutionResponse {
-	assertSupervisorExecutionResponseWire(parsed);
+	assertExecutionFinalizationResponseWire(parsed);
 	const workflowTraceSummary = parseWorkflowTraceSummary(parsed.workflow_trace_summary);
 	return {
 		answerText: parsed.answer_text,

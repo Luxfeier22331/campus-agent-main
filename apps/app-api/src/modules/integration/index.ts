@@ -2,11 +2,9 @@ export type {
 	OfficialWebHandoffPublisher,
 	OfficialWebIngestionHandoffPayload,
 } from "../official-web-projection";
-export {
-	createOfficialWebHandoffPublisher,
-	OfficialWebHandoffTransportError,
-} from "./official-web-handoff";
 export type {
+	ExecutionControlCampusServicesProductPathPreflight,
+	ExecutionControlReadinessProbeResult,
 	ExecutionControlRun,
 	ExecutionControlRunCancelInput,
 	ExecutionControlRunCreateInput,
@@ -16,11 +14,10 @@ export type {
 	ExecutionControlRunStep,
 	ExecutionControlRunStepTrajectory,
 	ExecutionControlRuntimeClient,
+	ExecutionControlRuntimePreflight,
 	ExecutionControlStepAttempt,
 	ExecutionControlStepResult,
-	ExecutionControlRuntimePreflight,
 	RequestedScope,
-	ExecutionControlCampusServicesProductPathPreflight,
 	SupervisorContextProjection,
 	SupervisorExecutionInput,
 	SupervisorExecutionObservability,
@@ -29,14 +26,17 @@ export type {
 	SupervisorProfileMemoryItem,
 	SupervisorProfileMemorySummary,
 	SupervisorPromptTrace,
-	ExecutionControlReadinessProbeResult,
 	SupervisorSessionSlot,
 	SupervisorSessionSummary,
 } from "./execution-control";
 export {
 	createExecutionControlRuntimeClient,
-	isExecutionControlRuntimeConfigured,
-	parseSupervisorExecutionResponsePayload,
-	probeExecutionControlReady,
 	ExecutionControlTransportError,
+	isExecutionControlRuntimeConfigured,
+	parseExecutionFinalizationResponsePayload,
+	probeExecutionControlReady,
 } from "./execution-control";
+export {
+	createOfficialWebHandoffPublisher,
+	OfficialWebHandoffTransportError,
+} from "./official-web-handoff";

@@ -2,7 +2,7 @@ import type { ExecutionActorContext, ExecutionAuthorizationContext } from "../au
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import type { VersionQuery } from "../version-query";
-import type { SupervisorStatus } from "./generated/supervisor-execution-contract";
+import type { ExecutionFinalizationStatus } from "./execution-finalization-contract";
 
 export interface RequestedScope {
 	corpus: string;
@@ -145,7 +145,7 @@ export interface SupervisorExecutionResponse {
 	observability?: SupervisorExecutionObservability | null;
 	result: unknown;
 	selectedTarget: string | null;
-	status: SupervisorStatus;
+	status: ExecutionFinalizationStatus;
 	traceId: string;
 	workflowTraceSummary?: SupervisorExecutionWorkflowTraceSummary | null;
 }

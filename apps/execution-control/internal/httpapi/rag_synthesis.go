@@ -224,14 +224,14 @@ func ragSynthesisFinalizedResponse(
 	if groundingVerdict == "" {
 		groundingVerdict = "grounded"
 	}
-	return map[string]any{
-		"selected_target":    "rag-agent",
-		"status":             "completed",
-		"answer_text":        strings.TrimSpace(result.AnswerText),
-		"error":              nil,
-		"follow_up_question": "",
-		"confidence":         confidence,
-		"result": map[string]any{
+	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
+		SelectedTarget:   "rag-agent",
+		Status:           "completed",
+		AnswerText:       strings.TrimSpace(result.AnswerText),
+		Error:            nil,
+		FollowUpQuestion: "",
+		Confidence:       confidence,
+		Result: map[string]any{
 			"evidence": map[string]any{
 				"query_text": packet.QueryIntent,
 				"sources":    ragEvidenceSourcesForFinalization(packet.SelectedEvidence),
@@ -250,11 +250,11 @@ func ragSynthesisFinalizedResponse(
 				"step_projection_schema": "step-result-projection-v1",
 			},
 		},
-		"observability": map[string]any{
+		Observability: map[string]any{
 			"selected_tool":  "retrieval.query",
 			"result_outcome": semanticOutcome,
 		},
-		"workflow_trace_summary": map[string]any{
+		WorkflowTraceSummary: map[string]any{
 			"workflow_mode":         "single_step",
 			"selected_target":       "rag-agent",
 			"selected_tools":        []string{"retrieval.query"},
@@ -265,8 +265,8 @@ func ragSynthesisFinalizedResponse(
 				"provider_pricing": result.ProviderSummary.PricingVersion,
 			},
 		},
-		"trace_id": run.TraceID,
-	}
+		TraceID: run.TraceID,
+	})
 }
 
 func ragEvidenceSourcesForFinalization(evidence []ragruntime.EvidenceRef) []map[string]any {

@@ -784,12 +784,7 @@ func (s *Server) WriteFinalizationActivity(
 		UpdatedAt:     completedAt,
 		ResultKind:    "final_answer_projection",
 		ProjectionRef: finalizationRef,
-		Payload: map[string]any{
-			"grounding_ref": input.GroundingRef,
-			"request_id":    run.RequestID,
-			"synthesis_ref": input.SynthesisRef,
-			"trace_id":      run.TraceID,
-		},
+		Payload:       temporalFinalizationResultPayload(finalizedResponse, input, run),
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}

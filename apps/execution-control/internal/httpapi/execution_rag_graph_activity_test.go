@@ -259,6 +259,36 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	if finalizationResponse["error"] != nil {
 		t.Fatalf("finalization response error = %#v, want nil", finalizationResponse["error"])
 	}
+	results, resultsErr := store.ListStepResults(context.Background(), "run-rag-graph")
+	if resultsErr != nil {
+		t.Fatalf("list step results: %v", resultsErr)
+	}
+	var finalizationResult *execution.StepResultProjection
+	for index := range results {
+		if results[index].StepID == "finalization.write" {
+			finalizationResult = &results[index]
+		}
+	}
+	if finalizationResult == nil {
+		t.Fatal("finalization.write result missing")
+	}
+	projectedResponse, ok := finalizationResult.SanitizedPayload["finalized_response"].(map[string]any)
+	if !ok {
+		t.Fatalf(
+			"finalization.write result must include finalized_response projection: %#v",
+			finalizationResult.SanitizedPayload,
+		)
+	}
+	if projectedResponse["answer_text"] != finalizationResponse["answer_text"] ||
+		projectedResponse["trace_id"] != finalizationResponse["trace_id"] {
+		t.Fatalf("finalization result response drifted from run event: %#v", projectedResponse)
+	}
+	if _, ok := projectedResponse["error"]; !ok {
+		t.Fatalf("finalization.write response missing required error field: %#v", projectedResponse)
+	}
+	if projectedResponse["error"] != nil {
+		t.Fatalf("finalization.write response error = %#v, want nil", projectedResponse["error"])
+	}
 	if lookup.seenPlan.Collection != "student_rules" || lookup.seenPlan.Corpus != "regulations" {
 		t.Fatalf("lookup plan scope = %#v", lookup.seenPlan)
 	}

@@ -1,6 +1,5 @@
 export {
 	createExecutionControlRuntimeClient,
-	isExecutionControlRuntimeConfigured,
 	type ExecutionControlRun,
 	type ExecutionControlRunCancelInput,
 	type ExecutionControlRunCreateInput,
@@ -12,14 +11,18 @@ export {
 	type ExecutionControlRuntimeClient,
 	type ExecutionControlStepAttempt,
 	type ExecutionControlStepResult,
+	isExecutionControlRuntimeConfigured,
 } from "./execution-control-runtime";
-export { parseSupervisorExecutionResponsePayload } from "./supervisor-response";
 export type {
 	ExecutionControlCampusServicesProductPathPreflight,
-	ExecutionControlRuntimePreflight,
 	ExecutionControlReadinessProbeResult,
+	ExecutionControlRuntimePreflight,
 } from "./execution-control-transport";
-export { probeExecutionControlReady, ExecutionControlTransportError } from "./execution-control-transport";
+export {
+	ExecutionControlTransportError,
+	probeExecutionControlReady,
+} from "./execution-control-transport";
+export { parseExecutionFinalizationResponsePayload } from "./execution-finalization-response";
 export type {
 	RequestedScope,
 	SupervisorContextProjection,

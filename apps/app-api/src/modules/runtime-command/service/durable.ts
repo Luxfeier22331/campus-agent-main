@@ -1,11 +1,11 @@
 import {
-	parseSupervisorExecutionResponsePayload,
 	type ExecutionControlRunEvent,
-	type SupervisorExecutionResponse,
 	ExecutionControlTransportError,
+	parseExecutionFinalizationResponsePayload,
+	type SupervisorExecutionResponse,
 } from "../../integration";
 import { toHandledErrorTransportOutcome } from "./errors";
-import { supervisorStreamErrorResponse, toTerminalChatStreamEvent } from "./stream";
+import { executionFinalizationErrorResponse, toTerminalChatStreamEvent } from "./stream";
 import type { ChatCommandResponse, ChatCommandStreamEvent } from "./types";
 
 export const DEFAULT_DURABLE_EVENT_POLLING_POLICY = {
@@ -117,7 +117,7 @@ export function finalizationResponseFromDurableRunEvent(
 			status: 502,
 		});
 	}
-	return parseSupervisorExecutionResponsePayload(response);
+	return parseExecutionFinalizationResponsePayload(response);
 }
 
 export function finalizationResponseFromDurableRunEvents(
@@ -193,7 +193,7 @@ function updateLastSequence(
 function durableEventWaitTimeoutResponse(
 	context: DurableRunEventContext,
 ): SupervisorExecutionResponse {
-	return supervisorStreamErrorResponse({
+	return executionFinalizationErrorResponse({
 		code: "execution_timeout",
 		message: "Durable run event polling budget expired before terminal finalization.",
 		retryable: true,
