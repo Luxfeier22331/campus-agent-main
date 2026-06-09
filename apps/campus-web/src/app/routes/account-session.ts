@@ -58,6 +58,25 @@ export type AccountPreferences = AccountOverview["preferences"];
 export type AccountAccess = AccountOverview["access"];
 export type AccountIdentity = AccountOverview["identity"];
 
+export interface AccountSecuritySession {
+	createdAt: string;
+	current: boolean;
+	deviceLabel: string;
+	expiresAt: string;
+	lastActiveAt: string;
+	sessionId: string;
+}
+
+export interface AccountAuthorizedApp {
+	authorizedAt: string;
+	clientId: string;
+	displayName: string;
+	grantedScopes: string[];
+	homeUrl: null | string;
+	lastUsedAt: null | string;
+	status: "active";
+}
+
 export interface AccountPreferencesResult {
 	preferences: AccountPreferences | null;
 	state: Exclude<AccountOverviewState, "loading">;
@@ -70,6 +89,20 @@ export interface AccountIdentityResult {
 
 export interface AccountAccessResult {
 	access: AccountAccess | null;
+	state: Exclude<AccountOverviewState, "loading">;
+}
+
+export interface AccountSecuritySessionsResult {
+	sessions: AccountSecuritySession[];
+	state: Exclude<AccountOverviewState, "loading">;
+}
+
+export interface AccountAuthorizedAppsResult {
+	authorizedApps: AccountAuthorizedApp[];
+	state: Exclude<AccountOverviewState, "loading">;
+}
+
+export interface AccountMutationResult {
 	state: Exclude<AccountOverviewState, "loading">;
 }
 
@@ -91,6 +124,7 @@ const IDENTITY_VERIFICATION_STATUSES = new Set<AccountOverview["identity"]["veri
 	"unverified",
 	"verified",
 ]);
+const AUTHORIZED_APP_STATUSES = new Set<AccountAuthorizedApp["status"]>(["active"]);
 
 export async function loadAccountOverview(
 	fetchImplementation: typeof fetch = fetch,
@@ -170,6 +204,36 @@ export async function loadAccountPreferences(
 	};
 }
 
+export async function loadAccountSecuritySessions(
+	fetchImplementation: typeof fetch = fetch,
+): Promise<AccountSecuritySessionsResult> {
+	const result = await loadScopedAccountProjection({
+		fetchImplementation,
+		isValid: isAccountSecuritySessions,
+		path: "/api/me/security/sessions",
+		property: "sessions",
+	});
+	return {
+		sessions: result.value ?? [],
+		state: result.state,
+	};
+}
+
+export async function loadAccountAuthorizedApps(
+	fetchImplementation: typeof fetch = fetch,
+): Promise<AccountAuthorizedAppsResult> {
+	const result = await loadScopedAccountProjection({
+		fetchImplementation,
+		isValid: isAccountAuthorizedApps,
+		path: "/api/me/authorized-apps",
+		property: "authorizedApps",
+	});
+	return {
+		authorizedApps: result.value ?? [],
+		state: result.state,
+	};
+}
+
 export async function updateAccountPreferences(
 	input: { profileMemoryEnabled: boolean },
 	fetchImplementation: typeof fetch = fetch,
@@ -206,6 +270,48 @@ export async function updateAccountPreferences(
 		return { preferences: payload.preferences, state: "ready" };
 	} catch {
 		return { preferences: null, state: "network_error" };
+	}
+}
+
+export async function deleteAccountSecuritySession(
+	input: { sessionId: string },
+	fetchImplementation: typeof fetch = fetch,
+): Promise<AccountMutationResult> {
+	return deleteAccountResource(
+		`/api/me/security/sessions/${encodeURIComponent(input.sessionId)}`,
+		fetchImplementation,
+	);
+}
+
+export async function deleteAccountAuthorizedApp(
+	input: { clientId: string },
+	fetchImplementation: typeof fetch = fetch,
+): Promise<AccountMutationResult> {
+	return deleteAccountResource(
+		`/api/me/authorized-apps/${encodeURIComponent(input.clientId)}`,
+		fetchImplementation,
+	);
+}
+
+async function deleteAccountResource(
+	path: string,
+	fetchImplementation: typeof fetch,
+): Promise<AccountMutationResult> {
+	try {
+		const response = await fetchImplementation(path, {
+			credentials: "include",
+			headers: { accept: "application/json" },
+			method: "DELETE",
+		});
+		if (response.status === 401) {
+			return { state: "unauthenticated" };
+		}
+		if (!response.ok && response.status !== 204) {
+			return { state: "service_unavailable" };
+		}
+		return { state: "ready" };
+	} catch {
+		return { state: "network_error" };
 	}
 }
 
@@ -372,6 +478,39 @@ function isAccountAccess(value: unknown): value is AccountAccess {
 		hasBoolean(value.permissions, "chat") &&
 		hasBoolean(value.permissions, "operator") &&
 		hasBoolean(value, "restrictedSurfacesReady")
+	);
+}
+
+function isAccountSecuritySessions(value: unknown): value is AccountSecuritySession[] {
+	return Array.isArray(value) && value.every(isAccountSecuritySession);
+}
+
+function isAccountSecuritySession(value: unknown): value is AccountSecuritySession {
+	return (
+		isRecord(value) &&
+		hasString(value, "createdAt") &&
+		hasBoolean(value, "current") &&
+		hasString(value, "deviceLabel") &&
+		hasString(value, "expiresAt") &&
+		hasString(value, "lastActiveAt") &&
+		hasString(value, "sessionId")
+	);
+}
+
+function isAccountAuthorizedApps(value: unknown): value is AccountAuthorizedApp[] {
+	return Array.isArray(value) && value.every(isAccountAuthorizedApp);
+}
+
+function isAccountAuthorizedApp(value: unknown): value is AccountAuthorizedApp {
+	return (
+		isRecord(value) &&
+		hasString(value, "authorizedAt") &&
+		hasString(value, "clientId") &&
+		hasString(value, "displayName") &&
+		isStringArray(value.grantedScopes) &&
+		(value.homeUrl === null || typeof value.homeUrl === "string") &&
+		(value.lastUsedAt === null || typeof value.lastUsedAt === "string") &&
+		hasAllowedString(value, "status", AUTHORIZED_APP_STATUSES)
 	);
 }
 

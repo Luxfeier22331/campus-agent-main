@@ -62,6 +62,25 @@ export interface IdentityPlatformPreferences {
 	profileMemoryItemCount: number;
 }
 
+export interface IdentityPlatformSecuritySession {
+	createdAt: string;
+	current: boolean;
+	deviceLabel: string;
+	expiresAt: string;
+	lastActiveAt: string;
+	sessionId: string;
+}
+
+export interface IdentityPlatformAuthorizedApp {
+	authorizedAt: string;
+	clientId: string;
+	displayName: string;
+	grantedScopes: string[];
+	homeUrl: null | string;
+	lastUsedAt: null | string;
+	status: "active";
+}
+
 export type EndUserPrincipal = ResolvedAppPrincipal & {
 	principal: ResolvedAppPrincipal["principal"] & {
 		email: string;

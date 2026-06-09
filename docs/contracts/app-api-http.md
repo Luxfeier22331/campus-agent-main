@@ -101,6 +101,10 @@ contract test carrier。新增 route 必须声明：
 - `GET /api/me/access`
 - `GET /api/me/preferences`
 - `PATCH /api/me/preferences`
+- `GET /api/me/security/sessions`
+- `DELETE /api/me/security/sessions/:sessionId`
+- `GET /api/me/authorized-apps`
+- `DELETE /api/me/authorized-apps/:clientId`
 
 Identity Platform detailed object families are frozen separately in
 `docs/contracts/app-api-identity-platform-http.md`.

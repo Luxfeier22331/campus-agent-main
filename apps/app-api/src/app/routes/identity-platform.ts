@@ -13,6 +13,11 @@ type IdentityEndpointHandler = (input: {
 	scope: AppRequestScope;
 }) => Promise<unknown>;
 
+type IdentityDeleteEndpointHandler = (input: {
+	principal: ResolvedAppPrincipal;
+	scope: AppRequestScope;
+}) => Promise<void>;
+
 function requireBooleanField(body: Record<string, unknown>, fieldName: string): boolean {
 	const value = body[fieldName];
 	if (typeof value !== "boolean") {
@@ -76,7 +81,13 @@ function identityEndpointResponse(input: {
 }
 
 async function handleIdentityGet(input: {
-	endpoint: "/api/me/access" | "/api/me/identity" | "/api/me/overview" | "/api/me/preferences";
+	endpoint:
+		| "/api/me/access"
+		| "/api/me/authorized-apps"
+		| "/api/me/identity"
+		| "/api/me/overview"
+		| "/api/me/preferences"
+		| "/api/me/security/sessions";
 	env: Env;
 	getPrincipal: (
 		request: Request,
@@ -132,6 +143,62 @@ async function handleIdentityGet(input: {
 	}
 }
 
+async function handleIdentityDelete(input: {
+	endpoint: "/api/me/authorized-apps/:clientId" | "/api/me/security/sessions/:sessionId";
+	env: Env;
+	getPrincipal: (
+		request: Request,
+		env: Env,
+		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
+	) => Promise<ResolvedAppPrincipal | null>;
+	handler: IdentityDeleteEndpointHandler;
+	request: Request;
+	scope: AppRequestScope;
+}) {
+	const correlationId = resolveCorrelationId(input.request);
+	const resolved = await requireSessionPrincipal({
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+		request: input.request,
+		scope: input.scope,
+	});
+	if (resolved.response) {
+		return identityEndpointResponse({
+			correlationId,
+			endpoint: input.endpoint,
+			errorCode:
+				resolved.response.status === 401 ? "session_required" : "principal_resolution_failed",
+			principal: null,
+			response: resolved.response,
+			scope: input.scope,
+		});
+	}
+
+	try {
+		await input.handler({ principal: resolved.principal, scope: input.scope });
+		return identityEndpointResponse({
+			correlationId,
+			endpoint: input.endpoint,
+			errorCode: null,
+			principal: resolved.principal,
+			response: new Response(null, { status: 204 }),
+			scope: input.scope,
+		});
+	} catch (error) {
+		if (error instanceof AppApiRouteError) {
+			return identityEndpointResponse({
+				correlationId,
+				endpoint: input.endpoint,
+				errorCode: error.code,
+				principal: resolved.principal,
+				response: routeErrorResponse(error),
+				scope: input.scope,
+			});
+		}
+		throw error;
+	}
+}
+
 export function registerIdentityPlatformRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
@@ -170,6 +237,68 @@ export function registerIdentityPlatformRoutes(input: {
 					principal,
 				}),
 			}),
+		});
+	});
+
+	input.app.get("/api/me/security/sessions", async (c) => {
+		const scope = input.createRequestScope();
+		return handleIdentityGet({
+			endpoint: "/api/me/security/sessions",
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+			handler: async ({ principal, scope }) =>
+				scope.resolveIdentityPlatformService().getSecuritySessions({
+					principal,
+				}),
+		});
+	});
+
+	input.app.delete("/api/me/security/sessions/:sessionId", async (c) => {
+		const scope = input.createRequestScope();
+		return handleIdentityDelete({
+			endpoint: "/api/me/security/sessions/:sessionId",
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+			handler: async ({ principal, scope }) =>
+				scope.resolveIdentityPlatformService().deleteSecuritySession({
+					principal,
+					sessionId: c.req.param("sessionId"),
+				}),
+		});
+	});
+
+	input.app.get("/api/me/authorized-apps", async (c) => {
+		const scope = input.createRequestScope();
+		return handleIdentityGet({
+			endpoint: "/api/me/authorized-apps",
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+			handler: async ({ principal, scope }) =>
+				scope.resolveIdentityPlatformService().getAuthorizedApps({
+					principal,
+				}),
+		});
+	});
+
+	input.app.delete("/api/me/authorized-apps/:clientId", async (c) => {
+		const scope = input.createRequestScope();
+		return handleIdentityDelete({
+			endpoint: "/api/me/authorized-apps/:clientId",
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+			handler: async ({ principal, scope }) =>
+				scope.resolveIdentityPlatformService().deleteAuthorizedApp({
+					clientId: c.req.param("clientId"),
+					principal,
+				}),
 		});
 	});
 

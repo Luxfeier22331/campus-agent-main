@@ -2,9 +2,7 @@ import { Link } from "@tanstack/react-router";
 import {
 	AlertCircle,
 	CheckCircle2,
-	Clock3,
 	KeyRound,
-	Layers3,
 	Loader2,
 	LogIn,
 	LogOut,
@@ -15,21 +13,31 @@ import {
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { signOutAccount } from "../../platform/auth/client";
 import { PageDescription, PageTitle, ShellSection } from "../root-layout";
 import {
+	AccountAuthorizedAppsSection,
+	AccountPanel,
+	AccountSessionsSection,
+} from "./account-security-sections";
+import {
 	type AccountAccess,
+	type AccountAuthorizedApp,
 	type AccountIdentity,
+	type AccountMutationResult,
 	type AccountOverview,
 	type AccountOverviewState,
 	type AccountPreferences,
 	type AccountPreferencesResult,
+	type AccountSecuritySession,
+	deleteAccountAuthorizedApp,
+	deleteAccountSecuritySession,
 	loadAccountAccess,
+	loadAccountAuthorizedApps,
 	loadAccountIdentity,
 	loadAccountOverview,
 	loadAccountPreferences,
+	loadAccountSecuritySessions,
 	updateAccountPreferences,
 } from "./account-session";
 
@@ -44,8 +52,14 @@ export function AccountPage() {
 	const [access, setAccess] = useState<AccountAccess | null>(null);
 	const [preferencesState, setPreferencesState] = useState<AccountScopedState>("loading");
 	const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
+	const [securitySessionsState, setSecuritySessionsState] = useState<AccountScopedState>("loading");
+	const [securitySessions, setSecuritySessions] = useState<AccountSecuritySession[]>([]);
+	const [authorizedAppsState, setAuthorizedAppsState] = useState<AccountScopedState>("loading");
+	const [authorizedApps, setAuthorizedApps] = useState<AccountAuthorizedApp[]>([]);
 	const [isSigningOut, setIsSigningOut] = useState(false);
 	const [isUpdatingPreferences, setIsUpdatingPreferences] = useState(false);
+	const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+	const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
 
 	const setScopedIdentityResult = useCallback(
 		(result: {
@@ -92,11 +106,20 @@ export function AccountPage() {
 		setPreferencesState(result.state);
 	}, []);
 
+	const setMutationResult = useCallback((result: AccountMutationResult) => {
+		if (result.state === "unauthenticated") {
+			setOverview(null);
+			setOverviewState("unauthenticated");
+		}
+	}, []);
+
 	const loadOverview = useCallback(async () => {
 		setOverviewState("loading");
 		setIdentityState("loading");
 		setAccessState("loading");
 		setPreferencesState("loading");
+		setSecuritySessionsState("loading");
+		setAuthorizedAppsState("loading");
 		const nextOverview = await loadAccountOverview();
 		setOverview(nextOverview.overview);
 		setOverviewState(nextOverview.state);
@@ -104,20 +127,43 @@ export function AccountPage() {
 			setIdentity(null);
 			setAccess(null);
 			setPreferences(null);
+			setSecuritySessions([]);
+			setAuthorizedApps([]);
 			return;
 		}
 
 		setIdentity(nextOverview.overview.identity);
 		setAccess(nextOverview.overview.access);
 		setPreferences(nextOverview.overview.preferences);
-		const [nextIdentity, nextAccess, nextPreferences] = await Promise.all([
-			loadAccountIdentity(),
-			loadAccountAccess(),
-			loadAccountPreferences(),
-		]);
+		const [nextIdentity, nextAccess, nextPreferences, nextSessions, nextAuthorizedApps] =
+			await Promise.all([
+				loadAccountIdentity(),
+				loadAccountAccess(),
+				loadAccountPreferences(),
+				loadAccountSecuritySessions(),
+				loadAccountAuthorizedApps(),
+			]);
 		setScopedIdentityResult(nextIdentity);
 		setScopedAccessResult(nextAccess);
 		setScopedPreferencesResult(nextPreferences);
+		if (nextSessions.state === "unauthenticated") {
+			setOverview(null);
+			setOverviewState("unauthenticated");
+			setSecuritySessions([]);
+			setSecuritySessionsState("service_unavailable");
+		} else {
+			setSecuritySessions(nextSessions.sessions);
+			setSecuritySessionsState(nextSessions.state);
+		}
+		if (nextAuthorizedApps.state === "unauthenticated") {
+			setOverview(null);
+			setOverviewState("unauthenticated");
+			setAuthorizedApps([]);
+			setAuthorizedAppsState("service_unavailable");
+		} else {
+			setAuthorizedApps(nextAuthorizedApps.authorizedApps);
+			setAuthorizedAppsState(nextAuthorizedApps.state);
+		}
 	}, [setScopedAccessResult, setScopedIdentityResult, setScopedPreferencesResult]);
 
 	useEffect(() => {
@@ -168,6 +214,50 @@ export function AccountPage() {
 		setIsUpdatingPreferences(false);
 	}
 
+	async function handleDeleteSecuritySession(sessionId: string) {
+		if (deletingSessionId) {
+			return;
+		}
+		setDeletingSessionId(sessionId);
+		const result = await deleteAccountSecuritySession({ sessionId });
+		setMutationResult(result);
+		if (result.state === "ready") {
+			const nextSessions = await loadAccountSecuritySessions();
+			if (nextSessions.state === "ready") {
+				setSecuritySessions(nextSessions.sessions);
+			}
+			setSecuritySessionsState(
+				nextSessions.state === "unauthenticated" ? "service_unavailable" : nextSessions.state,
+			);
+		} else if (result.state !== "unauthenticated") {
+			setSecuritySessionsState(result.state);
+		}
+		setDeletingSessionId(null);
+	}
+
+	async function handleDeleteAuthorizedApp(clientId: string) {
+		if (deletingClientId) {
+			return;
+		}
+		setDeletingClientId(clientId);
+		const result = await deleteAccountAuthorizedApp({ clientId });
+		setMutationResult(result);
+		if (result.state === "ready") {
+			const nextAuthorizedApps = await loadAccountAuthorizedApps();
+			if (nextAuthorizedApps.state === "ready") {
+				setAuthorizedApps(nextAuthorizedApps.authorizedApps);
+			}
+			setAuthorizedAppsState(
+				nextAuthorizedApps.state === "unauthenticated"
+					? "service_unavailable"
+					: nextAuthorizedApps.state,
+			);
+		} else if (result.state !== "unauthenticated") {
+			setAuthorizedAppsState(result.state);
+		}
+		setDeletingClientId(null);
+	}
+
 	return (
 		<ShellSection className="max-w-5xl">
 			<PageTitle>账号</PageTitle>
@@ -193,15 +283,23 @@ export function AccountPage() {
 					<AccountOverviewPanel
 						access={access}
 						accessState={accessState}
+						authorizedApps={authorizedApps}
+						authorizedAppsState={authorizedAppsState}
+						deletingClientId={deletingClientId}
+						deletingSessionId={deletingSessionId}
 						identity={identity}
 						identityState={identityState}
 						isSigningOut={isSigningOut}
 						isUpdatingPreferences={isUpdatingPreferences}
+						onDeleteAuthorizedApp={handleDeleteAuthorizedApp}
+						onDeleteSecuritySession={handleDeleteSecuritySession}
 						onProfileMemoryChange={handleProfileMemoryChange}
 						onSignOut={handleSignOut}
 						overview={overview}
 						preferences={preferences}
 						preferencesState={preferencesState}
+						securitySessions={securitySessions}
+						securitySessionsState={securitySessionsState}
 					/>
 				) : null}
 			</div>
@@ -276,27 +374,43 @@ function AccountLoggedOutCard() {
 export function AccountOverviewPanel({
 	access,
 	accessState = "ready",
+	authorizedApps = [],
+	authorizedAppsState = "ready",
+	deletingClientId = null,
+	deletingSessionId = null,
 	identity,
 	identityState = "ready",
 	isSigningOut,
 	isUpdatingPreferences = false,
+	onDeleteAuthorizedApp,
+	onDeleteSecuritySession,
 	onProfileMemoryChange,
 	onSignOut,
 	overview,
 	preferences,
 	preferencesState = "ready",
+	securitySessions = [],
+	securitySessionsState = "ready",
 }: {
 	access?: AccountAccess | null;
 	accessState?: AccountScopedState;
+	authorizedApps?: AccountAuthorizedApp[];
+	authorizedAppsState?: AccountScopedState;
+	deletingClientId?: string | null;
+	deletingSessionId?: string | null;
 	identity?: AccountIdentity | null;
 	identityState?: AccountScopedState;
 	isSigningOut: boolean;
 	isUpdatingPreferences?: boolean;
+	onDeleteAuthorizedApp?: (clientId: string) => void;
+	onDeleteSecuritySession?: (sessionId: string) => void;
 	onProfileMemoryChange?: (enabled: boolean) => void;
 	onSignOut: () => void;
 	overview: AccountOverview;
 	preferences?: AccountPreferences | null;
 	preferencesState?: AccountScopedState;
+	securitySessions?: AccountSecuritySession[];
+	securitySessionsState?: AccountScopedState;
 }) {
 	const resolvedIdentity = identity ?? overview.identity;
 	const resolvedAccess = access ?? overview.access;
@@ -345,19 +459,25 @@ export function AccountOverviewPanel({
 					items={[
 						["账号类型", "用户"],
 						["验证状态", formatVerificationStatus(resolvedIdentity.verificationStatus)],
-					]}
-					state={identityState}
-					title="账号信息"
-				/>
-				<AccountFactSection
-					icon={<Layers3 aria-hidden="true" className="size-5" />}
-					items={[
-						["应用", formatAvailableApps(resolvedAccess.availableApps)],
+						["应用与权限", formatAvailableApps(resolvedAccess.availableApps)],
 						["权限", formatPermissions(resolvedAccess.permissions)],
 						["受保护内容", resolvedAccess.restrictedSurfacesReady ? "可访问" : "暂不可访问"],
 					]}
-					state={accessState}
-					title="应用与权限"
+					state={identityState === "ready" ? accessState : identityState}
+					title="账号信息"
+				/>
+				<AccountSessionsSection
+					credentialRuntime={overview.session.credentialRuntime}
+					deletingSessionId={deletingSessionId}
+					onDeleteSecuritySession={onDeleteSecuritySession}
+					sessions={securitySessions}
+					state={securitySessionsState}
+				/>
+				<AccountAuthorizedAppsSection
+					apps={authorizedApps}
+					deletingClientId={deletingClientId}
+					onDeleteAuthorizedApp={onDeleteAuthorizedApp}
+					state={authorizedAppsState}
 				/>
 				<AccountFactSection
 					icon={<Sparkles aria-hidden="true" className="size-5" />}
@@ -384,15 +504,6 @@ export function AccountOverviewPanel({
 					}
 					state={preferencesState}
 					title="个性化记忆"
-				/>
-				<AccountFactSection
-					icon={<Clock3 aria-hidden="true" className="size-5" />}
-					items={[
-						["登录方式", formatCredentialRuntime(overview.session.credentialRuntime)],
-						["登录状态有效至", formatIsoDateTime(overview.session.expiresAt)],
-						["授权登录", overview.federation.enabled ? "可使用" : "暂不可用"],
-					]}
-					title="登录与授权"
 				/>
 			</div>
 		</div>
@@ -451,14 +562,6 @@ function AccountFactSection({
 	);
 }
 
-function AccountPanel({ children, className }: { children: ReactNode; className?: string }) {
-	return (
-		<Card className={cn("rounded-lg border-border bg-card shadow-none", className)}>
-			<CardContent className="p-6 sm:p-8">{children}</CardContent>
-		</Card>
-	);
-}
-
 function formatAccountStatus(status: AccountOverview["account"]["status"]): string {
 	switch (status) {
 		case "active":
@@ -497,14 +600,20 @@ function formatPermissions(permissions: AccountAccess["permissions"]): string {
 }
 
 function formatAvailableApps(apps: string[]): string {
-	const labels = apps.map((app) => formatAvailableAppKey(app));
+	const labels = Array.from(new Set(apps.map((app) => formatAvailableAppKey(app))));
 	return labels.length > 0 ? labels.join(" / ") : "无";
 }
 
 function formatAvailableAppKey(key: string): string {
 	switch (key) {
+		case "account":
+			return "账号";
 		case "campus-web":
 			return "校园问答";
+		case "chat":
+			return "问答";
+		case "docs":
+			return "文档";
 		default:
 			return "其他应用";
 	}
@@ -519,24 +628,4 @@ function formatPermissionKey(key: string): string {
 		default:
 			return "其他权限";
 	}
-}
-
-function formatCredentialRuntime(runtime: string): string {
-	switch (runtime) {
-		case "better-auth":
-			return "邮箱密码";
-		default:
-			return "其他方式";
-	}
-}
-
-function formatIsoDateTime(value: string): string {
-	const date = new Date(value);
-	if (Number.isNaN(date.valueOf())) {
-		return "时间待确认";
-	}
-	return date.toLocaleString("zh-CN", {
-		dateStyle: "medium",
-		timeStyle: "short",
-	});
 }

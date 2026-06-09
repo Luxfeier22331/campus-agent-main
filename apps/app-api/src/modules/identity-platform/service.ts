@@ -7,9 +7,11 @@ import type {
 	EndUserPrincipal,
 	IdentityCampusAttributes,
 	IdentityPlatformAccess,
+	IdentityPlatformAuthorizedApp,
 	IdentityPlatformIdentity,
 	IdentityPlatformOverview,
 	IdentityPlatformPreferences,
+	IdentityPlatformSecuritySession,
 } from "./model";
 import type { IdentityPlatformStore } from "./store";
 
@@ -17,10 +19,21 @@ const END_USER_PRINCIPAL_TYPES = new Set(["campus_member", "student", "staff", "
 const DEFAULT_CLAIMS_VERSION = "identity-claims-v1";
 
 export interface IdentityPlatformService {
+	deleteAuthorizedApp(input: { clientId: string; principal: ResolvedAppPrincipal }): Promise<void>;
+	deleteSecuritySession(input: {
+		principal: ResolvedAppPrincipal;
+		sessionId: string;
+	}): Promise<void>;
 	getAccess(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformAccess>;
+	getAuthorizedApps(input: {
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ authorizedApps: IdentityPlatformAuthorizedApp[] }>;
 	getIdentity(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformIdentity>;
 	getOverview(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformOverview>;
 	getPreferences(input: { principal: ResolvedAppPrincipal }): Promise<IdentityPlatformPreferences>;
+	getSecuritySessions(input: {
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ sessions: IdentityPlatformSecuritySession[] }>;
 	materializeSessionProjection(input: { principal: ResolvedAppPrincipal }): Promise<void>;
 	updatePreferences(input: {
 		principal: ResolvedAppPrincipal;
@@ -41,6 +54,15 @@ function createForbiddenError(message: string): AppApiRouteError {
 		message,
 		retryable: false,
 		status: 403,
+	});
+}
+
+function createNotFoundError(input: { code: string; message: string }): AppApiRouteError {
+	return new AppApiRouteError({
+		code: input.code,
+		message: input.message,
+		retryable: false,
+		status: 404,
 	});
 }
 
@@ -102,6 +124,37 @@ function resolveAvailableApps(principal: EndUserPrincipal): string[] {
 
 function defaultGenerateId(prefix: string): string {
 	return `${prefix}_${randomUUID().replace(/-/g, "")}`;
+}
+
+function formatDeviceLabel(userAgent: string | null): string {
+	const normalized = userAgent?.toLowerCase() ?? "";
+	if (!normalized) {
+		return "未知设备";
+	}
+
+	const browser = normalized.includes("edg/")
+		? "Edge"
+		: normalized.includes("firefox/")
+			? "Firefox"
+			: normalized.includes("safari/") && !normalized.includes("chrome/")
+				? "Safari"
+				: normalized.includes("chrome/")
+					? "Chrome"
+					: "浏览器";
+	const platform =
+		normalized.includes("iphone") || normalized.includes("ipad")
+			? "iOS"
+			: normalized.includes("android")
+				? "Android"
+				: normalized.includes("mac os")
+					? "macOS"
+					: normalized.includes("windows")
+						? "Windows"
+						: normalized.includes("linux")
+							? "Linux"
+							: "设备";
+
+	return `${browser} / ${platform}`;
 }
 
 function buildOverview(input: {
@@ -180,12 +233,49 @@ export function buildIdentityPlatformService(
 	const now = dependencies.now ?? (() => new Date());
 
 	return {
+		async deleteAuthorizedApp(input) {
+			const principal = requireEndUserPrincipal(input.principal);
+			const revoked = await dependencies.identityStore.revokeAuthorizedApp({
+				accountId: principal.principal.principalId,
+				clientId: input.clientId,
+				revokedAt: now().toISOString(),
+			});
+			if (!revoked) {
+				throw createNotFoundError({
+					code: "authorized_app_not_found",
+					message: "Authorized application was not found.",
+				});
+			}
+		},
+
+		async deleteSecuritySession(input) {
+			const principal = requireEndUserPrincipal(input.principal);
+			const revoked = await dependencies.identityStore.revokeSecuritySession({
+				accountId: principal.principal.principalId,
+				sessionId: input.sessionId,
+			});
+			if (!revoked) {
+				throw createNotFoundError({
+					code: "account_session_not_found",
+					message: "Account session was not found.",
+				});
+			}
+		},
+
 		async getAccess(input) {
 			const { overview } = await buildCurrentOverview({
 				principal: input.principal,
 				profileMemoryStore: dependencies.profileMemoryStore,
 			});
 			return overview.access;
+		},
+
+		async getAuthorizedApps(input) {
+			const principal = requireEndUserPrincipal(input.principal);
+			const authorizedApps = await dependencies.identityStore.listAuthorizedApps({
+				accountId: principal.principal.principalId,
+			});
+			return { authorizedApps };
 		},
 
 		async getIdentity(input) {
@@ -228,6 +318,23 @@ export function buildIdentityPlatformService(
 					ownerUserId: principal.principal.principalId,
 				}),
 			);
+		},
+
+		async getSecuritySessions(input) {
+			const principal = requireEndUserPrincipal(input.principal);
+			const sessions = await dependencies.identityStore.listSecuritySessions({
+				accountId: principal.principal.principalId,
+			});
+			return {
+				sessions: sessions.map((session) => ({
+					createdAt: session.createdAt,
+					current: session.sessionId === principal.session.sessionId,
+					deviceLabel: formatDeviceLabel(session.userAgent),
+					expiresAt: session.expiresAt,
+					lastActiveAt: session.lastActiveAt,
+					sessionId: session.sessionId,
+				})),
+			};
 		},
 
 		async updatePreferences(input) {

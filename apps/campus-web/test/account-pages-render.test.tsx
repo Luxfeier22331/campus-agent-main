@@ -10,10 +10,14 @@ import { AccountPage } from "../src/app/routes/account-page";
 import accountPageSource from "../src/app/routes/account-page.tsx?raw";
 
 const accountSessionMock = vi.hoisted(() => ({
+	deleteAccountAuthorizedApp: vi.fn(),
+	deleteAccountSecuritySession: vi.fn(),
+	loadAccountAuthorizedApps: vi.fn(),
 	loadAccountAccess: vi.fn(),
 	loadAccountIdentity: vi.fn(),
 	loadAccountOverview: vi.fn(),
 	loadAccountPreferences: vi.fn(),
+	loadAccountSecuritySessions: vi.fn(),
 	updateAccountPreferences: vi.fn(),
 }));
 
@@ -73,8 +77,22 @@ describe("campus account pages", () => {
 			preferences: null,
 			state: "ready",
 		});
+		accountSessionMock.loadAccountSecuritySessions.mockResolvedValue({
+			sessions: [],
+			state: "ready",
+		});
+		accountSessionMock.loadAccountAuthorizedApps.mockResolvedValue({
+			authorizedApps: [],
+			state: "ready",
+		});
 		accountSessionMock.updateAccountPreferences.mockResolvedValue({
 			preferences: { profileMemoryEnabled: false, profileMemoryItemCount: 7 },
+			state: "ready",
+		});
+		accountSessionMock.deleteAccountSecuritySession.mockResolvedValue({
+			state: "ready",
+		});
+		accountSessionMock.deleteAccountAuthorizedApp.mockResolvedValue({
 			state: "ready",
 		});
 	});
@@ -182,23 +200,82 @@ describe("campus account pages", () => {
 			preferences: createAccountOverview().preferences,
 			state: "ready",
 		});
+		accountSessionMock.loadAccountSecuritySessions.mockResolvedValue({
+			sessions: [
+				{
+					createdAt: "2026-06-09T08:00:00.000Z",
+					current: true,
+					deviceLabel: "Chrome / Windows",
+					expiresAt: "2026-06-16T08:00:00.000Z",
+					lastActiveAt: "2026-06-09T08:30:00.000Z",
+					sessionId: "session_01",
+				},
+				{
+					createdAt: "2026-06-08T08:00:00.000Z",
+					current: false,
+					deviceLabel: "Safari / iOS",
+					expiresAt: "2026-06-15T08:00:00.000Z",
+					lastActiveAt: "2026-06-08T08:30:00.000Z",
+					sessionId: "session_other",
+				},
+			],
+			state: "ready",
+		});
+		accountSessionMock.loadAccountAuthorizedApps.mockResolvedValue({
+			authorizedApps: [
+				{
+					authorizedAt: "2026-06-09T08:00:00.000Z",
+					clientId: "muc-wiki",
+					displayName: "MUC Wiki",
+					grantedScopes: ["openid", "profile"],
+					homeUrl: "https://muc.wiki",
+					lastUsedAt: null,
+					status: "active",
+				},
+			],
+			state: "ready",
+		});
 
 		render(<AccountPage />);
 
 		expect(await screen.findByText("student@muc.edu.cn")).toBeInTheDocument();
 		expect(screen.getByText("账号信息")).toBeInTheDocument();
+		expect(screen.getByText("登录与安全")).toBeInTheDocument();
+		expect(screen.getByText("授权应用")).toBeInTheDocument();
 		expect(screen.getByText("个性化记忆")).toBeInTheDocument();
 		expect(screen.getByText("用户")).toBeInTheDocument();
-		expect(screen.getByText("校园问答")).toBeInTheDocument();
+		expect(screen.getByText("问答 / 文档 / 账号")).toBeInTheDocument();
 		expect(screen.getByText("问答")).toBeInTheDocument();
 		expect(screen.getByText("邮箱密码")).toBeInTheDocument();
-		expect(screen.getByText("授权登录")).toBeInTheDocument();
+		expect(screen.getByText("Chrome / Windows")).toBeInTheDocument();
+		expect(screen.getByText("Safari / iOS")).toBeInTheDocument();
+		expect(screen.getByText("当前登录")).toBeInTheDocument();
+		expect(screen.getByText("MUC Wiki")).toBeInTheDocument();
+		expect(screen.getByText("基础登录信息 / 个人资料")).toBeInTheDocument();
 		expect(screen.queryByText("学生")).toBeNull();
 		expect(screen.queryByText("登录联邦")).toBeNull();
 		expect(screen.queryByText("student")).toBeNull();
 		expect(screen.queryByText("chat")).toBeNull();
+		expect(screen.queryByText("openid")).toBeNull();
+		expect(screen.queryByText("profile")).toBeNull();
 		expect(screen.queryByText("better-auth")).toBeNull();
 		expect(screen.queryByText("claims_2026_06")).toBeNull();
+
+		fireEvent.click(screen.getByRole("button", { name: "移除此设备" }));
+
+		await waitFor(() => {
+			expect(accountSessionMock.deleteAccountSecuritySession).toHaveBeenCalledWith({
+				sessionId: "session_other",
+			});
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: "取消授权 MUC Wiki" }));
+
+		await waitFor(() => {
+			expect(accountSessionMock.deleteAccountAuthorizedApp).toHaveBeenCalledWith({
+				clientId: "muc-wiki",
+			});
+		});
 
 		fireEvent.click(screen.getByRole("button", { name: "关闭个性化记忆" }));
 
@@ -214,7 +291,7 @@ describe("campus account pages", () => {
 function createAccountOverview() {
 	return {
 		access: {
-			availableApps: ["campus-web"],
+			availableApps: ["chat", "docs", "account"],
 			entitlementGroups: ["students"],
 			permissions: {
 				chat: true,

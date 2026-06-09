@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-09
 ---
 # App API Identity Platform HTTP Contract
 
@@ -36,6 +36,10 @@ Implemented endpoints:
 - `GET /api/me/access`
 - `GET /api/me/preferences`
 - `PATCH /api/me/preferences`
+- `GET /api/me/security/sessions`
+- `DELETE /api/me/security/sessions/:sessionId`
+- `GET /api/me/authorized-apps`
+- `DELETE /api/me/authorized-apps/:clientId`
 
 No endpoint in this document may be advertised as implemented until route code,
 route exposure inventory and tests exist.
@@ -302,6 +306,94 @@ Rules:
   session internals.
 - Preferences remain personalization state. They cannot grant permissions,
   entitlement groups, restricted access or federation claims.
+
+## `GET /api/me/security/sessions`
+
+Returns product-safe active session summaries for the current signed-in
+end-user.
+
+### Sessions Response
+
+```json
+{
+  "sessions": [
+    {
+      "sessionId": "sess_01HQ...",
+      "current": true,
+      "deviceLabel": "Chrome / Windows",
+      "createdAt": "2026-06-09T08:00:00.000Z",
+      "lastActiveAt": "2026-06-09T08:30:00.000Z",
+      "expiresAt": "2026-06-16T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+Rules:
+
+- Only end-user principals may call this endpoint.
+- The data source is `app_auth.session`.
+- Raw session token, cookie value, raw user-agent and IP address are never
+  returned.
+- `current` is derived from the currently resolved session id.
+
+## `DELETE /api/me/security/sessions/:sessionId`
+
+Revokes an owned active session for the current signed-in end-user.
+
+Rules:
+
+- Only end-user principals may call this endpoint.
+- The session must belong to the current account.
+- Success returns `204 No Content`.
+- Missing or non-owned sessions fail closed with a typed 404 error.
+- The route never accepts or returns raw session token material.
+
+## `GET /api/me/authorized-apps`
+
+Returns product-safe summaries of applications the current signed-in end-user
+has authorized.
+
+### Authorized Apps Response
+
+```json
+{
+  "authorizedApps": [
+    {
+      "clientId": "muc-wiki",
+      "displayName": "MUC Wiki",
+      "homeUrl": "https://muc.wiki",
+      "grantedScopes": ["openid", "profile"],
+      "authorizedAt": "2026-06-09T08:00:00.000Z",
+      "lastUsedAt": null,
+      "status": "active"
+    }
+  ]
+}
+```
+
+Rules:
+
+- Only end-user principals may call this endpoint.
+- The data source is `identity.federation_user_grants` joined with registered
+  federation client metadata and app auth token/consent state when mutating.
+- The response must not expose client secrets, access tokens, refresh tokens,
+  authorization codes, raw adapter rows or internal provider metadata.
+- Browser UI may map `grantedScopes` to user-facing labels; protocol details are
+  not visible page copy.
+
+## `DELETE /api/me/authorized-apps/:clientId`
+
+Revokes an authorized application for the current signed-in end-user.
+
+Rules:
+
+- Only end-user principals may call this endpoint.
+- The grant must belong to the current account.
+- Success returns `204 No Content`.
+- Missing or non-owned grants fail closed with a typed 404 error.
+- The mutation revokes the identity grant and clears associated consent/access
+  token material or marks refresh tokens revoked.
 
 ## Related Documents
 

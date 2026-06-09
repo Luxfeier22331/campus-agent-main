@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { buildIdentityPlatformService } from "../src/modules/identity-platform";
+import {
+	buildIdentityPlatformService,
+	type IdentityPlatformService,
+} from "../src/modules/identity-platform";
 import { APP_API_TEST_ENV, createApp } from "./auth-and-db-test-support";
 
 function createCampusPrincipal() {
@@ -50,7 +53,29 @@ function createCampusPrincipal() {
 function createIdentityStoreStub() {
 	return {
 		materializeIdentityProjection: vi.fn(),
+		listAuthorizedApps: vi.fn().mockResolvedValue([]),
+		listSecuritySessions: vi.fn().mockResolvedValue([]),
+		revokeAuthorizedApp: vi.fn().mockResolvedValue(false),
+		revokeSecuritySession: vi.fn().mockResolvedValue(false),
 		updatePreferencesAndMaterialize: vi.fn(),
+	};
+}
+
+function createIdentityPlatformServiceStub(
+	overrides: Partial<IdentityPlatformService> = {},
+): IdentityPlatformService {
+	return {
+		deleteAuthorizedApp: vi.fn().mockResolvedValue(undefined),
+		deleteSecuritySession: vi.fn().mockResolvedValue(undefined),
+		getAccess: vi.fn(),
+		getAuthorizedApps: vi.fn().mockResolvedValue({ authorizedApps: [] }),
+		getIdentity: vi.fn(),
+		getOverview: vi.fn(),
+		getPreferences: vi.fn(),
+		getSecuritySessions: vi.fn().mockResolvedValue({ sessions: [] }),
+		materializeSessionProjection: vi.fn(),
+		updatePreferences: vi.fn(),
+		...overrides,
 	};
 }
 
@@ -128,14 +153,9 @@ export function registerApiMeSuite() {
 						sessionId: "sess_01HQ",
 					},
 				}),
-				identityPlatformService: {
-					getAccess: vi.fn(),
-					getIdentity: vi.fn(),
-					getOverview: vi.fn(),
-					getPreferences: vi.fn(),
+				identityPlatformService: createIdentityPlatformServiceStub({
 					materializeSessionProjection,
-					updatePreferences: vi.fn(),
-				},
+				}),
 			} as Parameters<typeof createApp>[1]);
 
 			const response = await app.fetch(new Request("https://app-api.internal/api/me"));
@@ -173,16 +193,11 @@ export function registerApiMeSuite() {
 		it("fails closed when /api/me cannot materialize the end-user identity projection", async () => {
 			const app = createApp(APP_API_TEST_ENV, {
 				getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
-				identityPlatformService: {
-					getAccess: vi.fn(),
-					getIdentity: vi.fn(),
-					getOverview: vi.fn(),
-					getPreferences: vi.fn(),
+				identityPlatformService: createIdentityPlatformServiceStub({
 					materializeSessionProjection: vi
 						.fn()
 						.mockRejectedValue(new Error("identity store unavailable")),
-					updatePreferences: vi.fn(),
-				},
+				}),
 			} as Parameters<typeof createApp>[1]);
 
 			const response = await app.fetch(new Request("https://app-api.internal/api/me"));
@@ -218,14 +233,9 @@ export function registerApiMeSuite() {
 					},
 					session: null,
 				}),
-				identityPlatformService: {
-					getAccess: vi.fn(),
-					getIdentity: vi.fn(),
-					getOverview: vi.fn(),
-					getPreferences: vi.fn(),
+				identityPlatformService: createIdentityPlatformServiceStub({
 					materializeSessionProjection,
-					updatePreferences: vi.fn(),
-				},
+				}),
 			} as Parameters<typeof createApp>[1]);
 
 			const response = await app.fetch(new Request("https://app-api.internal/api/me"));
@@ -630,7 +640,7 @@ export function registerApiMeSuite() {
 				identityPlatformService: buildIdentityPlatformService({
 					generateId: (prefix) => `${prefix}_01HQ`,
 					identityStore: {
-						materializeIdentityProjection: vi.fn(),
+						...createIdentityStoreStub(),
 						updatePreferencesAndMaterialize,
 					},
 					now: () => new Date("2026-03-29T08:00:00.000Z"),

@@ -311,6 +311,30 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/me/security/sessions",
+		callerClass: "browser-surface",
+		admission: "session end-user principal required",
+	},
+	{
+		method: "DELETE",
+		path: "/api/me/security/sessions/:sessionId",
+		callerClass: "browser-surface",
+		admission: "session end-user principal plus session ownership required",
+	},
+	{
+		method: "GET",
+		path: "/api/me/authorized-apps",
+		callerClass: "browser-surface",
+		admission: "session end-user principal required",
+	},
+	{
+		method: "DELETE",
+		path: "/api/me/authorized-apps/:clientId",
+		callerClass: "browser-surface",
+		admission: "session end-user principal plus authorization ownership required",
+	},
+	{
+		method: "GET",
 		path: "/api/me/profile-memory",
 		callerClass: "browser-surface",
 		admission: "session principal required",

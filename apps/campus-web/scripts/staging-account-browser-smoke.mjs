@@ -218,6 +218,15 @@ async function expectVisible(page, text) {
 	});
 }
 
+async function assertNoForbiddenUserCopy(page, label) {
+	const bodyText = (await page.locator("body").textContent({ timeout: 30_000 })) ?? "";
+	for (const phrase of ["OAuth", "staging", "Hub", "联邦", "campus-web", "redirect_uri"]) {
+		if (bodyText.includes(phrase)) {
+			throw new Error(`${label} exposes forbidden user copy: ${phrase}`);
+		}
+	}
+}
+
 async function assertCampusHome(page, campusBaseUrl) {
 	await page.goto(new URL("/", campusBaseUrl).toString(), { waitUntil: "domcontentloaded" });
 	for (const text of [
@@ -233,6 +242,47 @@ async function assertCampusHome(page, campusBaseUrl) {
 	if ((await page.getByText("MUC Wiki Hub", { exact: true }).count()) > 0) {
 		throw new Error("Campus homepage must not expose retired Hub launcher branding.");
 	}
+	await assertNoForbiddenUserCopy(page, "campus home");
+}
+
+async function assertAccountEntryPages(page, campusBaseUrl) {
+	const pages = [
+		{
+			checks: ["欢迎登录", "登录后继续使用校园问答与账号服务。", "邮箱地址", "密码"],
+			label: "login",
+			path: "/account/login",
+		},
+		{
+			checks: ["创建账号", "创建账号后继续使用校园问答与账号服务。", "确认密码"],
+			label: "register",
+			path: "/account/register",
+		},
+		{
+			checks: ["找回密码", "发送重置链接"],
+			label: "forgot password",
+			path: "/account/forgot-password",
+		},
+		{
+			checks: ["使用校园账号登录 MUC Wiki", "授权登录", "MUC Wiki 将获得", "允许并继续"],
+			label: "authorization consent",
+			path: "/account/federation/consent?client_id=muc-wiki&response_type=code&scope=openid",
+		},
+		{
+			checks: ["登录授权未完成", "这个应用暂时无法完成登录"],
+			label: "authorization error",
+			path: "/account/federation/error?error=invalid_redirect_uri&error_description=OAuth%20redirect_uri%20mismatch",
+		},
+	];
+
+	for (const entry of pages) {
+		await page.goto(new URL(entry.path, campusBaseUrl).toString(), {
+			waitUntil: "domcontentloaded",
+		});
+		for (const text of entry.checks) {
+			await expectVisible(page, text);
+		}
+		await assertNoForbiddenUserCopy(page, entry.label);
+	}
 }
 
 async function assertLoggedOutAccount(page, campusBaseUrl) {
@@ -246,6 +296,7 @@ async function assertLoggedOutAccount(page, campusBaseUrl) {
 		state: "visible",
 		timeout: 30_000,
 	});
+	await assertNoForbiddenUserCopy(page, "logged-out account");
 }
 
 async function assertLoggedInAccount(page, args) {
@@ -254,27 +305,22 @@ async function assertLoggedInAccount(page, args) {
 	});
 	await expectVisible(page, "当前登录账号");
 	await expectVisible(page, args.email);
-	for (const text of [
-		"校园身份",
-		"可用应用",
-		"资料记忆",
-		"会话与联邦",
-		"MUC Wiki 登录联邦",
-		"未启用",
-	]) {
+	for (const text of ["账号信息", "应用与权限", "个性化记忆", "登录与安全", "授权应用"]) {
 		await expectVisible(page, text);
 	}
+	await assertNoForbiddenUserCopy(page, "logged-in account");
 }
 
 async function togglePreferencesAndAssertPersistence(page) {
-	const button = page.getByRole("button", { name: /资料记忆/ }).first();
+	const button = page.getByRole("button", { name: /个性化记忆/ }).first();
 	await button.waitFor({ state: "visible", timeout: 30_000 });
 	const beforeLabel = (await button.textContent())?.trim() ?? "";
-	if (!(beforeLabel === "关闭资料记忆" || beforeLabel === "开启资料记忆")) {
+	if (!(beforeLabel === "关闭个性化记忆" || beforeLabel === "开启个性化记忆")) {
 		throw new Error(`Unexpected profile memory button label: ${beforeLabel}`);
 	}
-	const expectedButtonLabel = beforeLabel === "关闭资料记忆" ? "开启资料记忆" : "关闭资料记忆";
-	const expectedStateText = beforeLabel === "关闭资料记忆" ? "已关闭" : "已开启";
+	const expectedButtonLabel =
+		beforeLabel === "关闭个性化记忆" ? "开启个性化记忆" : "关闭个性化记忆";
+	const expectedStateText = beforeLabel === "关闭个性化记忆" ? "已关闭" : "已开启";
 
 	await button.click();
 	await page.getByRole("button", { name: expectedButtonLabel }).first().waitFor({
@@ -291,7 +337,7 @@ async function togglePreferencesAndAssertPersistence(page) {
 
 	return {
 		after: expectedStateText,
-		before: beforeLabel === "关闭资料记忆" ? "已开启" : "已关闭",
+		before: beforeLabel === "关闭个性化记忆" ? "已开启" : "已关闭",
 	};
 }
 
@@ -317,6 +363,8 @@ async function runBrowserSmoke(args) {
 	try {
 		await assertCampusHome(page, args.campusBaseUrl);
 		events.push("campus_home_ok");
+		await assertAccountEntryPages(page, args.campusBaseUrl);
+		events.push("account_entry_pages_ok");
 		await assertLoggedOutAccount(page, args.campusBaseUrl);
 		events.push("account_logged_out_ok");
 		await context.addCookies(toPlaywrightCookies(setCookies, args.campusBaseUrl));

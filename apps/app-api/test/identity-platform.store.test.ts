@@ -3,10 +3,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	session as authSessions,
 	identityAccessSnapshots,
 	identityAccounts,
+	identityFederationUserGrants,
 	identityPreferenceSettings,
 	identityProfiles,
+	oauthAccessToken,
+	oauthConsent,
+	oauthRefreshToken,
 	profileMemorySettings,
 } from "../src/db/schema";
 import type { IdentityPlatformOverview } from "../src/modules/identity-platform";
@@ -199,5 +204,88 @@ describe("identity platform store", () => {
 			snapshotId: "access_snapshot_01HQ",
 		});
 		expect(writes[4].conflict).toBeNull();
+	});
+
+	it("revokes only owned auth sessions through the session table", async () => {
+		const deleteCalls: unknown[] = [];
+		const returning = vi.fn().mockResolvedValue([{ sessionId: "sess_other" }]);
+		const where = vi.fn(() => ({ returning }));
+		const deleteMock = vi.fn((table: unknown) => {
+			deleteCalls.push(table);
+			return { where };
+		});
+		const store = createPgIdentityPlatformStore({} as never, {
+			getDb: () =>
+				({
+					delete: deleteMock,
+				}) as never,
+		});
+
+		const revoked = await store.revokeSecuritySession({
+			accountId: "user_01HQ",
+			sessionId: "sess_other",
+		});
+
+		expect(revoked).toBe(true);
+		expect(deleteCalls).toEqual([authSessions]);
+		expect(where).toHaveBeenCalledTimes(1);
+		expect(returning).toHaveBeenCalledWith({ sessionId: authSessions.id });
+	});
+
+	it("revokes authorized app grants and clears auth token material transactionally", async () => {
+		const writes: Array<{ table: unknown; values?: unknown }> = [];
+		const deletes: unknown[] = [];
+		const update = vi.fn((table: unknown) => ({
+			set: vi.fn((values: unknown) => {
+				writes.push({ table, values });
+				return {
+					where: vi.fn(() => ({
+						returning: vi.fn().mockResolvedValue([{ grantId: "grant_01HQ" }]),
+					})),
+				};
+			}),
+		}));
+		const deleteMock = vi.fn((table: unknown) => {
+			deletes.push(table);
+			return {
+				where: vi.fn().mockResolvedValue([]),
+			};
+		});
+		const transaction = vi.fn(
+			async (
+				callback: (tx: { delete: typeof deleteMock; update: typeof update }) => Promise<boolean>,
+			) => callback({ delete: deleteMock, update }),
+		);
+		const store = createPgIdentityPlatformStore({} as never, {
+			getDb: () =>
+				({
+					transaction,
+				}) as never,
+		});
+
+		const revoked = await store.revokeAuthorizedApp({
+			accountId: "user_01HQ",
+			clientId: "muc-wiki",
+			revokedAt: "2026-03-29T08:00:00.000Z",
+		});
+
+		expect(revoked).toBe(true);
+		expect(transaction).toHaveBeenCalledTimes(1);
+		expect(writes).toEqual([
+			{
+				table: identityFederationUserGrants,
+				values: {
+					grantState: "revoked",
+					revokedAt: new Date("2026-03-29T08:00:00.000Z"),
+				},
+			},
+			{
+				table: oauthRefreshToken,
+				values: {
+					revoked: new Date("2026-03-29T08:00:00.000Z"),
+				},
+			},
+		]);
+		expect(deletes).toEqual([oauthConsent, oauthAccessToken]);
 	});
 });

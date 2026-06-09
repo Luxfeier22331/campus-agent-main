@@ -4,10 +4,12 @@ export type {
 	EndUserPrincipal,
 	IdentityCampusAttributes,
 	IdentityPlatformAccess,
+	IdentityPlatformAuthorizedApp,
 	IdentityPlatformIdentity,
 	IdentityPlatformMaterializationProjection,
 	IdentityPlatformOverview,
 	IdentityPlatformPreferences,
+	IdentityPlatformSecuritySession,
 	IdentityVerificationStatus,
 } from "./model";
 export type {
