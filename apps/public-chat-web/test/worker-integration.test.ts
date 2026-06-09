@@ -420,6 +420,7 @@ describe("public chat web chat integration", () => {
 					}),
 				];
 			}),
+			listRunSteps: vi.fn(async () => ({ attempts: [], results: [], steps: [] })),
 		};
 		const chatCommandService = buildChatCommandService({
 			conversationStore,
@@ -631,6 +632,7 @@ describe("public chat web chat integration", () => {
 					}),
 				];
 			}),
+			listRunSteps: vi.fn(async () => ({ attempts: [], results: [], steps: [] })),
 		};
 		const chatCommandService = buildChatCommandService({
 			conversationStore,

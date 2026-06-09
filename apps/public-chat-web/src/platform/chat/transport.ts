@@ -1,4 +1,5 @@
 import {
+	cancelChatRun,
 	createDraftConversation,
 	submitChatRequest,
 	submitChatRequestStream,
@@ -32,4 +33,12 @@ export function subscribeShellRunEventStream(input: {
 	signal?: AbortSignal;
 }) {
 	return subscribeChatRunEventStream(input);
+}
+
+export function cancelShellRun(input: {
+	reason: string;
+	runId: string;
+	signal?: AbortSignal;
+}) {
+	return cancelChatRun(input);
 }

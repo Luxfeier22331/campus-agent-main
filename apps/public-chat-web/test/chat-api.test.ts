@@ -4,6 +4,7 @@ import {
 	type ChatRequestStreamEvent,
 	createDraftConversation,
 	deleteAllConversations,
+	cancelChatRun,
 	deleteConversation,
 	deleteMessageFeedback,
 	deleteTrailingMessages,
@@ -209,6 +210,58 @@ describe("public chat app-api client", () => {
 			}),
 		);
 		expect(fetchSpy).not.toHaveBeenCalledWith("/api/chat/requests/stream", expect.anything());
+	});
+
+	it("cancels a durable chat run through the explicit run cancel route", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					run: {
+						conversationId: "conv_01HQ",
+						phase: "canceled",
+						requestId: "req_01HQ",
+						runId: "run_01HQ",
+						status: "canceled",
+						terminalReason: "user_canceled",
+						traceId: "trace_01HQ",
+					},
+				}),
+				{
+					headers: {
+						"content-type": "application/json; charset=utf-8",
+					},
+					status: 202,
+				},
+			),
+		);
+
+		const signal = new AbortController().signal;
+		await expect(
+			cancelChatRun({
+				reason: "user_requested",
+				runId: "run_01HQ",
+				signal,
+			}),
+		).resolves.toMatchObject({
+			run: {
+				runId: "run_01HQ",
+				status: "canceled",
+			},
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/chat/runs/run_01HQ/cancel",
+			expect.objectContaining({
+				body: JSON.stringify({
+					reason: "user_requested",
+				}),
+				headers: expect.objectContaining({
+					"content-type": "application/json",
+				}),
+				method: "POST",
+				signal,
+			}),
+		);
 	});
 
 	it("rejects invalid JSON stream error payloads from app-api", async () => {
