@@ -86,8 +86,8 @@ func TestQdrantRAGLookupEmbeddingRequestUsesConfiguredDimensions(t *testing.T) {
 		embeddingAPIKey:     "test-embedding-key",
 		embeddingBaseURL:    server.URL,
 		embeddingDimensions: 2560,
+		embeddingHTTPClient: server.Client(),
 		embeddingModel:      "Qwen3-Embedding-4B",
-		httpClient:          server.Client(),
 	}
 
 	embedding, err := executor.embedQuery(context.Background(), "学生请假手续")
@@ -115,8 +115,8 @@ func TestQdrantRAGLookupEmbeddingFailsClosedOnDimensionMismatch(t *testing.T) {
 		embeddingAPIKey:     "test-embedding-key",
 		embeddingBaseURL:    server.URL,
 		embeddingDimensions: 2560,
+		embeddingHTTPClient: server.Client(),
 		embeddingModel:      "Qwen3-Embedding-4B",
-		httpClient:          server.Client(),
 	}
 
 	_, err := executor.embedQuery(context.Background(), "学生请假手续")
@@ -172,6 +172,38 @@ func TestNewQdrantRAGLookupExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 	}
 	if err := executor.HealthCheck(context.Background()); err != nil {
 		t.Fatalf("qdrant health check with tls ca: %v", err)
+	}
+}
+
+func TestNewQdrantRAGLookupExecutorSeparatesQdrantTLSClientFromEmbeddingClient(t *testing.T) {
+	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		_, _ = response.Write([]byte("all shards are ready"))
+	}))
+	defer qdrant.Close()
+	caPath := writeTestCACert(t, qdrant)
+
+	lookupExecutor, err := newQdrantRAGLookupExecutor(config.Config{
+		EmbeddingAPIKey:      "embedding-key",
+		EmbeddingBaseURL:     "https://provider.example/v1",
+		EmbeddingDimensions:  3,
+		EmbeddingModel:       "embedding-model",
+		QdrantQueryAPIKey:    "readonly-key",
+		QdrantTLSCACertPath:  caPath,
+		QdrantTimeoutSeconds: 10,
+		QdrantURL:            qdrant.URL,
+	})
+	if err != nil {
+		t.Fatalf("new qdrant executor: %v", err)
+	}
+	executor, ok := lookupExecutor.(qdrantRAGLookupExecutor)
+	if !ok {
+		t.Fatalf("executor type = %T, want qdrantRAGLookupExecutor", lookupExecutor)
+	}
+	if executor.embeddingHTTPClient == nil {
+		t.Fatal("embedding client must be configured")
+	}
+	if executor.embeddingHTTPClient == executor.httpClient {
+		t.Fatal("embedding provider client must not reuse private Qdrant TLS client")
 	}
 }
 

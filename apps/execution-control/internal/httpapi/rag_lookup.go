@@ -29,6 +29,7 @@ type qdrantRAGLookupExecutor struct {
 	embeddingAPIKey     string
 	embeddingBaseURL    string
 	embeddingDimensions int
+	embeddingHTTPClient *http.Client
 	embeddingModel      string
 	httpClient          *http.Client
 	qdrantQueryAPIKey   string
@@ -79,6 +80,7 @@ func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
 		embeddingAPIKey:     strings.TrimSpace(cfg.EmbeddingAPIKey),
 		embeddingBaseURL:    embeddingBaseURL,
 		embeddingDimensions: cfg.EmbeddingDimensions,
+		embeddingHTTPClient: &http.Client{Timeout: timeout},
 		embeddingModel:      strings.TrimSpace(cfg.EmbeddingModel),
 		httpClient:          httpClient,
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
@@ -174,6 +176,9 @@ func (e qdrantRAGLookupExecutor) HealthCheck(ctx context.Context) error {
 }
 
 func (e qdrantRAGLookupExecutor) embedQuery(ctx context.Context, queryText string) ([]float64, error) {
+	if e.embeddingHTTPClient == nil {
+		return nil, errors.New("embedding HTTP client is not configured")
+	}
 	body, err := json.Marshal(map[string]any{
 		"model":      e.embeddingModel,
 		"input":      strings.TrimSpace(queryText),
@@ -193,7 +198,7 @@ func (e qdrantRAGLookupExecutor) embedQuery(ctx context.Context, queryText strin
 	}
 	request.Header.Set("authorization", "Bearer "+e.embeddingAPIKey)
 	request.Header.Set("content-type", "application/json")
-	response, err := e.httpClient.Do(request)
+	response, err := e.embeddingHTTPClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
