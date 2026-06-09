@@ -76,13 +76,12 @@ run_psql() {
     -e "CAMPUS_EVIDENCE_REQUEST_ID=${request_id}" \
     -e "CAMPUS_EVIDENCE_SQL=${sql}" \
     postgres:16-alpine \
-    sh -ceu 'psql "$CAMPUS_RUN_PROJECTION_DATABASE_URL" \
-      --set "ON_ERROR_STOP=1" \
-      --set "request_id=$CAMPUS_EVIDENCE_REQUEST_ID" \
+    sh -ceu "printf '%s\n' \"\${CAMPUS_EVIDENCE_SQL}\" | psql \"\${CAMPUS_RUN_PROJECTION_DATABASE_URL}\" \
+      --set \"ON_ERROR_STOP=1\" \
+      --set \"request_id=\${CAMPUS_EVIDENCE_REQUEST_ID}\" \
       --csv \
       --no-align \
-      --field-separator "," \
-      --command "$CAMPUS_EVIDENCE_SQL"' >"${output_file}"
+      --field-separator \",\"" >"${output_file}"
 }
 
 run_psql "
