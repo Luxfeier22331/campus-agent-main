@@ -1,4 +1,17 @@
 export {
+	diningAuditEvents,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningSourceObservations,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
+export {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
@@ -54,6 +67,19 @@ export {
 	wechatOfficialAccountRunHeartbeats,
 } from "./wechat-official-account";
 
+import {
+	diningAuditEvents,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningSourceObservations,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
 import {
 	docsCollections,
 	docsDocuments,
@@ -128,6 +154,17 @@ export const appApiOwnedSchema = {
 	docsDocumentVersions,
 	docsReaderAssets,
 	docsSearchUnits,
+	diningHalls,
+	diningFloors,
+	diningWindows,
+	diningWindowAssignments,
+	diningStallProfiles,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningSourceObservations,
+	diningReleases,
+	diningReleaseSnapshots,
+	diningAuditEvents,
 	identityAccounts,
 	identityProfiles,
 	identityAccessSnapshots,

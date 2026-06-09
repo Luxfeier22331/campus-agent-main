@@ -328,10 +328,10 @@ describe("dining operations service", () => {
 		const service = buildDiningOperationsService({ store });
 
 		await expect(
-				service.getPublishedFloor({
-					floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
-					hallId: "haidian-canteen-1",
-				}),
+			service.getPublishedFloor({
+				floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+				hallId: "haidian-canteen-1",
+			}),
 		).rejects.toMatchObject({
 			code: "dining_projection_invalid",
 			name: "AppApiRouteError",

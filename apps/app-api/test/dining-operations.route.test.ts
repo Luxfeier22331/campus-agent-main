@@ -80,9 +80,7 @@ describe("dining operations routes", () => {
 		const halls = await app.fetch(new Request("https://app-api.internal/api/ops/dining/halls"));
 		expect(halls.status).toBe(200);
 
-		const floor = await app.fetch(
-			new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH),
-		);
+		const floor = await app.fetch(new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH));
 		expect(floor.status).toBe(200);
 		const floorBody = (await floor.json()) as {
 			assignments: Array<{ assignmentId: string; windowId: string }>;
@@ -167,9 +165,7 @@ describe("dining operations routes", () => {
 		);
 		expect(publish.status).toBe(201);
 
-		const publicFloor = await app.fetch(
-			new Request(HAIDIAN_CANTEEN_1_PUBLIC_FLOOR_PATH),
-		);
+		const publicFloor = await app.fetch(new Request(HAIDIAN_CANTEEN_1_PUBLIC_FLOOR_PATH));
 		expect(publicFloor.status).toBe(200);
 		const publicFloorBody = (await publicFloor.json()) as {
 			windows: Array<{
@@ -206,9 +202,7 @@ describe("dining operations routes", () => {
 			getPrincipal: vi.fn().mockResolvedValue(principal({ operator: true })),
 		});
 
-		const floor = await app.fetch(
-			new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH),
-		);
+		const floor = await app.fetch(new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH));
 		const floorBody = (await floor.json()) as {
 			assignments: Array<{ assignmentId: string; windowId: string }>;
 			menuOfferings: Array<{ assignmentId: string; menuItemId: string; offeringId: string }>;
@@ -283,9 +277,7 @@ describe("dining operations routes", () => {
 		);
 		expect(offeringPatch.status).toBe(200);
 
-		const updatedFloor = await app.fetch(
-			new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH),
-		);
+		const updatedFloor = await app.fetch(new Request(HAIDIAN_CANTEEN_1_FLOOR_PATH));
 		const updatedFloorBody = (await updatedFloor.json()) as {
 			menuItems: Array<{ menuItemId: string; name: string }>;
 			menuOfferings: Array<{ offeringId: string; priceLabel: string }>;

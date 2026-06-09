@@ -21,6 +21,19 @@ function requireSnapshot(key: string) {
 const snapshot0009 = requireSnapshot("0009_melted_nightmare");
 const latestSpecs = buildExpectedTableSpecs(migrationContext.latestSnapshot);
 const snapshot0009Specs = buildExpectedTableSpecs(snapshot0009);
+const DINING_TABLES = [
+	"dining.audit_events",
+	"dining.floors",
+	"dining.halls",
+	"dining.menu_items",
+	"dining.menu_offerings",
+	"dining.release_snapshots",
+	"dining.releases",
+	"dining.source_observations",
+	"dining.stall_profiles",
+	"dining.window_assignments",
+	"dining.windows",
+];
 
 function buildTableFromSnapshot(
 	specs: ReturnType<typeof buildExpectedTableSpecs>,
@@ -49,6 +62,32 @@ function buildAllExpectedTables() {
 }
 
 describe("shared database drift reconciliation", () => {
+	it("treats dining operations tables as current repo truth", () => {
+		expect([...latestSpecs.keys()]).toEqual(expect.arrayContaining(DINING_TABLES));
+
+		const inventory = makeInventory({
+			journalRows: migrationContext.migrations.map((migration) => ({
+				createdAt: migration.folderMillis,
+				hash: migration.hash,
+			})),
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: buildAllExpectedTables(),
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map(),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(
+			plan.extraTables.filter((item: { qualifiedName: string }) =>
+				item.qualifiedName.startsWith("dining."),
+			),
+		).toEqual([]);
+	});
+
 	it("plans cleanup for the known retired official-web orphaned journal shape", () => {
 		const inventory = makeInventory({
 			journalRows: [
