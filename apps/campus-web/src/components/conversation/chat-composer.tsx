@@ -2,15 +2,18 @@ import { Send } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function ChatComposer({
 	disabled,
 	onSubmit,
 	placeholder = "今天需要什么帮助",
+	variant = "thread",
 }: {
 	disabled?: boolean;
 	onSubmit(prompt: string): void;
 	placeholder?: string;
+	variant?: "hero" | "thread";
 }) {
 	const [prompt, setPrompt] = useState("");
 
@@ -26,12 +29,18 @@ export function ChatComposer({
 
 	return (
 		<form
-			className="rounded-2xl border border-border bg-white p-2 shadow-[var(--shadow-sm)]"
+			className={cn(
+				"border border-[var(--input-border)] bg-white p-2 shadow-[var(--shadow-sm)]",
+				variant === "hero" ? "rounded-[var(--radius-xxl)] p-4" : "rounded-2xl",
+			)}
 			onSubmit={handleSubmit}
 		>
 			<div className="flex items-end gap-2">
 				<textarea
-					className="max-h-40 min-h-14 flex-1 resize-none rounded-xl border-0 bg-transparent px-3 py-3 text-base outline-none placeholder:text-[var(--sys-text-subtle)]"
+					className={cn(
+						"max-h-40 flex-1 resize-none rounded-xl border-0 bg-transparent px-3 py-3 text-base outline-none placeholder:text-[var(--sys-text-subtle)]",
+						variant === "hero" ? "min-h-20" : "min-h-14",
+					)}
 					disabled={disabled}
 					onChange={(event) => setPrompt(event.target.value)}
 					placeholder={placeholder}

@@ -2,39 +2,46 @@ import { useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { ChatComposer } from "@/components/conversation/chat-composer";
-import { ConversationSidebar } from "@/components/conversation/conversation-sidebar";
 import { MessageList } from "@/components/conversation/message-list";
+import { QAShell } from "@/components/conversation/qa-shell";
 import { ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import {
+	deleteMessageFeedback,
 	getConversationDetail,
 	listConversations,
 	submitChatRequestStream,
+	submitMessageFeedback,
 } from "@/features/conversation/api";
-import {
-	buildAssistantMessageFromCompletedAnswer,
-	getLifecycleLabel,
-} from "@/features/conversation/lifecycle";
 import type {
-	ChatRequestStreamEvent,
+	ChatMessage,
 	ConversationDetail,
 	ConversationSummary,
+	MessageFeedbackReasonCode,
+	MessageFeedbackVote,
 } from "@/features/conversation/model";
+import {
+	applyConversationStreamEvent,
+	beginConversationRequest,
+	type ConversationStatusHistoryItem,
+	type ConversationViewState,
+	createConversationViewState,
+} from "@/features/conversation/view-state";
 import { UnauthorizedError } from "@/platform/api/client";
 import { buildAccountLoginUrlForCurrentRoute } from "@/platform/runtime/config";
 
 export function ConversationPage() {
 	const { conversationId } = useParams({ from: "/c/$conversationId" });
 	const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-	const [conversation, setConversation] = useState<ConversationDetail | null>(null);
+	const [viewState, setViewState] = useState<ConversationViewState | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const [lifecycleEvents, setLifecycleEvents] = useState<ChatRequestStreamEvent[]>([]);
 	const [submitting, setSubmitting] = useState(false);
+	const conversation = viewState?.conversation ?? null;
 
 	useEffect(() => {
 		Promise.all([listConversations(), getConversationDetail(conversationId)])
 			.then(([summaries, detail]) => {
 				setConversations(summaries);
-				setConversation(detail);
+				setViewState(createConversationViewState(detail));
 				setError(null);
 			})
 			.catch((reason: unknown) => {
@@ -47,26 +54,27 @@ export function ConversationPage() {
 	}, [conversationId]);
 
 	async function handleSubmit(prompt: string) {
+		if (!conversation) {
+			return;
+		}
 		setSubmitting(true);
-		setLifecycleEvents([]);
 		setError(null);
+		const requestKey = `local_${Date.now().toString(36)}`;
+		setViewState(
+			beginConversationRequest({
+				conversation,
+				createdAt: new Date().toISOString(),
+				prompt,
+				requestKey,
+			}),
+		);
 		try {
 			for await (const event of submitChatRequestStream({ conversationId, prompt })) {
-				setLifecycleEvents((current) => [...current, event]);
+				setViewState((current) =>
+					current ? applyConversationStreamEvent(current, event) : current,
+				);
 				if (event.event === "request.completed" && event.data.answer) {
-					const answer = event.data.answer;
-					const assistantMessage = buildAssistantMessageFromCompletedAnswer(event);
-					setConversation(
-						assistantMessage && answer.conversation.messages.length === 0
-							? {
-									...answer.conversation,
-									messages: [
-										...((conversation?.messages ?? []) as ConversationDetail["messages"]),
-										assistantMessage,
-									],
-								}
-							: answer.conversation,
-					);
+					upsertConversationSummary(event.data.answer.conversation);
 				}
 				if (event.event === "request.failed") {
 					setError(event.data.error?.message ?? "请求失败。");
@@ -86,42 +94,138 @@ export function ConversationPage() {
 		}
 	}
 
+	async function handleFeedback(
+		message: ChatMessage,
+		vote: MessageFeedbackVote,
+		reasonCodes: MessageFeedbackReasonCode[],
+	) {
+		try {
+			const result = await submitMessageFeedback({
+				conversationId: message.conversationId,
+				messageId: message.id,
+				reasonCodes,
+				vote,
+			});
+			setViewState((current) =>
+				current ? updateMessageFeedback(current, message.id, result.feedback) : current,
+			);
+		} catch (reason) {
+			if (reason instanceof UnauthorizedError) {
+				window.location.href = buildAccountLoginUrlForCurrentRoute();
+				return;
+			}
+			setError(reason instanceof Error ? reason.message : "反馈提交失败。");
+		}
+	}
+
+	async function handleDeleteFeedback(message: ChatMessage) {
+		try {
+			await deleteMessageFeedback({
+				conversationId: message.conversationId,
+				messageId: message.id,
+			});
+			setViewState((current) =>
+				current ? updateMessageFeedback(current, message.id, null) : current,
+			);
+		} catch (reason) {
+			if (reason instanceof UnauthorizedError) {
+				window.location.href = buildAccountLoginUrlForCurrentRoute();
+				return;
+			}
+			setError(reason instanceof Error ? reason.message : "反馈撤回失败。");
+		}
+	}
+
+	function handleRetryMessage(message: ChatMessage) {
+		const prompt = viewState?.activeRequest?.prompt;
+		if (message.retryable && prompt) {
+			void handleSubmit(prompt);
+		}
+	}
+
+	function upsertConversationSummary(detail: ConversationDetail) {
+		setConversations((current) => {
+			const summary: ConversationSummary = {
+				createdAt: detail.createdAt,
+				id: detail.id,
+				title: detail.title,
+				updatedAt: detail.updatedAt,
+			};
+			const withoutCurrent = current.filter((item) => item.id !== detail.id);
+			return [summary, ...withoutCurrent];
+		});
+	}
+
 	return (
-		<div className="flex min-h-[calc(100dvh-56px)] pb-28 md:pb-0">
-			<ConversationSidebar activeConversationId={conversationId} conversations={conversations} />
-			<section className="mx-auto flex w-full max-w-[var(--layout-chat-content-width)] flex-col px-5 py-8">
+		<QAShell
+			activeConversationId={conversationId}
+			conversations={conversations}
+			footerText="会话标题由问题自动生成；重命名、删除等操作放在 hover 菜单中。"
+			topTitle={conversation?.title ?? "会话"}
+		>
+			<section className="flex min-h-0 flex-1 flex-col">
 				{error ? <ErrorPanel message={error} /> : null}
 				{conversation ? (
 					<div className="flex min-h-0 flex-1 flex-col">
-						<LifecycleStatus events={lifecycleEvents} />
-						<div className="flex-1 pb-32">
-							<MessageList messages={conversation.messages} />
+						<div className="mx-auto w-full max-w-[var(--layout-chat-content-width)] flex-1 px-5 py-8 pb-32 md:py-12">
+							<MessageList
+								messages={conversation.messages}
+								onDeleteFeedback={handleDeleteFeedback}
+								onRetryMessage={handleRetryMessage}
+								onSubmitFeedback={handleFeedback}
+							/>
+							<ConversationStatusTrail items={viewState?.statusHistory ?? []} />
 						</div>
-						<div className="fixed inset-x-0 bottom-[64px] z-20 mx-auto max-w-[var(--layout-chat-content-width)] px-5 md:sticky md:bottom-0 md:bg-background md:pb-5">
-							<ChatComposer disabled={submitting} onSubmit={handleSubmit} />
+						<div className="sticky bottom-0 z-20 border-t border-border bg-[var(--sys-bg-subtle)] px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3">
+							<div className="mx-auto w-full max-w-[var(--layout-chat-content-width)]">
+								<ChatComposer disabled={submitting} onSubmit={handleSubmit} />
+							</div>
 						</div>
 					</div>
 				) : (
-					<LoadingPanel label="正在读取会话" />
+					<div className="mx-auto w-full max-w-[var(--layout-chat-content-width)] px-5 py-8">
+						<LoadingPanel label="正在读取会话" />
+					</div>
 				)}
 			</section>
-		</div>
+		</QAShell>
 	);
 }
 
-function LifecycleStatus({ events }: { events: ChatRequestStreamEvent[] }) {
-	if (events.length === 0) {
+function updateMessageFeedback(
+	state: ConversationViewState,
+	messageId: string,
+	feedback: ChatMessage["feedback"],
+): ConversationViewState {
+	return {
+		...state,
+		conversation: {
+			...state.conversation,
+			messages: state.conversation.messages.map((message) =>
+				message.id === messageId
+					? {
+							...message,
+							feedback,
+						}
+					: message,
+			),
+		},
+	};
+}
+
+function ConversationStatusTrail({ items }: { items: ConversationStatusHistoryItem[] }) {
+	if (items.length === 0) {
 		return null;
 	}
 
 	return (
-		<div className="mb-4 flex flex-wrap gap-2" role="status">
-			{events.map((event) => (
+		<div className="mt-6 flex flex-wrap gap-2 pl-12" role="status">
+			{items.map((item) => (
 				<span
 					className="rounded-full border border-border bg-white px-3 py-1 text-xs text-[var(--sys-text-muted)]"
-					key={`${event.event}:${event.data.requestId}:${event.data.occurredAt}`}
+					key={item.id}
 				>
-					{getLifecycleLabel(event.event)}
+					{item.label}
 				</span>
 			))}
 		</div>

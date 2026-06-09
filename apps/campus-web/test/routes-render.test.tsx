@@ -1,12 +1,16 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundPage } from "../src/app/root-layout";
+import rootLayoutSource from "../src/app/root-layout.tsx?raw";
 import { ConversationPage } from "../src/app/routes/conversation-page";
 import { DiningPage } from "../src/app/routes/dining-page";
 import diningPageSource from "../src/app/routes/dining-page.tsx?raw";
 import { FeedbackPage } from "../src/app/routes/feedback-page";
 import { HomePage } from "../src/app/routes/home-page";
+import homePageSource from "../src/app/routes/home-page.tsx?raw";
 import { MapPage } from "../src/app/routes/map-page";
+import { MessageList } from "../src/components/conversation/message-list";
+import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
 
@@ -14,6 +18,7 @@ const diningApiMock = vi.hoisted(() => ({
 	getDiningFloor: vi.fn(),
 	getDiningHalls: vi.fn(),
 }));
+const navigateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
@@ -35,7 +40,7 @@ vi.mock("@tanstack/react-router", async () => {
 			</a>
 		),
 		useParams: () => ({ conversationId: "conv_01" }),
-		useNavigate: () => vi.fn(),
+		useNavigate: () => navigateMock,
 	};
 });
 
@@ -47,7 +52,14 @@ vi.mock("../src/features/conversation/api", () => ({
 		title: "测试会话",
 		updatedAt: "2026-06-08T00:00:00.000Z",
 	}),
-	listConversations: vi.fn().mockResolvedValue([]),
+	listConversations: vi.fn().mockResolvedValue([
+		{
+			createdAt: "2026-06-08T00:00:00.000Z",
+			id: "conv_recent",
+			title: "校园卡补办流程",
+			updatedAt: "2026-06-08T00:10:00.000Z",
+		},
+	]),
 	submitChatRequest: vi.fn(),
 	submitChatRequestStream: vi.fn(async function* () {
 		const events: ChatRequestStreamEvent[] = [
@@ -95,6 +107,7 @@ vi.mock("../src/features/conversation/api", () => ({
 			},
 		];
 		for (const event of events) {
+			await new Promise((resolve) => setTimeout(resolve, 0));
 			yield event;
 		}
 	}),
@@ -169,14 +182,40 @@ describe("campus routes", () => {
 	beforeEach(() => {
 		diningApiMock.getDiningHalls.mockReset();
 		diningApiMock.getDiningFloor.mockReset();
+		navigateMock.mockReset();
 	});
 
-	it("renders the assistant-first home route", async () => {
+	it("renders the v1.3 Q&A home shell without app launcher debt", async () => {
 		render(<HomePage />);
 
-		expect(await screen.findByText("今天需要什么帮助")).toBeInTheDocument();
-		expect(screen.getByText("校园地图")).toBeInTheDocument();
-		expect(screen.getByText("饭堂分布图")).toBeInTheDocument();
+		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
+		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "新对话" })).toBeInTheDocument();
+		expect(screen.getByPlaceholderText("搜索历史会话")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "校园地图" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "饭堂分布图" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
+		expect(screen.getByText("中央民族大学")).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "问校园信息，从这里开始。" })).toBeInTheDocument();
+		expect(screen.getByText("信息以原始来源和现场情况为准。")).toBeInTheDocument();
+		expect(await screen.findByText("校园卡补办流程")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "中慧楼在哪里？" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "清真窗口在哪？" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "最近有哪些通知？" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "海淀校区饭堂分布图在哪看？" })).toBeInTheDocument();
+		expect(screen.queryByText("校园助手")).toBeNull();
+		expect(screen.queryByText("常用校园事务")).toBeNull();
+		expect(screen.queryByText("问政策、查地点、看食堂，都从这里开始。")).toBeNull();
+		expect(screen.queryByText("搜索地点、查询饭堂、查看办事指南，或直接向助手提问。")).toBeNull();
+	});
+
+	it("keeps Q&A shell source aligned with the v1.3 design map", () => {
+		expect(homePageSource).not.toContain("appCards");
+		expect(homePageSource).not.toContain("SupportCard");
+		expect(homePageSource).not.toContain("常用校园事务");
+		expect(qaShellSource).toContain("饭堂分布图");
+		expect(rootLayoutSource).not.toContain("移动端主导航");
 	});
 
 	it("renders global feedback form", () => {
@@ -303,18 +342,73 @@ describe("campus routes", () => {
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalled();
 	});
 
-	it("renders conversation streaming lifecycle states", async () => {
+	it("renders the v1.3 conversation shell and streaming lifecycle states", async () => {
 		render(<ConversationPage />);
 
+		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
+		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
+		expect(screen.getByPlaceholderText("搜索历史会话")).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "测试会话" })).toBeInTheDocument();
 		fireEvent.change(await screen.findByPlaceholderText("今天需要什么帮助"), {
 			target: { value: "奖学金" },
 		});
 		fireEvent.click(screen.getByLabelText("发送"));
 
+		expect(await screen.findByText("奖学金")).toBeInTheDocument();
+		expect(await screen.findByText("正在连接校园助手。")).toBeInTheDocument();
 		expect(await screen.findByText("已排队")).toBeInTheDocument();
 		expect(await screen.findByText("正在处理")).toBeInTheDocument();
 		expect(await screen.findByText("已完成")).toBeInTheDocument();
 		expect(await screen.findByText("需要补充哪个校区？")).toBeInTheDocument();
+	});
+
+	it("renders source metadata and answer feedback controls", () => {
+		render(
+			<MessageList
+				messages={[
+					{
+						conversationId: "conv_01",
+						createdAt: "2026-06-08T00:00:00.000Z",
+						feedback: null,
+						id: "msg_01",
+						kind: "answer",
+						requestId: "req_01",
+						retryable: null,
+						role: "assistant",
+						structuredParts: [
+							{
+								sourceItems: [
+									{
+										collectionLabel: "学生手册",
+										pageLabel: "奖助学金",
+										primaryAction: {
+											disabledReason: null,
+											external: false,
+											href: "/docs/regulations/student_rules/scholarship",
+											label: "查看来源",
+										},
+										publisherLabel: "学生处",
+										sectionTitle: "申请条件",
+										snippet: "综合测评和课程成绩需要满足对应条件。",
+										title: "奖学金评定办法",
+										trustLabel: "已发布",
+										versionLabel: "2026",
+									},
+								],
+								type: "source_items",
+							},
+						],
+						text: "可以先确认奖学金类别和年级。",
+					},
+				]}
+				onDeleteFeedback={vi.fn()}
+				onSubmitFeedback={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByText("学生处 · 已发布 · 2026")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "有帮助" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "没帮助" })).toBeInTheDocument();
 	});
 
 	it("renders fail-closed not found page", () => {

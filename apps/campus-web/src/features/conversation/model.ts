@@ -58,6 +58,7 @@ export interface ChatMessage {
 	createdAt: string;
 	feedback?: null | {
 		feedbackId: string;
+		reasonCodes?: MessageFeedbackReasonCode[];
 		vote: "helpful" | "unhelpful";
 	};
 	id: string;
@@ -67,6 +68,27 @@ export interface ChatMessage {
 	role: "assistant" | "user";
 	structuredParts?: ChatStructuredPart[];
 	text: string;
+}
+
+export type MessageFeedbackReasonCode =
+	| "incorrect_answer"
+	| "not_enough_detail"
+	| "other"
+	| "outdated_or_missing_source"
+	| "unclear_or_hard_to_use"
+	| "wrong_intent";
+
+export type MessageFeedbackVote = "helpful" | "unhelpful";
+
+export interface MessageFeedbackResult {
+	feedback: {
+		createdAt?: string;
+		feedbackId: string;
+		messageId: string;
+		reasonCodes: MessageFeedbackReasonCode[];
+		updatedAt?: string;
+		vote: MessageFeedbackVote;
+	};
 }
 
 export interface ConversationSummary {

@@ -60,6 +60,7 @@ describe("campus worker boundary", () => {
 			"/api/federation/logout",
 			"/api/chat/conversations",
 			"/api/chat/conversations/conv_1",
+			"/api/chat/conversations/conv_1/messages/msg_1/feedback",
 			"/api/chat/requests",
 			"/api/chat/requests/stream",
 			"/api/docs/collections/regulations/student_rules/navigation",

@@ -5,6 +5,9 @@ import type {
 	ChatRequestStreamEventName,
 	ConversationDetail,
 	ConversationSummary,
+	MessageFeedbackReasonCode,
+	MessageFeedbackResult,
+	MessageFeedbackVote,
 	SessionPrincipal,
 } from "./model";
 
@@ -45,6 +48,48 @@ export async function submitChatRequest(input: {
 		path: "/api/chat/requests",
 	});
 	return payload.answer;
+}
+
+export async function submitMessageFeedback(input: {
+	conversationId: string;
+	messageId: string;
+	reasonCodes?: MessageFeedbackReasonCode[];
+	vote: MessageFeedbackVote;
+}): Promise<MessageFeedbackResult> {
+	return requestJson<MessageFeedbackResult>({
+		body: JSON.stringify({
+			reasonCodes: input.reasonCodes ?? [],
+			vote: input.vote,
+		}),
+		headers: {
+			"content-type": "application/json",
+		},
+		method: "PUT",
+		path: `/api/chat/conversations/${encodeURIComponent(
+			input.conversationId,
+		)}/messages/${encodeURIComponent(input.messageId)}/feedback`,
+	});
+}
+
+export async function deleteMessageFeedback(input: {
+	conversationId: string;
+	messageId: string;
+}): Promise<void> {
+	const response = await fetch(
+		`/api/chat/conversations/${encodeURIComponent(input.conversationId)}/messages/${encodeURIComponent(
+			input.messageId,
+		)}/feedback`,
+		{
+			credentials: "same-origin",
+			method: "DELETE",
+		},
+	);
+	if (response.status === 401) {
+		throw new UnauthorizedError();
+	}
+	if (!response.ok) {
+		throw new Error(response.statusText || "撤回反馈失败。");
+	}
 }
 
 export async function* submitChatRequestStream(input: {
