@@ -627,6 +627,9 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - retrieval 只消费 authz projection carrier，不拥有最终 entitlement resolution
 - memory 可以个性化 planning / wording，但不能提权
 
+Memory Plane 的分层、写入链路、Temporal 后台参与点与 provenance-lite 观测边界，统一看
+`system/memory-plane-architecture.md`。本文只保留目标 repo 级 owner 与不可提权约束。
+
 ## 长期 retrieval / serving 形态
 
 - retrieval 长期是 registry-backed、filter-first、evidence-oriented path

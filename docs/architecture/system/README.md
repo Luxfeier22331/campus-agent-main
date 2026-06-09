@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-06-06
+updated: 2026-06-09
 ---
 # System Architecture
 
@@ -23,6 +23,7 @@ execution、retrieval、data-plane、observability 等系统级边界。
     `../current-architecture.md`
 - `prompt-and-instruction-architecture.md`
 - `identity-and-authorization-architecture.md`
+- `memory-plane-architecture.md`
 - `retrieval-serving-architecture.md`
 - `agentic-retrieval-architecture.md`
 - `data-plane-architecture.md`

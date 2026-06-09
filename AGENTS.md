@@ -50,6 +50,7 @@
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/code-organization-and-decomposition-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/memory-plane-architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/domains/navigation/architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0015
 status: accepted
 created: 2026-03-28
-updated: 2026-06-04
+updated: 2026-06-09
 ---
 # ADR-0015 用户身份、长期记忆与个性化边界
 
@@ -167,6 +167,8 @@ Accepted on 2026-03-28.
   knowledge truth 分层
 - `docs/architecture/system/identity-and-authorization-architecture.md` 负责 canonical
   authz truth、retrieval filter projection 与 visibility / applicability 分层
+- `docs/architecture/system/memory-plane-architecture.md` 负责轻量 Memory Plane 目标架构、
+  runtime 消费链路、Temporal 后台参与点与 provenance-lite 观测边界
 - `docs/architecture/system/product-runtime-architecture.md` 负责 canonical
   identity、authorization 与 memory ownership 所在的 app boundary
 - `docs/architecture/system/execution-and-agents-architecture.md`
@@ -194,7 +196,8 @@ Accepted on 2026-03-28.
   retrieval pre-filter
 - retrieval 与 workflow path 消费的 authz 语义必须来自 app-layer projection，而不是 raw token
   claims 或 memory 推断
-- memory 系统与 RAG 系统的 join 点必须可审计、可最小化、可回收
+- memory 系统与 RAG 系统的 join 点必须数据最小化、可回收；长期 active memory refs
+  采用 provenance-lite，不建设全量审计图谱
 
 ## 相关文档
 
