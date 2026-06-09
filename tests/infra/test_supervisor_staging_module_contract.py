@@ -344,10 +344,22 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("status-execution-control-staging.sh", evidence_script)
         self.assertIn("runtime.agent_runs", evidence_script)
         self.assertIn("runtime.agent_run_steps", evidence_script)
+        self.assertIn("runtime.agent_run_events", evidence_script)
         self.assertIn("runtime.agent_step_attempts", evidence_script)
         self.assertIn("runtime.agent_step_results", evidence_script)
         self.assertIn("finalized_response", evidence_script)
+        self.assertIn("run-events.csv", evidence_script)
         self.assertIn("provider-token-cost.csv", evidence_script)
+        self.assertIn("PASS_FAIL.md", evidence_script)
+        self.assertIn("Scenario", evidence_script)
+        self.assertIn("Result", evidence_script)
+        self.assertIn("Failure Reason", evidence_script)
+        self.assertIn(
+            "write_pass_fail \"failed\" \"${failure_reason}\"\n"
+            "  printf 'evidence_dir=%s\\n' \"${output_dir}\"\n"
+            "  exit 1",
+            evidence_script,
+        )
         self.assertIn("printf '%s\\n'", evidence_script)
         self.assertIn("| psql", evidence_script)
         self.assertNotIn('--command "$CAMPUS_EVIDENCE_SQL"', evidence_script)

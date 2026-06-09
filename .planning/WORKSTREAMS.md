@@ -41,9 +41,11 @@ status as current project truth.
 
 ## Current Backlog Signals
 
-- Temporal execution-control staging closeout still requires real machine
-  ingress, worker poller, projection, smoke, and observability evidence.
-- Step projection should become the panel/eval/operator diagnostic spine.
+- Temporal execution-control normal-path staging closeout has real `nc-arm-6c`
+  evidence; remaining closeout work is failure-mode proof for cancel, timeout,
+  late completion, and panel/eval/operator consumption.
+- Step projection should remain the panel/eval/operator diagnostic spine and
+  must carry cancel/timeout/token/cost evidence for failure-mode runs.
 - Worker autoscaler remains an operations-plane proof: read Temporal/task queue
   metrics and downstream budgets, output desired replicas, never write
   workflow/run/event/terminal state.
