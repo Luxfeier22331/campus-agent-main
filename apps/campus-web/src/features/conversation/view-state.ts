@@ -120,7 +120,8 @@ export function applyConversationStreamEvent(
 	}
 
 	if (event.event === "request.failed" || event.event === "request.cancelled") {
-		const message = event.data.error?.message ?? getLifecycleLabel(event.event);
+		const message =
+			event.event === "request.cancelled" ? "请求已取消。" : "回答暂时没有生成，请稍后再试。";
 		const retryable =
 			event.event === "request.failed" ? event.data.error?.retryable === true : false;
 		const errorMessage: ChatMessage = {

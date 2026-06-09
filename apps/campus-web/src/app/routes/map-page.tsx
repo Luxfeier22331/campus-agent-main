@@ -40,8 +40,8 @@ export function MapPage() {
 				setData(nextData);
 				setSelected(nextData.places[0] ?? null);
 			})
-			.catch((reason: unknown) => {
-				setError(reason instanceof Error ? reason.message : "地图加载失败。");
+			.catch(() => {
+				setError("校园地图暂时无法打开。");
 			});
 	}, []);
 
@@ -77,8 +77,8 @@ export function MapPage() {
 				mapInstanceRef.current = map;
 				setMapRuntime(runtime);
 			})
-			.catch((reason: unknown) => {
-				setError(reason instanceof Error ? reason.message : "地图运行时加载失败。");
+			.catch(() => {
+				setError("地图暂时无法显示。");
 			});
 
 		return () => {
@@ -141,7 +141,7 @@ export function MapPage() {
 				<input
 					className="min-h-11 rounded-lg border border-input px-3 text-sm outline-none focus:border-ring focus:shadow-[var(--state-focus-shadow)]"
 					onChange={(event) => setQuery(event.target.value)}
-					placeholder="筛选已投影地点"
+					placeholder="搜索地点"
 					value={query}
 				/>
 			</div>
@@ -165,7 +165,7 @@ export function MapPage() {
 									{selected.description}
 								</p>
 								<p className="mt-3 text-xs leading-5 text-[var(--sys-text-subtle)]">
-									投影来源：{selected.sourceRefs.join("、")}
+									资料来源：校园地图资料
 								</p>
 								<div className="mt-4 flex flex-wrap gap-2">
 									{selected.tags.map((tag) => (

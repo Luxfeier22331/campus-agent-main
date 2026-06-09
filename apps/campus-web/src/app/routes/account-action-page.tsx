@@ -50,9 +50,9 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 		kind === "login"
 			? oauthContext
 				? `继续访问 ${oauthContext.client.displayName}`
-				: "极简工具化校园入口"
+				: "登录后继续使用校园问答与账号服务。"
 			: kind === "register"
-				? "使用统一账号访问校园应用"
+				? "创建账号后继续使用校园问答与账号服务。"
 				: kind === "forgot-password"
 					? "输入您的邮箱地址，我们将向您发送重置密码的链接。"
 					: "请为您的账号输入并确认新的安全密码。";
@@ -94,20 +94,22 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 
 export function FederationConsentPage() {
 	const oauthContext = useMemo(readOAuthContext, []);
+	const title = oauthContext
+		? `使用校园账号登录 ${oauthContext.client.displayName}`
+		: "使用校园账号登录";
 
 	return (
 		<AuthPageShell isFederationFlow={Boolean(oauthContext)}>
 			<FederationStatusHeader
 				icon={<ShieldCheck aria-hidden="true" className="size-5" />}
-				title="授权请求已受信任"
+				title={title}
 			/>
 			{oauthContext ? <OAuthClientPanel oauthContext={oauthContext} /> : null}
 			<p className="text-sm leading-6 text-muted-foreground">
-				当前 staging 只接入受控的 MUC Wiki client。登录完成后，Identity Platform
-				会继续处理授权请求。
+				允许后，{oauthContext?.client.displayName ?? "发起应用"} 可以使用这些信息完成登录。
 			</p>
 			<Button asChild className="mt-6 w-full">
-				<a href={oauthContext?.authorizePath ?? "/account"}>继续</a>
+				<a href={oauthContext?.authorizePath ?? "/account"}>允许并继续</a>
 			</Button>
 		</AuthPageShell>
 	);
@@ -142,23 +144,27 @@ function readOAuthContext(): CampusOAuthContext | null {
 function readOAuthError(): { description: string; title: string } {
 	if (typeof window === "undefined") {
 		return {
-			description: "请从 MUC Wiki 登录入口重新发起授权。",
-			title: "授权请求不可用",
+			description: "请回到刚才的应用重新开始。",
+			title: "登录请求不可用",
 		};
 	}
 	const params = new URLSearchParams(window.location.search);
 	const code = params.get("error")?.trim() || "invalid_request";
-	const description = params.get("error_description")?.trim();
+	if (code === "access_denied") {
+		return {
+			description: "可以返回登录页，或回到刚才的应用重新开始。",
+			title: "您已取消授权",
+		};
+	}
+	if (code === "invalid_client" || code === "invalid_redirect_uri") {
+		return {
+			description: "请回到刚才的应用重新开始，或稍后再试。",
+			title: "这个应用暂时无法完成登录",
+		};
+	}
 	return {
-		description: description || "请从 MUC Wiki 登录入口重新发起授权。",
-		title:
-			code === "access_denied"
-				? "您已取消授权"
-				: code === "invalid_client"
-					? "应用未被允许"
-					: code === "invalid_redirect_uri"
-						? "回调地址未被允许"
-						: "授权请求不可用",
+		description: "请回到刚才的应用重新开始。",
+		title: "登录请求不可用",
 	};
 }
 
@@ -617,10 +623,12 @@ function OAuthClientPanel({ oauthContext }: { oauthContext: CampusOAuthContext }
 					<p className="text-sm font-semibold text-foreground">{oauthContext.client.displayName}</p>
 					<p className="mt-1 text-xs text-muted-foreground">{oauthContext.client.hostLabel}</p>
 				</div>
-				<Badge variant="outline">OAuth</Badge>
+				<Badge variant="outline">授权登录</Badge>
 			</div>
 			<div className="mt-4 border-t border-border pt-4">
-				<p className="text-xs font-medium uppercase text-muted-foreground">请求访问</p>
+				<p className="text-xs font-medium uppercase text-muted-foreground">
+					{oauthContext.client.displayName} 将获得
+				</p>
 				<ul className="mt-3 grid gap-2">
 					{oauthContext.client.scopeItems.map((item) => (
 						<li className="flex items-center gap-2 text-sm text-foreground" key={item}>

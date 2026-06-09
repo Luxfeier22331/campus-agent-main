@@ -33,6 +33,6 @@ export function buildAssistantMessageFromCompletedAnswer(
 		requestId: result.requestId,
 		retryable: result.kind === "error" ? result.retryable : null,
 		role: "assistant",
-		text: result.kind === "error" ? result.message : result.text,
+		text: result.kind === "error" ? "回答暂时没有生成，请稍后再试。" : result.text,
 	};
 }

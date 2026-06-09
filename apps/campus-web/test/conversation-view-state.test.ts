@@ -113,14 +113,15 @@ describe("conversation view state", () => {
 		});
 
 		expect(failed.activeRequest).toMatchObject({
-			errorMessage: "执行服务暂不可用。",
+			errorMessage: "回答暂时没有生成，请稍后再试。",
 			retryable: true,
 			statusLabel: "请求失败",
 		});
 		expect(failed.conversation.messages.at(-1)).toMatchObject({
 			kind: "error",
 			retryable: true,
-			text: "执行服务暂不可用。",
+			text: "回答暂时没有生成，请稍后再试。",
 		});
+		expect(failed.activeRequest?.errorMessage).not.toBe("执行服务暂不可用。");
 	});
 });

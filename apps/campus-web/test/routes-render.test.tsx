@@ -232,11 +232,11 @@ describe("campus routes", () => {
 		expect(screen.getByLabelText("相关页面")).toHaveValue("/feedback?source=map");
 	});
 
-	it("filters map projection places without claiming complete map search", async () => {
+	it("filters map places without exposing projection wording", async () => {
 		render(<MapPage />);
 
 		expect(await screen.findByText("图书馆")).toBeInTheDocument();
-		fireEvent.change(screen.getByPlaceholderText("筛选已投影地点"), {
+		fireEvent.change(screen.getByPlaceholderText("搜索地点"), {
 			target: { value: "学生" },
 		});
 

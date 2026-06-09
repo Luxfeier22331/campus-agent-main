@@ -92,7 +92,7 @@ const worker = {
 					error: {
 						code: "dependency_not_ready",
 						details: { missing },
-						message: "Runtime configuration is incomplete.",
+						message: "服务暂未准备好。",
 					},
 				});
 			}
@@ -117,7 +117,7 @@ const worker = {
 			return jsonResponse(404, {
 				error: {
 					code: "not_found",
-					message: "Campus API route is not allowlisted.",
+					message: "这个接口不存在。",
 				},
 			});
 		}
@@ -173,7 +173,7 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 		return jsonResponse(503, {
 			error: {
 				code: "dependency_not_ready",
-				message: "App API binding is not configured.",
+				message: "服务暂不可用，请稍后再试。",
 			},
 		});
 	}
@@ -207,7 +207,7 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 		return jsonResponse(503, {
 			error: {
 				code: "dependency_not_ready",
-				message: "App API upstream is unavailable.",
+				message: "服务暂不可用，请稍后再试。",
 			},
 		});
 	}
@@ -218,7 +218,7 @@ async function serveCampusShell(request: Request, env: Env): Promise<Response> {
 		return jsonResponse(503, {
 			error: {
 				code: "frontend_assets_not_ready",
-				message: "Campus frontend assets are not configured.",
+				message: "页面暂时无法打开。",
 			},
 		});
 	}

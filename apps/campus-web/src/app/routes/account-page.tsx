@@ -171,7 +171,7 @@ export function AccountPage() {
 	return (
 		<ShellSection className="max-w-5xl">
 			<PageTitle>账号</PageTitle>
-			<PageDescription>管理您的 MUC Campus 账号、校园身份与个性化状态。</PageDescription>
+			<PageDescription>管理账号信息和个性化设置。</PageDescription>
 			<div className="mt-8">
 				{overviewState === "loading" ? <AccountLoadingCard /> : null}
 				{overviewState === "service_unavailable" ? (
@@ -343,29 +343,28 @@ export function AccountOverviewPanel({
 				<AccountFactSection
 					icon={<ShieldCheck aria-hidden="true" className="size-5" />}
 					items={[
-						["身份类型", resolvedIdentity.principalType],
+						["账号类型", "用户"],
 						["验证状态", formatVerificationStatus(resolvedIdentity.verificationStatus)],
-						["Claims", resolvedIdentity.claimsVersion],
 					]}
 					state={identityState}
-					title="校园身份"
+					title="账号信息"
 				/>
 				<AccountFactSection
 					icon={<Layers3 aria-hidden="true" className="size-5" />}
 					items={[
-						["可用应用", resolvedAccess.availableApps.join(" / ") || "无"],
+						["应用", formatAvailableApps(resolvedAccess.availableApps)],
 						["权限", formatPermissions(resolvedAccess.permissions)],
-						["受限内容", resolvedAccess.restrictedSurfacesReady ? "已准备" : "未开放"],
+						["受保护内容", resolvedAccess.restrictedSurfacesReady ? "可访问" : "暂不可访问"],
 					]}
 					state={accessState}
-					title="可用应用"
+					title="应用与权限"
 				/>
 				<AccountFactSection
 					icon={<Sparkles aria-hidden="true" className="size-5" />}
 					items={[
-						["资料记忆", resolvedPreferences.profileMemoryEnabled ? "已开启" : "已关闭"],
-						["记忆条目", `${resolvedPreferences.profileMemoryItemCount}`],
-						["授权影响", "不授予权限"],
+						["状态", resolvedPreferences.profileMemoryEnabled ? "已开启" : "已关闭"],
+						["已保存条目", `${resolvedPreferences.profileMemoryItemCount}`],
+						["权限影响", "不会授予额外权限"],
 					]}
 					renderFooter={
 						onProfileMemoryChange ? (
@@ -378,22 +377,22 @@ export function AccountOverviewPanel({
 								{isUpdatingPreferences
 									? "正在保存"
 									: resolvedPreferences.profileMemoryEnabled
-										? "关闭资料记忆"
-										: "开启资料记忆"}
+										? "关闭个性化记忆"
+										: "开启个性化记忆"}
 							</Button>
 						) : undefined
 					}
 					state={preferencesState}
-					title="资料记忆"
+					title="个性化记忆"
 				/>
 				<AccountFactSection
 					icon={<Clock3 aria-hidden="true" className="size-5" />}
 					items={[
-						["登录运行时", overview.session.credentialRuntime],
-						["会话到期", formatIsoDateTime(overview.session.expiresAt)],
-						["MUC Wiki 登录联邦", overview.federation.enabled ? "已启用" : "未启用"],
+						["登录方式", formatCredentialRuntime(overview.session.credentialRuntime)],
+						["登录状态有效至", formatIsoDateTime(overview.session.expiresAt)],
+						["授权登录", overview.federation.enabled ? "可使用" : "暂不可用"],
 					]}
-					title="会话与联邦"
+					title="登录与授权"
 				/>
 			</div>
 		</div>
@@ -471,7 +470,7 @@ function formatAccountStatus(status: AccountOverview["account"]["status"]): stri
 		case "suspended":
 			return "已暂停";
 		default:
-			return status;
+			return "状态待确认";
 	}
 }
 
@@ -486,21 +485,55 @@ function formatVerificationStatus(status: AccountIdentity["verificationStatus"])
 		case "verified":
 			return "已验证";
 		default:
-			return status;
+			return "状态待确认";
 	}
 }
 
 function formatPermissions(permissions: AccountAccess["permissions"]): string {
 	const enabled = Object.entries(permissions)
 		.filter(([, value]) => value)
-		.map(([key]) => key);
+		.map(([key]) => formatPermissionKey(key));
 	return enabled.length > 0 ? enabled.join(" / ") : "无";
+}
+
+function formatAvailableApps(apps: string[]): string {
+	const labels = apps.map((app) => formatAvailableAppKey(app));
+	return labels.length > 0 ? labels.join(" / ") : "无";
+}
+
+function formatAvailableAppKey(key: string): string {
+	switch (key) {
+		case "campus-web":
+			return "校园问答";
+		default:
+			return "其他应用";
+	}
+}
+
+function formatPermissionKey(key: string): string {
+	switch (key) {
+		case "chat":
+			return "问答";
+		case "operator":
+			return "运营管理";
+		default:
+			return "其他权限";
+	}
+}
+
+function formatCredentialRuntime(runtime: string): string {
+	switch (runtime) {
+		case "better-auth":
+			return "邮箱密码";
+		default:
+			return "其他方式";
+	}
 }
 
 function formatIsoDateTime(value: string): string {
 	const date = new Date(value);
 	if (Number.isNaN(date.valueOf())) {
-		return value;
+		return "时间待确认";
 	}
 	return date.toLocaleString("zh-CN", {
 		dateStyle: "medium",

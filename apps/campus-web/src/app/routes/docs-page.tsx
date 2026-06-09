@@ -40,8 +40,8 @@ export function DocsPage() {
 				setDocument(nextDocument);
 				setError(null);
 			})
-			.catch((reason: unknown) => {
-				setError(reason instanceof Error ? reason.message : "文档加载失败。");
+			.catch(() => {
+				setError("文档暂时无法打开。");
 			});
 	}, [routeParts]);
 
@@ -52,8 +52,8 @@ export function DocsPage() {
 		}
 		try {
 			setSearch(await searchDocs({ ...routeParts, query }));
-		} catch (reason) {
-			setError(reason instanceof Error ? reason.message : "搜索失败。");
+		} catch {
+			setError("搜索暂时不可用。");
 		}
 	}
 
@@ -103,7 +103,10 @@ export function DocsPage() {
 				{search ? (
 					<SearchResults search={search} />
 				) : document ? (
-					<DocumentReader document={document} />
+					<DocumentReader
+						collectionLabel={navigation?.collection.displayName ?? "校园文档"}
+						document={document}
+					/>
 				) : (
 					<LoadingPanel label="正在读取文档" />
 				)}
@@ -111,7 +114,7 @@ export function DocsPage() {
 			<aside className="hidden lg:block">
 				<Card className="sticky top-20 p-4 text-sm text-[var(--sys-text-muted)]">
 					<p className="font-medium text-[var(--sys-text-strong)]">本页信息</p>
-					<p className="mt-3">来源：{document?.readerAsset.deliveryMode ?? "reader"}</p>
+					<p className="mt-3">资料来源：{navigation?.collection.displayName ?? "校园文档"}</p>
 					<p className="mt-2">版本：{document?.resolvedVersion.label ?? "当前版"}</p>
 				</Card>
 			</aside>
@@ -119,10 +122,16 @@ export function DocsPage() {
 	);
 }
 
-function DocumentReader({ document }: { document: DocsResolveResponse }) {
+function DocumentReader({
+	collectionLabel,
+	document,
+}: {
+	collectionLabel: string;
+	document: DocsResolveResponse;
+}) {
 	return (
 		<article className="rounded-2xl border border-border bg-white p-6 md:p-8">
-			<p className="text-sm font-medium text-primary">{document.document.collection}</p>
+			<p className="text-sm font-medium text-primary">{collectionLabel}</p>
 			<h1 className="mt-3 text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
 				{document.document.title}
 			</h1>
@@ -130,12 +139,12 @@ function DocumentReader({ document }: { document: DocsResolveResponse }) {
 				更新：{new Date(document.document.updatedAt).toLocaleDateString("zh-CN")}
 			</p>
 			<div className="mt-8 rounded-xl bg-[var(--sys-bg-subtle)] p-5 text-sm leading-7 text-[var(--sys-text-muted)]">
-				<p>文档正文由 reader asset 提供。</p>
+				<p>完整正文可在文档页面中查看。</p>
 				<a
 					className="mt-3 inline-flex font-medium text-primary"
 					href={document.readerAsset.contentUrl}
 				>
-					打开 reader 内容
+					打开文档正文
 				</a>
 			</div>
 		</article>

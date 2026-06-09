@@ -52,7 +52,7 @@ export function NotFoundPage() {
 			<h1 className="mt-3 text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
 				页面不存在
 			</h1>
-			<p className="mt-3 text-[var(--sys-text-muted)]">这个入口没有被 campus-web 注册。</p>
+			<p className="mt-3 text-[var(--sys-text-muted)]">这个页面暂时无法打开，请返回首页继续。</p>
 			<Link
 				className="mt-8 inline-flex min-h-11 w-fit items-center rounded-lg bg-primary px-4 text-sm font-medium text-white"
 				to="/"

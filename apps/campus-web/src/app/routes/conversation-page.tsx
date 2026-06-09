@@ -49,7 +49,7 @@ export function ConversationPage() {
 					window.location.href = buildAccountLoginUrlForCurrentRoute();
 					return;
 				}
-				setError(reason instanceof Error ? reason.message : "会话加载失败。");
+				setError("暂时无法打开这个会话。");
 			});
 	}, [conversationId]);
 
@@ -77,7 +77,7 @@ export function ConversationPage() {
 					upsertConversationSummary(event.data.answer.conversation);
 				}
 				if (event.event === "request.failed") {
-					setError(event.data.error?.message ?? "请求失败。");
+					setError("回答暂时没有生成，请稍后再试。");
 				}
 				if (event.event === "request.cancelled") {
 					setError("请求已取消。");
@@ -88,7 +88,7 @@ export function ConversationPage() {
 				window.location.href = buildAccountLoginUrlForCurrentRoute();
 				return;
 			}
-			setError(reason instanceof Error ? reason.message : "发送失败。");
+			setError("消息暂时没有发出，请稍后再试。");
 		} finally {
 			setSubmitting(false);
 		}
@@ -114,7 +114,7 @@ export function ConversationPage() {
 				window.location.href = buildAccountLoginUrlForCurrentRoute();
 				return;
 			}
-			setError(reason instanceof Error ? reason.message : "反馈提交失败。");
+			setError("反馈暂时没有保存。");
 		}
 	}
 
@@ -132,7 +132,7 @@ export function ConversationPage() {
 				window.location.href = buildAccountLoginUrlForCurrentRoute();
 				return;
 			}
-			setError(reason instanceof Error ? reason.message : "反馈撤回失败。");
+			setError("反馈暂时没有撤回。");
 		}
 	}
 
@@ -160,7 +160,7 @@ export function ConversationPage() {
 		<QAShell
 			activeConversationId={conversationId}
 			conversations={conversations}
-			footerText="会话标题由问题自动生成；重命名、删除等操作放在 hover 菜单中。"
+			footerText="历史会话会显示在这里，方便继续查看之前的问题。"
 			topTitle={conversation?.title ?? "会话"}
 		>
 			<section className="flex min-h-0 flex-1 flex-col">

@@ -126,7 +126,7 @@ function StructuredParts({ message }: { message: ChatMessage }) {
 					if (part.sourceItems.length === 0) {
 						return (
 							<Card className="p-3 text-xs text-[var(--sys-text-muted)]" key="empty-sources">
-								当前回答未返回来源卡片。
+								这条回答暂时没有可展示的来源。
 							</Card>
 						);
 					}
@@ -180,7 +180,9 @@ function StructuredParts({ message }: { message: ChatMessage }) {
 				);
 			})}
 			{message.kind !== "clarification" && message.kind !== "error" && !hasSources ? (
-				<Card className="p-3 text-xs text-[var(--sys-text-muted)]">当前回答未返回来源卡片。</Card>
+				<Card className="p-3 text-xs text-[var(--sys-text-muted)]">
+					这条回答暂时没有可展示的来源。
+				</Card>
 			) : null}
 		</div>
 	);

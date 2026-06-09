@@ -39,8 +39,8 @@ export function FeedbackPage() {
 			});
 			setReceivedId(response.feedback.feedbackId);
 			setBody("");
-		} catch (reason) {
-			setError(reason instanceof Error ? reason.message : "反馈提交失败。");
+		} catch {
+			setError("反馈暂时没有提交成功。");
 		} finally {
 			setSubmitting(false);
 		}

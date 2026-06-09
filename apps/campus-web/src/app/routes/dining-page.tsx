@@ -42,8 +42,8 @@ export function DiningPage() {
 					setSelectedFloorId(firstHall.floors[0]?.floorId ?? "");
 				}
 			})
-			.catch((reason: unknown) => {
-				setError(reason instanceof Error ? reason.message : "食堂列表加载失败。");
+			.catch(() => {
+				setError("饭堂信息暂时无法读取。");
 			})
 			.finally(() => {
 				setIsLoadingHalls(false);
@@ -62,9 +62,9 @@ export function DiningPage() {
 				setSelectedTag(null);
 				setError(null);
 			})
-			.catch((reason: unknown) => {
+			.catch(() => {
 				setFloor(null);
-				setError(reason instanceof Error ? reason.message : "食堂平面图加载失败。");
+				setError("饭堂平面图暂时无法打开。");
 			});
 	}, [selectedHallId, selectedFloorId]);
 

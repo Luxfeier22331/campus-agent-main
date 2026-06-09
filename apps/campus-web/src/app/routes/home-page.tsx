@@ -31,7 +31,7 @@ export function HomePage() {
 					setConversations([]);
 					return;
 				}
-				setError(reason instanceof Error ? reason.message : "会话列表加载失败。");
+				setError("暂时无法读取历史会话。");
 			});
 	}, []);
 
@@ -44,7 +44,7 @@ export function HomePage() {
 			for await (const event of submitChatRequestStream({ prompt })) {
 				setCreationStatus(getLifecycleLabel(event.event));
 				if (event.event === "request.failed") {
-					throw new Error(event.data.error?.message ?? "请求失败。");
+					throw new Error("问题暂时没有发出，请稍后再试。");
 				}
 				if (event.event === "request.cancelled") {
 					throw new Error("请求已取消。");
@@ -54,7 +54,7 @@ export function HomePage() {
 				}
 			}
 			if (!conversationId) {
-				throw new Error("会话创建未返回结果。");
+				throw new Error("会话暂时没有创建成功，请稍后再试。");
 			}
 			await navigate({
 				params: { conversationId },
@@ -65,7 +65,7 @@ export function HomePage() {
 				window.location.href = buildAccountLoginUrlForCurrentRoute();
 				return;
 			}
-			setError(reason instanceof Error ? reason.message : "发送失败。");
+			setError("问题暂时没有发出，请稍后再试。");
 		} finally {
 			setSubmitting(false);
 			setCreationStatus(null);
