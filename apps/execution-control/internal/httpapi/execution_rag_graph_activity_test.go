@@ -42,6 +42,7 @@ type fakeRAGSynthesisExecutor struct {
 	answerText string
 	calls      int
 	err        error
+	onExecute  func(context.Context)
 	seenPacket ragSynthesisPacket
 	summary    provider.ExecutionSummary
 }
@@ -51,11 +52,14 @@ func (f *fakeRAGSynthesisExecutor) HealthCheck(context.Context) error {
 }
 
 func (f *fakeRAGSynthesisExecutor) ExecuteRAGSynthesis(
-	_ context.Context,
+	ctx context.Context,
 	packet ragSynthesisPacket,
 ) (ragSynthesisResult, error) {
 	f.calls++
 	f.seenPacket = packet
+	if f.onExecute != nil {
+		f.onExecute(ctx)
+	}
 	if f.err != nil {
 		return ragSynthesisResult{ProviderSummary: f.summary}, f.err
 	}
@@ -337,6 +341,156 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 		synthesisAttempt.OutputTokens != 100 ||
 		synthesisAttempt.EstimatedCostMicroUSD != 320 {
 		t.Fatalf("synthesis provider evidence = %#v", synthesisAttempt)
+	}
+}
+
+func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := NewServer(config.Config{
+		TemporalWorkerIdentity: "test:activity-rag:001",
+	}, nil)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
+	server.ragLookupErr = nil
+	server.ragSynthesisExecutor = &fakeRAGSynthesisExecutor{
+		onExecute: func(ctx context.Context) {
+			if _, err := store.CancelRunProjection(ctx, execution.DurableRunCancelRequest{
+				RunID:  "run-rag-late-cancel",
+				Reason: "user_requested",
+				Now:    time.Now().UTC(),
+			}); err != nil {
+				t.Fatalf("cancel run during synthesis: %v", err)
+			}
+		},
+		summary: provider.ExecutionSummary{
+			CancelOutcome:         provider.CancelOutcomeNotRequested,
+			DiagnosticStatus:      provider.DiagnosticComplete,
+			EstimatedCostMicroUSD: 320,
+			InputTokens:           400,
+			ModelName:             "gpt-5-mini",
+			ModelProvider:         "openai",
+			OutputTokens:          100,
+			PricingVersion:        "provider-pricing-v1",
+			ProviderRequestRef:    "provider://requests/run-rag-late-cancel/synthesis",
+			ProviderResponseID:    "resp_late_success",
+			SchemaVersion:         "provider_execution_summary_v1",
+			TimeoutOutcome:        provider.TimeoutOutcomeNotTimedOut,
+		},
+	}
+	server.ragSynthesisErr = nil
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-late-cancel",
+		"conv-rag-late-cancel",
+		now,
+		ragHandoffForDurableWorkerTest("学生请假手续"),
+	)
+	addRequestedScopeForRunTest(t, store, "run-rag-late-cancel", "regulations", "student_rules")
+	workflowPlan, err := server.PlanChatAnswerActivity(
+		context.Background(),
+		temporalruntime.PlanChatAnswerActivityInput{
+			ConversationID: "conv-rag-late-cancel",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-late-cancel-001",
+			RunID:          "run-rag-late-cancel",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-late-cancel",
+			WorkflowID:     "campus-agent.chat.run-rag-late-cancel",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan chat answer: %v", err)
+	}
+	ragPlan, err := server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-late-cancel",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan rag: %v", err)
+	}
+	lookupOutput, err := server.RetrieveIndexedLookupActivity(
+		context.Background(),
+		temporalruntime.RetrieveIndexedLookupActivityInput{
+			RAGPlanRef: ragPlan.PlanRef,
+			RunID:      "run-rag-late-cancel",
+			TraceID:    "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("retrieve indexed lookup: %v", err)
+	}
+	rescue, err := server.ExpandOrRescueRetrievalActivity(
+		context.Background(),
+		temporalruntime.ExpandOrRescueRetrievalActivityInput{
+			LookupRef:  lookupOutput.LookupRef,
+			RAGPlanRef: ragPlan.PlanRef,
+			RunID:      "run-rag-late-cancel",
+			TraceID:    "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("expand or rescue: %v", err)
+	}
+	evidence, err := server.SelectEvidenceActivity(
+		context.Background(),
+		temporalruntime.SelectEvidenceActivityInput{
+			LookupRef:  lookupOutput.LookupRef,
+			RAGPlanRef: ragPlan.PlanRef,
+			RescueRef:  rescue.RescueRef,
+			RunID:      "run-rag-late-cancel",
+			TraceID:    "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("select evidence: %v", err)
+	}
+	_, err = server.SynthesizeRAGAnswerActivity(
+		context.Background(),
+		temporalruntime.SynthesizeRAGAnswerActivityInput{
+			EvidenceRef: evidence.EvidenceRef,
+			RAGPlanRef:  ragPlan.PlanRef,
+			RunID:       "run-rag-late-cancel",
+			TraceID:     "trace-executor-001",
+		},
+	)
+	if err == nil {
+		t.Fatal("late synthesis success after cancel must fail closed")
+	}
+	run, err := store.GetRun(context.Background(), "run-rag-late-cancel")
+	if err != nil {
+		t.Fatalf("get canceled run: %v", err)
+	}
+	if run.Status != execution.DurableRunStatusCanceled {
+		t.Fatalf("run status = %q, want canceled", run.Status)
+	}
+	if rawTemporalRAG, _ := run.Metadata["temporal_rag"].(map[string]any); rawTemporalRAG["finalized_response"] != nil {
+		t.Fatalf("late synthesis wrote finalized response after cancel: %#v", rawTemporalRAG)
+	}
+	attempts, err := store.ListStepAttempts(context.Background(), "run-rag-late-cancel")
+	if err != nil {
+		t.Fatalf("list attempts: %v", err)
+	}
+	for _, attempt := range attempts {
+		if attempt.StepID == "synthesis" && attempt.Status == "completed" {
+			t.Fatalf("late synthesis completed attempt after cancel: %#v", attempt)
+		}
+	}
+	results, err := store.ListStepResults(context.Background(), "run-rag-late-cancel")
+	if err != nil {
+		t.Fatalf("list results: %v", err)
+	}
+	for _, result := range results {
+		if result.StepID == "finalization.write" || result.Status == "completed" &&
+			result.ProjectionRef == temporalProjectionRef("run-rag-late-cancel", "synthesis/provider") {
+			t.Fatalf("late success result after cancel: %#v", result)
+		}
 	}
 }
 

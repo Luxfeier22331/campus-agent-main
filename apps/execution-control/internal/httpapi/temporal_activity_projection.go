@@ -509,6 +509,12 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	if s == nil || s.runProjectionStore == nil {
 		return execution.ErrRunProjectionStoreNotConfigured
 	}
+	if strings.TrimSpace(projection.Status) == "completed" &&
+		strings.TrimSpace(projection.StepID) != "finalization.write" {
+		if err := s.ensureTemporalStepCompletionAllowed(ctx, projection); err != nil {
+			return err
+		}
+	}
 	if projection.ProviderSummary != nil {
 		projection = projection.withProviderSummary(*projection.ProviderSummary)
 	}
@@ -597,6 +603,25 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		return err
 	}
 	return nil
+}
+
+func (s *Server) ensureTemporalStepCompletionAllowed(
+	ctx context.Context,
+	projection temporalStepProjection,
+) error {
+	latest, err := s.runProjectionStore.GetRun(ctx, projection.Run.RunID)
+	if err != nil {
+		return err
+	}
+	if !temporalRunTerminal(latest.Status) {
+		return nil
+	}
+	return fmt.Errorf(
+		"run %s is already terminal before %s completion projection: %s",
+		latest.RunID,
+		projection.StepID,
+		latest.Status,
+	)
 }
 
 func (projection temporalStepProjection) withProviderSummary(
