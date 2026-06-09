@@ -3,12 +3,15 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -28,7 +31,7 @@ type qdrantRAGLookupExecutor struct {
 	embeddingDimensions int
 	embeddingModel      string
 	httpClient          *http.Client
-	qdrantAPIKey        string
+	qdrantQueryAPIKey   string
 	qdrantURL           string
 	timeout             time.Duration
 }
@@ -38,11 +41,15 @@ func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
 	if qdrantURL == "" {
 		return nil, errors.New("QDRANT_URL is required for Go RAG lookup")
 	}
-	if _, err := url.ParseRequestURI(qdrantURL); err != nil {
+	parsedQdrantURL, err := url.ParseRequestURI(qdrantURL)
+	if err != nil {
 		return nil, fmt.Errorf("QDRANT_URL must be a valid http(s) URL: %w", err)
 	}
-	if strings.TrimSpace(cfg.QdrantAPIKey) == "" {
-		return nil, errors.New("QDRANT_API_KEY is required for authenticated Qdrant data-plane")
+	if parsedQdrantURL.Scheme != "https" {
+		return nil, errors.New("QDRANT_URL must use https for authenticated Qdrant data-plane")
+	}
+	if strings.TrimSpace(cfg.QdrantQueryAPIKey) == "" {
+		return nil, errors.New("QDRANT_QUERY_API_KEY is required for online Qdrant lookup")
 	}
 	embeddingBaseURL := strings.TrimRight(strings.TrimSpace(cfg.EmbeddingBaseURL), "/")
 	if embeddingBaseURL == "" {
@@ -64,15 +71,43 @@ func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
+	httpClient, err := qdrantTLSHTTPClient(timeout, cfg.QdrantTLSCACertPath)
+	if err != nil {
+		return nil, err
+	}
 	return qdrantRAGLookupExecutor{
 		embeddingAPIKey:     strings.TrimSpace(cfg.EmbeddingAPIKey),
 		embeddingBaseURL:    embeddingBaseURL,
 		embeddingDimensions: cfg.EmbeddingDimensions,
 		embeddingModel:      strings.TrimSpace(cfg.EmbeddingModel),
-		httpClient:          &http.Client{Timeout: timeout},
-		qdrantAPIKey:        strings.TrimSpace(cfg.QdrantAPIKey),
+		httpClient:          httpClient,
+		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
 		qdrantURL:           qdrantURL,
 		timeout:             timeout,
+	}, nil
+}
+
+func qdrantTLSHTTPClient(timeout time.Duration, caCertPath string) (*http.Client, error) {
+	trimmedCAPath := strings.TrimSpace(caCertPath)
+	if trimmedCAPath == "" {
+		return nil, errors.New("QDRANT_TLS_CA_CERT_PATH is required for HTTPS Qdrant data-plane")
+	}
+	caBytes, err := os.ReadFile(trimmedCAPath)
+	if err != nil {
+		return nil, fmt.Errorf("read QDRANT_TLS_CA_CERT_PATH: %w", err)
+	}
+	rootCAs := x509.NewCertPool()
+	if ok := rootCAs.AppendCertsFromPEM(caBytes); !ok {
+		return nil, errors.New("QDRANT_TLS_CA_CERT_PATH must contain at least one PEM certificate")
+	}
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    rootCAs,
+			},
+		},
 	}, nil
 }
 
@@ -126,7 +161,7 @@ func (e qdrantRAGLookupExecutor) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	request.Header.Set("api-key", e.qdrantAPIKey)
+	request.Header.Set("api-key", e.qdrantQueryAPIKey)
 	response, err := e.httpClient.Do(request)
 	if err != nil {
 		return err
@@ -220,7 +255,7 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("api-key", e.qdrantAPIKey)
+	request.Header.Set("api-key", e.qdrantQueryAPIKey)
 	request.Header.Set("content-type", "application/json")
 	response, err := e.httpClient.Do(request)
 	if err != nil {

@@ -20,6 +20,7 @@ REQUIRED_STAGING_ENV_KEYS = [
     "STAGING_INGESTION_QDRANT_URL",
     "STAGING_INGESTION_QDRANT_API_KEY",
     "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY",
+    "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH",
     "STAGING_INGESTION_EMBEDDING_PROVIDER",
     "STAGING_INGESTION_EMBEDDING_BASE_URL",
     "STAGING_INGESTION_EMBEDDING_API_KEY",
@@ -238,7 +239,7 @@ def invalid_contract_keys(values: dict[str, str]) -> list[str]:
         if values.get(key):
             invalid.append(key)
     qdrant_url = values.get("STAGING_INGESTION_QDRANT_URL", "")
-    if qdrant_url and urlparse(qdrant_url).scheme != "http":
+    if qdrant_url and urlparse(qdrant_url).scheme != "https":
         invalid.append("STAGING_INGESTION_QDRANT_URL")
     object_store_fields = (
         "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",

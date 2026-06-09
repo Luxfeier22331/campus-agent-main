@@ -3,13 +3,16 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 )
 
@@ -27,10 +30,10 @@ func TestQdrantRAGLookupQueryUsesDenseNamedVector(t *testing.T) {
 	}))
 	defer server.Close()
 	executor := qdrantRAGLookupExecutor{
-		httpClient:   server.Client(),
-		qdrantAPIKey: "test-qdrant-key",
-		qdrantURL:    server.URL,
-		timeout:      time.Second,
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "test-qdrant-key",
+		qdrantURL:         server.URL,
+		timeout:           time.Second,
 	}
 
 	points, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
@@ -123,6 +126,84 @@ func TestQdrantRAGLookupEmbeddingFailsClosedOnDimensionMismatch(t *testing.T) {
 	if !strings.Contains(err.Error(), "embedding dimension") {
 		t.Fatalf("error = %v, want embedding dimension diagnostic", err)
 	}
+}
+
+func TestNewQdrantRAGLookupExecutorRejectsHTTPDataPlaneWithAPIKey(t *testing.T) {
+	_, err := newQdrantRAGLookupExecutor(config.Config{
+		EmbeddingAPIKey:      "embedding-key",
+		EmbeddingBaseURL:     "https://provider.example/v1",
+		EmbeddingDimensions:  3,
+		EmbeddingModel:       "embedding-model",
+		QdrantQueryAPIKey:    "readonly-key",
+		QdrantTLSCACertPath:  "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+		QdrantTimeoutSeconds: 10,
+		QdrantURL:            "http://qdrant:6333",
+	})
+	if err == nil {
+		t.Fatal("authenticated Qdrant data-plane must reject http:// URLs")
+	}
+	if !strings.Contains(err.Error(), "QDRANT_URL must use https") {
+		t.Fatalf("error = %v, want https diagnostic", err)
+	}
+}
+
+func TestNewQdrantRAGLookupExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
+	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("api-key") != "readonly-key" {
+			t.Fatalf("qdrant api-key = %q, want readonly-key", request.Header.Get("api-key"))
+		}
+		_, _ = response.Write([]byte("all shards are ready"))
+	}))
+	defer qdrant.Close()
+	caPath := writeTestCACert(t, qdrant)
+
+	executor, err := newQdrantRAGLookupExecutor(config.Config{
+		EmbeddingAPIKey:      "embedding-key",
+		EmbeddingBaseURL:     "https://provider.example/v1",
+		EmbeddingDimensions:  3,
+		EmbeddingModel:       "embedding-model",
+		QdrantQueryAPIKey:    "readonly-key",
+		QdrantTLSCACertPath:  caPath,
+		QdrantTimeoutSeconds: 10,
+		QdrantURL:            qdrant.URL,
+	})
+	if err != nil {
+		t.Fatalf("new qdrant executor: %v", err)
+	}
+	if err := executor.HealthCheck(context.Background()); err != nil {
+		t.Fatalf("qdrant health check with tls ca: %v", err)
+	}
+}
+
+func TestNewQdrantRAGLookupExecutorFailsClosedWithoutTLSCA(t *testing.T) {
+	_, err := newQdrantRAGLookupExecutor(config.Config{
+		EmbeddingAPIKey:      "embedding-key",
+		EmbeddingBaseURL:     "https://provider.example/v1",
+		EmbeddingDimensions:  3,
+		EmbeddingModel:       "embedding-model",
+		QdrantQueryAPIKey:    "readonly-key",
+		QdrantTimeoutSeconds: 10,
+		QdrantURL:            "https://qdrant:6333",
+	})
+	if err == nil {
+		t.Fatal("QDRANT_TLS_CA_CERT_PATH must be required for HTTPS Qdrant")
+	}
+	if !strings.Contains(err.Error(), "QDRANT_TLS_CA_CERT_PATH") {
+		t.Fatalf("error = %v, want TLS CA diagnostic", err)
+	}
+}
+
+func writeTestCACert(t *testing.T, server *httptest.Server) string {
+	t.Helper()
+	block := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: server.Certificate().Raw,
+	}
+	path := t.TempDir() + "/ca.pem"
+	if err := os.WriteFile(path, pem.EncodeToMemory(block), 0o600); err != nil {
+		t.Fatalf("write test ca: %v", err)
+	}
+	return path
 }
 
 func qdrantMustConditionsForTest(t *testing.T, captured map[string]any) map[string]any {

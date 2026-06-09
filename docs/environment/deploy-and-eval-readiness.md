@@ -118,9 +118,10 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 - deploy secret truth 继续留在 Cloudflare secret store，不写回 repo-tracked
   `.dev.vars.example`
 - Qdrant staging data-plane 是 self-hosted authenticated private service；
-  `QDRANT_API_KEY` / `QDRANT_READ_ONLY_API_KEY` 缺失必须 fail closed。若当前
-  `QDRANT_URL` 仍为 private-network `http://` endpoint，`api_key + http://` warning
-  记录为 transport hardening issue，不能通过删除 API key 消除。
+  `QDRANT_API_KEY` / `QDRANT_READ_ONLY_API_KEY` 缺失必须 fail closed。staging /
+  production 的 online query runtime 必须使用 HTTPS Qdrant URL、read-only
+  `QDRANT_QUERY_API_KEY` 与 `QDRANT_TLS_CA_CERT_PATH`。`api_key + http://` warning
+  不再是可接受的 staging hardening backlog，不能通过删除 API key 消除。
 
 ## Staging Deploy Rules
 

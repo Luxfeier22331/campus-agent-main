@@ -69,7 +69,12 @@ execution_control_staging_minio_compose() {
 
 execution_control_staging_qdrant_compose() {
   local docker_bin
+  local qdrant_tls_dir
   docker_bin="$(execution_control_staging_require_command docker)"
+  qdrant_tls_dir="${QDRANT_TLS_DIR:-}"
+  if [[ -z "${qdrant_tls_dir}" && -n "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+    qdrant_tls_dir="$(dirname "${QDRANT_TLS_CA_CERT_PATH}")"
+  fi
 
   (
     cd "${execution_control_staging_repo_root}" || exit
@@ -77,6 +82,7 @@ execution_control_staging_qdrant_compose() {
     CAMPUS_AGENT_DATA_PLANE_NETWORK="${execution_control_staging_data_plane_network}" \
     QDRANT_API_KEY="${QDRANT_API_KEY:?QDRANT_API_KEY is required}" \
     QDRANT_READ_ONLY_API_KEY="${QDRANT_READ_ONLY_API_KEY:?QDRANT_READ_ONLY_API_KEY is required}" \
+    QDRANT_TLS_DIR="${qdrant_tls_dir:?QDRANT_TLS_DIR or QDRANT_TLS_CA_CERT_PATH is required}" \
     "${docker_bin}" compose -f "${execution_control_staging_qdrant_compose_file}" "$@"
   )
 }

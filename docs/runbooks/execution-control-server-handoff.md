@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-06-09
 ---
 # Execution Control Server Handoff
 
@@ -31,7 +31,7 @@ updated: 2026-04-27
   - `worker-autoscaler`
   - `temporal`
 - ingress:
-  - machine-local reverse proxy 或 tunnel 指向 `execution-control:8000`
+  - machine-local reverse proxy 指向 `execution-control:8000`
 - upstream contract:
   - `app-api` 调用 `STAGING_EXECUTION_CONTROL_BASE_URL`（或对应环境等价键）
   - worker origin auth 由 `API_WORKER_SHARED_SECRET` 控制
@@ -47,11 +47,14 @@ updated: 2026-04-27
   - `EXECUTION_CONTROL_TEMPORAL_ADDRESS`
   - `EXECUTION_CONTROL_TEMPORAL_NAMESPACE`
   - `QDRANT_URL`
-  - `QDRANT_API_KEY`
+  - `QDRANT_QUERY_API_KEY`
+  - `QDRANT_TLS_CA_CERT_PATH`
   - `EMBEDDING_*`
   - `PROMPT_RUNTIME_*`
   - `SUPERVISOR_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
 - conditional:
+  - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
+    `QDRANT_API_KEY`
   - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、
     `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
   - 打开 `campus_services` / `notice` capability 时：`CAMPUS_SHARED_POSTGRES_URL`；

@@ -125,7 +125,9 @@ const keys = [
   "OBJECT_STORE_REGION",
   "OBJECT_STORE_BUCKET_DERIVED",
   "QDRANT_URL",
-  "QDRANT_API_KEY",
+  "QDRANT_QUERY_API_KEY",
+  "QDRANT_TLS_CA_CERT_PATH",
+  "QDRANT_TLS_DIR",
   "QDRANT_TIMEOUT_SECONDS",
   "DOCUMENT_REGISTRY_DATABASE_URL",
   "CAMPUS_SHARED_POSTGRES_URL",
@@ -205,6 +207,33 @@ for (const [key, value] of resolved.entries()) {
 }
 NODE
   )
+  if [[ -z "${QDRANT_TLS_DIR:-}" && -n "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+    QDRANT_TLS_DIR="$(dirname "${QDRANT_TLS_CA_CERT_PATH}")"
+    export QDRANT_TLS_DIR
+  fi
+}
+
+execution_control_runtime_require_runtime_env() {
+  if [[ -z "${QDRANT_URL:-}" ]]; then
+    echo "QDRANT_URL is required for execution-control runtime." >&2
+    return 1
+  fi
+  if [[ "${QDRANT_URL}" != https://* ]]; then
+    echo "QDRANT_URL must use https for authenticated Qdrant data-plane." >&2
+    return 1
+  fi
+  if [[ -z "${QDRANT_QUERY_API_KEY:-}" ]]; then
+    echo "QDRANT_QUERY_API_KEY is required for online Qdrant query access." >&2
+    return 1
+  fi
+  if [[ -z "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+    echo "QDRANT_TLS_CA_CERT_PATH is required for HTTPS Qdrant data-plane." >&2
+    return 1
+  fi
+  if [[ -z "${QDRANT_TLS_DIR:-}" ]]; then
+    echo "QDRANT_TLS_DIR is required for mounting Qdrant TLS trust material." >&2
+    return 1
+  fi
 }
 
 main() {
@@ -212,6 +241,7 @@ main() {
 
   docker_bin="$(require_command docker)"
   load_runtime_env
+  execution_control_runtime_require_runtime_env
   ensure_data_plane_network
 
   if [[ "$#" -eq 0 ]]; then

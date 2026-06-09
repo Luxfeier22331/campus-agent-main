@@ -83,7 +83,8 @@ type Config struct {
 	NoticeBodyObjectStoreBucket         string
 	NoticeBodyObjectStoreBodyLimitBytes int64
 	QdrantURL                           string
-	QdrantAPIKey                        string
+	QdrantQueryAPIKey                   string
+	QdrantTLSCACertPath                 string
 	QdrantTimeoutSeconds                float64
 	EmbeddingProvider                   string
 	EmbeddingBaseURL                    string
@@ -150,7 +151,8 @@ type envValues struct {
 	NoticeBodyObjectStoreBucket         string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET"`
 	NoticeBodyObjectStoreBodyLimitBytes int64   `env:"EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
 	QdrantURL                           string  `env:"QDRANT_URL"`
-	QdrantAPIKey                        string  `env:"QDRANT_API_KEY"`
+	QdrantQueryAPIKey                   string  `env:"QDRANT_QUERY_API_KEY"`
+	QdrantTLSCACertPath                 string  `env:"QDRANT_TLS_CA_CERT_PATH"`
 	QdrantTimeoutSeconds                float64 `env:"QDRANT_TIMEOUT_SECONDS" envDefault:"10"`
 	EmbeddingProvider                   string  `env:"EMBEDDING_PROVIDER"`
 	EmbeddingBaseURL                    string  `env:"EMBEDDING_BASE_URL"`
@@ -300,7 +302,8 @@ func LoadFromEnv() (Config, error) {
 		NoticeBodyObjectStoreBucket:         strings.TrimSpace(values.NoticeBodyObjectStoreBucket),
 		NoticeBodyObjectStoreBodyLimitBytes: values.NoticeBodyObjectStoreBodyLimitBytes,
 		QdrantURL:                           strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
-		QdrantAPIKey:                        strings.TrimSpace(values.QdrantAPIKey),
+		QdrantQueryAPIKey:                   strings.TrimSpace(values.QdrantQueryAPIKey),
+		QdrantTLSCACertPath:                 strings.TrimSpace(values.QdrantTLSCACertPath),
 		QdrantTimeoutSeconds:                values.QdrantTimeoutSeconds,
 		EmbeddingProvider:                   strings.TrimSpace(values.EmbeddingProvider),
 		EmbeddingBaseURL:                    strings.TrimRight(strings.TrimSpace(values.EmbeddingBaseURL), "/"),

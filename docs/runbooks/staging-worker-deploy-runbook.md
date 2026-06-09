@@ -289,8 +289,13 @@ execution-control retrieval runtime 数据面。`nc-arm-6c:/srv/docker/campus-ag
 - `STAGING_INGESTION_OBJECT_STORE_ENDPOINT`
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY`
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY`
-- `STAGING_INGESTION_QDRANT_URL`
-- `STAGING_INGESTION_QDRANT_API_KEY`
+- `STAGING_INGESTION_QDRANT_URL`，必须是 self-hosted Qdrant HTTPS endpoint，例如
+  `https://127.0.0.1:6333`
+- `STAGING_INGESTION_QDRANT_API_KEY`，只用于 Qdrant service/admin lifecycle
+- `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY`，投影为 online runtime
+  `QDRANT_QUERY_API_KEY`
+- `STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH`，指向 ops-owned CA bundle，例如
+  `/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`
 - `STAGING_INGESTION_EMBEDDING_*`
 - `STAGING_INGESTION_SPARSE_*`
 

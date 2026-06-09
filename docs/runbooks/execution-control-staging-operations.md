@@ -230,11 +230,14 @@ staging 不应依赖 repo-root `.env.staging.local`。
   env。
 - `STAGING_INGESTION_QDRANT_URL=<staging self-hosted Qdrant REST URL>`；当前默认是
   `nc-arm-6c` 上的 self-hosted single-node Qdrant，本机/同主机 runtime 通常填
-  `http://127.0.0.1:6333`。该 URL 必须让 `/readyz`、`/livez`、`/collections`
+  `https://127.0.0.1:6333`。该 URL 必须让 `/readyz`、`/livez`、`/collections`
   返回 `200`，不能填 cluster 管理页、错误 hostname 或公网未授权入口
 - `STAGING_INGESTION_QDRANT_API_KEY=<staging Qdrant API key>`
 - `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<staging Qdrant read-only API key>`；
-  同机 self-hosted Qdrant 由 lifecycle 脚本启动时必填
+  同机 self-hosted Qdrant 由 lifecycle 脚本启动时必填，并投影为 online runtime
+  `QDRANT_QUERY_API_KEY`
+- `STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`；
+  Qdrant certificate SAN 必须覆盖 `qdrant`、`localhost`、`127.0.0.1`
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
   query-serving index release metadata 匹配。当前 staging baseline 固定为：
   - `STAGING_INGESTION_EMBEDDING_PROVIDER=gitee`
@@ -494,15 +497,15 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
   repo-owned local Postgres 是 single-node dependency，所有本地 Postgres DSN 必须使用同一
   database/user/password/port；repo-owned local MinIO 是 single-node dependency，
   shared 与 derived credential 同时配置时必须是同一组 credential。
-- `STAGING_INGESTION_QDRANT_URL` 允许在 `nc-arm-6c` 同机自托管部署中填写
-  `http://127.0.0.1:6333`。该值只表示 host-side 运维 / preflight URL。lifecycle
+- `STAGING_INGESTION_QDRANT_URL` 在 `nc-arm-6c` 同机自托管部署中也必须填写
+  `https://127.0.0.1:6333`。该值只表示 host-side 运维 / preflight URL。lifecycle
   脚本会在 Docker compose 环境中投影成
-  `QDRANT_DOCKER_URL=http://qdrant:6333`，并要求 execution runtime 与 Qdrant 同时加入
+  `QDRANT_DOCKER_URL=https://qdrant:6333`，并要求 execution runtime 与 Qdrant 同时加入
   repo-owned `campus-agent-data-plane` Docker network。容器内 retrieval runtime 必须通过
   Docker service DNS 访问 Qdrant，不得依赖 Docker gateway 或旧开发机 `172.*` 地址。
-- 同机 Docker data-plane 内的 Qdrant 通信使用 HTTP + API key；`6333` 只绑定
-  `127.0.0.1`，不公网裸露。TLS 不作为同机容器网络 blocker；一旦 Qdrant 跨主机、
-  公网、Tunnel 或 VPC 间通信，TLS 与网络层隔离升级为硬要求。
+- 同机 Docker data-plane 内的 Qdrant 通信也使用 native HTTPS + API key；`6333` 只绑定
+  `127.0.0.1`，不公网裸露。TLS certificate、CA bundle 与 rotated Qdrant keys 属于
+  `/srv/docker/campus-agent/staging/` ops-owned runtime material，不进入 repo checkout。
 - query runtime 使用 `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY` 投影出的 read-only
   key；ingestion、snapshot backup 和 restore 运维使用 admin key。
 - sparse retrieval / indexing 使用 self-hosted Qdrant server-side BM25 inference：

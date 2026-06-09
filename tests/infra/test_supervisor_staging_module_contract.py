@@ -223,6 +223,8 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("LOCAL_POSTGRES_USER", data_plane_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY", data_plane_script)
         self.assertIn("QDRANT_READ_ONLY_API_KEY", data_plane_script)
+        self.assertIn("QDRANT_TLS_CA_CERT_PATH", data_plane_script)
+        self.assertIn("QDRANT_TLS_DIR", data_plane_script)
         self.assertIn("rag_runtime.lookup_healthy", data_plane_script)
         self.assertIn("rag_runtime.synthesis_healthy", data_plane_script)
         self.assertIn(
@@ -236,9 +238,55 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         )
         self.assertIn("execution_control_staging_require_container_qdrant_ready", data_plane_script)
         self.assertIn("execution-control Go RAG lookup runtime is not healthy", data_plane_script)
-        self.assertIn("execution-control Go RAG synthesis runtime is not healthy", data_plane_script)
+        self.assertIn(
+            "execution-control Go RAG synthesis runtime is not healthy", data_plane_script
+        )
         self.assertNotIn("host.docker.internal", data_plane_script)
         self.assertNotIn("rewriteLocalhostForDocker", data_plane_script)
+
+    def test_qdrant_data_plane_uses_native_tls_and_read_only_online_key(self) -> None:
+        runtime_compose = (
+            ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
+        ).read_text(encoding="utf-8")
+        qdrant_compose = (ROOT / "infra/local/docker-compose.qdrant-single-node.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("QDRANT_QUERY_API_KEY:", runtime_compose)
+        self.assertIn("QDRANT_TLS_CA_CERT_PATH:", runtime_compose)
+        self.assertNotIn("QDRANT_API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY}", runtime_compose)
+        self.assertIn('QDRANT__SERVICE__ENABLE_TLS: "true"', qdrant_compose)
+        self.assertIn("QDRANT__TLS__CERT: /qdrant/tls/server.crt", qdrant_compose)
+        self.assertIn("QDRANT__TLS__KEY: /qdrant/tls/server.key", qdrant_compose)
+        self.assertIn("${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:/qdrant/tls:ro", qdrant_compose)
+
+    def test_execution_finalization_response_naming_does_not_restore_supervisor_wire(self) -> None:
+        httpapi_sources = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / "apps/execution-control/internal/httpapi").glob("*.go")
+        )
+        app_api_sources = "\n".join(
+            (ROOT / relative).read_text(encoding="utf-8")
+            for relative in (
+                "apps/app-api/src/modules/integration/execution-finalization-contract.ts",
+                "apps/app-api/src/modules/integration/execution-finalization-response.ts",
+                "apps/app-api/src/modules/integration/execution-control.ts",
+                "apps/app-api/src/modules/integration/index.ts",
+                "apps/app-api/src/modules/runtime-command/service/durable.ts",
+                "apps/app-api/src/modules/runtime-command/service/stream.ts",
+            )
+        )
+
+        self.assertIn("ExecutionFinalizationResponseWire", httpapi_sources)
+        self.assertNotIn("SupervisorExecutionResponseWire", httpapi_sources)
+        self.assertIn("parseExecutionFinalizationResponsePayload", app_api_sources)
+        self.assertNotIn("parseSupervisorExecutionResponsePayload", app_api_sources)
+        self.assertNotIn("SupervisorExecutionResponseWire", app_api_sources)
+        self.assertNotIn("parseSupervisorSse", app_api_sources)
+        self.assertNotIn("mapSupervisorLifecycleEvent", app_api_sources)
+        self.assertNotIn("parseSupervisorTerminalResponse", app_api_sources)
+        self.assertNotIn("supervisorStreamErrorResponse", app_api_sources)
+        self.assertNotIn("SupervisorLifecycleContractError", app_api_sources)
 
     def test_observability_module_and_lifecycle_scripts_capture_collector_logs(self) -> None:
         observability_script = (
@@ -286,6 +334,23 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertNotIn("--config", start_script)
         self.assertNotIn("execution-control-staging-placeholder", start_script)
         self.assertNotIn("execution-control-staging-placeholder", status_script)
+
+    def test_temporal_rag_closeout_evidence_script_uses_sanitized_projection(self) -> None:
+        evidence_script = (STAGING_DIR / "capture-temporal-rag-closeout-evidence.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("--request-id", evidence_script)
+        self.assertIn("status-execution-control-staging.sh", evidence_script)
+        self.assertIn("runtime.agent_runs", evidence_script)
+        self.assertIn("runtime.agent_run_steps", evidence_script)
+        self.assertIn("runtime.agent_step_attempts", evidence_script)
+        self.assertIn("runtime.agent_step_results", evidence_script)
+        self.assertIn("finalized_response", evidence_script)
+        self.assertIn("provider-token-cost.csv", evidence_script)
+        self.assertNotIn("PROMPT_RUNTIME_API_KEY", evidence_script)
+        self.assertNotIn("QDRANT_API_KEY", evidence_script)
+        self.assertNotIn("QDRANT_QUERY_API_KEY", evidence_script)
 
     def test_machine_ingress_contract_replaces_exec_staging_tunnel_surface(self) -> None:
         env_example = (ROOT / ".env.staging.local.example").read_text(encoding="utf-8")

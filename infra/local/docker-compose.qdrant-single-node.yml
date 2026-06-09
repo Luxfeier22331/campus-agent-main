@@ -10,14 +10,18 @@ services:
     environment:
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY}
       QDRANT__SERVICE__READ_ONLY_API_KEY: ${QDRANT_READ_ONLY_API_KEY:?set QDRANT_READ_ONLY_API_KEY}
+      QDRANT__SERVICE__ENABLE_TLS: "true"
+      QDRANT__TLS__CERT: /qdrant/tls/server.crt
+      QDRANT__TLS__KEY: /qdrant/tls/server.key
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
     volumes:
       - ${QDRANT_STORAGE_DIR:-/srv/lib/campus-agent/qdrant/storage}:/qdrant/storage
       - ${QDRANT_SNAPSHOTS_DIR:-/srv/backups/campus-agent/qdrant-snapshots/native}:/qdrant/snapshots
+      - ${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:/qdrant/tls:ro
     healthcheck:
       test:
         - CMD-SHELL
-        - 'bash -lc ''exec 3<>/dev/tcp/127.0.0.1/6333; printf "GET /readyz HTTP/1.1\r\nHost: 127.0.0.1\r\napi-key: %s\r\nConnection: close\r\n\r\n" "$${QDRANT__SERVICE__API_KEY}" >&3; timeout 2 cat <&3 | grep -q "all shards are ready"'''
+        - 'bash -lc ''timeout 2 bash -c "</dev/tcp/127.0.0.1/6333"'''
       interval: 10s
       timeout: 5s
       retries: 12

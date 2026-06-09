@@ -60,12 +60,13 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - Provider / system: Qdrant
   作用: 向量索引与 hybrid retrieval backend
-  主要 env keys: `QDRANT_URL` `QDRANT_API_KEY`
+  主要 env keys: `QDRANT_URL` `QDRANT_API_KEY` `QDRANT_READ_ONLY_API_KEY`
+  `QDRANT_QUERY_API_KEY` `QDRANT_TLS_CA_CERT_PATH`
   放置位置: root `.env`
   何时必需: retrieval / indexing
   获取方式: 当前 staging / early production 默认使用自托管单节点 Qdrant；按
   `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md` 部署 container，并由 deploy
-  secret / env 提供 URL + API key
+  secret / env 提供 HTTPS URL、admin key、read-only query key 与 CA certificate path
 
 - Provider / system: Shared Postgres
   作用: app-api shared DB、document/raw registry
@@ -326,14 +327,23 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - `QDRANT_URL`
 - `QDRANT_API_KEY`
+- `QDRANT_READ_ONLY_API_KEY`
+- `QDRANT_QUERY_API_KEY`
+- `QDRANT_TLS_CA_CERT_PATH`
 
 获取方式：
 
 1. 在目标服务器按
    [Self-Hosted Qdrant Native Backup Runbook](../runbooks/self-hosted-qdrant-native-backup-runbook.md)
    部署 single-node Qdrant。
-1. 生成 deploy-scoped `QDRANT_API_KEY`，写入服务器本地 env 或 deploy secret store。
-1. 把本机或内网 Qdrant URL 写入 `QDRANT_URL`，例如 `http://127.0.0.1:6333`。
+1. 生成 deploy-scoped `QDRANT_API_KEY` 与 `QDRANT_READ_ONLY_API_KEY`，写入服务器本地
+   env 或 deploy secret store。
+1. 把本机或内网 Qdrant URL 写入 `QDRANT_URL`，staging / production 必须使用 HTTPS，
+   例如 `https://127.0.0.1:6333`。
+1. online execution runtime 使用 read-only key 投影出的 `QDRANT_QUERY_API_KEY`，不得用
+   admin `QDRANT_API_KEY` 查询。
+1. 配置 `QDRANT_TLS_CA_CERT_PATH` 指向 ops-owned CA bundle，例如
+   `/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`。
 1. 不把 `6333` / `6334` 直接暴露到公网。
 
 外部参考：

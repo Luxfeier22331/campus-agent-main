@@ -25,6 +25,7 @@ DOCUMENT_REGISTRY_ENV_KEY = "DOCUMENT_REGISTRY_DATABASE_URL"
 class RetrievalSettings:
     qdrant_url: str
     qdrant_api_key: str | None = None
+    qdrant_tls_ca_cert_path: str | None = None
     qdrant_timeout_seconds: float = DEFAULT_QDRANT_TIMEOUT_SECONDS
     document_registry_database_url: str = ""
     embedding_provider: str = DEFAULT_EMBEDDING_PROVIDER
@@ -80,6 +81,7 @@ class RetrievalSettings:
         return cls(
             qdrant_url=qdrant_url,
             qdrant_api_key=(source.get("QDRANT_API_KEY") or "").strip() or None,
+            qdrant_tls_ca_cert_path=(source.get("QDRANT_TLS_CA_CERT_PATH") or "").strip() or None,
             qdrant_timeout_seconds=float(
                 (
                     source.get("QDRANT_TIMEOUT_SECONDS") or str(DEFAULT_QDRANT_TIMEOUT_SECONDS)

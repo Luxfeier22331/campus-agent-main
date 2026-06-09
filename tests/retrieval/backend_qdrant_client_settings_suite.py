@@ -529,6 +529,44 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             trust_env=False,
         )
 
+    def test_retrieval_settings_reads_qdrant_tls_ca_cert_path(self) -> None:
+        settings = RetrievalSettings.from_env(
+            {
+                "QDRANT_URL": "https://qdrant.internal:6333",
+                "QDRANT_API_KEY": "readonly-key",
+                "QDRANT_TLS_CA_CERT_PATH": "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+            }
+        )
+
+        self.assertEqual(
+            settings.qdrant_tls_ca_cert_path,
+            "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+        )
+
+    def test_build_qdrant_client_passes_tls_ca_verify_path(self) -> None:
+        settings = RetrievalSettings(
+            qdrant_url="https://example-qdrant.internal",
+            qdrant_api_key="secret",
+            qdrant_tls_ca_cert_path="/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+        )
+        fake_client = object()
+
+        with patch(
+            "campus_retrieval_core.backend_qdrant.QdrantClient", return_value=fake_client
+        ) as client_ctor:
+            result = _build_qdrant_client(settings)
+
+        self.assertIs(result, fake_client)
+        client_ctor.assert_called_once_with(
+            url="https://example-qdrant.internal",
+            api_key="secret",
+            timeout=settings.qdrant_timeout_seconds,
+            cloud_inference=False,
+            check_compatibility=False,
+            trust_env=False,
+            verify="/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+        )
+
     def test_backend_uses_collection_exists_without_alias_listing_precheck(self) -> None:
         qdrant_client = Mock()
         qdrant_client.collection_exists = Mock(return_value=True)

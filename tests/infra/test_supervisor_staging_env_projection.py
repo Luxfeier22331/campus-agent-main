@@ -27,8 +27,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -116,8 +119,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -164,8 +170,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -223,8 +232,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
@@ -298,6 +310,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
             "campus-rag-derived-staging",
         )
         self.assertEqual(projected["QDRANT_URL"], "https://qdrant.staging.example.com")
+        self.assertEqual(projected["QDRANT_QUERY_API_KEY"], "qdrant-readonly-key")
+        self.assertEqual(
+            projected["QDRANT_TLS_CA_CERT_PATH"],
+            "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+        )
         self.assertEqual(projected["QDRANT_TIMEOUT_SECONDS"], "11")
         self.assertEqual(projected["EMBEDDING_PROVIDER"], "gitee")
         self.assertEqual(projected["EMBEDDING_BASE_URL"], "https://ai.gitee.com/v1")
@@ -324,8 +341,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
@@ -364,8 +384,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=11
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
@@ -414,8 +437,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
@@ -449,8 +475,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -498,8 +527,11 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -514,6 +546,7 @@ class SupervisorStagingEnvProjectionTest(unittest.TestCase):
         self.assertIn("STAGING_INGESTION_EMBEDDING_API_KEY is required", result.stderr)
         self.assertIn("STAGING_INGESTION_SPARSE_PROVIDER is required", result.stderr)
         self.assertIn("STAGING_INGESTION_SPARSE_MODEL is required", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

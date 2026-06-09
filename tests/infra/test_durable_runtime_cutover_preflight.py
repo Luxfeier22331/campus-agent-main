@@ -24,9 +24,11 @@ VALID_STAGING_ENV = textwrap.dedent(
     STAGING_INGESTION_OBJECT_STORE_REGION=auto
     STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=access
     STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=secret
-    STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
+
+    STAGING_INGESTION_QDRANT_URL=https://127.0.0.1:6333
     STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
     STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-read
+    STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
     STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
     STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
     STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -155,6 +157,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertIn("CLOUDFLARE_API_TOKEN", payload["blockers"])
         self.assertIn("STAGING_INGESTION_OBJECT_STORE_ENDPOINT", payload["blockers"])
         self.assertIn("STAGING_INGESTION_QDRANT_URL", payload["blockers"])
+        self.assertIn("STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH", payload["blockers"])
         self.assertIn("STAGING_INGESTION_EMBEDDING_API_KEY", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", payload["blockers"])

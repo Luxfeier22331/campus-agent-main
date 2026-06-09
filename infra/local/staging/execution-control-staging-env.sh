@@ -137,6 +137,8 @@ const keys = [
   "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
   "EXECUTION_CONTROL_STAGING_HOST",
   "EXECUTION_CONTROL_STAGING_PORT",
+  "QDRANT_QUERY_API_KEY",
+  "QDRANT_TLS_CA_CERT_PATH",
 ];
 
 function projectLoopbackUrlHost(value, dockerHost, dockerPort) {
@@ -243,6 +245,8 @@ const stagingRequiredMappings = [
   ["STAGING_INGESTION_OBJECT_STORE_ENDPOINT", "OBJECT_STORE_ENDPOINT"],
   ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
   ["STAGING_INGESTION_QDRANT_URL", "QDRANT_URL"],
+  ["STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY", "QDRANT_QUERY_API_KEY"],
+  ["STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH", "QDRANT_TLS_CA_CERT_PATH"],
   ["STAGING_INGESTION_EMBEDDING_PROVIDER", "EMBEDDING_PROVIDER"],
   ["STAGING_INGESTION_EMBEDDING_BASE_URL", "EMBEDDING_BASE_URL"],
   ["STAGING_INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"],
@@ -391,6 +395,19 @@ function validateStagingPostgresRuntimeUrl(errors, source, value) {
   }
 }
 
+function validateStagingQdrantRuntimeUrl(errors, source, value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    errors.push(`${source} must be a valid https URL`);
+    return;
+  }
+  if (parsed.protocol !== "https:") {
+    errors.push(`${source} must use https for authenticated Qdrant data-plane`);
+  }
+}
+
 function hasPair(accessKeyName, secretKeyName) {
   return Boolean(envValue(accessKeyName) && envValue(secretKeyName));
 }
@@ -421,6 +438,9 @@ for (const [source, target] of stagingRequiredMappings) {
     source === "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL"
   ) {
     validateStagingPostgresRuntimeUrl(dataPlaneErrors, source, value);
+  }
+  if (source === "STAGING_INGESTION_QDRANT_URL") {
+    validateStagingQdrantRuntimeUrl(dataPlaneErrors, source, value);
   }
   resolved.set(target, value);
   const dockerValue = projectDataPlaneValue(source, value);
@@ -598,11 +618,10 @@ if (isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT"))) {
   resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_MINIO_SECRET_KEY", localMinioSecret);
 }
 if (
-  isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) &&
   !envValue("STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY")
 ) {
   dataPlaneErrors.push(
-    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY is required for repo-owned local Qdrant",
+    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY is required for online Qdrant query access",
   );
 }
 resolved.set("EXECUTION_CONTROL_STAGING_DATA_PLANE_ERRORS", dataPlaneErrors.join("\n"));
@@ -918,6 +937,21 @@ execution_control_staging_require_runtime_env_core() {
 
   if [[ -z "${QDRANT_URL:-}" ]]; then
     echo "QDRANT_URL is required after STAGING_INGESTION_QDRANT_URL projection." >&2
+    return 1
+  fi
+
+  if [[ "${QDRANT_URL}" != https://* ]]; then
+    echo "QDRANT_URL must use https for execution-control staging Qdrant data-plane." >&2
+    return 1
+  fi
+
+  if [[ -z "${QDRANT_QUERY_API_KEY:-}" ]]; then
+    echo "QDRANT_QUERY_API_KEY is required after STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY projection." >&2
+    return 1
+  fi
+
+  if [[ -z "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+    echo "QDRANT_TLS_CA_CERT_PATH is required after STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH projection." >&2
     return 1
   fi
 }

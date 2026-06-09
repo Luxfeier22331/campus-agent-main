@@ -31,6 +31,8 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
     "QDRANT_URL",
     "QDRANT_DOCKER_URL",
+    "QDRANT_QUERY_API_KEY",
+    "QDRANT_TLS_CA_CERT_PATH",
     "QDRANT_TIMEOUT_SECONDS",
     "EMBEDDING_PROVIDER",
     "EMBEDDING_BASE_URL",
@@ -83,6 +85,9 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "DOCUMENT_REGISTRY_DATABASE_URL",
     "OBJECT_STORE_ENDPOINT",
     "QDRANT_URL",
+    "QDRANT_QUERY_API_KEY",
+    "QDRANT_TLS_CA_CERT_PATH",
+    "QDRANT_TLS_DIR",
     "TEMPORAL_POSTGRES_PASSWORD",
     "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
     "EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
@@ -224,6 +229,7 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
         set -euo pipefail
         source {shlex.quote(str(script_path))} __campus_agent_print_projected_env
         load_runtime_env
+        execution_control_runtime_require_runtime_env
         node - <<'NODE'
         const keys = {json.dumps(_PROJECTED_LOCAL_RUNTIME_KEYS)};
         const projected = {{}};

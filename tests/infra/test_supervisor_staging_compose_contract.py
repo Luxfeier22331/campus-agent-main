@@ -144,7 +144,9 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED:", compose)
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED:", compose)
 
-    def test_execution_control_runtime_timeout_budget_does_not_require_python_worker_budget(self) -> None:
+    def test_execution_control_runtime_timeout_budget_does_not_require_python_worker_budget(
+        self,
+    ) -> None:
         compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
             encoding="utf-8"
         )
@@ -174,6 +176,10 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
         )
 
         self.assertIn("qdrant/qdrant:v1.15.5", compose)
+        self.assertIn('QDRANT__SERVICE__ENABLE_TLS: "true"', compose)
+        self.assertIn("QDRANT__TLS__CERT: /qdrant/tls/server.crt", compose)
+        self.assertIn("QDRANT__TLS__KEY: /qdrant/tls/server.key", compose)
+        self.assertIn("${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:/qdrant/tls:ro", compose)
 
     def test_preflight_script_checks_docker_and_registry_inputs(self) -> None:
         script = (ROOT / "infra/local/staging/preflight-execution-control-staging.sh").read_text(
@@ -211,10 +217,7 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
 
     def test_provider_pricing_catalog_admits_staging_provider_model(self) -> None:
         catalog = json.loads((ROOT / "configs/runtime/provider-pricing.v1.json").read_text())
-        admitted = {
-            (entry["provider"], entry["model"])
-            for entry in catalog["models"]
-        }
+        admitted = {(entry["provider"], entry["model"]) for entry in catalog["models"]}
 
         self.assertIn(("openai", "gpt-5.4"), admitted)
 

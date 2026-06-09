@@ -39,15 +39,18 @@ canonical document artifacts -> document-units -> chunks -> index`
 
 ## Qdrant Private Data-Plane Posture
 
-Qdrant 是 data-plane index substrate，不是 product/API surface。当前 staging/local
-posture 固定为 `self-hosted authenticated private data-plane`：
+Qdrant 是 data-plane index substrate，不是 product/API surface。当前 staging /
+production posture 固定为 `self-hosted authenticated private data-plane over TLS`：
 
 - `QDRANT_API_KEY` / `QDRANT_READ_ONLY_API_KEY` 必须保留为 private data-plane
   secrets；本地部署不等于无认证部署
+- online execution runtime 只接收 read-only `QDRANT_QUERY_API_KEY`，ingestion /
+  backup / restore 才使用 admin `QDRANT_API_KEY`
 - `QDRANT_URL` 指向 Docker data-plane / private network endpoint，不作为 browser、
   panel、docs、chat 或 public smoke endpoint
-- `api_key + http://` warning 代表传输层 hardening 缺口；正确收口是 internal TLS、
-  data-plane TLS termination，或明确记录的 private-network exception，不是删除 API key
+- staging / production `QDRANT_URL` 必须使用 HTTPS，runtime 必须配置
+  `QDRANT_TLS_CA_CERT_PATH`；`api_key + http://` warning 代表不合格 data-plane
+  transport，不是可忽略 warning，也不能通过删除 API key 消除
 - Qdrant collection / alias lifecycle 继续由 ingestion release 管理；online retrieval
   只消费已发布 alias / runtime profile，不直接把 Qdrant physical collection 名提升为
   product truth
