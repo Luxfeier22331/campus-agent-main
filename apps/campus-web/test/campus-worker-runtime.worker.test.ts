@@ -13,7 +13,7 @@ describe("campus worker runtime smoke", () => {
 	});
 
 	it("fails closed for non-allowlisted campus api routes", async () => {
-		const response = await SELF.fetch("https://campus.muc.wiki/api/federation/authorize");
+		const response = await SELF.fetch("https://campus.muc.wiki/api/ops/dining");
 
 		expect(response.status).toBe(404);
 		await expect(response.json()).resolves.toMatchObject({

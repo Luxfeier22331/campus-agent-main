@@ -17,7 +17,7 @@ describe("worker staging build wrapper", () => {
 		const childSource = `
 			const { mkdirSync, writeFileSync } = require("node:fs");
 			const { join } = require("node:path");
-			const workerDist = join(process.cwd(), "dist", "hub_web");
+			const workerDist = join(process.cwd(), "dist", "campus_web");
 			mkdirSync(workerDist, { recursive: true });
 			writeFileSync(join(workerDist, "index.js"), 'export default {};\\n');
 		`;

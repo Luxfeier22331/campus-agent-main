@@ -2,7 +2,6 @@ export const CAMPUS_RUNTIME_CONFIG_SCRIPT_ID = "__CAMPUS_RUNTIME_CONFIG__";
 
 export interface CampusRuntimeConfig {
 	accountUrl: string;
-	loginReturnApp: "campus";
 	loginUrl: string;
 }
 
@@ -16,7 +15,6 @@ export function parseCampusRuntimeConfigSource(
 	try {
 		const parsed = JSON.parse(source) as {
 			accountUrl?: unknown;
-			loginReturnApp?: unknown;
 			loginUrl?: unknown;
 		};
 		return normalizeCampusRuntimeConfig(parsed);
@@ -33,34 +31,31 @@ export function getCampusRuntimeConfig(): CampusRuntimeConfig {
 	return parseCampusRuntimeConfigSource(script?.textContent);
 }
 
-export function buildHubLoginUrl(config: CampusRuntimeConfig, returnTo: string): string {
+export function buildAccountLoginUrl(config: CampusRuntimeConfig, returnTo: string): string {
 	const url = new URL(config.loginUrl);
-	url.searchParams.set("return_app", config.loginReturnApp);
 	url.searchParams.set("return_to", returnTo);
 	return url.toString();
 }
 
-export function buildHubLoginUrlForCurrentRoute(): string {
+export function buildAccountLoginUrlForCurrentRoute(): string {
 	if (typeof window === "undefined") {
 		throw new Error("Campus login return target is unavailable outside the browser.");
 	}
 	const returnTo = `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
-	return buildHubLoginUrl(getCampusRuntimeConfig(), returnTo);
+	return buildAccountLoginUrl(getCampusRuntimeConfig(), returnTo);
 }
 
 function normalizeCampusRuntimeConfig(input: {
 	accountUrl?: unknown;
-	loginReturnApp?: unknown;
 	loginUrl?: unknown;
 }): CampusRuntimeConfig {
 	const accountUrl = normalizeUrl(input.accountUrl);
 	const loginUrl = normalizeUrl(input.loginUrl);
-	if (!(accountUrl && loginUrl && input.loginReturnApp === "campus")) {
+	if (!(accountUrl && loginUrl)) {
 		throw new Error("Campus runtime config is invalid.");
 	}
 	return {
 		accountUrl,
-		loginReturnApp: "campus",
 		loginUrl,
 	};
 }

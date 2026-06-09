@@ -11,15 +11,15 @@ This directory currently contains two aligned artifacts:
 
 This app is the shared product backend behind:
 
-- `apps/hub-web`
+- `apps/campus-web`
 - `apps/public-chat-web`
 - `apps/protected-panel-web`
 
 It owns:
 
 - auth and session handling
-- MUC Wiki Hub Identity Platform product boundary for account, identity, access,
-  preferences and future federation policy
+- the neutral Identity Platform product boundary for account, identity, access,
+  preferences and federation policy
 - product-layer principal mapping
 - chat request ingress
 - conversation and message persistence
@@ -141,7 +141,7 @@ Canonical references:
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 - `docs/architecture/system/identity-platform-architecture.md`
-- `docs/architecture/system/hub-account-experience-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/contracts/app-api-identity-platform-http.md`
 - `docs/contracts/app-api-federation-http.md`
@@ -258,7 +258,7 @@ Deployment minimum gate:
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled
   Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths
   stay fresh
-- `AUTH_SHELL_ORIGIN` must point at the deployed `hub-web` account browser
+- `AUTH_SHELL_ORIGIN` must point at the deployed `campus-web` account browser
   shell
 - `PUBLIC_CHAT_WEB_ORIGIN` remains the deployed public-chat origin and trusted
   Better Auth origin while chat-local auth URLs are kept as bounded

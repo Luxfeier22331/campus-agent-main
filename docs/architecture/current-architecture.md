@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-08
+updated: 2026-06-09
 ---
 # 当前架构
 
@@ -28,12 +28,13 @@ updated: 2026-06-08
 
 当前接受的主拓扑固定为：
 
-`browser -> hub-web -> app launcher / account shell`
+`browser -> campus-web -> student campus experience / account shell`
 
-`hub-web same-site allowlisted /api/* -> app-api`
+`campus-web same-origin allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> execution-control -> Temporal -> activity
-worker -> supervisor-agent-worker private bridge -> rag-agent / retrieval-core`
+`browser -> public-chat-web legacy chat surface -> app-api -> execution-control
+-> Temporal -> activity worker -> supervisor-agent-worker private bridge ->
+rag-agent / retrieval-core`
 
 `browser -> public-docs static reader assets`
 
@@ -50,14 +51,14 @@ document/index release`
 关键约束：
 
 - browser 不直打 `apps/execution-control`
-- hub 是 product entry surface，不是第二个 product backend、generic app-api proxy
-  或 MediaWiki proxy
+- `campus-web` 是当前学生侧 product entry surface 与 account browser shell，不是第二个
+  product backend、generic app-api proxy 或 MediaWiki proxy
 - panel 不绕过 `apps/app-api`
-- hub / public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走
-  `APP_API`
-  Service Binding；`https://app-api.internal` 是内部 Request construction origin
+- campus / legacy public chat / docs / panel 到 `apps/app-api` 的
+  Worker-to-Worker 调用走 `APP_API` Service Binding；
+  `https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
-- `apps/app-api` 当前同时是 MUC Wiki Hub Identity Platform 的 canonical product owner；
+- `apps/app-api` 当前是 neutral Identity Platform 的 canonical product owner；
   Better Auth 是 auth runtime adapter，不是产品账号、校园身份、access entitlement 或
   federation policy schema owner
 - `api-staging.mucwiki-edge.link` 如存在，只表示 app-api staging machine / ops
@@ -105,7 +106,8 @@ document/index release`
 - `wechat_official_account` 已进入 admitted source/data/control-plane truth：当前已有
   source-truth schema、collector principal、run ledger 与 offline projection handoff
   shape，但它不是默认 query-enabled surface，也不是近期已开放的 product runtime
-- 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
+- 当前 public product endpoint 固定为 `https://campus.muc.wiki`；staging browser endpoint
+  固定为 `https://campus-staging.mucwiki-edge.link`。
 
 ## 当前 Serving Surface
 
@@ -146,33 +148,36 @@ document/index release`
 
 ## 当前 App 边界
 
+### `apps/campus-web`
+
+- public-facing Worker web surface for `campus.muc.wiki`
+- 拥有学生侧主体验、校园应用入口、conversation/docs/map/dining/feedback shell 与
+  `/account/*` account browser shell
+- 通过 allowlisted same-origin seam 与 Worker `APP_API` Service Binding 调用
+  `apps/app-api` 的 `/api/me/*`、必要 `/api/auth/*`、implemented `/api/federation/*`、
+  docs/chat/map/dining/feedback endpoints
+- 不开放 generic `/api/*` proxy；未知 browser path fail-closed
+- 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
+- 不拥有 auth/session/principal/identity/federation truth；canonical identity 仍属于
+  `apps/app-api`
+
 ### `apps/hub-web`
 
-- public-facing Worker web surface for `hub.muc.wiki`
-- 拥有 `/` app launcher shell、launcher route registry 与 `/account` account shell
-- 通过 allowlisted same-site seam 与 Worker `APP_API` Service Binding 调用
-  `apps/app-api`
-  的 `/api/me` 与必要 auth endpoints
-- `/account` 当前消费 compact `/api/me` runtime principal；forward account center 应切到
-  Identity Platform product projection，而不是围绕 Better Auth raw session 建模
-- sibling app entries 只能表现为 registry 中的 `app_link` / `planned` / `external`
-  target，不创建 `/chat`、`/docs`、`/panel`、`/map`、`/services` 或 `/notices`
-  这类 fake internal browser route shell
-- 不开放 generic `/api/*` proxy；未知 browser path fail-closed
-- `muc-wiki` 只是指向 `https://muc.wiki` 的 MUC Wiki 主站 external card；`/wiki`
-  不是 internal hub slug
-- 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
-- 不拥有 auth/session/principal truth；canonical identity 仍属于 `apps/app-api`
+- retired Worker package kept only as a historical implementation artifact during
+  the package deletion window
+- 不再是 current product entry、account shell、auth return target、OAuth issuer
+  origin 或 staging smoke gate
+- 不应进入新 deploy/runbook/test acceptance path
 
 ### `apps/public-chat-web`
 
 - public-facing Worker web surface
 - 当前保留 `/login`、`/register`、`/forgot-password`、`/reset-password`
-  作为 bounded compatibility redirects/shims 到 hub account routes
+  作为 bounded compatibility redirects/shims 到 campus account routes
 - 只负责 browser route shell 与 chat UI
 - 不再拥有 public auth/account shell、captcha widget 或 password-reset form runtime
 - browser auth handoff 固定为
-  `public-chat-web compat route -> hub-web /account/* -> same-site /api/auth/*`
+  `public-chat-web compat route -> campus-web /account/* -> same-origin /api/auth/*`
   -> `app-api`
 - 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用
   `apps/app-api`
@@ -388,8 +393,8 @@ document/index release`
   architecture：`docs/architecture/system/identity-and-authorization-architecture.md`
 - identity platform supporting
   architecture：`docs/architecture/system/identity-platform-architecture.md`
-- hub account experience supporting
-  architecture：`docs/architecture/system/hub-account-experience-architecture.md`
+- identity browser experience supporting
+  architecture：`docs/architecture/system/identity-browser-experience-architecture.md`
 - future muc.wiki federation supporting
   architecture：`docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - retrieval / serving supporting

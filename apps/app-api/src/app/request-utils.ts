@@ -71,7 +71,7 @@ export function resolveRequestSurface(request: Request): string {
 		pathname === "/api/me/access" ||
 		pathname === "/api/me/preferences"
 	) {
-		return "hub_web";
+		return "campus_web";
 	}
 	if (
 		pathname === "/api/chat" ||

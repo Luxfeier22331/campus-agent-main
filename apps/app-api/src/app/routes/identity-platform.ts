@@ -44,7 +44,7 @@ async function recordIdentityEndpoint(input: {
 		errorCode: input.errorCode,
 		principalType: input.principal?.principal.type ?? null,
 		status: input.status,
-		surface: "hub_web",
+		surface: "campus_web",
 	});
 }
 
@@ -68,7 +68,7 @@ function identityEndpointResponse(input: {
 		input.scope.telemetry.captureException(error, {
 			route: input.endpoint,
 			status: input.response.status,
-			surface: "hub_web",
+			surface: "campus_web",
 			traceId: input.correlationId,
 		});
 	});

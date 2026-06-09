@@ -176,7 +176,7 @@ describe("app telemetry", () => {
 			errorCode: null,
 			principalType: "student",
 			status: 200,
-			surface: "hub_web",
+			surface: "campus_web",
 		});
 
 		expect(axiomSink.emit).toHaveBeenCalledWith(
@@ -190,7 +190,7 @@ describe("app telemetry", () => {
 				principal_type: "student",
 				release: "app-api@2026.06.02",
 				status: "200",
-				surface: "hub_web",
+				surface: "campus_web",
 			}),
 		);
 		expect(axiomSink.emit).not.toHaveBeenCalledWith(

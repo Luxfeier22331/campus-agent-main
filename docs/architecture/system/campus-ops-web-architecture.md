@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-09
 ---
 # Campus Ops Web Architecture
 
@@ -22,7 +22,7 @@ updated: 2026-06-08
 - dining object schema，见 `docs/data/dining-operations-schema.md`
 - dining HTTP contract，见 `docs/contracts/app-api-dining-ops-http.md`
 - protected panel observability query，见 `operator-observability-architecture.md`
-- Hub account / launcher / OAuth，见 identity 与 hub architecture 文档
+- account / OAuth browser experience，见 identity browser architecture 文档
 
 ## Core Conclusion
 
@@ -30,7 +30,7 @@ updated: 2026-06-08
 
 它不是：
 
-- `hub-web` 的账号中心扩展
+- account browser shell 的隐藏扩展
 - `protected-panel-web` 的 observability tab
 - `campus-web` 的隐藏编辑模式
 
@@ -90,7 +90,7 @@ matures.
 
 ## Forbidden Shapes
 
-- Do not embed ops workspace inside `hub-web`.
+- Do not embed ops workspace inside the account browser shell.
 - Do not let `campus-web` call `/api/ops/*`.
 - Do not expose generic `/api/*` proxy.
 - Do not surface federation or auth management inside campus ops.

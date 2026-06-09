@@ -23,7 +23,7 @@ OBSERVABILITY_TARGETS = {
     "apps/protected-panel-web/.dev.vars": {
         "SENTRY_DSN": "SENTRY_DSN",
     },
-    "apps/hub-web/.dev.vars": {
+    "apps/campus-web/.dev.vars": {
         "SENTRY_DSN": "SENTRY_DSN",
     },
 }

@@ -1,4 +1,4 @@
-import { buildPublicChatAuthCompatPath } from "@platform/auth/hub-redirect";
+import { buildPublicChatAuthCompatPath } from "@platform/auth/account-shell-redirect";
 import { ChatbotShellRuntimeProvider, useChatbotShellRuntime } from "@platform/chat/runtime";
 import {
 	createRootRoute,

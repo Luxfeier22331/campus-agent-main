@@ -106,7 +106,7 @@ Ops routes expose draft objects to authorized operator principals only:
 ```
 
 Ops routes are command/query surfaces for `campus-ops-web`, not general browser
-APIs. They must remain out of `campus-web` and Hub launcher surfaces.
+APIs. They must remain out of `campus-web` and retired launcher surfaces.
 
 ## Source Observation
 

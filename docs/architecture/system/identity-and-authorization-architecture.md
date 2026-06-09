@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-02
+updated: 2026-06-09
 ---
 # Identity And Authorization Architecture
 
@@ -38,7 +38,7 @@ supporting architecture。
 identity / authz / memory supporting architecture 当前已经明确：
 
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
-- `apps/hub-web` 只拥有 account browser shell；它不拥有 auth database、session
+- `apps/campus-web` 只拥有 account browser shell；它不拥有 auth database、session
   storage、principal mapping 或 authorization truth
 - execution path 只消费 typed actor/context projection
 - retrieval path 只消费 authz projection carrier，不拥有最终 entitlement resolution

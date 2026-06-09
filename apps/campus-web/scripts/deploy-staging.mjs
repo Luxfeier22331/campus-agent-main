@@ -5,9 +5,58 @@ import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
 import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
+const DEFAULT_TURNSTILE_APPEARANCE = "interaction-only";
+const DEFAULT_TURNSTILE_EXECUTION = "render";
+const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
+const VALID_TURNSTILE_APPEARANCES = new Set(["always", "execute", "interaction-only"]);
+const VALID_TURNSTILE_EXECUTIONS = new Set(["render", "execute"]);
+
 loadRepoStagingEnvFile(import.meta.url, "../../..");
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sentryRelease = resolveStagingSentryRelease("campus-web");
+const turnstileSiteKey = process.env.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY?.trim();
+const turnstileAppearance = resolveTurnstileOption(
+	"STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE",
+	process.env.STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE,
+	VALID_TURNSTILE_APPEARANCES,
+	DEFAULT_TURNSTILE_APPEARANCE,
+);
+const turnstileExecution = resolveTurnstileOption(
+	"STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION",
+	process.env.STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION,
+	VALID_TURNSTILE_EXECUTIONS,
+	DEFAULT_TURNSTILE_EXECUTION,
+);
+
+function fail(message) {
+	console.error(message);
+	process.exit(1);
+}
+
+function resolveTurnstileOption(name, rawValue, validValues, defaultValue) {
+	const value = rawValue?.trim();
+	if (!value) {
+		return defaultValue;
+	}
+	if (!validValues.has(value)) {
+		fail(
+			`${name} must be one of ${JSON.stringify(Array.from(validValues))}. Received ${JSON.stringify(value)}.`,
+		);
+	}
+	return value;
+}
+
+if (!turnstileSiteKey) {
+	fail(
+		"STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY is required. Inject the real Turnstile sitekey admitted for campus-staging.mucwiki-edge.link before deploying.",
+	);
+}
+
+if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
+	fail(
+		"STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY must not use the Cloudflare Turnstile testing sitekey for staging deploys.",
+	);
+}
 
 const result = spawnSync(
 	"pnpm",
@@ -17,6 +66,12 @@ const result = spawnSync(
 		"deploy",
 		"--config",
 		"dist/campus_web/wrangler.json",
+		"--var",
+		`AUTH_TURNSTILE_SITE_KEY:${turnstileSiteKey}`,
+		"--var",
+		`AUTH_TURNSTILE_APPEARANCE:${turnstileAppearance}`,
+		"--var",
+		`AUTH_TURNSTILE_EXECUTION:${turnstileExecution}`,
 		"--var",
 		`SENTRY_RELEASE:${sentryRelease}`,
 	],

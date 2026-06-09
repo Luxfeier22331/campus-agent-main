@@ -1,6 +1,9 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
-import { buildHubAuthRedirect, isPublicChatAuthCompatPath } from "./platform/auth/hub-redirect";
+import {
+	buildAccountShellAuthRedirect,
+	isPublicChatAuthCompatPath,
+} from "./platform/auth/account-shell-redirect";
 
 export interface Env {
 	APP_API?: {
@@ -10,7 +13,7 @@ export interface Env {
 		fetch(request: Request): Promise<Response> | Response;
 	};
 	APP_API_BASE_URL?: string;
-	HUB_WEB_BASE_URL?: string;
+	AUTH_SHELL_ORIGIN?: string;
 	PUBLIC_CHAT_APP_NAME?: string;
 	PUBLIC_CHAT_HOSTNAME?: string;
 	SENTRY_DSN?: string;
@@ -169,12 +172,12 @@ const worker = {
 			return proxyToAppApi(request, env);
 		}
 
-		const authRedirectConfigError = getHubAuthRedirectConfigError(url, env);
+		const authRedirectConfigError = getAccountShellAuthRedirectConfigError(url, env);
 		if (authRedirectConfigError) {
 			return authRedirectConfigError;
 		}
 
-		const authRedirect = resolveHubAuthRedirect(url, env);
+		const authRedirect = resolveAccountShellAuthRedirect(url, env);
 		if (authRedirect && (request.method === "GET" || request.method === "HEAD")) {
 			return responseWithPublicChatSecurityHeaders(Response.redirect(authRedirect, 302));
 		}
@@ -245,12 +248,12 @@ function redirectToCanonicalChatRoute(url: URL): Response {
 	return responseWithPublicChatSecurityHeaders(Response.redirect(redirectUrl.toString(), 302));
 }
 
-function resolveHubAuthRedirect(url: URL, env: Env): string | null {
-	return buildHubAuthRedirect(url, env.HUB_WEB_BASE_URL);
+function resolveAccountShellAuthRedirect(url: URL, env: Env): string | null {
+	return buildAccountShellAuthRedirect(url, env.AUTH_SHELL_ORIGIN);
 }
 
-function getHubAuthRedirectConfigError(url: URL, env: Env): Response | null {
-	if (!isPublicChatAuthCompatPath(url.pathname) || env.HUB_WEB_BASE_URL?.trim()) {
+function getAccountShellAuthRedirectConfigError(url: URL, env: Env): Response | null {
+	if (!isPublicChatAuthCompatPath(url.pathname) || env.AUTH_SHELL_ORIGIN?.trim()) {
 		return null;
 	}
 
@@ -258,7 +261,7 @@ function getHubAuthRedirectConfigError(url: URL, env: Env): Response | null {
 		error: {
 			code: "dependency_not_ready",
 			details: {
-				missing: ["HUB_WEB_BASE_URL"],
+				missing: ["AUTH_SHELL_ORIGIN"],
 			},
 			message: "Runtime configuration is incomplete.",
 		},
@@ -280,8 +283,8 @@ function getMissingRuntimeConfig(env: Env): string[] {
 	if (!env.PUBLIC_CHAT_HOSTNAME?.trim()) {
 		missing.push("PUBLIC_CHAT_HOSTNAME");
 	}
-	if (!env.HUB_WEB_BASE_URL?.trim()) {
-		missing.push("HUB_WEB_BASE_URL");
+	if (!env.AUTH_SHELL_ORIGIN?.trim()) {
+		missing.push("AUTH_SHELL_ORIGIN");
 	}
 
 	return missing;

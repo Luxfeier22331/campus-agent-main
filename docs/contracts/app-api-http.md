@@ -531,7 +531,7 @@ assistant message 可以包含 `feedback`：
 规则：
 
 - 只面向 end-user account center；operator / service principal 不进入该投影
-- `availableApps` 是 Hub app availability projection，不替代 route-level
+- `availableApps` 是 campus app availability projection，不替代 route-level
   authorization
 - Preferences 与 profile memory 不授予权限、entitlement groups、restricted
   access 或 federation claims

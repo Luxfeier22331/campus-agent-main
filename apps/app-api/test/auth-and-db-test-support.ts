@@ -65,7 +65,7 @@ export const APP_API_TEST_ENV = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",

@@ -496,7 +496,7 @@ export function registerApiMeSuite() {
 				errorCode: null,
 				principalType: "student",
 				status: 200,
-				surface: "hub_web",
+				surface: "campus_web",
 			});
 		});
 
@@ -553,7 +553,7 @@ export function registerApiMeSuite() {
 				errorCode: "forbidden",
 				principalType: "service",
 				status: 403,
-				surface: "hub_web",
+				surface: "campus_web",
 			});
 		});
 	});

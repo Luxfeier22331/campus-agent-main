@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-06-06
+updated: 2026-06-09
 ---
 # System Architecture
 
@@ -24,7 +24,7 @@ execution、retrieval、data-plane、observability 等系统级边界。
 - `prompt-and-instruction-architecture.md`
 - `identity-and-authorization-architecture.md`
 - `identity-platform-architecture.md`
-- `hub-account-experience-architecture.md`
+- `identity-browser-experience-architecture.md`
 - `federation-and-mucwiki-login-architecture.md`
 - `campus-ops-web-architecture.md`
 - `retrieval-serving-architecture.md`

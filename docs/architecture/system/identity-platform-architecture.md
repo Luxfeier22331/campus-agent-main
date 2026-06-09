@@ -2,18 +2,18 @@
 doc_type: architecture
 status: active
 created: 2026-06-02
-updated: 2026-06-03
+updated: 2026-06-09
 ---
 # Identity Platform Architecture
 
 ## 文档边界
 
-本文冻结 MUC Wiki Hub Identity Platform 的 supporting architecture。
+本文冻结 MUC Wiki Identity Platform 的 supporting architecture。
 
 它回答的是：
 
 - 用户系统的长期分层是什么
-- `apps/app-api`、Better Auth、hub、execution path 与 future `muc.wiki` federation
+- `apps/app-api`、Better Auth、campus-web、execution path 与 `muc.wiki` federation
   各自拥有什么
 - 哪些事实是 canonical product truth，哪些只是 runtime adapter state
 
@@ -73,11 +73,11 @@ auth runtime adapter 负责 credential/session/provider mechanics：
 Current runtime adapter is Better Auth. Future replacement is allowed only if
 Identity Platform product contracts remain stable or are explicitly versioned.
 
-### `apps/hub-web`
+### `apps/campus-web`
 
-`apps/hub-web` owns only browser product experience:
+`apps/campus-web` owns only browser product experience:
 
-- launcher
+- student campus experience shell
 - account center shell
 - auth forms
 - signed-in continuity
@@ -129,7 +129,7 @@ Minimum semantics:
 - expiry
 - credential/runtime source summary
 
-Session may be projected to hub for account overview, but raw session material
+Session may be projected to campus-web for account overview, but raw session material
 never crosses into
 supervisor, retrieval or MediaWiki.
 
@@ -162,9 +162,9 @@ Minimum semantics:
 - restricted document visibility projection
 - ownership / approval summaries for product resources
 
-Access policy is app-owned product truth. Any `access` object exposed to hub,
-execution or retrieval is a compact projection of that truth. Profile memory and
-preferences cannot grant access.
+Access policy is app-owned product truth. Any `access` object exposed to
+campus-web, execution or retrieval is a compact projection of that truth. Profile
+memory and preferences cannot grant access.
 
 ### Preferences
 
@@ -240,11 +240,11 @@ Current implemented truth:
   the controlled `muc-wiki` client into both app-owned
   `identity.federation_*` policy tables and Better Auth-owned
   `app_auth.oauthClient` runtime table.
-- `apps/hub-web/src/index.ts` allowlists `/api/me`, `/api/me/overview`,
+- `apps/campus-web/src/index.ts` allowlists `/api/me`, `/api/me/overview`,
   `/api/me/identity`, `/api/me/access`, `/api/me/preferences`, selected
   `/api/auth/*` seams and explicit federation seams to `apps/app-api`; it does
   not expose a generic `/api/*` proxy or federation admin surface.
-- `apps/hub-web/src/routes/app-router.tsx` currently owns `/`, `/account` and
+- `apps/campus-web/src/app/router.tsx` currently owns `/`, `/account` and
   auth action routes. The account page consumes account-center projections
   rather than Better Auth raw payload: overview for the account shell plus
   scoped identity, access and preferences projections for section-level states.
@@ -265,8 +265,8 @@ Implemented federation runtime:
 
 - Do not expose Better Auth raw tables or provider payload as account center
   product contract.
-- Do not let hub become the auth database, session store, principal mapper or
-  generic app-api proxy.
+- Do not let campus-web become the auth database, session store, principal mapper
+  or generic app-api proxy.
 - Do not use profile memory, preferences, chat history or retrieval evidence as
   authorization truth.
 - Do not integrate `muc.wiki` login through shared cookies, database import,
@@ -277,7 +277,7 @@ Implemented federation runtime:
 
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/hub-account-experience-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/contracts/app-api-identity-platform-http.md`
 - `docs/data/identity-platform-schema.md`

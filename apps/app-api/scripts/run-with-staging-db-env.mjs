@@ -23,7 +23,7 @@ if (!operatorDatabaseUrl) {
 process.env.APP_API_OPERATOR_DATABASE_URL = operatorDatabaseUrl;
 process.env.APP_API_ENVIRONMENT = "staging";
 process.env.AUTH_SHELL_ORIGIN =
-	process.env.AUTH_SHELL_ORIGIN?.trim() || "https://hub-staging.mucwiki-edge.link";
+	process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus-staging.mucwiki-edge.link";
 process.env.PUBLIC_CHAT_WEB_ORIGIN =
 	process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat-staging.mucwiki-edge.link";
 

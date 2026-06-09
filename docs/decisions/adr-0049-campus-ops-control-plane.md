@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0049
 status: accepted
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-09
 ---
 # ADR-0049 Campus Ops Control Plane
 
@@ -18,7 +18,7 @@ Accepted on 2026-06-08.
 initial release 输入，不能继续承担长期线上运营真相。
 
 食堂窗口、档口、菜品与价格会持续变化。后续采集或人工观测也只能先进入 review/proposal，
-不能直接覆盖学生端 published projection。把这些编辑能力塞进 `hub-web` 会污染账号与 launcher
+不能直接覆盖学生端 published projection。把这些编辑能力塞进 account browser shell 会污染账号
 边界；放进 `protected-panel-web` 会把 observability/panel 查询面扩成运营工作台。两者都不是长期正确
 owner。
 
@@ -60,7 +60,7 @@ operator browser
 - student-facing published projection truth
 - app-api schema ownership
 - source observation direct application without review
-- `hub-web` launcher/account/OAuth responsibilities
+- account browser / OAuth responsibilities
 
 ### 2. Draft 与 Published Snapshot 分离
 
@@ -109,4 +109,4 @@ graph truth。
 - 实时排队、营业状态、支付或订单系统
 - 采集自动覆盖线上数据
 - map/feedback 完整运营模块
-- MediaWiki、Hub 或 OAuth federation 行为
+- MediaWiki、browser account shell 或 OAuth federation 行为

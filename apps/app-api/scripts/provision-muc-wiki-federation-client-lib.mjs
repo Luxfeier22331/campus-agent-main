@@ -11,12 +11,12 @@ const ALLOWED_CLAIMS = [
 	"name",
 	"preferred_username",
 	"updated_at",
-	"https://hub.muc.wiki/claims/principal_type",
-	"https://hub.muc.wiki/claims/identity_status",
+	"https://campus.muc.wiki/claims/principal_type",
+	"https://campus.muc.wiki/claims/identity_status",
 ];
 const CAMPUS_CLAIM_NAMESPACE = {
-	identityStatus: "https://hub.muc.wiki/claims/identity_status",
-	principalType: "https://hub.muc.wiki/claims/principal_type",
+	identityStatus: "https://campus.muc.wiki/claims/identity_status",
+	principalType: "https://campus.muc.wiki/claims/principal_type",
 };
 const CONSENT_POLICY = "trusted_first_party_skip_repeated_consent";
 

@@ -7,8 +7,9 @@ preview_urls = false
 
 [vars]
 APP_API_BASE_URL = "https://app-api.internal"
+AUTH_TURNSTILE_APPEARANCE = "interaction-only"
+AUTH_TURNSTILE_EXECUTION = "render"
 CAMPUS_WEB_HOSTNAME = "127.0.0.1:27014"
-HUB_WEB_ORIGIN = "http://127.0.0.1:27012"
 
 [assets]
 directory = "./dist/client"

@@ -8,7 +8,7 @@ updated: 2026-06-02
 
 ## 文档边界
 
-本文冻结 `apps/app-api` 面向 hub account center 与 first-party browser surfaces 的
+本文冻结 `apps/app-api` 面向 campus account center 与 first-party browser surfaces 的
 Identity Platform product projection contract。
 
 本文不替代 `docs/contracts/app-api-http.md` 的 shared app-api endpoint inventory，也不冻结
@@ -149,7 +149,7 @@ Fields:
 
 Rules:
 
-- `availableApps` is a product projection for hub/app surfaces. It is not a
+- `availableApps` is a product projection for campus/app surfaces. It is not a
   replacement for route-level authorization.
 - `entitlementGroups` is a compact projection, not canonical authorization store
   export.
@@ -219,7 +219,7 @@ Rules:
 ## `GET /api/me/access`
 
 Returns the current signed-in end-user access projection for account center and
-hub app availability display.
+campus app availability display.
 
 ### Access Response
 
@@ -306,6 +306,6 @@ Rules:
 ## Related Documents
 
 - `docs/architecture/system/identity-platform-architecture.md`
-- `docs/architecture/system/hub-account-experience-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/data/identity-platform-schema.md`
 - `docs/contracts/app-api-http.md`

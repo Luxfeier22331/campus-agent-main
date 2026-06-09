@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0045
 status: accepted
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-09
 ---
 # ADR-0045 Identity Platform And Auth Runtime Boundary
 
@@ -15,26 +15,26 @@ Accepted on 2026-06-02.
 
 `campus-agent` 已经具备可工作的 end-user auth 基础：`apps/app-api` 使用
 Better Auth 承接 email/password、session、password reset、Turnstile 与
-same-site browser auth endpoints；`apps/hub-web` 已承接 `/account/*` account
+same-origin browser auth endpoints；`apps/campus-web` 已承接 `/account/*` account
 browser shell。
 
 这组实现能工作，但不能直接被提升为长期用户系统架构中心。如果继续围绕当前
 Better Auth config 与 `/api/me` runtime projection 扩展，后续会产生几类债务：
 
 - auth library 的 user/session/account shape 会反向定义产品账号模型
-- hub account center 会围绕底层 session object 编写，而不是消费稳定 product
+- account center 会围绕底层 session object 编写，而不是消费稳定 product
   projection
 - 校园身份、access entitlement、profile memory 与 federation client policy 容易混在
   一层
 - future `muc.wiki` login federation 容易退化成 cookie/session/database 兼容，而不是
   标准 relying-party 协议
 
-因此这里冻结用户系统的长期分层：`apps/app-api` 拥有 MUC Wiki Hub Identity
+因此这里冻结用户系统的长期分层：`apps/app-api` 拥有 MUC Wiki Identity
 Platform；Better Auth 只是当前 auth runtime adapter，不是 canonical user system。
 
 ## 决策
 
-### 决策 1：`apps/app-api` 拥有 MUC Wiki Hub Identity Platform
+### 决策 1：`apps/app-api` 拥有 MUC Wiki Identity Platform
 
 长期用户系统 owner 固定为 `apps/app-api`。
 
@@ -47,7 +47,7 @@ Identity Platform 至少覆盖：
 - preferences / profile memory control
 - federation client and claims policy
 
-`apps/hub-web`、`apps/public-chat-web`、`apps/public-docs`、`apps/protected-panel-web`、
+`apps/campus-web`、`apps/public-chat-web`、`apps/public-docs`、`apps/protected-panel-web`、
 `apps/supervisor-api`、agent、retrieval 与 MediaWiki 都不得拥有 canonical app identity
 truth。
 
@@ -68,7 +68,7 @@ Better Auth 当前可以继续承担：
 
 - browser surfaces 不直接围绕 Better Auth raw payload 建模
 - product contract 不暴露 Better Auth internal table shape
-- future auth runtime replacement 不应要求重写 hub account center 或 supervisor actor
+- future auth runtime replacement 不应要求重写 account center 或 supervisor actor
   projection
 
 ### 决策 3：账号产品模型固定拆成五层
@@ -86,12 +86,12 @@ Identity Platform 的 product model 固定拆成：
 `session` 是 runtime state；它可以出现在 account overview projection 中，但不替代
 account、identity 或 access truth。
 
-### 决策 4：hub 只消费 Identity Platform projection
+### 决策 4：campus-web 只消费 Identity Platform projection
 
-`apps/hub-web` 的 account center 和 launcher continuity 只消费 `apps/app-api` 暴露的
+`apps/campus-web` 的 account center 和 signed-in continuity 只消费 `apps/app-api` 暴露的
 forward product projection，例如 `/api/me/overview`。
 
-hub 不拥有：
+campus-web 不拥有：
 
 - auth database
 - session storage
@@ -100,7 +100,7 @@ hub 不拥有：
 - federation client registry
 - MediaWiki account mapping
 
-hub 可以拥有：
+campus-web 可以拥有：
 
 - `/account/*` browser shell
 - account center UI
@@ -122,7 +122,7 @@ future login federation 的长期形态固定为：
 - 不共享 `.muc.wiki` cookie
 - 不导入 MediaWiki user table、password hash 或 session
 - 不让 MediaWiki session 成为 app identity truth
-- 不让 hub 代理 MediaWiki page/content/upload/account state
+- 不让 campus-web 代理 MediaWiki page/content/upload/account state
 
 ### 决策 6：OIDC 优先于裸 OAuth 作为登录 federation 协议
 
@@ -150,7 +150,7 @@ entitlement。
 直接结果如下：
 
 - 新增 `docs/architecture/system/identity-platform-architecture.md` 作为用户系统主架构文档
-- 新增 `docs/contracts/app-api-identity-platform-http.md` 作为 hub account center 的
+- 新增 `docs/contracts/app-api-identity-platform-http.md` 作为 account center 的
   product projection contract
 - 新增 `docs/data/identity-platform-schema.md` 区分 Better Auth-owned runtime tables
   与 app-owned identity product schema
@@ -170,7 +170,7 @@ entitlement。
 
 - `docs/architecture/system/identity-platform-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/hub-account-experience-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/contracts/app-api-identity-platform-http.md`
 - `docs/contracts/app-api-federation-http.md`

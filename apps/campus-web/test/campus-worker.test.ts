@@ -13,7 +13,6 @@ function createEnv(appApi?: Env["APP_API"]): Env {
 				}),
 		},
 		CAMPUS_WEB_HOSTNAME: "campus.muc.wiki",
-		HUB_WEB_ORIGIN: "https://hub.muc.wiki",
 	};
 }
 
@@ -44,6 +43,21 @@ describe("campus worker boundary", () => {
 
 		const allowed = [
 			"/api/me",
+			"/api/me/overview",
+			"/api/me/identity",
+			"/api/me/access",
+			"/api/me/preferences",
+			"/api/auth/sign-in/email",
+			"/api/auth/sign-up/email",
+			"/api/auth/sign-out",
+			"/api/auth/get-session",
+			"/api/auth/request-password-reset",
+			"/api/auth/reset-password",
+			"/api/federation/authorize",
+			"/api/federation/token",
+			"/api/federation/userinfo",
+			"/api/federation/jwks",
+			"/api/federation/logout",
 			"/api/chat/conversations",
 			"/api/chat/conversations/conv_1",
 			"/api/chat/requests",
@@ -62,17 +76,28 @@ describe("campus worker boundary", () => {
 			expect(response.status).toBe(200);
 		}
 
-		const rejected = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/federation/authorize"),
-			env,
-		);
+		const rejected = await worker.fetch(new Request("https://campus.muc.wiki/api/ops/dining"), env);
 		expect(rejected.status).toBe(404);
 		expect(seen).toEqual(allowed);
 	});
 
 	it("serves registered browser routes through the shell", async () => {
 		const env = createEnv();
-		for (const path of ["/", "/c/conv_1", "/docs/student_rules", "/map", "/dining", "/feedback"]) {
+		for (const path of [
+			"/",
+			"/c/conv_1",
+			"/docs/student_rules",
+			"/map",
+			"/dining",
+			"/feedback",
+			"/account",
+			"/account/login",
+			"/account/register",
+			"/account/forgot-password",
+			"/account/reset-password",
+			"/account/federation/consent",
+			"/account/federation/error",
+		]) {
 			const response = await worker.fetch(
 				new Request(`https://campus.muc.wiki${path}`, {
 					headers: { accept: "text/html" },
@@ -95,8 +120,9 @@ describe("campus worker boundary", () => {
 		expect(response.status).toBe(200);
 		const html = await response.text();
 		expect(html).toContain("__CAMPUS_RUNTIME_CONFIG__");
-		expect(html).toContain("https://hub.muc.wiki/account");
-		expect(html).toContain("https://hub.muc.wiki/account/login");
-		expect(html).toContain('"loginReturnApp":"campus"');
+		expect(html).toContain("__CAMPUS_AUTH_CONFIG__");
+		expect(html).toContain("https://campus.muc.wiki/account");
+		expect(html).toContain("https://campus.muc.wiki/account/login");
+		expect(html).not.toContain("loginReturnApp");
 	});
 });

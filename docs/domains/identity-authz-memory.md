@@ -12,8 +12,8 @@ updated: 2026-04-27
   总边界：`../architecture/system/identity-and-authorization-architecture.md`
 - 用户系统 product
   boundary：`../architecture/system/identity-platform-architecture.md`
-- hub account browser
-  experience：`../architecture/system/hub-account-experience-architecture.md`
+- identity/account browser
+  experience：`../architecture/system/identity-browser-experience-architecture.md`
 - future muc.wiki login
   federation：`../architecture/system/federation-and-mucwiki-login-architecture.md`
 - 产品/runtime owner
@@ -25,7 +25,7 @@ updated: 2026-04-27
 
 - `../architecture/system/identity-and-authorization-architecture.md`
 - `../architecture/system/identity-platform-architecture.md`
-- `../architecture/system/hub-account-experience-architecture.md`
+- `../architecture/system/identity-browser-experience-architecture.md`
 - `../architecture/system/federation-and-mucwiki-login-architecture.md`
 - `../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `../decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`

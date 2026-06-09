@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import authRedirectSource from "../src/platform/auth/hub-redirect.ts?raw";
+import authRedirectSource from "../src/platform/auth/account-shell-redirect.ts?raw";
 import nextAuthCompatSource from "../src/platform/vendor-compat/next-auth/react.tsx?raw";
 import appRouterSource from "../src/routes/app-router.tsx?raw";
 import sidebarUserNavSource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-user-nav.tsx?raw";
@@ -24,7 +24,7 @@ describe("public chat auth regressions", () => {
 
 	it("centralizes compatibility redirect semantics in a repo-owned helper", () => {
 		expect(authRedirectSource).toContain("buildPublicChatAuthCompatPath");
-		expect(authRedirectSource).toContain("buildHubAuthRedirect");
+		expect(authRedirectSource).toContain("buildAccountShellAuthRedirect");
 		expect(authRedirectSource).toContain('"/account/login"');
 		expect(authRedirectSource).toContain('"/account/register"');
 		expect(authRedirectSource).toContain('"/account/forgot-password"');

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-23
+updated: 2026-06-09
 ---
 # Docs
 
@@ -24,7 +24,7 @@ policy、reference、runbook，以及已归档的历史 plan。
 - [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
   - retrieval-side agentic planning、evidence contract 与 retrieval/runtime split
 - [architecture/system/identity-platform-architecture.md](./architecture/system/identity-platform-architecture.md)
-  - MUC Wiki Hub Identity Platform、auth runtime adapter 与 account/federation
+  - MUC Wiki Identity Platform、auth runtime adapter 与 account/federation
     product boundary
 - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - 当前项目级 active lane 与 pending work
@@ -69,7 +69,7 @@ policy、reference、runbook，以及已归档的历史 plan。
 - 需要回答“用户系统、account center、auth runtime adapter、future muc.wiki login federation
   如何分层”，读
   `architecture/system/identity-platform-architecture.md`、
-  `architecture/system/hub-account-experience-architecture.md` 与
+  `architecture/system/identity-browser-experience-architecture.md` 与
   `architecture/system/federation-and-mucwiki-login-architecture.md`
 - 需要回答“Campus Ops 运营工作台、饭堂地图编辑、draft/release/published projection 如何分层”，读
   `architecture/system/campus-ops-web-architecture.md`、

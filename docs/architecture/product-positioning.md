@@ -103,12 +103,12 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 
 补充约束：
 
-- 当前 merged truth 仍是“chat 为最成熟公开入口、docs 为已独立落地 surface、其他入口尚未 rollout”
-- 这不等于长期产品必须维持“chat 作为唯一总入口”的 IA 真相
+- 当前 merged truth 已从 chat-only / launcher model 转向 `campus-web` 学生侧主体验；
+  chat 仍是核心能力，但不再单独定义产品总入口
 - docs shell 自己的首页、collection 入口或局部导航，不自动上升为整个产品的顶层入口架构
-- `hub.muc.wiki/[slug]` 是新的 app-set product entry surface；它提供平面入口、
-  账号壳与跨 surface 导航，但不改变 query-serving truth 或 capability opening truth
-- 既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营；hub 只提供外部链接卡片，
+- `campus.muc.wiki` 是学生侧 product entry surface；它提供校园应用入口、账号壳与
+  same-origin browser seams，但不改变 query-serving truth 或 capability opening truth
+- 既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营；campus-web 可以提供外部链接入口，
   不替代、代理、镜像或迁移 MediaWiki 页面内容、上传媒体或账号
 - `authenticated_notice_portal`、`wechat_official_account` 与 structured runtime source/data
   lane 是长期能力输入与 control-plane truth 的一部分；除非显式开放，它们不自动上升为当前公开产品承诺

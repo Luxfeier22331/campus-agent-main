@@ -26,8 +26,13 @@ product data and sanitized run/event/step projection, not the execution queue.
 
 ## Active Truth
 
-- Product entry surfaces are `hub-web`, `public-chat-web`, `public-docs`, and
-  `protected-panel-web`, all entering shared `app-api`.
+- Product entry surface is `campus-web` at `https://campus.muc.wiki`; staging
+  browser validation uses `https://campus-staging.mucwiki-edge.link`.
+  `campus-web`, `public-docs`, `protected-panel-web`, and the legacy
+  `public-chat-web` surface enter shared `app-api`.
+- `campus-web` owns the student-facing campus experience and account browser
+  shell. `apps/app-api` remains the only auth/session/identity/federation truth
+  owner.
 - Default query-enabled surfaces are `regulations/student_rules`,
   `regulations/institutional_rules`, `curriculum/curriculum_plan`, and
   `official_web/stable_reference`.
@@ -57,7 +62,7 @@ product data and sanitized run/event/step projection, not the execution queue.
 
 | Area | Owner Boundary | Primary Truth |
 | --- | --- | --- |
-| Product Plane | Browser surfaces, product API, auth/session, request projection | `docs/architecture/system/product-runtime-architecture.md` |
+| Product Plane | `campus-web`, browser surfaces, product API, auth/session, request projection | `docs/architecture/system/product-runtime-architecture.md` |
 | Execution Plane | `execution-control`, Temporal, projection store, worker topology | `docs/architecture/system/durable-agent-runtime-architecture.md` |
 | Capability Plane | RAG, navigation, notice, campus services, semantic worker | `docs/architecture/system/execution-and-agents-architecture.md` |
 | Data Plane | Ingestion, object storage, Qdrant, source truth, read models | `docs/architecture/system/data-plane-architecture.md` |

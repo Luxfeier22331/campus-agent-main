@@ -110,10 +110,10 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
 		});
 
-		it("can move the browser auth shell origin to hub while retaining public-chat as an explicit trusted origin", () => {
+		it("uses the campus browser auth shell origin while retaining public-chat as an explicit trusted origin", () => {
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://hub.muc.wiki",
+				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				publicChatOrigin: "https://chat.example.com",
@@ -125,15 +125,18 @@ export function registerAppApiAuthConfigSuite() {
 				database: {} as never,
 			} as never);
 
-			expect(config.baseURL).toBe("https://hub.muc.wiki");
-			expect(config.trustedOrigins).toEqual(["https://hub.muc.wiki", "https://chat.example.com"]);
+			expect(config.baseURL).toBe("https://campus.muc.wiki");
+			expect(config.trustedOrigins).toEqual([
+				"https://campus.muc.wiki",
+				"https://chat.example.com",
+			]);
 		});
 
 		it("materializes identity product state through better-auth user creation hooks", async () => {
 			const onIdentityUserCreated = vi.fn().mockResolvedValue(undefined);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://hub.muc.wiki",
+				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				publicChatOrigin: "https://chat.example.com",
@@ -170,7 +173,7 @@ export function registerAppApiAuthConfigSuite() {
 			);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://hub.muc.wiki",
+				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				publicChatOrigin: "https://chat.example.com",
@@ -225,10 +228,10 @@ export function registerAppApiAuthConfigSuite() {
 				to: ["jane@muc.edu.cn"],
 			});
 			expect(firstPayload.html).toContain(
-				"https://chat.example.com/api/auth/reset-password/reset_token_01HQ",
+				"https://campus.muc.wiki/api/auth/reset-password/reset_token_01HQ",
 			);
 			expect(firstPayload.html).toContain(
-				"callbackURL=https%3A%2F%2Fhub.muc.wiki%2Faccount%2Freset-password",
+				"callbackURL=https%3A%2F%2Fcampus.muc.wiki%2Faccount%2Freset-password",
 			);
 			expect(firstPayload.text).toContain("Campus Agent");
 
@@ -245,28 +248,28 @@ export function registerAppApiAuthConfigSuite() {
 		it("freezes reset redirect targets to /account/reset-password on the auth shell origin", () => {
 			expect(
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
+					authShellOrigin: "https://campus.muc.wiki",
 					redirectTo: "/account/reset-password",
 				}),
-			).toBe("https://hub.muc.wiki/account/reset-password");
+			).toBe("https://campus.muc.wiki/account/reset-password");
 
 			expect(
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
-					redirectTo: "https://hub.muc.wiki/account/reset-password",
+					authShellOrigin: "https://campus.muc.wiki",
+					redirectTo: "https://campus.muc.wiki/account/reset-password",
 				}),
-			).toBe("https://hub.muc.wiki/account/reset-password");
+			).toBe("https://campus.muc.wiki/account/reset-password");
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
-					redirectTo: "https://hub.muc.wiki/chat",
+					authShellOrigin: "https://campus.muc.wiki",
+					redirectTo: "https://campus.muc.wiki/chat",
 				}),
 			).toThrowError(/reset-password/i);
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
+					authShellOrigin: "https://campus.muc.wiki",
 					redirectTo: "https://evil.example.com/account/reset-password",
 				}),
 			).toThrowError(/reset-password/i);

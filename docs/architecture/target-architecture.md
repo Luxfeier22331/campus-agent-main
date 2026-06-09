@@ -64,8 +64,8 @@ handoff。
 ```mermaid
 flowchart LR
   subgraph Client["Browser Surfaces"]
-    Hub["hub-web"]
-    Chat["public-chat-web"]
+    Campus["campus-web"]
+    Chat["public-chat-web legacy"]
     Docs["public-docs"]
     Panel["protected-panel-web"]
   end
@@ -103,7 +103,7 @@ flowchart LR
     PanelOps["operator panel\nsanitized projections"]
   end
 
-  Hub --> AppAPI
+  Campus --> AppAPI
   Chat --> AppAPI
   Docs --> AppAPI
   Panel --> AppAPI

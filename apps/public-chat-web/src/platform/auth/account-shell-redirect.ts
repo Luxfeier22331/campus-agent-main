@@ -1,22 +1,22 @@
 const PUBLIC_CHAT_AUTH_COMPAT_ROUTES = {
 	"/forgot-password": {
 		compatPath: "/forgot-password",
-		hubPath: "/account/forgot-password",
+		accountPath: "/account/forgot-password",
 		kind: "forgot-password",
 	},
 	"/login": {
 		compatPath: "/login",
-		hubPath: "/account/login",
+		accountPath: "/account/login",
 		kind: "login",
 	},
 	"/register": {
 		compatPath: "/register",
-		hubPath: "/account/register",
+		accountPath: "/account/register",
 		kind: "register",
 	},
 	"/reset-password": {
 		compatPath: "/reset-password",
-		hubPath: "/account/reset-password",
+		accountPath: "/account/reset-password",
 		kind: "reset-password",
 	},
 } as const;
@@ -36,12 +36,6 @@ export function normalizeReturnToPath(value: string, defaultPath = "/chat"): str
 	}
 
 	return value;
-}
-
-function normalizeReturnToUrl(url: URL, value: string | null | undefined): string {
-	const path = normalizeReturnToPath(trimToNull(value) ?? "/chat");
-	const returnUrl = new URL(path, url.origin);
-	return returnUrl.toString();
 }
 
 export function buildPublicChatAuthCompatPath(
@@ -81,39 +75,28 @@ export function isPublicChatAuthCompatPath(pathname: string): pathname is Public
 	return pathname in PUBLIC_CHAT_AUTH_COMPAT_ROUTES;
 }
 
-export function buildHubAuthRedirect(
+export function buildAccountShellAuthRedirect(
 	url: URL,
-	hubBaseUrl: string | null | undefined,
+	authShellOrigin: string | null | undefined,
 ): string | null {
 	const route = PUBLIC_CHAT_AUTH_COMPAT_ROUTES[url.pathname as PublicChatAuthCompatPath];
 	if (!route) {
 		return null;
 	}
 
-	const normalizedHubBaseUrl = trimToNull(hubBaseUrl);
-	if (!normalizedHubBaseUrl) {
-		throw new Error("HUB_WEB_BASE_URL is required for public chat auth redirects.");
+	const normalizedAuthShellOrigin = trimToNull(authShellOrigin);
+	if (!normalizedAuthShellOrigin) {
+		throw new Error("AUTH_SHELL_ORIGIN is required for public chat auth redirects.");
 	}
 
-	const hubOrigin = new URL(normalizedHubBaseUrl).origin;
-	const redirectUrl = new URL(route.hubPath, hubOrigin);
+	const accountOrigin = new URL(normalizedAuthShellOrigin).origin;
+	const redirectUrl = new URL(route.accountPath, accountOrigin);
 
 	if (route.kind === "reset-password") {
 		const token = trimToNull(url.searchParams.get("token"));
 		if (token) {
 			redirectUrl.searchParams.set("token", token);
 		}
-
-		const returnTo = trimToNull(url.searchParams.get("return_to"));
-		if (returnTo) {
-			redirectUrl.searchParams.set("return_to", normalizeReturnToUrl(url, returnTo));
-		}
-	} else {
-		redirectUrl.searchParams.set("return_app", "chat");
-		redirectUrl.searchParams.set(
-			"return_to",
-			normalizeReturnToUrl(url, url.searchParams.get("return_to")),
-		);
 	}
 
 	return redirectUrl.toString();

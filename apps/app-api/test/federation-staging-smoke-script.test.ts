@@ -16,13 +16,13 @@ describe("federation staging smoke script", () => {
 		expect(packageJson.scripts["federation:smoke:staging"]).not.toContain("127.0.0.1");
 	});
 
-	it("requires staging hub origin, client secret, token exchange, and userinfo checks", () => {
+	it("requires staging campus origin, client secret, token exchange, and userinfo checks", () => {
 		const scriptSource = readFileSync(
 			join(appDir, "scripts", "staging-federation-smoke.mjs"),
 			"utf8",
 		);
 
-		expect(scriptSource).toContain("https://hub-staging.mucwiki-edge.link");
+		expect(scriptSource).toContain("https://campus-staging.mucwiki-edge.link");
 		expect(scriptSource).toContain("https://api-staging.mucwiki-edge.link/readyz");
 		expect(scriptSource).toContain("APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET is required");
 		expect(scriptSource).toContain("/api/federation/authorize");

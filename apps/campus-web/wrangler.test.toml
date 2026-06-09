@@ -7,8 +7,9 @@ preview_urls = false
 
 [vars]
 APP_API_BASE_URL = "https://app-api.internal"
+AUTH_TURNSTILE_APPEARANCE = "interaction-only"
+AUTH_TURNSTILE_EXECUTION = "render"
 CAMPUS_WEB_HOSTNAME = "campus.muc.wiki"
-HUB_WEB_ORIGIN = "https://hub.muc.wiki"
 
 [assets]
 directory = "./dist/client"

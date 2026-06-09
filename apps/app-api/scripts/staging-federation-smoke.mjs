@@ -4,14 +4,14 @@ import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-const DEFAULT_HUB_BASE_URL = "https://hub-staging.mucwiki-edge.link";
+const DEFAULT_CAMPUS_BASE_URL = "https://campus-staging.mucwiki-edge.link";
 const DEFAULT_APP_API_READYZ_URL = "https://api-staging.mucwiki-edge.link/readyz";
 const DEFAULT_CLIENT_ID = "muc-wiki";
 const DEFAULT_REDIRECT_URI = "https://wiki.mucwiki-edge.link/wiki/Special:PluggableAuthLogin";
 const DEFAULT_POST_LOGOUT_REDIRECT_URI = "https://wiki.mucwiki-edge.link/wiki/Special:UserLogout";
 const DEFAULT_SMOKE_EMAIL = "help_bot@outlook.com";
 const DEFAULT_SMOKE_NAME = "Campus Agent Federation Smoke";
-const EXPECTED_HUB_ORIGIN = "https://hub-staging.mucwiki-edge.link";
+const EXPECTED_CAMPUS_ORIGIN = "https://campus-staging.mucwiki-edge.link";
 const EXPECTED_APP_API_ORIGIN = "https://api-staging.mucwiki-edge.link";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -48,17 +48,17 @@ function assertStagingOrigin(url, expectedOrigin, label) {
 }
 
 function parseArgs(argv, env = process.env) {
-	const hubUrl = new URL(
-		readArgValue(argv, "--hub-base-url") ??
-			normalizeOptionalValue(env.HUB_STAGING_BASE_URL) ??
-			DEFAULT_HUB_BASE_URL,
+	const campusUrl = new URL(
+		readArgValue(argv, "--campus-base-url") ??
+			normalizeOptionalValue(env.CAMPUS_STAGING_BASE_URL) ??
+			DEFAULT_CAMPUS_BASE_URL,
 	);
 	const appApiReadyz = new URL(
 		readArgValue(argv, "--app-api-readyz-url") ??
 			normalizeOptionalValue(env.APP_API_STAGING_READYZ_URL) ??
 			DEFAULT_APP_API_READYZ_URL,
 	);
-	assertStagingOrigin(hubUrl, EXPECTED_HUB_ORIGIN, "hub");
+	assertStagingOrigin(campusUrl, EXPECTED_CAMPUS_ORIGIN, "campus");
 	assertStagingOrigin(appApiReadyz, EXPECTED_APP_API_ORIGIN, "app-api");
 
 	const smokeAuthSecret =
@@ -98,7 +98,7 @@ function parseArgs(argv, env = process.env) {
 		clientId: readArgValue(argv, "--client-id") ?? DEFAULT_CLIENT_ID,
 		clientSecret,
 		email: email.toLowerCase(),
-		hubBaseUrl: hubUrl.origin,
+		campusBaseUrl: campusUrl.origin,
 		name,
 		postLogoutRedirectUri: requireAbsoluteUrl(
 			readArgValue(argv, "--post-logout-redirect-uri") ??
@@ -176,17 +176,17 @@ async function expectStatus(url, expectedStatus, label) {
 
 async function assertDiscovery(args) {
 	const metadata = await expectJsonStatus(
-		new URL("/.well-known/openid-configuration", args.hubBaseUrl).toString(),
+		new URL("/.well-known/openid-configuration", args.campusBaseUrl).toString(),
 		200,
 		"openid discovery",
 	);
 	const expected = {
-		authorization_endpoint: `${args.hubBaseUrl}/api/federation/authorize`,
-		end_session_endpoint: `${args.hubBaseUrl}/api/federation/logout`,
-		issuer: args.hubBaseUrl,
-		jwks_uri: `${args.hubBaseUrl}/api/federation/jwks`,
-		token_endpoint: `${args.hubBaseUrl}/api/federation/token`,
-		userinfo_endpoint: `${args.hubBaseUrl}/api/federation/userinfo`,
+		authorization_endpoint: `${args.campusBaseUrl}/api/federation/authorize`,
+		end_session_endpoint: `${args.campusBaseUrl}/api/federation/logout`,
+		issuer: args.campusBaseUrl,
+		jwks_uri: `${args.campusBaseUrl}/api/federation/jwks`,
+		token_endpoint: `${args.campusBaseUrl}/api/federation/token`,
+		userinfo_endpoint: `${args.campusBaseUrl}/api/federation/userinfo`,
 	};
 	for (const [field, value] of Object.entries(expected)) {
 		if (metadata[field] !== value) {
@@ -210,7 +210,7 @@ async function assertDiscovery(args) {
 
 async function assertJwks(args) {
 	const jwks = await expectJsonStatus(
-		new URL("/api/federation/jwks", args.hubBaseUrl).toString(),
+		new URL("/api/federation/jwks", args.campusBaseUrl).toString(),
 		200,
 		"jwks",
 	);
@@ -271,7 +271,7 @@ function splitSetCookieHeader(value) {
 async function beginAuthorize(args, cookieHeader, pkce) {
 	const state = randomBytes(16).toString("base64url");
 	const nonce = randomBytes(16).toString("base64url");
-	const url = new URL("/api/federation/authorize", args.hubBaseUrl);
+	const url = new URL("/api/federation/authorize", args.campusBaseUrl);
 	url.searchParams.set("client_id", args.clientId);
 	url.searchParams.set("redirect_uri", args.redirectUri);
 	url.searchParams.set("response_type", "code");
@@ -297,7 +297,7 @@ async function beginAuthorize(args, cookieHeader, pkce) {
 	if (!location) {
 		throw new Error("Authorize redirect did not include a Location header.");
 	}
-	const redirect = new URL(location, args.hubBaseUrl);
+	const redirect = new URL(location, args.campusBaseUrl);
 	if (redirect.origin !== new URL(args.redirectUri).origin) {
 		throw new Error(`Authorize redirected to unexpected origin: ${redirect.toString()}`);
 	}
@@ -327,7 +327,7 @@ async function exchangeToken(args, code, pkce) {
 		grant_type: "authorization_code",
 		redirect_uri: args.redirectUri,
 	});
-	const response = await fetch(new URL("/api/federation/token", args.hubBaseUrl), {
+	const response = await fetch(new URL("/api/federation/token", args.campusBaseUrl), {
 		body,
 		headers: {
 			accept: "application/json",
@@ -354,7 +354,7 @@ async function exchangeToken(args, code, pkce) {
 }
 
 async function assertUserinfo(args, accessToken) {
-	const response = await fetch(new URL("/api/federation/userinfo", args.hubBaseUrl), {
+	const response = await fetch(new URL("/api/federation/userinfo", args.campusBaseUrl), {
 		headers: {
 			accept: "application/json",
 			authorization: `Bearer ${accessToken}`,
@@ -393,8 +393,8 @@ async function runSmoke(args) {
 	const events = [];
 	await expectStatus(args.appApiReadyzUrl, 200, "app-api readyz");
 	events.push("app_api_readyz_ok");
-	await expectStatus(new URL("/readyz", args.hubBaseUrl).toString(), 200, "hub readyz");
-	events.push("hub_readyz_ok");
+	await expectStatus(new URL("/readyz", args.campusBaseUrl).toString(), 200, "campus readyz");
+	events.push("campus_readyz_ok");
 	await assertDiscovery(args);
 	events.push("openid_discovery_ok");
 	await assertJwks(args);
@@ -430,7 +430,7 @@ export function writeSummary(args, result) {
 		"# MUC Wiki Federation Smoke",
 		"",
 		`- timestamp: ${new Date().toISOString()}`,
-		`- hub: ${args.hubBaseUrl}`,
+		`- campus: ${args.campusBaseUrl}`,
 		`- app_api_readyz: ${args.appApiReadyzUrl}`,
 		`- client_id: ${args.clientId}`,
 		`- redirect_uri: ${args.redirectUri}`,

@@ -67,9 +67,9 @@ recovery 模板继续放在 `env/commands/historical/*.env.example`。
 - [`apps/app-api/.env.example`](/home/reptilian/code/campus-agent/apps/app-api/.
   env.example)
   - `app-api` Wrangler / Drizzle process env
-- [`apps/hub-web/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/hub
+- [`apps/campus-web/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/campus
   -web/.dev.vars.example)
-  - `hub-web` Worker runtime string env
+  - `campus-web` Worker runtime string env
 - [`apps/authenticated-notice-collector/.env.example`](/home/reptilian/code/cam
   pus-agent/apps/authenticated-notice-collector/.env.example)
   - `authenticated-notice-collector` portal auth、collector ledger/lease、source-bucket

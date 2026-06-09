@@ -20,7 +20,7 @@ import type {
 	ConversationSummary,
 } from "@/features/conversation/model";
 import { UnauthorizedError } from "@/platform/api/client";
-import { buildHubLoginUrlForCurrentRoute } from "@/platform/runtime/config";
+import { buildAccountLoginUrlForCurrentRoute } from "@/platform/runtime/config";
 
 export function ConversationPage() {
 	const { conversationId } = useParams({ from: "/c/$conversationId" });
@@ -39,7 +39,7 @@ export function ConversationPage() {
 			})
 			.catch((reason: unknown) => {
 				if (reason instanceof UnauthorizedError) {
-					window.location.href = buildHubLoginUrlForCurrentRoute();
+					window.location.href = buildAccountLoginUrlForCurrentRoute();
 					return;
 				}
 				setError(reason instanceof Error ? reason.message : "会话加载失败。");
@@ -77,7 +77,7 @@ export function ConversationPage() {
 			}
 		} catch (reason) {
 			if (reason instanceof UnauthorizedError) {
-				window.location.href = buildHubLoginUrlForCurrentRoute();
+				window.location.href = buildAccountLoginUrlForCurrentRoute();
 				return;
 			}
 			setError(reason instanceof Error ? reason.message : "发送失败。");

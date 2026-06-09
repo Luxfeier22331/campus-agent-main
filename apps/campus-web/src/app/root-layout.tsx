@@ -1,6 +1,6 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import { BookOpen, MapIcon, MessageSquareText, Send, Utensils } from "lucide-react";
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
 
 import { cn } from "@/lib/utils";
 import { getCampusRuntimeConfig } from "@/platform/runtime/config";
@@ -108,4 +108,24 @@ export function NotFoundPage() {
 			</Link>
 		</section>
 	);
+}
+
+export function ShellSection({ children, className }: { children: ReactNode; className?: string }) {
+	return (
+		<section className={cn("mx-auto w-full px-5 py-14 lg:px-8 lg:py-20", className)}>
+			{children}
+		</section>
+	);
+}
+
+export function PageTitle({ children }: { children: ReactNode }) {
+	return (
+		<h1 className="text-4xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
+			{children}
+		</h1>
+	);
+}
+
+export function PageDescription({ children }: { children: ReactNode }) {
+	return <p className="mt-3 text-base leading-7 text-[var(--sys-text-muted)]">{children}</p>;
 }

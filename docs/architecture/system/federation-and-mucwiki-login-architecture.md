@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-02
-updated: 2026-06-03
+updated: 2026-06-09
 ---
 # Federation And MUC Wiki Login Architecture
 
@@ -80,19 +80,19 @@ Current implementation readiness:
 - Better Auth runtime tables live in `app_auth.*`.
 - App-owned federation policy remains in `identity.federation_*`.
 - The first client is materialized by the app-api provision script, not by
-  Hub, MediaWiki or a provider admin UI.
+  browser UI, MediaWiki or a provider admin UI.
 
 Do not write a hand-made OAuth/OIDC protocol stack in this repo.
 
 ## Public Origin And Routing
 
-The public issuer may be `https://hub.muc.wiki`, because hub is the app-set
-entry surface. That does not make hub the provider owner.
+The public issuer is `https://campus.muc.wiki`, because campus-web is the
+student-facing product endpoint and account browser shell. That does not make
+campus-web the provider owner.
 
-If the public origin is hub-owned, hub exposes only explicit allowlisted
-federation seams, namely discovery routes and canonical `/api/federation/*`,
-to `apps/app-api`. It must not become a generic app-api proxy or a MediaWiki
-compatibility backend.
+Campus-web exposes only explicit allowlisted federation seams, namely discovery
+routes and canonical `/api/federation/*`, to `apps/app-api`. It must not become
+a generic app-api proxy or a MediaWiki compatibility backend.
 
 ## Client Registry
 
@@ -131,8 +131,8 @@ authorization store objects.
 Example namespace:
 
 ```text
-https://hub.muc.wiki/claims/principal_type
-https://hub.muc.wiki/claims/identity_status
+https://campus.muc.wiki/claims/principal_type
+https://campus.muc.wiki/claims/identity_status
 ```
 
 Authorization-sensitive details such as raw entitlement snapshots, profile
@@ -146,7 +146,7 @@ trusted-client policy may skip repeated consent only after the client is
 explicitly registered and documented.
 
 Skipping consent must be a property of the federation client policy, not a
-hard-coded behavior inside hub UI or MediaWiki integration code.
+hard-coded behavior inside browser UI or MediaWiki integration code.
 
 ## Account Linking
 
@@ -164,13 +164,13 @@ Recommended posture:
 - app-api does not become MediaWiki permission authority
 
 Staging setup uses MediaWiki `OpenID Connect` extension plus
-`PluggableAuth`. Provider URL is `https://hub-staging.mucwiki-edge.link` for
-staging and `https://hub.muc.wiki` for production. The client secret is runtime
-secret material and is never committed.
+`PluggableAuth`. Provider URL is `https://campus-staging.mucwiki-edge.link` for
+staging and `https://campus.muc.wiki` for production. The client secret is
+runtime secret material and is never committed.
 
 ## Forbidden Shapes
 
-- Do not share `.muc.wiki` auth cookies across hub/app surfaces and MediaWiki.
+- Do not share `.muc.wiki` auth cookies across campus/app surfaces and MediaWiki.
 - Do not import MediaWiki password hashes or sessions into app-api.
 - Do not let MediaWiki database rows become app-api account truth.
 - Do not use profile memory or chat history in federation claims.

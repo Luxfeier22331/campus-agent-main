@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-06-02
-updated: 2026-06-03
+updated: 2026-06-09
 ---
 # App API Federation HTTP Contract
 
@@ -47,8 +47,8 @@ Runtime persistence:
   `identity.federation_user_grants`.
 - The `muc-wiki` client is materialized by
   `pnpm --dir apps/app-api federation:provision-muc-wiki` or
-  `pnpm --dir apps/app-api federation:provision-muc-wiki:staging`, not by Hub
-  UI or MediaWiki.
+  `pnpm --dir apps/app-api federation:provision-muc-wiki:staging`, not by
+  browser UI or MediaWiki.
 
 ## Discovery
 
@@ -60,12 +60,12 @@ Required fields include:
 
 ```json
 {
-  "issuer": "https://hub.muc.wiki",
-  "authorization_endpoint": "https://hub.muc.wiki/api/federation/authorize",
-  "token_endpoint": "https://hub.muc.wiki/api/federation/token",
-  "userinfo_endpoint": "https://hub.muc.wiki/api/federation/userinfo",
-  "jwks_uri": "https://hub.muc.wiki/api/federation/jwks",
-  "end_session_endpoint": "https://hub.muc.wiki/api/federation/logout",
+  "issuer": "https://campus.muc.wiki",
+  "authorization_endpoint": "https://campus.muc.wiki/api/federation/authorize",
+  "token_endpoint": "https://campus.muc.wiki/api/federation/token",
+  "userinfo_endpoint": "https://campus.muc.wiki/api/federation/userinfo",
+  "jwks_uri": "https://campus.muc.wiki/api/federation/jwks",
+  "end_session_endpoint": "https://campus.muc.wiki/api/federation/logout",
   "response_types_supported": ["code"],
   "grant_types_supported": ["authorization_code", "refresh_token"],
   "subject_types_supported": ["public"],
@@ -88,17 +88,18 @@ origin. Local/staging origins must not be documented as production truth.
 Production issuer:
 
 ```text
-https://hub.muc.wiki
+https://campus.muc.wiki
 ```
 
 Staging issuer:
 
 ```text
-https://hub-staging.mucwiki-edge.link
+https://campus-staging.mucwiki-edge.link
 ```
 
-If the issuer is `https://hub.muc.wiki`, hub only exposes explicit allowlisted
-federation seams to `apps/app-api`. Endpoint ownership remains in `apps/app-api`.
+If the issuer is `https://campus.muc.wiki`, campus-web only exposes explicit
+allowlisted federation seams to `apps/app-api`. Endpoint ownership remains in
+`apps/app-api`.
 
 ## Authorization Endpoint
 
@@ -141,7 +142,8 @@ Rules:
 - confidential clients must authenticate according to registered token endpoint
   auth method
 - public clients must use PKCE
-- access tokens and refresh tokens are never logged or returned through hub
+- access tokens and refresh tokens are never logged or returned through the
+  browser shell
   account overview
 
 ## Userinfo Endpoint

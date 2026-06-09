@@ -16,3 +16,15 @@ export function Card({
 		</section>
 	);
 }
+
+export function CardContent({
+	children,
+	className,
+	...props
+}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
+	return (
+		<div className={cn("p-5", className)} {...props}>
+			{children}
+		</div>
+	);
+}

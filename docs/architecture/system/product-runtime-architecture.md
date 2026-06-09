@@ -2,14 +2,14 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-06
+updated: 2026-06-09
 ---
 # Product Runtime Architecture
 
 ## 文档边界
 
-本文冻结 public chat、protected panel、shared `app-api` 与 delivery/runtime seam 的
-supporting architecture。
+本文冻结 `campus-web`、legacy public chat、protected panel、shared `app-api` 与
+delivery/runtime seam 的 supporting architecture。
 
 它回答的是：
 
@@ -22,12 +22,12 @@ supporting architecture。
 
 产品/runtime 主链路固定为：
 
-`browser -> hub-web -> app launcher / account shell`
+`browser -> campus-web -> student campus experience / account shell`
 
-`hub-web same-site allowlisted /api/* -> app-api`
+`campus-web same-origin allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web -> app-api -> execution-control -> Temporal -> activity
-worker -> supervisor-agent-worker private bridge`
+`browser -> public-chat-web legacy chat surface -> app-api -> execution-control
+-> Temporal -> activity worker -> supervisor-agent-worker private bridge`
 
 `browser -> public-docs static reader assets`
 
@@ -38,16 +38,16 @@ model`
 
 这意味着：
 
-- 当前已落地的 public/protected/docs surface 是 shared `app-api` 前面的并列 browser surface
+- 当前已落地的 campus/public/protected/docs surface 是 shared `app-api` 前面的并列 browser
+  surface
 - Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service
   Binding；
   `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的
   origin
-- `apps/hub-web` 是 app-set product entry surface；它拥有平面入口、launcher registry 与
-  account
-  browser shell，但不拥有 backend truth
-- `apps/public-chat-web` 与 `apps/public-docs` 都是 public-facing surface，但它们的内部 IA
-  不自动升级成整个产品的顶层 IA
+- `apps/campus-web` 是学生侧 product entry surface 与 account browser shell；它拥有
+  campus experience routes、账号浏览器页面与 same-origin proxy seam，但不拥有 backend truth
+- `apps/public-chat-web` 是 legacy chat surface；它不再定义当前产品入口、账号入口或
+  auth return target
 - `apps/public-docs` 是独立 docs-first browser surface
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
@@ -71,18 +71,21 @@ model`
 
 产品/runtime supporting architecture 当前已经冻结到以下粒度：
 
-- `public-chat-web`
-  - 当前是最成熟的公开助理入口，不再以旧 `public-consumer-chat` 为 forward truth
-- `hub-web`
-  - 当前是 `hub.muc.wiki` app-set entry surface
+- `campus-web`
+  - 当前是 `campus.muc.wiki` student-facing product entry surface
   - 使用 Cloudflare Worker + Vite React SPA + TanStack Router
-  - 只为 `/` 与 `/account/*` 这类 hub-owned shell path 交付 SPA shell
-  - sibling app 入口通过 launcher registry 的 `app_link` / `planned` / `external`
-    target 表达，不在 hub 内创建 fake browser route shell
-  - 只通过 allowlisted same-site app-api seams 消费 `/api/me` 与必要 auth endpoints
-  - account center 的 forward shape 消费 Identity Platform product projection，不消费
-    Better Auth raw records
-  - legacy Wiki 只作为 external-link card 指向 `https://muc.wiki`
+  - 为 `/`、`/c/:conversationId`、`/docs/*`、`/map`、`/dining`、`/feedback` 与
+    `/account/*` 交付 SPA shell
+  - 只通过 allowlisted same-origin app-api seams 消费 `/api/me/*`、必要 auth endpoints、
+    implemented federation endpoints 与 campus experience endpoints
+  - account browser shape 消费 Identity Platform product projection，不消费 Better Auth
+    raw records
+  - public production endpoint 固定为 `https://campus.muc.wiki`，staging endpoint 固定为
+    `https://campus-staging.mucwiki-edge.link`
+- `public-chat-web`
+  - legacy public chat surface；保留旧 `/login`、`/register`、`/forgot-password`、
+    `/reset-password` route 作为 bounded redirect 到 campus account shell
+  - 不拥有 account shell、captcha widget runtime 或 password-reset form runtime
 - `public-docs`
   - 已是正式公开文档站 app；当前 docs shell 已落地，并通过 Worker `APP_API` Service
     Binding 消费 shared app-api 的 same-site `/api/docs/*` control-plane
@@ -118,36 +121,32 @@ model`
 
 ## Surface Responsibilities
 
+### `apps/campus-web`
+
+- student-facing campus UI and app grid
+- conversation/docs/map/dining/feedback browser shells
+- `/account/*` account browser shell, auth forms, password reset pages, federation
+  consent/error pages
+- same-origin allowlisted `/api/*` seam into `apps/app-api`
+- no generic app-api proxy
+- no auth/session/identity/federation backend ownership
+
 ### `apps/public-chat-web`
 
-- public chat UI
+- legacy public chat UI
 - same-site `/api/*` seam into `apps/app-api`
 - chat-local auth browser routes are bounded compatibility redirects/shims to
-  hub account routes with explicit `return_to`
+  campus account routes
 - does not own account-shell UI, captcha widget runtime, or password-reset form
 - browser auth handoff is
-  `public-chat-web compat route -> hub-web /account/* -> /api/auth/* -> app-api`
+  `public-chat-web compat route -> campus-web /account/* -> /api/auth/* -> app-api`
 - 不拥有 auth/session/conversation truth
 
 ### `apps/hub-web`
 
-- flat app launcher for `hub.muc.wiki`
-- single launcher registry with `internal` / `app_link` / `planned` / `external`
-  target kinds
-- account shell routes:
-  - `/account`
-  - `/account/login`
-  - `/account/register`
-  - `/account/forgot-password`
-  - `/account/reset-password`
-- same-site allowlisted auth and `/api/me` seams into `apps/app-api` via Worker
-  Service Binding
-- fail-closed unknown browser path handling, including sibling app slugs that
-  are
-  not hub-owned shell paths
-- no generic app-api proxy
-- no MediaWiki page/content/upload proxy
-- no auth/session/principal backend ownership
+- retired package during deletion window
+- not a current product entry, account shell, auth return target, OAuth issuer,
+  staging deploy gate, or account smoke target
 
 ### `apps/public-docs`
 
@@ -321,13 +320,13 @@ minimal operator context -> runtime APIs`
 
 public auth family 的 runtime/product posture 固定为：
 
-- `hub-web` 拥有 `/account/login`、`/account/register`、`/account/forgot-password`、
+- `campus-web` 拥有 `/account/login`、`/account/register`、`/account/forgot-password`、
   `/account/reset-password` 这组 public account browser shell
 - `public-chat-web` 的 `/login`、`/register`、`/forgot-password`、`/reset-password`
   只保留为 bounded compatibility redirects/shims，不再定义 account shell ownership
 - `app-api` 通过现有 auth provider / plugin 拥有最终 auth admission 与 server-side
   verification
-- auth family 的 human verification transport 固定走 same-site `hub-web ->
+- auth family 的 human verification transport 固定走 same-origin `campus-web ->
   /api/auth/* -> app-api`
 - `public-chat-web` 不再注入 Turnstile runtime config，也不再持有 auth-page
   staging/live-smoke posture

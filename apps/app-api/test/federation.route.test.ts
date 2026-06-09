@@ -6,7 +6,7 @@ const env = {
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_NAME: "campus-agent-app-api",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
@@ -34,7 +34,7 @@ describe("federation provider routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://hub.muc.wiki/api/auth/sign-in/email", {
+			new Request("https://campus.muc.wiki/api/auth/sign-in/email", {
 				body: JSON.stringify({ email: "jane@muc.edu.cn", password: "StagingPass!2026" }),
 				headers: { "content-type": "application/json" },
 				method: "POST",
@@ -62,11 +62,11 @@ describe("federation provider routes", () => {
 		});
 
 		const requests = [
-			new Request("https://hub.muc.wiki/api/federation/authorize"),
-			new Request("https://hub.muc.wiki/api/federation/token", { method: "POST" }),
-			new Request("https://hub.muc.wiki/api/federation/userinfo"),
-			new Request("https://hub.muc.wiki/api/federation/jwks"),
-			new Request("https://hub.muc.wiki/api/federation/logout"),
+			new Request("https://campus.muc.wiki/api/federation/authorize"),
+			new Request("https://campus.muc.wiki/api/federation/token", { method: "POST" }),
+			new Request("https://campus.muc.wiki/api/federation/userinfo"),
+			new Request("https://campus.muc.wiki/api/federation/jwks"),
+			new Request("https://campus.muc.wiki/api/federation/logout"),
 		];
 
 		for (const request of requests) {
@@ -94,7 +94,7 @@ describe("federation provider routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://hub.muc.wiki/api/federation/authorize"),
+			new Request("https://campus.muc.wiki/api/federation/authorize"),
 			env,
 		);
 
@@ -104,7 +104,7 @@ describe("federation provider routes", () => {
 		);
 	});
 
-	it("normalizes browser authorize errors to the hub federation error page", async () => {
+	it("normalizes browser authorize errors to the campus federation error page", async () => {
 		const app = createApp(env, {
 			authHandler: vi.fn(() =>
 				Response.json(
@@ -118,30 +118,30 @@ describe("federation provider routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://hub-staging.mucwiki-edge.link/api/federation/authorize"),
+			new Request("https://campus-staging.mucwiki-edge.link/api/federation/authorize"),
 			env,
 		);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.get("location")).toBe(
-			"https://hub-staging.mucwiki-edge.link/account/federation/error?error=invalid_redirect_uri&error_description=redirect+URI+is+not+registered",
+			"https://campus-staging.mucwiki-edge.link/account/federation/error?error=invalid_redirect_uri&error_description=redirect+URI+is+not+registered",
 		);
 	});
 
 	it("serves well-known metadata through the Better Auth provider metadata API", async () => {
 		const getOpenIdConfig = vi.fn(async () => ({
-			issuer: "https://hub-staging.mucwiki-edge.link",
-			authorization_endpoint: "https://hub-staging.mucwiki-edge.link/oauth2/authorize",
-			token_endpoint: "https://hub-staging.mucwiki-edge.link/oauth2/token",
-			userinfo_endpoint: "https://hub-staging.mucwiki-edge.link/oauth2/userinfo",
-			jwks_uri: "https://hub-staging.mucwiki-edge.link/jwks",
-			end_session_endpoint: "https://hub-staging.mucwiki-edge.link/oauth2/end-session",
+			issuer: "https://campus-staging.mucwiki-edge.link",
+			authorization_endpoint: "https://campus-staging.mucwiki-edge.link/oauth2/authorize",
+			token_endpoint: "https://campus-staging.mucwiki-edge.link/oauth2/token",
+			userinfo_endpoint: "https://campus-staging.mucwiki-edge.link/oauth2/userinfo",
+			jwks_uri: "https://campus-staging.mucwiki-edge.link/jwks",
+			end_session_endpoint: "https://campus-staging.mucwiki-edge.link/oauth2/end-session",
 		}));
 		const getOAuthServerConfig = vi.fn(async () => ({
-			issuer: "https://hub-staging.mucwiki-edge.link",
-			authorization_endpoint: "https://hub-staging.mucwiki-edge.link/oauth2/authorize",
-			token_endpoint: "https://hub-staging.mucwiki-edge.link/oauth2/token",
-			jwks_uri: "https://hub-staging.mucwiki-edge.link/jwks",
+			issuer: "https://campus-staging.mucwiki-edge.link",
+			authorization_endpoint: "https://campus-staging.mucwiki-edge.link/oauth2/authorize",
+			token_endpoint: "https://campus-staging.mucwiki-edge.link/oauth2/token",
+			jwks_uri: "https://campus-staging.mucwiki-edge.link/jwks",
 		}));
 		const app = createApp(env, {
 			authHandler: vi.fn(() => new Response(null, { status: 404 })),
@@ -165,18 +165,18 @@ describe("federation provider routes", () => {
 		expect(openIdResponse.status).toBe(200);
 		expect(oauthMetadataResponse.status).toBe(200);
 		await expect(openIdResponse.json()).resolves.toMatchObject({
-			issuer: "https://hub-staging.mucwiki-edge.link",
-			authorization_endpoint: "https://hub-staging.mucwiki-edge.link/api/federation/authorize",
-			token_endpoint: "https://hub-staging.mucwiki-edge.link/api/federation/token",
-			userinfo_endpoint: "https://hub-staging.mucwiki-edge.link/api/federation/userinfo",
-			jwks_uri: "https://hub-staging.mucwiki-edge.link/api/federation/jwks",
-			end_session_endpoint: "https://hub-staging.mucwiki-edge.link/api/federation/logout",
+			issuer: "https://campus-staging.mucwiki-edge.link",
+			authorization_endpoint: "https://campus-staging.mucwiki-edge.link/api/federation/authorize",
+			token_endpoint: "https://campus-staging.mucwiki-edge.link/api/federation/token",
+			userinfo_endpoint: "https://campus-staging.mucwiki-edge.link/api/federation/userinfo",
+			jwks_uri: "https://campus-staging.mucwiki-edge.link/api/federation/jwks",
+			end_session_endpoint: "https://campus-staging.mucwiki-edge.link/api/federation/logout",
 		});
 		await expect(oauthMetadataResponse.json()).resolves.toMatchObject({
-			issuer: "https://hub-staging.mucwiki-edge.link",
-			authorization_endpoint: "https://hub-staging.mucwiki-edge.link/api/federation/authorize",
-			token_endpoint: "https://hub-staging.mucwiki-edge.link/api/federation/token",
-			jwks_uri: "https://hub-staging.mucwiki-edge.link/api/federation/jwks",
+			issuer: "https://campus-staging.mucwiki-edge.link",
+			authorization_endpoint: "https://campus-staging.mucwiki-edge.link/api/federation/authorize",
+			token_endpoint: "https://campus-staging.mucwiki-edge.link/api/federation/token",
+			jwks_uri: "https://campus-staging.mucwiki-edge.link/api/federation/jwks",
 		});
 	});
 });

@@ -1,5 +1,9 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
+import {
+	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
+	resolveTurnstileRuntimeConfig,
+} from "./platform/auth/turnstile-runtime-config";
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
 
@@ -11,8 +15,10 @@ export interface Env {
 	ASSETS?: {
 		fetch(request: Request): Promise<Response> | Response;
 	};
+	AUTH_TURNSTILE_APPEARANCE?: string;
+	AUTH_TURNSTILE_EXECUTION?: string;
+	AUTH_TURNSTILE_SITE_KEY?: string;
 	CAMPUS_WEB_HOSTNAME?: string;
-	HUB_WEB_ORIGIN?: string;
 	SENTRY_DSN?: string;
 	SENTRY_ENVIRONMENT?: string;
 	SENTRY_RELEASE?: string;
@@ -20,7 +26,7 @@ export interface Env {
 
 const SECURITY_HEADERS = {
 	"content-security-policy":
-		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io; worker-src 'self' blob:",
+		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io; worker-src 'self' blob:",
 	"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 	"referrer-policy": "strict-origin-when-cross-origin",
 	"x-content-type-options": "nosniff",
@@ -33,6 +39,14 @@ const FORWARDED_HEADERS = [
 	"idempotency-key",
 	"x-trace-id",
 ] as const;
+const AUTH_FORWARDED_HEADERS = [
+	...FORWARDED_HEADERS,
+	"origin",
+	"referer",
+	"x-captcha-response",
+] as const;
+const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authorization"] as const;
+const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -44,7 +58,19 @@ const VITE_DEV_ASSET_PREFIXES = [
 ] as const;
 
 const SHELL_PATH_PREFIXES = ["/c/", "/docs/"] as const;
-const SHELL_EXACT_PATHS = new Set(["/", "/map", "/dining", "/feedback"]);
+const SHELL_EXACT_PATHS = new Set([
+	"/",
+	"/map",
+	"/dining",
+	"/feedback",
+	"/account",
+	"/account/login",
+	"/account/register",
+	"/account/forgot-password",
+	"/account/reset-password",
+	"/account/federation/consent",
+	"/account/federation/error",
+]);
 
 const worker = {
 	async fetch(request: Request, env: Env): Promise<Response> {
@@ -139,9 +165,6 @@ function getMissingRuntimeConfig(env: Env): string[] {
 	if (!env.CAMPUS_WEB_HOSTNAME?.trim()) {
 		missing.push("CAMPUS_WEB_HOSTNAME");
 	}
-	if (!env.HUB_WEB_ORIGIN?.trim()) {
-		missing.push("HUB_WEB_ORIGIN");
-	}
 	return missing;
 }
 
@@ -158,7 +181,7 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 	const inboundUrl = new URL(request.url);
 	const appApiUrl = new URL(inboundUrl.pathname + inboundUrl.search, env.APP_API_BASE_URL);
 	const headers = new Headers();
-	for (const headerName of FORWARDED_HEADERS) {
+	for (const headerName of getForwardedHeaders(inboundUrl.pathname)) {
 		const value = request.headers.get(headerName);
 		if (value) {
 			headers.set(headerName, value);
@@ -208,7 +231,7 @@ async function serveCampusShell(request: Request, env: Env): Promise<Response> {
 		for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
 			headers.set(key, value);
 		}
-		return new Response(injectCampusRuntimeConfig(await response.text(), env), {
+		return new Response(injectCampusRuntimeConfig(await response.text(), request, env), {
 			headers,
 			status: response.status,
 			statusText: response.statusText,
@@ -217,14 +240,20 @@ async function serveCampusShell(request: Request, env: Env): Promise<Response> {
 	return responseWithSecurityHeaders(response);
 }
 
-function injectCampusRuntimeConfig(html: string, env: Env): string {
-	const hubOrigin = env.HUB_WEB_ORIGIN?.trim();
+function injectCampusRuntimeConfig(html: string, request: Request, env: Env): string {
+	const campusOrigin = new URL(request.url).origin;
 	const serializedConfig = JSON.stringify({
-		accountUrl: hubOrigin ? new URL("/account", hubOrigin).toString() : "",
-		loginReturnApp: "campus",
-		loginUrl: hubOrigin ? new URL("/account/login", hubOrigin).toString() : "",
+		accountUrl: new URL("/account", campusOrigin).toString(),
+		loginUrl: new URL("/account/login", campusOrigin).toString(),
 	}).replace(/</g, "\\u003c");
-	const scriptTag = `<script id="${CAMPUS_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">${serializedConfig}</script>`;
+	const authRuntimeConfig = JSON.stringify(
+		resolveTurnstileRuntimeConfig({
+			turnstileAppearance: env.AUTH_TURNSTILE_APPEARANCE,
+			turnstileExecution: env.AUTH_TURNSTILE_EXECUTION,
+			turnstileSiteKey: env.AUTH_TURNSTILE_SITE_KEY,
+		}),
+	).replace(/</g, "\\u003c");
+	const scriptTag = `<script id="${CAMPUS_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">${serializedConfig}</script><script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">${authRuntimeConfig}</script>`;
 
 	if (html.includes(`id="${CAMPUS_RUNTIME_CONFIG_SCRIPT_ID}"`)) {
 		return html;
@@ -235,6 +264,16 @@ function injectCampusRuntimeConfig(html: string, env: Env): string {
 	}
 
 	return `${html}${scriptTag}`;
+}
+
+function getForwardedHeaders(pathname: string) {
+	if (pathname.startsWith("/api/auth/")) {
+		return AUTH_FORWARDED_HEADERS;
+	}
+	if (FEDERATION_CREDENTIAL_PATHS.has(pathname)) {
+		return FEDERATION_CREDENTIAL_FORWARDED_HEADERS;
+	}
+	return FORWARDED_HEADERS;
 }
 
 function isCampusShellPath(pathname: string): boolean {

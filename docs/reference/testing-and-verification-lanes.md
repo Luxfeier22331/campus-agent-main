@@ -180,7 +180,7 @@ docs/runbooks/e2e-qa-release-runbook.md
 - 这是上线前真实 staging 验收 lane，不替代 unit、typecheck、build、lint 或 integration lane
 - 它只在真实 staging deployment、真实 auth/session、真实 browser surface、真实 data plane 与真实
   observability sink 均存在时执行
-- 当前默认目标环境是 `mucwiki-edge.link` staging；`hub.muc.wiki` production custom-hostname
+- 当前默认目标环境是 `mucwiki-edge.link` staging；`campus.muc.wiki` production custom-hostname
   path 不属于当前 gate
 - 它串联 repo preflight、execution runtime readiness、public surface health、chat E2E、
   docs gated smoke、protected panel Access smoke、browser QA、Sentry/Axiom sink verification

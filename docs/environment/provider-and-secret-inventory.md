@@ -773,7 +773,7 @@ root convenience keys：
 
 - `SENTRY_API_TOKEN` 不是 Worker runtime secret，不应同步到 `.dev.vars`
 - 默认用 `SENTRY_ENVIRONMENT` 区分 `staging` / `production`
-- 默认用 `surface` tag 区分 `app-api`、`public-chat-web`、`protected-panel-web`、`hub-web`
+- 默认用 `surface` tag 区分 `app-api`、`campus-web`、`public-chat-web`、`protected-panel-web`
 - 只有当告警归属、事件噪声、数据策略或 issue regression 已经实质冲突时，才拆分为多个 Sentry project
 
 ## 9. Axiom
@@ -963,7 +963,7 @@ root convenience keys：
 - [../../.env.example](../../.env.example)
 - [../../apps/app-api/.env.example](../../apps/app-api/.env.example)
 - [../../apps/app-api/.dev.vars.example](../../apps/app-api/.dev.vars.example)
-- [../../apps/hub-web/.dev.vars.example](../../apps/hub-web/.dev.vars.example)
+- [../../apps/campus-web/.dev.vars.example](../../apps/campus-web/.dev.vars.example)
 - [../../apps/public-chat-web/.dev.vars.example](../../apps/public-chat-web/.dev
   .vars.example)
 - [../../apps/protected-panel-web/.dev.vars.example](../../apps/protected-panel-

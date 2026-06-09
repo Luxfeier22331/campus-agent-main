@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-06-03
-updated: 2026-06-03
+updated: 2026-06-09
 ---
 # E2E QA Release Runbook
 
@@ -18,7 +18,8 @@ runbook，不重复维护每个子流程的全部细节。
 - `docs/runbooks/execution-control-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 
-当前默认目标环境是 `mucwiki-edge.link` staging。`hub.muc.wiki` 不属于本文的当前 gate。
+当前默认目标环境是 `mucwiki-edge.link` staging。`campus.muc.wiki` 是 production
+product endpoint；本文当前 gate 使用 `campus-staging.mucwiki-edge.link`。
 
 ## Evidence Directory
 
@@ -77,8 +78,8 @@ ssh deploy@152.53.241.57 \
 for url in \
   https://api-staging.mucwiki-edge.link/healthz \
   https://api-staging.mucwiki-edge.link/readyz \
-  https://hub-staging.mucwiki-edge.link/healthz \
-  https://hub-staging.mucwiki-edge.link/readyz \
+  https://campus-staging.mucwiki-edge.link/healthz \
+  https://campus-staging.mucwiki-edge.link/readyz \
   https://chat-staging.mucwiki-edge.link/healthz \
   https://chat-staging.mucwiki-edge.link/readyz \
   https://docs-staging.mucwiki-edge.link/readyz
@@ -90,7 +91,7 @@ done | tee "$E2E_QA_EVIDENCE_DIR/surface-health.txt"
 
 通过标准：
 
-- API、hub、chat、docs health / ready endpoints 返回预期 `200`
+- API、campus、chat、docs health / ready endpoints 返回预期 `200`
 - endpoint list 只包含 user/product surfaces，不包含 execution-control machine ingress
 - execution-control readiness 由
   `infra/local/staging/status-execution-control-staging.sh --check` 与
@@ -195,9 +196,9 @@ pnpm --dir apps/protected-panel-web access:smoke:staging \
 
 人工或浏览器自动化至少检查：
 
-- `https://hub-staging.mucwiki-edge.link`
-  - launcher 可见
-  - Chat / Docs / Panel 入口指向 staging host
+- `https://campus-staging.mucwiki-edge.link`
+  - campus shell 可见
+  - account / dining / map / docs / feedback 入口可打开
   - 不出现 `ayafeed.com`、`localhost`、`127.0.0.1`
 - `https://chat-staging.mucwiki-edge.link`
   - 使用 staging smoke identity 后 chat UI 可打开

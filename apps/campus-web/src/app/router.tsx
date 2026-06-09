@@ -20,6 +20,36 @@ const HomePage = lazy(() =>
 const MapPage = lazy(() =>
 	import("./routes/map-page").then((module) => ({ default: module.MapPage })),
 );
+const AccountPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({ default: module.AccountPage })),
+);
+const AccountActionModule = () => import("./routes/account-action-page");
+const AccountLoginPage = lazy(() =>
+	AccountActionModule().then((module) => ({
+		default: () => <module.AccountActionPage kind="login" />,
+	})),
+);
+const AccountRegisterPage = lazy(() =>
+	AccountActionModule().then((module) => ({
+		default: () => <module.AccountActionPage kind="register" />,
+	})),
+);
+const AccountForgotPasswordPage = lazy(() =>
+	AccountActionModule().then((module) => ({
+		default: () => <module.AccountActionPage kind="forgot-password" />,
+	})),
+);
+const AccountResetPasswordPage = lazy(() =>
+	AccountActionModule().then((module) => ({
+		default: () => <module.AccountActionPage kind="reset-password" />,
+	})),
+);
+const FederationConsentPage = lazy(() =>
+	AccountActionModule().then((module) => ({ default: module.FederationConsentPage })),
+);
+const FederationErrorPage = lazy(() =>
+	AccountActionModule().then((module) => ({ default: module.FederationErrorPage })),
+);
 
 const rootRoute = createRootRoute({
 	component: RootLayout,
@@ -62,6 +92,48 @@ const feedbackRoute = createRoute({
 	path: "/feedback",
 });
 
+const accountRoute = createRoute({
+	component: AccountPage,
+	getParentRoute: () => rootRoute,
+	path: "/account",
+});
+
+const accountLoginRoute = createRoute({
+	component: AccountLoginPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/login",
+});
+
+const accountRegisterRoute = createRoute({
+	component: AccountRegisterPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/register",
+});
+
+const accountForgotPasswordRoute = createRoute({
+	component: AccountForgotPasswordPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/forgot-password",
+});
+
+const accountResetPasswordRoute = createRoute({
+	component: AccountResetPasswordPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/reset-password",
+});
+
+const accountFederationConsentRoute = createRoute({
+	component: FederationConsentPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/federation/consent",
+});
+
+const accountFederationErrorRoute = createRoute({
+	component: FederationErrorPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/federation/error",
+});
+
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	conversationRoute,
@@ -69,6 +141,13 @@ const routeTree = rootRoute.addChildren([
 	mapRoute,
 	diningRoute,
 	feedbackRoute,
+	accountRoute,
+	accountLoginRoute,
+	accountRegisterRoute,
+	accountForgotPasswordRoute,
+	accountResetPasswordRoute,
+	accountFederationConsentRoute,
+	accountFederationErrorRoute,
 ]);
 
 const router = createRouter({

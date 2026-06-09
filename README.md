@@ -4,18 +4,19 @@
 
 ## Overview
 
-当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、`supervisor-led`
-的校园助理系统：`hub-web` 入口面、公开聊天面、公开文档站、受保护运营面、共享 `app-api`、内部
-`execution-control`，以及按能力边界拆分的 agent / retrieval / ingestion packages。
+当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`campus-web first`、
+`supervisor-led` 的校园助理系统：`campus-web` 学生侧主体验与账号浏览器 shell、公开文档站、
+受保护运营面、共享 `app-api`、内部 `execution-control`，以及按能力边界拆分的 agent /
+retrieval / ingestion packages。
 
 当前 merged truth 的主路径为：
 
 ```text
-browser -> hub-web -> app launcher / account shell
+browser -> campus-web -> student experience / account shell
 
-hub-web same-site allowlisted /api/* -> app-api
+campus-web same-origin allowlisted /api/* -> app-api
 
-browser -> public-chat-web -> app-api -> execution-control
+browser -> public-chat-web legacy chat surface -> app-api -> execution-control
 -> Temporal -> activity worker -> supervisor-agent-worker
 -> rag-agent / retrieval-core
 
@@ -40,8 +41,9 @@ browser -> protected-panel-web -> app-api
 - 当前 online answer path 仍包含 Python `supervisor-agent-worker` bridge；它是当前实现事实和迁移缺口，
   长期目标是 Go-owned workflow / capability activity worker plane
 - online query path 与 offline data plane 持续分层
-- `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
-  第二产品后端或 MediaWiki 替代物
+- `apps/campus-web` 是当前学生侧 product entry surface、账号浏览器
+  shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`
+  仍是 auth/session/identity/federation truth owner
 
 ## Status
 
@@ -63,7 +65,7 @@ browser -> protected-panel-web -> app-api
 仓库按 runtime boundary 与 capability boundary 组织：
 
 - [`apps/`](./apps/)
-  - runtime shell 与 transport boundary，例如 `hub-web`、`public-chat-web`、`public-docs`、
+  - runtime shell 与 transport boundary，例如 `campus-web`、`public-chat-web`、`public-docs`、
     `protected-panel-web`、`app-api`、`execution-control`、`ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
@@ -80,7 +82,7 @@ browser -> protected-panel-web -> app-api
 
 主链路相关目录：
 
-- [`apps/hub-web`](./apps/hub-web/)
+- [`apps/campus-web`](./apps/campus-web/)
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/public-docs`](./apps/public-docs/)
 - [`apps/execution-control`](./apps/execution-control/)

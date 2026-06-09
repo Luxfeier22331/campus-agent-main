@@ -8,13 +8,13 @@ updated: 2026-06-03
 
 ## 文档边界
 
-本文冻结 MUC Wiki Hub Identity Platform 的 logical data ownership。
+本文冻结 MUC Wiki Identity Platform 的 logical data ownership。
 
 它区分：
 
 - auth runtime adapter tables
 - app-owned identity product truth
-- projection/read-model fields exposed to hub and other first-party surfaces
+- projection/read-model fields exposed to campus and other first-party surfaces
 - future federation client policy data
 
 本文不替代 migration files、Better Auth adapter schema docs 或 physical table DDL。
@@ -242,7 +242,8 @@ Rules:
 - First implementation uses controlled/static client registration.
 - The first `muc-wiki` client policy is materialized by
   `apps/app-api/scripts/provision-muc-wiki-federation-client.ts`.
-- Hub and MediaWiki do not create, mutate or own federation client policy.
+- Browser shells and MediaWiki do not create, mutate or own federation client
+  policy.
 - Client secret values are secret material and must not be committed as schema
   fixture data or documentation examples.
 - Dynamic public client registration is out of scope until a new ADR accepts it.

@@ -30,7 +30,7 @@ function readTomlBlock(source: string, startMarker: string, endMarker: string): 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -147,7 +147,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).toContain(
-			'AUTH_SHELL_ORIGIN = "https://hub-staging.mucwiki-edge.link"',
+			'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 		);
 		expect(stagingVarsBlock).toContain(
 			'PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"',
@@ -209,7 +209,7 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingSmokeEnvSource).toContain("loadRepoStagingEnvFile");
 		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
-		expect(runWithStagingDbEnvSource).toContain("https://hub-staging.mucwiki-edge.link");
+		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");
 		expect(runWithStagingDbEnvSource).toContain("https://chat-staging.mucwiki-edge.link");
 		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_BASE_URL");
 		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
@@ -243,7 +243,7 @@ describe("app-api worker foundation", () => {
 			"[[env.staging.hyperdrive]]",
 		);
 		expect(wranglerConfig).toContain("[env.local.secrets]");
-		expect(localVarsBlock).toContain('AUTH_SHELL_ORIGIN = "http://127.0.0.1:27012"');
+		expect(localVarsBlock).toContain('AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"');
 		expect(wranglerConfig).toContain('"RESEND_API_KEY"');
 		expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');

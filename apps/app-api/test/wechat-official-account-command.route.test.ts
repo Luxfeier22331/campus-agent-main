@@ -10,7 +10,7 @@ const env = {
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN: "trusted-wechat-token",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",

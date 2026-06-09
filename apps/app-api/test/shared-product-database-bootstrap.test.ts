@@ -31,7 +31,7 @@ describe("app-api shared product database bootstrap", () => {
 		const env = readSharedProductBootstrapEnv({
 			APP_API_DATABASE_SSLMODE: "require",
 			APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
-			AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+			AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 			BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 			PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 		} as NodeJS.ProcessEnv);

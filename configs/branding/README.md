@@ -8,7 +8,7 @@
 
 - `public-chat-web`
 - `protected-panel-web`
-- `hub-web`
+- `campus-web`
 
 consume it through a shared Vite `publicDir`.
 
