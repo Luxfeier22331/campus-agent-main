@@ -18,7 +18,7 @@ Python 不再拥有 deterministic execution runtime truth。
 
 - `apps/supervisor-agent-worker` 不参与当前 online answer serving
 - Go `apps/execution-control` 拥有 admission、routing frame、structured runtime、
-  lifecycle、observability、Temporal seven-step RAG graph、provider usage/cost projection、
+  lifecycle、observability、Temporal memory + RAG graph、provider usage/cost projection、
   final response shaping 与 fail-close terminal envelope
 - Python worker 不消费 online Go canonical bridge envelope，也不作为 Temporal activity backend
 - Python 只允许保留 offline ingestion / eval / tooling 或 historical bridge reference

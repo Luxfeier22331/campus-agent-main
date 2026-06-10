@@ -37,7 +37,7 @@ browser -> protected-panel-web -> app-api
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
-- 当前 online answer path 已硬切为 Go-owned Temporal seven-step RAG graph；Python
+- 当前 online answer path 已硬切为 Go-owned Temporal memory+RAG activity graph；Python
   `supervisor-agent-worker` 不参与 serving，只保留 offline / eval / tooling / historical
   bridge reference
 - online query path 与 offline data plane 持续分层

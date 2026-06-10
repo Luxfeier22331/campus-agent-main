@@ -2,135 +2,189 @@
 doc_type: architecture
 status: active
 created: 2026-06-09
-updated: 2026-06-09
+updated: 2026-06-10
 ---
 # Memory Plane Architecture
 
-本文冻结 `campus-agent` 的长期 memory supporting architecture。它描述目标边界，不声明当前
-merged implementation 已完整具备这些能力；当前实现状态继续以
-`../current-architecture.md` 与代码事实为准。
+本文冻结 `campus-agent` 的 Qdrant-native Personal Memory Plane。它描述目标边界和当前
+实现方向；当前 merged implementation 的细节仍以 `../current-architecture.md` 与代码事实为准。
 
 ## Positioning
 
-Memory Plane 的目标是让少量长期有用信息变成用户可控、执行可消费、出错可定位的 product
-memory。它不是 agent memory 框架拼盘，也不是全量审计系统。
+Memory Plane 的目标是让少量个人长期信息成为 online execution 可检索的 context，而不是把
+PG profile memory 全量塞进 prompt。
 
 长期 owner 固定为：
 
-- `apps/app-api` owns Memory Plane、用户治理 API 与 product mutation。
-- PostgreSQL owns memory product truth 与 read projection。
-- Temporal orchestrates background memory lifecycle workflows.
-- `apps/execution-control` / RAG only consume bounded memory packets.
-- panel / eval may consume sanitized memory refs for diagnosis.
+- `apps/execution-control` owns online memory recall execution.
+- Temporal orchestrates `memory.recall` and later memory update / extraction workflows.
+- self-hosted Qdrant owns `personal_memory_v1` retrieval substrate.
+- `apps/app-api` may expose manual profile-memory product API, but it no
+  longer owns online recall.
+- PostgreSQL profile memory tables are product projection / migration source
+  during transition, not online recall truth.
 
 因此：
 
-- canonical memory truth 不进入 `execution-control`、RAG worker、Qdrant
-  institutional index 或外部 memory SDK。
-- Temporal 不是 memory database；Temporal 只编排异步、可重试、可取消的后台流程。
-- Zep、Graphiti、LightMem、Mem0、A-MEM 只能作为 external reference，不是 canonical owner
-  或组合式目标架构。
+- online chat hot path 不再执行 `app-api -> PG profile.memory_items -> context.profile_memory`
+  full injection。
+- personal memory 与 institutional RAG index 必须隔离 collection，不共享 canonical retrieval
+  truth。
+- Zep、Graphiti、LightMem、Mem0、A-MEM 只能作为 external reference，不是默认 runtime
+  dependency 或 canonical owner。
+- Temporal 不是 memory database；Temporal 只编排 activity / workflow
+  lifecycle，memory vectors 与 compact payload 存在 self-hosted Qdrant。
 
-## Memory Classes
+## Memory Index
 
-目标 memory 分成四类，治理强度必须不同。
+默认 personal memory collection：
 
-- `session memory`: 当前对话连续性、summary、confirmed slots。由
-  conversation runtime 自动维护，短期、轻量，不需要用户逐条确认。
-- `saved/profile memory`: 长期偏好、目标、背景。由用户显式写入，或在用户确认
-  candidate 后写入。用户可查看、编辑、删除。
-- `inferred candidates`: 模型从完成 run 中提出的长期记忆候选。后台生成
-  `memory_candidates`，保持 pending，用户确认后才生效。
-- `execution memory refs`: 某次 run 实际注入的长期记忆引用。由 app-api
-  构造执行输入时记录，只保存 id/hash/stage，用于 badcase 定位。
+```text
+personal_memory_v1
+```
 
-Memory 只允许影响 personalization 与 applicability，例如 query rewrite、ranking bias、
-clarification wording、answer wording 和默认假设。它不得授予 authorization、restricted
-visibility、tool permission、approval permission 或 runtime serving surface。
+payload 固定为：
 
-## Runtime Flow
+```text
+memory_id
+user_id
+tenant_id
+memory_type: profile | goal | preference | session_summary | task_state
+capability: knowledge | campus_services | notice | navigation | any
+status: active | stale | disabled
+source: explicit | inferred | imported
+compact_text
+updated_at
+```
 
-在线回答只消费 bounded `MemoryContextPacket`，不让 worker 反向读取 raw memory store。
+`compact_text` 是 online context 唯一可消费的 personal memory 文本字段。它必须是压缩后的短
+文本，不得是 raw transcript、raw user profile row、raw provider trace 或 unrestricted notes。
+
+## Online Recall Flow
+
+目标 online path：
 
 ```text
 user request
--> app-api reads identity/session/profile memory
--> app-api builds MemoryContextPacket
--> execution-control starts Temporal workflow
--> RAG consumes bounded packet
--> run projection records used_memory_ids/hash
+-> app-api creates execution run without PG memory full injection
+-> execution-control starts ChatAnswerWorkflow
+-> Temporal memory.recall activity
+-> Qdrant personal_memory_v1
+-> bounded memory context
+-> planning / RAG / deterministic tools
+-> sanitized run step projection
 ```
 
-`MemoryContextPacket` 只包含最小 typed projection：
+`memory.recall` 是 execution step graph 的第一步：
 
-- stable actor/principal reference
-- relevant user-visible saved memory refs and summaries
-- source type、confidence、last verified / staleness summary
-- session summary / confirmed slots
-- authorization snapshot reference supplied separately by app-api
+```text
+memory.recall
+-> planning
+-> rag.plan
+-> retrieval.indexed_lookup
+-> retrieval.expand_or_rescue
+-> evidence.selection
+-> synthesis
+-> grounding.verify
+-> finalization.write
+```
 
-它不得包含 raw long-term memory dump、raw transcript、raw auth material、provider trace、
-unbounded private notes 或 product-layer DB rows。
+online recall 查询规则：
 
-## Background Lifecycle
+- `must user_id = actor.user_id`
+- `must status = active`
+- `should capability in [requested_capability, any]`
+- dense vector query from `user_goal + session slots`
+- default `top_k = 5`
+- default total `compact_text` budget = 1200 chars
 
-长期 inferred memory 采用 candidate-first，不允许模型在线直接修改 active profile memory。
+`memory.recall` output:
+
+```text
+selected_memory_count
+selected_memory_chars
+memory_context_items[]
+```
+
+每个 item 只包含：
+
+```text
+memory_id
+memory_type
+capability
+compact_text
+score
+updated_at
+```
+
+RAG / synthesis 可以消费 bounded memory context 来影响 routing、applicability、capability
+admission、query rewrite、answer defaults 和 wording。它不得用 memory 打开未开放 collection、
+绕过 restricted visibility、伪造 identity claim，或替代 institutional evidence。
+
+## Write / Update Flow
+
+v1 先支持 explicit memory indexing：
+
+```text
+POST /api/me/profile-memory/items
+-> app-api validates product command
+-> execution-control internal memory upsert command or background worker
+-> embedding
+-> Qdrant personal_memory_v1 upsert
+```
+
+PG `profile.memory_items` 可以暂时保留为 manual UI projection / migration source；它不再定义
+online recall 行为。
+
+后续 inferred update path：
 
 ```text
 run completed
--> optional Temporal MemoryCandidateWorkflow
--> extraction/dedupe/forbidden-authz check
--> memory_candidates
--> user accept/reject/edit
--> app-api materializes active memory
+-> Temporal MemoryUpdateWorkflow
+-> extract compact memory
+-> dedupe / classify / budget
+-> embedding
+-> Qdrant personal_memory_v1 upsert
 ```
 
-Temporal 只参与这些后台流程：
+用户 accept / reject / edit 不是 v1 必需项。若未来产品需要强治理，可以在 app-api product
+surface 上加，但不得把它重新变成 online recall 的前置硬条件。
 
-- memory candidate extraction after completed runs
-- duplicate / merge candidate detection
-- forbidden authorization-key check
-- stale check / batch consolidation
-- cleanup, retry, timeout, and failure projection for long-running memory jobs
+## Data-Plane Boundary
 
-Temporal 不参与这些 product mutation 或 read paths：
+Qdrant posture 继承 `data-plane-architecture.md`：
 
-- 用户显式 `remember this` 直接保存
-- 用户 edit / delete / disable memory
-- app-api 读取 memory 构造 execution input
-- 普通 session summary 更新
-- canonical memory truth 查询
+- self-hosted authenticated private data-plane
+- staging / production 必须使用 HTTPS
+- online recall 使用 `QDRANT_QUERY_API_KEY`
+- app-api manual profile-memory write 调用 execution-control internal memory command；
+  execution-control 使用 `QDRANT_WRITE_API_KEY` 写入 personal memory index
+- background memory update / rebuild 使用 `QDRANT_WRITE_API_KEY` 或 ops-scoped
+  admin key
+- authenticated HTTPS data-plane 必须配置 `QDRANT_TLS_CA_CERT_PATH`
+- `PERSONAL_MEMORY_COLLECTION=personal_memory_v1`
 
-显式用户写入和删除都应是 `app-api -> PG` product mutation。后台 workflow 可以提出候选或诊断，
-但不能绕过用户治理直接升级为 active long-term memory。
+personal memory collection 与 institutional RAG collection 只在 substrate 层共享 Qdrant，不共享
+collection、payload contract、release alias 或 ingestion truth。
 
-## Data Shape
+## Not This
 
-目标 schema 以轻量 product memory 为主，不先建全量 conflict graph。
+Memory Plane 不是：
 
-- `memory_items`: active saved/profile memory；保存 owner、key、value、source type、
-  confidence、status、created/updated/last verified。
-- `memory_candidates`: inferred or suggested long-term memory；保存 source run、proposal、
-  reason、status。
-- `run_memory_refs`: execution injection record；保存 run id、memory item id/hash、
-  usage stage。
-
-只有当真实 badcase 证明冲突、替代、重复关系需要结构化查询时，才新增
-`memory_relations`，例如 `supersedes`、`conflicts_with`、`duplicates`。这不是第一阶段
-默认能力。
+- Zep / Graphiti / LightMem / Mem0 / A-MEM 的组合架构。
+- Temporal-backed memory database。
+- compliance-style full audit system。
+- hidden agent self-editing memory。
+- app-api 每次 chat 读取 PG profile memory 并全量注入。
+- 把个人 memory 写进 institutional Qdrant index。
 
 ## Guardrails
 
+- Do not reintroduce PG all-memory injection into chat submit.
+- Do not make app-api read private Qdrant directly.
 - Do not adopt an external memory SDK as canonical owner.
-- Do not write personal memory into institutional Qdrant indexes.
-- Do not let `execution-control`, RAG workers, or provider adapters write active
-  long-term memory.
-- Do not store raw transcript as long-term memory truth.
-- Do not build compliance-style full audit graphs for session memory.
-- Do not require Temporal workflow participation for every memory mutation.
-- Do not let memory authorize, widen retrieval visibility, or open restricted
-  capability surfaces.
-
-The intended observability level is provenance-lite: users can see and manage saved
-memory; operators and eval can identify which long-term memory refs influenced a
-run; short-lived session memory remains lightweight.
+- Do not let RAG / provider adapters write long-term memory inline during answer
+  synthesis.
+- Do not store raw transcript as personal memory compact text.
+- Do not use memory as authorization truth or restricted document entitlement.
+- Do not require panel/eval memory influence tracing as v1 acceptance.

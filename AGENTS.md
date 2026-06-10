@@ -5,8 +5,9 @@
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
 - 当前在线回答主路径是 `app-api -> execution-control -> Temporal ->
-  workflow-worker / activity-worker-rag / activity-worker-finalization -> Go RAG
-  DTO/runtime -> Qdrant / provider -> sanitized projection`
+  memory.recall -> workflow-worker / activity-worker-rag /
+  activity-worker-finalization -> Go RAG DTO/runtime -> Qdrant / provider ->
+  sanitized projection`
 - 当前 product entry surface 已收口到 `hub-web -> app launcher / account shell`，`public-chat-web`、
   `public-docs`、`protected-panel-web` 作为并列 browser surface 进入 shared `app-api`
 - 架构目标是 capability-neutral orchestrated execution：顶层由 supervisor / execution
@@ -21,8 +22,9 @@
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 当前事实是 `apps/app-api = Worker`，`apps/execution-control =
   Docker-first internal execution-control service`，Temporal 是 execution
-  substrate，PG 只承载 sanitized run / event / step projection；online RAG 已硬切为
-  Go-owned seven-step Temporal activity graph，worker plane / autoscaler 仍按对应架构文档继续收口
+  substrate，PG 只承载 sanitized run / event / step projection；online path
+  已硬切为 `memory.recall` + Go-owned RAG Temporal activity graph，worker
+  plane / autoscaler 仍按对应架构文档继续收口
 - Python `apps/supervisor-agent-worker` 已退出 online answer path；它只保留
   offline / eval / tooling / historical bridge reference，不得重新接入 serving
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
@@ -69,6 +71,7 @@
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
+- `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
@@ -404,7 +407,7 @@ pnpm web:build:affected
 
 - `apps/execution-control`: Go-owned deterministic runtime/control-plane；负责
   execution admission、capability / policy gate、Temporal command/query/cancel、
-  seven-step RAG activity execution、provider usage/cost projection、Go
+  memory recall、RAG activity execution、provider usage/cost projection、Go
   finalization 与 runtime observability
 - `apps/supervisor-agent-worker`: Python private semantic worker historical/offline
   artifact；不参与 online answer serving，不拥有 execution truth、provider hot path 或

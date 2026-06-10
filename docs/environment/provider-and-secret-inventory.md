@@ -342,6 +342,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
    例如 `https://127.0.0.1:6333`。
 1. online execution runtime 使用 read-only key 投影出的 `QDRANT_QUERY_API_KEY`，不得用
    admin `QDRANT_API_KEY` 查询。
+1. execution-control personal memory write path 使用 `QDRANT_WRITE_API_KEY`；staging
+   可暂时由 `STAGING_INGESTION_QDRANT_API_KEY` 投影，长期应拆为单独 write-capable key。
 1. 配置 `QDRANT_TLS_CA_CERT_PATH` 指向 ops-owned CA bundle，例如
    `/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`。
 1. 不把 `6333` / `6334` 直接暴露到公网。

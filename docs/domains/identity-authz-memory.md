@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-27
+updated: 2026-06-10
 ---
 # Identity / Authz / Memory Domain
 
@@ -17,6 +17,7 @@ updated: 2026-04-27
 
 - `../architecture/system/identity-and-authorization-architecture.md`
 - `../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `../decisions/adr-0049-qdrant-native-personal-memory-index.md`
 - `../decisions/adr-0022-campus-identity-and-restricted-document-authorization.m
   d`
 - `../decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
@@ -49,16 +50,16 @@ updated: 2026-04-27
 
 后续 memory / personalization productization 的落地顺序固定为：
 
-1. `app-api` 先拥有 profile memory 与 session memory 的 durable truth、用户可见控制面与数据最小化
-   策略。
-2. `app-api` 再把 verified identity、profile memory summary、session summary 与 authz
-   projection 组装成最小 `ContextProjection`。
-3. `execution-control`、`supervisor-agent-worker` 与 `knowledge` 只消费 typed projection；不得读取
-   raw memory、raw transcript、raw auth material 或产品层数据库对象。
-4. personalization 只允许影响 intent framing、retrieval planning、ranking / disambiguation、
-   clarification 与 answer wording；不得扩大 ACL、serving surface、approval 权限或 tool permission。
-5. memory 专项 eval 必须覆盖 non-authorizing behavior、scope / ACL 不提升、相关性注入、stale /
-   conflicting memory、用户删除 / 禁用后的 projection 失效，以及未成年人 / 敏感数据保护。
+1. `execution-control` / Temporal 拥有 online `memory.recall` step。
+2. Qdrant `personal_memory_v1` 承接 personal memory retrieval；PG profile memory 只保留为
+   manual product projection / migration source。
+3. `app-api` chat hot path 不读取 PG profile memory 并全量注入
+   `context.profile_memory`。
+4. planning / RAG / deterministic tools 只消费 bounded compact memory context；
+   不得读取 raw memory、raw transcript、raw auth material 或产品层数据库对象。
+5. personalization 可以影响 routing、admission、applicability、retrieval planning、
+   ranking / disambiguation、clarification 与 answer wording；不得伪造
+   identity claim 或 restricted entitlement。
 
 这些规则只定义恢复 productization 时的执行入口和验收口径，不表示当前 memory productization 已经上线。
 

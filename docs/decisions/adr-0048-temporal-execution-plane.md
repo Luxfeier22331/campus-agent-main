@@ -201,8 +201,8 @@ agent-as-tool。
 2026-06-08 补充评估：
 
 - 当前 online chat path 已经进入 Temporal-backed `ChatAnswerWorkflow`。
-- 当前 RAG chat trajectory 已硬切为 Temporal-visible seven-step graph：
-  `planning -> rag.plan -> retrieval.indexed_lookup ->
+- 当前 RAG chat trajectory 已硬切为 Temporal-visible memory + RAG graph：
+  `memory.recall -> planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`。
 - Go `activity-worker-rag` 拥有 online RAG lookup 与 synthesis provider execution，
@@ -223,7 +223,9 @@ agent-as-tool。
 1. RAG target graph 固定为：
 
    ```text
-   rag.plan
+   memory.recall
+   -> planning
+   -> rag.plan
    -> retrieval.indexed_lookup
    -> retrieval.expand_or_rescue
    -> evidence.selection

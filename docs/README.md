@@ -24,7 +24,8 @@ policy、reference、runbook，以及已归档的历史 plan。
 - [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
   - retrieval-side agentic planning、evidence contract 与 retrieval/runtime split
 - [architecture/system/memory-plane-architecture.md](./architecture/system/memory-plane-architecture.md)
-  - 轻量 Memory Plane、Temporal 后台参与点与 memory 不授权边界
+  - Qdrant-native Personal Memory Index、Temporal `memory.recall` 与 bounded
+    memory context
 - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - 当前项目级 active lane 与 pending work
 - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
@@ -66,7 +67,7 @@ policy、reference、runbook，以及已归档的历史 plan。
   `architecture/system/execution-and-agents-architecture.md`
 - 需要回答“retrieval planner、bounded evidence、RAG side agent runtime 如何分层”，读
   `architecture/system/agentic-retrieval-architecture.md`
-- 需要回答“长期 memory 如何分层、在哪里写入和消费、Temporal 是否参与 memory 生命周期”，读
+- 需要回答“personal memory 如何用 Qdrant recall、在哪里写入和消费、Temporal 如何参与 memory 生命周期”，读
   `architecture/system/memory-plane-architecture.md`
 - 需要回答“为什么接受这条边界”，读 `decisions/`
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`

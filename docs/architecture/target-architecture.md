@@ -290,9 +290,10 @@ raw/source-truth/projection/document/chunk/index`
 - `knowledge` 长期拆成 scope resolution、retrieval planning、answer
   synthesis、grounding validation 等内部角色；当前 runtime package 为 `packages/knowledge-capability`
 - RAG 在线目标不是单个 `semantic.rag` 黑盒 step，而是 durable typed step graph：
-  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
-  evidence.selection -> synthesis -> grounding.verify -> finalization.write`。每个
-  step 必须产生 sanitized result projection，供 panel / eval / badcase 诊断消费
+  `memory.recall -> planning -> rag.plan -> retrieval.indexed_lookup ->
+  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
+  grounding.verify -> finalization.write`。每个 step 必须产生 sanitized result
+  projection，供 panel / eval / badcase 诊断消费
 - provider adapter 是 execution cost / cancellation 的明确边界：必须记录 provider
   request ref、latency、input / output / cached token、estimated cost 与 terminal
   outcome；cancel / timeout 必须传递到 activity 与 provider adapter，并在可能时
@@ -629,12 +630,14 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 
 长期 owner 固定为：
 
-- `apps/app-api` 拥有 canonical identity / authz / memory truth
+- `apps/app-api` 拥有 canonical identity / authz product truth；online memory recall
+  由 execution-control / Temporal / Qdrant-native Personal Memory Index 承接
 - execution path 只消费最小 typed projection
 - retrieval 只消费 authz projection carrier，不拥有最终 entitlement resolution
-- memory 可以个性化 planning / wording，但不能提权
+- memory 可以影响 routing、admission、applicability、query rewrite、planning / wording，
+  但不能伪造 identity 或 restricted entitlement
 
-Memory Plane 的分层、写入链路、Temporal 后台参与点与 provenance-lite 观测边界，统一看
+Memory Plane 的 Qdrant collection、online recall、写入链路与 Temporal 参与点，统一看
 `system/memory-plane-architecture.md`。本文只保留目标 repo 级 owner 与不可提权约束。
 
 ## 长期 retrieval / serving 形态

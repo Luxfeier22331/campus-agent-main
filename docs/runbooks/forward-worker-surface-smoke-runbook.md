@@ -175,7 +175,7 @@ profile 语义：
 - `local-real-provider`：复用 `dev` 的 public/chat 产品路径编排，但强制启用
   Temporal execution-control runtime 并默认使用真实
   `PROMPT_RUNTIME_PROVIDER=openai-responses`。它用于验证
-  `public-chat-web -> app-api -> execution-control -> Temporal seven-step RAG
+  `public-chat-web -> app-api -> execution-control -> Temporal memory + RAG
   graph -> Go activity workers -> Go finalizer`，不是 deployed staging smoke，
   也不是 notice discover 专用 smoke
 

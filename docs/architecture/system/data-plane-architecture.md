@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-01
+updated: 2026-06-10
 ---
 # Data Plane Architecture
 
@@ -46,6 +46,8 @@ production posture 固定为 `self-hosted authenticated private data-plane over 
   secrets；本地部署不等于无认证部署
 - online execution runtime 只接收 read-only `QDRANT_QUERY_API_KEY`，ingestion /
   backup / restore 才使用 admin `QDRANT_API_KEY`
+- execution-control 的 personal memory write path 使用 `QDRANT_WRITE_API_KEY`；
+  staging 可由 `STAGING_INGESTION_QDRANT_API_KEY` 投影，长期应支持单独 write-capable key
 - `QDRANT_URL` 指向 Docker data-plane / private network endpoint，不作为 browser、
   panel、docs、chat 或 public smoke endpoint
 - staging / production `QDRANT_URL` 必须使用 HTTPS，runtime 必须配置
@@ -54,6 +56,31 @@ production posture 固定为 `self-hosted authenticated private data-plane over 
 - Qdrant collection / alias lifecycle 继续由 ingestion release 管理；online retrieval
   只消费已发布 alias / runtime profile，不直接把 Qdrant physical collection 名提升为
   product truth
+
+## Personal Memory Index
+
+Personal memory 使用同一个 self-hosted Qdrant private data-plane substrate，但它不是
+institutional RAG index 的一个 corpus，也不进入 ingestion source-truth chain。
+
+默认 collection：
+
+```text
+personal_memory_v1
+```
+
+固定边界：
+
+- personal memory collection 与 institutional RAG collection 隔离
+- online recall 使用 `QDRANT_QUERY_API_KEY`
+- memory upsert / disable / rebuild 使用 `QDRANT_WRITE_API_KEY` 或 write-capable key；
+  backup / restore 使用 ops-scoped admin key
+- staging / production 同样要求 HTTPS Qdrant URL 与 `QDRANT_TLS_CA_CERT_PATH`
+- payload contract 由 `docs/architecture/system/memory-plane-architecture.md` 与
+  `ADR-0049` 维护，不由 institutional RAG release manifest 维护
+
+personal memory payload 只允许保存 compact memory text 和 routing metadata；不得保存
+raw transcript、raw profile DB row、raw provider response、auth material 或
+unrestricted private notes。
 
 ## Relation To Agentic Retrieval Target
 

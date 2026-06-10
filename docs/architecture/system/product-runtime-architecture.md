@@ -235,7 +235,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   - 当前 active chat execution path 已硬切到 Temporal-backed
     `ChatAnswerWorkflow`；run store、events 与 step ledger 是 app-api / panel /
     eval 消费的 sanitized projection store
-  - online RAG 由 Go-owned seven-step Temporal activity graph 执行，不经过 Python
+  - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行，不经过 Python
     bridge
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
     canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store

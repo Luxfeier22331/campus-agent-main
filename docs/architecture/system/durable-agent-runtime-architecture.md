@@ -59,8 +59,8 @@ app-api stream / projection -> browser surface`
 Current implementation baseline:
 
 - online chat path already enters Temporal-backed `ChatAnswerWorkflow`.
-- chat trajectory projection now uses the Temporal-visible seven-step graph:
-  `planning -> rag.plan -> retrieval.indexed_lookup ->
+- chat trajectory projection now uses the Temporal-visible memory + RAG graph:
+  `memory.recall -> planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`.
 - first-class step attempt evidence fields exist in the projection store,
@@ -276,6 +276,8 @@ canceled / expired`
 
 当前 online RAG durable graph 已硬切为：
 
+1. `memory.recall`
+1. `planning`
 1. `rag.plan`
 1. `retrieval.indexed_lookup`
 1. `retrieval.expand_or_rescue`
@@ -286,6 +288,10 @@ canceled / expired`
 
 固定规则：
 
+- `memory.recall` 使用 Qdrant `personal_memory_v1` recall bounded personal memory
+  context，输出 selected count、char budget 与 compact memory items。
+- `planning` 承接 execution admission / workflow plan projection，不读取 PG
+  profile memory full dump。
 - `rag.plan` 输出 admitted query mode、scope、budget、required evidence
   contract 与 no-widening policy。
 - `retrieval.indexed_lookup` 承接 Qdrant / retrieval-core indexed retrieval，输出 bounded
@@ -654,8 +660,8 @@ worker autoscaler 边界固定为：
   `cmd/workflow-worker`, `cmd/activity-worker-rag`, and
   `cmd/activity-worker-finalization`; Docker Compose runs them as separate
   services with explicit `<env>:<role>:<instance>` worker identity.
-- step projection writeback exists for the current seven-step chat trajectory:
-  `planning`、`rag.plan`、`retrieval.indexed_lookup`、
+- step projection writeback exists for the current memory + RAG chat trajectory:
+  `memory.recall`、`planning`、`rag.plan`、`retrieval.indexed_lookup`、
   `retrieval.expand_or_rescue`、`evidence.selection`、`synthesis`、
   `grounding.verify`、`finalization.write` write sanitized step / attempt /
   result projection rows. Attempt rows include Temporal activity metadata,

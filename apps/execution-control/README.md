@@ -18,9 +18,9 @@ Current status:
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Starts Temporal `ChatAnswerWorkflow` and executes the current seven-step RAG
+- Starts Temporal `ChatAnswerWorkflow` and executes the current memory + RAG
   graph through Go worker roles:
-  `planning -> rag.plan -> retrieval.indexed_lookup ->
+  `memory.recall -> planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`.
 - Reports Go-owned `/readyz` runtime health for Temporal, run projection store,
@@ -255,6 +255,7 @@ export EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=local:activity-rag:001
 export EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=local:activity-finalization:001
 export QDRANT_URL=https://127.0.0.1:6333
 export QDRANT_QUERY_API_KEY=qdrant-local-readonly-secret
+export QDRANT_WRITE_API_KEY=qdrant-local-write-secret
 export QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
 export EMBEDDING_BASE_URL=https://api.openai.com/v1
 export EMBEDDING_API_KEY=

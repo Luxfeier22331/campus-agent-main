@@ -236,6 +236,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
 - `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<staging Qdrant read-only API key>`；
   同机 self-hosted Qdrant 由 lifecycle 脚本启动时必填，并投影为 online runtime
   `QDRANT_QUERY_API_KEY`
+- `STAGING_INGESTION_QDRANT_API_KEY` 同时投影为 execution-control
+  `QDRANT_WRITE_API_KEY`，只用于 personal memory upsert / disable；不得作为 online recall
+  query key
 - `STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`；
   Qdrant certificate SAN 必须覆盖 `qdrant`、`localhost`、`127.0.0.1`
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前

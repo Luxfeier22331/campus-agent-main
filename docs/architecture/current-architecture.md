@@ -63,7 +63,7 @@ document/index release`
 - `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/execution-control` 是当前 Docker execution-control service，负责
   internal workflow command/query、admission/policy gate、Temporal
-  start/cancel/query seam、seven-step RAG activity execution 与 sanitized
+  start/cancel/query seam、memory recall + RAG activity execution 与 sanitized
   projection writeback
 - Temporal-backed chat execution path 已进入当前代码事实：`apps/app-api` 通过
   `/internal/execution/runs*` 调用 `apps/execution-control`，`apps/execution-control`
@@ -73,10 +73,13 @@ document/index release`
 - retired PG lease tables、lane budget、worker heartbeat、PG lease worker loop 与
   recovery loop 只允许作为 historical migration artifact / retired code path 出现，
   不参与当前 online serving
-- 当前在线 RAG 路径已退出 Python bridge，并硬切为 Temporal-visible seven-step graph：
-  `planning -> rag.plan -> retrieval.indexed_lookup ->
+- 当前在线 RAG 路径已退出 Python bridge，并硬切为 Temporal-visible memory + RAG graph：
+  `memory.recall -> planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`。
+- 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 self-hosted Qdrant
+  `personal_memory_v1` collection；app-api chat submit 不再读取 PG
+  `profile.memory_items` 并全量注入 `context.profile_memory`。
 - Step attempt evidence spine 已进入当前代码事实：`runtime.agent_step_attempts`、
   execution-control `/steps`、app-api operator summary 与 panel trajectory 已承载
   activity metadata、queue wait、duration、provider/model、token/cost、cancel/timeout
@@ -225,15 +228,16 @@ document/index release`
   `GET /internal/execution/runs/:runId/steps`、
   `POST /internal/execution/runs/:runId/cancel`
 - 拥有 request body limit、caller auth、strict env parsing、request projection、
-  Temporal workflow command/cancel、seven-step RAG activity execution、sanitized projection
-  writeback、timeout、readiness、metrics、OTel telemetry seam 与 graceful drain
+  Temporal workflow command/cancel、memory recall + RAG activity execution、
+  sanitized projection writeback、timeout、readiness、metrics、OTel telemetry
+  seam 与 graceful drain
 - 当前 execution plane 已切为 self-hosted Temporal：`app-api` accepted chat
   request 调用 `execution-control` 创建 Temporal-backed run，Temporal
   workflow/activity worker 负责执行编排，PG `runtime.agent_runs` / events /
   step projection rows 只作为 app-api、panel、eval 读取的 sanitized product
   projection truth。旧 PG lease worker loop / recovery loop 不再参与 online
   serving。
-- 当前 `ChatAnswerWorkflow` 已硬切为 `planning -> rag.plan ->
+- 当前 `ChatAnswerWorkflow` 已硬切为 `memory.recall -> planning -> rag.plan ->
   retrieval.indexed_lookup -> retrieval.expand_or_rescue -> evidence.selection ->
   synthesis -> grounding.verify -> finalization.write`，每个 step 写入
   `RunStep -> StepAttempt -> StepResult` projection。attempt projection 已包含

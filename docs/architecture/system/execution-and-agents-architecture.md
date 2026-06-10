@@ -156,7 +156,7 @@ supervisor 不负责：
   step tables 是 sanitized projection store，不是 execution queue truth。旧 PG
   lease coordinator / worker loop / recovery loop 只保留为 historical migration artifact。
   进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection。
-  当前 RAG path 已落成 Go-owned seven-step activity graph；剩余缺口是 staging
+  当前 RAG path 已落成 Go-owned memory + RAG activity graph；剩余缺口是 staging
   Temporal poller proof、worker autoscaler actuation、panel/eval step trajectory
   深化，以及 notice / navigation / campus-services typed worker contract
   全量接入。完整 target 见
