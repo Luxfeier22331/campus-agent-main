@@ -29,26 +29,26 @@ delivery/runtime seam 的 supporting architecture。
 `browser -> public-chat-web legacy chat surface -> app-api -> execution-control
 -> Temporal -> activity worker -> supervisor-agent-worker private bridge`
 
-`browser -> public-docs static reader assets`
-
-`browser -> public-docs same-site /api/docs/* -> app-api`
+`browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
 `browser -> protected-panel-web -> app-api -> request projection / operator read
 model`
 
 这意味着：
 
-- 当前已落地的 campus/public/protected/docs surface 是 shared `app-api` 前面的并列 browser
-  surface
+- 当前已落地的 campus/legacy public/protected surface 是 shared `app-api` 前面的 browser
+  surface；docs 已收口为 `campus-web /docs/*` 内部支撑面
 - Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service
   Binding；
   `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的
   origin
-- `apps/campus-web` 是学生侧 product entry surface 与 account browser shell；它拥有
-  campus experience routes、账号浏览器页面与 same-origin proxy seam，但不拥有 backend truth
+- `apps/campus-web` 是学生侧 product entry surface、account browser shell 与 docs
+  browser route owner；它拥有 campus experience routes、账号浏览器页面、Rspress-powered
+  `/docs/*` reader delivery 与 same-origin proxy seam，但不拥有 backend truth
 - `apps/public-chat-web` 是 legacy chat surface；它不再定义当前产品入口、账号入口或
   auth return target
-- `apps/public-docs` 是独立 docs-first browser surface
+- `apps/public-docs` 是 retired/reference implementation，不再是 forward docs
+  product surface
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
   runtime adapter role
@@ -74,10 +74,10 @@ model`
 - `campus-web`
   - 当前是 `campus.muc.wiki` student-facing product entry surface
   - 使用 Cloudflare Worker + Vite React SPA + TanStack Router
-  - 为 `/`、`/c/:conversationId`、`/docs/*`、`/map`、`/dining`、`/feedback` 与
-    `/account/*` 交付 SPA shell
+  - 为 `/`、`/c/:conversationId`、`/map`、`/dining`、`/feedback` 与
+    `/account/*` 交付 SPA shell，并为 `/docs/*` 交付 Rspress-powered canonical reader
   - 只通过 allowlisted same-origin app-api seams 消费 `/api/me/*`、必要 auth endpoints、
-    implemented federation endpoints 与 campus experience endpoints
+    implemented federation endpoints、`/api/docs/*` 与 campus experience endpoints
   - account browser shape 消费 Identity Platform product projection，不消费 Better Auth
     raw records
   - public production endpoint 固定为 `https://campus.muc.wiki`，staging endpoint 固定为
@@ -87,10 +87,9 @@ model`
     `/reset-password` route 作为 bounded redirect 到 campus account shell
   - 不拥有 account shell、captcha widget runtime 或 password-reset form runtime
 - `public-docs`
-  - 已是正式公开文档站 app；当前 docs shell 已落地，并通过 Worker `APP_API` Service
-    Binding 消费 shared app-api 的 same-site `/api/docs/*` control-plane
-  - 只代理 docs control-plane endpoints，不作为 public chat、operator 或 generic
-    app-api BFF
+  - retired/reference package；保留旧 Rspress/MDX/anchor/highlight/search 管线作为迁移资产
+  - 不作为 staging/product acceptance target，不拥有 docs route、account、auth return 或
+    product navigation
 - `protected-panel-web`
   - 当前只承接 app-owned operator domains；`Requests`、`Official Web` 与
     `Authenticated Notice Processing` 已是 accepted shape
@@ -124,7 +123,8 @@ model`
 ### `apps/campus-web`
 
 - student-facing campus UI and app grid
-- conversation/docs/map/dining/feedback browser shells
+- conversation/map/dining/feedback browser shells
+- Rspress-powered `/docs/*` canonical reader delivery
 - `/account/*` account browser shell, auth forms, password reset pages, federation
   consent/error pages
 - same-origin allowlisted `/api/*` seam into `apps/app-api`
@@ -150,10 +150,10 @@ model`
 
 ### `apps/public-docs`
 
-- public docs reader UI
-- static reader asset delivery via Worker `ASSETS`
-- same-site `/api/docs/*` seam into `apps/app-api` via Worker Service Binding
-- 不拥有 auth/session/principal truth、docs visibility truth 或 generic app-api proxy
+- retired/reference package during deletion window
+- retains reusable Rspress reader implementation assets for migration only
+- not a current product entry, docs browser surface, staging deploy gate, or product
+  acceptance target
 
 ### `apps/protected-panel-web`
 
@@ -194,7 +194,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 直接含义：
 
 - `public-chat-web` 当前只开放 `knowledge`，是 current surface posture
-- `public-docs` 是非执行 surface，不自动进入 capability routing
+- `campus-web /docs/*` 是非执行 reader surface，不自动进入 capability routing
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
 - `apps/execution-control` 不拥有 browser-facing capability allowlist truth
 

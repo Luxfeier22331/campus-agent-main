@@ -101,9 +101,11 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 - `apps/app-api` -> Worker `app-api-staging`，web surfaces 通过 `APP_API` Service
   Binding 调用
 - `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
+- `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>，承载 student
+  Q&A、account、docs、map、dining 与 feedback
 - `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
-- `apps/public-docs` -> `<https://docs-staging.mucwiki-edge.link`>
 - `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
+- `apps/public-docs` 是 retired/reference package，不再是 active staging browser surface
 
 固定要求：
 
@@ -113,7 +115,7 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
   service
 - `apps/execution-control` staging hostname 继续不冻结；`app-api` deploy 时必须显式注入
   `STAGING_EXECUTION_CONTROL_BASE_URL`
-- public chat / docs / panel 的 app-api upstream invariant 是 `APP_API` Service
+- campus / public chat / panel 的 app-api upstream invariant 是 `APP_API` Service
   Binding + `https://app-api.internal`
 - deploy secret truth 继续留在 Cloudflare secret store，不写回 repo-tracked
   `.dev.vars.example`

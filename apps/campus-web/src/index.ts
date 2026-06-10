@@ -47,6 +47,8 @@ const AUTH_FORWARDED_HEADERS = [
 ] as const;
 const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authorization"] as const;
 const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
+const PUBLIC_READER_ASSET_PREFIX = "/_docs/";
+const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -113,6 +115,18 @@ const worker = {
 			return proxyToAppApi(request, env);
 		}
 
+		if (url.pathname.startsWith(GATED_READER_ASSET_PREFIX)) {
+			if (request.method !== "GET" && request.method !== "HEAD") {
+				return jsonResponse(404, {
+					error: {
+						code: "not_found",
+						message: "Route not found.",
+					},
+				});
+			}
+			return serveGatedReaderAsset(request, env);
+		}
+
 		if (url.pathname.startsWith("/api/")) {
 			return jsonResponse(404, {
 				error: {
@@ -123,6 +137,10 @@ const worker = {
 		}
 
 		if (request.method === "GET" || request.method === "HEAD") {
+			if (url.pathname.startsWith(PUBLIC_READER_ASSET_PREFIX)) {
+				return serveStaticAsset(request, env);
+			}
+
 			if (
 				(isCampusShellPath(url.pathname) || isViteDevAssetPath(url.pathname)) &&
 				acceptsHtml(request)
@@ -214,6 +232,36 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 }
 
 async function serveCampusShell(request: Request, env: Env): Promise<Response> {
+	const response = await fetchStaticAsset(request, env);
+	if (response instanceof Response && response.status !== 503) {
+		const contentType = response.headers.get("content-type") ?? "";
+		if (contentType.includes("text/html")) {
+			const headers = new Headers(response.headers);
+			headers.set("cache-control", "no-store");
+			for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+				headers.set(key, value);
+			}
+			return new Response(injectCampusRuntimeConfig(await response.text(), request, env), {
+				headers,
+				status: response.status,
+				statusText: response.statusText,
+			});
+		}
+		return responseWithSecurityHeaders(response);
+	}
+
+	return response;
+}
+
+async function serveStaticAsset(request: Request, env: Env): Promise<Response> {
+	const response = await fetchStaticAsset(request, env);
+	if (response instanceof Response) {
+		return responseWithSecurityHeaders(response);
+	}
+	return response;
+}
+
+async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {
 	if (!env.ASSETS) {
 		return jsonResponse(503, {
 			error: {
@@ -224,20 +272,110 @@ async function serveCampusShell(request: Request, env: Env): Promise<Response> {
 	}
 
 	const response = await env.ASSETS.fetch(request);
-	const contentType = response.headers.get("content-type") ?? "";
-	if (contentType.includes("text/html")) {
-		const headers = new Headers(response.headers);
-		headers.set("cache-control", "no-store");
-		for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-			headers.set(key, value);
-		}
-		return new Response(injectCampusRuntimeConfig(await response.text(), request, env), {
-			headers,
-			status: response.status,
-			statusText: response.statusText,
+	return response;
+}
+
+async function serveGatedReaderAsset(request: Request, env: Env): Promise<Response> {
+	const target = parseGatedReaderTarget(new URL(request.url).pathname);
+	if (!target) {
+		return withVaryAuth(
+			jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
+		);
+	}
+
+	const admissionResponse = await checkGatedReaderAdmission({ env, request, target });
+	if (admissionResponse) {
+		return admissionResponse;
+	}
+
+	const response = await fetchStaticAsset(request, env);
+	return withVaryAuth(responseWithSecurityHeaders(response));
+}
+
+async function checkGatedReaderAdmission(input: {
+	env: Env;
+	request: Request;
+	target: {
+		collection: string;
+		corpus: string;
+		documentSlug: string;
+		versionSlug: string;
+	};
+}): Promise<Response | null> {
+	if (!(input.env.APP_API && input.env.APP_API_BASE_URL)) {
+		return jsonResponse(503, {
+			error: {
+				code: "dependency_not_ready",
+				message: "服务暂不可用，请稍后再试。",
+			},
 		});
 	}
-	return responseWithSecurityHeaders(response);
+
+	const admissionUrl = new URL(
+		`/api/docs/collections/${encodeURIComponent(input.target.corpus)}/${encodeURIComponent(
+			input.target.collection,
+		)}/documents/${encodeURIComponent(input.target.documentSlug)}/admission?version=${encodeURIComponent(input.target.versionSlug)}`,
+		input.env.APP_API_BASE_URL,
+	);
+	const headers = new Headers();
+	for (const headerName of ["cookie", "authorization", "x-trace-id"]) {
+		const value = input.request.headers.get(headerName);
+		if (value) {
+			headers.set(headerName, value);
+		}
+	}
+
+	let response: Response;
+	try {
+		response = await input.env.APP_API.fetch(
+			new Request(admissionUrl.toString(), {
+				headers,
+				method: "GET",
+			}),
+		);
+	} catch {
+		return jsonResponse(503, {
+			error: {
+				code: "dependency_not_ready",
+				message: "服务暂不可用，请稍后再试。",
+			},
+		});
+	}
+
+	if (response.status === 204) {
+		return null;
+	}
+
+	return withVaryAuth(
+		jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
+	);
+}
+
+function parseGatedReaderTarget(pathname: string): {
+	collection: string;
+	corpus: string;
+	documentSlug: string;
+	versionSlug: string;
+} | null {
+	const segments = pathname.split("/").filter(Boolean);
+	if (segments.length < 6 || segments[0] !== "_gated-docs") {
+		return null;
+	}
+	const [, corpus, collection, documentSlug, versionSlug] = segments;
+	if (!(corpus && collection && documentSlug && versionSlug)) {
+		return null;
+	}
+
+	try {
+		return {
+			collection: decodeURIComponent(collection),
+			corpus: decodeURIComponent(corpus),
+			documentSlug: decodeURIComponent(documentSlug),
+			versionSlug: decodeURIComponent(versionSlug),
+		};
+	} catch {
+		return null;
+	}
 }
 
 function injectCampusRuntimeConfig(html: string, request: Request, env: Env): string {
@@ -322,6 +460,28 @@ function withNoStore(response: Response): Response {
 	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
 		headers.set(key, value);
 	}
+	return new Response(response.body, {
+		headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
+}
+
+function withVaryAuth(response: Response): Response {
+	const headers = new Headers(response.headers);
+	const existing = headers.get("vary");
+	const existingParts = existing
+		? existing
+				.split(",")
+				.map((part) => part.trim())
+				.filter(Boolean)
+		: [];
+	for (const headerName of ["Cookie", "Authorization"]) {
+		if (!existingParts.some((part) => part.toLowerCase() === headerName.toLowerCase())) {
+			existingParts.push(headerName);
+		}
+	}
+	headers.set("vary", existingParts.join(", "));
 	return new Response(response.body, {
 		headers,
 		status: response.status,

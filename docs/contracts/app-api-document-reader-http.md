@@ -8,7 +8,7 @@ updated: 2026-04-27
 
 ## 文档边界
 
-本文冻结 shared `apps/app-api` 对未来 `public-docs` 暴露的 browser-facing docs
+本文冻结 shared `apps/app-api` 对 `campus-web /docs/*` 暴露的 browser-facing docs
 control-plane HTTP contract。
 
 它回答的是：
@@ -20,7 +20,7 @@ control-plane HTTP contract。
 
 它不负责：
 
-- 文档站 hostname、static asset routing 或部署方式
+- Rspress 主题、static asset routing 或部署方式
 - docs shell 的 UI 细节
 - `public-chat-web` 当前已上线消息 shape
 - retrieval backend 的底层算法或存储实现
@@ -37,27 +37,27 @@ control-plane HTTP contract。
 
 长期调用形态固定为：
 
-- `browser -> public-docs static reader assets`
-- `browser -> public-docs same-site /api/docs/* -> app-api`
+- `browser -> campus-web /docs/* -> Rspress-powered reader assets`
+- `browser -> campus-web same-origin /api/docs/* -> app-api`
 - `browser -> public-chat-web same-site /api/* -> app-api`
 
 因此：
 
 - browser 默认不直连 `app-api` public hostname
-- docs site 通过 `public-docs` Worker `APP_API` Service Binding 暴露 same-site
+- docs surface 通过 `campus-web` Worker `APP_API` Service Binding 暴露 same-origin
   `/api/docs/*`
 - proxy 后的 contract 必须保持与本文一致
 - public published reader 正文默认不应通过这些 API endpoint 逐次返回
 
-`public-docs` delivery rule：
+`campus-web` docs delivery rule：
 
 - 只允许代理 `/api/docs/*`；不得把 `/api/chat/*`、operator APIs 或其他 app-api surface
-  经文档站暴露出去
+  经 docs reader 暴露出去
 - proxy response 必须默认 `Cache-Control: no-store`
 - proxy 可以转发 `accept`、`content-type`、`cookie`、conditional cache
   headers 与 trace id 等最小必要 header；不得转发 spoofable origin / operator headers
   作为授权依据
-- gated static reader 的逐请求 admission 仍由 `app-api` 决定，`public-docs` 不缓存或重建
+- gated static reader 的逐请求 admission 仍由 `app-api` 决定，`campus-web` 不缓存或重建
   visibility truth
 
 ## Cross-Cutting Rules
@@ -106,7 +106,8 @@ control-plane HTTP contract。
 - 该 endpoint 只表达 docs surface 真正依赖的控制面依赖
 - 不把 supervisor execution readiness、chat runtime readiness、operator surface
   readiness 混入 docs readiness
-- `public-docs /readyz` 应通过 same-site bridge 调用这个 endpoint，而不是调用根 `/readyz`
+- campus docs readiness smoke 应通过 same-origin bridge 调用这个 endpoint，而不是调用根
+  `/readyz`
 - 失败时返回 `503 dependency_not_ready`，message 固定为
   `Document reader control plane is not ready.`
 
@@ -248,9 +249,9 @@ control-plane HTTP contract。
   - `gated_asset`
 - `anchor` 是稳定导航单位
 - response 不返回 `chunkId`、`score`、`sourceUnitKey`、raw snippet dump
-- `gated_asset` 的默认 URL 为 same-site `/_gated-docs/*`，由 `public-docs` Worker-first
+- `gated_asset` 的默认 URL 为 same-origin `/_gated-docs/*`，由 `campus-web` Worker-first
   校验后交付
-- `gated_asset` 的 v1 delivery 默认要求 `public-docs` 逐请求向 `app-api` 做 authz 校验
+- `gated_asset` 的 v1 delivery 默认要求 `campus-web` 逐请求向 `app-api` 做 authz 校验
 - `gated_asset` 不应把对象存储 endpoint、presigned URL 或 bucket key 暴露给 browser
 - short-lived grant token / local verification 不属于当前默认 contract
 - future restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static
@@ -267,12 +268,13 @@ control-plane HTTP contract。
 
 固定规则：
 
-- 该 endpoint 只服务 `gated_asset` admission，公开静态文档继续走 `public-docs` static assets
+- 该 endpoint 只服务 `gated_asset` admission，公开静态文档继续走 `campus-web` docs
+  static assets
 - 每次请求必须重新解析 principal 并校验 document version visibility / entitlement
 - 授权通过返回 `204 No Content`
 - response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`
 - 授权失败、对象不存在或 projection 不可安全判定时 fail-close
-- `public-docs` 必须在 Worker 内先调用 admission，再尝试读取 `/_gated-docs/*` 静态资产
+- `campus-web` 必须在 Worker 内先调用 admission，再尝试读取 `/_gated-docs/*` 静态资产
 
 ## Docs Search Contract
 
@@ -297,7 +299,7 @@ control-plane HTTP contract。
       "kind": "section_hit",
       "title": "第四学期",
       "documentTitle": "法学（民族班）培养方案",
-      "canonicalUrl": "/docs/curriculum/curriculum_plan/law-ethnic-class-program#semester-4?hl=semester-4-course-list",
+      "canonicalUrl": "/docs/curriculum/curriculum_plan/law-ethnic-class-program?hl=semester-4-course-list#semester-4",
       "anchor": "semester-4",
       "highlightRootUnitIds": ["semester-4-course-list"],
       "snippet": "第四学期开设课程包括……"
@@ -322,7 +324,7 @@ chat 与 docs search 共用如下最小 citation target 形态：
   "type": "source_card",
   "documentTitle": "法学（民族班）培养方案",
   "sectionTitle": "第四学期",
-  "canonicalUrl": "/docs/curriculum/curriculum_plan/law-ethnic-class-program#semester-4?hl=semester-4-course-list",
+  "canonicalUrl": "/docs/curriculum/curriculum_plan/law-ethnic-class-program?hl=semester-4-course-list#semester-4",
   "anchor": "semester-4",
   "highlightRootUnitIds": ["semester-4-course-list"],
   "snippet": "第四学期开设课程包括……",
@@ -344,7 +346,7 @@ chat 与 docs search 共用如下最小 citation target 形态：
 - 不把 docs search 做成 chat answer API 的别名
 - 不把 `resolve` 做成“每次返回整篇正文”的 reader API
 - 不让 version 选择隐藏在自由文本 query 中
-- 不让 public docs shell 自己解释权限或版本 truth
+- 不让 campus docs shell 或 Rspress 自己解释权限或版本 truth
 
 ## 相关稳定文档
 

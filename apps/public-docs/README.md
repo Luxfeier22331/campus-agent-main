@@ -1,44 +1,29 @@
 # public-docs
 
-`public-docs` 是 `campus-agent` 的正式公开文档站 app，当前采用 `Rspress` 壳承载公开文档阅读、导航与信息架构验证。
+`public-docs` 是已退出 forward product topology 的历史文档站实现。
 
-常用命令：
+当前长期文档入口是 `campus-web /docs/*`，由 campus-web 交付 Rspress-powered
+canonical reader。`public-docs` 仅保留为 reference implementation，用于迁移或对照：
+
+- Rspress / MDX reader 生成管线
+- stable anchor 与 `data-root-unit-id` highlight 结构
+- published reader asset sync 经验
+- docs search mapping 与 theme ideas
+
+不要把本 package 作为新的 staging deploy、product acceptance、browser route owner 或账号导航
+owner。需要开发当前文档阅读面时，使用 `apps/campus-web`：
 
 ```bash
-pnpm --filter public-docs sync:real-docs
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs build:published-reader-assets
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs smoke:published-reader-build
-pnpm --filter public-docs dev
-pnpm --filter public-docs dev:live-smoke
-pnpm --filter public-docs dev:real-docs
-pnpm --filter public-docs build
-pnpm --filter public-docs build:real-docs
+pnpm --filter campus-web docs:sync:published-reader
+pnpm --filter campus-web docs:build
+pnpm --filter campus-web dev
 ```
 
-说明：
+本 package 下的命令和 `PUBLIC_DOCS_*` 环境变量是历史实现的命名，保留用于迁移参考和旧
+pipeline 审计，不代表 `apps/public-docs` 仍是目标产品入口。
 
-- `build:published-reader-assets` 是正式 seed / release 消费路径。它读取
-  `PUBLIC_DOCS_SYNC_MANIFEST_PATH` 指向的 manifest，从对象存储同步公开与受限 reader
-  assets，并生成可部署的 `doc_build`。
-- 接手 seed 数据时，不重新运行采集器，也不扫描对象存储决定文档范围；范围必须来自
-  `app-api` 导出的 public-docs sync manifest。
-- `sync:real-docs` 用于同步当前公开文档产物，生成本地 docs shell 的公开阅读样本。
-- `docs/student-handbook/`、`docs/curriculum-plan/`、`docs/campus-regulations/`、`docs/public/course-maps/`
-  与 `src/generated/` 是本地同步产物，必须保持 ignored，不作为 repo source truth 手工提交。
-- `docs/docs/` 与 `doc_build/` 也是 published reader 构建产物，必须保持 ignored，不作为
-  repo source truth 手工提交。
-- `dev:real-docs` / `build:real-docs` 是真实文档预览与验收入口；普通 `dev` / `build`
-  只补齐可构建的空 collection scaffold，不隐式访问对象存储，用于文档站壳本身的快速开发与 CI
-  构建。
-- `dev:live-smoke` 是本地同站 docs runtime smoke 入口：它以 `public-docs` Worker 作为主 surface，
-  并在同一个 Wrangler dev session 中带起 `apps/app-api` local-smoke Worker，使
-  `/api/docs/*` 的 service binding 命中真实本地 Worker runtime，而不是依赖两个分离会话互相发现。
-  由于它消费的是 Worker `ASSETS` 静态目录，命令会先执行一次 `build`，再启动本地 smoke 拓扑。
-- `public-docs /readyz` 在本地与部署态都只探测 `app-api /api/docs/readyz`，它表达的是
-  document reader control-plane readiness，不等于整个 `app-api` 产品 runtime readiness。
-- 当前 shell 已经提升为正式 `public-docs` app；旧的 Fumadocs 壳已废弃。
-- 当前实现仍处于 document-site workstream 的持续收口阶段，不应把本地同步路径误解为 browser runtime 的长期真相。
-- 长期 reader truth、published reader assets 与 same-site docs control-plane 以
-  `docs/architecture/system/document-site-architecture.md` 和对应 contracts 为准。
+相关当前文档：
+
+- `docs/decisions/adr-0051-campus-docs-rspress-reader-surface.md`
+- `docs/architecture/system/document-site-architecture.md`
+- `docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md`

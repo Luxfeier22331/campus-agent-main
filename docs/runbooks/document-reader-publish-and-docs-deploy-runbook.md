@@ -2,41 +2,47 @@
 doc_type: runbook
 status: active
 created: 2026-04-27
-updated: 2026-04-29
+updated: 2026-06-10
 ---
 
-# Document Reader Publish And Docs Deploy Runbook
+# Document Reader Publish And Campus Docs Deploy Runbook
 
 ## 用途
 
-这份 runbook 固定公开文档站的发布链路，并记录 Phase 6 gated reader
-Worker-first 静态交付：
+这份 runbook 固定 campus-web 文档阅读面的发布链路：
 
 - `canonical artifacts -> reader-assets`
 - `reader-assets -> app-api docs read model`
-- `app-api docs read model -> public-docs static bundle`
+- `app-api docs read model -> campus-web Rspress reader assets`
 
-它负责 docs reader publish/deploy 的可重复操作顺序；chat source-card UI 不在本 runbook
-内。
+它负责 docs reader publish/deploy 的可重复操作顺序。Q&A source-card UI、Rspress
+theme 设计和文档内容采集不在本 runbook 内。
 
 ## 固定职责
 
 - `ingestion-core` / `ingestion-worker` 负责从 canonical artifacts 生成
   `reader.json`、`outline.json`、`meta.json`、`asset-manifest.json` 与 docs
   read-model manifest。
-- `app-api` 负责导入 `docs.*` read model，并导出 public docs sync manifest。
-- `public-docs` 负责在 build/deploy 期间按 manifest 生成 Rspress source，并把
-  object storage reader assets 复制到 `doc_build/_docs/...` 与 `doc_build/_gated-docs/...`。
-- `public-docs` 不扫描对象存储决定公开文档子集。
-- `sync-real-docs` 是 legacy/manual path；默认 deploy path 必须走 published reader
-  assets。
-- reader publisher 与 `app-api` docs read-model import 都必须 fail-close
-  unsupported scope。`campus_notices/internal_notice` 是 notice source/card scope，
-  不是文档站 document scope。
+- `app-api` 负责导入 `docs.*` read model，并导出 docs sync manifest。
+- `campus-web` 负责在 build/deploy 期间按 manifest 生成 Rspress source，并把 object
+  storage reader assets 复制到 campus-web static delivery roots。
+- `campus-web` 不扫描对象存储决定公开文档子集。
+- `apps/public-docs` 已退出 forward product topology；其中 Rspress/MDX/anchor/
+  highlight/search 管线只作为 reference implementation。
+- reader publisher 与 `app-api` docs read-model import 都必须 fail closed unsupported
+  scope。`campus_notices/internal_notice` 是 notice source/card scope，不是文档站
+  document scope。
+
+当前脚本命名说明：
+
+- `app-api` 的导出命令仍叫 `docs:export-public-sync-manifest`。
+- staging smoke 仍读取 `PUBLIC_DOCS_SYNC_MANIFEST_PATH`。
+- 这些历史命名只表示“面向浏览器文档阅读面的发布 manifest”，不表示
+  `apps/public-docs` 仍是产品入口。
 
 ## Seed 数据交付口径
 
-文档站 seed 数据交付的是已经发布的 reader/read-model artifact，不是采集任务本身。
+文档阅读 seed 数据交付的是已经发布的 reader/read-model artifact，不是采集任务本身。
 接手者不需要重新运行官方站、通知站或手册采集器，也不应接收 raw collector output 作为
 document-site seed truth。
 
@@ -45,112 +51,54 @@ document-site seed truth。
 - 代码修订：用于生成与消费 seed artifact 的 repo commit 或 release branch。
 - docs read-model manifest：`var/docs-read-model-manifest.json`，供 `app-api`
   导入 `docs.*` read model。
-- public-docs sync manifest：`var/public-docs-sync-manifest.json` 或环境后缀文件，
-  供 `public-docs` 构建静态 reader assets。
+- docs sync manifest：`var/public-docs-sync-manifest.json` 或环境后缀文件，供
+  `campus-web` 构建 Rspress reader assets。
 - 对象存储 reader assets：sync manifest 中 `sourceObjects` 指向的对象，以及当前
-  reader manifest object，例如 `public_docs/releases/reader_assets/current/public-docs-reader-assets.json`。
+  reader manifest object，例如
+  `public_docs/releases/reader_assets/current/public-docs-reader-assets.json`。
 - 环境配置说明：对象存储 endpoint、region、bucket、access key/secret，以及需要导入
   read model 时使用的 `APP_API_OPERATOR_DATABASE_URL` 或
   `STAGING_APP_API_OPERATOR_DATABASE_URL`。
-- 验收摘要：文档数、公开/受限数量、reader asset 数、search unit 数、manifest
-  digest 或文件 checksum。
+- 验收摘要：文档数、公开/受限数量、reader asset 数、search unit 数、manifest digest
+  或文件 checksum。
 
-### Seed 文件用法
-
-`var/docs-read-model-manifest.json`
-
-- 由 `campus_ingestion_worker.publish_document_reader_assets` 生成。
-- 由 `apps/app-api` 的 `docs:import-read-model*` 消费。
-- 用途是一次性导入 `docs.*` read model，包括 collection、document、version、
-  reader asset descriptor 与 search unit。
-- 它不是 `public-docs` 的直接输入，也不是浏览器 runtime asset。
-- 它不提交进 git；作为 release/seed artifact 传递。
-
-`var/public-docs-sync-manifest.json`
-
-- 由 `apps/app-api` 的 `docs:export-public-sync-manifest` 生成。
-- 由 `apps/public-docs` 的 `build:published-reader-assets`、
-  `smoke:published-reader-build`、rolling publish 与 deploy pipeline 消费。
-- 用途是声明本次文档站要同步哪些 reader assets，以及每个文档走
-  `public_static_asset` 还是 `gated_asset`。
-- 它是文档站构建输入，不是 source truth，也不提交进 git。
-
-`var/public-docs-sync-manifest.staging.json`
-
-- 用法与 `var/public-docs-sync-manifest.json` 相同。
-- 仅用于 staging app-api read model 导出的那一份 manifest。
-- 本地构建 staging seed 时通过 `PUBLIC_DOCS_SYNC_MANIFEST_PATH` 显式指定。
-
-`public_docs/releases/reader_assets/current/public-docs-reader-assets.json`
-
-- 由 reader publisher 上传到对象存储。
-- 用途是给后续发布、审计和对象存储 current manifest 读取使用。
-- 它不替代本地 `docs-read-model-manifest.json`；接手者导入 DB 时仍使用
-  docs read-model manifest。
-- 它位于 derived bucket 的 `public_docs/releases/reader_assets/current/`，不是旧的顶层
-  `manifests/` root；旧 root 只允许作为迁移前遗留对象，不再作为新发布目标。
-
-sync manifest 中的 `sourceObjects`
-
-- 指向对象存储里的 `reader.json`、`outline.json`、`meta.json`、
-  `asset-manifest.json` 以及补充资产。
-- 由 `public-docs` build/smoke/deploy 同步到 `doc_build/_docs/...` 或
-  `doc_build/_gated-docs/...`。
-- 不应下载后手工改写，也不应作为新的 repo source truth 提交。
-
-`apps/public-docs/doc_build/`
-
-- 是 `public-docs` 构建输出。
-- 可作为静态预览或部署产物交付。
-- 不用于 app-api read model 导入，不作为 seed source truth，也不提交进 git。
-
-本轮 seed baseline 的验收计数为：
-
-- 总文档：175
-- `curriculum/curriculum_plan`：70
-- `regulations/student_rules`：46
-- `regulations/institutional_rules`：59
-- public：133
-- gated：42
-- reader assets：829
-- search units：913
+`public_docs/releases/...` 是已存在对象存储 prefix 名称；它不是 browser product
+surface 名称，后续对象 key 迁移应单独冻结。
 
 禁止把以下内容当作 seed handoff：
 
-- `apps/public-docs/docs/docs/`、`apps/public-docs/doc_build/` 或 repo-root
+- `apps/campus-web/docs/docs/`、`apps/campus-web/public/_docs/`、
+  `apps/campus-web/public/_gated-docs/`、`apps/campus-web/doc_build/` 或 repo-root
   `var/` 中的本地生成产物提交进 git。
 - 缺少对象存储 reader assets 的单独 manifest。
 - 需要接手者重新采集源站才能得到正文的说明。
 - 从对象存储扫描推导公开文档子集的脚本或手工步骤。
 
 如果接手者只需要静态站点预览，可以单独传递一次构建后的
-`apps/public-docs/doc_build/` artifact；这只适用于静态验收，不替代
-`docs-read-model-manifest.json`、public-docs sync manifest 与对象存储 reader assets
-组成的可重复 seed 交付包。
+`apps/campus-web/doc_build/` artifact；这只适用于静态验收，不替代
+`docs-read-model-manifest.json`、docs sync manifest 与对象存储 reader assets 组成的
+可重复 seed 交付包。
 
 ## 本地发布顺序
 
 ### 1. 发布 reader assets 与 read-model manifest
 
-如果对象存储中存在历史课程地图 `reader-assets/course-maps.json` 输入产物，先执行一次性
-surface 迁移。该命令把历史 reader 路径下的课程地图 surface 转换到
-`docs-surfaces/course-maps.json`，避免发布 reader supplement 时覆盖后续发布所需的
-source surface：
+如需修复历史课程地图 reader supplement，先执行一次性 surface 迁移：
 
 ```bash
 uv run --all-packages python -m \
   campus_ingestion_worker.migrate_curriculum_course_map_docs_surfaces
 ```
 
-如果 registry 当前指向的 `regulations/institutional_rules` 记录缺少
-`canonical.md`，但已存在通过 canonical materialization 产出的
-`document-units.jsonl`，先执行显式 backfill。该步骤只修复缺失的 canonical
-artifact，不覆盖已有 canonical，不在 reader publish 阶段临时合成正文：
+如需 backfill 缺失的 canonical markdown，先执行显式 backfill。该步骤只修复缺失的
+canonical artifact，不在 reader publish 阶段临时合成正文：
 
 ```bash
 uv run --all-packages python -m \
   campus_ingestion_worker.backfill_missing_canonical_markdown_from_document_units
 ```
+
+发布 reader assets 与 docs read-model manifest：
 
 ```bash
 uv run --all-packages python -m \
@@ -159,19 +107,8 @@ uv run --all-packages python -m \
   --manifest-object-key public_docs/releases/reader_assets/current/public-docs-reader-assets.json
 ```
 
-可用 `--dry-run` 验证读取 canonical artifacts 与生成 manifest，不写入 reader
-assets，也不会上传 manifest object。
-
-如果省略 `--manifest-object-key`，publisher 默认写入：
-
-```text
-public_docs/releases/reader_assets/current/public-docs-reader-assets.json
-```
-
-默认 first-launch scope 是：
-
-- `regulations/student_rules`
-- `curriculum/curriculum_plan`
+可用 `--dry-run` 验证读取 canonical artifacts 与生成 manifest，不写入 reader assets，
+也不会上传 manifest object。
 
 允许进入 docs reader / docs read-model 的 scope 固定为：
 
@@ -180,28 +117,7 @@ public_docs/releases/reader_assets/current/public-docs-reader-assets.json
 - `regulations/institutional_rules`
 
 `regulations/scoped_rules` 当前是院级/专项 regulation holding collection，不进入当前
-document-site read-model、public docs sync manifest 或默认 RAG consumption。
-
-如需显式限制范围：
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.publish_document_reader_assets \
-  --scope regulations/student_rules \
-  --scope curriculum/curriculum_plan \
-  --manifest-path var/docs-read-model-manifest.json \
-  --manifest-object-key public_docs/releases/reader_assets/current/public-docs-reader-assets.json
-```
-
-如需发布 notice-derived regulation target，必须显式选择 target scope，例如：
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.publish_document_reader_assets \
-  --scope regulations/institutional_rules \
-  --manifest-path var/docs-read-model-manifest.json \
-  --manifest-object-key public_docs/releases/reader_assets/current/public-docs-reader-assets.json
-```
+document-site read-model、docs sync manifest 或默认 RAG consumption。
 
 ### 2. 迁移并导入 app-api docs read model
 
@@ -217,7 +133,7 @@ pnpm --filter app-api db:migrate:staging
 pnpm --filter app-api docs:import-read-model:staging ../../var/docs-read-model-manifest.json
 ```
 
-### 3. 从 app-api read model 导出 public docs sync manifest
+### 3. 从 app-api read model 导出 docs sync manifest
 
 ```bash
 pnpm --filter app-api docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json
@@ -235,475 +151,114 @@ pnpm --filter app-api docs:export-public-sync-manifest:staging ../../var/public-
 `var/public-docs-sync-manifest.staging.json`，并据此选择 gated reader 与匿名 collection
 navigation 期望状态。
 
-### 4. 滚动检查并按需发布 public-docs
+### 4. 同步 campus-web Rspress source 与 reader assets
 
-GitHub Actions workflow `.github/workflows/public-docs-rolling-publish.yml` 是生产
-rolling publish 的 controlled runner。它在 UTC `7 4,10,16,22 * * *` 调用 publish
-pipeline；这对应上海时间 `00:07 / 06:07 / 12:07 / 18:07`，仍落在 accepted
-`00:00 / 06:00 / 12:00 / 18:00` 的 15 分钟窗口内。
-
-workflow 每次先运行 production acceptance harness，再执行 rolling publish pipeline。
-pipeline 先下载持久 release ledger，执行 scheduled manifest check 与 single-flight lock；
-只有 manifest verdict 为 `changed` 时才继续 build、build-output smoke、deploy config
-verify 和 Wrangler deploy。pipeline 完成后把非 dry-run 的 ledger 写回对象存储。
-
-生产开关：
-
-- `PUBLIC_DOCS_ROLLING_PUBLISH_ENABLED=true` 才允许 workflow 进入真实 publish runner。
-- `PUBLIC_DOCS_ROLLING_PUBLISH_DRY_RUN=true` 默认只 dry-run，不写回持久 ledger。
-- `PUBLIC_DOCS_SYNC_MANIFEST_KEY` 指向 ingestion/app-api 发布的 current manifest object。
-- `PUBLIC_DOCS_RELEASE_LEDGER_KEY` 指向 public-docs release ledger object。
-
-GitHub Environment secrets / vars 需要至少包含：
-
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`
-- `OBJECT_STORE_ENDPOINT`
-- `OBJECT_STORE_REGION`
-- `OBJECT_STORE_ACCESS_KEY`
-- `OBJECT_STORE_SECRET_KEY`
-- `PUBLIC_DOCS_SYNC_MANIFEST_KEY`
-- `PUBLIC_DOCS_RELEASE_LEDGER_KEY`
-- `PUBLIC_DOCS_ROLLING_PUBLISH_ENABLED`
-- `PUBLIC_DOCS_ROLLING_PUBLISH_DRY_RUN`
-
-本地或 operator shell 仍可使用文件 ledger。该 runtime state 默认放在
-`.planning/runtime/public-docs-publish/`，不应提交。
-
-生产 workflow 等价命令：
+本地或 staging build 前先同步 published reader：
 
 ```bash
-pnpm --filter public-docs publish:rolling -- \
-  --env prod \
-  --output public-docs-publish-result.json
+CAMPUS_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
+  pnpm --filter campus-web docs:sync:published-reader
 ```
 
-如果需要在 workflow/manual dispatch 中显式 dry-run：
+staging manifest：
 
 ```bash
-pnpm --filter public-docs publish:rolling -- \
-  --env prod \
-  --dry-run \
-  --output public-docs-publish-result.json
+export CAMPUS_DOCS_SYNC_MANIFEST_PATH="../../var/public-docs-sync-manifest.staging.json"
+pnpm --filter campus-web docs:sync:published-reader
 ```
 
-如果需要手动强制跳过 schedule window：
+若 manifest 来自对象存储而不是本地文件，使用：
 
 ```bash
-pnpm --filter public-docs publish:rolling -- \
-  --env prod \
-  --force \
-  --output public-docs-publish-result.json
+export CAMPUS_DOCS_SYNC_MANIFEST_KEY="public_docs/releases/reader_assets/current/public-docs-reader-assets.json"
+export OBJECT_STORE_ENDPOINT=<endpoint>
+export OBJECT_STORE_DERIVED_BUCKET=<bucket>
+export OBJECT_STORE_ACCESS_KEY=<access-key>
+export OBJECT_STORE_SECRET_KEY=<secret-key>
+pnpm --filter campus-web docs:sync:published-reader
 ```
 
-底层 scheduled deploy pipeline 仍可直接调用，主要用于本地调试：
+固定规则：
+
+- `docs:sync:published-reader` 只按 manifest 写入 generated Rspress source 与
+  `public/_docs` / `public/_gated-docs`。
+- `public_static_asset` 生成 Rspress MDX reader page。
+- `gated_asset` 只同步 gated reader static assets，不生成匿名 reader page。
+- sync 后必须运行 `pnpm --filter campus-web docs:build`，由 Rspress 生成 `/docs/*`
+  reader output。
+
+### 5. 构建并部署 campus-web
+
+本地 build：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs deploy:published-reader-scheduled -- \
-  --env prod
+pnpm --filter campus-web build
 ```
 
-手动强制执行一轮检查与按需发布：
+staging deploy：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs deploy:published-reader-scheduled -- \
-  --env prod \
-  --force \
-  --ledger .planning/runtime/public-docs-publish/prod-ledger.json \
-  --lock-file .planning/runtime/public-docs-publish/prod.lock.json
+pnpm --filter campus-web deploy:staging
 ```
 
-只看将要执行的命令、不执行 build/smoke/deploy：
+`campus-web` build 会先运行 `docs:build`，再运行 Vite build 与 bundle budget check。
+`wrangler.toml` 必须允许 `/docs/*`、`/static/*`、`/vendor/*` 由 static assets delivery
+处理，同时 Worker 继续显式代理 `/api/docs/*`，不得开放 generic `/api/*`。
+
+## 验证
+
+本地验证：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs deploy:published-reader-scheduled -- \
-  --env prod \
-  --force \
-  --dry-run \
-  --ledger .planning/runtime/public-docs-publish/prod-ledger.json \
-  --lock-file .planning/runtime/public-docs-publish/prod.lock.json
+pnpm --filter campus-web docs:build
+pnpm --filter campus-web test:node -- test/docs-published-reader-sync.test.ts
+pnpm --filter campus-web test:node -- test/docs-reader-state.test.ts
+pnpm --filter campus-web test:worker -- test/campus-worker.test.ts
 ```
 
-manifest-only dry-run 仍可直接调用：
+收口验证：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs check:published-reader-manifest -- \
-  --env prod \
-  --ledger .planning/runtime/public-docs-publish/prod-ledger.json
+pnpm --filter campus-web test:node
+pnpm --filter campus-web test:worker
+pnpm --filter campus-web typecheck
+pnpm --filter campus-web build:staging
+pnpm docs:lint
+pnpm decomposition:lint
+git diff --check
 ```
 
-这个检查只读取 manifest、对象存储 reader assets 与 release ledger，不执行 build 或
-deploy。输出 JSON verdict：
-
-- `changed`：manifest digest 相对上次成功部署已变化，可以进入 build/deploy。
-- `unchanged`：manifest digest 已是上次成功部署版本，本轮应跳过。
-- `invalid`：manifest JSON / schema 不合法，不允许进入 build/deploy。
-- `blocked`：发现缺失 source object、hash/size 不一致、重复 target 或 gated asset
-  误入 public path 等发布阻断问题。
-
-如果需要把本轮检查记录写入 ledger，显式追加 `--write-ledger`。默认 dry-run 不改写
-ledger。
-
-staging 使用：
+staging gated docs smoke：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs deploy:published-reader-scheduled -- \
-  --env staging
+pnpm --dir apps/app-api docs:gated:smoke:staging
 ```
 
-### 4.1 可选即时 deploy-hook nudge
-
-如果 ingestion 在 scheduled window 之后刚发布了新的 current manifest，可以发出即时
-nudge，缩短最长 6 小时的等待时间。这个入口只负责触发检查，不是第二套发布真相源：
-
-- payload 只允许表达 `surface=public_docs`、`environment`、`eventId` 与 source
-  metadata。
-- payload 中的 manifest digest、release id、object key 或 branch 一律不可信，不参与
-  部署判定。
-- runner 仍读取配置的 current manifest path / object key，并继续执行 manifest
-  validation、digest comparison、single-flight lock、build-output smoke 和 deploy
-  pipeline。
-- shared secret 用于本地 / CI webhook adapter；Cloudflare Deploy Hook URL 自身就是
-  credential，必须作为 secret 保存。
-- Cloudflare Deploy Hook 多次触发可能返回同一个 queued / initializing build；本链路必须
-  依赖 ledger 和 manifest digest 保持幂等。
-
-受控 runner 本地执行 pipeline：
-
-```bash
-cat > var/public-docs-deploy-hook-payload.json <<'JSON'
-{
-  "surface": "public_docs",
-  "environment": "prod",
-  "eventId": "ingest-20260429-1"
-}
-JSON
-
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs nudge:published-reader-deploy-hook -- \
-  --env prod \
-  --payload-path var/public-docs-deploy-hook-payload.json \
-  --secret "$PUBLIC_DOCS_DEPLOY_HOOK_SECRET" \
-  --payload-secret "$INCOMING_PUBLIC_DOCS_DEPLOY_HOOK_SECRET" \
-  --ledger .planning/runtime/public-docs-publish/prod-ledger.json \
-  --lock-file .planning/runtime/public-docs-publish/prod.lock.json
-```
-
-只转发到 Cloudflare Workers Builds Deploy Hook URL：
-
-```bash
-pnpm --filter public-docs nudge:published-reader-deploy-hook -- \
-  --env prod \
-  --deploy-hook-url "$PUBLIC_DOCS_DEPLOY_HOOK_URL" \
-  --payload-json '{"surface":"public_docs","environment":"prod","eventId":"ingest-20260429-1"}'
-```
-
-这个 dispatch 模式只发 HTTP `POST` 到 Deploy Hook URL，由 Cloudflare Builds 负责启动
-配置好的构建。测试和 dry-run 不应调用真实 Deploy Hook URL。
-
-### 4.2 生产发布验收 harness
-
-上线前或修改 rolling publish 逻辑后，运行本地 acceptance harness。它使用临时
-ledger/lock、内存 object store、注入 command runner 和注入 `fetch`，不会调用真实
-Cloudflare deploy、rollback 或 Deploy Hook URL。
-
-```bash
-pnpm --filter public-docs acceptance:published-reader-production -- \
-  --output var/public-docs/published-reader-production-acceptance/acceptance.json
-```
-
-验收 JSON 必须满足：
-
-- `status=passed`
-- `summary.failed=0`
-- 覆盖 prod/staging dry-run、no-change、changed deploy、invalid/blocked、lock-busy、
-  failed command、rollback dry-run、hook local nudge 与 hook dispatch。
-
-### 5. 手动构建和 build-output smoke
-
-```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs build:published-reader-assets
-```
-
-这个命令会：
-
-- 生成 `apps/public-docs/docs/docs/:corpus/:collection/*.mdx`
-- 执行 generated docs guard
-- 构建 Rspress `doc_build`
-- 按 manifest 复制公开 reader assets 到 `doc_build/_docs/...`
-- 按 manifest 复制受限 reader assets 到 `doc_build/_gated-docs/...`
-- 校验 `asset-manifest.json` 的 size / sha256
-
-构建后可单独验证 build output 是否包含 manifest 声明的 reader assets：
-
-```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs smoke:published-reader-build
-```
-
-### 5.1 接收 seed artifact 后的最小消费顺序
-
-接手者拿到 seed handoff 后，先确认对象存储配置能读取 manifest 中声明的
-`sourceObjects`。不要在本步骤重新运行采集器。
-
-导入本地 app-api docs read model：
-
-```bash
-pnpm --filter app-api db:migrate
-pnpm --filter app-api docs:import-read-model ../../var/docs-read-model-manifest.json
-pnpm --filter app-api docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json
-```
-
-导入 staging app-api docs read model：
-
-```bash
-pnpm --filter app-api db:migrate:staging
-pnpm --filter app-api docs:import-read-model:staging ../../var/docs-read-model-manifest.json
-pnpm --filter app-api docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.staging.json
-```
-
-构建并校验 public-docs：
-
-```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs build:published-reader-assets
-
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs smoke:published-reader-build
-```
-
-staging manifest 使用：
-
-```bash
-export PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.staging.json
-pnpm --filter public-docs build:published-reader-assets
-pnpm --filter public-docs smoke:published-reader-build
-```
-
-也可以单命令传入：
-
-```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH="$PUBLIC_DOCS_SYNC_MANIFEST_PATH" \
-  pnpm --filter public-docs build:published-reader-assets
-
-PUBLIC_DOCS_SYNC_MANIFEST_PATH="$PUBLIC_DOCS_SYNC_MANIFEST_PATH" \
-  pnpm --filter public-docs smoke:published-reader-build
-```
-
-### 5.2 serving seed manifest
-
-长期 handoff 不把对象存储大内容提交进 Git。Git 只保存脚本、runbook、manifest
-schema 与 checksum 证据；实际 reader assets 继续留在 S3-compatible object storage。
-
-导出 serving seed manifest：
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.export_serving_seed \
-  --output-path var/serving-seed-manifest.json
-```
-
-该命令默认读取 current reader manifest：
-
-```text
-public_docs/releases/reader_assets/current/public-docs-reader-assets.json
-```
-
-它会把 docs reader manifest 与其中所有 `sourceObjects` 写入
-`campus_serving_seed_manifest_v1`，每个对象包含：
-
-- bucket
-- key
-- role
-- sizeBytes
-- sha256
-- contentType
-
-校验 seed manifest：
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.verify_serving_seed \
-  --manifest-path var/serving-seed-manifest.json
-```
-
-恢复 seed manifest 中声明的对象：
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.restore_serving_seed \
-  --manifest-path var/serving-seed-manifest.json
-```
-
-`verify` 与 `restore` 都按 manifest 的 size / sha256 fail closed；缺对象、大小不一致或
-hash 不一致都不得继续。
-
-迁移完成后，旧 derived bucket root
-`manifests/public-docs-reader-assets.json` 不再是合法发布目标。清理它必须先重新发布并校验
-`public_docs/releases/reader_assets/current/public-docs-reader-assets.json`，再用
-derived bucket hygiene audit 产出的 `unexpected-keys.jsonl` 执行：
-
-```bash
-uv run --all-packages \
-  campus-ingestion-cleanup-derived-bucket-unexpected-keys \
-  --candidate-inventory-path <audit-output>/unexpected-keys.jsonl \
-  --output-dir <cleanup-output> \
-  --yes
-```
-
-该 cleanup 命令不接受缺 bucket / reason / object_key 的旧 inventory；需要重新跑 audit
-取得完整删除凭证。
-
-消费后核对当前本地 build output：
-
-```bash
-find apps/public-docs/doc_build/_docs -name reader.json | wc -l
-find apps/public-docs/doc_build/_gated-docs -name reader.json | wc -l
-find apps/public-docs/doc_build/_docs apps/public-docs/doc_build/_gated-docs \
-  -name asset-manifest.json | wc -l
-find apps/public-docs/doc_build/docs -name '*.html' | wc -l
-```
-
-### 6. 手动部署 staging
-
-```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs deploy:staging
-```
-
-如果只验证 Worker config，不发布：
-
-```bash
-pnpm --filter public-docs deploy:verify-config:staging
-```
-
-### 7. 验证 gated static admission
-
-部署后，用同一登录态访问任意受限路径（`/_gated-docs/...`）：
-
-- 已授权 principal：应返回正文资产（`200`，`Cache-Control: no-store`）
-- 未授权 principal：应 fail-close（`404`）
-- `public-docs` 只通过 same-site `/api/docs/.../admission` 做校验，不直连对象存储
-
-### 8. 失败处理与重试
-
-`invalid` / `blocked` manifest 不是发布重试问题。先修复 upstream manifest /
-reader assets，再重新进入 scheduled deploy pipeline。
-
-`unchanged`、`not_due`、`lock_busy` 也不是发布失败：
-
-- `unchanged` 表示当前 digest 已经成功部署。
-- `not_due` 表示不在 accepted schedule window。
-- `lock_busy` 表示另一条 publish / rollback runner 正在持有 single-flight lock。
-
-build / smoke / verify / deploy command 失败会追加 final `failed` ledger 记录，不会追加
-`deployed`。确认失败原因后，如果 candidate manifest digest 仍然是 current manifest，
-并且没有更新的 `deployed` 记录 supersede 该失败记录，可以显式 retry：
-
-```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter public-docs retry:published-reader-release -- \
-  --env prod \
-  --record-id <failed-ledger-record-id> \
-  --ledger .planning/runtime/public-docs-publish/prod-ledger.json \
-  --lock-file .planning/runtime/public-docs-publish/prod.lock.json
-```
-
-retry 会追加带 `retryOfRecordId` 与 `attemptNumber` 的新 ledger 记录，不会修改原
-`failed` 记录。
-
-### 9. 回滚 public-docs Worker
-
-Cloudflare Workers rollback 使用 Worker version id，而不是 public-docs manifest digest
-或 deployment id。成功部署记录应尽量包含 `cloudflareVersionId`；如果旧 ledger 只保留
-deployment id，必须由 operator 显式提供 `--target-version-id`。
-
-Cloudflare rollback 会创建一个新的 deployment 并立即把流量切回目标 version。Cloudflare
-文档同时说明 rollback 不会改变外部绑定资源；如果 Worker 依赖的外部资源、bindings 或
-Developer Platform resources 已变化或消失，rollback 可能失败或需要额外人工恢复。
-
-dry-run 查看 rollback 命令：
-
-```bash
-pnpm --filter public-docs rollback:published-reader-release -- \
-  --env prod \
-  --dry-run \
-  --target-release-id <previous-release-id> \
-  --ledger .planning/runtime/public-docs-publish/prod-ledger.json \
-  --lock-file .planning/runtime/public-docs-publish/prod.lock.json
-```
-
-执行 rollback：
-
-```bash
-pnpm --filter public-docs rollback:published-reader-release -- \
-  --env prod \
-  --target-release-id <previous-release-id> \
-  --reason "rollback bad public docs release" \
-  --ledger .planning/runtime/public-docs-publish/prod-ledger.json \
-  --lock-file .planning/runtime/public-docs-publish/prod.lock.json
-```
-
-如果没有 release id 对应的 version evidence：
-
-```bash
-pnpm --filter public-docs rollback:published-reader-release -- \
-  --env prod \
-  --target-version-id <cloudflare-worker-version-id> \
-  --reason "rollback bad public docs release" \
-  --ledger .planning/runtime/public-docs-publish/prod-ledger.json \
-  --lock-file .planning/runtime/public-docs-publish/prod.lock.json
-```
-
-rollback 成功会追加 `rolled_back` ledger 记录，包含 target record / release /
-version、reason 和 rollback command，不会修改旧 `deployed` 或 `failed` 记录。
-
-## 验收点
-
-- `deploy:published-reader-scheduled` 在 `not_due`、`lock_busy`、`unchanged`、
-  `invalid`、`blocked` 时不执行 build/smoke/deploy。
-- `deploy:published-reader-scheduled` 只在 `changed` 时执行 build、build-output
-  smoke、deploy config verify 与 Wrangler deploy。
-- ledger 中的 final `deployed` 记录只在 build、smoke、verify 和 deploy 全部成功后追加。
-- 任一 build/smoke/verify/deploy 失败时只追加 final `failed` 记录，不追加
-  `deployed`。
-- `retry:published-reader-release` 不允许 retry `invalid` / `blocked` manifest 或
-  已被更新部署 supersede 的失败 candidate。
-- `rollback:published-reader-release` 只接受可解析到 Worker version id 的 target，
-  并通过 single-flight lock 执行。
-- rollback 成功只追加 `rolled_back` 记录，不修改历史 ledger 记录。
-- `nudge:published-reader-deploy-hook` 只记录 `trigger=hook` 并复用同一 manifest
-  validation / digest comparison / lock / deploy pipeline，不信任 payload 中的 release
-  truth。
-- `app-api` 的 `/api/docs/*` 只返回 public current static subset。
-- docs read-model manifest 中的 `collections` 与 `documents` 不包含
-  `campus_notices/internal_notice`。
-- `/api/docs/*` response 不包含 object storage key、raw provider locator 或
-  `chunkId`。
-- `public-docs` build output 包含 Rspress reader pages、`/_docs/...` 与
-  `/_gated-docs/...` static assets。
-- restricted reader asset 只经 `/_gated-docs/...` 返回，且必须在 Worker 内先走
-  same-site `/api/docs/.../admission` 校验后再读取静态资产。
-- restricted collection landing 由 `collection-bootstrap.html` 在客户端经 same-site
-  `/api/docs/collections/:corpus/:collection/navigation` 读取已授权标题与 canonical
-  URL；不得生成匿名 static MDX，也不得暴露正文、object key 或 raw provider locator。
-- gated reader asset response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`。
-- 缺失 source object、重复 target object、unsafe target path 或 hash/size 不一致时，
-  manifest check / sync 必须失败。
+通过标准：
+
+- `/docs/*` 在 campus-web origin 下返回 Rspress reader 页面。
+- `/api/docs/*` 仍由 campus-web Worker 显式代理到 `app-api`。
+- unknown `/api/*`、`/api/ops/*` 继续 fail closed。
+- reader asset URL 不包含 `localhost`、`127.0.0.1` 或对象存储 endpoint。
+- Q&A source card、docs search result 和直接阅读都生成
+  `/docs/:corpus/:collection/:docSlug?hl=<rootUnitId>#<anchor>` 语义 URL。
+- active deploy/smoke 不再要求部署独立 docs staging hostname。
 
 ## 回滚
 
-- 如果 `docs.*` read model 导入错误，重新导入上一份已知好的
-  `docs-read-model-manifest.json`。
-- 如果 `public-docs` bundle 错误，不重新扫描对象存储；应修复 app-api 导出的
-  sync manifest 或重新执行 reader publisher。
-- 如果已发布的 public-docs Worker bundle 错误，按第 9 节使用 Worker version id
-  回滚；不要用对象存储扫描或手工改 bucket 代替 rollback。
-- 不要把 `apps/public-docs/docs/` 生成内容提交进 git；它只属于 build-time source
-  staging。
+如果 campus-web docs build 生成错误：
+
+- 不扫描对象存储补救。
+- 不在 React `DocsPage` 临时自研 reader。
+- 先修复 app-api 导出的 docs sync manifest、reader asset package 或 Rspress source
+  generator，再重新构建 campus-web。
+
+如果已发布 campus-web Worker bundle 错误，按 Worker version 回滚；reader manifest digest
+不能替代 Worker rollback identity。
+
+## 相关稳定文档
+
+- `docs/architecture/system/document-site-architecture.md`
+- `docs/contracts/app-api-document-reader-http.md`
+- `docs/contracts/document-reader-publish-contract.md`
+- `docs/decisions/adr-0051-campus-docs-rspress-reader-surface.md`

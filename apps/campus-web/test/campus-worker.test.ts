@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import worker, { type Env } from "../src/index";
+
+const appRoot = join(__dirname, "..");
 
 function createEnv(appApi?: Env["APP_API"]): Env {
 	return {
@@ -14,6 +18,10 @@ function createEnv(appApi?: Env["APP_API"]): Env {
 		},
 		CAMPUS_WEB_HOSTNAME: "campus.muc.wiki",
 	};
+}
+
+function readTextFixture(relativePath: string): string {
+	return readFileSync(join(appRoot, relativePath), "utf8");
 }
 
 describe("campus worker boundary", () => {
@@ -77,6 +85,7 @@ describe("campus worker boundary", () => {
 			"/api/chat/runs/run_1/cancel",
 			"/api/docs/collections/regulations/student_rules/navigation",
 			"/api/docs/collections/regulations/student_rules/documents/index/resolve",
+			"/api/docs/collections/regulations/student_rules/documents/index/admission",
 			"/api/campus-map/places",
 			"/api/campus-map/places/library",
 			"/api/dining/halls",
@@ -120,6 +129,113 @@ describe("campus worker boundary", () => {
 			expect(response.status).toBe(200);
 			expect(response.headers.get("content-type")).toContain("text/html");
 		}
+	});
+
+	it("serves Rspress-built docs assets under the campus docs route", async () => {
+		const env = createEnv();
+		env.ASSETS = {
+			fetch: (request) => {
+				const pathname = new URL(request.url).pathname;
+				return new Response(
+					pathname.startsWith("/docs/")
+						? "<!doctype html><main>Rspress canonical reader</main>"
+						: '<!doctype html><div id="root"></div>',
+					{ headers: { "content-type": "text/html" } },
+				);
+			},
+		};
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/docs/regulations/student_rules/sample", {
+				headers: { accept: "text/html" },
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.text()).resolves.toContain("Rspress canonical reader");
+	});
+
+	it("keeps static Rspress and vendor assets outside the worker-first route gate", () => {
+		const wranglerConfig = readTextFixture("wrangler.toml");
+
+		expect(wranglerConfig).toContain(
+			'run_worker_first = [ "/*", "!/assets/*", "!/static/*", "!/vendor/*", "!/_docs/*" ]',
+		);
+		expect(wranglerConfig).not.toContain("!/_gated-docs/*");
+	});
+
+	it("serves gated reader assets only after app-api admission passes", async () => {
+		let admissionUrl: string | null = null;
+		let admissionCookie: string | null = null;
+		let assetPath: string | null = null;
+		const env = createEnv({
+			fetch(request) {
+				admissionUrl = request.url;
+				admissionCookie = request.headers.get("cookie");
+				return new Response(null, { status: 204 });
+			},
+		});
+		env.ASSETS = {
+			fetch(request) {
+				assetPath = new URL(request.url).pathname;
+				return new Response('{"sections":[]}', {
+					headers: { "content-type": "application/json; charset=utf-8" },
+				});
+			},
+		};
+
+		const response = await worker.fetch(
+			new Request(
+				"https://campus.muc.wiki/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
+				{
+					headers: {
+						cookie: "better-auth.session_token=test",
+					},
+				},
+			),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("vary")).toContain("Cookie");
+		expect(response.headers.get("vary")).toContain("Authorization");
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		await expect(response.text()).resolves.toBe('{"sections":[]}');
+		expect(assetPath).toBe(
+			"/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
+		);
+		expect(admissionUrl).toBe(
+			"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/admission?version=2026-current",
+		);
+		expect(admissionCookie).toBe("better-auth.session_token=test");
+	});
+
+	it("fails closed for gated reader assets when admission is denied", async () => {
+		let assetsCalled = false;
+		const env = createEnv({
+			fetch() {
+				return new Response(null, { status: 404 });
+			},
+		});
+		env.ASSETS = {
+			fetch() {
+				assetsCalled = true;
+				return new Response("unexpected", { status: 200 });
+			},
+		};
+
+		const response = await worker.fetch(
+			new Request(
+				"https://campus.muc.wiki/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
+			),
+			env,
+		);
+
+		expect(response.status).toBe(404);
+		expect(response.headers.get("vary")).toContain("Cookie");
+		expect(response.headers.get("vary")).toContain("Authorization");
+		expect(assetsCalled).toBe(false);
 	});
 
 	it("injects public runtime config from worker env into the shell", async () => {

@@ -25,7 +25,6 @@ updated: 2026-06-09
   - `api-staging.mucwiki-edge.link`
   - `campus-staging.mucwiki-edge.link`
   - `chat-staging.mucwiki-edge.link`
-  - `docs-staging.mucwiki-edge.link`
   - `panel-staging.mucwiki-edge.link`
 - Explicitly excluded:
   - `campus.muc.wiki` production custom-hostname path
@@ -72,8 +71,8 @@ updated: 2026-06-09
   - URL: `https://chat-staging.mucwiki-edge.link/readyz`
   - Result:
   - Evidence file:
-- docs ready
-  - URL: `https://docs-staging.mucwiki-edge.link/readyz`
+- campus docs
+  - URL: `https://campus-staging.mucwiki-edge.link/docs/`
   - Result:
   - Evidence file:
 - execution-control machine ingress
@@ -144,7 +143,7 @@ updated: 2026-06-09
   - Console / network issues:
   - Verdict:
 - Docs
-  - URL: `https://docs-staging.mucwiki-edge.link`
+  - URL: `https://campus-staging.mucwiki-edge.link/docs/`
   - Screenshot / evidence:
   - Console / network issues:
   - Verdict:

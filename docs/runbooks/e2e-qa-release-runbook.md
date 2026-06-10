@@ -81,8 +81,7 @@ for url in \
   https://campus-staging.mucwiki-edge.link/healthz \
   https://campus-staging.mucwiki-edge.link/readyz \
   https://chat-staging.mucwiki-edge.link/healthz \
-  https://chat-staging.mucwiki-edge.link/readyz \
-  https://docs-staging.mucwiki-edge.link/readyz
+  https://chat-staging.mucwiki-edge.link/readyz
 do
   echo "## $url"
   curl --noproxy '*' -sS -i "$url"
@@ -91,7 +90,9 @@ done | tee "$E2E_QA_EVIDENCE_DIR/surface-health.txt"
 
 通过标准：
 
-- API、campus、chat、docs health / ready endpoints 返回预期 `200`
+- API、campus、chat health / ready endpoints 返回预期 `200`
+- docs 作为 campus 内部支撑面，由 campus ready、`/docs/*` browser check 与
+  `docs:gated:smoke:staging` 共同证明
 - endpoint list 只包含 user/product surfaces，不包含 execution-control machine ingress
 - execution-control readiness 由
   `infra/local/staging/status-execution-control-staging.sh --check` 与
@@ -161,18 +162,19 @@ pnpm --dir apps/app-api docs:gated:smoke:staging \
 再抽样 docs surface：
 
 ```bash
-curl --noproxy '*' -sS -i https://docs-staging.mucwiki-edge.link \
+curl --noproxy '*' -sS -i https://campus-staging.mucwiki-edge.link/docs/ \
   | tee "$E2E_QA_EVIDENCE_DIR/docs-root.txt"
-curl --noproxy '*' -sS -i https://docs-staging.mucwiki-edge.link/readyz \
-  | tee "$E2E_QA_EVIDENCE_DIR/docs-readyz.txt"
+curl --noproxy '*' -sS -i \
+  https://campus-staging.mucwiki-edge.link/docs/regulations/student_rules/ \
+  | tee "$E2E_QA_EVIDENCE_DIR/docs-student-rules.txt"
 ```
 
 通过标准：
 
 - gated reader 匿名访问被拒绝
 - 使用 staging smoke session 后 gated reader 可访问
-- docs root 返回可渲染 HTML
-- `/readyz` 返回 `200`
+- campus docs root 返回可渲染 HTML
+- reader route 返回可渲染 HTML
 - reader asset URL 不包含 `localhost`、`127.0.0.1` 或本地 MinIO endpoint
 
 ## 6. Protected Panel And Access
@@ -204,7 +206,7 @@ pnpm --dir apps/protected-panel-web access:smoke:staging \
   - 使用 staging smoke identity 后 chat UI 可打开
   - conversations 列表能看到本轮 E2E 创建的新会话
   - 人工发送一条问题能返回 answer
-- `https://docs-staging.mucwiki-edge.link`
+- `https://campus-staging.mucwiki-edge.link/docs/`
   - 首页、分类、reader 页面可打开
   - gated 文档未授权不可读，授权后可读
 - `https://panel-staging.mucwiki-edge.link`

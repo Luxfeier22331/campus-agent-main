@@ -24,6 +24,7 @@ updated: 2026-04-26
 ```bash
 pnpm web:lint
 pnpm docs:lint
+pnpm --filter campus-web docs:build
 pnpm public-docs:lint
 pnpm coverage:lint
 pnpm java:lint
@@ -55,11 +56,13 @@ uv run --all-packages ruff format . --check
   文档，以及 `apps/` / `packages/` / `configs/` 的手写 live markdown；默认排除 archive /
   historical plan 文档、vendor、`node_modules`、scratch markdown，以及
   `apps/public-docs/docs/**` 生成文档
-- public-docs generated 侧通过 repo-owned checker 覆盖
+- campus-web docs reader 侧通过 `pnpm --filter campus-web docs:build` 覆盖当前
+  Rspress-powered `/docs/*` reader build。
+- public-docs generated 侧是 retired/reference package 的 repo-owned checker，覆盖
   `apps/public-docs/docs/**/*.md` 与 `apps/public-docs/docs/**/*.mdx`；该 lane 面向
-  canonical / reader projection 产物，允许为表格保真使用 HTML table 与长行，但 fail-close
-  检查空文档、frontmatter 结构、Git conflict marker、restricted collection marker 与内部
-  locator 泄漏
+  历史 canonical / reader projection 产物迁移参考，允许为表格保真使用 HTML table 与长行，
+  但 fail-close 检查空文档、frontmatter 结构、Git conflict marker、restricted collection
+  marker 与内部 locator 泄漏；它不是 forward docs product acceptance lane
 - `coverage:lint` 继续是 tracked repo baseline 审计，用于确保 repo-owned text-like surface
   都被某个 lint lane 接管；它不扩到未跟踪文件
 - Java 侧当前仅覆盖 `apps/legacy-office-conversion-service/src/**/*.java`，通过

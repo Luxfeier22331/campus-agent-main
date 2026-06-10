@@ -14,7 +14,7 @@
 		"web:check": "turbo run typecheck test build --filter=!hub-web",
 		"web:dev": "turbo run dev --filter=!hub-web",
 		"web:dev:chat": "turbo run dev --filter=public-chat-web",
-		"web:dev:docs": "turbo run dev --filter=public-docs",
+		"web:dev:docs": "pnpm --dir apps/campus-web docs:build && turbo run dev --filter=campus-web",
 		"web:lint": "uv run --all-packages python -m scripts.check_biome_tracked",
 		"web:lint:fix": "pnpm exec biome check --write .",
 		"web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected --filter=!hub-web",

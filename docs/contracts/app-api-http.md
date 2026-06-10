@@ -8,8 +8,8 @@ updated: 2026-04-29
 
 ## 文档边界
 
-这份文档冻结 shared `apps/app-api` 对 `public-chat-web` 与 `protected-panel-web` 暴露的
-browser-facing HTTP contract。
+这份文档冻结 shared `apps/app-api` 对 `campus-web`、legacy `public-chat-web` 与
+`protected-panel-web` 暴露的 browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
@@ -51,6 +51,7 @@ browser-facing HTTP contract。
 长期调用形态固定为：
 
 - `browser -> public-chat-web same-site /api/* -> app-api`
+- `browser -> campus-web same-origin /api/* -> app-api`
 - `browser -> protected-panel-web same-site /api/* -> app-api`
 
 因此：
@@ -70,7 +71,7 @@ browser-facing HTTP contract。
 `apps/app-api/src/app/route-exposure.ts` 是当前 route exposure inventory 的代码侧
 contract test carrier。新增 route 必须声明：
 
-- `browser-surface`：由 public chat / docs same-site proxy 调用
+- `browser-surface`：由 campus-web / legacy public chat same-origin proxy 调用
 - `operator-via-panel`：由 protected panel internal bridge 调用
 - `machine-internal`：由 supervisor / eval / ingestion 等 trusted machine caller 调用
 - `collector-machine`：由 official-web collector command caller 调用

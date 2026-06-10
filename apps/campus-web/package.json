@@ -7,8 +7,8 @@
 	"packageManager": "pnpm@10.26.1",
 	"scripts": {
 		"account:smoke:staging": "node ../../scripts/run-with-staging-smoke-env.mjs --cwd apps/campus-web node ./scripts/staging-account-browser-smoke.mjs",
-		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build && node ../../scripts/check_web_client_bundle_budget.mjs --app apps/campus-web",
-		"build:staging": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home node ../../scripts/run-worker-staging-build.mjs -- vite build && node ../../scripts/check_web_client_bundle_budget.mjs --app apps/campus-web",
+		"build": "pnpm docs:build && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build && node ../../scripts/check_web_client_bundle_budget.mjs --app apps/campus-web",
+		"build:staging": "pnpm docs:build && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home node ../../scripts/run-worker-staging-build.mjs -- vite build && node ../../scripts/check_web_client_bundle_budget.mjs --app apps/campus-web",
 		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 27014 --strictPort",
 		"deploy": "pnpm build && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config dist/campus_web/wrangler.json",
 		"deploy:check-secrets:staging": "uv run --all-packages python ../../scripts/check_worker_secret_presence.py --app apps/campus-web --env staging",
@@ -16,6 +16,9 @@
 		"deploy:verify-config": "node ../../scripts/verify-worker-deploy-config.mjs dist/campus_web/wrangler.json APP_API=app-api",
 		"deploy:verify-config:staging": "node ./scripts/verify-staging-config.mjs",
 		"deploy:staging": "pnpm deploy:preflight:staging && node ./scripts/deploy-staging.mjs",
+		"docs:build": "pnpm docs:scaffold && rspress build -c rspress.config.ts && node ./scripts/copy-rspress-docs-build.mjs",
+		"docs:scaffold": "node ./scripts/scaffold-rspress-docs.mjs",
+		"docs:sync:published-reader": "node ./scripts/sync-campus-published-reader.mjs docs && node ./scripts/sync-campus-published-reader.mjs assets",
 		"preview": "pnpm build && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite preview",
 		"test": "pnpm run test:node",
 		"test:node": "vitest run -c vitest.config.mts",
@@ -25,6 +28,7 @@
 	"dependencies": {
 		"@better-auth/oauth-provider": "^1.5.6",
 		"@radix-ui/react-slot": "^1.2.4",
+		"@rspress/core": "^2.0.9",
 		"@sentry/cloudflare": "^10.46.0",
 		"@tanstack/react-router": "^1.132.23",
 		"better-auth": "^1.5.6",
@@ -37,6 +41,7 @@
 		"tailwind-merge": "^3.5.0"
 	},
 	"devDependencies": {
+		"@aws-sdk/client-s3": "^3.1022.0",
 		"@cloudflare/vite-plugin": "^1.15.3",
 		"@cloudflare/vitest-pool-workers": "^0.13.4",
 		"@cloudflare/workers-types": "^4.20260317.1",

@@ -17,9 +17,9 @@ updated: 2026-06-09
   `https://api-staging.mucwiki-edge.link`
 - `apps/campus-web`: `https://campus-staging.mucwiki-edge.link`
 - `apps/public-chat-web`: `https://chat-staging.mucwiki-edge.link`
-- `apps/public-docs`: `https://docs-staging.mucwiki-edge.link`
 - `apps/protected-panel-web`: `https://panel-staging.mucwiki-edge.link`
 - `apps/hub-web`: retired package; not an active staging deploy or smoke gate
+- `apps/public-docs`: retired package; not an active staging deploy or smoke gate
 
 它只回答：
 
@@ -48,7 +48,8 @@ updated: 2026-06-09
   可占用的 deploy truth
 - staging browser forward truth 必须统一使用 `mucwiki-edge.link` 下的项目隔离一级子域：
   `campus-staging.mucwiki-edge.link`、`chat-staging.mucwiki-edge.link`、
-  `docs-staging.mucwiki-edge.link`、`panel-staging.mucwiki-edge.link`
+  `panel-staging.mucwiki-edge.link`；docs 作为 `campus-staging.mucwiki-edge.link/docs/*`
+  的内部支撑面验收
 - `api-staging.mucwiki-edge.link` 如保留，只作为 `app-api-staging` 的 machine /
   ops ingress；web surfaces 不把它当成 upstream
 - repo 中若再次出现 `ayafeed.com` 或 `*.rag.ayafeed.com` staging 配置、脚本断言或测试断言，只能视为待迁移实现残留，不能继续作为新资源
@@ -158,7 +159,6 @@ updated: 2026-06-09
 - 创建 `campus-staging.mucwiki-edge.link` custom domain，绑定到 `campus-web-staging`
 - 创建 `chat-staging.mucwiki-edge.link` custom domain，绑定到
   `public-chat-web-staging`
-- 创建 `docs-staging.mucwiki-edge.link` custom domain，绑定到 `public-docs-staging`
 - 创建 `panel-staging.mucwiki-edge.link` custom domain，绑定到
   `protected-panel-web-staging`
 
@@ -478,7 +478,7 @@ pnpm --dir apps/campus-web account:smoke:staging
 
 - `docs:gated:smoke:staging` 默认读取
   `PUBLIC_DOCS_SYNC_MANIFEST_PATH`，未设置时使用 repo-root
-  `var/public-docs-sync-manifest.json`；它从 manifest 中选择第一个
+  `var/public-docs-sync-manifest.staging.json`；它从 manifest 中选择第一个
   `gated_asset` reader，不再维护硬编码 gated reader path
 - gated collection navigation 的匿名期望状态也由同一 manifest 推导：如果同一
   `corpus/collection` 同时存在 `public_static_asset`，匿名 navigation 应为 `200`；
@@ -486,7 +486,7 @@ pnpm --dir apps/campus-web account:smoke:staging
 - 这些命令会在 shell 内生成临时随机密码，通过部署态 `app-api-staging`
   `POST /api/internal/staging-smoke/auth/session` 重置 smoke identity 并铸造真实
   staging session cookie，然后真实请求 `chat-staging.mucwiki-edge.link`、
-  `docs-staging.mucwiki-edge.link` 或 `campus-staging.mucwiki-edge.link`
+  `campus-staging.mucwiki-edge.link`
 - 如果 `chat:e2e:staging` 返回 `retrieval_failed` 且 supervisor trace 显示
   `qdrant retrieval failed`，不要在 retrieval/read path 增加 collection alias 或兜底查询；
   先在 `nc-arm-6c:/srv/apps/campus-agent` 执行

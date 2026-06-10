@@ -13,6 +13,11 @@ import type {
 	DocsResolveResponse,
 	DocsSearchResponse,
 } from "@/features/docs/model";
+import {
+	buildVersionReaderHref,
+	parseReaderLocationState,
+	type ReaderLocationState,
+} from "@/features/docs/reader-state";
 
 const DEFAULT_DOCS = {
 	collection: "student_rules",
@@ -22,7 +27,10 @@ const DEFAULT_DOCS = {
 
 export function DocsPage() {
 	const location = useLocation();
-	const routeParts = useMemo(() => parseDocsPath(location.pathname), [location.pathname]);
+	const routeParts = useMemo(
+		() => parseDocsPath(location.pathname, `${location.search}${location.hash}`),
+		[location.hash, location.pathname, location.search],
+	);
 	const [navigation, setNavigation] = useState<DocsNavigationResponse | null>(null);
 	const [document, setDocument] = useState<DocsResolveResponse | null>(null);
 	const [search, setSearch] = useState<DocsSearchResponse | null>(null);
@@ -38,8 +46,11 @@ export function DocsPage() {
 		Promise.all([
 			getDocsNavigation(routeParts),
 			resolveDocument({
+				anchor: routeParts.readerState.anchor,
 				...routeParts,
 				documentSlug: routeParts.documentSlug,
+				highlightRootUnitIds: routeParts.readerState.highlightRootUnitIds,
+				versionSlug: routeParts.versionSlug,
 			}),
 		])
 			.then(([nextNavigation, nextDocument]) => {
@@ -134,12 +145,13 @@ export function DocsPage() {
 				) : search ? (
 					<SearchResults search={search} />
 				) : document ? (
-					<DocumentReader
+					<ReaderRouteSummary
 						collectionLabel={navigation?.collection.displayName ?? "校园文档"}
 						document={document}
+						readerState={routeParts.readerState}
 					/>
 				) : (
-					<EmptyPanel message="当前文档暂无可展示正文。" />
+					<EmptyPanel message="当前文档暂无可打开的阅读页。" />
 				)}
 			</section>
 			<aside className="hidden lg:block">
@@ -153,13 +165,23 @@ export function DocsPage() {
 	);
 }
 
-function DocumentReader({
+function ReaderRouteSummary({
 	collectionLabel,
 	document,
+	readerState,
 }: {
 	collectionLabel: string;
 	document: DocsResolveResponse;
+	readerState: ReaderLocationState;
 }) {
+	const readerHref = buildVersionReaderHref({
+		collection: document.document.collection,
+		corpus: document.document.corpus,
+		documentSlug: document.document.documentSlug,
+		isCurrent: document.resolvedVersion.isCurrent,
+		readerState,
+		versionSlug: document.resolvedVersion.versionSlug,
+	});
 	return (
 		<article className="rounded-2xl border border-border bg-white p-6 md:p-8">
 			<p className="text-sm font-medium text-primary">{collectionLabel}</p>
@@ -169,18 +191,22 @@ function DocumentReader({
 			<p className="mt-4 text-sm text-[var(--sys-text-muted)]">
 				更新：{new Date(document.document.updatedAt).toLocaleDateString("zh-CN")}
 			</p>
-			<div className="mt-8 rounded-xl bg-[var(--sys-bg-subtle)] p-5 text-sm leading-7 text-[var(--sys-text-muted)]">
-				{document.readerAsset.contentUrl ? (
-					<a
-						className="inline-flex font-medium text-primary"
-						href={document.readerAsset.contentUrl}
-					>
-						打开原文
-					</a>
-				) : (
-					<EmptyPanel message="当前文档暂无可展示正文。" />
-				)}
-			</div>
+			<dl className="mt-6 grid gap-3 text-sm text-[var(--sys-text-muted)] md:grid-cols-2">
+				<div>
+					<dt className="font-medium text-[var(--sys-text-strong)]">版本</dt>
+					<dd className="mt-1">{document.resolvedVersion.label}</dd>
+				</div>
+				<div>
+					<dt className="font-medium text-[var(--sys-text-strong)]">阅读目标</dt>
+					<dd className="mt-1 break-all">{readerHref}</dd>
+				</div>
+			</dl>
+			<a
+				className="mt-8 inline-flex min-h-11 items-center rounded-lg bg-primary px-4 text-sm font-medium text-white"
+				href={readerHref}
+			>
+				打开文档
+			</a>
 		</article>
 	);
 }
@@ -206,11 +232,14 @@ function SearchResults({ search }: { search: DocsSearchResponse }) {
 	);
 }
 
-function parseDocsPath(pathname: string) {
+function parseDocsPath(pathname: string, searchAndHash: string) {
 	const parts = pathname.split("/").filter(Boolean);
+	const versionMarkerIndex = parts.indexOf("v");
 	return {
 		collection: parts[2] ?? DEFAULT_DOCS.collection,
 		corpus: parts[1] ?? DEFAULT_DOCS.corpus,
 		documentSlug: parts[3] ?? DEFAULT_DOCS.documentSlug,
+		readerState: parseReaderLocationState(`${pathname}${searchAndHash}`),
+		versionSlug: versionMarkerIndex >= 0 ? (parts[versionMarkerIndex + 1] ?? null) : null,
 	};
 }

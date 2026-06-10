@@ -110,7 +110,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 
 补充约束：
 
-- `public-docs` 是 docs-first browser surface，不自动进入这条 execution routing path
+- `campus-web /docs/*` 是 docs-first reader surface，不自动进入这条 execution routing path
 - `public-chat-web`、future `服务状态`、future `校园地图` 可以拥有不同 capability set
 - 单个 surface 的内部 IA 不自动升级成产品级 routing 原则
 
@@ -249,7 +249,7 @@ supervisor 长期继续统一负责：
 直接含义：
 
 - `public-chat-web` 当前 knowledge-only 是 surface posture
-- `public-docs` 不消费 execution routing，不因此拥有 `knowledge` capability
+- `campus-web /docs/*` 不消费 execution routing，不因此拥有 `knowledge` capability
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
 - `apps/execution-control` 不拥有 product-layer surface allowlist truth
 

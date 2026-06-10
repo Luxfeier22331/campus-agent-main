@@ -26,7 +26,7 @@ workstream and phase material is available through git history.
 
 | Area | Scope | Reopen Trigger |
 | --- | --- | --- |
-| Product Plane | `campus-web`, legacy `public-chat-web`, `public-docs`, `protected-panel-web`, shared `app-api` | Product surface, auth/session, request projection, or browser contract changes |
+| Product Plane | `campus-web` including `/docs/*`, legacy `public-chat-web`, `protected-panel-web`, shared `app-api` | Product surface, auth/session, request projection, or browser contract changes |
 | Execution Plane | `execution-control`, Temporal workflows, run/step projection, readiness | Workflow topology, projection schema, execution ingress, cancel semantics, or worker readiness changes |
 | Capability Plane | RAG, navigation, notice, campus services, semantic worker | New typed tool/activity, agent-as-tool boundary, routing/admission, or capability evidence changes |
 | Data Plane | ingestion, object storage, Qdrant, source truth, read models | Source family admission, ingestion release, query-enabled surface, ACL, or data-plane transport changes |

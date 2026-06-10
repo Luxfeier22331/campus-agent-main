@@ -210,8 +210,8 @@ describe("campus routes", () => {
 				outlineUrl: "/assets/docs/student-rules-outline.json",
 			},
 			readerState: {
-				anchor: null,
-				highlightRootUnitIds: [],
+				anchor: "general",
+				highlightRootUnitIds: ["unit_award"],
 			},
 			resolvedVersion: {
 				isCurrent: true,
@@ -452,15 +452,30 @@ describe("campus routes", () => {
 		);
 	});
 
-	it("renders docs reader, search results, empty search, and exclusive error state", async () => {
-		window.history.pushState({}, "", "/docs/regulations/student_rules/index");
+	it("renders docs control-plane shell without becoming a custom document reader", async () => {
+		window.history.pushState(
+			{},
+			"",
+			"/docs/regulations/student_rules/index/v/2025-history?hl=unit_award#general",
+		);
 		const { unmount } = render(<DocsPage />);
 
 		expect(await screen.findByRole("heading", { name: "学生手册" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "打开原文" })).toHaveAttribute(
-			"href",
-			"/assets/docs/student-rules.html",
+		expect(docsApiMock.resolveDocument).toHaveBeenCalledWith(
+			expect.objectContaining({
+				anchor: "general",
+				documentSlug: "index",
+				highlightRootUnitIds: ["unit_award"],
+				versionSlug: "2025-history",
+			}),
 		);
+		expect(screen.queryByText("学生应按时参加教学活动。")).toBeNull();
+		expect(screen.queryByText("奖学金评定需要满足对应条件。")).toBeNull();
+		expect(screen.getByRole("link", { name: "打开文档" })).toHaveAttribute(
+			"href",
+			"/docs/regulations/student_rules/index?hl=unit_award#general",
+		);
+		expect(screen.queryByRole("link", { name: "打开原文" })).toBeNull();
 		expect(screen.queryByText("完整正文可在文档页面中查看。")).toBeNull();
 
 		fireEvent.change(screen.getByLabelText("搜索文档"), {

@@ -36,9 +36,8 @@ updated: 2026-06-09
 -> Temporal -> activity worker -> supervisor-agent-worker private bridge ->
 rag-agent / retrieval-core`
 
-`browser -> public-docs static reader assets`
-
-`browser -> public-docs same-site /api/docs/* -> app-api docs control plane`
+`browser -> campus-web /docs/* -> Rspress-powered canonical reader /
+current React docs shell`
 
 `browser -> protected-panel-web -> app-api -> request projection / operator read
 model`
@@ -54,7 +53,7 @@ document/index release`
 - `campus-web` 是当前学生侧 product entry surface 与 account browser shell，不是第二个
   product backend、generic app-api proxy 或 MediaWiki proxy
 - panel 不绕过 `apps/app-api`
-- campus / legacy public chat / docs / panel 到 `apps/app-api` 的
+- campus / legacy public chat / panel 到 `apps/app-api` 的
   Worker-to-Worker 调用走 `APP_API` Service Binding；
   `https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
@@ -151,8 +150,11 @@ document/index release`
 ### `apps/campus-web`
 
 - public-facing Worker web surface for `campus.muc.wiki`
-- 拥有学生侧主体验、校园应用入口、conversation/docs/map/dining/feedback shell 与
+- 拥有学生侧主体验、校园应用入口、conversation/map/dining/feedback shell 与
   `/account/*` account browser shell
+- 拥有 `/docs/*` docs browser route；当前 feature branch 已引入 Rspress-powered
+  canonical reader build boundary，同时 React docs shell 仍保留为未 materialize reader route
+  的临时错误/empty path
 - 通过 allowlisted same-origin seam 与 Worker `APP_API` Service Binding 调用
   `apps/app-api` 的 `/api/me/*`、必要 `/api/auth/*`、implemented `/api/federation/*`、
   docs/chat/map/dining/feedback endpoints
@@ -184,14 +186,10 @@ document/index release`
 
 ### `apps/public-docs`
 
-- public-facing Worker docs surface
-- 当前正式拥有公开文档站 shell 与公开文档阅读入口
-- 当前以 `Rspress` 壳提供导航与阅读面，并通过 Worker `APP_API` Service Binding 将
-  same-site `/api/docs/*` 转发到 `apps/app-api`
-- 非 `/api/docs/*` 的 `/api/*` 不开放为通用 app-api proxy；文档站只拥有 docs control-plane
-  consumption seam
-- public reader 静态资产由 Worker `ASSETS` binding 交付，HTML shell 默认 `no-store`
-- 不拥有 auth/session/principal truth，也不自行成为 docs visibility / version 的长期 owner
+- retired/reference Worker docs package during deletion window
+- 不再拥有当前产品入口、文档 browser surface、账号导航或 staging acceptance gate
+- 其中 Rspress/MDX/anchor/highlight/search implementation 只作为 `campus-web /docs/*`
+  迁移参考
 
 ### `apps/protected-panel-web`
 
@@ -207,7 +205,7 @@ document/index release`
 - shared Worker-native application/control-plane backend
 - 拥有 auth、session、principal mapping、conversation truth、request ledger /
   projection input 与 selected operator surfaces
-- 拥有 public-docs same-site `/api/docs/*` 背后的 document reader control-plane truth
+- 拥有 campus-web same-origin `/api/docs/*` 背后的 document reader control-plane truth
 - 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission
   hardening
 - 拥有 Identity Platform 的 product-layer account / identity / access /

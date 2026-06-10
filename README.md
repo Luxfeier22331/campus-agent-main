@@ -5,7 +5,7 @@
 ## Overview
 
 当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`campus-web first`、
-`supervisor-led` 的校园助理系统：`campus-web` 学生侧主体验与账号浏览器 shell、公开文档站、
+`supervisor-led` 的校园助理系统：`campus-web` 学生侧主体验、账号浏览器 shell 与文档阅读面、
 受保护运营面、共享 `app-api`、内部 `execution-control`，以及按能力边界拆分的 agent /
 retrieval / ingestion packages。
 
@@ -20,16 +20,14 @@ browser -> public-chat-web legacy chat surface -> app-api -> execution-control
 -> Temporal -> activity worker -> supervisor-agent-worker
 -> rag-agent / retrieval-core
 
-browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
+browser -> campus-web /docs/* -> Rspress-powered canonical reader
 
 browser -> protected-panel-web -> app-api
 -> request projection / operator read model
 ```
 
-当前正式 docs surface 为：
-
-`browser -> public-docs static reader assets` 与
-`browser -> public-docs same-site /api/docs/* -> app-api`
+当前正式 docs surface 为 `campus-web /docs/*`；`/api/docs/*` 通过
+campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 
 该仓库当前的核心约束包括：
 
@@ -65,7 +63,7 @@ browser -> protected-panel-web -> app-api
 仓库按 runtime boundary 与 capability boundary 组织：
 
 - [`apps/`](./apps/)
-  - runtime shell 与 transport boundary，例如 `campus-web`、`public-chat-web`、`public-docs`、
+  - runtime shell 与 transport boundary，例如 `campus-web`、`public-chat-web`、
     `protected-panel-web`、`app-api`、`execution-control`、`ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
@@ -84,7 +82,6 @@ browser -> protected-panel-web -> app-api
 
 - [`apps/campus-web`](./apps/campus-web/)
 - [`apps/app-api`](./apps/app-api/)
-- [`apps/public-docs`](./apps/public-docs/)
 - [`apps/execution-control`](./apps/execution-control/)
 - [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)
 - [`packages/rag-agent`](./packages/rag-agent/)
@@ -160,21 +157,20 @@ pnpm web:build
 canonical artifacts / reader assets in object storage
 -> docs-read-model manifest
 -> app-api docs read model
--> public-docs sync manifest
--> public-docs build
+-> campus-web Rspress docs source/build
+-> campus-web /docs/* delivery
 ```
 
 接手者需要拿到：
 
 - `var/docs-read-model-manifest.json`
-- `var/public-docs-sync-manifest.json` 或对应环境后缀文件
 - sync manifest 指向的对象存储 reader assets
 - 对应环境的 app-api operator database 与对象存储读取配置
 
 完整发布、导入、构建和验收步骤见
 [document-reader-publish-and-docs-deploy-runbook](./docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md)。
-不要提交 repo-root `var/`、`apps/public-docs/docs/docs/` 或
-`apps/public-docs/doc_build/` 中的本地生成产物。
+不要提交 repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
+或 `apps/campus-web/public/static/` 中的本地生成产物。
 
 其中 `pnpm lint` 是仓库级 live-surface lint gate：默认覆盖 tracked 的源码、tests、repo-owned
 config、active docs、prompt markdown、repo dotfile config（`.editorconfig`、tracked

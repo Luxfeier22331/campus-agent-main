@@ -72,8 +72,9 @@ updated: 2026-06-04
   `docs/architecture/system/product-runtime-architecture.md`。
 - `apps/execution-control = Docker-first internal execution service`，见
   `ADR-0043` 与 `docs/architecture/current-architecture.md`。
-- product surface 收口到 `campus-web` / legacy `public-chat-web` / `public-docs` /
-  `protected-panel-web` + shared `app-api`，见 `ADR-0012`、`ADR-0013`、
+- product surface 收口到 `campus-web` / legacy `public-chat-web` /
+  `protected-panel-web` + shared `app-api`；docs 已进入 `campus-web /docs/*`，见
+  `ADR-0012`、`ADR-0013`、
   `ADR-0043` 与 current architecture。
 - Qdrant backup 默认主路径已从 Cloud / object-store bundle 切到 self-hosted
   native snapshot，见 `ADR-0045`；`ADR-0020` 已 superseded。

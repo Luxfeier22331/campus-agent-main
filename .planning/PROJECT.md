@@ -28,8 +28,10 @@ product data and sanitized run/event/step projection, not the execution queue.
 
 - Product entry surface is `campus-web` at `https://campus.muc.wiki`; staging
   browser validation uses `https://campus-staging.mucwiki-edge.link`.
-  `campus-web`, `public-docs`, `protected-panel-web`, and the legacy
-  `public-chat-web` surface enter shared `app-api`.
+  `campus-web`, `protected-panel-web`, and the legacy `public-chat-web` surface
+  enter shared `app-api`. Docs are now a `campus-web /docs/*`
+  Rspress-powered reader surface, not a separate forward `public-docs` product
+  surface.
 - `campus-web` owns the student-facing campus experience and account browser
   shell. `apps/app-api` remains the only auth/session/identity/federation truth
   owner.

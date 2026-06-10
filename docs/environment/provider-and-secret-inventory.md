@@ -438,8 +438,8 @@ derived-only bucket-scoped 凭据，不能复用 `ayafeed-*` 或 public docs rea
 
 Worker gated reader 交付：
 
-- `apps/public-docs` 在 build/deploy 阶段把 `deliveryMode=gated_asset` 同步进
-  `doc_build/_gated-docs/...`；运行时由 Worker-first admission 后读取静态资产
+- `apps/campus-web` 在 build/deploy 阶段把 `deliveryMode=gated_asset` 同步进
+  `public/_gated-docs/...`；运行时由 Worker-first admission 后读取静态资产
 - `apps/app-api` 仅提供 `/api/docs/.../admission` 控制面校验，不再承担 gated bytes streaming
 - 本地 ingestion / publish 命令仍使用上面的 `OBJECT_STORE_*` S3-compatible 配置写入同一 object
   key 体系

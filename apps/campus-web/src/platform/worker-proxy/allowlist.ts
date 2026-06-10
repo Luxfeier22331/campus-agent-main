@@ -53,6 +53,7 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+$/.test(pathname) ||
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/resolve$/.test(pathname) ||
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/versions$/.test(pathname) ||
+		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/admission$/.test(pathname) ||
 		/^\/api\/campus-map\/places\/[^/]+$/.test(pathname) ||
 		/^\/api\/dining\/halls\/[^/]+\/floors\/[^/]+$/.test(pathname)
 	);
