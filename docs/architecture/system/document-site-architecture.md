@@ -139,6 +139,8 @@ canonical doc 正文交付长期采用：
   - reader content
   - outline / section tree
   - public current / admitted historical 版本的 published reader payload
+  - gated reader bootstrap route 与 controlled static asset package；正文读取仍必须经过
+    same-origin app-api resolve/admission
 - `/api/docs/*`
   - current version pointer
   - version list
@@ -152,6 +154,8 @@ canonical doc 正文交付长期采用：
 - Vite/Worker 仍是 campus-web product shell 与 API proxy owner
 - `/docs/*` 优先交付 Rspress-built reader HTML；未 materialize 的 docs route 才回到
   React docs shell 的 explicit error/empty path
+- React `DocsPage` 不再承担自研 reader/search；它只处理未命中 static reader route 时的
+  canonical resolve handoff 或明确错误
 - `/api/docs/*` 继续经 campus-web Worker Service Binding 进入 `app-api`
 - unknown `/api/*`、operator APIs 与 generic app-api proxy 继续 fail closed
 

@@ -24,28 +24,38 @@ const COLLECTION_ORDER = [
 export async function syncCampusPublishedReaderDocs(input) {
 	const docsRoot = resolve(input.docsRoot ?? DEFAULT_DOCS_ROOT);
 	const manifest = await loadManifest(input);
-	const publicEntries = manifest.entries
-		.filter((entry) => entry.deliveryMode === "public_static_asset")
+	const readerEntries = manifest.entries
+		.filter(
+			(entry) =>
+				entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset",
+		)
 		.sort(compareEntryRoute);
-	const currentEntries = publicEntries.filter((entry) => entry.isCurrent);
+	const publicEntries = readerEntries.filter(
+		(entry) => entry.deliveryMode === "public_static_asset",
+	);
+	const currentPublicEntries = publicEntries.filter((entry) => entry.isCurrent);
 	rmSync(resolve(docsRoot, "docs"), { force: true, recursive: true });
 	writeText(resolve(docsRoot, "_meta.json"), formatJson(buildRootMeta()));
-	writeText(resolve(docsRoot, "index.md"), buildHomePage(currentEntries));
-	writeCollectionMetaFiles({ docsRoot, entries: currentEntries });
-	for (const entry of publicEntries) {
+	writeText(resolve(docsRoot, "index.md"), buildHomePage(currentPublicEntries));
+	writeBootstrapPages(docsRoot);
+	writeCollectionMetaFiles({ docsRoot, entries: currentPublicEntries });
+	for (const entry of readerEntries) {
 		await writeReaderPage({ client: input.client, docsRoot, entry });
 	}
-	return { generatedDocumentCount: publicEntries.length };
+	return {
+		generatedDocumentCount: readerEntries.length,
+		generatedGatedDocumentCount: readerEntries.filter(
+			(entry) => entry.deliveryMode === "gated_asset",
+		).length,
+		generatedPublicDocumentCount: publicEntries.length,
+	};
 }
 
 export async function syncCampusPublishedReaderAssets(input) {
 	const manifest = await loadManifest(input);
-	const entries = manifest.entries.filter((entry) => {
-		if (entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset") {
-			return true;
-		}
-		throw new Error(`unsupported reader asset delivery mode: ${entry.deliveryMode}`);
-	});
+	const entries = manifest.entries.filter(
+		(entry) => entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset",
+	);
 	const targetRoot = resolve(input.targetRoot ?? DEFAULT_PUBLIC_ROOT);
 	const seenTargets = new Set();
 	let copiedAssetCount = 0;
@@ -88,6 +98,10 @@ export async function syncCampusPublishedReaderAssets(input) {
 }
 
 async function writeReaderPage(input) {
+	if (input.entry.deliveryMode === "gated_asset") {
+		writeGatedReaderPage(input);
+		return;
+	}
 	const reader = JSON.parse(
 		await input.client.readTextObject({ key: input.entry.sourceObjects.reader }),
 	);
@@ -119,6 +133,57 @@ async function writeReaderPage(input) {
 	}
 }
 
+function writeGatedReaderPage(input) {
+	const versionMdx = buildGatedReaderMdx({
+		entry: input.entry,
+		importPath: "../../../../../../src/components/docs/gated-reader-bootstrap",
+	});
+	const currentMdx = buildGatedReaderMdx({
+		entry: input.entry,
+		importPath: "../../../../src/components/docs/gated-reader-bootstrap",
+	});
+	const versionPath = resolve(
+		input.docsRoot,
+		"docs",
+		input.entry.corpus,
+		input.entry.collection,
+		input.entry.documentSlug,
+		"v",
+		`${input.entry.versionSlug}.mdx`,
+	);
+	writeText(versionPath, versionMdx);
+	if (input.entry.isCurrent) {
+		writeText(
+			resolve(
+				input.docsRoot,
+				"docs",
+				input.entry.corpus,
+				input.entry.collection,
+				`${input.entry.documentSlug}.mdx`,
+			),
+			currentMdx,
+		);
+	}
+}
+
+function buildGatedReaderMdx(input) {
+	return [
+		"---",
+		`title: ${JSON.stringify(input.entry.title)}`,
+		"footer: false",
+		`documentKind: ${JSON.stringify(resolveDocumentKind(input.entry))}`,
+		'readerLayout: "reference"',
+		'readerMeasure: "standard"',
+		'readerOutline: "document"',
+		"---",
+		"",
+		`import GatedReaderBootstrap from "${input.importPath}";`,
+		"",
+		"<GatedReaderBootstrap />",
+		"",
+	].join("\n");
+}
+
 async function loadManifest(input) {
 	const raw = input.manifestFilePath
 		? readFileSync(input.manifestFilePath, "utf8")
@@ -137,7 +202,11 @@ function normalizeEntry(value) {
 		throw new Error("campus docs reader manifest entry must be an object");
 	}
 	const deliveryMode = requireString(value.deliveryMode, "deliveryMode");
-	if (deliveryMode !== "public_static_asset" && deliveryMode !== "gated_asset") {
+	if (
+		deliveryMode !== "public_static_asset" &&
+		deliveryMode !== "gated_asset" &&
+		deliveryMode !== "withheld"
+	) {
 		throw new Error(`unsupported reader delivery mode: ${deliveryMode}`);
 	}
 	const entry = {
@@ -163,6 +232,42 @@ function normalizeEntry(value) {
 		assertSafePathSegment(segment, label);
 	}
 	return entry;
+}
+
+function writeBootstrapPages(docsRoot) {
+	writeText(
+		resolve(docsRoot, "reader-bootstrap.mdx"),
+		[
+			"---",
+			'title: "文档阅读"',
+			"footer: false",
+			'readerLayout: "reference"',
+			'readerMeasure: "standard"',
+			"---",
+			"",
+			'import GatedReaderBootstrap from "../src/components/docs/gated-reader-bootstrap";',
+			"",
+			"<GatedReaderBootstrap />",
+			"",
+		].join("\n"),
+	);
+	writeText(
+		resolve(docsRoot, "collection-bootstrap.mdx"),
+		[
+			"---",
+			'title: "文档目录"',
+			"footer: false",
+			'readerLayout: "reference"',
+			'readerMeasure: "standard"',
+			"outline: false",
+			"---",
+			"",
+			'import GatedCollectionBootstrap from "../src/components/docs/gated-collection-bootstrap";',
+			"",
+			"<GatedCollectionBootstrap />",
+			"",
+		].join("\n"),
+	);
 }
 
 function buildReaderMdx(input) {
@@ -215,8 +320,7 @@ function buildMetaPanel(input) {
 	const details = [
 		["文档集合", collectionLabel],
 		["版本", versionLabel],
-		...(input.entry.docId ? [["doc_id", input.entry.docId]] : []),
-		...(input.entry.versionId ? [["version_id", input.entry.versionId]] : []),
+		["来源", sourceLabel],
 	];
 	return [
 		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}">`,

@@ -7,6 +7,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "src"),
+			"virtual-page-data": path.resolve(__dirname, "test/fixtures/virtual-page-data.ts"),
 		},
 	},
 	test: {

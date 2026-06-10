@@ -1,17 +1,24 @@
 import path from "node:path";
 import { defineConfig } from "@rspress/core";
+import { buildRspressSidebarConfig } from "./scripts/rspress-sidebar";
 
 const docsRoot = path.join(__dirname, "docs");
 
 export default defineConfig({
 	description: "中央民族大学校园问答内的文档阅读面。",
-	globalUIComponents: [path.join(__dirname, "src/components/docs/reader-state-enhancer.tsx")],
+	globalUIComponents: [
+		path.join(__dirname, "src/components/docs/search-keyboard-guard.tsx"),
+		path.join(__dirname, "src/components/docs/mobile-sidebar-guard.tsx"),
+		path.join(__dirname, "src/components/docs/docs-content-enhancer.tsx"),
+		path.join(__dirname, "src/components/docs/reader-state-enhancer.tsx"),
+	],
 	lang: "zh",
 	logoHref: "/",
 	logoText: "中央民族大学校园问答",
 	root: docsRoot,
 	search: {
 		mode: "local",
+		searchHooks: path.join(__dirname, "src/docs/search/docs-search-hook.ts"),
 	},
 	themeConfig: {
 		darkMode: false,
@@ -23,19 +30,8 @@ export default defineConfig({
 			{ link: "/feedback", text: "反馈" },
 		],
 		outlineTitle: "本页",
-		sidebar: {
-			"/docs/": [
-				{
-					items: [
-						{
-							link: "/docs/regulations/student_rules/",
-							text: "学生手册",
-						},
-					],
-					text: "规章制度",
-				},
-			],
-		},
+		sidebar: buildRspressSidebarConfig(docsRoot),
 	},
+	theme: path.join(__dirname, "theme"),
 	title: "中央民族大学校园问答",
 });

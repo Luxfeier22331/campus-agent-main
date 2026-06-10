@@ -34,9 +34,25 @@ describe("campus-web published reader sync", () => {
 			manifestFilePath: manifestPath,
 		});
 
-		expect(result.generatedDocumentCount).toBe(1);
+		expect(result).toMatchObject({
+			generatedGatedDocumentCount: 1,
+			generatedPublicDocumentCount: 1,
+			generatedDocumentCount: 2,
+		});
 		const currentMdx = readFileSync(
 			join(docsRoot, "docs/regulations/student_rules/student-attendance.mdx"),
+			"utf8",
+		);
+		const gatedMdx = readFileSync(
+			join(docsRoot, "docs/regulations/student_rules/restricted-policy.mdx"),
+			"utf8",
+		);
+		const gatedVersionMdx = readFileSync(
+			join(docsRoot, "docs/regulations/student_rules/restricted-policy/v/2026-current.mdx"),
+			"utf8",
+		);
+		const collectionIndex = readFileSync(
+			join(docsRoot, "docs/regulations/student_rules/index.md"),
 			"utf8",
 		);
 		const versionMdx = readFileSync(
@@ -47,7 +63,19 @@ describe("campus-web published reader sync", () => {
 		expect(currentMdx).toContain('data-root-unit-id="attendance-root"');
 		expect(currentMdx).toContain('<span id="general"></span>');
 		expect(currentMdx).toContain("学生应按时参加教学活动。");
+		expect(currentMdx).not.toContain("doc_id");
+		expect(currentMdx).not.toContain("version_id");
 		expect(versionMdx).toContain('data-docs-version-slug="2026-current"');
+		expect(gatedMdx).toContain("GatedReaderBootstrap");
+		expect(gatedMdx).toContain(
+			'import GatedReaderBootstrap from "../../../../src/components/docs/gated-reader-bootstrap";',
+		);
+		expect(gatedVersionMdx).toContain(
+			'import GatedReaderBootstrap from "../../../../../../src/components/docs/gated-reader-bootstrap";',
+		);
+		expect(collectionIndex).toContain("学生考勤管理规定");
+		expect(collectionIndex).not.toContain("restricted-policy");
+		expect(collectionIndex).not.toContain("受限制度");
 	});
 
 	it("copies published reader assets into campus-web static delivery roots", async () => {
@@ -194,6 +222,32 @@ function createPublishedReaderFixture(): {
 				},
 				title: "受限制度",
 				versionId: "version_gated",
+				versionLabel: "现行版",
+				versionSlug: "2026-current",
+			},
+			{
+				collection: "student_rules",
+				corpus: "regulations",
+				deliveryMode: "withheld",
+				docId: "doc_withheld",
+				documentSlug: "withheld-policy",
+				isCurrent: true,
+				sourceObjects: {
+					"asset-manifest": "manifest/gated.json",
+					meta: "meta/gated.json",
+					outline: "outline/gated.json",
+					reader: "reader/gated.json",
+				},
+				targetObjects: {
+					"asset-manifest":
+						"_gated-docs/regulations/student_rules/withheld-policy/2026-current/asset-manifest.json",
+					meta: "_gated-docs/regulations/student_rules/withheld-policy/2026-current/meta.json",
+					outline:
+						"_gated-docs/regulations/student_rules/withheld-policy/2026-current/outline.json",
+					reader: "_gated-docs/regulations/student_rules/withheld-policy/2026-current/reader.json",
+				},
+				title: "不发布制度",
+				versionId: "version_withheld",
 				versionLabel: "现行版",
 				versionSlug: "2026-current",
 			},

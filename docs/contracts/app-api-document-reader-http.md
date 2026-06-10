@@ -39,7 +39,7 @@ control-plane HTTP contract。
 
 - `browser -> campus-web /docs/* -> Rspress-powered reader assets`
 - `browser -> campus-web same-origin /api/docs/* -> app-api`
-- `browser -> public-chat-web same-site /api/* -> app-api`
+- `campus-web Q&A source cards -> campus-web /docs/* canonical reader target`
 
 因此：
 
@@ -70,6 +70,8 @@ control-plane HTTP contract。
   承载整篇正文
 - current version 是默认语义；historical version 必须显式指定
 - restricted admission 失败时直接 fail-close，不返回“伪装成不存在”的高亮内容片段
+- `docId` / `versionId` 可以存在于 API payload，供 client 关联 control-plane 状态；
+  默认学生侧 reader UI 不应展示这些内部 identity 字段
 
 ## Endpoint Summary
 
@@ -253,6 +255,8 @@ control-plane HTTP contract。
   校验后交付
 - `gated_asset` 的 v1 delivery 默认要求 `campus-web` 逐请求向 `app-api` 做 authz 校验
 - `gated_asset` 不应把对象存储 endpoint、presigned URL 或 bucket key 暴露给 browser
+- `gated_asset` 可以拥有 Rspress bootstrap route，但正文必须通过 resolve/admission 后
+  same-origin 读取；匿名 Rspress index 不得包含 gated 文档 title/slug
 - short-lived grant token / local verification 不属于当前默认 contract
 - future restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static
   path

@@ -114,7 +114,8 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 - browser-facing reader route 来自 campus-web Rspress/static build，而不是对象存储路径
 - browser-facing `meta.json` 不得暴露 raw source-truth locator、provider artifact path、
   object storage bucket/key 或 chunk id
-- `docId` / `versionId` 可以进入 metadata，但默认用户界面只能折叠显示
+- `docId` / `versionId` 是 control-plane identity，不是学生侧阅读 UI 字段；Rspress
+  reader 默认不得把它们渲染到正文、来源详情或版本控件里
 
 ## Deploy-Time Sync Contract
 
@@ -213,7 +214,8 @@ reader asset package 的 content format 可以统一，但 delivery mode 必须�
 - `public_static_asset`
   - 允许进入 campus-web anonymous static delivery
 - `gated_asset`
-  - 只允许进入 campus-web Worker-first controlled delivery
+  - 只允许进入 campus-web Worker-first controlled delivery；可生成无正文 Rspress
+    bootstrap route，但正文 bytes 必须经 same-origin `app-api` resolve/admission 后读取
 - `withheld`
   - 已有 package，但当前不参与任何 reader delivery
 
@@ -223,6 +225,8 @@ reader asset package 的 content format 可以统一，但 delivery mode 必须�
 - admitted historical 文档只有在显式允许时才进入 `public_static_asset`
 - restricted 文档默认不能进入匿名 static bundle
 - `gated_asset` 可以与 public 使用同一 asset format，但不能共用同一路径曝光模型
+- `gated_asset` 不进入匿名 collection index；可见目录与搜索结果必须来自
+  `app-api` navigation/search control-plane
 - `gated_asset` 的默认交付路径固定为 same-origin controlled delivery，而不是对象存储
   presigned URL
 - `gated_asset` 返回给 browser 的 URL 应保持在 `campus.muc.wiki` /

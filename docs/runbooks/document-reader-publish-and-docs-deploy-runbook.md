@@ -183,7 +183,9 @@ pnpm --filter campus-web docs:sync:published-reader
 - `docs:sync:published-reader` 只按 manifest 写入 generated Rspress source 与
   `public/_docs` / `public/_gated-docs`。
 - `public_static_asset` 生成 Rspress MDX reader page。
-- `gated_asset` 只同步 gated reader static assets，不生成匿名 reader page。
+- `gated_asset` 同步 gated reader static assets，并生成无正文 Rspress bootstrap
+  reader page；该 page 只能通过 same-origin `/api/docs/*` resolve/admission 后读取正文，
+  不得把 gated 文档标题或 slug 放进匿名 collection index。
 - sync 后必须运行 `pnpm --filter campus-web docs:build`，由 Rspress 生成 `/docs/*`
   reader output。
 
@@ -201,7 +203,12 @@ staging deploy：
 pnpm --filter campus-web deploy:staging
 ```
 
-`campus-web` build 会先运行 `docs:build`，再运行 Vite build 与 bundle budget check。
+`campus-web` build 会先运行 `docs:build`；该命令等价于
+`docs:build:published-reader`，必须读取 docs sync manifest 与对象存储 reader assets。
+`docs:build:scaffold` 只用于本地 Rspress 编译/视觉 sanity，不得作为 product 或 staging
+文档验收。
+
+随后 build 继续运行 Vite build 与 bundle budget check。
 `wrangler.toml` 必须允许 `/docs/*`、`/static/*`、`/vendor/*` 由 static assets delivery
 处理，同时 Worker 继续显式代理 `/api/docs/*`，不得开放 generic `/api/*`。
 
@@ -210,11 +217,15 @@ pnpm --filter campus-web deploy:staging
 本地验证：
 
 ```bash
-pnpm --filter campus-web docs:build
+pnpm --filter campus-web docs:build:scaffold
 pnpm --filter campus-web test:node -- test/docs-published-reader-sync.test.ts
 pnpm --filter campus-web test:node -- test/docs-reader-state.test.ts
 pnpm --filter campus-web test:worker -- test/campus-worker.test.ts
 ```
+
+`docs:build:scaffold` 只验证 Rspress/theme/global UI 可以编译。发布验收必须在设置
+`CAMPUS_DOCS_SYNC_MANIFEST_PATH` 或 `CAMPUS_DOCS_SYNC_MANIFEST_KEY` 后运行
+`pnpm --filter campus-web docs:build` / `build:staging`，否则应 fail closed。
 
 收口验证：
 
