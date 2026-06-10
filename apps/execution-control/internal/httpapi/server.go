@@ -38,6 +38,8 @@ type Server struct {
 	workflowRunsErr        error
 	runProjectionStore     execution.RunProjectionStore
 	runProjectionStoreErr  error
+	personalMemoryExecutor personalMemoryExecutor
+	personalMemoryErr      error
 	ragLookupExecutor      ragLookupExecutor
 	ragLookupErr           error
 	ragSynthesisExecutor   ragSynthesisExecutor
@@ -66,6 +68,13 @@ func (a TemporalRAGActivities) PlanChatAnswerActivity(
 	input temporalruntime.PlanChatAnswerActivityInput,
 ) (temporalruntime.PlanChatAnswerActivityOutput, error) {
 	return a.server.PlanChatAnswerActivity(ctx, input)
+}
+
+func (a TemporalRAGActivities) MemoryRecallActivity(
+	ctx context.Context,
+	input temporalruntime.MemoryRecallActivityInput,
+) (temporalruntime.MemoryRecallActivityOutput, error) {
+	return a.server.MemoryRecallActivity(ctx, input)
 }
 
 func (a TemporalRAGActivities) PlanRAGActivity(
@@ -231,6 +240,7 @@ func NewServerWithDependencies(
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
+	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg)
 	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg)
 	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
@@ -242,25 +252,27 @@ func NewServerWithDependencies(
 			FailureThreshold: 5,
 			OpenDuration:     10 * time.Second,
 		}),
-		admission:             admissionController,
-		lifecycle:             registry,
-		logger:                logger,
-		metrics:               metrics,
-		telemetry:             telemetryEmitter,
-		executionAudit:        executionAuditEmitter,
-		structuredQuery:       structuredQueryRuntime,
-		workflowRuns:          workflowRuns,
-		workflowRunsErr:       workflowRunsErr,
-		runProjectionStore:    runProjectionStore,
-		runProjectionStoreErr: runProjectionStoreErr,
-		ragLookupExecutor:     ragLookupExecutor,
-		ragLookupErr:          ragLookupErr,
-		ragSynthesisExecutor:  ragSynthesisExecutor,
-		ragSynthesisErr:       ragSynthesisErr,
-		temporalStarter:       temporalStarter,
-		temporalStarterErr:    temporalStarterErr,
-		intentPolicy:          intentPolicy,
-		intentPolicyErr:       intentPolicyErr,
+		admission:              admissionController,
+		lifecycle:              registry,
+		logger:                 logger,
+		metrics:                metrics,
+		telemetry:              telemetryEmitter,
+		executionAudit:         executionAuditEmitter,
+		structuredQuery:        structuredQueryRuntime,
+		workflowRuns:           workflowRuns,
+		workflowRunsErr:        workflowRunsErr,
+		runProjectionStore:     runProjectionStore,
+		runProjectionStoreErr:  runProjectionStoreErr,
+		personalMemoryExecutor: personalMemoryExecutor,
+		personalMemoryErr:      personalMemoryErr,
+		ragLookupExecutor:      ragLookupExecutor,
+		ragLookupErr:           ragLookupErr,
+		ragSynthesisExecutor:   ragSynthesisExecutor,
+		ragSynthesisErr:        ragSynthesisErr,
+		temporalStarter:        temporalStarter,
+		temporalStarterErr:     temporalStarterErr,
+		intentPolicy:           intentPolicy,
+		intentPolicyErr:        intentPolicyErr,
 	}
 	return server
 }
@@ -287,6 +299,10 @@ func newRAGSynthesisExecutor(cfg config.Config) (ragSynthesisExecutor, error) {
 
 func newRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
 	return newQdrantRAGLookupExecutor(cfg)
+}
+
+func newPersonalMemoryExecutor(cfg config.Config) (personalMemoryExecutor, error) {
+	return newQdrantPersonalMemoryExecutor(cfg)
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
@@ -432,6 +448,10 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 			setOutcome(writer, "not_found")
 			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:upsert":
+		s.handlePersonalMemoryUpsert(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
+		s.handlePersonalMemoryDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-guide":

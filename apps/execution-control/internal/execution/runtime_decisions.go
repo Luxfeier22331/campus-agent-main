@@ -36,7 +36,6 @@ func runtimeDecisions(
 		Context: runtimepolicy.Context{
 			SessionSlots:      runtimeSessionSlots(context.SessionSlots),
 			SelectedNoticeRef: runtimeSelectedNoticeRef(context.SelectedNoticeRef),
-			ProfileMemory:     runtimeProfileMemory(context.ProfileMemory),
 		},
 	}
 	var policyDecision runtimepolicy.Decision
@@ -486,16 +485,4 @@ func runtimeSelectedNoticeRef(ref selectedNoticeRef) runtimepolicy.SelectedNotic
 		Title:         ref.Title,
 		TargetSurface: ref.TargetSurface,
 	}
-}
-
-func runtimeProfileMemory(items []profileMemoryItem) []runtimepolicy.ProfileMemoryItem {
-	result := make([]runtimepolicy.ProfileMemoryItem, 0, len(items))
-	for _, item := range items {
-		result = append(result, runtimepolicy.ProfileMemoryItem{
-			Key:        item.Key,
-			Value:      item.Value,
-			Visibility: item.Visibility,
-		})
-	}
-	return result
 }

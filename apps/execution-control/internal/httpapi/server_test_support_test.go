@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -56,6 +57,43 @@ type readyTemporalStarter struct {
 }
 
 type readyRAGLookupExecutor struct{}
+
+type readyPersonalMemoryExecutor struct{}
+
+func (readyPersonalMemoryExecutor) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (readyPersonalMemoryExecutor) Recall(
+	_ context.Context,
+	request memoryruntime.RecallRequest,
+) (memoryruntime.RecallResult, error) {
+	return memoryruntime.FinalizeRecallResult(memoryruntime.RecallResult{
+		MemoryRef:     "projection://runs/" + request.RunID + "/memory/recall",
+		RunID:         request.RunID,
+		SchemaVersion: "memory_recall_result_v1",
+	})
+}
+
+func (readyPersonalMemoryExecutor) Upsert(
+	_ context.Context,
+	request memoryruntime.UpsertRequest,
+) (memoryruntime.UpsertResult, error) {
+	return memoryruntime.NormalizeUpsertResult(request), nil
+}
+
+func (readyPersonalMemoryExecutor) Disable(
+	_ context.Context,
+	request memoryruntime.DisableRequest,
+) (memoryruntime.UpsertResult, error) {
+	return memoryruntime.UpsertResult{
+		MemoryID:      request.MemoryID,
+		PointID:       memoryruntime.PointID(request.UserID, request.MemoryID),
+		SchemaVersion: "personal_memory_upsert_result_v1",
+		Status:        "disabled",
+		UpdatedAt:     request.UpdatedAt,
+	}, nil
+}
 
 func (readyRAGLookupExecutor) HealthCheck(context.Context) error {
 	return nil
@@ -130,6 +168,8 @@ func markTemporalReadyForTest(server *Server) {
 }
 
 func markRAGRuntimeReadyForTest(server *Server) {
+	server.personalMemoryExecutor = readyPersonalMemoryExecutor{}
+	server.personalMemoryErr = nil
 	server.ragLookupExecutor = readyRAGLookupExecutor{}
 	server.ragLookupErr = nil
 	server.ragSynthesisExecutor = readyRAGSynthesisExecutor{}

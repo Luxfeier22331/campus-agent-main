@@ -3,7 +3,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
-import { buildProfileMemoryService, type ProfileMemoryStore } from "../src/modules/profile-memory";
+import {
+	buildProfileMemoryService,
+	type ProfileMemoryIndexer,
+	type ProfileMemoryStore,
+} from "../src/modules/profile-memory";
 
 function createPrincipal(input: { chat?: boolean } = {}): ResolvedAppPrincipal {
 	return {
@@ -35,6 +39,7 @@ function createPrincipal(input: { chat?: boolean } = {}): ResolvedAppPrincipal {
 function createStore(): ProfileMemoryStore {
 	return {
 		deleteItem: vi.fn(async () => true),
+		findItemIdByKey: vi.fn(async () => null),
 		listByOwner: vi.fn(async () => ({ enabled: true, items: [] })),
 		listProjectionItems: vi.fn(async () => []),
 		setEnabled: vi.fn(async (input) => input.enabled),
@@ -51,11 +56,26 @@ function createStore(): ProfileMemoryStore {
 	};
 }
 
+function createIndexer(): ProfileMemoryIndexer {
+	return {
+		disableExplicitMemory: vi.fn(async () => ({
+			memoryId: "mem_01HQ",
+			status: "disabled",
+		})),
+		upsertExplicitMemory: vi.fn(async () => ({
+			memoryId: "mem_01HQ",
+			status: "active",
+		})),
+	};
+}
+
 describe("profile memory service", () => {
-	it("normalizes user-declared memory before durable upsert", async () => {
+	it("normalizes and indexes user-declared memory before PG projection upsert", async () => {
 		const store = createStore();
+		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
 			generateId: () => "mem_01HQ",
+			memoryIndexer: indexer,
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			store,
 		});
@@ -66,6 +86,12 @@ describe("profile memory service", () => {
 			value: " 先给   结论 ",
 		});
 
+		expect(indexer.upsertExplicitMemory).toHaveBeenCalledWith({
+			compactText: "answer_style: 先给 结论",
+			memoryId: "mem_01HQ",
+			updatedAt: "2026-04-27T08:00:00.000Z",
+			userId: "user_01HQ",
+		});
 		expect(store.upsertUserDeclared).toHaveBeenCalledWith({
 			itemId: "mem_01HQ",
 			key: "answer_style",
@@ -82,9 +108,102 @@ describe("profile memory service", () => {
 		});
 	});
 
+	it("does not write PG projection when Qdrant explicit memory indexing fails", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		vi.mocked(indexer.upsertExplicitMemory).mockRejectedValueOnce(new Error("qdrant unavailable"));
+		const service = buildProfileMemoryService({
+			generateId: () => "mem_01HQ",
+			memoryIndexer: indexer,
+			store,
+		});
+
+		await expect(
+			service.upsert({
+				key: "answer_style",
+				principal: createPrincipal(),
+				value: "先给结论",
+			}),
+		).rejects.toThrow("qdrant unavailable");
+
+		expect(store.upsertUserDeclared).not.toHaveBeenCalled();
+	});
+
+	it("reuses the existing PG memory id for repeated key upsert before indexing Qdrant", async () => {
+		const store = createStore();
+		vi.mocked(store.findItemIdByKey).mockResolvedValueOnce("mem_existing");
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({
+			generateId: () => "mem_new",
+			memoryIndexer: indexer,
+			now: () => new Date("2026-04-27T08:00:00.000Z"),
+			store,
+		});
+
+		const result = await service.upsert({
+			key: "answer_style",
+			principal: createPrincipal(),
+			value: "先给结论",
+		});
+
+		expect(indexer.upsertExplicitMemory).toHaveBeenCalledWith({
+			compactText: "answer_style: 先给结论",
+			memoryId: "mem_existing",
+			updatedAt: "2026-04-27T08:00:00.000Z",
+			userId: "user_01HQ",
+		});
+		expect(store.upsertUserDeclared).toHaveBeenCalledWith(
+			expect.objectContaining({ itemId: "mem_existing" }),
+		);
+		expect(result.item.itemId).toBe("mem_existing");
+	});
+
+	it("disables Qdrant memory before deleting PG projection", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({
+			memoryIndexer: indexer,
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			store,
+		});
+
+		const result = await service.deleteItem({
+			itemId: "mem_01HQ",
+			principal: createPrincipal(),
+		});
+
+		expect(indexer.disableExplicitMemory).toHaveBeenCalledWith({
+			memoryId: "mem_01HQ",
+			updatedAt: "2026-04-27T09:00:00.000Z",
+			userId: "user_01HQ",
+		});
+		expect(store.deleteItem).toHaveBeenCalledWith({
+			itemId: "mem_01HQ",
+			ownerUserId: "user_01HQ",
+		});
+		expect(result).toEqual({ deleted: true });
+	});
+
+	it("does not delete PG projection when Qdrant memory disable fails", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		vi.mocked(indexer.disableExplicitMemory).mockRejectedValueOnce(new Error("disable failed"));
+		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
+
+		await expect(
+			service.deleteItem({
+				itemId: "mem_01HQ",
+				principal: createPrincipal(),
+			}),
+		).rejects.toThrow("disable failed");
+
+		expect(store.deleteItem).not.toHaveBeenCalled();
+	});
+
 	it("rejects memory keys that look like authorization state", async () => {
 		const store = createStore();
-		const service = buildProfileMemoryService({ store });
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
 
 		await expect(
 			service.upsert({
@@ -96,6 +215,7 @@ describe("profile memory service", () => {
 			code: "invalid_profile_memory_item",
 			status: 400,
 		});
+		expect(indexer.upsertExplicitMemory).not.toHaveBeenCalled();
 		expect(store.upsertUserDeclared).not.toHaveBeenCalled();
 	});
 });

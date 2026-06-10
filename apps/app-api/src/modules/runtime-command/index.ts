@@ -4,7 +4,6 @@ export {
 	DRAFT_CONVERSATION_TITLE,
 } from "../chat";
 export { ExecutionControlTransportError } from "../integration";
-export type { ProfileMemoryProjectionStore } from "../profile-memory";
 export {
 	buildChatCommandService,
 	type ChatCommandPayload,

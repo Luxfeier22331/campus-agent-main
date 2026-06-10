@@ -121,10 +121,7 @@ func (c contextProjection) toMap() map[string]any {
 	result := map[string]any{
 		"actor":         c.Actor.toMap(),
 		"authorization": c.Authorization.toMap(),
-		"profile_memory": map[string]any{
-			"items": profileMemoryItemsToMaps(c.ProfileMemory),
-		},
-		"session": session,
+		"session":       session,
 	}
 	return result
 }
@@ -161,25 +158,6 @@ func (r selectedNoticeRef) toMap() map[string]any {
 		result["target_surface"] = r.TargetSurface
 	}
 	return result
-}
-
-func profileMemoryItemsToMaps(items []profileMemoryItem) []map[string]any {
-	results := make([]map[string]any, 0, len(items))
-	for _, item := range items {
-		result := map[string]any{
-			"item_id":     item.ItemID,
-			"key":         item.Key,
-			"value":       item.Value,
-			"source_type": defaultIfEmpty(item.SourceType, "user_declared"),
-			"confidence":  defaultIfEmpty(item.Confidence, "low"),
-			"visibility":  defaultIfEmpty(item.Visibility, "user_visible"),
-		}
-		if item.LastVerifiedAt != "" {
-			result["last_verified_at"] = item.LastVerifiedAt
-		}
-		results = append(results, result)
-	}
-	return results
 }
 
 func sessionSlotsToMaps(slots []sessionSlot) []map[string]any {

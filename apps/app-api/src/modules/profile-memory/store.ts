@@ -10,6 +10,7 @@ type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export interface ProfileMemoryStore {
 	deleteItem(input: { itemId: string; ownerUserId: string }): Promise<boolean>;
+	findItemIdByKey(input: { key: string; ownerUserId: string }): Promise<string | null>;
 	listByOwner(ownerUserId: string): Promise<ProfileMemoryList>;
 	listProjectionItems(input: { ownerUserId: string }): Promise<ProfileMemoryProjectionItem[]>;
 	setEnabled(input: { enabled: boolean; ownerUserId: string; updatedAt: string }): Promise<boolean>;
@@ -80,6 +81,21 @@ export function createPgProfileMemoryStore(
 				.returning({ itemId: profileMemoryItems.itemId });
 
 			return deletedRows.length > 0;
+		},
+
+		async findItemIdByKey(input) {
+			const db = await getDb();
+			const rows = await db
+				.select({ itemId: profileMemoryItems.itemId })
+				.from(profileMemoryItems)
+				.where(
+					and(
+						eq(profileMemoryItems.ownerUserId, input.ownerUserId),
+						eq(profileMemoryItems.key, input.key),
+					),
+				)
+				.limit(1);
+			return rows[0]?.itemId ?? null;
 		},
 
 		async listByOwner(ownerUserId) {

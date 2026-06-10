@@ -125,16 +125,6 @@ type authorizationProjection struct {
 	RetrievalFilter       authorizedRetrievalFilter
 }
 
-type profileMemoryItem struct {
-	ItemID         string
-	Key            string
-	Value          string
-	SourceType     string
-	Confidence     string
-	Visibility     string
-	LastVerifiedAt string
-}
-
 type sessionSlot struct {
 	Name      string
 	Value     string
@@ -151,7 +141,6 @@ type selectedNoticeRef struct {
 type contextProjection struct {
 	Actor             actorContext
 	Authorization     authorizationProjection
-	ProfileMemory     []profileMemoryItem
 	SessionSlots      []sessionSlot
 	SelectedNoticeRef selectedNoticeRef
 	TurnCount         int

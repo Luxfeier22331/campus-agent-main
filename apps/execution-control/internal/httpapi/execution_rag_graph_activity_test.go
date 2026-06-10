@@ -85,6 +85,8 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	lookup := &fakeRAGLookupExecutor{}
 	server.ragLookupExecutor = lookup
 	server.ragLookupErr = nil
+	server.personalMemoryExecutor = &fakePersonalMemoryExecutor{}
+	server.personalMemoryErr = nil
 	synthesis := &fakeRAGSynthesisExecutor{
 		summary: provider.ExecutionSummary{
 			CachedInputTokens:     20,
@@ -115,6 +117,22 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 		ragHandoffForDurableWorkerTest("学生请假手续"),
 	)
 	addRequestedScopeForRunTest(t, store, "run-rag-graph", "regulations", "student_rules")
+
+	memoryRecall, err := server.MemoryRecallActivity(
+		context.Background(),
+		temporalruntime.MemoryRecallActivityInput{
+			RequestID:           "req-executor-001",
+			RequestedCapability: "knowledge",
+			RunID:               "run-rag-graph",
+			TraceID:             "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("memory recall: %v", err)
+	}
+	if memoryRecall.MemoryRef != temporalProjectionRef("run-rag-graph", "memory/recall") {
+		t.Fatalf("memory ref = %q", memoryRecall.MemoryRef)
+	}
 
 	workflowPlan, err := server.PlanChatAnswerActivity(
 		context.Background(),
@@ -308,6 +326,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 		t.Fatalf("list steps: %v", err)
 	}
 	assertStepIDs(t, steps, []string{
+		"memory.recall",
 		"planning",
 		"rag.plan",
 		"retrieval.indexed_lookup",
@@ -321,8 +340,8 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list attempts: %v", err)
 	}
-	if len(attempts) != 8 {
-		t.Fatalf("attempt count = %d, want 8: %#v", len(attempts), attempts)
+	if len(attempts) != 9 {
+		t.Fatalf("attempt count = %d, want 9: %#v", len(attempts), attempts)
 	}
 	var synthesisAttempt *execution.StepAttemptProjection
 	for index := range attempts {

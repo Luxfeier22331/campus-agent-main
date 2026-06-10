@@ -5,6 +5,17 @@ import (
 	"testing"
 )
 
+func setStagingPersonalMemoryEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("QDRANT_URL", "https://qdrant:6333")
+	t.Setenv("QDRANT_QUERY_API_KEY", "readonly-key")
+	t.Setenv("QDRANT_WRITE_API_KEY", "write-key")
+	t.Setenv("QDRANT_TLS_CA_CERT_PATH", "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem")
+	t.Setenv("EMBEDDING_API_KEY", "embedding-key")
+	t.Setenv("EMBEDDING_MODEL", "text-embedding-3-large")
+	t.Setenv("EMBEDDING_DIMENSIONS", "3072")
+}
+
 func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "")
@@ -170,6 +181,12 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 		!cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
 	}
+	if cfg.PersonalMemoryCollection != "personal_memory_v1" ||
+		cfg.PersonalMemoryTopK != 5 ||
+		cfg.PersonalMemoryMaxChars != 1200 ||
+		cfg.EmbeddingDimensions != 0 {
+		t.Fatalf("unexpected local personal memory defaults: %#v", cfg)
+	}
 }
 
 func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
@@ -194,6 +211,7 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "7000")
+	setStagingPersonalMemoryEnv(t)
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -206,6 +224,65 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 		cfg.TemporalWorkflowIDSalt != "workflow-salt" ||
 		cfg.TemporalStartTimeoutMS != 7000 {
 		t.Fatalf("unexpected Temporal settings: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected deployed personal memory settings to be required")
+	}
+}
+
+func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:workflow-worker:001")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+
+	if _, err := LoadFromEnvForRole("workflow"); err != nil {
+		t.Fatalf("workflow worker must not require personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-finalization"); err != nil {
+		t.Fatalf("finalization worker must not require personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-rag"); err == nil {
+		t.Fatal("rag worker must require query-side personal memory config")
+	}
+	setStagingPersonalMemoryEnv(t)
+	t.Setenv("QDRANT_WRITE_API_KEY", "")
+	if _, err := LoadFromEnvForRole("activity-rag"); err != nil {
+		t.Fatalf("rag worker recall must not require QDRANT_WRITE_API_KEY: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("execution-control"); err == nil {
+		t.Fatal("execution-control memory write API must require QDRANT_WRITE_API_KEY")
+	}
+}
+
+func TestLoadFromEnvRejectsHTTPQdrantForDeployedPersonalMemory(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+	setStagingPersonalMemoryEnv(t)
+	t.Setenv("QDRANT_URL", "http://qdrant:6333")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected deployed personal memory to reject http Qdrant URL")
+	}
+	if !strings.Contains(err.Error(), "QDRANT_URL must use https") {
+		t.Fatalf("error = %v, want https diagnostic", err)
 	}
 }
 
@@ -328,6 +405,7 @@ func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+	setStagingPersonalMemoryEnv(t)
 
 	cfg, err := LoadFromEnv()
 	if err != nil {

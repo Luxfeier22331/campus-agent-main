@@ -267,23 +267,6 @@ func previousGoalContextCandidates(context Context, policy IntentPolicyArtifact)
 		seen[value] = struct{}{}
 		candidates = append(candidates, value)
 	}
-	for _, item := range context.ProfileMemory {
-		if item.Key != "" && item.Key != "recent_goal" {
-			continue
-		}
-		value := strings.TrimSpace(item.Value)
-		if value == "" {
-			continue
-		}
-		if firstMatch(NormalizeGoal(value), policy.Signals("campus_scope")) == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		candidates = append(candidates, value)
-	}
 	return candidates
 }
 

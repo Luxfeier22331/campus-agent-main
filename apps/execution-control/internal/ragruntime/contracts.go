@@ -26,6 +26,7 @@ type PlanProjection struct {
 	TopK                     int            `json:"top_k"`
 	NoWideningPolicy         bool           `json:"no_widening_policy"`
 	RequiredEvidenceContract string         `json:"required_evidence_contract"`
+	MemoryRef                string         `json:"memory_ref,omitempty"`
 	PayloadSHA256            string         `json:"payload_sha256"`
 	UnsafeDebug              map[string]any `json:"-"`
 }
@@ -70,14 +71,25 @@ type EvidenceSelectionResult struct {
 }
 
 type SynthesisPacketProjection struct {
-	OutputSchemaID   string        `json:"output_schema_id"`
-	PayloadSHA256    string        `json:"payload_sha256"`
-	PromptRefs       []string      `json:"prompt_refs"`
-	QueryIntent      string        `json:"query_intent"`
-	RequestID        string        `json:"request_id"`
-	RunID            string        `json:"run_id"`
-	SelectedEvidence []EvidenceRef `json:"selected_evidence"`
-	StepID           string        `json:"step_id"`
+	MemoryContext    []MemoryContextItem `json:"memory_context,omitempty"`
+	MemoryRef        string              `json:"memory_ref,omitempty"`
+	OutputSchemaID   string              `json:"output_schema_id"`
+	PayloadSHA256    string              `json:"payload_sha256"`
+	PromptRefs       []string            `json:"prompt_refs"`
+	QueryIntent      string              `json:"query_intent"`
+	RequestID        string              `json:"request_id"`
+	RunID            string              `json:"run_id"`
+	SelectedEvidence []EvidenceRef       `json:"selected_evidence"`
+	StepID           string              `json:"step_id"`
+}
+
+type MemoryContextItem struct {
+	Capability  string  `json:"capability"`
+	CompactText string  `json:"compact_text"`
+	MemoryID    string  `json:"memory_id"`
+	MemoryType  string  `json:"memory_type"`
+	Score       float64 `json:"score"`
+	UpdatedAt   string  `json:"updated_at"`
 }
 
 type GroundingVerificationResult struct {

@@ -23,8 +23,25 @@ export interface ProfileMemoryService {
 	}): Promise<{ item: ProfileMemoryItem }>;
 }
 
+export interface ProfileMemoryIndexer {
+	disableExplicitMemory(input: {
+		memoryId: string;
+		tenantId?: string;
+		updatedAt: string;
+		userId: string;
+	}): Promise<{ memoryId: string; status: string }>;
+	upsertExplicitMemory(input: {
+		compactText: string;
+		memoryId: string;
+		tenantId?: string;
+		updatedAt: string;
+		userId: string;
+	}): Promise<{ memoryId: string; status: string }>;
+}
+
 export interface ProfileMemoryServiceDependencies {
 	generateId?: (prefix: string) => string;
+	memoryIndexer: ProfileMemoryIndexer;
 	now?: () => Date;
 	store: ProfileMemoryStore;
 }
@@ -84,6 +101,11 @@ export function buildProfileMemoryService(
 				});
 			}
 
+			await dependencies.memoryIndexer.disableExplicitMemory({
+				memoryId: itemId,
+				updatedAt: now().toISOString(),
+				userId: ownerUserId,
+			});
 			const deleted = await dependencies.store.deleteItem({ itemId, ownerUserId });
 			if (!deleted) {
 				throw createProfileMemoryError({
@@ -114,6 +136,7 @@ export function buildProfileMemoryService(
 			const ownerUserId = assertProfileMemoryPrincipal(input.principal);
 			const key = normalizeProfileMemoryKey(input.key);
 			const value = normalizeProfileMemoryValue(input.value);
+			const updatedAt = now().toISOString();
 			if (!(key && value)) {
 				throw createProfileMemoryError({
 					code: "invalid_profile_memory_item",
@@ -122,11 +145,22 @@ export function buildProfileMemoryService(
 				});
 			}
 
-			const item = await dependencies.store.upsertUserDeclared({
-				itemId: generateId("mem"),
+			const existingItemId = await dependencies.store.findItemIdByKey({
 				key,
 				ownerUserId,
-				updatedAt: now().toISOString(),
+			});
+			const itemId = existingItemId ?? generateId("mem");
+			await dependencies.memoryIndexer.upsertExplicitMemory({
+				compactText: `${key}: ${value}`,
+				memoryId: itemId,
+				updatedAt,
+				userId: ownerUserId,
+			});
+			const item = await dependencies.store.upsertUserDeclared({
+				itemId,
+				key,
+				ownerUserId,
+				updatedAt,
 				value,
 			});
 			return { item };

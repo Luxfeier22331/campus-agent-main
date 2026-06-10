@@ -317,17 +317,10 @@ export function buildChatCommandService(
 	async function buildSupervisorInput(
 		context: AcceptedChatCommandContext,
 	): Promise<SupervisorExecutionInput> {
-		const profileMemoryItems = dependencies.profileMemoryStore
-			? await dependencies.profileMemoryStore.listProjectionItems({
-					ownerUserId: context.input.principal.principal.principalId,
-				})
-			: [];
-
 		return {
 			context: buildSupervisorContextProjection({
 				actor: context.input.principal.actor,
 				authorization: context.input.principal.authorization,
-				profileMemoryItems,
 				sessionSlots: context.conversation.sessionSlots,
 				turnCount: context.conversation.messages.length,
 			}),

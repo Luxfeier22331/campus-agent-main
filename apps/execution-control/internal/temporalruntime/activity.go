@@ -1,6 +1,7 @@
 package temporalruntime
 
 const (
+	MemoryRecallActivityName            = "MemoryRecallActivity"
 	PlanChatAnswerActivityName          = "PlanChatAnswerActivity"
 	PlanRAGActivityName                 = "PlanRAGActivity"
 	RetrieveIndexedLookupActivityName   = "RetrieveIndexedLookupActivity"

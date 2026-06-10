@@ -19,20 +19,6 @@ export interface SupervisorPromptTrace {
 	variablesSchemaVersion: string | null;
 }
 
-export interface SupervisorProfileMemoryItem {
-	itemId: string;
-	key: string;
-	value: string;
-	confidence?: string;
-	lastVerifiedAt?: string;
-	sourceType?: string;
-	visibility?: string;
-}
-
-export interface SupervisorProfileMemorySummary {
-	items: SupervisorProfileMemoryItem[];
-}
-
 export interface SupervisorSessionSlot {
 	confirmed?: boolean;
 	name: string;
@@ -47,7 +33,6 @@ export interface SupervisorSessionSummary {
 export interface SupervisorContextProjection {
 	actor: ExecutionActorContext;
 	authorization: ExecutionAuthorizationContext;
-	profileMemory: SupervisorProfileMemorySummary;
 	session: SupervisorSessionSummary;
 }
 

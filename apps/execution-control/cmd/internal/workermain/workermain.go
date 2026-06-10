@@ -26,7 +26,7 @@ const (
 
 func Run(role Role) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	cfg, err := config.LoadFromEnv()
+	cfg, err := config.LoadFromEnvForRole(string(role))
 	if err != nil {
 		logger.Error("campus execution worker config invalid", "role", string(role), "error", err.Error())
 		os.Exit(1)

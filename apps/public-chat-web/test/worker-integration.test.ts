@@ -125,7 +125,6 @@ function supervisorInputContextFromWire(value: unknown): SupervisorExecutionInpu
 	return {
 		actor: executionActorFromWire(context.actor),
 		authorization: executionAuthorizationFromWire(context.authorization),
-		profileMemory: profileMemoryFromWire(context.profile_memory),
 		session: sessionFromWire(context.session),
 	};
 }
@@ -180,30 +179,6 @@ function executionAuthorizationFromWire(value: unknown): ExecutionAuthorizationC
 			visibilityScope: stringOrNull(retrievalFilter.visibility_scope),
 		},
 		visibilityScope: stringOrNull(authorization.visibility_scope),
-	};
-}
-
-function profileMemoryFromWire(value: unknown): SupervisorExecutionInput["context"]["profileMemory"] {
-	const profileMemory = recordFromWire(value, "execution payload profile memory");
-	const items = Array.isArray(profileMemory.items) ? profileMemory.items : [];
-	return {
-		items: items.flatMap((item) => {
-			if (!item || typeof item !== "object" || Array.isArray(item)) {
-				return [];
-			}
-			const record = item as Record<string, unknown>;
-			return [
-				{
-					confidence: stringOrUndefined(record.confidence),
-					itemId: requiredString(record.item_id, "profile_memory.items[].item_id"),
-					key: requiredString(record.key, "profile_memory.items[].key"),
-					lastVerifiedAt: stringOrUndefined(record.last_verified_at),
-					sourceType: stringOrUndefined(record.source_type),
-					value: requiredString(record.value, "profile_memory.items[].value"),
-					visibility: stringOrUndefined(record.visibility),
-				},
-			];
-		}),
 	};
 }
 

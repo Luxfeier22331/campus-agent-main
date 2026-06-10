@@ -2,9 +2,9 @@ import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } 
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import {
 	createExecutionControlRequestHeaders,
+	ExecutionControlTransportError,
 	parseExecutionControlErrorEnvelope,
 	parseExecutionControlJsonResponse,
-	ExecutionControlTransportError,
 } from "./execution-control-transport";
 
 type ExecutionControlRuntimeEnv = Pick<
@@ -52,6 +52,33 @@ export interface ExecutionControlRunCancelInput {
 	runId: string;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
+}
+
+export interface ExecutionControlPersonalMemoryUpsertInput {
+	compactText: string;
+	memoryId: string;
+	tenantId?: string | null;
+	traceHeaders?: TracePropagationHeaders;
+	traceId?: string | null;
+	updatedAt: string;
+	userId: string;
+}
+
+export interface ExecutionControlPersonalMemoryDisableInput {
+	memoryId: string;
+	tenantId?: string | null;
+	traceHeaders?: TracePropagationHeaders;
+	traceId?: string | null;
+	updatedAt: string;
+	userId: string;
+}
+
+export interface ExecutionControlPersonalMemoryResult {
+	memoryId: string;
+	pointId: string;
+	schemaVersion: string;
+	status: string;
+	updatedAt: string;
 }
 
 export interface ExecutionControlRun {
@@ -169,8 +196,19 @@ export interface ExecutionControlRuntimeClient {
 	listRunSteps(input: ExecutionControlRunQuery): Promise<ExecutionControlRunStepTrajectory>;
 }
 
+export interface ExecutionControlPersonalMemoryClient {
+	disableExplicitMemory(
+		input: ExecutionControlPersonalMemoryDisableInput,
+	): Promise<ExecutionControlPersonalMemoryResult>;
+	upsertExplicitMemory(
+		input: ExecutionControlPersonalMemoryUpsertInput,
+	): Promise<ExecutionControlPersonalMemoryResult>;
+}
+
 export function isExecutionControlRuntimeConfigured(env: ExecutionControlRuntimeEnv): boolean {
-	return Boolean(env.EXECUTION_CONTROL_BASE_URL?.trim() && env.EXECUTION_CONTROL_SHARED_SECRET?.trim());
+	return Boolean(
+		env.EXECUTION_CONTROL_BASE_URL?.trim() && env.EXECUTION_CONTROL_SHARED_SECRET?.trim(),
+	);
 }
 
 export function createExecutionControlRuntimeClient(
@@ -182,8 +220,144 @@ export function createExecutionControlRuntimeClient(
 ): ExecutionControlRuntimeClient {
 	const fetchImplementation = input.fetchImplementation ?? fetch;
 	const traceDataProvider = input.traceDataProvider ?? (() => ({}));
+	const requestExecutionControl = createExecutionControlRequester(env, {
+		fetchImplementation,
+		traceDataProvider,
+	});
 
-	async function requestExecutionControl(
+	return {
+		async cancelRun(cancelInput: ExecutionControlRunCancelInput): Promise<ExecutionControlRun> {
+			const parsed = await requestExecutionControl(
+				`/internal/execution/runs/${cancelInput.runId}/cancel`,
+				{
+					body: {
+						reason: cancelInput.reason,
+					},
+					expectedStatus: 202,
+					method: "POST",
+					traceHeaders: cancelInput.traceHeaders,
+					traceId: cancelInput.traceId,
+				},
+			);
+			return parseDurableRun(parsed);
+		},
+		async createRun(createInput: ExecutionControlRunCreateInput): Promise<ExecutionControlRun> {
+			const parsed = await requestExecutionControl("/internal/execution/runs", {
+				body: toDurableRunCreateBody(createInput),
+				expectedStatus: 202,
+				method: "POST",
+				traceHeaders: createInput.traceHeaders,
+				traceId: createInput.traceId,
+			});
+			return parseDurableRun(parsed);
+		},
+		async getRun(query: ExecutionControlRunQuery): Promise<ExecutionControlRun> {
+			const parsed = await requestExecutionControl(`/internal/execution/runs/${query.runId}`, {
+				expectedStatus: 200,
+				method: "GET",
+				traceHeaders: query.traceHeaders,
+				traceId: query.traceId,
+			});
+			return parseDurableRun(parsed);
+		},
+		async listRunEvents(query: ExecutionControlRunEventQuery): Promise<ExecutionControlRunEvent[]> {
+			const parsed = await requestExecutionControl(durableRunEventsPath(query), {
+				expectedStatus: 200,
+				method: "GET",
+				traceHeaders: query.traceHeaders,
+				traceId: query.traceId,
+			});
+			return parseDurableRunEvents(parsed);
+		},
+		async listRunSteps(
+			query: ExecutionControlRunQuery,
+		): Promise<ExecutionControlRunStepTrajectory> {
+			const parsed = await requestExecutionControl(
+				`/internal/execution/runs/${query.runId}/steps`,
+				{
+					expectedStatus: 200,
+					method: "GET",
+					traceHeaders: query.traceHeaders,
+					traceId: query.traceId,
+				},
+			);
+			return parseRunStepTrajectory(parsed);
+		},
+	};
+}
+
+export function createExecutionControlPersonalMemoryClient(
+	env: ExecutionControlRuntimeEnv,
+	input: {
+		fetchImplementation?: typeof fetch;
+		traceDataProvider?: () => Record<string, unknown>;
+	} = {},
+): ExecutionControlPersonalMemoryClient {
+	const requestExecutionControl = createExecutionControlRequester(env, {
+		fetchImplementation: input.fetchImplementation ?? fetch,
+		traceDataProvider: input.traceDataProvider ?? (() => ({})),
+	});
+
+	return {
+		async disableExplicitMemory(
+			memoryInput: ExecutionControlPersonalMemoryDisableInput,
+		): Promise<ExecutionControlPersonalMemoryResult> {
+			const parsed = await requestExecutionControl("/internal/memory/personal/items:disable", {
+				body: {
+					memory_id: memoryInput.memoryId,
+					tenant_id: memoryInput.tenantId ?? "",
+					updated_at: memoryInput.updatedAt,
+					user_id: memoryInput.userId,
+				},
+				expectedStatus: 202,
+				method: "POST",
+				traceHeaders: memoryInput.traceHeaders,
+				traceId: memoryInput.traceId,
+			});
+			return parsePersonalMemoryResult(parsed);
+		},
+		async upsertExplicitMemory(
+			memoryInput: ExecutionControlPersonalMemoryUpsertInput,
+		): Promise<ExecutionControlPersonalMemoryResult> {
+			const parsed = await requestExecutionControl("/internal/memory/personal/items:upsert", {
+				body: {
+					capability: "any",
+					compact_text: memoryInput.compactText,
+					memory_id: memoryInput.memoryId,
+					memory_type: "profile",
+					source: "explicit",
+					status: "active",
+					tenant_id: memoryInput.tenantId ?? "",
+					updated_at: memoryInput.updatedAt,
+					user_id: memoryInput.userId,
+				},
+				expectedStatus: 202,
+				method: "POST",
+				traceHeaders: memoryInput.traceHeaders,
+				traceId: memoryInput.traceId,
+			});
+			return parsePersonalMemoryResult(parsed);
+		},
+	};
+}
+
+function createExecutionControlRequester(
+	env: ExecutionControlRuntimeEnv,
+	input: {
+		fetchImplementation: typeof fetch;
+		traceDataProvider: () => Record<string, unknown>;
+	},
+): (
+	path: string,
+	options: {
+		body?: JsonRecord;
+		expectedStatus: number;
+		method: "GET" | "POST";
+		traceHeaders?: TracePropagationHeaders;
+		traceId?: string | null;
+	},
+) => Promise<JsonRecord> {
+	return async function requestExecutionControl(
 		path: string,
 		options: {
 			body?: JsonRecord;
@@ -224,20 +398,21 @@ export function createExecutionControlRuntimeClient(
 					);
 				}, timeoutMs);
 
-				fetchImplementation(`${baseUrl}${path}`, {
-					body: options.body ? JSON.stringify(options.body) : undefined,
-					headers: createExecutionControlRequestHeaders({
-						env,
-						payload: {
-							traceHeaders: options.traceHeaders,
-							traceId: options.traceId?.trim() || "",
-						},
-						sharedSecret,
-						traceDataProvider,
-					}),
-					method: options.method,
-					signal: controller.signal,
-				})
+				input
+					.fetchImplementation(`${baseUrl}${path}`, {
+						body: options.body ? JSON.stringify(options.body) : undefined,
+						headers: createExecutionControlRequestHeaders({
+							env,
+							payload: {
+								traceHeaders: options.traceHeaders,
+								traceId: options.traceId?.trim() || "",
+							},
+							sharedSecret,
+							traceDataProvider: input.traceDataProvider,
+						}),
+						method: options.method,
+						signal: controller.signal,
+					})
 					.then(resolve)
 					.catch((error) => {
 						if (error instanceof Error && error.name === "AbortError") {
@@ -283,65 +458,8 @@ export function createExecutionControlRuntimeClient(
 			});
 		}
 		return parsed;
-	}
-
-	return {
-		async cancelRun(cancelInput: ExecutionControlRunCancelInput): Promise<ExecutionControlRun> {
-			const parsed = await requestExecutionControl(`/internal/execution/runs/${cancelInput.runId}/cancel`, {
-				body: {
-					reason: cancelInput.reason,
-				},
-				expectedStatus: 202,
-				method: "POST",
-				traceHeaders: cancelInput.traceHeaders,
-				traceId: cancelInput.traceId,
-			});
-			return parseDurableRun(parsed);
-		},
-		async createRun(createInput: ExecutionControlRunCreateInput): Promise<ExecutionControlRun> {
-			const parsed = await requestExecutionControl("/internal/execution/runs", {
-				body: toDurableRunCreateBody(createInput),
-				expectedStatus: 202,
-				method: "POST",
-				traceHeaders: createInput.traceHeaders,
-				traceId: createInput.traceId,
-			});
-			return parseDurableRun(parsed);
-		},
-		async getRun(query: ExecutionControlRunQuery): Promise<ExecutionControlRun> {
-			const parsed = await requestExecutionControl(`/internal/execution/runs/${query.runId}`, {
-				expectedStatus: 200,
-				method: "GET",
-				traceHeaders: query.traceHeaders,
-				traceId: query.traceId,
-			});
-			return parseDurableRun(parsed);
-		},
-		async listRunEvents(
-			query: ExecutionControlRunEventQuery,
-		): Promise<ExecutionControlRunEvent[]> {
-			const parsed = await requestExecutionControl(durableRunEventsPath(query), {
-				expectedStatus: 200,
-				method: "GET",
-				traceHeaders: query.traceHeaders,
-				traceId: query.traceId,
-			});
-			return parseDurableRunEvents(parsed);
-		},
-		async listRunSteps(
-			query: ExecutionControlRunQuery,
-		): Promise<ExecutionControlRunStepTrajectory> {
-			const parsed = await requestExecutionControl(`/internal/execution/runs/${query.runId}/steps`, {
-				expectedStatus: 200,
-				method: "GET",
-				traceHeaders: query.traceHeaders,
-				traceId: query.traceId,
-			});
-			return parseRunStepTrajectory(parsed);
-		},
 	};
 }
-
 
 function durableRunEventsPath(query: ExecutionControlRunEventQuery): string {
 	const path = `/internal/execution/runs/${query.runId}/events`;
@@ -437,6 +555,16 @@ function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTra
 		attempts: attempts.map((attempt, index) => parseStepAttempt(attempt, index)),
 		results: results.map((result, index) => parseStepResult(result, index)),
 		steps: steps.map((step, index) => parseRunStep(step, index)),
+	};
+}
+
+function parsePersonalMemoryResult(payload: JsonRecord): ExecutionControlPersonalMemoryResult {
+	return {
+		memoryId: readRequiredString(payload, "memory_id"),
+		pointId: readRequiredString(payload, "point_id"),
+		schemaVersion: readRequiredString(payload, "schema_version"),
+		status: readRequiredString(payload, "status"),
+		updatedAt: readRequiredString(payload, "updated_at"),
 	};
 }
 

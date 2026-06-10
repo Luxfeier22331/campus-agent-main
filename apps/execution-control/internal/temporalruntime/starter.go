@@ -228,6 +228,7 @@ type WorkerOptions struct {
 }
 
 type RAGActivities interface {
+	MemoryRecallActivity(context.Context, MemoryRecallActivityInput) (MemoryRecallActivityOutput, error)
 	PlanChatAnswerActivity(context.Context, PlanChatAnswerActivityInput) (PlanChatAnswerActivityOutput, error)
 	PlanRAGActivity(
 		context.Context,
@@ -336,6 +337,10 @@ func NewRAGActivityWorker(temporalClient client.Client, queue string, activities
 		ragQueue = ActivityTaskQueueRAG
 	}
 	ragWorker := worker.New(temporalClient, ragQueue, worker.Options{})
+	ragWorker.RegisterActivityWithOptions(
+		activities.MemoryRecallActivity,
+		activityRegisterOptions(MemoryRecallActivityName),
+	)
 	ragWorker.RegisterActivityWithOptions(
 		activities.PlanChatAnswerActivity,
 		activityRegisterOptions(PlanChatAnswerActivityName),

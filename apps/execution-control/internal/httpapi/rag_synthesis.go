@@ -85,6 +85,17 @@ func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
 			"source_ref": item.SourceRef,
 		})
 	}
+	memoryContext := make([]map[string]any, 0, len(packet.MemoryContext))
+	for _, item := range packet.MemoryContext {
+		memoryContext = append(memoryContext, map[string]any{
+			"memory_id":    item.MemoryID,
+			"memory_type":  item.MemoryType,
+			"capability":   item.Capability,
+			"compact_text": item.CompactText,
+			"score":        item.Score,
+			"updated_at":   item.UpdatedAt,
+		})
+	}
 	return []map[string]any{
 		{
 			"role":    "developer",
@@ -98,6 +109,8 @@ func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
 				"query_intent":       packet.QueryIntent,
 				"output_schema_id":   packet.OutputSchemaID,
 				"prompt_refs":        packet.PromptRefs,
+				"memory_context":     memoryContext,
+				"memory_ref":         packet.MemoryRef,
 				"selected_evidence":  evidence,
 				"request_id":         packet.RequestID,
 				"payload_sha256":     packet.PayloadSHA256,

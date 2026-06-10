@@ -18,6 +18,7 @@ import {
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
+	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
@@ -203,9 +204,6 @@ export function createRequestScopeFactory(input: {
 				});
 				chatCommandService = buildChatCommandService({
 					conversationStore: chatConversationStore,
-					profileMemoryStore: createPgProfileMemoryStore(input.env, {
-						getDb: runtime.getFreshDb,
-					}),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
 					executionRuntime,
@@ -354,6 +352,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				profileMemoryService = buildProfileMemoryService({
+					memoryIndexer: createExecutionControlPersonalMemoryClient(input.env),
 					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return profileMemoryService;

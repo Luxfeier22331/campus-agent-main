@@ -34,17 +34,6 @@ export function toSupervisorContext(context: SupervisorContextProjection) {
 				visibility_scope: context.authorization.retrievalFilter.visibilityScope,
 			},
 		},
-		profile_memory: {
-			items: context.profileMemory.items.map((item) => ({
-				item_id: item.itemId,
-				key: item.key,
-				value: item.value,
-				source_type: item.sourceType,
-				confidence: item.confidence,
-				visibility: item.visibility,
-				last_verified_at: item.lastVerifiedAt,
-			})),
-		},
 		session: {
 			confirmed_slots: context.session.confirmedSlots.map((slot) => ({
 				confirmed: slot.confirmed,

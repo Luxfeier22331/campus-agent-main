@@ -3,16 +3,17 @@ package temporalruntime
 import "time"
 
 type ChatAnswerWorkflowInput struct {
-	ConversationID string            `json:"conversation_id"`
-	Namespace      string            `json:"namespace"`
-	PayloadSHA256  string            `json:"payload_sha256"`
-	PolicyVersions map[string]string `json:"policy_versions"`
-	RequestID      string            `json:"request_id"`
-	RunID          string            `json:"run_id"`
-	TaskQueue      string            `json:"task_queue"`
-	TraceID        string            `json:"trace_id"`
-	TurnID         string            `json:"turn_id"`
-	WorkflowID     string            `json:"workflow_id"`
+	ConversationID      string            `json:"conversation_id"`
+	Namespace           string            `json:"namespace"`
+	PayloadSHA256       string            `json:"payload_sha256"`
+	PolicyVersions      map[string]string `json:"policy_versions"`
+	RequestID           string            `json:"request_id"`
+	RequestedCapability string            `json:"requested_capability"`
+	RunID               string            `json:"run_id"`
+	TaskQueue           string            `json:"task_queue"`
+	TraceID             string            `json:"trace_id"`
+	TurnID              string            `json:"turn_id"`
+	WorkflowID          string            `json:"workflow_id"`
 }
 
 type ChatAnswerWorkflowResult struct {
@@ -20,6 +21,21 @@ type ChatAnswerWorkflowResult struct {
 	ProjectionRef string    `json:"projection_ref"`
 	RunID         string    `json:"run_id"`
 	Status        string    `json:"status"`
+}
+
+type MemoryRecallActivityInput struct {
+	RequestID           string `json:"request_id"`
+	RequestedCapability string `json:"requested_capability"`
+	RunID               string `json:"run_id"`
+	TraceID             string `json:"trace_id"`
+}
+
+type MemoryRecallActivityOutput struct {
+	MemoryRef           string `json:"memory_ref"`
+	RunID               string `json:"run_id"`
+	SelectedMemoryChars int    `json:"selected_memory_chars"`
+	SelectedMemoryCount int    `json:"selected_memory_count"`
+	Status              string `json:"status"`
 }
 
 type PlanChatAnswerActivityInput struct {

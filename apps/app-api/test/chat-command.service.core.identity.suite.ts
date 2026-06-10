@@ -7,7 +7,6 @@ import {
 	createDeterministicIdGenerator,
 	createHmac,
 	createPrincipal,
-	createProfileMemoryProjectionStore,
 	createTelemetryMock,
 	deriveSafetyIdentifier,
 	type SupervisorExecutionClient,
@@ -103,9 +102,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			context: {
 				actor: createPrincipal().actor,
 				authorization: createPrincipal().authorization,
-				profileMemory: {
-					items: [],
-				},
 				session: {
 					confirmedSlots: [],
 					turnCount: 0,
@@ -265,22 +261,9 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
 	});
 
-	it("injects active user-visible profile memory into supervisor context without changing authz", async () => {
+	it("does not project PG profile memory during chat submit because execution-control owns memory recall", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const profileMemoryStore = createProfileMemoryProjectionStore({
-			items: [
-				{
-					confidence: "low",
-					itemId: "mem_recent_goal",
-					key: "recent_goal",
-					lastVerifiedAt: "2026-04-27T00:00:00.000Z",
-					sourceType: "user_declared",
-					value: "准备保研材料",
-					visibility: "user_visible",
-				},
-			],
-		});
 		const supervisor: SupervisorExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "可以，先看培养方案和学院通知。",
@@ -297,7 +280,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
-			profileMemoryStore,
 			store,
 			supervisor,
 		});
@@ -312,26 +294,10 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			surface: "public_chat_web",
 		});
 
-		expect(profileMemoryStore.listProjectionItems).toHaveBeenCalledWith({
-			ownerUserId: "user_01HQ",
-		});
 		expect(supervisor.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
-				context: expect.objectContaining({
-					authorization: createPrincipal().authorization,
-					profileMemory: {
-						items: [
-							{
-								confidence: "low",
-								itemId: "mem_recent_goal",
-								key: "recent_goal",
-								lastVerifiedAt: "2026-04-27T00:00:00.000Z",
-								sourceType: "user_declared",
-								value: "准备保研材料",
-								visibility: "user_visible",
-							},
-						],
-					},
+				context: expect.not.objectContaining({
+					profileMemory: expect.anything(),
 				}),
 			}),
 		);

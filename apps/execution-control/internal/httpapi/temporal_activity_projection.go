@@ -723,6 +723,8 @@ func (s *Server) withTemporalActivityEvidence(
 
 func temporalActivityTypeForStep(stepID string) string {
 	switch strings.TrimSpace(stepID) {
+	case "memory.recall":
+		return temporalruntime.MemoryRecallActivityName
 	case "planning":
 		return temporalruntime.PlanChatAnswerActivityName
 	case "rag.plan":

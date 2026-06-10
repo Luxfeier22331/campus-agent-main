@@ -522,8 +522,8 @@ func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
 		EffectiveCapability: "knowledge",
 		UserGoal:            "这个流程怎么办",
 		Context: Context{
-			ProfileMemory: []ProfileMemoryItem{
-				{Key: "recent_goal", Value: "处分申诉", Visibility: "user_visible"},
+			SessionSlots: []SessionSlot{
+				{Name: "recent_goal", Value: "处分申诉", Confirmed: true},
 			},
 		},
 	})

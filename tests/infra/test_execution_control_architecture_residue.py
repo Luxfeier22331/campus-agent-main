@@ -146,7 +146,9 @@ TEMPORAL_RAG_GRAPH_PATHS = (
     "/apps/execution-control/internal/temporalruntime/",
     "/apps/execution-control/internal/httpapi/temporal_activity.go",
     "/apps/execution-control/internal/httpapi/temporal_activity_projection.go",
+    "/apps/execution-control/internal/httpapi/temporal_memory_projection.go",
     "/apps/execution-control/internal/httpapi/temporal_rag_projection.go",
+    "/apps/execution-control/internal/httpapi/personal_memory_recall.go",
     "/apps/execution-control/internal/httpapi/rag_synthesis.go",
 )
 

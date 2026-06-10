@@ -40,6 +40,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	promptGate := evaluatePromptConfigGate(s.config)
+	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
 	ragRuntimeStatus := s.ragRuntimeStatus(request.Context())
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
@@ -51,6 +52,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		structuredRuntimeHealthy &&
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
+		personalMemoryStatus["healthy"] == true &&
 		ragRuntimeStatus["healthy"] == true &&
 		promptGate.Admitted
 	statusCode := http.StatusOK
@@ -69,6 +71,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"structured_query_runtime": structuredQueryStatus,
 		"run_projection_store":     runProjectionStoreStatus,
 		"temporal_runtime":         temporalRuntimeStatus,
+		"personal_memory_runtime":  personalMemoryStatus,
 		"rag_runtime":              ragRuntimeStatus,
 		"capability_gates":         s.capabilityGateStatus(),
 		"prompt_config_gate":       promptGate,
@@ -157,6 +160,36 @@ func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
 		}
 	}
 	status["healthy"] = status["lookup_healthy"] == true && status["synthesis_healthy"] == true
+	return status
+}
+
+func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any {
+	status := map[string]any{
+		"collection":          defaultString(strings.TrimSpace(s.config.PersonalMemoryCollection), "personal_memory_v1"),
+		"configured":          s.personalMemoryExecutor != nil,
+		"data_plane":          "qdrant_native",
+		"healthy":             false,
+		"last_error":          "",
+		"online_recall_owner": "execution-control",
+		"query_key_role":      "read_only",
+		"top_k":               s.config.PersonalMemoryTopK,
+		"total_char_budget":   s.config.PersonalMemoryMaxChars,
+	}
+	if s.personalMemoryErr != nil {
+		status["last_error"] = "personal memory executor could not be initialized"
+		return status
+	}
+	if s.personalMemoryExecutor == nil {
+		status["last_error"] = "personal memory executor is not configured"
+		return status
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+	defer cancel()
+	if err := s.personalMemoryExecutor.HealthCheck(checkCtx); err != nil {
+		status["last_error"] = "personal memory health check failed"
+		return status
+	}
+	status["healthy"] = true
 	return status
 }
 

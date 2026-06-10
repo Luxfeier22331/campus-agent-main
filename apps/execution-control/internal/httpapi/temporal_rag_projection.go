@@ -85,6 +85,9 @@ func ragPlanProjectionForRun(
 		StepID:                   "rag.plan",
 		TopK:                     topK,
 	}
+	if _, memoryRef := memoryContextForRAG(run); memoryRef != "" {
+		plan.MemoryRef = memoryRef
+	}
 	hash, err := ragruntime.HashProjection(plan)
 	if err != nil {
 		return ragruntime.PlanProjection{}, err
@@ -239,6 +242,10 @@ func temporalRAGSynthesisPacketForRun(
 		RunID:            run.RunID,
 		SelectedEvidence: selection.SelectedEvidence,
 		StepID:           "synthesis",
+	}
+	if memoryItems, memoryRef := memoryContextForRAG(run); memoryRef != "" {
+		packet.MemoryRef = memoryRef
+		packet.MemoryContext = memoryItems
 	}
 	hash, err := ragruntime.HashProjection(packet)
 	if err != nil {

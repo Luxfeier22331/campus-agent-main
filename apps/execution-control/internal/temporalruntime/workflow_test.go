@@ -16,6 +16,20 @@ func TestChatAnswerWorkflowExecutesTypedStepGraph(t *testing.T) {
 	env.RegisterActivity(&Activities{})
 	completedAt := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
 	env.OnActivity(
+		MemoryRecallActivityName,
+		mock.Anything,
+		mock.MatchedBy(memoryRecallInputMatcher("run-workflow-001")),
+	).Return(
+		MemoryRecallActivityOutput{
+			MemoryRef:           "projection://runs/run-workflow-001/memory/recall",
+			RunID:               "run-workflow-001",
+			SelectedMemoryChars: 0,
+			SelectedMemoryCount: 0,
+			Status:              "completed",
+		},
+		nil,
+	)
+	env.OnActivity(
 		PlanChatAnswerActivityName,
 		mock.Anything,
 		mock.MatchedBy(planInputMatcher("run-workflow-001")),
@@ -164,6 +178,19 @@ func TestWorkerRuntimeRequiresFinalizationActivities(t *testing.T) {
 
 type Activities struct{}
 
+func (Activities) MemoryRecallActivity(
+	_ context.Context,
+	input MemoryRecallActivityInput,
+) (MemoryRecallActivityOutput, error) {
+	return MemoryRecallActivityOutput{
+		MemoryRef:           "projection://runs/" + input.RunID + "/memory/recall",
+		RunID:               input.RunID,
+		SelectedMemoryChars: 0,
+		SelectedMemoryCount: 0,
+		Status:              "completed",
+	}, nil
+}
+
 func (Activities) PlanChatAnswerActivity(
 	_ context.Context,
 	input PlanChatAnswerActivityInput,
@@ -252,6 +279,15 @@ func (Activities) WriteFinalizationActivity(
 		RunID:         input.RunID,
 		Status:        "completed",
 	}, nil
+}
+
+func memoryRecallInputMatcher(runID string) func(MemoryRecallActivityInput) bool {
+	return func(input MemoryRecallActivityInput) bool {
+		return input.RunID == runID &&
+			input.TraceID == "trace-workflow-001" &&
+			input.RequestID == "req-workflow-001" &&
+			input.RequestedCapability == "knowledge"
+	}
 }
 
 func planInputMatcher(runID string) func(PlanChatAnswerActivityInput) bool {

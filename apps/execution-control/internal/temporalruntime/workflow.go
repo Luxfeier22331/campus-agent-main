@@ -22,6 +22,19 @@ func ChatAnswerWorkflow(
 		TaskQueue: ActivityTaskQueueRAG,
 	}
 	ragCtx := workflow.WithActivityOptions(ctx, ragActivityOptions)
+	var memory MemoryRecallActivityOutput
+	requestedCapability := input.RequestedCapability
+	if requestedCapability == "" {
+		requestedCapability = "knowledge"
+	}
+	if err := workflow.ExecuteActivity(ragCtx, MemoryRecallActivityName, MemoryRecallActivityInput{
+		RequestID:           input.RequestID,
+		RequestedCapability: requestedCapability,
+		RunID:               input.RunID,
+		TraceID:             input.TraceID,
+	}).Get(ctx, &memory); err != nil {
+		return ChatAnswerWorkflowResult{}, err
+	}
 	var plan PlanChatAnswerActivityOutput
 	if err := workflow.ExecuteActivity(ragCtx, PlanChatAnswerActivityName, PlanChatAnswerActivityInput{
 		ConversationID: input.ConversationID,

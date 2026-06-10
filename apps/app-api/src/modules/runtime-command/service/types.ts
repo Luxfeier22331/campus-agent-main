@@ -5,7 +5,6 @@ import type {
 	ExecutionControlRuntimeClient,
 	SupervisorExecutionResponse,
 } from "../../integration";
-import type { ProfileMemoryProjectionStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry } from "../../telemetry";
 import type { VersionQuery } from "../../version-query";
@@ -104,7 +103,6 @@ export interface ChatCommandServiceDependencies {
 	generateId?: (prefix: string) => string;
 	isExecutionRuntimeConfigured?: boolean;
 	now?: () => Date;
-	profileMemoryStore?: ProfileMemoryProjectionStore;
 	requireExecutionRuntime?: boolean;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;

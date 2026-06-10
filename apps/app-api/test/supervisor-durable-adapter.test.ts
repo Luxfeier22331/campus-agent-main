@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
 	isExecutionControlRuntimeConfigured,
 } from "../src/modules/integration/execution-control";
@@ -310,6 +311,104 @@ describe("execution control runtime adapter", () => {
 			reason: "user_requested",
 		});
 		expect(run.status).toBe("canceled");
+	});
+
+	it("indexes explicit profile memory through execution-control personal memory command endpoints", async () => {
+		const fetchImplementation = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						memory_id: "mem_01HQ",
+						point_id: "point_01HQ",
+						schema_version: "personal_memory_upsert_result_v1",
+						status: "active",
+						updated_at: "2026-06-10T08:00:00.000Z",
+					}),
+					{ status: 202 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						memory_id: "mem_01HQ",
+						point_id: "point_01HQ",
+						schema_version: "personal_memory_upsert_result_v1",
+						status: "disabled",
+						updated_at: "2026-06-10T09:00:00.000Z",
+					}),
+					{ status: 202 },
+				),
+			);
+		const client = createExecutionControlPersonalMemoryClient(
+			{
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		const upsert = await client.upsertExplicitMemory({
+			compactText: "answer_style: 先给结论",
+			memoryId: "mem_01HQ",
+			traceId: "trace_memory_001",
+			updatedAt: "2026-06-10T08:00:00.000Z",
+			userId: "user_01HQ",
+		});
+		const disabled = await client.disableExplicitMemory({
+			memoryId: "mem_01HQ",
+			traceId: "trace_memory_002",
+			updatedAt: "2026-06-10T09:00:00.000Z",
+			userId: "user_01HQ",
+		});
+
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			1,
+			"https://execution-control.internal/internal/memory/personal/items:upsert",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					"x-trace-id": "trace_memory_001",
+					"x-worker-origin-auth": "shared-secret",
+				}),
+				method: "POST",
+			}),
+		);
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
+			capability: "any",
+			compact_text: "answer_style: 先给结论",
+			memory_id: "mem_01HQ",
+			memory_type: "profile",
+			source: "explicit",
+			status: "active",
+			tenant_id: "",
+			updated_at: "2026-06-10T08:00:00.000Z",
+			user_id: "user_01HQ",
+		});
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			2,
+			"https://execution-control.internal/internal/memory/personal/items:disable",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					"x-trace-id": "trace_memory_002",
+					"x-worker-origin-auth": "shared-secret",
+				}),
+				method: "POST",
+			}),
+		);
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 1))).toEqual({
+			memory_id: "mem_01HQ",
+			tenant_id: "",
+			updated_at: "2026-06-10T09:00:00.000Z",
+			user_id: "user_01HQ",
+		});
+		expect(upsert).toEqual({
+			memoryId: "mem_01HQ",
+			pointId: "point_01HQ",
+			schemaVersion: "personal_memory_upsert_result_v1",
+			status: "active",
+			updatedAt: "2026-06-10T08:00:00.000Z",
+		});
+		expect(disabled.status).toBe("disabled");
 	});
 
 	it("fails closed when durable runtime configuration is missing", async () => {

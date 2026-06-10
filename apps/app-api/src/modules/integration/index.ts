@@ -4,6 +4,10 @@ export type {
 } from "../official-web-projection";
 export type {
 	ExecutionControlCampusServicesProductPathPreflight,
+	ExecutionControlPersonalMemoryClient,
+	ExecutionControlPersonalMemoryDisableInput,
+	ExecutionControlPersonalMemoryResult,
+	ExecutionControlPersonalMemoryUpsertInput,
 	ExecutionControlReadinessProbeResult,
 	ExecutionControlRun,
 	ExecutionControlRunCancelInput,
@@ -23,13 +27,12 @@ export type {
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
 	SupervisorExecutionWorkflowTraceSummary,
-	SupervisorProfileMemoryItem,
-	SupervisorProfileMemorySummary,
 	SupervisorPromptTrace,
 	SupervisorSessionSlot,
 	SupervisorSessionSummary,
 } from "./execution-control";
 export {
+	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
 	ExecutionControlTransportError,
 	isExecutionControlRuntimeConfigured,

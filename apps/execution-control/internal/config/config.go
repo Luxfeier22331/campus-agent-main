@@ -84,8 +84,13 @@ type Config struct {
 	NoticeBodyObjectStoreBodyLimitBytes int64
 	QdrantURL                           string
 	QdrantQueryAPIKey                   string
+	QdrantWriteAPIKey                   string
 	QdrantTLSCACertPath                 string
 	QdrantTimeoutSeconds                float64
+	PersonalMemoryCollection            string
+	PersonalMemoryTopK                  int
+	PersonalMemoryMaxChars              int
+	PersonalMemoryScoreThreshold        float64
 	EmbeddingProvider                   string
 	EmbeddingBaseURL                    string
 	EmbeddingAPIKey                     string
@@ -152,8 +157,13 @@ type envValues struct {
 	NoticeBodyObjectStoreBodyLimitBytes int64   `env:"EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
 	QdrantURL                           string  `env:"QDRANT_URL"`
 	QdrantQueryAPIKey                   string  `env:"QDRANT_QUERY_API_KEY"`
+	QdrantWriteAPIKey                   string  `env:"QDRANT_WRITE_API_KEY"`
 	QdrantTLSCACertPath                 string  `env:"QDRANT_TLS_CA_CERT_PATH"`
 	QdrantTimeoutSeconds                float64 `env:"QDRANT_TIMEOUT_SECONDS" envDefault:"10"`
+	PersonalMemoryCollection            string  `env:"PERSONAL_MEMORY_COLLECTION" envDefault:"personal_memory_v1"`
+	PersonalMemoryTopK                  int     `env:"PERSONAL_MEMORY_TOP_K" envDefault:"5"`
+	PersonalMemoryMaxChars              int     `env:"PERSONAL_MEMORY_MAX_CHARS" envDefault:"1200"`
+	PersonalMemoryScoreThreshold        float64 `env:"PERSONAL_MEMORY_SCORE_THRESHOLD" envDefault:"0"`
 	EmbeddingProvider                   string  `env:"EMBEDDING_PROVIDER"`
 	EmbeddingBaseURL                    string  `env:"EMBEDDING_BASE_URL"`
 	EmbeddingAPIKey                     string  `env:"EMBEDDING_API_KEY"`
@@ -162,6 +172,10 @@ type envValues struct {
 }
 
 func LoadFromEnv() (Config, error) {
+	return LoadFromEnvForRole("")
+}
+
+func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	values, err := parseEnvValues()
 	if err != nil {
 		return Config{}, err
@@ -218,7 +232,18 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	embeddingDimensions, err := readPositiveIntStrict("EMBEDDING_DIMENSIONS", values.EmbeddingDimensions)
+	embeddingDimensions, err := readNonNegativeIntStrict("EMBEDDING_DIMENSIONS", values.EmbeddingDimensions)
+	if err != nil {
+		return Config{}, err
+	}
+	personalMemoryTopK, err := readPositiveIntStrict("PERSONAL_MEMORY_TOP_K", values.PersonalMemoryTopK)
+	if err != nil {
+		return Config{}, err
+	}
+	personalMemoryMaxChars, err := readPositiveIntStrict(
+		"PERSONAL_MEMORY_MAX_CHARS",
+		values.PersonalMemoryMaxChars,
+	)
 	if err != nil {
 		return Config{}, err
 	}
@@ -232,6 +257,14 @@ func LoadFromEnv() (Config, error) {
 		return Config{}, err
 	}
 	if err := validateTemporalSettings(values, runtimeProfile); err != nil {
+		return Config{}, err
+	}
+	if err := validatePersonalMemorySettings(
+		values,
+		runtimeProfile,
+		embeddingDimensions,
+		runtimeRole,
+	); err != nil {
 		return Config{}, err
 	}
 
@@ -303,8 +336,13 @@ func LoadFromEnv() (Config, error) {
 		NoticeBodyObjectStoreBodyLimitBytes: values.NoticeBodyObjectStoreBodyLimitBytes,
 		QdrantURL:                           strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantQueryAPIKey:                   strings.TrimSpace(values.QdrantQueryAPIKey),
+		QdrantWriteAPIKey:                   strings.TrimSpace(values.QdrantWriteAPIKey),
 		QdrantTLSCACertPath:                 strings.TrimSpace(values.QdrantTLSCACertPath),
 		QdrantTimeoutSeconds:                values.QdrantTimeoutSeconds,
+		PersonalMemoryCollection:            defaultString(strings.TrimSpace(values.PersonalMemoryCollection), "personal_memory_v1"),
+		PersonalMemoryTopK:                  personalMemoryTopK,
+		PersonalMemoryMaxChars:              personalMemoryMaxChars,
+		PersonalMemoryScoreThreshold:        values.PersonalMemoryScoreThreshold,
 		EmbeddingProvider:                   strings.TrimSpace(values.EmbeddingProvider),
 		EmbeddingBaseURL:                    strings.TrimRight(strings.TrimSpace(values.EmbeddingBaseURL), "/"),
 		EmbeddingAPIKey:                     strings.TrimSpace(values.EmbeddingAPIKey),
@@ -390,6 +428,65 @@ func validateTemporalSettings(values envValues, runtimeProfile string) error {
 		return fmt.Errorf("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY must be <env>:<role>:<instance>")
 	}
 	return nil
+}
+
+func validatePersonalMemorySettings(
+	values envValues,
+	runtimeProfile string,
+	embeddingDimensions int,
+	runtimeRole string,
+) error {
+	if runtimeProfile == "local" {
+		return nil
+	}
+	role := normalizeRuntimeRole(runtimeRole)
+	switch role {
+	case "workflow", "activity-finalization":
+		return nil
+	}
+	required := []struct {
+		name  string
+		value string
+	}{
+		{"QDRANT_URL", values.QdrantURL},
+		{"QDRANT_QUERY_API_KEY", values.QdrantQueryAPIKey},
+		{"QDRANT_TLS_CA_CERT_PATH", values.QdrantTLSCACertPath},
+		{"EMBEDDING_API_KEY", values.EmbeddingAPIKey},
+		{"EMBEDDING_MODEL", values.EmbeddingModel},
+	}
+	if role == "" || role == "execution-control" {
+		required = append(required, struct {
+			name  string
+			value string
+		}{"QDRANT_WRITE_API_KEY", values.QdrantWriteAPIKey})
+	}
+	for _, item := range required {
+		if strings.TrimSpace(item.value) == "" {
+			return fmt.Errorf("%s is required for deployed personal memory recall", item.name)
+		}
+	}
+	if !strings.HasPrefix(strings.TrimSpace(values.QdrantURL), "https://") {
+		return fmt.Errorf("QDRANT_URL must use https for deployed personal memory recall")
+	}
+	if embeddingDimensions <= 0 {
+		return fmt.Errorf("EMBEDDING_DIMENSIONS must be a positive integer for deployed personal memory recall")
+	}
+	return nil
+}
+
+func normalizeRuntimeRole(value string) string {
+	switch strings.TrimSpace(value) {
+	case "activity-rag", "activity-worker-rag", "rag":
+		return "activity-rag"
+	case "activity-finalization", "activity-worker-finalization", "finalization":
+		return "activity-finalization"
+	case "workflow", "workflow-worker":
+		return "workflow"
+	case "execution-control", "http", "api":
+		return "execution-control"
+	default:
+		return strings.TrimSpace(value)
+	}
 }
 
 func normalizeRuntimeProfile(value string) (string, error) {
