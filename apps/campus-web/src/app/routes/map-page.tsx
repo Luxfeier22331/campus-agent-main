@@ -1,14 +1,19 @@
-import { MapPin } from "lucide-react";
 import type maplibregl from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { MapExperience } from "@/components/map/map-experience";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import { SupportSurfaceShell } from "@/components/shell/support-surface-shell";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { getCampusMapPlaces } from "@/features/map/api";
 import { loadMapLibre, type MapLibreRuntime } from "@/features/map/maplibre-runtime";
-import type { CampusMapPlace, CampusMapPlacesResponse } from "@/features/map/model";
+import type { CampusMapPlacesResponse } from "@/features/map/model";
+import {
+	createMapPlaceViews,
+	filterMapPlaces,
+	getMapCampuses,
+	getMapCategories,
+	type MapCategoryFilter,
+} from "@/features/map/view-model";
 
 export function MapPage() {
 	const mapRef = useRef<HTMLDivElement | null>(null);
@@ -16,26 +21,27 @@ export function MapPage() {
 	const markerRefs = useRef<maplibregl.Marker[]>([]);
 	const [data, setData] = useState<CampusMapPlacesResponse | null>(null);
 	const [mapRuntime, setMapRuntime] = useState<MapLibreRuntime | null>(null);
-	const [selected, setSelected] = useState<CampusMapPlace | null>(null);
+	const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [query, setQuery] = useState("");
+	const [selectedCampus, setSelectedCampus] = useState("all");
+	const [selectedCategory, setSelectedCategory] = useState<MapCategoryFilter>("all");
 
-	const filteredPlaces = useMemo(() => {
-		if (!data) {
-			return [];
-		}
-		const normalizedQuery = query.trim().toLowerCase();
-		if (!normalizedQuery) {
-			return data.places;
-		}
-		return data.places.filter((place) =>
-			[place.title, place.description, place.campus, ...place.tags]
-				.join(" ")
-				.toLowerCase()
-				.includes(normalizedQuery),
-		);
-	}, [data, query]);
+	const places = useMemo(() => createMapPlaceViews(data?.places ?? []), [data]);
+	const campuses = useMemo(() => getMapCampuses(places), [places]);
+	const categories = useMemo(() => getMapCategories(places), [places]);
+	const filteredPlaces = useMemo(
+		() =>
+			filterMapPlaces(places, {
+				campus: selectedCampus,
+				category: selectedCategory,
+				query,
+			}),
+		[places, query, selectedCampus, selectedCategory],
+	);
+	const selected =
+		filteredPlaces.find((place) => place.place.id === selectedPlaceId) ?? filteredPlaces[0] ?? null;
 
 	useEffect(() => {
 		setLoading(true);
@@ -43,11 +49,11 @@ export function MapPage() {
 		getCampusMapPlaces()
 			.then((nextData) => {
 				setData(nextData);
-				setSelected(nextData.places[0] ?? null);
+				setSelectedPlaceId(nextData.places[0]?.id ?? null);
 			})
 			.catch(() => {
 				setData(null);
-				setSelected(null);
+				setSelectedPlaceId(null);
 				setError("校园地图暂时无法打开。");
 			})
 			.finally(() => {
@@ -66,21 +72,22 @@ export function MapPage() {
 				if (cancelled || !mapRef.current) {
 					return;
 				}
+				const canvasBackground = readRequiredCssToken("--neutral-150");
 				const map = new runtime.Map({
 					center: data.campus.defaultCenter,
 					container: mapRef.current,
 					style: {
-						version: 8,
-						sources: {},
 						layers: [
 							{
 								id: "background",
-								type: "background",
 								paint: {
-									"background-color": "#eef0f3",
+									"background-color": canvasBackground,
 								},
+								type: "background",
 							},
 						],
+						sources: {},
+						version: 8,
 					},
 					zoom: 16,
 				});
@@ -111,90 +118,63 @@ export function MapPage() {
 			const marker = document.createElement("button");
 			marker.className = "campus-map-marker";
 			marker.type = "button";
-			marker.dataset.selected = String(selected?.id === place.id);
+			marker.dataset.selected = String(selected?.place.id === place.place.id);
 			marker.innerHTML = `<span aria-hidden="true"></span>`;
-			marker.setAttribute("aria-label", place.title);
-			marker.addEventListener("click", () => setSelected(place));
-			return new mapRuntime.Marker({ element: marker })
-				.setLngLat(place.geojson.geometry.coordinates)
-				.addTo(map);
+			marker.setAttribute("aria-label", place.place.title);
+			marker.addEventListener("click", () => setSelectedPlaceId(place.place.id));
+			return new mapRuntime.Marker({ element: marker }).setLngLat(place.coordinates).addTo(map);
 		});
 
 		return () => {
 			clearMapMarkers(markerRefs.current);
 			markerRefs.current = [];
 		};
-	}, [filteredPlaces, mapRuntime, selected?.id]);
+	}, [filteredPlaces, mapRuntime, selected?.place.id]);
 
 	useEffect(() => {
 		if (!data) {
 			return;
 		}
 		if (filteredPlaces.length === 0) {
-			setSelected(null);
+			setSelectedPlaceId(null);
 			return;
 		}
-		if (!(selected && filteredPlaces.some((place) => place.id === selected.id))) {
-			setSelected(filteredPlaces[0] ?? null);
+		if (!(selectedPlaceId && filteredPlaces.some((place) => place.place.id === selectedPlaceId))) {
+			setSelectedPlaceId(filteredPlaces[0]?.place.id ?? null);
 		}
-	}, [data, filteredPlaces, selected]);
+	}, [data, filteredPlaces, selectedPlaceId]);
 
-	const toolbar = (
-		<Input
-			className="md:w-[320px]"
-			onChange={(event) => setQuery(event.target.value)}
-			placeholder="搜索地点"
-			value={query}
-		/>
-	);
+	useEffect(() => {
+		if (!(selected && mapInstanceRef.current)) {
+			return;
+		}
+		mapInstanceRef.current.flyTo({
+			center: selected.coordinates,
+			zoom: 17,
+		});
+	}, [selected]);
 
 	return (
-		<SupportSurfaceShell
-			eyebrow={data?.campus.name ?? "校园地图"}
-			title="校园地图"
-			toolbar={toolbar}
-		>
+		<SupportSurfaceShell eyebrow={data?.campus.name ?? "校园地图"} title="校园地图">
 			{error ? (
 				<ErrorPanel message={error} />
 			) : loading ? (
 				<LoadingPanel label="正在读取地图" />
 			) : data ? (
-				<div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-					<div
-						className="min-h-[var(--layout-map-canvas-min-height)] overflow-hidden rounded-2xl border border-border bg-[var(--map-canvas-bg)]"
-						ref={mapRef}
-					/>
-					<Card className="p-4">
-						{selected ? (
-							<div>
-								<span className="grid size-10 place-items-center rounded-lg bg-[var(--sys-brand-interactive-subtle)] text-primary">
-									<MapPin aria-hidden="true" className="size-5" />
-								</span>
-								<h2 className="mt-4 text-xl font-semibold text-[var(--sys-text-strong)]">
-									{selected.title}
-								</h2>
-								<p className="mt-2 text-sm leading-6 text-[var(--sys-text-muted)]">
-									{selected.description}
-								</p>
-								<p className="mt-3 text-xs leading-5 text-[var(--sys-text-subtle)]">
-									资料来源：校园地图资料
-								</p>
-								<div className="mt-4 flex flex-wrap gap-2">
-									{selected.tags.map((tag) => (
-										<span
-											className="rounded-full bg-[var(--sys-bg-muted)] px-3 py-1 text-xs text-[var(--sys-text-muted)]"
-											key={tag}
-										>
-											{tag}
-										</span>
-									))}
-								</div>
-							</div>
-						) : (
-							<EmptyPanel message="没有找到匹配地点。" />
-						)}
-					</Card>
-				</div>
+				<MapExperience
+					campuses={campuses}
+					categories={categories}
+					category={selectedCategory}
+					campus={selectedCampus}
+					filteredPlaces={filteredPlaces}
+					mapRef={mapRef}
+					onCategoryChange={setSelectedCategory}
+					onCampusChange={setSelectedCampus}
+					onPlaceSelect={setSelectedPlaceId}
+					onQueryChange={setQuery}
+					query={query}
+					selectedPlace={selected}
+				/>
 			) : (
 				<EmptyPanel message="当前没有可展示的地图地点。" />
 			)}
@@ -206,4 +186,12 @@ function clearMapMarkers(markers: maplibregl.Marker[]) {
 	for (const marker of markers) {
 		marker.remove();
 	}
+}
+
+function readRequiredCssToken(tokenName: string) {
+	const value = getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim();
+	if (!value) {
+		throw new Error(`Missing CSS token: ${tokenName}`);
+	}
+	return value;
 }

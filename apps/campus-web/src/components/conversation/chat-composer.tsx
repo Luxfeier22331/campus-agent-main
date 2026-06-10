@@ -5,17 +5,21 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function ChatComposer({
+	clearOnSubmit = true,
 	disabled,
+	initialPrompt = "",
 	onSubmit,
 	placeholder = "今天需要什么帮助",
 	variant = "thread",
 }: {
+	clearOnSubmit?: boolean;
 	disabled?: boolean;
+	initialPrompt?: string;
 	onSubmit(prompt: string): void;
 	placeholder?: string;
 	variant?: "hero" | "thread";
 }) {
-	const [prompt, setPrompt] = useState("");
+	const [prompt, setPrompt] = useState(initialPrompt);
 
 	function handleSubmit(event: FormEvent) {
 		event.preventDefault();
@@ -24,7 +28,9 @@ export function ChatComposer({
 			return;
 		}
 		onSubmit(value);
-		setPrompt("");
+		if (clearOnSubmit) {
+			setPrompt("");
+		}
 	}
 
 	return (

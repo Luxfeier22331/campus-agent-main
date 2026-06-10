@@ -8,6 +8,8 @@ export interface ConversationViewState {
 		requestId: string | null;
 		requestKey: string;
 		retryable?: boolean;
+		runId?: string | null;
+		sequence?: number;
 		statusLabel: string;
 	};
 	conversation: ConversationDetail;
@@ -65,6 +67,8 @@ export function beginConversationRequest(input: {
 			prompt: input.prompt,
 			requestId: null,
 			requestKey: input.requestKey,
+			runId: null,
+			sequence: 0,
 			statusLabel: "正在连接校园助手。",
 		},
 		conversation: {
@@ -141,6 +145,8 @@ export function applyConversationStreamEvent(
 				errorMessage: message,
 				requestId: event.data.requestId,
 				retryable,
+				runId: event.data.runId ?? activeRequest.runId ?? null,
+				sequence: event.data.sequence ?? activeRequest.sequence,
 				statusLabel: getLifecycleLabel(event.event),
 			},
 			conversation: {
@@ -158,6 +164,8 @@ export function applyConversationStreamEvent(
 		activeRequest: {
 			...activeRequest,
 			requestId: event.data.requestId,
+			runId: event.data.runId ?? activeRequest.runId ?? null,
+			sequence: event.data.sequence ?? activeRequest.sequence,
 			statusLabel,
 		},
 		conversation: {
@@ -177,6 +185,40 @@ export function applyConversationStreamEvent(
 		},
 		lifecycleEvents: [...state.lifecycleEvents, event],
 		statusHistory: appendStatusHistory(state, event, statusLabel),
+	};
+}
+
+export function markConversationRequestStopped(
+	state: ConversationViewState,
+): ConversationViewState {
+	if (!state.activeRequest) {
+		return state;
+	}
+	const stoppedMessage: ChatMessage = {
+		conversationId: state.conversation.id,
+		createdAt: new Date().toISOString(),
+		feedback: null,
+		id: `${state.activeRequest.requestKey}:assistant`,
+		kind: "error",
+		requestId: state.activeRequest.requestId,
+		retryable: false,
+		role: "assistant",
+		text: "已停止。",
+	};
+	return {
+		...state,
+		activeRequest: null,
+		conversation: {
+			...state.conversation,
+			messages: replacePendingAssistantMessage(state, stoppedMessage),
+		},
+		statusHistory: [
+			...state.statusHistory,
+			{
+				id: `${state.activeRequest.requestKey}:stopped`,
+				label: "已停止。",
+			},
+		],
 	};
 }
 

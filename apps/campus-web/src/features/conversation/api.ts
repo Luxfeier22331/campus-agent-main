@@ -17,11 +17,39 @@ export async function getSessionPrincipal(): Promise<SessionPrincipal> {
 	});
 }
 
-export async function listConversations(): Promise<ConversationSummary[]> {
+export async function listConversations(
+	input: { limit?: number; view?: "active" | "archived" } = {},
+): Promise<ConversationSummary[]> {
+	const params = new URLSearchParams();
+	if (input.view) {
+		params.set("view", input.view);
+	}
+	if (input.limit !== undefined) {
+		params.set("limit", String(input.limit));
+	}
+	const suffix = params.size > 0 ? `?${params.toString()}` : "";
 	const payload = await requestJson<{ conversations: ConversationSummary[] }>({
-		path: "/api/chat/conversations",
+		path: `/api/chat/conversations${suffix}`,
 	});
 	return payload.conversations;
+}
+
+export async function searchConversations(input: {
+	limit?: number;
+	query: string;
+	view?: "active" | "archived";
+}): Promise<{ query: string; conversations: ConversationSummary[] }> {
+	const query = input.query.trim();
+	const params = new URLSearchParams({
+		q: query,
+		view: input.view ?? "active",
+	});
+	if (input.limit !== undefined) {
+		params.set("limit", String(input.limit));
+	}
+	return requestJson<{ query: string; conversations: ConversationSummary[] }>({
+		path: `/api/chat/conversations/search?${params.toString()}`,
+	});
 }
 
 export async function getConversationDetail(conversationId: string): Promise<ConversationDetail> {
@@ -29,6 +57,67 @@ export async function getConversationDetail(conversationId: string): Promise<Con
 		path: `/api/chat/conversations/${encodeURIComponent(conversationId)}`,
 	});
 	return payload.conversation;
+}
+
+export async function renameConversation(input: {
+	conversationId: string;
+	title: string;
+}): Promise<ConversationSummary> {
+	const payload = await requestJson<{ conversation: ConversationSummary }>({
+		body: JSON.stringify({ title: input.title }),
+		headers: {
+			"content-type": "application/json",
+		},
+		method: "PATCH",
+		path: `/api/chat/conversations/${encodeURIComponent(input.conversationId)}`,
+	});
+	return payload.conversation;
+}
+
+export async function pinConversation(conversationId: string): Promise<ConversationSummary> {
+	return mutateConversationSummary(
+		`/api/chat/conversations/${encodeURIComponent(conversationId)}/pin`,
+		"POST",
+	);
+}
+
+export async function unpinConversation(conversationId: string): Promise<ConversationSummary> {
+	return mutateConversationSummary(
+		`/api/chat/conversations/${encodeURIComponent(conversationId)}/pin`,
+		"DELETE",
+	);
+}
+
+export async function archiveConversation(conversationId: string): Promise<ConversationSummary> {
+	return mutateConversationSummary(
+		`/api/chat/conversations/${encodeURIComponent(conversationId)}/archive`,
+		"POST",
+	);
+}
+
+export async function unarchiveConversation(conversationId: string): Promise<ConversationSummary> {
+	return mutateConversationSummary(
+		`/api/chat/conversations/${encodeURIComponent(conversationId)}/archive`,
+		"DELETE",
+	);
+}
+
+async function mutateConversationSummary(
+	path: string,
+	method: "DELETE" | "POST",
+): Promise<ConversationSummary> {
+	const payload = await requestJson<{ conversation: ConversationSummary }>({
+		method,
+		path,
+	});
+	return payload.conversation;
+}
+
+export async function deleteConversation(conversationId: string): Promise<void> {
+	await requestNoContent({
+		method: "DELETE",
+		path: `/api/chat/conversations/${encodeURIComponent(conversationId)}`,
+	});
 }
 
 export async function submitChatRequest(input: {
@@ -92,6 +181,29 @@ export async function deleteMessageFeedback(input: {
 	}
 }
 
+export async function deleteTrailingMessages(input: {
+	conversationId: string;
+	messageId: string;
+}): Promise<void> {
+	await requestNoContent({
+		method: "DELETE",
+		path: `/api/chat/conversations/${encodeURIComponent(
+			input.conversationId,
+		)}/messages/${encodeURIComponent(input.messageId)}/trailing`,
+	});
+}
+
+export async function cancelRun(runId: string): Promise<void> {
+	await requestJson({
+		body: JSON.stringify({ reason: "user_requested" }),
+		headers: {
+			"content-type": "application/json",
+		},
+		method: "POST",
+		path: `/api/chat/runs/${encodeURIComponent(runId)}/cancel`,
+	});
+}
+
 export async function* submitChatRequestStream(input: {
 	conversationId?: string;
 	prompt: string;
@@ -124,6 +236,56 @@ export async function* submitChatRequestStream(input: {
 
 	for await (const event of parseProductSse(response)) {
 		yield event;
+	}
+}
+
+export async function* resumeRunEventsStream(input: {
+	afterSequence?: number;
+	runId: string;
+	signal?: AbortSignal;
+}): AsyncIterable<ChatRequestStreamEvent> {
+	const params = new URLSearchParams();
+	if (input.afterSequence !== undefined) {
+		params.set("after_sequence", String(input.afterSequence));
+	}
+	const suffix = params.size > 0 ? `?${params.toString()}` : "";
+	const response = await fetch(
+		`/api/chat/runs/${encodeURIComponent(input.runId)}/events/stream${suffix}`,
+		{
+			credentials: "same-origin",
+			headers: {
+				accept: "text/event-stream",
+			},
+			method: "GET",
+			signal: input.signal,
+		},
+	);
+
+	if (response.status === 401) {
+		throw new UnauthorizedError();
+	}
+	if (!response.ok) {
+		throw new Error(response.statusText || "恢复回答失败。");
+	}
+	if (!response.body) {
+		throw new Error("Run event stream response body is empty.");
+	}
+
+	for await (const event of parseProductSse(response)) {
+		yield event;
+	}
+}
+
+async function requestNoContent(input: { method: "DELETE"; path: string }): Promise<void> {
+	const response = await fetch(input.path, {
+		credentials: "same-origin",
+		method: input.method,
+	});
+	if (response.status === 401) {
+		throw new UnauthorizedError();
+	}
+	if (!response.ok) {
+		throw new Error(response.statusText || "请求失败。");
 	}
 }
 

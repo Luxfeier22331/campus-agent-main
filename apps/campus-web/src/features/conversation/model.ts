@@ -92,8 +92,10 @@ export interface MessageFeedbackResult {
 }
 
 export interface ConversationSummary {
+	archivedAt: string | null;
 	createdAt: string;
 	id: string;
+	pinnedAt: string | null;
 	title: string;
 	updatedAt: string;
 }
@@ -141,6 +143,8 @@ export interface ChatRequestStreamEvent {
 		};
 		occurredAt: string;
 		requestId: string;
+		runId?: string;
+		sequence?: number;
 		status: string;
 		traceId: string;
 	};

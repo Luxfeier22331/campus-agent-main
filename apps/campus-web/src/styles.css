@@ -65,3 +65,10 @@ textarea {
 .campus-map-marker[data-selected="true"] {
 	background: var(--map-marker-selected);
 }
+
+.campus-map-marker:hover,
+.campus-map-marker:focus-visible {
+	background: var(--map-marker-selected);
+	outline: 3px solid var(--sys-border-focus);
+	outline-offset: 2px;
+}

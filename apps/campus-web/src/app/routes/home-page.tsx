@@ -7,7 +7,6 @@ import { listConversations, submitChatRequestStream } from "@/features/conversat
 import { getLifecycleLabel } from "@/features/conversation/lifecycle";
 import type { ConversationSummary } from "@/features/conversation/model";
 import { UnauthorizedError } from "@/platform/api/client";
-import { buildAccountLoginUrlForCurrentRoute } from "@/platform/runtime/config";
 
 const promptChips = [
 	"中慧楼在哪里？",
@@ -22,6 +21,10 @@ export function HomePage() {
 	const [error, setError] = useState<string | null>(null);
 	const [creationStatus, setCreationStatus] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
+	const initialPrompt =
+		typeof window === "undefined"
+			? ""
+			: (new URLSearchParams(window.location.search).get("prompt") ?? "");
 
 	useEffect(() => {
 		listConversations()
@@ -31,7 +34,7 @@ export function HomePage() {
 			});
 	}, []);
 
-	async function handleSubmit(prompt: string) {
+	async function handleSubmit(prompt: string, openLoginDialog: () => void) {
 		setSubmitting(true);
 		setError(null);
 		setCreationStatus("正在创建会话。");
@@ -58,7 +61,7 @@ export function HomePage() {
 			});
 		} catch (reason) {
 			if (reason instanceof UnauthorizedError) {
-				window.location.href = buildAccountLoginUrlForCurrentRoute();
+				openLoginDialog();
 				return;
 			}
 			setError("问题暂时没有发出，请稍后再试。");
@@ -70,40 +73,44 @@ export function HomePage() {
 
 	return (
 		<QAShell conversations={conversations} topTitle="新对话">
-			<section className="relative flex min-h-0 flex-1 px-4">
-				<div className="mx-auto flex w-full max-w-[var(--layout-chat-content-width)] flex-1 flex-col justify-center pb-[14dvh] pt-14 text-center md:pb-[16dvh]">
-					<h1 className="text-balance text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-[2.5rem]">
-						想了解什么校园信息？
-					</h1>
-					<div className="mx-auto mt-8 w-full max-w-[720px]">
-						<ChatComposer
-							disabled={submitting}
-							onSubmit={handleSubmit}
-							placeholder="输入你想问的问题"
-							variant="hero"
-						/>
-					</div>
-					{creationStatus ? (
-						<p className="mt-3 text-sm text-[var(--sys-text-muted)]" role="status">
-							{creationStatus}
-						</p>
-					) : null}
-					{error ? <p className="mt-3 text-sm text-[var(--sys-status-danger)]">{error}</p> : null}
-					<div className="mx-auto mt-4 grid w-full max-w-[720px] grid-cols-1 gap-1.5 text-left sm:grid-cols-2">
-						{promptChips.map((chip) => (
-							<button
-								className="min-h-10 rounded-xl px-3 text-left text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)] disabled:text-[var(--state-disabled-text)]"
+			{({ openLoginDialog }) => (
+				<section className="relative flex min-h-0 flex-1 px-4">
+					<div className="mx-auto flex w-full max-w-[var(--layout-chat-content-width)] flex-1 flex-col justify-center pb-[14dvh] pt-14 text-center md:pb-[16dvh]">
+						<h1 className="text-balance text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-[2.5rem]">
+							想了解什么校园信息？
+						</h1>
+						<div className="mx-auto mt-8 w-full max-w-[720px]">
+							<ChatComposer
+								clearOnSubmit={false}
 								disabled={submitting}
-								key={chip}
-								onClick={() => handleSubmit(chip)}
-								type="button"
-							>
-								{chip}
-							</button>
-						))}
+								initialPrompt={initialPrompt}
+								onSubmit={(prompt) => handleSubmit(prompt, openLoginDialog)}
+								placeholder="输入你想问的问题"
+								variant="hero"
+							/>
+						</div>
+						{creationStatus ? (
+							<p className="mt-3 text-sm text-[var(--sys-text-muted)]" role="status">
+								{creationStatus}
+							</p>
+						) : null}
+						{error ? <p className="mt-3 text-sm text-[var(--sys-status-danger)]">{error}</p> : null}
+						<div className="mx-auto mt-4 grid w-full max-w-[720px] grid-cols-1 gap-1.5 text-left sm:grid-cols-2">
+							{promptChips.map((chip) => (
+								<button
+									className="min-h-10 rounded-xl px-3 text-left text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)] disabled:text-[var(--state-disabled-text)]"
+									disabled={submitting}
+									key={chip}
+									onClick={() => handleSubmit(chip, openLoginDialog)}
+									type="button"
+								>
+									{chip}
+								</button>
+							))}
+						</div>
 					</div>
-				</div>
-			</section>
+				</section>
+			)}
 		</QAShell>
 	);
 }

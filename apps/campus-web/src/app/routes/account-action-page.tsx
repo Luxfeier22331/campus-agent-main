@@ -7,8 +7,9 @@ import {
 	LockKeyhole,
 	ShieldCheck,
 	TriangleAlert,
+	X,
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,73 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 			{form}
 			<AuthAuxiliaryLinks kind={kind} oauthContext={oauthContext} />
 		</AuthPageShell>
+	);
+}
+
+export function AccountLoginDialog({ onClose }: { onClose: () => void }) {
+	useEffect(() => {
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.key === "Escape") {
+				onClose();
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [onClose]);
+
+	return (
+		<div
+			className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--alpha-black-40)] px-4 py-6"
+			onPointerDown={(event) => {
+				if (event.target === event.currentTarget) {
+					onClose();
+				}
+			}}
+		>
+			<section
+				aria-label="登录"
+				aria-modal="true"
+				className="w-full max-w-[440px] rounded-2xl border border-[var(--sys-border-subtle)] bg-white p-6 shadow-[var(--shadow-md)]"
+				role="dialog"
+			>
+				<div className="mb-6 flex items-start justify-between gap-4">
+					<div>
+						<h2 className="text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
+							登录
+						</h2>
+					</div>
+					<button
+						aria-label="关闭登录"
+						className="grid size-10 shrink-0 place-items-center rounded-lg text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
+						onClick={onClose}
+						type="button"
+					>
+						<X aria-hidden="true" className="size-5" />
+					</button>
+				</div>
+				<AccountEmailPasswordForm
+					mode="login"
+					oauthContext={null}
+					onSuccess={() => window.location.reload()}
+					submitLabel="继续"
+				/>
+				<div className="mt-5 flex items-center justify-center gap-3 text-sm">
+					<Link
+						className="inline-flex min-h-10 items-center font-medium text-primary hover:text-primary/80"
+						to="/account/register"
+					>
+						创建账号
+					</Link>
+					<span className="text-[var(--sys-text-subtle)]">·</span>
+					<Link
+						className="inline-flex min-h-10 items-center font-medium text-primary hover:text-primary/80"
+						to="/account/forgot-password"
+					>
+						忘记密码？
+					</Link>
+				</div>
+			</section>
+		</div>
 	);
 }
 
@@ -206,9 +274,11 @@ function mapAuthError(error: unknown): Exclude<AccountAuthActionState, "idle" | 
 
 function AccountEmailPasswordForm(props: {
 	mode: "login" | "register";
+	onSuccess?: () => void;
 	oauthContext: CampusOAuthContext | null;
+	submitLabel?: string;
 }) {
-	const { mode, oauthContext } = props;
+	const { mode, oauthContext, onSuccess, submitLabel } = props;
 	const [status, setStatus] = useState<AccountAuthActionState>("idle");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isTurnstileConfigured, setIsTurnstileConfigured] = useState(false);
@@ -247,7 +317,11 @@ function AccountEmailPasswordForm(props: {
 					: await signInWithEmail({ captchaToken, email, password, returnTo });
 			setStatus("success");
 			if (!result.redirectedByProvider) {
-				window.location.assign(returnTo);
+				if (onSuccess) {
+					onSuccess();
+				} else {
+					window.location.assign(returnTo);
+				}
 			}
 		} catch (error) {
 			setStatus(mapAuthError(error));
@@ -301,11 +375,13 @@ function AccountEmailPasswordForm(props: {
 			<Button disabled={isSubmitting || !isTurnstileConfigured} type="submit">
 				{isSubmitting
 					? "提交中"
-					: mode === "login"
-						? oauthContext
-							? `继续访问 ${oauthContext.client.displayName}`
-							: "登录"
-						: "注册"}
+					: submitLabel
+						? submitLabel
+						: mode === "login"
+							? oauthContext
+								? `继续访问 ${oauthContext.client.displayName}`
+								: "登录"
+							: "注册"}
 				<ArrowRight aria-hidden="true" />
 			</Button>
 		</form>

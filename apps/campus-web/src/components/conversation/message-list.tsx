@@ -1,4 +1,13 @@
-import { Check, ExternalLink, MapPin, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
+import {
+	Check,
+	ExternalLink,
+	MapPin,
+	Pencil,
+	RotateCcw,
+	Square,
+	ThumbsDown,
+	ThumbsUp,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Card } from "@/components/ui/card";
@@ -22,17 +31,23 @@ const FEEDBACK_REASONS: Array<{ code: MessageFeedbackReasonCode; label: string }
 export function MessageList({
 	messages,
 	onDeleteFeedback,
+	onEditUserMessage,
 	onRetryMessage,
+	onStopGeneration,
 	onSubmitFeedback,
+	stoppableRequestId,
 }: {
 	messages: ChatMessage[];
 	onDeleteFeedback?(message: ChatMessage): Promise<void> | void;
+	onEditUserMessage?(message: ChatMessage, nextText: string): Promise<void> | void;
 	onRetryMessage?(message: ChatMessage): void;
+	onStopGeneration?(): Promise<void> | void;
 	onSubmitFeedback?(
 		message: ChatMessage,
 		vote: MessageFeedbackVote,
 		reasonCodes: MessageFeedbackReasonCode[],
 	): Promise<void> | void;
+	stoppableRequestId?: string | null;
 }) {
 	return (
 		<div className="space-y-8">
@@ -59,7 +74,23 @@ export function MessageList({
 						<p className="whitespace-pre-wrap text-[15px] leading-7 text-[var(--sys-text-default)]">
 							{message.text}
 						</p>
+						{message.role === "user" && onEditUserMessage ? (
+							<UserMessageActions message={message} onEditUserMessage={onEditUserMessage} />
+						) : null}
 						{message.role === "assistant" ? <StructuredParts message={message} /> : null}
+						{message.role === "assistant" &&
+						message.requestId &&
+						message.requestId === stoppableRequestId &&
+						onStopGeneration ? (
+							<button
+								className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-medium text-[var(--sys-text-default)] hover:bg-[var(--sys-bg-subtle)]"
+								onClick={() => onStopGeneration()}
+								type="button"
+							>
+								<Square aria-hidden="true" className="size-4" />
+								停止生成
+							</button>
+						) : null}
 						{message.role === "assistant" && message.kind !== "error" ? (
 							<AnswerFeedback
 								message={message}
@@ -81,6 +112,75 @@ export function MessageList({
 				</article>
 			))}
 		</div>
+	);
+}
+
+function UserMessageActions({
+	message,
+	onEditUserMessage,
+}: {
+	message: ChatMessage;
+	onEditUserMessage(message: ChatMessage, nextText: string): Promise<void> | void;
+}) {
+	const [editing, setEditing] = useState(false);
+	const [draft, setDraft] = useState(message.text);
+	const [submitting, setSubmitting] = useState(false);
+
+	async function submitEdit() {
+		const value = draft.trim();
+		if (!value || submitting) {
+			return;
+		}
+		setSubmitting(true);
+		try {
+			await onEditUserMessage(message, value);
+			setEditing(false);
+		} finally {
+			setSubmitting(false);
+		}
+	}
+
+	if (editing) {
+		return (
+			<div className="mt-3 rounded-xl border border-border bg-white p-3">
+				<label className="block text-xs font-medium text-[var(--sys-text-muted)]">
+					编辑消息
+					<textarea
+						className="mt-2 min-h-24 w-full resize-none rounded-lg border border-[var(--input-border)] px-3 py-2 text-sm text-[var(--sys-text-strong)] outline-none focus:border-[var(--focus-ring)]"
+						onChange={(event) => setDraft(event.target.value)}
+						value={draft}
+					/>
+				</label>
+				<div className="mt-3 flex justify-end gap-2">
+					<button
+						className="min-h-9 rounded-lg px-3 text-xs font-medium text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)]"
+						onClick={() => setEditing(false)}
+						type="button"
+					>
+						取消
+					</button>
+					<button
+						className="min-h-9 rounded-lg bg-[var(--sys-text-strong)] px-3 text-xs font-medium text-white disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)]"
+						disabled={!draft.trim() || submitting}
+						onClick={submitEdit}
+						type="button"
+					>
+						{submitting ? "发送中" : "重新发送"}
+					</button>
+				</div>
+			</div>
+		);
+	}
+
+	return (
+		<button
+			className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-xs font-medium text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
+			onClick={() => setEditing(true)}
+			type="button"
+		>
+			<Pencil aria-hidden="true" className="size-3.5" />
+			编辑
+		</button>
 	);
 }
 

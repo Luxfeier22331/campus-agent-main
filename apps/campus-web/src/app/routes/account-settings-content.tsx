@@ -8,12 +8,15 @@ import {
 	LogOut,
 	ShieldCheck,
 	Sparkles,
+	Trash2,
+	Undo2,
 	UserRound,
 	X,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import type { ConversationSummary } from "@/features/conversation/model";
 import { cn } from "@/lib/utils";
 import {
 	AccountAuthorizedAppsSection,
@@ -31,7 +34,7 @@ import type {
 } from "./account-session";
 
 type AccountScopedState = Exclude<AccountOverviewState, "unauthenticated">;
-export type AccountSettingsSectionId = "account" | "apps" | "memory" | "security";
+export type AccountSettingsSectionId = "account" | "apps" | "history" | "memory" | "security";
 
 export function AccountSettingsHeader({
 	closeHref,
@@ -71,9 +74,12 @@ export function AccountSettingsContent({
 	access,
 	accessState,
 	activeSection,
+	archivedConversations,
+	archivedConversationsState,
 	authorizedApps,
 	authorizedAppsState,
 	deletingClientId,
+	deletingConversationId,
 	deletingSessionId,
 	identity,
 	identityState,
@@ -81,23 +87,29 @@ export function AccountSettingsContent({
 	isUpdatingPreferences,
 	onActiveSectionChange,
 	onDeleteAuthorizedApp,
+	onDeleteArchivedConversation,
 	onDeleteSecuritySession,
 	onProfileMemoryChange,
 	onRetry,
+	onRestoreArchivedConversation,
 	onSignOut,
 	overview,
 	overviewState,
 	preferences,
 	preferencesState,
+	restoringConversationId,
 	securitySessions,
 	securitySessionsState,
 }: {
 	access: AccountAccess | null;
 	accessState: AccountScopedState;
 	activeSection: AccountSettingsSectionId;
+	archivedConversations: ConversationSummary[];
+	archivedConversationsState: AccountScopedState;
 	authorizedApps: AccountAuthorizedApp[];
 	authorizedAppsState: AccountScopedState;
 	deletingClientId: string | null;
+	deletingConversationId: string | null;
 	deletingSessionId: string | null;
 	identity: AccountIdentity | null;
 	identityState: AccountScopedState;
@@ -105,14 +117,17 @@ export function AccountSettingsContent({
 	isUpdatingPreferences: boolean;
 	onActiveSectionChange: (section: AccountSettingsSectionId) => void;
 	onDeleteAuthorizedApp: (clientId: string) => void;
+	onDeleteArchivedConversation: (conversationId: string) => void;
 	onDeleteSecuritySession: (sessionId: string) => void;
 	onProfileMemoryChange: (enabled: boolean) => void;
 	onRetry: () => void;
+	onRestoreArchivedConversation: (conversationId: string) => void;
 	onSignOut: () => void;
 	overview: AccountOverview | null;
 	overviewState: AccountOverviewState;
 	preferences: AccountPreferences | null;
 	preferencesState: AccountScopedState;
+	restoringConversationId: string | null;
 	securitySessions: AccountSecuritySession[];
 	securitySessionsState: AccountScopedState;
 }) {
@@ -145,9 +160,12 @@ export function AccountSettingsContent({
 			access={access}
 			accessState={accessState}
 			activeSection={activeSection}
+			archivedConversations={archivedConversations}
+			archivedConversationsState={archivedConversationsState}
 			authorizedApps={authorizedApps}
 			authorizedAppsState={authorizedAppsState}
 			deletingClientId={deletingClientId}
+			deletingConversationId={deletingConversationId}
 			deletingSessionId={deletingSessionId}
 			identity={identity}
 			identityState={identityState}
@@ -155,12 +173,15 @@ export function AccountSettingsContent({
 			isUpdatingPreferences={isUpdatingPreferences}
 			onActiveSectionChange={onActiveSectionChange}
 			onDeleteAuthorizedApp={onDeleteAuthorizedApp}
+			onDeleteArchivedConversation={onDeleteArchivedConversation}
 			onDeleteSecuritySession={onDeleteSecuritySession}
 			onProfileMemoryChange={onProfileMemoryChange}
+			onRestoreArchivedConversation={onRestoreArchivedConversation}
 			onSignOut={onSignOut}
 			overview={overview}
 			preferences={preferences}
 			preferencesState={preferencesState}
+			restoringConversationId={restoringConversationId}
 			securitySessions={securitySessions}
 			securitySessionsState={securitySessionsState}
 		/>
@@ -235,9 +256,12 @@ function AccountOverviewPanel({
 	access,
 	accessState = "ready",
 	activeSection = "account",
+	archivedConversations = [],
+	archivedConversationsState = "ready",
 	authorizedApps = [],
 	authorizedAppsState = "ready",
 	deletingClientId = null,
+	deletingConversationId = null,
 	deletingSessionId = null,
 	identity,
 	identityState = "ready",
@@ -245,21 +269,27 @@ function AccountOverviewPanel({
 	isUpdatingPreferences = false,
 	onActiveSectionChange,
 	onDeleteAuthorizedApp,
+	onDeleteArchivedConversation,
 	onDeleteSecuritySession,
 	onProfileMemoryChange,
+	onRestoreArchivedConversation,
 	onSignOut,
 	overview,
 	preferences,
 	preferencesState = "ready",
+	restoringConversationId = null,
 	securitySessions = [],
 	securitySessionsState = "ready",
 }: {
 	access?: AccountAccess | null;
 	accessState?: AccountScopedState;
 	activeSection?: AccountSettingsSectionId;
+	archivedConversations?: ConversationSummary[];
+	archivedConversationsState?: AccountScopedState;
 	authorizedApps?: AccountAuthorizedApp[];
 	authorizedAppsState?: AccountScopedState;
 	deletingClientId?: string | null;
+	deletingConversationId?: string | null;
 	deletingSessionId?: string | null;
 	identity?: AccountIdentity | null;
 	identityState?: AccountScopedState;
@@ -267,12 +297,15 @@ function AccountOverviewPanel({
 	isUpdatingPreferences?: boolean;
 	onActiveSectionChange?: (section: AccountSettingsSectionId) => void;
 	onDeleteAuthorizedApp?: (clientId: string) => void;
+	onDeleteArchivedConversation?: (conversationId: string) => void;
 	onDeleteSecuritySession?: (sessionId: string) => void;
 	onProfileMemoryChange?: (enabled: boolean) => void;
+	onRestoreArchivedConversation?: (conversationId: string) => void;
 	onSignOut: () => void;
 	overview: AccountOverview;
 	preferences?: AccountPreferences | null;
 	preferencesState?: AccountScopedState;
+	restoringConversationId?: string | null;
 	securitySessions?: AccountSecuritySession[];
 	securitySessionsState?: AccountScopedState;
 }) {
@@ -305,19 +338,25 @@ function AccountOverviewPanel({
 				{renderAccountSettingsSection({
 					accessState,
 					activeSection,
+					archivedConversations,
+					archivedConversationsState,
 					authorizedApps,
 					authorizedAppsState,
 					deletingClientId,
+					deletingConversationId,
 					deletingSessionId,
 					identityState,
 					isSigningOut,
 					isUpdatingPreferences,
 					onDeleteAuthorizedApp,
+					onDeleteArchivedConversation,
 					onDeleteSecuritySession,
 					onProfileMemoryChange,
+					onRestoreArchivedConversation,
 					onSignOut,
 					overview,
 					preferencesState,
+					restoringConversationId,
 					resolvedAccess,
 					resolvedIdentity,
 					resolvedPreferences,
@@ -334,24 +373,31 @@ const accountSettingsSections: { id: AccountSettingsSectionId; label: string }[]
 	{ id: "security", label: "登录与安全" },
 	{ id: "apps", label: "授权应用" },
 	{ id: "memory", label: "个性化" },
+	{ id: "history", label: "历史记录" },
 ];
 
 function renderAccountSettingsSection({
 	accessState,
 	activeSection,
+	archivedConversations,
+	archivedConversationsState,
 	authorizedApps,
 	authorizedAppsState,
 	deletingClientId,
+	deletingConversationId,
 	deletingSessionId,
 	identityState,
 	isSigningOut,
 	isUpdatingPreferences,
 	onDeleteAuthorizedApp,
+	onDeleteArchivedConversation,
 	onDeleteSecuritySession,
 	onProfileMemoryChange,
+	onRestoreArchivedConversation,
 	onSignOut,
 	overview,
 	preferencesState,
+	restoringConversationId,
 	resolvedAccess,
 	resolvedIdentity,
 	resolvedPreferences,
@@ -360,19 +406,25 @@ function renderAccountSettingsSection({
 }: {
 	accessState: AccountScopedState;
 	activeSection: AccountSettingsSectionId;
+	archivedConversations: ConversationSummary[];
+	archivedConversationsState: AccountScopedState;
 	authorizedApps: AccountAuthorizedApp[];
 	authorizedAppsState: AccountScopedState;
 	deletingClientId: string | null;
+	deletingConversationId: string | null;
 	deletingSessionId: string | null;
 	identityState: AccountScopedState;
 	isSigningOut: boolean;
 	isUpdatingPreferences: boolean;
 	onDeleteAuthorizedApp?: (clientId: string) => void;
+	onDeleteArchivedConversation?: (conversationId: string) => void;
 	onDeleteSecuritySession?: (sessionId: string) => void;
 	onProfileMemoryChange?: (enabled: boolean) => void;
+	onRestoreArchivedConversation?: (conversationId: string) => void;
 	onSignOut: () => void;
 	overview: AccountOverview;
 	preferencesState: AccountScopedState;
+	restoringConversationId: string | null;
 	resolvedAccess: AccountAccess;
 	resolvedIdentity: AccountIdentity;
 	resolvedPreferences: AccountPreferences;
@@ -430,6 +482,18 @@ function renderAccountSettingsSection({
 			/>
 		);
 	}
+	if (activeSection === "history") {
+		return (
+			<ArchivedConversationsSection
+				conversations={archivedConversations}
+				deletingConversationId={deletingConversationId}
+				onDeleteArchivedConversation={onDeleteArchivedConversation}
+				onRestoreArchivedConversation={onRestoreArchivedConversation}
+				restoringConversationId={restoringConversationId}
+				state={archivedConversationsState}
+			/>
+		);
+	}
 	return (
 		<div className="flex flex-col gap-4">
 			<AccountPanel>
@@ -478,6 +542,85 @@ function renderAccountSettingsSection({
 				title="账号信息"
 			/>
 		</div>
+	);
+}
+
+function ArchivedConversationsSection({
+	conversations,
+	deletingConversationId,
+	onDeleteArchivedConversation,
+	onRestoreArchivedConversation,
+	restoringConversationId,
+	state,
+}: {
+	conversations: ConversationSummary[];
+	deletingConversationId: string | null;
+	onDeleteArchivedConversation?: (conversationId: string) => void;
+	onRestoreArchivedConversation?: (conversationId: string) => void;
+	restoringConversationId: string | null;
+	state: AccountScopedState;
+}) {
+	return (
+		<AccountPanel>
+			<div className="flex items-center gap-3">
+				<span className="grid size-10 shrink-0 place-items-center rounded-md bg-accent text-primary">
+					<Undo2 aria-hidden="true" className="size-5" />
+				</span>
+				<h2 className="text-base font-semibold">已归档聊天</h2>
+			</div>
+			{state === "loading" ? (
+				<div className="mt-5 flex min-h-28 items-center gap-3 text-sm text-muted-foreground">
+					<Loader2 aria-hidden="true" className="size-4 animate-spin" />
+					正在加载
+				</div>
+			) : null}
+			{state === "service_unavailable" || state === "network_error" ? (
+				<div className="mt-5 flex min-h-28 gap-3 rounded-md border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
+					<AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+					<span>历史记录暂不可用</span>
+				</div>
+			) : null}
+			{state === "ready" ? (
+				conversations.length > 0 ? (
+					<ul className="mt-5 divide-y divide-border">
+						{conversations.map((conversation) => {
+							const busy =
+								restoringConversationId === conversation.id ||
+								deletingConversationId === conversation.id;
+							return (
+								<li className="flex min-h-14 items-center gap-3 py-2" key={conversation.id}>
+									<p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+										{conversation.title}
+									</p>
+									<Button
+										aria-label={`恢复 ${conversation.title}`}
+										disabled={busy}
+										onClick={() => onRestoreArchivedConversation?.(conversation.id)}
+										type="button"
+										variant="ghost"
+									>
+										<Undo2 aria-hidden="true" />
+										恢复
+									</Button>
+									<Button
+										aria-label={`删除 ${conversation.title}`}
+										disabled={busy}
+										onClick={() => onDeleteArchivedConversation?.(conversation.id)}
+										type="button"
+										variant="ghost"
+									>
+										<Trash2 aria-hidden="true" />
+										删除
+									</Button>
+								</li>
+							);
+						})}
+					</ul>
+				) : (
+					<p className="mt-5 text-sm text-muted-foreground">没有已归档聊天</p>
+				)
+			) : null}
+		</AccountPanel>
 	);
 }
 

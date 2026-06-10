@@ -9,12 +9,12 @@ import { DocsPage } from "../src/app/routes/docs-page";
 import { FeedbackPage } from "../src/app/routes/feedback-page";
 import { HomePage } from "../src/app/routes/home-page";
 import homePageSource from "../src/app/routes/home-page.tsx?raw";
-import { MapPage } from "../src/app/routes/map-page";
 import conversationSidebarSource from "../src/components/conversation/conversation-sidebar.tsx?raw";
 import { MessageList } from "../src/components/conversation/message-list";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
+import { UnauthorizedError } from "../src/platform/api/client";
 
 const diningApiMock = vi.hoisted(() => ({
 	getDiningFloor: vi.fn(),
@@ -30,6 +30,7 @@ const feedbackApiMock = vi.hoisted(() => ({
 }));
 const conversationApiMock = vi.hoisted(() => ({
 	getSessionPrincipal: vi.fn(),
+	submitChatRequestStream: vi.fn(),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -81,129 +82,72 @@ vi.mock("../src/features/conversation/api", () => ({
 		},
 	]),
 	submitChatRequest: vi.fn(),
-	submitChatRequestStream: vi.fn(async function* () {
-		const events: ChatRequestStreamEvent[] = [
-			{
-				data: {
-					occurredAt: "2026-06-08T00:00:01.000Z",
-					requestId: "req_01",
-					status: "queued",
-					traceId: "trace_01",
-				},
-				event: "execution.queued",
-			},
-			{
-				data: {
-					occurredAt: "2026-06-08T00:00:02.000Z",
-					requestId: "req_01",
-					status: "running",
-					traceId: "trace_01",
-				},
-				event: "execution.running",
-			},
-			{
-				data: {
-					answer: {
-						conversation: {
-							createdAt: "2026-06-08T00:00:00.000Z",
-							id: "conv_01",
-							messages: [],
-							title: "测试会话",
-							updatedAt: "2026-06-08T00:00:03.000Z",
-						},
-						result: {
-							kind: "clarification",
-							requestId: "req_01",
-							text: "需要补充哪个校区？",
-							traceId: "trace_01",
-						},
-					},
-					occurredAt: "2026-06-08T00:00:03.000Z",
-					requestId: "req_01",
-					status: "completed",
-					traceId: "trace_01",
-				},
-				event: "request.completed",
-			},
-		];
-		for (const event of events) {
-			await new Promise((resolve) => setTimeout(resolve, 0));
-			yield event;
-		}
-	}),
-}));
-
-vi.mock("../src/features/map/api", () => ({
-	getCampusMapPlaces: vi.fn().mockResolvedValue({
-		campus: {
-			defaultCenter: [116.3216, 39.9519],
-			id: "haidian",
-			name: "海淀校区",
-		},
-		places: [
-			{
-				accessNote: null,
-				campus: "海淀校区",
-				category: "building",
-				description: "图书馆与自习、借阅相关服务的主要位置。",
-				geojson: {
-					geometry: { coordinates: [116.3211, 39.9524], type: "Point" },
-					properties: { category: "building", placeId: "library", title: "图书馆" },
-					type: "Feature",
-				},
-				id: "library",
-				sourceRefs: ["campus-map:projection:library"],
-				tags: ["学习"],
-				title: "图书馆",
-			},
-			{
-				accessNote: null,
-				campus: "海淀校区",
-				category: "service",
-				description: "学生事务相关位置。",
-				geojson: {
-					geometry: { coordinates: [116.3222, 39.9515], type: "Point" },
-					properties: { category: "service", placeId: "student-service", title: "学生事务中心" },
-					type: "Feature",
-				},
-				id: "student-service",
-				sourceRefs: ["campus-map:projection:student-service"],
-				tags: ["办事"],
-				title: "学生事务中心",
-			},
-		],
-	}),
+	submitChatRequestStream: conversationApiMock.submitChatRequestStream,
 }));
 
 vi.mock("../src/features/docs/api", () => docsApiMock);
 vi.mock("../src/features/feedback/api", () => feedbackApiMock);
 
-vi.mock("../src/features/map/maplibre-runtime", () => ({
-	loadMapLibre: vi.fn().mockResolvedValue({
-		Map: class {
-			remove() {
-				return this;
-			}
-		},
-		Marker: class {
-			addTo() {
-				return this;
-			}
-			remove() {
-				return this;
-			}
-			setLngLat() {
-				return this;
-			}
-		},
-	}),
-}));
-
 vi.mock("../src/features/dining/api", () => diningApiMock);
+
+function createCompletedStreamEvents(): ChatRequestStreamEvent[] {
+	return [
+		{
+			data: {
+				occurredAt: "2026-06-08T00:00:01.000Z",
+				requestId: "req_01",
+				status: "queued",
+				traceId: "trace_01",
+			},
+			event: "execution.queued",
+		},
+		{
+			data: {
+				occurredAt: "2026-06-08T00:00:02.000Z",
+				requestId: "req_01",
+				status: "running",
+				traceId: "trace_01",
+			},
+			event: "execution.running",
+		},
+		{
+			data: {
+				answer: {
+					conversation: {
+						archivedAt: null,
+						createdAt: "2026-06-08T00:00:00.000Z",
+						id: "conv_01",
+						messages: [],
+						pinnedAt: null,
+						title: "测试会话",
+						updatedAt: "2026-06-08T00:00:03.000Z",
+					},
+					result: {
+						kind: "clarification",
+						requestId: "req_01",
+						text: "需要补充哪个校区？",
+						traceId: "trace_01",
+					},
+				},
+				occurredAt: "2026-06-08T00:00:03.000Z",
+				requestId: "req_01",
+				status: "completed",
+				traceId: "trace_01",
+			},
+			event: "request.completed",
+		},
+	];
+}
+
+async function* createUnauthorizedStream(): AsyncGenerator<ChatRequestStreamEvent> {
+	yield* [];
+	throw new UnauthorizedError();
+}
 
 describe("campus routes", () => {
 	beforeEach(() => {
 		conversationApiMock.getSessionPrincipal.mockReset();
+		conversationApiMock.submitChatRequestStream.mockReset();
 		conversationApiMock.getSessionPrincipal.mockResolvedValue({
 			permissions: {
 				chat: true,
@@ -219,6 +163,12 @@ describe("campus routes", () => {
 				expiresAt: "2026-06-09T12:00:00.000Z",
 				sessionId: "session_01",
 			},
+		});
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
+			for (const event of createCompletedStreamEvents()) {
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				yield event;
+			}
 		});
 		diningApiMock.getDiningHalls.mockReset();
 		diningApiMock.getDiningFloor.mockReset();
@@ -300,7 +250,8 @@ describe("campus routes", () => {
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
 		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "新对话" })).toBeInTheDocument();
-		expect(screen.getByPlaceholderText("搜索历史会话")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
+		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 		expect(screen.getAllByRole("link", { name: "文档" }).length).toBeGreaterThan(0);
 		expect(screen.getAllByRole("link", { name: "校园地图" }).length).toBeGreaterThan(0);
 		expect(screen.getAllByRole("link", { name: "饭堂分布图" }).length).toBeGreaterThan(0);
@@ -359,6 +310,84 @@ describe("campus routes", () => {
 		expect(rootLayoutSource).not.toContain("移动端主导航");
 	});
 
+	it("closes the account menu when clicking outside it", async () => {
+		render(<HomePage />);
+
+		const accountButton = await screen.findByRole("button", {
+			name: "测试用户 user@muc.edu.cn",
+		});
+		fireEvent.click(accountButton);
+
+		expect(screen.getByRole("menu", { name: "账号" })).toBeInTheDocument();
+		fireEvent.pointerDown(document.body);
+		expect(screen.queryByRole("menu", { name: "账号" })).toBeNull();
+	});
+
+	it("separates the account entry from the conversation history area", async () => {
+		render(<HomePage />);
+
+		expect(await screen.findByRole("separator", { name: "账号区域" })).toBeInTheDocument();
+	});
+
+	it("places the new conversation action before chat search in the sidebar", async () => {
+		render(<HomePage />);
+
+		const newConversationLink = await screen.findByRole("link", { name: "新对话" });
+		const searchButton = screen.getByRole("button", { name: "搜索聊天" });
+
+		expect(
+			newConversationLink.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
+	});
+
+	it("opens an inline login dialog from the Q&A home instead of leaving the page", async () => {
+		conversationApiMock.submitChatRequestStream.mockImplementation(createUnauthorizedStream);
+		window.history.pushState({}, "", "/");
+		render(<HomePage />);
+
+		fireEvent.change(await screen.findByPlaceholderText("输入你想问的问题"), {
+			target: { value: "中慧楼在哪里？" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
+		expect(screen.getByLabelText("邮箱地址")).toBeInTheDocument();
+		expect(screen.getByLabelText("密码")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
+			"href",
+			"/account/register",
+		);
+		expect(screen.getByRole("link", { name: "忘记密码？" })).toHaveAttribute(
+			"href",
+			"/account/forgot-password",
+		);
+		expect(window.location.pathname).toBe("/");
+	});
+
+	it("opens the same inline login dialog from the signed-out account menu", async () => {
+		conversationApiMock.getSessionPrincipal.mockRejectedValue(new UnauthorizedError());
+		render(<HomePage />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "登录" }));
+		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
+
+		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
+			"href",
+			"/account/register",
+		);
+	});
+
+	it("prefills the home composer from a map place question", async () => {
+		window.history.pushState({}, "", "/?prompt=请介绍一下「图书馆」在哪里。");
+		render(<HomePage />);
+
+		expect(await screen.findByPlaceholderText("输入你想问的问题")).toHaveValue(
+			"请介绍一下「图书馆」在哪里。",
+		);
+	});
+
 	it("renders support page header navigation on desktop and mobile surfaces", () => {
 		window.history.pushState({}, "", "/map");
 		render(<RootLayout />);
@@ -381,10 +410,7 @@ describe("campus routes", () => {
 		fireEvent.click(screen.getByRole("button", { name: "账号" }));
 
 		expect(screen.getByRole("menu", { name: "账号" })).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: "登录" })).toHaveAttribute(
-			"href",
-			"/account/login",
-		);
+		expect(screen.getByRole("menuitem", { name: "登录" })).not.toHaveAttribute("href");
 		expect(screen.getByRole("menuitem", { name: "创建账号" })).toHaveAttribute(
 			"href",
 			"/account/register",
@@ -424,41 +450,6 @@ describe("campus routes", () => {
 				routeContext: "/feedback?source=map",
 			}),
 		);
-	});
-
-	it("filters map places without exposing projection wording", async () => {
-		render(<MapPage />);
-
-		expect(await screen.findByText("图书馆")).toBeInTheDocument();
-		fireEvent.change(screen.getByPlaceholderText("搜索地点"), {
-			target: { value: "学生" },
-		});
-
-		expect(await screen.findByText("学生事务中心")).toBeInTheDocument();
-		expect(screen.queryByText("图书馆与自习、借阅相关服务的主要位置。")).not.toBeInTheDocument();
-	});
-
-	it("does not match campus map search against internal source references", async () => {
-		render(<MapPage />);
-
-		expect(await screen.findByText("图书馆")).toBeInTheDocument();
-		fireEvent.change(screen.getByPlaceholderText("搜索地点"), {
-			target: { value: "projection" },
-		});
-
-		expect(await screen.findByText("没有找到匹配地点。")).toBeInTheDocument();
-		expect(screen.queryByText("图书馆与自习、借阅相关服务的主要位置。")).not.toBeInTheDocument();
-		expect(screen.queryByText("学生事务相关位置。")).not.toBeInTheDocument();
-	});
-
-	it("renders only map error state when the campus map API fails", async () => {
-		const { getCampusMapPlaces } = await import("../src/features/map/api");
-		vi.mocked(getCampusMapPlaces).mockRejectedValueOnce(new Error("network"));
-
-		render(<MapPage />);
-
-		expect(await screen.findByText("校园地图暂时无法打开。")).toBeInTheDocument();
-		expect(screen.queryByText("正在读取地图")).not.toBeInTheDocument();
 	});
 
 	it("renders docs reader, search results, empty search, and exclusive error state", async () => {
@@ -596,7 +587,7 @@ describe("campus routes", () => {
 
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
 		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
-		expect(screen.getByPlaceholderText("搜索历史会话")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "测试会话" })).toBeInTheDocument();
 		fireEvent.change(await screen.findByPlaceholderText("今天需要什么帮助"), {
 			target: { value: "奖学金" },

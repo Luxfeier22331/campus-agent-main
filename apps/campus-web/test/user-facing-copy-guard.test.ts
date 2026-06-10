@@ -69,7 +69,14 @@ describe("user-facing copy guard", () => {
 			},
 			{
 				fileName: "map-page.tsx",
-				phrases: ["筛选已投影地点", "投影来源", "...place.sourceRefs"],
+				phrases: [
+					"sourceRefs",
+					"projection",
+					"筛选已投影地点",
+					"投影来源",
+					"地图暂未接入",
+					"开发中",
+				],
 				sourcePath: ["src", "app", "routes"],
 			},
 			{
@@ -87,7 +94,15 @@ describe("user-facing copy guard", () => {
 				phrases: [
 					"登录后会在这里显示历史会话。",
 					"历史会话只用于找回之前的问题；文档、校园地图和饭堂分布图保留在顶部导航中。",
+					"搜索历史会话",
+					"showArchivedConversations",
+					"historyView",
 				],
+				sourcePath: ["src", "components", "conversation"],
+			},
+			{
+				fileName: "conversation-search-dialog.tsx",
+				phrases: ["view=archived", "archived"],
 				sourcePath: ["src", "components", "conversation"],
 			},
 		];

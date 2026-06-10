@@ -6,9 +6,11 @@ import {
 } from "../src/features/conversation/view-state";
 
 const baseConversation: ConversationDetail = {
+	archivedAt: null,
 	createdAt: "2026-06-09T00:00:00.000Z",
 	id: "conv_01",
 	messages: [],
+	pinnedAt: null,
 	title: "奖学金",
 	updatedAt: "2026-06-09T00:00:00.000Z",
 };

@@ -11,10 +11,11 @@ import {
 	UserPlus,
 	UserRound,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { AccountSettingsDialog } from "@/app/routes/account-page";
 import type { AccountSettingsSectionId } from "@/app/routes/account-settings-content";
+import { ConversationRow } from "@/components/conversation/conversation-row";
 import { getSessionPrincipal } from "@/features/conversation/api";
 import type { ConversationSummary } from "@/features/conversation/model";
 import { cn } from "@/lib/utils";
@@ -33,17 +34,31 @@ export function ConversationSidebar({
 	activeConversationId,
 	className,
 	conversations,
+	onConversationArchived,
+	onConversationDeleted,
+	onConversationUpdated,
+	onLoginRequest,
+	onSearchOpen,
 }: {
 	activeConversationId?: string;
 	className?: string;
 	conversations: ConversationSummary[];
+	onConversationArchived?: (conversationId: string) => void;
+	onConversationDeleted?: (conversationId: string) => void;
+	onConversationUpdated?: (conversation: ConversationSummary) => void;
+	onLoginRequest?: () => void;
+	onSearchOpen: () => void;
 }) {
-	const [query, setQuery] = useState("");
+	const [displayConversations, setDisplayConversations] = useState(conversations);
 	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
 	const groupedConversations = useMemo(
-		() => groupConversations(filterConversations(conversations, query)),
-		[conversations, query],
+		() => groupConversations(displayConversations),
+		[displayConversations],
 	);
+
+	useEffect(() => {
+		setDisplayConversations(conversations);
+	}, [conversations]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -90,16 +105,27 @@ export function ConversationSidebar({
 			>
 				<Plus aria-hidden="true" className="size-4 text-[var(--sys-text-muted)]" />
 				新对话
+				<span
+					aria-hidden="true"
+					className="ml-auto text-xs font-normal text-[var(--sys-text-subtle)]"
+				>
+					⌘⇧O
+				</span>
 			</Link>
-			<label className="mt-1 flex min-h-10 items-center gap-2 rounded-lg px-2.5 text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)]">
+			<button
+				className="mt-1 flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
+				onClick={onSearchOpen}
+				type="button"
+			>
 				<Search aria-hidden="true" className="size-4 shrink-0" />
-				<input
-					className="min-w-0 flex-1 border-0 bg-transparent outline-none placeholder:text-[var(--sys-text-subtle)]"
-					onChange={(event) => setQuery(event.target.value)}
-					placeholder="搜索历史会话"
-					value={query}
-				/>
-			</label>
+				搜索聊天
+				<span
+					aria-hidden="true"
+					className="ml-auto text-xs font-normal text-[var(--sys-text-subtle)]"
+				>
+					⌘K
+				</span>
+			</button>
 			<div className="mt-4 min-h-0 flex-1 overflow-y-auto">
 				{groupedConversations.length > 0 ? (
 					<div className="space-y-4">
@@ -110,35 +136,56 @@ export function ConversationSidebar({
 								</p>
 								<div className="mt-2 space-y-1">
 									{group.items.map((conversation) => (
-										<Link
-											className={cn(
-												"flex min-h-9 items-center rounded-lg px-2.5 text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]",
-												activeConversationId === conversation.id &&
-													"bg-[var(--sys-bg-muted)] font-medium text-[var(--sys-text-strong)]",
-											)}
+										<ConversationRow
+											active={activeConversationId === conversation.id}
+											conversation={conversation}
 											key={conversation.id}
-											params={{ conversationId: conversation.id }}
-											to="/c/$conversationId"
-										>
-											<span className="truncate">{conversation.title}</span>
-										</Link>
+											onArchived={(conversationId) => {
+												setDisplayConversations((current) =>
+													current.filter((item) => item.id !== conversationId),
+												);
+												onConversationArchived?.(conversationId);
+											}}
+											onDeleted={(conversationId) => {
+												setDisplayConversations((current) =>
+													current.filter((item) => item.id !== conversationId),
+												);
+												onConversationDeleted?.(conversationId);
+											}}
+											onUpdated={(updated) => {
+												setDisplayConversations((current) =>
+													upsertConversationSummary(current, updated),
+												);
+												onConversationUpdated?.(updated);
+											}}
+										/>
 									))}
 								</div>
 							</section>
 						))}
 					</div>
-				) : null}
+				) : (
+					<p className="px-2 text-xs text-[var(--sys-text-subtle)]">暂无会话</p>
+				)}
 			</div>
-			<AccountEntry state={accountEntry} />
+			<AccountEntry onLoginRequest={onLoginRequest} state={accountEntry} />
 		</aside>
 	);
 }
 
-function AccountEntry({ state }: { state: AccountEntryState }) {
+function AccountEntry({
+	onLoginRequest,
+	state,
+}: {
+	onLoginRequest?: () => void;
+	state: AccountEntryState;
+}) {
 	const [open, setOpen] = useState(false);
 	const [settingsSection, setSettingsSection] = useState<AccountSettingsSectionId | null>(null);
 	const [signOutError, setSignOutError] = useState<string | null>(null);
 	const [signingOut, setSigningOut] = useState(false);
+	const buttonRef = useRef<HTMLButtonElement | null>(null);
+	const menuRef = useRef<HTMLDivElement | null>(null);
 	const label =
 		state.status === "authenticated" ? state.displayName.trim() || "账号" : getAccountLabel(state);
 	const detail = state.status === "authenticated" ? state.email : null;
@@ -154,8 +201,22 @@ function AccountEntry({ state }: { state: AccountEntryState }) {
 				setOpen(false);
 			}
 		}
+		function handlePointerDown(event: PointerEvent) {
+			const target = event.target;
+			if (!(target instanceof Node)) {
+				return;
+			}
+			if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) {
+				return;
+			}
+			setOpen(false);
+		}
 		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
+		document.addEventListener("pointerdown", handlePointerDown);
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown);
+			document.removeEventListener("pointerdown", handlePointerDown);
+		};
 	}, [open]);
 
 	async function handleSignOut() {
@@ -180,12 +241,14 @@ function AccountEntry({ state }: { state: AccountEntryState }) {
 
 	return (
 		<div className="relative mt-auto pt-3">
+			<hr aria-label="账号区域" className="mb-2 border-t border-[var(--chat-sidebar-border)]" />
 			<button
 				aria-expanded={open}
 				aria-haspopup="menu"
 				aria-label={detail ? `${label} ${detail}` : label}
 				className="group flex min-h-12 w-full items-center gap-3 rounded-xl px-2 text-left text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
 				onClick={() => setOpen(true)}
+				ref={buttonRef}
 				type="button"
 			>
 				<span
@@ -207,6 +270,11 @@ function AccountEntry({ state }: { state: AccountEntryState }) {
 			</button>
 			{open ? (
 				<AccountMenu
+					menuRef={menuRef}
+					onLoginRequest={() => {
+						setOpen(false);
+						onLoginRequest?.();
+					}}
 					onSignOut={handleSignOut}
 					onSettingsOpen={openSettings}
 					signingOut={signingOut}
@@ -225,12 +293,16 @@ function AccountEntry({ state }: { state: AccountEntryState }) {
 }
 
 function AccountMenu({
+	menuRef,
+	onLoginRequest,
 	onSettingsOpen,
 	onSignOut,
 	signingOut,
 	signOutError,
 	state,
 }: {
+	menuRef: React.RefObject<HTMLDivElement | null>;
+	onLoginRequest: () => void;
 	onSettingsOpen: (section: AccountSettingsSectionId) => void;
 	onSignOut: () => void;
 	signingOut: boolean;
@@ -244,6 +316,7 @@ function AccountMenu({
 			<div
 				aria-label="账号"
 				className="fixed bottom-[76px] left-3 w-[calc(var(--layout-chat-sidebar-width)-24px)] max-w-[calc(100vw-24px)] rounded-2xl border border-[var(--sys-border-subtle)] bg-white p-1.5 text-[var(--sys-text-default)] shadow-[var(--shadow-md)] lg:w-[280px]"
+				ref={menuRef}
 				role="menu"
 			>
 				{authenticated ? (
@@ -277,10 +350,10 @@ function AccountMenu({
 					</>
 				) : (
 					<>
-						<AccountMenuLink
-							href="/account/login"
+						<AccountMenuButton
 							icon={<LogIn aria-hidden="true" />}
 							label="登录"
+							onClick={onLoginRequest}
 						/>
 						<AccountMenuLink
 							href="/account/register"
@@ -346,23 +419,30 @@ function getAccountLabel(state: AccountEntryState) {
 	return "账号";
 }
 
-function filterConversations(conversations: ConversationSummary[], query: string) {
-	const normalized = query.trim().toLowerCase();
-	if (!normalized) {
-		return conversations;
-	}
-	return conversations.filter((conversation) =>
-		conversation.title.toLowerCase().includes(normalized),
-	);
-}
-
 function groupConversations(conversations: ConversationSummary[]) {
 	const groups = new Map<string, ConversationSummary[]>();
 	for (const conversation of conversations) {
-		const label = getConversationGroupLabel(conversation.updatedAt);
+		const label = conversation.pinnedAt
+			? "置顶"
+			: getConversationGroupLabel(conversation.updatedAt);
 		groups.set(label, [...(groups.get(label) ?? []), conversation]);
 	}
-	return Array.from(groups, ([label, items]) => ({ items, label }));
+	const priority = new Map([
+		["置顶", 0],
+		["今天", 1],
+		["本周", 2],
+		["更早", 3],
+	]);
+	return Array.from(groups, ([label, items]) => ({ items, label })).sort(
+		(left, right) => (priority.get(left.label) ?? 99) - (priority.get(right.label) ?? 99),
+	);
+}
+
+function upsertConversationSummary(
+	conversations: ConversationSummary[],
+	summary: ConversationSummary,
+): ConversationSummary[] {
+	return [summary, ...conversations.filter((item) => item.id !== summary.id)];
 }
 
 function getConversationGroupLabel(updatedAt: string) {
