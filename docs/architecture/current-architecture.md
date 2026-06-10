@@ -33,8 +33,10 @@ updated: 2026-06-08
 `hub-web same-site allowlisted /api/* -> app-api`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow-worker / activity-worker-rag / activity-worker-finalization -> Go RAG
-DTO/runtime -> Qdrant / provider -> sanitized projection`
+workflow-worker / activity-worker-context / activity-worker-knowledge /
+capability workers / activity-worker-finalization -> memory recall / typed
+capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
+models -> sanitized projection`
 
 `browser -> public-docs static reader assets`
 
@@ -67,7 +69,7 @@ document/index release`
   projection writeback
 - Temporal-backed chat execution path 已进入当前代码事实：`apps/app-api` 通过
   `/internal/execution/runs*` 调用 `apps/execution-control`，`apps/execution-control`
-  启动 / 取消 `ChatAnswerWorkflow`，Temporal task queue 承担 execution substrate
+  启动 / 取消 `CapabilityExecutionWorkflow`，Temporal task queue 承担 execution substrate
 - PG 不再是 online execution queue truth；`runtime.agent_runs`、run events 与 step
   tables 是 app-api / panel / eval 消费的 sanitized run projection store
 - retired PG lease tables、lane budget、worker heartbeat、PG lease worker loop 与
@@ -237,17 +239,22 @@ document/index release`
   step projection rows 只作为 app-api、panel、eval 读取的 sanitized product
   projection truth。旧 PG lease worker loop / recovery loop 不再参与 online
   serving。
-- 当前 `ChatAnswerWorkflow` 已硬切为 `memory.recall -> planning -> rag.plan ->
-  retrieval.indexed_lookup -> retrieval.expand_or_rescue -> evidence.selection ->
-  synthesis -> grounding.verify -> finalization.write`，每个 step 写入
+- 当前 `CapabilityExecutionWorkflow` 主干已切为 `context.memory_recall ->
+  plan.route -> capability branch -> finalization.write`。`knowledge` 分支执行
+  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
+  evidence.selection -> synthesis -> grounding.verify`，每个 step 写入
   `RunStep -> StepAttempt -> StepResult` projection。attempt projection 已包含
   Temporal activity metadata、queue wait、duration、provider/model、token/cost、
   cancel/timeout outcome 字段。
+- 当前 public durable chat path 已具备 capability-neutral metadata 与 workflow
+  branch skeleton；`campus_services` 与 `notice` 可进入 typed activity branch，
+  但产品级完整验收仍取决于对应 worker poller、structured read model、projection
+  fixture 与 finalization closeout。`navigation` 仍默认 closed，必须 fail closed。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
   解释为全局 scheduler。当前缺口是 staging 真实 provider cancel evidence、
-  worker autoscaler actuation、notice / navigation / campus-services typed worker
-  contract 全量接入，以及 RAG retrieval quality/profiling 的持续优化。
+  worker autoscaler actuation、notice / navigation / campus-services typed branch
+  产品验收，以及 RAG retrieval quality/profiling 的持续优化。
 - 拥有 deterministic structured planner；当前实现位于
   `apps/execution-control/internal/structuredplanning`，`internal/execution`
   仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
@@ -344,7 +351,7 @@ document/index release`
 - 对 `rag` / `navigation` 两条 capability family，forward family label 与 current
   runtime truth 已经对齐；active canonical surface 不再维护单独的 legacy
   current-truth alias。
-- shared DTO 的 canonical supervisor -> capability handoff 名称是
+- shared DTO 的 canonical Execution Agent Layer -> capability handoff 名称是
   `CapabilityRequest` / `CapabilityResponse`；active runtime / package
   implementation 叙述使用 capability dispatch / capability handoff。
 - 未来新增 capability family 的命名规则与 reopen 条件，以已完成的

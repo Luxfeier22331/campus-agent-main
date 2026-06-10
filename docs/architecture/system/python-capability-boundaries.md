@@ -90,7 +90,8 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 ## Guardrails
 
 - 不把 Go runtime types、Qdrant / S3 / provider SDK types 写入 `packages/contracts`
-- 不把 deterministic supervisor admission、routing、structured payload planning 写回 Python
+- 不把 deterministic Execution Agent Layer admission、routing、structured payload
+  planning 写回 Python
 - 不把 ingestion source-truth / projection logic 拉入 `packages/knowledge-capability`
 - 不把 retrieval backend private helpers 重新塞进 agent service
 - 大模块出现增长时优先按 owner 拆文件，而不是在 facade 继续堆分支

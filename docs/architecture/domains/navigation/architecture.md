@@ -13,7 +13,7 @@ updated: 2026-05-01
 它回答的是：
 
 - 校园导航在长期产品形态里属于什么能力边界
-- `supervisor`、`navigation`、`app-api`、spatial truth 各自负责什么
+- Execution Agent Layer、`navigation`、`app-api`、spatial truth 各自负责什么
 - 用户当前位置、地点别名、路线图谱与地图呈现分别属于哪一层
 - 外部地图 provider 与瓦片地图在长期形态里应怎样参与
 
@@ -32,7 +32,7 @@ updated: 2026-05-01
 - campus service discovery
 - campus navigation / wayfinding
 
-其中导航不是附属工具，而是 supervisor-led multi-capability / agent-as-tool
+其中导航不是附属工具，而是 Execution Agent Layer-led multi-capability / agent-as-tool
 product 中的稳定 capability family。
 
 长期导航主链路固定为：
@@ -40,7 +40,7 @@ product 中的稳定 capability family。
 ```text
 web surface -> app-api -> execution-control -> Temporal activity
 -> capability worker -> navigation / typed spatial tools
--> spatial truth / provider adapters -> supervisor response
+-> spatial truth / provider adapters -> execution response
 ```
 
 在长期 multi-capability / agent-as-tool workflow 中，`navigation` 也可以作为 bounded spatial
@@ -265,7 +265,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 ## Result Posture
 
-长期导航结果必须继续兼容 repo 现有 supervisor terminal semantics：
+长期导航结果必须继续兼容 repo 现有 execution terminal semantics：
 
 - `completed`
 - `needs_clarification`
@@ -279,7 +279,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - 无法安全解析地点时，应 `needs_clarification`
 - 缺少可信 route truth 时，应 `no_answer` 或 `error`
 - 未授权访问 restricted spatial truth 时，应 fail-closed
-- 不得在导航域为了“更像地图 app”而绕开 supervisor 终态合同
+- 不得在导航域为了“更像地图 app”而绕开 execution 终态合同
 
 ## Non-Goals
 

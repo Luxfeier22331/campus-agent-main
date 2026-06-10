@@ -13,8 +13,9 @@ updated: 2026-04-28
 它覆盖：
 
 - 后续 `packages/contracts` 内 `ContactDirectoryLookupPayload / Result` 的稳定语义
-- `apps/supervisor-agent-worker -> packages/campus_services` 的 handoff seam
-- `campus_services -> thin tool adapter -> internal query service`
+- `execution-control -> typed capability activity / internal query service`
+  的 active execution seam
+- `campus_services -> typed tool adapter -> internal query service`
   的 request/result seam
 - 部门、科室、服务点、公开职务联系人、电话、邮箱、办公地点、办公时间与 source refs
   的 typed 结果边界
@@ -33,9 +34,10 @@ updated: 2026-04-28
   tool-level verdict 为 `open`（Phase 6，2026-04-27）。
 - `campus_services/contact_directory` projection data-plane 与 PostgreSQL read model
   已纳入 opening denominator。
-- `ContactDirectoryLookupPayload / Result`、Go structured query runtime、Python thin
-  adapter、planner/policy routing、deterministic release gate 与 public/chat E2E
-  已形成统一 opening verdict 证据。
+- `ContactDirectoryLookupPayload / Result`、Go structured query runtime、
+  ToolSpec / CapabilitySpec seam、planner/policy routing、deterministic release gate
+  与 public/chat E2E 已形成统一 opening verdict 证据。历史 Python thin adapter
+  只能作为 offline / eval reference，不作为 active serving handoff。
 - local gate 判定命令：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
@@ -59,7 +61,7 @@ updated: 2026-04-28
   `service_guide_lookup`
 - “今天卡务中心开不开”“班车乘车点现在改到哪里”不属于 `contact_directory_lookup`，应进入
   `service_status_lookup`
-- “帮我打电话”“帮我发邮件”“替我预约”不属于 `contact_directory_lookup`，必须由 supervisor
+- “帮我打电话”“帮我发邮件”“替我预约”不属于 `contact_directory_lookup`，必须由 Execution Agent Layer
   保持 terminal guardrail / fail-close
 - tool 只返回 source-linked structured facts，不返回 executable communication payload
 - tool 不生成最终自然语言回答；最终回答组织属于 `campus_services`
@@ -68,7 +70,7 @@ updated: 2026-04-28
 
 ## Owner Split
 
-- supervisor
+- Execution Agent Layer
   - 拥有 capability admission、transactional guardrail、terminal semantics 与 high-level
     routing clarification
 - `campus_services`
@@ -280,7 +282,7 @@ ContactDirectoryCandidate
   这类问题应由 notice / service guide / service status 的 owner surface 处理
 - 个人姓名查询只允许命中 official-role contact；不得提供未被 source truth admission 的个人手机号
   或私人邮箱
-- 如果用户要求系统拨打电话、发送邮件或代办联系，supervisor 不得生成执行型 handoff；
+- 如果用户要求系统拨打电话、发送邮件或代办联系，Execution Agent Layer 不得生成执行型 handoff；
   `contact_directory_lookup` 只返回只读联系方式
 
 ## Routing Rules
@@ -311,7 +313,7 @@ ContactDirectoryCandidate
   - campus_services adapter tests：phone/email/location/hours
     answer shaping 与
     candidate clarification
-  - supervisor planner/router tests：联系方式路由到 `contact_directory_lookup`，并保持
+  - Execution Agent Layer planner/router tests：联系方式路由到 `contact_directory_lookup`，并保持
     其他 capability 分流
   - deterministic release gate：
     `uv run --all-packages python -m scripts.eval_gate accept --profile contact-directory-lookup`
@@ -350,7 +352,7 @@ Phase 6 snapshot（2026-04-27）：
 
 第一版不为 `campus_services` 增加独立 LLM prompt。正确性 owner 是：
 
-- supervisor deterministic routing / payload construction
+- Execution Agent Layer deterministic routing / payload construction
 - strict typed payload/result contract
 - projection-backed internal query service
 - deterministic answer shaping

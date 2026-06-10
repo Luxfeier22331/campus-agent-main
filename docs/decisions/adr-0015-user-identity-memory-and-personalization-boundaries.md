@@ -50,7 +50,7 @@ authz 最小化、raw state 不跨边界、个人 memory 不进入 institutional
 
 这意味着：
 
-- Worker / edge 侧验证通过，不等于最终 `SupervisorRequest.actor` 已经成立
+- Worker / edge 侧验证通过，不等于最终 `ExecutionRequest.actor` 已经成立
 - canonical actor claims 必须在 app-layer boundary 内完成映射、裁剪与版本化
 - execution engine 不反向拥有产品层 identity truth
 

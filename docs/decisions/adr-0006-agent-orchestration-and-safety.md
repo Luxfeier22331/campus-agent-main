@@ -7,7 +7,15 @@ updated: 2026-04-22
 ---
 # ADR-0006 编排模式与安全边界
 
-适用范围：`campus-agent` v2 的长期 supervisor-led orchestration、agent 扩展方式，以及跨边界安全控制
+适用范围：`campus-agent` v2 的长期 Execution Agent Layer orchestration、agent
+扩展方式，以及跨边界安全控制
+
+## Terminology superseded
+
+本文早期使用的 `supervisor-led orchestration` 在当前目标态中映射为
+`execution-control` 内的 Execution Agent Layer + `CapabilityExecutionWorkflow`。
+`supervisor` 不再作为 active architecture concept；历史代码、旧 ADR 标题与
+offline bridge 语境中的旧名不改变本文决策的 agent / capability 边界。
 
 ## 目标
 

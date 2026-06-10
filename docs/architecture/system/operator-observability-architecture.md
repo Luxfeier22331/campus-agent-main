@@ -589,8 +589,9 @@ ownership matrix 固定在
 - `apps/execution-control` 在启用 OTel 后对 configured product answer paths 采用
   fail-close 语义；telemetry 交付失败返回 `telemetry_delivery_failed`，sampling 丢弃仍只作为
   显式采样计数
-- online RAG observation 由 Go `activity-worker-rag` / `execution-control` runtime
-  adapter 把 `retrieval.runtime_observation` 映射成 sanitized runtime event sink；
+- online knowledge / RAG observation 由 Go `activity-worker-knowledge` /
+  `execution-control` runtime adapter 把 `retrieval.runtime_observation` 映射成
+  sanitized runtime event sink；
   Python bridge 只可保留 offline / eval / historical sink
 - `apps/ingestion-worker` 负责 offline run-level started/completed/failed telemetry
 - `infra/otel/` 提供 repo-owned local debug Collector config 与 staging Sentry/Axiom

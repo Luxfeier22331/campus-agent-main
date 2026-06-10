@@ -26,7 +26,11 @@ updated: 2026-06-09
 - services:
   - `execution-control`
   - `workflow-worker`
-  - `activity-worker-rag`
+  - `activity-worker-context`
+  - `activity-worker-knowledge`
+  - `activity-worker-campus-services`
+  - `activity-worker-notice`
+  - `activity-worker-navigation`
   - `activity-worker-finalization`
   - `worker-autoscaler`
   - `temporal`

@@ -348,7 +348,7 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
 
 ## Query Routing Policy
 
-长期上，supervisor / agent 对 `official_web` 至少要区分三种 query intent：
+长期上，Execution Agent Layer / agent 对 `official_web` 至少要区分三种 query intent：
 
 - 稳定制度 / 说明 / 联系方式
   - 优先走 `stable_reference`

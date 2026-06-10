@@ -40,7 +40,7 @@ Accepted on 2026-04-05.
 ### 决策 1：导航能力是独立 capability family
 
 长期上，校园导航 / wayfinding 作为独立 capability family 存在，并以 `navigation` 进入
-supervisor-led orchestration。
+Execution Agent Layer / `CapabilityExecutionWorkflow` orchestration。
 
 术语补充：
 

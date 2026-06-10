@@ -4,8 +4,8 @@
 
 ## Overview
 
-当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、`supervisor-led`
-的校园助理系统：`hub-web` 入口面、公开聊天面、公开文档站、受保护运营面、共享 `app-api`、内部
+当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、
+Execution Agent Layer-led 的校园助理系统：`hub-web` 入口面、公开聊天面、公开文档站、受保护运营面、共享 `app-api`、内部
 `execution-control`，以及按能力边界拆分的 agent / retrieval / ingestion packages。
 
 当前 merged truth 的主路径为：
@@ -16,8 +16,10 @@ browser -> hub-web -> app launcher / account shell
 hub-web same-site allowlisted /api/* -> app-api
 
 browser -> public-chat-web -> app-api -> execution-control
--> Temporal -> workflow-worker / activity-worker-rag / activity-worker-finalization
--> Go RAG DTO/runtime -> Qdrant / provider -> sanitized projection
+-> Temporal -> workflow-worker / activity-worker-context /
+activity-worker-knowledge / capability workers / activity-worker-finalization
+-> memory recall / typed capability branch / Go RAG DTO/runtime
+-> Qdrant / provider / structured read models -> sanitized projection
 
 browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 

@@ -163,14 +163,14 @@ retired baseline 消费规则：
 - terminal statuses 必须写 `terminal_reason`
 - active statuses 不允许写 `completed_at`
 - `request_id` 是 correlation，不能替代 `run_id`
-- `owner_user_id` 是 app-api 投影后的 principal id，不从 supervisor header 反推
+- `owner_user_id` 是 app-api 投影后的 principal id，不从 execution-control header 反推
 - `metadata_json` 不保存 raw prompt、raw answer、provider raw response、auth
   material 或 restricted raw body
-- `metadata_json.execution_payload` 是 app-api 提供给 supervisor 的执行投影；它必须
+- `metadata_json.execution_payload` 是 app-api 提供给 execution-control 的执行投影；它必须
   与外层 `request_id`、`conversation_id` 和非空 `trace_id` 对齐，且必须包含非空
   `user_goal`
-- `metadata_json` 不允许由 app-api 写入 agent `handoff`；handoff planning 属于
-  supervisor execution control plane
+- `metadata_json` 不允许由 app-api 写入 capability `handoff`；routing /
+  branch planning 属于 execution-control Execution Agent Layer
 
 ## `runtime.agent_run_events`
 

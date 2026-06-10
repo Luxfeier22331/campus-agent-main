@@ -13,8 +13,9 @@ updated: 2026-04-26
 它覆盖：
 
 - `packages/contracts` 内后续 `ServiceGuideLookupPayload / Result` 的稳定语义
-- `apps/supervisor-agent-worker -> packages/campus_services` 的 handoff seam
-- `campus_services -> thin tool adapter -> internal query service`
+- `execution-control -> typed capability activity / internal query service`
+  的 active execution seam
+- `campus_services -> typed tool adapter -> internal query service`
   的 request/result seam
 - 办理指南、材料、入口说明、服务时间、联系方式、适用范围与 source refs 的 typed
   结果边界
@@ -30,8 +31,10 @@ updated: 2026-04-26
 
 - `service_guide_lookup` 已通过 `campus-services-product-path` opening gate，
   tool-level verdict 为 `open`（Phase 6，2026-04-27）。
-- 当前 repo 的 shared contract、Go internal query endpoint、Python thin adapter、
-  source-truth projection builder 与 release gate 已纳入 opening denominator。
+- 当前 repo 的 shared contract、Go internal query endpoint、ToolSpec /
+  CapabilitySpec seam、source-truth projection builder 与 release gate 已纳入
+  opening denominator。历史 Python thin adapter 只能作为 offline / eval reference，
+  不作为 active serving handoff。
 - local gate 判定命令：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
@@ -56,7 +59,7 @@ updated: 2026-04-26
 
 ## Owner Split
 
-- supervisor
+- Execution Agent Layer
   - 拥有 capability admission、high-risk / transactional guardrail、terminal semantics
     与 routing clarification
 - `campus_services`
@@ -279,7 +282,7 @@ ServiceGuideCandidate
   conflict 时必须 `temporarily_unverifiable`
 - matched record 已过期时不得继续回答 `resolved_current`
 - 用户要求系统代办、提交、预约、支付或创建工单时，不生成
-  `service_guide_lookup` handoff；由 supervisor terminal guardrail 处理
+  `service_guide_lookup` handoff；由 Execution Agent Layer terminal guardrail 处理
 
 ## Guide Focus Taxonomy
 
@@ -366,7 +369,8 @@ metrics label。
 
 - shared contract 已实现并有 contract tests
 - Go internal query endpoint 已实现并有 deterministic fixture tests
-- Python thin adapter 已实现并验证 allowed tools / payload kind
+- ToolSpec / CapabilitySpec seam 与 typed Temporal activity contract 已验证
+  allowed tools / payload kind
 - service guide projection builder 与 validation summary 已落地，且新 release 不接受人工审核状态
 - app-api typed observability summary 能展示 selected tool、business outcome 与 fail-close
   reason

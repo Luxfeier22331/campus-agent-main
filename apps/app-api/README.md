@@ -138,7 +138,7 @@ Canonical references:
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-official-web-http.md`
 - `docs/contracts/app-api-official-web-run-lifecycle.md`
-- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/capability-execution.md`
 - `docs/contracts/app-api-request-lifecycle.md`
 - `docs/data/app-api-schema.md`
 - `docs/data/app-api-official-web-schema.md`

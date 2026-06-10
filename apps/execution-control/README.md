@@ -18,11 +18,12 @@ Current status:
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Starts Temporal `ChatAnswerWorkflow` and executes the current memory + RAG
-  graph through Go worker roles:
-  `memory.recall -> planning -> rag.plan -> retrieval.indexed_lookup ->
-  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
-  grounding.verify -> finalization.write`.
+- Starts Temporal `CapabilityExecutionWorkflow` and executes the current
+  capability-neutral graph through Go worker roles:
+  `context.memory_recall -> plan.route -> capability branch ->
+  finalization.write`. The `knowledge` branch runs `rag.plan ->
+  retrieval.indexed_lookup -> retrieval.expand_or_rescue -> evidence.selection
+  -> synthesis -> grounding.verify`.
 - Reports Go-owned `/readyz` runtime health for Temporal, run projection store,
   RAG lookup/synthesis, prompt pricing gate, capability gates and worker pollers.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
@@ -251,7 +252,11 @@ export EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://postgres:postg
 export EXECUTION_CONTROL_TEMPORAL_ADDRESS=127.0.0.1:7233
 export EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-local
 export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=local:workflow-worker:001
-export EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=local:activity-rag:001
+export EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=local:activity-context:001
+export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=local:activity-knowledge:001
+export EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=local:activity-campus-services:001
+export EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=local:activity-notice:001
+export EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=local:activity-navigation:001
 export EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=local:activity-finalization:001
 export QDRANT_URL=https://127.0.0.1:6333
 export QDRANT_QUERY_API_KEY=qdrant-local-readonly-secret

@@ -12,7 +12,7 @@ updated: 2026-04-25
 
 它回答的是：
 
-- supervisor-led execution path 应该如何分层设计 system / developer / task instructions
+- Execution Agent Layer-led execution path 应该如何分层设计 system / developer / task instructions
 - 哪些内容必须继续由代码拥有，哪些内容适合交给 prompt
 - prompt assets 在 repo 中由谁拥有、如何版本化、如何进入 eval / release gate
 - retrieval evidence、personalization、observability 与 prompt 之间的边界如何固定
@@ -40,7 +40,7 @@ code-owned runtime seam。当前接受的实现基线是：
 - repo-global developer invariants 由 `packages/prompt-runtime` 持有
 - package-owned role prompt 当前由 `packages/knowledge-capability` prompt
   registry 持有；
-  Python production supervisor terminal prompt family 已移除
+  Python production legacy terminal prompt family 已移除
 - `packages/knowledge-capability` 的 runtime package 名称继续保持 current
   merged truth；但
   prompt-facing persona / family wording 应使用 `knowledge` 或中性的 knowledge-path
@@ -352,7 +352,7 @@ repo 级 instruction hierarchy 固定拆成五层：
 1. `platform/runtime invariants`
 
 - 来自产品边界、架构边界、安全边界
-- 例如当前 `supervisor-led orchestration`、`capability contract`、
+- 例如当前 `Execution Agent Layer-led orchestration`、`capability contract`、
   `restricted deny no leak`
 
 1. `role instructions`
@@ -489,7 +489,7 @@ structured output + code-side finalization`
 repo 最终追求的是：
 
 - 一个极薄、稳定、可版本化的 repo-global invariants block
-- 按 supervisor / agent / mode 拆分的 package-owned prompt family
+- 按 execution / agent / mode 拆分的 package-owned prompt family
 - 明确的 trusted task packet 与 untrusted evidence packet 分区
 - strict structured outputs、grounding validator 与 code-owned finalization
 
@@ -507,7 +507,7 @@ repo 当前推荐的 system / role 设计固定为：
 
 - `packages/knowledge-capability` 的 prompt family 只负责 `answer / clarify /
   no-answer / unsupported` 的 grounded wording
-- Python worker 当前不拥有 production supervisor terminal prompt family；
+- Python worker 当前不拥有 production execution terminal prompt family；
   non-delegate terminal routing 由 Go direct terminal path 返回，Go 继续负责
   delegated agent response finalization
 - `packages/retrieval-core` 不拥有 top-level system prompt
@@ -543,11 +543,11 @@ repo 当前推荐的 system / role 设计固定为：
 - 只拥有 product-layer session / principal / request context projection
 - 可拥有 consumer-facing UX copy prompt，但不拥有 agent instructions
 
-### Supervisor Runtime Prompt Boundary
+### Execution Runtime Prompt Boundary
 
 - 不拥有长期 prompt 文案
 - 只负责 execution admission、transport、request packaging
-- owns deterministic supervisor terminal wording
+- owns deterministic execution terminal wording
 - owns runtime policy / routing frame / handoff projection
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
 
@@ -567,11 +567,11 @@ repo 当前推荐的 system / role 设计固定为：
 
 每个 agent 不维护一份“大 prompt”，而维护 `prompt family + mode`。
 
-当前 production supervisor terminal path 不再维护 prompt family；clarify /
+当前 production execution terminal path 不再维护 prompt family；clarify /
 approval-required / out-of-scope / reject 的 deterministic terminal wording 由 Go
-`execution-control` 的 direct terminal path 承接。若后续重新引入 LLM-assisted supervisor
+`execution-control` 的 direct terminal path 承接。若后续重新引入 LLM-assisted execution
 wording，必须作为新的显式 workstream 重新定义 prompt family、eval gate 与 code
-finalization，不得复用已删除的旧 supervisor prompt assets。
+finalization，不得复用已删除的旧 execution prompt assets。
 
 ### Knowledge Path (`packages/knowledge-capability`)
 
@@ -854,8 +854,8 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 ### 继续保持 code-owned 的部分
 
-- supervisor routing
-- supervisor deterministic terminal wording
+- Execution Agent Layer routing
+- deterministic execution terminal wording
 - authz / visibility gate
 - serving-surface filter
 - retrieval planning
@@ -885,7 +885,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - 我们需要显式 prompt architecture，而且当前产品主链路已经落地第一版 runtime seam
 - 但不需要把系统改写成 prompt-first RAG
-- supervisor terminal prompt family 当前已移除；deterministic terminal wording 由 Go
+- execution terminal prompt family 当前已移除；deterministic terminal wording 由 Go
   direct terminal path 承接
 - knowledge-path prompt 应按 mode 拆分，并避免把 raw capability id 写成 model-facing
   persona
@@ -905,8 +905,9 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
   hot path，只保留 offline / eval / tooling / historical bridge reference
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture
-- supervisor 的 `policy gate + scope gate` 与 knowledge-path grounding validator
-  共同承担 prompt-side hallucination control，而不是把控制责任退回“更长的 system prompt”
+- Execution Agent Layer 的 `policy gate + scope gate` 与 knowledge-path grounding
+  validator 共同承担 prompt-side hallucination control，而不是把控制责任退回
+  “更长的 system prompt”
 - `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与
   restricted deny final semantics 继续保持 deterministic-first protected path
 

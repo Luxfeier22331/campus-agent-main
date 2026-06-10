@@ -81,14 +81,22 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 主链路中的 RAG 片段固定为：
 
-`supervisor typed step admission -> Temporal workflow activity -> knowledge planner
--> typed retrieval/domain activities -> retrieval-core executor / domain query service
--> evidence verifier -> supporting evidence selection -> knowledge synthesis ->
-grounding validation -> supervisor finalization`
+```text
+Execution Agent Layer typed step admission
+-> Temporal workflow activity
+-> knowledge planner
+-> typed retrieval/domain activities
+-> retrieval-core executor / domain query service
+-> evidence verifier
+-> supporting evidence selection
+-> knowledge synthesis
+-> grounding validation
+-> execution finalization
+```
 
 其中：
 
-- supervisor 负责 capability / policy / top-level routing admission
+- Execution Agent Layer 负责 capability / policy / top-level routing admission
 - `knowledge` 负责 plan 与 answer 语义
 - `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
 - Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
@@ -104,7 +112,7 @@ grounding validation -> supervisor finalization`
 
 `upstream typed tool / agent-as-tool StepOutputProjection -> knowledge context
 framing -> typed retrieval plan -> retrieval/domain tools -> evidence verifier ->
-supporting evidence -> grounding validation -> supervisor finalization`
+supporting evidence -> grounding validation -> execution finalization`
 
 允许进入 `knowledge` 的 upstream context 必须是 bounded projection，例如
 `CanonicalNoticeContext`、`NoticeChangeSet`、`ServiceGuideFacts`、`ScheduleBaseline`
@@ -463,7 +471,8 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 - Python SDK suite 只覆盖 offline/eval/historical bridge behavior，不作为 online RAG
   serving acceptance
 - public/chat product-path E2E 必须证明
-  `execution-control -> Temporal memory + RAG graph -> Go activity-worker-rag /
+  `execution-control -> Temporal context memory + knowledge RAG graph -> Go
+  activity-worker-context / activity-worker-knowledge /
   activity-worker-finalization -> sanitized projection -> app-api` 返回 canonical
   product response
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；

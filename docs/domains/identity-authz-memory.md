@@ -25,7 +25,7 @@ updated: 2026-06-10
 ## Contract 与 Data
 
 - `../contracts/app-api-http.md`
-- `../contracts/app-api-supervisor-execution.md`
+- `../contracts/capability-execution.md`
 - `../data/app-api-schema.md`
 
 ## 执行路由

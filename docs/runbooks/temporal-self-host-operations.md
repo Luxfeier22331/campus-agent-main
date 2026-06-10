@@ -71,7 +71,8 @@ Readiness must confirm:
 
 Required activity task queues:
 
-- `campus-agent.activity.rag`
+- `campus-agent.activity.context`
+- `campus-agent.activity.knowledge`
 - `campus-agent.activity.finalization`
 
 Capability-gated activity task queues:

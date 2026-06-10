@@ -13,8 +13,8 @@ updated: 2026-04-26
 它覆盖：
 
 - `packages/contracts` 里的 shared place-finding types
-- `apps/supervisor-agent-worker -> packages/navigation-capability` 的
-  capability / target 语义
+- `execution-control -> typed navigation capability activity / internal query service`
+  的 active execution seam
 - `apps/app-api` 对 assistant structured parts 的归一化边界
 - `apps/public-chat-web` 对地点卡片的消费形态
 
@@ -131,7 +131,7 @@ updated: 2026-04-26
 
 ## Terminal Semantics
 
-当前 `navigation` 继续遵循 repo 已冻结的 supervisor terminal semantics：
+当前 `navigation` 继续遵循 repo 已冻结的 execution terminal semantics：
 
 - `completed`
 - `needs_clarification`
@@ -231,5 +231,5 @@ updated: 2026-04-26
 - `docs/domains/navigation.md`
 - `docs/decisions/adr-0027-navigation-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
-- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/capability-execution.md`
 - `docs/data/campus-navigation-place-catalog.md`

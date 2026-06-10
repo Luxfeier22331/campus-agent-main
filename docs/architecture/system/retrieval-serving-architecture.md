@@ -35,7 +35,7 @@ truth。
 固定规则：
 
 - 顶层产品入口不先判 retrieval `scope`
-- 只有当 supervisor 已把请求路由到 knowledge-family path 后，`requested_scope`、version
+- 只有当 Execution Agent Layer 已把请求路由到 knowledge-family path 后，`requested_scope`、version
   mode、retrieval planning 才开始成立
 - `service_status_lookup`、`campus_notice_discover`、internal selected notice resolve
   (`payload_kind=campus_notice_get`) 与 `place_lookup` 这类结构化 capability 不应再被误读成
@@ -131,7 +131,7 @@ evidence selection -> synthesis -> grounding`
 
 ## Serving Policy
 
-serving truth 不写死在 supervisor、API shell 或 env 默认值里。
+serving truth 不写死在 Execution Agent Layer、API shell 或 env 默认值里。
 
 它由以下信息共同决定：
 
@@ -279,7 +279,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - production observation 集成边界固定在 runtime adapter，不进入 `packages/retrieval-core`：
   retrieval-core 只暴露 `RetrievalObservationSink` /
   `build_retrieval_observation_event_sink()` 这种注入 seam；online path 由 Go
-  `activity-worker-rag` / `execution-control` runtime adapter 负责把
+  `activity-worker-knowledge` / `execution-control` runtime adapter 负责把
   `retrieval.runtime_observation` 转成 OTel-compatible log/event、derived metrics 或
   backend-specific export。Python bridge 只允许保留 offline / eval / historical sink。
 - OTel bridge 的默认映射是 log/event first：event name
@@ -420,7 +420,7 @@ structured query seam。
 
 ## Forbidden Shapes
 
-- 不把 serving surface 写死在 supervisor 或 entry shell
+- 不把 serving surface 写死在 Execution Agent Layer 或 entry shell
 - 不让 retrieval backend 自行猜测用户是不是要查历史版本
 - 不把历史版本先全量检索再由回答层事后丢弃
 - 不把 alias / family resolution 静默下沉成 retrieval backend 的黑盒字符串替换

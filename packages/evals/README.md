@@ -89,8 +89,8 @@ Evaluation helpers for campus-agent v2.
   字段
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case
   inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
-- deterministic runner 现在接受 `CapabilityResponse` 与 `SupervisorResponse`
-  两种执行结果；supervisor-only 终态额外覆盖 `approval_required_accuracy` /
+- deterministic runner 现在接受 `CapabilityResponse` 与 `ExecutionResponse`
+  两种执行结果；execution-only 终态额外覆盖 `approval_required_accuracy` /
   `rejection_accuracy`
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental
   adapter，不得改写 canonical deterministic gate
@@ -221,10 +221,10 @@ Evaluation helpers for campus-agent v2.
   `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`
   与 `contact_directory_lookup` 是 opened tools，`service_process_lookup`
   明确记录为 `keep_closed`。
-- `multi-agent-runtime-contract` gate 是 supervisor-led multi-agent runtime contract
+- `multi-agent-runtime-contract` gate 是 capability execution runtime contract
   的确定性组合 gate，入口为：`uv run --all-packages python -m scripts.eval_gate
   accept --profile multi-agent-runtime-contract`；它组合 workflow trace eval、
-  tool-family denominator、public-chat product-path eval、supervisor execution
+  tool-family denominator、public-chat product-path eval、capability execution
   schema/generated artifact 同步检查，以及 execution-control / app-api / panel
   targeted test lanes。该 gate 不启动本地 live process，不运行 Docker smoke，不修改 serving
   admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
@@ -246,15 +246,15 @@ Evaluation helpers for campus-agent v2.
   scripts.eval_gate accept --profile institutional-rules-release-baseline
   --observations-path <institutional-answer-observations.json>`；它顺序验证 release
   retrieval qrels、golden retrieval qrels、institutional answer-quality contract、
-  Qdrant no-hit policy suite 与 `rag_delegate_institutional_rules` supervisor
+  Qdrant no-hit policy suite 与 `rag_delegate_institutional_rules` execution
   product-path smoke。该 gate 需要当前 Qdrant alias / embedding env / local
-  supervisor runtime 可用，不进入通用 GitHub workflow dispatch；它不打开
+  execution-control runtime 可用，不进入通用 GitHub workflow dispatch；它不打开
   `scoped_rules`、年度/届次规则或院级规则。
-- `multi-agent-runtime-contract` 额外固定 cross-language supervisor execution fixture
-  matrix：`tests/fixtures/supervisor_execution_contract/` 的 valid / invalid 样本必须同时被
+- `multi-agent-runtime-contract` 额外固定 cross-language capability execution fixture
+  matrix：`tests/fixtures/capability_execution_contract/` 的 valid / invalid 样本必须同时被
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
-  验证 `snake_case` strict wire、bridge version、enum、extra-field rejection、
-  cancel / timeout / bridge unavailable terminal semantics。
+  验证 `snake_case` strict wire、execution contract version、enum、extra-field rejection、
+  cancel / timeout / execution unavailable terminal semantics。
 - public-chat product-path eval 会 replay `workflow_trace_summary`，检查 selected capability、
   direct/delegate/clarification/fail-close branch 与 fail-close reason 是否和产品路径 observation
   一致；panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /

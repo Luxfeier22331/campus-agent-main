@@ -38,7 +38,11 @@ workflow worker、RAG activity worker 与 finalization activity worker 同时存
   - `GET /internal/execution/runs/:runId/events`
   - `POST /internal/execution/runs/:runId/cancel`
 - `workflow-worker`
-- `activity-worker-rag`
+- `activity-worker-context`
+- `activity-worker-knowledge`
+- `activity-worker-campus-services`
+- `activity-worker-notice`
+- `activity-worker-navigation`
 - `activity-worker-finalization`
 - `temporal`
 - `run_projection_store`
@@ -61,7 +65,11 @@ export EXECUTION_CONTROL_TEMPORAL_ADDRESS=127.0.0.1:7233
 export EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
 export EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=local:execution-control:001
 export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=local:workflow-worker:001
-export EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=local:activity-rag:001
+export EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=local:activity-context:001
+export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=local:activity-knowledge:001
+export EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=local:activity-campus-services:001
+export EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=local:activity-notice:001
+export EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=local:activity-navigation:001
 export EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=local:activity-finalization:001
 export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=local-workflow-salt
 ```

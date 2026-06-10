@@ -10,9 +10,18 @@ updated: 2026-06-06
 
 这份 runbook 只回答当前 canonical staging execution upstream 的运维真相：
 
-- 当前 repo-owned staging execution runtime 是
-  `otel-collector + execution-control + workflow-worker + activity-worker-rag +
-  activity-worker-finalization + worker-autoscaler + Temporal`
+- 当前 repo-owned staging execution runtime 是：
+  - `otel-collector`
+  - `execution-control`
+  - `workflow-worker`
+  - `activity-worker-context`
+  - `activity-worker-knowledge`
+  - `activity-worker-campus-services`
+  - `activity-worker-notice`
+  - `activity-worker-navigation`
+  - `activity-worker-finalization`
+  - `worker-autoscaler`
+  - Temporal
 - `execution-control` 不作为 public staging surface 存在；用户、浏览器、panel、docs
   与 chat 只进入 browser surface 或 `app-api`
 - `execution-control` 是 app-api-only trusted machine upstream。当前 machine
@@ -52,10 +61,20 @@ updated: 2026-06-06
     - Temporal workflow/activity workers for execution scheduling and retry
   - `workflow-worker`
     - Temporal workflow task poller for `campus-agent.workflow`
-  - `activity-worker-rag`
-    - Go-owned RAG activity poller for `campus-agent.activity.rag`
+  - `activity-worker-context`
+    - Go-owned context activity poller for `campus-agent.activity.context`
+    - owns capability-neutral memory recall before routing
+  - `activity-worker-knowledge`
+    - Go-owned knowledge activity poller for `campus-agent.activity.knowledge`
     - owns RAG plan, Qdrant lookup, rescue, evidence selection, synthesis and
       grounding activities
+  - `activity-worker-campus-services`
+    - Go-owned campus services typed-tool poller for
+      `campus-agent.activity.campus_services`
+  - `activity-worker-notice`
+    - Go-owned notice typed-tool poller for `campus-agent.activity.notice`
+  - `activity-worker-navigation`
+    - Go-owned navigation typed-tool poller for `campus-agent.activity.navigation`
   - `activity-worker-finalization`
     - Go-owned finalization activity poller for `campus-agent.activity.finalization`
   - `worker-autoscaler`
@@ -269,7 +288,11 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow`
   - `EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=<workflow id salt>`
   - `EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000`
@@ -421,8 +444,10 @@ infra/local/staging/status-execution-control-staging.sh --check
 `--check` 通过标准：
 
 - `otel-collector`、`execution-control`、`workflow-worker`、
-  `activity-worker-rag`、`activity-worker-finalization`、`worker-autoscaler` 与
-  `temporal` 都在当前 compose project 中运行
+  `activity-worker-context`、`activity-worker-knowledge`、
+  `activity-worker-campus-services`、`activity-worker-notice`、
+  `activity-worker-navigation`、`activity-worker-finalization`、
+  `worker-autoscaler` 与 `temporal` 都在当前 compose project 中运行
 - 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
   且 payload 明确报告：
@@ -514,9 +539,10 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 - sparse retrieval / indexing 使用 self-hosted Qdrant server-side BM25 inference：
   Python runtime 发送 `qdrant/bm25` `Document`，不部署 Qdrant Cloud，不部署独立 BM25
   服务，也不在生产路径使用本地 FastEmbed。
-- staging runtime 启动前会确保 `campus-agent-data-plane` Docker network 存在；启动后通过
-  execution-control `/readyz` 的 `rag_runtime.lookup_healthy` 证明 Go RAG worker 能访问
-  authenticated Qdrant data-plane。该检查失败时直接 fail closed。
+- staging runtime 启动前会确保 `campus-agent-data-plane` Docker network 存在；
+  启动后通过 execution-control `/readyz` 的 `rag_runtime.lookup_healthy`
+  证明 Go knowledge worker 能访问 authenticated Qdrant data-plane。该检查失败时
+  直接 fail closed。
 - staging runtime 启动前会执行 ingestion registry collection rename audit：
   `campus_ingestion_worker.collection_rename_registry_backfill audit`。如果
   `regulations/student_handbook` 或 `regulations/institutional_regulations` 仍残留在
@@ -598,7 +624,11 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - `.tmp/execution-control-staging/logs/otel-collector.recent.log`
 - `.tmp/execution-control-staging/logs/execution-control.log`
 - `.tmp/execution-control-staging/logs/workflow-worker.log`
-- `.tmp/execution-control-staging/logs/activity-worker-rag.log`
+- `.tmp/execution-control-staging/logs/activity-worker-context.log`
+- `.tmp/execution-control-staging/logs/activity-worker-knowledge.log`
+- `.tmp/execution-control-staging/logs/activity-worker-campus-services.log`
+- `.tmp/execution-control-staging/logs/activity-worker-notice.log`
+- `.tmp/execution-control-staging/logs/activity-worker-navigation.log`
 - `.tmp/execution-control-staging/logs/activity-worker-finalization.log`
 - `.tmp/execution-control-staging/logs/worker-autoscaler.log`
 
@@ -618,7 +648,11 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - 先看：
   - `.tmp/execution-control-staging/logs/execution-control.log`
   - `.tmp/execution-control-staging/logs/workflow-worker.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-rag.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-context.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-knowledge.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-campus-services.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-notice.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-navigation.log`
   - `.tmp/execution-control-staging/logs/activity-worker-finalization.log`
 - 如果 `start-execution-control-staging.sh` 在 build 前失败，先直接运行：
 
@@ -802,8 +836,19 @@ Temporal task queue / downstream budget observation，并只写 desired replica 
       "target_schedule_to_start_ms": 500
     },
     {
-      "name": "campus-agent.activity.rag",
-      "role": "rag",
+      "name": "campus-agent.activity.context",
+      "role": "context",
+      "pollers": 1,
+      "backlog": 0,
+      "schedule_to_start_ms": 0,
+      "current_replicas": 1,
+      "min_replicas": 1,
+      "max_replicas": 3,
+      "target_schedule_to_start_ms": 500
+    },
+    {
+      "name": "campus-agent.activity.knowledge",
+      "role": "knowledge",
       "pollers": 1,
       "backlog": 0,
       "schedule_to_start_ms": 0,

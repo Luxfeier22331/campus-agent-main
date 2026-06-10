@@ -13,8 +13,9 @@ updated: 2026-04-25
 它覆盖：
 
 - `packages/contracts` 内 `ServiceStatusLookupPayload / Result` 的稳定语义
-- `apps/supervisor-agent-worker -> packages/campus_services` 的 handoff seam
-- `campus_services -> thin tool adapter -> internal query service`
+- `execution-control -> typed capability activity / internal query service`
+  的 active execution seam
+- `campus_services -> typed tool adapter -> internal query service`
   的 request/result seam
 
 它不覆盖：
@@ -27,13 +28,12 @@ updated: 2026-04-25
 
 - `service_status_lookup` 已通过 `campus-services-product-path` opening gate，
   tool-level verdict 为 `open`（Phase 6，2026-04-27）。
-- `service_status_lookup` 当前是 ToolSpec-admitted Agents SDK domain capability adapter
-  tool；SDK 只承接 capability-side argument completion / single tool loop。projection-backed
-  structured query、current/effective temporal policy、source provenance、Go
-  admission 与 Go finalization 仍归 repo-owned runtime。
-- 公开 answer / stream 入口对该 tool 走 Go-owned `single_step` bridge lane，不再使用
-  Go typed-tool-runtime 快捷路径。内部 structured query endpoint 仍由 Go runtime 提供，
-  作为 SDK tool adapter 的只读 backend。
+- `service_status_lookup` 是 repo-owned ToolSpec-admitted read-only typed tool。
+  projection-backed structured query、current/effective temporal policy、source
+  provenance、admission 与 finalization 归 repo-owned runtime。
+- 公开 answer / stream 入口的目标路径是 typed Temporal activity / worker contract。
+  内部 structured query endpoint 由 Go runtime 提供；任何 SDK / Python adapter
+  只能作为 offline / eval / historical reference，不作为 active serving handoff。
 - local gate 判定命令：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
@@ -111,7 +111,7 @@ ServiceStatusLookupResult
 
 ## Observability Summary
 
-- supervisor execution finalizer 必须从 `related_notice_refs` / `override_source_refs`
+- execution finalizer 必须从 `related_notice_refs` / `override_source_refs`
   推导 low-cardinality `notice_source_family_summary`，用于 operator/runtime summary。
 - `authenticated_notice:*` 与 `notice:muc_internal_portal:*` 均归入
   `internal_notice_restricted`。

@@ -574,7 +574,7 @@ updated: 2026-05-01
   object、rewritten query、clarification/no-answer reason 与 retrieved title
   summary；不要写 raw evidence snippet、score 或 backend payload
 - `rejected` 覆盖两类显式 fail-close：
-  - supervisor policy reject
+  - execution policy reject
   - app-api precheck reject，例如 future `Phase I` throttle 命中后的
     `error_code=rate_limit_exceeded`
 - 因此 `rate_limit_exceeded` 不新增新的 request status；它固定表现为 `status=rejected`

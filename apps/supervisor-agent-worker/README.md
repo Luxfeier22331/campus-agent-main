@@ -13,7 +13,7 @@ auth、public request body limit、transport admission、queue、metrics 或 pub
 
 Python worker 只负责：
 
-- 接收 Go `execution-control` 已投影好的 private `SupervisorRequest`
+- 接收 Go `execution-control` 已投影好的 private `ExecutionRequest`
 - 装配默认 agent delegate map，并调用 worker 内部 private agent dispatcher
 - 绑定 RAG prompt runtime / provider-backed executor
 - 消费 Go bridge v6 中的 deterministic delegate handoff plan，并把完整
@@ -23,7 +23,7 @@ Python worker 只负责：
   `context_preflight` / `handoff`；缺失 Go-owned routing frame 或 delegate handoff
   时 fail-closed
 - 返回 agent 的 `CapabilityResponse`；Go `execution-control` 负责 public
-  `SupervisorResponse` finalization 与 response observability projection
+  `ExecutionResponse` finalization 与 response observability projection
 - 在配置 structured query internal seam 时，为 `campus_services`
   注入 Go `execution-control` query service client
 - 暴露 private bridge health / readiness
@@ -41,9 +41,9 @@ Python worker 不负责：
   的 deterministic runtime truth
 - terminal envelope、structured tool policy 或 deterministic structured runtime
   planner truth
-- public `SupervisorResponse` finalization / response assembly / response
+- public `ExecutionResponse` finalization / response assembly / response
   observability truth
-- deterministic runtime policy 或 public supervisor orchestration truth
+- deterministic runtime policy 或 public execution orchestration truth
 - retrieval / ingestion data-plane ownership
 
 ## Private Bridge Surface
@@ -72,12 +72,12 @@ Go `execution-control` `/readyz` 会聚合 Python worker readiness，并发布�
 execution `transport_runtime`、lifecycle/cancel runtime truth 与
 `prompt_config_gate`。
 
-bridge answer route 只接受 `supervisor_bridge_v6` delegate handoff，并要求
+bridge answer route 只接受 `execution_bridge_v6` delegate handoff，并要求
 `response_contract=capability_response`。请求必须携带
 `runtime_decisions.handoff.agent_request`，且 routing frame 的
 `suggested_next_action` 必须是 `delegate`。Non-delegate terminal routing 由 Go
 `execution-control` 的 non-stream / lifecycle SSE direct terminal path 处理，不再发送给
-Python bridge。`supervisor_bridge_v6` 之前的 shape、flat preplanned fields 与 legacy
+Python bridge。`execution_bridge_v6` 之前的 shape、flat preplanned fields 与 legacy
 handoff payload fragment 不是 active compatibility path。
 
 这里的 `CapabilityRequest` / `CapabilityResponse` / `capability_response` /

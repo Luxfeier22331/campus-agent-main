@@ -17,6 +17,13 @@ Accepted on 2026-06-06.
 substrate 的 PG scheduler / lease queue 决策。ADR-0047 仍保留为当前 PG run-level durable
 baseline 与历史设计依据。
 
+## Terminology Superseded
+
+本 ADR 使用 `execution-control` / Temporal worker plane 作为 active target
+terminology。旧文档、legacy contract 或历史 symbol 中的 `supervisor` 在目标态映射为
+`Execution Agent Layer`，不再作为独立 worker、Python bridge 或 active architecture
+concept。
+
 ## 背景
 
 `campus-agent` 的目标系统需要支持 consumer-scale 多用户并发、长运行 agent workflow、
@@ -132,7 +139,8 @@ migration evidence, not target execution substrate.
 第一组 target task queue family：
 
 - `campus-agent.workflow`
-- `campus-agent.activity.rag`
+- `campus-agent.activity.context`
+- `campus-agent.activity.knowledge`
 - `campus-agent.activity.notice`
 - `campus-agent.activity.navigation`
 - `campus-agent.activity.campus_services`
@@ -200,12 +208,12 @@ agent-as-tool。
 
 2026-06-08 补充评估：
 
-- 当前 online chat path 已经进入 Temporal-backed `ChatAnswerWorkflow`。
-- 当前 RAG chat trajectory 已硬切为 Temporal-visible memory + RAG graph：
-  `memory.recall -> planning -> rag.plan -> retrieval.indexed_lookup ->
+- 当前 online chat path 已经进入 Temporal-backed `CapabilityExecutionWorkflow`。
+- 当前 knowledge branch trajectory 已硬切为 Temporal-visible memory + route + RAG graph：
+  `context.memory_recall -> plan.route -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`。
-- Go `activity-worker-rag` 拥有 online RAG lookup 与 synthesis provider execution，
+- Go `activity-worker-knowledge` 拥有 online RAG lookup 与 synthesis provider execution，
   并通过 repo-owned DTO、`provider_execution_summary_v1` 与 step attempt evidence
   记录 lookup latency、provider request ref、latency、token、estimated cost、
   cancel / timeout outcome。

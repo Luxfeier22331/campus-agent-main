@@ -5,13 +5,15 @@
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
 - 当前在线回答主路径是 `app-api -> execution-control -> Temporal ->
-  memory.recall -> workflow-worker / activity-worker-rag /
-  activity-worker-finalization -> Go RAG DTO/runtime -> Qdrant / provider ->
-  sanitized projection`
+  CapabilityExecutionWorkflow -> activity-worker-context /
+  activity-worker-knowledge / capability workers /
+  activity-worker-finalization ->
+  memory recall / typed capability branch / Go RAG DTO/runtime ->
+  Qdrant / provider / structured read models -> sanitized projection`
 - 当前 product entry surface 已收口到 `hub-web -> app launcher / account shell`，`public-chat-web`、
   `public-docs`、`protected-panel-web` 作为并列 browser surface 进入 shared `app-api`
-- 架构目标是 capability-neutral orchestrated execution：顶层由 supervisor / execution
-  runtime 做 admission、routing、workflow planning 与 finalization；RAG、navigation、
+- 架构目标是 capability-neutral orchestrated execution：顶层由 Execution Agent Layer
+  做 admission、routing、workflow planning 与 finalization；RAG、navigation、
   notice、services 等能力默认以 typed tool / workflow capability 进入，只有存在明确语义职责时才表现为
   agent-as-tool
 - 当前 accepted merged truth 已具备 `regulations/student_rules`、
@@ -23,8 +25,9 @@
 - runtime 当前事实是 `apps/app-api = Worker`，`apps/execution-control =
   Docker-first internal execution-control service`，Temporal 是 execution
   substrate，PG 只承载 sanitized run / event / step projection；online path
-  已硬切为 `memory.recall` + Go-owned RAG Temporal activity graph，worker
-  plane / autoscaler 仍按对应架构文档继续收口
+  已硬切为 `context.memory_recall -> plan.route -> capability branch ->
+  finalization.write`，knowledge 分支由 Go-owned RAG Temporal graph 执行，
+  worker plane / autoscaler 仍按对应架构文档继续收口
 - Python `apps/supervisor-agent-worker` 已退出 online answer path；它只保留
   offline / eval / tooling / historical bridge reference，不得重新接入 serving
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
@@ -227,8 +230,8 @@
 
 以下规则只在“用户原意已经被准确理解之后”生效。
 
-- 不要把 retrieval 实现细节、索引构建逻辑或向量数据库特定代码拉进 supervisor execution /
-  agent-worker 层
+- 不要把 retrieval 实现细节、索引构建逻辑或向量数据库特定代码拉进 Execution Agent Layer /
+  agent-as-tool 层
 - 不要把旧 bootstrap 模式恢复为产品入口、顶层 router、hidden mega-agent
   或扁平 retrieval tool；RAG 只能在已 admitted 的 knowledge-family / RAG capability 内部承担
   retrieval planning、evidence verification、synthesis 与 grounding 语义
@@ -426,7 +429,7 @@ pnpm web:build:affected
   的逻辑消费层，负责去重、版本推进、解析、chunking、索引写入编排
 - `packages/regulation-semantics`: regulations 领域语义 owner；负责 answer-ready evidence
   contract、answer role / condition / procedure taxonomy 与 regulation semantic registry
-- `packages/contracts`: supervisor -> capability handoff、evidence bundle 与共享
+- `packages/contracts`: execution -> capability handoff、evidence bundle 与共享
   schema；不要泄漏运行时或基础设施类型
 - `packages/evals`: 回归场景、基线与 smoke/eval 入口
 - `packages/shared`: 轻量共享常量和 env/provider config helper；不要演变成业务逻辑、

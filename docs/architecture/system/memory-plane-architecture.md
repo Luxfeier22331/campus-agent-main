@@ -67,7 +67,7 @@ updated_at
 ```text
 user request
 -> app-api creates execution run without PG memory full injection
--> execution-control starts ChatAnswerWorkflow
+-> execution-control starts CapabilityExecutionWorkflow
 -> Temporal memory.recall activity
 -> Qdrant personal_memory_v1
 -> bounded memory context
@@ -75,17 +75,13 @@ user request
 -> sanitized run step projection
 ```
 
-`memory.recall` 是 execution step graph 的第一步：
+`memory.recall` 是 capability-neutral execution step graph 的第一步，不属于 RAG
+worker 的私有前置逻辑：
 
 ```text
-memory.recall
--> planning
--> rag.plan
--> retrieval.indexed_lookup
--> retrieval.expand_or_rescue
--> evidence.selection
--> synthesis
--> grounding.verify
+context.memory_recall
+-> plan.route
+-> capability branch
 -> finalization.write
 ```
 

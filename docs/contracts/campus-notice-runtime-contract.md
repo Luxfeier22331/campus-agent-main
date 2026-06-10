@@ -16,8 +16,8 @@ It covers:
 - `packages/contracts` notice payload/result dataclasses
 - Go `apps/execution-control` ToolSpec, planner, typed tool runtime and internal
   query service
-- Python `apps/supervisor-agent-worker -> packages/notice` handoff and
-  thin adapter
+- `execution-control -> typed notice capability activity / internal query service`
+  active execution seam
 - eval/provider/SDK guardrails that prevent raw notice body regressions
 
 It does not cover collector, ingestion, OCR, object storage, source-truth

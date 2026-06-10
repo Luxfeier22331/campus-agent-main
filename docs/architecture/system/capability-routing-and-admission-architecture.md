@@ -17,7 +17,7 @@ architecture。
 - `admission` 与 `routing` 应怎样分层
 - `requested_scope`、`capability family`、clarification 分别属于哪一层
 - `apps/app-api`、`execution-control` / current `apps/execution-control`、
-  `apps/supervisor-agent-worker`、
+  retired Python bridge、
   typed tools 与 agent-as-tool 各自负责什么
 
 它不负责：
@@ -40,19 +40,19 @@ supporting architecture，不得把它误读成“public chat 当前已经不是
 
 `surface intake -> admission / guardrails -> capability routing ->
 workflow planning -> Temporal typed activity / agent-as-tool activity ->
-supervisor finalization`
+execution finalization`
 
 其中固定规则如下：
 
 - 顶层默认先判定 `capability family`，而不是先判定 retrieval `scope`
-- capability family 判定之后，supervisor 再决定本次请求是 terminal、
+- capability family 判定之后，Execution Agent Layer 再决定本次请求是 terminal、
   direct typed tool runtime、single agent-as-tool execution，还是 admitted
   multi-step workflow
 - `requested_scope` 只属于 knowledge-family path，不是所有请求共享的顶层默认字段
 - `admission` 与 `routing` 必须分层，避免把 authz、surface policy、approval-required 与
   domain reasoning 混在一起
 - `admission` 还必须区分 surface admission、identity / quota admission、run
-  admission、workflow/activity admission 与 task dispatch admission；supervisor
+  admission、workflow/activity admission 与 task dispatch admission；process-local
   进程内 queue 只属于 execution-level local protection，不是 canonical production
   admission
 - `knowledge` 仍是核心 capability family，但不再被默认等同于整个产品入口语义
@@ -78,7 +78,7 @@ supervisor finalization`
 
 本文冻结的 forward truth 只有两条：
 
-- 顶层 supervisor 必须是 neutral capability router
+- 顶层 Execution Agent Layer 必须是 neutral capability router
 - 不允许把 “当前公开主路径最成熟的是 knowledge QA” 反写成长期入口必须 `RAG-first`
 
 ## Layered Execution Shape
@@ -90,7 +90,7 @@ supervisor finalization`
 1. `capability routing`
 1. `workflow planning`
 1. `typed tool / agent-as-tool execution`
-1. `supervisor finalization`
+1. `execution finalization`
 
 ### 1. Surface Intake
 
@@ -160,7 +160,7 @@ current process-local execution protection。
 
 ### 3. Capability Routing
 
-`routing` 是 supervisor-owned 的中立 capability 决策层。
+`routing` 是 Execution Agent Layer-owned 的中立 capability 决策层。
 
 它长期只负责回答：
 
@@ -186,7 +186,7 @@ service 入场；只有需要 semantic specialist 时才新增 family label，�
 
 ### 4. Workflow Planning
 
-`workflow planning` 是 supervisor-owned 的 deterministic governance 层。它长期只负责回答：
+`workflow planning` 是 Execution Agent Layer-owned 的 deterministic governance 层。它长期只负责回答：
 
 - 本次请求是否只需要一个 agent
 - 是否需要多个 bounded specialist agent 串行或并行参与
@@ -234,9 +234,9 @@ internal query service 拥有；semantic reasoning 归对应 agent-as-tool 拥�
 只消费 workflow plan 允许的 typed input projection，并只返回 bounded typed output，例如
 `StepOutputProjection`、evidence summary、change set、place context 或 grounding verdict。
 
-### 6. Supervisor Finalization
+### 6. Execution Finalization
 
-supervisor 长期继续统一负责：
+Execution Agent Layer 长期继续统一负责：
 
 - response finalization
 - fail-close terminal semantics
@@ -291,13 +291,13 @@ supervisor 长期继续统一负责：
 
 固定规则：
 
-- `routing clarification` 由 supervisor 触发
+- `routing clarification` 由 Execution Agent Layer 触发
 - `agent clarification` 由对应 agent 触发
 - 两者不得在 observability、eval truth 或 contract 语义上混成一个模糊的 clarification 桶
 
 ## Routing Intent
 
-长期上，supervisor 的顶层 routing 输出必须是 typed routing intent，而不是 prompt 内部隐式决策。
+长期上，Execution Agent Layer 的顶层 routing 输出必须是 typed routing intent，而不是 prompt 内部隐式决策。
 
 它至少应显式表达：
 
@@ -317,7 +317,7 @@ supervisor 长期继续统一负责：
 - 本文冻结的是概念 contract，而不是当前 wire shape
 - 当前 internal execution contract 仍以 `requested_capability + optional
   requested_scope` 为 current truth
-- forward wire shape 的演进由 `docs/contracts/app-api-supervisor-execution.md` 补充说明
+- forward wire shape 的演进由 legacy-named app-api execution contract 补充说明
 
 ## Observability And Evaluation
 
@@ -358,6 +358,8 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 - `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
-- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/capability-execution.md`（legacy filename；active owner
+  是 Execution Agent Layer）
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`（historical
+  ADR filename）

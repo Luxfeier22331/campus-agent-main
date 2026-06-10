@@ -490,7 +490,7 @@ success。
    Collector 地址或 exporter 配置。
 2. runtime shell 用 `build_retrieval_observation_event_sink()` 把 observation 包成
    `retrieval.runtime_observation` 事件。
-3. Go `activity-worker-rag` / `execution-control` runtime adapter 将该事件转成
+3. Go `activity-worker-knowledge` / `execution-control` runtime adapter 将该事件转成
    OTel-compatible log/event；有当前 request trace context 时附带 trace/span
    correlation，没有 trace context 时至少保留 `request_id`、`plan_id`、`step_id`。
 4. 由 OTel Collector 或等价 telemetry pipeline 负责 batching、retry、memory limiting、

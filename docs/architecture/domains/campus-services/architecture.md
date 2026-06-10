@@ -15,7 +15,7 @@ updated: 2026-05-01
 - `campus_services` 长期负责哪些结构化校园服务能力
 - `transport_schedule_lookup`、`service_status_lookup`、`service_guide_lookup` 与后续
   contact / process runtime capability 应如何分层
-- supervisor、`campus_services`、`navigation`、query service 与 projection
+- Execution Agent Layer、`campus_services`、`navigation`、query service 与 projection
   各自负责什么
 - structured campus services runtime 为什么不能回退成 generic retrieval 或 query-time
   raw scan
@@ -91,7 +91,7 @@ later-wave 已冻结方向包括：
 
 ## Owner Split
 
-- supervisor
+- Execution Agent Layer
   - 拥有 admission、capability routing、terminal semantics、clarification 分层
 - `campus_services`
   - 拥有 campus-services family 内的 tool selection、service-specific clarification、
@@ -170,7 +170,7 @@ workflow。
 - “校园卡怎么申请”“宿舍报修怎么办理”“会议室预约流程是什么”属于
   `service_guide_lookup` 的目标问题形态
 - “帮我提交申请”“替我预约会议室”“代我办理校园卡”不属于
-  `service_guide_lookup`；supervisor 不得为这类请求生成事务型 execution handoff
+  `service_guide_lookup`；Execution Agent Layer 不得为这类请求生成事务型 execution handoff
 - 若用户明确询问办理说明，可以进入 `service_guide_lookup`；若用户要求系统代办，则必须保持
   terminal guardrail / fail-close 语义，不能自动改写为执行动作
 - 当 guide projection 缺失、过期、source refs 不可证或存在冲突时，runtime 返回
@@ -207,7 +207,7 @@ workflow。
   source-channel retrieval 可以并存，但不能互相冒充
 - 如果某个问题需要 canonical notice 正文或公告发现，应明确切到 `notice`
 - 如果某个问题只需要地点引用或路线展示，应明确切到 `navigation`
-- 如果某个问题同时需要稳定班次基底与近期临时通知，应由 supervisor workflow plan 显式串联
+- 如果某个问题同时需要稳定班次基底与近期临时通知，应由 Execution Agent Layer workflow plan 显式串联
   `campus_services` 与 `notice`，再把 bounded `ScheduleBaseline` /
   `NoticeChangeSet` 交给 finalizer 或 `knowledge` grounding step；不得让任一 agent 在
   query time 回扫对方的 raw source

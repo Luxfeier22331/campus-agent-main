@@ -16,7 +16,7 @@ updated: 2026-06-04
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - internal eval ingress contract：`docs/contracts/app-api-eval-benchmark-http.md`
 - `app-api -> execution-control`
-  契约：`docs/contracts/app-api-supervisor-execution.md`
+  契约：`docs/contracts/capability-execution.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
 - durable agent runtime contract：`docs/contracts/durable-agent-runtime-contract.md`
@@ -80,11 +80,11 @@ updated: 2026-06-04
   Chat-visible result: `error`
 
 - Status: `approval_required`
-  Meaning: supervisor policy 要求先人工审批
+  Meaning: execution policy 要求先人工审批
   Chat-visible result: `error`
 
 - Status: `rejected`
-  Meaning: code-owned gate 明确拒绝本次请求；包括 supervisor policy reject 与 app-api
+  Meaning: code-owned gate 明确拒绝本次请求；包括 execution policy reject 与 app-api
   precheck fail-close reject
   Chat-visible result: `error`
 
@@ -222,8 +222,8 @@ fail-close checks。
 - `needs_clarification` 写 follow-up question 摘要
 - `no_answer` 写 safe no-answer 摘要
 - `error` 写 error code / retryable
-- `approval_required` 写审批提示与最终 supervisor 状态，不把它折叠成 command-side `error`
-- `rejected` 写拒绝原因与最终 gate 状态；既可来自 supervisor policy，也可来自 app-api precheck
+- `approval_required` 写审批提示与最终 execution 状态，不把它折叠成 command-side `error`
+- `rejected` 写拒绝原因与最终 gate 状态；既可来自 execution policy，也可来自 app-api precheck
   fail-close（例如 `rate_limit_exceeded`），但都不折叠成 command-side `error`
 - `cancelled` 写 `execution_cancelled` 或 upstream cancel code；browser chat
   surface 仍以 `error` kind 展示 safe failure message
@@ -244,7 +244,7 @@ fail-close checks。
 固定规则：
 
 - `request.accepted` 只能在第一次 durable request commit 完成后发送
-- `execution.queued` / `execution.running` 来自 internal supervisor lifecycle
+- `execution.queued` / `execution.running` 来自 internal execution lifecycle
   event 的 product-level projection
 - terminal event 只能在 `app-api` 完成第二次 finalize commit 之后发送
 - terminal event 的 `data.answer` 与同步 `POST /api/chat/requests` 成功 body 的

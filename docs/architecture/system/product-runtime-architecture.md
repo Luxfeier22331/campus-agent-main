@@ -27,8 +27,8 @@ supporting architecture。
 `hub-web same-site allowlisted /api/* -> app-api`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow-worker / activity-worker-rag / activity-worker-finalization -> sanitized
-projection`
+workflow-worker / activity-worker-context / activity-worker-knowledge /
+capability workers / activity-worker-finalization -> sanitized projection`
 
 `browser -> public-docs static reader assets`
 
@@ -61,7 +61,7 @@ model`
 - 当前 `public chat` 的 knowledge-only posture 只表示该 surface 当前开放的 capability set
 - 它不等于整个产品的长期入口语义
 - capability-neutral routing 与 surface capability policy 统一由 shared
-  product/runtime + supervisor supporting architecture 表达
+  product/runtime + Execution Agent Layer supporting architecture 表达
 
 ## Accepted Surface Shape
 
@@ -233,8 +233,8 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - `apps/execution-control`
   - 当前 execution ingress
   - 当前 active chat execution path 已硬切到 Temporal-backed
-    `ChatAnswerWorkflow`；run store、events 与 step ledger 是 app-api / panel /
-    eval 消费的 sanitized projection store
+    `CapabilityExecutionWorkflow`；run store、events 与 step ledger 是 app-api /
+    panel / eval 消费的 sanitized projection store
   - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行，不经过 Python
     bridge
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
@@ -365,7 +365,7 @@ contract 或 auth family route/endpoint truth。
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
-- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/capability-execution.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/data/app-api-schema.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`

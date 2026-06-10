@@ -11,6 +11,12 @@ updated: 2026-04-26
 
 Accepted on 2026-04-23.
 
+## Terminology Superseded
+
+本 ADR 标题和历史正文中的 `supervisor` 是历史命名。目标态 active architecture term 是
+`Execution Agent Layer`：它位于 `execution-control` 内，负责 admission、
+capability routing、workflow planning、capability dispatch 与 finalization。
+
 ## 背景
 
 `campus-agent` 当前已经冻结了以下方向：
@@ -24,7 +30,7 @@ Accepted on 2026-04-23.
 
 但 repo 仍缺一条更高层的正式决策：
 
-- 顶层 supervisor 是否继续默认把产品入口理解成 `knowledge/RAG` 路由器
+- 顶层 Execution Agent Layer 是否继续默认把产品入口理解成 `knowledge/RAG` 路由器
 - `requested_scope` 是否仍应被默认理解成所有请求共享的顶层入口字段
 - `public chat` 当前 knowledge-only posture 是否会被误读成长期产品架构原则
 - clarification、approval、out-of-scope 与 capability routing 之间应如何分层
@@ -38,10 +44,10 @@ Accepted on 2026-04-23.
 
 ## 决策
 
-### 决策 1：supervisor 长期是 neutral capability router，而不是 knowledge-default router
+### 决策 1：Execution Agent Layer 是 Neutral Capability Router
 
-长期上，top-level supervisor 必须先回答“这是什么 capability family 的请求”，而不是默认先把请求当成 generic
-knowledge/RAG 问题。
+长期上，top-level Execution Agent Layer 必须先回答“这是什么 capability
+family 的请求”，而不是默认先把请求当成 generic knowledge/RAG 问题。
 
 直接含义：
 
@@ -129,7 +135,7 @@ knowledge/RAG 问题。
 
 但这只表示 current rollout posture，不表示：
 
-- 长期 supervisor 仍是 knowledge-default router
+- 长期 Execution Agent Layer 仍是 knowledge-default router
 - 未来所有 surface 都必须先走 knowledge path
 
 ## 结果

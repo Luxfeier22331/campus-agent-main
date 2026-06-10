@@ -33,9 +33,18 @@ updated: 2026-05-07
 
 - `apps/execution-control` 的前向 deploy substrate 已正式冻结为 Docker-first internal
   execution service
-- 当前 repo-owned staging execution runtime 已收敛到 `nc-arm-6c` 上的
-  `otel-collector + execution-control + workflow-worker + activity-worker-rag +
-  activity-worker-finalization + worker-autoscaler + Temporal`
+- 当前 repo-owned staging execution runtime 已收敛到 `nc-arm-6c` 上：
+  - `otel-collector`
+  - `execution-control`
+  - `workflow-worker`
+  - `activity-worker-context`
+  - `activity-worker-knowledge`
+  - `activity-worker-campus-services`
+  - `activity-worker-notice`
+  - `activity-worker-navigation`
+  - `activity-worker-finalization`
+  - `worker-autoscaler`
+  - Temporal
 - 这条 canonical execution runtime 的运维姿势、systemd connector、自愈与日志规则统一记录在
   `execution-control-staging-operations.md`
 - Python public compatibility ingress 已退出 active staging path
@@ -70,7 +79,7 @@ updated: 2026-05-07
     worker-staging-app-api`、Cloudflare secret presence、repo-owned staging config
     verification、`db:bootstrap:staging`、`db:migrate:staging` 与
     `db:reconcile-shared-drift:staging`
-  - deploy 时通过 `--var EXECUTION_CONTROL_BASE_URL:<url>` 注入当前 supervisor execution
+  - deploy 时通过 `--var EXECUTION_CONTROL_BASE_URL:<url>` 注入当前 execution-control
     upstream
   - `pnpm deploy:staging` 会在 publish 时自动注入
     `SENTRY_RELEASE=app-api@staging-<sha>`；只有需要固定 release 名时才覆写

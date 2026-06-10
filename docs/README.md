@@ -63,7 +63,8 @@ policy、reference、runbook，以及已归档的历史 plan。
 - 需要回答“产品是什么、当前系统真相是什么、长期要收口到哪里”，先读 `architecture/`
 - 需要回答“顶层 capability routing、surface allowlist 与 admission/routing 分层如何设计”，读
   `architecture/system/capability-routing-and-admission-architecture.md`
-- 需要回答“supervisor、structured runtime、capability handoff 与 SDK-native execution 如何分层”，读
+- 需要回答“Execution Agent Layer、structured runtime、capability handoff 与
+  SDK-native execution 如何分层”，读
   `architecture/system/execution-and-agents-architecture.md`
 - 需要回答“retrieval planner、bounded evidence、RAG side agent runtime 如何分层”，读
   `architecture/system/agentic-retrieval-architecture.md`

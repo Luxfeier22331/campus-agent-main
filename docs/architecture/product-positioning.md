@@ -35,7 +35,7 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 长期上，`campus-agent` 是一个：
 
 - shared control-plane 下的 multi-entry campus product
-- supervisor-led 的 multi-capability / agent-as-tool orchestration product
+- Execution Agent Layer-led 的 multi-capability / agent-as-tool orchestration product
 - 以受控机构知识、校园服务与空间信息为核心能力面的校园入口体系
 
 ## 目标用户
@@ -65,7 +65,7 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 - controlled surface 只在显式开放的 serving surface 和 capability boundary
   内回答，不把未准备好的知识面伪装成“好像能答”
 - fail-close 面对权限不足、地点歧义、证据不足或真相层缺失时，优先澄清、拒答或说明边界，而不是强行猜测
-- productized capabilities 用稳定的 supervisor / agent capability family
+- productized capabilities 用稳定的 Execution Agent Layer / capability family
   承接能力，不把产品长期形态退化成一个拼接临时 tools 的聊天壳
 - shared entry-set experience 长期允许多个并列 browser surface 共同承接产品能力；`AI
   助手`、`文档站`、`服务状态`、`校园地图` 等入口可以独立存在，但它们必须共享同一产品边界、控制面与 institution truth
@@ -134,7 +134,7 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 - 服务开放状态、临时关闭、班车安排等结构化当前状态问题应由独立 domain capability 承接
 - 用户明确在找通知、讲座、公示或结果原文时，应优先进入 notice discovery / canonical notice reading
   路径，而不是默认混入 generic RAG
-- 顶层 supervisor 长期应先做 capability routing，而不是默认把所有请求先压成 knowledge / `knowledge`
+- 顶层 Execution Agent Layer 长期应先做 capability routing，而不是默认把所有请求先压成 knowledge / `knowledge`
 
 长期入口模型固定为：
 
@@ -168,7 +168,7 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 
 - 一个通用 open-domain LLM 聊天机器人
 - 一个只返回检索片段的校园搜索框
-- 一个把 supervisor 退化成 inline tool router 的 agent 壳
+- 一个把 Execution Agent Layer 退化成 inline tool router 的 agent 壳
 - 一个默认依赖外部地图站跳转完成主要体验的产品
 - 一个替代校园 ERP、OA 或事务系统的全栈业务系统
 

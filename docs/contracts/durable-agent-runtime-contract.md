@@ -507,7 +507,7 @@ Worker pools own：
 - typed tool / agent-as-tool step execution
 - sanitized step attempt / result writeback
 
-Supervisor durable run create command 固定要求：
+Execution durable run create command 固定要求：
 
 - `metadata.execution_payload` 必须存在且为 object
 - `metadata.execution_payload.request_id` 必须等于外层 `request_id`
@@ -516,7 +516,7 @@ Supervisor durable run create command 固定要求：
   `trace_id`
 - `metadata.execution_payload.user_goal` 必须存在且非空
 - app-api 不得在 durable run create metadata 中写 `handoff`；RAG lane 的 handoff
-  planning 由 supervisor 根据 `execution_payload` 派生
+  planning 由 Execution Agent Layer 根据 `execution_payload` 派生
 
 ### Worker Pool
 

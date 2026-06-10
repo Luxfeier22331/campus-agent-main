@@ -16,7 +16,7 @@ updated: 2026-06-04
 - `document-reader-publish-contract.md`
 - `app-api-error-model.md`
 - `app-api-request-lifecycle.md`
-- `app-api-supervisor-execution.md`
+- `capability-execution.md`
 - `durable-agent-runtime-contract.md`
 
 ## Operator / Official Web contract

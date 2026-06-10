@@ -17,12 +17,12 @@ typed retrieval plan seam。
   durable `RunStep` / `StepResult`
 - planner / executor 各自拥有什么语义 owner
 - `version_query`、freshness、source-trust、budget 与 fail-close 如何进入 plan
-- 哪些字段属于 internal retrieval seam，不能泄漏成 browser / supervisor-facing contract
+- 哪些字段属于 internal retrieval seam，不能泄漏成 browser / execution-facing contract
 
 它不负责：
 
 - browser-facing HTTP schema
-- supervisor -> capability handoff schema
+- execution -> capability handoff schema
 - 当前 multi-step executor 的具体代码实现
 - 通用工具平台或开放域 browse contract
 
@@ -62,7 +62,7 @@ step trajectory，而不是 prompt 内部不可见的自由文本状态。
 固定规则：
 
 - `packages/contracts` 当前不承载 `RetrievalPlan / RetrievalStep / StepResult`
-- `apps/app-api`、`apps/execution-control`、`apps/supervisor-agent-worker` 与
+- `apps/app-api`、`apps/execution-control`、retired Python bridge 与
   browser surface 不得依赖这组内部类型
 - operator / browser 最终只应看到衍生后的 supporting evidence 或 operator-safe execution
   summary，而不是 raw plan / raw vendor payload
@@ -321,9 +321,9 @@ StepResult
 - grounding failed
 - unauthorized or runtime-profile-blocked scope
 
-## Browser / Supervisor Safe Boundary
+## Browser / Execution Safe Boundary
 
-以下字段不得直接成为 browser / supervisor-facing contract：
+以下字段不得直接成为 browser / execution-facing contract：
 
 - raw `RetrievalPlan`
 - raw `RetrievalStep`
@@ -332,7 +332,7 @@ StepResult
 - raw candidate trace dump
 - raw durable step payload
 
-browser / supervisor 允许消费的只是：
+browser / execution layer 允许消费的只是：
 
 - supporting evidence
 - source card / canonical reader jump target

@@ -65,7 +65,7 @@ explicitly allowed below.
 | `execution.activity.failed` | `apps/execution-control` / Go activity worker | Temporal activity attempt failure kind, retryability and terminal projection reason |
 | `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
 | `agent.tool.completed` | `apps/execution-control` / worker | Tool terminal state, latency and failure kind |
-| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-rag` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
+| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-knowledge` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
 | `ingestion.run.started` | `apps/ingestion-worker` | Offline ingestion/index run start with run id, source family, surface and collection |
 | `ingestion.run.completed` | `apps/ingestion-worker` | Run count summary, duration, cost estimate, release id and audit result |
 | `ingestion.run.failed` | `apps/ingestion-worker` | Run failure kind, stage and retryability |

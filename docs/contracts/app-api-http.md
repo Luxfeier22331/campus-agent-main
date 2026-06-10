@@ -16,7 +16,7 @@ browser-facing HTTP contract。
 - shared product topology：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api` runtime 与内部边界：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api -> execution-control`
-  内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
+  内部执行契约：`docs/contracts/capability-execution.md`
 - internal eval benchmark
   ingress：`docs/contracts/app-api-eval-benchmark-http.md`
 - operator observability query
@@ -63,7 +63,8 @@ contract test carrier。新增 route 必须声明：
 
 - `browser-surface`：由 public chat / docs same-site proxy 调用
 - `operator-via-panel`：由 protected panel internal bridge 调用
-- `machine-internal`：由 supervisor / eval / ingestion 等 trusted machine caller 调用
+- `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
+  caller 调用
 - `collector-machine`：由 official-web collector command caller 调用
 - `system`：health / readiness probe
 
@@ -182,7 +183,7 @@ assistant message 可以包含 `feedback`：
 - `feedback` 只表示当前登录用户对该 assistant message 的 latest answer-quality feedback
 - user message 不返回 feedback state
 - assistant message 未反馈时返回 `feedback: null`
-- `feedback` 不影响权限、routing、memory、serving surface 或 supervisor admission
+- `feedback` 不影响权限、routing、memory、serving surface 或 execution admission
 
 ### Conversation Detail
 
@@ -287,7 +288,7 @@ assistant message 可以包含 `feedback`：
     "officialWebHandoff": "not_configured",
     "operatorBridge": "configured",
     "publicChatOrigin": "configured",
-    "supervisorApi": "ready"
+    "executionControl": "ready"
   },
   "preflight": {
     "campusServicesProductPath": {
@@ -330,7 +331,7 @@ assistant message 可以包含 `feedback`：
     "details": {
       "failed": {
         "auth": "better-auth session runtime failed probe",
-        "supervisorApi": "supervisor /readyz returned 503"
+        "executionControl": "execution-control /readyz returned 503"
       }
     }
   }
@@ -780,7 +781,7 @@ terminal event 额外携带：
 规则：
 
 - run projection 启用时，`request.accepted` 在 app-api accept commit 与
-  supervisor durable run create 均成功后发送；其 data 必须包含 `runId`
+  execution durable run create 均成功后发送；其 data 必须包含 `runId`
 - terminal event 在 finalization commit 后发送；因此 terminal `answer` 是
   app-owned DB/projection truth 的产物
 - submit stream 的浏览器连接不拥有 finalization；app-api 必须通过 request
