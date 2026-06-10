@@ -55,68 +55,91 @@ func (s *Server) TemporalWorkerActivities() any {
 	return s
 }
 
-type TemporalRAGActivities struct {
+type TemporalContextActivities struct {
 	server *Server
 }
 
-func (s *Server) TemporalRAGActivities() TemporalRAGActivities {
-	return TemporalRAGActivities{server: s}
+func (s *Server) TemporalContextActivities() TemporalContextActivities {
+	return TemporalContextActivities{server: s}
 }
 
-func (a TemporalRAGActivities) PlanChatAnswerActivity(
-	ctx context.Context,
-	input temporalruntime.PlanChatAnswerActivityInput,
-) (temporalruntime.PlanChatAnswerActivityOutput, error) {
-	return a.server.PlanChatAnswerActivity(ctx, input)
-}
-
-func (a TemporalRAGActivities) MemoryRecallActivity(
+func (a TemporalContextActivities) MemoryRecallActivity(
 	ctx context.Context,
 	input temporalruntime.MemoryRecallActivityInput,
 ) (temporalruntime.MemoryRecallActivityOutput, error) {
 	return a.server.MemoryRecallActivity(ctx, input)
 }
 
-func (a TemporalRAGActivities) PlanRAGActivity(
+func (a TemporalContextActivities) PlanRouteActivity(
+	ctx context.Context,
+	input temporalruntime.PlanRouteActivityInput,
+) (temporalruntime.PlanRouteActivityOutput, error) {
+	return a.server.PlanRouteActivity(ctx, input)
+}
+
+type TemporalKnowledgeActivities struct {
+	server *Server
+}
+
+func (s *Server) TemporalKnowledgeActivities() TemporalKnowledgeActivities {
+	return TemporalKnowledgeActivities{server: s}
+}
+
+func (a TemporalKnowledgeActivities) PlanRAGActivity(
 	ctx context.Context,
 	input temporalruntime.PlanRAGActivityInput,
 ) (temporalruntime.PlanRAGActivityOutput, error) {
 	return a.server.PlanRAGActivity(ctx, input)
 }
 
-func (a TemporalRAGActivities) RetrieveIndexedLookupActivity(
+func (a TemporalKnowledgeActivities) RetrieveIndexedLookupActivity(
 	ctx context.Context,
 	input temporalruntime.RetrieveIndexedLookupActivityInput,
 ) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
 	return a.server.RetrieveIndexedLookupActivity(ctx, input)
 }
 
-func (a TemporalRAGActivities) ExpandOrRescueRetrievalActivity(
+func (a TemporalKnowledgeActivities) ExpandOrRescueRetrievalActivity(
 	ctx context.Context,
 	input temporalruntime.ExpandOrRescueRetrievalActivityInput,
 ) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
 	return a.server.ExpandOrRescueRetrievalActivity(ctx, input)
 }
 
-func (a TemporalRAGActivities) SelectEvidenceActivity(
+func (a TemporalKnowledgeActivities) SelectEvidenceActivity(
 	ctx context.Context,
 	input temporalruntime.SelectEvidenceActivityInput,
 ) (temporalruntime.SelectEvidenceActivityOutput, error) {
 	return a.server.SelectEvidenceActivity(ctx, input)
 }
 
-func (a TemporalRAGActivities) SynthesizeRAGAnswerActivity(
+func (a TemporalKnowledgeActivities) SynthesizeRAGAnswerActivity(
 	ctx context.Context,
 	input temporalruntime.SynthesizeRAGAnswerActivityInput,
 ) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
 	return a.server.SynthesizeRAGAnswerActivity(ctx, input)
 }
 
-func (a TemporalRAGActivities) VerifyGroundingActivity(
+func (a TemporalKnowledgeActivities) VerifyGroundingActivity(
 	ctx context.Context,
 	input temporalruntime.VerifyGroundingActivityInput,
 ) (temporalruntime.VerifyGroundingActivityOutput, error) {
 	return a.server.VerifyGroundingActivity(ctx, input)
+}
+
+type TemporalTypedToolActivities struct {
+	server *Server
+}
+
+func (s *Server) TemporalTypedToolActivities() TemporalTypedToolActivities {
+	return TemporalTypedToolActivities{server: s}
+}
+
+func (a TemporalTypedToolActivities) ExecuteTypedToolActivity(
+	ctx context.Context,
+	input temporalruntime.ExecuteTypedToolActivityInput,
+) (temporalruntime.ExecuteTypedToolActivityOutput, error) {
+	return a.server.ExecuteTypedToolActivity(ctx, input)
 }
 
 type TemporalFinalizationActivities struct {

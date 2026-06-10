@@ -1,8 +1,11 @@
 import type { ExecutionActorContext } from "../auth";
-import { toSupervisorVersionQuery } from "../version-query";
-import type { SupervisorContextProjection, SupervisorExecutionInput } from "./supervisor-types";
+import { toCapabilityExecutionVersionQuery } from "../version-query";
+import type {
+	CapabilityExecutionContextProjection,
+	CapabilityExecutionInput,
+} from "./capability-execution-types";
 
-export function toSupervisorActor(actor: ExecutionActorContext) {
+export function toCapabilityExecutionActor(actor: ExecutionActorContext) {
 	return {
 		cohort: actor.cohort,
 		user_id: actor.userId,
@@ -15,9 +18,9 @@ export function toSupervisorActor(actor: ExecutionActorContext) {
 	};
 }
 
-export function toSupervisorContext(context: SupervisorContextProjection) {
+export function toCapabilityExecutionContext(context: CapabilityExecutionContextProjection) {
 	return {
-		actor: toSupervisorActor(context.actor),
+		actor: toCapabilityExecutionActor(context.actor),
 		authorization: {
 			principal_id: context.authorization.principalId,
 			projection_source: context.authorization.projectionSource,
@@ -45,18 +48,18 @@ export function toSupervisorContext(context: SupervisorContextProjection) {
 	};
 }
 
-export function toSupervisorRequestBody(
-	payload: SupervisorExecutionInput,
+export function toCapabilityExecutionRequestBody(
+	payload: CapabilityExecutionInput,
 ): Record<string, unknown> {
 	return {
-		context: toSupervisorContext(payload.context),
+		context: toCapabilityExecutionContext(payload.context),
 		conversation_id: payload.conversationId,
 		request_id: payload.requestId,
 		...(payload.requestedCapability ? { requested_capability: payload.requestedCapability } : {}),
 		...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
 		...(payload.safetyIdentifier ? { safety_identifier: payload.safetyIdentifier } : {}),
 		...(payload.versionQuery
-			? { version_query: toSupervisorVersionQuery(payload.versionQuery) }
+			? { version_query: toCapabilityExecutionVersionQuery(payload.versionQuery) }
 			: {}),
 		user_goal: payload.userGoal,
 	};

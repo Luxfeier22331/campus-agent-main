@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
 	type ChatRequestStreamEvent,
+	cancelChatRun,
 	createDraftConversation,
 	deleteAllConversations,
-	cancelChatRun,
 	deleteConversation,
 	deleteMessageFeedback,
 	deleteTrailingMessages,

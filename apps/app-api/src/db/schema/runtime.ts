@@ -8,7 +8,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { SupervisorExecutionWorkflowTraceSummary } from "../../modules/integration/supervisor-types";
+import type { CapabilityExecutionWorkflowTraceSummary } from "../../modules/integration/capability-execution-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -159,7 +159,7 @@ export const requestObservabilityFact = runtime.table(
 		toolHistoricalDowngradeReason: text("tool_historical_downgrade_reason"),
 		workflowTraceSummaryJson: jsonb(
 			"workflow_trace_summary_json",
-		).$type<SupervisorExecutionWorkflowTraceSummary | null>(),
+		).$type<CapabilityExecutionWorkflowTraceSummary | null>(),
 		intentCapability: text("intent_capability"),
 		intentTaskKind: text("intent_task_kind"),
 		intentLaunchState: text("intent_launch_state"),

@@ -80,22 +80,22 @@ func streamStatusForLifecycle(state lifecycle.State) string {
 func admissionErrorForStream(decision admission.Decision, executionCanceled bool) (string, string, bool) {
 	switch decision {
 	case admission.DecisionQueueFull:
-		return "transport_queue_full", "Supervisor execution admission queue is full.", true
+		return "transport_queue_full", "Execution admission queue is full.", true
 	case admission.DecisionLaneQueueFull:
-		return "transport_lane_queue_full", "Supervisor execution admission lane queue is full.", true
+		return "transport_lane_queue_full", "Execution admission lane queue is full.", true
 	case admission.DecisionQueueTimeout:
-		return "transport_queue_timeout", "Supervisor execution admission queue wait timed out.", true
+		return "transport_queue_timeout", "Execution admission queue wait timed out.", true
 	case admission.DecisionLaneQueueTimeout:
-		return "transport_lane_queue_timeout", "Supervisor execution admission lane queue wait timed out.", true
+		return "transport_lane_queue_timeout", "Execution admission lane queue wait timed out.", true
 	case admission.DecisionDraining:
-		return "transport_draining", "Supervisor execution runtime is draining.", true
+		return "transport_draining", "Execution runtime is draining.", true
 	case admission.DecisionClientCanceled:
 		if executionCanceled {
-			return "execution_cancelled", "Supervisor execution was cancelled.", false
+			return "execution_cancelled", "Execution was cancelled.", false
 		}
-		return "client_canceled", "Supervisor execution client disconnected.", false
+		return "client_canceled", "Execution client disconnected.", false
 	default:
-		return "transport_admission_rejected", "Supervisor execution admission rejected the request.", true
+		return "transport_admission_rejected", "Execution admission rejected the request.", true
 	}
 }
 
@@ -134,12 +134,12 @@ func (s *Server) streamBridgePayload(
 				TraceID:    executionRequest.TraceID,
 				EventType:  "execution.completed",
 				Status:     "completed",
-				Outcome:    "supervisor_response",
+				Outcome:    "execution_response",
 				HTTPStatus: statusCode,
 				Response:   responseBody,
 			}, bridgeWriteOutcome{
 				State:          lifecycle.StateCompleted,
-				Outcome:        "supervisor_response",
+				Outcome:        "execution_response",
 				StatusCode:     statusCode,
 				CircuitSuccess: true,
 			}

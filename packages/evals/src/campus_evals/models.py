@@ -10,13 +10,13 @@ from campus_contracts import (
     CapabilityID,
     CapabilityResponse,
     EvidenceSource,
+    ExecutionResponse,
+    ExecutionStatus,
     KnowledgeScope,
-    SupervisorResponse,
-    SupervisorStatus,
     VersionQuery,
     WorkflowTraceSummary,
 )
-from campus_contracts.models import ALLOWED_SUPERVISOR_STATUSES
+from campus_contracts.models import ALLOWED_EXECUTION_STATUSES
 
 from campus_evals.operator_observability import OperatorRequestCorrelation
 
@@ -209,7 +209,7 @@ class GoldenCase:
     source_type: SourceType
     user_goal: str
     actor: ActorContext
-    expected_status: SupervisorStatus
+    expected_status: ExecutionStatus
     scope: KnowledgeScope
     version_query: VersionQuery = field(default_factory=VersionQuery)
     conversation_turns: tuple[str, ...] = field(default_factory=tuple)
@@ -243,7 +243,7 @@ class GoldenCase:
             raise ValueError(f"unsupported split: {self.split}")
         if self.source_type not in ALLOWED_SOURCE_TYPES:
             raise ValueError(f"unsupported source_type: {self.source_type}")
-        if self.expected_status not in ALLOWED_SUPERVISOR_STATUSES:
+        if self.expected_status not in ALLOWED_EXECUTION_STATUSES:
             raise ValueError(f"unsupported expected_status: {self.expected_status}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
@@ -300,7 +300,7 @@ class OrchestrationCaseResults:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
-    response: CapabilityResponse | SupervisorResponse
+    response: CapabilityResponse | ExecutionResponse
     observed_trace: ObservedTrace | None = None
     request_correlation: OperatorRequestCorrelation | None = None
     workflow_trace_summary: WorkflowTraceSummary | None = None

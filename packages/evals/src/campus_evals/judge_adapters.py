@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import httpx
-from campus_contracts import CapabilityResponse, RagResultPayload, SupervisorResponse
+from campus_contracts import CapabilityResponse, ExecutionResponse, RagResultPayload
 
 from campus_evals._advisory_suppression import suppress_transformers_missing_torch_advisory
 
@@ -310,7 +310,7 @@ def _build_rubric_prompt(
     *,
     rubric: dict[str, object],
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> str:
     evidence = response.result.evidence if isinstance(response.result, RagResultPayload) else None
     sources = tuple(evidence.sources) if evidence is not None else ()
@@ -353,7 +353,7 @@ def _coerce_judge_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
     judged: dict[str, object],
 ) -> SupplementalResult:
     if not isinstance(judged, dict):
@@ -388,7 +388,7 @@ def _build_not_applicable_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
     rationale: str,
 ) -> SupplementalResult:
     return SupplementalResult(
@@ -409,7 +409,7 @@ def _build_failed_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
     rationale: str,
     score: float | None,
     metadata: dict[str, object] | None = None,
@@ -444,10 +444,10 @@ def _runtime_failure_metadata(exc: Exception) -> dict[str, object]:
 
 def _require_capability_response(
     execution: ExecutionResult,
-) -> CapabilityResponse | SupervisorResponse:
+) -> CapabilityResponse | ExecutionResponse:
     response = execution.response
-    if not isinstance(response, (CapabilityResponse, SupervisorResponse)):
-        raise TypeError("execution.response must be CapabilityResponse or SupervisorResponse")
+    if not isinstance(response, (CapabilityResponse, ExecutionResponse)):
+        raise TypeError("execution.response must be CapabilityResponse or ExecutionResponse")
     return response
 
 

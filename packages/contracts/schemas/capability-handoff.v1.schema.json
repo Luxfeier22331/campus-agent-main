@@ -5,7 +5,7 @@
 	"type": "object",
 	"additionalProperties": false,
 	"properties": {
-		"agent_request": {
+		"capability_request": {
 			"$ref": "#/$defs/CapabilityRequest"
 		},
 		"capability_response": {
@@ -61,9 +61,9 @@
 		"CapabilityRequest": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["target", "user_goal", "payload", "allowed_tools"],
+			"required": ["capability", "user_goal", "payload", "allowed_tools"],
 			"properties": {
-				"target": {
+				"capability": {
 					"$ref": "#/$defs/CapabilityID"
 				},
 				"user_goal": {
@@ -111,9 +111,9 @@
 		"CapabilityResponse": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["target", "status"],
+			"required": ["capability", "status"],
 			"properties": {
-				"target": {
+				"capability": {
 					"$ref": "#/$defs/CapabilityID"
 				},
 				"status": {

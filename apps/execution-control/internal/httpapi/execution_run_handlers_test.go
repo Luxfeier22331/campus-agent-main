@@ -17,21 +17,21 @@ type fakeTemporalStarter struct {
 	cancelRunID  string
 	cancelReason string
 	cancelErr    error
-	input        temporalruntime.ChatAnswerWorkflowInput
+	input        temporalruntime.CapabilityExecutionWorkflowInput
 	err          error
 }
 
-func (f *fakeTemporalStarter) StartChatAnswerWorkflow(
+func (f *fakeTemporalStarter) StartCapabilityExecutionWorkflow(
 	_ context.Context,
-	input temporalruntime.ChatAnswerWorkflowInput,
+	input temporalruntime.CapabilityExecutionWorkflowInput,
 ) error {
 	f.input = input
 	return f.err
 }
 
-func (f *fakeTemporalStarter) CancelChatAnswerWorkflow(
+func (f *fakeTemporalStarter) CancelCapabilityExecutionWorkflow(
 	_ context.Context,
-	input temporalruntime.ChatAnswerWorkflowCancelInput,
+	input temporalruntime.CapabilityExecutionWorkflowCancelInput,
 ) error {
 	f.cancelRunID = input.RunID
 	f.cancelReason = input.Reason
@@ -49,7 +49,13 @@ func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.Ru
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueRAG,
+				Name:    temporalruntime.ActivityTaskQueueContext,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -247,14 +253,14 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		ragHandoffForDurableWorkerTest("hello"),
 	)
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
-		StepID:               "planning",
+		StepID:               "plan.route",
 		RunID:                "run-temporal-trajectory",
 		ConversationID:       "conv-temporal-trajectory",
 		StepKind:             "planning",
 		Capability:           "knowledge",
 		Status:               "completed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueRAG,
-		WorkerID:             "staging:rag:worker-1",
+		TaskQueue:            temporalruntime.ActivityTaskQueueContext,
+		WorkerID:             "staging:context:worker-1",
 		StartedAt:            now,
 		CompletedAt:          now.Add(100 * time.Millisecond),
 		UpdatedAt:            now.Add(100 * time.Millisecond),
@@ -267,17 +273,17 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("upsert step: %v", err)
 	}
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
-		AttemptID:             "planning:attempt:1",
-		StepID:                "planning",
+		AttemptID:             "plan.route:attempt:1",
+		StepID:                "plan.route",
 		RunID:                 "run-temporal-trajectory",
 		Attempt:               1,
 		Status:                "completed",
-		TaskQueue:             temporalruntime.ActivityTaskQueueRAG,
-		WorkerID:              "staging:rag:worker-1",
+		TaskQueue:             temporalruntime.ActivityTaskQueueContext,
+		WorkerID:              "staging:context:worker-1",
 		WorkflowID:            "campus-agent.chat.run-temporal-trajectory",
 		TemporalRunID:         "temporal-run-trajectory",
 		ActivityID:            "activity-planning-1",
-		ActivityType:          "PlanChatAnswerActivity",
+		ActivityType:          "PlanRouteActivity",
 		ActivityAttempt:       1,
 		ScheduledAt:           now.Add(-25 * time.Millisecond),
 		StartedAt:             now,
@@ -299,27 +305,27 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		UpdatedAt:             now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload: map[string]any{
-			"activity_type": "PlanChatAnswerActivity",
+			"activity_type": "PlanRouteActivity",
 			"raw_answer":    "must not leak",
 		},
 	}); err != nil {
 		t.Fatalf("upsert attempt: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "planning:result:1",
-		StepID:               "planning",
+		ResultID:             "plan.route:result:1",
+		StepID:               "plan.route",
 		RunID:                "run-temporal-trajectory",
-		AttemptID:            "planning:attempt:1",
+		AttemptID:            "plan.route:attempt:1",
 		Status:               "completed",
-		ResultKind:           "plan",
-		ProjectionRef:        "projection://runs/run-temporal-trajectory/planning",
+		ResultKind:           "route_plan",
+		ProjectionRef:        "projection://runs/run-temporal-trajectory/plan/route",
 		CreatedAt:            now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"result_ref":          "projection://runs/run-temporal-trajectory/planning/result",
+			"result_ref":          "projection://runs/run-temporal-trajectory/plan/route/result",
 			"raw_provider_result": "must not leak",
 			"selected_capability": "knowledge",
-			"selected_task_queue": temporalruntime.ActivityTaskQueueRAG,
+			"selected_task_queue": temporalruntime.ActivityTaskQueueContext,
 		},
 	}); err != nil {
 		t.Fatalf("upsert result: %v", err)
@@ -344,7 +350,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("steps = %#v, want one step", body["steps"])
 	}
 	step := expectRecord(t, steps[0], "steps[0]")
-	if step["step_kind"] != "planning" || step["task_queue"] != temporalruntime.ActivityTaskQueueRAG {
+	if step["step_kind"] != "planning" || step["task_queue"] != temporalruntime.ActivityTaskQueueContext {
 		t.Fatalf("step = %#v", step)
 	}
 	attempts, ok := body["attempts"].([]any)
@@ -356,7 +362,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"workflow_id":             "campus-agent.chat.run-temporal-trajectory",
 		"temporal_run_id":         "temporal-run-trajectory",
 		"activity_id":             "activity-planning-1",
-		"activity_type":           "PlanChatAnswerActivity",
+		"activity_type":           "PlanRouteActivity",
 		"activity_attempt":        float64(1),
 		"schedule_to_start_ms":    float64(25),
 		"duration_ms":             float64(100),

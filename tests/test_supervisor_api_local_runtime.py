@@ -135,7 +135,11 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             compose,
         )
         self.assertNotIn("SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP", compose)
-        self.assertIn("activity-worker-rag:", compose)
+        self.assertIn("activity-worker-context:", compose)
+        self.assertIn("activity-worker-knowledge:", compose)
+        self.assertIn("activity-worker-campus-services:", compose)
+        self.assertIn("activity-worker-notice:", compose)
+        self.assertIn("activity-worker-navigation:", compose)
         self.assertIn("activity-worker-finalization:", compose)
 
     def test_local_runtime_wires_structured_query_from_go_api_to_core_worker(self) -> None:

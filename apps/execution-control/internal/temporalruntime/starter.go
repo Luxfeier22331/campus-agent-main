@@ -10,14 +10,15 @@ import (
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
 )
 
 var ErrTemporalStarterNotConfigured = errors.New("temporal starter not configured")
 
 type ChatWorkflowStarter interface {
-	CancelChatAnswerWorkflow(context.Context, ChatAnswerWorkflowCancelInput) error
+	CancelCapabilityExecutionWorkflow(context.Context, CapabilityExecutionWorkflowCancelInput) error
 	CheckReadiness(context.Context) RuntimeReadiness
-	StartChatAnswerWorkflow(context.Context, ChatAnswerWorkflowInput) error
+	StartCapabilityExecutionWorkflow(context.Context, CapabilityExecutionWorkflowInput) error
 }
 
 const (
@@ -87,9 +88,9 @@ func NewStarter(ctx context.Context, options StarterOptions) (*Starter, error) {
 	}, nil
 }
 
-func (s *Starter) StartChatAnswerWorkflow(
+func (s *Starter) StartCapabilityExecutionWorkflow(
 	ctx context.Context,
-	input ChatAnswerWorkflowInput,
+	input CapabilityExecutionWorkflowInput,
 ) error {
 	if s == nil || s.client == nil {
 		return ErrTemporalStarterNotConfigured
@@ -110,15 +111,15 @@ func (s *Starter) StartChatAnswerWorkflow(
 			ID:        workflowID,
 			TaskQueue: taskQueue,
 		},
-		ChatAnswerWorkflow,
+		CapabilityExecutionWorkflow,
 		input,
 	)
 	return err
 }
 
-func (s *Starter) CancelChatAnswerWorkflow(
+func (s *Starter) CancelCapabilityExecutionWorkflow(
 	ctx context.Context,
-	input ChatAnswerWorkflowCancelInput,
+	input CapabilityExecutionWorkflowCancelInput,
 ) error {
 	if s == nil || s.client == nil {
 		return ErrTemporalStarterNotConfigured
@@ -162,7 +163,8 @@ func (s *Starter) CheckReadiness(ctx context.Context) RuntimeReadiness {
 
 func normalizeActivityTaskQueues(values []string) []string {
 	queues := []string{
-		ActivityTaskQueueRAG,
+		ActivityTaskQueueContext,
+		ActivityTaskQueueKnowledge,
 		ActivityTaskQueueFinalization,
 	}
 	for _, value := range values {
@@ -220,16 +222,21 @@ type WorkerOptions struct {
 	Address                string
 	Namespace              string
 	WorkflowQueue          string
-	RAGQueue               string
+	ContextQueue           string
+	KnowledgeQueue         string
 	FinalizationQueue      string
 	WorkerID               string
-	RAGActivities          RAGActivities
+	ContextActivities      ContextActivities
+	KnowledgeActivities    KnowledgeActivities
 	FinalizationActivities FinalizationActivities
 }
 
-type RAGActivities interface {
+type ContextActivities interface {
 	MemoryRecallActivity(context.Context, MemoryRecallActivityInput) (MemoryRecallActivityOutput, error)
-	PlanChatAnswerActivity(context.Context, PlanChatAnswerActivityInput) (PlanChatAnswerActivityOutput, error)
+	PlanRouteActivity(context.Context, PlanRouteActivityInput) (PlanRouteActivityOutput, error)
+}
+
+type KnowledgeActivities interface {
 	PlanRAGActivity(
 		context.Context,
 		PlanRAGActivityInput,
@@ -256,6 +263,13 @@ type RAGActivities interface {
 	) (VerifyGroundingActivityOutput, error)
 }
 
+type TypedToolActivities interface {
+	ExecuteTypedToolActivity(
+		context.Context,
+		ExecuteTypedToolActivityInput,
+	) (ExecuteTypedToolActivityOutput, error)
+}
+
 type FinalizationActivities interface {
 	WriteFinalizationActivity(
 		context.Context,
@@ -269,8 +283,11 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if address == "" || namespace == "" {
 		return nil, ErrTemporalStarterNotConfigured
 	}
-	if options.RAGActivities == nil {
-		return nil, errors.New("temporal rag activities are required")
+	if options.ContextActivities == nil {
+		return nil, errors.New("temporal context activities are required")
+	}
+	if options.KnowledgeActivities == nil {
+		return nil, errors.New("temporal knowledge activities are required")
 	}
 	if options.FinalizationActivities == nil {
 		return nil, errors.New("temporal finalization activities are required")
@@ -287,16 +304,21 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if workflowQueue == "" {
 		workflowQueue = WorkflowTaskQueue
 	}
-	ragQueue := strings.TrimSpace(options.RAGQueue)
-	if ragQueue == "" {
-		ragQueue = ActivityTaskQueueRAG
+	contextQueue := strings.TrimSpace(options.ContextQueue)
+	if contextQueue == "" {
+		contextQueue = ActivityTaskQueueContext
+	}
+	knowledgeQueue := strings.TrimSpace(options.KnowledgeQueue)
+	if knowledgeQueue == "" {
+		knowledgeQueue = ActivityTaskQueueKnowledge
 	}
 	finalizationQueue := strings.TrimSpace(options.FinalizationQueue)
 	if finalizationQueue == "" {
 		finalizationQueue = ActivityTaskQueueFinalization
 	}
 	workflowWorker := NewWorkflowWorker(temporalClient, workflowQueue)
-	ragWorker := NewRAGActivityWorker(temporalClient, ragQueue, options.RAGActivities)
+	contextWorker := NewContextActivityWorker(temporalClient, contextQueue, options.ContextActivities)
+	knowledgeWorker := NewKnowledgeActivityWorker(temporalClient, knowledgeQueue, options.KnowledgeActivities)
 	finalizationWorker := NewFinalizationActivityWorker(
 		temporalClient,
 		finalizationQueue,
@@ -304,7 +326,7 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	)
 	return &WorkerRuntime{
 		client:  temporalClient,
-		workers: []worker.Worker{workflowWorker, ragWorker, finalizationWorker},
+		workers: []worker.Worker{workflowWorker, contextWorker, knowledgeWorker, finalizationWorker},
 	}, nil
 }
 
@@ -327,49 +349,77 @@ func NewWorkflowWorker(temporalClient client.Client, queue string) worker.Worker
 		workflowQueue = WorkflowTaskQueue
 	}
 	workflowWorker := worker.New(temporalClient, workflowQueue, worker.Options{})
-	workflowWorker.RegisterWorkflow(ChatAnswerWorkflow)
+	workflowWorker.RegisterWorkflowWithOptions(CapabilityExecutionWorkflow, workflow.RegisterOptions{
+		Name: CapabilityExecutionWorkflowType,
+	})
 	return workflowWorker
 }
 
-func NewRAGActivityWorker(temporalClient client.Client, queue string, activities RAGActivities) worker.Worker {
-	ragQueue := strings.TrimSpace(queue)
-	if ragQueue == "" {
-		ragQueue = ActivityTaskQueueRAG
+func NewContextActivityWorker(temporalClient client.Client, queue string, activities ContextActivities) worker.Worker {
+	contextQueue := strings.TrimSpace(queue)
+	if contextQueue == "" {
+		contextQueue = ActivityTaskQueueContext
 	}
-	ragWorker := worker.New(temporalClient, ragQueue, worker.Options{})
-	ragWorker.RegisterActivityWithOptions(
+	contextWorker := worker.New(temporalClient, contextQueue, worker.Options{})
+	contextWorker.RegisterActivityWithOptions(
 		activities.MemoryRecallActivity,
 		activityRegisterOptions(MemoryRecallActivityName),
 	)
-	ragWorker.RegisterActivityWithOptions(
-		activities.PlanChatAnswerActivity,
-		activityRegisterOptions(PlanChatAnswerActivityName),
+	contextWorker.RegisterActivityWithOptions(
+		activities.PlanRouteActivity,
+		activityRegisterOptions(PlanRouteActivityName),
 	)
-	ragWorker.RegisterActivityWithOptions(
+	return contextWorker
+}
+
+func NewKnowledgeActivityWorker(temporalClient client.Client, queue string, activities KnowledgeActivities) worker.Worker {
+	knowledgeQueue := strings.TrimSpace(queue)
+	if knowledgeQueue == "" {
+		knowledgeQueue = ActivityTaskQueueKnowledge
+	}
+	knowledgeWorker := worker.New(temporalClient, knowledgeQueue, worker.Options{})
+	knowledgeWorker.RegisterActivityWithOptions(
 		activities.PlanRAGActivity,
 		activityRegisterOptions(PlanRAGActivityName),
 	)
-	ragWorker.RegisterActivityWithOptions(
+	knowledgeWorker.RegisterActivityWithOptions(
 		activities.RetrieveIndexedLookupActivity,
 		activityRegisterOptions(RetrieveIndexedLookupActivityName),
 	)
-	ragWorker.RegisterActivityWithOptions(
+	knowledgeWorker.RegisterActivityWithOptions(
 		activities.ExpandOrRescueRetrievalActivity,
 		activityRegisterOptions(ExpandOrRescueRetrievalActivityName),
 	)
-	ragWorker.RegisterActivityWithOptions(
+	knowledgeWorker.RegisterActivityWithOptions(
 		activities.SelectEvidenceActivity,
 		activityRegisterOptions(SelectEvidenceActivityName),
 	)
-	ragWorker.RegisterActivityWithOptions(
+	knowledgeWorker.RegisterActivityWithOptions(
 		activities.SynthesizeRAGAnswerActivity,
 		activityRegisterOptions(SynthesizeRAGAnswerActivityName),
 	)
-	ragWorker.RegisterActivityWithOptions(
+	knowledgeWorker.RegisterActivityWithOptions(
 		activities.VerifyGroundingActivity,
 		activityRegisterOptions(VerifyGroundingActivityName),
 	)
-	return ragWorker
+	return knowledgeWorker
+}
+
+func NewTypedToolActivityWorker(
+	temporalClient client.Client,
+	queue string,
+	activities TypedToolActivities,
+) worker.Worker {
+	typedToolQueue := strings.TrimSpace(queue)
+	if typedToolQueue == "" {
+		typedToolQueue = ActivityTaskQueueStructured
+	}
+	typedToolWorker := worker.New(temporalClient, typedToolQueue, worker.Options{})
+	typedToolWorker.RegisterActivityWithOptions(
+		activities.ExecuteTypedToolActivity,
+		activityRegisterOptions(ExecuteTypedToolActivityName),
+	)
+	return typedToolWorker
 }
 
 func NewFinalizationActivityWorker(

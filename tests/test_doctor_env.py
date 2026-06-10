@@ -28,7 +28,11 @@ def _execution_control_required_env() -> list[str]:
         "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow",
         "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001",
         "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001",
-        "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:001",
+        "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:001",
+        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001",
+        "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:001",
+        "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:001",
+        "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:001",
         "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001",
         "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
         "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
@@ -165,8 +169,8 @@ class DoctorEnvTest(unittest.TestCase):
                 "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
             )
             self.assertEqual(
-                required["temporal_rag_worker_identity"]["resolved_key"],
-                "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY",
+                required["temporal_knowledge_worker_identity"]["resolved_key"],
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
             )
             self.assertEqual(
                 optional["transport_queue_capacity"]["resolved_key"],
@@ -247,7 +251,7 @@ class DoctorEnvTest(unittest.TestCase):
             )
             self.assertFalse(status["settings"]["required"]["temporal_address"]["present"])
             self.assertFalse(
-                status["settings"]["required"]["temporal_rag_worker_identity"]["present"]
+                status["settings"]["required"]["temporal_knowledge_worker_identity"]["present"]
             )
 
     def test_collect_env_doctor_status_execution_control_enforces_execution_audit_when_enabled(

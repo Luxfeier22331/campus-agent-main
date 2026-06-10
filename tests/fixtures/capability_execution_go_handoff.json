@@ -1,6 +1,6 @@
 {
-	"bridge_version": "supervisor_bridge_v6",
-	"response_contract": "capability_response",
+	"execution_contract_version": "capability_execution_v1",
+	"response_contract": "execution_finalization_response_v1",
 	"user_goal": "保研政策怎么准备？",
 	"conversation_id": "conv-go-fixture-001",
 	"request_id": "req-go-fixture-001",
@@ -43,7 +43,7 @@
 		"mode": "current"
 	},
 	"runtime_decisions": {
-		"schema_version": "supervisor-runtime-decisions-v1",
+		"schema_version": "capability-execution-runtime-decisions-v1",
 		"effective_capability": "knowledge",
 		"lane": "rag",
 		"scope_gate": {
@@ -102,10 +102,10 @@
 		},
 		"handoff": {
 			"planning_outcome": "preplanned",
-			"target": "knowledge",
+			"capability": "knowledge",
 			"allowed_tools": [],
-			"agent_request": {
-				"target": "knowledge",
+			"capability_request": {
+				"capability": "knowledge",
 				"user_goal": "保研政策怎么准备？",
 				"conversation_id": "conv-go-fixture-001",
 				"request_id": "req-go-fixture-001",
@@ -144,9 +144,9 @@
 					"schema_version": "workflow-capability-context-v1",
 					"visibility": "capability_private",
 					"workflow_run_ref": "workflow:req-go-fixture-001",
-					"step_id": "handoff:knowledge:rag_request",
+					"step_id": "capability:knowledge:rag_request",
 					"capability_id": "knowledge",
-					"target": "knowledge",
+					"capability": "knowledge",
 					"required_projection_kind": "",
 					"expected_output_artifacts": ["evidence_bundle", "grounding_verdict"],
 					"projection_refs": []
@@ -170,9 +170,9 @@
 			"allowed_capabilities": ["knowledge"],
 			"steps": [
 				{
-					"step_id": "handoff:knowledge:rag_request",
+					"step_id": "capability:knowledge:rag_request",
 					"step_kind": "handoff",
-					"target": "knowledge",
+					"capability": "knowledge",
 					"payload_kind": "rag_request",
 					"allowed_tools": [],
 					"selected_tool": "retrieval.query"

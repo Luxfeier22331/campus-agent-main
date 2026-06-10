@@ -1,6 +1,6 @@
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
-import type { SupervisorExecutionWorkflowTraceSummary } from "../integration/supervisor-types";
+import type { CapabilityExecutionWorkflowTraceSummary } from "../integration/capability-execution-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -114,7 +114,7 @@ export interface RequestObservabilityFactWrite {
 	toolBusinessOutcome?: string | null;
 	toolFailCloseReason?: string | null;
 	toolHistoricalDowngradeReason?: string | null;
-	workflowTraceSummary?: SupervisorExecutionWorkflowTraceSummary | null;
+	workflowTraceSummary?: CapabilityExecutionWorkflowTraceSummary | null;
 	modelProvider: string | null;
 	modelName: string | null;
 	intentCapability: string | null;

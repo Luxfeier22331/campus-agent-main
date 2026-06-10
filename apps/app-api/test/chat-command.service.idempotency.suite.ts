@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	type ChatCommandStore,
 	createCommandStore,
 	createConversation,
@@ -12,7 +13,6 @@ import {
 	createTelemetryMock,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
-	type SupervisorExecutionClient,
 	ExecutionControlTransportError,
 } from "./chat-command.service.test-support";
 
@@ -32,7 +32,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			shouldThrottle: true,
 			throttleReason: "requests_per_minute",
 		});
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const service = buildChatCommandService({
@@ -111,7 +111,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				execute: vi.fn().mockRejectedValue(
 					new ExecutionControlTransportError({
 						code: "execution_timeout",
-						message: "Supervisor execution timed out.",
+						message: "Execution timed out.",
 						retryable: true,
 						status: 504,
 					}),
@@ -131,7 +131,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			assistantMessage: {
 				kind: "error",
 				retryable: true,
-				text: "Supervisor execution timed out.",
+				text: "Execution timed out.",
 			},
 			outboxEvent: {
 				eventType: "request.error",
@@ -144,7 +144,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		expect(response.answer.result).toEqual({
 			errorCode: "execution_timeout",
 			kind: "error",
-			message: "Supervisor execution timed out.",
+			message: "Execution timed out.",
 			requestId: "req_0001",
 			retryable: true,
 			traceId: "trace_0001",
@@ -283,7 +283,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		store.findIdempotentRequest = findIdempotentRequest;
 		const supervisor = {
 			execute: vi.fn(),
-		} satisfies SupervisorExecutionClient;
+		} satisfies CapabilityExecutionClient;
 
 		const service = buildChatCommandService({
 			computeFingerprint: () => "fingerprint:图书馆开放到几点？",
@@ -339,7 +339,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		conversationStore.getConversationByOwner = vi.fn().mockResolvedValue(null);
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -400,7 +400,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 	it("creates a conversation lazily on the first chat request when conversationId is omitted", async () => {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,

@@ -6,9 +6,9 @@ import type {
 	ExecutionAuthorizationContext,
 } from "../../app-api/src/modules/auth";
 import type {
+	CapabilityExecutionInput,
+	CapabilityExecutionResponse,
 	ExecutionControlRuntimeClient,
-	SupervisorExecutionInput,
-	SupervisorExecutionResponse,
 } from "../../app-api/src/modules/integration";
 import {
 	buildChatCommandService,
@@ -57,7 +57,7 @@ function durableRun(overrides: Record<string, unknown> = {}) {
 
 function durableFinalizationEvent(input: {
 	requestId: string;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	runId: string;
 	traceId: string;
 }) {
@@ -79,7 +79,7 @@ function durableFinalizationEvent(input: {
 }
 
 function toExecutionControlWireResponse(
-	response: SupervisorExecutionResponse,
+	response: CapabilityExecutionResponse,
 ): Record<string, unknown> {
 	return {
 		answer_text: response.answerText,
@@ -103,9 +103,7 @@ function toSnakeCaseRecord(value: unknown): Record<string, unknown> | null {
 	return Object.fromEntries(
 		Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
 			key.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`),
-			Array.isArray(entry)
-				? entry.map((item) => toSnakeCaseValue(item))
-				: toSnakeCaseValue(entry),
+			Array.isArray(entry) ? entry.map((item) => toSnakeCaseValue(item)) : toSnakeCaseValue(entry),
 		]),
 	);
 }
@@ -120,7 +118,7 @@ function toSnakeCaseValue(value: unknown): unknown {
 	return toSnakeCaseRecord(value);
 }
 
-function supervisorInputContextFromWire(value: unknown): SupervisorExecutionInput["context"] {
+function executionInputContextFromWire(value: unknown): CapabilityExecutionInput["context"] {
 	const context = recordFromWire(value, "execution payload context");
 	return {
 		actor: executionActorFromWire(context.actor),
@@ -182,7 +180,7 @@ function executionAuthorizationFromWire(value: unknown): ExecutionAuthorizationC
 	};
 }
 
-function sessionFromWire(value: unknown): SupervisorExecutionInput["context"]["session"] {
+function sessionFromWire(value: unknown): CapabilityExecutionInput["context"]["session"] {
 	const session = recordFromWire(value, "execution payload session");
 	const confirmedSlots = Array.isArray(session.confirmed_slots) ? session.confirmed_slots : [];
 	return {
@@ -340,7 +338,7 @@ describe("public chat web chat integration", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const observedResults: Record<string, unknown>[] = [];
-		const supervisorExecute = vi.fn(async (input: SupervisorExecutionInput) => {
+		const supervisorExecute = vi.fn(async (input: CapabilityExecutionInput) => {
 			const route = findCampusServicesRoutingCase(input.userGoal);
 			const response = buildCampusServicesExecutionResponse(input, route);
 			observedResults.push(response.result as Record<string, unknown>);
@@ -374,7 +372,7 @@ describe("public chat web chat integration", () => {
 					user_goal: string;
 				};
 				const response = await supervisorExecute({
-					context: supervisorInputContextFromWire(executionPayload.context),
+					context: executionInputContextFromWire(executionPayload.context),
 					conversationId: createInput.conversationId,
 					requestId: executionPayload.request_id,
 					requestedCapability: createInput.requestedCapability,
@@ -505,13 +503,13 @@ describe("public chat web chat integration", () => {
 
 		expect(supervisorExecute).toHaveBeenCalledTimes(CAMPUS_SERVICES_ROUTING_CASES.length);
 		for (const [index, route] of CAMPUS_SERVICES_ROUTING_CASES.entries()) {
-			const supervisorInput = supervisorExecute.mock.calls[index]?.[0];
-			expect(supervisorInput).toMatchObject({
+			const executionInput = supervisorExecute.mock.calls[index]?.[0];
+			expect(executionInput).toMatchObject({
 				requestedCapability: null,
 				surface: "public_chat_web",
 				userGoal: route.prompt,
 			});
-			expect(supervisorInput?.context.actor).toMatchObject({
+			expect(executionInput?.context.actor).toMatchObject({
 				principalId: "user_01HQ",
 				principalType: "student",
 				userId: "user_01HQ",
@@ -552,7 +550,7 @@ describe("public chat web chat integration", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const observedResults: Record<string, unknown>[] = [];
-		const supervisorExecute = vi.fn(async (input: SupervisorExecutionInput) => {
+		const supervisorExecute = vi.fn(async (input: CapabilityExecutionInput) => {
 			const currentCase = findCampusServicesGuardrailCase(input.userGoal);
 			const response = buildCampusServicesGuardrailExecutionResponse(input, currentCase);
 			observedResults.push(response.result as Record<string, unknown>);
@@ -586,7 +584,7 @@ describe("public chat web chat integration", () => {
 					user_goal: string;
 				};
 				const response = await supervisorExecute({
-					context: supervisorInputContextFromWire(executionPayload.context),
+					context: executionInputContextFromWire(executionPayload.context),
 					conversationId: createInput.conversationId,
 					requestId: executionPayload.request_id,
 					requestedCapability: createInput.requestedCapability,
@@ -717,8 +715,8 @@ describe("public chat web chat integration", () => {
 
 		expect(supervisorExecute).toHaveBeenCalledTimes(CAMPUS_SERVICES_GUARDRAIL_CASES.length);
 		for (const [index, currentCase] of CAMPUS_SERVICES_GUARDRAIL_CASES.entries()) {
-			const supervisorInput = supervisorExecute.mock.calls[index]?.[0];
-			expect(supervisorInput).toMatchObject({
+			const executionInput = supervisorExecute.mock.calls[index]?.[0];
+			expect(executionInput).toMatchObject({
 				requestedCapability: null,
 				surface: "public_chat_web",
 				userGoal: currentCase.prompt,

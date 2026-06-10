@@ -37,7 +37,7 @@ def _provider_config() -> PromptRuntimeProviderConfig:
 
 def _build_rag_packet():
     request = CapabilityRequest(
-        target="knowledge",
+        capability="knowledge",
         user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
         request_id="req-rag-provider-exec",
         safety_identifier="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

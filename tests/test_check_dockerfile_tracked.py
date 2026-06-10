@@ -117,8 +117,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             {
                 "!tests/",
                 "!tests/fixtures/",
-                "!tests/fixtures/supervisor_execution_contract/",
-                "!tests/fixtures/supervisor_execution_contract/**",
+                "!tests/fixtures/capability_execution_contract/",
+                "!tests/fixtures/capability_execution_contract/**",
             }.issubset(patterns)
         )
 
@@ -151,8 +151,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         dockerfile = (repo_root / "apps/execution-control/Dockerfile").read_text(encoding="utf-8")
 
         copy_statement = (
-            "COPY tests/fixtures/supervisor_execution_contract "
-            "/src/tests/fixtures/supervisor_execution_contract"
+            "COPY tests/fixtures/capability_execution_contract "
+            "/src/tests/fixtures/capability_execution_contract"
         )
 
         self.assertIn(copy_statement, dockerfile)

@@ -2,12 +2,12 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreLifecycleSuite(): void {
@@ -15,7 +15,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
@@ -117,7 +117,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
@@ -177,7 +177,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆在海淀校区主教学区西侧。",
 				error: null,

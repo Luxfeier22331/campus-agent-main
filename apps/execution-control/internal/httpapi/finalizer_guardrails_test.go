@@ -11,7 +11,7 @@ func TestFinalizerContextFromExecutionRequestCarriesVersionProvenance(t *testing
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				SelectedTool: "retrieval.query",
 				RuntimeVersions: map[string]any{
-					"bridge_contract": "supervisor_bridge_v6",
+					"execution_contract": "capability_execution_v1",
 				},
 				PolicyArtifactVersions: map[string]any{
 					"intent_case_set": "intent-case-set-v2",
@@ -21,7 +21,7 @@ func TestFinalizerContextFromExecutionRequestCarriesVersionProvenance(t *testing
 		"delegate",
 	)
 
-	if context.RuntimeVersions["bridge_contract"] != "supervisor_bridge_v6" {
+	if context.RuntimeVersions["execution_contract"] != "capability_execution_v1" {
 		t.Fatalf("runtime versions = %#v, want bridge contract", context.RuntimeVersions)
 	}
 	if context.PolicyVersions["intent_case_set"] != "intent-case-set-v2" {
@@ -29,8 +29,8 @@ func TestFinalizerContextFromExecutionRequestCarriesVersionProvenance(t *testing
 	}
 }
 
-func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t *testing.T) {
-	clarification := terminalSupervisorResponse(
+func TestTerminalExecutionResponseClassifiesClarificationAndFailCloseBranches(t *testing.T) {
+	clarification := terminalExecutionResponse(
 		map[string]any{
 			"selected_capability": "campus_services",
 			"status":              "needs_clarification",
@@ -39,7 +39,7 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 			},
 		},
 		"trace-terminal-clarification",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "terminal",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				PlanningOutcome:       "not_preplanned",
@@ -59,7 +59,7 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 		t.Fatalf("clarification branch = %v, want clarification", clarificationTrace["direct_vs_delegate_branch"])
 	}
 
-	failClose := terminalSupervisorResponse(
+	failClose := terminalExecutionResponse(
 		map[string]any{
 			"selected_capability": "campus_services",
 			"status":              "no_answer",
@@ -68,7 +68,7 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 			},
 		},
 		"trace-terminal-fail-close",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "terminal",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				FailCloseReason:   "transactional_action_not_supported",
@@ -92,7 +92,7 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "图书馆开放到 22:00。",
 			"follow_up_question": "",
@@ -104,7 +104,7 @@ func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
 			},
 		},
 		"trace-finalizer-rag-tool-summary",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:  "allow",
 				PolicyGateDecision: "allow",
@@ -172,7 +172,7 @@ func TestWorkflowHandoffSummaryProjectsNilAllowedToolsAsEmptyArray(t *testing.T)
 func TestFinalizeAgentBridgeResponseRejectsRawCapabilityObservabilityKeys(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "campus_services",
+			"capability":         "campus_services",
 			"status":             "completed",
 			"answer_text":        "unexpected",
 			"follow_up_question": "",
@@ -184,7 +184,7 @@ func TestFinalizeAgentBridgeResponseRejectsRawCapabilityObservabilityKeys(t *tes
 			},
 		},
 		"trace-finalizer-raw-agent-observability",
-		supervisorFinalizerContext{},
+		executionFinalizerContext{},
 	)
 
 	if err == nil {
@@ -195,7 +195,7 @@ func TestFinalizeAgentBridgeResponseRejectsRawCapabilityObservabilityKeys(t *tes
 func TestFinalizeAgentBridgeResponseRejectsRawRagSdkResultDiagnostics(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "本科生可申请国家奖学金。",
 			"follow_up_question": "",
@@ -223,7 +223,7 @@ func TestFinalizeAgentBridgeResponseRejectsRawRagSdkResultDiagnostics(t *testing
 			},
 		},
 		"trace-finalizer-rag-sdk-result-raw",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:  "allow",
 				PolicyGateDecision: "allow",
@@ -251,13 +251,13 @@ func TestFinalizeAgentBridgeResponseRejectsRawRagSdkResultDiagnostics(t *testing
 func TestFinalizeAgentBridgeResponseRejectsUnsupportedTarget(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":      "unexpected-capability",
+			"capability":  "unexpected-capability",
 			"status":      "completed",
 			"answer_text": "unexpected",
 			"confidence":  "high",
 		},
 		"trace-finalizer-invalid-target",
-		supervisorFinalizerContext{},
+		executionFinalizerContext{},
 	)
 
 	if err == nil {
@@ -268,7 +268,7 @@ func TestFinalizeAgentBridgeResponseRejectsUnsupportedTarget(t *testing.T) {
 func TestFinalizeAgentBridgeResponseDoesNotInferSelectedToolFromStructuredResult(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "campus_services",
+			"capability":         "campus_services",
 			"status":             "completed",
 			"answer_text":        "当前班车正常运行。",
 			"follow_up_question": "",
@@ -279,7 +279,7 @@ func TestFinalizeAgentBridgeResponseDoesNotInferSelectedToolFromStructuredResult
 			},
 		},
 		"trace-finalizer-no-infer-selected-tool",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "delegate",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				SelectedCapability: "campus_services",
@@ -315,13 +315,13 @@ func TestFinalizeAgentBridgeResponseDoesNotInferSelectedToolFromStructuredResult
 func TestFinalizeAgentBridgeResponseRejectsUnsupportedConfidence(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":      "knowledge",
+			"capability":  "knowledge",
 			"status":      "completed",
 			"answer_text": "unexpected",
 			"confidence":  "certain",
 		},
 		"trace-finalizer-invalid-confidence",
-		supervisorFinalizerContext{},
+		executionFinalizerContext{},
 	)
 
 	if err == nil {
@@ -332,46 +332,46 @@ func TestFinalizeAgentBridgeResponseRejectsUnsupportedConfidence(t *testing.T) {
 func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 	for name, body := range map[string]map[string]any{
 		"non_string_confidence": {
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "unexpected",
 			"follow_up_question": "",
 			"confidence":         true,
 		},
 		"missing_confidence": {
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "unexpected",
 			"follow_up_question": "",
 		},
 		"non_string_answer_text": {
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        123,
 			"follow_up_question": "",
 			"confidence":         "high",
 		},
 		"missing_answer_text": {
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"follow_up_question": "",
 			"confidence":         "high",
 		},
 		"non_string_follow_up_question": {
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "needs_clarification",
 			"answer_text":        "",
 			"follow_up_question": []any{"which campus"},
 			"confidence":         "low",
 		},
 		"missing_follow_up_question": {
-			"capability":      "knowledge",
+			"capability":  "knowledge",
 			"status":      "needs_clarification",
 			"answer_text": "",
 			"confidence":  "low",
 		},
 		"non_object_result": {
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "unexpected",
 			"follow_up_question": "",
@@ -379,7 +379,7 @@ func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 			"result":             []any{"not", "object"},
 		},
 		"non_object_error": {
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "error",
 			"answer_text":        "",
 			"follow_up_question": "",
@@ -387,7 +387,7 @@ func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 			"error":              "failed",
 		},
 		"error_missing_retryable": {
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "error",
 			"answer_text":        "",
 			"follow_up_question": "",
@@ -402,7 +402,7 @@ func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 			_, err := finalizeAgentBridgeResponse(
 				body,
 				"trace-finalizer-malformed",
-				supervisorFinalizerContext{},
+				executionFinalizerContext{},
 			)
 
 			if err == nil {

@@ -1,16 +1,16 @@
 import { type ChatConversation, DRAFT_CONVERSATION_TITLE, toConversationResponse } from "../chat";
 import {
-	type SupervisorExecutionInput,
-	type SupervisorExecutionResponse,
+	type CapabilityExecutionInput,
+	type CapabilityExecutionResponse,
 	ExecutionControlTransportError,
 } from "../integration";
-import { type RuntimeRunPhase, runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
+import { type RuntimeRunPhase, runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 
 import {
 	startDurableFinalizationCloseout,
 	waitForDurableFinalizationResponse,
 } from "./service/durable";
-import { buildDurableRagRunMetadata } from "./service/durable-metadata";
+import { buildCapabilityExecutionRunMetadata } from "./service/durable-metadata";
 import {
 	buildAbuseThrottleRejectedResponse,
 	createPreAcceptError,
@@ -34,9 +34,9 @@ import {
 } from "./service/types";
 import {
 	buildAcceptedWrite,
+	buildCapabilityExecutionContextProjection,
 	buildConversationTitle,
 	buildFinalizedWrite,
-	buildSupervisorContextProjection,
 } from "./service/writes";
 
 export { deriveSafetyIdentifier } from "./service/normalize";
@@ -316,9 +316,9 @@ export function buildChatCommandService(
 
 	async function buildSupervisorInput(
 		context: AcceptedChatCommandContext,
-	): Promise<SupervisorExecutionInput> {
+	): Promise<CapabilityExecutionInput> {
 		return {
-			context: buildSupervisorContextProjection({
+			context: buildCapabilityExecutionContextProjection({
 				actor: context.input.principal.actor,
 				authorization: context.input.principal.authorization,
 				sessionSlots: context.conversation.sessionSlots,
@@ -338,7 +338,7 @@ export function buildChatCommandService(
 	}
 
 	async function createDurableRunForAcceptedCommand(context: AcceptedChatCommandContext): Promise<{
-		response: SupervisorExecutionResponse | null;
+		response: CapabilityExecutionResponse | null;
 		transportError: { code: string; retryable: boolean } | null;
 	}> {
 		if (!dependencies.executionRuntime) {
@@ -356,12 +356,19 @@ export function buildChatCommandService(
 			});
 		}
 
-		const supervisorInput = await buildSupervisorInput(context);
+		const executionInput = await buildSupervisorInput(context);
 		try {
+			const durableMetadata = buildCapabilityExecutionRunMetadata(executionInput);
+			const executionPayload = durableMetadata.execution_payload as Record<string, unknown>;
+			const lane = stringOrThrow(executionPayload.lane, "durable execution lane");
+			const selectedCapability = stringOrThrow(
+				executionPayload.effective_capability,
+				"durable execution capability",
+			);
 			const run = await dependencies.executionRuntime.createRun({
 				conversationId: context.conversation.id,
-				lane: "rag",
-				metadata: buildDurableRagRunMetadata(supervisorInput),
+				lane,
+				metadata: durableMetadata,
 				ownerUserId: context.input.principal.actor.userId,
 				requestId: context.requestId,
 				requestedCapability: context.validatedPayload.requestedCapability,
@@ -369,13 +376,13 @@ export function buildChatCommandService(
 				runtimeVersions: {
 					contract: "durable-agent-runtime-contract-v1",
 				},
-				selectedCapability: context.validatedPayload.requestedCapability,
+				selectedCapability,
 				surface: context.surface,
-				traceHeaders: supervisorInput.traceHeaders,
+				traceHeaders: executionInput.traceHeaders,
 				traceId: context.traceId,
 				turnId: context.turnId,
 			});
-			context.runPhase = runtimeRunPhaseFromSupervisorStatus(run.status);
+			context.runPhase = runtimeRunPhaseFromExecutionStatus(run.status);
 			return {
 				response: null,
 				transportError: null,
@@ -429,7 +436,7 @@ export function buildChatCommandService(
 
 	async function finalizeAcceptedCommand(input: {
 		context: AcceptedChatCommandContext;
-		executionResponse: SupervisorExecutionResponse;
+		executionResponse: CapabilityExecutionResponse;
 		transportError?: { code: string; retryable: boolean } | null;
 	}) {
 		const { context } = input;
@@ -571,7 +578,7 @@ export function buildChatCommandService(
 		context: AcceptedChatCommandContext;
 		executionRuntime: NonNullable<ChatCommandServiceDependencies["executionRuntime"]>;
 	}): Promise<{
-		response: SupervisorExecutionResponse;
+		response: CapabilityExecutionResponse;
 		transportError: { code: string; retryable: boolean } | null;
 	}> {
 		try {
@@ -600,7 +607,7 @@ export function buildChatCommandService(
 
 	async function buildThrottleResponseIfNeeded(
 		context: AcceptedChatCommandContext,
-	): Promise<SupervisorExecutionResponse | null> {
+	): Promise<CapabilityExecutionResponse | null> {
 		const abuseControlState = await getAbuseControlState(context);
 		if (abuseControlState?.shouldThrottle) {
 			return buildAbuseThrottleRejectedResponse({
@@ -716,4 +723,16 @@ export function buildChatCommandService(
 			});
 		},
 	};
+}
+
+function stringOrThrow(value: unknown, fieldName: string): string {
+	if (typeof value !== "string" || value.trim() === "") {
+		throw new ExecutionControlTransportError({
+			code: "runtime_invariant_failed",
+			message: `${fieldName} is missing from durable execution metadata.`,
+			retryable: false,
+			status: 500,
+		});
+	}
+	return value;
 }

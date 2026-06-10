@@ -10,9 +10,9 @@ from campus_contracts import (
     CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
+    ExecutionResponse,
     KnowledgeScope,
     RagResultPayload,
-    SupervisorResponse,
 )
 from campus_evals import (
     ExecutionResult,
@@ -264,7 +264,7 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertIn("6月1日至9月30日", projection.retrieved_contexts[0])
         self.assertNotIn("文号：", projection.retrieved_contexts[0])
 
-    def test_build_ragas_projection_accepts_supervisor_response_shape(self) -> None:
+    def test_build_ragas_projection_accepts_execution_response_shape(self) -> None:
         case = GoldenCase(
             case_id="ragas-supervisor-1",
             split="release_gate",
@@ -276,7 +276,7 @@ class RagasProjectionTest(unittest.TestCase):
             required_facts=("08:00",),
         )
         execution = ExecutionResult(
-            response=SupervisorResponse(
+            response=ExecutionResponse(
                 selected_capability="knowledge",
                 status="completed",
                 answer_text="Library hours are 08:00 to 22:00.",

@@ -1,4 +1,4 @@
-import type { SupervisorExecutionResponse } from "../../app-api/src/modules/integration";
+import type { CapabilityExecutionResponse } from "../../app-api/src/modules/integration";
 
 export type CampusServicesTool =
 	| "contact_directory_lookup"
@@ -15,7 +15,7 @@ export interface CampusServicesRoutingCase {
 
 export interface CampusServicesGuardrailCase {
 	expectedResultKind: "answer" | "clarification" | "no_answer" | "error";
-	expectedStatus: SupervisorExecutionResponse["status"];
+	expectedStatus: CapabilityExecutionResponse["status"];
 	expectedTextFragments: string[];
 	expectedTool: CampusServicesTool;
 	forbiddenTextFragments: string[];

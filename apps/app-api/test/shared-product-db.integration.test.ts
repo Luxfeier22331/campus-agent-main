@@ -9,8 +9,8 @@ import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { createPgChatConversationStore } from "../src/modules/chat";
 import type {
-	SupervisorExecutionInput,
-	SupervisorExecutionResponse,
+	CapabilityExecutionInput,
+	CapabilityExecutionResponse,
 } from "../src/modules/integration/execution-control";
 import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
 import {
@@ -252,7 +252,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 		expect(createResponse.status).toBe(201);
 
 		const supervisor: {
-			execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
+			execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
 		} = {
 			execute: vi
 				.fn()

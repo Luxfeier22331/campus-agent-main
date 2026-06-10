@@ -86,7 +86,11 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
             "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
             "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY",
-            "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
             "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
             "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
             "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
@@ -124,7 +128,12 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("EXECUTION_CONTROL_SHARED_SECRET=", env_example)
         self.assertNotIn("SUPERVISOR_AGENT_WORKER_SHARED_SECRET=", env_example)
         self.assertNotIn("supervisor-agent-worker:", compose)
-        self.assertIn("activity-worker-rag:", compose)
+        self.assertNotIn("activity-worker-rag:", compose)
+        self.assertIn("activity-worker-context:", compose)
+        self.assertIn("activity-worker-knowledge:", compose)
+        self.assertIn("activity-worker-campus-services:", compose)
+        self.assertIn("activity-worker-notice:", compose)
+        self.assertIn("activity-worker-navigation:", compose)
         self.assertIn("activity-worker-finalization:", compose)
         self.assertIn("./cmd/worker-autoscaler", execution_control_dockerfile)
         self.assertIn("/usr/local/bin/worker-autoscaler", execution_control_dockerfile)
@@ -163,7 +172,7 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:?set EMBEDDING_DIMENSIONS}"
         )
 
-        self.assertEqual(compose.count(embedding_dimension_env), 2)
+        self.assertEqual(compose.count(embedding_dimension_env), 3)
 
     def test_core_module_owns_process_compose_and_uv_helpers(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
@@ -176,7 +185,11 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("Operation not permitted", core_script)
         self.assertIn('[[ "${services}" == *"otel-collector"* ]]', core_script)
         self.assertIn('[[ "${services}" == *"workflow-worker"* ]]', core_script)
-        self.assertIn('[[ "${services}" == *"activity-worker-rag"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-context"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-knowledge"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-campus-services"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-notice"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-navigation"* ]]', core_script)
         self.assertIn('[[ "${services}" == *"activity-worker-finalization"* ]]', core_script)
         self.assertIn("execution_control_staging_probe_http_url", core_script)
         self.assertIn("execution_control_staging_probe_json_path_equals", core_script)

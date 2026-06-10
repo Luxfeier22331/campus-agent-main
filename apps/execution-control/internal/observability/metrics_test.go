@@ -10,7 +10,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	metrics := NewMetrics()
 
 	finish := metrics.BeginRequest("/internal/execution/runs")
-	finish(200, "supervisor_response", 120*time.Millisecond)
+	finish(200, "execution_response", 120*time.Millisecond)
 	metrics.RecordAdmissionDecision("queue_full", 0)
 	metrics.RecordAdmissionDecision("admitted_queued", 12*time.Millisecond)
 	metrics.RecordAdmissionDecisionForLane("rag", "admitted_queued", 8*time.Millisecond)
@@ -55,7 +55,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	}))
 
 	expectedSnippets := []string{
-		`campus_execution_control_requests_total{route="/internal/execution/runs",outcome="supervisor_response",status_class="2xx"} 1`,
+		`campus_execution_control_requests_total{route="/internal/execution/runs",outcome="execution_response",status_class="2xx"} 1`,
 		`campus_execution_control_request_duration_ms_bucket{route="/internal/execution/runs",le="250.000"} 1`,
 		`campus_execution_control_request_duration_ms_count{route="/internal/execution/runs"} 1`,
 		`campus_execution_control_inflight_requests{route="/internal/execution/runs"} 0`,

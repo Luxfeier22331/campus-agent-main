@@ -1,19 +1,14 @@
-/* AUTO-GENERATED FROM supervisor-execution.openapi.yaml. Do not edit by hand. */
+/* AUTO-GENERATED FROM capability-execution.openapi.yaml. Do not edit by hand. */
 
-export const SUPERVISOR_EXECUTION_CONTRACT = {
-	bridgeVersion: "supervisor_bridge_v6",
-	responseContract: "capability_response",
-	runtimeDecisionsSchemaVersion: "supervisor-runtime-decisions-v1",
+export const CAPABILITY_EXECUTION_CONTRACT = {
+	executionContractVersion: "capability_execution_v1",
+	responseContract: "execution_finalization_response_v1",
+	runtimeDecisionsSchemaVersion: "capability-execution-runtime-decisions-v1",
 	runtimeDecisionSummarySchemaVersion: "runtime-decision-summary-v1",
 	workflowTraceSummaryVersion: "workflow-trace-summary-v4",
 } as const;
 
-export const CAPABILITY_IDS = [
-	"knowledge",
-	"navigation",
-	"campus_services",
-	"notice",
-] as const;
+export const CAPABILITY_IDS = ["knowledge", "navigation", "campus_services", "notice"] as const;
 export const REQUESTED_CAPABILITIES = [
 	"knowledge",
 	"navigation",
@@ -27,7 +22,7 @@ export const DELEGATE_STATUSES = [
 	"no_answer",
 	"error",
 ] as const;
-export const SUPERVISOR_STATUSES = [
+export const EXECUTION_STATUSES = [
 	"completed",
 	"needs_clarification",
 	"no_answer",
@@ -51,7 +46,7 @@ export type CapabilityID = (typeof CAPABILITY_IDS)[number];
 export type RequestedCapability = (typeof REQUESTED_CAPABILITIES)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];
-export type SupervisorStatus = (typeof SUPERVISOR_STATUSES)[number];
+export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 
 export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
 export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[number];
@@ -59,7 +54,7 @@ export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[num
 export type SafeRecord = Record<string, unknown>;
 
 export interface RuntimeDecisionSummaryWire {
-	schema_version: typeof SUPERVISOR_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion;
+	schema_version: typeof CAPABILITY_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion;
 	scope_gate_decision?: string;
 	policy_gate_decision?: string;
 	context_preflight_state?: string;
@@ -153,7 +148,7 @@ export interface CapabilityInvocationWire {
 }
 
 export interface RuntimeDecisionsWire {
-	schema_version: typeof SUPERVISOR_EXECUTION_CONTRACT.runtimeDecisionsSchemaVersion;
+	schema_version: typeof CAPABILITY_EXECUTION_CONTRACT.runtimeDecisionsSchemaVersion;
 	effective_capability: RequestedCapability;
 	lane: string;
 	routing_frame: SafeRecord;
@@ -180,9 +175,9 @@ export interface CapabilityResponseWire {
 	capability_observability?: SafeRecord | null;
 }
 
-export interface BridgeV6RequestWire {
-	bridge_version: typeof SUPERVISOR_EXECUTION_CONTRACT.bridgeVersion;
-	response_contract: typeof SUPERVISOR_EXECUTION_CONTRACT.responseContract;
+export interface CapabilityExecutionRequestWire {
+	execution_contract_version: typeof CAPABILITY_EXECUTION_CONTRACT.executionContractVersion;
+	response_contract: typeof CAPABILITY_EXECUTION_CONTRACT.responseContract;
 	user_goal: string;
 	conversation_id?: string;
 	request_id: string;
@@ -213,7 +208,7 @@ export interface CapabilityRequestWire {
 	allowed_tools: string[];
 }
 
-export interface SupervisorExecutionWorkflowTraceSummaryWire {
+export interface CapabilityExecutionWorkflowTraceSummaryWire {
 	routing_frame: SafeRecord;
 	context_resolution: SafeRecord;
 	planning_outcome: string;
@@ -236,15 +231,15 @@ export interface SupervisorExecutionWorkflowTraceSummaryWire {
 	policy_artifact_versions: SafeRecord;
 }
 
-export interface SupervisorExecutionResponseWire {
+export interface CapabilityExecutionResponseWire {
 	selected_capability: CapabilityID | null;
-	status: SupervisorStatus;
+	status: ExecutionStatus;
 	answer_text: string;
 	follow_up_question: string;
 	confidence: ConfidenceLevel;
 	result: SafeRecord | null;
 	error: { code: string; message: string; retryable: boolean } | null;
 	observability?: SafeRecord | null;
-	workflow_trace_summary?: SupervisorExecutionWorkflowTraceSummaryWire | null;
+	workflow_trace_summary?: CapabilityExecutionWorkflowTraceSummaryWire | null;
 	trace_id: string;
 }

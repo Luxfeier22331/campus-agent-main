@@ -72,6 +72,38 @@ func (s *Server) temporalActivityRunAllowCompletedFinalization(
 	return run, nil
 }
 
+func (s *Server) temporalActivityRunAllowCompletedToolFinalization(
+	ctx context.Context,
+	runID string,
+	traceID string,
+	toolResultRef string,
+) (execution.DurableRun, error) {
+	if s == nil || s.runProjectionStore == nil {
+		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
+	}
+	run, err := s.runProjectionStore.GetRun(ctx, runID)
+	if err != nil {
+		return execution.DurableRun{}, err
+	}
+	if run.TraceID != traceID {
+		return execution.DurableRun{}, fmt.Errorf(
+			"activity trace_id %s does not match run trace_id %s",
+			traceID,
+			run.TraceID,
+		)
+	}
+	if run.Status == execution.DurableRunStatusCompleted {
+		if _, err := temporalToolResultFromRun(run, toolResultRef, ""); err != nil {
+			return execution.DurableRun{}, err
+		}
+		return run, nil
+	}
+	if temporalRunTerminal(run.Status) {
+		return execution.DurableRun{}, fmt.Errorf("run %s is already terminal: %s", run.RunID, run.Status)
+	}
+	return run, nil
+}
+
 func temporalRunTerminal(status execution.DurableRunStatus) bool {
 	switch status {
 	case execution.DurableRunStatusCompleted,
@@ -89,20 +121,20 @@ func (s *Server) failTemporalPlanning(
 	run execution.DurableRun,
 	failureKind string,
 	cause error,
-) (temporalruntime.PlanChatAnswerActivityOutput, error) {
+) (temporalruntime.PlanRouteActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
 		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "plan"),
+		ProjectionRef: temporalProjectionRef(run.RunID, "plan/route"),
 		ResultKind:    "activity_failure",
-		StepID:        "planning",
+		StepID:        "plan.route",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
 		},
 	}, cause)
-	return temporalruntime.PlanChatAnswerActivityOutput{}, err
+	return temporalruntime.PlanRouteActivityOutput{}, err
 }
 
 func (s *Server) failRAGPlanActivity(
@@ -117,7 +149,7 @@ func (s *Server) failRAGPlanActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "rag.plan",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -138,7 +170,7 @@ func (s *Server) failRetrieveIndexedLookupActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "retrieval.indexed_lookup",
 		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -159,7 +191,7 @@ func (s *Server) failExpandOrRescueRetrievalActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "retrieval.expand_or_rescue",
 		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -180,7 +212,7 @@ func (s *Server) failSelectEvidenceActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "evidence.selection",
 		StepKind:      "selection",
-		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -201,7 +233,7 @@ func (s *Server) failVerifyGroundingActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "grounding.verify",
 		StepKind:      "grounding",
-		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -725,8 +757,8 @@ func temporalActivityTypeForStep(stepID string) string {
 	switch strings.TrimSpace(stepID) {
 	case "memory.recall":
 		return temporalruntime.MemoryRecallActivityName
-	case "planning":
-		return temporalruntime.PlanChatAnswerActivityName
+	case "plan.route":
+		return temporalruntime.PlanRouteActivityName
 	case "rag.plan":
 		return temporalruntime.PlanRAGActivityName
 	case "retrieval.indexed_lookup":
@@ -739,6 +771,8 @@ func temporalActivityTypeForStep(stepID string) string {
 		return temporalruntime.SynthesizeRAGAnswerActivityName
 	case "grounding.verify":
 		return temporalruntime.VerifyGroundingActivityName
+	case "typed_tool.execute":
+		return temporalruntime.ExecuteTypedToolActivityName
 	case "finalization.write":
 		return temporalruntime.WriteFinalizationActivityName
 	default:

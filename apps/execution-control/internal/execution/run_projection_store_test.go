@@ -355,7 +355,7 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		WorkflowID:            "campus-agent.chat.run-steps",
 		TemporalRunID:         "temporal-run-001",
 		ActivityID:            "activity-planning-001",
-		ActivityType:          "PlanChatAnswerActivity",
+		ActivityType:          "PlanRouteActivity",
 		ActivityAttempt:       1,
 		ScheduledAt:           now.Add(900 * time.Millisecond),
 		StartedAt:             now.Add(time.Second),
@@ -415,7 +415,7 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		t.Fatalf("attempts = %#v, want defensive persisted attempt", attempts)
 	}
 	if attempts[0].WorkflowID != "campus-agent.chat.run-steps" ||
-		attempts[0].ActivityType != "PlanChatAnswerActivity" ||
+		attempts[0].ActivityType != "PlanRouteActivity" ||
 		attempts[0].ScheduleToStartMS != 100 ||
 		attempts[0].DurationMS != 1000 ||
 		attempts[0].ProviderResponseID != "resp_001" ||

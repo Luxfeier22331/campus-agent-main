@@ -290,7 +290,7 @@ describe("chat durable run routes", () => {
 				new ExecutionControlTransportError({
 					code: "execution_control_invalid_response",
 					message:
-						"Supervisor durable runtime response violates the contract: status must be a string.",
+						"Execution durable runtime response violates the contract: status must be a string.",
 					retryable: true,
 					status: 502,
 				}),
@@ -317,7 +317,7 @@ describe("chat durable run routes", () => {
 			error: {
 				code: "execution_control_invalid_response",
 				message:
-					"Supervisor durable runtime response violates the contract: status must be a string.",
+					"Execution durable runtime response violates the contract: status must be a string.",
 				retryable: true,
 			},
 		});

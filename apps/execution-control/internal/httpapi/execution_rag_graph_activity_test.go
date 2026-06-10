@@ -79,7 +79,7 @@ func (f *fakeRAGSynthesisExecutor) ExecuteRAGSynthesis(
 func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-rag:001",
+		TemporalWorkerIdentity: "test:activity-knowledge:001",
 	}, nil)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	lookup := &fakeRAGLookupExecutor{}
@@ -134,9 +134,9 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 		t.Fatalf("memory ref = %q", memoryRecall.MemoryRef)
 	}
 
-	workflowPlan, err := server.PlanChatAnswerActivity(
+	workflowPlan, err := server.PlanRouteActivity(
 		context.Background(),
-		temporalruntime.PlanChatAnswerActivityInput{
+		temporalruntime.PlanRouteActivityInput{
 			ConversationID: "conv-rag-graph",
 			Namespace:      "campus-agent-test",
 			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -327,7 +327,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	}
 	assertStepIDs(t, steps, []string{
 		"memory.recall",
-		"planning",
+		"plan.route",
 		"rag.plan",
 		"retrieval.indexed_lookup",
 		"retrieval.expand_or_rescue",
@@ -366,7 +366,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-rag:001",
+		TemporalWorkerIdentity: "test:activity-knowledge:001",
 	}, nil)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
@@ -407,9 +407,9 @@ func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *te
 		ragHandoffForDurableWorkerTest("学生请假手续"),
 	)
 	addRequestedScopeForRunTest(t, store, "run-rag-late-cancel", "regulations", "student_rules")
-	workflowPlan, err := server.PlanChatAnswerActivity(
+	workflowPlan, err := server.PlanRouteActivity(
 		context.Background(),
-		temporalruntime.PlanChatAnswerActivityInput{
+		temporalruntime.PlanRouteActivityInput{
 			ConversationID: "conv-rag-late-cancel",
 			Namespace:      "campus-agent-test",
 			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -516,7 +516,7 @@ func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *te
 func TestRetrieveIndexedLookupActivityFailsClosedWhenLookupUnavailable(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-rag:001",
+		TemporalWorkerIdentity: "test:activity-knowledge:001",
 	}, nil)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{err: errors.New("qdrant unavailable")}
@@ -531,9 +531,9 @@ func TestRetrieveIndexedLookupActivityFailsClosedWhenLookupUnavailable(t *testin
 		ragHandoffForDurableWorkerTest("学生请假手续"),
 	)
 	addRequestedScopeForRunTest(t, store, "run-rag-lookup-fail", "regulations", "student_rules")
-	workflowPlan, err := server.PlanChatAnswerActivity(
+	workflowPlan, err := server.PlanRouteActivity(
 		context.Background(),
-		temporalruntime.PlanChatAnswerActivityInput{
+		temporalruntime.PlanRouteActivityInput{
 			ConversationID: "conv-rag-lookup-fail",
 			Namespace:      "campus-agent-test",
 			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -582,7 +582,7 @@ func TestRetrieveIndexedLookupActivityFailsClosedWhenLookupUnavailable(t *testin
 func TestPlanRAGActivitySelectsStudentRuleScopeWithoutExplicitRequestedScope(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-rag:001",
+		TemporalWorkerIdentity: "test:activity-knowledge:001",
 	}, nil)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
@@ -594,9 +594,9 @@ func TestPlanRAGActivitySelectsStudentRuleScopeWithoutExplicitRequestedScope(t *
 		now,
 		ragHandoffForDurableWorkerTest("中央民族大学本科学生国家奖学金评审办法"),
 	)
-	workflowPlan, err := server.PlanChatAnswerActivity(
+	workflowPlan, err := server.PlanRouteActivity(
 		context.Background(),
-		temporalruntime.PlanChatAnswerActivityInput{
+		temporalruntime.PlanRouteActivityInput{
 			ConversationID: "conv-rag-scope-selection",
 			Namespace:      "campus-agent-test",
 			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -640,7 +640,7 @@ func TestPlanRAGActivitySelectsStudentRuleScopeWithoutExplicitRequestedScope(t *
 func TestPlanRAGActivityFailsClosedWhenScopeCannotBeSelected(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-rag:001",
+		TemporalWorkerIdentity: "test:activity-knowledge:001",
 	}, nil)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
@@ -652,9 +652,9 @@ func TestPlanRAGActivityFailsClosedWhenScopeCannotBeSelected(t *testing.T) {
 		now,
 		ragHandoffForDurableWorkerTest("这个问题怎么处理"),
 	)
-	workflowPlan, err := server.PlanChatAnswerActivity(
+	workflowPlan, err := server.PlanRouteActivity(
 		context.Background(),
-		temporalruntime.PlanChatAnswerActivityInput{
+		temporalruntime.PlanRouteActivityInput{
 			ConversationID: "conv-rag-scope-ambiguous",
 			Namespace:      "campus-agent-test",
 			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

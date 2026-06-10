@@ -60,7 +60,7 @@ describe("public chat web worker routes and readiness", () => {
 								officialWebHandoff: "not_configured",
 								operatorBridge: "configured",
 								publicChatOrigin: "configured",
-								supervisorApi: "ready",
+								executionControl: "ready",
 							},
 							preflight: {
 								campusServicesProductPath: {
@@ -110,7 +110,7 @@ describe("public chat web worker routes and readiness", () => {
 								officialWebHandoff: "not_configured",
 								operatorBridge: "configured",
 								publicChatOrigin: "configured",
-								supervisorApi: "ready",
+								executionControl: "ready",
 							},
 							preflight: {
 								campusServicesProductPath: {
@@ -290,7 +290,7 @@ describe("public chat web worker routes and readiness", () => {
 								officialWebHandoff: "not_configured",
 								operatorBridge: "configured",
 								publicChatOrigin: "configured",
-								supervisorApi: "ready",
+								executionControl: "ready",
 							},
 							preflight: {
 								campusServicesProductPath: {

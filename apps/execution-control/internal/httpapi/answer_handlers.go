@@ -212,7 +212,7 @@ func (s *Server) writeAdmissionRejection(
 			response,
 			s.config.QueueTimeoutMS,
 			"transport_queue_full",
-			"Supervisor execution admission queue is full.",
+			"Execution admission queue is full.",
 		)
 		return true
 	case admission.DecisionLaneQueueFull:
@@ -221,7 +221,7 @@ func (s *Server) writeAdmissionRejection(
 			response,
 			s.config.QueueTimeoutMS,
 			"transport_lane_queue_full",
-			"Supervisor execution admission lane queue is full.",
+			"Execution admission lane queue is full.",
 		)
 		return true
 	case admission.DecisionQueueTimeout:
@@ -230,7 +230,7 @@ func (s *Server) writeAdmissionRejection(
 			response,
 			s.config.QueueTimeoutMS,
 			"transport_queue_timeout",
-			"Supervisor execution admission queue wait timed out.",
+			"Execution admission queue wait timed out.",
 		)
 		return true
 	case admission.DecisionLaneQueueTimeout:
@@ -239,7 +239,7 @@ func (s *Server) writeAdmissionRejection(
 			response,
 			s.config.QueueTimeoutMS,
 			"transport_lane_queue_timeout",
-			"Supervisor execution admission lane queue wait timed out.",
+			"Execution admission lane queue wait timed out.",
 		)
 		return true
 	case admission.DecisionDraining:
@@ -248,7 +248,7 @@ func (s *Server) writeAdmissionRejection(
 			response,
 			s.config.QueueTimeoutMS,
 			"transport_draining",
-			"Supervisor execution runtime is draining.",
+			"Execution runtime is draining.",
 		)
 		return true
 	case admission.DecisionClientCanceled:
@@ -258,7 +258,7 @@ func (s *Server) writeAdmissionRejection(
 				response,
 				statusClientClosedRequest,
 				"execution_cancelled",
-				"Supervisor execution was cancelled.",
+				"Execution was cancelled.",
 				false,
 			)
 			return true
@@ -271,7 +271,7 @@ func (s *Server) writeAdmissionRejection(
 			response,
 			s.config.QueueTimeoutMS,
 			"transport_admission_rejected",
-			"Supervisor execution admission rejected the request.",
+			"Execution admission rejected the request.",
 		)
 		return true
 	}
@@ -401,7 +401,7 @@ func (s *Server) rejectClosedStructuredRuntimeStream(
 			executionRequest,
 			http.StatusServiceUnavailable,
 			"telemetry_delivery_failed",
-			"Supervisor telemetry delivery failed.",
+			"Execution telemetry delivery failed.",
 			true,
 		)
 		return true
@@ -423,7 +423,7 @@ func (s *Server) rejectClosedStructuredRuntimeStream(
 			executionRequest,
 			http.StatusServiceUnavailable,
 			"execution_audit_delivery_failed",
-			"Supervisor execution audit delivery failed.",
+			"Execution audit delivery failed.",
 			true,
 		)
 		return true
@@ -520,7 +520,7 @@ func (s *Server) rejectBridgeNotConfiguredStream(
 			executionRequest,
 			http.StatusServiceUnavailable,
 			"telemetry_delivery_failed",
-			"Supervisor telemetry delivery failed.",
+			"Execution telemetry delivery failed.",
 			true,
 		)
 		return true
@@ -541,7 +541,7 @@ func (s *Server) rejectBridgeNotConfiguredStream(
 			executionRequest,
 			http.StatusServiceUnavailable,
 			"execution_audit_delivery_failed",
-			"Supervisor execution audit delivery failed.",
+			"Execution audit delivery failed.",
 			true,
 		)
 		return true

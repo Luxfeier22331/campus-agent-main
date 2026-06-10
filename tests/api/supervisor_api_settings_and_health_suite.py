@@ -340,7 +340,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 "campus_supervisor_agent_worker.capability_delegates.delegate_to_knowledge_capability"
             ) as delegate:
                 delegate.return_value = CapabilityResponse(
-                    target="knowledge",
+                    capability="knowledge",
                     status="completed",
                     answer_text="ok",
                     confidence="high",
@@ -355,7 +355,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
 
                 response = delegates["knowledge"](
                     CapabilityRequest(
-                        target="knowledge",
+                        capability="knowledge",
                         user_goal="校园卡丢了怎么办",
                         request_id="req-rag-jsonl",
                         payload=RagRequestPayload(
@@ -402,7 +402,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
 
         response = dispatch_capability_request(
             CapabilityRequest(
-                target="notice",
+                capability="notice",
                 user_goal="读取这条通知",
                 request_id="req-provider-tool",
                 payload=CampusNoticeGetPayload(
@@ -419,7 +419,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                     ),
                 ),
                 workflow_context=WorkflowCapabilityContext(
-                    target="notice",
+                    capability="notice",
                     workflow_run_ref="workflow:req-provider-tool",
                     step_id="handoff:notice:campus_notice_get",
                     capability_id="notice",

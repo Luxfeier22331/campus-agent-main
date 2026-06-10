@@ -16,7 +16,7 @@ var answerEligibleProjectionKinds = map[execution.ProjectionKind]struct{}{
 	execution.ProjectionKindEvidenceBundle:   {},
 }
 
-type supervisorFinalizerContext struct {
+type executionFinalizerContext struct {
 	SelectedTool       string
 	RuntimeDecisions   execution.RuntimeDecisionSummary
 	Handoff            *execution.RuntimeHandoff
@@ -32,7 +32,7 @@ func finalizerContextFromExecutionRequest(
 	request execution.AnswerExecutionRequest,
 	branch string,
 	runStates ...bridgeExecutionRunState,
-) supervisorFinalizerContext {
+) executionFinalizerContext {
 	runState := bridgeExecutionRunState{AttemptCount: 1}
 	if len(runStates) > 0 {
 		runState = runStates[0]
@@ -43,7 +43,7 @@ func finalizerContextFromExecutionRequest(
 	if runState.RetryCount < 0 {
 		runState.RetryCount = 0
 	}
-	return supervisorFinalizerContext{
+	return executionFinalizerContext{
 		SelectedTool:       request.RuntimeDecisions.SelectedTool,
 		RuntimeDecisions:   request.RuntimeDecisions,
 		Handoff:            request.StructuredHandoff,
@@ -56,9 +56,9 @@ func finalizerContextFromExecutionRequest(
 }
 
 func finalizerContextWithWorkflowRun(
-	context supervisorFinalizerContext,
+	context executionFinalizerContext,
 	run *execution.WorkflowRun,
-) supervisorFinalizerContext {
+) executionFinalizerContext {
 	context.WorkflowRun = run
 	return context
 }
@@ -80,7 +80,7 @@ func workflowBranchForRequest(request execution.AnswerExecutionRequest) string {
 func finalizeAgentBridgeResponse(
 	agentResponse map[string]any,
 	traceID string,
-	context supervisorFinalizerContext,
+	context executionFinalizerContext,
 ) (map[string]any, error) {
 	target, err := requiredCapabilityResponseString(agentResponse, "capability")
 	if err != nil {
@@ -133,7 +133,7 @@ func finalizeAgentBridgeResponse(
 		"confidence":             confidence,
 		"result":                 result,
 		"error":                  errorBody,
-		"observability":          buildSupervisorObservability(target, status, result, selectedTool),
+		"observability":          buildExecutionObservability(target, status, result, selectedTool),
 		"workflow_trace_summary": buildWorkflowTraceSummary(context, target, status, result, agentObservability),
 		"trace_id":               traceID,
 	}
@@ -142,7 +142,7 @@ func finalizeAgentBridgeResponse(
 
 func finalizerSelectedTool(
 	agentObservability map[string]any,
-	context supervisorFinalizerContext,
+	context executionFinalizerContext,
 ) string {
 	return defaultString(
 		stringValue(agentObservability["selected_tool"]),
@@ -203,7 +203,7 @@ func validCapabilityResponseErrorBody(errorBody map[string]any) bool {
 }
 
 func buildWorkflowTraceSummary(
-	context supervisorFinalizerContext,
+	context executionFinalizerContext,
 	target string,
 	status string,
 	result map[string]any,
@@ -215,7 +215,7 @@ func buildWorkflowTraceSummary(
 }
 
 func buildWorkflowTraceSummaryWire(
-	context supervisorFinalizerContext,
+	context executionFinalizerContext,
 	target string,
 	status string,
 	result map[string]any,

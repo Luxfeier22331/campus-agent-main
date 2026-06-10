@@ -5,7 +5,7 @@ import {
 	DRAFT_CONVERSATION_TITLE,
 	toConversationResponse,
 } from "../../chat";
-import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
+import type { CapabilityExecutionResponse, RequestedScope } from "../../integration";
 import { extractRequestDiagnosticsSummary } from "../../request-diagnostics";
 import {
 	buildAcceptedRequestObservabilityFact,
@@ -33,7 +33,7 @@ export function buildConversationTitle(currentTitle: string, prompt: string): st
 	return prompt.length <= 80 ? prompt : `${prompt.slice(0, 77)}...`;
 }
 
-export function buildSupervisorContextProjection(input: {
+export function buildCapabilityExecutionContextProjection(input: {
 	actor: ResolvedAppPrincipal["actor"];
 	authorization: ResolvedAppPrincipal["authorization"];
 	sessionSlots: ChatConversation["sessionSlots"];
@@ -168,7 +168,7 @@ export function buildAcceptedWrite(input: {
 
 function resolveFinalizedScope(input: {
 	requestedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 }): RequestedScope | null {
 	const corpus = input.response.observability?.resolvedScopeCorpus?.trim();
 	const collection = input.response.observability?.resolvedScopeCollection?.trim();
@@ -190,7 +190,7 @@ export function buildFinalizedWrite(input: {
 	requestId: string;
 	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	runId: string | null;
 	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
@@ -202,10 +202,10 @@ export function buildFinalizedWrite(input: {
 	write: FinalizeRequestWrite;
 } {
 	const normalizedTraceId = input.response.traceId || input.traceId;
-	const normalizedSupervisorResponse = {
+	const normalizedExecutionResponse = {
 		...input.response,
 		traceId: normalizedTraceId,
-	} satisfies SupervisorExecutionResponse;
+	} satisfies CapabilityExecutionResponse;
 	const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
 	const sourceDocIds = extractSourceDocIds(input.response.result);
 	const structuredParts = normalizeChatResponseStructuredParts({
@@ -215,7 +215,7 @@ export function buildFinalizedWrite(input: {
 	});
 	const resolvedScope = resolveFinalizedScope({
 		requestedScope: input.requestedScope,
-		response: normalizedSupervisorResponse,
+		response: normalizedExecutionResponse,
 	});
 	let assistantKind: ChatMessage["kind"];
 	let assistantText: string;
@@ -260,7 +260,7 @@ export function buildFinalizedWrite(input: {
 			(input.response.status === "approval_required"
 				? "The request requires approval before it can continue."
 				: input.response.status === "rejected"
-					? "The request was rejected by supervisor policy."
+					? "The request was rejected by execution policy."
 					: input.response.status === "cancelled"
 						? "The request was cancelled."
 						: "The request could not be completed.");
@@ -378,7 +378,7 @@ export function buildFinalizedWrite(input: {
 			requestedCapability: input.requestedCapability,
 			requestedScope: input.requestedScope,
 			resolvedScope,
-			response: normalizedSupervisorResponse,
+			response: normalizedExecutionResponse,
 			safetyIdentifier: input.safetyIdentifier,
 			sourceDocIds,
 			startedAt: input.startedAt,
@@ -423,7 +423,7 @@ export function buildFinalizedWrite(input: {
 				result,
 			},
 			requestId: input.requestId,
-			supervisor: normalizedSupervisorResponse,
+			supervisor: normalizedExecutionResponse,
 			traceId: normalizedTraceId,
 		},
 		write,

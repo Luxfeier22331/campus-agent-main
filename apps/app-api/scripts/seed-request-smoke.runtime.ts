@@ -5,9 +5,9 @@ import { Client } from "pg";
 import { createApp } from "../src/app";
 import { createPgChatConversationStore } from "../src/modules/chat";
 import type {
+	CapabilityExecutionInput,
+	CapabilityExecutionResponse,
 	RequestedScope,
-	SupervisorExecutionInput,
-	SupervisorExecutionResponse,
 } from "../src/modules/integration";
 import {
 	buildRequestProjectionProjector,
@@ -157,17 +157,17 @@ async function cleanupPreviousSmokeRequestArtifacts(
 	};
 }
 
-interface ScriptedSupervisorExecutionFixture {
-	execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
+interface ScriptedCapabilityExecutionFixture {
+	execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
 }
 
 function buildScriptedSupervisor(
 	scenarios: RequestSmokeSeedScenario[],
-): ScriptedSupervisorExecutionFixture {
+): ScriptedCapabilityExecutionFixture {
 	let currentIndex = 0;
 
 	return {
-		async execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse> {
+		async execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse> {
 			const scenario = scenarios[currentIndex];
 			if (!scenario) {
 				throw new Error(`Unexpected extra request for prompt: ${input.userGoal}`);

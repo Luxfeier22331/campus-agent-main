@@ -4,9 +4,9 @@ import re
 
 from campus_contracts import (
     CapabilityResponse,
+    ExecutionResponse,
     RagResultDiagnostics,
     RagResultPayload,
-    SupervisorResponse,
 )
 
 from campus_evals.models import (
@@ -105,7 +105,7 @@ def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
 
 
 def _grade_status(
-    case: GoldenCase, response: CapabilityResponse | SupervisorResponse
+    case: GoldenCase, response: CapabilityResponse | ExecutionResponse
 ) -> DimensionResult:
     if not case.grader_policy.grade_status:
         return DimensionResult(True, "status grading disabled")
@@ -115,7 +115,7 @@ def _grade_status(
 
 
 def _grade_retrieval(
-    case: GoldenCase, response: CapabilityResponse | SupervisorResponse
+    case: GoldenCase, response: CapabilityResponse | ExecutionResponse
 ) -> DimensionResult:
     if not case.grader_policy.grade_retrieval:
         return DimensionResult(True, "retrieval grading disabled")
@@ -165,7 +165,7 @@ def _evidence_scope_matches_case(case: GoldenCase, corpus: str, collection: str)
 
 
 def _grade_answer(
-    case: GoldenCase, response: CapabilityResponse | SupervisorResponse
+    case: GoldenCase, response: CapabilityResponse | ExecutionResponse
 ) -> DimensionResult:
     if not case.grader_policy.grade_answer:
         return DimensionResult(True, "answer grading disabled")
@@ -205,7 +205,7 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
     ):
         return DimensionResult(False, f"retrieval_called={observed.retrieval_called}")
     actual_capability_value = (
-        response.selected_capability if isinstance(response, SupervisorResponse) else response.capability
+        response.selected_capability if isinstance(response, ExecutionResponse) else response.capability
     )
     actual_capability = (
         "none" if actual_capability_value in (None, "") else actual_capability_value
@@ -340,7 +340,7 @@ def _grade_forbidden_doc_miss(
 
 def _grade_citation_completeness(
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
@@ -355,7 +355,7 @@ def _grade_citation_completeness(
 
 
 def _grade_source_locator_completeness(
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
@@ -370,7 +370,7 @@ def _grade_source_locator_completeness(
 
 def _grade_answer_completeness(
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     normalized_answer = _normalize_text(response.answer_text)
     for fact in case.required_facts:
@@ -381,7 +381,7 @@ def _grade_answer_completeness(
 
 def _grade_forbidden_claim_free(
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     normalized_answer = _normalize_text(response.answer_text)
     for claim in case.forbidden_claims:
@@ -391,7 +391,7 @@ def _grade_forbidden_claim_free(
 
 
 def _grade_procedure_directness(
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     normalized_answer = _normalize_text(response.answer_text)
     if not normalized_answer:
@@ -421,7 +421,7 @@ def _grade_procedure_directness(
 
 
 def _grade_clarification_accuracy(
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     if response.status != "needs_clarification":
         return DimensionResult(False, f"status={response.status}")
@@ -430,7 +430,7 @@ def _grade_clarification_accuracy(
     return DimensionResult(True, "ok")
 
 
-def _grade_no_answer_accuracy(response: CapabilityResponse | SupervisorResponse) -> DimensionResult:
+def _grade_no_answer_accuracy(response: CapabilityResponse | ExecutionResponse) -> DimensionResult:
     if response.status != "no_answer":
         return DimensionResult(False, f"status={response.status}")
     if not response.answer_text.strip() and not response.follow_up_question.strip():
@@ -441,7 +441,7 @@ def _grade_no_answer_accuracy(response: CapabilityResponse | SupervisorResponse)
 
 
 def _grade_approval_required_accuracy(
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     if response.status != "approval_required":
         return DimensionResult(False, f"status={response.status}")
@@ -452,7 +452,7 @@ def _grade_approval_required_accuracy(
     return DimensionResult(True, "ok")
 
 
-def _grade_rejection_accuracy(response: CapabilityResponse | SupervisorResponse) -> DimensionResult:
+def _grade_rejection_accuracy(response: CapabilityResponse | ExecutionResponse) -> DimensionResult:
     if response.status != "rejected":
         return DimensionResult(False, f"status={response.status}")
     if _response_targets_rag(response):
@@ -465,7 +465,7 @@ def _grade_rejection_accuracy(response: CapabilityResponse | SupervisorResponse)
 
 
 def _grade_error_path_correctness(
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     if response.status != "error":
         return DimensionResult(False, f"status={response.status}")
@@ -478,7 +478,7 @@ def _grade_error_path_correctness(
 
 def _grade_semantic_outcome(
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     semantic_outcome, scope_class, policy_reason = _extract_semantic_truth(response)
     if semantic_outcome != case.expected_semantic_outcome:
@@ -492,7 +492,7 @@ def _grade_semantic_outcome(
 
 def _grade_false_refusal(
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     semantic_outcome, _scope_class, _policy_reason = _extract_semantic_truth(response)
     if response.status != "completed":
@@ -504,7 +504,7 @@ def _grade_false_refusal(
 
 def _grade_retrieval_adequacy_truth(
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     diagnostics = _extract_rag_diagnostics(response)
     if diagnostics is None:
@@ -527,7 +527,7 @@ def _grade_retrieval_adequacy_truth(
 
 def _grade_grounding_claim_truth(
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     diagnostics = _extract_rag_diagnostics(response)
     if diagnostics is None:
@@ -554,7 +554,7 @@ def _grade_grounding_claim_truth(
 
 def _grade_unsafe_false_allow(
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> DimensionResult:
     semantic_outcome, _scope_class, _policy_reason = _extract_semantic_truth(response)
     if response.status == "completed" or semantic_outcome == "grounded_answer":
@@ -563,7 +563,7 @@ def _grade_unsafe_false_allow(
 
 
 def _extract_semantic_truth(
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> tuple[str, str, str]:
     observability = getattr(response, "observability", None)
     if observability is not None:
@@ -586,7 +586,7 @@ def _extract_semantic_truth(
 
 
 def _extract_rag_diagnostics(
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> RagResultDiagnostics | None:
     if not isinstance(response.result, RagResultPayload):
         return None
@@ -599,7 +599,7 @@ def _case_requires_fail_closed(case: GoldenCase) -> bool:
     return case.expected_status == "no_answer" and not case.expected_sources
 
 
-def _grade_fail_closed(response: CapabilityResponse | SupervisorResponse) -> DimensionResult:
+def _grade_fail_closed(response: CapabilityResponse | ExecutionResponse) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
         if not _response_targets_rag(response):
@@ -652,20 +652,20 @@ def _matches_source_ref(source_ref, source) -> bool:
 
 def _require_supported_response(
     execution: ExecutionResult,
-) -> CapabilityResponse | SupervisorResponse:
+) -> CapabilityResponse | ExecutionResponse:
     response = execution.response
-    if not isinstance(response, (CapabilityResponse, SupervisorResponse)):
-        raise TypeError("execution.response must be CapabilityResponse or SupervisorResponse")
+    if not isinstance(response, (CapabilityResponse, ExecutionResponse)):
+        raise TypeError("execution.response must be CapabilityResponse or ExecutionResponse")
     return response
 
 
-def _response_targets_rag(response: CapabilityResponse | SupervisorResponse) -> bool:
+def _response_targets_rag(response: CapabilityResponse | ExecutionResponse) -> bool:
     if isinstance(response, CapabilityResponse):
         return response.capability == "knowledge"
     return response.selected_capability == "knowledge"
 
 
-def _extract_rag_evidence(response: CapabilityResponse | SupervisorResponse):
+def _extract_rag_evidence(response: CapabilityResponse | ExecutionResponse):
     if not isinstance(response.result, RagResultPayload):
         return None
     return response.result.evidence

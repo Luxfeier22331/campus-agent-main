@@ -5,7 +5,7 @@ from pathlib import Path
 
 SUPERVISOR_CORE_PACKAGE = Path("packages/supervisor-core")
 WORKER_CORE = Path("apps/supervisor-agent-worker/src/campus_supervisor_agent_worker")
-BRIDGE_V6_PARSER = WORKER_CORE / "bridge_v6_parser.py"
+BRIDGE_V6_PARSER = WORKER_CORE / "capability_execution_parser.py"
 WORKER_APP = WORKER_CORE / "app.py"
 WORKER_API = WORKER_CORE / "api.py"
 WORKER_AGENT_DELEGATES = WORKER_CORE / "capability_delegates.py"
@@ -106,7 +106,7 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
         self.assertIn("class AgentWorkerRuntime", runtime_source)
         self.assertNotIn("class SupervisorApiApp", app_source)
 
-    def test_bridge_v6_parser_is_the_direct_worker_request_parser(self) -> None:
+    def test_capability_execution_parser_is_the_direct_worker_request_parser(self) -> None:
         self.assertFalse((WORKER_CORE / "api_request_parsing.py").exists())
         self.assertTrue(BRIDGE_V6_PARSER.exists())
         self.assertTrue((WORKER_CORE / "bridge_payload_codecs.py").exists())

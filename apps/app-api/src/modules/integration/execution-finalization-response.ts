@@ -1,16 +1,15 @@
 import { summarizeObservedSources } from "../source-trace";
-
+import type {
+	CapabilityExecutionObservability,
+	CapabilityExecutionPromptTrace,
+	CapabilityExecutionResponse,
+	CapabilityExecutionWorkflowTraceSummary,
+} from "./capability-execution-types";
 import {
 	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
 	EXECUTION_FINALIZATION_STATUSES,
 	type ExecutionFinalizationResponseWire,
 } from "./execution-finalization-contract";
-import type {
-	SupervisorExecutionObservability,
-	SupervisorExecutionResponse,
-	SupervisorExecutionWorkflowTraceSummary,
-	SupervisorPromptTrace,
-} from "./supervisor-types";
 
 const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
 	"raw_prompt",
@@ -74,7 +73,7 @@ function normalizeNullableString(value: unknown): string | null {
 
 function isExecutionFinalizationStatus(
 	value: unknown,
-): value is SupervisorExecutionResponse["status"] {
+): value is CapabilityExecutionResponse["status"] {
 	return (
 		typeof value === "string" &&
 		(EXECUTION_FINALIZATION_STATUSES as readonly string[]).includes(value)
@@ -237,13 +236,13 @@ function normalizeStringRecord(
 	return Object.keys(normalized).length > 0 ? normalized : {};
 }
 
-function parsePromptTrace(value: unknown): SupervisorPromptTrace | null {
+function parsePromptTrace(value: unknown): CapabilityExecutionPromptTrace | null {
 	const record = getRecord(value);
 	if (!record) {
 		return null;
 	}
 
-	const parsed: SupervisorPromptTrace = {
+	const parsed: CapabilityExecutionPromptTrace = {
 		modelName: normalizeNullableString(record.model_name),
 		modelProvider: normalizeNullableString(record.model_provider),
 		outputSchemaVersion: normalizeNullableString(record.output_schema_version),
@@ -260,7 +259,7 @@ function parsePromptTrace(value: unknown): SupervisorPromptTrace | null {
 	return parsed;
 }
 
-function parseExecutionObservability(value: unknown): SupervisorExecutionObservability | null {
+function parseExecutionObservability(value: unknown): CapabilityExecutionObservability | null {
 	const record = getRecord(value);
 	if (!record) {
 		return null;
@@ -276,7 +275,7 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 	const retrievedSourceCount =
 		explicitRetrievedSourceCount ??
 		(retrievalAttempted === true && hasRetrievedSourcesTrace ? retrievedSources.length : null);
-	const parsed: SupervisorExecutionObservability = {
+	const parsed: CapabilityExecutionObservability = {
 		aclAnomalyCode: normalizeNullableString(record.acl_anomaly_code),
 		aclDecision: normalizeNullableString(record.acl_decision),
 		cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens),
@@ -331,7 +330,7 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 	return parsed;
 }
 
-function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowTraceSummary | null {
+function parseWorkflowTraceSummary(value: unknown): CapabilityExecutionWorkflowTraceSummary | null {
 	const record = getRecord(value);
 	if (!record || containsForbiddenWorkflowTraceKey(record)) {
 		return null;
@@ -370,7 +369,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 				return summary ? [summary] : [];
 			})
 		: [];
-	const parsed: SupervisorExecutionWorkflowTraceSummary = {
+	const parsed: CapabilityExecutionWorkflowTraceSummary = {
 		contextResolution: normalizeWorkflowRecord(recordValue(record, "context_resolution")),
 		directVsDelegateBranch: normalizeRecordString(record, "direct_vs_delegate_branch"),
 		failCloseReason: normalizeRecordString(record, "fail_close_reason"),
@@ -410,7 +409,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 
 export function parseExecutionFinalizationResponsePayload(
 	parsed: (Partial<ExecutionFinalizationResponseWire> & Record<string, unknown>) | null | undefined,
-): SupervisorExecutionResponse {
+): CapabilityExecutionResponse {
 	assertExecutionFinalizationResponseWire(parsed);
 	const workflowTraceSummary = parseWorkflowTraceSummary(parsed.workflow_trace_summary);
 	return {

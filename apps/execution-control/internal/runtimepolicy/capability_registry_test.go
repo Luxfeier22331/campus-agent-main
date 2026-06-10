@@ -14,6 +14,19 @@ func TestLoadCapabilitySpecRegistryLoadsCurrentInventory(t *testing.T) {
 	if len(registry.Capabilities) != 4 {
 		t.Fatalf("capabilities = %#v, want 4 current capabilities", registry.Capabilities)
 	}
+	knowledge, ok := registry.CapabilityByID("knowledge")
+	if !ok {
+		t.Fatal("knowledge missing from CapabilitySpec")
+	}
+	if knowledge.WorkerRole != "activity-worker-knowledge" {
+		t.Fatalf("knowledge worker_role = %q, want activity-worker-knowledge", knowledge.WorkerRole)
+	}
+	if WorkerRoleForCapability("knowledge") != "activity-worker-knowledge" {
+		t.Fatalf(
+			"WorkerRoleForCapability(knowledge) = %q, want activity-worker-knowledge",
+			WorkerRoleForCapability("knowledge"),
+		)
+	}
 	if _, ok := registry.CapabilityByID("calendar"); ok {
 		t.Fatal("calendar must not be active in CapabilitySpec")
 	}

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
 
-const fixtureDir = resolve(process.cwd(), "../..", "tests/fixtures/supervisor_execution_contract");
+const fixtureDir = resolve(process.cwd(), "../..", "tests/fixtures/capability_execution_contract");
 
 function loadFixture(name: string): Record<string, unknown> {
 	return JSON.parse(readFileSync(join(fixtureDir, name), "utf8")) as Record<string, unknown>;

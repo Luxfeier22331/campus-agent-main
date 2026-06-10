@@ -50,11 +50,11 @@ class MultiCapabilityProductPathGateTest(unittest.TestCase):
         self.assertEqual(
             [check["check_id"] for check in artifact["checks"]],
             [
-                "supervisor_execution_contract_generation_check",
+                "capability_execution_contract_generation_check",
                 "workflow_trace_eval_tests",
                 "tool_family_denominator_tests",
                 "public_chat_product_path_eval_tests",
-                "supervisor_multi_capability_runtime_tests",
+                "capability_execution_runtime_tests",
                 "domain_capability_adapter_tests",
                 "app_api_multi_capability_observability_tests",
                 "panel_multi_capability_observability_tests",
@@ -94,7 +94,7 @@ class MultiCapabilityProductPathGateTest(unittest.TestCase):
                     "--all-packages",
                     "python",
                     "-m",
-                    "scripts.generate_supervisor_execution_contracts",
+                    "scripts.generate_capability_execution_contracts",
                     "--check",
                 ),
                 gate.REPO_ROOT,

@@ -2,13 +2,13 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	expectNoInternalLocators,
 	type FinalizeRequestWrite,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
@@ -393,7 +393,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 				},
 			},
 		] as const;
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(async (input) => {
 				const currentCase = cases.find((candidate) => candidate.prompt === input.userGoal);
 				if (!currentCase) {

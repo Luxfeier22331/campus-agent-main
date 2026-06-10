@@ -1,4 +1,4 @@
-import { formatOperatorTargetSummaryLabel } from "../operator-target-labels";
+import { formatOperatorCapabilitySummaryLabel } from "../operator-target-labels";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { RequestExecutionStatus } from "../runtime-command";
 import type { VersionQuery } from "../version-query";
@@ -255,7 +255,7 @@ function buildAuditSummary(input: {
 }): string {
 	const capabilityLabel = toAuditCapabilityLabel(input.execution.requestedCapability);
 	const targetSuffix = input.execution.selectedCapability
-		? ` via ${formatOperatorTargetSummaryLabel(input.execution.selectedCapability)}`
+		? ` via ${formatOperatorCapabilitySummaryLabel(input.execution.selectedCapability)}`
 		: "";
 
 	if (input.eventType === "execution.admission_rejected") {
@@ -286,7 +286,7 @@ function buildAuditSummary(input: {
 		case "approval_required":
 			return `${capabilityLabel} requires approval before execution continues.`;
 		case "rejected":
-			return `${capabilityLabel} was rejected by supervisor policy.`;
+			return `${capabilityLabel} was rejected by execution policy.`;
 		case "error":
 			return `${capabilityLabel} ended with ${input.execution.errorCode ?? "internal_error"}.`;
 		default:

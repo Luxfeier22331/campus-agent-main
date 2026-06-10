@@ -238,7 +238,21 @@ SURFACE_SPECS = {
             "temporal_workflow_worker_identity": (
                 "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY",
             ),
-            "temporal_rag_worker_identity": ("EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY",),
+            "temporal_context_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY",
+            ),
+            "temporal_knowledge_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
+            ),
+            "temporal_campus_services_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",
+            ),
+            "temporal_notice_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY",
+            ),
+            "temporal_navigation_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
+            ),
             "temporal_finalization_worker_identity": (
                 "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
             ),

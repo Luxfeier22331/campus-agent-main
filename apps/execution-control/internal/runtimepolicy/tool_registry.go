@@ -14,7 +14,7 @@ const (
 )
 
 var supportedCapabilityWorkerRoles = map[string]string{
-	"knowledge":       "activity-worker-rag",
+	"knowledge":       "activity-worker-knowledge",
 	"navigation":      "activity-worker-navigation",
 	"campus_services": "activity-worker-campus-services",
 	"notice":          "activity-worker-notice",

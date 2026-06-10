@@ -221,7 +221,7 @@ func ParseAnswerRequestWithIntentPolicy(
 		return AnswerExecutionRequest{}, &HTTPError{
 			Status:    400,
 			Code:      "missing_request_id",
-			Message:   "request_id is required for supervisor execution lifecycle tracking.",
+			Message:   "request_id is required for execution lifecycle tracking.",
 			Retryable: false,
 		}
 	}
@@ -323,14 +323,14 @@ func ParseAnswerRequestWithIntentPolicy(
 	)
 
 	bridgePayload := map[string]any{
-		"bridge_version":       contractsv1.BridgeVersion,
-		"response_contract":    contractsv1.ResponseContract,
-		"user_goal":            userGoal,
-		"conversation_id":      conversationID,
-		"request_id":           requestID,
-		"effective_capability": effectiveRequestedCapability,
-		"lane":                 laneForCapability(effectiveRequestedCapability),
-		"requested_capability": effectiveRequestedCapability,
+		"execution_contract_version": contractsv1.ExecutionContractVersion,
+		"response_contract":          contractsv1.ResponseContract,
+		"user_goal":                  userGoal,
+		"conversation_id":            conversationID,
+		"request_id":                 requestID,
+		"effective_capability":       effectiveRequestedCapability,
+		"lane":                       laneForCapability(effectiveRequestedCapability),
+		"requested_capability":       effectiveRequestedCapability,
 		"trace": map[string]any{
 			"trace_id": traceID,
 		},

@@ -281,8 +281,8 @@ def _build_bridge_payload() -> dict[str, object]:
     request_id = str(execution_payload["request_id"])
     trace_id = str(execution_payload["trace_id"])
     return {
-        "bridge_version": "supervisor_bridge_v6",
-        "response_contract": "capability_response",
+        "execution_contract_version": "capability_execution_v1",
+        "response_contract": "execution_finalization_response_v1",
         "user_goal": user_goal,
         "conversation_id": "",
         "request_id": request_id,
@@ -340,7 +340,7 @@ def _build_execution_run_payload() -> dict[str, object]:
                 "context": context,
             },
             "expected_handoff": {
-                "target": "notice",
+                "capability": "notice",
                 "allowed_tools": ["campus_notice_discover"],
                 "payload_kind": "campus_notice_discover",
                 "seed_notice_title": _SEED_NOTICE_TITLE,
@@ -357,7 +357,7 @@ def _bridge_runtime_decisions(
     context: object,
 ) -> dict[str, object]:
     return {
-        "schema_version": "supervisor-runtime-decisions-v1",
+        "schema_version": "capability-execution-runtime-decisions-v1",
         "effective_capability": "notice",
         "lane": "notice",
         "scope_gate": {
@@ -414,10 +414,10 @@ def _bridge_runtime_decisions(
         },
         "handoff": {
             "planning_outcome": "preplanned",
-            "target": "notice",
+            "capability": "notice",
             "allowed_tools": ["campus_notice_discover"],
-            "agent_request": {
-                "target": "notice",
+            "capability_request": {
+                "capability": "notice",
                 "user_goal": user_goal,
                 "conversation_id": "",
                 "request_id": request_id,
@@ -436,7 +436,38 @@ def _bridge_runtime_decisions(
                     },
                 },
                 "allowed_tools": ["campus_notice_discover"],
+                "workflow_context": {
+                    "schema_version": "workflow-capability-context-v1",
+                    "visibility": "capability_private",
+                    "workflow_run_ref": f"workflow:{request_id}",
+                    "step_id": "capability:notice:campus_notice_discover",
+                    "capability_id": "notice",
+                    "capability": "notice",
+                    "required_projection_kind": "",
+                    "expected_output_artifacts": [],
+                    "projection_refs": [],
+                },
             },
+        },
+        "workflow_plan": {
+            "schema_version": "workflow-plan-v1",
+            "plan_id": "plan:single_step:notice:campus_notice_discover",
+            "workflow_mode": "single_step",
+            "allowed_capabilities": ["notice"],
+            "steps": [
+                {
+                    "step_id": "capability:notice:campus_notice_discover",
+                    "step_kind": "handoff",
+                    "capability": "notice",
+                    "payload_kind": "campus_notice_discover",
+                    "allowed_tools": ["campus_notice_discover"],
+                    "selected_tool": "campus_notice_discover",
+                }
+            ],
+            "edges": [],
+            "terminal_policy": {"fail_close_on_invalid_plan": True},
+            "resume_policy": {"resume_supported": False},
+            "semantic_retry_policy": {"max_replans": 0},
         },
     }
 
@@ -453,7 +484,7 @@ def _bridge_response_passed(status_code: int, body: object) -> tuple[bool, dict[
     checks = {
         "status_code_ok": status_code == 200,
         "response_completed": response.get("status") == "completed",
-        "notice_capability_target": response.get("target") == "notice",
+        "notice_capability_target": response.get("capability") == "notice",
         "selected_tool_ok": observability.get("selected_tool") == "campus_notice_discover",
         "tool_outcome_ok": observability.get("tool_outcome") == "sdk_completed",
         "tool_called_once": runner_projection.get("tool_call_count") == 1,

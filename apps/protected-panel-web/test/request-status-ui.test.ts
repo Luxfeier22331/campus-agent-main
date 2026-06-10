@@ -132,9 +132,9 @@ describe("protected panel request status ui", () => {
 					status: "completed",
 					stepId: "planning",
 					stepKind: "planning",
-					taskQueue: "campus-agent.activity.rag",
+					taskQueue: "campus-agent.activity.knowledge",
 					timeoutOutcome: "not_timed_out",
-					workerId: "staging:rag:worker-1",
+					workerId: "staging:activity-knowledge:001",
 				},
 				{
 					attemptCount: 1,
@@ -153,9 +153,9 @@ describe("protected panel request status ui", () => {
 					status: "completed",
 					stepId: "retrieval.indexed_lookup",
 					stepKind: "retrieval.indexed_lookup",
-					taskQueue: "campus-agent.activity.rag",
+					taskQueue: "campus-agent.activity.knowledge",
 					timeoutOutcome: "not_timed_out",
-					workerId: "staging:rag:worker-1",
+					workerId: "staging:activity-knowledge:001",
 				},
 				{
 					attemptCount: 1,
@@ -174,9 +174,9 @@ describe("protected panel request status ui", () => {
 					status: "completed",
 					stepId: "synthesis",
 					stepKind: "synthesis",
-					taskQueue: "campus-agent.activity.rag",
+					taskQueue: "campus-agent.activity.knowledge",
 					timeoutOutcome: "not_timed_out",
-					workerId: "staging:rag:worker-1",
+					workerId: "staging:activity-knowledge:001",
 				},
 				{
 					attemptCount: 1,
@@ -195,9 +195,9 @@ describe("protected panel request status ui", () => {
 					status: "completed",
 					stepId: "grounding.verify",
 					stepKind: "grounding.verify",
-					taskQueue: "campus-agent.activity.rag",
+					taskQueue: "campus-agent.activity.knowledge",
 					timeoutOutcome: "not_timed_out",
-					workerId: "staging:rag:worker-1",
+					workerId: "staging:activity-knowledge:001",
 				},
 				{
 					attemptCount: 1,
@@ -231,22 +231,22 @@ describe("protected panel request status ui", () => {
 			{
 				label: "planning",
 				value:
-					"completed · campus-agent.activity.rag · staging:rag:worker-1 · attempts=1 · results=1 · queue=25 ms · duration=100 ms · openai/gpt-5-mini · tokens=120/42 · 321 microUSD · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/planning",
+					"completed · campus-agent.activity.knowledge · staging:activity-knowledge:001 · attempts=1 · results=1 · queue=25 ms · duration=100 ms · openai/gpt-5-mini · tokens=120/42 · 321 microUSD · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/planning",
 			},
 			{
 				label: "retrieval.indexed_lookup",
 				value:
-					"completed · campus-agent.activity.rag · staging:rag:worker-1 · attempts=1 · results=1 · queue=35 ms · duration=45 ms · 暂无 · tokens=0/0 · cost=0 · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/retrieval/indexed-lookup",
+					"completed · campus-agent.activity.knowledge · staging:activity-knowledge:001 · attempts=1 · results=1 · queue=35 ms · duration=45 ms · 暂无 · tokens=0/0 · cost=0 · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/retrieval/indexed-lookup",
 			},
 			{
 				label: "synthesis",
 				value:
-					"completed · campus-agent.activity.rag · staging:rag:worker-1 · attempts=1 · results=1 · queue=20 ms · duration=250 ms · openai/gpt-5-mini · tokens=220/80 · 640 microUSD · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/synthesis",
+					"completed · campus-agent.activity.knowledge · staging:activity-knowledge:001 · attempts=1 · results=1 · queue=20 ms · duration=250 ms · openai/gpt-5-mini · tokens=220/80 · 640 microUSD · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/synthesis",
 			},
 			{
 				label: "grounding.verify",
 				value:
-					"completed · campus-agent.activity.rag · staging:rag:worker-1 · attempts=1 · results=1 · queue=8 ms · duration=25 ms · 暂无 · tokens=0/0 · cost=0 · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/grounding/verify",
+					"completed · campus-agent.activity.knowledge · staging:activity-knowledge:001 · attempts=1 · results=1 · queue=8 ms · duration=25 ms · 暂无 · tokens=0/0 · cost=0 · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/grounding/verify",
 			},
 			{
 				label: "finalization.write",

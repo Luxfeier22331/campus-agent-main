@@ -50,7 +50,7 @@ export type RuntimeRunPhase =
 	| "canceled"
 	| "expired";
 
-export function runtimeRunPhaseFromSupervisorStatus(status: string): RuntimeRunPhase {
+export function runtimeRunPhaseFromExecutionStatus(status: string): RuntimeRunPhase {
 	switch (status) {
 		case "created":
 			return "created";
@@ -73,7 +73,7 @@ export function runtimeRunPhaseFromSupervisorStatus(status: string): RuntimeRunP
 		default:
 			throw new ExecutionControlTransportError({
 				code: "execution_control_invalid_response",
-				message: "Supervisor durable run status is not supported.",
+				message: "Execution durable run status is not supported.",
 				retryable: true,
 				status: 502,
 			});
@@ -248,7 +248,7 @@ export function buildRuntimeRunService(input: {
 		) {
 			throw new ExecutionControlTransportError({
 				code: "execution_control_invalid_response",
-				message: "Supervisor durable run identity does not match app-api request ownership.",
+				message: "Execution durable run identity does not match app-api request ownership.",
 				retryable: true,
 				status: 502,
 			});
@@ -258,7 +258,7 @@ export function buildRuntimeRunService(input: {
 	function toRunSummary(run: ExecutionControlRun): RuntimeRunSummary {
 		return {
 			conversationId: run.conversationId,
-			phase: runtimeRunPhaseFromSupervisorStatus(run.status),
+			phase: runtimeRunPhaseFromExecutionStatus(run.status),
 			requestId: run.requestId,
 			runId: run.runId,
 			status: run.status,
@@ -299,7 +299,7 @@ export function buildRuntimeRunService(input: {
 		if (!Number.isInteger(event.sequence) || event.sequence <= lastSequence) {
 			throw new ExecutionControlTransportError({
 				code: "execution_control_invalid_response",
-				message: "Supervisor durable run events must advance the requested cursor.",
+				message: "Execution durable run events must advance the requested cursor.",
 				retryable: true,
 				status: 502,
 			});
@@ -329,7 +329,7 @@ export function buildRuntimeRunService(input: {
 			if (event.runId !== owned.runId) {
 				throw new ExecutionControlTransportError({
 					code: "execution_control_invalid_response",
-					message: "Supervisor durable run event identity does not match requested run.",
+					message: "Execution durable run event identity does not match requested run.",
 					retryable: true,
 					status: 502,
 				});

@@ -5,11 +5,11 @@ import {
 	validateInventoryAgainstExpectedTables,
 } from "./adopt-shared-database-inventory.mjs";
 import {
+	ALTER_INDEX_RENAME_RE,
 	ALTER_TABLE_ADD_COLUMN_RE,
 	ALTER_TABLE_CONSTRAINT_RE,
 	ALTER_TABLE_DROP_COLUMN_RE,
 	ALTER_TABLE_RENAME_COLUMN_RE,
-	ALTER_INDEX_RENAME_RE,
 	CREATE_INDEX_RE,
 	CREATE_SCHEMA_RE,
 	CREATE_TABLE_RE,
@@ -412,12 +412,12 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 			if (
 				shouldApplyStatement(
 					plannedInventory,
-						target,
-						expectedTablesForMigration,
-						expectedLatestTables,
-						renameIndexSourceKeys,
-					)
-				) {
+					target,
+					expectedTablesForMigration,
+					expectedLatestTables,
+					renameIndexSourceKeys,
+				)
+			) {
 				statements.push({
 					migrationTag: migration.tag,
 					statement,

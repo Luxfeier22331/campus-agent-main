@@ -128,12 +128,12 @@ def _create_runtime_app(
 
         def _runtime_unavailable_handler(
             _request,
-            runtime_agent_request,
+            runtime_capability_request,
             *,
             _failure_detail: str = failure_detail,
         ):
             return CapabilityResponse(
-                capability=runtime_agent_request.capability,
+                capability=runtime_capability_request.capability,
                 status="error",
                 confidence="low",
                 error=ErrorInfo(

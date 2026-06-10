@@ -441,7 +441,7 @@ func validatePersonalMemorySettings(
 	}
 	role := normalizeRuntimeRole(runtimeRole)
 	switch role {
-	case "workflow", "activity-finalization":
+	case "workflow", "activity-finalization", "activity-campus-services", "activity-notice", "activity-navigation":
 		return nil
 	}
 	required := []struct {
@@ -476,8 +476,16 @@ func validatePersonalMemorySettings(
 
 func normalizeRuntimeRole(value string) string {
 	switch strings.TrimSpace(value) {
-	case "activity-rag", "activity-worker-rag", "rag":
-		return "activity-rag"
+	case "activity-context", "activity-worker-context", "context":
+		return "activity-context"
+	case "activity-knowledge", "activity-worker-knowledge", "knowledge":
+		return "activity-knowledge"
+	case "activity-campus-services", "activity-worker-campus-services", "campus_services":
+		return "activity-campus-services"
+	case "activity-notice", "activity-worker-notice", "notice":
+		return "activity-notice"
+	case "activity-navigation", "activity-worker-navigation", "navigation":
+		return "activity-navigation"
 	case "activity-finalization", "activity-worker-finalization", "finalization":
 		return "activity-finalization"
 	case "workflow", "workflow-worker":

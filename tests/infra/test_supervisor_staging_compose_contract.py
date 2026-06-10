@@ -144,7 +144,7 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED:", compose)
         self.assertNotIn("EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED:", compose)
 
-    def test_personal_memory_write_key_stays_out_of_rag_worker(self) -> None:
+    def test_personal_memory_write_key_stays_out_of_activity_workers(self) -> None:
         compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
             encoding="utf-8"
         )
@@ -153,16 +153,43 @@ class SupervisorStagingComposeContractTest(unittest.TestCase):
             "\n  workflow-worker:",
             1,
         )[0]
-        rag_worker_section = compose.split("  activity-worker-rag:", 1)[1].split(
+        context_worker_section = compose.split("  activity-worker-context:", 1)[1].split(
+            "\n  activity-worker-knowledge:",
+            1,
+        )[0]
+        knowledge_worker_section = compose.split("  activity-worker-knowledge:", 1)[1].split(
+            "\n  activity-worker-campus-services:",
+            1,
+        )[0]
+        campus_services_worker_section = compose.split(
+            "  activity-worker-campus-services:",
+            1,
+        )[1].split("\n  activity-worker-notice:", 1)[0]
+        notice_worker_section = compose.split("  activity-worker-notice:", 1)[1].split(
+            "\n  activity-worker-navigation:",
+            1,
+        )[0]
+        navigation_worker_section = compose.split("  activity-worker-navigation:", 1)[1].split(
             "\n  activity-worker-finalization:",
             1,
         )[0]
 
         self.assertIn("QDRANT_QUERY_API_KEY:", execution_control_section)
         self.assertIn("QDRANT_WRITE_API_KEY:", execution_control_section)
-        self.assertIn("QDRANT_QUERY_API_KEY:", rag_worker_section)
-        self.assertIn("QDRANT_TLS_CA_CERT_PATH:", rag_worker_section)
-        self.assertNotIn("QDRANT_WRITE_API_KEY:", rag_worker_section)
+        self.assertIn("QDRANT_QUERY_API_KEY:", context_worker_section)
+        self.assertIn("QDRANT_TLS_CA_CERT_PATH:", context_worker_section)
+        self.assertNotIn("QDRANT_WRITE_API_KEY:", context_worker_section)
+        self.assertIn("QDRANT_QUERY_API_KEY:", knowledge_worker_section)
+        self.assertIn("QDRANT_TLS_CA_CERT_PATH:", knowledge_worker_section)
+        self.assertNotIn("QDRANT_WRITE_API_KEY:", knowledge_worker_section)
+        for typed_worker_section in (
+            campus_services_worker_section,
+            notice_worker_section,
+            navigation_worker_section,
+        ):
+            self.assertNotIn("QDRANT_QUERY_API_KEY:", typed_worker_section)
+            self.assertNotIn("QDRANT_WRITE_API_KEY:", typed_worker_section)
+            self.assertNotIn("EMBEDDING_API_KEY:", typed_worker_section)
 
     def test_execution_control_runtime_timeout_budget_does_not_require_python_worker_budget(
         self,

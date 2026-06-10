@@ -119,16 +119,16 @@ func (readyRAGSynthesisExecutor) ExecuteRAGSynthesis(
 	return ragSynthesisResult{}, nil
 }
 
-func (readyTemporalStarter) StartChatAnswerWorkflow(
+func (readyTemporalStarter) StartCapabilityExecutionWorkflow(
 	context.Context,
-	temporalruntime.ChatAnswerWorkflowInput,
+	temporalruntime.CapabilityExecutionWorkflowInput,
 ) error {
 	return nil
 }
 
-func (readyTemporalStarter) CancelChatAnswerWorkflow(
+func (readyTemporalStarter) CancelCapabilityExecutionWorkflow(
 	context.Context,
-	temporalruntime.ChatAnswerWorkflowCancelInput,
+	temporalruntime.CapabilityExecutionWorkflowCancelInput,
 ) error {
 	return nil
 }
@@ -147,7 +147,13 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueRAG,
+				Name:    temporalruntime.ActivityTaskQueueContext,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,

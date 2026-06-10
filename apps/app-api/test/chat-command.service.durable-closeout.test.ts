@@ -9,12 +9,12 @@ import type {
 } from "../src/modules/integration/execution-control";
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
@@ -96,7 +96,7 @@ describe("chat command durable stream closeout", () => {
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
 		const waitUntilPromises: Promise<unknown>[] = [];
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -195,7 +195,7 @@ describe("chat command durable stream closeout", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const waitUntilPromises: Promise<unknown>[] = [];
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};

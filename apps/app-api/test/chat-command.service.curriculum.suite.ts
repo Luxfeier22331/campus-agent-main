@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
 	CURRICULUM_PROGRAM_SLOT_NAME,
 	CURRICULUM_SEMESTER_SLOT_NAME,
@@ -10,7 +11,6 @@ import {
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCurriculumSuite(): void {
@@ -21,7 +21,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 		};
 		const commandStore = createCommandStore({ conversation });
 		const { store: conversationStore } = createConversationStore({ conversation });
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi
 				.fn()
 				.mockResolvedValueOnce({

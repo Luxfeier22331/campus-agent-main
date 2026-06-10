@@ -1,17 +1,17 @@
 openapi: 3.1.1
 info:
-  title: campus-agent supervisor execution contract
-  version: supervisor-execution-v1
+  title: campus-agent capability execution contract
+  version: capability-execution-v1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
-  bridge_version: supervisor_bridge_v6
-  response_contract: capability_response
-  runtime_decisions_schema_version: supervisor-runtime-decisions-v1
+  execution_contract_version: capability_execution_v1
+  response_contract: execution_finalization_response_v1
+  runtime_decisions_schema_version: capability-execution-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
   workflow_trace_summary_version: workflow-trace-summary-v4
   versioning_policy:
-    bridge_version: incompatible bridge envelope changes must bump bridge_version
-    response_contract: CapabilityResponse wire contract changes must bump response_contract
+    execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
+    response_contract: ExecutionFinalizationResponse wire contract changes must bump response_contract
     runtime_decisions_schema_version: runtime_decisions shape changes must bump runtime_decisions_schema_version
     runtime_decision_summary_schema_version: runtime decision summary shape changes must bump runtime_decision_summary_schema_version
     workflow_trace_summary_version: operator-visible workflow trace summary changes must bump workflow_trace_summary_version
@@ -92,22 +92,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunResponse"
-  /internal/bridge/supervisor/answer:
+  /internal/execution/capability:
     post:
-      summary: Private supervisor bridge v6 capability handoff.
+      summary: Private capability execution request.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/BridgeV6Request"
+              $ref: "#/components/schemas/CapabilityExecutionRequest"
       responses:
         "200":
-          description: Capability response.
+          description: Execution finalization response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CapabilityResponse"
+                $ref: "#/components/schemas/ExecutionFinalizationResponse"
 components:
   parameters:
     RunId:
@@ -279,7 +279,7 @@ components:
         - needs_clarification
         - no_answer
         - error
-    SupervisorStatus:
+    ExecutionStatus:
       type: string
       enum:
         - completed
@@ -603,7 +603,7 @@ components:
           type: string
         compare_to_version_id:
           type: string
-    SupervisorExecutionRequest:
+    CapabilityExecutionSubmitRequest:
       type: object
       additionalProperties: false
       required:
@@ -679,7 +679,7 @@ components:
         - runtime_decision_summary
       properties:
         schema_version:
-          const: supervisor-runtime-decisions-v1
+          const: capability-execution-runtime-decisions-v1
         effective_capability:
           $ref: "#/components/schemas/RequestedCapability"
         lane:
@@ -779,11 +779,11 @@ components:
           oneOf:
             - $ref: "#/components/schemas/SafeObject"
             - type: "null"
-    BridgeV6Request:
+    CapabilityExecutionRequest:
       type: object
       additionalProperties: false
       required:
-        - bridge_version
+        - execution_contract_version
         - response_contract
         - user_goal
         - request_id
@@ -796,10 +796,10 @@ components:
         - version_query
         - runtime_decisions
       properties:
-        bridge_version:
-          const: supervisor_bridge_v6
+        execution_contract_version:
+          const: capability_execution_v1
         response_contract:
-          const: capability_response
+          const: execution_finalization_response_v1
         user_goal:
           type: string
         conversation_id:
@@ -910,7 +910,7 @@ components:
           $ref: "#/components/schemas/SafeObject"
         policy_artifact_versions:
           $ref: "#/components/schemas/SafeObject"
-    SupervisorResponse:
+    ExecutionFinalizationResponse:
       type: object
       additionalProperties: false
       required:
@@ -928,7 +928,7 @@ components:
             - $ref: "#/components/schemas/CapabilityID"
             - type: "null"
         status:
-          $ref: "#/components/schemas/SupervisorStatus"
+          $ref: "#/components/schemas/ExecutionStatus"
         answer_text:
           type: string
         follow_up_question:

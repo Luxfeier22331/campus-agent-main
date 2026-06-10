@@ -5,14 +5,14 @@ from tests.evals.golden_cases_test_support import (
     ActorContext,
     ErrorInfo,
     EvidenceBundle,
+    ExecutionObservability,
+    ExecutionResponse,
     ExecutionResult,
     GoldenCase,
     KnowledgeScope,
     ObservedTrace,
     RagResultDiagnostics,
     RagResultPayload,
-    SupervisorObservability,
-    SupervisorResponse,
     TraceExpectation,
     VersionQuery,
     _response,
@@ -62,12 +62,12 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
         report = run_cases(
             (matching_case, mismatched_family_case),
             executor=lambda _case: ExecutionResult(
-                response=SupervisorResponse(
+                response=ExecutionResponse(
                     selected_capability="knowledge",
                     status="no_answer",
                     answer_text="当前依据不足，暂时不能直接回答。",
                     confidence="low",
-                    observability=SupervisorObservability(
+                    observability=ExecutionObservability(
                         retrieval_attempted=False,
                         candidate_count=0,
                         retrieved_source_count=0,
@@ -118,12 +118,12 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
         report = run_cases(
             (case,),
             executor=lambda _case: ExecutionResult(
-                response=SupervisorResponse(
+                response=ExecutionResponse(
                     selected_capability=None,
                     status="no_answer",
                     answer_text="这个问题不在当前支持范围内。",
                     confidence="low",
-                    observability=SupervisorObservability(
+                    observability=ExecutionObservability(
                         retrieval_attempted=False,
                         candidate_count=0,
                         retrieved_source_count=0,
@@ -180,12 +180,12 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             (unsupported_case, completed_case),
             executor=lambda case: ExecutionResult(
                 response=(
-                    SupervisorResponse(
+                    ExecutionResponse(
                         selected_capability="knowledge",
                         status="no_answer",
                         answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
                         confidence="low",
-                        observability=SupervisorObservability(
+                        observability=ExecutionObservability(
                             retrieval_attempted=True,
                             candidate_count=0,
                             retrieved_source_count=0,
@@ -200,12 +200,12 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                         ),
                     )
                     if case.case_id == "case-unsupported"
-                    else SupervisorResponse(
+                    else ExecutionResponse(
                         selected_capability="knowledge",
                         status="no_answer",
                         answer_text="当前依据不足。",
                         confidence="low",
-                        observability=SupervisorObservability(
+                        observability=ExecutionObservability(
                             retrieval_attempted=True,
                             candidate_count=0,
                             retrieved_source_count=0,
@@ -407,16 +407,16 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             (policy_case, restricted_case, freshness_case),
             executor=lambda case: ExecutionResult(
                 response=(
-                    SupervisorResponse(
+                    ExecutionResponse(
                         selected_capability=None,
                         status="rejected",
                         answer_text="这个请求不在当前可执行范围内。",
                         confidence="low",
                         error=ErrorInfo(
                             code="request_rejected",
-                            message="request was rejected by supervisor policy",
+                            message="request was rejected by execution policy",
                         ),
-                        observability=SupervisorObservability(
+                        observability=ExecutionObservability(
                             retrieval_attempted=False,
                             candidate_count=0,
                             retrieved_source_count=0,
@@ -431,7 +431,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                         ),
                     )
                     if case.case_id == "case-policy-refusal"
-                    else SupervisorResponse(
+                    else ExecutionResponse(
                         selected_capability="knowledge",
                         status="no_answer",
                         answer_text="当前无法提供这部分受限内容。",
@@ -443,7 +443,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                                 collection=case.scope.collection,
                             )
                         ),
-                        observability=SupervisorObservability(
+                        observability=ExecutionObservability(
                             retrieval_attempted=True,
                             candidate_count=0,
                             retrieved_source_count=0,

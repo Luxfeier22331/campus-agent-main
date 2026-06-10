@@ -179,7 +179,8 @@ function selectBudgetedRows<
 		const reuseSelectedCanonicalUrl =
 			options.dedupeByCanonicalUrl === true && selectedCanonicalUrls.has(canonicalUrlKey);
 		const reuseSelectedCapabilityCanonicalKey =
-			options.dedupeByCanonicalUrl === true && selectedCapabilityCanonicalKeys.has(targetCanonicalKey);
+			options.dedupeByCanonicalUrl === true &&
+			selectedCapabilityCanonicalKeys.has(targetCanonicalKey);
 
 		if (
 			(options.dedupeByCanonicalUrl === true ? selectedCanonicalUrls.size : selected.length) >=

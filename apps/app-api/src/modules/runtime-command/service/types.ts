@@ -1,9 +1,9 @@
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversationStore } from "../../chat";
 import type {
-	RequestedScope,
+	CapabilityExecutionResponse,
 	ExecutionControlRuntimeClient,
-	SupervisorExecutionResponse,
+	RequestedScope,
 } from "../../integration";
 import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry } from "../../telemetry";
@@ -41,7 +41,7 @@ export interface ChatCommandResponse {
 		result: ChatCommandResult;
 	};
 	requestId: string;
-	supervisor?: SupervisorExecutionResponse;
+	supervisor?: CapabilityExecutionResponse;
 	traceId: string;
 }
 

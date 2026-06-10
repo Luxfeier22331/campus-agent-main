@@ -160,7 +160,7 @@ describe("request projection projector", () => {
 			requestedCapability: "knowledge",
 			selectedCapability: "knowledge",
 			status: "completed",
-			summary: "Knowledge request completed via rag agent.",
+			summary: "Knowledge request completed via knowledge capability.",
 			surface: "public_chat_web",
 			terminalCode: "completed",
 			traceId: "trace_01HQ",

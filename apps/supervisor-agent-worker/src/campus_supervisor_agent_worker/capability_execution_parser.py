@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from campus_contracts import (
     ALLOWED_REQUESTED_CAPABILITIES,
     CapabilityRequest,
-    SupervisorRequest,
+    ExecutionRequest,
     WorkflowCapabilityContext,
 )
 from pydantic import ValidationError
@@ -29,11 +29,11 @@ from campus_supervisor_agent_worker.bridge_trace_codecs import (
     parse_trace_context,
     parse_version_query,
 )
-from campus_supervisor_agent_worker.generated.supervisor_execution_contract import (
-    BRIDGE_VERSION,
+from campus_supervisor_agent_worker.generated.capability_execution_contract import (
+    EXECUTION_CONTRACT_VERSION,
     RESPONSE_CONTRACT,
     RUNTIME_DECISIONS_SCHEMA_VERSION,
-    BridgeV6RequestWire,
+    CapabilityExecutionRequestWire,
 )
 from campus_supervisor_agent_worker.openai_agents_workflow_plan import (
     OpenAIAgentsWorkflowPlanError,
@@ -42,23 +42,23 @@ from campus_supervisor_agent_worker.openai_agents_workflow_plan import (
 
 
 @dataclass(frozen=True, slots=True)
-class BridgeSupervisorEnvelope:
-    request: SupervisorRequest
+class CapabilityExecutionEnvelope:
+    request: ExecutionRequest
     capability_request: CapabilityRequest | None = None
     routing_frame: dict[str, object] | None = None
 
 
-def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSupervisorEnvelope:
+def parse_capability_execution_envelope(payload: dict[str, object]) -> CapabilityExecutionEnvelope:
     try:
-        wire_payload = BridgeV6RequestWire.model_validate(payload).model_dump(mode="python")
+        wire_payload = CapabilityExecutionRequestWire.model_validate(payload).model_dump(mode="python")
     except ValidationError as exc:
         raise ValueError(_wire_validation_error(exc)) from exc
     payload = wire_payload
-    _require_bridge_version(payload.get("bridge_version"))
+    _require_execution_contract_version(payload.get("execution_contract_version"))
     _require_response_contract(payload.get("response_contract"))
     effective_capability = _parse_effective_capability(payload)
     lane = require_string(payload.get("lane"), field_name="lane")
-    request = SupervisorRequest(
+    request = ExecutionRequest(
         user_goal=require_string(payload.get("user_goal"), field_name="user_goal"),
         conversation_id=parse_optional_string(
             payload.get("conversation_id"),
@@ -85,17 +85,17 @@ def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuperv
         lane=lane,
         request=request,
     )
-    return BridgeSupervisorEnvelope(
+    return CapabilityExecutionEnvelope(
         request=request,
         capability_request=capability_request,
         routing_frame=routing_frame,
     )
 
 
-def _require_bridge_version(raw_version: object) -> None:
-    bridge_version = require_string(raw_version, field_name="bridge_version")
-    if bridge_version != BRIDGE_VERSION:
-        raise ValueError(f"bridge_version must be {BRIDGE_VERSION}")
+def _require_execution_contract_version(raw_version: object) -> None:
+    execution_contract_version = require_string(raw_version, field_name="execution_contract_version")
+    if execution_contract_version != EXECUTION_CONTRACT_VERSION:
+        raise ValueError(f"execution_contract_version must be {EXECUTION_CONTRACT_VERSION}")
 
 
 def _require_response_contract(raw_contract: object) -> None:
@@ -127,7 +127,7 @@ def _parse_runtime_decisions(
     *,
     effective_capability: str,
     lane: str,
-    request: SupervisorRequest,
+    request: ExecutionRequest,
 ) -> tuple[CapabilityRequest, dict[str, object]]:
     decisions = require_object(raw_decisions, field_name="runtime_decisions")
     schema_version = require_string(
@@ -392,7 +392,7 @@ def parse_workflow_capability_context(raw_context: object) -> WorkflowCapability
 
 def _assert_capability_request_matches_supervisor_request(
     capability_request: CapabilityRequest,
-    request: SupervisorRequest,
+    request: ExecutionRequest,
 ) -> None:
     if capability_request.user_goal != request.user_goal:
         raise ValueError(

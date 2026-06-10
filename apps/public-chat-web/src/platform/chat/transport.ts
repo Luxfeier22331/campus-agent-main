@@ -35,10 +35,6 @@ export function subscribeShellRunEventStream(input: {
 	return subscribeChatRunEventStream(input);
 }
 
-export function cancelShellRun(input: {
-	reason: string;
-	runId: string;
-	signal?: AbortSignal;
-}) {
+export function cancelShellRun(input: { reason: string; runId: string; signal?: AbortSignal }) {
 	return cancelChatRun(input);
 }

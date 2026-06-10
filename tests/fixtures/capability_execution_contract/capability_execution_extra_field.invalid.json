@@ -1,10 +1,10 @@
 {
-	"bridge_version": "supervisor_bridge_v5",
-	"response_contract": "capability_response",
+	"execution_contract_version": "capability_execution_v1",
+	"response_contract": "execution_finalization_response_v1",
 	"user_goal": "学生手册请假制度怎么规定？",
-	"request_id": "req-contract-invalid-version",
+	"request_id": "req-contract-extra",
 	"trace": {
-		"trace_id": "trace-contract-invalid-version"
+		"trace_id": "trace-contract-extra"
 	},
 	"actor": {},
 	"context": {},
@@ -13,7 +13,7 @@
 	"lane": "rag",
 	"version_query": {},
 	"runtime_decisions": {
-		"schema_version": "supervisor-runtime-decisions-v1",
+		"schema_version": "capability-execution-runtime-decisions-v1",
 		"effective_capability": "knowledge",
 		"lane": "rag",
 		"routing_frame": {},
@@ -21,5 +21,6 @@
 			"schema_version": "runtime-decision-summary-v1",
 			"planning_outcome": "preplanned"
 		}
-	}
+	},
+	"unexpected_contract_field": true
 }

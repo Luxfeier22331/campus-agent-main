@@ -25,14 +25,14 @@ from campus_contracts.models_shared import (
     ALLOWED_CAPABILITY_TOOL_NAMES,
     ALLOWED_CONFIDENCE_LEVELS,
     ALLOWED_DELEGATE_STATUSES,
+    ALLOWED_EXECUTION_STATUSES,
     ALLOWED_REQUESTED_CAPABILITIES,
-    ALLOWED_SUPERVISOR_STATUSES,
     CapabilityID,
     CapabilityToolName,
     ConfidenceLevel,
     DelegateStatus,
+    ExecutionStatus,
     RequestedCapability,
-    SupervisorStatus,
 )
 from campus_contracts.models_tools import (
     AcademicCalendarLookupPayload,
@@ -266,7 +266,7 @@ class WorkflowCapabilityContext:
 
 
 @dataclass(frozen=True, slots=True)
-class SupervisorObservability:
+class ExecutionObservability:
     retrieval_attempted: bool | None = None
     candidate_count: int | None = None
     retrieved_source_count: int | None = None
@@ -329,7 +329,7 @@ def _normalize_optional_safety_identifier(value: str | None) -> str | None:
     return normalized
 
 
-def _coerce_context_projection(request: SupervisorRequest | CapabilityRequest) -> None:
+def _coerce_context_projection(request: ExecutionRequest | CapabilityRequest) -> None:
     default_actor = ActorContext()
     default_context = ContextProjection()
     if request.actor == default_actor and request.context == default_context:
@@ -349,7 +349,7 @@ def _coerce_context_projection(request: SupervisorRequest | CapabilityRequest) -
 
 
 @dataclass(frozen=True, slots=True)
-class SupervisorRequest:
+class ExecutionRequest:
     user_goal: str
     conversation_id: str = ""
     request_id: str = ""
@@ -447,9 +447,9 @@ class CapabilityResponse:
 
 
 @dataclass(frozen=True, slots=True)
-class SupervisorResponse:
+class ExecutionResponse:
     selected_capability: CapabilityID | None
-    status: SupervisorStatus
+    status: ExecutionStatus
     answer_text: str = ""
     follow_up_question: str = ""
     confidence: ConfidenceLevel = "low"
@@ -467,7 +467,7 @@ class SupervisorResponse:
         | None
     ) = None
     error: ErrorInfo | None = None
-    observability: SupervisorObservability | None = None
+    observability: ExecutionObservability | None = None
     workflow_trace_summary: WorkflowTraceSummary | None = None
 
     def __post_init__(self) -> None:
@@ -476,7 +476,7 @@ class SupervisorResponse:
             and self.selected_capability not in ALLOWED_CAPABILITY_IDS
         ):
             raise ValueError(f"unsupported selected_capability: {self.selected_capability}")
-        if self.status not in ALLOWED_SUPERVISOR_STATUSES:
-            raise ValueError(f"unsupported supervisor status: {self.status}")
+        if self.status not in ALLOWED_EXECUTION_STATUSES:
+            raise ValueError(f"unsupported execution status: {self.status}")
         if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:
             raise ValueError(f"unsupported confidence level: {self.confidence}")

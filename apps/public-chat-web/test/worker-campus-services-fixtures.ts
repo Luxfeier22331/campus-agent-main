@@ -1,6 +1,6 @@
 import type {
-	SupervisorExecutionInput,
-	SupervisorExecutionResponse,
+	CapabilityExecutionInput,
+	CapabilityExecutionResponse,
 } from "../../app-api/src/modules/integration";
 
 import type {
@@ -325,9 +325,9 @@ export function findCampusServicesRoutingCase(prompt: string): CampusServicesRou
 }
 
 export function buildCampusServicesExecutionResponse(
-	input: SupervisorExecutionInput,
+	input: CapabilityExecutionInput,
 	route: CampusServicesRoutingCase,
-): SupervisorExecutionResponse {
+): CapabilityExecutionResponse {
 	return {
 		answerText: route.expectedAnswerFragment,
 		error: null,
@@ -386,9 +386,9 @@ export function findCampusServicesGuardrailCase(prompt: string): CampusServicesG
 }
 
 export function buildCampusServicesGuardrailExecutionResponse(
-	input: SupervisorExecutionInput,
+	input: CapabilityExecutionInput,
 	currentCase: CampusServicesGuardrailCase,
-): SupervisorExecutionResponse {
+): CapabilityExecutionResponse {
 	const errorPayload =
 		currentCase.expectedStatus === "rejected"
 			? {

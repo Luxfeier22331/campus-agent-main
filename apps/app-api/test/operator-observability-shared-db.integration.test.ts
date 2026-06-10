@@ -518,7 +518,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 					severity: "high",
 					status: "open",
 					summary:
-						"knowledge request finalized without the required policy projection for rag agent.",
+						"knowledge request finalized without the required policy projection for knowledge capability.",
 					surface: "public_chat_web",
 					traceId,
 				},

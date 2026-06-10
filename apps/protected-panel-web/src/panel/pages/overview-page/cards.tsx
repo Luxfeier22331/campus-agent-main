@@ -15,7 +15,10 @@ import type { ReactNode } from "react";
 import { PanelLineChart } from "../../panel-chart";
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
 import { PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
-import { formatSelectedCapabilityLabel, formatSurfaceLabel } from "../../requests/request-formatters";
+import {
+	formatSelectedCapabilityLabel,
+	formatSurfaceLabel,
+} from "../../requests/request-formatters";
 import type {
 	OperatorOverviewAlert,
 	OperatorOverviewRecord,

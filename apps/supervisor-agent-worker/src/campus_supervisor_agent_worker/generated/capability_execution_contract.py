@@ -1,4 +1,4 @@
-# AUTO-GENERATED FROM supervisor-execution.openapi.yaml. Do not edit by hand.
+# AUTO-GENERATED FROM capability-execution.openapi.yaml. Do not edit by hand.
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-BRIDGE_VERSION = "supervisor_bridge_v6"
-RESPONSE_CONTRACT = "capability_response"
-RUNTIME_DECISIONS_SCHEMA_VERSION = "supervisor-runtime-decisions-v1"
+EXECUTION_CONTRACT_VERSION = "capability_execution_v1"
+RESPONSE_CONTRACT = "execution_finalization_response_v1"
+RUNTIME_DECISIONS_SCHEMA_VERSION = "capability-execution-runtime-decisions-v1"
 RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION = "runtime-decision-summary-v1"
 WORKFLOW_TRACE_SUMMARY_VERSION = "workflow-trace-summary-v4"
 
@@ -35,7 +35,7 @@ DelegateStatus = Literal[
     "no_answer",
     "error",
 ]
-SupervisorStatus = Literal[
+ExecutionStatus = Literal[
     "completed",
     "needs_clarification",
     "no_answer",
@@ -191,10 +191,10 @@ class RuntimeDecisionsWire(BaseModel):
     terminal_envelope: dict[str, Any] | None = None
 
 
-class BridgeV6RequestWire(BaseModel):
+class CapabilityExecutionRequestWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    bridge_version: Literal[BRIDGE_VERSION]
+    execution_contract_version: Literal[EXECUTION_CONTRACT_VERSION]
     response_contract: Literal[RESPONSE_CONTRACT]
     user_goal: str
     request_id: str
@@ -267,11 +267,11 @@ class WorkflowTraceSummaryWire(BaseModel):
     tool_call_summaries: list[dict[str, Any]] = Field(default_factory=list)
 
 
-class SupervisorResponseWire(BaseModel):
+class CapabilityExecutionResponseWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     selected_capability: CapabilityID | None
-    status: SupervisorStatus
+    status: ExecutionStatus
     answer_text: str
     follow_up_question: str
     confidence: ConfidenceLevel

@@ -92,7 +92,7 @@ function createRuntimeReadinessResult() {
 			officialWebHandoff: "not_configured",
 			operatorBridge: "configured",
 			publicChatCompatibilityOrigin: "configured",
-			supervisorApi: "ready",
+			executionControl: "ready",
 		},
 		failed: {},
 		preflight: {
@@ -220,9 +220,11 @@ describe("app-api worker foundation", () => {
 		expect(deployStagingSource).toContain("execution-control trusted machine ingress");
 		expect(deployStagingSource).toContain("EXECUTION_CONTROL_ACCESS_CLIENT_ID");
 		expect(deployStagingSource).toContain("EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
-		expect(deployStagingSource).not.toContain("EXECUTION_CONTROL_ACCESS_CLIENT_ID:${accessClientId}");
-		expect(deployStagingSource).not.toContain(
-			"EXECUTION_CONTROL_ACCESS_CLIENT_SECRET:${accessClientSecret}",
+		expect(deployStagingSource).not.toMatch(
+			/EXECUTION_CONTROL_ACCESS_CLIENT_ID:\$\{accessClientId\}/,
+		);
+		expect(deployStagingSource).not.toMatch(
+			/EXECUTION_CONTROL_ACCESS_CLIENT_SECRET:\$\{accessClientSecret\}/,
 		);
 		expect(deployStagingSource).not.toContain("supervisor origin");
 		expect(stagingPreflightSource).toContain("db:bootstrap:staging");
@@ -322,7 +324,7 @@ describe("app-api worker foundation", () => {
 				officialWebHandoff: "not_configured",
 				operatorBridge: "configured",
 				publicChatCompatibilityOrigin: "configured",
-				supervisorApi: "ready",
+				executionControl: "ready",
 			},
 			preflight: {
 				campusServicesProductPath: {
@@ -358,10 +360,10 @@ describe("app-api worker foundation", () => {
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
-					supervisorApi: "not_ready",
+					executionControl: "not_ready",
 				},
 				failed: {
-					supervisorApi: "supervisor /readyz returned 503",
+					executionControl: "execution-control /readyz returned 503",
 				},
 			}),
 		});
@@ -435,11 +437,11 @@ describe("app-api worker foundation", () => {
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
-					supervisorApi: "not_ready",
+					executionControl: "not_ready",
 				},
 				failed: {
 					auth: "better-auth session runtime failed probe",
-					supervisorApi: "supervisor /readyz returned 503",
+					executionControl: "execution-control /readyz returned 503",
 				},
 			}),
 		});
@@ -460,7 +462,7 @@ describe("app-api worker foundation", () => {
 				details: {
 					failed: {
 						auth: "better-auth session runtime failed probe",
-						supervisorApi: "supervisor /readyz returned 503",
+						executionControl: "execution-control /readyz returned 503",
 					},
 				},
 			},
@@ -478,7 +480,7 @@ describe("app-api worker foundation", () => {
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
-					supervisorApi: "ready",
+					executionControl: "ready",
 				},
 				failed: {
 					executionRuntime: "temporal_runtime is not configured and healthy",
@@ -523,8 +525,7 @@ describe("app-api worker foundation", () => {
 								temporalRuntime: "not_ready",
 							},
 							blockers: {
-								temporalRuntime:
-									"temporal_runtime is not configured and healthy",
+								temporalRuntime: "temporal_runtime is not configured and healthy",
 							},
 						},
 					},
@@ -544,7 +545,7 @@ describe("app-api worker foundation", () => {
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
 					publicChatCompatibilityOrigin: "configured",
-					supervisorApi: "ready",
+					executionControl: "ready",
 				},
 				failed: {},
 				preflight: {

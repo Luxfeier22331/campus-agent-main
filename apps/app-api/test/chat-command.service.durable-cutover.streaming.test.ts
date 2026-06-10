@@ -12,19 +12,19 @@ import {
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 describe("chat command durable runtime cutover failure and streaming", () => {
 	it("finalizes accepted requests as errors when durable run creation fails", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -89,7 +89,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("does not expose a resumable accepted event when durable run creation fails", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -167,7 +167,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("finalizes blocking durable requests as execution timeouts when polling budget expires", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -259,7 +259,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};

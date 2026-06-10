@@ -551,7 +551,9 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 				conditions.push(eq(qualityBadcaseProjection.surface, filters.surface));
 			}
 			if (filters.selectedCapability) {
-				conditions.push(eq(qualityBadcaseProjection.selectedCapability, filters.selectedCapability));
+				conditions.push(
+					eq(qualityBadcaseProjection.selectedCapability, filters.selectedCapability),
+				);
 			}
 			if (filters.window) {
 				const bounds = resolveWindowBounds(filters.window, runtime.now());
@@ -681,7 +683,9 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 				conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 			}
 			if (filters.selectedCapability) {
-				conditions.push(eq(requestObservabilityFact.selectedCapability, filters.selectedCapability));
+				conditions.push(
+					eq(requestObservabilityFact.selectedCapability, filters.selectedCapability),
+				);
 			}
 
 			const observabilityQuery = db.select().from(requestObservabilityFact);

@@ -321,7 +321,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					answerText: "",
 					error: {
 						code: "request_rejected",
-						message: "request was rejected by supervisor policy",
+						message: "request was rejected by execution policy",
 						retryable: false,
 					},
 					followUpQuestion: "",
@@ -376,7 +376,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(rejected.answer.result).toEqual({
 			errorCode: "request_rejected",
 			kind: "error",
-			message: "request was rejected by supervisor policy",
+			message: "request was rejected by execution policy",
 			requestId: "req_0001",
 			retryable: false,
 			traceId: "trace_0002",

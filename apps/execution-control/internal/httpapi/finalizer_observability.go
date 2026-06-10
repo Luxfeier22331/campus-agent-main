@@ -39,19 +39,19 @@ func allowedConfidence(confidence string) bool {
 	}
 }
 
-func buildSupervisorObservability(
+func buildExecutionObservability(
 	target string,
 	status string,
 	result map[string]any,
 	selectedTool string,
 ) map[string]any {
 	if target == "knowledge" {
-		return buildRagSupervisorObservability(status, result, selectedTool)
+		return buildRagExecutionObservability(status, result, selectedTool)
 	}
-	return buildStructuredSupervisorObservability(target, status, result, selectedTool)
+	return buildStructuredExecutionObservability(target, status, result, selectedTool)
 }
 
-func buildRagSupervisorObservability(
+func buildRagExecutionObservability(
 	status string,
 	result map[string]any,
 	selectedTool string,
@@ -107,7 +107,7 @@ func buildRagSupervisorObservability(
 	}
 }
 
-func buildStructuredSupervisorObservability(
+func buildStructuredExecutionObservability(
 	target string,
 	status string,
 	result map[string]any,

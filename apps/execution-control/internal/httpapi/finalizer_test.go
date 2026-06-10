@@ -9,10 +9,10 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
+func TestFinalizeAgentBridgeResponseBuildsExecutionEnvelope(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "图书馆开放到 22:00。",
 			"follow_up_question": "",
@@ -31,7 +31,7 @@ func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
 			},
 		},
 		"trace-finalizer-1",
-		supervisorFinalizerContext{},
+		executionFinalizerContext{},
 	)
 	if err != nil {
 		t.Fatalf("finalize returned error: %v", err)
@@ -67,8 +67,8 @@ func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
 	}
 }
 
-func TestTerminalSupervisorResponseIncludesCanonicalNullableFields(t *testing.T) {
-	response := terminalSupervisorResponse(
+func TestTerminalExecutionResponseIncludesCanonicalNullableFields(t *testing.T) {
+	response := terminalExecutionResponse(
 		map[string]any{
 			"selected_capability": nil,
 			"status":              "no_answer",
@@ -80,7 +80,7 @@ func TestTerminalSupervisorResponseIncludesCanonicalNullableFields(t *testing.T)
 			},
 		},
 		"trace-terminal-canonical",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "terminal",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ContextPreflightState: "not_follow_up",
@@ -110,15 +110,15 @@ func TestTerminalSupervisorResponseIncludesCanonicalNullableFields(t *testing.T)
 	if err != nil {
 		t.Fatalf("marshal terminal response: %v", err)
 	}
-	if _, err := contractsv1.DecodeSupervisorResponseWireJSON(rawResponse); err != nil {
-		t.Fatalf("decode terminal supervisor response wire: %v; body=%s", err, string(rawResponse))
+	if _, err := contractsv1.DecodeCapabilityExecutionResponseWireJSON(rawResponse); err != nil {
+		t.Fatalf("decode terminal execution response wire: %v; body=%s", err, string(rawResponse))
 	}
 }
 
 func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "图书馆开放到 22:00。",
 			"follow_up_question": "",
@@ -130,7 +130,7 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 			},
 		},
 		"trace-finalizer-canonical-wire",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:     "allow",
 				PolicyGateDecision:    "allow",
@@ -159,9 +159,9 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 	if err != nil {
 		t.Fatalf("marshal finalized response: %v", err)
 	}
-	wire, err := contractsv1.DecodeSupervisorResponseWireJSON(rawResponse)
+	wire, err := contractsv1.DecodeCapabilityExecutionResponseWireJSON(rawResponse)
 	if err != nil {
-		t.Fatalf("decode canonical supervisor response wire: %v; body=%s", err, string(rawResponse))
+		t.Fatalf("decode canonical execution response wire: %v; body=%s", err, string(rawResponse))
 	}
 	if wire.WorkflowTraceSummary == nil {
 		t.Fatal("workflow trace summary is nil")
@@ -186,7 +186,7 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "campus_services",
+			"capability":         "campus_services",
 			"status":             "completed",
 			"answer_text":        "当前班车正常运行。",
 			"follow_up_question": "",
@@ -207,7 +207,7 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 			},
 		},
 		"trace-finalizer-workflow",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:     "allow",
 				PolicyGateDecision:    "allow",
@@ -336,14 +336,14 @@ func TestWorkflowSummarySourceIDsUsesExplicitSafeDetails(t *testing.T) {
 func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "campus_services",
+			"capability":         "campus_services",
 			"status":             "completed",
 			"answer_text":        "当前班车正常运行。",
 			"follow_up_question": "",
 			"confidence":         "high",
 		},
 		"trace-finalizer-missing-handoff",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "delegate",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				PlanningOutcome:    "preplanned",
@@ -362,14 +362,14 @@ func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testi
 func TestFinalizeAgentBridgeResponseRejectsSelectedCapabilityMismatch(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "notice",
+			"capability":         "notice",
 			"status":             "completed",
 			"answer_text":        "通知详情。",
 			"follow_up_question": "",
 			"confidence":         "high",
 		},
 		"trace-finalizer-target-mismatch",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "delegate",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				PlanningOutcome:    "preplanned",
@@ -395,7 +395,7 @@ func TestFinalizeAgentBridgeResponseRejectsSelectedCapabilityMismatch(t *testing
 func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "campus_services",
+			"capability":         "campus_services",
 			"status":             "completed",
 			"answer_text":        "校园卡服务当前正常。",
 			"follow_up_question": "",
@@ -435,7 +435,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 			},
 		},
 		"trace-finalizer-tool-calls",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:     "allow",
 				PolicyGateDecision:    "allow",

@@ -178,7 +178,8 @@ func requireDurableReadyz(report readyzReport) error {
 		return fmt.Errorf("%w: temporal task queue is empty", errTemporalReadyzBlocked)
 	case !containsAllTaskQueues(report.TemporalRuntime.TaskQueues, []string{
 		"campus-agent.workflow",
-		"campus-agent.activity.rag",
+		"campus-agent.activity.context",
+		"campus-agent.activity.knowledge",
 		"campus-agent.activity.finalization",
 	}):
 		return fmt.Errorf("%w: temporal required task queues are incomplete", errTemporalReadyzBlocked)

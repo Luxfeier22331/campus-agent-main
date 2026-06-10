@@ -9,21 +9,21 @@ import yaml
 from campus_contracts import (
     ALLOWED_CAPABILITY_IDS,
     ALLOWED_CONFIDENCE_LEVELS,
+    ALLOWED_EXECUTION_STATUSES,
     ALLOWED_REQUESTED_CAPABILITIES,
-    ALLOWED_SUPERVISOR_STATUSES,
 )
 
-OPENAPI_PATH = Path("docs/contracts/schemas/supervisor-execution.openapi.yaml")
+OPENAPI_PATH = Path("docs/contracts/schemas/capability-execution.openapi.yaml")
 CAPABILITY_HANDOFF_SCHEMA_PATH = Path("packages/contracts/schemas/capability-handoff.v1.schema.json")
 GENERATED_TS_PATH = Path(
-    "apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts"
+    "apps/app-api/src/modules/integration/generated/capability-execution-contract.ts"
 )
 GENERATED_GO_PATH = Path(
-    "apps/execution-control/internal/contracts/supervisor_execution_contract.go"
+    "apps/execution-control/internal/contracts/capability_execution_contract.go"
 )
 GENERATED_PY_PATH = Path(
     "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/"
-    "supervisor_execution_contract.py"
+    "capability_execution_contract.py"
 )
 
 
@@ -42,23 +42,29 @@ def _schema(name: str) -> dict[str, object]:
     return schema
 
 
-class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
+class CanonicalCapabilityExecutionSchemaTest(unittest.TestCase):
     def test_machine_readable_schema_sources_exist(self) -> None:
         self.assertTrue(OPENAPI_PATH.exists())
         self.assertTrue(CAPABILITY_HANDOFF_SCHEMA_PATH.exists())
 
-    def test_supervisor_execution_openapi_uses_31_json_schema_2020_12(self) -> None:
+    def test_capability_execution_openapi_uses_31_json_schema_2020_12(self) -> None:
         openapi = _load_openapi()
 
         self.assertEqual(openapi["openapi"], "3.1.1")
         self.assertEqual(
             openapi["jsonSchemaDialect"], "https://json-schema.org/draft/2020-12/schema"
         )
-        self.assertEqual(openapi["x-campus-contract"]["bridge_version"], "supervisor_bridge_v6")
-        self.assertEqual(openapi["x-campus-contract"]["response_contract"], "capability_response")
+        self.assertEqual(
+            openapi["x-campus-contract"]["execution_contract_version"],
+            "capability_execution_v1",
+        )
+        self.assertEqual(
+            openapi["x-campus-contract"]["response_contract"],
+            "execution_finalization_response_v1",
+        )
         self.assertEqual(
             openapi["x-campus-contract"]["runtime_decisions_schema_version"],
-            "supervisor-runtime-decisions-v1",
+            "capability-execution-runtime-decisions-v1",
         )
         self.assertEqual(
             openapi["x-campus-contract"]["runtime_decision_summary_schema_version"],
@@ -204,34 +210,36 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         self.assertEqual(
             set(policy),
             {
-                "bridge_version",
+                "execution_contract_version",
                 "response_contract",
                 "runtime_decisions_schema_version",
                 "runtime_decision_summary_schema_version",
                 "workflow_trace_summary_version",
             },
         )
-        self.assertIn("incompatible", policy["bridge_version"])
-        self.assertIn("CapabilityResponse", policy["response_contract"])
+        self.assertIn("incompatible", policy["execution_contract_version"])
+        self.assertIn("ExecutionFinalizationResponse", policy["response_contract"])
         self.assertIn("runtime_decisions", policy["runtime_decisions_schema_version"])
         self.assertIn("summary", policy["runtime_decision_summary_schema_version"])
         self.assertIn("operator", policy["workflow_trace_summary_version"])
 
     def test_runtime_enums_match_python_contract_truth(self) -> None:
-        supervisor_statuses = tuple(_schema("SupervisorStatus")["enum"])
+        execution_statuses = tuple(_schema("ExecutionStatus")["enum"])
 
         self.assertEqual(tuple(_schema("CapabilityID")["enum"]), ALLOWED_CAPABILITY_IDS)
         self.assertEqual(
             tuple(_schema("RequestedCapability")["enum"]), ALLOWED_REQUESTED_CAPABILITIES
         )
         self.assertEqual(tuple(_schema("ConfidenceLevel")["enum"]), ALLOWED_CONFIDENCE_LEVELS)
-        self.assertEqual(supervisor_statuses, (*ALLOWED_SUPERVISOR_STATUSES, "cancelled"))
+        self.assertEqual(execution_statuses, (*ALLOWED_EXECUTION_STATUSES, "cancelled"))
 
-    def test_terminal_supervisor_response_keeps_selected_capability_nullable(self) -> None:
-        selected_capability_schema = _schema("SupervisorResponse")["properties"]["selected_capability"]
+    def test_terminal_execution_response_keeps_selected_capability_nullable(self) -> None:
+        selected_capability_schema = _schema("ExecutionFinalizationResponse")["properties"][
+            "selected_capability"
+        ]
 
         self.assertIn({"type": "null"}, selected_capability_schema["oneOf"])
-        self.assertIn("cancelled", _schema("SupervisorStatus")["enum"])
+        self.assertIn("cancelled", _schema("ExecutionStatus")["enum"])
 
     def test_capability_handoff_schema_is_package_owned_without_runtime_wrapper_truth(self) -> None:
         schema = json.loads(CAPABILITY_HANDOFF_SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -241,13 +249,13 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         self.assertIn("CapabilityResponse", schema["$defs"])
         serialized = json.dumps(schema, ensure_ascii=True)
         self.assertNotIn("runtime_decisions", serialized)
-        self.assertNotIn("supervisor_bridge_v6", serialized)
+        self.assertNotIn("capability_execution_v1", serialized)
 
     def test_cross_language_generated_artifacts_are_present(self) -> None:
         for path, marker in (
-            (GENERATED_TS_PATH, "AUTO-GENERATED FROM supervisor-execution.openapi.yaml"),
-            (GENERATED_GO_PATH, "AUTO-GENERATED FROM supervisor-execution.openapi.yaml"),
-            (GENERATED_PY_PATH, "AUTO-GENERATED FROM supervisor-execution.openapi.yaml"),
+            (GENERATED_TS_PATH, "AUTO-GENERATED FROM capability-execution.openapi.yaml"),
+            (GENERATED_GO_PATH, "AUTO-GENERATED FROM capability-execution.openapi.yaml"),
+            (GENERATED_PY_PATH, "AUTO-GENERATED FROM capability-execution.openapi.yaml"),
         ):
             with self.subTest(path=str(path)):
                 self.assertTrue(path.exists())
@@ -258,11 +266,11 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         go_contract = GENERATED_GO_PATH.read_text(encoding="utf-8")
         py_contract = GENERATED_PY_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("interface SupervisorExecutionWorkflowTraceSummaryWire", ts_contract)
+        self.assertIn("interface CapabilityExecutionWorkflowTraceSummaryWire", ts_contract)
         self.assertIn("export type WorkflowMode = (typeof WORKFLOW_MODES)[number];", ts_contract)
         self.assertIn("workflow_mode: WorkflowMode;", ts_contract)
         self.assertIn(
-            "workflow_trace_summary?: SupervisorExecutionWorkflowTraceSummaryWire | null",
+            "workflow_trace_summary?: CapabilityExecutionWorkflowTraceSummaryWire | null",
             ts_contract,
         )
         self.assertIn("type WorkflowMode string", go_contract)
@@ -291,7 +299,7 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
                 "--all-packages",
                 "python",
                 "-m",
-                "scripts.generate_supervisor_execution_contracts",
+                "scripts.generate_capability_execution_contracts",
                 "--check",
             ],
             check=False,

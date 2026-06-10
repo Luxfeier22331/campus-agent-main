@@ -4,13 +4,15 @@ import json
 import unittest
 from pathlib import Path
 
-from campus_supervisor_agent_worker.bridge_v6_parser import parse_bridge_supervisor_envelope
-from campus_supervisor_agent_worker.generated.supervisor_execution_contract import (
-    BridgeV6RequestWire,
-    SupervisorResponseWire,
+from campus_supervisor_agent_worker.capability_execution_parser import (
+    parse_capability_execution_envelope,
+)
+from campus_supervisor_agent_worker.generated.capability_execution_contract import (
+    CapabilityExecutionRequestWire,
+    CapabilityExecutionResponseWire,
 )
 
-FIXTURE_DIR = Path("tests/fixtures/supervisor_execution_contract")
+FIXTURE_DIR = Path("tests/fixtures/capability_execution_contract")
 
 
 def load_fixture(name: str) -> dict[str, object]:
@@ -20,22 +22,22 @@ def load_fixture(name: str) -> dict[str, object]:
     return payload
 
 
-class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
-    def test_python_bridge_accepts_canonical_delegate_fixture(self) -> None:
-        payload = load_fixture("bridge_v6_delegate.valid.json")
+class CapabilityExecutionFixtureMatrixTest(unittest.TestCase):
+    def test_capability_execution_accepts_canonical_delegate_fixture(self) -> None:
+        payload = load_fixture("capability_execution_delegate.valid.json")
 
-        wire = BridgeV6RequestWire.model_validate(payload)
-        envelope = parse_bridge_supervisor_envelope(payload)
+        wire = CapabilityExecutionRequestWire.model_validate(payload)
+        envelope = parse_capability_execution_envelope(payload)
 
-        self.assertEqual(wire.bridge_version, "supervisor_bridge_v6")
-        self.assertEqual(wire.runtime_decisions.schema_version, "supervisor-runtime-decisions-v1")
+        self.assertEqual(wire.execution_contract_version, "capability_execution_v1")
+        self.assertEqual(wire.runtime_decisions.schema_version, "capability-execution-runtime-decisions-v1")
         self.assertEqual(envelope.request.request_id, "req-contract-001")
         self.assertIsNotNone(envelope.capability_request)
         assert envelope.capability_request is not None
         self.assertEqual(envelope.capability_request.capability, "knowledge")
 
-    def test_python_bridge_accepts_agent_workflow_context_projection_refs(self) -> None:
-        payload = load_fixture("bridge_v6_delegate.valid.json")
+    def test_capability_execution_accepts_agent_workflow_context_projection_refs(self) -> None:
+        payload = load_fixture("capability_execution_delegate.valid.json")
         payload["runtime_decisions"]["workflow_plan"] = {
             "schema_version": "workflow-plan-v1",
             "plan_id": "plan:selected_notice:knowledge_followthrough",
@@ -91,7 +93,7 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
             ],
         }
 
-        envelope = parse_bridge_supervisor_envelope(payload)
+        envelope = parse_capability_execution_envelope(payload)
 
         assert envelope.capability_request is not None
         self.assertEqual(
@@ -115,8 +117,8 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
             "projection:notice_context:test",
         )
 
-    def test_python_bridge_rejects_raw_agent_workflow_context_projection_refs(self) -> None:
-        payload = load_fixture("bridge_v6_delegate.valid.json")
+    def test_capability_execution_rejects_raw_agent_workflow_context_projection_refs(self) -> None:
+        payload = load_fixture("capability_execution_delegate.valid.json")
         payload["runtime_decisions"]["handoff"]["capability_request"]["workflow_context"] = {
             "schema_version": "workflow-capability-context-v1",
             "visibility": "capability_private",
@@ -128,28 +130,28 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
         }
 
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
-            parse_bridge_supervisor_envelope(payload)
+            parse_capability_execution_envelope(payload)
 
-    def test_python_bridge_rejects_invalid_bridge_fixtures(self) -> None:
+    def test_capability_execution_rejects_invalid_bridge_fixtures(self) -> None:
         for fixture_name in (
-            "bridge_v6_extra_field.invalid.json",
-            "bridge_v6_invalid_enum.invalid.json",
-            "bridge_v6_invalid_version.invalid.json",
+            "capability_execution_extra_field.invalid.json",
+            "capability_execution_invalid_enum.invalid.json",
+            "capability_execution_invalid_version.invalid.json",
         ):
             with self.subTest(fixture_name=fixture_name), self.assertRaises(ValueError):
-                parse_bridge_supervisor_envelope(load_fixture(fixture_name))
+                parse_capability_execution_envelope(load_fixture(fixture_name))
 
     def test_python_response_model_accepts_terminal_state_fixtures(self) -> None:
         expected_status_by_fixture = {
             "response_cancelled_null_target.valid.json": "cancelled",
             "response_completed_delegate.valid.json": "completed",
-            "response_error_bridge_unavailable.valid.json": "error",
+            "response_error_execution_control_unavailable.valid.json": "error",
             "response_timeout.valid.json": "error",
         }
 
         for fixture_name, expected_status in expected_status_by_fixture.items():
             with self.subTest(fixture_name=fixture_name):
-                response = SupervisorResponseWire.model_validate(load_fixture(fixture_name))
+                response = CapabilityExecutionResponseWire.model_validate(load_fixture(fixture_name))
 
                 self.assertEqual(response.status, expected_status)
                 self.assertTrue(response.trace_id.startswith("trace-contract-"))
@@ -160,7 +162,7 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
             "response_extra_field.invalid.json",
         ):
             with self.subTest(fixture_name=fixture_name), self.assertRaises(ValueError):
-                SupervisorResponseWire.model_validate(load_fixture(fixture_name))
+                CapabilityExecutionResponseWire.model_validate(load_fixture(fixture_name))
 
 
 if __name__ == "__main__":

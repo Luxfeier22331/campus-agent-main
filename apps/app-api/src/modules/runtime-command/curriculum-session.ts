@@ -1,5 +1,5 @@
 import type { ChatSessionSlot } from "../chat";
-import type { SupervisorContextProjection } from "../integration";
+import type { CapabilityExecutionContextProjection } from "../integration";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 
 export const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
@@ -38,7 +38,7 @@ export function resolveCurriculumFollowUpState(
 export function buildSupervisorSessionProjection(input: {
 	sessionSlots: readonly ChatSessionSlot[];
 	turnCount: number;
-}): SupervisorContextProjection["session"] {
+}): CapabilityExecutionContextProjection["session"] {
 	return {
 		confirmedSlots: input.sessionSlots
 			.filter((slot) => slot.confirmed && slot.value.trim())

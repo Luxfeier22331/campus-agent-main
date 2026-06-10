@@ -8,8 +8,8 @@ def go_decode_helpers(workflow_modes: Iterable[str]) -> str:
         f"WorkflowMode{_go_const_suffix(value)}" for value in workflow_modes
     )
     template = """
-func DecodeBridgeV6RequestWireJSON(data []byte) (BridgeV6RequestWire, error) {
-\tvar wire BridgeV6RequestWire
+func DecodeCapabilityExecutionRequestWireJSON(data []byte) (CapabilityExecutionRequestWire, error) {
+\tvar wire CapabilityExecutionRequestWire
 \tif err := decodeStrictJSON(data, &wire); err != nil {
 \t\treturn wire, err
 \t}
@@ -19,8 +19,8 @@ func DecodeBridgeV6RequestWireJSON(data []byte) (BridgeV6RequestWire, error) {
 \treturn wire, nil
 }
 
-func DecodeSupervisorResponseWireJSON(data []byte) (SupervisorResponseWire, error) {
-\tvar wire SupervisorResponseWire
+func DecodeCapabilityExecutionResponseWireJSON(data []byte) (CapabilityExecutionResponseWire, error) {
+\tvar wire CapabilityExecutionResponseWire
 \tif err := decodeStrictJSON(data, &wire); err != nil {
 \t\treturn wire, err
 \t}
@@ -43,9 +43,9 @@ func decodeStrictJSON(data []byte, target any) error {
 \treturn nil
 }
 
-func (wire BridgeV6RequestWire) Validate() error {
-\tif wire.BridgeVersion != BridgeVersion {
-\t\treturn fmt.Errorf("bridge_version must be %s", BridgeVersion)
+func (wire CapabilityExecutionRequestWire) Validate() error {
+\tif wire.ExecutionContractVersion != ExecutionContractVersion {
+\t\treturn fmt.Errorf("execution_contract_version must be %s", ExecutionContractVersion)
 \t}
 \tif wire.ResponseContract != ResponseContract {
 \t\treturn fmt.Errorf("response_contract must be %s", ResponseContract)
@@ -230,7 +230,7 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 \treturn nil
 }
 
-func (wire SupervisorResponseWire) Validate() error {
+func (wire CapabilityExecutionResponseWire) Validate() error {
 \tif wire.SelectedCapability != nil && !wire.SelectedCapability.Valid() {
 \t\treturn fmt.Errorf("selected_capability is invalid")
 \t}
@@ -298,9 +298,9 @@ func (value DelegateStatus) Valid() bool {
 \t}
 }
 
-func (value SupervisorStatus) Valid() bool {
+func (value ExecutionStatus) Valid() bool {
 \tswitch value {
-\tcase SupervisorStatusCompleted, SupervisorStatusNeedsClarification, SupervisorStatusNoAnswer, SupervisorStatusError, SupervisorStatusRejected, SupervisorStatusApprovalRequired, SupervisorStatusCancelled:
+\tcase ExecutionStatusCompleted, ExecutionStatusNeedsClarification, ExecutionStatusNoAnswer, ExecutionStatusError, ExecutionStatusRejected, ExecutionStatusApprovalRequired, ExecutionStatusCancelled:
 \t\treturn true
 \tdefault:
 \t\treturn false

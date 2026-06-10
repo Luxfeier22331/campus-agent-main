@@ -108,7 +108,9 @@ export function createSafetyCostMetricHandlers(runtime: OperatorQueryRuntime) {
 				conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 			}
 			if (filters.selectedCapability) {
-				conditions.push(eq(requestObservabilityFact.selectedCapability, filters.selectedCapability));
+				conditions.push(
+					eq(requestObservabilityFact.selectedCapability, filters.selectedCapability),
+				);
 			}
 			if (filters.window) {
 				const bounds = resolveWindowBounds(filters.window, runtime.now());

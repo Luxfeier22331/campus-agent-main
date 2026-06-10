@@ -42,8 +42,8 @@ func TestDryRunComputesReplicaDecisionsWithoutExecutionStateWrites(t *testing.T)
 				"target_schedule_to_start_ms": 500
 			},
 			{
-				"name": "campus-agent.activity.rag",
-				"role": "rag",
+				"name": "campus-agent.activity.knowledge",
+				"role": "knowledge",
 				"pollers": 1,
 				"backlog": 9,
 				"schedule_to_start_ms": 1000,
@@ -65,7 +65,7 @@ func TestDryRunComputesReplicaDecisionsWithoutExecutionStateWrites(t *testing.T)
 			}
 		],
 		"downstream_budgets": {
-			"rag": {"available": true, "max_replicas": 2},
+			"knowledge": {"available": true, "max_replicas": 2},
 			"finalization": {"available": true, "max_replicas": 4}
 		}
 	}`)
@@ -123,8 +123,8 @@ func TestDryRunRejectsUnavailableDownstreamBudget(t *testing.T) {
 		"generated_at": "2026-06-04T23:00:00Z",
 		"queues": [
 			{
-				"name": "campus-agent.activity.rag",
-				"role": "rag",
+				"name": "campus-agent.activity.knowledge",
+				"role": "knowledge",
 				"pollers": 1,
 				"backlog": 20,
 				"schedule_to_start_ms": 5000,
@@ -135,7 +135,7 @@ func TestDryRunRejectsUnavailableDownstreamBudget(t *testing.T) {
 			}
 		],
 		"downstream_budgets": {
-			"rag": {"available": false, "max_replicas": 5}
+			"knowledge": {"available": false, "max_replicas": 5}
 		}
 	}`)
 
@@ -144,7 +144,7 @@ func TestDryRunRejectsUnavailableDownstreamBudget(t *testing.T) {
 	if err == nil {
 		t.Fatal("unavailable downstream budget must fail closed")
 	}
-	if !strings.Contains(err.Error(), "downstream budget for role rag is unavailable") {
+	if !strings.Contains(err.Error(), "downstream budget for role knowledge is unavailable") {
 		t.Fatalf("error = %q", err.Error())
 	}
 	if _, statErr := os.Stat(evidencePath); !os.IsNotExist(statErr) {

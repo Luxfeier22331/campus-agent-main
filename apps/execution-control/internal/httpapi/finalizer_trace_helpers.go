@@ -191,7 +191,7 @@ func workflowTraceSelectedCapability(workflowMode string, target string) string 
 	return target
 }
 
-func validFinalizerHandoffInvariant(target string, context supervisorFinalizerContext) bool {
+func validFinalizerHandoffInvariant(target string, context executionFinalizerContext) bool {
 	isDelegate := context.Branch == "delegate" || context.RuntimeDecisions.RoutingNextAction == "delegate"
 	if !isDelegate {
 		return true
@@ -229,8 +229,8 @@ func workflowRuntimeVersions(source map[string]any) map[string]any {
 	if _, exists := versions["workflow_trace_summary"]; !exists {
 		versions["workflow_trace_summary"] = contractsv1.WorkflowTraceSummaryVersion
 	}
-	if _, exists := versions["bridge_contract"]; !exists {
-		versions["bridge_contract"] = contractsv1.BridgeVersion
+	if _, exists := versions["execution_contract"]; !exists {
+		versions["execution_contract"] = contractsv1.ExecutionContractVersion
 	}
 	if _, exists := versions["response_contract"]; !exists {
 		versions["response_contract"] = contractsv1.ResponseContract

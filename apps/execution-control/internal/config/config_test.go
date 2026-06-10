@@ -254,13 +254,28 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	if _, err := LoadFromEnvForRole("activity-finalization"); err != nil {
 		t.Fatalf("finalization worker must not require personal memory config: %v", err)
 	}
-	if _, err := LoadFromEnvForRole("activity-rag"); err == nil {
-		t.Fatal("rag worker must require query-side personal memory config")
+	if _, err := LoadFromEnvForRole("activity-context"); err == nil {
+		t.Fatal("context worker must require query-side personal memory config")
+	}
+	if _, err := LoadFromEnvForRole("activity-knowledge"); err == nil {
+		t.Fatal("knowledge worker must require query-side personal memory config")
+	}
+	if _, err := LoadFromEnvForRole("activity-campus-services"); err != nil {
+		t.Fatalf("campus services worker must not require personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-notice"); err != nil {
+		t.Fatalf("notice worker must not require personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-navigation"); err != nil {
+		t.Fatalf("navigation worker must not require personal memory config: %v", err)
 	}
 	setStagingPersonalMemoryEnv(t)
 	t.Setenv("QDRANT_WRITE_API_KEY", "")
-	if _, err := LoadFromEnvForRole("activity-rag"); err != nil {
-		t.Fatalf("rag worker recall must not require QDRANT_WRITE_API_KEY: %v", err)
+	if _, err := LoadFromEnvForRole("activity-context"); err != nil {
+		t.Fatalf("context worker recall must not require QDRANT_WRITE_API_KEY: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-knowledge"); err != nil {
+		t.Fatalf("knowledge worker recall must not require QDRANT_WRITE_API_KEY: %v", err)
 	}
 	if _, err := LoadFromEnvForRole("execution-control"); err == nil {
 		t.Fatal("execution-control memory write API must require QDRANT_WRITE_API_KEY")

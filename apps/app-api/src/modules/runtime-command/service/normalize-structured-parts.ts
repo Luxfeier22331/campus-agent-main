@@ -4,7 +4,7 @@ import type {
 	ChatPlaceCard,
 	ChatSourceItem,
 } from "../../chat";
-import type { SupervisorExecutionResponse } from "../../integration";
+import type { CapabilityExecutionResponse } from "../../integration";
 import {
 	dedupeStable,
 	isRecord,
@@ -58,7 +58,7 @@ function normalizePlaceRef(
 
 export function normalizePlaceCardPart(input: {
 	selectedCapability: string | null;
-	status: SupervisorExecutionResponse["status"];
+	status: CapabilityExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
 	if (input.selectedCapability !== "navigation" || input.status !== "completed") {
@@ -465,7 +465,7 @@ export function resultEvidenceSources(result: unknown): unknown[] {
 
 export function normalizeSourceItemsPart(input: {
 	selectedCapability: string | null;
-	status: SupervisorExecutionResponse["status"];
+	status: CapabilityExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
 	if (input.selectedCapability !== "knowledge" || input.status !== "completed") {
@@ -644,7 +644,7 @@ function buildCampusServiceTraceCards(input: {
 
 export function normalizeCampusServiceTracePart(input: {
 	selectedCapability: string | null;
-	status: SupervisorExecutionResponse["status"];
+	status: CapabilityExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
 	if (input.selectedCapability !== "campus_services" || input.status !== "completed") {
@@ -681,7 +681,7 @@ export function normalizeCampusServiceTracePart(input: {
 
 export function normalizeChatResponseStructuredParts(input: {
 	selectedCapability: string | null;
-	status: SupervisorExecutionResponse["status"];
+	status: CapabilityExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
 	return [

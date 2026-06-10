@@ -4,16 +4,16 @@ import os
 from dataclasses import dataclass
 
 import httpx
-from campus_contracts import SupervisorResponse
+from campus_contracts import ExecutionResponse
 
 from campus_evals.models import GoldenCase, ObservedTrace
 from campus_evals.operator_observability import OperatorRequestCorrelation
 from campus_evals.runtime_observability import current_runtime_event_context
 
 from .app_api_chat_runtime_decoding import (
+    _build_execution_response,
+    _build_execution_response_from_internal_eval,
     _build_observed_trace,
-    _build_supervisor_response,
-    _build_supervisor_response_from_internal_eval,
 )
 from .app_api_chat_runtime_support import (
     _decode_json,
@@ -105,7 +105,7 @@ class AppApiEvalClientError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class AppApiEvalExecution:
-    response: SupervisorResponse
+    response: ExecutionResponse
     observed_trace: ObservedTrace
     request_correlation: OperatorRequestCorrelation
     conversation_id: str | None = None
@@ -306,9 +306,9 @@ class AppApiEvalClient:
             "answer.conversation.updatedAt",
         )
         execution_response = (
-            _build_supervisor_response_from_internal_eval(supervisor_payload)
+            _build_execution_response_from_internal_eval(supervisor_payload)
             if supervisor_payload is not None
-            else _build_supervisor_response(result)
+            else _build_execution_response(result)
         )
         observed_trace = _build_observed_trace(
             scope=scope,

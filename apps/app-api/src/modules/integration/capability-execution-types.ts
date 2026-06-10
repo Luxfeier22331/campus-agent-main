@@ -9,7 +9,7 @@ export interface RequestedScope {
 	collection: string;
 }
 
-export interface SupervisorPromptTrace {
+export interface CapabilityExecutionPromptTrace {
 	modelName: string | null;
 	modelProvider: string | null;
 	outputSchemaVersion: string | null;
@@ -19,26 +19,26 @@ export interface SupervisorPromptTrace {
 	variablesSchemaVersion: string | null;
 }
 
-export interface SupervisorSessionSlot {
+export interface CapabilityExecutionSessionSlot {
 	confirmed?: boolean;
 	name: string;
 	value: string;
 }
 
-export interface SupervisorSessionSummary {
-	confirmedSlots: SupervisorSessionSlot[];
+export interface CapabilityExecutionSessionSummary {
+	confirmedSlots: CapabilityExecutionSessionSlot[];
 	turnCount: number;
 }
 
-export interface SupervisorContextProjection {
+export interface CapabilityExecutionContextProjection {
 	actor: ExecutionActorContext;
 	authorization: ExecutionAuthorizationContext;
-	session: SupervisorSessionSummary;
+	session: CapabilityExecutionSessionSummary;
 }
 
-export interface SupervisorExecutionInput {
+export interface CapabilityExecutionInput {
 	actor?: ExecutionActorContext;
-	context: SupervisorContextProjection;
+	context: CapabilityExecutionContextProjection;
 	conversationId: string;
 	requestId: string;
 	requestedCapability?: string | null;
@@ -51,7 +51,7 @@ export interface SupervisorExecutionInput {
 	versionQuery?: VersionQuery | null;
 }
 
-export interface SupervisorExecutionObservability {
+export interface CapabilityExecutionObservability {
 	aclAnomalyCode: string | null;
 	aclDecision: string | null;
 	cachedInputTokens: number | null;
@@ -84,7 +84,7 @@ export interface SupervisorExecutionObservability {
 	policyReason?: string | null;
 	promptRuntimeDetail?: string | null;
 	promptRuntimeState?: string | null;
-	promptTrace?: SupervisorPromptTrace | null;
+	promptTrace?: CapabilityExecutionPromptTrace | null;
 	resolvedScopeCollection?: string | null;
 	resolvedScopeCorpus?: string | null;
 	refusalClass: string | null;
@@ -99,7 +99,7 @@ export interface SupervisorExecutionObservability {
 	toolHistoricalDowngradeReason?: string | null;
 }
 
-export interface SupervisorExecutionWorkflowTraceSummary {
+export interface CapabilityExecutionWorkflowTraceSummary {
 	contextResolution: Record<string, unknown>;
 	directVsDelegateBranch: string | null;
 	failCloseReason: string | null;
@@ -119,7 +119,7 @@ export interface SupervisorExecutionWorkflowTraceSummary {
 	workflowMode: string | null;
 }
 
-export interface SupervisorExecutionResponse {
+export interface CapabilityExecutionResponse {
 	answerText: string;
 	error: {
 		code: string;
@@ -127,15 +127,15 @@ export interface SupervisorExecutionResponse {
 		retryable: boolean;
 	} | null;
 	followUpQuestion: string;
-	observability?: SupervisorExecutionObservability | null;
+	observability?: CapabilityExecutionObservability | null;
 	result: unknown;
 	selectedCapability: string | null;
 	status: ExecutionFinalizationStatus;
 	traceId: string;
-	workflowTraceSummary?: SupervisorExecutionWorkflowTraceSummary | null;
+	workflowTraceSummary?: CapabilityExecutionWorkflowTraceSummary | null;
 }
 
-export interface SupervisorExecutionClient {
-	execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
-	executeStream?(input: SupervisorExecutionInput): Promise<Response>;
+export interface CapabilityExecutionClient {
+	execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
+	executeStream?(input: CapabilityExecutionInput): Promise<Response>;
 }

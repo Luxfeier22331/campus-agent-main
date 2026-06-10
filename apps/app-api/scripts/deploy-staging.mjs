@@ -24,7 +24,9 @@ if (!upstream) {
 
 const accessClientId = process.env.STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID?.trim();
 if (!accessClientId) {
-	fail("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID is required for execution-control trusted machine ingress.");
+	fail(
+		"STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID is required for execution-control trusted machine ingress.",
+	);
 }
 
 const accessClientSecret = process.env.STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET?.trim();

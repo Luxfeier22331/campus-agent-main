@@ -1,6 +1,6 @@
 import {
+	type CapabilityExecutionResponse,
 	parseExecutionFinalizationResponsePayload,
-	type SupervisorExecutionResponse,
 } from "../../integration";
 import type {
 	ChatCommandResponse,
@@ -169,7 +169,7 @@ export function parseExecutionTerminalResponse(input: {
 }): {
 	occurredAt: string;
 	requestId: string;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	sourceEvent: string;
 	traceId: string;
 } | null {
@@ -245,7 +245,7 @@ export function executionFinalizationErrorResponse(input: {
 	retryable: boolean;
 	status?: "error" | "cancelled";
 	traceId: string;
-}): SupervisorExecutionResponse {
+}): CapabilityExecutionResponse {
 	return {
 		answerText: "",
 		error: {

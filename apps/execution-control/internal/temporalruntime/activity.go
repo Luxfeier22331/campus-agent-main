@@ -2,12 +2,13 @@ package temporalruntime
 
 const (
 	MemoryRecallActivityName            = "MemoryRecallActivity"
-	PlanChatAnswerActivityName          = "PlanChatAnswerActivity"
-	PlanRAGActivityName                 = "PlanRAGActivity"
-	RetrieveIndexedLookupActivityName   = "RetrieveIndexedLookupActivity"
-	ExpandOrRescueRetrievalActivityName = "ExpandOrRescueRetrievalActivity"
-	SelectEvidenceActivityName          = "SelectEvidenceActivity"
-	SynthesizeRAGAnswerActivityName     = "SynthesizeRAGAnswerActivity"
-	VerifyGroundingActivityName         = "VerifyGroundingActivity"
+	PlanRouteActivityName               = "PlanRouteActivity"
+	PlanRAGActivityName                 = "KnowledgePlanRAGActivity"
+	RetrieveIndexedLookupActivityName   = "KnowledgeRetrieveIndexedLookupActivity"
+	ExpandOrRescueRetrievalActivityName = "KnowledgeExpandOrRescueRetrievalActivity"
+	SelectEvidenceActivityName          = "KnowledgeSelectEvidenceActivity"
+	SynthesizeRAGAnswerActivityName     = "KnowledgeSynthesizeAnswerActivity"
+	VerifyGroundingActivityName         = "KnowledgeVerifyGroundingActivity"
+	ExecuteTypedToolActivityName        = "ExecuteTypedToolActivity"
 	WriteFinalizationActivityName       = "WriteFinalizationActivity"
 )

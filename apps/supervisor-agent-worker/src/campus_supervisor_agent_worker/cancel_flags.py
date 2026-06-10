@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from threading import Lock
 from time import monotonic
 
-from campus_contracts import SupervisorRequest
+from campus_contracts import ExecutionRequest
 
 
 @dataclass(slots=True)
@@ -21,7 +21,7 @@ class CancelFlagStore:
         self._lock = Lock()
         self._active: dict[str, CancelFlag] = {}
 
-    def register(self, request: SupervisorRequest, *, registered_at: float | None = None) -> None:
+    def register(self, request: ExecutionRequest, *, registered_at: float | None = None) -> None:
         if not request.request_id:
             return
         registered_at = monotonic() if registered_at is None else registered_at

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from math import isnan
 
-from campus_contracts import CapabilityResponse, SupervisorResponse
+from campus_contracts import CapabilityResponse, ExecutionResponse
 
 from campus_evals.models import GoldenCase, SupplementalResult
 from campus_evals.supplemental_http import format_runtime_exception_message
@@ -92,7 +92,7 @@ def _attach_case_metadata(
     *,
     result: SupplementalResult,
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
 ) -> SupplementalResult:
     return SupplementalResult(
         adapter_id=result.adapter_id,
@@ -115,7 +115,7 @@ def _build_not_applicable_result(
     *,
     metric_name: str,
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
     rationale: str,
     metric_applicable: bool,
 ) -> SupplementalResult:
@@ -137,7 +137,7 @@ def _build_failed_result(
     *,
     metric_name: str,
     case: GoldenCase,
-    response: CapabilityResponse | SupervisorResponse,
+    response: CapabilityResponse | ExecutionResponse,
     rationale: str,
     score: float | None,
     metadata: dict[str, object] | None = None,

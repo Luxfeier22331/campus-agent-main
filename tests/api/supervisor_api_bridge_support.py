@@ -13,11 +13,11 @@ from campus_contracts import (
 )
 from campus_supervisor_agent_worker.capability_dispatch import MissingCapabilityDelegateError
 from campus_supervisor_agent_worker.app import create_bridge_app
-from campus_supervisor_agent_worker.bridge_v6_parser import parse_bridge_supervisor_envelope
+from campus_supervisor_agent_worker.capability_execution_parser import parse_capability_execution_envelope
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
-def _bridge_v6_payload(
+def _capability_execution_payload(
     *,
     user_goal: str = "test",
     conversation_id: str = "",
@@ -48,8 +48,8 @@ def _bridge_v6_payload(
     if version_query is None:
         version_query = {"mode": "current"}
     body: dict[str, object] = {
-        "bridge_version": "supervisor_bridge_v6",
-        "response_contract": "capability_response",
+        "execution_contract_version": "capability_execution_v1",
+        "response_contract": "execution_finalization_response_v1",
         "user_goal": user_goal,
         "conversation_id": conversation_id,
         "request_id": request_id,
@@ -61,7 +61,7 @@ def _bridge_v6_payload(
         "context": context,
         "version_query": version_query,
         "runtime_decisions": {
-            "schema_version": "supervisor-runtime-decisions-v1",
+            "schema_version": "capability-execution-runtime-decisions-v1",
             "effective_capability": effective_capability,
             "lane": lane,
             "scope_gate": {
@@ -148,7 +148,7 @@ def _handoff_fields_for_capability(
     version_query: dict[str, object],
 ) -> dict[str, object]:
     if effective_capability == "campus_services":
-        target = "campus_services"
+        capability = "campus_services"
         payload_kind = "transport_schedule_lookup"
         allowed_tools = ["transport_schedule_lookup"]
         return {
@@ -162,10 +162,10 @@ def _handoff_fields_for_capability(
             },
             "handoff": {
                 "planning_outcome": "preplanned",
-                "target": target,
+                "capability": capability,
                 "allowed_tools": allowed_tools,
-                "agent_request": _agent_request_payload(
-                    target=target,
+                "capability_request": _capability_request_payload(
+                    capability=capability,
                     user_goal=user_goal,
                     request_id=request_id,
                     conversation_id=conversation_id,
@@ -181,13 +181,13 @@ def _handoff_fields_for_capability(
                 ),
             },
             "workflow_plan": _workflow_plan_payload(
-                target=target,
+                capability=capability,
                 payload_kind=payload_kind,
                 allowed_tools=allowed_tools,
             ),
         }
     if effective_capability == "notice":
-        target = "notice"
+        capability = "notice"
         payload_kind = "campus_notice_discover"
         allowed_tools = ["campus_notice_discover"]
         return {
@@ -201,10 +201,10 @@ def _handoff_fields_for_capability(
             },
             "handoff": {
                 "planning_outcome": "preplanned",
-                "target": target,
+                "capability": capability,
                 "allowed_tools": allowed_tools,
-                "agent_request": _agent_request_payload(
-                    target=target,
+                "capability_request": _capability_request_payload(
+                    capability=capability,
                     user_goal=user_goal,
                     request_id=request_id,
                     conversation_id=conversation_id,
@@ -219,12 +219,12 @@ def _handoff_fields_for_capability(
                 ),
             },
             "workflow_plan": _workflow_plan_payload(
-                target=target,
+                capability=capability,
                 payload_kind=payload_kind,
                 allowed_tools=allowed_tools,
             ),
         }
-    target = "knowledge"
+    capability = "knowledge"
     payload_kind = "rag_request"
     allowed_tools: list[str] = []
     return {
@@ -238,10 +238,10 @@ def _handoff_fields_for_capability(
         },
         "handoff": {
             "planning_outcome": "preplanned",
-            "target": target,
+            "capability": capability,
             "allowed_tools": allowed_tools,
-            "agent_request": _agent_request_payload(
-                target=target,
+            "capability_request": _capability_request_payload(
+                capability=capability,
                 user_goal=user_goal,
                 request_id=request_id,
                 conversation_id=conversation_id,
@@ -256,16 +256,16 @@ def _handoff_fields_for_capability(
             ),
         },
         "workflow_plan": _workflow_plan_payload(
-            target=target,
+            capability=capability,
             payload_kind=payload_kind,
             allowed_tools=allowed_tools,
         ),
     }
 
 
-def _agent_request_payload(
+def _capability_request_payload(
     *,
-    target: str,
+    capability: str,
     user_goal: str,
     request_id: str,
     conversation_id: str = "",
@@ -287,7 +287,7 @@ def _agent_request_payload(
             },
         }
     return {
-        "target": target,
+        "capability": capability,
         "user_goal": user_goal,
         "conversation_id": conversation_id,
         "request_id": request_id,
@@ -301,27 +301,27 @@ def _agent_request_payload(
         },
         "allowed_tools": allowed_tools,
         "workflow_context": _workflow_context_payload(
-            target=target,
+            capability=capability,
             payload_kind=payload_kind,
             request_id=request_id,
         ),
     }
 
 
-def _bridge_v6_payload_with_handoff(
+def _capability_execution_payload_with_handoff(
     *,
     user_goal: str,
     request_id: str,
     trace_id: str,
     effective_capability: str,
     lane: str,
-    handoff_target: str,
+    handoff_capability: str,
     payload_kind: str,
     payload: dict[str, object],
     allowed_tools: list[str],
     context: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    body = _bridge_v6_payload(
+    body = _capability_execution_payload(
         user_goal=user_goal,
         request_id=request_id,
         trace_id=trace_id,
@@ -330,7 +330,7 @@ def _bridge_v6_payload_with_handoff(
         context=context,
     )
     body["runtime_decisions"] = {
-        "schema_version": "supervisor-runtime-decisions-v1",
+        "schema_version": "capability-execution-runtime-decisions-v1",
         "effective_capability": effective_capability,
         "lane": lane,
         "scope_gate": {
@@ -395,10 +395,10 @@ def _bridge_v6_payload_with_handoff(
         },
         "handoff": {
             "planning_outcome": "preplanned",
-            "target": handoff_target,
+            "capability": handoff_capability,
             "allowed_tools": allowed_tools,
-            "agent_request": _agent_request_payload(
-                target=handoff_target,
+            "capability_request": _capability_request_payload(
+                capability=handoff_capability,
                 user_goal=user_goal,
                 request_id=request_id,
                 trace_id=trace_id,
@@ -409,7 +409,7 @@ def _bridge_v6_payload_with_handoff(
             ),
         },
         "workflow_plan": _workflow_plan_payload(
-            target=handoff_target,
+            capability=handoff_capability,
             payload_kind=payload_kind,
             allowed_tools=allowed_tools,
         ),
@@ -419,7 +419,7 @@ def _bridge_v6_payload_with_handoff(
 
 def _workflow_context_payload(
     *,
-    target: str,
+    capability: str,
     payload_kind: str,
     request_id: str,
 ) -> dict[str, object]:
@@ -427,12 +427,12 @@ def _workflow_context_payload(
         "schema_version": "workflow-capability-context-v1",
         "visibility": "capability_private",
         "workflow_run_ref": f"workflow:{request_id}",
-        "step_id": f"handoff:{target}:{payload_kind}",
-        "capability_id": target,
-        "target": target,
+        "step_id": f"capability:{capability}:{payload_kind}",
+        "capability_id": capability,
+        "capability": capability,
         "required_projection_kind": "",
         "expected_output_artifacts": _expected_artifacts_for_handoff(
-            target=target,
+            capability=capability,
             payload_kind=payload_kind,
         ),
         "projection_refs": [],
@@ -441,20 +441,20 @@ def _workflow_context_payload(
 
 def _workflow_plan_payload(
     *,
-    target: str,
+    capability: str,
     payload_kind: str,
     allowed_tools: list[str],
 ) -> dict[str, object]:
     return {
         "schema_version": "workflow-plan-v1",
-        "plan_id": f"plan:single_step:{target}:{payload_kind}",
+        "plan_id": f"plan:single_step:{capability}:{payload_kind}",
         "workflow_mode": "single_step",
-        "allowed_capabilities": [target],
+        "allowed_capabilities": [capability],
         "steps": [
             {
-                "step_id": f"handoff:{target}:{payload_kind}",
+                "step_id": f"capability:{capability}:{payload_kind}",
                 "step_kind": "handoff",
-                "target": target,
+                "capability": capability,
                 "payload_kind": payload_kind,
                 "allowed_tools": allowed_tools,
                 "selected_tool": allowed_tools[0] if len(allowed_tools) == 1 else "",
@@ -467,14 +467,14 @@ def _workflow_plan_payload(
     }
 
 
-def _expected_artifacts_for_handoff(*, target: str, payload_kind: str) -> list[str]:
-    if target == "notice" and payload_kind == "campus_notice_get":
+def _expected_artifacts_for_handoff(*, capability: str, payload_kind: str) -> list[str]:
+    if capability == "notice" and payload_kind == "campus_notice_get":
         return ["notice_context"]
-    if target == "notice" and payload_kind == "campus_notice_change_set_lookup":
+    if capability == "notice" and payload_kind == "campus_notice_change_set_lookup":
         return ["notice_change_set"]
-    if target == "campus_services" and payload_kind == "transport_schedule_lookup":
+    if capability == "campus_services" and payload_kind == "transport_schedule_lookup":
         return ["schedule_baseline"]
-    if target == "knowledge" and payload_kind == "rag_request":
+    if capability == "knowledge" and payload_kind == "rag_request":
         return ["evidence_bundle", "grounding_verdict"]
     return []
 

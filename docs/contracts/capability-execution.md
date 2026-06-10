@@ -4,17 +4,19 @@ status: active
 created: 2026-03-28
 updated: 2026-06-04
 ---
-# App API Supervisor Execution Contract
+# App API Capability Execution Contract
 
 ## 文档边界
 
 这份文档冻结 shared `apps/app-api` 调用 `apps/execution-control` 的内部执行契约。
+active semantic owner 是 `execution-control` 内的 Execution Agent Layer；执行载体是
+Temporal-backed `CapabilityExecutionWorkflow` 与 capability workers。
 
 它补充但不替代以下文档：
 
 - shared product topology：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api` runtime 边界：`docs/architecture/system/product-runtime-architecture.md`
-- supervisor execution engine
+- Execution Agent Layer / execution engine
   边界：`docs/architecture/system/execution-and-agents-architecture.md`
 - capability routing / admission supporting
   truth：`docs/architecture/system/capability-routing-and-admission-architecture.md`
@@ -36,20 +38,21 @@ updated: 2026-06-04
 ## Machine-Readable Contract Source
 
 `app-api -> execution-control` 的 execution run command/query seam 以本文件与
-durable runtime contract 为当前 canonical source。`supervisor-execution.openapi.yaml`
-保留为历史 bridge wrapper / generated artifact source，不是当前 online RAG serving path。
+durable runtime contract 为当前 canonical source。`capability-execution.openapi.yaml`
+是 active internal execution wire schema source。
 
-- `docs/contracts/schemas/supervisor-execution.openapi.yaml`：OpenAPI 3.1.1 +
-  JSON Schema 2020-12，冻结 internal supervisor execution request / response、
-  bridge v6 envelope、runtime decisions summary 与 workflow trace summary 的 wire shape
-- `scripts/generate_supervisor_execution_contracts.py`：从上述 schema 生成三种 runtime
+- `docs/contracts/schemas/capability-execution.openapi.yaml`：OpenAPI 3.1.1 +
+  JSON Schema 2020-12，冻结 capability execution request / response、runtime
+  decisions summary 与 workflow trace summary 的 wire shape
+- `scripts/generate_capability_execution_contracts.py`：从上述 schema 生成三种 runtime
   artifact
-- `apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts`：Worker
+- `apps/app-api/src/modules/integration/generated/capability-execution-contract.ts`：Worker
   adapter 消费的 TS wire enum / interface
-- `apps/execution-control/internal/contracts/supervisor_execution_contract.go`：Go
-  execution runtime 消费的 bridge version、response contract 与 wire DTO
-- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/supervisor_execution_contract.py`：
-  retired Python bridge / offline eval tooling 仍可消费的 Pydantic DTO
+- `apps/execution-control/internal/contracts/capability_execution_contract.go`：Go
+  execution runtime 消费的 execution contract version、response contract 与 wire DTO
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/capability_execution_contract.py`：
+  offline eval / historical bridge tooling 可消费的 Pydantic DTO；不得重新接入
+  online serving path
 
 生成物必须通过以下命令保持同步：
 
@@ -57,19 +60,18 @@ durable runtime contract 为当前 canonical source。`supervisor-execution.open
 pnpm contracts:check
 ```
 
-这条 check 已接入 `multi-agent-runtime-contract` eval gate。凡是修改 schema、bridge
-version、runtime decision schema version、status enum 或 terminal response shape，都必须先更新
-canonical schema，再重新生成 artifact。
+这条 check 已接入 `multi-agent-runtime-contract` eval gate。凡是修改 schema、
+execution contract version、runtime decision schema version、status enum 或
+terminal response shape，都必须先更新 canonical schema，再重新生成 artifact。
 
 `packages/contracts/schemas/capability-handoff.v1.schema.json` 只冻结
-supervisor -> capability handoff 的 `CapabilityRequest` / `CapabilityResponse`。
-它不承载 `runtime_decisions`、`supervisor_bridge_v6` 或具体 transport wrapper，
-避免把 execution runtime truth 泄漏进共享
-capability contract 包。
+Execution Agent Layer -> capability handoff 的 `CapabilityRequest` /
+`CapabilityResponse`。它不承载 `runtime_decisions` 或具体 execution transport
+wrapper，避免把 execution runtime truth 泄漏进共享 capability contract 包。
 
 Run projection compatibility note：
 
-- 本文冻结的是 current internal execution transport / bridge wrapper
+- 本文冻结的是 current internal capability execution transport
 - `docs/contracts/durable-agent-runtime-contract.md` 冻结 forward production run /
   event / lease contract
 - run projection cutover 不能通过在本 schema 中塞入 vendor queue、worker process
@@ -81,28 +83,27 @@ internal execution seam 只接受 canonical `snake_case` JSON。
 
 固定规则：
 
-- `supervisor-execution.openapi.yaml` 是 retired bridge wrapper 与 generated
-  artifact 的 schema truth；当前 online run command/query 不能通过恢复 Python
-  bridge wrapper 实现 serving fallback
-- `app-api` adapter 必须 strict parse supervisor response；`200` body 如果出现 camelCase
+- `capability-execution.openapi.yaml` 是 active execution wire schema truth；当前
+  online run command/query 不能通过恢复 Python bridge wrapper 实现 serving fallback
+- `app-api` adapter 必须 strict parse execution response；`200` body 如果出现 camelCase
   top-level field、未知 top-level field、非法 enum 或缺少必需字段，按
-  `supervisor_invalid_response` transport/protocol failure 处理
-- Go `execution-control` 对当前 run command/query JSON 必须 strict decode；retired Python
-  bridge artifact 如果用于 offline/eval，也必须 strict decode，不得接受 unknown top-level
+  `execution_invalid_response` transport/protocol failure 处理
+- Go `execution-control` 对当前 run command/query JSON 必须 strict decode；offline/eval
+  artifact 如果用于 historical bridge tooling，也必须 strict decode，不得接受 unknown top-level
   compatibility payload
 - browser / panel / public product API 可以继续使用产品层 camelCase projection，但不能把
-  camelCase 反向带入 internal supervisor wire
+  camelCase 反向带入 internal execution wire
 - panel 只能消费 `app-api` 物化后的 sanitized request / workflow trace projection；即使 projection
   里误带 raw bridge/provider/prompt key，panel formatter 也必须 drop 这些字段
 
-这条规则由 `tests/fixtures/supervisor_execution_contract/` 的 valid / invalid
+这条规则由 `tests/fixtures/capability_execution_contract/` 的 valid / invalid
 fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 
 ## Versioning Policy
 
 `x-campus-contract` 中的以下字段是可机器读取的版本治理口径：
 
-- `bridge_version`：bridge envelope 出现不兼容 shape 变化时必须 bump
+- `execution_contract_version`：execution envelope 出现不兼容 shape 变化时必须 bump
 - `response_contract`：`CapabilityResponse` / terminal response wire 语义出现不兼容变化时
   必须 bump
 - `runtime_decisions_schema_version`：`runtime_decisions` shape 或 required provenance
@@ -114,7 +115,7 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 
 修改这些字段或对应 shape 时，必须同步：
 
-- 更新 `docs/contracts/schemas/supervisor-execution.openapi.yaml`
+- 更新 `docs/contracts/schemas/capability-execution.openapi.yaml`
 - 运行 `pnpm contracts:generate` 或至少通过 `pnpm contracts:check`
 - 更新共享 fixture matrix 中的 canonical valid / invalid 样本
 - 更新 `multi-agent-runtime-contract` gate 或对应 targeted tests
@@ -170,8 +171,9 @@ run command/query contract，不是 browser-facing public API。
 
 JSON 命名保持 `snake_case`，原因如下：
 
-- 当前 `apps/execution-control` 已以 shared `SupervisorRequest` /
-  `SupervisorResponse` model 为 wire truth
+- 当前 `apps/execution-control` 与 `apps/app-api` 的 active internal DTO 已收口到
+  capability execution wire；旧 supervisor 命名只允许出现在 historical/offline
+  bridge 语境
 - 这里是 internal execution seam，不是 browser product API
 - 这样可以减少 `app-api -> execution-control` 之间的翻译噪音
 
@@ -209,7 +211,7 @@ JSON 命名保持 `snake_case`，原因如下：
 - `content-type: application/json`
 - `x-trace-id: <trace-id>`
 - `x-worker-origin-auth: <shared-secret-or-equivalent>`
-- optional Cloudflare Access service token headers when the Docker supervisor
+- optional Cloudflare Access service token headers when the Docker execution-control
   ingress is Access-protected:
   - `CF-Access-Client-Id: <client-id>`
   - `CF-Access-Client-Secret: <client-secret>`
@@ -245,9 +247,9 @@ endpoint，只允许 `app-api` 这类 trusted internal caller 使用，不暴露
 响应语义：
 
 - active execution 返回 `202`，body 中 `status=cancel_requested`
-- Go `apps/execution-control` 先取消 Temporal `ChatAnswerWorkflow`，再写 sanitized
-  cancel projection；不得通过 PG lease release 或 Python cooperative bridge cancel
-  语义完成 online cancel
+- Go `apps/execution-control` 先取消 Temporal `CapabilityExecutionWorkflow`，再写
+  sanitized cancel projection；不得通过 PG lease release 或 Python cooperative
+  bridge cancel 语义完成 online cancel
 - 找不到 active execution 返回 `404 execution_not_found`
 - 鉴权失败返回 `401 unauthorized`
 - malformed request 返回 `400 invalid_request`
@@ -431,7 +433,7 @@ payload 或 provider raw response。
 
 ## Response Body
 
-`execution-control` 返回的最小成功 body 继续对齐 `SupervisorResponse + trace_id`：
+`execution-control` 返回的最小成功 body 继续对齐 `ExecutionResponse + trace_id`：
 
 ```json
 {
@@ -545,11 +547,12 @@ payload 或 provider raw response。
 - `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 agent
   payload 直接当 browser contract 暴露
 - 当前这份 `place_card` normalization shape 继续保留为 future navigation rollout seam；但由于
-  supervisor 已在产品路径上 fail-close `place_lookup`，浏览器当前不会收到这类 payload
+  execution path 已在产品路径上 fail-close `place_lookup`，浏览器当前不会收到这类 payload
 - `observability` 是 execution-side typed summary seam，用于
   `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side
   `snake_case`
-- `observability.intent_*` 是 supervisor-owned routing intent governance summary；其中
+- `observability.intent_*` 是 Execution Agent Layer-owned routing intent
+  governance summary；其中
   `intent_schema_version` 描述字段 / 枚举 / reason code 兼容性，
   `intent_classifier_version` 描述当前 deterministic classifier / resolver 行为版本，两者必须分离
 - `observability.intent_context_resolution_*`、`intent_resolved_slots` 与
@@ -587,7 +590,8 @@ payload 或 provider raw response。
 对 `app-api` 来说，需要区分两类失败：
 
 - transport / admission / malformed execution request 使用非 `200`
-- execution 已被受理并得到 typed `SupervisorResponse` 返回 `200`，由 body 内 `status` 区分
+- execution 已被受理并得到 legacy-named typed `ExecutionResponse` 返回 `200`，由 body 内
+  `status` 区分
   `completed` / `needs_clarification` / `no_answer` / `error` /
   `approval_required` / `rejected` / `cancelled`
 
@@ -618,13 +622,14 @@ terminal response 的跨语言语义固定如下：
   transport failure
 - `error`：必须携带 safe `{ code, message, retryable }`，并在
   `workflow_trace_summary.fail_close_reason` 中保留 deterministic failure class
-- `cancelled`：允许 `selected_capability=null`，表示 execution lifecycle 已终止，不要求 agent
-  handoff 已发生
-- timeout / bridge unavailable / bridge circuit open 不能伪装成 completed answer；它们必须通过
-  typed `error` / HTTP status / workflow trace summary 保留 fail-close provenance
+- `cancelled`：允许 `selected_capability=null`，表示 execution lifecycle 已终止，
+  不要求 agent handoff 已发生
+- timeout / execution-control unavailable / provider circuit open 不能伪装成
+  completed answer；它们必须通过 typed `error` / HTTP status / workflow trace
+  summary 保留 fail-close provenance
 
-Go finalizer 必须保证 delegate branch 与 `handoff.agent_request.target`、`selected_capability`、
-runtime version provenance 一致；否则 fail-closed，而不是返回半结构化成功 body。
+Go finalizer 必须保证 delegate branch 与 `handoff.capability_request.capability`、
+`selected_capability`、runtime version provenance 一致；否则 fail-closed，而不是返回半结构化成功 body。
 
 ## Current Compatibility Note
 

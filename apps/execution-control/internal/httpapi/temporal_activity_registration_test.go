@@ -12,7 +12,9 @@ func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 	server := &Server{}
 
 	for name, activities := range map[string]any{
-		"rag":          server.TemporalRAGActivities(),
+		"context":      server.TemporalContextActivities(),
+		"knowledge":    server.TemporalKnowledgeActivities(),
+		"typed_tool":   server.TemporalTypedToolActivities(),
 		"finalization": server.TemporalFinalizationActivities(),
 	} {
 		activityType := reflect.TypeOf(activities)
@@ -28,9 +30,21 @@ func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	server := &Server{}
 
-	ragType := reflect.TypeOf(server.TemporalRAGActivities())
+	contextType := reflect.TypeOf(server.TemporalContextActivities())
 	for _, method := range []string{
-		"PlanChatAnswerActivity",
+		"PlanRouteActivity",
+		"MemoryRecallActivity",
+	} {
+		if _, ok := contextType.MethodByName(method); !ok {
+			t.Fatalf("context activities missing %s", method)
+		}
+	}
+	if _, ok := contextType.MethodByName("PlanRAGActivity"); ok {
+		t.Fatal("context activities expose knowledge method")
+	}
+
+	knowledgeType := reflect.TypeOf(server.TemporalKnowledgeActivities())
+	for _, method := range []string{
 		"PlanRAGActivity",
 		"RetrieveIndexedLookupActivity",
 		"ExpandOrRescueRetrievalActivity",
@@ -38,12 +52,20 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		"SynthesizeRAGAnswerActivity",
 		"VerifyGroundingActivity",
 	} {
-		if _, ok := ragType.MethodByName(method); !ok {
-			t.Fatalf("rag activities missing %s", method)
+		if _, ok := knowledgeType.MethodByName(method); !ok {
+			t.Fatalf("knowledge activities missing %s", method)
 		}
 	}
-	if _, ok := ragType.MethodByName("WriteFinalizationActivity"); ok {
-		t.Fatal("rag activities expose finalization method")
+	if _, ok := knowledgeType.MethodByName("PlanRouteActivity"); ok {
+		t.Fatal("knowledge activities expose context method")
+	}
+
+	typedToolType := reflect.TypeOf(server.TemporalTypedToolActivities())
+	if _, ok := typedToolType.MethodByName("ExecuteTypedToolActivity"); !ok {
+		t.Fatal("typed tool activities missing ExecuteTypedToolActivity")
+	}
+	if _, ok := typedToolType.MethodByName("PlanRAGActivity"); ok {
+		t.Fatal("typed tool activities expose knowledge method")
 	}
 
 	finalizationType := reflect.TypeOf(server.TemporalFinalizationActivities())
@@ -51,7 +73,8 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		t.Fatal("finalization activities missing WriteFinalizationActivity")
 	}
 	for _, method := range []string{
-		"PlanChatAnswerActivity",
+		"PlanRouteActivity",
+		"MemoryRecallActivity",
 		"PlanRAGActivity",
 		"RetrieveIndexedLookupActivity",
 		"ExpandOrRescueRetrievalActivity",
@@ -73,10 +96,26 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 	}
 	defer temporalClient.Close()
 	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewRAGActivityWorker(
+		worker := temporalruntime.NewContextActivityWorker(
 			temporalClient,
-			"test-rag",
-			server.TemporalRAGActivities(),
+			"test-context",
+			server.TemporalContextActivities(),
+		)
+		worker.Stop()
+	})
+	assertDoesNotPanic(t, func() {
+		worker := temporalruntime.NewKnowledgeActivityWorker(
+			temporalClient,
+			"test-knowledge",
+			server.TemporalKnowledgeActivities(),
+		)
+		worker.Stop()
+	})
+	assertDoesNotPanic(t, func() {
+		worker := temporalruntime.NewTypedToolActivityWorker(
+			temporalClient,
+			"test-campus-services",
+			server.TemporalTypedToolActivities(),
 		)
 		worker.Stop()
 	})

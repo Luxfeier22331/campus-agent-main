@@ -6,14 +6,14 @@
 	"confidence": "low",
 	"result": null,
 	"error": {
-		"code": "supervisor_bridge_unavailable",
+		"code": "supervisor_execution_control_unavailable",
 		"message": "Supervisor bridge is unavailable.",
 		"retryable": true
 	},
 	"workflow_trace_summary": {
 		"routing_frame": {},
 		"context_resolution": {},
-		"planning_outcome": "bridge_unavailable",
+		"planning_outcome": "execution_control_unavailable",
 		"direct_vs_delegate_branch": "terminal",
 		"workflow_mode": "terminal",
 		"handoff": {},
@@ -26,7 +26,7 @@
 		"answer_artifact_kinds": [],
 		"tool_argument_summary": {},
 		"guardrail_outcomes": {},
-		"fail_close_reason": "supervisor_bridge_unavailable",
+		"fail_close_reason": "supervisor_execution_control_unavailable",
 		"runtime_versions": {
 			"workflow_trace_summary": "workflow-trace-summary-v4"
 		},

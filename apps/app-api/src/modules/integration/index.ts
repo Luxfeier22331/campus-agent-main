@@ -3,6 +3,14 @@ export type {
 	OfficialWebIngestionHandoffPayload,
 } from "../official-web-projection";
 export type {
+	CapabilityExecutionContextProjection,
+	CapabilityExecutionInput,
+	CapabilityExecutionObservability,
+	CapabilityExecutionPromptTrace,
+	CapabilityExecutionResponse,
+	CapabilityExecutionSessionSlot,
+	CapabilityExecutionSessionSummary,
+	CapabilityExecutionWorkflowTraceSummary,
 	ExecutionControlCampusServicesProductPathPreflight,
 	ExecutionControlPersonalMemoryClient,
 	ExecutionControlPersonalMemoryDisableInput,
@@ -22,14 +30,6 @@ export type {
 	ExecutionControlStepAttempt,
 	ExecutionControlStepResult,
 	RequestedScope,
-	SupervisorContextProjection,
-	SupervisorExecutionInput,
-	SupervisorExecutionObservability,
-	SupervisorExecutionResponse,
-	SupervisorExecutionWorkflowTraceSummary,
-	SupervisorPromptTrace,
-	SupervisorSessionSlot,
-	SupervisorSessionSummary,
 } from "./execution-control";
 export {
 	createExecutionControlPersonalMemoryClient,

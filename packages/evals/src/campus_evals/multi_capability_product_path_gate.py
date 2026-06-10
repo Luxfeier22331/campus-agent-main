@@ -72,8 +72,8 @@ def run_multi_capability_product_path_gate(
 
     checks = (
         _run_command_check(
-            check_id="supervisor_execution_contract_generation_check",
-            command=_supervisor_execution_contract_generation_command(),
+            check_id="capability_execution_contract_generation_check",
+            command=_capability_execution_contract_generation_command(),
             command_runner=command,
             cwd=REPO_ROOT,
         ),
@@ -96,8 +96,8 @@ def run_multi_capability_product_path_gate(
             cwd=REPO_ROOT,
         ),
         _run_command_check(
-            check_id="supervisor_multi_capability_runtime_tests",
-            command=_supervisor_multi_capability_runtime_command(),
+            check_id="capability_execution_runtime_tests",
+            command=_capability_execution_runtime_command(),
             command_runner=command,
             cwd=EXECUTION_CONTROL_DIR,
         ),
@@ -164,14 +164,14 @@ def _build_public_chat_product_path_summary() -> dict[str, object]:
     }
 
 
-def _supervisor_execution_contract_generation_command() -> tuple[str, ...]:
+def _capability_execution_contract_generation_command() -> tuple[str, ...]:
     return (
         "uv",
         "run",
         "--all-packages",
         "python",
         "-m",
-        "scripts.generate_supervisor_execution_contracts",
+        "scripts.generate_capability_execution_contracts",
         "--check",
     )
 
@@ -212,7 +212,7 @@ def _public_chat_product_path_eval_command() -> tuple[str, ...]:
     )
 
 
-def _supervisor_multi_capability_runtime_command() -> tuple[str, ...]:
+def _capability_execution_runtime_command() -> tuple[str, ...]:
     return (
         "go",
         "test",
@@ -320,16 +320,16 @@ def _report_payload(
         },
         "scope": {
             "deterministic_gate_scope": [
-                "schema-first supervisor execution contract generation check",
+                "schema-first capability execution contract generation check",
                 "workflow trace fixture and evaluator coverage",
                 "tool-family denominator fixture and evaluator coverage",
                 "public-chat product-path fixture and evaluator coverage",
-                "targeted supervisor/app-api/panel test lanes",
+                "targeted execution-control/app-api/panel test lanes",
             ],
             "excluded_scope": [
                 "does not mutate serving admission",
                 "does not start local live processes",
-                "does not replace supervisor-led orchestration with an SDK runtime",
+                "does not replace capability execution orchestration with an SDK runtime",
             ],
         },
     }

@@ -8,22 +8,22 @@ from typing import Any
 
 import yaml
 
-from scripts.supervisor_execution_go_decode_helpers import go_decode_helpers
+from scripts.capability_execution_go_decode_helpers import go_decode_helpers
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-OPENAPI_PATH = REPO_ROOT / "docs/contracts/schemas/supervisor-execution.openapi.yaml"
-TS_PATH = REPO_ROOT / "apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts"
-GO_PATH = REPO_ROOT / "apps/execution-control/internal/contracts/supervisor_execution_contract.go"
+OPENAPI_PATH = REPO_ROOT / "docs/contracts/schemas/capability-execution.openapi.yaml"
+TS_PATH = REPO_ROOT / "apps/app-api/src/modules/integration/generated/capability-execution-contract.ts"
+GO_PATH = REPO_ROOT / "apps/execution-control/internal/contracts/capability_execution_contract.go"
 PY_GENERATED_DIR = REPO_ROOT / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated"
 PY_PACKAGE_INIT_PATH = PY_GENERATED_DIR / "__init__.py"
-PY_PATH = PY_GENERATED_DIR / "supervisor_execution_contract.py"
+PY_PATH = PY_GENERATED_DIR / "capability_execution_contract.py"
 
-HEADER = "AUTO-GENERATED FROM supervisor-execution.openapi.yaml"
+HEADER = "AUTO-GENERATED FROM capability-execution.openapi.yaml"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate cross-language supervisor execution contract artifacts."
+        description="Generate cross-language capability execution contract artifacts."
     )
     parser.add_argument("--check", action="store_true", help="Fail if generated files differ.")
     args = parser.parse_args()
@@ -43,7 +43,7 @@ def main() -> None:
         ]
         if mismatches:
             raise SystemExit(
-                "generated supervisor execution contracts are out of sync: " + ", ".join(mismatches)
+                "generated capability execution contracts are out of sync: " + ", ".join(mismatches)
             )
         return
 
@@ -55,11 +55,11 @@ def main() -> None:
 def _load_contract() -> dict[str, Any]:
     openapi = yaml.safe_load(OPENAPI_PATH.read_text(encoding="utf-8"))
     if not isinstance(openapi, dict):
-        raise ValueError("supervisor execution OpenAPI document must be an object")
+        raise ValueError("capability execution OpenAPI document must be an object")
     if openapi.get("openapi") != "3.1.1":
-        raise ValueError("supervisor execution OpenAPI document must use OpenAPI 3.1.1")
+        raise ValueError("capability execution OpenAPI document must use OpenAPI 3.1.1")
     if openapi.get("jsonSchemaDialect") != "https://json-schema.org/draft/2020-12/schema":
-        raise ValueError("supervisor execution OpenAPI document must use JSON Schema 2020-12")
+        raise ValueError("capability execution OpenAPI document must use JSON Schema 2020-12")
     return openapi
 
 
@@ -88,7 +88,7 @@ def _contract_meta(contract: dict[str, Any]) -> dict[str, str]:
     if not isinstance(meta, dict):
         raise ValueError("x-campus-contract metadata is required")
     required = (
-        "bridge_version",
+        "execution_contract_version",
         "response_contract",
         "runtime_decisions_schema_version",
         "runtime_decision_summary_schema_version",
@@ -109,13 +109,13 @@ def _generate_ts(contract: dict[str, Any]) -> str:
     requested_capabilities = _enum(contract, "RequestedCapability")
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
-    supervisor_statuses = _enum(contract, "SupervisorStatus")
+    execution_statuses = _enum(contract, "ExecutionStatus")
     workflow_modes = _enum(contract, "WorkflowMode")
     projection_kinds = _enum(contract, "StepOutputProjectionKind")
     return (
         f"/* {HEADER}. Do not edit by hand. */\n\n"
-        "export const SUPERVISOR_EXECUTION_CONTRACT = {\n"
-        f"\tbridgeVersion: {_ts_quote(meta['bridge_version'])},\n"
+        "export const CAPABILITY_EXECUTION_CONTRACT = {\n"
+        f"\texecutionContractVersion: {_ts_quote(meta['execution_contract_version'])},\n"
         f"\tresponseContract: {_ts_quote(meta['response_contract'])},\n"
         f"\truntimeDecisionsSchemaVersion: {_ts_quote(meta['runtime_decisions_schema_version'])},\n"
         f"\truntimeDecisionSummarySchemaVersion: "
@@ -126,7 +126,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         + _ts_const_array("REQUESTED_CAPABILITIES", requested_capabilities)
         + _ts_const_array("CONFIDENCE_LEVELS", confidence_levels)
         + _ts_const_array("DELEGATE_STATUSES", delegate_statuses)
-        + _ts_const_array("SUPERVISOR_STATUSES", supervisor_statuses)
+        + _ts_const_array("EXECUTION_STATUSES", execution_statuses)
         + _ts_const_array("WORKFLOW_MODES", workflow_modes)
         + _ts_const_array("STEP_OUTPUT_PROJECTION_KINDS", projection_kinds)
         + "\n"
@@ -134,12 +134,12 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "export type RequestedCapability = (typeof REQUESTED_CAPABILITIES)[number];\n"
         "export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];\n"
         "export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];\n"
-        "export type SupervisorStatus = (typeof SUPERVISOR_STATUSES)[number];\n\n"
+        "export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];\n\n"
         "export type WorkflowMode = (typeof WORKFLOW_MODES)[number];\n"
         "export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[number];\n\n"
         "export type SafeRecord = Record<string, unknown>;\n\n"
         "export interface RuntimeDecisionSummaryWire {\n"
-        "\tschema_version: typeof SUPERVISOR_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion;\n"
+        "\tschema_version: typeof CAPABILITY_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion;\n"
         "\tscope_gate_decision?: string;\n"
         "\tpolicy_gate_decision?: string;\n"
         "\tcontext_preflight_state?: string;\n"
@@ -224,7 +224,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tfail_close_reason?: string;\n"
         "}\n\n"
         "export interface RuntimeDecisionsWire {\n"
-        "\tschema_version: typeof SUPERVISOR_EXECUTION_CONTRACT.runtimeDecisionsSchemaVersion;\n"
+        "\tschema_version: typeof CAPABILITY_EXECUTION_CONTRACT.runtimeDecisionsSchemaVersion;\n"
         "\teffective_capability: RequestedCapability;\n"
         "\tlane: string;\n"
         "\trouting_frame: SafeRecord;\n"
@@ -249,9 +249,9 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\terror?: { code: string; message: string; retryable?: boolean } | null;\n"
         "\tcapability_observability?: SafeRecord | null;\n"
         "}\n\n"
-        "export interface BridgeV6RequestWire {\n"
-        "\tbridge_version: typeof SUPERVISOR_EXECUTION_CONTRACT.bridgeVersion;\n"
-        "\tresponse_contract: typeof SUPERVISOR_EXECUTION_CONTRACT.responseContract;\n"
+        "export interface CapabilityExecutionRequestWire {\n"
+        "\texecution_contract_version: typeof CAPABILITY_EXECUTION_CONTRACT.executionContractVersion;\n"
+        "\tresponse_contract: typeof CAPABILITY_EXECUTION_CONTRACT.responseContract;\n"
         "\tuser_goal: string;\n"
         "\tconversation_id?: string;\n"
         "\trequest_id: string;\n"
@@ -280,7 +280,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tpayload: { kind: string; payload: SafeRecord };\n"
         "\tallowed_tools: string[];\n"
         "}\n\n"
-        "export interface SupervisorExecutionWorkflowTraceSummaryWire {\n"
+        "export interface CapabilityExecutionWorkflowTraceSummaryWire {\n"
         "\trouting_frame: SafeRecord;\n"
         "\tcontext_resolution: SafeRecord;\n"
         "\tplanning_outcome: string;\n"
@@ -302,16 +302,16 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\truntime_versions: SafeRecord;\n"
         "\tpolicy_artifact_versions: SafeRecord;\n"
         "}\n\n"
-        "export interface SupervisorExecutionResponseWire {\n"
+        "export interface CapabilityExecutionResponseWire {\n"
         "\tselected_capability: CapabilityID | null;\n"
-        "\tstatus: SupervisorStatus;\n"
+        "\tstatus: ExecutionStatus;\n"
         "\tanswer_text: string;\n"
         "\tfollow_up_question: string;\n"
         "\tconfidence: ConfidenceLevel;\n"
         "\tresult: SafeRecord | null;\n"
         "\terror: { code: string; message: string; retryable: boolean } | null;\n"
         "\tobservability?: SafeRecord | null;\n"
-        "\tworkflow_trace_summary?: SupervisorExecutionWorkflowTraceSummaryWire | null;\n"
+        "\tworkflow_trace_summary?: CapabilityExecutionWorkflowTraceSummaryWire | null;\n"
         "\ttrace_id: string;\n"
         "}\n"
     )
@@ -323,7 +323,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
     requested_capabilities = _enum(contract, "RequestedCapability")
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
-    supervisor_statuses = _enum(contract, "SupervisorStatus")
+    execution_statuses = _enum(contract, "ExecutionStatus")
     workflow_modes = _enum(contract, "WorkflowMode")
     projection_kinds = _enum(contract, "StepOutputProjectionKind")
     return _gofmt(
@@ -336,7 +336,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
         '\t"io"\n'
         ")\n\n"
         "const (\n"
-        f"\tBridgeVersion = {_go_quote(meta['bridge_version'])}\n"
+        f"\tExecutionContractVersion = {_go_quote(meta['execution_contract_version'])}\n"
         f"\tResponseContract = {_go_quote(meta['response_contract'])}\n"
         f"\tRuntimeDecisionsSchemaVersion = "
         f"{_go_quote(meta['runtime_decisions_schema_version'])}\n"
@@ -348,7 +348,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
         + _go_string_type("RequestedCapability", requested_capabilities)
         + _go_string_type("ConfidenceLevel", confidence_levels)
         + _go_string_type("DelegateStatus", delegate_statuses)
-        + _go_string_type("SupervisorStatus", supervisor_statuses)
+        + _go_string_type("ExecutionStatus", execution_statuses)
         + _go_string_type("WorkflowMode", workflow_modes)
         + _go_string_type("StepOutputProjectionKind", projection_kinds)
         + """
@@ -461,8 +461,8 @@ type RuntimeDecisionsWire struct {
 \tTerminalEnvelope map[string]any `json:"terminal_envelope,omitempty"`
 }
 
-type BridgeV6RequestWire struct {
-\tBridgeVersion string `json:"bridge_version"`
+type CapabilityExecutionRequestWire struct {
+\tExecutionContractVersion string `json:"execution_contract_version"`
 \tResponseContract string `json:"response_contract"`
 \tUserGoal string `json:"user_goal"`
 \tConversationID string `json:"conversation_id,omitempty"`
@@ -517,9 +517,9 @@ type WorkflowTraceSummaryWire struct {
 \tPolicyArtifactVersions map[string]any `json:"policy_artifact_versions"`
 }
 
-type SupervisorResponseWire struct {
+type CapabilityExecutionResponseWire struct {
 \tSelectedCapability *CapabilityID `json:"selected_capability"`
-\tStatus SupervisorStatus `json:"status"`
+\tStatus ExecutionStatus `json:"status"`
 \tAnswerText string `json:"answer_text"`
 \tFollowUpQuestion string `json:"follow_up_question"`
 \tConfidence ConfidenceLevel `json:"confidence"`
@@ -535,7 +535,7 @@ type SupervisorResponseWire struct {
 
 
 def _generate_py_init() -> str:
-    return '"""Generated supervisor execution contract package."""\n'
+    return '"""Generated capability execution contract package."""\n'
 
 
 def _generate_py(contract: dict[str, Any]) -> str:
@@ -544,7 +544,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
     requested_capabilities = _enum(contract, "RequestedCapability")
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
-    supervisor_statuses = _enum(contract, "SupervisorStatus")
+    execution_statuses = _enum(contract, "ExecutionStatus")
     workflow_modes = _enum(contract, "WorkflowMode")
     projection_kinds = _enum(contract, "StepOutputProjectionKind")
     return (
@@ -552,7 +552,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "from __future__ import annotations\n\n"
         "from typing import Any, Literal\n\n"
         "from pydantic import BaseModel, ConfigDict, Field\n\n"
-        f"BRIDGE_VERSION = {_py_quote(meta['bridge_version'])}\n"
+        f"EXECUTION_CONTRACT_VERSION = {_py_quote(meta['execution_contract_version'])}\n"
         f"RESPONSE_CONTRACT = {_py_quote(meta['response_contract'])}\n"
         f"RUNTIME_DECISIONS_SCHEMA_VERSION = {_py_quote(meta['runtime_decisions_schema_version'])}\n"
         f"RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION = "
@@ -562,7 +562,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         f"RequestedCapability = {_py_literal(requested_capabilities)}\n"
         f"ConfidenceLevel = {_py_literal(confidence_levels)}\n"
         f"DelegateStatus = {_py_literal(delegate_statuses)}\n"
-        f"SupervisorStatus = {_py_literal(supervisor_statuses)}\n\n\n"
+        f"ExecutionStatus = {_py_literal(execution_statuses)}\n\n\n"
         f"WorkflowMode = {_py_literal(workflow_modes)}\n"
         f"StepOutputProjectionKind = {_py_literal(projection_kinds)}\n\n\n"
         "class RuntimeDecisionSummaryWire(BaseModel):\n"
@@ -664,9 +664,9 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    handoff: dict[str, Any] | None = None\n"
         "    workflow_plan: WorkflowPlanWire | None = None\n"
         "    terminal_envelope: dict[str, Any] | None = None\n\n\n"
-        "class BridgeV6RequestWire(BaseModel):\n"
+        "class CapabilityExecutionRequestWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    bridge_version: Literal[BRIDGE_VERSION]\n"
+        "    execution_contract_version: Literal[EXECUTION_CONTRACT_VERSION]\n"
         "    response_contract: Literal[RESPONSE_CONTRACT]\n"
         "    user_goal: str\n"
         "    request_id: str\n"
@@ -728,10 +728,10 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    policy_artifact_versions: dict[str, Any]\n"
         "    trace_steps: list[dict[str, Any]] = Field(default_factory=list)\n"
         "    tool_call_summaries: list[dict[str, Any]] = Field(default_factory=list)\n\n\n"
-        "class SupervisorResponseWire(BaseModel):\n"
+        "class CapabilityExecutionResponseWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
         "    selected_capability: CapabilityID | None\n"
-        "    status: SupervisorStatus\n"
+        "    status: ExecutionStatus\n"
         "    answer_text: str\n"
         "    follow_up_question: str\n"
         "    confidence: ConfidenceLevel\n"

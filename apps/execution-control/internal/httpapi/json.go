@@ -24,7 +24,7 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 				response,
 				http.StatusRequestEntityTooLarge,
 				"request_body_too_large",
-				"Request body exceeds supervisor execution limit.",
+				"Request body exceeds execution-control request limit.",
 				false,
 			)
 		} else {

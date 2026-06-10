@@ -487,8 +487,8 @@ function RequestShowContent() {
 								<Stack spacing={2}>
 									<Typography variant="h6">运行事实</Typography>
 									<Typography color="text.secondary" variant="body2">
-										RunEvent 与 Step 轨迹来自 sanitized projection；此区块不展示原始
-										payload、prompt 或回答草稿。
+										RunEvent 与 Step 轨迹来自 sanitized projection；此区块不展示原始 payload、prompt
+										或回答草稿。
 									</Typography>
 									<Divider />
 									<Box
@@ -561,7 +561,9 @@ function RequestShowContent() {
 											/>
 											<RequestFieldRow
 												label="Trace 目标"
-												value={formatSelectedCapabilityLabel(workflowTrace?.selectedCapability ?? null)}
+												value={formatSelectedCapabilityLabel(
+													workflowTrace?.selectedCapability ?? null,
+												)}
 											/>
 										</Stack>
 										<Stack spacing={2}>

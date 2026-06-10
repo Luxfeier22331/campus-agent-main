@@ -1,4 +1,4 @@
-// AUTO-GENERATED FROM supervisor-execution.openapi.yaml. Do not edit by hand.
+// AUTO-GENERATED FROM capability-execution.openapi.yaml. Do not edit by hand.
 
 package contracts
 
@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	BridgeVersion                       = "supervisor_bridge_v6"
-	ResponseContract                    = "capability_response"
-	RuntimeDecisionsSchemaVersion       = "supervisor-runtime-decisions-v1"
+	ExecutionContractVersion            = "capability_execution_v1"
+	ResponseContract                    = "execution_finalization_response_v1"
+	RuntimeDecisionsSchemaVersion       = "capability-execution-runtime-decisions-v1"
 	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
 	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v4"
 )
@@ -52,16 +52,16 @@ const (
 	DelegateStatusError              DelegateStatus = "error"
 )
 
-type SupervisorStatus string
+type ExecutionStatus string
 
 const (
-	SupervisorStatusCompleted          SupervisorStatus = "completed"
-	SupervisorStatusNeedsClarification SupervisorStatus = "needs_clarification"
-	SupervisorStatusNoAnswer           SupervisorStatus = "no_answer"
-	SupervisorStatusError              SupervisorStatus = "error"
-	SupervisorStatusRejected           SupervisorStatus = "rejected"
-	SupervisorStatusApprovalRequired   SupervisorStatus = "approval_required"
-	SupervisorStatusCancelled          SupervisorStatus = "cancelled"
+	ExecutionStatusCompleted          ExecutionStatus = "completed"
+	ExecutionStatusNeedsClarification ExecutionStatus = "needs_clarification"
+	ExecutionStatusNoAnswer           ExecutionStatus = "no_answer"
+	ExecutionStatusError              ExecutionStatus = "error"
+	ExecutionStatusRejected           ExecutionStatus = "rejected"
+	ExecutionStatusApprovalRequired   ExecutionStatus = "approval_required"
+	ExecutionStatusCancelled          ExecutionStatus = "cancelled"
 )
 
 type WorkflowMode string
@@ -193,22 +193,22 @@ type RuntimeDecisionsWire struct {
 	TerminalEnvelope       map[string]any             `json:"terminal_envelope,omitempty"`
 }
 
-type BridgeV6RequestWire struct {
-	BridgeVersion       string               `json:"bridge_version"`
-	ResponseContract    string               `json:"response_contract"`
-	UserGoal            string               `json:"user_goal"`
-	ConversationID      string               `json:"conversation_id,omitempty"`
-	RequestID           string               `json:"request_id"`
-	SafetyIdentifier    *string              `json:"safety_identifier,omitempty"`
-	EffectiveCapability RequestedCapability  `json:"effective_capability"`
-	Lane                string               `json:"lane"`
-	RequestedCapability RequestedCapability  `json:"requested_capability"`
-	RequestedScope      map[string]any       `json:"requested_scope,omitempty"`
-	Trace               map[string]any       `json:"trace"`
-	Actor               map[string]any       `json:"actor"`
-	Context             map[string]any       `json:"context"`
-	VersionQuery        map[string]any       `json:"version_query"`
-	RuntimeDecisions    RuntimeDecisionsWire `json:"runtime_decisions"`
+type CapabilityExecutionRequestWire struct {
+	ExecutionContractVersion string               `json:"execution_contract_version"`
+	ResponseContract         string               `json:"response_contract"`
+	UserGoal                 string               `json:"user_goal"`
+	ConversationID           string               `json:"conversation_id,omitempty"`
+	RequestID                string               `json:"request_id"`
+	SafetyIdentifier         *string              `json:"safety_identifier,omitempty"`
+	EffectiveCapability      RequestedCapability  `json:"effective_capability"`
+	Lane                     string               `json:"lane"`
+	RequestedCapability      RequestedCapability  `json:"requested_capability"`
+	RequestedScope           map[string]any       `json:"requested_scope,omitempty"`
+	Trace                    map[string]any       `json:"trace"`
+	Actor                    map[string]any       `json:"actor"`
+	Context                  map[string]any       `json:"context"`
+	VersionQuery             map[string]any       `json:"version_query"`
+	RuntimeDecisions         RuntimeDecisionsWire `json:"runtime_decisions"`
 }
 
 type CapabilityRequestWire struct {
@@ -249,9 +249,9 @@ type WorkflowTraceSummaryWire struct {
 	PolicyArtifactVersions      map[string]any                  `json:"policy_artifact_versions"`
 }
 
-type SupervisorResponseWire struct {
+type CapabilityExecutionResponseWire struct {
 	SelectedCapability   *CapabilityID             `json:"selected_capability"`
-	Status               SupervisorStatus          `json:"status"`
+	Status               ExecutionStatus           `json:"status"`
 	AnswerText           string                    `json:"answer_text"`
 	FollowUpQuestion     string                    `json:"follow_up_question"`
 	Confidence           ConfidenceLevel           `json:"confidence"`
@@ -262,8 +262,8 @@ type SupervisorResponseWire struct {
 	TraceID              string                    `json:"trace_id"`
 }
 
-func DecodeBridgeV6RequestWireJSON(data []byte) (BridgeV6RequestWire, error) {
-	var wire BridgeV6RequestWire
+func DecodeCapabilityExecutionRequestWireJSON(data []byte) (CapabilityExecutionRequestWire, error) {
+	var wire CapabilityExecutionRequestWire
 	if err := decodeStrictJSON(data, &wire); err != nil {
 		return wire, err
 	}
@@ -273,8 +273,8 @@ func DecodeBridgeV6RequestWireJSON(data []byte) (BridgeV6RequestWire, error) {
 	return wire, nil
 }
 
-func DecodeSupervisorResponseWireJSON(data []byte) (SupervisorResponseWire, error) {
-	var wire SupervisorResponseWire
+func DecodeCapabilityExecutionResponseWireJSON(data []byte) (CapabilityExecutionResponseWire, error) {
+	var wire CapabilityExecutionResponseWire
 	if err := decodeStrictJSON(data, &wire); err != nil {
 		return wire, err
 	}
@@ -297,9 +297,9 @@ func decodeStrictJSON(data []byte, target any) error {
 	return nil
 }
 
-func (wire BridgeV6RequestWire) Validate() error {
-	if wire.BridgeVersion != BridgeVersion {
-		return fmt.Errorf("bridge_version must be %s", BridgeVersion)
+func (wire CapabilityExecutionRequestWire) Validate() error {
+	if wire.ExecutionContractVersion != ExecutionContractVersion {
+		return fmt.Errorf("execution_contract_version must be %s", ExecutionContractVersion)
 	}
 	if wire.ResponseContract != ResponseContract {
 		return fmt.Errorf("response_contract must be %s", ResponseContract)
@@ -484,7 +484,7 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 	return nil
 }
 
-func (wire SupervisorResponseWire) Validate() error {
+func (wire CapabilityExecutionResponseWire) Validate() error {
 	if wire.SelectedCapability != nil && !wire.SelectedCapability.Valid() {
 		return fmt.Errorf("selected_capability is invalid")
 	}
@@ -552,9 +552,9 @@ func (value DelegateStatus) Valid() bool {
 	}
 }
 
-func (value SupervisorStatus) Valid() bool {
+func (value ExecutionStatus) Valid() bool {
 	switch value {
-	case SupervisorStatusCompleted, SupervisorStatusNeedsClarification, SupervisorStatusNoAnswer, SupervisorStatusError, SupervisorStatusRejected, SupervisorStatusApprovalRequired, SupervisorStatusCancelled:
+	case ExecutionStatusCompleted, ExecutionStatusNeedsClarification, ExecutionStatusNoAnswer, ExecutionStatusError, ExecutionStatusRejected, ExecutionStatusApprovalRequired, ExecutionStatusCancelled:
 		return true
 	default:
 		return false

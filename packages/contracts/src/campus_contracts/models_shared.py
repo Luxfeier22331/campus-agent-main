@@ -37,7 +37,7 @@ RequestedCapability = Literal[
     "campus_services",
     "notice",
 ]
-SupervisorStatus = Literal[
+ExecutionStatus = Literal[
     "completed",
     "needs_clarification",
     "no_answer",
@@ -228,7 +228,7 @@ ALLOWED_REQUESTED_CAPABILITIES = (
     "campus_services",
     "notice",
 )
-ALLOWED_SUPERVISOR_STATUSES = (
+ALLOWED_EXECUTION_STATUSES = (
     "completed",
     "needs_clarification",
     "no_answer",

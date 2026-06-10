@@ -25,7 +25,7 @@ func TestBridgePayloadForHandoffUsesNoticeSummaryNotBodyLabel(t *testing.T) {
 		base,
 		RuntimeHandoff{
 			Capability:   "knowledge",
-			WorkerRole:   "activity-worker-rag",
+			WorkerRole:   "activity-worker-knowledge",
 			PayloadKind:  "rag_request",
 			AllowedTools: []string{"retrieval.query"},
 		},
@@ -75,7 +75,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 		base,
 		RuntimeHandoff{
 			Capability:             "knowledge",
-			WorkerRole:             "activity-worker-rag",
+			WorkerRole:             "activity-worker-knowledge",
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
@@ -153,7 +153,7 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 		base,
 		RuntimeHandoff{
 			Capability:             "knowledge",
-			WorkerRole:             "activity-worker-rag",
+			WorkerRole:             "activity-worker-knowledge",
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
@@ -212,7 +212,7 @@ func TestBridgePayloadForHandoffFailsClosedWhenRequiredProjectionMissing(t *test
 		base,
 		RuntimeHandoff{
 			Capability:             "knowledge",
-			WorkerRole:             "activity-worker-rag",
+			WorkerRole:             "activity-worker-knowledge",
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
@@ -257,7 +257,7 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 		base,
 		RuntimeHandoff{
 			Capability:             "knowledge",
-			WorkerRole:             "activity-worker-rag",
+			WorkerRole:             "activity-worker-knowledge",
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),

@@ -96,7 +96,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
-	if err := s.temporalStarter.StartChatAnswerWorkflow(request.Context(), workflowInput); err != nil {
+	if err := s.temporalStarter.StartCapabilityExecutionWorkflow(request.Context(), workflowInput); err != nil {
 		_ = s.runProjectionStore.DeleteRun(context.Background(), queued.RunID)
 		setOutcome(response, "temporal_workflow_start_failed")
 		writeError(
@@ -148,10 +148,10 @@ func (s *Server) appendExecutionRunStartEvents(
 func (s *Server) workflowInputForQueuedRun(
 	rawBody json.RawMessage,
 	run execution.DurableRun,
-) (temporalruntime.ChatAnswerWorkflowInput, error) {
+) (temporalruntime.CapabilityExecutionWorkflowInput, error) {
 	payloadHash := sha256.Sum256(rawBody)
 	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
-	return temporalruntime.ChatAnswerWorkflowInput{
+	return temporalruntime.CapabilityExecutionWorkflowInput{
 		ConversationID: run.ConversationID,
 		Namespace:      s.config.TemporalNamespace,
 		PayloadSHA256:  hex.EncodeToString(payloadHash[:]),
@@ -231,9 +231,9 @@ func (s *Server) handleExecutionRunCancel(
 		writeError(response, http.StatusInternalServerError, "execution_run_query_failed", err.Error(), true)
 		return
 	}
-	if err := s.temporalStarter.CancelChatAnswerWorkflow(
+	if err := s.temporalStarter.CancelCapabilityExecutionWorkflow(
 		request.Context(),
-		temporalruntime.ChatAnswerWorkflowCancelInput{
+		temporalruntime.CapabilityExecutionWorkflowCancelInput{
 			Reason:     reason,
 			RunID:      run.RunID,
 			WorkflowID: "campus-agent.chat." + run.RunID,

@@ -3,21 +3,21 @@ import { vi } from "vitest";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import type { ChatMessage } from "../src/modules/chat";
 import type {
+	CapabilityExecutionInput,
+	CapabilityExecutionResponse,
+} from "../src/modules/integration/execution-control";
+import type {
 	ChatCommandStore,
 	ChatConversationStore,
 	FinalizeRequestWrite,
 } from "../src/modules/runtime-command";
 import type { AppTelemetry } from "../src/modules/telemetry";
-import type {
-	SupervisorExecutionInput,
-	SupervisorExecutionResponse,
-} from "../src/modules/integration/execution-control";
 
 export { createHmac } from "node:crypto";
 export type { ResolvedAppPrincipal } from "../src/modules/auth";
-export interface SupervisorExecutionClient {
-	execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
-	executeStream?(input: SupervisorExecutionInput): Promise<Response>;
+export interface CapabilityExecutionClient {
+	execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
+	executeStream?(input: CapabilityExecutionInput): Promise<Response>;
 }
 export type {
 	ChatCommandStore,

@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { AppApiRouteError } from "../../../http";
 import type { ResolvedAppPrincipal } from "../../auth";
-import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
+import type { CapabilityExecutionResponse, RequestedScope } from "../../integration";
 import {
 	normalizeVersionQuery,
 	type VersionQuery,
@@ -75,14 +75,14 @@ function collapseAssistantTextWhitespace(text: string): string {
 }
 
 export function sanitizePublicAssistantText(input: {
-	status: SupervisorExecutionResponse["status"];
+	status: CapabilityExecutionResponse["status"];
 	text: string;
 }): string {
 	const normalized = normalizeString(input.text);
 	if (!normalized) {
 		throw new AppApiRouteError({
-			code: "supervisor_invalid_public_response",
-			message: `Supervisor returned an empty public answer text for status ${input.status}.`,
+			code: "execution_invalid_public_response",
+			message: `execution returned an empty public answer text for status ${input.status}.`,
 			retryable: true,
 			status: 502,
 		});
@@ -93,16 +93,16 @@ export function sanitizePublicAssistantText(input: {
 	);
 	if (!stripped) {
 		throw new AppApiRouteError({
-			code: "supervisor_invalid_public_response",
-			message: "Supervisor public answer text became empty after locator scrubbing.",
+			code: "execution_invalid_public_response",
+			message: "Execution public answer text became empty after locator scrubbing.",
 			retryable: true,
 			status: 502,
 		});
 	}
 	if (INTERNAL_LOCATOR_PATTERNS.some((pattern) => pattern.test(stripped))) {
 		throw new AppApiRouteError({
-			code: "supervisor_invalid_public_response",
-			message: "Supervisor public answer text leaked internal locator content.",
+			code: "execution_invalid_public_response",
+			message: "Execution public answer text leaked internal locator content.",
 			retryable: true,
 			status: 502,
 		});

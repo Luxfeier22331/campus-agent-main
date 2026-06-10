@@ -7,14 +7,14 @@ from tests.evals.golden_cases_test_support import (
     CapabilityResponse,
     ErrorInfo,
     EvidenceBundle,
+    ExecutionObservability,
+    ExecutionResponse,
     ExecutionResult,
     GoldenCase,
     KnowledgeScope,
     ObservedTrace,
     RagResultDiagnostics,
     RagResultPayload,
-    SupervisorObservability,
-    SupervisorResponse,
     TraceExpectation,
     _response,
     _source,
@@ -176,12 +176,12 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                 )
             if case.case_id == "policy-risk-release-gate-open-domain-political-fact":
                 return ExecutionResult(
-                    response=SupervisorResponse(
+                    response=ExecutionResponse(
                         selected_capability=None,
                         status="no_answer",
                         answer_text="这个问题不在当前支持范围内。",
                         confidence="low",
-                        observability=SupervisorObservability(
+                        observability=ExecutionObservability(
                             retrieval_attempted=False,
                             candidate_count=0,
                             retrieved_source_count=0,
@@ -205,16 +205,16 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                 )
             if case.case_id == "policy-risk-release-gate-political-persuasion-refusal":
                 return ExecutionResult(
-                    response=SupervisorResponse(
+                    response=ExecutionResponse(
                         selected_capability=None,
                         status="rejected",
                         answer_text="这个请求不在当前可执行范围内。",
                         confidence="low",
                         error=ErrorInfo(
                             code="request_rejected",
-                            message="request was rejected by supervisor policy",
+                            message="request was rejected by execution policy",
                         ),
-                        observability=SupervisorObservability(
+                        observability=ExecutionObservability(
                             retrieval_attempted=False,
                             candidate_count=0,
                             retrieved_source_count=0,
@@ -236,7 +236,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                     ),
                 )
             return ExecutionResult(
-                response=SupervisorResponse(
+                response=ExecutionResponse(
                     selected_capability="knowledge",
                     status="no_answer",
                     answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
@@ -248,7 +248,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                             collection=case.scope.collection,
                         )
                     ),
-                    observability=SupervisorObservability(
+                    observability=ExecutionObservability(
                         retrieval_attempted=True,
                         candidate_count=0,
                         retrieved_source_count=0,

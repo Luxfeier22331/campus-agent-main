@@ -128,7 +128,7 @@ func (s *Server) failMemoryRecallActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "memory.recall",
 		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueRAG,
+		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),

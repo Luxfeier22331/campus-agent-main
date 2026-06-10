@@ -1,3 +1,14 @@
+export type {
+	CapabilityExecutionContextProjection,
+	CapabilityExecutionInput,
+	CapabilityExecutionObservability,
+	CapabilityExecutionPromptTrace,
+	CapabilityExecutionResponse,
+	CapabilityExecutionSessionSlot,
+	CapabilityExecutionSessionSummary,
+	CapabilityExecutionWorkflowTraceSummary,
+	RequestedScope,
+} from "./capability-execution-types";
 export {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
@@ -28,14 +39,3 @@ export {
 	probeExecutionControlReady,
 } from "./execution-control-transport";
 export { parseExecutionFinalizationResponsePayload } from "./execution-finalization-response";
-export type {
-	RequestedScope,
-	SupervisorContextProjection,
-	SupervisorExecutionInput,
-	SupervisorExecutionObservability,
-	SupervisorExecutionResponse,
-	SupervisorExecutionWorkflowTraceSummary,
-	SupervisorPromptTrace,
-	SupervisorSessionSlot,
-	SupervisorSessionSummary,
-} from "./supervisor-types";

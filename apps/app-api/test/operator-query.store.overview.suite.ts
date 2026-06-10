@@ -224,6 +224,8 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 				selectedCapability: "knowledge",
 				status: "completed",
 			}),
-		).toBe("knowledge request finalized without the required policy projection for rag agent.");
+		).toBe(
+			"knowledge request finalized without the required policy projection for knowledge capability.",
+		);
 	});
 }

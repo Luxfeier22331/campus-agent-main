@@ -77,15 +77,15 @@ func TestDirectStructuredHandoffDecisionAllowsTypedHandoffOnlyTools(t *testing.T
 	}
 }
 
-func TestShapeStructuredSupervisorResponseReturnsExplicitFinalizerFailureEnvelope(t *testing.T) {
-	response := shapeStructuredSupervisorResponse(
+func TestShapeStructuredExecutionResponseReturnsExplicitFinalizerFailureEnvelope(t *testing.T) {
+	response := shapeStructuredExecutionResponse(
 		"campus_services",
 		"service_status_lookup",
 		map[string]any{
 			"outcome": "resolved_current",
 		},
 		"trace-structured-finalizer-failure",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "delegate",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				SelectedCapability: "knowledge",
@@ -110,7 +110,7 @@ func TestShapeStructuredSupervisorResponseReturnsExplicitFinalizerFailureEnvelop
 	if errorBody["code"] != "structured_finalization_failed" {
 		t.Fatalf("error.code = %v, want structured_finalization_failed", errorBody["code"])
 	}
-	if response["answer_text"] != "结构化查询结果未通过 supervisor finalization。" {
+	if response["answer_text"] != "结构化查询结果未通过 execution finalization。" {
 		t.Fatalf("answer_text = %v, want explicit finalizer failure text", response["answer_text"])
 	}
 }

@@ -5,7 +5,7 @@ from typing import Any
 
 from campus_contracts import CapabilityRequest, WorkflowCapabilityContext
 
-from campus_supervisor_agent_worker.generated.supervisor_execution_contract import (
+from campus_supervisor_agent_worker.generated.capability_execution_contract import (
     WorkflowPlanWire,
 )
 from campus_supervisor_agent_worker.tool_spec_registry import (

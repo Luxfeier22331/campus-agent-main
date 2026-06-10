@@ -8,5 +8,5 @@ export {
 	type RuntimeRunService,
 	type RuntimeRunStore,
 	type RuntimeRunSummary,
-	runtimeRunPhaseFromSupervisorStatus,
+	runtimeRunPhaseFromExecutionStatus,
 } from "./service";

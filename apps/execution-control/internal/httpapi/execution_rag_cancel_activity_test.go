@@ -14,7 +14,7 @@ import (
 func TestSynthesisProviderCancellationProjectsAbortOutcome(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-rag:001",
+		TemporalWorkerIdentity: "test:activity-knowledge:001",
 	}, nil)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
@@ -43,9 +43,9 @@ func TestSynthesisProviderCancellationProjectsAbortOutcome(t *testing.T) {
 	)
 	addRequestedScopeForRunTest(t, store, "run-rag-provider-cancel", "regulations", "student_rules")
 
-	workflowPlan, err := server.PlanChatAnswerActivity(
+	workflowPlan, err := server.PlanRouteActivity(
 		context.Background(),
-		temporalruntime.PlanChatAnswerActivityInput{
+		temporalruntime.PlanRouteActivityInput{
 			ConversationID: "conv-rag-provider-cancel",
 			Namespace:      "campus-agent-test",
 			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -152,7 +152,7 @@ func TestSynthesisProviderCancellationProjectsAbortOutcome(t *testing.T) {
 func TestSynthesisProviderTimeoutProjectsTimeoutOutcome(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-rag:001",
+		TemporalWorkerIdentity: "test:activity-knowledge:001",
 	}, nil)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
@@ -181,9 +181,9 @@ func TestSynthesisProviderTimeoutProjectsTimeoutOutcome(t *testing.T) {
 	)
 	addRequestedScopeForRunTest(t, store, "run-rag-provider-timeout", "regulations", "student_rules")
 
-	workflowPlan, err := server.PlanChatAnswerActivity(
+	workflowPlan, err := server.PlanRouteActivity(
 		context.Background(),
-		temporalruntime.PlanChatAnswerActivityInput{
+		temporalruntime.PlanRouteActivityInput{
 			ConversationID: "conv-rag-provider-timeout",
 			Namespace:      "campus-agent-test",
 			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

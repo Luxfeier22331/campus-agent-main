@@ -1,4 +1,4 @@
-import type { SupervisorExecutionWorkflowTraceSummary } from "../integration/supervisor-types";
+import type { CapabilityExecutionWorkflowTraceSummary } from "../integration/capability-execution-types";
 import type { EvalCoverageSnapshot } from "../operator-eval-coverage";
 import type {
 	RequestClaimSupportSummary,
@@ -177,7 +177,7 @@ export interface OperatorRequestObservabilityRecord {
 			historicalDowngradeReason: string | null;
 			selectedTool: string | null;
 		};
-		workflowTrace?: SupervisorExecutionWorkflowTraceSummary | null;
+		workflowTrace?: CapabilityExecutionWorkflowTraceSummary | null;
 		retrievalAdequacyVerdict: string | null;
 		retrievalAdequacyReason: string | null;
 		retrievalPlan?: RequestRetrievalPlanSummary | null;
@@ -439,14 +439,21 @@ export interface OperatorAuditListResult {
 	};
 }
 
-
+export type {
+	OperatorQueryService,
+	OperatorQueryServiceDependencies,
+	OperatorQueryStore,
+} from "./service-contracts";
+export type {
+	OperatorIntentSummaryResult,
+	OperatorIntentTimeseriesResult,
+} from "./service-intent-types";
 export type {
 	MetricRatio,
 	OperatorDistributionBucket,
 	OperatorOverviewWindow,
 	OperatorResultWindow,
 } from "./service-metric-types";
-export type { OperatorIntentSummaryResult, OperatorIntentTimeseriesResult } from "./service-intent-types";
 export type {
 	NormalizedOperatorQualityBadcaseListFilters,
 	OperatorQualityBadcaseListFilters,
@@ -463,8 +470,3 @@ export type {
 	OperatorSafetyAnomalyListResult,
 	OperatorSafetySummaryResult,
 } from "./service-safety-cost-types";
-export type {
-	OperatorQueryService,
-	OperatorQueryServiceDependencies,
-	OperatorQueryStore,
-} from "./service-contracts";

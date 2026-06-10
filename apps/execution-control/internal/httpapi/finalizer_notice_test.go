@@ -22,7 +22,7 @@ func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testi
 			},
 		},
 		"trace-finalizer-notice-get-internal",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:     "allow",
 				PolicyGateDecision:    "allow",
@@ -71,7 +71,7 @@ func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testi
 	}
 	if supervisorObservability["selected_tool"] != "" {
 		t.Fatalf(
-			"supervisor_observability.selected_tool = %v, want empty",
+			"execution_observability.selected_tool = %v, want empty",
 			supervisorObservability["selected_tool"],
 		)
 	}
@@ -150,7 +150,7 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 			},
 		},
 		"trace-finalizer-multi-step",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch:       "multi_step",
 			SelectedTool: "retrieval.query",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{

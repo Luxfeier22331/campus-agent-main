@@ -12,19 +12,19 @@ import {
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 describe("chat command durable runtime cutover", () => {
 	it("rejects blocking deployed chat commands when durable runtime is required but missing", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const service = buildChatCommandService({
@@ -62,7 +62,7 @@ describe("chat command durable runtime cutover", () => {
 	it("rejects streaming deployed chat commands when durable runtime is required but missing", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -103,7 +103,7 @@ describe("chat command durable runtime cutover", () => {
 	it("rejects blocking deployed chat commands before accept when required durable config is absent", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -111,7 +111,7 @@ describe("chat command durable runtime cutover", () => {
 			createRun: vi.fn().mockRejectedValue(
 				new ExecutionControlTransportError({
 					code: "dependency_not_ready",
-					message: "Supervisor durable runtime is not configured.",
+					message: "Execution durable runtime is not configured.",
 					retryable: true,
 					status: 503,
 				}),
@@ -158,7 +158,7 @@ describe("chat command durable runtime cutover", () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -259,17 +259,17 @@ describe("chat command durable runtime cutover", () => {
 		const executionPayload = metadata.execution_payload as Record<string, unknown>;
 		const runtimeDecisions = executionPayload.runtime_decisions as Record<string, unknown>;
 		const handoff = runtimeDecisions.handoff as Record<string, unknown>;
-		const agentRequest = handoff.agent_request as Record<string, unknown>;
-		const workflowContext = agentRequest.workflow_context as Record<string, unknown>;
-		const agentPayload = agentRequest.payload as Record<string, unknown>;
-		const agentPayloadBody = agentPayload.payload as Record<string, unknown>;
+		const capabilityRequest = handoff.capability_request as Record<string, unknown>;
+		const workflowContext = capabilityRequest.workflow_context as Record<string, unknown>;
+		const capabilityPayload = capabilityRequest.payload as Record<string, unknown>;
+		const capabilityPayloadBody = capabilityPayload.payload as Record<string, unknown>;
 		const workflowPlan = runtimeDecisions.workflow_plan as Record<string, unknown>;
 		expect(Object.keys(executionPayload).sort()).toEqual([
 			"actor",
-			"bridge_version",
 			"context",
 			"conversation_id",
 			"effective_capability",
+			"execution_contract_version",
 			"lane",
 			"request_id",
 			"requested_capability",
@@ -282,8 +282,8 @@ describe("chat command durable runtime cutover", () => {
 			"version_query",
 		]);
 		expect(executionPayload).toMatchObject({
-			bridge_version: "supervisor_bridge_v6",
-			response_contract: "capability_response",
+			execution_contract_version: "capability_execution_v1",
+			response_contract: "execution_finalization_response_v1",
 			effective_capability: "knowledge",
 			lane: "rag",
 			requested_capability: "knowledge",
@@ -308,29 +308,29 @@ describe("chat command durable runtime cutover", () => {
 				selected_capability: "knowledge",
 				selected_tool: "retrieval.query",
 			}),
-			schema_version: "supervisor-runtime-decisions-v1",
+			schema_version: "capability-execution-runtime-decisions-v1",
 		});
 		expect(handoff).toMatchObject({
 			allowed_tools: [],
+			capability: "knowledge",
 			planning_outcome: "preplanned",
-			target: "knowledge",
 		});
-		expect(agentRequest).toMatchObject({
+		expect(capabilityRequest).toMatchObject({
 			allowed_tools: [],
+			capability: "knowledge",
 			context: executionPayload.context,
 			conversation_id: "conv_01HQ",
 			request_id: "req_0001",
 			safety_identifier: expect.any(String),
-			target: "knowledge",
 			trace: {
 				trace_id: "trace_0001",
 			},
 			user_goal: "中央民族大学本科学生国家奖学金评审办法",
 		});
-		expect(agentPayload).toMatchObject({
+		expect(capabilityPayload).toMatchObject({
 			kind: "rag_request",
 		});
-		expect(agentPayloadBody).toMatchObject({
+		expect(capabilityPayloadBody).toMatchObject({
 			scope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -344,8 +344,7 @@ describe("chat command durable runtime cutover", () => {
 			expected_output_artifacts: ["evidence_bundle", "grounding_verdict"],
 			projection_refs: [],
 			schema_version: "workflow-capability-context-v1",
-			step_id: "handoff:knowledge:rag_request",
-			target: "knowledge",
+			step_id: "capability:knowledge:rag_request",
 			visibility: "capability_private",
 			workflow_run_ref: "workflow:req_0001",
 		});
@@ -357,14 +356,15 @@ describe("chat command durable runtime cutover", () => {
 			steps: [
 				{
 					allowed_tools: [],
+					capability: "knowledge",
 					payload_kind: "rag_request",
 					selected_tool: "retrieval.query",
-					step_id: "handoff:knowledge:rag_request",
-					step_kind: "handoff",
-					target: "knowledge",
+					step_id: "capability:knowledge:rag_request",
+					step_kind: "capability_dispatch",
+					worker_role: "activity-worker-knowledge",
 				},
 			],
-			workflow_mode: "single_step",
+			workflow_mode: "knowledge_rag",
 		});
 		expect(executionRuntime.createRun).toHaveBeenCalledWith({
 			conversationId: "conv_01HQ",
@@ -407,7 +407,7 @@ describe("chat command durable runtime cutover", () => {
 					},
 					payload_kind: "rag_request",
 					required_projection_kind: "",
-					target: "knowledge",
+					capability: "knowledge",
 				},
 			}),
 			ownerUserId: "user_01HQ",
@@ -466,7 +466,7 @@ describe("chat command durable runtime cutover", () => {
 	it("rejects non-knowledge capabilities before durable RAG run admission", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -511,7 +511,7 @@ describe("chat command durable runtime cutover", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const listRunEvents = vi

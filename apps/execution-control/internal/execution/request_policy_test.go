@@ -28,11 +28,17 @@ func TestParseAnswerRequestProjectsBridgeV5CapabilityRequestForTransportSchedule
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
-	if payload["bridge_version"] != "supervisor_bridge_v6" {
-		t.Fatalf("bridge_version = %v, want supervisor_bridge_v6", payload["bridge_version"])
+	if payload["execution_contract_version"] != "capability_execution_v1" {
+		t.Fatalf(
+			"execution_contract_version = %v, want capability_execution_v1",
+			payload["execution_contract_version"],
+		)
 	}
-	if payload["response_contract"] != "capability_response" {
-		t.Fatalf("response_contract = %v, want capability_response", payload["response_contract"])
+	if payload["response_contract"] != "execution_finalization_response_v1" {
+		t.Fatalf(
+			"response_contract = %v, want execution_finalization_response_v1",
+			payload["response_contract"],
+		)
 	}
 	if payload["effective_capability"] != "campus_services" {
 		t.Fatalf("effective_capability = %v, want campus_services", payload["effective_capability"])
@@ -41,8 +47,8 @@ func TestParseAnswerRequestProjectsBridgeV5CapabilityRequestForTransportSchedule
 		t.Fatalf("lane = %v, want campus_services", payload["lane"])
 	}
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	if runtimeDecisions["schema_version"] != "supervisor-runtime-decisions-v1" {
-		t.Fatalf("runtime_decisions.schema_version = %v, want supervisor-runtime-decisions-v1", runtimeDecisions["schema_version"])
+	if runtimeDecisions["schema_version"] != "capability-execution-runtime-decisions-v1" {
+		t.Fatalf("runtime_decisions.schema_version = %v, want capability-execution-runtime-decisions-v1", runtimeDecisions["schema_version"])
 	}
 	if runtimeDecisions["effective_capability"] != "campus_services" {
 		t.Fatalf("effective_capability = %v", runtimeDecisions["effective_capability"])
@@ -81,7 +87,7 @@ func TestParseAnswerRequestProjectsBridgeV5CapabilityRequestForTransportSchedule
 		t.Fatalf("workflow plan step = %#v, want campus-services handoff", planStep)
 	}
 	if handoff["capability"] != "campus_services" {
-		t.Fatalf("handoff.target = %v, want campus_services", handoff["capability"])
+		t.Fatalf("handoff.capability = %v, want campus_services", handoff["capability"])
 	}
 	allowedTools, ok := handoff["allowed_tools"].([]any)
 	if !ok || len(allowedTools) != 1 || allowedTools[0] != "transport_schedule_lookup" {
@@ -93,7 +99,7 @@ func TestParseAnswerRequestProjectsBridgeV5CapabilityRequestForTransportSchedule
 	}
 	agentRequest := expectExecutionRecord(t, handoff["capability_request"], "handoff.capability_request")
 	if agentRequest["capability"] != "campus_services" {
-		t.Fatalf("capability_request.target = %v, want campus_services", agentRequest["capability"])
+		t.Fatalf("capability_request.capability = %v, want campus_services", agentRequest["capability"])
 	}
 	if agentRequest["request_id"] != "req-transport-preplan" {
 		t.Fatalf("capability_request.request_id = %v, want req-transport-preplan", agentRequest["request_id"])
@@ -155,7 +161,7 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 		)
 	}
 	if handoff["capability"] != "knowledge" {
-		t.Fatalf("handoff.target = %v, want knowledge", handoff["capability"])
+		t.Fatalf("handoff.capability = %v, want knowledge", handoff["capability"])
 	}
 	if request.StructuredHandoff == nil {
 		t.Fatal("structured handoff must be present")
@@ -195,7 +201,7 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 	}
 	agentRequest := expectExecutionRecord(t, handoff["capability_request"], "handoff.capability_request")
 	if agentRequest["capability"] != "knowledge" {
-		t.Fatalf("capability_request.target = %v, want knowledge", agentRequest["capability"])
+		t.Fatalf("capability_request.capability = %v, want knowledge", agentRequest["capability"])
 	}
 	agentPayload := expectExecutionRecord(t, agentRequest["payload"], "capability_request.payload")
 	if agentPayload["kind"] != "rag_request" {

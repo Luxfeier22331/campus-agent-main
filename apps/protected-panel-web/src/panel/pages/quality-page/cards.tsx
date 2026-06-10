@@ -23,7 +23,10 @@ import { Link as RouterLink } from "react-router-dom";
 import { PanelLineChart } from "../../panel-chart";
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
 import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
-import { formatSelectedCapabilityLabel, formatSurfaceLabel } from "../../requests/request-formatters";
+import {
+	formatSelectedCapabilityLabel,
+	formatSurfaceLabel,
+} from "../../requests/request-formatters";
 import { buildRequestShowPath } from "../../requests/request-routes";
 import type {
 	OperatorOverviewWindow,
@@ -592,7 +595,9 @@ export function QualityEvalCandidateSection(props: {
 									</TableCell>
 									<TableCell>{candidate.intake.suggestedEvalFamily}</TableCell>
 									<TableCell>{formatSurfaceLabel(candidate.surface)}</TableCell>
-									<TableCell>{formatSelectedCapabilityLabel(candidate.selectedCapability)}</TableCell>
+									<TableCell>
+										{formatSelectedCapabilityLabel(candidate.selectedCapability)}
+									</TableCell>
 									<TableCell>
 										{candidate.requestId ? (
 											<Button

@@ -153,7 +153,7 @@ def _capability(
     defaults = {
         "knowledge": {
             "owner_package": "packages/knowledge-capability",
-            "worker_role": "activity-worker-rag",
+            "worker_role": "activity-worker-knowledge",
             "allowed_structured_tools": [],
             "context_projection_kinds": ["evidence_bundle"],
         },

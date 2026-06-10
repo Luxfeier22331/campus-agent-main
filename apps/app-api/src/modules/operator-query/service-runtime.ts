@@ -5,7 +5,7 @@ import type {
 	ExecutionControlRunEvent,
 	ExecutionControlRunStepTrajectory,
 } from "../integration";
-import { runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
+import { runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 import {
 	isAllowedTimeseriesGranularity,
 	normalizeAuditListFilters,
@@ -111,9 +111,7 @@ const TERMINAL_RUN_EVENT_TYPES = new Set([
 	"run.expired",
 ]);
 
-function toRuntimeRunEventSummary(
-	event: ExecutionControlRunEvent,
-): OperatorRuntimeRunEventSummary {
+function toRuntimeRunEventSummary(event: ExecutionControlRunEvent): OperatorRuntimeRunEventSummary {
 	return {
 		eventType: event.eventType,
 		occurredAt: event.occurredAt,
@@ -283,7 +281,7 @@ async function loadRuntimeRunSummary(
 		},
 		run: {
 			conversationId: run.conversationId,
-			phase: runtimeRunPhaseFromSupervisorStatus(run.status),
+			phase: runtimeRunPhaseFromExecutionStatus(run.status),
 			requestId: run.requestId,
 			runId: run.runId,
 			status: run.status,

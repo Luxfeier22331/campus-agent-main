@@ -4,8 +4,8 @@ from tests.contracts.contract_models_test_support import *
 
 
 class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
-    def test_supervisor_observability_exposes_intent_governance_fields(self) -> None:
-        observability = SupervisorObservability(
+    def test_execution_observability_exposes_intent_governance_fields(self) -> None:
+        observability = ExecutionObservability(
             intent_schema_version="intent-schema-1.0.0",
             intent_classifier_version="deterministic-intent-v1",
             intent_routing_confidence="high",
@@ -84,8 +84,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     safe_details={"debug": {key: "secret"}},
                 )
 
-    def test_supervisor_response_serializes_workflow_trace_summary(self) -> None:
-        response = SupervisorResponse(
+    def test_execution_response_serializes_workflow_trace_summary(self) -> None:
+        response = ExecutionResponse(
             selected_capability="campus_services",
             status="completed",
             confidence="high",
@@ -729,8 +729,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             ("中央民族大学本科学生国家奖学金评审办法",),
         )
 
-    def test_supervisor_response_serializes_selected_capability_and_context_free_shape(self) -> None:
-        response = SupervisorResponse(
+    def test_execution_response_serializes_selected_capability_and_context_free_shape(self) -> None:
+        response = ExecutionResponse(
             selected_capability="knowledge",
             status="needs_clarification",
             follow_up_question="请说明你想咨询哪一类奖学金。",

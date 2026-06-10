@@ -287,7 +287,7 @@ func mustDefaultWorkflowArtifactRegistry() runtimepolicy.WorkflowArtifactRegistr
 func runtimeVersionSummary() map[string]any {
 	return map[string]any{
 		"execution_control_runtime": "go-runtime-control-plane-v1",
-		"bridge_contract":           contractsv1.BridgeVersion,
+		"execution_contract":        contractsv1.ExecutionContractVersion,
 		"response_contract":         contractsv1.ResponseContract,
 		"workflow_trace_summary":    contractsv1.WorkflowTraceSummaryVersion,
 	}
@@ -384,7 +384,7 @@ func terminalEnvelope(frame runtimepolicy.RoutingFrame) map[string]any {
 			"confidence":          "low",
 			"error": map[string]any{
 				"code":    "request_rejected",
-				"message": "request was rejected by supervisor policy",
+				"message": "request was rejected by execution policy",
 			},
 			"observability": terminalObservability(frame, "policy_refusal", true),
 		}

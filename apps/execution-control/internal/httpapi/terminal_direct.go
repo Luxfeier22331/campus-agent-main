@@ -18,26 +18,26 @@ func (s *Server) handleDirectTerminalAnswer(
 	if len(executionRequest.TerminalEnvelope) == 0 {
 		return false
 	}
-	supervisorResponse := terminalSupervisorResponse(
+	executionResponse := terminalExecutionResponse(
 		executionRequest.TerminalEnvelope,
 		executionRequest.TraceID,
 		finalizerContextFromExecutionRequest(executionRequest, "terminal"),
 	)
-	setOutcome(response, "supervisor_response")
+	setOutcome(response, "execution_response")
 	if err := s.emitTelemetry(request.Context(), runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
 		Lane:                executionRequest.Lane,
 		RequestedCapability: executionRequest.RequestedCapability,
-		Outcome:             "supervisor_response",
+		Outcome:             "execution_response",
 		StatusCode:          http.StatusOK,
 		Duration:            time.Since(startedAt),
 	}, executionRequest)); err != nil {
 		s.writeTelemetryFailure(response, executionRequest.RequestID, executionRequest.TraceID)
 		return true
 	}
-	writeJSON(response, http.StatusOK, supervisorResponse)
+	writeJSON(response, http.StatusOK, executionResponse)
 	return true
 }
 
@@ -50,19 +50,19 @@ func (s *Server) handleDirectTerminalAnswerStream(
 	if len(executionRequest.TerminalEnvelope) == 0 {
 		return false
 	}
-	supervisorResponse := terminalSupervisorResponse(
+	executionResponse := terminalExecutionResponse(
 		executionRequest.TerminalEnvelope,
 		executionRequest.TraceID,
 		finalizerContextFromExecutionRequest(executionRequest, "terminal"),
 	)
-	setOutcome(response, "supervisor_response")
+	setOutcome(response, "execution_response")
 	if err := s.emitTelemetry(request.Context(), runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer_stream.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
 		Lane:                executionRequest.Lane,
 		RequestedCapability: executionRequest.RequestedCapability,
-		Outcome:             "supervisor_response",
+		Outcome:             "execution_response",
 		StatusCode:          http.StatusOK,
 		Duration:            time.Since(startedAt),
 	}, executionRequest)); err != nil {
@@ -71,7 +71,7 @@ func (s *Server) handleDirectTerminalAnswerStream(
 			executionRequest,
 			http.StatusServiceUnavailable,
 			"telemetry_delivery_failed",
-			"Supervisor telemetry delivery failed.",
+			"Execution telemetry delivery failed.",
 			true,
 		)
 		return true
@@ -81,17 +81,17 @@ func (s *Server) handleDirectTerminalAnswerStream(
 		TraceID:    executionRequest.TraceID,
 		EventType:  "execution.completed",
 		Status:     streamStatusForLifecycle(lifecycle.StateCompleted),
-		Outcome:    "supervisor_response",
+		Outcome:    "execution_response",
 		HTTPStatus: http.StatusOK,
-		Response:   supervisorResponse,
+		Response:   executionResponse,
 	})
 	return true
 }
 
-func terminalSupervisorResponse(
+func terminalExecutionResponse(
 	envelope map[string]any,
 	traceID string,
-	context supervisorFinalizerContext,
+	context executionFinalizerContext,
 ) map[string]any {
 	response := make(map[string]any, len(envelope)+2)
 	for key, value := range envelope {

@@ -2,11 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import type { OperatorQueryService } from "../src/modules/operator-query";
-import {
-	createOperatorPrincipal,
-	createOperatorQueryServiceMock,
-	env,
-} from "./operator-query.route.test-support";
+import { createOperatorPrincipal, env } from "./operator-query.route.test-support";
 
 export function registerOperatorQueryQualitySuite(): void {
 	describe("GET /api/operator/overview", () => {

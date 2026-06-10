@@ -106,8 +106,11 @@ func TestHTTPClientExecuteSemanticCallsPrivateSemanticEndpoint(t *testing.T) {
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("unmarshal semantic payload: %v", err)
 		}
-		if payload["bridge_version"] != "semantic_bridge_execution_v1" {
-			t.Fatalf("bridge_version = %v", payload["bridge_version"])
+		if payload["execution_contract_version"] != "semantic_bridge_execution_v1" {
+			t.Fatalf(
+				"execution_contract_version = %v",
+				payload["execution_contract_version"],
+			)
 		}
 		if payload["run_id"] != "run-001" {
 			t.Fatalf("run_id = %v", payload["run_id"])

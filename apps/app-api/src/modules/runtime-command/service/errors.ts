@@ -1,5 +1,8 @@
 import { AppApiRouteError } from "../../../http";
-import { type SupervisorExecutionResponse, ExecutionControlTransportError } from "../../integration";
+import {
+	type CapabilityExecutionResponse,
+	ExecutionControlTransportError,
+} from "../../integration";
 
 export function createPreAcceptError(input: {
 	code: string;
@@ -63,7 +66,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 
 export function buildAbuseThrottleRejectedResponse(input: {
 	traceId: string;
-}): SupervisorExecutionResponse {
+}): CapabilityExecutionResponse {
 	return {
 		answerText: "Too many requests. Please wait a few minutes and try again.",
 		error: {

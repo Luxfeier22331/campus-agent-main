@@ -1,7 +1,7 @@
 import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
 import { applyTracePropagationHeaders, resolveTracePropagationHeaders } from "../telemetry/trace";
 
-import type { SupervisorExecutionInput } from "./supervisor-types";
+import type { CapabilityExecutionInput } from "./capability-execution-types";
 
 type ExecutionControlReadyzRecord = Record<string, unknown>;
 type ExecutionControlReadinessCheckStatus = "ready" | "not_ready" | "not_reported";
@@ -137,7 +137,9 @@ export async function probeExecutionControlReady(
 	};
 }
 
-async function parseExecutionControlReadyzPayload(response: Response): Promise<ExecutionControlReadyzRecord> {
+async function parseExecutionControlReadyzPayload(
+	response: Response,
+): Promise<ExecutionControlReadyzRecord> {
 	try {
 		return (await response.json()) as ExecutionControlReadyzRecord;
 	} catch {
@@ -406,11 +408,8 @@ export function mapStatusCodeToErrorCode(status: number): string {
 }
 
 export function createExecutionControlRequestHeaders(input: {
-	env: Pick<
-		Env,
-		"EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
-	>;
-	payload: Pick<SupervisorExecutionInput, "traceHeaders" | "traceId">;
+	env: Pick<Env, "EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET">;
+	payload: Pick<CapabilityExecutionInput, "traceHeaders" | "traceId">;
 	sharedSecret: string;
 	traceDataProvider: () => Record<string, unknown>;
 	accept?: string;
@@ -439,10 +438,7 @@ export function createExecutionControlRequestHeaders(input: {
 }
 
 function createCloudflareAccessServiceTokenHeaders(
-	env: Pick<
-		Env,
-		"EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
-	>,
+	env: Pick<Env, "EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET">,
 ): Record<string, string> {
 	const clientId = env.EXECUTION_CONTROL_ACCESS_CLIENT_ID?.trim();
 	const clientSecret = env.EXECUTION_CONTROL_ACCESS_CLIENT_SECRET?.trim();

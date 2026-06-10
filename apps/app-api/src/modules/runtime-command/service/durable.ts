@@ -1,8 +1,8 @@
 import {
+	type CapabilityExecutionResponse,
 	type ExecutionControlRunEvent,
 	ExecutionControlTransportError,
 	parseExecutionFinalizationResponsePayload,
-	type SupervisorExecutionResponse,
 } from "../../integration";
 import { toHandledErrorTransportOutcome } from "./errors";
 import { executionFinalizationErrorResponse, toTerminalChatStreamEvent } from "./stream";
@@ -83,7 +83,7 @@ export function lifecycleEventFromDurableRunEvent(
 export function finalizationResponseFromDurableRunEvent(
 	context: DurableRunEventContext,
 	event: ExecutionControlRunEvent,
-): SupervisorExecutionResponse | null {
+): CapabilityExecutionResponse | null {
 	if (event.eventType !== "finalization.completed") {
 		return null;
 	}
@@ -123,7 +123,7 @@ export function finalizationResponseFromDurableRunEvent(
 export function finalizationResponseFromDurableRunEvents(
 	context: DurableRunEventContext,
 	runEvents: ExecutionControlRunEvent[],
-): SupervisorExecutionResponse | null {
+): CapabilityExecutionResponse | null {
 	for (const runEvent of runEvents) {
 		const finalizationResponse = finalizationResponseFromDurableRunEvent(context, runEvent);
 		if (finalizationResponse) {
@@ -192,7 +192,7 @@ function updateLastSequence(
 
 function durableEventWaitTimeoutResponse(
 	context: DurableRunEventContext,
-): SupervisorExecutionResponse {
+): CapabilityExecutionResponse {
 	return executionFinalizationErrorResponse({
 		code: "execution_timeout",
 		message: "Durable run event polling budget expired before terminal finalization.",
@@ -208,7 +208,7 @@ export async function waitForDurableFinalizationResponse<
 	listRunEvents(afterSequence: number): Promise<ExecutionControlRunEvent[]>;
 	polling?: DurableEventPollingPolicy;
 }): Promise<{
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	transportError: TransportErrorRecord | null;
 }> {
 	const polling = validatePollingPolicy(input.polling);
@@ -246,7 +246,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 	context: Context;
 	finalizeAcceptedCommand(finalizeInput: {
 		context: Context;
-		executionResponse: SupervisorExecutionResponse;
+		executionResponse: CapabilityExecutionResponse;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
 	listRunEvents(afterSequence: number): Promise<ExecutionControlRunEvent[]>;
@@ -358,7 +358,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 	context: Context;
 	finalizeAcceptedCommand(finalizeInput: {
 		context: Context;
-		executionResponse: SupervisorExecutionResponse;
+		executionResponse: CapabilityExecutionResponse;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
 	listRunEvents(afterSequence: number): Promise<ExecutionControlRunEvent[]>;

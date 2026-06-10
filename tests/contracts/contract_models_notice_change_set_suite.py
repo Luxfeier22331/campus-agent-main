@@ -23,7 +23,7 @@ ARTIFACT_REGISTRY_PATH = ROOT / "configs/runtime/workflow-artifacts.v2.json"
 GO_EXECUTION_PROJECTION_PATH = (
     ROOT / "apps/execution-control/internal/execution/step_output_projection.go"
 )
-OPENAPI_CONTRACT_PATH = ROOT / "docs/contracts/schemas/supervisor-execution.openapi.yaml"
+OPENAPI_CONTRACT_PATH = ROOT / "docs/contracts/schemas/capability-execution.openapi.yaml"
 
 
 class ContractModelsNoticeChangeSetSuite(unittest.TestCase):

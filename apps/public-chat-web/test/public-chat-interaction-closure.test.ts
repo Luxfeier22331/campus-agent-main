@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import activeChatSource from "../src/platform/chat/use-active-chat.tsx?raw";
 import transportSource from "../src/platform/chat/transport.ts?raw";
+import activeChatSource from "../src/platform/chat/use-active-chat.tsx?raw";
 import promptInputSource from "../vendor/vercel-ai-chatbot/components/ai-elements/prompt-input.tsx?raw";
 import appSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
 import messageSource from "../vendor/vercel-ai-chatbot/components/chat/message.tsx?raw";

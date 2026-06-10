@@ -34,7 +34,7 @@ func (s *Server) runMultiStepBridgeExecution(
 			Terminal: &executionTerminal{
 				State:      lifecycle.StateFailed,
 				Code:       "execution_lifecycle_unavailable",
-				Message:    "Supervisor execution lifecycle could not be registered.",
+				Message:    "Execution lifecycle could not be registered.",
 				StatusCode: http.StatusInternalServerError,
 				Retryable:  true,
 				Outcome:    "execution_lifecycle_unavailable",
@@ -85,7 +85,7 @@ func (s *Server) runMultiStepBridgeExecution(
 		return terminalResult(executionTerminal{
 			State:      lifecycle.StateFailed,
 			Code:       "supervisor_multistep_workflow_unavailable",
-			Message:    "Supervisor multi-step workflow run state could not be created.",
+			Message:    "Execution multi-step workflow run state could not be created.",
 			StatusCode: http.StatusServiceUnavailable,
 			Retryable:  true,
 			Outcome:    "supervisor_multistep_workflow_unavailable",
@@ -190,7 +190,7 @@ func (s *Server) runMultiStepBridgeExecution(
 			return terminalResult(executionTerminal{
 				State:      lifecycle.StateFailed,
 				Code:       "supervisor_multistep_workflow_unavailable",
-				Message:    "Supervisor multi-step workflow run state could not be updated.",
+				Message:    "Execution multi-step workflow run state could not be updated.",
 				StatusCode: http.StatusServiceUnavailable,
 				Retryable:  true,
 				Outcome:    "supervisor_multistep_workflow_unavailable",
@@ -202,7 +202,7 @@ func (s *Server) runMultiStepBridgeExecution(
 			return terminalResult(executionTerminal{
 				State:      lifecycle.StateFailed,
 				Code:       "supervisor_multistep_projection_unavailable",
-				Message:    "Supervisor multi-step workflow projection could not be created.",
+				Message:    "Execution multi-step workflow projection could not be created.",
 				StatusCode: http.StatusBadGateway,
 				Retryable:  false,
 				Outcome:    "supervisor_multistep_projection_unavailable",
@@ -218,7 +218,7 @@ func (s *Server) runMultiStepBridgeExecution(
 			return terminalResult(executionTerminal{
 				State:      lifecycle.StateFailed,
 				Code:       "supervisor_multistep_invalid_plan",
-				Message:    "Supervisor multi-step workflow plan could not be projected.",
+				Message:    "Execution multi-step workflow plan could not be projected.",
 				StatusCode: http.StatusBadGateway,
 				Retryable:  false,
 				Outcome:    "supervisor_multistep_invalid_plan",
@@ -346,7 +346,7 @@ func (s *Server) runMultiStepBridgeExecution(
 				return terminalResult(executionTerminal{
 					State:      lifecycle.StateFailed,
 					Code:       "supervisor_multistep_workflow_unavailable",
-					Message:    "Supervisor multi-step workflow run state could not be updated.",
+					Message:    "Execution multi-step workflow run state could not be updated.",
 					StatusCode: http.StatusServiceUnavailable,
 					Retryable:  true,
 					Outcome:    "supervisor_multistep_workflow_unavailable",
@@ -439,7 +439,7 @@ func (s *Server) runMultiStepBridgeExecution(
 		return terminalResult(executionTerminal{
 			State:      lifecycle.StateFailed,
 			Code:       "supervisor_multistep_workflow_unavailable",
-			Message:    "Supervisor multi-step workflow run state could not be completed.",
+			Message:    "Execution multi-step workflow run state could not be completed.",
 			StatusCode: http.StatusServiceUnavailable,
 			Retryable:  true,
 			Outcome:    "supervisor_multistep_workflow_unavailable",

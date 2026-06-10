@@ -201,7 +201,8 @@ func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 
 func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
 	required := []string{
-		temporalruntime.ActivityTaskQueueRAG,
+		temporalruntime.ActivityTaskQueueContext,
+		temporalruntime.ActivityTaskQueueKnowledge,
 		temporalruntime.ActivityTaskQueueFinalization,
 	}
 	capabilityQueues := map[string]string{

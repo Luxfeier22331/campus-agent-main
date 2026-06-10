@@ -4,7 +4,7 @@ import "testing"
 
 func TestNormalizeActivityTaskQueuesIncludesOpenedCapabilityQueues(t *testing.T) {
 	queues := normalizeActivityTaskQueues([]string{
-		ActivityTaskQueueRAG,
+		ActivityTaskQueueKnowledge,
 		ActivityTaskQueueCampusService,
 		ActivityTaskQueueNavigation,
 		ActivityTaskQueueNotice,
@@ -12,7 +12,8 @@ func TestNormalizeActivityTaskQueuesIncludesOpenedCapabilityQueues(t *testing.T)
 	})
 
 	want := []string{
-		ActivityTaskQueueRAG,
+		ActivityTaskQueueContext,
+		ActivityTaskQueueKnowledge,
 		ActivityTaskQueueFinalization,
 		ActivityTaskQueueCampusService,
 		ActivityTaskQueueNavigation,

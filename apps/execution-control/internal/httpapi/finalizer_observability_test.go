@@ -2,8 +2,8 @@ package httpapi
 
 import "testing"
 
-func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusTraceRefs(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
+func TestBuildStructuredExecutionObservabilitySummarizesServiceStatusTraceRefs(t *testing.T) {
+	observability := buildStructuredExecutionObservability(
 		"campus_services",
 		"completed",
 		map[string]any{
@@ -32,8 +32,8 @@ func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusTraceRefs(
 	}
 }
 
-func TestBuildStructuredSupervisorObservabilityDoesNotInferSelectedToolFromResultShape(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
+func TestBuildStructuredExecutionObservabilityDoesNotInferSelectedToolFromResultShape(t *testing.T) {
+	observability := buildStructuredExecutionObservability(
 		"campus_services",
 		"completed",
 		map[string]any{
@@ -51,8 +51,8 @@ func TestBuildStructuredSupervisorObservabilityDoesNotInferSelectedToolFromResul
 	}
 }
 
-func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusFailClose(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
+func TestBuildStructuredExecutionObservabilitySummarizesServiceStatusFailClose(t *testing.T) {
+	observability := buildStructuredExecutionObservability(
 		"campus_services",
 		"no_answer",
 		map[string]any{
@@ -81,8 +81,8 @@ func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusFailClose(
 	}
 }
 
-func TestBuildRagSupervisorObservabilitySeparatesRuntimeErrorFromEvidenceUnsupported(t *testing.T) {
-	observability := buildRagSupervisorObservability(
+func TestBuildRagExecutionObservabilitySeparatesRuntimeErrorFromEvidenceUnsupported(t *testing.T) {
+	observability := buildRagExecutionObservability(
 		"error",
 		map[string]any{
 			"evidence": map[string]any{

@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
-import type { SupervisorExecutionResponse } from "../src/modules/integration";
+import type { CapabilityExecutionResponse } from "../src/modules/integration";
 import {
 	buildAcceptedRequestObservabilityFact,
 	buildFinalizedRequestObservabilityFact,
@@ -49,8 +49,8 @@ function createPrincipal(): ResolvedAppPrincipal {
 }
 
 function createResponse(
-	overrides: Partial<SupervisorExecutionResponse> = {},
-): SupervisorExecutionResponse {
+	overrides: Partial<CapabilityExecutionResponse> = {},
+): CapabilityExecutionResponse {
 	return {
 		answerText: "当前没有足够依据回答这个问题。",
 		error: null,

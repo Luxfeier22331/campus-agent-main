@@ -1,59 +1,91 @@
-import type { SupervisorExecutionInput } from "../../integration";
-import { SUPERVISOR_EXECUTION_CONTRACT } from "../../integration/generated/supervisor-execution-contract";
-import { toSupervisorActor, toSupervisorContext } from "../../integration/supervisor-payload";
-import { toSupervisorVersionQuery } from "../../version-query";
+import type { CapabilityExecutionInput } from "../../integration";
+import {
+	toCapabilityExecutionActor,
+	toCapabilityExecutionContext,
+} from "../../integration/capability-execution-payload";
+import { CAPABILITY_EXECUTION_CONTRACT } from "../../integration/generated/capability-execution-contract";
+import { toCapabilityExecutionVersionQuery } from "../../version-query";
 
 type JsonRecord = Record<string, unknown>;
 
-export const DURABLE_RAG_HANDOFF = {
+export const DURABLE_KNOWLEDGE_HANDOFF = {
 	allowed_tools: [],
+	capability: "knowledge",
 	expected_artifacts: ["evidence_bundle", "grounding_verdict"],
 	payload_kind: "rag_request",
 	required_projection_kind: "",
-	target: "knowledge",
 } as const;
 
-export function buildDurableRagRunMetadata(
-	supervisorInput: SupervisorExecutionInput,
+const DURABLE_CAPABILITY_DEFAULTS = {
+	campus_services: {
+		expected_artifacts: ["typed_tool_result"],
+		lane: "campus_services",
+		payload_kind: "capability_request",
+		selected_tool: null,
+		worker_role: "activity-worker-campus-services",
+		workflow_mode: "capability_dispatch",
+	},
+	knowledge: {
+		expected_artifacts: ["evidence_bundle", "grounding_verdict"],
+		lane: "rag",
+		payload_kind: "rag_request",
+		selected_tool: "retrieval.query",
+		worker_role: "activity-worker-knowledge",
+		workflow_mode: "knowledge_rag",
+	},
+	notice: {
+		expected_artifacts: ["typed_tool_result"],
+		lane: "notice",
+		payload_kind: "capability_request",
+		selected_tool: null,
+		worker_role: "activity-worker-notice",
+		workflow_mode: "capability_dispatch",
+	},
+} as const;
+
+type DurableCapability = keyof typeof DURABLE_CAPABILITY_DEFAULTS;
+
+export function buildCapabilityExecutionRunMetadata(
+	executionInput: CapabilityExecutionInput,
 ): Record<string, unknown> {
-	const queryText = supervisorInput.userGoal.trim();
+	const queryText = executionInput.userGoal.trim();
 	if (!queryText) {
 		throw new Error("Durable RAG run metadata requires a non-empty user goal.");
 	}
-	const requestedCapability = supervisorInput.requestedCapability?.trim() || "knowledge";
-	if (requestedCapability !== "knowledge") {
-		throw new Error("Durable RAG run metadata only admits knowledge capability requests.");
-	}
+	const requestedCapability = durableCapability(executionInput.requestedCapability);
+	const capabilityDefaults = DURABLE_CAPABILITY_DEFAULTS[requestedCapability];
 
-	const actor = toSupervisorActor(supervisorInput.context.actor);
-	const context = toSupervisorContext(supervisorInput.context);
-	const requestedScope = durableRequestedScope(supervisorInput);
-	const versionQuery = durableVersionQuery(supervisorInput);
+	const actor = toCapabilityExecutionActor(executionInput.context.actor);
+	const context = toCapabilityExecutionContext(executionInput.context);
+	const requestedScope = durableRequestedScope(executionInput);
+	const versionQuery = durableVersionQuery(executionInput);
 	const executionPayload = {
 		actor,
-		bridge_version: SUPERVISOR_EXECUTION_CONTRACT.bridgeVersion,
+		execution_contract_version: CAPABILITY_EXECUTION_CONTRACT.executionContractVersion,
 		context,
-		conversation_id: supervisorInput.conversationId,
-		effective_capability: "knowledge",
-		lane: "rag",
-		request_id: supervisorInput.requestId,
-		requested_capability: "knowledge",
+		conversation_id: executionInput.conversationId,
+		effective_capability: requestedCapability,
+		lane: capabilityDefaults.lane,
+		request_id: executionInput.requestId,
+		requested_capability: requestedCapability,
 		requested_scope: requestedScope,
-		response_contract: SUPERVISOR_EXECUTION_CONTRACT.responseContract,
+		response_contract: CAPABILITY_EXECUTION_CONTRACT.responseContract,
 		runtime_decisions: buildExecutionRuntimeDecisions({
 			actor,
+			capability: requestedCapability,
 			context,
-			conversationId: supervisorInput.conversationId,
+			conversationId: executionInput.conversationId,
+			defaults: capabilityDefaults,
 			queryText,
-			requestId: supervisorInput.requestId,
+			requestId: executionInput.requestId,
 			requestedScope,
-			safetyIdentifier: supervisorInput.safetyIdentifier ?? null,
-			traceId: supervisorInput.traceId,
+			safetyIdentifier: executionInput.safetyIdentifier ?? null,
+			traceId: executionInput.traceId,
 			versionQuery,
 		}),
-		safety_identifier: supervisorInput.safetyIdentifier ?? null,
+		safety_identifier: executionInput.safetyIdentifier ?? null,
 		trace: {
-			trace_id: supervisorInput.traceId,
+			trace_id: executionInput.traceId,
 		},
 		user_goal: queryText,
 		version_query: versionQuery,
@@ -62,16 +94,22 @@ export function buildDurableRagRunMetadata(
 	return {
 		execution_payload: executionPayload,
 		handoff: {
-			...DURABLE_RAG_HANDOFF,
-			payload: durableRagPayload(requestedScope, versionQuery),
+			allowed_tools: [],
+			capability: requestedCapability,
+			expected_artifacts: [...capabilityDefaults.expected_artifacts],
+			payload: durableCapabilityPayload(requestedCapability, requestedScope, versionQuery),
+			payload_kind: capabilityDefaults.payload_kind,
+			required_projection_kind: "",
 		},
 	};
 }
 
 function buildExecutionRuntimeDecisions(input: {
 	actor: JsonRecord;
+	capability: DurableCapability;
 	context: JsonRecord;
 	conversationId: string;
+	defaults: (typeof DURABLE_CAPABILITY_DEFAULTS)[DurableCapability];
 	queryText: string;
 	requestId: string;
 	requestedScope: JsonRecord | null;
@@ -79,64 +117,71 @@ function buildExecutionRuntimeDecisions(input: {
 	traceId: string;
 	versionQuery: JsonRecord;
 }): JsonRecord {
-	const ragPayload = durableRagPayload(input.requestedScope, input.versionQuery);
+	const capabilityPayload = durableCapabilityPayload(
+		input.capability,
+		input.requestedScope,
+		input.versionQuery,
+	);
+	const selectedTool = input.defaults.selected_tool;
 	return {
-		effective_capability: "knowledge",
+		effective_capability: input.capability,
 		handoff: {
-			allowed_tools: [...DURABLE_RAG_HANDOFF.allowed_tools],
-			agent_request: {
+			allowed_tools: [],
+			capability: input.capability,
+			capability_request: {
 				actor: input.actor,
-				allowed_tools: [...DURABLE_RAG_HANDOFF.allowed_tools],
+				allowed_tools: [],
 				context: input.context,
 				conversation_id: input.conversationId,
 				payload: {
-					kind: DURABLE_RAG_HANDOFF.payload_kind,
-					payload: ragPayload,
+					kind: input.defaults.payload_kind,
+					payload: capabilityPayload,
 				},
 				request_id: input.requestId,
 				safety_identifier: input.safetyIdentifier,
-				target: DURABLE_RAG_HANDOFF.target,
+				capability: input.capability,
 				trace: {
 					trace_id: input.traceId,
 				},
 				user_goal: input.queryText,
 				workflow_context: {
-					capability_id: DURABLE_RAG_HANDOFF.target,
-					expected_output_artifacts: [...DURABLE_RAG_HANDOFF.expected_artifacts],
+					capability_id: input.capability,
+					expected_output_artifacts: [...input.defaults.expected_artifacts],
 					projection_refs: [],
-					required_projection_kind: DURABLE_RAG_HANDOFF.required_projection_kind,
+					required_projection_kind: "",
 					schema_version: "workflow-capability-context-v1",
-					step_id: "handoff:knowledge:rag_request",
-					target: DURABLE_RAG_HANDOFF.target,
+					step_id: `capability:${input.capability}:${input.defaults.payload_kind}`,
 					visibility: "capability_private",
 					workflow_run_ref: `workflow:${input.requestId}`,
 				},
 			},
 			planning_outcome: "preplanned",
-			target: DURABLE_RAG_HANDOFF.target,
+			payload_kind: input.defaults.payload_kind,
+			worker_role: input.defaults.worker_role,
 		},
-		lane: "rag",
-		routing_frame: durableRoutingFrame(),
+		lane: input.defaults.lane,
+		routing_frame: durableRoutingFrame(input.capability),
 		runtime_decision_summary: {
 			context_preflight_state: "ready",
 			planning_outcome: "preplanned",
 			policy_gate_decision: "allowed",
 			routing_next_action: "delegate",
 			runtime_versions: {
-				bridge_contract: SUPERVISOR_EXECUTION_CONTRACT.bridgeVersion,
+				execution_contract: CAPABILITY_EXECUTION_CONTRACT.executionContractVersion,
 				durable_run_contract: "durable-agent-runtime-contract-v1",
-				response_contract: SUPERVISOR_EXECUTION_CONTRACT.responseContract,
+				response_contract: CAPABILITY_EXECUTION_CONTRACT.responseContract,
 			},
 			scope_gate_decision: "allowed",
-			schema_version: SUPERVISOR_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion,
-			selected_capability: DURABLE_RAG_HANDOFF.target,
-			selected_tool: "retrieval.query",
+			schema_version: CAPABILITY_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion,
+			selected_capability: input.capability,
+			selected_tool: selectedTool,
+			worker_role: input.defaults.worker_role,
 		},
-		schema_version: SUPERVISOR_EXECUTION_CONTRACT.runtimeDecisionsSchemaVersion,
+		schema_version: CAPABILITY_EXECUTION_CONTRACT.runtimeDecisionsSchemaVersion,
 		workflow_plan: {
-			allowed_capabilities: [DURABLE_RAG_HANDOFF.target],
+			allowed_capabilities: [input.capability],
 			edges: [],
-			plan_id: "plan:single_step:knowledge:rag_request",
+			plan_id: `plan:single_step:${input.capability}:${input.defaults.payload_kind}`,
 			resume_policy: {
 				resume_supported: false,
 			},
@@ -146,17 +191,40 @@ function buildExecutionRuntimeDecisions(input: {
 			},
 			steps: [
 				{
-					allowed_tools: [...DURABLE_RAG_HANDOFF.allowed_tools],
-					payload_kind: DURABLE_RAG_HANDOFF.payload_kind,
-					selected_tool: "retrieval.query",
-					step_id: "handoff:knowledge:rag_request",
-					step_kind: "handoff",
-					target: DURABLE_RAG_HANDOFF.target,
+					allowed_tools: [],
+					payload_kind: input.defaults.payload_kind,
+					selected_tool: selectedTool,
+					step_id: `capability:${input.capability}:${input.defaults.payload_kind}`,
+					step_kind: "capability_dispatch",
+					capability: input.capability,
+					worker_role: input.defaults.worker_role,
 				},
 			],
 			terminal_policy: {},
-			workflow_mode: "single_step",
+			workflow_mode: input.defaults.workflow_mode,
 		},
+	};
+}
+
+function durableCapability(requestedCapability: string | null | undefined): DurableCapability {
+	const normalized = requestedCapability?.trim() || "knowledge";
+	if (normalized === "knowledge" || normalized === "campus_services" || normalized === "notice") {
+		return normalized;
+	}
+	throw new Error(`Durable execution metadata does not admit capability: ${normalized}`);
+}
+
+function durableCapabilityPayload(
+	capability: DurableCapability,
+	requestedScope: JsonRecord | null,
+	versionQuery: JsonRecord,
+): JsonRecord {
+	if (capability === "knowledge") {
+		return durableRagPayload(requestedScope, versionQuery);
+	}
+	return {
+		capability,
+		version_query: versionQuery,
 	};
 }
 
@@ -170,26 +238,26 @@ function durableRagPayload(
 	};
 }
 
-function durableRequestedScope(supervisorInput: SupervisorExecutionInput): JsonRecord | null {
-	if (!supervisorInput.requestedScope) {
+function durableRequestedScope(executionInput: CapabilityExecutionInput): JsonRecord | null {
+	if (!executionInput.requestedScope) {
 		return null;
 	}
 	return {
-		collection: supervisorInput.requestedScope.collection,
-		corpus: supervisorInput.requestedScope.corpus,
+		collection: executionInput.requestedScope.collection,
+		corpus: executionInput.requestedScope.corpus,
 	};
 }
 
-function durableRoutingFrame(): JsonRecord {
+function durableRoutingFrame(capability: DurableCapability): JsonRecord {
 	return {
 		ambiguity_reason: "",
 		ambiguity_signal: "",
-		capability: "knowledge",
+		capability,
 		clarification_subject: "",
 		classifier_version: "durable-app-api-admission-v1",
 		context_reference_type: "none",
 		context_resolution_state: "not_follow_up",
-		domain_candidates: ["knowledge"],
+		domain_candidates: [capability],
 		launch_state: "open",
 		matched_signal: "",
 		missing_slots: [],
@@ -201,15 +269,15 @@ function durableRoutingFrame(): JsonRecord {
 		routing_confidence: "high",
 		schema_version: "durable-app-api-routing-frame-v1",
 		scope_class: "in_scope",
-		scope_reason: "durable_rag_delegate",
+		scope_reason: "durable_capability_delegate",
 		suggested_next_action: "delegate",
-		task_kind: "knowledge_lookup",
+		task_kind: capability === "knowledge" ? "knowledge_lookup" : "capability_lookup",
 	};
 }
 
-function durableVersionQuery(supervisorInput: SupervisorExecutionInput): JsonRecord {
-	if (supervisorInput.versionQuery) {
-		return toSupervisorVersionQuery(supervisorInput.versionQuery);
+function durableVersionQuery(executionInput: CapabilityExecutionInput): JsonRecord {
+	if (executionInput.versionQuery) {
+		return toCapabilityExecutionVersionQuery(executionInput.versionQuery);
 	}
 	return {
 		mode: "current",
