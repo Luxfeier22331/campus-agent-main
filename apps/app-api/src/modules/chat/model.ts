@@ -131,6 +131,8 @@ export interface ChatConversationSummary {
 	title: string;
 	createdAt: string;
 	updatedAt: string;
+	archivedAt: string | null;
+	pinnedAt: string | null;
 }
 
 export interface ChatConversationResponse {
@@ -146,6 +148,8 @@ export interface ChatConversationSummaryResponse {
 	title: string;
 	createdAt: string;
 	updatedAt: string;
+	archivedAt: string | null;
+	pinnedAt: string | null;
 }
 
 export interface VendorChatHistoryItemResponse {
@@ -179,6 +183,8 @@ export function toConversationSummaryResponse(
 		title: conversation.title,
 		createdAt: conversation.createdAt,
 		updatedAt: conversation.updatedAt,
+		archivedAt: conversation.archivedAt,
+		pinnedAt: conversation.pinnedAt,
 	};
 }
 

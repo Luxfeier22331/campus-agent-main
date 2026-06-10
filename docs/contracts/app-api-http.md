@@ -32,6 +32,7 @@ browser-facing HTTP contract。
 - campus ops cross-cutting contract：`docs/contracts/app-api-campus-ops-http.md`
 - student dining public contract：`docs/contracts/app-api-dining-http.md`
 - dining ops HTTP contract：`docs/contracts/app-api-dining-ops-http.md`
+- chat conversation product contract：`docs/contracts/app-api-chat-conversation-http.md`
 
 这份文档不冻结：
 
@@ -119,13 +120,24 @@ Identity Platform detailed object families are frozen separately in
 ### Chat
 
 - `GET /api/chat/conversations`
+- `GET /api/chat/conversations/search`
 - `POST /api/chat/conversations`
 - `GET /api/chat/conversations/:conversationId`
+- `PATCH /api/chat/conversations/:conversationId`
+- `DELETE /api/chat/conversations/:conversationId`
+- `POST /api/chat/conversations/:conversationId/archive`
+- `DELETE /api/chat/conversations/:conversationId/archive`
+- `POST /api/chat/conversations/:conversationId/pin`
+- `DELETE /api/chat/conversations/:conversationId/pin`
 - `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 - `POST /api/chat/requests`
 - `POST /api/chat/requests/stream`
+- `GET /api/chat/runs/:runId`
+- `GET /api/chat/runs/:runId/events`
+- `GET /api/chat/runs/:runId/events/stream`
+- `POST /api/chat/runs/:runId/cancel`
 
 ### Campus Experience
 
@@ -186,8 +198,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见
 第一版不冻结：
 
 - operator 写操作 API
-- chat delete / archive API
-- token streaming chat API
+- token delta streaming chat API
 - `official_web` collector command endpoints
 
 ## Response Shapes
@@ -690,7 +701,8 @@ Upsert 一个用户声明的 profile memory item。
 
 ### `GET /api/chat/conversations`
 
-返回当前登录用户拥有的 conversation summary 列表。
+返回当前登录用户拥有的 conversation summary 列表。完整会话管理契约见
+`docs/contracts/app-api-chat-conversation-http.md`。
 
 ```json
 {
@@ -701,8 +713,20 @@ Upsert 一个用户声明的 profile memory item。
 规则：
 
 - 默认按 `updatedAt desc`
-- 只返回当前 user 的会话
+- 只返回当前 user 的非删除会话
+- `view=active` 返回未归档会话；`view=archived` 返回已归档会话
+- 置顶会话排在非置顶会话前面
 - v1 不在 list 响应内内嵌完整 message history
+
+### `GET /api/chat/conversations/search`
+
+搜索当前用户拥有的 conversation summary。
+
+规则：
+
+- 查询参数 `q` 必填，trim 后不能为空
+- 只匹配 title 和 message text
+- 不匹配 trace、source refs、provider、内部错误或 observability payload
 
 ### `POST /api/chat/conversations`
 

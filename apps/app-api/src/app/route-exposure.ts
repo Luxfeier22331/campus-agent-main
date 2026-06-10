@@ -41,6 +41,18 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "DELETE",
+		path: "/api/chat/conversations/:conversationId",
+		callerClass: "browser-surface",
+		admission: "session principal plus conversation ownership required",
+	},
+	{
+		method: "DELETE",
+		path: "/api/chat/conversations/:conversationId/archive",
+		callerClass: "browser-surface",
+		admission: "session principal plus conversation ownership required",
+	},
+	{
+		method: "DELETE",
 		path: "/api/chat/conversations/:conversationId/messages/:messageId/feedback",
 		callerClass: "browser-surface",
 		admission: "session principal required",
@@ -50,6 +62,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/chat/conversations/:conversationId/messages/:messageId/trailing",
 		callerClass: "browser-surface",
 		admission: "session principal required",
+	},
+	{
+		method: "DELETE",
+		path: "/api/chat/conversations/:conversationId/pin",
+		callerClass: "browser-surface",
+		admission: "session principal plus conversation ownership required",
 	},
 	{
 		method: "DELETE",
@@ -68,6 +86,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/chat/conversations/:conversationId",
 		callerClass: "browser-surface",
 		admission: "session principal required",
+	},
+	{
+		method: "GET",
+		path: "/api/chat/conversations/search",
+		callerClass: "browser-surface",
+		admission: "session principal plus conversation ownership required",
 	},
 	{
 		method: "GET",
@@ -572,6 +596,24 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/chat/conversations",
 		callerClass: "browser-surface",
 		admission: "session principal required",
+	},
+	{
+		method: "PATCH",
+		path: "/api/chat/conversations/:conversationId",
+		callerClass: "browser-surface",
+		admission: "session principal plus conversation ownership required",
+	},
+	{
+		method: "POST",
+		path: "/api/chat/conversations/:conversationId/archive",
+		callerClass: "browser-surface",
+		admission: "session principal plus conversation ownership required",
+	},
+	{
+		method: "POST",
+		path: "/api/chat/conversations/:conversationId/pin",
+		callerClass: "browser-surface",
+		admission: "session principal plus conversation ownership required",
 	},
 	{
 		method: "POST",

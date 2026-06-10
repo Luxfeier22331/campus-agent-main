@@ -131,6 +131,11 @@ export function createConversationStore(input?: {
 		getConversationDetailByOwner: vi.fn(),
 		listConversationSummariesPageByOwner: vi.fn(),
 		listConversationSummariesByOwner: vi.fn(),
+		markConversationArchivedByOwner: vi.fn(),
+		markConversationDeletedByOwner: vi.fn(),
+		markConversationPinnedByOwner: vi.fn(),
+		renameConversationByOwner: vi.fn(),
+		searchConversationSummariesByOwner: vi.fn(),
 		upsertMessageFeedbackByOwner: vi.fn(),
 	};
 

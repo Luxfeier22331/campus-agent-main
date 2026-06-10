@@ -62,6 +62,7 @@ describe("app-api shared product bootstrap contracts", () => {
 			"db/shared-product-migrations/0005_profile_memory.sql",
 			"db/shared-product-migrations/0006_message_feedback.sql",
 			"db/shared-product-migrations/0007_dining_operations.sql",
+			"db/shared-product-migrations/0008_chat_conversation_management.sql",
 			"scripts/bootstrap-shared-product-with-seeds.mjs",
 			"scripts/bootstrap-shared-product-database.mjs",
 			"scripts/seed-initial-dining-release.ts",

@@ -11,6 +11,7 @@ updated: 2026-06-04
 ## App API 核心 contract
 
 - `app-api-http.md`
+- `app-api-chat-conversation-http.md`
 - `app-api-eval-benchmark-http.md`
 - `app-api-document-reader-http.md`
 - `document-reader-publish-contract.md`

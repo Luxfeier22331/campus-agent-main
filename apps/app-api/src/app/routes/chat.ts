@@ -5,7 +5,6 @@ import { AppApiRouteError, jsonResponse } from "../../http";
 import { hasMatchingInternalSecret, type ResolvedAppPrincipal } from "../../modules/auth";
 import { ExecutionControlTransportError } from "../../modules/integration";
 import type { ChatCommandStreamEvent } from "../../modules/runtime-command";
-import type { RuntimeRunEventProjection, RuntimeRunSummary } from "../../modules/runtime-run";
 import { requireSessionPrincipal } from "../principal";
 import {
 	buildInternalEvalPrincipalFromRequest,
@@ -18,6 +17,7 @@ import {
 	serviceCredentialRequiredResponse,
 } from "../responses";
 import type { AppRequestScope } from "../types";
+import { registerChatRunRoutes } from "./chat-run-routes";
 
 function requireConversationId(conversationId: string | null | undefined) {
 	if (conversationId) {
@@ -73,43 +73,48 @@ function readFeedbackReasonCodes(body: Record<string, unknown>): string[] | unde
 	return body.reasonCodes;
 }
 
-function readRunCancelReason(body: Record<string, unknown>): string {
-	const reason = body.reason;
-	if (typeof reason === "string" && reason.trim()) {
-		return reason.trim();
+function readConversationViewQuery(value: string | undefined): "active" | "archived" | undefined {
+	if (value === undefined) {
+		return;
 	}
-
+	if (value === "active" || value === "archived") {
+		return value;
+	}
 	throw new AppApiRouteError({
 		code: "invalid_request",
-		message: "reason is required.",
+		message: "view must be active or archived.",
 		retryable: false,
 		status: 400,
 	});
 }
 
-function readAfterSequenceQuery(value: string | undefined): number | undefined {
+function readConversationLimitQuery(value: string | undefined): number | undefined {
 	if (value === undefined) {
 		return;
 	}
-	const trimmed = value.trim();
-	if (!trimmed) {
+	const parsed = Number(value);
+	if (!Number.isInteger(parsed)) {
 		throw new AppApiRouteError({
 			code: "invalid_request",
-			message: "after_sequence must be a non-negative integer.",
-			retryable: false,
-			status: 400,
-		});
-	}
-	const parsed = Number(trimmed);
-	if (!Number.isInteger(parsed) || parsed < 0) {
-		throw new AppApiRouteError({
-			code: "invalid_request",
-			message: "after_sequence must be a non-negative integer.",
+			message: "limit must be an integer.",
 			retryable: false,
 			status: 400,
 		});
 	}
 	return parsed;
+}
+
+function readRequiredStringBodyField(body: Record<string, unknown>, fieldName: string): string {
+	const value = body[fieldName];
+	if (typeof value === "string") {
+		return value;
+	}
+	throw new AppApiRouteError({
+		code: "invalid_request",
+		message: `${fieldName} is required.`,
+		retryable: false,
+		status: 400,
+	});
 }
 
 function routeChatErrorResponse(
@@ -136,12 +141,8 @@ function routeChatErrorResponse(
 	return null;
 }
 
-function encodeSseMessage(input: { data: unknown; event: string }): Uint8Array {
-	return new TextEncoder().encode(`event: ${input.event}\ndata: ${JSON.stringify(input.data)}\n\n`);
-}
-
 function encodeSseEvent(event: ChatCommandStreamEvent): Uint8Array {
-	return encodeSseMessage(event);
+	return new TextEncoder().encode(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
 }
 
 function isTerminalChatStreamEvent(event: ChatCommandStreamEvent): boolean {
@@ -191,40 +192,6 @@ function createChatSseResponse(input: {
 			"x-accel-buffering": "no",
 			"x-request-id": input.first.data.requestId,
 			"x-trace-id": input.first.data.traceId,
-		},
-		status: 200,
-	});
-}
-
-function createRunEventsSseResponse(input: {
-	events: AsyncIterable<RuntimeRunEventProjection>;
-	run: RuntimeRunSummary;
-}): Response {
-	const stream = new ReadableStream<Uint8Array>({
-		async start(controller) {
-			try {
-				for await (const event of input.events) {
-					controller.enqueue(
-						encodeSseMessage({
-							data: event,
-							event: event.eventType,
-						}),
-					);
-				}
-			} finally {
-				controller.close();
-			}
-		},
-	});
-
-	return new Response(stream, {
-		headers: {
-			"cache-control": "no-store",
-			"content-type": "text/event-stream; charset=utf-8",
-			"x-accel-buffering": "no",
-			"x-request-id": input.run.requestId,
-			"x-run-id": input.run.runId,
-			"x-trace-id": input.run.traceId,
 		},
 		status: 200,
 	});
@@ -391,128 +358,12 @@ export function registerChatRoutes(input: {
 		}
 	});
 
-	input.app.get("/api/chat/runs/:runId", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireSessionPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		const routeErrorCorrelation = createRouteErrorCorrelation();
-		try {
-			const response = await scope.resolveRuntimeRunService().getStatus({
-				principal: resolved.principal,
-				runId: c.req.param("runId"),
-			});
-			return jsonResponse(response);
-		} catch (error) {
-			const response = routeChatErrorResponse(error, routeErrorCorrelation);
-			if (response) {
-				return response;
-			}
-			throw error;
-		}
-	});
-
-	input.app.get("/api/chat/runs/:runId/events", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireSessionPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		const routeErrorCorrelation = createRouteErrorCorrelation();
-		try {
-			const response = await scope.resolveRuntimeRunService().listEvents({
-				afterSequence: readAfterSequenceQuery(c.req.query("after_sequence")),
-				principal: resolved.principal,
-				runId: c.req.param("runId"),
-			});
-			return jsonResponse(response);
-		} catch (error) {
-			const response = routeChatErrorResponse(error, routeErrorCorrelation);
-			if (response) {
-				return response;
-			}
-			throw error;
-		}
-	});
-
-	input.app.get("/api/chat/runs/:runId/events/stream", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireSessionPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		const routeErrorCorrelation = createRouteErrorCorrelation();
-		try {
-			const runtimeRunService = scope.resolveRuntimeRunService();
-			const runStatus = await runtimeRunService.getStatus({
-				principal: resolved.principal,
-				runId: c.req.param("runId"),
-			});
-			const events = runtimeRunService.subscribeEvents({
-				afterSequence: readAfterSequenceQuery(c.req.query("after_sequence")),
-				principal: resolved.principal,
-				runId: c.req.param("runId"),
-			});
-			return createRunEventsSseResponse({
-				events,
-				run: runStatus.run,
-			});
-		} catch (error) {
-			const response = routeChatErrorResponse(error, routeErrorCorrelation);
-			if (response) {
-				return response;
-			}
-			throw error;
-		}
-	});
-
-	input.app.post("/api/chat/runs/:runId/cancel", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireSessionPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		const routeErrorCorrelation = createRouteErrorCorrelation();
-		try {
-			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
-			const response = await scope.resolveRuntimeRunService().cancel({
-				principal: resolved.principal,
-				reason: readRunCancelReason(body),
-				runId: c.req.param("runId"),
-			});
-			return jsonResponse(response, { status: 202 });
-		} catch (error) {
-			const response = routeChatErrorResponse(error, routeErrorCorrelation);
-			if (response) {
-				return response;
-			}
-			throw error;
-		}
+	registerChatRunRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+		routeChatErrorResponse,
 	});
 
 	input.app.get("/api/chat/conversations", async (c) => {
@@ -527,10 +378,21 @@ export function registerChatRoutes(input: {
 			return resolved.response;
 		}
 
-		const response = await scope.resolveChatConversationService().list({
-			principal: resolved.principal,
-		});
-		return jsonResponse(response);
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const response = await scope.resolveChatConversationService().list({
+				limit: readConversationLimitQuery(c.req.query("limit")),
+				principal: resolved.principal,
+				view: readConversationViewQuery(c.req.query("view")),
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
 	});
 
 	input.app.get("/api/history", async (c) => {
@@ -575,6 +437,36 @@ export function registerChatRoutes(input: {
 		return jsonResponse(response, { status: 201 });
 	});
 
+	input.app.get("/api/chat/conversations/search", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const response = await scope.resolveChatConversationService().search({
+				limit: readConversationLimitQuery(c.req.query("limit")),
+				principal: resolved.principal,
+				query: c.req.query("q") ?? "",
+				view: readConversationViewQuery(c.req.query("view")) ?? "active",
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
 	input.app.delete("/api/history", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({
@@ -606,6 +498,131 @@ export function registerChatRoutes(input: {
 		}
 
 		const response = await scope.resolveChatConversationService().getById({
+			conversationId: c.req.param("conversationId"),
+			principal: resolved.principal,
+		});
+		return jsonResponse(response);
+	});
+
+	input.app.patch("/api/chat/conversations/:conversationId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
+			const response = await scope.resolveChatConversationService().rename({
+				conversationId: c.req.param("conversationId"),
+				principal: resolved.principal,
+				title: readRequiredStringBodyField(body, "title"),
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.delete("/api/chat/conversations/:conversationId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const response = await scope.resolveChatConversationService().deleteById({
+			conversationId: c.req.param("conversationId"),
+			principal: resolved.principal,
+		});
+		return jsonResponse(response);
+	});
+
+	input.app.post("/api/chat/conversations/:conversationId/archive", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const response = await scope.resolveChatConversationService().archive({
+			conversationId: c.req.param("conversationId"),
+			principal: resolved.principal,
+		});
+		return jsonResponse(response);
+	});
+
+	input.app.delete("/api/chat/conversations/:conversationId/archive", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const response = await scope.resolveChatConversationService().unarchive({
+			conversationId: c.req.param("conversationId"),
+			principal: resolved.principal,
+		});
+		return jsonResponse(response);
+	});
+
+	input.app.post("/api/chat/conversations/:conversationId/pin", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const response = await scope.resolveChatConversationService().pin({
+			conversationId: c.req.param("conversationId"),
+			principal: resolved.principal,
+		});
+		return jsonResponse(response);
+	});
+
+	input.app.delete("/api/chat/conversations/:conversationId/pin", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const response = await scope.resolveChatConversationService().unpin({
 			conversationId: c.req.param("conversationId"),
 			principal: resolved.principal,
 		});

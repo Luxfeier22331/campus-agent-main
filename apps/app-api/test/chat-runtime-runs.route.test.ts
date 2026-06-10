@@ -121,7 +121,7 @@ describe("chat durable run routes", () => {
 		});
 	});
 
-	it("streams browser-visible durable run events from a resume cursor without creating a new request", async () => {
+	it("streams chat product events from a resume cursor without creating a new request", async () => {
 		const chatCommandService = {
 			submit: vi.fn(),
 			submitStream: vi.fn(),
@@ -176,9 +176,18 @@ describe("chat durable run routes", () => {
 		expect(response.headers.get("x-run-id")).toBe("run_01HQ");
 		expect(response.headers.get("x-request-id")).toBe("req_01HQ");
 		expect(response.headers.get("x-trace-id")).toBe("trace_01HQ");
-		await expect(response.text()).resolves.toBe(
-			'event: finalization.completed\ndata: {"eventId":"event-final","eventType":"finalization.completed","occurredAt":"2026-06-04T01:02:06.000Z","payload":{"request_id":"req_01HQ","trace_id":"trace_01HQ"},"runId":"run_01HQ","sequence":3,"visibility":"browser"}\n\n',
-		);
+		const streamBody = await response.text();
+		expect(parseSingleSseBlock(streamBody)).toEqual({
+			data: {
+				occurredAt: "2026-06-04T01:02:06.000Z",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				sequence: 3,
+				status: "completed",
+				traceId: "trace_01HQ",
+			},
+			event: "request.completed",
+		});
 		expect(runtimeRunService.getStatus).toHaveBeenCalledWith({
 			principal: expect.objectContaining({
 				actor: expect.objectContaining({ userId: "user_01HQ" }),
@@ -323,3 +332,16 @@ describe("chat durable run routes", () => {
 		});
 	});
 });
+
+function parseSingleSseBlock(body: string): { data: unknown; event: string } {
+	const lines = body.trim().split(/\r?\n/);
+	const eventLine = lines.find((line) => line.startsWith("event: "));
+	const dataLine = lines.find((line) => line.startsWith("data: "));
+	if (!(eventLine && dataLine)) {
+		throw new Error(`Invalid SSE block: ${body}`);
+	}
+	return {
+		data: JSON.parse(dataLine.slice("data: ".length)),
+		event: eventLine.slice("event: ".length),
+	};
+}

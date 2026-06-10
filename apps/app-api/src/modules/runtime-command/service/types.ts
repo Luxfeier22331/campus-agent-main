@@ -66,6 +66,7 @@ export interface ChatCommandStreamEvent {
 		requestId: string;
 		runId?: string | null;
 		runPhase?: RuntimeRunPhase;
+		sequence?: number;
 		status: string;
 		traceId: string;
 	};
