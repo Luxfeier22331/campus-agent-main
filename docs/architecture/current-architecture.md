@@ -163,14 +163,6 @@ document/index release`
 - 不拥有 auth/session/principal/identity/federation truth；canonical identity 仍属于
   `apps/app-api`
 
-### `apps/hub-web`
-
-- retired Worker package kept only as a historical implementation artifact during
-  the package deletion window
-- 不再是 current product entry、account shell、auth return target、OAuth issuer
-  origin 或 staging smoke gate
-- 不应进入新 deploy/runbook/test acceptance path
-
 ### `apps/public-chat-web`
 
 - public-facing Worker web surface

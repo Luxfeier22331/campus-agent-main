@@ -142,12 +142,6 @@ model`
   `public-chat-web compat route -> campus-web /account/* -> /api/auth/* -> app-api`
 - 不拥有 auth/session/conversation truth
 
-### `apps/hub-web`
-
-- retired package during deletion window
-- not a current product entry, account shell, auth return target, OAuth issuer,
-  staging deploy gate, or account smoke target
-
 ### `apps/public-docs`
 
 - retired/reference package during deletion window
