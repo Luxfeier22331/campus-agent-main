@@ -144,7 +144,8 @@ Current structured query runtime boundary:
 - `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by
   `service_status_lookup`, `transport_schedule_lookup`, `service_guide_lookup`,
   `contact_directory_lookup`, and `academic_calendar_lookup` for the release
-  catalog, current pointer, and typed read models.
+  catalog, current pointer, typed read models, and published
+  `campus_services_ops.releases` snapshots.
 - Structured projection schema and read-model table names are fixed by the
   `ingestion_projection` contract, not runtime env.
 - `EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime

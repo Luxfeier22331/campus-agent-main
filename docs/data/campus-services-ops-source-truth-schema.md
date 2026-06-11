@@ -37,7 +37,7 @@ operator manual attestation
 -> bounded status / transport override draft
 -> app-api preview
 -> app-api publish release snapshot
--> future structured projection / typed runtime consumption
+-> structured runtime typed consumption
 ```
 
 ## Logical Schema
@@ -146,7 +146,7 @@ identity；当前 app-api ops store 不做路线规划。
 
 - `current_effective_json` 是 release 时刻的 status / transport override summary。
 - app-api publish 必须原子写入 release 与 audit event。
-- runtime lookup 不得 query-time 扫描 attestation 或 raw source；后续 runtime consumption
+- runtime lookup 不得 query-time 扫描 attestation 或 raw source；runtime consumption
   必须显式读取 release/projection/read model。
 
 ### `campus_services_ops.audit_events`
@@ -174,11 +174,14 @@ identity；当前 app-api ops store 不做路线规划。
 ## Runtime Boundary
 
 本 schema 是 `campus_services` P1 功能基底的一部分：它补齐人工校对和 release 基底，不声明
-自动 notice 消费已经成熟，也不声明 execution-control typed read model 已消费该 release。
+自动 notice 消费已经成熟。execution-control typed service-status / transport runtime 可以读取最新
+published release 的 `current_effective_json`，并在 query time 重新校验 bounded
+effective window；过期、冲突或当前状态不可证明时 fail closed。transport override 只作为已有
+route / schedule projection 上的服务状态 overlay，不生成路线、站点或班次事实。
 
 后续接入 runtime 时必须保持：
 
-- typed tool 只读 projection-backed structured truth
+- typed tool 只读 projection-backed structured truth 或已发布 release snapshot
 - 不在 query time 回扫 source attestation / notice / chat content
 - 不把 ops store 当作 generic RAG collection
 - 不通过 app-api loopback HTTP 充当 internal query seam

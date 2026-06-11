@@ -18,25 +18,68 @@ type projectionBundleCache struct {
 }
 
 func (r *Runtime) loadServiceStatusBundle(ctx context.Context) (projectionBundle, error) {
-	if r.serviceStatusReadModelStore == nil {
+	if r.serviceStatusReadModelStore == nil && r.campusServicesOpsReleaseStore == nil {
 		return projectionBundle{}, errors.New("service status read model store is not configured")
 	}
-	return loadProjectionBundleFromStore(
-		ctx,
-		r.serviceStatusReadModelStore,
-		&r.serviceStatusBundleCache,
-	)
+	bundle := projectionBundle{
+		SchemaVersion: "campus_services_projection_bundle.v1",
+	}
+	if r.serviceStatusReadModelStore != nil {
+		loadedBundle, err := loadProjectionBundleFromStore(
+			ctx,
+			r.serviceStatusReadModelStore,
+			&r.serviceStatusBundleCache,
+		)
+		if err == nil {
+			bundle = loadedBundle
+		} else {
+			bundle.ServiceStatusSourceIncomplete = true
+		}
+	}
+	if r.campusServicesOpsReleaseStore != nil {
+		release, err := loadCampusServicesOpsReleaseFromStore(
+			ctx,
+			r.campusServicesOpsReleaseStore,
+			&r.campusServicesOpsReleaseCache,
+		)
+		if err == nil {
+			bundle.ServiceStatusRecords = append(
+				bundle.ServiceStatusRecords,
+				serviceStatusRecordsFromCampusServicesOpsRelease(release)...,
+			)
+		} else {
+			bundle.ServiceStatusSourceIncomplete = true
+		}
+	}
+	if len(bundle.ServiceStatusRecords) == 0 {
+		return projectionBundle{}, errors.New("service status source truth is not available")
+	}
+	return bundle, nil
 }
 
 func (r *Runtime) loadTransportScheduleBundle(ctx context.Context) (projectionBundle, error) {
 	if r.transportScheduleReadModelStore == nil {
 		return projectionBundle{}, errors.New("transport schedule read model store is not configured")
 	}
-	return loadProjectionBundleFromStore(
+	bundle, err := loadProjectionBundleFromStore(
 		ctx,
 		r.transportScheduleReadModelStore,
 		&r.transportScheduleBundleCache,
 	)
+	if err != nil {
+		return projectionBundle{}, err
+	}
+	if r.campusServicesOpsReleaseStore != nil {
+		release, err := loadCampusServicesOpsReleaseFromStore(
+			ctx,
+			r.campusServicesOpsReleaseStore,
+			&r.campusServicesOpsReleaseCache,
+		)
+		if err == nil {
+			bundle = applyCampusServicesOpsTransportOverrides(bundle, release, r.timeAnchor())
+		}
+	}
+	return bundle, nil
 }
 
 func (r *Runtime) loadServiceGuideBundle(ctx context.Context) (projectionBundle, error) {

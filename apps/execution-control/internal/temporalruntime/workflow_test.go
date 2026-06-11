@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/mock"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 )
 
@@ -555,6 +556,75 @@ func TestCapabilityExecutionWorkflowReplansFailedTypedToolWithinBudget(t *testin
 		t.Fatalf("workflow error: %v", err)
 	}
 	env.AssertExpectations(t)
+}
+
+func TestCapabilityExecutionWorkflowDoesNotReplanFailClosedTypedToolResult(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	runID := "run-replan-fail-closed-001"
+	planRef := "projection://runs/" + runID + "/plan/route"
+
+	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
+		Return(MemoryRecallActivityOutput{RunID: runID, MemoryRef: "projection://runs/" + runID + "/memory/recall", Status: "completed"}, nil)
+	env.OnActivity(PlanRouteActivityName, mock.Anything, mock.Anything).
+		Return(PlanRouteActivityOutput{
+			AllowedCapabilities: []string{"campus_services"},
+			AllowedTools:        []string{"service_status_lookup"},
+			Capability:          "campus_services",
+			MaxReplans:          1,
+			PlanRef:             planRef,
+			RunID:               runID,
+			Status:              "planned",
+			Steps: []CapabilityBranchStep{{
+				AllowedTools: []string{"service_status_lookup"},
+				Capability:   "campus_services",
+				PayloadKind:  "service_status_lookup",
+				StepID:       "capability:campus_services:service_status_lookup",
+				ToolName:     "service_status_lookup",
+				WorkerRole:   "activity-worker-campus-services",
+			}},
+			ToolName:     "service_status_lookup",
+			WorkerRole:   "activity-worker-campus-services",
+			WorkflowMode: "single_step",
+		}, nil)
+	env.OnActivity(
+		ExecuteTypedToolActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input ExecuteTypedToolActivityInput) bool {
+			return input.RunID == runID &&
+				input.ToolName == "service_status_lookup" &&
+				input.RoutePlanRef == planRef
+		}),
+	).Return(
+		ExecuteTypedToolActivityOutput{},
+		temporal.NewNonRetryableApplicationError(
+			"typed tool service_status_lookup fail_close_reason=current_state_unverifiable outcome=temporarily_unverifiable",
+			"current_state_unverifiable",
+			nil,
+		),
+	).Once()
+
+	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
+		ConversationID:      "conv-replan-fail-closed-001",
+		Namespace:           "campus-agent-test",
+		PayloadSHA256:       "3f0a4a5f0d2ed0cecbfb4c72dc90653d4f484ba5856ea35f246fb3c3a37c78fe",
+		RequestID:           "req-replan-fail-closed-001",
+		RequestedCapability: "campus_services",
+		RunID:               runID,
+		TaskQueue:           WorkflowTaskQueue,
+		TraceID:             "trace-replan-fail-closed-001",
+		TurnID:              "turn-replan-fail-closed-001",
+		WorkflowID:          "campus-agent.chat." + runID,
+	})
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	if err := env.GetWorkflowError(); err == nil || !strings.Contains(err.Error(), "current_state_unverifiable") {
+		t.Fatalf("workflow error = %v, want current_state_unverifiable", err)
+	}
+	env.AssertNotCalled(t, PlanReplanActivityName, mock.Anything, mock.Anything)
 }
 
 func TestCapabilityExecutionWorkflowRejectsReplanThatExpandsCapability(t *testing.T) {

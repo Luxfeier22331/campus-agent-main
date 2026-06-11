@@ -110,6 +110,9 @@ func executeCapabilityBranchWithReplan(
 		if err == nil {
 			return result, nil
 		}
+		if !workflowFailureAllowsReplan(failedStep, err) {
+			return capabilityBranchExecutionResult{}, err
+		}
 		if replanCount >= plan.MaxReplans {
 			return capabilityBranchExecutionResult{}, err
 		}
@@ -309,6 +312,28 @@ func reasonForReplanFailure(step CapabilityBranchStep, err error) string {
 		return "typed_tool_failed"
 	}
 	return "capability_branch_failed"
+}
+
+func workflowFailureAllowsReplan(step CapabilityBranchStep, err error) bool {
+	if err == nil {
+		return false
+	}
+	if step.Capability == "knowledge" {
+		return true
+	}
+	failure := sanitizeWorkflowFailure(err)
+	for _, reason := range []string{
+		"current_state_unverifiable",
+		"source_conflict",
+		"temporal_scope_ambiguous",
+		"clarification_required",
+		"not_found",
+	} {
+		if strings.Contains(failure, reason) {
+			return false
+		}
+	}
+	return true
 }
 
 func sanitizeWorkflowFailure(err error) string {

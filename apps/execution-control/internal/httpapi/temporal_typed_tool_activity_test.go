@@ -174,3 +174,97 @@ func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 		t.Fatalf("second projection ref = %q, want %q", second.ProjectionRef, first.ProjectionRef)
 	}
 }
+
+func TestTypedToolFinalizationRejectsLateCompletionAfterCanceledRun(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 9, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-tool-late-cancel",
+		"conv-tool-late-cancel",
+		now,
+		map[string]any{
+			"capability":    "campus_services",
+			"payload_kind":  "service_status_lookup",
+			"allowed_tools": []any{"service_status_lookup"},
+			"payload":       map[string]any{"service_id": "library"},
+		},
+	)
+	toolRef := temporalProjectionRef("run-tool-late-cancel", "tools/service_status_lookup")
+	run, err := store.GetRun(context.Background(), "run-tool-late-cancel")
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	if err := server.replaceTemporalToolMetadata(context.Background(), run, func(metadata map[string]any) {
+		metadata["service_status_lookup"] = map[string]any{
+			"capability":   "campus_services",
+			"payload_kind": "service_status_lookup",
+			"result":       map[string]any{"outcome": "resolved_current"},
+			"result_ref":   toolRef,
+			"tool_name":    "service_status_lookup",
+		}
+	}); err != nil {
+		t.Fatalf("replace temporal tool metadata: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-tool-late-cancel",
+		execution.DurableRunStatusAdmitted,
+		"",
+		now.Add(2*time.Second),
+	); err != nil {
+		t.Fatalf("admit run: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-tool-late-cancel",
+		execution.DurableRunStatusRunning,
+		"",
+		now.Add(3*time.Second),
+	); err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if _, err := store.CancelRunProjection(context.Background(), execution.DurableRunCancelRequest{
+		RunID:  "run-tool-late-cancel",
+		Reason: "user_requested",
+		Now:    now.Add(4 * time.Second),
+	}); err != nil {
+		t.Fatalf("cancel run: %v", err)
+	}
+
+	_, err = server.WriteFinalizationActivity(
+		context.Background(),
+		temporalruntime.WriteFinalizationActivityInput{
+			RunID:              "run-tool-late-cancel",
+			SelectedCapability: "campus_services",
+			SelectedTool:       "service_status_lookup",
+			ToolResultRef:      toolRef,
+			TraceID:            "trace-executor-001",
+		},
+	)
+	if err == nil {
+		t.Fatal("late typed finalization after cancel must fail")
+	}
+	if !strings.Contains(err.Error(), "already terminal: canceled") {
+		t.Fatalf("error = %q, want already terminal canceled", err.Error())
+	}
+	canceledRun, err := store.GetRun(context.Background(), "run-tool-late-cancel")
+	if err != nil {
+		t.Fatalf("get canceled run: %v", err)
+	}
+	if canceledRun.Status != execution.DurableRunStatusCanceled {
+		t.Fatalf("run status = %q, want canceled", canceledRun.Status)
+	}
+	results, err := store.ListStepResults(context.Background(), "run-tool-late-cancel")
+	if err != nil {
+		t.Fatalf("list step results: %v", err)
+	}
+	for _, result := range results {
+		if result.StepID == "finalization.write" {
+			t.Fatalf("late cancel wrote finalization result: %#v", result)
+		}
+	}
+}

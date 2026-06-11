@@ -17,6 +17,14 @@ func NewRuntime(options Options) *Runtime {
 			},
 		)
 	}
+	campusServicesOpsReleaseStore := options.CampusServicesOpsReleaseStore
+	if campusServicesOpsReleaseStore == nil {
+		campusServicesOpsReleaseStore = NewPostgresCampusServicesOpsReleaseStore(
+			CampusServicesOpsPostgresOptions{
+				DatabaseURL: structuredProjectionDatabaseURL,
+			},
+		)
+	}
 	transportScheduleReadModelStore := options.TransportScheduleReadModelStore
 	if transportScheduleReadModelStore == nil {
 		transportScheduleReadModelStore = NewPostgresTransportScheduleReadModelStore(
@@ -67,6 +75,7 @@ func NewRuntime(options Options) *Runtime {
 	}
 	runtime := &Runtime{
 		serviceStatusReadModelStore:     serviceStatusReadModelStore,
+		campusServicesOpsReleaseStore:   campusServicesOpsReleaseStore,
 		transportScheduleReadModelStore: transportScheduleReadModelStore,
 		serviceGuideReadModelStore:      serviceGuideReadModelStore,
 		contactDirectoryReadModelStore:  contactDirectoryReadModelStore,
@@ -85,6 +94,9 @@ func NewRuntime(options Options) *Runtime {
 
 func (r *Runtime) Close() {
 	if closer, ok := r.serviceStatusReadModelStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
+	if closer, ok := r.campusServicesOpsReleaseStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	if closer, ok := r.transportScheduleReadModelStore.(interface{ Close() }); ok {
