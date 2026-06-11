@@ -99,6 +99,18 @@ func (readyPersonalMemoryExecutor) Disable(
 	}, nil
 }
 
+func (readyPersonalMemoryExecutor) DisableOwner(
+	_ context.Context,
+	request memoryruntime.DisableOwnerRequest,
+) (memoryruntime.DisableOwnerResult, error) {
+	return memoryruntime.DisableOwnerResult{
+		SchemaVersion: "personal_memory_owner_disable_result_v1",
+		Status:        "disabled",
+		UpdatedAt:     request.UpdatedAt,
+		UserID:        request.UserID,
+	}, nil
+}
+
 func (readyRAGLookupExecutor) HealthCheck(context.Context) error {
 	return nil
 }

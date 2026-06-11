@@ -339,6 +339,16 @@ describe("execution control runtime adapter", () => {
 					}),
 					{ status: 202 },
 				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						status: "disabled",
+						updated_at: "2026-06-10T10:00:00.000Z",
+						user_id: "user_01HQ",
+					}),
+					{ status: 202 },
+				),
 			);
 		const client = createExecutionControlPersonalMemoryClient(
 			{
@@ -359,6 +369,11 @@ describe("execution control runtime adapter", () => {
 			memoryId: "mem_01HQ",
 			traceId: "trace_memory_002",
 			updatedAt: "2026-06-10T09:00:00.000Z",
+			userId: "user_01HQ",
+		});
+		const ownerDisabled = await client.disableOwnerMemory({
+			traceId: "trace_memory_003",
+			updatedAt: "2026-06-10T10:00:00.000Z",
 			userId: "user_01HQ",
 		});
 
@@ -401,6 +416,22 @@ describe("execution control runtime adapter", () => {
 			updated_at: "2026-06-10T09:00:00.000Z",
 			user_id: "user_01HQ",
 		});
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			3,
+			"https://execution-control.internal/internal/memory/personal/owner:disable",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					"x-trace-id": "trace_memory_003",
+					"x-worker-origin-auth": "shared-secret",
+				}),
+				method: "POST",
+			}),
+		);
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 2))).toEqual({
+			tenant_id: "",
+			updated_at: "2026-06-10T10:00:00.000Z",
+			user_id: "user_01HQ",
+		});
 		expect(upsert).toEqual({
 			memoryId: "mem_01HQ",
 			pointId: "point_01HQ",
@@ -409,6 +440,11 @@ describe("execution control runtime adapter", () => {
 			updatedAt: "2026-06-10T08:00:00.000Z",
 		});
 		expect(disabled.status).toBe("disabled");
+		expect(ownerDisabled).toEqual({
+			status: "disabled",
+			updatedAt: "2026-06-10T10:00:00.000Z",
+			userId: "user_01HQ",
+		});
 	});
 
 	it("fails closed when durable runtime configuration is missing", async () => {

@@ -9,6 +9,14 @@ import {
 	type ProfileMemoryStore,
 } from "../src/modules/profile-memory";
 
+type OwnerAwareProfileMemoryIndexer = ProfileMemoryIndexer & {
+	disableOwnerMemory(input: {
+		tenantId?: string;
+		updatedAt: string;
+		userId: string;
+	}): Promise<{ status: string; userId: string }>;
+};
+
 function createPrincipal(input: { chat?: boolean } = {}): ResolvedAppPrincipal {
 	return {
 		actor: {
@@ -56,8 +64,12 @@ function createStore(): ProfileMemoryStore {
 	};
 }
 
-function createIndexer(): ProfileMemoryIndexer {
+function createIndexer(): OwnerAwareProfileMemoryIndexer {
 	return {
+		disableOwnerMemory: vi.fn(async () => ({
+			status: "disabled",
+			userId: "user_01HQ",
+		})),
 		disableExplicitMemory: vi.fn(async () => ({
 			memoryId: "mem_01HQ",
 			status: "disabled",
@@ -198,6 +210,67 @@ describe("profile memory service", () => {
 		).rejects.toThrow("disable failed");
 
 		expect(store.deleteItem).not.toHaveBeenCalled();
+	});
+
+	it("disables owner memory in Qdrant before disabling PG memory setting", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({
+			memoryIndexer: indexer,
+			now: () => new Date("2026-04-27T10:00:00.000Z"),
+			store,
+		});
+
+		const result = await service.setEnabled({
+			enabled: false,
+			principal: createPrincipal(),
+		});
+
+		expect(indexer.disableOwnerMemory).toHaveBeenCalledWith({
+			updatedAt: "2026-04-27T10:00:00.000Z",
+			userId: "user_01HQ",
+		});
+		expect(store.setEnabled).toHaveBeenCalledWith({
+			enabled: false,
+			ownerUserId: "user_01HQ",
+			updatedAt: "2026-04-27T10:00:00.000Z",
+		});
+		expect(result).toEqual({ enabled: false });
+	});
+
+	it("does not disable PG memory setting when Qdrant owner memory disable fails", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		vi.mocked(indexer.disableOwnerMemory).mockRejectedValueOnce(new Error("owner disable failed"));
+		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
+
+		await expect(
+			service.setEnabled({
+				enabled: false,
+				principal: createPrincipal(),
+			}),
+		).rejects.toThrow("owner disable failed");
+
+		expect(store.setEnabled).not.toHaveBeenCalled();
+	});
+
+	it("does not call Qdrant owner disable when enabling memory setting", async () => {
+		const store = createStore();
+		const indexer = createIndexer();
+		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
+
+		await service.setEnabled({
+			enabled: true,
+			principal: createPrincipal(),
+		});
+
+		expect(indexer.disableOwnerMemory).not.toHaveBeenCalled();
+		expect(store.setEnabled).toHaveBeenCalledWith(
+			expect.objectContaining({
+				enabled: true,
+				ownerUserId: "user_01HQ",
+			}),
+		);
 	});
 
 	it("rejects memory keys that look like authorization state", async () => {

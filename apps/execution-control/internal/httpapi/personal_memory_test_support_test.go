@@ -7,9 +7,10 @@ import (
 )
 
 type fakePersonalMemoryExecutor struct {
-	seenDisable memoryruntime.DisableRequest
-	seenRequest memoryruntime.RecallRequest
-	seenUpsert  memoryruntime.UpsertRequest
+	seenDisable      memoryruntime.DisableRequest
+	seenDisableOwner memoryruntime.DisableOwnerRequest
+	seenRequest      memoryruntime.RecallRequest
+	seenUpsert       memoryruntime.UpsertRequest
 }
 
 func (f *fakePersonalMemoryExecutor) HealthCheck(context.Context) error {
@@ -57,5 +58,18 @@ func (f *fakePersonalMemoryExecutor) Disable(
 		SchemaVersion: "personal_memory_upsert_result_v1",
 		Status:        "disabled",
 		UpdatedAt:     request.UpdatedAt,
+	}, nil
+}
+
+func (f *fakePersonalMemoryExecutor) DisableOwner(
+	_ context.Context,
+	request memoryruntime.DisableOwnerRequest,
+) (memoryruntime.DisableOwnerResult, error) {
+	f.seenDisableOwner = request
+	return memoryruntime.DisableOwnerResult{
+		SchemaVersion: "personal_memory_owner_disable_result_v1",
+		Status:        "disabled",
+		UpdatedAt:     request.UpdatedAt,
+		UserID:        request.UserID,
 	}, nil
 }

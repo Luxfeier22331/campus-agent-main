@@ -41,12 +41,25 @@ type DisableRequest struct {
 	UserID    string `json:"user_id"`
 }
 
+type DisableOwnerRequest struct {
+	TenantID  string `json:"tenant_id"`
+	UpdatedAt string `json:"updated_at"`
+	UserID    string `json:"user_id"`
+}
+
 type UpsertResult struct {
 	MemoryID      string `json:"memory_id"`
 	PointID       string `json:"point_id"`
 	SchemaVersion string `json:"schema_version"`
 	Status        string `json:"status"`
 	UpdatedAt     string `json:"updated_at"`
+}
+
+type DisableOwnerResult struct {
+	SchemaVersion string `json:"schema_version"`
+	Status        string `json:"status"`
+	UpdatedAt     string `json:"updated_at"`
+	UserID        string `json:"user_id"`
 }
 
 type ContextItem struct {
@@ -125,6 +138,16 @@ func ValidateDisableRequest(request DisableRequest) error {
 	if strings.TrimSpace(request.MemoryID) == "" {
 		return fmt.Errorf("%w: memory_id is required", ErrInvalidMemoryProjection)
 	}
+	if strings.TrimSpace(request.UserID) == "" {
+		return fmt.Errorf("%w: user_id is required", ErrInvalidMemoryProjection)
+	}
+	if strings.TrimSpace(request.UpdatedAt) == "" {
+		return fmt.Errorf("%w: updated_at is required", ErrInvalidMemoryProjection)
+	}
+	return nil
+}
+
+func ValidateDisableOwnerRequest(request DisableOwnerRequest) error {
 	if strings.TrimSpace(request.UserID) == "" {
 		return fmt.Errorf("%w: user_id is required", ErrInvalidMemoryProjection)
 	}

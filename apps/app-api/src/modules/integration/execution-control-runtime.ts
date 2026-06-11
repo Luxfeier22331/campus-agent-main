@@ -73,6 +73,14 @@ export interface ExecutionControlPersonalMemoryDisableInput {
 	userId: string;
 }
 
+export interface ExecutionControlPersonalMemoryDisableOwnerInput {
+	tenantId?: string | null;
+	traceHeaders?: TracePropagationHeaders;
+	traceId?: string | null;
+	updatedAt: string;
+	userId: string;
+}
+
 export interface ExecutionControlPersonalMemoryResult {
 	memoryId: string;
 	pointId: string;
@@ -197,6 +205,9 @@ export interface ExecutionControlRuntimeClient {
 }
 
 export interface ExecutionControlPersonalMemoryClient {
+	disableOwnerMemory(
+		input: ExecutionControlPersonalMemoryDisableOwnerInput,
+	): Promise<{ status: string; updatedAt: string; userId: string }>;
 	disableExplicitMemory(
 		input: ExecutionControlPersonalMemoryDisableInput,
 	): Promise<ExecutionControlPersonalMemoryResult>;
@@ -299,6 +310,22 @@ export function createExecutionControlPersonalMemoryClient(
 	});
 
 	return {
+		async disableOwnerMemory(
+			memoryInput: ExecutionControlPersonalMemoryDisableOwnerInput,
+		): Promise<{ status: string; updatedAt: string; userId: string }> {
+			const parsed = await requestExecutionControl("/internal/memory/personal/owner:disable", {
+				body: {
+					tenant_id: memoryInput.tenantId ?? "",
+					updated_at: memoryInput.updatedAt,
+					user_id: memoryInput.userId,
+				},
+				expectedStatus: 202,
+				method: "POST",
+				traceHeaders: memoryInput.traceHeaders,
+				traceId: memoryInput.traceId,
+			});
+			return parsePersonalMemoryOwnerDisableResult(parsed);
+		},
 		async disableExplicitMemory(
 			memoryInput: ExecutionControlPersonalMemoryDisableInput,
 		): Promise<ExecutionControlPersonalMemoryResult> {
@@ -338,6 +365,18 @@ export function createExecutionControlPersonalMemoryClient(
 			});
 			return parsePersonalMemoryResult(parsed);
 		},
+	};
+}
+
+function parsePersonalMemoryOwnerDisableResult(value: JsonRecord): {
+	status: string;
+	updatedAt: string;
+	userId: string;
+} {
+	return {
+		status: readRequiredString(value, "status"),
+		updatedAt: readRequiredString(value, "updated_at"),
+		userId: readRequiredString(value, "user_id"),
 	};
 }
 

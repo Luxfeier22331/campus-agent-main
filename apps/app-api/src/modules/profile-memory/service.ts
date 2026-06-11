@@ -24,6 +24,11 @@ export interface ProfileMemoryService {
 }
 
 export interface ProfileMemoryIndexer {
+	disableOwnerMemory(input: {
+		tenantId?: string;
+		updatedAt: string;
+		userId: string;
+	}): Promise<{ status: string; userId: string }>;
 	disableExplicitMemory(input: {
 		memoryId: string;
 		tenantId?: string;
@@ -124,10 +129,17 @@ export function buildProfileMemoryService(
 
 		async setEnabled(input) {
 			const ownerUserId = assertProfileMemoryPrincipal(input.principal);
+			const updatedAt = now().toISOString();
+			if (!input.enabled) {
+				await dependencies.memoryIndexer.disableOwnerMemory({
+					updatedAt,
+					userId: ownerUserId,
+				});
+			}
 			const enabled = await dependencies.store.setEnabled({
 				enabled: input.enabled,
 				ownerUserId,
-				updatedAt: now().toISOString(),
+				updatedAt,
 			});
 			return { enabled };
 		},

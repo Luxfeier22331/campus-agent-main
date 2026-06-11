@@ -21,6 +21,7 @@ type personalMemoryExecutor interface {
 	Recall(context.Context, memoryruntime.RecallRequest) (memoryruntime.RecallResult, error)
 	Upsert(context.Context, memoryruntime.UpsertRequest) (memoryruntime.UpsertResult, error)
 	Disable(context.Context, memoryruntime.DisableRequest) (memoryruntime.UpsertResult, error)
+	DisableOwner(context.Context, memoryruntime.DisableOwnerRequest) (memoryruntime.DisableOwnerResult, error)
 }
 
 type qdrantPersonalMemoryExecutor struct {
@@ -219,6 +220,43 @@ func (e qdrantPersonalMemoryExecutor) Disable(
 		SchemaVersion: "personal_memory_upsert_result_v1",
 		Status:        "disabled",
 		UpdatedAt:     strings.TrimSpace(request.UpdatedAt),
+	}, nil
+}
+
+func (e qdrantPersonalMemoryExecutor) DisableOwner(
+	ctx context.Context,
+	request memoryruntime.DisableOwnerRequest,
+) (memoryruntime.DisableOwnerResult, error) {
+	if err := memoryruntime.ValidateDisableOwnerRequest(request); err != nil {
+		return memoryruntime.DisableOwnerResult{}, err
+	}
+	if strings.TrimSpace(e.qdrantWriteAPIKey) == "" {
+		return memoryruntime.DisableOwnerResult{}, errors.New("QDRANT_WRITE_API_KEY is required for personal memory indexing")
+	}
+	filter := map[string]any{
+		"must": []map[string]any{
+			qdrantMatchCondition("user_id", strings.TrimSpace(request.UserID)),
+			qdrantMatchCondition("status", "active"),
+		},
+	}
+	if tenantID := strings.TrimSpace(request.TenantID); tenantID != "" {
+		filter["must"] = append(filter["must"].([]map[string]any), qdrantMatchCondition("tenant_id", tenantID))
+	}
+	body := map[string]any{
+		"payload": map[string]any{
+			"status":     "disabled",
+			"updated_at": strings.TrimSpace(request.UpdatedAt),
+		},
+		"filter": filter,
+	}
+	if err := e.writeQdrant(ctx, http.MethodPost, "/points/payload?wait=true", body); err != nil {
+		return memoryruntime.DisableOwnerResult{}, err
+	}
+	return memoryruntime.DisableOwnerResult{
+		SchemaVersion: "personal_memory_owner_disable_result_v1",
+		Status:        "disabled",
+		UpdatedAt:     strings.TrimSpace(request.UpdatedAt),
+		UserID:        strings.TrimSpace(request.UserID),
 	}, nil
 }
 

@@ -235,6 +235,61 @@ func TestQdrantPersonalMemoryDisableUsesWriteKeyAndPointID(t *testing.T) {
 	}
 }
 
+func TestQdrantPersonalMemoryDisableOwnerUsesWriteKeyAndPayloadFilter(t *testing.T) {
+	var captured map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/collections/personal_memory_v1/points/payload" {
+			t.Fatalf("qdrant path = %q, want personal memory payload update", request.URL.Path)
+		}
+		if request.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", request.Method)
+		}
+		if request.Header.Get("api-key") != "write-key" {
+			t.Fatalf("api-key = %q, want write key", request.Header.Get("api-key"))
+		}
+		if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
+			t.Fatalf("decode owner disable body: %v", err)
+		}
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{"result":{"operation_id":9,"status":"completed"},"status":"ok"}`))
+	}))
+	defer server.Close()
+
+	executor := qdrantPersonalMemoryExecutor{
+		httpClient:        server.Client(),
+		qdrantWriteAPIKey: "write-key",
+		qdrantURL:         server.URL,
+		collection:        "personal_memory_v1",
+		timeout:           time.Second,
+	}
+
+	result, err := executor.DisableOwner(context.Background(), memoryruntime.DisableOwnerRequest{
+		TenantID:  "tenant-muc",
+		UpdatedAt: "2026-06-10T10:00:00.000Z",
+		UserID:    "user_01HQ",
+	})
+	if err != nil {
+		t.Fatalf("disable owner memory: %v", err)
+	}
+	if result.Status != "disabled" || result.UserID != "user_01HQ" {
+		t.Fatalf("result = %#v", result)
+	}
+	payload, ok := captured["payload"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload = %#v, want object", captured["payload"])
+	}
+	if payload["status"] != "disabled" || payload["updated_at"] != "2026-06-10T10:00:00.000Z" {
+		t.Fatalf("payload = %#v, want disabled status update", payload)
+	}
+	if _, hasPoints := captured["points"]; hasPoints {
+		t.Fatalf("owner disable must use a payload filter, not explicit points: %#v", captured)
+	}
+	must := qdrantMustConditionsForTest(t, captured)
+	assertQdrantMatchConditionForTest(t, must, "user_id", "user_01HQ")
+	assertQdrantMatchConditionForTest(t, must, "tenant_id", "tenant-muc")
+	assertQdrantMatchConditionForTest(t, must, "status", "active")
+}
+
 func TestPersonalMemoryUpsertEndpointRequiresInternalAuth(t *testing.T) {
 	server := NewServer(config.Config{WorkerSharedSecret: "shared-secret"})
 	server.personalMemoryExecutor = &fakePersonalMemoryExecutor{}
@@ -310,6 +365,40 @@ func TestPersonalMemoryDisableEndpointDisablesViaExecutor(t *testing.T) {
 	if executor.seenDisable.MemoryID != "mem_01HQ" ||
 		executor.seenDisable.UserID != "user_01HQ" {
 		t.Fatalf("seen disable = %#v", executor.seenDisable)
+	}
+}
+
+func TestPersonalMemoryOwnerDisableEndpointDisablesViaExecutor(t *testing.T) {
+	executor := &fakePersonalMemoryExecutor{}
+	server := NewServer(config.Config{WorkerSharedSecret: "shared-secret"})
+	server.personalMemoryExecutor = executor
+	server.personalMemoryErr = nil
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/internal/memory/personal/owner:disable",
+		bytes.NewReader([]byte(`{"user_id":"user_01HQ","tenant_id":"tenant-muc","updated_at":"2026-06-10T10:00:00Z"}`)),
+	)
+	request.Header.Set("x-worker-origin-auth", "shared-secret")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d body = %s, want 202", response.Code, response.Body.String())
+	}
+	if executor.seenDisableOwner.UserID != "user_01HQ" ||
+		executor.seenDisableOwner.TenantID != "tenant-muc" {
+		t.Fatalf("seen owner disable = %#v", executor.seenDisableOwner)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload["schema_version"] != "personal_memory_owner_disable_result_v1" ||
+		payload["status"] != "disabled" ||
+		payload["user_id"] != "user_01HQ" {
+		t.Fatalf("response payload = %#v", payload)
 	}
 }
 

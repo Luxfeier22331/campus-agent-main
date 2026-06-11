@@ -439,6 +439,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handlePersonalMemoryUpsert(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
 		s.handlePersonalMemoryDisable(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":
+		s.handlePersonalMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-guide":
