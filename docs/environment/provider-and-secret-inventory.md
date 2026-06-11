@@ -42,8 +42,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 ### Repo-root shared provider
 
 - Provider / system: OpenAI-compatible LLM provider
-  作用: supervisor / agent 在线回答，eval 默认 judge/ragas LLM
-  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `SUPERVISOR_PROMPT_MODEL`
+  作用: execution-control / agentic execution 在线回答，eval 默认 judge/ragas LLM
+  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `EXECUTION_PROMPT_MODEL`
   `AGENT_PROMPT_MODEL`
   放置位置: root `.env`
   何时必需: 真实 query path、live eval
@@ -234,7 +234,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 - 一个可达的 `base_url`
 - 一把 API key
 - 至少两个可用模型名：
-  - `SUPERVISOR_PROMPT_MODEL`
+  - `EXECUTION_PROMPT_MODEL`
   - `AGENT_PROMPT_MODEL`
 
 默认放置位置：
@@ -245,7 +245,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - `LLM_BASE_URL`
 - `LLM_API_KEY`
-- `SUPERVISOR_PROMPT_MODEL`
+- `EXECUTION_PROMPT_MODEL`
 - `AGENT_PROMPT_MODEL`
 - 可选 eval override：`EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY` `EVAL_LLM_TRANSPORT`
   `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`

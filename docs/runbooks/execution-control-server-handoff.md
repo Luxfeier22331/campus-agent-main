@@ -55,7 +55,7 @@ updated: 2026-06-09
   - `QDRANT_TLS_CA_CERT_PATH`
   - `EMBEDDING_*`
   - `PROMPT_RUNTIME_*`
-  - `SUPERVISOR_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
+  - `EXECUTION_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
 - conditional:
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`

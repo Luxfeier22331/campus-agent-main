@@ -43,7 +43,7 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 			"campus_scope":"haidian"
 		}`),
 	)
-	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	request.Header.Set("x-execution-query-auth", "query-secret")
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
 
@@ -133,7 +133,7 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 			"service_time_query":{"date_mode":"tomorrow","daypart":"morning"}
 		}`),
 	)
-	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	request.Header.Set("x-execution-query-auth", "query-secret")
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
 
@@ -244,7 +244,7 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 			"audience":"student"
 		}`),
 	)
-	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	request.Header.Set("x-execution-query-auth", "query-secret")
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
 
@@ -322,7 +322,7 @@ func TestStructuredQueryContactDirectoryUsesConfiguredProjectionBundle(t *testin
 			"audience":"student"
 		}`),
 	)
-	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	request.Header.Set("x-execution-query-auth", "query-secret")
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
 
@@ -391,7 +391,7 @@ func TestStructuredQueryAcademicCalendarUsesConfiguredProjectionBundle(t *testin
 			"date_hint":"2026-05-04"
 		}`),
 	)
-	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	request.Header.Set("x-execution-query-auth", "query-secret")
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
 
@@ -431,7 +431,7 @@ func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t 
 			"snapshot_query":{"mode":"current"}
 		}`),
 	)
-	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	request.Header.Set("x-execution-query-auth", "query-secret")
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
 
@@ -489,7 +489,7 @@ func TestStructuredQueryNoticeDiscoverFailsClosedWhenReadModelUnavailable(t *tes
 			}
 		}`),
 	)
-	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	request.Header.Set("x-execution-query-auth", "query-secret")
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
 

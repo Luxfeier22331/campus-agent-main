@@ -18,7 +18,7 @@ type promptConfigGate struct {
 	Provider                string `json:"provider"`
 	PricingVersion          string `json:"pricing_version"`
 	Transport               string `json:"transport"`
-	SupervisorModel         string `json:"supervisor_model"`
+	ExecutionModel          string `json:"execution_model"`
 	AgentModel              string `json:"agent_model"`
 	StrictStructuredOutputs bool   `json:"strict_structured_outputs"`
 }
@@ -250,7 +250,7 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 	providerName := strings.TrimSpace(cfg.PromptRuntimeProvider)
 	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
 	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
-	supervisorModel := strings.TrimSpace(cfg.SupervisorPromptModel)
+	executionModel := strings.TrimSpace(cfg.ExecutionPromptModel)
 	agentModel := strings.TrimSpace(cfg.AgentPromptModel)
 	apiKey := strings.TrimSpace(cfg.PromptRuntimeAPIKey)
 	reason := ""
@@ -276,8 +276,8 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 			reason = "provider_pricing_not_configured"
 		case !promptModelHasPricing(catalog, providerName, agentModel):
 			reason = "agent_model_pricing_missing"
-		case supervisorModel != "" && !promptModelHasPricing(catalog, providerName, supervisorModel):
-			reason = "supervisor_model_pricing_missing"
+		case executionModel != "" && !promptModelHasPricing(catalog, providerName, executionModel):
+			reason = "execution_model_pricing_missing"
 		default:
 			pricingVersion = catalog.SchemaVersion
 		}
@@ -288,7 +288,7 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		Provider:                providerName,
 		PricingVersion:          pricingVersion,
 		Transport:               transport,
-		SupervisorModel:         supervisorModel,
+		ExecutionModel:          executionModel,
 		AgentModel:              agentModel,
 		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
 	}

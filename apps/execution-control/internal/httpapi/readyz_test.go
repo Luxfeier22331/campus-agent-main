@@ -263,9 +263,9 @@ func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
 	}
 }
 
-func TestReadyzPromptConfigGateDoesNotRequireSupervisorTerminalModel(t *testing.T) {
+func TestReadyzPromptConfigGateDoesNotRequireExecutionTerminalModel(t *testing.T) {
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.SupervisorPromptModel = ""
+		cfg.ExecutionPromptModel = ""
 	})
 	response := httptest.NewRecorder()
 
@@ -279,8 +279,8 @@ func TestReadyzPromptConfigGateDoesNotRequireSupervisorTerminalModel(t *testing.
 	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
 		t.Fatalf("prompt_config_gate = %#v, want admitted", promptConfigGate)
 	}
-	if promptConfigGate["supervisor_model"] != "" {
-		t.Fatalf("prompt_config_gate.supervisor_model = %v, want empty", promptConfigGate["supervisor_model"])
+	if promptConfigGate["execution_model"] != "" {
+		t.Fatalf("prompt_config_gate.execution_model = %v, want empty", promptConfigGate["execution_model"])
 	}
 }
 

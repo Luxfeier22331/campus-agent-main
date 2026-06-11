@@ -70,19 +70,19 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 	}
 
 	try {
-		const supervisorReadiness = await probeExecutionControlReady(env);
+		const executionReadiness = await probeExecutionControlReady(env);
 		dependencies.executionControl = "ready";
-		preflight.executionRuntime = supervisorReadiness.executionRuntime;
+		preflight.executionRuntime = executionReadiness.executionRuntime;
 		if (requireExecutionRuntime) {
-			if (supervisorReadiness.executionRuntime.status === "ready") {
+			if (executionReadiness.executionRuntime.status === "ready") {
 				dependencies.executionRuntime = "ready";
 			} else {
 				failed.executionRuntime = formatExecutionRuntimePreflightFailure(
-					supervisorReadiness.executionRuntime,
+					executionReadiness.executionRuntime,
 				);
 			}
 		}
-		preflight.campusServicesProductPath = supervisorReadiness.campusServicesProductPath;
+		preflight.campusServicesProductPath = executionReadiness.campusServicesProductPath;
 	} catch (error) {
 		failed.executionControl = formatRuntimeDependencyFailure(error);
 		if (requireExecutionRuntime) {

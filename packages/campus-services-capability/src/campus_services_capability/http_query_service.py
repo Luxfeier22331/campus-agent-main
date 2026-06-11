@@ -138,7 +138,7 @@ class CampusServicesHTTPQueryService:
             f"{self.base_url}{path}",
             headers={
                 "content-type": "application/json",
-                "x-supervisor-query-auth": self.shared_secret,
+                "x-execution-query-auth": self.shared_secret,
             },
             json_body=json_body,
             timeout_seconds=self.timeout_seconds,

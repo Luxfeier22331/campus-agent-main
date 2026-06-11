@@ -175,7 +175,7 @@ SURFACE_SPECS = {
             "embedding_model": ("EMBEDDING_MODEL",),
             "qdrant_url": ("QDRANT_URL",),
             "shared_postgres_url": ("CAMPUS_SHARED_POSTGRES_URL",),
-            "supervisor_prompt_model": ("SUPERVISOR_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
+            "execution_prompt_model": ("EXECUTION_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
             "agent_prompt_model": ("AGENT_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
         },
         "optional_settings": {
@@ -222,11 +222,11 @@ SURFACE_SPECS = {
             "llm": {
                 "checked_keys": PROMPT_RUNTIME_API_KEY_PRECEDENCE,
                 "resolver": resolve_prompt_runtime_provider_config,
-                "surface_name": "supervisor.api",
+                "surface_name": "execution-control",
             },
         },
         "required_settings": {
-            "supervisor_prompt_model": ("SUPERVISOR_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
+            "execution_prompt_model": ("EXECUTION_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
             "agent_prompt_model": ("AGENT_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
             "execution_control_shared_secret": ("EXECUTION_CONTROL_SHARED_SECRET",),
             "metrics_bearer_token": ("EXECUTION_CONTROL_METRICS_BEARER_TOKEN",),
@@ -296,12 +296,20 @@ SURFACE_SPECS = {
             "internal_query_base_url": ("EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL",),
             "internal_query_shared_secret": ("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",),
             "structured_query_timeout_ms": ("EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS",),
-            "structured_query_timeout_seconds": ("EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS",),
+            "structured_query_timeout_seconds": (
+                "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS",
+            ),
             "internal_notice_read_model_database_url": ("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",),
             "internal_notice_read_model_table": ("INTERNAL_NOTICE_READ_MODEL_TABLE",),
-            "notice_object_store_endpoint": ("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",),
-            "notice_object_store_access_key": ("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",),
-            "notice_object_store_secret_key": ("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",),
+            "notice_object_store_endpoint": (
+                "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
+            ),
+            "notice_object_store_access_key": (
+                "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY",
+            ),
+            "notice_object_store_secret_key": (
+                "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY",
+            ),
             "notice_object_store_bucket": ("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",),
         },
         "files": {},

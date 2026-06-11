@@ -142,7 +142,7 @@ pnpm --dir apps/app-api chat:durable:e2e:staging \
 不接受：
 
 - `retrieval_failed`
-- `supervisor_unavailable`
+- `execution_runtime_unavailable`
 - transport error
 - Worker proxy error
 - `--expect-result-kind any` 作为 release closeout 通过标准

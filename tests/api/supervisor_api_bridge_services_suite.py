@@ -91,7 +91,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
                 query_requests.append(
                     {
                         "path": self.path,
-                        "auth": self.headers.get("x-supervisor-query-auth"),
+                        "auth": self.headers.get("x-execution-query-auth"),
                         "body": json.loads(self.rfile.read(content_length).decode("utf-8")),
                     }
                 )

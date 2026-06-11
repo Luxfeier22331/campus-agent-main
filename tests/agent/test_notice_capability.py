@@ -405,7 +405,7 @@ class NoticeAgentTest(unittest.TestCase):
             transport.calls[0][0],
             "http://execution-control.internal/internal/query/notices/discover",
         )
-        self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
+        self.assertEqual(transport.calls[0][1]["x-execution-query-auth"], "query-secret")
         self.assertEqual(transport.calls[0][2]["payload"]["query_text"], "家具采购")
         self.assertEqual(
             transport.calls[0][2]["payload"]["target_surfaces"],

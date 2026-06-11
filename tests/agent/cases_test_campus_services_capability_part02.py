@@ -388,7 +388,7 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
             transport.calls[0][0],
             "http://execution-control.internal/internal/query/campus-services/transport-schedule",
         )
-        self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
+        self.assertEqual(transport.calls[0][1]["x-execution-query-auth"], "query-secret")
         self.assertEqual(transport.calls[0][2]["payload"]["intent"], "first_departure")
         self.assertIn("access_context", transport.calls[0][2])
         self.assertEqual(transport.calls[0][3], 0.75)

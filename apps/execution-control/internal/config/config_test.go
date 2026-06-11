@@ -16,7 +16,7 @@ func setStagingPersonalMemoryEnv(t *testing.T) {
 	t.Setenv("EMBEDDING_DIMENSIONS", "3072")
 }
 
-func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
+func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "")
 	t.Setenv("API_DEFAULT_ACTOR_ID", "")
@@ -58,7 +58,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "")
-	t.Setenv("SUPERVISOR_PROMPT_MODEL", "")
+	t.Setenv("EXECUTION_PROMPT_MODEL", "")
 	t.Setenv("AGENT_PROMPT_MODEL", "")
 	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
 	t.Setenv("LLM_API_KEY", "")
@@ -173,7 +173,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeBodyObjectStoreBodyLimitBytes)
 	}
 	if cfg.PromptRuntimeProvider != "" ||
-		cfg.SupervisorPromptModel != "" ||
+		cfg.ExecutionPromptModel != "" ||
 		cfg.AgentPromptModel != "" ||
 		cfg.PromptRuntimeAPIKey != "" ||
 		cfg.PromptRuntimeTransport != "responses" ||
@@ -491,7 +491,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", "true")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
-	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
+	t.Setenv("EXECUTION_PROMPT_MODEL", "gpt-execution")
 	t.Setenv("AGENT_PROMPT_MODEL", "gpt-agent")
 	t.Setenv("PROMPT_RUNTIME_API_KEY", "prompt-key")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "responses")
@@ -535,7 +535,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.WorkflowRunDatabaseURL != "postgresql://workflow.example/db" ||
 		!cfg.WorkflowRunAutoMigrate ||
 		cfg.PromptRuntimeProvider != "openai-responses" ||
-		cfg.SupervisorPromptModel != "gpt-supervisor" ||
+		cfg.ExecutionPromptModel != "gpt-execution" ||
 		cfg.AgentPromptModel != "gpt-agent" ||
 		cfg.PromptRuntimeAPIKey != "prompt-key" ||
 		cfg.PromptRuntimeTransport != "responses" ||
@@ -543,6 +543,16 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.PromptStrictStructuredOutputs ||
 		cfg.NoticeBodyObjectStoreBodyLimitBytes != 4096 {
 		t.Fatalf("unexpected config: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvRejectsRetiredSupervisorPromptModel(t *testing.T) {
+	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected retired supervisor prompt model env to fail")
+	} else if !strings.Contains(err.Error(), "SUPERVISOR_PROMPT_MODEL is retired") {
+		t.Fatalf("error = %q, want retired supervisor prompt model error", err.Error())
 	}
 }
 

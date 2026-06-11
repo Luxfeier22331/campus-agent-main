@@ -23,7 +23,7 @@ func (s *Server) structuredQueryAuthorized(request *http.Request) bool {
 	if secret == "" {
 		return false
 	}
-	presented := strings.TrimSpace(request.Header.Get("x-supervisor-query-auth"))
+	presented := strings.TrimSpace(request.Header.Get("x-execution-query-auth"))
 	if presented == "" {
 		return false
 	}

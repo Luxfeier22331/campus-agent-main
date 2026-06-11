@@ -132,7 +132,7 @@ Current cancellation boundary:
 
 Current structured query runtime boundary:
 
-- Internal query routes require `x-supervisor-query-auth`.
+- Internal query routes require `x-execution-query-auth`.
 - Structured product serving gates for `campus_services` and `notice` are
   closed by default. `EXECUTION_CONTROL_OPEN_CAPABILITIES` is the Go-owned
   allowlist for opening those capabilities after eval / product admission

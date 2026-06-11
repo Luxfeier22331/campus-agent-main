@@ -118,7 +118,7 @@ updated: 2026-04-06
 
 用于：
 
-- `supervisor_unavailable`
+- `execution_runtime_unavailable`
 
 ### `503 Service Unavailable`
 
@@ -181,7 +181,7 @@ updated: 2026-04-06
 ### Dependency / Runtime
 
 - `dependency_not_ready`
-- `supervisor_unavailable`
+- `execution_runtime_unavailable`
 - `execution_timeout`
 - `internal_error`
 

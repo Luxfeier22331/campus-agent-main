@@ -145,7 +145,7 @@ Python calls Go through private internal routes:
 
 Required header:
 
-- `x-supervisor-query-auth: <EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET>`
+- `x-execution-query-auth: <EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET>`
 
 Request body:
 

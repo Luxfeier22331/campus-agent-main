@@ -200,7 +200,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         ):
             with self.subTest(key=key):
                 self.assertEqual(compose.count(f"      {key}"), 2)
-        self.assertEqual(compose.count("      SUPERVISOR_PROMPT_MODEL:"), 1)
+        self.assertEqual(compose.count("      EXECUTION_PROMPT_MODEL:"), 1)
         self.assertIn('PROMPT_RUNTIME_PROVIDER="${PROMPT_RUNTIME_PROVIDER:-mock-runtime}"', script)
         self.assertIn(
             'EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET="${EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET:-execution-control-internal-query-local-placeholder}"',

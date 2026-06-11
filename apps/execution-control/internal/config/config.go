@@ -68,7 +68,7 @@ type Config struct {
 	StructuredProjectionDatabaseURL     string
 	PromptRuntimeProvider               string
 	ProviderPricingPath                 string
-	SupervisorPromptModel               string
+	ExecutionPromptModel                string
 	AgentPromptModel                    string
 	PromptRuntimeAPIKey                 string
 	PromptRuntimeTransport              string
@@ -256,6 +256,9 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err := rejectRetiredPythonBridgeSettings(); err != nil {
 		return Config{}, err
 	}
+	if err := rejectRetiredSupervisorSettings(); err != nil {
+		return Config{}, err
+	}
 	if err := validateTemporalSettings(values, runtimeProfile); err != nil {
 		return Config{}, err
 	}
@@ -320,7 +323,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		StructuredProjectionDatabaseURL:     readStructuredProjectionDatabaseURL(),
 		PromptRuntimeProvider:               readString("PROMPT_RUNTIME_PROVIDER", ""),
 		ProviderPricingPath:                 strings.TrimSpace(values.ProviderPricingPath),
-		SupervisorPromptModel:               readPromptModel("SUPERVISOR_PROMPT_MODEL"),
+		ExecutionPromptModel:                readPromptModel("EXECUTION_PROMPT_MODEL"),
 		AgentPromptModel:                    readPromptModel("AGENT_PROMPT_MODEL"),
 		PromptRuntimeAPIKey:                 readString("PROMPT_RUNTIME_API_KEY", ""),
 		PromptRuntimeTransport:              defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
@@ -719,6 +722,18 @@ func rejectRetiredPythonBridgeSettings() error {
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
 			return fmt.Errorf("%s is retired; online answer execution uses Temporal RAG activities", name)
+		}
+	}
+	return nil
+}
+
+func rejectRetiredSupervisorSettings() error {
+	retired := []string{
+		"SUPERVISOR_PROMPT_MODEL",
+	}
+	for _, name := range retired {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return fmt.Errorf("%s is retired; use EXECUTION_PROMPT_MODEL", name)
 		}
 	}
 	return nil

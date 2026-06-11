@@ -417,7 +417,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://session.example/postgres",
-                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "EXECUTION_PROMPT_MODEL=gpt-5.4",
                         "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
@@ -494,7 +494,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:repo-secret@repo.example/postgres",
-                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "EXECUTION_PROMPT_MODEL=gpt-5.4",
                         "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
@@ -510,7 +510,7 @@ class DoctorEnvTest(unittest.TestCase):
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "QDRANT_URL": "https://qdrant.example.com",
                     "CAMPUS_SHARED_POSTGRES_URL": shell_url,
-                    "SUPERVISOR_PROMPT_MODEL": "gpt-5.4",
+                    "EXECUTION_PROMPT_MODEL": "gpt-5.4",
                     "AGENT_PROMPT_MODEL": "gpt-5.4-mini",
                 },
                 clear=True,
@@ -538,7 +538,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:pg-secret@127.0.0.1:5432/campus_agent",
-                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "EXECUTION_PROMPT_MODEL=gpt-5.4",
                         "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
