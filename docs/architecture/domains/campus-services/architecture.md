@@ -198,6 +198,29 @@ workflow。
 
 这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。
 
+## Operator-Maintained Source Channel
+
+`campus_services` 接受人工校对来源作为第一版合法 upstream，但它必须通过 app-api ops
+source channel 进入 release snapshot，不能绕过治理直接修改 serving read model。
+
+固定规则：
+
+- 导员口头通知、群消息、电话确认、现场确认与 operator curated 摘要可以作为
+  `source_attestation`。
+- app-api 只保存 operator-safe 摘要、校对说明、actor、时间窗与 release audit；不保存 raw chat、
+  截图、附件字节、OCR payload、bucket 或 object key。
+- 服务状态与班车临时变化必须落成 bounded `status_override` /
+  `transport_override`，并通过 preview/publish 生成 current-effective release snapshot。
+- preview 不写 release，不写 publish audit。
+- publish 必须原子写入 release snapshot 与 audit event。
+- runtime 仍保持 projection-backed structured truth；后续 typed lookup 读取 projection/read
+  model，不在 query time 扫描 source attestation、notice HTML 或群消息摘要。
+- 人工校对 channel 不表示 authenticated notice 自动消费、候选审阅、阻塞分析或发布任务证据已经成熟；
+  这些仍应作为独立 notice/data-plane 能力推进。
+
+HTTP contract 见 `docs/contracts/app-api-campus-services-ops-http.md`，数据边界见
+`docs/data/campus-services-ops-source-truth-schema.md`。
+
 ## Relation To Retrieval And Notice
 
 - `campus_services` 不并回 `knowledge`

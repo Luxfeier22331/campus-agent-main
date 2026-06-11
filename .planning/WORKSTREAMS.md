@@ -51,5 +51,11 @@ status as current project truth.
   workflow/run/event/terminal state.
 - Notice, navigation, and campus-services capabilities should continue as typed
   activity/tool contracts, not entry-level agents.
+- Campus services P1 now has an app-api operator-maintained source channel base:
+  manual attestations, bounded service-status / transport overrides, preview,
+  publish release snapshot, and audit events. Remaining gap is wiring the
+  published current-effective release into execution-control structured read
+  model/runtime proof; do not treat notice candidate review or release-task
+  evidence as mature enough for this lane.
 - Remote deploy worktrees must remain clean pinned deploy checkouts; secrets and
   runtime env belong to ops/Docker-managed config, not repo checkout state.

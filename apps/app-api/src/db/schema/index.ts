@@ -1,4 +1,11 @@
 export { account, appAuthSchema, session, user, verification } from "./auth";
+export {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
 export { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 export {
 	docsCollections,
@@ -9,6 +16,7 @@ export {
 } from "./docs";
 export {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -47,6 +55,13 @@ export {
 } from "./wechat-official-account";
 
 import { account, session, user, verification } from "./auth";
+import {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
 import { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 import {
 	docsCollections,
@@ -57,6 +72,7 @@ import {
 } from "./docs";
 import {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -99,6 +115,11 @@ export const appApiSchema = {
 	session,
 	account,
 	verification,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+	campusServicesOpsReleases,
+	campusServicesOpsAuditEvents,
 	conversations,
 	messageFeedback,
 	messages,
@@ -114,6 +135,7 @@ export const appApiSchema = {
 	officialWebTargetPageAttempts,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetReleaseGates,
+	officialWebRunAdmissionDecisions,
 	runHeartbeats,
 	runArtifacts,
 	pageObservations,

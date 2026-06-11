@@ -15,6 +15,10 @@ import {
 	buildAuthenticatedNoticeRunProcessingQueryService,
 	createPgAuthenticatedNoticeRunProcessingQueryStore,
 } from "../modules/authenticated-notice-run-processing-query";
+import {
+	buildCampusServicesOpsService,
+	createPgCampusServicesOpsStore,
+} from "../modules/campus-services-ops";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
@@ -106,6 +110,7 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.authenticatedNoticeRunProcessingCommandService ?? null;
 			let authenticatedNoticeRunProcessingQueryService =
 				input.dependencies.authenticatedNoticeRunProcessingQueryService ?? null;
+			let campusServicesOpsService = input.dependencies.campusServicesOpsService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
@@ -192,6 +197,17 @@ export function createRequestScopeFactory(input: {
 					store: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return chatConversationService;
+			}
+
+			function resolveCampusServicesOpsService() {
+				if (campusServicesOpsService) {
+					return campusServicesOpsService;
+				}
+
+				campusServicesOpsService = buildCampusServicesOpsService({
+					store: createPgCampusServicesOpsStore(input.env, { getDb: runtime.getFreshDb }),
+				});
+				return campusServicesOpsService;
 			}
 
 			function resolveChatCommandService() {
@@ -389,6 +405,7 @@ export function createRequestScopeFactory(input: {
 				resolveAuthenticatedNoticeProcessingQueryService,
 				resolveAuthenticatedNoticeRunProcessingCommandService,
 				resolveAuthenticatedNoticeRunProcessingQueryService,
+				resolveCampusServicesOpsService,
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDocsService,

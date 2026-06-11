@@ -10,6 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const routesDir = join(__dirname, "../src/app/routes");
 const routeFiles = [
 	"auth.ts",
+	"campus-services-ops.ts",
 	"chat.ts",
 	"docs.ts",
 	"internal.ts",

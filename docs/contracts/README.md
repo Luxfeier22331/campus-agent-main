@@ -21,6 +21,7 @@ updated: 2026-06-04
 
 ## Operator / Official Web contract
 
+- `app-api-campus-services-ops-http.md`
 - `app-api-authenticated-notice-processing-http.md`
 - `app-api-operator-observability-http.md`
 - `app-api-official-web-http.md`

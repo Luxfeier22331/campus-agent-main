@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 export const APP_API_MIGRATIONS_SCHEMA = "drizzle";
 export const APP_API_MIGRATIONS_TABLE = "app_api_migrations";
 export const APP_API_KNOWN_SCHEMAS = [
+	"campus_services_ops",
 	"docs",
 	"official_web",
 	"operator",

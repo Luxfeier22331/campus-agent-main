@@ -42,6 +42,7 @@ updated: 2026-05-01
 
 `apps/app-api` 当前运行时直接消费的逻辑分域：
 
+- `campus_services_ops.*`
 - `app_auth.*`
 - `chat.*`
 - `runtime.*`
@@ -52,6 +53,9 @@ updated: 2026-05-01
 
 补充说明：
 
+- `campus_services_ops.*` 是 `campus_services` 人工校对、override draft、release
+  snapshot 与 audit event 的 app-api owned ops schema；它不保存 raw notice/chat evidence，也不
+  替代 execution-control typed runtime read model。
 - `official_web` control-plane 引入的额外逻辑分域单独冻结在
   `docs/data/app-api-official-web-schema.md`
 - 本文继续只覆盖当前 browser-facing app surfaces、request projection 基线与 app-api
@@ -70,6 +74,7 @@ updated: 2026-05-01
 `apps/app-api` 的数据库代码组织固定为：
 
 - `app_auth.*`
+- `campus_services_ops.*`
 - `chat.*`
 - `runtime.*`
 - `operator.*`
@@ -79,6 +84,9 @@ updated: 2026-05-01
 
 `official_web` control-plane 落地时，可以在保持同一 migration pipeline 的前提下新增
 `official_web.*`；具体规则另见 `docs/data/app-api-official-web-schema.md`。
+
+`campus_services_ops.*` 的表级 shape 另见
+`docs/data/campus-services-ops-source-truth-schema.md`。
 
 它们共享：
 

@@ -1,4 +1,11 @@
 export {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
+export {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
@@ -7,6 +14,7 @@ export {
 } from "./docs";
 export {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -45,6 +53,13 @@ export {
 } from "./wechat-official-account";
 
 import {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
+import {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
@@ -53,6 +68,7 @@ import {
 } from "./docs";
 import {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -91,12 +107,18 @@ import {
 } from "./wechat-official-account";
 
 export const appApiOwnedSchema = {
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+	campusServicesOpsReleases,
+	campusServicesOpsAuditEvents,
 	crawlRuns,
 	officialWebTargetJobs,
 	officialWebTargetJobCandidates,
 	officialWebTargetPageAttempts,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetReleaseGates,
+	officialWebRunAdmissionDecisions,
 	pageObservations,
 	pageFreshness,
 	runHeartbeats,
