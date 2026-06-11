@@ -5,6 +5,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuditPage } from "../src/app/routes/audit-page";
+import { DiningSvgDemoPage } from "../src/app/routes/dining-svg-demo-page";
 import { DiningWorkspacePage } from "../src/app/routes/dining-workspace-page";
 import { HomePage } from "../src/app/routes/home-page";
 import { PlaceholderPage } from "../src/app/routes/placeholder-page";
@@ -38,24 +39,6 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 vi.mock("../src/features/dining/api", () => diningApiMock);
-vi.mock("../src/components/dining/floorplan-canvas", () => ({
-	FloorplanCanvas: ({
-		onSelectWindow,
-		windows,
-	}: {
-		onSelectWindow: (windowId: string) => void;
-		windows: Array<{ label: string; windowId: string }>;
-	}) => (
-		<div>
-			{windows.map((window) => (
-				<button key={window.windowId} onClick={() => onSelectWindow(window.windowId)} type="button">
-					{window.label}
-				</button>
-			))}
-		</div>
-	),
-}));
-
 const floorPayload = {
 	assignments: [
 		{
@@ -69,6 +52,8 @@ const floorPayload = {
 		floorId: "1f",
 		hallId: "haidian-canteen-1",
 		label: "海淀一食堂一层",
+		svgMarkup:
+			'<svg viewBox="0 0 720 420" role="img" aria-label="海淀一食堂一层示意图"><g data-dining-role="window" data-dining-anchor-id="window-01"><rect x="64" y="72" width="150" height="72" /><text x="84" y="112">一号窗口</text></g></svg>',
 		svgAssetUrl: "/assets/dining/haidian-canteen-1-1f.svg",
 	},
 	menuItems: [
@@ -119,6 +104,7 @@ const floorPayload = {
 			hallId: "haidian-canteen-1",
 			label: "一号窗口",
 			locationLabel: "入口左侧",
+			svgAnchorId: "window-01",
 			status: "active",
 			tags: ["热餐"],
 			windowId: "haidian-canteen-1:1f:window-01",
@@ -194,18 +180,37 @@ describe("campus ops routes", () => {
 		});
 	});
 
-	it("renders the operator dashboard", () => {
+	it("renders the backend modification surface dashboard", () => {
 		renderWithQueryClient(<HomePage />);
 
-		expect(screen.getByText("运营总览")).toBeInTheDocument();
-		expect(screen.getByText("食堂地图")).toBeInTheDocument();
+		expect(screen.getByText("后台修改面总览")).toBeInTheDocument();
+		expect(screen.getByRole("table", { name: "后台模块路由" })).toBeInTheDocument();
+		expect(screen.getByText("当前工作面")).toBeInTheDocument();
+		expect(screen.getByText("接入节奏")).toBeInTheDocument();
+
+		expect(screen.getByRole("link", { name: /食堂数据/ })).toHaveAttribute("href", "/dining");
+		expect(screen.getByRole("link", { name: /SVG 平面图/ })).toHaveAttribute(
+			"href",
+			"/dining/svg-demo",
+		);
+		expect(screen.getByRole("link", { name: /食堂发布/ })).toHaveAttribute(
+			"href",
+			"/dining/releases",
+		);
+		expect(screen.getByRole("link", { name: /食堂审计/ })).toHaveAttribute("href", "/dining/audit");
+		expect(screen.getByRole("link", { name: /地图与地点/ })).toHaveAttribute("href", "/map");
+		expect(screen.getByRole("link", { name: /反馈处理/ })).toHaveAttribute("href", "/feedback");
+		expect(screen.getByRole("link", { name: /知识源/ })).toHaveAttribute("href", "/knowledge");
+		expect(screen.getByRole("link", { name: /通知源/ })).toHaveAttribute("href", "/notices");
+		expect(screen.getByRole("link", { name: /校园服务/ })).toHaveAttribute("href", "/services");
 	});
 
 	it("loads dining workspace and submits window, assignment, and multiple menu offering edits", async () => {
 		renderWithQueryClient(<DiningWorkspacePage />);
 
 		expect(await screen.findByText("海淀一食堂")).toBeInTheDocument();
-		fireEvent.click(await screen.findByText("一号窗口"));
+		expect(await screen.findByRole("button", { name: "上传替换 SVG" })).toBeInTheDocument();
+		fireEvent.click(await screen.findByRole("button", { name: "SVG 区块 window-01" }));
 		expect(screen.getByDisplayValue("一号窗口")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("盖饭窗口")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("盖饭")).toBeInTheDocument();
@@ -294,9 +299,26 @@ describe("campus ops routes", () => {
 		expect(await screen.findByText("release.published")).toBeInTheDocument();
 	});
 
-	it("renders map and feedback placeholders as future modules", () => {
+	it("renders the standalone SVG floorplan demo without app-api data", async () => {
+		renderWithQueryClient(<DiningSvgDemoPage />);
+
+		expect(screen.getByText("SVG 平面图工作台")).toBeInTheDocument();
+		expect(screen.getByText("区块目录")).toBeInTheDocument();
+		expect(screen.getByText("平面图预览")).toBeInTheDocument();
+		expect(screen.getByText("绑定详情")).toBeInTheDocument();
+		expect(screen.getByText("发布检查")).toBeInTheDocument();
+		expect(screen.getByText("3/3 个窗口已绑定")).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "SVG 区块 window-01" })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "SVG 区块 window-02" }));
+		expect(screen.getByDisplayValue("window-02")).toBeInTheDocument();
+		expect(screen.getByDisplayValue("二号窗口")).toBeInTheDocument();
+		expect(screen.getByDisplayValue("面食窗口")).toBeInTheDocument();
+	});
+
+	it("renders placeholder pages as reserved backend modules", () => {
 		renderWithQueryClient(<PlaceholderPage title="地图运营" description="空间数据运营入口" />);
 
+		expect(screen.getByText("预留路由")).toBeInTheDocument();
 		expect(screen.getByText("地图运营")).toBeInTheDocument();
 		expect(screen.getByText("空间数据运营入口")).toBeInTheDocument();
 	});

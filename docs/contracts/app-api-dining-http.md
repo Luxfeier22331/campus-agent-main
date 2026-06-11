@@ -36,8 +36,8 @@ GET /api/dining/halls/:hallId/floors/:floorId
 
 - 没有 published release 时，`GET /api/dining/halls` 返回 `{"halls":[]}`。
 - 没有 published release 或 floor 不存在时，floor route 返回 typed `404`。
-- published snapshot 缺少 floor canvas、SVG asset URL、stall profile 或 menu item
-  时，route fail closed，不合成默认平面图、窗口、菜品名、价格或 tag。
+- published snapshot 缺少 sanitized SVG floorplan、SVG anchor binding、stall
+  profile 或 menu item 时，route fail closed，不合成默认平面图、窗口、菜品名、价格或 tag。
 - 响应不包含 draft、audit event、operator principal、source observation、raw DB
   row、service secret、auth row、cookie 或 token。
 - `removed` offering 不出现在学生端响应中。
@@ -57,7 +57,7 @@ GET /api/dining/halls/:hallId/floors/:floorId
       "name": "海淀一食堂",
       "floors": [
         {
-          "floorId": "1f",
+          "floorId": "haidian-canteen-1-1f",
           "label": "一层"
         }
       ],
@@ -89,13 +89,10 @@ GET /api/dining/halls/:hallId/floors/:floorId
 {
   "floor": {
     "hallId": "haidian-canteen-1",
-    "floorId": "1f",
+    "floorId": "haidian-canteen-1-1f",
     "label": "海淀一食堂一层",
     "svgAssetUrl": "/assets/dining/haidian-canteen-1-1f.svg",
-    "canvas": {
-      "width": 720,
-      "height": 420
-    }
+    "svgMarkup": "<svg ...>...</svg>"
   },
   "source": {
     "label": "校园食堂平面图整理",
@@ -107,14 +104,9 @@ GET /api/dining/halls/:hallId/floors/:floorId
       "windowId": "haidian-canteen-1:haidian-canteen-1-1f:window-01",
       "label": "盖饭窗口",
       "locationLabel": "入口左侧",
+      "svgAnchorId": "window-01",
       "status": "active",
       "tags": ["主食", "热餐"],
-      "geometry": {
-        "x": 64,
-        "y": 72,
-        "width": 150,
-        "height": 72
-      },
       "assignment": {
         "assignmentId": "assignment:haidian-canteen-1:haidian-canteen-1-1f:haidian-canteen-1:haidian-canteen-1-1f:window-01",
         "stallProfile": {
@@ -145,9 +137,11 @@ GET /api/dining/halls/:hallId/floors/:floorId
 
 字段规则：
 
-- `floor.canvas` 是 SVG underlay 与 window geometry overlay 的坐标系。
-- `floor.svgAssetUrl` 是学生端平面图 underlay asset。
-- `windows[].geometry` 使用 `floor.canvas` 坐标系，不是 campus navigation route graph。
+- `floor.svgMarkup` 是 app-api 返回的 sanitized inline SVG；如响应只返回
+  `svgAssetUrl`，该 asset 也必须是已 sanitize 的发布资产。
+- `windows[].svgAnchorId` 对应 SVG 中的 `data-dining-anchor-id`。
+- `svgAnchorId` 是 dining floorplan selection anchor，不是 campus navigation
+  route graph。
 - `windows[].assignment` 可为 `null`，表示该物理窗口当前没有 published 档口分配。
 - `offerings[]` 挂在 assignment 下，不挂在 physical window 下。
 - `saleStatus` 允许 `available`、`paused`、`seasonal`；`removed` 不返回。
@@ -158,12 +152,12 @@ GET /api/dining/halls/:hallId/floors/:floorId
 `campus-web` 可以：
 
 - 按校区、食堂、楼层、tag 和搜索词筛选已返回 projection。
-- 用 `svgAssetUrl` 渲染平面图 underlay，用 `geometry` 渲染窗口 overlay。
+- inline 渲染 sanitized SVG，并用 `svgAnchorId` 高亮/跳转到对应 SVG 区块。
 - 展示 `paused` 和 `seasonal` 状态。
 
 `campus-web` 不可以：
 
 - 读取 `/api/ops/dining/*`。
 - 在 contract 缺字段时合成窗口坐标、菜品、价格、标签或平面图。
-- 把 dining window geometry 当作 campus navigation spatial truth。
+- 把 dining SVG anchor 当作 campus navigation spatial truth。
 - 展示 draft、operator、audit 或 source observation 字段。

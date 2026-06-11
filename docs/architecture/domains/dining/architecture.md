@@ -62,6 +62,71 @@ The domain intentionally separates physical window, stall assignment, and menu o
 This allows operators to change a stall, move a menu, or update a price without
 rewriting physical space truth.
 
+## Floorplan SVG Architecture
+
+Dining floorplans use SVG as the canonical visual map asset for floor/window
+interaction. The SVG is not the dining business truth source.
+
+The intended technology shape is:
+
+```text
+app-api upload path -> fast-xml-parser validate/parse/build
+  -> dining-owned allowlist SVG sanitizer
+  -> anchor extraction / diff
+  -> draft floor SVG asset
+  -> release snapshot
+campus-web / campus-ops-web -> sanitized inline SVG renderer
+```
+
+Library choices:
+
+- `fast-xml-parser` is the server-side SVG XML parser/builder for anchor
+  extraction and safe SVG reconstruction.
+- The sanitizer is dining-owned allowlist logic. Generic SVG optimizers or
+  browser DOM sanitizers do not define the backend security boundary.
+- `svgo` is optional optimization only. It must preserve `id` and
+  `data-dining-*` attributes if introduced.
+- `@panzoom/panzoom` is optional for viewport pan/zoom. It is not required for
+  anchor binding.
+- `konva`, `react-konva`, `fabric`, `d3` and map/navigation frameworks are not
+  the primary dining floorplan technology. They are only appropriate if the
+  product explicitly becomes an online drawing editor or a navigation map.
+
+SVG assets must expose stable anchors:
+
+```xml
+<g data-dining-role="window" data-dining-anchor-id="window-01">
+  ...
+</g>
+```
+
+`data-dining-anchor-id` is the visual map anchor. Dining business objects bind
+to anchors in draft/release data:
+
+```text
+windowId <-> svgAnchorId
+```
+
+The SVG may contain visual structure, labels, entrances, seating areas and
+semantic roles. It must not contain menu, price, curated sale status, release
+status or operator-only data.
+
+`campus-web` and `campus-ops-web` render the sanitized SVG inline so they can
+select, highlight and center a specific anchor. Rendering SVG through `<img>` is
+insufficient for anchor-level interaction because the page cannot access the SVG
+DOM.
+
+`campus-ops-web` is a floorplan asset and binding workspace:
+
+- upload or replace a floor SVG
+- parse and list SVG anchors
+- preview sanitized inline SVG
+- select an anchor by clicking the SVG
+- bind the anchor to a dining window
+- edit window, stall profile, menu item and menu offering draft data
+- block publish when required window bindings reference missing or duplicate
+  anchors
+
 ## Student Projection
 
 Student-facing dining routes stay compact:
@@ -76,10 +141,10 @@ They return published hall summaries and floor projections suitable for
 
 - hall summary includes campus, floors, stall count, offering count, tags and
   price range label
-- floor projection includes SVG asset URL, canvas, windows, assignment, stall
-  profile, offerings and API-provided filter tags
-- window geometry is rendered as student-facing floorplan overlay, not as
-  navigation spatial truth
+- floor projection includes sanitized SVG asset/markup, SVG anchors, windows,
+  assignment, stall profile, offerings and API-provided filter tags
+- window `svgAnchorId` is rendered as student-facing floorplan selection, not
+  as navigation spatial truth
 - offerings are nested under assignment, not physical window
 
 They do not expose:
@@ -108,10 +173,11 @@ Ops routes expose draft objects to authorized operator principals only:
 Ops routes are command/query surfaces for `campus-ops-web`, not general browser
 APIs. They must remain out of `campus-web` and retired launcher surfaces.
 
-## Source Observation
+## Source Observation Boundary
 
-Source observation is a future input path for crawled, uploaded, or manually
-observed dining facts.
+Source observation is a reserved proposal/input boundary for crawled, uploaded,
+or manually observed dining facts. It is not part of the current implemented
+route surface.
 
 Observation lifecycle:
 
@@ -123,7 +189,9 @@ observation captured
 -> optional publish
 ```
 
-Observation does not become student-visible data until a release is explicitly published.
+Observation does not become student-visible data until a review/apply command
+exists and a release is explicitly published. The current worktree does not
+implement observation listing, apply, or reject routes.
 
 ## Navigation Boundary
 
@@ -147,7 +215,7 @@ Forbidden relationship:
 The initial release covers:
 
 - 海淀校区 1-5 食堂，每个单层
-- 丰台校区 汇贤、聚雅，每个两层
+- 丰台校区 荟贤、聚雅，每个两层
 - 每层至少 5 个窗口
 - 部分窗口包含多个 offering，用于验证一个档口多个菜品/价格的学生端与 ops 端体验
 
@@ -160,10 +228,18 @@ does not own dining floorplan/menu seed data.
 
 ## Non-Goals
 
-First batch does not include:
+Dining product scope does not include the following during the current planned
+development cycle:
 
 - merchant self-service
-- real-time queue or opening status
+- real-time queue or live opening status
 - payment/order integration
+
+`window.status` and `offering.saleStatus` are curated projection fields for the
+published dining view; they are not live shop operation, queue, inventory or
+opening-state signals.
+
+Current worktree scope also does not include:
+
 - automatic source observation apply
 - dining data quality evaluation pipeline

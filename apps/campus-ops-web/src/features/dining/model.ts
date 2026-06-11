@@ -21,6 +21,7 @@ export interface DiningWindow {
 	hallId: string;
 	label: string;
 	locationLabel: string;
+	svgAnchorId?: string;
 	status: "active" | "closed" | "maintenance";
 	tags: string[];
 	windowId: string;
@@ -63,6 +64,7 @@ export interface DiningOpsFloorResponse {
 		floorId: string;
 		hallId: string;
 		label: string;
+		svgMarkup?: string;
 		svgAssetUrl: string;
 	};
 	menuItems: DiningMenuItem[];

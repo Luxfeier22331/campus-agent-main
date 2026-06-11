@@ -10,6 +10,11 @@ const DiningWorkspacePage = lazy(() =>
 		default: module.DiningWorkspacePage,
 	})),
 );
+const DiningSvgDemoPage = lazy(() =>
+	import("./routes/dining-svg-demo-page").then((module) => ({
+		default: module.DiningSvgDemoPage,
+	})),
+);
 const HomePage = lazy(() =>
 	import("./routes/home-page").then((module) => ({ default: module.HomePage })),
 );
@@ -24,6 +29,23 @@ const MapPlaceholderPage = lazy(() =>
 const FeedbackPlaceholderPage = lazy(() =>
 	import("./routes/placeholder-page").then((module) => ({
 		default: () => <module.PlaceholderPage description="反馈分类与处理队列入口" title="反馈运营" />,
+	})),
+);
+const KnowledgePlaceholderPage = lazy(() =>
+	import("./routes/placeholder-page").then((module) => ({
+		default: () => <module.PlaceholderPage description="知识源治理与发布入口" title="知识源运营" />,
+	})),
+);
+const NoticesPlaceholderPage = lazy(() =>
+	import("./routes/placeholder-page").then((module) => ({
+		default: () => <module.PlaceholderPage description="通知源处理与发布入口" title="通知源运营" />,
+	})),
+);
+const ServicesPlaceholderPage = lazy(() =>
+	import("./routes/placeholder-page").then((module) => ({
+		default: () => (
+			<module.PlaceholderPage description="校园服务结构化投影入口" title="校园服务运营" />
+		),
 	})),
 );
 
@@ -50,6 +72,12 @@ const diningFloorRoute = createRoute({
 	path: "/dining/$hallId/$floorId",
 });
 
+const diningSvgDemoRoute = createRoute({
+	component: DiningSvgDemoPage,
+	getParentRoute: () => rootRoute,
+	path: "/dining/svg-demo",
+});
+
 const releasesRoute = createRoute({
 	component: ReleasesPage,
 	getParentRoute: () => rootRoute,
@@ -74,14 +102,36 @@ const feedbackRoute = createRoute({
 	path: "/feedback",
 });
 
+const knowledgeRoute = createRoute({
+	component: KnowledgePlaceholderPage,
+	getParentRoute: () => rootRoute,
+	path: "/knowledge",
+});
+
+const noticesRoute = createRoute({
+	component: NoticesPlaceholderPage,
+	getParentRoute: () => rootRoute,
+	path: "/notices",
+});
+
+const servicesRoute = createRoute({
+	component: ServicesPlaceholderPage,
+	getParentRoute: () => rootRoute,
+	path: "/services",
+});
+
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	diningRoute,
 	diningFloorRoute,
+	diningSvgDemoRoute,
 	releasesRoute,
 	auditRoute,
 	mapRoute,
 	feedbackRoute,
+	knowledgeRoute,
+	noticesRoute,
+	servicesRoute,
 ]);
 
 const router = createRouter({

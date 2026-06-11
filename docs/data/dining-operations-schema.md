@@ -72,6 +72,7 @@ Canonical fields:
 - `hall_id`
 - `label`
 - `svg_asset_url`
+- `sanitized_svg_markup`
 - `sort_key`
 - `created_at`
 - `updated_at`
@@ -87,6 +88,7 @@ Canonical fields:
 - `floor_id`
 - `label`
 - `location_label`
+- `svg_anchor_id`
 - `geometry_json`
 - `tags_json`
 - `status`
@@ -95,7 +97,10 @@ Canonical fields:
 
 Rules:
 
-- `geometry_json` is floorplan editor geometry
+- `svg_anchor_id` binds the window to a sanitized floor SVG
+  `data-dining-anchor-id`
+- `geometry_json` is legacy/editor geometry only and does not define the
+  student floorplan interaction model
 - window status does not imply menu availability
 - window truth is separate from stall profile and menu truth
 
@@ -168,7 +173,9 @@ Rules:
 
 ### `dining.source_observations`
 
-Future source observation/proposal table.
+Reserved source observation/proposal table. The table documents the storage
+boundary for possible collected or manually observed facts, but current route
+surface does not implement observation list/apply/reject commands.
 
 Canonical fields:
 
@@ -186,7 +193,7 @@ Rules:
 
 - observation does not mutate draft by itself
 - observation cannot directly update published snapshot
-- apply/reject must be explicit operator command when implemented
+- apply/reject, if accepted in a later scope, must be explicit operator command
 
 ### `dining.releases`
 
@@ -222,11 +229,11 @@ Rules:
   seed data
 - student projection uses window -> assignment -> stall profile -> menu offering
   -> menu item relations captured inside the snapshot
-- snapshot payload must include floor canvas and SVG asset URL for any
-  student-visible floor
+- snapshot payload must include sanitized SVG floorplan data and SVG anchor
+  bindings for any student-visible floor
 - missing floorplan, stall profile or menu item projection data is a data
   integrity error; readers must fail closed rather than synthesize placeholder
-  geometry, food names, prices or tags
+  SVG anchors, food names, prices or tags
 
 ### `dining.audit_events`
 
@@ -257,7 +264,7 @@ The initial release materializes existing dining seed projection into
 Initial scope:
 
 - 海淀校区：1-5 食堂，每个单层
-- 丰台校区：汇贤、聚雅，每个两层
+- 丰台校区：荟贤、聚雅，每个两层
 - 每层至少 5 个窗口
 - 每个窗口至少 1 个 offering；部分窗口包含 2-3 个 offering
 

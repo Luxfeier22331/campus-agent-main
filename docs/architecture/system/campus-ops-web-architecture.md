@@ -15,7 +15,7 @@ updated: 2026-06-09
 - 为什么运营工作台是独立 app
 - Worker shell 与 `app-api` proxy allowlist 如何分层
 - dining workspace 第一批承载哪些能力
-- map/feedback 在第一批为什么只是 future module shell
+- 非 dining 后台域在当前阶段为什么只是 reserved route shell
 
 它不负责：
 
@@ -65,28 +65,35 @@ First batch routes:
 - `/`
 - `/dining`
 - `/dining/:hallId/:floorId`
+- `/dining/svg-demo`
 - `/dining/releases`
 - `/dining/audit`
 - `/map`
 - `/feedback`
+- `/knowledge`
+- `/notices`
+- `/services`
 
-Dining is the only complete first-batch workspace. Map and feedback routes are
-placeholder shells to reserve product navigation, not implemented editors.
+Dining is the only complete first-batch workspace. Map, feedback, knowledge,
+notices and services routes are placeholder shells to reserve the backend
+modification surface information architecture, not implemented editors or API
+commitments.
 
 ## Dining Workspace
 
-First batch dining workspace contains:
+Current dining workspace contains:
 
 - left hall/floor tree
-- central floorplan canvas
-- window selection
+- central sanitized inline SVG floorplan preview
+- SVG anchor selection and binding
 - right detail editor for stall assignment and menu price
 - release list
 - audit list
 
-Konva/react-konva is used for indoor floorplan window selection and future
-shape editing. MapLibre is reserved for outdoor map operations when map ops
-matures.
+Dining floorplans use SVG upload/replace plus anchor binding. The workspace
+does not use Konva/react-konva as the primary floorplan technology and does not
+include freeform floorplan shape editing. MapLibre is reserved for outdoor map
+operations if map ops is later accepted.
 
 ## Forbidden Shapes
 

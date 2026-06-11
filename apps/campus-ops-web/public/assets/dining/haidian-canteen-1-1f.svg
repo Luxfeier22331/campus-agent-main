@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" role="img" aria-label="海淀一食堂一层示意图" data-dining-floor-id="haidian-canteen-1-1f">
+  <title>海淀一食堂一层示意图</title>
+  <desc>用于食堂工作台 demo 的 SVG 区块绑定示意图。</desc>
+  <g data-dining-role="background">
+    <rect x="28" y="28" width="664" height="364" rx="22" fill="#fff" stroke="#d7dee8" />
+    <rect x="112" y="210" width="496" height="82" rx="18" fill="#f4f7fa" />
+    <text x="360" y="258" text-anchor="middle" font-size="16" fill="#7b8797">就餐区</text>
+    <path d="M344 358h32" stroke="#9aa7b8" stroke-width="3" stroke-linecap="round" />
+    <text x="360" y="380" text-anchor="middle" font-size="13" fill="#7b8797">入口</text>
+  </g>
+  <g data-dining-role="window" data-dining-anchor-id="window-01">
+    <rect x="64" y="72" width="150" height="72" rx="8" fill="#fff" stroke="#b8c3d1" />
+    <text x="139" y="114" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">盖饭窗口</text>
+  </g>
+  <g data-dining-role="window" data-dining-anchor-id="window-02">
+    <rect x="244" y="72" width="150" height="72" rx="8" fill="#fff" stroke="#b8c3d1" />
+    <text x="319" y="114" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">面食窗口</text>
+  </g>
+  <g data-dining-role="window" data-dining-anchor-id="window-03">
+    <rect x="424" y="72" width="150" height="72" rx="8" fill="#fff" stroke="#b8c3d1" />
+    <text x="499" y="114" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">早餐窗口</text>
+  </g>
+  <g data-dining-role="window" data-dining-anchor-id="window-04">
+    <rect x="154" y="304" width="150" height="60" rx="8" fill="#fff" stroke="#b8c3d1" />
+    <text x="229" y="339" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">汤粥窗口</text>
+  </g>
+  <g data-dining-role="window" data-dining-anchor-id="window-05">
+    <rect x="416" y="304" width="150" height="60" rx="8" fill="#fff" stroke="#b8c3d1" />
+    <text x="491" y="339" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">饮品窗口</text>
+  </g>
+</svg>

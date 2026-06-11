@@ -36,7 +36,7 @@ operator browser
 -> campus-ops-web
 -> app-api /api/ops/dining/*
 -> dining draft tables
--> release preview / publish
+-> release preview / publish routes
 -> immutable release snapshot
 -> campus-web public /api/dining/* projection
 ```
@@ -51,7 +51,7 @@ operator browser
 - dining hall / floor tree
 - indoor floor window selection
 - window, assignment, menu item, menu offering forms
-- release preview / publish action surface
+- release publish action surface and release list
 - audit list presentation
 
 `campus-ops-web` 不负责：
@@ -76,12 +76,13 @@ Operator edits mutate draft objects. Student-facing routes read only the latest
 published snapshot. No query-time fallback to seed data, raw source observation,
 or draft tables is allowed.
 
-### 3. Source Observation 只能进入 proposal/review
+### 3. Source Observation 是保留边界，不是当前 route surface
 
-未来采集到的摊位、菜品或价格观测写入 `dining.source_observations`。
+`dining.source_observations` 保留为 proposal/review storage boundary，不进入当前计划开发周期的
+implemented route surface。
 
 Source observation 不得直接写入 draft 或 published projection。它必须经过 operator
-review，后续再通过 explicit apply/reject command 进入 draft 或终止。
+review；如果后续 scope 接受 apply/reject command，它也只能进入 draft 或终止，不能直接发布。
 
 ### 4. Dining Truth 不等于 Navigation Spatial Truth
 
@@ -103,10 +104,16 @@ graph truth。
 
 ## 非目标
 
-本 ADR 不决定：
+以下不进入当前计划开发周期的 campus ops / dining 产品范围：
 
 - 商户自助后台
 - 实时排队、营业状态、支付或订单系统
 - 采集自动覆盖线上数据
+
+`dining.windows.status` 与 `dining.menu_offerings.sale_status` 只表示人工维护后发布的
+食堂展示投影，不表示实时营业、库存、排队、商户经营状态或订单状态。
+
+本 ADR 也不决定：
+
 - map/feedback 完整运营模块
 - MediaWiki、browser account shell 或 OAuth federation 行为

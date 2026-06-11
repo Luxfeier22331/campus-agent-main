@@ -7,9 +7,16 @@ updated: 2026-06-08
 
 # MUC Campus Q&A Frontend Design
 
-This directory stores the accepted frontend design input package for the MUC
-Campus Q&A surface. It is a design reference, not runtime topology, deployment
-truth, or active implementation status.
+This directory stores the frontend design input package for the MUC Campus Q&A
+surface. It is a design reference, not runtime topology, deployment truth,
+active implementation status, or the current dining feature contract.
+
+For dining behavior and scope, the current source of truth is:
+
+- `docs/architecture/domains/dining/architecture.md`
+- `docs/contracts/app-api-dining-http.md`
+- `docs/contracts/app-api-dining-ops-http.md`
+- `docs/data/dining-operations-schema.md`
 
 ## Scope
 
@@ -48,8 +55,9 @@ floorplan, and feedback are supporting pages around the Q&A experience.
 
 ## Implementation Rules
 
-- Treat `design-map/muc_campus_qa_design_map_v1_3.json` as the design
-  acceptance map for included and excluded UI scope.
+- Treat `design-map/muc_campus_qa_design_map_v1_3.json` as historical design
+  input for included and excluded UI scope. It does not override current
+  dining contracts or implemented workspace behavior.
 - Use the v1.3.1 token files as the implementation token source; avoid
   hardcoded component state values when a token exists.
 - Do not read the Wrangler example as an app deployment architecture decision.

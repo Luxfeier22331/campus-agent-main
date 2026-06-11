@@ -26,10 +26,14 @@ const FORWARDED_HEADERS = ["accept", "content-type", "cookie", "x-trace-id"] as 
 const SHELL_EXACT_PATHS = new Set([
 	"/",
 	"/dining",
+	"/dining/svg-demo",
 	"/dining/releases",
 	"/dining/audit",
 	"/map",
 	"/feedback",
+	"/knowledge",
+	"/notices",
+	"/services",
 ]);
 const SHELL_PREFIXES = ["/dining/"] as const;
 const VITE_DEV_ASSET_PREFIXES = [

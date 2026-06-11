@@ -3,7 +3,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { FloorplanCanvas } from "../../components/dining/floorplan-canvas";
+import { SvgFloorplanWorkspace } from "../../components/dining/svg-floorplan-workspace";
 import {
 	assignDiningWindow,
 	createDiningMenuItem,
@@ -87,9 +87,11 @@ export function DiningWorkspacePage() {
 					</span>
 				</div>
 				{floorQuery.data ? (
-					<FloorplanCanvas
+					<SvgFloorplanWorkspace
 						onSelectWindow={setSelectedWindowId}
 						selectedWindowId={selectedWindowId}
+						svgAssetUrl={floorQuery.data.floor.svgAssetUrl}
+						svgMarkup={floorQuery.data.floor.svgMarkup}
 						windows={floorQuery.data.windows}
 					/>
 				) : (

@@ -349,7 +349,7 @@ export const INITIAL_DINING_HALL_SEEDS: InitialDiningHallSeed[] = [
 			]),
 		],
 		hallId: "fengtai-huixian-canteen",
-		name: "汇贤食堂",
+		name: "荟贤食堂",
 	},
 	{
 		campus: "丰台校区",

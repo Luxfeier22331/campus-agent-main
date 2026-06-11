@@ -77,7 +77,18 @@ describe("campus ops worker boundary", () => {
 	});
 
 	it("serves registered operator shell routes", async () => {
-		for (const path of ["/", "/dining", "/dining/releases", "/dining/audit", "/map", "/feedback"]) {
+		for (const path of [
+			"/",
+			"/dining",
+			"/dining/svg-demo",
+			"/dining/releases",
+			"/dining/audit",
+			"/map",
+			"/feedback",
+			"/knowledge",
+			"/notices",
+			"/services",
+		]) {
 			const response = await worker.fetch(
 				new Request(`https://ops.mucwiki-edge.link${path}`, {
 					headers: { accept: "text/html" },

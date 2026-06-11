@@ -17,7 +17,7 @@ updated: 2026-06-08
 - `docs/architecture/domains/dining/architecture.md`
 
 本文只把当前已实现 route 写入 implemented endpoint。Source observation 的 apply/reject
-语义在本文冻结为 future contract，不进入当前 implemented route inventory。
+语义只保留为边界说明，不进入当前计划开发周期的 route inventory。
 
 ## Implemented Endpoints
 
@@ -40,6 +40,35 @@ GET    /api/ops/dining/audit-events
 
 ## Object Model
 
+## SVG Floorplan Technology
+
+Dining floorplans are SVG assets with stable semantic anchors. `app-api` owns
+upload-time SVG validation, allowlist sanitization and anchor extraction. The
+frontend renders only sanitized inline SVG returned by `app-api` or published as
+a trusted asset.
+
+Selected libraries:
+
+- `fast-xml-parser` for backend SVG validate/parse/build and anchor extraction
+- dining-owned allowlist sanitizer for the backend security boundary
+- optional `svgo` for optimization only, with `id` and `data-dining-*`
+  attributes preserved
+- optional `@panzoom/panzoom` for pan/zoom interaction
+
+Not selected as the primary floorplan technology: `konva`, `react-konva`,
+`fabric`, `d3`, MapLibre or indoor-navigation frameworks.
+
+Allowed anchor shape:
+
+```xml
+<g data-dining-role="window" data-dining-anchor-id="window-01">
+  ...
+</g>
+```
+
+`data-dining-anchor-id` is the SVG visual anchor. `windowId` remains the dining
+business object id. The binding lives in API data as `window.svgAnchorId`.
+
 ### Hall
 
 ```json
@@ -47,7 +76,7 @@ GET    /api/ops/dining/audit-events
   "campus": "海淀校区",
   "floors": [
     {
-      "floorId": "1f",
+      "floorId": "haidian-canteen-1-1f",
       "label": "一层",
       "svgAssetUrl": "/assets/dining/haidian-canteen-1-1f.svg"
     }
@@ -62,18 +91,19 @@ GET    /api/ops/dining/audit-events
 
 ```json
 {
-  "floorId": "1f",
-  "geometry": { "height": 72, "width": 150, "x": 64, "y": 72 },
+  "floorId": "haidian-canteen-1-1f",
   "hallId": "haidian-canteen-1",
   "label": "热餐窗口",
   "locationLabel": "入口左侧",
+  "svgAnchorId": "window-01",
   "status": "active",
   "tags": ["热餐"],
   "windowId": "haidian-canteen-1:haidian-canteen-1-1f:window-01"
 }
 ```
 
-`geometry` 是 indoor floorplan editor geometry，不是 navigation route graph。
+`svgAnchorId` binds the dining window to a sanitized SVG anchor. It is not
+navigation route graph truth.
 
 ### Assignment
 
@@ -142,9 +172,10 @@ GET    /api/ops/dining/audit-events
 {
   "assignments": [],
   "floor": {
-    "floorId": "1f",
+    "floorId": "haidian-canteen-1-1f",
     "hallId": "haidian-canteen-1",
     "label": "海淀一食堂一层",
+    "svgMarkup": "<svg ...>...</svg>",
     "svgAssetUrl": "/assets/dining/haidian-canteen-1-1f.svg"
   },
   "menuItems": [],
@@ -167,9 +198,9 @@ GET    /api/ops/dining/audit-events
 
 ```json
 {
-  "geometry": { "height": 72, "width": 150, "x": 64, "y": 72 },
   "label": "南侧热餐窗口",
   "locationLabel": "南侧 01",
+  "svgAnchorId": "window-01",
   "status": "maintenance",
   "tags": ["热餐", "维护中"]
 }
@@ -342,9 +373,9 @@ GET    /api/ops/dining/audit-events
 
 按当前 draft 生成新的 published snapshot。当前实现不允许 best-effort 部分发布。
 
-## Source Observations Future Contract
+## Source Observations Reserved Boundary
 
-以下 route 是 future contract，不是当前 implemented endpoint：
+以下 route 不是当前 implemented endpoint，也不是当前计划开发周期承诺：
 
 ```http
 GET  /api/ops/dining/source-observations
