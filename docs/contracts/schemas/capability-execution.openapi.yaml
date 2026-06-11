@@ -794,7 +794,6 @@ components:
         - actor
         - context
         - version_query
-        - runtime_decisions
       properties:
         execution_contract_version:
           const: capability_execution_v1
@@ -823,11 +822,19 @@ components:
         actor:
           $ref: "#/components/schemas/ActorContext"
         context:
-          $ref: "#/components/schemas/SafeObject"
+          $ref: "#/components/schemas/ExecutionRequestContext"
         version_query:
           $ref: "#/components/schemas/VersionQuery"
         runtime_decisions:
           $ref: "#/components/schemas/RuntimeDecisions"
+          deprecated: true
+          description: Historical bridge planning artifact. Active plan.route does not consume this as planning input.
+    ExecutionRequestContext:
+      type: object
+      additionalProperties: true
+      not:
+        required:
+          - profile_memory
     WorkflowTraceSummary:
       type: object
       additionalProperties: false

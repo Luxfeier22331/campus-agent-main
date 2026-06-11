@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	createExecutionRuntimeFromCapabilityClient,
 	type CapabilityExecutionClient,
 	type ChatCommandStore,
 	createCommandStore,
@@ -44,7 +45,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				...store,
 				getAbuseControlState,
 			} as ChatCommandStore,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			telemetry,
 		});
 
@@ -107,7 +108,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			conversationStore,
 			store,
 			telemetry,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockRejectedValue(
 					new ExecutionControlTransportError({
 						code: "execution_timeout",
@@ -116,7 +117,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 						status: 504,
 					}),
 				),
-			},
+			}),
 		});
 
 		const response = await service.submit({
@@ -174,9 +175,9 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			conversationStore,
 			store,
 			telemetry,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockRejectedValue(new Error("untyped execution failure")),
-			},
+			}),
 		});
 
 		const response = await service.submit({
@@ -291,7 +292,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		const replay = await service.submit({
@@ -361,7 +362,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		const response = await service.submit({
@@ -422,7 +423,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		const response = await service.submit({
@@ -491,9 +492,9 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn(),
-			},
+			}),
 		});
 
 		const response = await service.submit({

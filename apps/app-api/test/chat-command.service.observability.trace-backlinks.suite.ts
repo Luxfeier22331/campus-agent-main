@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	createExecutionRuntimeFromCapabilityClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
@@ -25,7 +26,7 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: {
@@ -39,7 +40,7 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 					status: "error",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 			telemetry,
 			traceBacklinkRecorder,
 		});
@@ -89,7 +90,7 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
@@ -99,7 +100,7 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 					status: "completed",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 			traceBacklinkRecorder,
 		});
 

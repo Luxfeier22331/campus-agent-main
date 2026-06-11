@@ -35,7 +35,6 @@ describe("chat command durable runtime cutover", () => {
 			conversationStore,
 			requireExecutionRuntime: true,
 			store,
-			supervisor,
 		});
 
 		await expect(
@@ -73,7 +72,6 @@ describe("chat command durable runtime cutover", () => {
 			conversationStore,
 			requireExecutionRuntime: true,
 			store,
-			supervisor,
 		});
 
 		await expect(async () => {
@@ -129,7 +127,6 @@ describe("chat command durable runtime cutover", () => {
 			conversationStore,
 			requireExecutionRuntime: true,
 			store,
-			supervisor,
 		});
 
 		await expect(
@@ -234,7 +231,6 @@ describe("chat command durable runtime cutover", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 			telemetry,
 		});
 
@@ -410,7 +406,6 @@ describe("chat command durable runtime cutover", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 			telemetry,
 		});
 
@@ -450,6 +445,72 @@ describe("chat command durable runtime cutover", () => {
 		expect(response.answer.result).toMatchObject({
 			kind: "answer",
 			text: "图书馆开放状态会由校园服务能力查询。",
+		});
+	});
+
+	it("keeps omitted requested capability unset for plan.route instead of defaulting to knowledge", async () => {
+		const { store } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue(
+				durableRun({
+					lane: "default",
+					requestedCapability: "",
+					selectedCapability: "",
+				}),
+			),
+			getRun: vi.fn(),
+			listRunEvents: vi.fn().mockResolvedValue([
+				durableEvent({
+					eventId: "event-final",
+					eventType: "finalization.completed",
+					payload: {
+						request_id: "req_0001",
+						response: {
+							...answerResponsePayload("图书馆在海淀校区主教学区西侧。"),
+							selected_capability: "navigation",
+						},
+						trace_id: "trace_0001",
+					},
+					sequence: 1,
+				}),
+			]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "图书馆在哪里",
+			},
+			principal: createPrincipal(),
+			surface: "public_chat_web",
+		});
+
+		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
+		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[0];
+		expect(createRunInput).toMatchObject({
+			lane: "default",
+			requestedCapability: null,
+			selectedCapability: null,
+		});
+		const metadata = createRunInput?.metadata as Record<string, unknown>;
+		const executionPayload = metadata.execution_payload as Record<string, unknown>;
+		expect(executionPayload).not.toHaveProperty("effective_capability");
+		expect(executionPayload).not.toHaveProperty("requested_capability");
+		expect(executionPayload).toMatchObject({
+			lane: "default",
+			user_goal: "图书馆在哪里",
 		});
 	});
 
@@ -501,7 +562,6 @@ describe("chat command durable runtime cutover", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 			telemetry,
 		});
 

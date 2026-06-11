@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	createExecutionRuntimeFromCapabilityClient,
 	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
@@ -38,7 +39,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			telemetry,
 		});
 		if (!service.submitStream) {
@@ -136,7 +137,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			telemetry,
 		});
 		if (!service.submitStream) {
@@ -202,7 +203,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-04-11T09:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			telemetry,
 		});
 

@@ -23,7 +23,6 @@ describe("chat command service", () => {
 			now: () => new Date("2026-06-06T00:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: legacySupervisor,
 		});
 
 		await expect(

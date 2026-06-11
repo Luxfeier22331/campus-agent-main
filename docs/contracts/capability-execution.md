@@ -277,9 +277,8 @@ product/control-plane endpoint。
 调用规则：
 
 - 仅允许 repo-owned trusted internal runtime caller 使用
-- 当前实现请求头仍使用 `x-supervisor-query-auth`；这是 legacy header 名称，不是目标态
-  `supervisor` concept。后续 contract rename 应改为 execution/query 语义，并同步所有
-  internal callers，不新增 alias。
+- 当前实现请求头使用 `x-execution-query-auth`，语义为 execution-control owned internal
+  query authorization；不接受旧 supervisor header alias。
 - JSON 命名保持 `snake_case`
 - response body 对齐对应 tool result contract 的 safe typed summary
 - runtime 只读 configured projection / normalized truth；不得 query-time 回扫 raw

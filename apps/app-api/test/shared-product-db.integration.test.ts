@@ -13,6 +13,7 @@ import type {
 	CapabilityExecutionResponse,
 } from "../src/modules/integration/execution-control";
 import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
+import { createExecutionRuntimeFromCapabilityClient } from "./chat-command.service.test-support";
 import {
 	buildSharedDbIntegrationEnv,
 	convergeSharedDbForAppApiIntegration,
@@ -303,7 +304,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 			chatCommandService: buildChatCommandService({
 				conversationStore: createPgChatConversationStore(env),
 				store: createPgChatCommandStore(env),
-				supervisor,
+				executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			}),
 		});
 

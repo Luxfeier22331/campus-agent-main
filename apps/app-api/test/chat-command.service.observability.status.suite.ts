@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	createExecutionRuntimeFromCapabilityClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
@@ -21,7 +22,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: clarificationConversationStore.store,
 			store: clarificationStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: null,
@@ -31,14 +32,14 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "needs_clarification",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 		const noAnswerService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: noAnswerConversationStore.store,
 			store: noAnswerStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "当前没有足够依据回答这个问题。",
 					error: null,
@@ -48,7 +49,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "no_answer",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		const clarification = await clarificationService.submit({
@@ -106,7 +107,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: clarificationStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "请说明班车方向。当前可查询：丰台至海淀通勤班车、海淀至丰台通勤班车。",
 					error: null,
@@ -126,14 +127,14 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "needs_clarification",
 					traceId: "trace_guardrail_01",
 				}),
-			},
+			}),
 		});
 		const noAnswerService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: noAnswerStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认招生办联系方式。",
 					error: null,
@@ -150,14 +151,14 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "no_answer",
 					traceId: "trace_guardrail_02",
 				}),
-			},
+			}),
 		});
 		const approvalService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: approvalStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
 						"不能代你预约、提交、打电话或发邮件；如需继续，请先进入对应官方入口完成人工确认。",
@@ -174,14 +175,14 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "approval_required",
 					traceId: "trace_guardrail_03",
 				}),
-			},
+			}),
 		});
 		const rejectedService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: rejectedStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: {
@@ -201,7 +202,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "rejected",
 					traceId: "trace_guardrail_04",
 				}),
-			},
+			}),
 		});
 
 		const clarification = await clarificationService.submit({
@@ -298,7 +299,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: approvalStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "该请求涉及需要人工确认的操作，必须先经过审批。",
 					error: null,
@@ -308,7 +309,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "approval_required",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 			telemetry: approvalTelemetry,
 		});
 		const rejectedService = buildChatCommandService({
@@ -316,7 +317,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store: rejectedStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: {
@@ -330,7 +331,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "rejected",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 			telemetry: rejectedTelemetry,
 		});
 

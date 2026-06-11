@@ -40,8 +40,8 @@ export interface ChatCommandResponse {
 		conversation: ReturnType<typeof import("../../chat").toConversationResponse>;
 		result: ChatCommandResult;
 	};
+	execution?: CapabilityExecutionResponse;
 	requestId: string;
-	supervisor?: CapabilityExecutionResponse;
 	traceId: string;
 }
 
@@ -108,7 +108,6 @@ export interface ChatCommandServiceDependencies {
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;
 	executionRuntime?: ExecutionControlRuntimeClient;
-	supervisor?: unknown;
 	telemetry?: AppTelemetry;
 	traceBacklinkRecorder?: {
 		record(input: {

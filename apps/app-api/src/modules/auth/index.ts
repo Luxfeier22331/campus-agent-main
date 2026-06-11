@@ -13,6 +13,7 @@ export {
 } from "./auth";
 export type {
 	AppPermissions,
+	AppPrincipalType,
 	AppPrincipalPayload,
 	AppSessionPayload,
 	AuthorizationProjectionSource,

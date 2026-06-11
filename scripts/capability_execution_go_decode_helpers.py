@@ -74,11 +74,16 @@ func (wire CapabilityExecutionRequestWire) Validate() error {
 \tif wire.Context == nil {
 \t\treturn fmt.Errorf("context is required")
 \t}
+\tif _, ok := wire.Context["profile_memory"]; ok {
+\t\treturn fmt.Errorf("context.profile_memory is not an active online recall field")
+\t}
 \tif wire.VersionQuery == nil {
 \t\treturn fmt.Errorf("version_query is required")
 \t}
-\tif err := wire.RuntimeDecisions.Validate(); err != nil {
-\t\treturn fmt.Errorf("runtime_decisions: %w", err)
+\tif wire.RuntimeDecisions != nil {
+\t\tif err := wire.RuntimeDecisions.Validate(); err != nil {
+\t\t\treturn fmt.Errorf("runtime_decisions: %w", err)
+\t\t}
 \t}
 \treturn nil
 }

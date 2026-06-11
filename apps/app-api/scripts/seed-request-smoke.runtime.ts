@@ -7,6 +7,10 @@ import { createPgChatConversationStore } from "../src/modules/chat";
 import type {
 	CapabilityExecutionInput,
 	CapabilityExecutionResponse,
+	ExecutionControlRun,
+	ExecutionControlRunCreateInput,
+	ExecutionControlRunEvent,
+	ExecutionControlRuntimeClient,
 	RequestedScope,
 } from "../src/modules/integration";
 import {
@@ -189,6 +193,153 @@ function buildScriptedSupervisor(
 	};
 }
 
+function buildScriptedExecutionRuntime(
+	scenarios: RequestSmokeSeedScenario[],
+): ExecutionControlRuntimeClient {
+	const scripted = buildScriptedSupervisor(scenarios);
+	const eventsByRun = new Map<string, ExecutionControlRunEvent[]>();
+	const runsById = new Map<string, ExecutionControlRun>();
+	return {
+		async cancelRun(input) {
+			const existing = runsById.get(input.runId);
+			if (!existing) {
+				throw new Error(`Unknown seeded durable run: ${input.runId}`);
+			}
+			const cancelled = {
+				...existing,
+				completedAt: existing.updatedAt,
+				status: "cancelled",
+				terminalReason: input.reason,
+			};
+			runsById.set(input.runId, cancelled);
+			return cancelled;
+		},
+		async createRun(input) {
+			const executionInput = capabilityExecutionInputFromRunCreate(input);
+			const response = await scripted.execute(executionInput);
+			const run = durableRunFromCreateInput(input);
+			runsById.set(input.runId, run);
+			eventsByRun.set(input.runId, [finalizationEventFromResponse(input, response)]);
+			return run;
+		},
+		async getRun(input) {
+			const existing = runsById.get(input.runId);
+			if (!existing) {
+				throw new Error(`Unknown seeded durable run: ${input.runId}`);
+			}
+			return existing;
+		},
+		async listRunEvents(input) {
+			return (eventsByRun.get(input.runId) ?? []).filter(
+				(event) => event.sequence > (input.afterSequence ?? 0),
+			);
+		},
+		async listRunSteps() {
+			return {
+				attempts: [],
+				results: [],
+				steps: [],
+			};
+		},
+	};
+}
+
+function capabilityExecutionInputFromRunCreate(
+	input: ExecutionControlRunCreateInput,
+): CapabilityExecutionInput {
+	const metadata = objectOrThrow(input.metadata, "execution run metadata");
+	const payload = objectOrThrow(metadata.execution_payload, "execution payload");
+	return {
+		context: payload.context as CapabilityExecutionInput["context"],
+		conversationId: stringValue(payload.conversation_id) ?? input.conversationId,
+		requestId: stringValue(payload.request_id) ?? input.requestId,
+		requestedCapability: stringValue(payload.requested_capability),
+		requestedScope: payload.requested_scope as RequestedScope | null,
+		safetyIdentifier: stringValue(payload.safety_identifier),
+		surface: input.surface,
+		traceHeaders: input.traceHeaders,
+		traceId: traceIdFromPayload(payload) ?? input.traceId ?? "",
+		userGoal: stringValue(payload.user_goal) ?? "",
+		versionQuery: payload.version_query as CapabilityExecutionInput["versionQuery"],
+	};
+}
+
+function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): ExecutionControlRun {
+	const now = new Date().toISOString();
+	return {
+		admittedAt: "",
+		completedAt: "",
+		conversationId: input.conversationId,
+		createdAt: now,
+		failCloseReason: "",
+		finalResponseRef: "",
+		lane: input.lane,
+		ownerUserId: input.ownerUserId,
+		requestId: input.requestId,
+		requestedCapability: input.requestedCapability ?? "",
+		runId: input.runId,
+		selectedCapability: input.selectedCapability ?? "",
+		startedAt: "",
+		status: "queued",
+		streamingStartedAt: "",
+		surface: input.surface,
+		terminalReason: "",
+		traceId: input.traceId ?? "",
+		turnId: input.turnId,
+		updatedAt: now,
+		workflowPlanRef: "",
+	};
+}
+
+function finalizationEventFromResponse(
+	input: ExecutionControlRunCreateInput,
+	response: CapabilityExecutionResponse,
+): ExecutionControlRunEvent {
+	return {
+		conversationId: input.conversationId,
+		eventId: `${input.runId}:finalization`,
+		eventType: "finalization.completed",
+		occurredAt: new Date().toISOString(),
+		payload: {
+			request_id: input.requestId,
+			response: {
+				answer_text: response.answerText,
+				confidence: "high",
+				error: response.error,
+				follow_up_question: response.followUpQuestion,
+				result: response.result,
+				selected_capability: response.selectedCapability,
+				status: response.status,
+				trace_id: response.traceId,
+			},
+			trace_id: response.traceId,
+		},
+		payloadSchemaVersion: "run-event-v1",
+		runId: input.runId,
+		sequence: 1,
+		visibility: "browser",
+	};
+}
+
+function objectOrThrow(value: unknown, label: string): Record<string, unknown> {
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		return value as Record<string, unknown>;
+	}
+	throw new Error(`${label} must be an object.`);
+}
+
+function stringValue(value: unknown): string | null {
+	return typeof value === "string" && value.trim() ? value : null;
+}
+
+function traceIdFromPayload(payload: Record<string, unknown>): string | null {
+	const trace = payload.trace;
+	if (!(trace && typeof trace === "object" && !Array.isArray(trace))) {
+		return null;
+	}
+	return stringValue((trace as Record<string, unknown>).trace_id);
+}
+
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
 	const argsModule = await import("./seed-request-smoke.args");
 	const args = argsModule.parseRequestSmokeSeedArgs(argv);
@@ -215,7 +366,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 			chatCommandService: buildChatCommandService({
 				conversationStore: createPgChatConversationStore(runtimeEnv),
 				store: createPgChatCommandStore(runtimeEnv),
-				supervisor: buildScriptedSupervisor(scenarios),
+				executionRuntime: buildScriptedExecutionRuntime(scenarios),
 			}),
 		});
 		const appFetch = (request: Request) => app.fetch(request);

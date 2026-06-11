@@ -17,6 +17,54 @@ func TestDecodeCapabilityExecutionRequestWireJSONAcceptsCanonicalFixture(t *test
 	if wire.ExecutionContractVersion != ExecutionContractVersion {
 		t.Fatalf("execution contract version = %q, want %q", wire.ExecutionContractVersion, ExecutionContractVersion)
 	}
+	if wire.Context == nil {
+		t.Fatal("context is nil")
+	}
+}
+
+func TestDecodeCapabilityExecutionRequestWireJSONAcceptsRequestWithoutRuntimeDecisions(t *testing.T) {
+	payload := canonicalCapabilityExecutionRequestPayload()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	wire, err := DecodeCapabilityExecutionRequestWireJSON(body)
+	if err != nil {
+		t.Fatalf("DecodeCapabilityExecutionRequestWireJSON returned error: %v", err)
+	}
+	if wire.RequestID != "req-contract-runtime-neutral" {
+		t.Fatalf("request id = %q", wire.RequestID)
+	}
+}
+
+func TestDecodeCapabilityExecutionRequestWireJSONRejectsContextProfileMemory(t *testing.T) {
+	var payload map[string]any
+	if err := json.Unmarshal(readContractFixture(t, "capability_execution_delegate.valid.json"), &payload); err != nil {
+		t.Fatalf("decode fixture: %v", err)
+	}
+	payload["context"] = map[string]any{
+		"profile_memory": []map[string]any{{
+			"key":   "answer_style",
+			"value": "先给结论",
+		}},
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := DecodeCapabilityExecutionRequestWireJSON(body); err == nil {
+		t.Fatal("expected context.profile_memory to be rejected")
+	}
+}
+
+func TestDecodeCapabilityExecutionLegacyRuntimeDecisionsWireStillValidatesWhenPresent(t *testing.T) {
+	payload := readContractFixture(t, "capability_execution_delegate.valid.json")
+	wire, err := DecodeCapabilityExecutionRequestWireJSON(payload)
+	if err != nil {
+		t.Fatalf("DecodeCapabilityExecutionRequestWireJSON returned error: %v", err)
+	}
 	if wire.RuntimeDecisions.RuntimeDecisionSummary.PlanningOutcome != "preplanned" {
 		t.Fatalf(
 			"planning outcome = %q, want preplanned",
@@ -31,6 +79,36 @@ func TestDecodeCapabilityExecutionRequestWireJSONAcceptsCanonicalFixture(t *test
 			"workflow mode = %q, want single_step",
 			wire.RuntimeDecisions.WorkflowPlan.WorkflowMode,
 		)
+	}
+}
+
+func canonicalCapabilityExecutionRequestPayload() map[string]any {
+	return map[string]any{
+		"execution_contract_version": "capability_execution_v1",
+		"response_contract":          "execution_finalization_response_v1",
+		"user_goal":                  "学生手册请假制度怎么规定？",
+		"conversation_id":            "conv-contract-runtime-neutral",
+		"request_id":                 "req-contract-runtime-neutral",
+		"safety_identifier":          nil,
+		"trace":                      map[string]any{"trace_id": "trace-contract-runtime-neutral"},
+		"actor": map[string]any{
+			"user_id":        "student@example.edu",
+			"principal_id":   "principal-contract-runtime-neutral",
+			"principal_type": "student",
+			"roles":          []string{"student"},
+			"departments":    []string{},
+		},
+		"context": map[string]any{
+			"session_slots": map[string]any{},
+		},
+		"requested_capability": "knowledge",
+		"effective_capability": "knowledge",
+		"lane":                 "rag",
+		"requested_scope": map[string]any{
+			"corpus":     "regulations",
+			"collection": "student_rules",
+		},
+		"version_query": map[string]any{"mode": "current"},
 	}
 }
 

@@ -30,11 +30,24 @@ class CapabilityExecutionFixtureMatrixTest(unittest.TestCase):
         envelope = parse_capability_execution_envelope(payload)
 
         self.assertEqual(wire.execution_contract_version, "capability_execution_v1")
-        self.assertEqual(wire.runtime_decisions.schema_version, "capability-execution-runtime-decisions-v1")
+        self.assertEqual(
+            wire.runtime_decisions.schema_version, "capability-execution-runtime-decisions-v1"
+        )
         self.assertEqual(envelope.request.request_id, "req-contract-001")
         self.assertIsNotNone(envelope.capability_request)
         assert envelope.capability_request is not None
         self.assertEqual(envelope.capability_request.capability, "knowledge")
+
+    def test_generated_request_wire_accepts_active_request_without_runtime_decisions(self) -> None:
+        payload = load_fixture("capability_execution_delegate.valid.json")
+        payload.pop("runtime_decisions", None)
+        payload["request_id"] = "req-contract-runtime-neutral"
+        payload["context"] = {"session_slots": {}}
+
+        wire = CapabilityExecutionRequestWire.model_validate(payload)
+
+        self.assertEqual(wire.request_id, "req-contract-runtime-neutral")
+        self.assertIsNone(wire.runtime_decisions)
 
     def test_capability_execution_accepts_agent_workflow_context_projection_refs(self) -> None:
         payload = load_fixture("capability_execution_delegate.valid.json")
@@ -151,7 +164,9 @@ class CapabilityExecutionFixtureMatrixTest(unittest.TestCase):
 
         for fixture_name, expected_status in expected_status_by_fixture.items():
             with self.subTest(fixture_name=fixture_name):
-                response = CapabilityExecutionResponseWire.model_validate(load_fixture(fixture_name))
+                response = CapabilityExecutionResponseWire.model_validate(
+                    load_fixture(fixture_name)
+                )
 
                 self.assertEqual(response.status, expected_status)
                 self.assertTrue(response.trace_id.startswith("trace-contract-"))

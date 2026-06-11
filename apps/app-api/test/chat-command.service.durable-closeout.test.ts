@@ -126,7 +126,6 @@ describe("chat command durable stream closeout", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 			telemetry,
 		});
 
@@ -225,7 +224,6 @@ describe("chat command durable stream closeout", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 		});
 
 		const events: string[] = [];

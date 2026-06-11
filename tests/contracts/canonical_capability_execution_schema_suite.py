@@ -14,7 +14,9 @@ from campus_contracts import (
 )
 
 OPENAPI_PATH = Path("docs/contracts/schemas/capability-execution.openapi.yaml")
-CAPABILITY_HANDOFF_SCHEMA_PATH = Path("packages/contracts/schemas/capability-handoff.v1.schema.json")
+CAPABILITY_HANDOFF_SCHEMA_PATH = Path(
+    "packages/contracts/schemas/capability-handoff.v1.schema.json"
+)
 GENERATED_TS_PATH = Path(
     "apps/app-api/src/modules/integration/generated/capability-execution-contract.ts"
 )
@@ -193,6 +195,17 @@ class CanonicalCapabilityExecutionSchemaTest(unittest.TestCase):
             edge["properties"]["required_projection_kind"],
             {"$ref": "#/components/schemas/StepOutputProjectionKind"},
         )
+
+    def test_active_request_does_not_require_runtime_decisions_or_profile_memory(self) -> None:
+        request = _schema("CapabilityExecutionRequest")
+        context = _schema("ExecutionRequestContext")
+
+        self.assertNotIn("runtime_decisions", request["required"])
+        self.assertEqual(
+            request["properties"]["runtime_decisions"]["deprecated"],
+            True,
+        )
+        self.assertEqual(context["not"], {"required": ["profile_memory"]})
 
     def test_workflow_trace_summary_declares_capability_invocation_graph(self) -> None:
         schema = _schema("WorkflowTraceSummary")

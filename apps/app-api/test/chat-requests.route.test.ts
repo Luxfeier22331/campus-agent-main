@@ -425,7 +425,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					},
 				},
 				requestId: "req_eval_01HQ",
-				supervisor: {
+				execution: {
 					answerText: "图书馆开放到 22:00。",
 					error: null,
 					followUpQuestion: "",
@@ -534,7 +534,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					traceId: "trace_eval_01HQ",
 				},
 			},
-			supervisor: {
+			execution: {
 				answerText: "图书馆开放到 22:00。",
 				error: null,
 				followUpQuestion: "",

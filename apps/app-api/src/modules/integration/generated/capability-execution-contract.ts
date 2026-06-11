@@ -8,7 +8,12 @@ export const CAPABILITY_EXECUTION_CONTRACT = {
 	workflowTraceSummaryVersion: "workflow-trace-summary-v4",
 } as const;
 
-export const CAPABILITY_IDS = ["knowledge", "navigation", "campus_services", "notice"] as const;
+export const CAPABILITY_IDS = [
+	"knowledge",
+	"navigation",
+	"campus_services",
+	"notice",
+] as const;
 export const REQUESTED_CAPABILITIES = [
 	"knowledge",
 	"navigation",
@@ -190,7 +195,7 @@ export interface CapabilityExecutionRequestWire {
 	actor: SafeRecord;
 	context: SafeRecord;
 	version_query: SafeRecord;
-	runtime_decisions: RuntimeDecisionsWire;
+	runtime_decisions?: RuntimeDecisionsWire;
 }
 
 export interface CapabilityRequestWire {

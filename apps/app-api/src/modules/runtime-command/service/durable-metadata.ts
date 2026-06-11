@@ -9,6 +9,9 @@ const DURABLE_CAPABILITY_DEFAULTS = {
 	campus_services: {
 		lane: "campus_services",
 	},
+	default: {
+		lane: "default",
+	},
 	knowledge: {
 		lane: "rag",
 	},
@@ -41,10 +44,8 @@ export function buildCapabilityExecutionRunMetadata(
 		execution_contract_version: CAPABILITY_EXECUTION_CONTRACT.executionContractVersion,
 		context,
 		conversation_id: executionInput.conversationId,
-		effective_capability: requestedCapability,
 		lane: capabilityDefaults.lane,
 		request_id: executionInput.requestId,
-		requested_capability: requestedCapability,
 		requested_scope: requestedScope,
 		response_contract: CAPABILITY_EXECUTION_CONTRACT.responseContract,
 		safety_identifier: executionInput.safetyIdentifier ?? null,
@@ -54,6 +55,12 @@ export function buildCapabilityExecutionRunMetadata(
 		user_goal: queryText,
 		version_query: versionQuery,
 	};
+	if (requestedCapability !== "default") {
+		Object.assign(executionPayload, {
+			effective_capability: requestedCapability,
+			requested_capability: requestedCapability,
+		});
+	}
 
 	return {
 		execution_payload: executionPayload,
@@ -61,8 +68,9 @@ export function buildCapabilityExecutionRunMetadata(
 }
 
 function durableCapability(requestedCapability: string | null | undefined): DurableCapability {
-	const normalized = requestedCapability?.trim() || "knowledge";
+	const normalized = requestedCapability?.trim() || "default";
 	if (
+		normalized === "default" ||
 		normalized === "knowledge" ||
 		normalized === "campus_services" ||
 		normalized === "navigation" ||

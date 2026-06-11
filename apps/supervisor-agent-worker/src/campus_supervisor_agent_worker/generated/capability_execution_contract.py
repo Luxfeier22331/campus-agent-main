@@ -205,7 +205,7 @@ class CapabilityExecutionRequestWire(BaseModel):
     actor: dict[str, Any]
     context: dict[str, Any]
     version_query: dict[str, Any]
-    runtime_decisions: RuntimeDecisionsWire
+    runtime_decisions: RuntimeDecisionsWire | None = None
     conversation_id: str = ""
     safety_identifier: str | None = None
     requested_scope: dict[str, Any] | None = None

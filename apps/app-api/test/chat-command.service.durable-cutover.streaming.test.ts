@@ -48,7 +48,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 		});
 
 		const response = await service.submit({
@@ -114,7 +113,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 		});
 
 		const events: ChatCommandStreamEvent[] = [];
@@ -225,7 +223,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 		});
 
 		const response = await service.submit({
@@ -337,7 +334,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 			telemetry,
 		});
 

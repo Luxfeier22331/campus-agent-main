@@ -5,6 +5,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	createExecutionRuntimeFromCapabilityClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
@@ -31,7 +32,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 			now: () => new Date("2026-05-04T10:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
 						"中央民族大学 VPN 使用说明：客户端安装：首次使用请根据系统提示下载客户端。；双击Install EasyConnect.pkg，根据提示完成安装。来源：学校官网。",
@@ -45,7 +46,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 					status: "completed",
 					traceId: "trace_fixture_vpn",
 				}),
-			},
+			}),
 		});
 
 		const response = await service.submit({
@@ -83,7 +84,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
 						"第四学期有合同法、人格权法、侵权责任法。 [program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4#program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4:source-faithful:sha256:test:chunk-0001]",
@@ -105,7 +106,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 					status: "completed",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		const response = await service.submit({

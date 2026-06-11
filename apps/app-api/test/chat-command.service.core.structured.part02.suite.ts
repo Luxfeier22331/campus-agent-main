@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	createExecutionRuntimeFromCapabilityClient,
 	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
@@ -415,7 +416,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		for (const [index, currentCase] of cases.entries()) {

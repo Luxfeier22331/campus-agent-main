@@ -361,10 +361,7 @@ export function buildChatCommandService(
 			const durableMetadata = buildCapabilityExecutionRunMetadata(executionInput);
 			const executionPayload = durableMetadata.execution_payload as Record<string, unknown>;
 			const lane = stringOrThrow(executionPayload.lane, "durable execution lane");
-			const selectedCapability = stringOrThrow(
-				executionPayload.effective_capability,
-				"durable execution capability",
-			);
+			const selectedCapability = optionalString(executionPayload.effective_capability);
 			const run = await dependencies.executionRuntime.createRun({
 				conversationId: context.conversation.id,
 				lane,
@@ -735,4 +732,12 @@ function stringOrThrow(value: unknown, fieldName: string): string {
 		});
 	}
 	return value;
+}
+
+function optionalString(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed ? trimmed : null;
 }

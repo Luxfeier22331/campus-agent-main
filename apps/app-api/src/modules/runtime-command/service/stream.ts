@@ -266,7 +266,7 @@ export function toTerminalChatStreamEvent(input: {
 	response: ChatCommandResponse;
 	sourceEvent?: string;
 }): ChatCommandStreamEvent {
-	const status = input.response.supervisor?.status ?? input.response.answer.result.kind;
+	const status = input.response.execution?.status ?? input.response.answer.result.kind;
 	let event: ChatCommandStreamEventName = "request.failed";
 	if (input.sourceEvent === "execution.cancelled" || status === "cancelled") {
 		event = "request.cancelled";

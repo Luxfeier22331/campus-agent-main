@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	createExecutionRuntimeFromCapabilityClient,
 	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
@@ -58,7 +59,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 			now: () => new Date("2026-04-11T09:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		const response = await service.submit({
@@ -107,7 +108,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "计算机类培养方案要求学生完成对应课程模块和毕业要求。",
 					error: null,
@@ -216,7 +217,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 					status: "completed",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		const response = await service.submit({

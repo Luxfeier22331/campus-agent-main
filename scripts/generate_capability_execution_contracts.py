@@ -12,9 +12,13 @@ from scripts.capability_execution_go_decode_helpers import go_decode_helpers
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPENAPI_PATH = REPO_ROOT / "docs/contracts/schemas/capability-execution.openapi.yaml"
-TS_PATH = REPO_ROOT / "apps/app-api/src/modules/integration/generated/capability-execution-contract.ts"
+TS_PATH = (
+    REPO_ROOT / "apps/app-api/src/modules/integration/generated/capability-execution-contract.ts"
+)
 GO_PATH = REPO_ROOT / "apps/execution-control/internal/contracts/capability_execution_contract.go"
-PY_GENERATED_DIR = REPO_ROOT / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated"
+PY_GENERATED_DIR = (
+    REPO_ROOT / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated"
+)
 PY_PACKAGE_INIT_PATH = PY_GENERATED_DIR / "__init__.py"
 PY_PATH = PY_GENERATED_DIR / "capability_execution_contract.py"
 
@@ -264,7 +268,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tactor: SafeRecord;\n"
         "\tcontext: SafeRecord;\n"
         "\tversion_query: SafeRecord;\n"
-        "\truntime_decisions: RuntimeDecisionsWire;\n"
+        "\truntime_decisions?: RuntimeDecisionsWire;\n"
         "}\n\n"
         "export interface CapabilityRequestWire {\n"
         "\tcapability: CapabilityID;\n"
@@ -476,7 +480,7 @@ type CapabilityExecutionRequestWire struct {
 \tActor map[string]any `json:"actor"`
 \tContext map[string]any `json:"context"`
 \tVersionQuery map[string]any `json:"version_query"`
-\tRuntimeDecisions RuntimeDecisionsWire `json:"runtime_decisions"`
+\tRuntimeDecisions *RuntimeDecisionsWire `json:"runtime_decisions,omitempty"`
 }
 
 type CapabilityRequestWire struct {
@@ -677,7 +681,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    actor: dict[str, Any]\n"
         "    context: dict[str, Any]\n"
         "    version_query: dict[str, Any]\n"
-        "    runtime_decisions: RuntimeDecisionsWire\n"
+        "    runtime_decisions: RuntimeDecisionsWire | None = None\n"
         '    conversation_id: str = ""\n'
         "    safety_identifier: str | None = None\n"
         "    requested_scope: dict[str, Any] | None = None\n\n\n"

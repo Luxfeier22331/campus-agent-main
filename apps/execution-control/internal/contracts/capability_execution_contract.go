@@ -194,21 +194,21 @@ type RuntimeDecisionsWire struct {
 }
 
 type CapabilityExecutionRequestWire struct {
-	ExecutionContractVersion string               `json:"execution_contract_version"`
-	ResponseContract         string               `json:"response_contract"`
-	UserGoal                 string               `json:"user_goal"`
-	ConversationID           string               `json:"conversation_id,omitempty"`
-	RequestID                string               `json:"request_id"`
-	SafetyIdentifier         *string              `json:"safety_identifier,omitempty"`
-	EffectiveCapability      RequestedCapability  `json:"effective_capability"`
-	Lane                     string               `json:"lane"`
-	RequestedCapability      RequestedCapability  `json:"requested_capability"`
-	RequestedScope           map[string]any       `json:"requested_scope,omitempty"`
-	Trace                    map[string]any       `json:"trace"`
-	Actor                    map[string]any       `json:"actor"`
-	Context                  map[string]any       `json:"context"`
-	VersionQuery             map[string]any       `json:"version_query"`
-	RuntimeDecisions         RuntimeDecisionsWire `json:"runtime_decisions"`
+	ExecutionContractVersion string                `json:"execution_contract_version"`
+	ResponseContract         string                `json:"response_contract"`
+	UserGoal                 string                `json:"user_goal"`
+	ConversationID           string                `json:"conversation_id,omitempty"`
+	RequestID                string                `json:"request_id"`
+	SafetyIdentifier         *string               `json:"safety_identifier,omitempty"`
+	EffectiveCapability      RequestedCapability   `json:"effective_capability"`
+	Lane                     string                `json:"lane"`
+	RequestedCapability      RequestedCapability   `json:"requested_capability"`
+	RequestedScope           map[string]any        `json:"requested_scope,omitempty"`
+	Trace                    map[string]any        `json:"trace"`
+	Actor                    map[string]any        `json:"actor"`
+	Context                  map[string]any        `json:"context"`
+	VersionQuery             map[string]any        `json:"version_query"`
+	RuntimeDecisions         *RuntimeDecisionsWire `json:"runtime_decisions,omitempty"`
 }
 
 type CapabilityRequestWire struct {
@@ -328,11 +328,16 @@ func (wire CapabilityExecutionRequestWire) Validate() error {
 	if wire.Context == nil {
 		return fmt.Errorf("context is required")
 	}
+	if _, ok := wire.Context["profile_memory"]; ok {
+		return fmt.Errorf("context.profile_memory is not an active online recall field")
+	}
 	if wire.VersionQuery == nil {
 		return fmt.Errorf("version_query is required")
 	}
-	if err := wire.RuntimeDecisions.Validate(); err != nil {
-		return fmt.Errorf("runtime_decisions: %w", err)
+	if wire.RuntimeDecisions != nil {
+		if err := wire.RuntimeDecisions.Validate(); err != nil {
+			return fmt.Errorf("runtime_decisions: %w", err)
+		}
 	}
 	return nil
 }
