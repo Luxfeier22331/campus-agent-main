@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import unittest
 
+from campus_ingestion_core.raw_ingestion_split_manifest_curriculum import (
+    CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
+)
+
 from .curriculum_chunking_test_support import *
 
 
@@ -715,6 +719,7 @@ class CurriculumChunkingSectionAndTableUnitsTest(unittest.TestCase):
             default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
         record = DocumentRegistryRecord(
             document_id="curriculum:民族学本科第二学士学位人才培养方案",

@@ -8,6 +8,9 @@ from pathlib import Path
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport, write_import_report
+from campus_ingestion_core.collection_ingestion_strategy import (
+    resolve_collection_ingestion_strategy,
+)
 from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
 from campus_ingestion_core.contact_directory_projection import (
     CONTACT_DIRECTORY_COLLECTION,
@@ -70,8 +73,7 @@ def replay_provider_response_rebuild(
     collection_config = _resolve_runtime_collection_config(
         source=source, corpus=corpus, collection=collection
     )
-    if collection not in {"student_rules", "curriculum_plan"}:
-        raise ValueError("provider_response_replay only supports student_rules or curriculum_plan")
+    resolve_collection_ingestion_strategy(corpus, collection).require_provider_response_replay()
     runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(
         source, corpus
     )
@@ -84,7 +86,7 @@ def replay_provider_response_rebuild(
             raw_asset_registry=runtime_raw_asset_registry,
         ),
     )
-    source_pdf = runtime_request.source_pdf or _default_replay_source_pdf(collection)
+    source_pdf = runtime_request.source_pdf or _default_replay_source_pdf(corpus, collection)
 
     object_store_settings = ObjectStoreSettings.from_env(source)
     runtime_object_store = object_store or S3ObjectStoreAdmin(object_store_settings)

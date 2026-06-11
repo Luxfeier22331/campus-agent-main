@@ -10,6 +10,15 @@
 		"chunk_overlap": 72,
 		"min_chunk_size": 50
 	},
+	"lane_defaults": {
+		"table_unit": {
+			"strategy_name": "curriculum_plan_table_structure_v2",
+			"chunk_size": 420,
+			"max_chunk_size": 640,
+			"chunk_overlap": 72,
+			"min_chunk_size": 64
+		}
+	},
 	"cleaning_policy_version": "curriculum_plan_cleaning_v1",
 	"notes": [
 		"Use split-manifest logical documents as the pre-chunking boundary.",

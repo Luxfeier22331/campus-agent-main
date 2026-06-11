@@ -6,6 +6,9 @@ from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.raw_ingestion_split_manifest import (
     _build_split_manifest_document_input,
 )
+from campus_ingestion_core.raw_ingestion_split_manifest_curriculum import (
+    CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
+)
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 
@@ -64,6 +67,7 @@ class SplitManifestCanonicalMarkdownTest(unittest.TestCase):
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         self.assertIsNotNone(document_input.canonical_markdown_bytes)
@@ -111,6 +115,7 @@ class SplitManifestCanonicalMarkdownTest(unittest.TestCase):
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         self.assertIsNotNone(document_input.canonical_markdown_bytes)

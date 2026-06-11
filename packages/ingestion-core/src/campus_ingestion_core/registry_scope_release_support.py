@@ -8,17 +8,6 @@ from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.chunking import (
-    CURRICULUM_V1_CHUNK_POLICY_VERSION,
-    CURRICULUM_V1_MAX_CHUNK_SIZE,
-    CURRICULUM_V2_CHUNK_POLICY_VERSION,
-    CURRICULUM_V2_MAX_CHUNK_SIZE,
-    CURRICULUM_V2_TABLE_MAX_CHUNK_SIZE,
-    DEFAULT_MAX_CHUNK_SIZE,
-    HANDBOOK_V1_CHUNK_POLICY_VERSION,
-    HANDBOOK_V2_CHUNK_POLICY_VERSION,
-    HANDBOOK_V2_MAX_CHUNK_SIZE,
-    HANDBOOK_V3_CHUNK_POLICY_VERSION,
-    HANDBOOK_V3_MAX_CHUNK_SIZE,
     OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION,
     OFFICIAL_WEB_V2_MAX_CHUNK_SIZE,
 )
@@ -106,40 +95,6 @@ def resolve_release_chunk_quality_budget(
     collection: str,
     runtime_profile: CollectionRuntimeProfile,
 ) -> ReleaseChunkQualityBudget:
-    if corpus == "regulations" and collection == "student_rules":
-        handbook_limits = {
-            HANDBOOK_V1_CHUNK_POLICY_VERSION: DEFAULT_MAX_CHUNK_SIZE,
-            HANDBOOK_V2_CHUNK_POLICY_VERSION: HANDBOOK_V2_MAX_CHUNK_SIZE,
-            HANDBOOK_V3_CHUNK_POLICY_VERSION: HANDBOOK_V3_MAX_CHUNK_SIZE,
-        }
-        max_token_count = handbook_limits.get(runtime_profile.chunk_profile_version)
-        if max_token_count is None:
-            raise ValueError(
-                "unsupported student_rules chunk profile version for release gate: "
-                f"{runtime_profile.chunk_profile_version}"
-            )
-        return ReleaseChunkQualityBudget(
-            max_token_count=max_token_count,
-            source="student_handbook_runtime_profile",
-            max_token_count_by_unit_type={},
-        )
-    if corpus == "curriculum" and collection == "curriculum_plan":
-        if runtime_profile.chunk_profile_version == CURRICULUM_V1_CHUNK_POLICY_VERSION:
-            max_token_count = CURRICULUM_V1_MAX_CHUNK_SIZE
-            table_max_token_count = CURRICULUM_V1_MAX_CHUNK_SIZE
-        elif runtime_profile.chunk_profile_version == CURRICULUM_V2_CHUNK_POLICY_VERSION:
-            max_token_count = CURRICULUM_V2_MAX_CHUNK_SIZE
-            table_max_token_count = CURRICULUM_V2_TABLE_MAX_CHUNK_SIZE
-        else:
-            raise ValueError(
-                "unsupported curriculum chunk profile version for release gate: "
-                f"{runtime_profile.chunk_profile_version}"
-            )
-        return ReleaseChunkQualityBudget(
-            max_token_count=max_token_count,
-            source="curriculum_runtime_profile",
-            max_token_count_by_unit_type={"table_unit": table_max_token_count},
-        )
     if corpus == "official_web":
         if runtime_profile.chunk_profile_version != OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION:
             raise ValueError(
@@ -171,7 +126,10 @@ def resolve_release_chunk_quality_budget(
     return ReleaseChunkQualityBudget(
         max_token_count=max(chunk_profile.runtime_defaults.max_chunk_size, lane_max_token_count),
         source="collection_chunk_profile",
-        max_token_count_by_unit_type={},
+        max_token_count_by_unit_type={
+            lane_name: defaults.max_chunk_size
+            for lane_name, defaults in chunk_profile.lane_defaults.items()
+        },
     )
 
 

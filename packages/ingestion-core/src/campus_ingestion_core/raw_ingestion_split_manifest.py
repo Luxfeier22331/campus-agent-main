@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
@@ -14,34 +14,6 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     ObjectStoreWriter,
     apply_authorization_projection_metadata,
     load_metadata_from_bytes,
-)
-from campus_ingestion_core.curriculum_chunk_units_shared import (
-    _looks_like_curriculum_page_marker_line,
-)
-from campus_ingestion_core.curriculum_course_facts_projection import (
-    build_curriculum_course_facts_scope_refresh_documents,
-)
-from campus_ingestion_core.curriculum_program_family_facts_projection import (
-    build_curriculum_program_family_facts_scope_refresh_documents,
-)
-from campus_ingestion_core.curriculum_program_semester_facts_projection import (
-    build_curriculum_program_semester_facts_scope_refresh_documents,
-)
-from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
-from campus_ingestion_core.curriculum_title_normalization import (
-    canonicalize_curriculum_manifest_heading,
-)
-from campus_ingestion_core.handbook_cleanup import (
-    cleanup_handbook_document,
-    serialize_handbook_document_units,
-    validate_handbook_manifest_title,
-)
-from campus_ingestion_core.handbook_provider_normalize import (
-    normalize_handbook_provider_result,
-    serialize_handbook_layout_elements,
-)
-from campus_ingestion_core.handbook_source_projections import (
-    build_handbook_projection_import_documents,
 )
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
@@ -59,13 +31,14 @@ from campus_ingestion_core.split_manifest_canonical_markdown import (
 )
 
 SPLIT_MANIFEST_LAYOUT_ELEMENTS_SCHEMA_VERSION = "split_manifest_layout_elements_v1"
-_CURRICULUM_STRUCTURAL_HEADING_RE = re.compile(
-    r"^(?:[一二三四五六七八九十]+、|[（(][一二三四五六七八九十]+[)）]|\d+[\.．、])"
-)
+SplitManifestTextNormalizer = Callable[[dict[str, object], str, str], str]
+SplitManifestSkipPredicate = Callable[[dict[str, object]], bool]
 
 
-class _ObjectStoreReader(Protocol):
-    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
+@dataclass(frozen=True, slots=True)
+class SplitManifestRowPolicy:
+    normalize_clean_text: SplitManifestTextNormalizer
+    should_skip_row: SplitManifestSkipPredicate
 
 
 def _build_split_manifest_documents(
@@ -80,18 +53,14 @@ def _build_split_manifest_documents(
     collection: str,
     ocr_provider: str,
     ocr_model: str,
+    structured_rows: list[dict[str, object]] | None = None,
+    artifact_keys: tuple[str, str] | None = None,
+    row_policy: SplitManifestRowPolicy | None = None,
 ) -> list[DocumentImportInput]:
-    if collection == "curriculum_plan":
-        structured_rows = _load_layout_elements_rows(
-            normalize_curriculum_provider_result(
-                provider_jsonl_bytes=provider_result.provider_result_bytes,
-                source_pdf=raw_asset_record.source_filename,
-                ocr_provider=ocr_provider,
-                ocr_model=ocr_model,
-            )
-        )
+    if structured_rows is not None:
+        resolved_structured_rows = structured_rows
     else:
-        structured_rows = _normalize_split_manifest_provider_result(
+        resolved_structured_rows = _normalize_split_manifest_provider_result(
             corpus=corpus,
             collection=collection,
             source_pdf=raw_asset_record.source_filename,
@@ -100,145 +69,36 @@ def _build_split_manifest_documents(
             ocr_model=ocr_model,
             source_artifact_id=raw_asset_record.raw_asset_id,
         )
-    layout_elements_bytes = _serialize_rows(structured_rows)
-    provider_response_key, layout_elements_key = _write_processed_asset_artifacts(
-        writer=writer,
-        object_store=object_store,
-        corpus=corpus,
-        raw_asset_id=raw_asset_record.raw_asset_id,
-        raw_version_id=raw_asset_record.raw_version_id,
-        source_filename=raw_asset_record.source_filename,
-        ocr_model=ocr_model,
-        provider_response_bytes=provider_result.provider_result_bytes,
-        layout_elements_bytes=layout_elements_bytes,
-    )
+    if artifact_keys is not None:
+        provider_response_key, layout_elements_key = artifact_keys
+    else:
+        layout_elements_bytes = _serialize_rows(resolved_structured_rows)
+        provider_response_key, layout_elements_key = _write_processed_asset_artifacts(
+            writer=writer,
+            object_store=object_store,
+            corpus=corpus,
+            raw_asset_id=raw_asset_record.raw_asset_id,
+            raw_version_id=raw_asset_record.raw_version_id,
+            source_filename=raw_asset_record.source_filename,
+            ocr_model=ocr_model,
+            provider_response_bytes=provider_result.provider_result_bytes,
+            layout_elements_bytes=layout_elements_bytes,
+        )
     return [
         _build_split_manifest_document_input(
             raw_asset_record=raw_asset_record,
             manifest_version=split_manifest.manifest_version,
             manifest_document=manifest_document,
-            structured_rows=structured_rows,
+            structured_rows=resolved_structured_rows,
             provider_response_key=provider_response_key,
             layout_elements_key=layout_elements_key,
             corpus=corpus,
             collection=collection,
             default_visibility_scope=default_visibility_scope,
+            row_policy=row_policy,
         )
         for manifest_document in split_manifest.documents
     ]
-
-
-def _build_handbook_split_manifest_documents(
-    *,
-    raw_asset_record: RawAssetRecord,
-    provider_result: OnlineOcrProviderResult,
-    split_manifest: SplitManifest,
-    writer: ObjectStoreWriter,
-    reader: _ObjectStoreReader,
-    object_store: ObjectStoreSettings,
-    default_visibility_scope: str | None,
-    corpus: str,
-    collection: str,
-    ocr_provider: str,
-    ocr_model: str,
-    source: dict[str, str],
-) -> tuple[list[DocumentImportInput], list[str]]:
-    structured_rows = normalize_handbook_provider_result(
-        source_pdf=raw_asset_record.source_filename,
-        provider_jsonl_bytes=provider_result.provider_result_bytes,
-        ocr_provider=ocr_provider,
-        ocr_model=ocr_model,
-        source_artifact_id=raw_asset_record.raw_asset_id,
-    )
-    layout_elements_bytes = serialize_handbook_layout_elements(structured_rows)
-    documents: list[DocumentImportInput] = []
-    errors: list[str] = []
-    provider_response_key, layout_elements_key = _write_processed_asset_artifacts(
-        writer=writer,
-        object_store=object_store,
-        corpus=corpus,
-        raw_asset_id=raw_asset_record.raw_asset_id,
-        raw_version_id=raw_asset_record.raw_version_id,
-        source_filename=raw_asset_record.source_filename,
-        ocr_model=ocr_model,
-        provider_response_bytes=provider_result.provider_result_bytes,
-        layout_elements_bytes=layout_elements_bytes,
-    )
-    for manifest_document in split_manifest.documents:
-        try:
-            documents.append(
-                _build_handbook_manifest_document_input(
-                    raw_asset_record=raw_asset_record,
-                    manifest_document=manifest_document,
-                    structured_rows=structured_rows,
-                    provider_response_key=provider_response_key,
-                    layout_elements_key=layout_elements_key,
-                    default_visibility_scope=default_visibility_scope,
-                    corpus=corpus,
-                    collection=collection,
-                )
-            )
-        except Exception as exc:
-            errors.append(f"{raw_asset_record.object_key}#{manifest_document.document_id}: {exc}")
-    if collection == "student_rules":
-        try:
-            documents.extend(
-                build_handbook_projection_import_documents(
-                    source=source,
-                    raw_asset_record=raw_asset_record,
-                    hybrid_raw_asset_record=raw_asset_record,
-                    provider_response_key=provider_response_key,
-                    layout_elements_key=layout_elements_key,
-                    structured_rows=structured_rows,
-                    split_manifest_documents=split_manifest.documents,
-                    reader=reader,
-                    source_bucket=object_store.bucket_source,
-                    import_source="raw_online_ocr",
-                )
-            )
-        except Exception as exc:
-            errors.append(f"{raw_asset_record.object_key}#declared-projections: {exc}")
-    if collection == "curriculum_plan":
-        try:
-            documents.extend(
-                build_curriculum_course_facts_scope_refresh_documents(
-                    raw_asset_record=raw_asset_record,
-                    source_pdf=raw_asset_record.source_filename,
-                    split_manifest_documents=split_manifest.documents,
-                    structured_rows=structured_rows,
-                    provider_response_key=provider_response_key,
-                    layout_elements_key=layout_elements_key,
-                    import_source="raw_online_ocr",
-                )
-            )
-        except Exception as exc:
-            errors.append(f"{raw_asset_record.object_key}#course-facts-projection: {exc}")
-        try:
-            documents.extend(
-                build_curriculum_program_family_facts_scope_refresh_documents(
-                    raw_asset_record=raw_asset_record,
-                    source_pdf=raw_asset_record.source_filename,
-                    split_manifest_documents=split_manifest.documents,
-                    import_source="raw_online_ocr",
-                )
-            )
-        except Exception as exc:
-            errors.append(f"{raw_asset_record.object_key}#program-family-facts-projection: {exc}")
-        try:
-            documents.extend(
-                build_curriculum_program_semester_facts_scope_refresh_documents(
-                    raw_asset_record=raw_asset_record,
-                    source_pdf=raw_asset_record.source_filename,
-                    split_manifest_documents=split_manifest.documents,
-                    structured_rows=structured_rows,
-                    provider_response_key=provider_response_key,
-                    layout_elements_key=layout_elements_key,
-                    import_source="raw_online_ocr",
-                )
-            )
-        except Exception as exc:
-            errors.append(f"{raw_asset_record.object_key}#program-semester-facts-projection: {exc}")
-    return documents, errors
 
 
 def _write_processed_asset_artifacts(
@@ -282,62 +142,6 @@ def _write_processed_asset_artifacts(
     return provider_response_key, layout_elements_key
 
 
-def _build_handbook_manifest_document_input(
-    *,
-    raw_asset_record: RawAssetRecord,
-    manifest_document: SplitManifestDocument,
-    structured_rows: list[dict[str, object]],
-    provider_response_key: str,
-    layout_elements_key: str,
-    default_visibility_scope: str | None,
-    corpus: str,
-    collection: str,
-) -> DocumentImportInput:
-    validate_handbook_manifest_title(
-        structured_rows=structured_rows,
-        manifest_document=manifest_document,
-    )
-    cleanup_result = cleanup_handbook_document(
-        structured_rows=structured_rows,
-        manifest_document=manifest_document,
-        source_doc=raw_asset_record.source_filename,
-    )
-    document_units_bytes = serialize_handbook_document_units(cleanup_result.document_units)
-    metadata = load_metadata_from_bytes(document_units_bytes)
-    metadata["title"] = cleanup_result.title
-    metadata["raw_page_start"] = manifest_document.page_start
-    metadata["raw_page_end"] = manifest_document.page_end
-    apply_authorization_projection_metadata(
-        metadata,
-        entitlement_groups=manifest_document.resolved_entitlement_groups(),
-        visibility_scope=manifest_document.resolved_visibility_scope(default_visibility_scope),
-        visibility_level=manifest_document.resolved_visibility_level(),
-    )
-    metadata["status"] = manifest_document.status
-    return DocumentImportInput(
-        source_label=f"{raw_asset_record.object_key}#{manifest_document.document_id}",
-        document_units_bytes=document_units_bytes,
-        provider_response_bytes=None,
-        canonical_markdown_bytes=cleanup_result.canonical_markdown.encode("utf-8"),
-        metadata=metadata,
-        import_source="raw_online_ocr",
-        revision_track="source-faithful",
-        source_channel="pdf_ocr",
-        is_current=True,
-        corpus=corpus,
-        collection=collection,
-        visibility_scope=manifest_document.resolved_visibility_scope(default_visibility_scope),
-        status=manifest_document.status,
-        raw_path=None,
-        raw_source_uri=raw_asset_record.raw_source_uri,
-        raw_asset_id=raw_asset_record.raw_asset_id,
-        raw_version_id=raw_asset_record.raw_version_id,
-        provider_response_object_key=provider_response_key,
-        additional_processed_object_keys=(layout_elements_key,),
-        title=cleanup_result.title,
-    )
-
-
 def _build_split_manifest_document_input(
     *,
     raw_asset_record: RawAssetRecord,
@@ -350,6 +154,7 @@ def _build_split_manifest_document_input(
     collection: str,
     default_campus_scope: str | None = None,
     default_visibility_scope: str | None = None,
+    row_policy: SplitManifestRowPolicy | None = None,
 ) -> DocumentImportInput:
     resolved_default_scope = default_campus_scope or default_visibility_scope
     version_id = _build_split_version_id(
@@ -371,6 +176,7 @@ def _build_split_manifest_document_input(
         version_id=version_id,
         source_pdf=raw_asset_record.source_filename,
         source_uri=source_uri,
+        row_policy=row_policy,
     )
     document_units_bytes = _serialize_rows(split_rows)
     canonical_markdown_bytes = build_split_document_canonical_markdown(
@@ -516,6 +322,7 @@ def _slice_structured_rows_for_manifest_document(
     version_id: str,
     source_pdf: str,
     source_uri: str,
+    row_policy: SplitManifestRowPolicy | None = None,
 ) -> list[dict[str, object]]:
     selected_rows = [
         row
@@ -533,8 +340,9 @@ def _slice_structured_rows_for_manifest_document(
 
     transformed_rows: list[dict[str, object]] = []
     last_emitted_source_row: dict[str, object] | None = None
+    resolved_row_policy = row_policy or DEFAULT_SPLIT_MANIFEST_ROW_POLICY
     for row in selected_rows:
-        if _should_skip_split_manifest_row(row):
+        if resolved_row_policy.should_skip_row(row):
             continue
         transformed = _transform_split_row(
             row=row,
@@ -544,6 +352,7 @@ def _slice_structured_rows_for_manifest_document(
             source_pdf=source_pdf,
             source_uri=source_uri,
             entitlement_groups=manifest_document.resolved_entitlement_groups(),
+            row_policy=resolved_row_policy,
         )
         if transformed is None:
             continue
@@ -577,17 +386,14 @@ def _transform_split_row(
     source_pdf: str,
     source_uri: str,
     entitlement_groups: tuple[str, ...],
+    row_policy: SplitManifestRowPolicy,
 ) -> dict[str, object] | None:
     page_start = int(row["page_start"])
     page_end = int(row["page_end"])
     clean_text = _split_manifest_row_text(row)
     if not clean_text:
         return None
-    clean_text = canonicalize_curriculum_manifest_heading(
-        row=row,
-        clean_text=clean_text,
-        manifest_title=manifest_title,
-    )
+    clean_text = row_policy.normalize_clean_text(row, clean_text, manifest_title)
     source_chunk_id = _normalize_optional_text(row.get("row_id")) or f"page-{page_start:04d}"
     return {
         "doc_id": document_id,
@@ -618,30 +424,32 @@ def _transform_split_row(
     }
 
 
+def _normalize_default_split_manifest_clean_text(
+    row: dict[str, object],
+    clean_text: str,
+    manifest_title: str,
+) -> str:
+    del row, manifest_title
+    return clean_text
+
+
 def _should_skip_split_manifest_row(row: dict[str, object]) -> bool:
     row_type = str(row.get("row_type") or "")
-    if _is_curriculum_table_continuation(row_type=row_type, row=row):
+    if _is_table_continuation(row_type=row_type, row=row):
         return False
-    if bool(row.get("is_repeated_candidate")) and not _is_curriculum_structural_heading(row):
+    if bool(row.get("is_repeated_candidate")) and not _is_structural_heading(row):
         return True
-    if row_type in {"header", "footer", "page_number"}:
-        return True
-    return bool(
-        row_type in {"paragraph", "list_item", "note"}
-        and _looks_like_curriculum_page_marker_line(_split_manifest_row_text(row))
-    )
+    return row_type in {"header", "footer", "page_number"}
 
 
-def _is_curriculum_table_continuation(*, row_type: str, row: dict[str, object]) -> bool:
+def _is_table_continuation(*, row_type: str, row: dict[str, object]) -> bool:
     return row_type == "table" and str(row.get("relation_type") or "") == "table_continuation"
 
 
-def _is_curriculum_structural_heading(row: dict[str, object]) -> bool:
+def _is_structural_heading(row: dict[str, object]) -> bool:
     if str(row.get("row_type") or "") != "heading":
         return False
-    if str(row.get("section_hint") or "").strip():
-        return True
-    return bool(_CURRICULUM_STRUCTURAL_HEADING_RE.match(_split_manifest_row_text(row).strip()))
+    return bool(str(row.get("section_hint") or "").strip())
 
 
 def _should_merge_split_manifest_row(
@@ -752,3 +560,9 @@ def _normalize_optional_text(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+DEFAULT_SPLIT_MANIFEST_ROW_POLICY = SplitManifestRowPolicy(
+    normalize_clean_text=_normalize_default_split_manifest_clean_text,
+    should_skip_row=_should_skip_split_manifest_row,
+)

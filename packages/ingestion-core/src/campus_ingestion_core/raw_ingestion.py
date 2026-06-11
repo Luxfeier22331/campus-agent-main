@@ -12,6 +12,10 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     persist_import_documents,
     utc_now,
 )
+from campus_ingestion_core.collection_ingestion_strategy import (
+    RawSplitManifestBuildContext,
+    resolve_collection_ingestion_strategy,
+)
 from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
 from campus_ingestion_core.contact_directory_projection import (
     CONTACT_DIRECTORY_COLLECTION,
@@ -45,9 +49,7 @@ from campus_ingestion_core.raw_ingestion_source_truth_support import (
     _resolve_registered_raw_asset,
 )
 from campus_ingestion_core.raw_ingestion_split_manifest import (
-    _build_handbook_split_manifest_documents,
     _build_split_manifest_document_input,
-    _build_split_manifest_documents,
     _load_layout_elements_rows,
 )
 from campus_ingestion_core.registry import (
@@ -283,8 +285,11 @@ def process_raw_ingestion_job(
         execution_ocr_provider = normalize_online_ocr_provider_label(execution.ocr_provider)
         parser_version = _default_raw_ingestion_parser_version(execution.ocr_provider)
 
-        if settings.collection == "student_rules":
-            handbook_documents, handbook_errors = _build_handbook_split_manifest_documents(
+        collection_strategy = resolve_collection_ingestion_strategy(
+            settings.corpus, settings.collection
+        )
+        strategy_documents, strategy_errors = collection_strategy.require_raw_split_manifest()(
+            RawSplitManifestBuildContext(
                 raw_asset_record=raw_asset_record,
                 provider_result=provider_result,
                 split_manifest=split_manifest,
@@ -298,23 +303,9 @@ def process_raw_ingestion_job(
                 ocr_model=execution.ocr_model,
                 source=source,
             )
-            documents.extend(handbook_documents)
-            errors.extend(handbook_errors)
-        else:
-            documents.extend(
-                _build_split_manifest_documents(
-                    raw_asset_record=raw_asset_record,
-                    provider_result=provider_result,
-                    split_manifest=split_manifest,
-                    writer=writer,
-                    object_store=settings.object_store,
-                    default_visibility_scope=settings.default_visibility_scope,
-                    corpus=settings.corpus,
-                    collection=settings.collection,
-                    ocr_provider=execution_ocr_provider,
-                    ocr_model=execution.ocr_model,
-                )
-            )
+        )
+        documents.extend(strategy_documents)
+        errors.extend(strategy_errors)
     except Exception as exc:
         errors.append(f"{raw_asset_record.object_key}: {exc}")
 
