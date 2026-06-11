@@ -218,7 +218,14 @@ assistant message 可以包含 `feedback`：
 - browser-facing control surface 只允许当前 signed-in principal 管理自己的 user-visible memory
 - `key` 必须是安全的 typed key，不接受 authorization / permission / ACL 类 key
 - `value` 是用户声明的短文本偏好或目标，不能作为 ACL、serving surface 或 approval 权限来源
-- 关闭 memory projection 后，后续 execution `ContextProjection.profile_memory.items` 必须为空
+- profile memory API 是 product/manual management surface；online chat hot path 不再由
+  `app-api` 读取 PG memory rows 并全量注入 `ContextProjection.profile_memory.items`
+- 开启 profile memory 后，manual write path 必须同步到 execution-control / Qdrant
+  `personal_memory_v1` index，后续 online recall 由 `context.memory_recall` activity
+  按 top-k / char budget 选择 bounded memory context
+- 关闭 memory projection 后，后续 `memory.recall` 不得返回该用户的 active personal
+  memory item；legacy `ContextProjection.profile_memory.items` 如仍存在于 DTO，只能为空或被
+  execution side 忽略
 
 ### Request Projection Summary
 
@@ -469,8 +476,10 @@ Upsert 一个用户声明的 profile memory item。
 
 - 所有接口都要求 resolved session principal
 - memory item `key` 使用小写 typed key，并拒绝 authorization / permission / ACL 类 key
-- `profileMemory.enabled=false` 不删除已有 item，但 execution projection 必须返回空 memory
-- 删除 item 后，该 item 不得再进入后续 `ContextProjection.profile_memory.items`
+- `profileMemory.enabled=false` 不删除已有 item，但 execution-control / Qdrant personal
+  memory recall 必须停止返回 active memory context
+- 删除 item 后，该 item 必须被同步 disable / remove from `personal_memory_v1` recall path；
+  不得再被 `context.memory_recall` 返回
 - profile memory 不进入 authorization filter、serving surface、approval 或 tool permission
 
 ## Chat Endpoints

@@ -657,7 +657,8 @@ worker autoscaler 边界固定为：
 - global / per-lane admission
 - bounded in-memory queue
 - timeout / cancel / drain
-- bridge circuit breaker
+- retired bridge circuit breaker code still exists only behind historical /
+  retired bridge paths; it is not an online serving dependency
 - metrics / OTel / execution audit seam
 - `WorkflowRunStore` foundation for gated multi-step path
 - isolated historical run projection store kernel in `apps/execution-control/internal/execution`
@@ -739,19 +740,26 @@ worker autoscaler 边界固定为：
 - execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，历史
   PG lease proof command 已退出默认 build；`run_projection*.go` 仍有 projection store 与
   historical schema artifact 混合命名，需要后续纯命名整理，但不得重新接回 serving。
-- step-level projection 已有首条 chat trajectory 写入；app-api operator query 与
+- step-level projection 已进入 current chat trajectory；app-api operator query 与
   protected panel 已开始消费 `agent_run_steps`、`agent_step_attempts`、
   `agent_step_results` 作为诊断主线。eval / badcase 归因仍需要继续统一到 step
   trajectory。
 - worker autoscaler 已有 dry-run proof：可以基于 task queue observation、poller
   health 与 downstream budget projection 计算 desired replicas，且不写
   workflow/run/step/event truth。真实基础设施扩缩容接入仍未启用。
-- RAG 还需要接入 durable typed-tool step graph：retrieval/domain typed
-  tools、evidence verifier、replan、synthesis、grounding 与 finalization 需要
-  成为可审计 step trajectory，而不是只停在 answer-level run event。
-- panel / eval / observability 需要统一到 step-level trajectory：routing、planning、tool、
-  retrieval、rerank、selection、synthesis、grounding 应作为诊断阶段进入 badcase、RAGAS、
-  golden dataset 与 operator panel projection。
+- RAG durable typed step graph 已进入 current online path：`rag.plan`、
+  `retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、`evidence.selection`、
+  `synthesis`、`grounding.verify` 与 `finalization.write` 均写 sanitized step
+  trajectory。剩余缺口是 bounded semantic retry / replan 的真实 policy execution，
+  而不是只在 `WorkflowPlan.SemanticRetryPolicy` 中声明字段。
+- broader agent-as-tool / provider-native tool loop 尚未成为 online current truth。若后续
+  打开，它必须作为 Temporal activity 内部 substrate 运行，并受 `WorkflowPlan`、
+  `ToolSpec`、`CapabilitySpec`、timeout / budget 与 sanitized projection 约束；不得恢复
+  retired Python bridge 或让 provider tool loop 拥有 repo-level orchestration。
+- panel / eval / observability 仍需要进一步统一到 step-level trajectory：routing、
+  planning、tool、retrieval、rerank、selection、synthesis、grounding、replan 与
+  agent-as-tool activity 应作为诊断阶段进入 badcase、RAGAS、golden dataset 与 operator
+  panel projection。
 
 这些 gap 不得通过简单多开实例、HTTP load balancing、Redis queue 或 K8s HPA 标记为已解决。
 

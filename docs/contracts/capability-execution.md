@@ -130,8 +130,9 @@ step + knowledge step。typed tool 输出会被 `execution-control` 投影成 ca
 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
 `projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
 notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace
-至少包含两个 handoff。semantic retry/replan 与 resumable resume 仍不是当前 public
-contract 承诺。
+至少包含两个 ordered capability steps。semantic retry/replan 与 resumable resume
+仍不是当前 public contract 承诺；它们需要由 `WorkflowPlan` policy、
+Temporal activity graph 与 sanitized projection 一起落地，不能只声明字段。
 
 ## 设计原则
 
@@ -276,7 +277,9 @@ product/control-plane endpoint。
 调用规则：
 
 - 仅允许 repo-owned trusted internal runtime caller 使用
-- 请求头使用 `x-supervisor-query-auth`
+- 当前实现请求头仍使用 `x-supervisor-query-auth`；这是 legacy header 名称，不是目标态
+  `supervisor` concept。后续 contract rename 应改为 execution/query 语义，并同步所有
+  internal callers，不新增 alias。
 - JSON 命名保持 `snake_case`
 - response body 对齐对应 tool result contract 的 safe typed summary
 - runtime 只读 configured projection / normalized truth；不得 query-time 回扫 raw
@@ -339,8 +342,14 @@ browser-facing execution response，也不是 panel query backend。
 - `execution.bridge_failed`
 - `execution.timed_out`
 
+`execution.bridge_failed` 与 `bridge_duration` 是 historical bridge-era event / field
+names，当前 active durable path 不得用它们表达 Temporal activity、typed tool 或
+provider failure。后续 schema cleanup 应迁到 `execution.activity_failed`、
+`execution.provider_failed` 或等价 execution-owned reason code，并同步 app-api /
+panel / eval consumer；在迁移前只能作为 legacy event vocabulary 读取。
+
 payload 只允许 safe runtime summary：lane、requested capability、decision、failure
-kind、HTTP status、retryable、duration、queue wait、bridge duration。禁止 raw
+kind、HTTP status、retryable、duration、queue wait、execution duration。禁止 raw
 `user_goal`、raw prompt、raw answer、raw transcript、auth material、retrieval
 payload 或 provider raw response。
 
@@ -375,9 +384,6 @@ payload 或 provider raw response。
         "policy_projection_version": "phase1-authorization-projection-v1"
       }
     },
-    "profile_memory": {
-      "items": []
-    },
     "session": {
       "confirmed_slots": [],
       "selected_notice_ref": null,
@@ -395,12 +401,15 @@ payload 或 provider raw response。
 - `conversation_id` 来自 chat domain truth
 - `user_goal` 来自产品层 prompt
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
-  `actor`、`authorization.retrieval_filter`、`profile_memory.items` 与
-  `session.confirmed_slots`、可选的 `session.selected_notice_ref`，以及 turn count 摘要
-- `profile_memory.items` 只包含当前 principal 名下、已启用 projection、且
-  `visibility=user_visible` 的 profile memory item；关闭 profile memory projection
-  时必须为空。它只能用于 personalization，不得参与 authorization filter、serving
-  surface、approval 或 tool permission 判定
+  `actor`、`authorization.retrieval_filter`、`session.confirmed_slots`、可选的
+  `session.selected_notice_ref`，以及 turn count 摘要
+- online personal memory 不再由 `app-api` 读取 PG `profile.memory_items` 后全量注入
+  `context.profile_memory.items`。`app-api` 只提供 actor/session/request context；
+  `execution-control` 在 `CapabilityExecutionWorkflow` 的 `context.memory_recall`
+  step 中调用 Qdrant `personal_memory_v1`，生成 bounded `MemoryContextPacket` /
+  memory projection refs。legacy `profile_memory` 字段如仍出现在 generated DTO 或历史
+  fixture 中，只能解释为 ignored / legacy compatibility residue，不得作为 active
+  online recall truth 或目标 contract 扩展点。
 - `requested_capability` 当前 wire 允许 `knowledge`、`place_lookup`、
   `campus_services`、`notice`。这只是 internal execution
   capability label，不等于对应 browser surface 已开放；当前公开 chat surface
