@@ -1,4 +1,4 @@
-//go:build !retired_pg_lease
+//go:build retired_bridge_serving
 
 package httpapi
 

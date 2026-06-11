@@ -24,7 +24,6 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 		}
 	}
 	lifecycleStatus := s.lifecycle.Snapshot()
-	bridgeCircuit := s.bridgeBreaker.Snapshot()
 	telemetryStatus := s.telemetry.Status()
 	executionAuditStatus := s.executionAudit.Status()
 	_, _ = response.Write(s.metrics.Prometheus(observability.AdmissionSnapshot{
@@ -38,11 +37,6 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 			CancelRequestedCount: lifecycleStatus.CancelRequestedCount,
 			CompletedRetained:    lifecycleStatus.CompletedRetained,
 			CompletedByState:     lifecycleStatus.CompletedByState,
-		},
-		BridgeCircuit: observability.BridgeCircuitSnapshot{
-			OpenCount:     bridgeCircuit.OpenCount,
-			RejectedCount: bridgeCircuit.RejectedCount,
-			State:         bridgeCircuit.State,
 		},
 		Telemetry: observability.TelemetrySnapshot{
 			Enabled:            telemetryStatus.Enabled,

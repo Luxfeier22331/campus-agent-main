@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -248,134 +247,30 @@ func (s *Server) temporalRoutePlanForRun(
 	run execution.DurableRun,
 	input temporalruntime.PlanRouteActivityInput,
 ) (temporalruntime.PlanRouteActivityOutput, error) {
-	handoff, err := s.routeHandoffForRun(run, input.RequestedCapability)
-	if err != nil {
-		return temporalruntime.PlanRouteActivityOutput{}, err
+	if route, ok, err := s.plannedRouteForRun(run, input.RequestedCapability); ok || err != nil {
+		return route, err
 	}
-	capability := strings.TrimSpace(handoff.Capability)
-	if capability == "" {
-		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("route handoff capability is required")
-	}
-	if capability != "knowledge" {
-		registry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
-		if !ok {
-			return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("capability registry is not available")
-		}
-		spec, ok := registry.CapabilityByID(capability)
-		if !ok || !spec.Active || spec.OpeningGate != "open" {
-			return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("capability %s is not open", capability)
-		}
-	}
-	toolName := ""
-	switch {
-	case len(handoff.AllowedTools) == 1:
-		toolName = handoff.AllowedTools[0]
-	case capability == "knowledge":
-		toolName = "retrieval.query"
-	default:
-		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf(
-			"capability %s requires exactly one selected tool",
-			capability,
-		)
-	}
-	if capability != "knowledge" && !slices.Contains(handoff.AllowedTools, toolName) {
-		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf(
-			"selected tool %s is not admitted for capability %s",
-			toolName,
-			capability,
-		)
-	}
-	workerRole := strings.TrimSpace(handoff.WorkerRole)
-	if workerRole == "" {
-		workerRole = runtimepolicy.WorkerRoleForCapability(capability)
-	}
-	if workerRole == "" {
-		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf(
-			"capability %s worker role is not configured",
-			capability,
-		)
-	}
-	return temporalruntime.PlanRouteActivityOutput{
-		AllowedTools: append([]string{}, handoff.AllowedTools...),
-		Capability:   capability,
-		Payload:      cloneAnyMapFromMetadata(handoff.Payload),
-		PayloadKind:  handoff.PayloadKind,
-		PlanRef:      temporalProjectionRef(run.RunID, "plan/route"),
-		RunID:        run.RunID,
-		Status:       "planned",
-		ToolName:     toolName,
-		WorkerRole:   workerRole,
-	}, nil
+	return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf(
+		"execution_payload with user_goal is required for plan.route",
+	)
 }
 
-func (s *Server) routeHandoffForRun(
+func (s *Server) plannedRouteForRun(
 	run execution.DurableRun,
 	requestedCapability string,
-) (execution.RuntimeHandoff, error) {
-	if handoff, ok := s.plannedRouteHandoffForRun(run, requestedCapability); ok {
-		return handoff, nil
-	}
-	if len(run.Metadata) == 0 {
-		return execution.RuntimeHandoff{}, fmt.Errorf("run metadata is empty")
-	}
-	runtimeDecisions := cloneAnyMapFromMetadata(nestedAny(run.Metadata, "execution_payload", "runtime_decisions"))
-	summary := cloneAnyMapFromMetadata(runtimeDecisions["runtime_decision_summary"])
-	selectedCapability := firstNonEmptyText(
-		summary["selected_capability"],
-		run.SelectedCapability,
-		run.RequestedCapability,
-		requestedCapability,
-	)
-	if selectedCapability == "" {
-		selectedCapability = "knowledge"
-	}
-	handoffRaw := cloneAnyMapFromMetadata(runtimeDecisions["handoff"])
-	if len(handoffRaw) == 0 {
-		handoffRaw = cloneAnyMapFromMetadata(run.Metadata["handoff"])
-	}
-	capability := firstNonEmptyText(
-		handoffRaw["capability"],
-		handoffRaw["target"],
-		selectedCapability,
-	)
-	payloadKind := firstNonEmptyText(handoffRaw["payload_kind"])
-	if payloadKind == "" {
-		payloadKind = payloadKindForCapability(capability)
-	}
-	allowedTools := stringSliceFromAny(handoffRaw["allowed_tools"])
-	if len(allowedTools) == 0 && capability == "knowledge" {
-		allowedTools = []string{}
-	}
-	payload := cloneAnyMapFromMetadata(handoffRaw["payload"])
-	if len(payload) == 0 {
-		payload = cloneAnyMapFromMetadata(nestedAny(run.Metadata, "handoff", "payload"))
-	}
-	return execution.RuntimeHandoff{
-		Capability:   capability,
-		WorkerRole:   firstNonEmptyText(handoffRaw["worker_role"], summary["worker_role"]),
-		PayloadKind:  payloadKind,
-		Payload:      payload,
-		AllowedTools: allowedTools,
-	}, nil
-}
-
-func (s *Server) plannedRouteHandoffForRun(
-	run execution.DurableRun,
-	requestedCapability string,
-) (execution.RuntimeHandoff, bool) {
+) (temporalruntime.PlanRouteActivityOutput, bool, error) {
 	if s == nil || s.intentPolicyErr != nil {
-		return execution.RuntimeHandoff{}, false
+		return temporalruntime.PlanRouteActivityOutput{}, false, nil
 	}
 	if len(run.Metadata) == 0 {
-		return execution.RuntimeHandoff{}, false
+		return temporalruntime.PlanRouteActivityOutput{}, false, nil
 	}
 	payload := cloneAnyMapFromMetadata(run.Metadata["execution_payload"])
 	userGoal := firstNonEmptyText(payload["user_goal"])
 	if userGoal == "" {
-		return execution.RuntimeHandoff{}, false
+		return temporalruntime.PlanRouteActivityOutput{}, false, nil
 	}
 	capability := firstNonEmptyText(
-		nestedAny(payload, "runtime_decisions", "runtime_decision_summary", "selected_capability"),
 		payload["effective_capability"],
 		run.SelectedCapability,
 		run.RequestedCapability,
@@ -386,13 +281,21 @@ func (s *Server) plannedRouteHandoffForRun(
 	}
 	version := cloneAnyMapFromMetadata(payload["version_query"])
 	scope := cloneAnyMapFromMetadata(payload["requested_scope"])
+	selectedNotice := cloneAnyMapFromMetadata(nestedAny(payload, "context", "session", "selected_notice_ref"))
 	plan := structuredplanning.PlanWithPolicy(structuredplanning.Request{
-		EffectiveCapability: capability,
-		UserGoal:            userGoal,
-		HasRequestedScope:   len(scope) > 0,
+		EffectiveCapability:      capability,
+		UserGoal:                 userGoal,
+		HasRequestedScope:        len(scope) > 0,
+		MultiStepWorkflowEnabled: true,
 		RequestedScope: structuredplanning.Scope{
 			Collection: firstNonEmptyText(scope["collection"]),
 			Corpus:     firstNonEmptyText(scope["corpus"]),
+		},
+		SelectedNoticeRef: structuredplanning.SelectedNoticeRef{
+			NoticeID:      firstNonEmptyText(selectedNotice["notice_id"]),
+			SourceFamily:  firstNonEmptyText(selectedNotice["source_family"]),
+			Title:         firstNonEmptyText(selectedNotice["title"]),
+			TargetSurface: firstNonEmptyText(selectedNotice["target_surface"]),
 		},
 		VersionQuery: structuredplanning.VersionQuery{
 			AsOf:               firstNonEmptyText(version["as_of"]),
@@ -402,46 +305,110 @@ func (s *Server) plannedRouteHandoffForRun(
 		},
 	}, s.intentPolicy)
 	if plan == nil {
-		return execution.RuntimeHandoff{}, false
+		return temporalruntime.PlanRouteActivityOutput{}, false, nil
 	}
-	handoff := plan.SelectedHandoff()
-	if handoff == nil {
-		return execution.RuntimeHandoff{}, false
+	if capabilityPlan := plan.CapabilityPlan(); capabilityPlan != nil {
+		resolvedPlan, err := resolveStructuredCapabilityPlan(*capabilityPlan)
+		if err != nil {
+			return temporalruntime.PlanRouteActivityOutput{}, true, err
+		}
+		plan = resolvedPlan
 	}
-	return execution.RuntimeHandoff{
-		Capability:   handoff.Capability,
-		WorkerRole:   runtimepolicy.WorkerRoleForCapability(handoff.Capability),
-		PayloadKind:  handoff.PayloadKind,
-		Payload:      cloneAnyMapFromMetadata(handoff.Payload),
-		AllowedTools: append([]string{}, handoff.AllowedTools...),
-	}, true
+	route, err := temporalRouteOutputFromStructuredPlan(run.RunID, capability, plan)
+	return route, true, err
 }
 
-func payloadKindForCapability(capability string) string {
-	switch capability {
-	case "knowledge", "":
-		return "rag_request"
-	default:
-		return ""
-	}
-}
-
-func stringSliceFromAny(value any) []string {
-	items, ok := value.([]any)
+func resolveStructuredCapabilityPlan(
+	capabilityPlan structuredplanning.CapabilityPlan,
+) (*structuredplanning.WorkflowPlan, error) {
+	capabilityRegistry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
 	if !ok {
-		if stringsSlice, ok := value.([]string); ok {
-			return append([]string{}, stringsSlice...)
-		}
-		return nil
+		return nil, fmt.Errorf("capability registry is not available")
 	}
-	result := make([]string, 0, len(items))
-	for _, item := range items {
-		text := strings.TrimSpace(firstNonEmptyText(item))
-		if text != "" {
-			result = append(result, text)
-		}
+	toolRegistry, ok := runtimepolicy.DefaultToolSpecRegistry()
+	if !ok {
+		return nil, fmt.Errorf("tool registry is not available")
 	}
-	return result
+	artifactRegistry, err := runtimepolicy.LoadWorkflowArtifactRegistry("")
+	if err != nil {
+		return nil, err
+	}
+	return structuredplanning.ResolveCapabilityPlan(
+		capabilityPlan,
+		capabilityRegistry,
+		toolRegistry,
+		artifactRegistry,
+	)
+}
+
+func temporalRouteOutputFromStructuredPlan(
+	runID string,
+	effectiveCapability string,
+	plan *structuredplanning.WorkflowPlan,
+) (temporalruntime.PlanRouteActivityOutput, error) {
+	if plan == nil {
+		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("workflow plan is required")
+	}
+	capabilityRegistry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
+	if !ok {
+		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("capability registry is not available")
+	}
+	toolRegistry, ok := runtimepolicy.DefaultToolSpecRegistry()
+	if !ok {
+		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("tool registry is not available")
+	}
+	if err := structuredplanning.ValidateWorkflowPlanWithCapabilitySpec(
+		plan,
+		capabilityRegistry,
+		toolRegistry,
+	); err != nil {
+		return temporalruntime.PlanRouteActivityOutput{}, err
+	}
+	handoffs := plan.Handoffs()
+	if len(handoffs) == 0 {
+		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("workflow plan has no executable handoffs")
+	}
+	steps := make([]temporalruntime.CapabilityBranchStep, 0, len(handoffs))
+	for index, handoff := range handoffs {
+		planStep := structuredplanning.WorkflowPlanStep{}
+		if index < len(plan.Steps) {
+			planStep = plan.Steps[index]
+		}
+		steps = append(steps, temporalruntime.CapabilityBranchStep{
+			AllowedTools: append([]string{}, handoff.AllowedTools...),
+			Capability:   handoff.Capability,
+			Payload:      cloneAnyMapFromMetadata(handoff.Payload),
+			PayloadKind:  handoff.PayloadKind,
+			StepID:       firstNonEmptyText(planStep.StepID, "capability:"+handoff.Capability+":"+handoff.PayloadKind),
+			ToolName:     firstNonEmptyText(planStep.SelectedTool, selectedToolNameForHandoff(handoff)),
+			WorkerRole:   firstNonEmptyText(planStep.WorkerRole, runtimepolicy.WorkerRoleForCapability(handoff.Capability)),
+		})
+	}
+	first := steps[0]
+	routeCapability := firstNonEmptyText(effectiveCapability, first.Capability)
+	return temporalruntime.PlanRouteActivityOutput{
+		AllowedTools: append([]string{}, first.AllowedTools...),
+		Capability:   routeCapability,
+		Payload:      cloneAnyMapFromMetadata(first.Payload),
+		PayloadKind:  firstNonEmptyText(first.PayloadKind, "capability_plan"),
+		PlanRef:      temporalProjectionRef(runID, "plan/route"),
+		RunID:        runID,
+		Status:       "planned",
+		Steps:        steps,
+		ToolName:     first.ToolName,
+		WorkerRole:   runtimepolicy.WorkerRoleForCapability(routeCapability),
+		WorkflowMode: string(plan.WorkflowMode),
+	}, nil
+}
+
+func selectedToolNameForHandoff(handoff structuredplanning.Handoff) string {
+	if len(handoff.AllowedTools) == 1 {
+		return handoff.AllowedTools[0]
+	}
+	if handoff.Capability == "knowledge" {
+		return "retrieval.query"
+	}
+	return ""
 }
 
 func (s *Server) RetrieveIndexedLookupActivity(

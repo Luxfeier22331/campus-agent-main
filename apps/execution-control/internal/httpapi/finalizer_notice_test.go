@@ -9,7 +9,7 @@ import (
 func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "notice",
+			"capability":         "notice",
 			"status":             "completed",
 			"answer_text":        "已找到官方通知链接，请以原文为准。",
 			"follow_up_question": "",
@@ -135,7 +135,7 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 	}
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"capability":             "knowledge",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "这条通知可按学生手册相关规定理解。",
 			"follow_up_question": "",

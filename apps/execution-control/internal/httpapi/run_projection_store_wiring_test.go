@@ -48,25 +48,21 @@ func TestNewRunProjectionStoreReturnsConnectionErrorForExplicitInvalidDatabaseUR
 }
 
 func TestNewServerDoesNotCreateRetiredPGLeaseCoordinatorForOnlineServing(t *testing.T) {
-	server := NewServerWithDependencies(config.Config{}, nil, nil, nil, nil)
+	server := NewServerWithDependencies(config.Config{}, nil, nil, nil)
 	if server.runProjectionStore != nil {
 		t.Fatalf("run projection store = %#v, want nil without explicit run projection database url", server.runProjectionStore)
 	}
 }
 
 func TestReadyzReportsRunProjectionStoreStatus(t *testing.T) {
-	server := NewServer(config.Config{
-		RequestBodyLimitBytes:    1_048_576,
-		MaxConcurrentAnswers:     8,
-		RunProjectionDatabaseURL: "",
-	}, nil)
+	server := newServerForTest()
 	server.runProjectionStore = execution.NewInMemoryRunProjectionStore()
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("readyz status = %d, want degraded because bridge is not configured", response.Code)
+		t.Fatalf("readyz status = %d, want degraded because Temporal/RAG are not configured", response.Code)
 	}
 	body := decodeBody(t, response)
 	projection := expectRecord(t, body["run_projection_store"], "run_projection_store")
@@ -76,10 +72,11 @@ func TestReadyzReportsRunProjectionStoreStatus(t *testing.T) {
 }
 
 func TestNewServerDoesNotCreateDurableWorkerLoopForOnlineServing(t *testing.T) {
-	server := NewServer(config.Config{}, &fakeBridge{configured: true})
-
+	server := newServerForTest()
 	response := httptest.NewRecorder()
+
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
 	body := decodeBody(t, response)
 	if _, ok := body["durable_worker_loop"]; ok {
 		t.Fatalf("readyz must not publish retired durable_worker_loop: %#v", body["durable_worker_loop"])

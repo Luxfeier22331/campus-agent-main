@@ -28,12 +28,17 @@ type executionFinalizerContext struct {
 	WorkflowRun        *execution.WorkflowRun
 }
 
+type executionAttemptState struct {
+	AttemptCount int
+	RetryCount   int
+}
+
 func finalizerContextFromExecutionRequest(
 	request execution.AnswerExecutionRequest,
 	branch string,
-	runStates ...bridgeExecutionRunState,
+	runStates ...executionAttemptState,
 ) executionFinalizerContext {
-	runState := bridgeExecutionRunState{AttemptCount: 1}
+	runState := executionAttemptState{AttemptCount: 1}
 	if len(runStates) > 0 {
 		runState = runStates[0]
 	}
@@ -68,6 +73,37 @@ func firstWorkflowRun(runs []*execution.WorkflowRun) *execution.WorkflowRun {
 		return nil
 	}
 	return runs[0]
+}
+
+func terminalExecutionResponse(
+	envelope map[string]any,
+	traceID string,
+	context executionFinalizerContext,
+) map[string]any {
+	response := make(map[string]any, len(envelope)+2)
+	for key, value := range envelope {
+		response[key] = value
+	}
+	if _, exists := response["result"]; !exists {
+		response["result"] = nil
+	}
+	if _, exists := response["error"]; !exists {
+		response["error"] = nil
+	}
+	if _, exists := response["workflow_trace_summary"]; !exists {
+		target, _ := response["selected_capability"].(string)
+		status, _ := response["status"].(string)
+		result, _ := response["result"].(map[string]any)
+		response["workflow_trace_summary"] = buildWorkflowTraceSummary(
+			context,
+			target,
+			status,
+			result,
+			nil,
+		)
+	}
+	response["trace_id"] = traceID
+	return response
 }
 
 func workflowBranchForRequest(request execution.AnswerExecutionRequest) string {

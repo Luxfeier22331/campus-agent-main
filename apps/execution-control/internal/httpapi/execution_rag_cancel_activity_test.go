@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -13,9 +12,7 @@ import (
 
 func TestSynthesisProviderCancellationProjectsAbortOutcome(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-knowledge:001",
-	}, nil)
+	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
 	server.ragLookupErr = nil
@@ -151,9 +148,7 @@ func TestSynthesisProviderCancellationProjectsAbortOutcome(t *testing.T) {
 
 func TestSynthesisProviderTimeoutProjectsTimeoutOutcome(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-knowledge:001",
-	}, nil)
+	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
 	server.ragLookupErr = nil

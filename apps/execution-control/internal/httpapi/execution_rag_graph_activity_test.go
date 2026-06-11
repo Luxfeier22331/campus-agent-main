@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
@@ -78,9 +77,7 @@ func (f *fakeRAGSynthesisExecutor) ExecuteRAGSynthesis(
 
 func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-knowledge:001",
-	}, nil)
+	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	lookup := &fakeRAGLookupExecutor{}
 	server.ragLookupExecutor = lookup
@@ -365,9 +362,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 
 func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-knowledge:001",
-	}, nil)
+	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
 	server.ragLookupErr = nil
@@ -515,9 +510,7 @@ func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *te
 
 func TestRetrieveIndexedLookupActivityFailsClosedWhenLookupUnavailable(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-knowledge:001",
-	}, nil)
+	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{err: errors.New("qdrant unavailable")}
 	server.ragLookupErr = nil
@@ -581,9 +574,7 @@ func TestRetrieveIndexedLookupActivityFailsClosedWhenLookupUnavailable(t *testin
 
 func TestPlanRAGActivitySelectsStudentRuleScopeWithoutExplicitRequestedScope(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-knowledge:001",
-	}, nil)
+	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -639,9 +630,7 @@ func TestPlanRAGActivitySelectsStudentRuleScopeWithoutExplicitRequestedScope(t *
 
 func TestPlanRAGActivityFailsClosedWhenScopeCannotBeSelected(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-knowledge:001",
-	}, nil)
+	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(

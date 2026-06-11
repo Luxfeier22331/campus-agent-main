@@ -236,7 +236,7 @@ func TestQdrantPersonalMemoryDisableUsesWriteKeyAndPointID(t *testing.T) {
 }
 
 func TestPersonalMemoryUpsertEndpointRequiresInternalAuth(t *testing.T) {
-	server := NewServer(config.Config{WorkerSharedSecret: "shared-secret"}, nil)
+	server := NewServer(config.Config{WorkerSharedSecret: "shared-secret"})
 	server.personalMemoryExecutor = &fakePersonalMemoryExecutor{}
 	server.personalMemoryErr = nil
 
@@ -256,7 +256,7 @@ func TestPersonalMemoryUpsertEndpointRequiresInternalAuth(t *testing.T) {
 
 func TestPersonalMemoryUpsertEndpointIndexesViaExecutor(t *testing.T) {
 	executor := &fakePersonalMemoryExecutor{}
-	server := NewServer(config.Config{WorkerSharedSecret: "shared-secret"}, nil)
+	server := NewServer(config.Config{WorkerSharedSecret: "shared-secret"})
 	server.personalMemoryExecutor = executor
 	server.personalMemoryErr = nil
 
@@ -290,7 +290,7 @@ func TestPersonalMemoryUpsertEndpointIndexesViaExecutor(t *testing.T) {
 
 func TestPersonalMemoryDisableEndpointDisablesViaExecutor(t *testing.T) {
 	executor := &fakePersonalMemoryExecutor{}
-	server := NewServer(config.Config{WorkerSharedSecret: "shared-secret"}, nil)
+	server := NewServer(config.Config{WorkerSharedSecret: "shared-secret"})
 	server.personalMemoryExecutor = executor
 	server.personalMemoryErr = nil
 

@@ -5,8 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
 func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T) {
@@ -28,12 +26,7 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 			}
 		]
 	}`
-	server := NewServer(config.Config{
-		MaxConcurrentAnswers:              8,
-		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:         "query-secret",
-		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
-	}, nil)
+	server := newStructuredQueryAuthServerForTest()
 	useStructuredQueryRuntimeFixture(
 		t,
 		server,
@@ -121,12 +114,7 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 			}
 		]
 	}`
-	server := NewServer(config.Config{
-		MaxConcurrentAnswers:              8,
-		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:         "query-secret",
-		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
-	}, nil)
+	server := newStructuredQueryAuthServerForTest()
 	useStructuredQueryRuntimeFixture(
 		t,
 		server,
@@ -236,12 +224,7 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 		"schema_version":"campus_services_projection_bundle.v1",
 		"transport_schedule_snapshots":[]
 	}`
-	server := NewServer(config.Config{
-		MaxConcurrentAnswers:              8,
-		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:         "query-secret",
-		StructuredQueryTrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
-	}, nil)
+	server := newStructuredQueryAuthServerForTest()
 	useStructuredQueryRuntimeFixtures(
 		t,
 		server,
@@ -321,12 +304,7 @@ func TestStructuredQueryContactDirectoryUsesConfiguredProjectionBundle(t *testin
 		"contact_conflict_records":[],
 		"contact_manual_review_sources":[]
 	}`
-	server := NewServer(config.Config{
-		MaxConcurrentAnswers:              8,
-		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:         "query-secret",
-		StructuredQueryTrustedTimeRFC3339: "2026-04-27T10:30:00+08:00",
-	}, nil)
+	server := newStructuredQueryAuthServerForTest()
 	useStructuredQueryRuntimeFixture(
 		t,
 		server,
@@ -396,12 +374,7 @@ func TestStructuredQueryAcademicCalendarUsesConfiguredProjectionBundle(t *testin
 			}
 		]
 	}`
-	server := NewServer(config.Config{
-		MaxConcurrentAnswers:              8,
-		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:         "query-secret",
-		StructuredQueryTrustedTimeRFC3339: "2026-05-04T09:00:00+08:00",
-	}, nil)
+	server := newStructuredQueryAuthServerForTest()
 	useStructuredQueryRuntimeFixture(
 		t,
 		server,
@@ -447,12 +420,7 @@ func TestStructuredQueryAcademicCalendarUsesConfiguredProjectionBundle(t *testin
 }
 
 func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t *testing.T) {
-	server := NewServer(config.Config{
-		MaxConcurrentAnswers:              8,
-		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:         "query-secret",
-		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
-	}, nil)
+	server := newStructuredQueryAuthServerForTest()
 
 	request := newTestRequest(
 		http.MethodPost,
@@ -483,11 +451,7 @@ func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t 
 }
 
 func TestStructuredQueryNoticeDiscoverRequiresQueryAuth(t *testing.T) {
-	server := NewServer(config.Config{
-		MaxConcurrentAnswers:      8,
-		RequestBodyLimitBytes:     1_048_576,
-		InternalQuerySharedSecret: "query-secret",
-	}, nil)
+	server := newStructuredQueryAuthServerForTest()
 
 	response := httptest.NewRecorder()
 	server.ServeHTTP(
@@ -503,12 +467,7 @@ func TestStructuredQueryNoticeDiscoverRequiresQueryAuth(t *testing.T) {
 }
 
 func TestStructuredQueryNoticeDiscoverFailsClosedWhenReadModelUnavailable(t *testing.T) {
-	server := NewServer(config.Config{
-		MaxConcurrentAnswers:              8,
-		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:         "query-secret",
-		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
-	}, nil)
+	server := newStructuredQueryAuthServerForTest()
 
 	request := newTestRequest(
 		http.MethodPost,

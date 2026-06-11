@@ -1,3 +1,5 @@
+//go:build retired_bridge_serving
+
 package httpapi
 
 import (

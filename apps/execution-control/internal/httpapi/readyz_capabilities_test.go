@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,30 +9,13 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 )
 
 func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		ExecutionAuditEnabled:         true,
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.ExecutionAuditEnabled = true
 	})
 	response := httptest.NewRecorder()
 
@@ -50,24 +32,8 @@ func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) 
 }
 
 func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"campus_services"},
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"campus_services"}
 	})
 	response := httptest.NewRecorder()
 
@@ -86,53 +52,37 @@ func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T
 func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailable(t *testing.T) {
 	partialProjectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
-"service_status_records":[
+		"service_status_records":[
 			{
 				"subject_id":"library-haidian",
-"display_name":"海淀校区图书馆",
-"aliases":["图书馆"],
-"campus_scope":"haidian",
-"observed_status":"open",
-"effective_from":"2026-04-24T08:00:00+08:00",
-"effective_until":"2026-04-24T22:00:00+08:00",
-"override_source_refs":["notice:library-hours"],
-"related_notice_refs":["notice:library-hours"]
+				"display_name":"海淀校区图书馆",
+				"aliases":["图书馆"],
+				"campus_scope":"haidian",
+				"observed_status":"open",
+				"effective_from":"2026-04-24T08:00:00+08:00",
+				"effective_until":"2026-04-24T22:00:00+08:00",
+				"override_source_refs":["notice:library-hours"],
+				"related_notice_refs":["notice:library-hours"]
 			}
 		],
-"transport_schedule_snapshots":[
+		"transport_schedule_snapshots":[
 			{
 				"snapshot_id":"snapshot:bus:2026-04-20",
-"published_at":"2026-04-20T18:00:00+08:00",
-"effective_from":"2026-04-21T00:00:00+08:00",
-"source_ref":"notice:bus-schedule-2026-04-20",
-"is_current":true
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:bus-schedule-2026-04-20",
+				"is_current":true
 			}
 		]
 	}`
 	emptyServiceGuideFixture := `{
 		"schema_version":"campus_services_service_guide_projection.v1",
-"service_guide_records":[],
-"conflict_records":[],
-"manual_review_sources":[]
+		"service_guide_records":[],
+		"conflict_records":[],
+		"manual_review_sources":[]
 	}`
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"campus_services"},
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"campus_services"}
 	})
 	useStructuredQueryRuntimeFixtures(
 		t,
@@ -161,55 +111,39 @@ func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailab
 func TestReadyzDegradesWhenOpenedCampusServicesContactDirectoryUnavailable(t *testing.T) {
 	projectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
-"service_status_records":[
+		"service_status_records":[
 			{
 				"subject_id":"library-haidian",
-"display_name":"海淀校区图书馆",
-"aliases":["图书馆"],
-"campus_scope":"haidian",
-"observed_status":"open",
-"effective_from":"2026-04-24T08:00:00+08:00",
-"effective_until":"2026-04-24T22:00:00+08:00",
-"override_source_refs":["notice:library-hours"],
-"related_notice_refs":["notice:library-hours"]
+				"display_name":"海淀校区图书馆",
+				"aliases":["图书馆"],
+				"campus_scope":"haidian",
+				"observed_status":"open",
+				"effective_from":"2026-04-24T08:00:00+08:00",
+				"effective_until":"2026-04-24T22:00:00+08:00",
+				"override_source_refs":["notice:library-hours"],
+				"related_notice_refs":["notice:library-hours"]
 			}
 		],
-"transport_schedule_snapshots":[
+		"transport_schedule_snapshots":[
 			{
 				"snapshot_id":"snapshot:bus:2026-04-20",
-"published_at":"2026-04-20T18:00:00+08:00",
-"effective_from":"2026-04-21T00:00:00+08:00",
-"source_ref":"notice:bus-schedule-2026-04-20",
-"is_current":true
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:bus-schedule-2026-04-20",
+				"is_current":true
 			}
 		],
-"service_guide_records":[
+		"service_guide_records":[
 			{
 				"service_id":"shuttle_bus",
-"service_name":"校车",
-"required_materials":[],
-"contact_refs":[]
+				"service_name":"校车",
+				"required_materials":[],
+				"contact_refs":[]
 			}
 		]
 	}`
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"campus_services"},
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"campus_services"}
 	})
 	bundle := decodeProjectionBundleFixture(t, projectionFixture)
 	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
@@ -240,24 +174,8 @@ func TestReadyzDegradesWhenOpenedCampusServicesContactDirectoryUnavailable(t *te
 }
 
 func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"notice"},
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"notice"}
 	})
 	response := httptest.NewRecorder()
 
@@ -275,31 +193,15 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
 }
 
 func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                             "campus-agent",
-		MaxConcurrentAnswers:                8,
-		OpenCapabilities:                    []string{"notice"},
-		PromptRuntimeProvider:               "openai",
-		SupervisorPromptModel:               "gpt-5-mini",
-		AgentPromptModel:                    "gpt-5-mini",
-		PromptRuntimeAPIKey:                 "test-key",
-		PromptRuntimeTransport:              "responses",
-		PromptRuntimeBaseURL:                "https://api.openai.com/v1",
-		ProviderPricingPath:                 providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs:       true,
-		NoticeReadModelDatabaseURL:          "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
-		NoticeReadModelTable:                "ingestion_projection.internal_notice_read_model",
-		NoticeBodyObjectStoreEndpoint:       "http://127.0.0.1:1",
-		NoticeBodyObjectStoreAccessKey:      "access-key",
-		NoticeBodyObjectStoreSecretKey:      "secret-object-key",
-		NoticeBodyObjectStoreBucket:         "notice-body",
-		NoticeBodyObjectStoreBodyLimitBytes: 1_048_576,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"notice"}
+		cfg.NoticeReadModelDatabaseURL = "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent"
+		cfg.NoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
+		cfg.NoticeBodyObjectStoreEndpoint = "http://127.0.0.1:1"
+		cfg.NoticeBodyObjectStoreAccessKey = "access-key"
+		cfg.NoticeBodyObjectStoreSecretKey = "secret-object-key"
+		cfg.NoticeBodyObjectStoreBucket = "notice-body"
+		cfg.NoticeBodyObjectStoreBodyLimitBytes = 1_048_576
 	})
 	defer func() {
 		_ = server.Shutdown(context.Background())
@@ -333,36 +235,18 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
 }
 
 func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                             "campus-agent",
-		MaxConcurrentAnswers:                8,
-		PromptRuntimeProvider:               "openai",
-		SupervisorPromptModel:               "gpt-5-mini",
-		AgentPromptModel:                    "gpt-5-mini",
-		PromptRuntimeAPIKey:                 "test-key",
-		PromptRuntimeTransport:              "responses",
-		PromptRuntimeBaseURL:                "https://api.openai.com/v1",
-		ProviderPricingPath:                 providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs:       true,
-		NoticeReadModelDatabaseURL:          "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
-		NoticeReadModelTable:                "ingestion_projection.internal_notice_read_model",
-		NoticeBodyObjectStoreEndpoint:       "http://127.0.0.1:1",
-		NoticeBodyObjectStoreAccessKey:      "access-key",
-		NoticeBodyObjectStoreSecretKey:      "secret-object-key",
-		NoticeBodyObjectStoreBucket:         "notice-body",
-		NoticeBodyObjectStoreBodyLimitBytes: 1_048_576,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.NoticeReadModelDatabaseURL = "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent"
+		cfg.NoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
+		cfg.NoticeBodyObjectStoreEndpoint = "http://127.0.0.1:1"
+		cfg.NoticeBodyObjectStoreAccessKey = "access-key"
+		cfg.NoticeBodyObjectStoreSecretKey = "secret-object-key"
+		cfg.NoticeBodyObjectStoreBucket = "notice-body"
+		cfg.NoticeBodyObjectStoreBodyLimitBytes = 1_048_576
 	})
 	defer func() {
 		_ = server.Shutdown(context.Background())
 	}()
-	markTemporalReadyForTest(server)
-	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -390,29 +274,11 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 	defer lease.Release()
 
 	server := NewServerWithDependencies(
-		config.Config{
-			AppName:                       "campus-agent",
-			MaxConcurrentAnswers:          1,
-			QueueCapacity:                 1,
-			QueueTimeoutMS:                1_000,
-			PromptRuntimeProvider:         "openai",
-			SupervisorPromptModel:         "gpt-5-mini",
-			AgentPromptModel:              "gpt-5-mini",
-			PromptRuntimeAPIKey:           "test-key",
-			PromptRuntimeTransport:        "responses",
-			PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-			ProviderPricingPath:           providerPricingCatalogForTest(t),
-			PromptStrictStructuredOutputs: true,
-		},
-		&fakeBridge{
-			configured: true,
-			readyz: bridge.ReadyzResponse{
-				StatusCode: http.StatusOK,
-				Body: json.RawMessage(`{
-					"status":"ready"
-				}`),
-			},
-		},
+		readyServerConfigForTest(t, func(cfg *config.Config) {
+			cfg.MaxConcurrentAnswers = 1
+			cfg.QueueCapacity = 1
+			cfg.QueueTimeoutMS = 1_000
+		}),
 		controller,
 		nil,
 		nil,

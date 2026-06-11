@@ -158,13 +158,13 @@ func (s *Server) workflowInputForQueuedRun(
 		PolicyVersions: map[string]string{
 			"intent_policy": strings.TrimSpace(s.config.IntentPolicyPath),
 		},
-		RequestID:            run.RequestID,
+		RequestID:           run.RequestID,
 		RequestedCapability: defaultString(strings.TrimSpace(run.RequestedCapability), "knowledge"),
-		RunID:                run.RunID,
-		TaskQueue:            defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
-		TraceID:              run.TraceID,
-		TurnID:               run.TurnID,
-		WorkflowID:           workflowID,
+		RunID:               run.RunID,
+		TaskQueue:           defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
+		TraceID:             run.TraceID,
+		TurnID:              run.TurnID,
+		WorkflowID:          workflowID,
 	}, nil
 }
 

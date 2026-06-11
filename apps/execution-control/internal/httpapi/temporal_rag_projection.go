@@ -49,11 +49,7 @@ func ragPlanProjectionForRun(
 	if !ok {
 		return ragruntime.PlanProjection{}, errors.New("run metadata.execution_payload must be an object")
 	}
-	queryText := firstNonEmptyText(
-		nestedAny(payload, "runtime_decisions", "handoff", "capability_request", "payload", "payload", "query_text"),
-		nestedAny(run.Metadata, "handoff", "payload", "query_text"),
-		payload["user_goal"],
-	)
+	queryText := firstNonEmptyText(payload["user_goal"])
 	if queryText == "" {
 		return ragruntime.PlanProjection{}, errors.New("rag query_text is required")
 	}
@@ -61,19 +57,13 @@ func ragPlanProjectionForRun(
 	if err != nil {
 		return ragruntime.PlanProjection{}, err
 	}
-	topK := positiveIntFromAny(
-		nestedAny(run.Metadata, "handoff", "payload", "top_k"),
-		nestedAny(payload, "runtime_decisions", "handoff", "capability_request", "payload", "payload", "top_k"),
-	)
+	topK := positiveIntFromAny(payload["top_k"])
 	if topK <= 0 {
 		topK = 8
 	}
 	plan := ragruntime.PlanProjection{
-		Collection: scope.Collection,
-		CollectionAlias: firstNonEmptyText(
-			nestedAny(run.Metadata, "handoff", "payload", "collection_alias"),
-			scope.Collection,
-		),
+		Collection:               scope.Collection,
+		CollectionAlias:          scope.Collection,
 		Corpus:                   scope.Corpus,
 		NoWideningPolicy:         true,
 		QueryMode:                "current",
@@ -109,11 +99,8 @@ func ragScopeForRun(
 	if !ok {
 		scope, _ = run.Metadata["requested_scope"].(map[string]any)
 	}
-	corpus := firstNonEmptyText(scope["corpus"], nestedAny(run.Metadata, "handoff", "payload", "corpus"))
-	collection := firstNonEmptyText(
-		scope["collection"],
-		nestedAny(run.Metadata, "handoff", "payload", "collection"),
-	)
+	corpus := firstNonEmptyText(scope["corpus"])
+	collection := firstNonEmptyText(scope["collection"])
 	if corpus != "" || collection != "" {
 		if corpus == "" || collection == "" {
 			return runtimepolicy.Scope{}, errors.New("rag requested_scope corpus and collection are required")

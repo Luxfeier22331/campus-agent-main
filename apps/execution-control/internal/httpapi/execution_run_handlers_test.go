@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -73,14 +72,7 @@ func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.Ru
 func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
-	server := NewServer(config.Config{
-		WorkerSharedSecret:     "secret",
-		RequestBodyLimitBytes:  1_048_576,
-		MaxConcurrentAnswers:   8,
-		TemporalNamespace:      "campus-agent-test",
-		TemporalTaskQueue:      temporalruntime.WorkflowTaskQueue,
-		TemporalWorkflowIDSalt: "test-salt",
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -147,11 +139,7 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 
 func TestExecutionRunCreateFailsClosedWhenTemporalStarterMissing(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	response := httptest.NewRecorder()
@@ -170,11 +158,7 @@ func TestExecutionRunCreateFailsClosedWhenTemporalStarterMissing(t *testing.T) {
 func TestExecutionRunCreateFailsClosedWhenTemporalStartFails(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{err: context.DeadlineExceeded}
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -197,11 +181,7 @@ func TestExecutionRunCreateFailsClosedWhenTemporalStartFails(t *testing.T) {
 func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
@@ -237,11 +217,7 @@ func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 
 func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -398,11 +374,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 func TestExecutionRunCancelFailsClosedWhenTemporalCancelFails(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{cancelErr: context.DeadlineExceeded}
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)

@@ -38,7 +38,6 @@ type AdmissionSnapshot struct {
 	Draining       bool
 	Lanes          map[string]AdmissionLaneSnapshot
 	Lifecycle      LifecycleSnapshot
-	BridgeCircuit  BridgeCircuitSnapshot
 	Telemetry      TelemetrySnapshot
 	ExecutionAudit ExecutionAuditSnapshot
 }
@@ -74,18 +73,6 @@ type ExecutionAuditSnapshot struct {
 	EmittedCount uint64
 	FailedCount  uint64
 	LastError    string
-}
-
-type BridgeRuntimeSnapshot struct {
-	LastBridgeFailureCode string
-	LastBridgeFailureAt   string
-	LastBridgeSuccessAt   string
-}
-
-type BridgeCircuitSnapshot struct {
-	State         string
-	OpenCount     uint64
-	RejectedCount uint64
 }
 
 type laneDecisionKey struct {
@@ -143,16 +130,9 @@ type Metrics struct {
 	laneDecisionTotals      map[laneDecisionKey]uint64
 	admissionWaitDurations  *routeHistogram
 	laneWaitDurations       map[string]*routeHistogram
-	bridgeDurations         *routeHistogram
-	bridgeFailureTotals     map[string]uint64
-	bridgeRetryTotals       map[string]uint64
-	bridgeCancelTotals      map[string]uint64
 	structuredQueryTotals   map[structuredQueryKey]uint64
 	capabilityGateTotals    map[capabilityGateKey]uint64
 	runtimeDecisionTotals   map[runtimeDecisionKey]uint64
-	lastAnswerFailureCode   string
-	lastAnswerFailureAt     time.Time
-	lastAnswerSuccessAt     time.Time
 }
 
 func NewMetrics() *Metrics {
@@ -173,22 +153,9 @@ func NewMetrics() *Metrics {
 		laneDecisionTotals:     make(map[laneDecisionKey]uint64),
 		admissionWaitDurations: newHistogram(),
 		laneWaitDurations:      make(map[string]*routeHistogram),
-		bridgeDurations:        newHistogram(),
-		bridgeFailureTotals: map[string]uint64{
-			"timeout":          0,
-			"unavailable":      0,
-			"invalid_response": 0,
-		},
-		bridgeRetryTotals: make(map[string]uint64),
-		bridgeCancelTotals: map[string]uint64{
-			"accepted":       0,
-			"not_found":      0,
-			"not_configured": 0,
-			"failed":         0,
-		},
-		structuredQueryTotals: make(map[structuredQueryKey]uint64),
-		capabilityGateTotals:  make(map[capabilityGateKey]uint64),
-		runtimeDecisionTotals: make(map[runtimeDecisionKey]uint64),
+		structuredQueryTotals:  make(map[structuredQueryKey]uint64),
+		capabilityGateTotals:   make(map[capabilityGateKey]uint64),
+		runtimeDecisionTotals:  make(map[runtimeDecisionKey]uint64),
 	}
 }
 
@@ -261,40 +228,6 @@ func (m *Metrics) RecordAdmissionDecisionForLane(
 	}
 }
 
-func (m *Metrics) RecordBridgeRetry(kind string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.bridgeRetryTotals[kind]++
-}
-
-func (m *Metrics) RecordBridgeFailure(kind string) {
-	now := time.Now().UTC()
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.bridgeFailureTotals[kind]++
-	m.lastAnswerFailureCode = kind
-	m.lastAnswerFailureAt = now
-}
-
-func (m *Metrics) RecordBridgeSuccess() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.lastAnswerSuccessAt = time.Now().UTC()
-}
-
-func (m *Metrics) RecordBridgeDuration(duration time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	recordHistogramDuration(m.bridgeDurations, duration)
-}
-
-func (m *Metrics) RecordBridgeCancel(outcome string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.bridgeCancelTotals[outcome]++
-}
-
 func (m *Metrics) RecordStructuredQuery(tool string, outcome string, statusCode int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -331,15 +264,4 @@ func (m *Metrics) RecordRuntimeDecision(labels RuntimeDecisionLabels) {
 		TerminalOutcome:       defaultMetricLabel(labels.TerminalOutcome, "none"),
 		FailCloseReason:       defaultMetricLabel(labels.FailCloseReason, "none"),
 	}]++
-}
-
-func (m *Metrics) BridgeRuntimeSnapshot() BridgeRuntimeSnapshot {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return BridgeRuntimeSnapshot{
-		LastBridgeFailureCode: m.lastAnswerFailureCode,
-		LastBridgeFailureAt:   formatTime(m.lastAnswerFailureAt),
-		LastBridgeSuccessAt:   formatTime(m.lastAnswerSuccessAt),
-	}
 }

@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -85,9 +84,7 @@ func TestTemporalToolResultFromRunRejectsResultRefDrift(t *testing.T) {
 
 func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		TemporalWorkerIdentity: "test:activity-finalization:001",
-	}, nil)
+	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 9, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
@@ -33,23 +33,27 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 	return httptest.NewRequestWithContext(context.Background(), method, target, body)
 }
 
+func newServerForTest() *Server {
+	return NewServer(config.Config{})
+}
+
+func newWorkerAuthServerForTest() *Server {
+	server := newServerForTest()
+	server.config.WorkerSharedSecret = "secret"
+	return server
+}
+
+func newStructuredQueryAuthServerForTest() *Server {
+	return NewServer(config.Config{
+		InternalQuerySharedSecret:         "query-secret",
+		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
+	})
+}
+
 func delegateAnswerBody(requestID string) io.Reader {
 	return strings.NewReader(
 		`{"user_goal":"学生手册图书馆开放时间","request_id":"` + requestID + `","requested_scope":{"corpus":"regulations","collection":"student_rules"}}`,
 	)
-}
-
-type fakeBridge struct {
-	configured        bool
-	response          bridge.ExecuteResponse
-	readyz            bridge.ReadyzResponse
-	executeErr        error
-	readyzErr         error
-	seen              bridge.Request
-	seenSemantic      bridge.SemanticExecutionRequest
-	executeFn         func(context.Context, bridge.Request) (bridge.ExecuteResponse, error)
-	executeSemanticFn func(context.Context, bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error)
-	cancelFn          func(context.Context, bridge.CancelRequest) (bridge.CancelResponse, error)
 }
 
 type readyTemporalStarter struct {
@@ -202,49 +206,31 @@ func providerPricingCatalogForTest(t *testing.T) string {
 	return path
 }
 
-var _ bridge.Client = (*fakeBridge)(nil)
-
-func (f *fakeBridge) Configured() bool {
-	return f.configured
+func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) config.Config {
+	t.Helper()
+	cfg := config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		PromptRuntimeProvider:         "openai",
+		AgentPromptModel:              "gpt-5-mini",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		ProviderPricingPath:           providerPricingCatalogForTest(t),
+		PromptStrictStructuredOutputs: true,
+	}
+	for _, mutate := range mutators {
+		mutate(&cfg)
+	}
+	return cfg
 }
 
-func (f *fakeBridge) Execute(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
-	f.seen = request
-	if f.executeFn != nil {
-		return f.executeFn(ctx, request)
-	}
-	if f.executeErr != nil {
-		return bridge.ExecuteResponse{}, f.executeErr
-	}
-	return f.response, nil
-}
-
-func (f *fakeBridge) ExecuteSemantic(
-	ctx context.Context,
-	request bridge.SemanticExecutionRequest,
-) (bridge.ExecuteResponse, error) {
-	f.seenSemantic = request
-	if f.executeSemanticFn != nil {
-		return f.executeSemanticFn(ctx, request)
-	}
-	return bridge.ExecuteResponse{}, errors.New("unexpected semantic bridge execution")
-}
-
-func (f *fakeBridge) Readyz(_ context.Context) (bridge.ReadyzResponse, error) {
-	if f.readyzErr != nil {
-		return bridge.ReadyzResponse{}, f.readyzErr
-	}
-	return f.readyz, nil
-}
-
-func (f *fakeBridge) Cancel(ctx context.Context, request bridge.CancelRequest) (bridge.CancelResponse, error) {
-	if f.cancelFn != nil {
-		return f.cancelFn(ctx, request)
-	}
-	return bridge.CancelResponse{
-		StatusCode: http.StatusNotFound,
-		Body:       json.RawMessage(`{"error":{"code":"execution_not_found"}}`),
-	}, nil
+func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Server {
+	t.Helper()
+	server := NewServer(readyServerConfigForTest(t, mutators...))
+	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
+	return server
 }
 
 func writeStructuredQueryProjectionFixture(t *testing.T, body string) string {

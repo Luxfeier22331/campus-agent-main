@@ -14,9 +14,6 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	metrics.RecordAdmissionDecision("queue_full", 0)
 	metrics.RecordAdmissionDecision("admitted_queued", 12*time.Millisecond)
 	metrics.RecordAdmissionDecisionForLane("rag", "admitted_queued", 8*time.Millisecond)
-	metrics.RecordBridgeDuration(90 * time.Millisecond)
-	metrics.RecordBridgeFailure("timeout")
-	metrics.RecordBridgeSuccess()
 	metrics.RecordCapabilityGate("campus_services", "structured_runtime", "closed")
 	metrics.RecordRuntimeDecision(RuntimeDecisionLabels{
 		Capability:            "knowledge",
@@ -63,8 +60,6 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_execution_control_admission_lane_decisions_total{lane="rag",decision="admitted_queued"} 1`,
 		`campus_execution_control_admission_queue_wait_ms_count 2`,
 		`campus_execution_control_admission_lane_queue_wait_ms_count{lane="rag"} 1`,
-		`campus_execution_control_bridge_duration_ms_count 1`,
-		`campus_execution_control_bridge_failures_total{kind="timeout"} 1`,
 		`campus_execution_control_capability_gate_decisions_total{capability="campus_services",gate="structured_runtime",decision="closed"} 1`,
 		`campus_execution_control_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned",selected_capability="none",selected_tool="none",terminal_outcome="no_answer",fail_close_reason="product_scope_boundary"} 1`,
 		`campus_execution_control_lifecycle_completed_total{state="completed"} 1`,
@@ -84,25 +79,16 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 			t.Fatalf("expected metrics output to contain %q, got:\n%s", snippet, output)
 		}
 	}
-}
-
-func TestBridgeRuntimeSnapshotTracksLastSuccessAndFailure(t *testing.T) {
-	metrics := NewMetrics()
-
-	metrics.RecordBridgeFailure("unavailable")
-	metrics.RecordBridgeSuccess()
-
-	snapshot := metrics.BridgeRuntimeSnapshot()
-	if snapshot.LastBridgeFailureCode != "unavailable" {
-		t.Fatalf(
-			"LastBridgeFailureCode = %q, want unavailable",
-			snapshot.LastBridgeFailureCode,
-		)
+	retiredSnippets := []string{
+		"campus_execution_control_bridge_duration_ms",
+		"campus_execution_control_bridge_failures_total",
+		"campus_execution_control_bridge_retries_total",
+		"campus_execution_control_bridge_cancel_total",
+		"campus_execution_control_bridge_circuit",
 	}
-	if snapshot.LastBridgeFailureAt == "" {
-		t.Fatal("expected LastBridgeFailureAt to be populated")
-	}
-	if snapshot.LastBridgeSuccessAt == "" {
-		t.Fatal("expected LastBridgeSuccessAt to be populated")
+	for _, snippet := range retiredSnippets {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("metrics output must not expose retired bridge metric %q:\n%s", snippet, output)
+		}
 	}
 }

@@ -118,5 +118,5 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 }
 
 func newActivityServer(cfg config.Config) *httpapi.Server {
-	return httpapi.NewServerWithDependencies(cfg, nil, nil, nil, nil)
+	return httpapi.NewServerWithDependencies(cfg, nil, nil, nil)
 }

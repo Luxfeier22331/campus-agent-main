@@ -149,12 +149,6 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 		"Admission queue wait duration in milliseconds.",
 		m.admissionWaitDurations,
 	)
-	writeHistogram(
-		&builder,
-		"campus_execution_control_bridge_duration_ms",
-		"Supervisor Python bridge duration in milliseconds.",
-		m.bridgeDurations,
-	)
 	for _, lane := range sortedRoutes(m.laneWaitDurations) {
 		writeHistogramWithLabel(
 			&builder,
@@ -166,56 +160,6 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 		)
 	}
 
-	builder.WriteString("# HELP campus_execution_control_bridge_failures_total Total bridge failures by kind.\n")
-	builder.WriteString("# TYPE campus_execution_control_bridge_failures_total counter\n")
-	for _, kind := range sortedStringKeys(m.bridgeFailureTotals) {
-		fmt.Fprintf(
-			&builder,
-			"campus_execution_control_bridge_failures_total{kind=%q} %d\n",
-			kind,
-			m.bridgeFailureTotals[kind],
-		)
-	}
-	builder.WriteString("# HELP campus_execution_control_bridge_retries_total Total bridge execution retry attempts by failure kind.\n")
-	builder.WriteString("# TYPE campus_execution_control_bridge_retries_total counter\n")
-	for _, kind := range sortedStringKeys(m.bridgeRetryTotals) {
-		fmt.Fprintf(
-			&builder,
-			"campus_execution_control_bridge_retries_total{kind=%q} %d\n",
-			kind,
-			m.bridgeRetryTotals[kind],
-		)
-	}
-	builder.WriteString("# HELP campus_execution_control_bridge_cancel_total Total cooperative cancel bridge attempts by outcome.\n")
-	builder.WriteString("# TYPE campus_execution_control_bridge_cancel_total counter\n")
-	for _, outcome := range sortedStringKeys(m.bridgeCancelTotals) {
-		fmt.Fprintf(
-			&builder,
-			"campus_execution_control_bridge_cancel_total{outcome=%q} %d\n",
-			outcome,
-			m.bridgeCancelTotals[outcome],
-		)
-	}
-	builder.WriteString("# HELP campus_execution_control_bridge_circuit_state Current bridge circuit breaker state.\n")
-	builder.WriteString("# TYPE campus_execution_control_bridge_circuit_state gauge\n")
-	for _, state := range []string{"closed", "open", "half_open"} {
-		value := 0
-		if snapshot.BridgeCircuit.State == state {
-			value = 1
-		}
-		fmt.Fprintf(
-			&builder,
-			"campus_execution_control_bridge_circuit_state{state=%q} %d\n",
-			state,
-			value,
-		)
-	}
-	builder.WriteString("# HELP campus_execution_control_bridge_circuit_open_total Total bridge circuit breaker open transitions.\n")
-	builder.WriteString("# TYPE campus_execution_control_bridge_circuit_open_total counter\n")
-	fmt.Fprintf(&builder, "campus_execution_control_bridge_circuit_open_total %d\n", snapshot.BridgeCircuit.OpenCount)
-	builder.WriteString("# HELP campus_execution_control_bridge_circuit_rejected_total Total bridge executions rejected by the circuit breaker.\n")
-	builder.WriteString("# TYPE campus_execution_control_bridge_circuit_rejected_total counter\n")
-	fmt.Fprintf(&builder, "campus_execution_control_bridge_circuit_rejected_total %d\n", snapshot.BridgeCircuit.RejectedCount)
 	builder.WriteString("# HELP campus_execution_control_structured_query_requests_total Total structured query requests by tool and outcome.\n")
 	builder.WriteString("# TYPE campus_execution_control_structured_query_requests_total counter\n")
 	for _, key := range sortedStructuredQueryKeys(m.structuredQueryTotals) {

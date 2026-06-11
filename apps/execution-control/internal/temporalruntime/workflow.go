@@ -54,55 +54,94 @@ func CapabilityExecutionWorkflow(
 	}).Get(ctx, &plan); err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
-	if plan.Capability != "knowledge" {
+	branchSteps := plan.BranchSteps()
+	dependencyResultRefs := []string{}
+	var lastToolResult ExecuteTypedToolActivityOutput
+	for _, step := range branchSteps {
+		if step.Capability == "knowledge" {
+			synthesis, grounding, err := executeKnowledgeBranch(
+				ctx,
+				activityOptions,
+				input,
+				plan.PlanRef,
+				dependencyResultRefs,
+			)
+			if err != nil {
+				return CapabilityExecutionWorkflowResult{}, err
+			}
+			finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
+				GroundingRef:       grounding.GroundingRef,
+				RunID:              input.RunID,
+				SelectedCapability: plan.Capability,
+				SelectedTool:       firstNonEmpty(step.ToolName, plan.ToolName),
+				SynthesisRef:       synthesis.SynthesisRef,
+				TraceID:            input.TraceID,
+			})
+			if err != nil {
+				return CapabilityExecutionWorkflowResult{}, err
+			}
+			return workflowResultFromFinalization(finalization), nil
+		}
 		branchOptions := activityOptions
-		branchOptions.TaskQueue = ActivityTaskQueueForCapability(plan.Capability)
+		branchOptions.TaskQueue = ActivityTaskQueueForCapability(step.Capability)
 		branchCtx := workflow.WithActivityOptions(ctx, branchOptions)
 		var toolResult ExecuteTypedToolActivityOutput
 		if err := workflow.ExecuteActivity(branchCtx, ExecuteTypedToolActivityName, ExecuteTypedToolActivityInput{
-			AllowedTools: plan.AllowedTools,
-			Capability:   plan.Capability,
-			Payload:      plan.Payload,
-			PayloadKind:  plan.PayloadKind,
+			AllowedTools: step.AllowedTools,
+			Capability:   step.Capability,
+			Payload:      step.Payload,
+			PayloadKind:  step.PayloadKind,
 			RoutePlanRef: plan.PlanRef,
 			RunID:        input.RunID,
-			ToolName:     plan.ToolName,
+			ToolName:     step.ToolName,
 			TraceID:      input.TraceID,
-			WorkerRole:   plan.WorkerRole,
+			WorkerRole:   step.WorkerRole,
 		}).Get(ctx, &toolResult); err != nil {
 			return CapabilityExecutionWorkflowResult{}, err
 		}
-		finalizationOptions := activityOptions
-		finalizationOptions.StartToCloseTimeout = 30 * time.Second
-		finalizationOptions.TaskQueue = ActivityTaskQueueFinalization
-		finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
-		var finalization WriteFinalizationActivityOutput
-		if err := workflow.ExecuteActivity(finalizationCtx, WriteFinalizationActivityName, WriteFinalizationActivityInput{
-			RunID:              input.RunID,
-			SelectedCapability: toolResult.Capability,
-			SelectedTool:       toolResult.ToolName,
-			ToolResultRef:      toolResult.ResultRef,
-			TraceID:            input.TraceID,
-		}).Get(ctx, &finalization); err != nil {
-			return CapabilityExecutionWorkflowResult{}, err
+		lastToolResult = toolResult
+		if toolResult.ResultRef != "" {
+			dependencyResultRefs = append(dependencyResultRefs, toolResult.ResultRef)
 		}
-		return CapabilityExecutionWorkflowResult{
-			CompletedAt:   finalization.CompletedAt,
-			ProjectionRef: finalization.ProjectionRef,
-			RunID:         finalization.RunID,
-			Status:        finalization.Status,
-		}, nil
 	}
+	if lastToolResult.ResultRef == "" {
+		return CapabilityExecutionWorkflowResult{}, temporal.NewNonRetryableApplicationError(
+			"capability branch did not produce a finalizable result",
+			"capability_branch_empty",
+			nil,
+		)
+	}
+	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
+		RunID:              input.RunID,
+		SelectedCapability: lastToolResult.Capability,
+		SelectedTool:       lastToolResult.ToolName,
+		ToolResultRef:      lastToolResult.ResultRef,
+		TraceID:            input.TraceID,
+	})
+	if err != nil {
+		return CapabilityExecutionWorkflowResult{}, err
+	}
+	return workflowResultFromFinalization(finalization), nil
+}
+
+func executeKnowledgeBranch(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input CapabilityExecutionWorkflowInput,
+	workflowPlanRef string,
+	dependencyResultRefs []string,
+) (SynthesizeRAGAnswerActivityOutput, VerifyGroundingActivityOutput, error) {
 	knowledgeOptions := activityOptions
 	knowledgeOptions.TaskQueue = ActivityTaskQueueKnowledge
 	knowledgeCtx := workflow.WithActivityOptions(ctx, knowledgeOptions)
 	var ragPlan PlanRAGActivityOutput
 	if err := workflow.ExecuteActivity(knowledgeCtx, PlanRAGActivityName, PlanRAGActivityInput{
-		RunID:           input.RunID,
-		TraceID:         input.TraceID,
-		WorkflowPlanRef: plan.PlanRef,
+		DependencyResultRefs: append([]string{}, dependencyResultRefs...),
+		RunID:                input.RunID,
+		TraceID:              input.TraceID,
+		WorkflowPlanRef:      workflowPlanRef,
 	}).Get(ctx, &ragPlan); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var lookup RetrieveIndexedLookupActivityOutput
 	if err := workflow.ExecuteActivity(knowledgeCtx, RetrieveIndexedLookupActivityName, RetrieveIndexedLookupActivityInput{
@@ -110,7 +149,7 @@ func CapabilityExecutionWorkflow(
 		RunID:      input.RunID,
 		TraceID:    input.TraceID,
 	}).Get(ctx, &lookup); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var rescue ExpandOrRescueRetrievalActivityOutput
 	if err := workflow.ExecuteActivity(knowledgeCtx, ExpandOrRescueRetrievalActivityName, ExpandOrRescueRetrievalActivityInput{
@@ -119,7 +158,7 @@ func CapabilityExecutionWorkflow(
 		RunID:      input.RunID,
 		TraceID:    input.TraceID,
 	}).Get(ctx, &rescue); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var evidence SelectEvidenceActivityOutput
 	if err := workflow.ExecuteActivity(knowledgeCtx, SelectEvidenceActivityName, SelectEvidenceActivityInput{
@@ -129,7 +168,7 @@ func CapabilityExecutionWorkflow(
 		RunID:      input.RunID,
 		TraceID:    input.TraceID,
 	}).Get(ctx, &evidence); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var synthesis SynthesizeRAGAnswerActivityOutput
 	if err := workflow.ExecuteActivity(knowledgeCtx, SynthesizeRAGAnswerActivityName, SynthesizeRAGAnswerActivityInput{
@@ -138,7 +177,7 @@ func CapabilityExecutionWorkflow(
 		RunID:       input.RunID,
 		TraceID:     input.TraceID,
 	}).Get(ctx, &synthesis); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var grounding VerifyGroundingActivityOutput
 	if err := workflow.ExecuteActivity(knowledgeCtx, VerifyGroundingActivityName, VerifyGroundingActivityInput{
@@ -147,29 +186,32 @@ func CapabilityExecutionWorkflow(
 		SynthesisRef: synthesis.SynthesisRef,
 		TraceID:      input.TraceID,
 	}).Get(ctx, &grounding); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
+	return synthesis, grounding, nil
+}
+
+func executeFinalization(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input WriteFinalizationActivityInput,
+) (WriteFinalizationActivityOutput, error) {
 	finalizationOptions := activityOptions
 	finalizationOptions.StartToCloseTimeout = 30 * time.Second
 	finalizationOptions.TaskQueue = ActivityTaskQueueFinalization
 	finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
 	var finalization WriteFinalizationActivityOutput
-	if err := workflow.ExecuteActivity(finalizationCtx, WriteFinalizationActivityName, WriteFinalizationActivityInput{
-		GroundingRef:       grounding.GroundingRef,
-		RunID:              input.RunID,
-		SelectedCapability: plan.Capability,
-		SelectedTool:       plan.ToolName,
-		SynthesisRef:       synthesis.SynthesisRef,
-		TraceID:            input.TraceID,
-	}).Get(ctx, &finalization); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
-	}
+	err := workflow.ExecuteActivity(finalizationCtx, WriteFinalizationActivityName, input).Get(ctx, &finalization)
+	return finalization, err
+}
+
+func workflowResultFromFinalization(finalization WriteFinalizationActivityOutput) CapabilityExecutionWorkflowResult {
 	return CapabilityExecutionWorkflowResult{
 		CompletedAt:   finalization.CompletedAt,
 		ProjectionRef: finalization.ProjectionRef,
 		RunID:         finalization.RunID,
 		Status:        finalization.Status,
-	}, nil
+	}
 }
 
 func ActivityTaskQueueForCapability(capability string) string {
@@ -185,4 +227,54 @@ func ActivityTaskQueueForCapability(capability string) string {
 	default:
 		return ActivityTaskQueueStructured
 	}
+}
+
+func (p PlanRouteActivityOutput) BranchSteps() []CapabilityBranchStep {
+	if len(p.Steps) > 0 {
+		steps := make([]CapabilityBranchStep, 0, len(p.Steps))
+		for _, step := range p.Steps {
+			steps = append(steps, step.Clone())
+		}
+		return steps
+	}
+	return []CapabilityBranchStep{{
+		AllowedTools: append([]string{}, p.AllowedTools...),
+		Capability:   p.Capability,
+		Payload:      cloneMap(p.Payload),
+		PayloadKind:  p.PayloadKind,
+		ToolName:     p.ToolName,
+		WorkerRole:   p.WorkerRole,
+	}}
+}
+
+func (s CapabilityBranchStep) Clone() CapabilityBranchStep {
+	return CapabilityBranchStep{
+		AllowedTools: append([]string{}, s.AllowedTools...),
+		Capability:   s.Capability,
+		Payload:      cloneMap(s.Payload),
+		PayloadKind:  s.PayloadKind,
+		StepID:       s.StepID,
+		ToolName:     s.ToolName,
+		WorkerRole:   s.WorkerRole,
+	}
+}
+
+func cloneMap(source map[string]any) map[string]any {
+	if source == nil {
+		return nil
+	}
+	clone := make(map[string]any, len(source))
+	for key, value := range source {
+		clone[key] = value
+	}
+	return clone
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

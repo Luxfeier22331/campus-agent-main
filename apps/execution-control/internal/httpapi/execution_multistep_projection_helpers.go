@@ -1,7 +1,10 @@
+//go:build retired_bridge_serving
+
 package httpapi
 
 import (
 	"fmt"
+
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"

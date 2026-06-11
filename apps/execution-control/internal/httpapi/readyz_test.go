@@ -1,31 +1,16 @@
 package httpapi
 
 import (
-	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestReadyzDoesNotRequirePythonBridgeForOnlineRAGRuntime(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		PromptRuntimeProvider:         "openai",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, nil)
-	markTemporalReadyForTest(server)
-	markRAGRuntimeReadyForTest(server)
+	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -57,7 +42,7 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 		MaxConcurrentAnswers: 8,
 		RuntimeProfile:       "staging",
 		WorkerSharedSecret:   "worker-secret",
-	}, nil)
+	})
 
 	unauthorized := httptest.NewRecorder()
 	server.ServeHTTP(unauthorized, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -76,24 +61,8 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	}
 }
 
-func TestReadyzIgnoresConfiguredPythonBridgeReadinessErrors(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyzErr:  errors.New("Get http://127.0.0.1:8888/internal/bridge/readyz?token=secret-token: dial tcp 127.0.0.1:8888: connect: connection refused"),
-	})
-	markTemporalReadyForTest(server)
-	markRAGRuntimeReadyForTest(server)
+func TestReadyzDoesNotCheckPythonBridgeReadiness(t *testing.T) {
+	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -108,32 +77,7 @@ func TestReadyzIgnoresConfiguredPythonBridgeReadinessErrors(t *testing.T) {
 }
 
 func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body: json.RawMessage(`{
-				"status":"ready",
-				"runtime_provider":"mock-runtime",
-				"prompt_runtime":{"provider":"mock-runtime","admitted":true},
-				"prompt_http_pool":{"healthy":true,"max_connections":32},
-				"audit_runtime":{"healthy":true,"queue_depth":0}
-			}`),
-		},
-	})
-	markTemporalReadyForTest(server)
-	markRAGRuntimeReadyForTest(server)
+	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -170,28 +114,7 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 }
 
 func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body: json.RawMessage(`{
-				"status":"ready",
-				"prompt_runtime":{"admitted":true},
-				"prompt_http_pool":{"healthy":true}
-			}`),
-		},
-	})
+	server := newReadyServerForTest(t)
 	server.temporalStarter = readyTemporalStarter{
 		readiness: temporalruntime.RuntimeReadiness{
 			Healthy: false,
@@ -223,8 +146,8 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 			},
 		},
 	}
-
 	response := httptest.NewRecorder()
+
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
@@ -241,28 +164,8 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 }
 
 func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"notice"},
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body: json.RawMessage(`{
-				"status":"ready",
-				"prompt_runtime":{"admitted":true},
-				"prompt_http_pool":{"healthy":true}
-			}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"notice"}
 	})
 	server.temporalStarter = readyTemporalStarter{
 		readiness: temporalruntime.RuntimeReadiness{
@@ -295,8 +198,8 @@ func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
 			},
 		},
 	}
-
 	response := httptest.NewRecorder()
+
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
@@ -338,27 +241,9 @@ func TestRequiredTemporalTaskQueuesIncludeOpenedCapabilityWorkers(t *testing.T) 
 }
 
 func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "gpt-5-mini",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body: json.RawMessage(`{
-				"status":"ready",
-				"prompt_runtime":{"admitted":true},
-				"prompt_http_pool":{"healthy":true}
-			}`),
-		},
-	})
+	server := NewServer(readyServerConfigForTest(t, func(cfg *config.Config) {
+		cfg.PromptRuntimeAPIKey = ""
+	}))
 	markTemporalReadyForTest(server)
 	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
@@ -379,30 +264,9 @@ func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
 }
 
 func TestReadyzPromptConfigGateDoesNotRequireSupervisorTerminalModel(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		PromptRuntimeProvider:         "openai",
-		SupervisorPromptModel:         "",
-		AgentPromptModel:              "gpt-5-mini",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body: json.RawMessage(`{
-				"status":"ready",
-				"prompt_runtime":{"admitted":true},
-				"prompt_http_pool":{"healthy":true}
-			}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.SupervisorPromptModel = ""
 	})
-	markTemporalReadyForTest(server)
-	markRAGRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -427,15 +291,9 @@ func TestReadyzDegradesWhenOTelEnabledWithoutExporter(t *testing.T) {
 		QueueCapacity:        1,
 		QueueTimeoutMS:       1_000,
 		OTelEnabled:          true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
 	})
-
 	response := httptest.NewRecorder()
+
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {

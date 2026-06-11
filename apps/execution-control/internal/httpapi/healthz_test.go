@@ -9,7 +9,7 @@ import (
 )
 
 func TestHealthzReturnsOk(t *testing.T) {
-	server := NewServer(config.Config{AppName: "campus-agent"}, nil)
+	server := NewServer(config.Config{AppName: "campus-agent"})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/healthz", nil))

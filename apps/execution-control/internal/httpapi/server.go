@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
@@ -25,8 +24,6 @@ import (
 
 type Server struct {
 	config                 config.Config
-	bridge                 bridge.Client
-	bridgeBreaker          *bridge.CircuitBreaker
 	admission              *admission.Controller
 	lifecycle              *lifecycle.Registry
 	logger                 *slog.Logger
@@ -167,38 +164,14 @@ type errorInfo struct {
 	Retryable bool   `json:"retryable"`
 }
 
-type bridgeWriteOutcome struct {
-	State          lifecycle.State
-	Outcome        string
-	FailureKind    string
-	StatusCode     int
-	CircuitSuccess bool
-	CircuitFailure bool
-}
-
 const statusClientClosedRequest = 499
 
-func NewServer(cfg config.Config, bridgeClient bridge.Client) *Server {
-	return NewServerWithDependencies(
-		cfg,
-		bridgeClient,
-		nil,
-		nil,
-		nil,
-	)
-}
-
-func NewServerWithAdmission(
-	cfg config.Config,
-	bridgeClient bridge.Client,
-	admissionController *admission.Controller,
-) *Server {
-	return NewServerWithDependencies(cfg, bridgeClient, admissionController, nil, nil)
+func NewServer(cfg config.Config) *Server {
+	return NewServerWithDependencies(cfg, nil, nil, nil)
 }
 
 func NewServerWithDependencies(
 	cfg config.Config,
-	bridgeClient bridge.Client,
 	admissionController *admission.Controller,
 	logger *slog.Logger,
 	metrics *observability.Metrics,
@@ -208,24 +181,6 @@ func NewServerWithDependencies(
 	}
 	if cfg.RequestBodyLimitBytes <= 0 {
 		cfg.RequestBodyLimitBytes = 1_048_576
-	}
-	if cfg.BridgeTimeoutMS <= 0 {
-		cfg.BridgeTimeoutMS = 35_000
-	}
-	if cfg.BridgeCancelTimeoutMS <= 0 {
-		cfg.BridgeCancelTimeoutMS = 500
-	}
-	if cfg.BridgeBreakerFailureThreshold <= 0 {
-		cfg.BridgeBreakerFailureThreshold = 5
-	}
-	if cfg.BridgeBreakerOpenMS <= 0 {
-		cfg.BridgeBreakerOpenMS = 10_000
-	}
-	if cfg.BridgeRetryMaxAttempts <= 0 {
-		cfg.BridgeRetryMaxAttempts = 2
-	}
-	if cfg.BridgeRetryBaseMS <= 0 {
-		cfg.BridgeRetryBaseMS = 50
 	}
 	if cfg.StructuredQueryTimeoutMS <= 0 {
 		cfg.StructuredQueryTimeoutMS = 1_000
@@ -269,12 +224,7 @@ func NewServerWithDependencies(
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
-		config: cfg,
-		bridge: bridgeClient,
-		bridgeBreaker: bridge.NewCircuitBreaker(bridge.CircuitBreakerConfig{
-			FailureThreshold: 5,
-			OpenDuration:     10 * time.Second,
-		}),
+		config:                 cfg,
 		admission:              admissionController,
 		lifecycle:              registry,
 		logger:                 logger,
