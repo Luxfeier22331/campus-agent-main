@@ -55,17 +55,19 @@ type PlanRouteActivityInput struct {
 }
 
 type PlanRouteActivityOutput struct {
-	AllowedTools []string               `json:"allowed_tools"`
-	Capability   string                 `json:"capability"`
-	Payload      map[string]any         `json:"payload"`
-	PayloadKind  string                 `json:"payload_kind"`
-	PlanRef      string                 `json:"plan_ref"`
-	RunID        string                 `json:"run_id"`
-	Status       string                 `json:"status"`
-	Steps        []CapabilityBranchStep `json:"steps"`
-	ToolName     string                 `json:"tool_name"`
-	WorkerRole   string                 `json:"worker_role"`
-	WorkflowMode string                 `json:"workflow_mode"`
+	AllowedCapabilities []string               `json:"allowed_capabilities"`
+	AllowedTools        []string               `json:"allowed_tools"`
+	Capability          string                 `json:"capability"`
+	MaxReplans          int                    `json:"max_replans"`
+	Payload             map[string]any         `json:"payload"`
+	PayloadKind         string                 `json:"payload_kind"`
+	PlanRef             string                 `json:"plan_ref"`
+	RunID               string                 `json:"run_id"`
+	Status              string                 `json:"status"`
+	Steps               []CapabilityBranchStep `json:"steps"`
+	ToolName            string                 `json:"tool_name"`
+	WorkerRole          string                 `json:"worker_role"`
+	WorkflowMode        string                 `json:"workflow_mode"`
 }
 
 type CapabilityBranchStep struct {
@@ -76,6 +78,26 @@ type CapabilityBranchStep struct {
 	StepID       string         `json:"step_id"`
 	ToolName     string         `json:"tool_name"`
 	WorkerRole   string         `json:"worker_role"`
+}
+
+type PlanReplanActivityInput struct {
+	AllowedCapabilities []string `json:"allowed_capabilities"`
+	AllowedTools        []string `json:"allowed_tools"`
+	FailureSummary      string   `json:"failure_summary"`
+	PreviousPlanRef     string   `json:"previous_plan_ref"`
+	PreviousStepID      string   `json:"previous_step_id"`
+	Reason              string   `json:"reason"`
+	ReplanCount         int      `json:"replan_count"`
+	RunID               string   `json:"run_id"`
+	TraceID             string   `json:"trace_id"`
+}
+
+type PlanReplanActivityOutput struct {
+	AllowedCapabilities []string               `json:"allowed_capabilities"`
+	NewPlanRef          string                 `json:"new_plan_ref"`
+	RunID               string                 `json:"run_id"`
+	Status              string                 `json:"status"`
+	Steps               []CapabilityBranchStep `json:"steps"`
 }
 
 type PlanRAGActivityInput struct {
@@ -176,6 +198,25 @@ type ExecuteTypedToolActivityOutput struct {
 	RunID       string `json:"run_id"`
 	Status      string `json:"status"`
 	ToolName    string `json:"tool_name"`
+}
+
+type ExecuteAgentAsToolActivityInput struct {
+	AdmittedAgentID       string   `json:"admitted_agent_id"`
+	AllowedTools          []string `json:"allowed_tools"`
+	BudgetRef             string   `json:"budget_ref"`
+	ContextProjectionRefs []string `json:"context_projection_refs"`
+	RunID                 string   `json:"run_id"`
+	StepID                string   `json:"step_id"`
+	TimeoutRef            string   `json:"timeout_ref"`
+	TraceID               string   `json:"trace_id"`
+}
+
+type ExecuteAgentAsToolActivityOutput struct {
+	AdmittedAgentID string `json:"admitted_agent_id"`
+	ResultRef       string `json:"result_ref"`
+	RunID           string `json:"run_id"`
+	Status          string `json:"status"`
+	StepID          string `json:"step_id"`
 }
 
 type WriteFinalizationActivityInput struct {

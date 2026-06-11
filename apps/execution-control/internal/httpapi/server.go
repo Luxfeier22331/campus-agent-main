@@ -74,6 +74,13 @@ func (a TemporalContextActivities) PlanRouteActivity(
 	return a.server.PlanRouteActivity(ctx, input)
 }
 
+func (a TemporalContextActivities) PlanReplanActivity(
+	ctx context.Context,
+	input temporalruntime.PlanReplanActivityInput,
+) (temporalruntime.PlanReplanActivityOutput, error) {
+	return a.server.PlanReplanActivity(ctx, input)
+}
+
 type TemporalKnowledgeActivities struct {
 	server *Server
 }
@@ -137,6 +144,13 @@ func (a TemporalTypedToolActivities) ExecuteTypedToolActivity(
 	input temporalruntime.ExecuteTypedToolActivityInput,
 ) (temporalruntime.ExecuteTypedToolActivityOutput, error) {
 	return a.server.ExecuteTypedToolActivity(ctx, input)
+}
+
+func (a TemporalTypedToolActivities) ExecuteAgentAsToolActivity(
+	ctx context.Context,
+	input temporalruntime.ExecuteAgentAsToolActivityInput,
+) (temporalruntime.ExecuteAgentAsToolActivityOutput, error) {
+	return a.server.ExecuteAgentAsToolActivity(ctx, input)
 }
 
 type TemporalFinalizationActivities struct {

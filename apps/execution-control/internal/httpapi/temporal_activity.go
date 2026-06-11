@@ -128,6 +128,72 @@ func (s *Server) PlanRouteActivity(
 	return route, nil
 }
 
+func (s *Server) PlanReplanActivity(
+	ctx context.Context,
+	input temporalruntime.PlanReplanActivityInput,
+) (temporalruntime.PlanReplanActivityOutput, error) {
+	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
+	if err != nil {
+		return temporalruntime.PlanReplanActivityOutput{}, err
+	}
+	if input.ReplanCount <= 0 {
+		return temporalruntime.PlanReplanActivityOutput{}, fmt.Errorf("replan_count is required")
+	}
+	if strings.TrimSpace(input.PreviousPlanRef) == "" {
+		return temporalruntime.PlanReplanActivityOutput{}, fmt.Errorf("previous_plan_ref is required")
+	}
+	if len(input.AllowedCapabilities) == 0 {
+		return temporalruntime.PlanReplanActivityOutput{}, fmt.Errorf("allowed_capabilities is required")
+	}
+	now := time.Now().UTC()
+	replanRef := temporalProjectionRef(run.RunID, fmt.Sprintf("plan/replan/%d", input.ReplanCount))
+	step := temporalruntime.CapabilityBranchStep{
+		AllowedTools: append([]string{}, input.AllowedTools...),
+		Capability:   input.AllowedCapabilities[0],
+		PayloadKind:  firstNonEmptyText(input.PreviousStepID, "replanned_step"),
+		StepID:       fmt.Sprintf("replan:%d:%s", input.ReplanCount, input.AllowedCapabilities[0]),
+		ToolName:     firstNonEmptyText(firstString(input.AllowedTools), "retrieval.query"),
+		WorkerRole:   runtimepolicy.WorkerRoleForCapability(input.AllowedCapabilities[0]),
+	}
+	if input.AllowedCapabilities[0] == "knowledge" {
+		step.PayloadKind = "rag_request"
+		step.ToolName = "retrieval.query"
+	}
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       input.ReplanCount,
+		Capability:    step.Capability,
+		Run:           run,
+		Status:        "completed",
+		StepID:        "plan.replan",
+		StepKind:      "planning",
+		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     now,
+		CompletedAt:   now,
+		UpdatedAt:     now,
+		ResultKind:    "route_replan",
+		ProjectionRef: replanRef,
+		Payload: map[string]any{
+			"allowed_capabilities": append([]string{}, input.AllowedCapabilities...),
+			"allowed_tools":        append([]string{}, input.AllowedTools...),
+			"failure_summary":      input.FailureSummary,
+			"previous_plan_ref":    input.PreviousPlanRef,
+			"previous_step_id":     input.PreviousStepID,
+			"reason":               input.Reason,
+			"replan_count":         input.ReplanCount,
+		},
+	}); err != nil {
+		return temporalruntime.PlanReplanActivityOutput{}, err
+	}
+	return temporalruntime.PlanReplanActivityOutput{
+		AllowedCapabilities: append([]string{}, input.AllowedCapabilities...),
+		NewPlanRef:          replanRef,
+		RunID:               run.RunID,
+		Status:              "planned",
+		Steps:               []temporalruntime.CapabilityBranchStep{step},
+	}, nil
+}
+
 func (s *Server) PlanRAGActivity(
 	ctx context.Context,
 	input temporalruntime.PlanRAGActivityInput,
@@ -387,17 +453,19 @@ func temporalRouteOutputFromStructuredPlan(
 	first := steps[0]
 	routeCapability := firstNonEmptyText(effectiveCapability, first.Capability)
 	return temporalruntime.PlanRouteActivityOutput{
-		AllowedTools: append([]string{}, first.AllowedTools...),
-		Capability:   routeCapability,
-		Payload:      cloneAnyMapFromMetadata(first.Payload),
-		PayloadKind:  firstNonEmptyText(first.PayloadKind, "capability_plan"),
-		PlanRef:      temporalProjectionRef(runID, "plan/route"),
-		RunID:        runID,
-		Status:       "planned",
-		Steps:        steps,
-		ToolName:     first.ToolName,
-		WorkerRole:   runtimepolicy.WorkerRoleForCapability(routeCapability),
-		WorkflowMode: string(plan.WorkflowMode),
+		AllowedCapabilities: append([]string{}, plan.AllowedCapabilities...),
+		AllowedTools:        append([]string{}, first.AllowedTools...),
+		Capability:          routeCapability,
+		MaxReplans:          plan.SemanticRetryPolicy.MaxReplans,
+		Payload:             cloneAnyMapFromMetadata(first.Payload),
+		PayloadKind:         firstNonEmptyText(first.PayloadKind, "capability_plan"),
+		PlanRef:             temporalProjectionRef(runID, "plan/route"),
+		RunID:               runID,
+		Status:              "planned",
+		Steps:               steps,
+		ToolName:            first.ToolName,
+		WorkerRole:          runtimepolicy.WorkerRoleForCapability(routeCapability),
+		WorkflowMode:        string(plan.WorkflowMode),
 	}, nil
 }
 
@@ -407,6 +475,15 @@ func selectedToolNameForHandoff(handoff structuredplanning.Handoff) string {
 	}
 	if handoff.Capability == "knowledge" {
 		return "retrieval.query"
+	}
+	return ""
+}
+
+func firstString(values []string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
 	}
 	return ""
 }

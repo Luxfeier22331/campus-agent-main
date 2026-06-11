@@ -64,6 +64,9 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	if _, ok := typedToolType.MethodByName("ExecuteTypedToolActivity"); !ok {
 		t.Fatal("typed tool activities missing ExecuteTypedToolActivity")
 	}
+	if _, ok := typedToolType.MethodByName("ExecuteAgentAsToolActivity"); !ok {
+		t.Fatal("typed tool activities missing ExecuteAgentAsToolActivity")
+	}
 	if _, ok := typedToolType.MethodByName("PlanRAGActivity"); ok {
 		t.Fatal("typed tool activities expose knowledge method")
 	}

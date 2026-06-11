@@ -234,6 +234,7 @@ type WorkerOptions struct {
 type ContextActivities interface {
 	MemoryRecallActivity(context.Context, MemoryRecallActivityInput) (MemoryRecallActivityOutput, error)
 	PlanRouteActivity(context.Context, PlanRouteActivityInput) (PlanRouteActivityOutput, error)
+	PlanReplanActivity(context.Context, PlanReplanActivityInput) (PlanReplanActivityOutput, error)
 }
 
 type KnowledgeActivities interface {
@@ -268,6 +269,10 @@ type TypedToolActivities interface {
 		context.Context,
 		ExecuteTypedToolActivityInput,
 	) (ExecuteTypedToolActivityOutput, error)
+	ExecuteAgentAsToolActivity(
+		context.Context,
+		ExecuteAgentAsToolActivityInput,
+	) (ExecuteAgentAsToolActivityOutput, error)
 }
 
 type FinalizationActivities interface {
@@ -369,6 +374,10 @@ func NewContextActivityWorker(temporalClient client.Client, queue string, activi
 		activities.PlanRouteActivity,
 		activityRegisterOptions(PlanRouteActivityName),
 	)
+	contextWorker.RegisterActivityWithOptions(
+		activities.PlanReplanActivity,
+		activityRegisterOptions(PlanReplanActivityName),
+	)
 	return contextWorker
 }
 
@@ -418,6 +427,10 @@ func NewTypedToolActivityWorker(
 	typedToolWorker.RegisterActivityWithOptions(
 		activities.ExecuteTypedToolActivity,
 		activityRegisterOptions(ExecuteTypedToolActivityName),
+	)
+	typedToolWorker.RegisterActivityWithOptions(
+		activities.ExecuteAgentAsToolActivity,
+		activityRegisterOptions(ExecuteAgentAsToolActivityName),
 	)
 	return typedToolWorker
 }

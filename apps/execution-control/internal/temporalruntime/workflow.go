@@ -1,6 +1,8 @@
 package temporalruntime
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"go.temporal.io/sdk/temporal"
@@ -54,7 +56,95 @@ func CapabilityExecutionWorkflow(
 	}).Get(ctx, &plan); err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
-	branchSteps := plan.BranchSteps()
+	branch, err := executeCapabilityBranchWithReplan(ctx, activityOptions, input, plan)
+	if err != nil {
+		return CapabilityExecutionWorkflowResult{}, err
+	}
+	finalization, err := executeFinalization(ctx, activityOptions, branch.FinalizationInput(input.TraceID))
+	if err != nil {
+		return CapabilityExecutionWorkflowResult{}, err
+	}
+	return workflowResultFromFinalization(finalization), nil
+}
+
+type capabilityBranchExecutionResult struct {
+	GroundingRef       string
+	SelectedCapability string
+	SelectedTool       string
+	SynthesisRef       string
+	ToolResultRef      string
+	RunID              string
+}
+
+func (r capabilityBranchExecutionResult) FinalizationInput(traceID string) WriteFinalizationActivityInput {
+	return WriteFinalizationActivityInput{
+		GroundingRef:       r.GroundingRef,
+		RunID:              r.RunID,
+		SelectedCapability: r.SelectedCapability,
+		SelectedTool:       r.SelectedTool,
+		SynthesisRef:       r.SynthesisRef,
+		ToolResultRef:      r.ToolResultRef,
+		TraceID:            traceID,
+	}
+}
+
+func executeCapabilityBranchWithReplan(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input CapabilityExecutionWorkflowInput,
+	plan PlanRouteActivityOutput,
+) (capabilityBranchExecutionResult, error) {
+	currentSteps := plan.BranchSteps()
+	currentPlanRef := plan.PlanRef
+	replanCount := 0
+	for {
+		result, failedStep, err := executeCapabilityBranchOnce(
+			ctx,
+			activityOptions,
+			input,
+			plan.Capability,
+			plan.ToolName,
+			currentPlanRef,
+			currentSteps,
+		)
+		if err == nil {
+			return result, nil
+		}
+		if replanCount >= plan.MaxReplans {
+			return capabilityBranchExecutionResult{}, err
+		}
+		replanCount++
+		replan, replanErr := executePlanReplan(ctx, activityOptions, PlanReplanActivityInput{
+			AllowedCapabilities: allowedCapabilitiesForReplan(plan),
+			AllowedTools:        allowedToolsForReplan(plan, currentSteps),
+			FailureSummary:      sanitizeWorkflowFailure(err),
+			PreviousPlanRef:     currentPlanRef,
+			PreviousStepID:      failedStep.StepID,
+			Reason:              reasonForReplanFailure(failedStep, err),
+			ReplanCount:         replanCount,
+			RunID:               input.RunID,
+			TraceID:             input.TraceID,
+		})
+		if replanErr != nil {
+			return capabilityBranchExecutionResult{}, replanErr
+		}
+		if err := validateReplanWithinBounds(plan, currentSteps, replan); err != nil {
+			return capabilityBranchExecutionResult{}, err
+		}
+		currentSteps = replan.Steps
+		currentPlanRef = replan.NewPlanRef
+	}
+}
+
+func executeCapabilityBranchOnce(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input CapabilityExecutionWorkflowInput,
+	selectedCapability string,
+	selectedTool string,
+	planRef string,
+	branchSteps []CapabilityBranchStep,
+) (capabilityBranchExecutionResult, CapabilityBranchStep, error) {
 	dependencyResultRefs := []string{}
 	var lastToolResult ExecuteTypedToolActivityOutput
 	for _, step := range branchSteps {
@@ -63,24 +153,19 @@ func CapabilityExecutionWorkflow(
 				ctx,
 				activityOptions,
 				input,
-				plan.PlanRef,
+				planRef,
 				dependencyResultRefs,
 			)
 			if err != nil {
-				return CapabilityExecutionWorkflowResult{}, err
+				return capabilityBranchExecutionResult{}, step, err
 			}
-			finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
+			return capabilityBranchExecutionResult{
 				GroundingRef:       grounding.GroundingRef,
 				RunID:              input.RunID,
-				SelectedCapability: plan.Capability,
-				SelectedTool:       firstNonEmpty(step.ToolName, plan.ToolName),
+				SelectedCapability: firstNonEmpty(selectedCapability, step.Capability),
+				SelectedTool:       firstNonEmpty(step.ToolName, selectedTool),
 				SynthesisRef:       synthesis.SynthesisRef,
-				TraceID:            input.TraceID,
-			})
-			if err != nil {
-				return CapabilityExecutionWorkflowResult{}, err
-			}
-			return workflowResultFromFinalization(finalization), nil
+			}, CapabilityBranchStep{}, nil
 		}
 		branchOptions := activityOptions
 		branchOptions.TaskQueue = ActivityTaskQueueForCapability(step.Capability)
@@ -91,13 +176,13 @@ func CapabilityExecutionWorkflow(
 			Capability:   step.Capability,
 			Payload:      step.Payload,
 			PayloadKind:  step.PayloadKind,
-			RoutePlanRef: plan.PlanRef,
+			RoutePlanRef: planRef,
 			RunID:        input.RunID,
 			ToolName:     step.ToolName,
 			TraceID:      input.TraceID,
 			WorkerRole:   step.WorkerRole,
 		}).Get(ctx, &toolResult); err != nil {
-			return CapabilityExecutionWorkflowResult{}, err
+			return capabilityBranchExecutionResult{}, step, err
 		}
 		lastToolResult = toolResult
 		if toolResult.ResultRef != "" {
@@ -105,23 +190,136 @@ func CapabilityExecutionWorkflow(
 		}
 	}
 	if lastToolResult.ResultRef == "" {
-		return CapabilityExecutionWorkflowResult{}, temporal.NewNonRetryableApplicationError(
+		return capabilityBranchExecutionResult{}, CapabilityBranchStep{}, temporal.NewNonRetryableApplicationError(
 			"capability branch did not produce a finalizable result",
 			"capability_branch_empty",
 			nil,
 		)
 	}
-	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
+	return capabilityBranchExecutionResult{
 		RunID:              input.RunID,
 		SelectedCapability: lastToolResult.Capability,
 		SelectedTool:       lastToolResult.ToolName,
 		ToolResultRef:      lastToolResult.ResultRef,
-		TraceID:            input.TraceID,
-	})
-	if err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+	}, CapabilityBranchStep{}, nil
+}
+
+func executePlanReplan(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input PlanReplanActivityInput,
+) (PlanReplanActivityOutput, error) {
+	replanOptions := activityOptions
+	replanOptions.TaskQueue = ActivityTaskQueueContext
+	replanCtx := workflow.WithActivityOptions(ctx, replanOptions)
+	var output PlanReplanActivityOutput
+	err := workflow.ExecuteActivity(replanCtx, PlanReplanActivityName, input).Get(ctx, &output)
+	return output, err
+}
+
+func allowedCapabilitiesForReplan(plan PlanRouteActivityOutput) []string {
+	if len(plan.AllowedCapabilities) > 0 {
+		return append([]string{}, plan.AllowedCapabilities...)
 	}
-	return workflowResultFromFinalization(finalization), nil
+	capabilities := []string{}
+	seen := map[string]bool{}
+	for _, step := range plan.BranchSteps() {
+		if step.Capability != "" && !seen[step.Capability] {
+			seen[step.Capability] = true
+			capabilities = append(capabilities, step.Capability)
+		}
+	}
+	if len(capabilities) == 0 && plan.Capability != "" {
+		capabilities = append(capabilities, plan.Capability)
+	}
+	return capabilities
+}
+
+func allowedToolsForReplan(plan PlanRouteActivityOutput, steps []CapabilityBranchStep) []string {
+	tools := []string{}
+	seen := map[string]bool{}
+	appendTool := func(tool string) {
+		tool = strings.TrimSpace(tool)
+		if tool != "" && !seen[tool] {
+			seen[tool] = true
+			tools = append(tools, tool)
+		}
+	}
+	for _, tool := range plan.AllowedTools {
+		appendTool(tool)
+	}
+	for _, step := range steps {
+		for _, tool := range step.AllowedTools {
+			appendTool(tool)
+		}
+		appendTool(step.ToolName)
+	}
+	return tools
+}
+
+func validateReplanWithinBounds(
+	original PlanRouteActivityOutput,
+	currentSteps []CapabilityBranchStep,
+	replan PlanReplanActivityOutput,
+) error {
+	allowedCapabilities := setFromStrings(allowedCapabilitiesForReplan(original))
+	allowedTools := setFromStrings(allowedToolsForReplan(original, currentSteps))
+	for _, capability := range replan.AllowedCapabilities {
+		if strings.TrimSpace(capability) != "" && !allowedCapabilities[capability] {
+			return fmt.Errorf("replan expanded capability: %s", capability)
+		}
+	}
+	for _, step := range replan.Steps {
+		if strings.TrimSpace(step.Capability) != "" && !allowedCapabilities[step.Capability] {
+			return fmt.Errorf("replan expanded capability: %s", step.Capability)
+		}
+		for _, tool := range step.AllowedTools {
+			if strings.TrimSpace(tool) != "" && !allowedTools[tool] {
+				return fmt.Errorf("replan expanded tool: %s", tool)
+			}
+		}
+		if strings.TrimSpace(step.ToolName) != "" && !allowedTools[step.ToolName] {
+			return fmt.Errorf("replan expanded tool: %s", step.ToolName)
+		}
+	}
+	if strings.TrimSpace(replan.NewPlanRef) == "" {
+		return fmt.Errorf("replan new_plan_ref is required")
+	}
+	if len(replan.Steps) == 0 {
+		return fmt.Errorf("replan steps are required")
+	}
+	return nil
+}
+
+func setFromStrings(values []string) map[string]bool {
+	result := map[string]bool{}
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			result[value] = true
+		}
+	}
+	return result
+}
+
+func reasonForReplanFailure(step CapabilityBranchStep, err error) string {
+	if step.Capability == "knowledge" {
+		return "knowledge_branch_failed"
+	}
+	if step.ToolName != "" {
+		return "typed_tool_failed"
+	}
+	return "capability_branch_failed"
+}
+
+func sanitizeWorkflowFailure(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.TrimSpace(err.Error())
+	if len(message) > 240 {
+		return message[:240]
+	}
+	return message
 }
 
 func executeKnowledgeBranch(

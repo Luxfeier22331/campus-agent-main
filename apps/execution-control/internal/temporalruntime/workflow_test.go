@@ -2,12 +2,12 @@ package temporalruntime
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/mock"
-	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
 )
 
@@ -445,6 +445,185 @@ func TestCapabilityExecutionWorkflowExecutesResolvedMultiStepCapabilityBranch(t 
 	env.AssertExpectations(t)
 }
 
+func TestCapabilityExecutionWorkflowReplansFailedTypedToolWithinBudget(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	completedAt := time.Date(2026, 6, 4, 4, 5, 6, 0, time.UTC)
+	runID := "run-replan-001"
+	planRef := "projection://runs/" + runID + "/plan/route"
+	replanRef := "projection://runs/" + runID + "/plan/replan/1"
+
+	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
+		Return(MemoryRecallActivityOutput{RunID: runID, MemoryRef: "projection://runs/" + runID + "/memory/recall", Status: "completed"}, nil)
+	env.OnActivity(PlanRouteActivityName, mock.Anything, mock.Anything).
+		Return(PlanRouteActivityOutput{
+			AllowedCapabilities: []string{"campus_services"},
+			AllowedTools:        []string{"service_status_lookup"},
+			Capability:          "campus_services",
+			MaxReplans:          1,
+			PlanRef:             planRef,
+			RunID:               runID,
+			Status:              "planned",
+			Steps: []CapabilityBranchStep{{
+				AllowedTools: []string{"service_status_lookup"},
+				Capability:   "campus_services",
+				PayloadKind:  "service_status_lookup",
+				StepID:       "capability:campus_services:service_status_lookup",
+				ToolName:     "service_status_lookup",
+				WorkerRole:   "activity-worker-campus-services",
+			}},
+			ToolName:     "service_status_lookup",
+			WorkerRole:   "activity-worker-campus-services",
+			WorkflowMode: "single_step",
+		}, nil)
+	env.OnActivity(
+		ExecuteTypedToolActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input ExecuteTypedToolActivityInput) bool {
+			return input.RunID == runID && input.ToolName == "service_status_lookup"
+		}),
+	).Return(ExecuteTypedToolActivityOutput{}, errors.New("service status unavailable")).Once()
+	env.OnActivity(
+		PlanReplanActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input PlanReplanActivityInput) bool {
+			return input.RunID == runID &&
+				input.ReplanCount == 1 &&
+				input.Reason == "typed_tool_failed" &&
+				input.PreviousPlanRef == planRef &&
+				len(input.AllowedCapabilities) == 1 &&
+				input.AllowedCapabilities[0] == "campus_services" &&
+				len(input.AllowedTools) == 1 &&
+				input.AllowedTools[0] == "service_status_lookup"
+		}),
+	).Return(PlanReplanActivityOutput{
+		AllowedCapabilities: []string{"campus_services"},
+		NewPlanRef:          replanRef,
+		RunID:               runID,
+		Status:              "planned",
+		Steps: []CapabilityBranchStep{{
+			AllowedTools: []string{"service_status_lookup"},
+			Capability:   "campus_services",
+			PayloadKind:  "service_status_lookup",
+			StepID:       "capability:campus_services:service_status_lookup:retry",
+			ToolName:     "service_status_lookup",
+			WorkerRole:   "activity-worker-campus-services",
+		}},
+	}, nil)
+	env.OnActivity(
+		ExecuteTypedToolActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input ExecuteTypedToolActivityInput) bool {
+			return input.RunID == runID &&
+				input.RoutePlanRef == replanRef &&
+				input.ToolName == "service_status_lookup"
+		}),
+	).Return(ExecuteTypedToolActivityOutput{
+		Capability:  "campus_services",
+		ResultRef:   "projection://runs/" + runID + "/tools/service_status_lookup/retry",
+		RunID:       runID,
+		Status:      "completed",
+		ToolName:    "service_status_lookup",
+		PayloadKind: "service_status_lookup",
+	}, nil).Once()
+	env.OnActivity(WriteFinalizationActivityName, mock.Anything, mock.Anything).
+		Return(WriteFinalizationActivityOutput{
+			CompletedAt:   completedAt,
+			ProjectionRef: "projection://runs/" + runID + "/finalization",
+			RunID:         runID,
+			Status:        "completed",
+		}, nil)
+
+	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
+		ConversationID:      "conv-replan-001",
+		Namespace:           "campus-agent-test",
+		PayloadSHA256:       "3f0a4a5f0d2ed0cecbfb4c72dc90653d4f484ba5856ea35f246fb3c3a37c78fe",
+		RequestID:           "req-replan-001",
+		RequestedCapability: "campus_services",
+		RunID:               runID,
+		TaskQueue:           WorkflowTaskQueue,
+		TraceID:             "trace-replan-001",
+		TurnID:              "turn-replan-001",
+		WorkflowID:          "campus-agent.chat." + runID,
+	})
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	env.AssertExpectations(t)
+}
+
+func TestCapabilityExecutionWorkflowRejectsReplanThatExpandsCapability(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	runID := "run-replan-expand-001"
+
+	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
+		Return(MemoryRecallActivityOutput{RunID: runID, MemoryRef: "projection://runs/" + runID + "/memory/recall", Status: "completed"}, nil)
+	env.OnActivity(PlanRouteActivityName, mock.Anything, mock.Anything).
+		Return(PlanRouteActivityOutput{
+			AllowedCapabilities: []string{"campus_services"},
+			AllowedTools:        []string{"service_status_lookup"},
+			Capability:          "campus_services",
+			MaxReplans:          1,
+			PlanRef:             "projection://runs/" + runID + "/plan/route",
+			RunID:               runID,
+			Status:              "planned",
+			Steps: []CapabilityBranchStep{{
+				AllowedTools: []string{"service_status_lookup"},
+				Capability:   "campus_services",
+				PayloadKind:  "service_status_lookup",
+				StepID:       "capability:campus_services:service_status_lookup",
+				ToolName:     "service_status_lookup",
+				WorkerRole:   "activity-worker-campus-services",
+			}},
+			ToolName:     "service_status_lookup",
+			WorkerRole:   "activity-worker-campus-services",
+			WorkflowMode: "single_step",
+		}, nil)
+	env.OnActivity(ExecuteTypedToolActivityName, mock.Anything, mock.Anything).
+		Return(ExecuteTypedToolActivityOutput{}, errors.New("service status unavailable")).Once()
+	env.OnActivity(PlanReplanActivityName, mock.Anything, mock.Anything).
+		Return(PlanReplanActivityOutput{
+			AllowedCapabilities: []string{"knowledge"},
+			NewPlanRef:          "projection://runs/" + runID + "/plan/replan/1",
+			RunID:               runID,
+			Status:              "planned",
+			Steps: []CapabilityBranchStep{{
+				Capability:  "knowledge",
+				PayloadKind: "rag_request",
+				StepID:      "capability:knowledge:rag_request",
+				ToolName:    "retrieval.query",
+				WorkerRole:  "activity-worker-knowledge",
+			}},
+		}, nil)
+
+	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
+		ConversationID:      "conv-replan-expand-001",
+		Namespace:           "campus-agent-test",
+		PayloadSHA256:       "3f0a4a5f0d2ed0cecbfb4c72dc90653d4f484ba5856ea35f246fb3c3a37c78fe",
+		RequestID:           "req-replan-expand-001",
+		RequestedCapability: "campus_services",
+		RunID:               runID,
+		TaskQueue:           WorkflowTaskQueue,
+		TraceID:             "trace-replan-expand-001",
+		TurnID:              "turn-replan-expand-001",
+		WorkflowID:          "campus-agent.chat." + runID,
+	})
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	if err := env.GetWorkflowError(); err == nil || !strings.Contains(err.Error(), "replan expanded capability") {
+		t.Fatalf("workflow error = %v, want replan expanded capability", err)
+	}
+}
+
 func TestWorkerRuntimeRequiresFinalizationActivities(t *testing.T) {
 	_, err := NewWorkerRuntime(context.Background(), WorkerOptions{
 		Address:                "127.0.0.1:1",
@@ -462,249 +641,5 @@ func TestWorkerRuntimeRequiresFinalizationActivities(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "temporal finalization activities are required") {
 		t.Fatalf("error = %q", err.Error())
-	}
-}
-
-type Activities struct{}
-
-type workflowTestActivityRegistrar interface {
-	RegisterActivityWithOptions(activity any, options activity.RegisterOptions)
-}
-
-func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activities *Activities) {
-	env.RegisterActivityWithOptions(activities.MemoryRecallActivity, activity.RegisterOptions{Name: MemoryRecallActivityName})
-	env.RegisterActivityWithOptions(activities.PlanRouteActivity, activity.RegisterOptions{Name: PlanRouteActivityName})
-	env.RegisterActivityWithOptions(activities.PlanRAGActivity, activity.RegisterOptions{Name: PlanRAGActivityName})
-	env.RegisterActivityWithOptions(
-		activities.RetrieveIndexedLookupActivity,
-		activity.RegisterOptions{Name: RetrieveIndexedLookupActivityName},
-	)
-	env.RegisterActivityWithOptions(
-		activities.ExpandOrRescueRetrievalActivity,
-		activity.RegisterOptions{Name: ExpandOrRescueRetrievalActivityName},
-	)
-	env.RegisterActivityWithOptions(activities.SelectEvidenceActivity, activity.RegisterOptions{Name: SelectEvidenceActivityName})
-	env.RegisterActivityWithOptions(
-		activities.SynthesizeRAGAnswerActivity,
-		activity.RegisterOptions{Name: SynthesizeRAGAnswerActivityName},
-	)
-	env.RegisterActivityWithOptions(activities.VerifyGroundingActivity, activity.RegisterOptions{Name: VerifyGroundingActivityName})
-	env.RegisterActivityWithOptions(activities.ExecuteTypedToolActivity, activity.RegisterOptions{Name: ExecuteTypedToolActivityName})
-	env.RegisterActivityWithOptions(activities.WriteFinalizationActivity, activity.RegisterOptions{Name: WriteFinalizationActivityName})
-}
-
-func (Activities) MemoryRecallActivity(
-	_ context.Context,
-	input MemoryRecallActivityInput,
-) (MemoryRecallActivityOutput, error) {
-	return MemoryRecallActivityOutput{
-		MemoryRef:           "projection://runs/" + input.RunID + "/memory/recall",
-		RunID:               input.RunID,
-		SelectedMemoryChars: 0,
-		SelectedMemoryCount: 0,
-		Status:              "completed",
-	}, nil
-}
-
-func (Activities) PlanRouteActivity(
-	_ context.Context,
-	input PlanRouteActivityInput,
-) (PlanRouteActivityOutput, error) {
-	capability := input.RequestedCapability
-	if capability == "" {
-		capability = "knowledge"
-	}
-	if capability == "campus_services" {
-		return PlanRouteActivityOutput{
-			Capability:  "campus_services",
-			PlanRef:     "projection://runs/" + input.RunID + "/plan/route",
-			RunID:       input.RunID,
-			Status:      "planned",
-			ToolName:    "service_status_lookup",
-			WorkerRole:  "activity-worker-campus-services",
-			PayloadKind: "service_status_lookup",
-		}, nil
-	}
-	return PlanRouteActivityOutput{
-		Capability:  "knowledge",
-		PlanRef:     "projection://runs/" + input.RunID + "/plan/route",
-		RunID:       input.RunID,
-		Status:      "planned",
-		ToolName:    "retrieval.query",
-		WorkerRole:  "activity-worker-knowledge",
-		PayloadKind: "rag_request",
-	}, nil
-}
-
-func (Activities) ExecuteTypedToolActivity(
-	_ context.Context,
-	input ExecuteTypedToolActivityInput,
-) (ExecuteTypedToolActivityOutput, error) {
-	return ExecuteTypedToolActivityOutput{
-		Capability:  input.Capability,
-		ResultRef:   "projection://runs/" + input.RunID + "/tools/" + input.ToolName,
-		RunID:       input.RunID,
-		Status:      "completed",
-		ToolName:    input.ToolName,
-		PayloadKind: input.PayloadKind,
-	}, nil
-}
-
-func (Activities) PlanRAGActivity(
-	_ context.Context,
-	input PlanRAGActivityInput,
-) (PlanRAGActivityOutput, error) {
-	return PlanRAGActivityOutput{
-		PlanRef: "projection://runs/" + input.RunID + "/rag/plan",
-		RunID:   input.RunID,
-		Status:  "completed",
-	}, nil
-}
-
-func (Activities) RetrieveIndexedLookupActivity(
-	_ context.Context,
-	input RetrieveIndexedLookupActivityInput,
-) (RetrieveIndexedLookupActivityOutput, error) {
-	return RetrieveIndexedLookupActivityOutput{
-		LookupRef: "projection://runs/" + input.RunID + "/retrieval/indexed-lookup",
-		RunID:     input.RunID,
-		Status:    "completed",
-	}, nil
-}
-
-func (Activities) ExpandOrRescueRetrievalActivity(
-	_ context.Context,
-	input ExpandOrRescueRetrievalActivityInput,
-) (ExpandOrRescueRetrievalActivityOutput, error) {
-	return ExpandOrRescueRetrievalActivityOutput{
-		LookupRef: input.LookupRef,
-		RescueRef: "projection://runs/" + input.RunID + "/retrieval/expand-or-rescue",
-		RunID:     input.RunID,
-		Status:    "completed",
-	}, nil
-}
-
-func (Activities) SelectEvidenceActivity(
-	_ context.Context,
-	input SelectEvidenceActivityInput,
-) (SelectEvidenceActivityOutput, error) {
-	return SelectEvidenceActivityOutput{
-		EvidenceRef: "projection://runs/" + input.RunID + "/evidence/selection",
-		RunID:       input.RunID,
-		Status:      "completed",
-	}, nil
-}
-
-func (Activities) SynthesizeRAGAnswerActivity(
-	_ context.Context,
-	input SynthesizeRAGAnswerActivityInput,
-) (SynthesizeRAGAnswerActivityOutput, error) {
-	return SynthesizeRAGAnswerActivityOutput{
-		SynthesisRef: "projection://runs/" + input.RunID + "/synthesis/provider",
-		RunID:        input.RunID,
-		Status:       "completed",
-	}, nil
-}
-
-func (Activities) VerifyGroundingActivity(
-	_ context.Context,
-	input VerifyGroundingActivityInput,
-) (VerifyGroundingActivityOutput, error) {
-	return VerifyGroundingActivityOutput{
-		GroundingRef: "projection://runs/" + input.RunID + "/grounding/verify",
-		RunID:        input.RunID,
-		Status:       "completed",
-	}, nil
-}
-
-func (Activities) WriteFinalizationActivity(
-	_ context.Context,
-	input WriteFinalizationActivityInput,
-) (WriteFinalizationActivityOutput, error) {
-	return WriteFinalizationActivityOutput{
-		CompletedAt:   time.Now().UTC(),
-		ProjectionRef: "projection://runs/" + input.RunID + "/finalization",
-		RunID:         input.RunID,
-		Status:        "completed",
-	}, nil
-}
-
-func memoryRecallInputMatcher(runID string) func(MemoryRecallActivityInput) bool {
-	return func(input MemoryRecallActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.RequestID == "req-workflow-001" &&
-			input.RequestedCapability == "knowledge"
-	}
-}
-
-func planInputMatcher(runID string) func(PlanRouteActivityInput) bool {
-	return func(input PlanRouteActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.PayloadSHA256 != "" &&
-			input.RequestedCapability == "knowledge"
-	}
-}
-
-func ragPlanInputMatcher(runID string) func(PlanRAGActivityInput) bool {
-	return func(input PlanRAGActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.WorkflowPlanRef == "projection://runs/run-workflow-001/plan/route"
-	}
-}
-
-func retrievalLookupInputMatcher(runID string) func(RetrieveIndexedLookupActivityInput) bool {
-	return func(input RetrieveIndexedLookupActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan"
-	}
-}
-
-func retrievalRescueInputMatcher(runID string) func(ExpandOrRescueRetrievalActivityInput) bool {
-	return func(input ExpandOrRescueRetrievalActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan" &&
-			input.LookupRef == "projection://runs/run-workflow-001/retrieval/indexed-lookup"
-	}
-}
-
-func evidenceSelectionInputMatcher(runID string) func(SelectEvidenceActivityInput) bool {
-	return func(input SelectEvidenceActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan" &&
-			input.LookupRef == "projection://runs/run-workflow-001/retrieval/indexed-lookup" &&
-			input.RescueRef == "projection://runs/run-workflow-001/retrieval/expand-or-rescue"
-	}
-}
-
-func synthesisInputMatcher(runID string) func(SynthesizeRAGAnswerActivityInput) bool {
-	return func(input SynthesizeRAGAnswerActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.RAGPlanRef == "projection://runs/run-workflow-001/rag/plan" &&
-			input.EvidenceRef == "projection://runs/run-workflow-001/evidence/selection"
-	}
-}
-
-func groundingInputMatcher(runID string) func(VerifyGroundingActivityInput) bool {
-	return func(input VerifyGroundingActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.EvidenceRef == "projection://runs/run-workflow-001/evidence/selection" &&
-			input.SynthesisRef == "projection://runs/run-workflow-001/synthesis/provider"
-	}
-}
-
-func finalizeInputMatcher(runID string) func(WriteFinalizationActivityInput) bool {
-	return func(input WriteFinalizationActivityInput) bool {
-		return input.RunID == runID &&
-			input.TraceID == "trace-workflow-001" &&
-			input.GroundingRef == "projection://runs/run-workflow-001/grounding/verify" &&
-			input.SynthesisRef == "projection://runs/run-workflow-001/synthesis/provider"
 	}
 }
