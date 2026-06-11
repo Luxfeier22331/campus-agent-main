@@ -232,13 +232,10 @@ Execution Agent Layer 不负责：
   直接拼 notice -> rag 固定 step list。workflow trace summary 额外记录
   `answer_artifact_projection_ids` 与 `answer_artifact_kinds`，用于证明最终答复使用了哪些
   bounded artifact。不得把单 handoff trace 包装成 `multi_step`
-- `runtime_decisions.workflow_plan` 是 Go planner 的 canonical safe projection，当前
-  `schema_version=workflow-plan-v1`，用于显式记录 `single_step` plan、step kind、
-  selected capability / payload kind / allowed tools、terminal policy、resume
-  policy 与 semantic retry policy。
-  `runtime_decisions.handoff.capability_request` 仍是 bridge 真实
-  `CapabilityRequest`；`workflow_plan` 不复制完整 payload，也不替代 bridge
-  request
+- `plan.route` 是 Execution Agent Layer 的 current durable planning step。它从
+  `execution_payload` 读取 bounded request context，输出 resolved branch steps、selected
+  capability、typed tool 与 worker role。旧 `runtime_decisions` / bridge handoff 只属于
+  historical direct serving contract，不是 current durable chat path 的规划输入。
 - `apps/execution-control/internal/execution` 已有 repo-owned `WorkflowRunStore`
   接口、in-memory 实现与 PostgreSQL backend，用于约束 run id、state、step timeline
   与 handoff chain、context projections 的内部 run-state shape。生产打开 `multi_step` 必须配置

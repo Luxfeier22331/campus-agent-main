@@ -120,15 +120,13 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - 更新共享 fixture matrix 中的 canonical valid / invalid 样本
 - 更新 `multi-agent-runtime-contract` gate 或对应 targeted tests
 
-`runtime_decisions.workflow_plan` 是 planner 的 safe projection，当前
-`schema_version=workflow-plan-v1`。它只记录 workflow mode、step / edge skeleton、
-terminal policy、resume policy 与 semantic retry policy。当前 online RAG path 不再把
-真实 delegate payload 送入 Python bridge。
-首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
-`notice internal selected notice resolve
-(payload_kind=campus_notice_get) -> knowledge retrieval.query`。notice step 输出会被
-`execution-control` 投影成 canonical `StepOutputProjection`，再输入后续 RAG step；
-`workflow_plan.edges[].required_projection_kind` 声明跨 step 输入要求。operator / eval
+`plan.route` 是 current durable planning contract。它从 capability-neutral
+`execution_payload` 生成 resolved branch steps，并把 selected capability、typed tool、
+payload kind、worker role 与 branch mode 写入 sanitized projection。当前 online path 不再把
+真实 delegate payload 送入 Python bridge，也不把旧 `runtime_decisions` 作为规划输入。
+selected notice context + knowledge follow-through 会被 resolver 编译为 typed tool
+step + knowledge step。typed tool 输出会被 `execution-control` 投影成 canonical
+`StepOutputProjection`，再以 bounded result ref 输入后续 RAG step。operator / eval
 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
 `projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
 notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace

@@ -76,7 +76,7 @@ document/index release`
   recovery loop 只允许作为 historical migration artifact / retired code path 出现，
   不参与当前 online serving
 - 当前在线 RAG 路径已退出 Python bridge，并硬切为 Temporal-visible memory + RAG graph：
-  `memory.recall -> planning -> rag.plan -> retrieval.indexed_lookup ->
+  `context.memory_recall -> plan.route -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`。
 - 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 self-hosted Qdrant
@@ -256,19 +256,15 @@ document/index release`
   worker autoscaler actuation、notice / navigation / campus-services typed branch
   产品验收，以及 RAG retrieval quality/profiling 的持续优化。
 - 拥有 deterministic structured planner；当前实现位于
-  `apps/execution-control/internal/structuredplanning`，`internal/execution`
-  仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
-- `runtime_decisions.workflow_plan` 已作为 planner 的 canonical safe projection
-  落入 bridge contract；当前 runtime 默认只发出 `single_step` plan。受控
-  开启 `EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run
-  store ready 后，可执行首条真实 `multi_step` path：selected notice context +
-  knowledge follow-through 触发 notice internal selected notice resolve
-  (`payload_kind=campus_notice_get`) -> `knowledge retrieval.query`，并将 notice
-  step 输出以 bounded internal workflow context projection 传给 RAG step。该 path 现已
-  改为 planner 输出 internal `CapabilityPlan`，再由 artifact-registry resolver 编译
-  `WorkflowPlan`；planner 不再手写 notice -> rag 固定 step shell。Go finalizer 同时在
-  `workflow_trace_summary` 中记录 `answer_artifact_projection_ids` 与
-  `answer_artifact_kinds`，用于证明最终答复使用了哪些 bounded artifact
+  `apps/execution-control/internal/structuredplanning`。`PlanRouteActivity` 从
+  capability-neutral `execution_payload` 读取 user goal、requested capability、
+  scope、version query 与 session context，输出 resolved capability branch steps。
+- `CapabilityExecutionWorkflow` 已能执行 resolved branch plan：knowledge step
+  进入 Go RAG graph；`campus_services` / `notice` step 进入 typed tool activity；
+  selected-notice follow-through 可由 resolver 编译为 typed tool step + knowledge
+  step。workflow trace / projection 只记录 bounded result refs、step metadata 与 safe
+  summaries，不携带 raw projection payload。旧 bridge v6 `runtime_decisions` 不再是
+  current durable chat path 的规划输入。
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/execution-control/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope
