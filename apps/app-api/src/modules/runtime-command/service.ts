@@ -314,7 +314,7 @@ export function buildChatCommandService(
 		};
 	}
 
-	async function buildSupervisorInput(
+	async function buildExecutionInput(
 		context: AcceptedChatCommandContext,
 	): Promise<CapabilityExecutionInput> {
 		return {
@@ -356,7 +356,7 @@ export function buildChatCommandService(
 			});
 		}
 
-		const executionInput = await buildSupervisorInput(context);
+		const executionInput = await buildExecutionInput(context);
 		try {
 			const durableMetadata = buildCapabilityExecutionRunMetadata(executionInput);
 			const executionPayload = durableMetadata.execution_payload as Record<string, unknown>;

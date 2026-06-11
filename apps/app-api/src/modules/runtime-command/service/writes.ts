@@ -13,7 +13,7 @@ import {
 } from "../../request-observability";
 import type { VersionQuery } from "../../version-query";
 import {
-	buildSupervisorSessionProjection,
+	buildExecutionSessionProjection,
 	deriveCurriculumSessionSlots,
 } from "../curriculum-session";
 import type { AcceptRequestWrite, FinalizeRequestWrite, RequestExecutionStatus } from "../store";
@@ -42,7 +42,7 @@ export function buildCapabilityExecutionContextProjection(input: {
 	return {
 		actor: input.actor,
 		authorization: input.authorization ?? buildExecutionAuthorizationContext(input.actor),
-		session: buildSupervisorSessionProjection({
+		session: buildExecutionSessionProjection({
 			sessionSlots: input.sessionSlots,
 			turnCount: input.turnCount,
 		}),

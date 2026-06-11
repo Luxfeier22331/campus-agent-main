@@ -257,13 +257,6 @@ describe("chat command durable runtime cutover", () => {
 			.calls[0]?.[0];
 		const metadata = createRunInput?.metadata as Record<string, unknown>;
 		const executionPayload = metadata.execution_payload as Record<string, unknown>;
-		const runtimeDecisions = executionPayload.runtime_decisions as Record<string, unknown>;
-		const handoff = runtimeDecisions.handoff as Record<string, unknown>;
-		const capabilityRequest = handoff.capability_request as Record<string, unknown>;
-		const workflowContext = capabilityRequest.workflow_context as Record<string, unknown>;
-		const capabilityPayload = capabilityRequest.payload as Record<string, unknown>;
-		const capabilityPayloadBody = capabilityPayload.payload as Record<string, unknown>;
-		const workflowPlan = runtimeDecisions.workflow_plan as Record<string, unknown>;
 		expect(Object.keys(executionPayload).sort()).toEqual([
 			"actor",
 			"context",
@@ -275,7 +268,6 @@ describe("chat command durable runtime cutover", () => {
 			"requested_capability",
 			"requested_scope",
 			"response_contract",
-			"runtime_decisions",
 			"safety_identifier",
 			"trace",
 			"user_goal",
@@ -295,77 +287,8 @@ describe("chat command durable runtime cutover", () => {
 				mode: "current",
 			},
 		});
-		expect(runtimeDecisions).toMatchObject({
-			effective_capability: "knowledge",
-			lane: "rag",
-			routing_frame: expect.objectContaining({
-				capability: "knowledge",
-				needs_clarification: false,
-				suggested_next_action: "delegate",
-			}),
-			runtime_decision_summary: expect.objectContaining({
-				planning_outcome: "preplanned",
-				selected_capability: "knowledge",
-				selected_tool: "retrieval.query",
-			}),
-			schema_version: "capability-execution-runtime-decisions-v1",
-		});
-		expect(handoff).toMatchObject({
-			allowed_tools: [],
-			capability: "knowledge",
-			planning_outcome: "preplanned",
-		});
-		expect(capabilityRequest).toMatchObject({
-			allowed_tools: [],
-			capability: "knowledge",
-			context: executionPayload.context,
-			conversation_id: "conv_01HQ",
-			request_id: "req_0001",
-			safety_identifier: expect.any(String),
-			trace: {
-				trace_id: "trace_0001",
-			},
-			user_goal: "中央民族大学本科学生国家奖学金评审办法",
-		});
-		expect(capabilityPayload).toMatchObject({
-			kind: "rag_request",
-		});
-		expect(capabilityPayloadBody).toMatchObject({
-			scope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
-			version_query: {
-				mode: "current",
-			},
-		});
-		expect(workflowContext).toMatchObject({
-			capability_id: "knowledge",
-			expected_output_artifacts: ["evidence_bundle", "grounding_verdict"],
-			projection_refs: [],
-			schema_version: "workflow-capability-context-v1",
-			step_id: "capability:knowledge:rag_request",
-			visibility: "capability_private",
-			workflow_run_ref: "workflow:req_0001",
-		});
-		expect(workflowPlan).toMatchObject({
-			allowed_capabilities: ["knowledge"],
-			edges: [],
-			plan_id: "plan:single_step:knowledge:rag_request",
-			schema_version: "workflow-plan-v1",
-			steps: [
-				{
-					allowed_tools: [],
-					capability: "knowledge",
-					payload_kind: "rag_request",
-					selected_tool: "retrieval.query",
-					step_id: "capability:knowledge:rag_request",
-					step_kind: "capability_dispatch",
-					worker_role: "activity-worker-knowledge",
-				},
-			],
-			workflow_mode: "knowledge_rag",
-		});
+		expect(executionPayload.runtime_decisions).toBeUndefined();
+		expect(metadata.handoff).toBeUndefined();
 		expect(executionRuntime.createRun).toHaveBeenCalledWith({
 			conversationId: "conv_01HQ",
 			lane: "rag",
@@ -383,7 +306,6 @@ describe("chat command durable runtime cutover", () => {
 						collection: "student_rules",
 						corpus: "regulations",
 					},
-					runtime_decisions: expect.any(Object),
 					safety_identifier: expect.any(String),
 					trace: {
 						trace_id: "trace_0001",
@@ -393,22 +315,6 @@ describe("chat command durable runtime cutover", () => {
 						mode: "current",
 					},
 				}),
-				handoff: {
-					allowed_tools: [],
-					expected_artifacts: ["evidence_bundle", "grounding_verdict"],
-					payload: {
-						scope: {
-							collection: "student_rules",
-							corpus: "regulations",
-						},
-						version_query: {
-							mode: "current",
-						},
-					},
-					payload_kind: "rag_request",
-					required_projection_kind: "",
-					capability: "knowledge",
-				},
 			}),
 			ownerUserId: "user_01HQ",
 			requestId: "req_0001",
@@ -426,7 +332,7 @@ describe("chat command durable runtime cutover", () => {
 			traceId: "trace_0001",
 			turnId: "turn_0001",
 		});
-		expect(metadata).toHaveProperty("handoff");
+		expect(metadata).not.toHaveProperty("handoff");
 		expect(acceptedWrites[0]).toMatchObject({
 			requestExecution: {
 				requestId: "req_0001",
@@ -463,17 +369,38 @@ describe("chat command durable runtime cutover", () => {
 		});
 	});
 
-	it("rejects non-knowledge capabilities before durable RAG run admission", async () => {
+	it("admits campus services requests into durable execution without local tool preplanning", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
+		const telemetry = createTelemetryMock();
 		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
-			createRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue(
+				durableRun({
+					lane: "campus_services",
+					requestedCapability: "campus_services",
+					selectedCapability: "campus_services",
+				}),
+			),
 			getRun: vi.fn(),
-			listRunEvents: vi.fn(),
+			listRunEvents: vi.fn().mockResolvedValue([
+				durableEvent({
+					eventId: "event-final",
+					eventType: "finalization.completed",
+					payload: {
+						request_id: "req_0001",
+						response: {
+							...answerResponsePayload("图书馆开放状态会由校园服务能力查询。"),
+							selected_capability: "campus_services",
+						},
+						trace_id: "trace_0001",
+					},
+					sequence: 1,
+				}),
+			]),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
@@ -484,27 +411,46 @@ describe("chat command durable runtime cutover", () => {
 			conversationStore,
 			store,
 			supervisor,
+			telemetry,
 		});
 
-		await expect(
-			service.submit({
-				payload: {
-					conversationId: "conv_01HQ",
-					prompt: "海淀校区图书馆现在开门吗？",
-					requestedCapability: "campus_services",
-				},
-				principal: createPrincipal(),
-				surface: "public_chat_web",
-			}),
-		).rejects.toMatchObject({
-			code: "validation_failed",
-			status: 422,
+		const response = await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "海淀校区图书馆现在开门吗？",
+				requestedCapability: "campus_services",
+			},
+			principal: createPrincipal(),
+			surface: "public_chat_web",
 		});
 
-		expect(executionRuntime.createRun).not.toHaveBeenCalled();
+		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
+		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[0];
+		expect(createRunInput).toMatchObject({
+			lane: "campus_services",
+			requestedCapability: "campus_services",
+			selectedCapability: "campus_services",
+		});
+		const metadata = createRunInput?.metadata as Record<string, unknown>;
+		const executionPayload = metadata.execution_payload as Record<string, unknown>;
+		expect(executionPayload).toMatchObject({
+			effective_capability: "campus_services",
+			lane: "campus_services",
+			requested_capability: "campus_services",
+			user_goal: "海淀校区图书馆现在开门吗？",
+		});
+		expect(executionPayload.runtime_decisions).toBeUndefined();
+		expect(metadata).not.toHaveProperty("handoff");
+		expect(JSON.stringify(metadata)).not.toContain("selected_tool");
+		expect(JSON.stringify(metadata)).not.toContain("allowed_tools");
 		expect(supervisor.execute).not.toHaveBeenCalled();
-		expect(acceptedWrites).toHaveLength(0);
-		expect(finalWrites).toHaveLength(0);
+		expect(acceptedWrites).toHaveLength(1);
+		expect(finalWrites).toHaveLength(1);
+		expect(response.answer.result).toMatchObject({
+			kind: "answer",
+			text: "图书馆开放状态会由校园服务能力查询。",
+		});
 	});
 
 	it("polls blocking durable run events by cursor until terminal finalization arrives", async () => {

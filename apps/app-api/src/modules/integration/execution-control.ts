@@ -4,6 +4,7 @@ export type {
 	CapabilityExecutionObservability,
 	CapabilityExecutionPromptTrace,
 	CapabilityExecutionResponse,
+	CapabilityExecutionSelectedNoticeRef,
 	CapabilityExecutionSessionSlot,
 	CapabilityExecutionSessionSummary,
 	CapabilityExecutionWorkflowTraceSummary,

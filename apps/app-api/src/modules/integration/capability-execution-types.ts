@@ -25,8 +25,16 @@ export interface CapabilityExecutionSessionSlot {
 	value: string;
 }
 
+export interface CapabilityExecutionSelectedNoticeRef {
+	noticeId: string;
+	sourceFamily?: string;
+	targetSurface?: string;
+	title?: string;
+}
+
 export interface CapabilityExecutionSessionSummary {
 	confirmedSlots: CapabilityExecutionSessionSlot[];
+	selectedNoticeRef?: CapabilityExecutionSelectedNoticeRef | null;
 	turnCount: number;
 }
 

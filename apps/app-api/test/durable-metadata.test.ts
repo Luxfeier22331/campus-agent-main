@@ -47,26 +47,55 @@ function executionInput(
 }
 
 describe("durable run metadata", () => {
-	it("builds capability-neutral metadata for campus services without RAG handoff", () => {
+	it("builds capability-neutral metadata for campus services without preselected tool plan", () => {
 		const metadata = buildCapabilityExecutionRunMetadata(
 			executionInput({ requestedCapability: "campus_services" }),
 		);
 
 		const payload = metadata.execution_payload as Record<string, unknown>;
-		const decisions = payload.runtime_decisions as Record<string, unknown>;
-		const summary = decisions.runtime_decision_summary as Record<string, unknown>;
-		const plan = decisions.workflow_plan as Record<string, unknown>;
-		const handoff = metadata.handoff as Record<string, unknown>;
 
 		expect(payload.requested_capability).toBe("campus_services");
 		expect(payload.effective_capability).toBe("campus_services");
 		expect(payload.lane).toBe("campus_services");
-		expect(handoff.capability).toBe("campus_services");
-		expect(handoff.payload_kind).toBe("capability_request");
-		expect(summary.selected_capability).toBe("campus_services");
-		expect(summary.selected_tool).toBeNull();
-		expect(plan.workflow_mode).toBe("capability_dispatch");
+		expect(payload.runtime_decisions).toBeUndefined();
+		expect(metadata.handoff).toBeUndefined();
 		expect(JSON.stringify(metadata)).not.toContain("retrieval.query");
 		expect(JSON.stringify(metadata)).not.toContain("rag_request");
+		expect(JSON.stringify(metadata)).not.toContain("allowed_tools");
+		expect(JSON.stringify(metadata)).not.toContain("selected_tool");
+	});
+
+	it("projects selected notice context as an explicit session reference", () => {
+		const metadata = buildCapabilityExecutionRunMetadata(
+			executionInput({
+				context: {
+					...executionInput().context,
+					session: {
+						confirmedSlots: [],
+						selectedNoticeRef: {
+							noticeId: "notice:transport:353903",
+							sourceFamily: "internal_notice_restricted",
+							targetSurface: "campus_services/service_status_candidate",
+							title: "关于通勤班车丰台校区乘车点调整的通知",
+						},
+						turnCount: 3,
+					},
+				},
+				requestedCapability: "campus_services",
+			}),
+		);
+
+		const payload = metadata.execution_payload as Record<string, unknown>;
+		expect(payload.context).toMatchObject({
+			session: {
+				selected_notice_ref: {
+					notice_id: "notice:transport:353903",
+					source_family: "internal_notice_restricted",
+					target_surface: "campus_services/service_status_candidate",
+					title: "关于通勤班车丰台校区乘车点调整的通知",
+				},
+				turn_count: 3,
+			},
+		});
 	});
 });

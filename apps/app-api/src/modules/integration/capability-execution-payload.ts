@@ -43,6 +43,14 @@ export function toCapabilityExecutionContext(context: CapabilityExecutionContext
 				name: slot.name,
 				value: slot.value,
 			})),
+			selected_notice_ref: context.session.selectedNoticeRef
+				? {
+						notice_id: context.session.selectedNoticeRef.noticeId,
+						source_family: context.session.selectedNoticeRef.sourceFamily ?? "",
+						target_surface: context.session.selectedNoticeRef.targetSurface ?? "",
+						title: context.session.selectedNoticeRef.title ?? "",
+					}
+				: null,
 			turn_count: context.session.turnCount,
 		},
 	};

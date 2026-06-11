@@ -1,6 +1,11 @@
 import { createPreAcceptError } from "./errors";
 
-const ACCEPTED_EXPLICIT_CHAT_CAPABILITIES = new Set(["knowledge"]);
+const ACCEPTED_EXPLICIT_CHAT_CAPABILITIES = new Set([
+	"campus_services",
+	"knowledge",
+	"navigation",
+	"notice",
+]);
 
 function normalizeRequestedCapability(value: unknown): string | null {
 	const capability = typeof value === "string" ? value.trim() : "";
@@ -23,7 +28,7 @@ export function resolveRequestedCapabilityForSurface(input: {
 	throw createPreAcceptError({
 		code: "validation_failed",
 		details: { field: "requestedCapability", surface: input.surface },
-		message: "Only knowledge requests are accepted on this route.",
+		message: "Requested capability is not admitted on this route.",
 		status: 422,
 	});
 }
