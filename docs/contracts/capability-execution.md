@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-06-04
+updated: 2026-06-11
 ---
 # App API Capability Execution Contract
 
@@ -111,7 +111,8 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - `runtime_decision_summary_schema_version`：operator / eval 消费的 runtime decision
   summary shape 变化时必须 bump
 - `workflow_trace_summary_version`：sanitized workflow trace summary 的 operator-visible
-  shape 变化时必须 bump
+  compatibility summary shape 变化时必须 bump；它不是 canonical diagnostic
+  projection，不能替代 step / attempt / result projection
 
 修改这些字段或对应 shape 时，必须同步：
 
@@ -127,7 +128,8 @@ payload kind、worker role 与 branch mode 写入 sanitized projection。当前 
 selected notice context + knowledge follow-through 会被 resolver 编译为 typed tool
 step + knowledge step。typed tool 输出会被 `execution-control` 投影成 canonical
 `StepOutputProjection`，再以 bounded result ref 输入后续 RAG step。operator / eval
-可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
+可见的 `workflow_trace_summary.context_projections` 只包含 sanitized compatibility
+summary：
 `projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
 notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace
 至少包含两个 ordered capability steps。semantic retry/replan 与 resumable resume
@@ -139,7 +141,8 @@ Temporal activity graph 与 sanitized projection 一起落地，不能只声明�
 长期执行链路固定为：
 
 `public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow/activity workers -> sanitized projection -> app-api response / stream`
+workflow/activity workers -> sanitized run event + step/attempt/result projection
+-> app-api response / stream / operator read model`
 
 这里的关键规则只有三条：
 
@@ -148,6 +151,8 @@ workflow/activity workers -> sanitized projection -> app-api response / stream`
   `execution-control`
 - `execution-control` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层
   auth/session/conversation
+- panel、eval、badcase 与 release evidence 只能消费 app-api materialized projection；
+  `workflow_trace_summary` 只作为兼容摘要，主诊断事实源是 step trajectory
 - `execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service；这不改变本文冻结的 request/response 语义
 
@@ -307,6 +312,9 @@ product/control-plane endpoint。
 - 这不打开 `campus_services` 或 `notice` 产品 serving surface；产品主路由 opening gate 仍需
   release-gate regression / eval evidence
   与 app-owned observability 证据
+- structured capability production readiness 不只看 query kernel 是否可执行；
+  normal、fail-close、cancel、timeout、late completion 与 replan outcome 必须能进入
+  sanitized step trajectory，并能被 app-api operator read model 消费
 
 ## Execution Audit Backflow
 

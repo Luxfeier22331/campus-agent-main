@@ -170,6 +170,9 @@ type StepAttemptProjection struct {
 	PricingVersion        string
 	CancelOutcome         CancelOutcome
 	TimeoutOutcome        TimeoutOutcome
+	LateCompletionOutcome LateCompletionOutcome
+	FailCloseReason       string
+	ReplanReason          string
 	TerminalReason        string
 	UpdatedAt             time.Time
 	PayloadSchemaVersion  string
@@ -223,4 +226,14 @@ const (
 	TimeoutOutcomeBridgeTimeout   TimeoutOutcome = "bridge_timeout"
 	TimeoutOutcomeProviderTimeout TimeoutOutcome = "provider_timeout"
 	TimeoutOutcomeWorkflowTimeout TimeoutOutcome = "workflow_timeout"
+)
+
+type LateCompletionOutcome string
+
+const (
+	LateCompletionOutcomeNotLate                          LateCompletionOutcome = "not_late"
+	LateCompletionOutcomeIgnoredAfterCancel               LateCompletionOutcome = "ignored_after_cancel"
+	LateCompletionOutcomeIgnoredAfterTimeout              LateCompletionOutcome = "ignored_after_timeout"
+	LateCompletionOutcomeIgnoredAfterTerminalProjection   LateCompletionOutcome = "ignored_after_terminal_projection"
+	LateCompletionOutcomeAcceptedBeforeTerminalProjection LateCompletionOutcome = "accepted_before_terminal_projection"
 )

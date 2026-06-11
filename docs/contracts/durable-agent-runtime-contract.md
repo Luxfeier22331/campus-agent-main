@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-06-04
-updated: 2026-06-06
+updated: 2026-06-11
 ---
 # Durable Agent Runtime Contract
 
@@ -550,6 +550,19 @@ contract:
 - `GET /internal/execution/runs/:runId/steps`
 - `POST /internal/execution/runs/:runId/cancel`
 
+`GET /internal/execution/runs/:runId/steps` returns the sanitized step
+trajectory for app-api materialization. It must include the available
+`RunStep`、`StepAttempt` 与 `StepResult` projection needed to build operator
+`runtimeRun.stepTrajectory`: step identity、capability、status、Temporal
+task-queue / worker metadata、attempt/result count、queue wait、duration、
+provider/model usage、token/cost、cancel / timeout outcome、fail-close reason、
+replan reason、late-completion outcome 与 result refs. It is an internal
+execution query seam, not a browser-facing trace replay endpoint.
+
 Implementation may bridge request execution into durable run records, but it must
 not add fallback behavior or silently synthesize missing run / step fields.
 Missing required run projection state must fail closed.
+
+新增 capability lane 或 opening gate 不得只证明 typed tool / worker 函数可执行；它必须证明
+normal、fail-close、cancel、timeout、late completion 与 replan outcome 可以进入
+step/attempt/result projection，并能被 app-api operator read model 消费。

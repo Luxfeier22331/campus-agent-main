@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-03
-updated: 2026-04-25
+updated: 2026-06-11
 ---
 # App API Operator Observability HTTP Contract
 
@@ -542,6 +542,65 @@ list endpoints 额外支持：
     "projectionLagMs": 420,
     "measuredAt": "2026-04-03T00:00:01.300Z"
   },
+  "runtimeRun": {
+    "run": {
+      "runId": "run_01HQ",
+      "requestId": "req_01HQ",
+      "conversationId": "conv_01HQ",
+      "traceId": "trace_01HQ",
+      "status": "completed",
+      "phase": "completed",
+      "terminalReason": "completed"
+    },
+    "eventSummary": {
+      "eventCount": 9,
+      "latestEvent": {
+        "sequence": 9,
+        "eventType": "finalization.completed",
+        "visibility": "browser",
+        "occurredAt": "2026-04-03T00:00:00.842Z"
+      },
+      "terminalEvent": {
+        "sequence": 9,
+        "eventType": "finalization.completed",
+        "visibility": "browser",
+        "occurredAt": "2026-04-03T00:00:00.842Z"
+      },
+      "visibilityCounts": {
+        "browser": 3,
+        "panel": 2,
+        "eval": 1,
+        "internal": 3
+      }
+    },
+    "stepTrajectory": {
+      "attemptCount": 3,
+      "resultCount": 3,
+      "steps": [
+        {
+          "stepId": "context.memory_recall",
+          "stepKind": "memory.recall",
+          "capability": "context",
+          "status": "succeeded",
+          "taskQueue": "activity-context",
+          "workerId": "staging:context:01",
+          "attemptCount": 1,
+          "resultCount": 1,
+          "queueWaitMs": 12,
+          "durationMs": 24,
+          "modelProvider": null,
+          "modelName": null,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "estimatedCostMicrousd": 0,
+          "providerRequestRef": null,
+          "cancelOutcome": null,
+          "timeoutOutcome": null,
+          "latestResultRef": "projection://runs/run_01HQ/steps/context.memory_recall/result"
+        }
+      ]
+    }
+  },
   "links": {
     "traceLink": "https://sentry.example/organizations/campus/traces/trace_01HQ",
     "issueLink": null,
@@ -647,6 +706,17 @@ list endpoints 额外支持：
 - `retrievalPlan` 的来源固定为 request projection 中的
   `diagnosticsJson.retrievalPlanSummary`；它是 operator-safe typed projection，不是
   raw planner trace 或 provider debug payload
+- `runtimeRun.stepTrajectory` 是 request detail 的 canonical execution diagnostic
+  spine；它由 app-api 从 execution-control `/internal/execution/runs/:runId/steps`
+  和 app-owned projection materialize，不由 panel 从 Temporal history、sink query
+  或 raw runtime event 反推
+- `stepTrajectory.steps[*]` 至少表达 step identity、capability、status、task queue、
+  worker id、attempt/result count、queue wait、duration、provider/model、token/cost、
+  cancel/timeout outcome 与 latest result ref。forward required fields 还包括
+  fail-close reason、replan reason 与 late completion outcome；当前实现未 materialize
+  的字段不得由 panel 猜测补齐
+- 缺 required run / step / attempt / result projection state 时，app-api 必须返回 typed
+  route error 或缺口诊断；不得静默合成成功 trajectory
 - `claimSupportSummary` 只返回 compact 的 claim-level 聚合：总 claim 数、unsupported claim
   type、unsupported field；不返回 raw `claim_supports`、support snippet 或
   provider-native citation/support blob

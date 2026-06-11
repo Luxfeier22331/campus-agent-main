@@ -277,6 +277,9 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		PricingVersion:        "provider-pricing-v1",
 		CancelOutcome:         execution.CancelOutcomeNotRequested,
 		TimeoutOutcome:        execution.TimeoutOutcomeNotTimedOut,
+		LateCompletionOutcome: execution.LateCompletionOutcomeIgnoredAfterTimeout,
+		FailCloseReason:       "current_state_unverifiable",
+		ReplanReason:          "bounded_replan_after_provider_timeout",
 		TerminalReason:        "answer_completed",
 		UpdatedAt:             now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
@@ -353,6 +356,9 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"pricing_version":         "provider-pricing-v1",
 		"cancel_outcome":          string(execution.CancelOutcomeNotRequested),
 		"timeout_outcome":         string(execution.TimeoutOutcomeNotTimedOut),
+		"late_completion_outcome": string(execution.LateCompletionOutcomeIgnoredAfterTimeout),
+		"fail_close_reason":       "current_state_unverifiable",
+		"replan_reason":           "bounded_replan_after_provider_timeout",
 		"terminal_reason":         "answer_completed",
 	} {
 		if attempt[key] != want {

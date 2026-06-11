@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-07
+updated: 2026-06-11
 ---
 # Operator Observability Architecture
 
@@ -55,7 +55,7 @@ debugging / analysis / grading`
 - `Overview`
   - 全局 SLO、告警摘要、最近异常、sink health
 - `Requests`
-  - request list/detail、最小执行摘要、trace correlation、projection-friendly diagnostics
+  - request list/detail、step timeline、trace correlation、projection-friendly diagnostics
 - `Quality`
   - retrieval quality、citation coverage、refusal distribution、badcase sampling
 - `Safety/Authz`
@@ -69,6 +69,26 @@ debugging / analysis / grading`
   - `official_web` control plane；它仍是独立 operator domain，不退化成通用 infra console
 
 这些域都属于 operator-facing read model，不等于 raw sink explorer。
+
+## Execution Projection Spine
+
+Operator observability 的目标诊断主线固定为 repo-owned execution projection
+spine：
+
+`Run -> RunEvent -> RunStep -> StepAttempt -> StepResult -> Finalization`
+
+固定规则：
+
+- panel `Requests` detail、quality badcase、eval candidate 与 release evidence
+  必须以 step trajectory 作为共同诊断口径。
+- `workflow_trace_summary` 只保留为 operator-safe compatibility summary，用于展示
+  bounded workflow mode、artifact refs 与历史摘要字段；它不是 canonical diagnostic
+  projection。
+- Temporal history、Sentry、Axiom、OpenAI trace / eval tooling 与 provider raw trace
+  只能作为 debugging、analysis、grading 或 backlink 输入，不得成为 panel query truth。
+- `protected-panel-web` 可以把 step trajectory 渲染成 timeline，但 truth synthesis
+  仍归 `apps/app-api` operator read model；panel 不从 runtime-internal package、sink
+  query 或 execution-control response 拼装诊断事实。
 
 ## Ownership Model
 
@@ -329,7 +349,8 @@ dump 或 raw vendor payload 直接暴露给 panel。
 
 - operator surface 可以展示 agent sequence 与 projection summary，但不得展示 raw provider
   response、完整上游 prompt、raw source HTML、raw OCR dump 或 unrestricted evidence payload
-- repo-owned `workflow_trace_summary` 仍是 canonical projection；OpenAI Agents SDK
+- repo-owned step trajectory 是 canonical diagnostic projection；
+  `workflow_trace_summary` 只是兼容的 operator-safe summary；OpenAI Agents SDK
   tracing 或其他外部 trace 只能作为 debug / grader input
 - Python worker SDK-native readiness 必须使用稳定 fail-close reasons，例如
   `dependency_missing`、`provider_config_missing`、`provider_key_missing`、`model_missing`、

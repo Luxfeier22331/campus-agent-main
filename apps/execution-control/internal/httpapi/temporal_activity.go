@@ -173,6 +173,7 @@ func (s *Server) PlanReplanActivity(
 		UpdatedAt:     now,
 		ResultKind:    "route_replan",
 		ProjectionRef: replanRef,
+		ReplanReason:  input.Reason,
 		Payload: map[string]any{
 			"allowed_capabilities": append([]string{}, input.AllowedCapabilities...),
 			"allowed_tools":        append([]string{}, input.AllowedTools...),

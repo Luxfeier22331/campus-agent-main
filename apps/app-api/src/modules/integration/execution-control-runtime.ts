@@ -153,7 +153,9 @@ export interface ExecutionControlStepAttempt {
 	completedAt: string;
 	durationMs: number;
 	estimatedCostMicrousd: number;
+	failCloseReason: string;
 	inputTokens: number;
+	lateCompletionOutcome: string;
 	modelName: string;
 	modelProvider: string;
 	outputTokens: number;
@@ -173,6 +175,7 @@ export interface ExecutionControlStepAttempt {
 	terminalReason: string;
 	timeoutOutcome: string;
 	updatedAt: string;
+	replanReason: string;
 	workerId: string;
 	workflowId: string;
 }
@@ -640,7 +643,9 @@ function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAt
 		completedAt: readRequiredString(record, "completed_at"),
 		durationMs: readRequiredNumber(record, "duration_ms"),
 		estimatedCostMicrousd: readRequiredNumber(record, "estimated_cost_microusd"),
+		failCloseReason: readRequiredString(record, "fail_close_reason"),
 		inputTokens: readRequiredNumber(record, "input_tokens"),
+		lateCompletionOutcome: readRequiredString(record, "late_completion_outcome"),
 		modelName: readRequiredString(record, "model_name"),
 		modelProvider: readRequiredString(record, "model_provider"),
 		outputTokens: readRequiredNumber(record, "output_tokens"),
@@ -660,6 +665,7 @@ function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAt
 		terminalReason: readRequiredString(record, "terminal_reason"),
 		timeoutOutcome: readRequiredString(record, "timeout_outcome"),
 		updatedAt: readRequiredString(record, "updated_at"),
+		replanReason: readRequiredString(record, "replan_reason"),
 		workerId: readRequiredString(record, "worker_id"),
 		workflowId: readRequiredString(record, "workflow_id"),
 	};

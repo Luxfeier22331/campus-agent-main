@@ -373,6 +373,9 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		PricingVersion:        "provider-pricing-v1",
 		CancelOutcome:         CancelOutcomeNotRequested,
 		TimeoutOutcome:        TimeoutOutcomeNotTimedOut,
+		LateCompletionOutcome: LateCompletionOutcomeIgnoredAfterCancel,
+		FailCloseReason:       "source_conflict",
+		ReplanReason:          "bounded_retry_after_timeout",
 		TerminalReason:        "answer_completed",
 		UpdatedAt:             now.Add(2 * time.Second),
 		PayloadSchemaVersion:  "step-attempt-v1",
@@ -424,7 +427,10 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		attempts[0].CachedInputTokens != 20 ||
 		attempts[0].EstimatedCostMicroUSD != 123 ||
 		attempts[0].CancelOutcome != CancelOutcomeNotRequested ||
-		attempts[0].TimeoutOutcome != TimeoutOutcomeNotTimedOut {
+		attempts[0].TimeoutOutcome != TimeoutOutcomeNotTimedOut ||
+		attempts[0].LateCompletionOutcome != LateCompletionOutcomeIgnoredAfterCancel ||
+		attempts[0].FailCloseReason != "source_conflict" ||
+		attempts[0].ReplanReason != "bounded_retry_after_timeout" {
 		t.Fatalf("attempt evidence fields = %#v, want first-class temporal/provider evidence", attempts[0])
 	}
 	results, err := store.ListStepResults(ctx, "run-steps")

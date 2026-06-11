@@ -397,6 +397,28 @@ function formatRuntimeRunEventSummary(event: RequestRuntimeRunEventSummary | nul
 	)}`;
 }
 
+export type RequestStepTrajectoryEntry =
+	| {
+			kind: "summary";
+			metrics: string;
+	  }
+	| {
+			attempts: string;
+			capability: string;
+			diagnostics: string[];
+			duration: string;
+			kind: "step";
+			latestResultRef: string;
+			model: string;
+			providerRequestRef: string;
+			status: string;
+			stepId: string;
+			stepKind: string;
+			taskQueue: string;
+			tokenCost: string;
+			workerId: string;
+	  };
+
 export function buildRequestRuntimeRunEntries(run: RequestRuntimeRunSummary | null | undefined) {
 	if (!run) {
 		return [];
@@ -452,29 +474,42 @@ export function buildRequestStepTrajectoryEntries(
 
 	return [
 		{
-			label: "Step 总数",
-			value: `${trajectory.steps.length} · attempts=${trajectory.attemptCount} · results=${trajectory.resultCount}`,
+			kind: "summary" as const,
+			metrics: `${trajectory.steps.length} steps · attempts=${trajectory.attemptCount} · results=${trajectory.resultCount}`,
 		},
-		...trajectory.steps.map((step) => ({
-			label: step.stepKind || step.stepId,
-			value: [
-				step.status || PANEL_COPY.unknown,
-				step.taskQueue || PANEL_COPY.unknown,
-				step.workerId || PANEL_COPY.unknown,
-				`attempts=${step.attemptCount}`,
-				`results=${step.resultCount}`,
-				`queue=${formatDuration(step.queueWaitMs)}`,
-				`duration=${formatDuration(step.durationMs)}`,
-				step.modelProvider && step.modelName
-					? `${step.modelProvider}/${step.modelName}`
-					: PANEL_COPY.notAvailable,
-				formatTokenCostSummary(step),
+		...trajectory.steps.map((step) => {
+			const diagnostics = [
 				`cancel=${step.cancelOutcome || PANEL_COPY.none}`,
 				`timeout=${step.timeoutOutcome || PANEL_COPY.none}`,
-				step.latestResultRef || PANEL_COPY.none,
-			].join(" · "),
-		})),
-	];
+				`late=${step.lateCompletionOutcome || PANEL_COPY.none}`,
+			];
+			if (step.failCloseReason) {
+				diagnostics.push(`fail_close=${step.failCloseReason}`);
+			}
+			if (step.replanReason) {
+				diagnostics.push(`replan=${step.replanReason}`);
+			}
+			return {
+				attempts: `attempts=${step.attemptCount} · results=${step.resultCount}`,
+				capability: step.capability || PANEL_COPY.unknown,
+				diagnostics,
+				duration: `queue=${formatDuration(step.queueWaitMs)} · duration=${formatDuration(step.durationMs)}`,
+				kind: "step" as const,
+				latestResultRef: step.latestResultRef || PANEL_COPY.none,
+				model:
+					step.modelProvider && step.modelName
+						? `${step.modelProvider}/${step.modelName}`
+						: PANEL_COPY.notAvailable,
+				providerRequestRef: step.providerRequestRef || PANEL_COPY.none,
+				status: step.status || PANEL_COPY.unknown,
+				stepId: step.stepId,
+				stepKind: step.stepKind || step.stepId,
+				taskQueue: step.taskQueue || PANEL_COPY.unknown,
+				tokenCost: formatTokenCostSummary(step),
+				workerId: step.workerId || PANEL_COPY.unknown,
+			};
+		}),
+	] satisfies RequestStepTrajectoryEntry[];
 }
 
 function formatClaimSupportSummary(summary: RequestClaimSupportSummary | null | undefined) {

@@ -47,6 +47,9 @@ updated: 2026-06-08
   explicit agent-as-tool 内部 adapter
 - cross-step context 通过 typed artifact / projection 传递，而不是通过 prompt
   自由文本或 provider raw trace 传递
+- repo-owned execution projection spine：`Run -> RunEvent -> RunStep ->
+  StepAttempt -> StepResult -> Finalization` 是 panel、eval、badcase 与 release
+  evidence 的共同诊断主线
 
 长期主链路固定为：
 
@@ -60,7 +63,9 @@ client/channel
 -> plan.route
 -> capability branch
 -> finalization.write
--> app-api response / stream subscription
+-> sanitized run event + step/attempt/result projection
+-> app-api response / stream / operator read model
+-> browser surface / panel / eval / badcase
 ```
 
 这里的 multi-capability / agent-as-tool orchestration 不是无中心 peer swarm。长期默认是
@@ -123,10 +128,14 @@ flowchart LR
     Provider["LLM / Embedding Providers"]
   end
 
-  subgraph Observability["Observability"]
+  subgraph ExecutionProjection["Execution Projection"]
+    Projection["sanitized run/event/step/attempt/result projection"]
+    PanelOps["operator panel / eval / badcase\napp-api read models"]
+  end
+
+  subgraph TelemetrySinks["Telemetry Sinks"]
     Sentry["Sentry\ntraces / errors"]
     Axiom["Axiom\nruntime events"]
-    PanelOps["operator panel\nsanitized projections"]
   end
 
   Hub --> AppAPI
@@ -154,8 +163,11 @@ flowchart LR
   Notice --> PG
   Finalizer --> PG
 
-  Gateway --> PG
+  Gateway --> Projection
+  Workers --> Projection
+  Projection --> PG
   AppAPI --> PG
+  PG --> PanelOps
   AppAPI --> PanelOps
 
   AppAPI --> Sentry
@@ -215,6 +227,9 @@ raw/source-truth/projection/document/chunk/index`
 - worker autoscaler 只能调整 workflow / activity worker replica count，不得写
   workflow state、product run projection、step projection、event projection 或 terminal
   state
+- capability 不得只因为 typed tool / worker 函数可执行就进入 production-open；normal、
+  fail-close、cancel、timeout、late-completion 与 replan outcome 必须能写入
+  step/attempt/result projection，并能被 app-api operator read model 消费
 - tool output 不得以 provider 原始 trace、raw function response 或未裁剪正文形式进入
   app-api、panel、eval canonical asset 或 downstream prompt context
 - cross-capability handoff / context projection 必须使用 bounded typed artifact；不得把上一步

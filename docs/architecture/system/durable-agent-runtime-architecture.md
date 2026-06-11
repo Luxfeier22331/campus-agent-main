@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-04
-updated: 2026-06-08
+updated: 2026-06-11
 ---
 # Durable Agent Runtime Architecture
 
@@ -35,8 +35,9 @@ supporting architecture；实现状态必须单独写在 current architecture �
 
 `surface request -> app-api surface / identity projection -> durable conversation
 and run projection -> execution-control -> Temporal workflow -> task queues ->
-workflow / activity worker pools -> typed step results -> sanitized projection ->
-app-api stream / projection -> browser surface`
+workflow / activity worker pools -> typed step results -> sanitized run event +
+step / attempt / result projection -> app-api stream / projection / operator read
+model -> browser surface / panel / eval / badcase`
 
 核心规则：
 
@@ -45,6 +46,9 @@ app-api stream / projection -> browser surface`
 - `conversation_id` 是上下文、权限、memory 与同会话并发策略的边界。
 - `run_events` 是 streaming、trace、audit、operator projection 与 eval backlink
   的共同事实源。
+- `RunStep -> StepAttempt -> StepResult` 是 panel、eval、badcase 与 release
+  evidence 的共同诊断主线；`workflow_trace_summary` 只能作为兼容摘要，不替代
+  step-level projection truth。
 - production admission truth 不得只存在于某个 `execution-control` /
   `execution-control` 进程内存。
 - process-local limiter 只能作为单进程 runtime protection，不能作为全局 production
@@ -55,6 +59,9 @@ app-api stream / projection -> browser surface`
   product run projection、event projection 或 terminal state truth。
 - K8s 只调度 pod / resource，不拥有 workflow history、task queue、product projection 或
   terminal truth。
+- capability 只有在 normal、fail-close、cancel、timeout、late completion 与 replan
+  outcome 都能写入 sanitized step / attempt / result projection，并能被
+  app-api operator read model 消费时，才算 production-open。
 
 Current implementation baseline:
 
@@ -737,6 +744,9 @@ worker autoscaler 边界固定为：
   workflow、RAG activity、finalization activity 与已打开 capability 对应 activity
   task queue 的 recent poller。schedule-to-start latency 仍需要来自 Temporal metrics
   的真实采样进入 release evidence。
+- failure-mode staging proof 仍需闭环：cancel、timeout、late completion ignored /
+  accepted 与 semantic fail-close 必须能在 step trajectory、operator projection 与
+  release evidence 中被同一口径解释。
 - execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，历史
   PG lease proof command 已退出默认 build；`run_projection*.go` 仍有 projection store 与
   historical schema artifact 混合命名，需要后续纯命名整理，但不得重新接回 serving。

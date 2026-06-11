@@ -285,13 +285,16 @@ export interface RequestRuntimeRunSummary {
 			cancelOutcome: string | null;
 			durationMs: number | null;
 			estimatedCostMicrousd: number;
+			failCloseReason: string | null;
 			inputTokens: number;
+			lateCompletionOutcome: string | null;
 			latestResultRef: string | null;
 			modelName: string | null;
 			modelProvider: string | null;
 			outputTokens: number;
 			providerRequestRef: string | null;
 			queueWaitMs: number | null;
+			replanReason: string | null;
 			resultCount: number;
 			status: string;
 			stepId: string;

@@ -47,6 +47,9 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionTablesOnly(t *testing
 		"pricing_version text not null default ''",
 		"cancel_outcome text not null default ''",
 		"timeout_outcome text not null default ''",
+		"late_completion_outcome text not null default 'not_late'",
+		"fail_close_reason text not null default ''",
+		"replan_reason text not null default ''",
 		"terminal_reason text not null default ''",
 		"unique index if not exists agent_runs_active_conversation_idx",
 		"unique index if not exists agent_run_events_run_sequence_idx",
@@ -86,10 +89,10 @@ func TestPostgresStepAttemptInsertPlaceholdersMatchArguments(t *testing.T) {
 			maxPlaceholder = value
 		}
 	}
-	if maxPlaceholder != 32 {
-		t.Fatalf("step attempt insert placeholders max = %d, want 32 store arguments", maxPlaceholder)
+	if maxPlaceholder != 35 {
+		t.Fatalf("step attempt insert placeholders max = %d, want 35 store arguments", maxPlaceholder)
 	}
-	if strings.Contains(insertSQL, "$33") {
+	if strings.Contains(insertSQL, "$36") {
 		t.Fatal("step attempt insert SQL must not reference placeholders beyond store arguments")
 	}
 }

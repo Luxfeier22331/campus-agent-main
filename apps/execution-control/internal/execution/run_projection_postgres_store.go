@@ -210,6 +210,9 @@ create table if not exists runtime.agent_step_attempts (
 	pricing_version text not null default '',
 	cancel_outcome text not null default '',
 	timeout_outcome text not null default '',
+	late_completion_outcome text not null default 'not_late',
+	fail_close_reason text not null default '',
+	replan_reason text not null default '',
 	terminal_reason text not null default '',
 	updated_at timestamptz not null,
 	payload_schema_version text not null,
@@ -237,6 +240,9 @@ alter table runtime.agent_step_attempts add column if not exists estimated_cost_
 alter table runtime.agent_step_attempts add column if not exists pricing_version text not null default '';
 alter table runtime.agent_step_attempts add column if not exists cancel_outcome text not null default '';
 alter table runtime.agent_step_attempts add column if not exists timeout_outcome text not null default '';
+alter table runtime.agent_step_attempts add column if not exists late_completion_outcome text not null default 'not_late';
+alter table runtime.agent_step_attempts add column if not exists fail_close_reason text not null default '';
+alter table runtime.agent_step_attempts add column if not exists replan_reason text not null default '';
 alter table runtime.agent_step_attempts add column if not exists terminal_reason text not null default '';
 
 create table if not exists runtime.agent_step_results (
