@@ -2,7 +2,6 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	createExecutionRuntimeFromCapabilityClient,
 	type CapabilityExecutionClient,
 	CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
 	CURRICULUM_PROGRAM_SLOT_NAME,
@@ -11,6 +10,7 @@ import {
 	createConversation,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
 } from "./chat-command.service.test-support";
 

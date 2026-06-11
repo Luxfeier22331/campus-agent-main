@@ -303,13 +303,17 @@ function capabilityExecutionInputFromRunCreate(
 ): CapabilityExecutionInput {
 	const metadata = getRecordOrThrow(input.metadata, "run metadata");
 	const payload = getRecordOrThrow(metadata.execution_payload, "execution payload");
-	const context = internalContextFromWire(getRecordOrThrow(payload.context, "execution payload context"));
+	const context = internalContextFromWire(
+		getRecordOrThrow(payload.context, "execution payload context"),
+	);
 	return {
 		context: context as CapabilityExecutionInput["context"],
 		conversationId: getString(payload.conversation_id) ?? input.conversationId,
 		requestId: getString(payload.request_id) ?? input.requestId,
 		requestedCapability: getString(payload.requested_capability),
-		requestedScope: getRecord(payload.requested_scope) as CapabilityExecutionInput["requestedScope"],
+		requestedScope: getRecord(
+			payload.requested_scope,
+		) as CapabilityExecutionInput["requestedScope"],
 		safetyIdentifier: getString(payload.safety_identifier),
 		surface: input.surface,
 		traceHeaders: input.traceHeaders,
@@ -319,12 +323,11 @@ function capabilityExecutionInputFromRunCreate(
 	};
 }
 
-function internalContextFromWire(wire: Record<string, unknown>): CapabilityExecutionInput["context"] {
+function internalContextFromWire(
+	wire: Record<string, unknown>,
+): CapabilityExecutionInput["context"] {
 	const actor = internalActorFromWire(getRecordOrThrow(wire.actor, "execution context actor"));
-	const authorizationWire = getRecordOrThrow(
-		wire.authorization,
-		"execution context authorization",
-	);
+	const authorizationWire = getRecordOrThrow(wire.authorization, "execution context authorization");
 	const retrievalFilterWire = getRecordOrThrow(
 		authorizationWire.retrieval_filter,
 		"execution context retrieval filter",
@@ -370,7 +373,9 @@ function internalContextFromWire(wire: Record<string, unknown>): CapabilityExecu
 	};
 }
 
-function internalActorFromWire(wire: Record<string, unknown>): CapabilityExecutionInput["context"]["actor"] {
+function internalActorFromWire(
+	wire: Record<string, unknown>,
+): CapabilityExecutionInput["context"]["actor"] {
 	return {
 		cohort: getString(wire.cohort) ?? undefined,
 		departments: getStringArray(wire.departments),
@@ -415,7 +420,10 @@ async function durableEventsFromExecutionSse(
 	response: Response,
 ): Promise<ExecutionControlRunEvent[]> {
 	const text = await response.text();
-	const blocks = text.split(/\r?\n\r?\n/).map((block) => block.trim()).filter(Boolean);
+	const blocks = text
+		.split(/\r?\n\r?\n/)
+		.map((block) => block.trim())
+		.filter(Boolean);
 	const events: ExecutionControlRunEvent[] = [];
 	for (const block of blocks) {
 		const parsed = parseSseBlock(block);

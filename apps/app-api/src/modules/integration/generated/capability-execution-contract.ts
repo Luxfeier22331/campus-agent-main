@@ -8,12 +8,7 @@ export const CAPABILITY_EXECUTION_CONTRACT = {
 	workflowTraceSummaryVersion: "workflow-trace-summary-v4",
 } as const;
 
-export const CAPABILITY_IDS = [
-	"knowledge",
-	"navigation",
-	"campus_services",
-	"notice",
-] as const;
+export const CAPABILITY_IDS = ["knowledge", "navigation", "campus_services", "notice"] as const;
 export const REQUESTED_CAPABILITIES = [
 	"knowledge",
 	"navigation",

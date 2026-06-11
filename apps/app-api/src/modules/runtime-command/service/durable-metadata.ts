@@ -1,5 +1,8 @@
 import type { CapabilityExecutionInput } from "../../integration";
-import { toCapabilityExecutionActor, toCapabilityExecutionContext } from "../../integration/capability-execution-payload";
+import {
+	toCapabilityExecutionActor,
+	toCapabilityExecutionContext,
+} from "../../integration/capability-execution-payload";
 import { CAPABILITY_EXECUTION_CONTRACT } from "../../integration/generated/capability-execution-contract";
 import { toCapabilityExecutionVersionQuery } from "../../version-query";
 

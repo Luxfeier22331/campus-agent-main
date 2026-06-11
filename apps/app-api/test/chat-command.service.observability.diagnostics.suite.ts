@@ -2,10 +2,10 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	createExecutionRuntimeFromCapabilityClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
 } from "./chat-command.service.test-support";
 
