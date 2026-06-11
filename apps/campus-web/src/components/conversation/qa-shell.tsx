@@ -152,12 +152,15 @@ export function SupportNavigation({
 	activePath?: string;
 	className?: string;
 }) {
+	const visibleItems = supportNavItems.filter(
+		(item) => !(activePath === "/map" && item.to === "/feedback"),
+	);
 	return (
 		<nav
 			aria-label="支撑页面导航"
 			className={cn("items-center gap-5", className ?? "hidden md:flex")}
 		>
-			{supportNavItems.map((item) => {
+			{visibleItems.map((item) => {
 				const active =
 					activePath &&
 					(item.to === "/docs/$" ? activePath.startsWith("/docs") : activePath === item.to);

@@ -1,6 +1,13 @@
 import { AppApiRouteError } from "../../http";
 
 export type CampusMapPlaceCategory = "building" | "gate" | "landmark" | "service" | "transport";
+export type CampusMapFeatureLayer = "boundary" | "building" | "sport";
+
+export interface CampusMapFeatureRef {
+	fid: number;
+	layer: CampusMapFeatureLayer;
+	sourceId: string;
+}
 
 export interface CampusMapPlace {
 	accessNote: string | null;
@@ -20,6 +27,7 @@ export interface CampusMapPlace {
 		};
 	};
 	id: string;
+	mapFeatureRefs?: CampusMapFeatureRef[];
 	sourceRefs: string[];
 	tags: string[];
 	title: string;
@@ -65,6 +73,13 @@ export interface CampusExperienceService {
 }
 
 const CAMPUS_CENTER: [number, number] = [116.3216, 39.9519];
+
+const FENGTAI_CAMPUS_POINTS = {
+	huixianCanteen: [116.10859555, 39.80931605],
+	juyaCanteen: [116.108483, 39.8104219],
+	northGate: [116.1130193, 39.813499125],
+	southGate: [116.11303405, 39.80722115],
+} satisfies Record<string, [number, number]>;
 
 const MAP_PLACES: CampusMapPlace[] = [
 	createMapPlace({
@@ -169,25 +184,27 @@ const MAP_PLACES: CampusMapPlace[] = [
 	createMapPlace({
 		campus: "丰台校区",
 		category: "building",
-		coordinates: [116.3242, 39.9532],
-		description: "丰台校区汇贤食堂，设一层和二层。",
+		coordinates: FENGTAI_CAMPUS_POINTS.huixianCanteen,
+		description: "丰台校区荟贤食堂，设一层和二层。",
 		id: "fengtai-huixian-canteen",
+		mapFeatureRefs: [{ fid: 41, layer: "building", sourceId: "fengtai-campus" }],
 		tags: ["食堂", "生活", "丰台"],
-		title: "汇贤食堂",
+		title: "荟贤食堂",
 	}),
 	createMapPlace({
 		campus: "丰台校区",
 		category: "building",
-		coordinates: [116.3249, 39.9534],
+		coordinates: FENGTAI_CAMPUS_POINTS.juyaCanteen,
 		description: "丰台校区聚雅食堂，设一层和二层。",
 		id: "fengtai-juya-canteen",
+		mapFeatureRefs: [{ fid: 40, layer: "building", sourceId: "fengtai-campus" }],
 		tags: ["食堂", "生活", "丰台"],
 		title: "聚雅食堂",
 	}),
 	createMapPlace({
 		campus: "丰台校区",
 		category: "gate",
-		coordinates: [116.3253, 39.953],
+		coordinates: FENGTAI_CAMPUS_POINTS.southGate,
 		description: "丰台校区主要出入口之一。",
 		id: "fengtai-main-gate",
 		tags: ["出入口", "丰台"],
@@ -196,7 +213,7 @@ const MAP_PLACES: CampusMapPlace[] = [
 	createMapPlace({
 		campus: "丰台校区",
 		category: "transport",
-		coordinates: [116.3257, 39.9531],
+		coordinates: FENGTAI_CAMPUS_POINTS.northGate,
 		description: "丰台校区通勤接驳点。",
 		id: "fengtai-shuttle-stop",
 		tags: ["通勤", "丰台"],
@@ -288,6 +305,7 @@ function createMapPlace(input: {
 	coordinates: [number, number];
 	description: string;
 	id: string;
+	mapFeatureRefs?: CampusMapFeatureRef[];
 	tags: string[];
 	title: string;
 }): CampusMapPlace {
@@ -298,6 +316,7 @@ function createMapPlace(input: {
 		description: input.description,
 		geojson: createPointFeature(input.id, input.title, input.category, input.coordinates),
 		id: input.id,
+		...(input.mapFeatureRefs ? { mapFeatureRefs: input.mapFeatureRefs } : {}),
 		sourceRefs: [`campus-map:projection:${input.id}`],
 		tags: input.tags,
 		title: input.title,

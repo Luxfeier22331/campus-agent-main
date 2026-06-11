@@ -149,12 +149,15 @@ Identity Platform detailed object families are frozen separately in
 - `POST /api/feedback`
 
 These routes serve `campus-web` product projections. Map payloads return
-campus metadata, place records, and point GeoJSON markers. Dining payloads read
-latest published release snapshots and return hall summaries plus
-window/assignment/offering floor projections; detailed field shape is frozen in
-`docs/contracts/app-api-dining-http.md`. Feedback accepts a global `category`,
-`routeContext`, `body`, and optional `contact`; it does not create per-page
-local feedback widgets.
+campus metadata and place records. Each place keeps a point GeoJSON feature as
+its interaction center; places backed by campus base-map geometry can also
+return `mapFeatureRefs[]` with explicit `{ sourceId, layer, fid }` bindings so
+the browser can highlight the matching MapLibre feature instead of inventing a
+point marker. Dining payloads read latest published release snapshots and
+return hall summaries plus window/assignment/offering floor projections;
+detailed field shape is frozen in `docs/contracts/app-api-dining-http.md`.
+Feedback accepts a global `category`, `routeContext`, `body`, and optional
+`contact`; it does not create per-page local feedback widgets.
 
 Student-facing dining routes read the latest published dining release snapshot.
 Dining draft, release command and audit routes are frozen separately in

@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 export function RootLayout() {
 	const location = useLocation();
 	const isQaRoute = location.pathname === "/" || location.pathname.startsWith("/c/");
+	const isMapRoute = location.pathname === "/map";
 	return (
 		<div className="min-h-dvh bg-background text-foreground">
-			{isQaRoute ? null : <SupportPageHeader activePath={location.pathname} />}
+			{isQaRoute || isMapRoute ? null : <SupportPageHeader activePath={location.pathname} />}
 			<main>
 				<Suspense fallback={<RoutePending />}>
 					<Outlet />

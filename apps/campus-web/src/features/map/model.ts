@@ -1,4 +1,11 @@
 export type CampusMapPlaceCategory = "building" | "gate" | "landmark" | "service" | "transport";
+export type CampusMapFeatureLayer = "boundary" | "building" | "sport";
+
+export interface CampusMapFeatureRef {
+	fid: number;
+	layer: CampusMapFeatureLayer;
+	sourceId: string;
+}
 
 export interface CampusMapPlace {
 	accessNote: string | null;
@@ -18,6 +25,7 @@ export interface CampusMapPlace {
 		};
 	};
 	id: string;
+	mapFeatureRefs?: CampusMapFeatureRef[];
 	sourceRefs: string[];
 	tags: string[];
 	title: string;

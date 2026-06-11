@@ -160,7 +160,7 @@ describe("campus worker boundary", () => {
 		const wranglerConfig = readTextFixture("wrangler.toml");
 
 		expect(wranglerConfig).toContain(
-			'run_worker_first = [ "/*", "!/assets/*", "!/static/*", "!/vendor/*", "!/_docs/*" ]',
+			'run_worker_first = [ "/*", "!/assets/*", "!/static/*", "!/vendor/*", "!/_docs/*", "!/map-assets/*" ]',
 		);
 		expect(wranglerConfig).not.toContain("!/_gated-docs/*");
 	});

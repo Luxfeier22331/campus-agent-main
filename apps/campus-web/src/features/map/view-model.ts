@@ -1,4 +1,4 @@
-import type { CampusMapPlace, CampusMapPlaceCategory } from "./model";
+import type { CampusMapFeatureRef, CampusMapPlace, CampusMapPlaceCategory } from "./model";
 
 export interface MapPlaceView {
 	category: CampusMapPlaceCategory;
@@ -6,8 +6,11 @@ export interface MapPlaceView {
 	coordinates: [number, number];
 	detailRows: Array<{ label: string; value: string }>;
 	displayTags: string[];
+	featureRefs: CampusMapFeatureRef[];
+	markerVariant: MapMarkerVariant;
 	place: CampusMapPlace;
 	searchText: string;
+	usesFeatureHighlight: boolean;
 }
 
 export interface MapSelectionState {
@@ -18,6 +21,13 @@ export interface MapSelectionState {
 }
 
 export type MapCategoryFilter = CampusMapPlaceCategory | "all";
+export type MapMarkerVariant =
+	| "building"
+	| "dining"
+	| "gate"
+	| "landmark"
+	| "service"
+	| "transport";
 
 export function createMapPlaceViews(places: CampusMapPlace[]): MapPlaceView[] {
 	return places.map((place) => {
@@ -34,10 +44,13 @@ export function createMapPlaceViews(places: CampusMapPlace[]): MapPlaceView[] {
 			coordinates: place.geojson.geometry.coordinates,
 			detailRows,
 			displayTags,
+			featureRefs: place.mapFeatureRefs ?? [],
+			markerVariant: getMarkerVariant(place),
 			place,
 			searchText: [place.title, place.description, place.campus, ...place.tags]
 				.join(" ")
 				.toLowerCase(),
+			usesFeatureHighlight: shouldUseFeatureHighlight(place),
 		};
 	});
 }
@@ -52,7 +65,7 @@ export function filterMapPlaces(
 ) {
 	const normalizedQuery = input.query.trim().toLowerCase();
 	return places.filter((place) => {
-		if (input.campus !== "all" && place.place.campus !== input.campus) {
+		if (place.place.campus !== input.campus) {
 			return false;
 		}
 		if (input.category !== "all" && place.category !== input.category) {
@@ -74,18 +87,6 @@ export function getMapCategories(places: MapPlaceView[]) {
 	}));
 }
 
-export function buildPlaceQuestion(placeTitle: string) {
-	return `请介绍一下「${placeTitle}」在哪里。`;
-}
-
-export function buildPlaceQuestionHref(placeTitle: string) {
-	return `/?${new URLSearchParams({ prompt: buildPlaceQuestion(placeTitle) }).toString()}`;
-}
-
-export function buildPlaceFeedbackHref(placeId: string) {
-	return `/feedback?${new URLSearchParams({ source: "map", placeId }).toString()}`;
-}
-
 function formatCategoryLabel(category: CampusMapPlaceCategory) {
 	switch (category) {
 		case "building":
@@ -103,4 +104,15 @@ function formatCategoryLabel(category: CampusMapPlaceCategory) {
 			throw new Error(`Unsupported campus map category: ${unreachable}`);
 		}
 	}
+}
+
+function getMarkerVariant(place: CampusMapPlace): MapMarkerVariant {
+	if (place.tags.includes("食堂")) {
+		return "dining";
+	}
+	return place.category;
+}
+
+function shouldUseFeatureHighlight(place: CampusMapPlace) {
+	return place.category === "building" && (place.mapFeatureRefs?.length ?? 0) > 0;
 }

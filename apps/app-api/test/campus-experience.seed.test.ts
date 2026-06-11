@@ -10,6 +10,7 @@ describe("campus experience projection seed", () => {
 		const response = await service.getMapPlaces();
 		const placeIds = new Set(response.places.map((place) => place.id));
 		const categories = new Set(response.places.map((place) => place.category));
+		const placesById = new Map(response.places.map((place) => [place.id, place]));
 
 		expect(response.campus).toMatchObject({
 			id: "muc-campuses",
@@ -36,6 +37,14 @@ describe("campus experience projection seed", () => {
 			expect(place.geojson.properties.placeId).toBe(place.id);
 			expect(place.geojson.properties.title).toBe(place.title);
 		}
+		expect(placesById.get("fengtai-huixian-canteen")?.mapFeatureRefs).toEqual([
+			{ fid: 41, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-juya-canteen")?.mapFeatureRefs).toEqual([
+			{ fid: 40, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-main-gate")?.mapFeatureRefs).toBeUndefined();
+		expect(placesById.get("fengtai-shuttle-stop")?.mapFeatureRefs).toBeUndefined();
 	});
 
 	it("does not own dining floorplan projections", () => {

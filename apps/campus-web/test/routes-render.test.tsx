@@ -388,18 +388,25 @@ describe("campus routes", () => {
 		);
 	});
 
-	it("renders support page header navigation on desktop and mobile surfaces", () => {
+	it("does not wrap the map route in the generic support page header", () => {
 		window.history.pushState({}, "", "/map");
 		render(<RootLayout />);
 
 		expect(screen.getByText("支撑页面内容")).toBeInTheDocument();
-		expect(screen.getByText("中央民族大学校园问答")).toBeInTheDocument();
-		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
-		expect(screen.getAllByRole("link", { name: "文档" })).toHaveLength(2);
-		expect(screen.getAllByRole("link", { name: "校园地图" })).toHaveLength(2);
-		expect(screen.getAllByRole("link", { name: "饭堂分布图" })).toHaveLength(2);
-		expect(screen.getAllByRole("link", { name: "反馈" })).toHaveLength(2);
+		expect(screen.queryByText("中央民族大学校园问答")).toBeNull();
+		expect(screen.queryByText("MUC Campus Q&A")).toBeNull();
+		expect(screen.queryByRole("link", { name: "文档" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "校园地图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "饭堂分布图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "反馈" })).toBeNull();
 		expect(screen.queryByText("民")).toBeNull();
+	});
+
+	it("keeps feedback navigation visible on non-map support pages", () => {
+		window.history.pushState({}, "", "/docs/regulations/student_rules/index");
+		render(<RootLayout />);
+
+		expect(screen.getAllByRole("link", { name: "反馈" })).toHaveLength(2);
 	});
 
 	it("renders the account menu as same-context login actions when signed out", async () => {
@@ -524,7 +531,7 @@ describe("campus routes", () => {
 						{ floorId: "2f", label: "二层" },
 					],
 					hallId: "fengtai-huixian-canteen",
-					name: "汇贤食堂",
+					name: "荟贤食堂",
 					offeringCount: 1,
 					priceRangeLabel: "12 元",
 					stallCount: 1,
@@ -535,8 +542,8 @@ describe("campus routes", () => {
 		diningApiMock.getDiningFloor.mockImplementation(
 			({ floorId, hallId }: { floorId: string; hallId: string }) => {
 				const projections = {
-					"fengtai-huixian-canteen:1f": "汇贤食堂一层",
-					"fengtai-huixian-canteen:2f": "汇贤食堂二层",
+					"fengtai-huixian-canteen:1f": "荟贤食堂一层",
+					"fengtai-huixian-canteen:2f": "荟贤食堂二层",
 					"haidian-canteen-1:1f": "海淀一食堂一层",
 				} as const;
 				const label = projections[`${hallId}:${floorId}` as keyof typeof projections];
@@ -567,9 +574,9 @@ describe("campus routes", () => {
 		expect(await screen.findByText("海淀一食堂一层")).toBeInTheDocument();
 		fireEvent.click(screen.getByText("丰台校区"));
 
-		expect(await screen.findByText("汇贤食堂一层")).toBeInTheDocument();
+		expect(await screen.findByText("荟贤食堂一层")).toBeInTheDocument();
 		fireEvent.click(screen.getByText("二层"));
-		expect(await screen.findByText("汇贤食堂二层")).toBeInTheDocument();
+		expect(await screen.findByText("荟贤食堂二层")).toBeInTheDocument();
 		fireEvent.click(screen.getByText("海淀校区"));
 
 		expect(await screen.findByText("海淀一食堂一层")).toBeInTheDocument();

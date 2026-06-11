@@ -49,6 +49,7 @@ const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authoriz
 const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
 const PUBLIC_READER_ASSET_PREFIX = "/_docs/";
 const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
+const PUBLIC_MAP_ASSET_PREFIX = "/map-assets/";
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -138,6 +139,10 @@ const worker = {
 
 		if (request.method === "GET" || request.method === "HEAD") {
 			if (url.pathname.startsWith(PUBLIC_READER_ASSET_PREFIX)) {
+				return serveStaticAsset(request, env);
+			}
+
+			if (url.pathname.startsWith(PUBLIC_MAP_ASSET_PREFIX)) {
 				return serveStaticAsset(request, env);
 			}
 

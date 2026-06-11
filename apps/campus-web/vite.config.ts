@@ -26,16 +26,39 @@ export default defineConfig({
 });
 
 function copyMapLibreVendor(): Plugin {
+	const vendorFiles = new Map([
+		["maplibre-gl.js", "text/javascript; charset=utf-8"],
+		["maplibre-gl.css", "text/css; charset=utf-8"],
+		["LICENSE.txt", "text/plain; charset=utf-8"],
+	]);
+
+	function getVendorSourceDir() {
+		const packageJsonPath = require.resolve("maplibre-gl/package.json");
+		return path.join(path.dirname(packageJsonPath), "dist");
+	}
+
 	return {
-		apply: "build",
 		closeBundle() {
-			const packageJsonPath = require.resolve("maplibre-gl/package.json");
-			const sourceDir = path.join(path.dirname(packageJsonPath), "dist");
+			const sourceDir = getVendorSourceDir();
 			const targetDir = path.resolve(__dirname, "dist/client/vendor/maplibre-gl");
 			fs.mkdirSync(targetDir, { recursive: true });
-			for (const fileName of ["maplibre-gl.js", "maplibre-gl.css", "LICENSE.txt"]) {
+			for (const fileName of vendorFiles.keys()) {
 				fs.copyFileSync(path.join(sourceDir, fileName), path.join(targetDir, fileName));
 			}
+		},
+		configureServer(server) {
+			server.middlewares.use("/vendor/maplibre-gl", (request, response, next) => {
+				const fileName = path.basename(request.url?.split("?")[0] ?? "");
+				const contentType = vendorFiles.get(fileName);
+				if (!contentType) {
+					next();
+					return;
+				}
+
+				const filePath = path.join(getVendorSourceDir(), fileName);
+				response.setHeader("content-type", contentType);
+				fs.createReadStream(filePath).on("error", next).pipe(response);
+			});
 		},
 		name: "campus-web:copy-maplibre-vendor",
 	};
