@@ -21,19 +21,34 @@ REMOVED_ACTIVE_MODULES = (
     "campus_ingestion_worker.plan_historical_regulation_chunk_backfill",
     "campus_ingestion_worker.prepare_historical_regulation_chunk_backfill",
     "campus_ingestion_worker.purge_wechat_public_notices",
+    "campus_ingestion_worker.repair_internal_notice_read_model_consistency",
     "campus_ingestion_worker.repair_rag_release_metadata",
+    "campus_ingestion_worker.reset_collected_notice_consumption_state",
     "campus_ingestion_worker.reset_authenticated_common_download_downstream_state",
     "campus_ingestion_worker.reset_wechat_public_notice_downstream_state",
     "campus_ingestion_worker.select_authenticated_notice_bundle",
+    "campus_ingestion_worker.smoke_authenticated_notice_bootstrap",
+    "campus_ingestion_worker.smoke_authenticated_notice_bootstrap_local",
     "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e",
+    "campus_ingestion_worker.smoke_structured_projection_postgres",
     "campus_ingestion_worker.smoke_wechat_public_notice_phase5",
     "campus_ingestion_worker.smoke_wechat_public_notice_runtime",
+    "campus_ingestion_worker.closeout_authenticated_notice_historical_backfill",
 )
 
-REMOVED_MODULE_FILES = tuple(
-    REPO_ROOT / "apps" / "ingestion-worker" / "src" / Path(module.replace(".", "/") + ".py")
-    for module in REMOVED_ACTIVE_MODULES
+REMOVED_CORE_MODULES = ("campus_ingestion_core.collected_notice_consumption_reset",)
+
+REMOVED_MODULE_FILES = (
+    *(
+        REPO_ROOT / "apps" / "ingestion-worker" / "src" / Path(module.replace(".", "/") + ".py")
+        for module in REMOVED_ACTIVE_MODULES
+    ),
+    *(
+        REPO_ROOT / "packages" / "ingestion-core" / "src" / Path(module.replace(".", "/") + ".py")
+        for module in REMOVED_CORE_MODULES
+    ),
 )
+REMOVED_SCAN_NEEDLES = REMOVED_ACTIVE_MODULES + REMOVED_CORE_MODULES
 
 ACTIVE_SCAN_ROOTS = (
     REPO_ROOT / "apps",
@@ -42,6 +57,7 @@ ACTIVE_SCAN_ROOTS = (
     REPO_ROOT / "infra",
     REPO_ROOT / "packages",
     REPO_ROOT / "scripts",
+    REPO_ROOT / "tests",
 )
 
 TEXT_SUFFIXES = {
@@ -98,7 +114,7 @@ class IngestionPythonCleanTargetResidueTest(unittest.TestCase):
                 if _is_allowlisted(path):
                     continue
                 text = path.read_text(encoding="utf-8")
-                for module in REMOVED_ACTIVE_MODULES:
+                for module in REMOVED_SCAN_NEEDLES:
                     if module in text:
                         offenders.append(f"{path.relative_to(REPO_ROOT)}: {module}")
 

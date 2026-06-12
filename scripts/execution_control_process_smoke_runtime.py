@@ -3,13 +3,17 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
-import sys
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
+
+from campus_ingestion_core.postgres_runtime import close_persistent_postgres_pools
+from campus_ingestion_core.structured_projection_postgres import (
+    build_structured_projection_publisher_from_env,
+    projection_artifact_checksum,
+)
 
 from scripts.execution_control_process_smoke_models import (
     ProcessCommandSpec,
@@ -218,27 +222,62 @@ def _seed_structured_projection_smoke(
     generated_at: str,
 ) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        sys.executable,
-        "-m",
-        "campus_ingestion_worker.smoke_structured_projection_postgres",
-        "--release-id",
-        "execution-control-process-smoke",
-        "--generated-at",
-        generated_at,
-    ]
-    for collection in collections:
-        command.extend(("--collection", collection))
-    with log_path.open("ab") as log_file:
-        subprocess.run(
-            tuple(command),
-            cwd=repo_root,
-            env={**os.environ, "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url},
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            check=True,
-            timeout=max(10.0, timeout_seconds),
+    publisher = build_structured_projection_publisher_from_env(
+        {"CAMPUS_SHARED_POSTGRES_URL": runtime_database_url},
+        bootstrap_collections=collections,
+    )
+    if publisher is None:
+        raise ValueError("CAMPUS_SHARED_POSTGRES_URL is required")
+    reports = {}
+    try:
+        for collection in collections:
+            bundle = _structured_projection_smoke_bundles()[collection]
+            corpus = "calendar" if collection == "academic_calendar" else "campus_services"
+            release_id = f"execution-control-process-smoke-{collection.replace('_', '-')}"
+            report = publisher.publish_release(
+                corpus=corpus,
+                collection=collection,
+                release_id=release_id,
+                generated_at=generated_at,
+                schema_version=str(bundle["schema_version"]),
+                artifact_object_key=(
+                    f"campus_services/releases/{collection}/"
+                    f"{release_id}/structured-projection-smoke.json"
+                ),
+                artifact_checksum=projection_artifact_checksum(bundle),
+                bundle=bundle,
+                validation_status="smoke_valid",
+            )
+            current_release_id = publisher.get_current_release(
+                corpus=corpus,
+                collection=collection,
+            )
+            if current_release_id != release_id:
+                raise RuntimeError(
+                    f"{collection} structured projection smoke current release = "
+                    f"{current_release_id}, want {release_id}"
+                )
+            reports[collection] = {
+                "release_id": report.release_id,
+                "counts": report.counts,
+            }
+    finally:
+        close_persistent_postgres_pools()
+    log_path.write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "corpus": "campus_services",
+                "collections": list(collections),
+                "releases": reports,
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
         )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def _structured_projection_seed_collections(profile: str) -> tuple[str, ...]:
@@ -270,6 +309,217 @@ def _profile_trusted_time(profile: str) -> str:
     if profile == "transport_notice_override_multistep":
         return TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
     return STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+
+
+def _structured_projection_smoke_bundles() -> dict[str, dict[str, object]]:
+    return {
+        "service_status": _smoke_service_status_bundle(),
+        "transport_schedule": _smoke_transport_schedule_bundle(),
+        "service_guide": _smoke_service_guide_bundle(),
+        "contact_directory": _smoke_contact_directory_bundle(),
+        "academic_calendar": _smoke_academic_calendar_bundle(),
+    }
+
+
+def _smoke_service_status_bundle() -> dict[str, object]:
+    return {
+        "schema_version": "campus_services_projection_bundle.v1",
+        "service_status_records": [
+            {
+                "subject_id": "service:smoke:campus-card",
+                "display_name": "校园卡服务状态 smoke",
+                "service_family": "service_counter",
+                "aliases": ["校园卡", "一卡通", "卡务中心", "structured projection smoke"],
+                "campus_scope": "all",
+                "affected_scope": "smoke",
+                "observed_status": "open",
+                "effective_from": "2026-01-01T00:00:00+08:00",
+                "effective_until": "2099-12-31T23:59:59+08:00",
+                "status_note": "仅用于结构化投影写入 smoke。",
+                "severity": "normal",
+                "override_source_refs": ["smoke:structured-projection"],
+                "related_notice_refs": ["smoke:structured-projection"],
+                "extraction_status": "ready",
+            }
+        ],
+    }
+
+
+def _smoke_transport_schedule_bundle() -> dict[str, object]:
+    return {
+        "schema_version": "campus_services_projection_bundle.v1",
+        "transport_schedule_snapshots": [
+            {
+                "snapshot_id": "snapshot:bus:smoke-2026-04-20",
+                "published_at": "2026-04-20T18:00:00+08:00",
+                "effective_from": "2026-04-21T00:00:00+08:00",
+                "source_ref": "smoke:transport-schedule",
+                "is_current": True,
+                "schedule_scope": "baseline_revision",
+            }
+        ],
+        "transport_routes": [
+            {
+                "route_id": "route:haidian-to-fengtai",
+                "display_name": "海淀到丰台通勤车",
+                "service_family": "intercampus_commute",
+                "aliases": ["校车", "通勤车"],
+                "origin_campus": "haidian",
+                "destination_campus": "fengtai",
+                "stops": [
+                    {"stop_id": "stop:haidian-east-gate", "display_name": "海淀东门"},
+                    {"stop_id": "stop:fengtai-main-gate", "display_name": "丰台南门"},
+                ],
+            },
+            {
+                "route_id": "route:fengtai-to-haidian",
+                "display_name": "丰台到海淀通勤车",
+                "service_family": "intercampus_commute",
+                "aliases": ["回海淀", "海淀线"],
+                "origin_campus": "fengtai",
+                "destination_campus": "haidian",
+                "stops": [
+                    {"stop_id": "stop:fengtai-main-gate", "display_name": "丰台南门"},
+                    {"stop_id": "stop:haidian-east-gate", "display_name": "海淀东门"},
+                ],
+            },
+        ],
+        "scheduled_departures": [
+            {
+                "snapshot_id": "snapshot:bus:smoke-2026-04-20",
+                "route_id": "route:haidian-to-fengtai",
+                "service_dates": ["2026-04-25"],
+                "departure_time": "06:50",
+                "arrival_time": "08:05",
+                "origin_stop_id": "stop:haidian-east-gate",
+                "destination_stop_id": "stop:fengtai-main-gate",
+                "related_notice_refs": ["smoke:transport-schedule"],
+            },
+            {
+                "snapshot_id": "snapshot:bus:smoke-2026-04-20",
+                "route_id": "route:fengtai-to-haidian",
+                "service_dates": ["2026-05-07"],
+                "departure_time": "07:30",
+                "arrival_time": "08:30",
+                "origin_stop_id": "stop:fengtai-main-gate",
+                "destination_stop_id": "stop:haidian-east-gate",
+                "related_notice_refs": ["smoke:transport-schedule"],
+            },
+        ],
+        "transport_service_exceptions": [],
+        "transport_operational_notices": [
+            {
+                "notice_id": "353903",
+                "source_ref": "notice:353903",
+                "notice_kind": "boarding_point_change",
+                "route_ids": ["route:fengtai-to-haidian"],
+                "effective_from": "2026-05-07T00:00:00+08:00",
+                "effective_until": "",
+                "operational_comment": "丰台校区乘车点调整至南门外停车区",
+            }
+        ],
+    }
+
+
+def _smoke_service_guide_bundle() -> dict[str, object]:
+    return {
+        "schema_version": "campus_services_service_guide_projection.v1",
+        "service_guide_records": [
+            {
+                "service_id": "service:smoke:medical-reimbursement",
+                "display_name": "公费医疗报销 smoke",
+                "aliases": ["公费医疗", "医疗报销", "医药费报销", "服务指南 smoke"],
+                "category": "healthcare",
+                "campus_scope": "all",
+                "audience": ["student"],
+                "effective_from": "2026-01-01T00:00:00+08:00",
+                "effective_until": "2099-12-31T23:59:59+08:00",
+                "source_refs": ["smoke:service-guide"],
+                "guide_sections": [
+                    {
+                        "section_id": "service:smoke:medical-reimbursement:section:materials",
+                        "section_type": "required_materials",
+                        "title": "办理材料",
+                        "content": "准备报销单据和学生身份证明。",
+                        "order": 1,
+                        "source_refs": ["smoke:service-guide"],
+                    }
+                ],
+                "materials": [
+                    {
+                        "material_id": "service:smoke:medical-reimbursement:material:invoice",
+                        "name": "报销单据",
+                        "required": True,
+                        "source_refs": ["smoke:service-guide"],
+                    }
+                ],
+                "entry_refs": [
+                    {
+                        "entry_id": "service:smoke:medical-reimbursement:entry:portal",
+                        "label": "服务门户",
+                        "entry_type": "url",
+                        "url": "https://example.invalid/service",
+                        "source_refs": ["smoke:service-guide"],
+                    }
+                ],
+                "office_hours": [],
+                "contact_refs": [],
+                "eligibility_notes": [],
+                "extraction_status": "ready",
+            }
+        ],
+        "conflict_records": [],
+        "manual_review_sources": [],
+    }
+
+
+def _smoke_contact_directory_bundle() -> dict[str, object]:
+    return {
+        "schema_version": "campus_services_contact_directory_projection.v1",
+        "contact_records": [
+            {
+                "contact_id": "contact:smoke:campus-card-center",
+                "display_name": "卡务中心联系电话 smoke",
+                "aliases": ["卡务中心", "一卡通中心", "联系电话 smoke"],
+                "contact_group": "campus_card",
+                "department": "卡务中心",
+                "phones": [
+                    {
+                        "phone_id": "phone:smoke:transport-office",
+                        "label": "咨询电话",
+                        "number": "010-00000000",
+                        "source_refs": ["smoke:contact-directory"],
+                    }
+                ],
+                "emails": [],
+                "location_refs": [],
+                "source_refs": ["smoke:contact-directory"],
+                "extraction_status": "ready",
+            }
+        ],
+        "conflict_records": [],
+        "manual_review_sources": [],
+    }
+
+
+def _smoke_academic_calendar_bundle() -> dict[str, object]:
+    return {
+        "schema_version": "academic_calendar_projection.v1",
+        "academic_calendar_records": [
+            {
+                "academic_year_label": "2025-2026学年",
+                "term_label": "春季学期",
+                "start_date": "2026-04-20",
+                "end_date": "2026-04-26",
+                "week_index": 8,
+                "day_kind": "teaching_day",
+                "class_day_pattern": "",
+                "is_makeup_class": False,
+                "holiday_name": "",
+                "source_refs": ["smoke:academic-calendar"],
+            }
+        ],
+    }
 
 
 def _seed_notice_read_model_smoke(

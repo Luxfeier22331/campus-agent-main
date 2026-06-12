@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-12
+updated: 2026-06-12
 ---
 # Authenticated Notice Async Staged Closeout Runbook
 
@@ -315,12 +315,11 @@ planner 必须满足以下不变量：
 - `milestones/planned.json` 只允许在完整 plan durable 后写出
 - verification 不得把“当前存在的 batch rows”误当成完整 expected scope
 
-## 何时仍使用旧 closeout runner
+## 旧 closeout runner 状态
 
-只在以下情况保留 `closeout_authenticated_notice_historical_backfill`：
+`closeout_authenticated_notice_historical_backfill` 已从 active worker 删除。
 
-- 旧 cumulative-prefix run 已经启动，且需要继续观察同一执行
-- 需要与 legacy checkpoint evidence 做对照
-
-canonical 前向路径已经切换到 `plan -> worker(s) -> verify -> promote` 的 async staged
-closeout；不要再把旧 runner 当作默认 closeout 方案。
+canonical 前向路径固定为 `plan -> worker(s) -> verify -> promote` 的 async staged
+closeout。若后续确实需要恢复 legacy checkpoint 对照，应作为独立的 diagnostic /
+recovery task 重建，并显式记录输入 evidence、只读对照范围与退出条件；不要恢复旧 runner 作为默认
+closeout 方案。

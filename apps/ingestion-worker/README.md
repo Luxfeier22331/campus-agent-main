@@ -1246,24 +1246,6 @@ Behavior:
   collection, then updates `structured_projection_current` transactionally.
 - It does not read or promote mounted projection files.
 
-### `campus_ingestion_worker.smoke_structured_projection_postgres`
-
-Internal PostgreSQL smoke module for structured campus-service projections.
-
-Optional CLI args:
-
-- `--release-id`
-- `--generated-at`
-
-Behavior:
-
-- Publishes small `service_status`, `transport_schedule`, and `service_guide`
-  smoke releases to the PG release catalog and typed read-model tables.
-- Verifies that each collection's current pointer resolves to the smoke release.
-- Intended for local `open_structured` runtime smoke and deployment readiness
-  checks. It requires a real PG URL and does not create file-based projection
-  fixtures.
-
 ### `migrate_student_handbook_source_faithful`
 
 Worker shell for the handbook source-faithful migration.
@@ -1509,44 +1491,6 @@ Behavior:
   prints the canonical normalization outcome JSON.
 - Does not shell out to local `soffice` and does not own LibreOffice process
   lifecycle.
-
-### `smoke_authenticated_notice_bootstrap_local`
-
-Local-only bootstrap smoke shell for one normalized authenticated notice donor
-batch.
-
-Required CLI args:
-
-- `--bundle-path`
-- `--site-id`
-- `--source-home-url`
-- `--local-output-dir`
-
-Optional CLI args:
-
-- `--manifest-path`
-- `--attachment-blob-root`
-- `--corpus`
-- `--collection`
-- `--entitlement-group`
-- `--visibility-scope`
-- `--expect-notice-count`
-- `--summary-output-path`
-
-Behavior:
-
-- Reuses the authenticated notice importer but injects a local filesystem object
-  store and in-memory registries.
-- When donor attachments are still referenced by legacy blob-store keys,
-  `--attachment-blob-root` materializes canonical attachment capture objects
-  before inventory routing is evaluated.
-- Materializes source-bucket and derived-bucket artifacts under
-  `--local-output-dir` only.
-- Persists local `documents.json`, `raw-assets.json`,
-  `source-truth-inventory.json`, and `uploads.json` for inspection.
-- Produces a smoke summary with notice/document/raw-asset outcome counts.
-- Does not touch the real object store, Postgres, embedding provider, Qdrant, or
-  serving aliases.
 
 ### `validate_internal_notice_chunking`
 
