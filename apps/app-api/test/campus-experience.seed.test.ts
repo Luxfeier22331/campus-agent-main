@@ -144,14 +144,31 @@ describe("campus experience projection seed", () => {
 			"fengtai-comprehensive-building",
 			"fengtai-zhiyuan-building",
 			"fengtai-bowen-building",
+			"fengtai-boya-building",
 			"fengtai-mingde-chongli-building",
+			"fengtai-rixin-building-cafe",
+			"fengtai-commercial-zone",
+			"fengtai-women-bathhouse",
+			"fengtai-wisdom-center",
 			"fengtai-teacher-apartment-zone",
+			"fengtai-jingyuan-building-1",
+			"fengtai-jingyuan-building-2",
+			"fengtai-jingyuan-building-3",
+			"fengtai-jingyuan-building-4",
+			"fengtai-jingyuan-building-5",
+			"fengtai-jingyuan-building-6",
+			"fengtai-jingyuan-building-7",
+			"fengtai-jingyuan-building-8",
+			"fengtai-jingyuan-building-9",
+			"fengtai-jingyuan-building-10",
 			"fengtai-track-field",
 			"fengtai-basketball-court",
 			"fengtai-volleyball-court",
 			"fengtai-tennis-court",
 			"fengtai-air-dome",
 			"fengtai-football-field",
+			"fengtai-north-gate",
+			"fengtai-main-gate",
 		]) {
 			expect(placeIds.has(fengtaiPlaceId), fengtaiPlaceId).toBe(true);
 			expect(placesById.get(fengtaiPlaceId)?.mapFeatureRefs?.length).toBeGreaterThan(0);
@@ -174,8 +191,38 @@ describe("campus experience projection seed", () => {
 		expect(placesById.get("fengtai-basketball-court")?.mapFeatureRefs).toEqual([
 			{ fid: 2, layer: "sport", sourceId: "fengtai-campus" },
 		]);
+		expect(placesById.get("fengtai-boya-building")?.mapFeatureRefs).toEqual([
+			{ fid: 6, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-rixin-building-cafe")?.mapFeatureRefs).toEqual([
+			{ fid: 48, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-commercial-zone")?.mapFeatureRefs).toEqual([
+			{ fid: 11, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 12, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-women-bathhouse")?.mapFeatureRefs).toEqual([
+			{ fid: 19, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 20, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-wisdom-center")?.mapFeatureRefs).toEqual([
+			{ fid: 5, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-jingyuan-building-1")?.mapFeatureRefs).toEqual([
+			{ fid: 9, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-jingyuan-building-10")?.mapFeatureRefs).toEqual([
+			{ fid: 16, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-north-gate")?.mapFeatureRefs).toEqual([
+			{ fid: 57, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 58, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-main-gate")?.mapFeatureRefs).toEqual([
+			{ fid: 60, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 61, layer: "building", sourceId: "fengtai-campus" },
+		]);
 		expect(placesById.get("haidian-canteen-1")?.mapFeatureRefs).toBeUndefined();
-		expect(placesById.get("fengtai-main-gate")?.mapFeatureRefs).toBeUndefined();
 		expect(placesById.get("fengtai-shuttle-stop")?.mapFeatureRefs).toBeUndefined();
 	});
 
