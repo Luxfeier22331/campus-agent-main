@@ -1,3 +1,5 @@
+import { FENGTAI_OUTDOOR_DINING_ZONE_SEED } from "./fengtai-outdoor-dining-zone";
+
 export interface InitialDiningOfferingSeed {
 	name: string;
 	priceLabel: string;
@@ -11,13 +13,17 @@ export interface InitialDiningStallSeed {
 	name: string;
 	offerings: InitialDiningOfferingSeed[];
 	priceLabel: string;
+	svgAnchorId?: string;
 	tags: string[];
+	windowIdSuffix?: string;
 }
 
 export interface InitialDiningFloorSeed {
 	floorId: string;
 	label: string;
 	stalls: InitialDiningStallSeed[];
+	svgAssetUrl?: string;
+	svgMarkup?: string;
 }
 
 export interface InitialDiningHallSeed {
@@ -38,6 +44,7 @@ export const DINING_CANVAS = {
 };
 
 export const INITIAL_DINING_HALL_SEEDS: InitialDiningHallSeed[] = [
+	FENGTAI_OUTDOOR_DINING_ZONE_SEED,
 	createSingleFloorHall("haidian-canteen-1", "海淀一食堂", "海淀校区", [
 		createStall(
 			"rice-bowl",

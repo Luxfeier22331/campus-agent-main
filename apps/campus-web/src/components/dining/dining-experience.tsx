@@ -37,7 +37,7 @@ export function HallGrid({
 						{hall.name}
 					</span>
 					<span className="mt-5 block text-sm text-[var(--sys-text-muted)]">
-						{hall.floors.length} 层 · {hall.stallCount} 个窗口
+						{hall.floors.length} 层 · {hall.stallCount} 个餐饮点
 					</span>
 					<span className="mt-1 block text-sm font-medium text-primary">
 						{hall.priceRangeLabel ?? "价格待发布"}
@@ -139,7 +139,7 @@ export function InteractiveFloorplan({
 					}
 				}}
 			>
-				<legend className="sr-only">食堂平面图窗口选择</legend>
+				<legend className="sr-only">食堂平面图餐饮点选择</legend>
 				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: app-api returns sanitized published SVG and this component only annotates dining anchors for selection. */}
 				<div dangerouslySetInnerHTML={{ __html: normalizedMarkup }} />
 			</fieldset>
@@ -157,7 +157,9 @@ export function WindowList({
 	windows: DiningWindowProjection[];
 }) {
 	if (windows.length === 0) {
-		return <p className="rounded-xl border border-border bg-white p-4 text-sm">没有匹配的窗口。</p>;
+		return (
+			<p className="rounded-xl border border-border bg-white p-4 text-sm">没有匹配的餐饮点。</p>
+		);
 	}
 	return (
 		<div className="max-h-[520px] overflow-auto rounded-xl border border-border bg-white">
@@ -187,7 +189,7 @@ export function WindowDetail({ window }: { window: DiningWindowProjection | null
 	if (!window) {
 		return (
 			<p className="rounded-xl border border-border bg-white p-4 text-sm">
-				选择窗口后查看菜品和价格。
+				选择餐饮点后查看菜品和价格。
 			</p>
 		);
 	}
@@ -224,7 +226,7 @@ export function WindowDetail({ window }: { window: DiningWindowProjection | null
 						</div>
 					))
 				) : (
-					<p className="p-4 text-sm text-[var(--sys-text-muted)]">当前窗口没有已发布菜品。</p>
+					<p className="p-4 text-sm text-[var(--sys-text-muted)]">当前餐饮点没有已发布菜品。</p>
 				)}
 			</div>
 		</Card>

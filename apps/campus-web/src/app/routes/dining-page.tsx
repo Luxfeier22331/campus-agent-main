@@ -115,11 +115,11 @@ export function DiningPage() {
 							className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[var(--sys-text-subtle)]"
 						/>
 						<Input
-							aria-label="搜索食堂、窗口、菜品"
+							aria-label="搜索食堂、餐饮点、菜品"
 							className="pl-9"
 							id="dining-search"
 							onChange={(event) => setQuery(event.target.value)}
-							placeholder="搜索食堂、窗口、菜品"
+							placeholder="搜索食堂、餐饮点、菜品"
 							value={query}
 						/>
 					</label>

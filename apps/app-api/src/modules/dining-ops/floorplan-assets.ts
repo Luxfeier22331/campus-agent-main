@@ -63,15 +63,26 @@ export function createSeedFloorplanAsset(input: {
 	hallId: string;
 	label: string;
 	svgAssetUrl: string;
+	svgMarkup?: string;
 	windowAnchors: Array<{ label: string; svgAnchorId: string }>;
 }): DiningFloorplanAsset {
-	const sanitizedSvgMarkup = buildSeedSvgMarkup(input);
+	const sanitizedSvgMarkup = input.svgMarkup
+		? sanitizeSvgMarkup(input.svgMarkup)
+		: buildSeedSvgMarkup(input);
+	const anchorInventory = extractSvgAnchors(sanitizedSvgMarkup);
+	if (anchorInventory.length === 0) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			details: { field: "svgMarkup" },
+			message: "SVG must include at least one data-dining-anchor-id.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	assertSeedWindowAnchorsExist(input.windowAnchors, anchorInventory);
 	const digest = sha256Hex(sanitizedSvgMarkup);
 	return {
-		anchorInventory: input.windowAnchors.map((window) => ({
-			anchorId: window.svgAnchorId,
-			role: "window",
-		})),
+		anchorInventory,
 		bucket: input.bucket ?? "campus-rag-derived",
 		byteSize: new TextEncoder().encode(sanitizedSvgMarkup).byteLength,
 		contentType: "image/svg+xml",
@@ -90,6 +101,28 @@ export function createSeedFloorplanAsset(input: {
 		sourceFilename: input.svgAssetUrl.split("/").at(-1) ?? `${input.floorId}.svg`,
 		status: "release_ready",
 	};
+}
+
+function assertSeedWindowAnchorsExist(
+	windowAnchors: Array<{ label: string; svgAnchorId: string }>,
+	anchorInventory: DiningSvgAnchor[],
+): void {
+	const anchors = new Set(anchorInventory.map((anchor) => anchor.anchorId));
+	for (const window of windowAnchors) {
+		if (!anchors.has(window.svgAnchorId)) {
+			throw new AppApiRouteError({
+				code: "dining_operations_state_invalid",
+				details: {
+					label: window.label,
+					reason: "missing_seed_svg_anchor",
+					svgAnchorId: window.svgAnchorId,
+				},
+				message: "Initial dining seed window references a missing SVG anchor id.",
+				retryable: false,
+				status: 500,
+			});
+		}
+	}
 }
 
 export function sanitizeFloorplanSvgForStorage(svgMarkup: string): {

@@ -28,7 +28,7 @@ export function createInitialDiningOperationsState(
 			draftFloorplanAssetId: `dining_floorplan_asset:${hall.hallId}:${floor.floorId}:initial`,
 			floorId: floor.floorId,
 			label: floor.label,
-			svgAssetUrl: `/assets/dining/${hall.hallId}-${floor.floorId}.svg`,
+			svgAssetUrl: floor.svgAssetUrl ?? `/assets/dining/${hall.hallId}-${floor.floorId}.svg`,
 		})),
 		hallId: hall.hallId,
 		name: hall.name,
@@ -43,9 +43,13 @@ export function createInitialDiningOperationsState(
 				label: stall.name,
 				locationLabel: stall.locationLabel,
 				status: "active" as const,
-				svgAnchorId: svgAnchorIdFor(index),
+				svgAnchorId: stall.svgAnchorId ?? svgAnchorIdFor(index),
 				tags: stall.tags,
-				windowId: windowIdFor(hall.hallId, floor.floorId, index),
+				windowId: windowIdFor(
+					hall.hallId,
+					floor.floorId,
+					stall.windowIdSuffix ?? svgAnchorIdFor(index),
+				),
 			})),
 		),
 	);
@@ -57,7 +61,11 @@ export function createInitialDiningOperationsState(
 	for (const hall of seeds) {
 		for (const floor of hall.floors) {
 			for (const [index, stall] of floor.stalls.entries()) {
-				const windowId = windowIdFor(hall.hallId, floor.floorId, index);
+				const windowId = windowIdFor(
+					hall.hallId,
+					floor.floorId,
+					stall.windowIdSuffix ?? svgAnchorIdFor(index),
+				);
 				const assignmentId = `assignment:${hall.hallId}:${floor.floorId}:${windowId}`;
 				const stallProfileId = `stall:${hall.hallId}:${floor.floorId}:${stall.id}`;
 				stallProfiles.push({
@@ -93,7 +101,7 @@ export function createInitialDiningOperationsState(
 			}
 		}
 	}
-	const floorplanAssets = halls.flatMap((hall) =>
+	const floorplanAssets = seeds.flatMap((hall) =>
 		hall.floors.map((floor) =>
 			createSeedFloorplanAsset({
 				actorId: "system:initial-dining-seed",
@@ -101,7 +109,8 @@ export function createInitialDiningOperationsState(
 				floorId: floor.floorId,
 				hallId: hall.hallId,
 				label: `${hall.name}${floor.label}`,
-				svgAssetUrl: floor.svgAssetUrl,
+				svgAssetUrl: floor.svgAssetUrl ?? `/assets/dining/${hall.hallId}-${floor.floorId}.svg`,
+				svgMarkup: floor.svgMarkup,
 				windowAnchors: requiredWindowAnchors(
 					windows.filter(
 						(window) => window.hallId === hall.hallId && window.floorId === floor.floorId,
@@ -195,8 +204,8 @@ function windowGeometry(index: number): DiningWindow["geometry"] {
 	};
 }
 
-function windowIdFor(hallId: string, floorId: string, index: number): string {
-	return `${hallId}:${floorId}:window-${String(index + 1).padStart(2, "0")}`;
+function windowIdFor(hallId: string, floorId: string, suffix: string): string {
+	return `${hallId}:${floorId}:${suffix}`;
 }
 
 function svgAnchorIdFor(index: number): string {

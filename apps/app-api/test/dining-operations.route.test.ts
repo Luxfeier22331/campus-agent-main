@@ -28,6 +28,8 @@ const HAIDIAN_CANTEEN_1_FLOOR_PATH =
 	"https://app-api.internal/api/ops/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f";
 const HAIDIAN_CANTEEN_1_PUBLIC_FLOOR_PATH =
 	"https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f";
+const FENGTAI_OUTDOOR_DINING_PUBLIC_FLOOR_PATH =
+	"https://app-api.internal/api/dining/halls/fengtai-outdoor-dining-zone/floors/fengtai-outdoor-dining-zone-ground";
 
 function principal(input: { operator: boolean; type?: ResolvedAppPrincipal["principal"]["type"] }) {
 	return {
@@ -267,6 +269,54 @@ describe("dining operations routes", () => {
 						]),
 						stallProfile: expect.objectContaining({ displayName: "新风味窗口" }),
 					}),
+				}),
+			]),
+		);
+
+		const outdoorFloor = await app.fetch(new Request(FENGTAI_OUTDOOR_DINING_PUBLIC_FLOOR_PATH));
+		expect(outdoorFloor.status).toBe(200);
+		const outdoorFloorBody = (await outdoorFloor.json()) as {
+			floor: {
+				floorplanAsset?: { anchorInventory: Array<{ anchorId: string; role: string }> };
+				svgMarkup: string;
+			};
+			windows: Array<{
+				assignment: null | {
+					offerings: Array<{ name: string; priceLabel: string; specLabel: string | null }>;
+					stallProfile: { displayName: string };
+				};
+				svgAnchorId: string | null;
+			}>;
+		};
+		expect(outdoorFloorBody.floor.svgMarkup).toContain("丰台露天餐饮区");
+		expect(outdoorFloorBody.floor.floorplanAsset?.anchorInventory).toHaveLength(11);
+		expect(outdoorFloorBody.windows.map((window) => window.svgAnchorId)).toEqual([
+			"shop-01-maituanxiong",
+			"shop-02-zuozuoxiang",
+			"shop-03-tastien",
+			"shop-04-huihan-zhachuan",
+			"shop-05-luckin-jixiang-huntun",
+			"shop-06-lage-lamei",
+			"shop-07-ice-snacks",
+			"shop-08-guizhou-snacks",
+			"stall-water-bar",
+			"stall-fruit",
+			"stall-light-food",
+		]);
+		expect(outdoorFloorBody.windows).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					assignment: expect.objectContaining({
+						offerings: expect.arrayContaining([
+							expect.objectContaining({
+								name: "水吧招牌套餐",
+								priceLabel: "18 元",
+								specLabel: "mock",
+							}),
+						]),
+						stallProfile: expect.objectContaining({ displayName: "水吧" }),
+					}),
+					svgAnchorId: "stall-water-bar",
 				}),
 			]),
 		);

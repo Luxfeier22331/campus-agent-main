@@ -59,7 +59,7 @@ const floorPayload = {
 		hallId: "haidian-canteen-1",
 		label: "海淀一食堂一层",
 		svgMarkup:
-			'<svg viewBox="0 0 720 420" role="img" aria-label="海淀一食堂一层示意图"><g data-dining-role="window" data-dining-anchor-id="window-01"><rect x="64" y="72" width="150" height="72" /><text x="84" y="112">一号窗口</text></g></svg>',
+			'<svg viewBox="0 0 720 420" role="img" aria-label="海淀一食堂一层示意图"><g data-dining-role="window" data-dining-anchor-id="window-01"><rect x="64" y="72" width="150" height="72" /><text x="84" y="112">一号窗口</text></g><g data-dining-role="stall" data-dining-anchor-id="stall-new"><rect x="240" y="72" width="150" height="72" /><text x="260" y="112">新增区块</text></g></svg>',
 		svgAssetUrl: "/assets/dining/haidian-canteen-1-1f.svg",
 	},
 	menuItems: [
@@ -115,6 +115,17 @@ const floorPayload = {
 			tags: ["热餐"],
 			windowId: "haidian-canteen-1:1f:window-01",
 		},
+		{
+			floorId: "1f",
+			geometry: { height: 72, width: 150, x: 240, y: 72 },
+			hallId: "haidian-canteen-1",
+			label: "待绑定餐饮点",
+			locationLabel: "入口右侧",
+			svgAnchorId: null,
+			status: "active",
+			tags: ["热餐"],
+			windowId: "haidian-canteen-1:1f:window-02",
+		},
 	],
 };
 
@@ -152,7 +163,10 @@ describe("campus ops routes", () => {
 		diningApiMock.createDiningMenuItem.mockResolvedValue({ menuItem: floorPayload.menuItems[0] });
 		diningApiMock.createDiningFloorplanAsset.mockResolvedValue({
 			asset: {
-				anchorInventory: [{ anchorId: "window-01", role: "window" }],
+				anchorInventory: [
+					{ anchorId: "window-01", role: "window" },
+					{ anchorId: "stall-new", role: "stall" },
+				],
 				bucket: "campus-rag-derived",
 				byteSize: 180,
 				contentType: "image/svg+xml",
@@ -248,6 +262,10 @@ describe("campus ops routes", () => {
 		expect(screen.getByRole("table", { name: "后台模块路由" })).toBeInTheDocument();
 		expect(screen.getByText("当前工作面")).toBeInTheDocument();
 		expect(screen.getByText("接入节奏")).toBeInTheDocument();
+		expect(
+			screen.getByText("编辑食堂、楼层、餐饮点、区块绑定、菜品和价格草稿。"),
+		).toBeInTheDocument();
+		expect(screen.getByText("上传或替换食堂 SVG，维护区块锚点与餐饮点绑定。")).toBeInTheDocument();
 
 		expect(screen.getByRole("link", { name: /食堂数据/ })).toHaveAttribute("href", "/dining");
 		expect(screen.getByRole("link", { name: /食堂资产/ })).toHaveAttribute(
@@ -281,10 +299,10 @@ describe("campus ops routes", () => {
 		expect(screen.getByDisplayValue("盖饭")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("牛肉面")).toBeInTheDocument();
 
-		fireEvent.change(screen.getByLabelText("窗口名称"), {
+		fireEvent.change(screen.getByLabelText("餐饮点名称"), {
 			target: { value: "南侧一号窗口" },
 		});
-		fireEvent.change(screen.getByLabelText("档口名称"), {
+		fireEvent.change(screen.getByLabelText("对外名称"), {
 			target: { value: "新风味窗口" },
 		});
 		fireEvent.change(screen.getByLabelText("菜品名称 offering:rice"), {
@@ -356,6 +374,28 @@ describe("campus ops routes", () => {
 		});
 	});
 
+	it("binds an unassigned SVG anchor to an existing dining point", async () => {
+		renderWithQueryClient(<DiningWorkspacePage />);
+
+		expect(await screen.findByRole("button", { name: "SVG 区块 stall-new" })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "SVG 区块 stall-new" }));
+
+		expect(screen.getByText("区块未绑定餐饮点")).toBeInTheDocument();
+		fireEvent.change(screen.getByLabelText("选择要绑定的餐饮点"), {
+			target: { value: "haidian-canteen-1:1f:window-02" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "绑定区块" }));
+
+		await waitFor(() => {
+			expect(diningApiMock.updateDiningWindow).toHaveBeenCalledWith(
+				expect.objectContaining({
+					svgAnchorId: "stall-new",
+					windowId: "haidian-canteen-1:1f:window-02",
+				}),
+			);
+		});
+	});
+
 	it("uploads a replacement floorplan SVG through app-api and refreshes the draft floor", async () => {
 		renderWithQueryClient(<DiningWorkspacePage />);
 
@@ -380,6 +420,27 @@ describe("campus ops routes", () => {
 			expect(diningApiMock.getDiningOpsFloor).toHaveBeenCalledTimes(2);
 		});
 		expect(await screen.findByText("SVG 已上传")).toBeInTheDocument();
+	});
+
+	it("shows the app-api upload failure reason near the SVG upload action", async () => {
+		diningApiMock.createDiningFloorplanAsset.mockRejectedValueOnce(
+			new Error("App API request failed: /api/ops/dining/floorplan-assets"),
+		);
+		renderWithQueryClient(<DiningWorkspacePage />);
+
+		const uploadInput = await screen.findByLabelText("上传替换 SVG 文件");
+		const file = new File(
+			[
+				'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420"><g data-dining-role="window" data-dining-anchor-id="window-01"><rect x="1" y="1" width="10" height="10" /></g></svg>',
+			],
+			"invalid-floor.svg",
+			{ type: "image/svg+xml" },
+		);
+		fireEvent.change(uploadInput, { target: { files: [file] } });
+
+		expect(
+			await screen.findByText("App API request failed: /api/ops/dining/floorplan-assets"),
+		).toBeInTheDocument();
 	});
 
 	it("renders release candidate workflow and audit routes", async () => {

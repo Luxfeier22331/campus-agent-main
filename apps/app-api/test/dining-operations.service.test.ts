@@ -16,6 +16,21 @@ const OPERATOR = {
 	principalId: "operator_01",
 };
 const HAIDIAN_CANTEEN_1_FLOOR_ID = "haidian-canteen-1-1f";
+const FENGTAI_OUTDOOR_DINING_HALL_ID = "fengtai-outdoor-dining-zone";
+const FENGTAI_OUTDOOR_DINING_FLOOR_ID = "fengtai-outdoor-dining-zone-ground";
+const FENGTAI_OUTDOOR_DINING_ANCHORS = [
+	"shop-01-maituanxiong",
+	"shop-02-zuozuoxiang",
+	"shop-03-tastien",
+	"shop-04-huihan-zhachuan",
+	"shop-05-luckin-jixiang-huntun",
+	"shop-06-lage-lamei",
+	"shop-07-ice-snacks",
+	"shop-08-guizhou-snacks",
+	"stall-water-bar",
+	"stall-fruit",
+	"stall-light-food",
+] as const;
 const SVG_MARKUP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420">
 	${Array.from(
 		{ length: 5 },
@@ -189,6 +204,7 @@ describe("dining operations service", () => {
 		expect(halls.halls.map((hall) => hall.hallId).sort()).toEqual([
 			"fengtai-huixian-canteen",
 			"fengtai-juya-canteen",
+			FENGTAI_OUTDOOR_DINING_HALL_ID,
 			"haidian-canteen-1",
 			"haidian-canteen-2",
 			"haidian-canteen-3",
@@ -448,8 +464,9 @@ describe("dining operations service", () => {
 		const service = await createTestDiningOperationsService();
 
 		const halls = await service.getPublishedHalls();
+		const haidianCanteen = halls.halls.find((hall) => hall.hallId === "haidian-canteen-1");
 
-		expect(halls.halls[0]).toMatchObject({
+		expect(haidianCanteen).toMatchObject({
 			campus: "海淀校区",
 			hallId: "haidian-canteen-1",
 			name: "海淀一食堂",
@@ -458,8 +475,75 @@ describe("dining operations service", () => {
 			stallCount: expect.any(Number),
 			tags: expect.arrayContaining(["主食"]),
 		});
-		expect(halls.halls[0]?.stallCount).toBeGreaterThanOrEqual(5);
-		expect(halls.halls[0]?.offeringCount).toBeGreaterThanOrEqual(halls.halls[0]?.stallCount ?? 0);
+		expect(haidianCanteen?.stallCount).toBeGreaterThanOrEqual(5);
+		expect(haidianCanteen?.offeringCount).toBeGreaterThanOrEqual(haidianCanteen?.stallCount ?? 0);
+		expect(
+			halls.halls.find((hall) => hall.hallId === FENGTAI_OUTDOOR_DINING_HALL_ID),
+		).toMatchObject({
+			campus: "丰台校区",
+			hallId: FENGTAI_OUTDOOR_DINING_HALL_ID,
+			name: "丰台露天餐饮区",
+			offeringCount: 11,
+			priceRangeLabel: expect.any(String),
+			stallCount: 11,
+			tags: expect.arrayContaining(["露天餐饮", "饮品", "小吃"]),
+		});
+	});
+
+	it("publishes the Fengtai outdoor dining SVG floorplan with public mock menu data", async () => {
+		const service = await createTestDiningOperationsService();
+
+		const publishedFloor = await service.getPublishedFloor({
+			floorId: FENGTAI_OUTDOOR_DINING_FLOOR_ID,
+			hallId: FENGTAI_OUTDOOR_DINING_HALL_ID,
+		});
+
+		expect(publishedFloor.floor).toMatchObject({
+			floorId: FENGTAI_OUTDOOR_DINING_FLOOR_ID,
+			hallId: FENGTAI_OUTDOOR_DINING_HALL_ID,
+			label: "丰台露天餐饮区地面区",
+			svgAssetUrl: "/assets/dining/fengtai-outdoor-dining-zone.svg",
+		});
+		expect(publishedFloor.floor.svgMarkup).toContain("丰台露天餐饮区");
+		expect(
+			publishedFloor.floor.floorplanAsset?.anchorInventory.map((anchor) => anchor.anchorId),
+		).toEqual(FENGTAI_OUTDOOR_DINING_ANCHORS);
+		expect(publishedFloor.windows.map((window) => window.svgAnchorId)).toEqual(
+			FENGTAI_OUTDOOR_DINING_ANCHORS,
+		);
+		expect(publishedFloor.windows).toHaveLength(11);
+		expect(publishedFloor.windows).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					assignment: expect.objectContaining({
+						offerings: expect.arrayContaining([
+							expect.objectContaining({
+								name: "麦团熊招牌套餐",
+								priceLabel: "18 元",
+								specLabel: "mock",
+							}),
+						]),
+						stallProfile: expect.objectContaining({ displayName: "麦团熊" }),
+					}),
+					label: "麦团熊",
+					svgAnchorId: "shop-01-maituanxiong",
+				}),
+				expect.objectContaining({
+					assignment: expect.objectContaining({
+						offerings: expect.arrayContaining([
+							expect.objectContaining({
+								name: "轻食招牌套餐",
+								priceLabel: "18 元",
+								specLabel: "mock",
+							}),
+						]),
+						stallProfile: expect.objectContaining({ displayName: "轻食" }),
+					}),
+					label: "轻食",
+					svgAnchorId: "stall-light-food",
+				}),
+			]),
+		);
 	});
 
 	it("excludes removed offerings from student dining projections", async () => {
@@ -603,6 +687,7 @@ describe("dining operations service", () => {
 		expect(source.INITIAL_DINING_HALL_SEEDS.map((hall) => hall.hallId).sort()).toEqual([
 			"fengtai-huixian-canteen",
 			"fengtai-juya-canteen",
+			"fengtai-outdoor-dining-zone",
 			"haidian-canteen-1",
 			"haidian-canteen-2",
 			"haidian-canteen-3",

@@ -6,15 +6,15 @@ const FALLBACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 4
   <rect x="24" y="24" width="672" height="372" rx="20" fill="#fff" stroke="#d7dee8" />
   <g data-dining-role="window" data-dining-anchor-id="window-01">
     <rect x="64" y="72" width="150" height="72" rx="8" fill="#fff" stroke="#b8c3d1" />
-    <text x="139" y="114" text-anchor="middle" font-size="14" fill="#334155">一号窗口</text>
+    <text x="139" y="114" text-anchor="middle" font-size="14" fill="#334155">一号餐饮点</text>
   </g>
   <g data-dining-role="window" data-dining-anchor-id="window-02">
     <rect x="244" y="72" width="150" height="72" rx="8" fill="#fff" stroke="#b8c3d1" />
-    <text x="319" y="114" text-anchor="middle" font-size="14" fill="#334155">二号窗口</text>
+    <text x="319" y="114" text-anchor="middle" font-size="14" fill="#334155">二号餐饮点</text>
   </g>
   <g data-dining-role="window" data-dining-anchor-id="window-03">
     <rect x="424" y="72" width="150" height="72" rx="8" fill="#fff" stroke="#b8c3d1" />
-    <text x="499" y="114" text-anchor="middle" font-size="14" fill="#334155">三号窗口</text>
+    <text x="499" y="114" text-anchor="middle" font-size="14" fill="#334155">三号餐饮点</text>
   </g>
   <rect x="120" y="220" width="480" height="72" rx="16" fill="#f4f7fa" />
   <text x="360" y="262" text-anchor="middle" font-size="15" fill="#7b8797">就餐区</text>
@@ -30,6 +30,7 @@ export interface DiningSvgAnchor {
 export function SvgFloorplanWorkspace(input: {
 	floorId: string;
 	floorplanAsset?: DiningFloorplanAsset;
+	onSelectAnchor?(anchor: DiningSvgAnchor): void;
 	onSelectWindow(windowId: string): void;
 	onUploadSvg(input: {
 		floorId: string;
@@ -37,6 +38,7 @@ export function SvgFloorplanWorkspace(input: {
 		svgMarkup: string;
 	}): Promise<unknown>;
 	selectedWindowId: string | null;
+	selectedAnchorId?: string | null;
 	svgAssetUrl?: string | null;
 	svgMarkup?: string | null;
 	uploadError?: string | null;
@@ -45,6 +47,7 @@ export function SvgFloorplanWorkspace(input: {
 }) {
 	const [assetSvg, setAssetSvg] = useState<string | null>(null);
 	const [uploadedSvg, setUploadedSvg] = useState<string | null>(null);
+	const [localUploadError, setLocalUploadError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const markup = uploadedSvg ?? input.svgMarkup ?? assetSvg ?? FALLBACK_SVG;
 	const anchors = useMemo(
@@ -52,7 +55,8 @@ export function SvgFloorplanWorkspace(input: {
 		[markup, input.windows],
 	);
 	const selectedWindow = input.windows.find((window) => window.windowId === input.selectedWindowId);
-	const selectedAnchorId = selectedWindow ? anchorIdForWindow(selectedWindow) : null;
+	const selectedAnchorId =
+		input.selectedAnchorId ?? (selectedWindow ? anchorIdForWindow(selectedWindow) : null);
 	const normalizedMarkup = useMemo(
 		() => markSelectedAnchor(markup, selectedAnchorId),
 		[markup, selectedAnchorId],
@@ -62,10 +66,10 @@ export function SvgFloorplanWorkspace(input: {
 	const shortSha = input.floorplanAsset?.sha256.replace(/^sha256:/, "").slice(0, 12) ?? null;
 
 	useEffect(() => {
-		if (!input.selectedWindowId && anchors[0]?.windowId) {
+		if (!(input.selectedAnchorId || input.selectedWindowId) && anchors[0]?.windowId) {
 			input.onSelectWindow(anchors[0].windowId);
 		}
-	}, [anchors, input.onSelectWindow, input.selectedWindowId]);
+	}, [anchors, input.onSelectWindow, input.selectedAnchorId, input.selectedWindowId]);
 
 	useEffect(() => {
 		if (input.svgMarkup || !input.svgAssetUrl) {
@@ -91,6 +95,7 @@ export function SvgFloorplanWorkspace(input: {
 	}, [input.svgAssetUrl, input.svgMarkup]);
 
 	function selectAnchor(anchor: DiningSvgAnchor) {
+		input.onSelectAnchor?.(anchor);
 		if (anchor.windowId) {
 			input.onSelectWindow(anchor.windowId);
 		}
@@ -100,7 +105,7 @@ export function SvgFloorplanWorkspace(input: {
 		<div className="dining-workbench">
 			<div className="dining-workbench-toolbar">
 				<div>
-					<p className="ops-eyebrow">Floorplan Asset</p>
+					<p className="ops-eyebrow">平面图资产</p>
 					<h3 className="font-semibold text-base">{input.floorId}.svg</h3>
 					{input.floorplanAsset ? (
 						<p className="mt-1 max-w-[320px] truncate text-xs text-slate-500">
@@ -133,15 +138,21 @@ export function SvgFloorplanWorkspace(input: {
 						if (!file) {
 							return;
 						}
-						void readSvgFile(file).then(async (svgMarkup) => {
-							setUploadedSvg(svgMarkup);
-							await input.onUploadSvg({
-								floorId: input.floorId,
-								sourceFilename: file.name,
-								svgMarkup,
+						setLocalUploadError(null);
+						void readSvgFile(file)
+							.then(async (svgMarkup) => {
+								setUploadedSvg(svgMarkup);
+								await input.onUploadSvg({
+									floorId: input.floorId,
+									sourceFilename: file.name,
+									svgMarkup,
+								});
+								inputElement.value = "";
+							})
+							.catch((error: unknown) => {
+								setLocalUploadError(formatSvgUploadError(error));
+								inputElement.value = "";
 							});
-							inputElement.value = "";
-						});
 					}}
 					ref={fileInputRef}
 					type="file"
@@ -149,7 +160,9 @@ export function SvgFloorplanWorkspace(input: {
 				{input.uploadState === "success" ? (
 					<p className="text-emerald-700 text-xs">SVG 已上传</p>
 				) : null}
-				{input.uploadError ? <p className="text-red-600 text-xs">{input.uploadError}</p> : null}
+				{input.uploadError || localUploadError ? (
+					<p className="text-red-600 text-xs">{input.uploadError ?? localUploadError}</p>
+				) : null}
 			</div>
 			<div className="dining-workbench-grid">
 				<section className="dining-workbench-pane">
@@ -160,7 +173,7 @@ export function SvgFloorplanWorkspace(input: {
 								aria-label={`SVG 区块 ${anchor.anchorId}`}
 								className={[
 									"dining-anchor-row",
-									anchor.windowId === input.selectedWindowId ? "is-selected" : "",
+									anchor.anchorId === selectedAnchorId ? "is-selected" : "",
 								].join(" ")}
 								key={anchor.anchorId}
 								onClick={() => selectAnchor(anchor)}
@@ -189,9 +202,7 @@ export function SvgFloorplanWorkspace(input: {
 							if (event.key !== "Enter" && event.key !== " ") {
 								return;
 							}
-							const selectedAnchor = anchors.find(
-								(anchor) => anchor.windowId === input.selectedWindowId,
-							);
+							const selectedAnchor = anchors.find((anchor) => anchor.anchorId === selectedAnchorId);
 							if (selectedAnchor) {
 								event.preventDefault();
 								selectAnchor(selectedAnchor);
@@ -222,7 +233,10 @@ export function SvgFloorplanWorkspace(input: {
 
 function formatAnchorRole(role: string): string {
 	if (role === "window") {
-		return "窗口";
+		return "餐饮点";
+	}
+	if (role === "stall") {
+		return "摊位";
 	}
 	if (role === "seating") {
 		return "就餐区";
@@ -256,6 +270,13 @@ function formatBytes(value: number): string {
 		return `${value} B`;
 	}
 	return `${(value / 1024).toFixed(1)} KB`;
+}
+
+function formatSvgUploadError(error: unknown): string {
+	if (error instanceof Error && error.message.trim()) {
+		return error.message;
+	}
+	return "SVG 文件读取失败";
 }
 
 function readSvgFile(file: File): Promise<string> {

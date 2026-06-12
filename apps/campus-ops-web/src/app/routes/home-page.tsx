@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 const MODULES = [
 	{
 		area: "食堂",
-		description: "编辑食堂、楼层、窗口、档口、菜品和价格草稿。",
+		description: "编辑食堂、楼层、餐饮点、区块绑定、菜品和价格草稿。",
 		href: "/dining",
 		icon: Utensils,
 		label: "食堂数据",
@@ -26,7 +26,7 @@ const MODULES = [
 	},
 	{
 		area: "食堂",
-		description: "上传或替换食堂 SVG，维护区块锚点与窗口绑定。",
+		description: "上传或替换食堂 SVG，维护区块锚点与餐饮点绑定。",
 		href: "/dining/assets",
 		icon: MapIcon,
 		label: "食堂资产",

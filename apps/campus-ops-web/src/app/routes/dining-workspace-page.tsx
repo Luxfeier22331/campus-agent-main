@@ -3,7 +3,10 @@ import { Link, useParams } from "@tanstack/react-router";
 import { Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { SvgFloorplanWorkspace } from "../../components/dining/svg-floorplan-workspace";
+import {
+	type DiningSvgAnchor,
+	SvgFloorplanWorkspace,
+} from "../../components/dining/svg-floorplan-workspace";
 import {
 	assignDiningWindow,
 	createDiningFloorplanAsset,
@@ -40,6 +43,7 @@ export function DiningWorkspacePage() {
 		queryKey: ["dining-ops", "floor", activeHallId, activeFloorId],
 	});
 	const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
+	const [selectedAnchor, setSelectedAnchor] = useState<DiningSvgAnchor | null>(null);
 	const queryClient = useQueryClient();
 	const floorplanUploadMutation = useMutation({
 		mutationFn: createDiningFloorplanAsset,
@@ -52,18 +56,19 @@ export function DiningWorkspacePage() {
 	});
 
 	useEffect(() => {
-		if (!selectedWindowId && floorQuery.data?.windows[0]) {
+		if (!(selectedAnchor || selectedWindowId) && floorQuery.data?.windows[0]) {
 			setSelectedWindowId(floorQuery.data.windows[0].windowId);
 		}
-	}, [floorQuery.data, selectedWindowId]);
+	}, [floorQuery.data, selectedAnchor, selectedWindowId]);
 
 	const selectedWindow =
 		floorQuery.data?.windows.find((window) => window.windowId === selectedWindowId) ?? null;
+	const selectedAnchorId = selectedAnchor?.anchorId ?? selectedWindow?.svgAnchorId ?? null;
 
 	return (
 		<section className="grid gap-6 xl:grid-cols-[260px_1fr_340px]">
 			<aside className="ops-panel p-4">
-				<p className="ops-eyebrow">Dining Tree</p>
+				<p className="ops-eyebrow">食堂目录</p>
 				<h2 className="mb-4 font-semibold text-lg">食堂楼层</h2>
 				{hallsQuery.isLoading ? <p className="ops-muted">加载中</p> : null}
 				<div className="space-y-4">
@@ -90,21 +95,35 @@ export function DiningWorkspacePage() {
 			<div className="ops-panel p-4">
 				<div className="mb-4 flex items-center justify-between">
 					<div>
-						<p className="ops-eyebrow">Floor Draft</p>
+						<p className="ops-eyebrow">楼层草稿</p>
 						<h2 className="font-semibold text-lg">{floorQuery.data?.floor.label ?? "食堂楼层"}</h2>
 					</div>
 					<span className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-500">
-						draft
+						草稿
 					</span>
 				</div>
 				{floorQuery.data ? (
 					<SvgFloorplanWorkspace
 						floorId={floorQuery.data.floor.floorId}
 						floorplanAsset={floorQuery.data.floor.floorplanAsset}
+						onSelectAnchor={(anchor) => {
+							setSelectedAnchor(anchor);
+							if (!anchor.windowId) {
+								setSelectedWindowId(null);
+							}
+						}}
 						onUploadSvg={(upload) => floorplanUploadMutation.mutateAsync(upload)}
-						onSelectWindow={setSelectedWindowId}
+						onSelectWindow={(windowId) => {
+							setSelectedAnchor(null);
+							setSelectedWindowId(windowId);
+						}}
+						selectedAnchorId={selectedAnchorId}
 						selectedWindowId={selectedWindowId}
-						uploadError={floorplanUploadMutation.isError ? "SVG 上传失败" : null}
+						uploadError={
+							floorplanUploadMutation.error
+								? formatDiningWorkspaceError(floorplanUploadMutation.error, "SVG 上传失败")
+								: null
+						}
 						uploadState={
 							floorplanUploadMutation.isPending
 								? "uploading"
@@ -124,6 +143,10 @@ export function DiningWorkspacePage() {
 			</div>
 			<WindowEditor
 				floor={floorQuery.data ?? null}
+				onAnchorBound={() => {
+					setSelectedAnchor(null);
+				}}
+				selectedAnchor={selectedAnchor}
 				selectedWindow={selectedWindow}
 				selectedWindowId={selectedWindowId}
 			/>
@@ -133,10 +156,13 @@ export function DiningWorkspacePage() {
 
 function WindowEditor(input: {
 	floor: DiningOpsFloorResponse | null;
+	onAnchorBound(): void;
+	selectedAnchor: DiningSvgAnchor | null;
 	selectedWindow: DiningWindow | null;
 	selectedWindowId: string | null;
 }) {
 	const queryClient = useQueryClient();
+	const [anchorBindingWindowId, setAnchorBindingWindowId] = useState("");
 	const current = useMemo(() => {
 		if (!(input.floor && input.selectedWindow)) {
 			return null;
@@ -166,8 +192,11 @@ function WindowEditor(input: {
 	const [stallType, setStallType] = useState("food_window");
 	const [offeringDrafts, setOfferingDrafts] = useState<OfferingDraft[]>([]);
 	const [draftValidationError, setDraftValidationError] = useState<string | null>(null);
+	const defaultAnchorBindingWindowId =
+		input.floor?.windows.find((window) => !window.svgAnchorId)?.windowId ?? "";
 
 	useEffect(() => {
+		setAnchorBindingWindowId(defaultAnchorBindingWindowId);
 		setWindowLabel(input.selectedWindow?.label ?? "");
 		setLocationLabel(input.selectedWindow?.locationLabel ?? "");
 		setWindowStatus(input.selectedWindow?.status ?? "active");
@@ -177,7 +206,32 @@ function WindowEditor(input: {
 			current?.offerings.map(({ menu, offering }) => toOfferingDraft(offering, menu)) ?? [],
 		);
 		setDraftValidationError(null);
-	}, [current, input.selectedWindow]);
+	}, [current, defaultAnchorBindingWindowId, input.selectedWindow]);
+
+	const bindAnchorMutation = useMutation({
+		mutationFn: async () => {
+			if (!(input.selectedAnchor && anchorBindingWindowId)) {
+				throw new Error("anchor and dining point are required");
+			}
+			const window = input.floor?.windows.find((item) => item.windowId === anchorBindingWindowId);
+			if (!window) {
+				throw new Error("dining point is required");
+			}
+			await updateDiningWindow({
+				geometry: window.geometry,
+				label: window.label,
+				locationLabel: window.locationLabel,
+				status: window.status,
+				svgAnchorId: input.selectedAnchor.anchorId,
+				tags: window.tags,
+				windowId: anchorBindingWindowId,
+			});
+		},
+		onSuccess: () => {
+			input.onAnchorBound();
+			void queryClient.invalidateQueries({ queryKey: ["dining-ops", "floor"] });
+		},
+	});
 
 	const saveMutation = useMutation({
 		mutationFn: async () => {
@@ -241,9 +295,47 @@ function WindowEditor(input: {
 
 	return (
 		<aside className="ops-panel p-4">
-			<p className="ops-eyebrow">Window Detail</p>
-			<h2 className="font-semibold text-lg">窗口详情</h2>
-			{input.selectedWindow ? (
+			<p className="ops-eyebrow">餐饮点详情</p>
+			<h2 className="font-semibold text-lg">餐饮点详情</h2>
+			{input.selectedAnchor && !input.selectedAnchor.windowId ? (
+				<form
+					className="mt-4 space-y-4"
+					onSubmit={(event) => {
+						event.preventDefault();
+						bindAnchorMutation.mutate();
+					}}
+				>
+					<div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+						<p className="font-semibold text-sm">区块未绑定餐饮点</p>
+						<p className="mt-1 break-all text-xs text-zinc-500">{input.selectedAnchor.anchorId}</p>
+					</div>
+					<label className="ops-field">
+						<span>选择要绑定的餐饮点</span>
+						<select
+							value={anchorBindingWindowId}
+							onChange={(event) => setAnchorBindingWindowId(event.target.value)}
+						>
+							<option value="">请选择</option>
+							{input.floor?.windows.map((window) => (
+								<option key={window.windowId} value={window.windowId}>
+									{window.label} · {window.locationLabel}
+								</option>
+							))}
+						</select>
+					</label>
+					<button
+						className="ops-primary-button"
+						disabled={!anchorBindingWindowId || bindAnchorMutation.isPending}
+						type="submit"
+					>
+						绑定区块
+					</button>
+					{bindAnchorMutation.isError ? <p className="text-red-600 text-sm">区块绑定失败</p> : null}
+					{bindAnchorMutation.isSuccess ? (
+						<p className="text-emerald-700 text-sm">区块已绑定</p>
+					) : null}
+				</form>
+			) : input.selectedWindow ? (
 				<form
 					className="mt-4 space-y-4"
 					onSubmit={(event) => {
@@ -257,18 +349,18 @@ function WindowEditor(input: {
 						<p className="font-medium text-sm">{input.selectedWindow.windowId}</p>
 					</div>
 					<label className="ops-field">
-						<span>窗口名称</span>
+						<span>餐饮点名称</span>
 						<input value={windowLabel} onChange={(event) => setWindowLabel(event.target.value)} />
 					</label>
 					<label className="ops-field">
-						<span>窗口位置</span>
+						<span>餐饮点位置</span>
 						<input
 							value={locationLabel}
 							onChange={(event) => setLocationLabel(event.target.value)}
 						/>
 					</label>
 					<label className="ops-field">
-						<span>窗口状态</span>
+						<span>餐饮点状态</span>
 						<select
 							value={windowStatus}
 							onChange={(event) => setWindowStatus(event.target.value as DiningWindow["status"])}
@@ -279,11 +371,11 @@ function WindowEditor(input: {
 						</select>
 					</label>
 					<label className="ops-field">
-						<span>档口名称</span>
+						<span>对外名称</span>
 						<input value={stallName} onChange={(event) => setStallName(event.target.value)} />
 					</label>
 					<label className="ops-field">
-						<span>档口类型</span>
+						<span>餐饮类型</span>
 						<input value={stallType} onChange={(event) => setStallType(event.target.value)} />
 					</label>
 					<div className="space-y-3">
@@ -371,7 +463,7 @@ function WindowEditor(input: {
 					{saveMutation.isSuccess ? <p className="text-emerald-700 text-sm">草稿已保存</p> : null}
 				</form>
 			) : (
-				<p className="mt-4 text-sm text-zinc-500">选择窗口后编辑档口与菜品。</p>
+				<p className="mt-4 text-sm text-zinc-500">选择餐饮点后编辑名称、区块与菜品。</p>
 			)}
 		</aside>
 	);
@@ -429,4 +521,11 @@ function validateOfferingDrafts(items: OfferingDraft[]): string | null {
 		}
 	}
 	return null;
+}
+
+function formatDiningWorkspaceError(error: unknown, fallback: string): string {
+	if (error instanceof Error && error.message.trim()) {
+		return error.message;
+	}
+	return fallback;
 }

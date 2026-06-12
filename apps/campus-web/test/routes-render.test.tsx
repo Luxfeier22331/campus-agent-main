@@ -560,7 +560,7 @@ describe("campus routes", () => {
 
 		expect(await screen.findByText("食堂")).toBeInTheDocument();
 		expect(await screen.findByText("海淀一食堂")).toBeInTheDocument();
-		expect(screen.getByText("1 层 · 1 个窗口")).toBeInTheDocument();
+		expect(screen.getByText("1 层 · 1 个餐饮点")).toBeInTheDocument();
 		expect(await screen.findByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
 		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
 		expect(screen.getByText("18 元")).toBeInTheDocument();
@@ -571,7 +571,7 @@ describe("campus routes", () => {
 		expect(screen.getAllByText("入口侧")[0]?.closest("button")).toHaveClass(
 			"bg-[var(--sys-brand-interactive-subtle)]",
 		);
-		fireEvent.change(screen.getByPlaceholderText("搜索食堂、窗口、菜品"), {
+		fireEvent.change(screen.getByPlaceholderText("搜索食堂、餐饮点、菜品"), {
 			target: { value: "牛腩" },
 		});
 		expect(screen.getByText("海淀一食堂")).toBeInTheDocument();
