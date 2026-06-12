@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-08
+updated: 2026-06-11
 ---
 # 目标架构
 
@@ -179,8 +179,44 @@ flowchart LR
 
 长期摄入链路固定为：
 
-`crawler/job placeholder -> ingestion boundary ->
-raw/source-truth/projection/document/chunk/index`
+```text
+collector/source admission
+-> ingestion control plane
+-> task registry / lease / retry / dead-letter
+-> source-family executor
+-> raw asset
+-> provider output
+-> canonical source truth
+-> declared projections
+-> canonical document artifacts
+-> document-units
+-> chunks
+-> embedding / index
+-> release manifest
+-> alias / read-model publish
+-> app-api operator projection
+```
+
+长期 ingestion / data-plane runtime 目标不是 Python script collection，也不是把
+`apps/app-api` 扩成 ingestion executor。目标分工固定为：
+
+- `apps/app-api` 只承接 product/operator ingress、release gate command 与
+  operator-safe read model；不拥有 ingestion task execution、source mutation、
+  document/index materialization 或 Qdrant alias publish。
+- ingestion control plane 拥有 task admission、task registry、claim / lease /
+  retry / dead-letter、run shard state、telemetry closeout 与 operator projection
+  snapshot。
+- `apps/ingestion-worker` 是 durable executor shell；它按 source family 分派任务，
+  调用 ingestion contracts、deterministic kernels 与 provider/domain adapters，并把
+  redacted closeout 投影回 operator surface。
+- `packages/ingestion-core` 继续拥有 canonical data-plane contract、shared file asset
+  loader、source-truth / materialization / release task 语义与 collection strategy。
+- Rust 只作为 proof-gated deterministic kernel lane，用于 profiling 已证明的高吞吐
+  CPU / memory 热点，例如 JSONL streaming、document-units validation、chunk packing、
+  hash / dedup / diff、release manifest validation 与 embedding batch input preparation。
+- Python 只作为 offline ingestion / eval / tooling runtime，或 MinerU / OCR / ML /
+  domain extraction adapter；不得重新进入 online answer serving、top-level
+  orchestration、provider cancellation ownership 或 product projection ownership。
 
 ## 长期硬约束
 

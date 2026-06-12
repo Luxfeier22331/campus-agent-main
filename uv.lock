@@ -20,7 +20,9 @@ members = [
     "campus-authenticated-notice-collector",
     "campus-contracts",
     "campus-evals",
+    "campus-ingestion-contracts",
     "campus-ingestion-core",
+    "campus-ingestion-kernels-rs",
     "campus-ingestion-worker",
     "campus-knowledge-capability",
     "campus-legacy-office-conversion-service",
@@ -322,6 +324,11 @@ requires-dist = [
 ]
 
 [[package]]
+name = "campus-ingestion-contracts"
+version = "0.1.0"
+source = { editable = "packages/ingestion-contracts" }
+
+[[package]]
 name = "campus-ingestion-core"
 version = "0.1.0"
 source = { editable = "packages/ingestion-core" }
@@ -367,16 +374,23 @@ requires-dist = [
 ]
 
 [[package]]
+name = "campus-ingestion-kernels-rs"
+version = "0.1.0"
+source = { virtual = "packages/ingestion-kernels-rs" }
+
+[[package]]
 name = "campus-ingestion-worker"
 version = "0.1.0"
 source = { editable = "apps/ingestion-worker" }
 dependencies = [
+    { name = "campus-ingestion-contracts" },
     { name = "campus-ingestion-core" },
     { name = "campus-shared" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "campus-ingestion-contracts", editable = "packages/ingestion-contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
     { name = "campus-shared", editable = "packages/shared" },
 ]

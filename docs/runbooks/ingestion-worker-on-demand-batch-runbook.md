@@ -245,6 +245,43 @@ uv run --all-packages python -m scripts.official_web_release_task_local_smoke \
   --app-api-internal-shared-secret "$INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"
 ```
 
+## Ingestion Control Task Runtime
+
+新的 target-runtime task seam 使用 `apps/ingestion-control` 承接 task admission、
+idempotency、claim / lease、heartbeat、retry、dead-letter 与 redacted operator
+projection。Python worker 只作为 executor adapter shell 连接该 control plane。
+
+本地启动顺序：
+
+```bash
+docker compose -f infra/local/docker-compose.postgres.yml up -d postgres ingestion-control
+```
+
+control plane 默认监听：
+
+```text
+http://127.0.0.1:27061
+```
+
+Python executor 单次 claim / dispatch / closeout：
+
+```bash
+INGESTION_CONTROL_BASE_URL=http://127.0.0.1:27061 \
+INGESTION_WORKER_ID=local-python-worker \
+  uv run --package campus-ingestion-worker \
+  campus-ingestion-run-control-task-once \
+  --adapter-id curriculum.chunk_prepare.v1
+```
+
+约束：
+
+- `INGESTION_CONTROL_DATABASE_URL` 缺失时 control plane 不启动，不回退到 in-memory
+  store。
+- `INGESTION_CONTROL_BASE_URL` 缺失时 Python executor fail closed，不回退到旧 CLI
+  task lifecycle。
+- `/internal/ingestion/operator-projection/tasks` 只返回 redacted task snapshot，不返回
+  `input_ref`、`artifact_refs` 或对象存储 URI。
+
 ## Authenticated Notice Closeout
 
 ### Ingest Queue Contract

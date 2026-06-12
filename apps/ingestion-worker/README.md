@@ -19,6 +19,11 @@ Env bootstrap rule:
 
 `apps/ingestion-worker` exposes ingestion runtime shells.
 
+- New target-runtime work starts at the ingestion task executor seam:
+  `campus_ingestion_worker.ingestion_task_executor` claims a validated task from
+  ingestion-control, dispatches a registered Python adapter, and reports
+  completed / failed closeout. Existing collection CLIs should migrate behind
+  this seam instead of owning task lifecycle directly.
 - Default low-frequency operation is on-demand batch execution: pull up a
   bounded CLI job, emit a JSON report, then exit. Do not keep a full Python
   ingestion worker resident for the current notice volume. See

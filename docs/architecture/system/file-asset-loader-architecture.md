@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-19
-updated: 2026-04-20
+updated: 2026-06-11
 ---
 # Shared File Asset Loader Architecture
 
@@ -186,6 +186,9 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 - `MinerU` 与 `Paddle` 允许走受信任的公开 API
 - 是否 remote 不改变 canonical lane 的语义
 - 后续若切到 self-hosted，同样必须复用同一 shared contract，而不是重建第二套 parser path
+- `MinerU` / `Paddle` 的 Python provider adapter 不拥有 ingestion/data-plane runtime
+  边界；它只产出 shared file asset loader contract 下的 extraction/provider artifacts，
+  后续必须回到 canonical source truth / document artifact / projection 路径
 
 ### LibreOffice-Family Conversion
 

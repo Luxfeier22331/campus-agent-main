@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
   "campus-shared",
   "campus-ingestion-core",
+  "campus-ingestion-contracts",
 ]
 
 [tool.uv]
@@ -15,6 +16,7 @@ package = true
 [tool.uv.sources]
 campus-shared = { workspace = true }
 campus-ingestion-core = { workspace = true }
+campus-ingestion-contracts = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/campus_ingestion_worker"]
@@ -132,6 +134,7 @@ campus-ingestion-schedule-transport-preview-gate = "campus_ingestion_worker.sche
 campus-ingestion-smoke-internal-notice-consumption-runtime = "campus_ingestion_worker.smoke_internal_notice_consumption_runtime:main"
 campus-ingestion-evaluate-internal-notice-multimodal-decisions = "campus_ingestion_worker.evaluate_internal_notice_multimodal_decisions:main"
 campus-ingestion-validate-internal-notice-chunking = "campus_ingestion_worker.validate_internal_notice_chunking:main"
+campus-ingestion-run-control-task-once = "campus_ingestion_worker.ingestion_task_executor:main"
 
 [build-system]
 requires = ["hatchling>=1.24.0"]

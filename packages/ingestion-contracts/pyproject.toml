@@ -1,0 +1,20 @@
+[project]
+name = "campus-ingestion-contracts"
+version = "0.1.0"
+description = "Shared ingestion task contracts for campus-agent data plane."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/campus_ingestion_contracts"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/campus_ingestion_contracts", "pyproject.toml", "README.md", "schemas", "fixtures"]
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"

@@ -24,6 +24,7 @@ import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
+	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
 import {
@@ -114,6 +115,7 @@ export function createRequestScopeFactory(input: {
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
+			let ingestionTaskProjectionClient = input.dependencies.ingestionTaskProjectionClient ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
 			let officialWebReleaseTaskProcessingCommandService =
@@ -297,6 +299,17 @@ export function createRequestScopeFactory(input: {
 				return docsService;
 			}
 
+			function resolveIngestionTaskProjectionClient() {
+				if (ingestionTaskProjectionClient) {
+					return ingestionTaskProjectionClient;
+				}
+
+				ingestionTaskProjectionClient = createIngestionTaskProjectionClient(input.env, {
+					fetchImplementation: input.dependencies.ingestionTaskProjectionFetch,
+				});
+				return ingestionTaskProjectionClient;
+			}
+
 			function resolveOfficialWebQueryService() {
 				if (officialWebQueryService) {
 					return officialWebQueryService;
@@ -409,6 +422,7 @@ export function createRequestScopeFactory(input: {
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDocsService,
+				resolveIngestionTaskProjectionClient,
 				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
 				resolveOfficialWebReleaseTaskProcessingCommandService,

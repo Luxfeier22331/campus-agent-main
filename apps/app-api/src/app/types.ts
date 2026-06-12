@@ -10,6 +10,8 @@ import type { DocsService } from "../modules/docs";
 import type {
 	ExecutionControlCampusServicesProductPathPreflight,
 	ExecutionControlRuntimePreflight,
+	IngestionTaskProjectionClient,
+	IngestionTaskProjectionFetch,
 } from "../modules/integration";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
@@ -49,6 +51,8 @@ export interface AppDependencies {
 		env: Env,
 		input?: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
+	ingestionTaskProjectionClient?: IngestionTaskProjectionClient;
+	ingestionTaskProjectionFetch?: IngestionTaskProjectionFetch;
 	officialWebCommandService?: OfficialWebCommandService;
 	officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
 	officialWebPlannerService?: OfficialWebPlannerService;
@@ -112,6 +116,7 @@ export interface AppRequestScope {
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
 	resolveDocsService(): DocsService;
+	resolveIngestionTaskProjectionClient(): IngestionTaskProjectionClient;
 	resolveOfficialWebCommandService(): OfficialWebCommandService;
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
 	resolveOfficialWebReleaseTaskProcessingCommandService(): OfficialWebReleaseTaskProcessingCommandService;

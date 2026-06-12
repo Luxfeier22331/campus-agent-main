@@ -56,6 +56,9 @@
 		"go:static:check": "pnpm go:fmt:check && pnpm go:vet && pnpm go:lint",
 		"go:test": "cd apps/execution-control && go test ./...",
 		"go:check": "pnpm go:static:check && pnpm go:test",
+		"rust:fmt:check": "cargo fmt --check",
+		"rust:test": "cargo test --workspace",
+		"rust:check": "pnpm rust:fmt:check && pnpm rust:test",
 		"lint": "pnpm web:lint && pnpm docs:lint && pnpm public-docs:lint && pnpm coverage:lint && pnpm decomposition:lint && pnpm java:lint && pnpm editorconfig:lint && pnpm env:lint && pnpm html:lint && pnpm yaml:lint && pnpm toml:lint && pnpm shell:lint && pnpm xml:lint && pnpm jsonl:lint && pnpm sql:lint && pnpm docker:lint && pnpm lock:lint && pnpm go:static:check && pnpm py:lint && pnpm py:format:check",
 		"lint:fix": "pnpm web:lint:fix && pnpm py:lint:fix && pnpm py:format"
 	},
