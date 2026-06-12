@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import textwrap
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+from tests.execution_control_staging_preflight_support import run_common_script_with_env
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGING_DIR = ROOT / "infra" / "local" / "staging"
@@ -46,6 +49,77 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
 
         self.assertIn("--env-file", core_script)
         self.assertIn('"${execution_control_staging_env_file}"', core_script)
+
+    def test_compose_wrapper_projects_primary_agent_runtime_env(self) -> None:
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+
+        for required_projection in (
+            "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",
+            "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET",
+            "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",
+            "AGENT_RUNTIME_SHARED_SECRET",
+            "AGENT_RUNTIME_TOOL_CATALOG_PATH",
+            "AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL",
+            "AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET",
+        ):
+            with self.subTest(required_projection=required_projection):
+                self.assertIn(required_projection, core_script)
+
+    def test_env_loader_projects_agent_runtime_execution_control_query_env(self) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env="\n".join(
+                (
+                    "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@staging-raw.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://5943f31433be5dd57beb3bb92bd1c660.r2.cloudflarestorage.com",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret",
+                    "STAGING_INGESTION_OBJECT_STORE_REGION=auto",
+                    "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
+                    "STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com",
+                    "STAGING_INGESTION_QDRANT_API_KEY=qdrant-key",
+                    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key",
+                    "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+                    "STAGING_INGESTION_EMBEDDING_PROVIDER=gitee",
+                    "STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1",
+                    "STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key",
+                    "STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B",
+                    "STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560",
+                    "STAGING_INGESTION_SPARSE_PROVIDER=qdrant",
+                    "STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25",
+                    "STAGING_INGESTION_SPARSE_TOKENIZER=multilingual",
+                    "STAGING_INGESTION_SPARSE_LANGUAGE=none",
+                    "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
+                    "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
+                    "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                    "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://projection@staging-db.example.com:5432/campus_agent",
+                )
+            ),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        projected = json.loads(result.stdout)
+        self.assertEqual(
+            projected["AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL"],
+            "http://execution-control:8000",
+        )
+        self.assertEqual(
+            projected["AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET"],
+            "query-secret",
+        )
+
+    def test_compose_running_gate_includes_primary_agent_runtime_services(self) -> None:
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('"agent-runtime"', core_script)
+        self.assertIn('"activity-worker-agent"', core_script)
 
     def test_start_status_and_preflight_enforce_clean_pinned_checkout(self) -> None:
         for relative_path in (

@@ -70,7 +70,6 @@ def build_process_smoke_plan(
     )
     api_base_url = f"http://{api_host}:{api_port}"
     common_env = {
-        "AGENT_RUNTIME_PROVIDER": "mock-runtime",
         "PROMPT_RUNTIME_PROVIDER": "mock-runtime",
         "PROMPT_RUNTIME_MODEL": "gpt-5.5",
         "PROMPT_RUNTIME_API_KEY": "process-smoke-prompt-key",

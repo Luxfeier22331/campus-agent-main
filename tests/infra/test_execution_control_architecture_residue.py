@@ -201,6 +201,11 @@ ACTIVE_EXECUTION_TRUTH_FORBIDDEN_SNIPPETS = (
     "在公开 answer / stream 入口同样走 `single_step` bridge lane",
 )
 
+LOCAL_RUNTIME_REQUIRED_SERVICES = (
+    "agent-runtime:",
+    "activity-worker-agent:",
+)
+
 DETERMINISTIC_AGENT_LABEL_FORBIDDEN_PATTERNS = (
     "campus-services-agent",
     "notice-agent",
@@ -468,6 +473,15 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
                     offenders.append(f"{path.relative_to(ROOT)} contains {snippet}")
 
         self.assertEqual(offenders, [])
+
+    def test_local_runtime_compose_includes_primary_agent_runtime_services(self) -> None:
+        compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
+            encoding="utf-8"
+        )
+
+        for service in LOCAL_RUNTIME_REQUIRED_SERVICES:
+            with self.subTest(service=service):
+                self.assertIn(service, compose)
 
     def test_deterministic_capabilities_do_not_use_agent_runtime_labels(self) -> None:
         offenders: list[str] = []
