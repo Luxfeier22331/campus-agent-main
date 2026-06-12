@@ -106,3 +106,7 @@ def _print_json(payload: dict[str, object]) -> None:
 
 
 __all__ = ["build_parser", "main"]
+
+
+if __name__ == "__main__":
+    main()

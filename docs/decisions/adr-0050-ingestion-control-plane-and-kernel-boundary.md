@@ -35,12 +35,16 @@ ingestion 当前存在大量 Python CLI、collection strategy 与 historical rep
   DTO 的 source of truth。
 - `apps/ingestion-control` 是 internal Docker-first task control plane；它拥有 admission、
   idempotency、claim / lease、retry、dead-letter 与 closeout lifecycle。
-- `apps/ingestion-worker` 通过 task executor seam claim task、dispatch Python adapter、
-  report terminal closeout；既有 collection CLI 后续迁入该 seam。
+- `apps/ingestion-worker` 通过 task executor seam claim task、dispatch adapter、
+  report terminal closeout。既有 Python collection CLI 不默认迁入该 seam；它们按
+  delete-first clean-target triage 处理，只有当前生产生命周期仍需要的能力才以 TS /
+  Rust target runtime 或 Python adapter 重新建模。
 - `packages/ingestion-kernels-rs` 只承接 file-level deterministic kernels；不得连接
   Postgres、Qdrant、S3 或 provider，不得拥有 source-channel 语义。
 - `configs/ingestion/<corpus>/<collection>/task-registry.v1.json` 是 collection task
   topology 的 repo-owned declaration。
+- 旧 Python CLI 不是长期 ingestion runtime source of truth。逐条处置规则见
+  `docs/reference/ingestion-python-cli-clean-target-triage.md`。
 
 第一批 accepted registry targets：
 
@@ -53,6 +57,8 @@ ingestion 当前存在大量 Python CLI、collection strategy 与 historical rep
   local rebuild、audit 或 diagnostic input。
 - Rust kernel 必须先通过 output equivalence 与 profiling proof，才允许替换默认 Python
   path。
+- 新建或重建 ingestion 能力默认优先 TS control-plane / executor 与 Rust deterministic
+  kernel；Python 只允许作为 MinerU / OCR / ML / legacy document extraction 等 adapter。
 - app-api 只能消费 redacted operator projection snapshot，不新增 ingestion executor
   callback 或 source mutation route。
 - Qdrant alias publish 只能挂在 release manifest / retrieval acceptance 后的

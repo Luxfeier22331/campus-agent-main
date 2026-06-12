@@ -550,8 +550,8 @@ hash 不一致都不得继续。
 derived bucket hygiene audit 产出的 `unexpected-keys.jsonl` 执行：
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-cleanup-derived-bucket-unexpected-keys \
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_derived_bucket_unexpected_keys \
   --candidate-inventory-path <audit-output>/unexpected-keys.jsonl \
   --output-dir <cleanup-output> \
   --yes

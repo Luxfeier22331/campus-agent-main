@@ -76,8 +76,10 @@ LibreOffice` 真正可接单。
 Thin worker shell:
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-normalize-authenticated-notice-legacy-office-attachment \
+module=campus_ingestion_worker.normalize_authenticated_notice_legacy_office_
+module="${module}attachment"
+uv run --all-packages python -m \
+  "$module" \
   --help
 ```
 

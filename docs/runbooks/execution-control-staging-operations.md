@@ -912,7 +912,8 @@ Use this path only when all of the following are true:
 Run the dry-run reconstruction first:
 
 ```bash
-uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
+uv run --all-packages python -m \
+  campus_ingestion_worker.reconstruct_rag_release_manifests \
   --backup-root /srv/backups/campus-agent/qdrant-snapshots \
   --report-path var/staging-evidence/rag-release-manifest-reconstruction.json
 ```
@@ -921,7 +922,8 @@ If the report shows the expected four current surfaces and exact manifest keys,
 write the manifests:
 
 ```bash
-uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
+uv run --all-packages python -m \
+  campus_ingestion_worker.reconstruct_rag_release_manifests \
   --backup-root /srv/backups/campus-agent/qdrant-snapshots \
   --report-path var/staging-evidence/rag-release-reconstruction-write.json \
   --write
@@ -930,7 +932,8 @@ uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
 Then verify readiness:
 
 ```bash
-uv run --all-packages campus-ingestion-probe-regulation-rag-release-runtime
+uv run --all-packages python -m \
+  campus_ingestion_worker.probe_regulation_rag_release_runtime
 infra/local/staging/status-execution-control-staging.sh --check
 ```
 

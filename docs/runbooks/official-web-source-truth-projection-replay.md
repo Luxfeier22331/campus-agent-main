@@ -140,7 +140,7 @@ pnpm --dir apps/official-web-collector qc-report -- \
 
 ```bash
 uv run --all-packages python -m \
-  campus_ingestion_worker.project_official_web_source_truth
+  campus_ingestion_worker.project_official_web_source_truth \
   --output-dir /tmp/official-web-qc-batch-a \
   --projection-output-dir /tmp/official-web-qc-batch-a-projection
 ```
@@ -149,14 +149,15 @@ uv run --all-packages python -m \
 
 ```bash
 uv run --all-packages python -m \
-  campus_ingestion_worker.validate_official_web_projection
+  campus_ingestion_worker.validate_official_web_projection \
   --projection-output-dir /tmp/official-web-qc-batch-a-projection
 ```
 
 1. 在 import / release 之前，先做本地 cleaning + chunking 审计。
 
 ```bash
-uv run --all-packages campus-ingestion-audit-official-web-projection-chunking \
+uv run --all-packages python -m \
+  campus_ingestion_worker.audit_official_web_projection_chunking \
   --projection-output-dir /tmp/official-web-qc-batch-a-projection
 ```
 
@@ -209,7 +210,7 @@ truth，也不写 Qdrant。
 
 ```bash
 uv run --all-packages python -m \
-  campus_ingestion_worker.official_web_projection_import
+  campus_ingestion_worker.official_web_projection_import \
   --projection-output-dir /tmp/official-web-qc-batch-a-projection \
   --replay-input-dir /tmp/official-web-qc-batch-a \
   --work-dir /tmp/official-web-qc-batch-a-import \
@@ -237,7 +238,8 @@ inventory-not-query-enabled guard cases，不能写 expected / forbidden sources
 
 ```bash
 # 1) operator 先在 app-api 中批准 previewed inventory row，得到 releaseId
-campus-ingestion-release-official-web-target \
+uv run --all-packages python -m \
+  campus_ingestion_worker.release_official_web_target \
   --release-id <releaseId> \
   --work-dir ./var/official-web-target-releases
 ```
@@ -253,7 +255,7 @@ registry scope chunk preparation，再把通过验证的 preparation 交给 `rel
 
 ```bash
 uv run --all-packages python -m \
-  campus_ingestion_worker.official_web_projection_import
+  campus_ingestion_worker.official_web_projection_import \
   --projection-output-dir /tmp/official-web-qc-batch-a-projection \
   --replay-input-dir /tmp/official-web-qc-batch-a \
   --work-dir /tmp/official-web-qc-batch-a-import-stable-reference \

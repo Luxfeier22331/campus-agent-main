@@ -19,9 +19,6 @@ multimodal_drain_limit="${INGESTION_ON_DEMAND_WECHAT_MULTIMODAL_DRAIN_LIMIT:-100
 multimodal_drain_batch_size="${INGESTION_ON_DEMAND_WECHAT_MULTIMODAL_DRAIN_BATCH_SIZE:-20}"
 multimodal_drain_max_attempts="${INGESTION_ON_DEMAND_WECHAT_MULTIMODAL_DRAIN_MAX_ATTEMPTS:-3}"
 multimodal_drain_skip_read_model_rebuild="${INGESTION_ON_DEMAND_WECHAT_MULTIMODAL_DRAIN_SKIP_READ_MODEL_REBUILD:-0}"
-runtime_smoke="${INGESTION_ON_DEMAND_WECHAT_RUNTIME_SMOKE:-1}"
-runtime_smoke_check_multimodal_provider="${INGESTION_ON_DEMAND_WECHAT_RUNTIME_SMOKE_CHECK_MULTIMODAL_PROVIDER:-0}"
-python_bin="${INGESTION_ON_DEMAND_PYTHON_BIN:-}"
 
 args=()
 if [[ -n "${selection_path}" ]]; then
@@ -86,36 +83,3 @@ if [[ "${multimodal_drain}" == "1" || "${multimodal_drain}" == "true" ]]; then
     wechat-public-notice-multimodal-drain \
     "${multimodal_args[@]}"
 fi
-
-if [[ "${runtime_smoke}" != "1" && "${runtime_smoke}" != "true" ]]; then
-  exit 0
-fi
-
-smoke_args=()
-if [[ -n "${selection_path}" ]]; then
-  smoke_args+=(--selection-path "${selection_path}")
-fi
-if [[ -n "${article_manifest_key}" ]]; then
-  smoke_args+=(--article-manifest-key "${article_manifest_key}")
-fi
-if [[ -n "${source_bucket}" ]]; then
-  smoke_args+=(--source-bucket "${source_bucket}")
-fi
-if [[ -n "${capture_run_id}" ]]; then
-  smoke_args+=(--capture-run-id "${capture_run_id}")
-fi
-if [[ "${latest_capture_run}" == "1" || "${latest_capture_run}" == "true" ]]; then
-  smoke_args+=(--latest-completed-capture-run)
-fi
-if [[ -n "${capture_account_slug}" ]]; then
-  smoke_args+=(--capture-account-slug "${capture_account_slug}")
-fi
-if [[ "${runtime_smoke_check_multimodal_provider}" == "1" || "${runtime_smoke_check_multimodal_provider}" == "true" ]]; then
-  smoke_args+=(--check-multimodal-provider)
-fi
-
-if [[ -n "${python_bin}" && -x "${python_bin}" ]]; then
-  exec "${python_bin}" -m campus_ingestion_worker.smoke_wechat_public_notice_runtime "${smoke_args[@]}"
-fi
-
-exec uv run --package campus-ingestion-worker campus-ingestion-smoke-wechat-public-notice-runtime "${smoke_args[@]}"

@@ -35,8 +35,8 @@ updated: 2026-04-23
 先核对 object store release family 和 Qdrant alias / physical collection family：
 
 ```bash
-uv run --package campus-ingestion-worker \
-  campus-ingestion-audit-collection-runtime-state
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.audit_collection_runtime_state
 ```
 
 输出会按 target 给出：

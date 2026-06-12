@@ -68,7 +68,7 @@ class HistoricalRegulationChunkBackfillPlanTest(unittest.TestCase):
             False,
         )
         self.assertIn(
-            "campus-ingestion-prepare-historical-regulation-chunk-backfill",
+            "campus_ingestion_worker.prepare_historical_regulation_chunk_backfill",
             evidence["chunk_only_execution_plan_md"],
         )
         self.assertNotIn(

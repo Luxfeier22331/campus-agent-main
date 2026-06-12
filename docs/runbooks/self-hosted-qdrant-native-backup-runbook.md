@@ -157,7 +157,8 @@ Use the filesystem backup worker when release manifests are in the configured
 derived bucket and aliases already point to the current physical collections:
 
 ```bash
-uv run --all-packages campus-ingestion-qdrant-filesystem-backup-create \
+uv run --all-packages python -m \
+  campus_ingestion_worker.qdrant_filesystem_backup_create \
   --corpus regulations \
   --collection student_rules \
   --release-id <release_id> \
@@ -256,12 +257,14 @@ Do not delete an old physical collection unless:
 Historical object-store backup cleanup is separate:
 
 ```bash
-uv run --all-packages campus-ingestion-qdrant-backup-cleanup plan \
+uv run --all-packages python -m \
+  campus_ingestion_worker.qdrant_backup_cleanup plan \
   --output-dir var/qdrant-backup-cleanup/<run_id> \
   --current-alias student_rules=<physical_collection> \
   --obsolete-family regulations/student_handbook
 
-uv run --all-packages campus-ingestion-qdrant-backup-cleanup delete \
+uv run --all-packages python -m \
+  campus_ingestion_worker.qdrant_backup_cleanup delete \
   --plan-path var/qdrant-backup-cleanup/<run_id>/deletion-plan.json \
   --output-dir var/qdrant-backup-cleanup/<run_id>
 ```
@@ -314,7 +317,8 @@ with the repo-owned repair command. This is an exceptional recovery path, not
 the normal release publication path:
 
 ```bash
-uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
+uv run --all-packages python -m \
+  campus_ingestion_worker.reconstruct_rag_release_manifests \
   --backup-root /srv/backups/campus-agent/qdrant-snapshots \
   --report-path var/staging-evidence/rag-release-manifest-reconstruction.json
 ```
@@ -322,7 +326,8 @@ uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
 After reviewing the dry-run report, perform the write explicitly:
 
 ```bash
-uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
+uv run --all-packages python -m \
+  campus_ingestion_worker.reconstruct_rag_release_manifests \
   --backup-root /srv/backups/campus-agent/qdrant-snapshots \
   --report-path var/staging-evidence/rag-release-reconstruction-write.json \
   --write

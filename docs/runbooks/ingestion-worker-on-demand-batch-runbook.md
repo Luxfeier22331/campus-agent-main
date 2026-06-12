@@ -19,7 +19,7 @@ updated: 2026-04-27
 
 ## Runtime Posture
 
-当前默认姿态是：
+当前默认姿态是过渡姿态，不是 clean-target runtime：
 
 - 不常驻完整 Python ingestion worker 进程
 - 由 cron、systemd timer、外部调度器或 operator shell 按需拉起 CLI
@@ -27,6 +27,9 @@ updated: 2026-04-27
 - heavy ingestion dependencies 只在具体子命令进程中加载
 - on-demand runner 负责 orchestration 与 resource profile，不拥有 source truth 或
   serving policy
+- 后续 clean target 不继续扩大 Python on-demand runner；旧 CLI 逐条按
+  `docs/reference/ingestion-python-cli-clean-target-triage.md` 删除、归档或以 TS /
+  Rust / Python adapter 重新建模
 
 这适合当前低频 notice / handoff 规模。若后续变成高频队列消费、需要 lease/backpressure 或
 长时间并发协调，再重新评估 Go/Rust/TS runner。
@@ -37,14 +40,6 @@ updated: 2026-04-27
 
 ```bash
 uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
-  <batch-kind> \
-  --report-path .tmp/ingestion-reports/<run-id>.json
-```
-
-安装脚本入口：
-
-```bash
-uv run --package campus-ingestion-worker campus-ingestion-run-on-demand-batch \
   <batch-kind> \
   --report-path .tmp/ingestion-reports/<run-id>.json
 ```
@@ -67,7 +62,8 @@ report 固定包含：
 report retention 命令：
 
 ```bash
-uv run --package campus-ingestion-worker campus-ingestion-prune-reports \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.report_retention \
   --report-dir .tmp/ingestion-reports \
   --max-age-days 14 \
   --max-count 200 \
@@ -79,11 +75,11 @@ uv run --package campus-ingestion-worker campus-ingestion-prune-reports \
 调度前先确认 CLI、env bootstrap 与 operator DB lane 可用：
 
 ```bash
-uv run --package campus-ingestion-worker \
-  campus-ingestion-run-on-demand-batch --help
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.on_demand_batch_runner --help
 
-uv run --package campus-ingestion-worker \
-  campus-ingestion-preflight \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.deployment_preflight \
   --batch-kind internal-notice-multimodal-drain \
   --report-dir .tmp/ingestion-reports \
   --lock-dir .tmp/ingestion-locks
@@ -98,8 +94,8 @@ uv run --package campus-ingestion-worker python -m \
 上线前再运行 live gate：
 
 ```bash
-uv run --package campus-ingestion-worker \
-  campus-ingestion-preflight \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.deployment_preflight \
   --batch-kind internal-notice-multimodal-drain \
   --report-dir /var/lib/campus-agent/ingestion/reports \
   --lock-dir /run/campus-agent/ingestion \
@@ -195,7 +191,8 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
 入口显式 admission：
 
 ```bash
-uv run --all-packages campus-ingestion-admit-official-web-release-gate \
+uv run --all-packages python -m \
+  campus_ingestion_worker.admit_official_web_release_gate \
   --release-gate-path /path/to/official-web-release-gate.json
 ```
 
@@ -268,8 +265,8 @@ Python executor 单次 claim / dispatch / closeout：
 ```bash
 INGESTION_CONTROL_BASE_URL=http://127.0.0.1:27061 \
 INGESTION_WORKER_ID=local-python-worker \
-  uv run --package campus-ingestion-worker \
-  campus-ingestion-run-control-task-once \
+  uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.ingestion_task_executor \
   --adapter-id curriculum.chunk_prepare.v1
 ```
 
@@ -467,7 +464,8 @@ INGESTION_ON_DEMAND_REPORT_DIR=.tmp/ingestion-reports
 - service 使用固定低权限用户，例如 `User=campus-ingestion`
 - secrets 从 server-side env file 注入，例如
   `EnvironmentFile=/etc/campus-agent/ingestion-worker.env`
-- `ExecStartPre` 先跑 `campus-ingestion-preflight --live`
+- `ExecStartPre` 先跑
+  `python -m campus_ingestion_worker.deployment_preflight --live`
 - `TimeoutStartSec` 必须大于最大 batch 预算，但不能无限等待
 - run script 使用 `flock` 或等价锁，避免 timer overlap
 - `Environment=UV_CACHE_DIR=...` 并把 cache 目录放进 `ReadWritePaths`，避免
