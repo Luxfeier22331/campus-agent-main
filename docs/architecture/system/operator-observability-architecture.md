@@ -90,6 +90,51 @@ spine：
   仍归 `apps/app-api` operator read model；panel 不从 runtime-internal package、sink
   query 或 execution-control response 拼装诊断事实。
 
+## Operator-Safe Trajectory Diagnostics Contract
+
+eval、badcase 与后续 release evidence 不再各自解释 `workflow_trace_summary` 或
+runtime-specific payload。它们共同消费 app-api 物化后的 operator-safe trajectory
+diagnostics contract：
+
+`app-api operator request detail / export -> operator_step_trajectory.v1 ->
+eval attribution / badcase projection / release-evidence-shaped local fixture`
+
+第一版契约目标：
+
+- 保持非 staging：只冻结离线 / fixture / local export 的消费口径，不要求真实
+  staging run、真实 Temporal metrics 或真实 release closeout。
+- 保持 app-api ownership：输入只能来自 app-api operator read model 或与其同形的
+  sanitized export fixture，不得读取 Temporal history、execution-control internal
+  endpoint、raw provider trace、raw prompt、raw answer、raw transcript 或 local object
+  path。
+- 保持共同归因：每个 eval failure、badcase 或 future release evidence item 必须能关联
+  到 step trajectory 中的阶段、capability、tool、attempt outcome 与 projection refs；无法关联时
+  必须显式标记 `trajectory_missing` / `attribution_missing`，不得从 raw artifact 猜测。
+- 保持兼容摘要降级：`workflow_trace_summary` 可以继续为 panel / eval 提供 bounded
+  display summary，但不得作为 canonical diagnostic source，也不得反向覆盖 step
+  trajectory。
+
+`operator_step_trajectory.v1` 的最小诊断字段族固定为：
+
+- run identity：`request_id`、`run_id`、`trace_id`、`conversation_id`
+- step identity：`step_id`、`step_kind`、`capability`、`tool_name`、`status`
+- execution metadata：task queue / worker metadata、attempt count、queue wait、duration
+- outcome metadata：fail-close reason、terminal reason、replan reason、cancel outcome、
+  timeout outcome、late-completion outcome
+- model / cost metadata：provider、model、input / output / cached tokens、estimated
+  cost
+- projection refs：result refs、answer artifact refs、evidence / retrieval / grounding
+  projection refs where available
+
+消费者职责：
+
+- eval normalizer 负责把 app-api export 转成 stable diagnostic observation，不拥有
+  runtime truth。
+- badcase projection 负责把低分、失败或人工复核项绑定到 sanitized step attribution，不读取
+  raw artifact。
+- release evidence 在链路成熟前只能生成 release-evidence-shaped local fixture，用来锁定未来
+  evidence schema 与安全红线；真实 staging evidence 必须后置。
+
 ## Ownership Model
 
 ### `apps/protected-panel-web`

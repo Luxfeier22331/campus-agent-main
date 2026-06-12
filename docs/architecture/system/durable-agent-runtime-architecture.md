@@ -752,8 +752,9 @@ worker autoscaler 边界固定为：
   historical schema artifact 混合命名，需要后续纯命名整理，但不得重新接回 serving。
 - step-level projection 已进入 current chat trajectory；app-api operator query 与
   protected panel 已开始消费 `agent_run_steps`、`agent_step_attempts`、
-  `agent_step_results` 作为诊断主线。eval / badcase 归因仍需要继续统一到 step
-  trajectory。
+  `agent_step_results` 作为诊断主线。eval / badcase 归因仍需要继续统一到 app-api
+  owned `operator_step_trajectory.v1`；当前阶段只补离线 / fixture / local export
+  的 consumer contract，不做真实 staging evidence closeout。
 - worker autoscaler 已有 dry-run proof：可以基于 task queue observation、poller
   health 与 downstream budget projection 计算 desired replicas，且不写
   workflow/run/step/event truth。真实基础设施扩缩容接入仍未启用。
@@ -769,7 +770,9 @@ worker autoscaler 边界固定为：
 - panel / eval / observability 仍需要进一步统一到 step-level trajectory：routing、
   planning、tool、retrieval、rerank、selection、synthesis、grounding、replan 与
   agent-as-tool activity 应作为诊断阶段进入 badcase、RAGAS、golden dataset 与 operator
-  panel projection。
+  panel projection。非 staging 阶段的正确落点是 app-api sanitized trajectory export
+  与 eval/badcase normalizer；release evidence 只能先生成 release-evidence-shaped local
+  fixture，不接真实 Temporal metrics 或 staging closeout。
 
 这些 gap 不得通过简单多开实例、HTTP load balancing、Redis queue 或 K8s HPA 标记为已解决。
 

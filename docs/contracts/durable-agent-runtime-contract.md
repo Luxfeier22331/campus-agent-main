@@ -566,3 +566,50 @@ Missing required run projection state must fail closed.
 新增 capability lane 或 opening gate 不得只证明 typed tool / worker 函数可执行；它必须证明
 normal、fail-close、cancel、timeout、late completion 与 replan outcome 可以进入
 step/attempt/result projection，并能被 app-api operator read model 消费。
+
+## Operator Step Trajectory Export
+
+`runtimeRun.stepTrajectory` 是 app-api 面向 panel、eval、badcase 与 future release
+evidence 的唯一 canonical diagnostic export。它不是 raw Temporal replay，也不是
+execution-control `/steps` response 的浏览器透传。
+
+第一版 export contract 固定为 `operator_step_trajectory.v1`：
+
+- source owner：`apps/app-api`
+- source input：app-api materialized operator request detail，或测试中与该 detail
+  同形的 sanitized fixture
+- consumers：protected panel request detail、eval attribution、badcase projection、
+  release-evidence-shaped local fixture builder
+- forbidden consumers：Temporal history reader、execution-control direct query from
+  eval / panel、provider raw trace reader、raw prompt / raw answer / raw transcript
+  reader、本机 object path / bucket / local artifact reverse lookup
+
+每个 diagnostic step item 至少承载：
+
+- `step_id`
+- `step_kind`
+- `capability`
+- `tool_name`
+- `status`
+- `attempt_count`
+- `queue_wait_ms`
+- `duration_ms`
+- task queue / worker metadata where available
+- provider / model / token / estimated cost metadata where available
+- `fail_close_reason`
+- `terminal_reason`
+- `replan_reason`
+- `cancel_outcome`
+- `timeout_outcome`
+- `late_completion_outcome`
+- bounded result / evidence / artifact projection refs where available
+
+Eval / badcase / release-evidence-shaped local fixture rules：
+
+- 不允许直接消费 `workflow_trace_summary` 作为 canonical source；它只能作为 bounded
+  compatibility display summary。
+- 无法把 failure stage 绑定到 step trajectory 时，必须输出
+  `trajectory_missing` 或 `attribution_missing`，不得从 raw artifact 或 sink trace 猜测。
+- 真实 staging run、Temporal metrics sampling、schedule-to-start release evidence 与
+  production release closeout 不属于该 contract 的第一版实现范围；这些只能在链路成熟后接入同一
+  export contract。

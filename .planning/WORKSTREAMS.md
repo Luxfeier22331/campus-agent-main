@@ -46,6 +46,11 @@ status as current project truth.
   late completion, and panel/eval/operator consumption.
 - Step projection should remain the panel/eval/operator diagnostic spine and
   must carry cancel/timeout/token/cost evidence for failure-mode runs.
+- Eval / badcase / future release evidence should converge on the app-api-owned
+  `operator_step_trajectory.v1` export. Current non-staging work is the
+  operator-safe trajectory normalizer, attribution schema, and local
+  release-evidence-shaped fixtures; real staging closeout remains deferred until
+  the runtime path is mature.
 - Worker autoscaler remains an operations-plane proof: read Temporal/task queue
   metrics and downstream budgets, output desired replicas, never write
   workflow/run/event/terminal state.

@@ -61,6 +61,23 @@ describe("operator query service eval diagnostic badcases", () => {
 							score: 0.31,
 							supportingDocIds: ["doc:wrong"],
 							threshold: 0.8,
+							trajectoryAttribution: {
+								status: "attributed",
+								stepId: "evidence.selection",
+								stepKind: "selection",
+								capability: "knowledge",
+								toolName: null,
+								stepStatus: "completed",
+								outcome: {
+									failCloseReason: null,
+									terminalReason: null,
+									replanReason: null,
+									cancelOutcome: "not_requested",
+									timeoutOutcome: "not_timed_out",
+									lateCompletionOutcome: "not_late",
+								},
+								projectionRefs: ["projection://runs/run_01HQ/evidence-selection"],
+							},
 						},
 						grade: {
 							graderVersion: "ragas-diagnostic-combined-report.v1",
@@ -123,6 +140,13 @@ describe("operator query service eval diagnostic badcases", () => {
 			window: "30d",
 		});
 		expect(result.candidates[0]).toMatchObject({
+			diagnostic: {
+				trajectoryAttribution: {
+					status: "attributed",
+					stepId: "evidence.selection",
+					stepKind: "selection",
+				},
+			},
 			intake: {
 				source: "ragas_diagnostic",
 			},

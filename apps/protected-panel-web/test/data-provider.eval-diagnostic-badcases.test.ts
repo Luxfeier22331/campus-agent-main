@@ -25,6 +25,23 @@ describe("protected panel data provider eval diagnostic badcases", () => {
 							score: 0.31,
 							supportingDocIds: ["doc:wrong"],
 							threshold: 0.8,
+							trajectoryAttribution: {
+								status: "attributed",
+								stepId: "evidence.selection",
+								stepKind: "selection",
+								capability: "knowledge",
+								toolName: null,
+								stepStatus: "completed",
+								outcome: {
+									failCloseReason: null,
+									terminalReason: null,
+									replanReason: null,
+									cancelOutcome: "not_requested",
+									timeoutOutcome: "not_timed_out",
+									lateCompletionOutcome: "not_late",
+								},
+								projectionRefs: ["projection://runs/run_01HQ/evidence-selection"],
+							},
 						},
 						grade: {
 							graderVersion: "ragas-diagnostic-combined-report.v1",
@@ -78,6 +95,12 @@ describe("protected panel data provider eval diagnostic badcases", () => {
 						metricName: "faithfulness",
 						score: 0.31,
 						threshold: 0.8,
+						trajectoryAttribution: {
+							status: "attributed",
+							stepId: "evidence.selection",
+							stepKind: "selection",
+							stepStatus: "completed",
+						},
 					},
 					id: "eval_candidate:ragas_diagnostic:student-scholarship-condition:faithfulness",
 					intake: {

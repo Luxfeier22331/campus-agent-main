@@ -36,6 +36,23 @@ export function registerOperatorQueryStoreEvalCandidateReviewSuite(
 				supportingDocIdsJson: ["doc:wrong"],
 				surfaceKey: "regulations/student_rules",
 				thresholdMilli: 800,
+				trajectoryAttributionJson: {
+					status: "attributed",
+					stepId: "evidence.selection",
+					stepKind: "selection",
+					capability: "knowledge",
+					toolName: null,
+					stepStatus: "completed",
+					outcome: {
+						failCloseReason: null,
+						terminalReason: null,
+						replanReason: null,
+						cancelOutcome: "not_requested",
+						timeoutOutcome: "not_timed_out",
+						lateCompletionOutcome: "not_late",
+					},
+					projectionRefs: ["projection://runs/run_01HQ/evidence-selection"],
+				},
 			},
 		];
 		const limit = vi.fn().mockResolvedValue(diagnosticRows);
@@ -86,6 +103,23 @@ export function registerOperatorQueryStoreEvalCandidateReviewSuite(
 						score: 0.31,
 						supportingDocIds: ["doc:wrong"],
 						threshold: 0.8,
+						trajectoryAttribution: {
+							status: "attributed",
+							stepId: "evidence.selection",
+							stepKind: "selection",
+							capability: "knowledge",
+							toolName: null,
+							stepStatus: "completed",
+							outcome: {
+								failCloseReason: null,
+								terminalReason: null,
+								replanReason: null,
+								cancelOutcome: "not_requested",
+								timeoutOutcome: "not_timed_out",
+								lateCompletionOutcome: "not_late",
+							},
+							projectionRefs: ["projection://runs/run_01HQ/evidence-selection"],
+						},
 					},
 					grade: {
 						graderVersion: "ragas-diagnostic-combined-report.v1",

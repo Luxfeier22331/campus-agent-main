@@ -4,6 +4,24 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildOperatorObservabilityCommandService } from "../src/modules/operator-observability-command";
 
+const trajectoryAttribution = {
+	status: "attributed",
+	stepId: "evidence.selection",
+	stepKind: "selection",
+	capability: "knowledge",
+	toolName: null,
+	stepStatus: "completed",
+	outcome: {
+		failCloseReason: null,
+		terminalReason: null,
+		replanReason: null,
+		cancelOutcome: "not_requested",
+		timeoutOutcome: "not_timed_out",
+		lateCompletionOutcome: "not_late",
+	},
+	projectionRefs: ["projection://runs/run_01HQ/evidence-selection"],
+};
+
 const diagnosticPayload = {
 	schemaVersion: "eval_diagnostic_badcases.v1",
 	evalRunId: "ragas_diagnostic_combined",
@@ -30,6 +48,7 @@ const diagnosticPayload = {
 			supportingChunkIds: ["chunk:wrong"],
 			answerShape: "eligibility_judgment",
 			presentationKind: "condition_table",
+			trajectoryAttribution,
 		},
 	],
 };
@@ -86,10 +105,40 @@ describe("operator eval diagnostic badcases command service", () => {
 					supportingDocIds: ["doc:wrong"],
 					surfaceKey: "regulations/student_rules",
 					thresholdMilli: 800,
+					trajectoryAttribution,
 				},
 			],
 			snapshotId: "eval_diagnostic_badcases:2026-05-21T090000Z",
 		});
+	});
+
+	it("rejects diagnostic trajectory attribution that includes raw or local artifact fields", async () => {
+		const store = createCommandStore();
+		const service = buildOperatorObservabilityCommandService({ store });
+
+		await expect(
+			service.ingestEvalDiagnosticBadcases({
+				payload: {
+					...diagnosticPayload,
+					badcases: [
+						{
+							...diagnosticPayload.badcases[0],
+							trajectoryAttribution: {
+								...trajectoryAttribution,
+								outcome: {
+									...trajectoryAttribution.outcome,
+									artifactPath: "/tmp/raw-result.json",
+								},
+							},
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.upsertEvalDiagnosticBadcases).not.toHaveBeenCalled();
 	});
 
 	it("rejects diagnostic badcases that include raw answer or local artifact fields", async () => {

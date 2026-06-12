@@ -221,6 +221,13 @@ from campus_evals.operator_observability import (
 from campus_evals.operator_observability import (
     main as operator_observability_main,
 )
+from campus_evals.operator_step_trajectory import (
+    OPERATOR_STEP_TRAJECTORY_RELEASE_FIXTURE_SCHEMA_VERSION,
+    OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION,
+    build_release_evidence_fixture,
+    normalize_operator_step_trajectory,
+    trajectory_attribution_for_stage,
+)
 from campus_evals.profile_registry import (
     EvalProfileDefinition,
     accepted_profile_ids,
@@ -450,6 +457,8 @@ __all__ = [
     "EVAL_PROFILE_GATE_SCHEMA_VERSION",
     "OBSERVED_REGRESSION_REVIEW_ACTIONS",
     "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
+    "OPERATOR_STEP_TRAJECTORY_RELEASE_FIXTURE_SCHEMA_VERSION",
+    "OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION",
     "PORTAL_PASSWORD_CASE_ID",
     "PUBLIC_CHAT_ENTRY_CASES_PATH",
     "PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH",
@@ -625,6 +634,7 @@ __all__ = [
     "build_ragas_supplemental_adapter_from_env",
     "build_refusal_rubric_adapter",
     "build_regulation_answer_ready_runtime_artifacts",
+    "build_release_evidence_fixture",
     "build_retrieval_monitoring_backlog",
     "build_retrieval_tuning_report",
     "collect_answer_ready_component_runtime_observations",
@@ -690,6 +700,7 @@ __all__ = [
     "load_workflow_trace_cases",
     "measured_runtime_metrics",
     "missing_runtime_metrics",
+    "normalize_operator_step_trajectory",
     "official_web_current_truth_doc_ids_by_bucket",
     "official_web_fresh_news_scope",
     "official_web_fresh_news_seed_validation_cases",
@@ -735,6 +746,7 @@ __all__ = [
     "run_tool_family_denominator_profile_gate",
     "run_tool_routing_product_path_profile",
     "summarize_retrieval_metrics",
+    "trajectory_attribution_for_stage",
     "validate_default_query_enabled_qrels_coverage",
     "validate_denominator_registry",
     "validate_retrieval_hybrid_query_fixture",

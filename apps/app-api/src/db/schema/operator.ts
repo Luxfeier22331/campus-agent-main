@@ -1,6 +1,9 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 import type { EvalCoverageSnapshot } from "../../modules/operator-eval-coverage";
-import type { EvalDiagnosticFailureStage } from "../../modules/operator-eval-diagnostic-badcases";
+import type {
+	EvalDiagnosticFailureStage,
+	EvalDiagnosticTrajectoryAttribution,
+} from "../../modules/operator-eval-diagnostic-badcases";
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 import type { VersionQuery } from "../../modules/version-query";
 
@@ -269,6 +272,9 @@ export const evalDiagnosticBadcaseProjection = operator.table(
 		retrievedDocIdsJson: jsonb("retrieved_doc_ids_json").$type<string[]>().notNull(),
 		supportingDocIdsJson: jsonb("supporting_doc_ids_json").$type<string[]>().notNull(),
 		supportingChunkIdsJson: jsonb("supporting_chunk_ids_json").$type<string[]>().notNull(),
+		trajectoryAttributionJson: jsonb("trajectory_attribution_json")
+			.$type<EvalDiagnosticTrajectoryAttribution>()
+			.notNull(),
 		answerShape: text("answer_shape"),
 		presentationKind: text("presentation_kind"),
 		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),

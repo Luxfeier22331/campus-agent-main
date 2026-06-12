@@ -416,6 +416,8 @@ eval diagnostic badcases projection：
   `failure_attribution.metric_failures.<metric>`；缺少定位阶段时直接 fail closed
 - failure stage 固定允许 `retrieval`、`rerank`、`selection`、`evidence_selection`、
   `synthesis`、`grounding` 与 `diagnostic`
+- `trajectoryAttribution` 只消费 `operator_step_trajectory.v1`；缺少 trajectory 时显式写成
+  `trajectory_missing`，阶段无法归因时显式写成 `attribution_missing`
 - RAGAS diagnostic badcase 没有运行时 `requestId` / `traceId`，不能伪造 request
   correlation；panel 只能把它展示为 offline diagnostic review candidate
 - 生成本地 projection：

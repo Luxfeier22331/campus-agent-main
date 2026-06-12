@@ -4,5 +4,8 @@ export {
 	type EvalDiagnosticBadcaseProjectionWrite,
 	type EvalDiagnosticBadcasesProjection,
 	type EvalDiagnosticFailureStage,
+	type EvalDiagnosticTrajectoryAttribution,
+	type EvalDiagnosticTrajectoryAttributionStatus,
+	type EvalDiagnosticTrajectoryOutcome,
 } from "./types";
 export { normalizeEvalDiagnosticBadcasesProjection } from "./validation";

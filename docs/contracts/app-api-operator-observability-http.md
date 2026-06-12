@@ -1574,7 +1574,24 @@ list endpoints 额外支持：
       "supportingDocIds": ["doc:wrong"],
       "supportingChunkIds": ["chunk:wrong"],
       "answerShape": "eligibility_judgment",
-      "presentationKind": "condition_table"
+      "presentationKind": "condition_table",
+      "trajectoryAttribution": {
+        "status": "attributed",
+        "stepId": "evidence.selection",
+        "stepKind": "selection",
+        "capability": "knowledge",
+        "toolName": null,
+        "stepStatus": "completed",
+        "outcome": {
+          "failCloseReason": null,
+          "terminalReason": null,
+          "replanReason": null,
+          "cancelOutcome": "not_requested",
+          "timeoutOutcome": "not_timed_out",
+          "lateCompletionOutcome": "not_late"
+        },
+        "projectionRefs": ["projection://runs/run_01HQ/evidence-selection"]
+      }
     }
   ]
 }
@@ -1586,6 +1603,9 @@ list endpoints 额外支持：
   `ragas-diagnostic-combined-report.v1`
 - `failureStage` 只允许 `retrieval`、`rerank`、`selection`、
   `evidence_selection`、`synthesis`、`grounding` 与 `diagnostic`
+- `trajectoryAttribution` 必须来自 `operator_step_trajectory.v1` 的 operator-safe projection；
+  缺少 trajectory 时显式写入 `trajectory_missing`，阶段无法归因时显式写入
+  `attribution_missing`，不得从 workflow summary 或 request link 推断
 - ingest 只写 `operator.eval_diagnostic_badcase_projection`；query path 会把这些行并入
   `GET /api/operator/quality/eval-candidates`
 - 这些 candidate 没有 runtime `requestId` / `traceId`，app-api 不为它们生成或猜测

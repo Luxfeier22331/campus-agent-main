@@ -1,3 +1,4 @@
+import type { EvalDiagnosticTrajectoryAttribution } from "../operator-eval-diagnostic-badcases";
 import type {
 	MetricRatio,
 	OperatorDistributionBucket,
@@ -160,6 +161,7 @@ export interface OperatorQualityEvalCandidateListResult {
 			score: number;
 			supportingDocIds: string[];
 			threshold: number;
+			trajectoryAttribution: EvalDiagnosticTrajectoryAttribution;
 		};
 		links: {
 			traceLink: string | null;

@@ -279,6 +279,24 @@ export interface RawOperatorQualityBadcaseListResponse {
 	};
 }
 
+export interface RawOperatorEvalDiagnosticTrajectoryAttribution {
+	capability: string | null;
+	outcome: {
+		cancelOutcome: string | null;
+		failCloseReason: string | null;
+		lateCompletionOutcome: string | null;
+		replanReason: string | null;
+		terminalReason: string | null;
+		timeoutOutcome: string | null;
+	};
+	projectionRefs: string[];
+	status: "attributed" | "attribution_missing" | "trajectory_missing";
+	stepId: string | null;
+	stepKind: string | null;
+	stepStatus: string | null;
+	toolName: string | null;
+}
+
 export interface RawOperatorQualityEvalCandidateRecord {
 	candidateId: string;
 	causeClass: string;
@@ -322,6 +340,7 @@ export interface RawOperatorQualityEvalCandidateRecord {
 		score: number;
 		supportingDocIds: string[];
 		threshold: number;
+		trajectoryAttribution: RawOperatorEvalDiagnosticTrajectoryAttribution;
 	};
 	grade: {
 		graderVersion: string;
