@@ -17,6 +17,106 @@ describe("campus experience projection seed", () => {
 			name: "中央民族大学校区",
 		});
 		expect(response.places.length).toBeGreaterThanOrEqual(12);
+		for (const officialHaidianPlaceId of [
+			"library",
+			"science-engineering-building",
+			"haidian-west-gate",
+			"haidian-east-small-gate",
+			"haidian-north-gate",
+			"east-gate",
+			"haidian-staff-apartment-23",
+			"haidian-teaching-building-20",
+			"haidian-teaching-building-18",
+			"haidian-teaching-building-21",
+			"haidian-staff-apartment-15",
+			"haidian-staff-apartment-14",
+			"haidian-teaching-building-16",
+			"haidian-basketball-court",
+			"haidian-art-museum",
+			"wenhua-building",
+			"haidian-teaching-building-10",
+			"auditorium",
+			"haidian-student-apartment-1",
+			"haidian-student-apartment-2",
+			"haidian-student-apartment-4",
+			"haidian-apartment-building-4",
+			"haidian-student-apartment-5",
+			"haidian-student-apartment-6",
+			"haidian-student-apartment-7",
+			"haidian-student-apartment-8",
+			"haidian-social-science-ethnic-institute",
+			"haidian-roller-skating-ground",
+			"haidian-tennis-court",
+			"haidian-office-building-1",
+			"haidian-office-building-2",
+			"haidian-office-building-3",
+			"zhonghui-building",
+			"nanrui-building",
+			"haidian-north-wisdom-building",
+			"haidian-north-complex-building",
+			"haidian-south-complex-building",
+			"haidian-track-football-field",
+			"haidian-volleyball-court",
+			"shaw-gymnasium",
+			"haidian-hospital",
+			"ethnic-museum",
+			"ethnic-theater",
+			"haidian-south-gate",
+		]) {
+			expect(placeIds.has(officialHaidianPlaceId), officialHaidianPlaceId).toBe(true);
+			expect(placesById.get(officialHaidianPlaceId)?.sourceRefs).toContain(
+				"https://www.muc.edu.cn/xxgk1/xydt.htm",
+			);
+			expect(placesById.get(officialHaidianPlaceId)?.sourceRefs).toContain(
+				"https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0B_612F3.png",
+			);
+		}
+		for (const unboundOfficialHaidianPlaceId of [
+			"haidian-west-gate",
+			"haidian-east-small-gate",
+			"haidian-north-gate",
+			"east-gate",
+			"haidian-staff-apartment-23",
+			"haidian-teaching-building-20",
+			"haidian-teaching-building-18",
+			"haidian-teaching-building-21",
+			"haidian-staff-apartment-15",
+			"haidian-staff-apartment-14",
+			"haidian-teaching-building-16",
+			"haidian-basketball-court",
+			"haidian-art-museum",
+			"wenhua-building",
+			"haidian-teaching-building-10",
+			"auditorium",
+			"haidian-student-apartment-1",
+			"haidian-student-apartment-2",
+			"haidian-student-apartment-4",
+			"haidian-apartment-building-4",
+			"haidian-student-apartment-5",
+			"haidian-student-apartment-6",
+			"haidian-student-apartment-7",
+			"haidian-student-apartment-8",
+			"haidian-social-science-ethnic-institute",
+			"haidian-roller-skating-ground",
+			"haidian-tennis-court",
+			"haidian-office-building-1",
+			"haidian-office-building-2",
+			"haidian-office-building-3",
+			"zhonghui-building",
+			"nanrui-building",
+			"haidian-north-wisdom-building",
+			"haidian-north-complex-building",
+			"haidian-south-complex-building",
+			"haidian-track-football-field",
+			"haidian-volleyball-court",
+			"shaw-gymnasium",
+			"haidian-south-gate",
+		]) {
+			expect(
+				placesById.get(unboundOfficialHaidianPlaceId)?.mapFeatureRefs,
+				unboundOfficialHaidianPlaceId,
+			).toBeUndefined();
+		}
 		for (const diningPlaceId of [
 			"haidian-canteen-1",
 			"haidian-canteen-2",
@@ -43,6 +143,13 @@ describe("campus experience projection seed", () => {
 		expect(placesById.get("fengtai-juya-canteen")?.mapFeatureRefs).toEqual([
 			{ fid: 40, layer: "building", sourceId: "fengtai-campus" },
 		]);
+		expect(placesById.get("library")?.mapFeatureRefs).toEqual([
+			{ fid: 849087992, layer: "building", sourceId: "haidian-campus" },
+		]);
+		expect(placesById.get("haidian-hospital")?.mapFeatureRefs).toEqual([
+			{ fid: 548820883, layer: "building", sourceId: "haidian-campus" },
+		]);
+		expect(placesById.get("haidian-canteen-1")?.mapFeatureRefs).toBeUndefined();
 		expect(placesById.get("fengtai-main-gate")?.mapFeatureRefs).toBeUndefined();
 		expect(placesById.get("fengtai-shuttle-stop")?.mapFeatureRefs).toBeUndefined();
 	});

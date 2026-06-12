@@ -38,6 +38,18 @@ inventory 和 admission posture。
   - `<https://www.muc.edu.cn/ggfw/xydy.htm`>
   - 用途： - 作为官方补充语境 - 验证海淀 / 丰台校区的公共服务语义 - 补充校区入口与公共服务场景
 
+### Geometry Basemap Source
+
+- OpenStreetMap / Overpass API
+  - `<https://www.openstreetmap.org/copyright>`
+  - 用途：作为 `campus-web` 海淀校区 v0 MapLibre GeoJSON 底图的建筑轮廓、道路和校园边界几何底稿
+  - 许可：OSM 数据按 Open Database License (ODbL) 开放；使用时必须保留署名与来源记录
+  - Admission posture：
+    - 只作为 v0 basemap geometry source，不成为 canonical place label source
+    - 地点名称、校区归属和公共服务语义仍以中央民族大学官方来源为准
+    - `mapFeatureRefs[]` 只绑定已经人工核对过的 OSM feature id，不允许按名称或最近距离推断绑定
+    - 后续制图师精修资产可以替换几何，但必须维护 feature binding 迁移表或同步更新 `mapFeatureRefs[]`
+
 ### Consumed official map images
 
 - 海淀校区地图
@@ -53,6 +65,9 @@ inventory 和 admission posture。
 - 上述官方来源当前足以作为 canonical place label 与 `campus_scope` 的 authoritative truth。
 - 上述官方来源当前不足以单独作为精确 `point_geometry` truth。
 - 不允许根据示意图上的视觉位置直接反推精确坐标并写入 seed。
+- `campus-web` 地图前端可以为地点列表维护 v0 展示中心点；该点位只用于 marker / 搜索结果定位，不等同于
+  canonical `point_geometry` truth。
+- v0 展示中心点必须结合已采用底图资产、官方标签拓扑和人工核对形成，不允许静默提升为建筑面绑定。
 - 如果地点名称和校区归属已确认，但 geometry 仍缺受控来源，可以在以下条件同时满足时以 `point_geometry = null`
   admitted into seed：
   - `location_description` 仍可由官方地图支持到 coarse level
@@ -133,30 +148,72 @@ inventory 和 admission posture。
 
 ### 海淀校区
 
-#### Candidate families already visible on official map（丰台）
+#### Haidian official map visible candidates
 
 - 西校门
+- 北门
 - 东大门
 - 东小门
+- 23号教职工公寓
+- 20号教学楼
+- 18号教学楼
+- 21号教学楼
 - 校医院
 - 民族博物馆
+- 15号教职工公寓
+- 14号教职工公寓
+- 16号教学楼
+- 篮球场
+- 美术馆
 - 逸夫体育馆
 - 大礼堂
+- 文华楼
+- 10号教学楼
+- 学生1号公寓
+- 学生2号公寓
+- 学生4号公寓
+- 4号公寓楼
+- 学生5号公寓
+- 学生6号公寓
+- 学生7号公寓
+- 学生8号公寓
+- 社科民族研究所（6号办公楼）
+- 轮滑场地
+- 网球场
+- 1号办公楼
+- 2号办公楼
+- 3号办公楼
+- 中慧楼（音乐厅）
+- 南睿楼
+- 北智楼
 - 北综合楼
+- 南综合楼
 - 理工楼
+- 田径场/足球场
+- 排球场
 
-#### Current posture（丰台）
+#### Haidian current posture
 
-- `西校门` / `东大门` / `东小门`
+- `西校门` / `北门` / `东大门` / `东小门`
   - canonical name 与 campus scope 已确认
-  - 当前 `park_pending_geometry`
-- `逸夫体育馆` / `大礼堂` / `北综合楼` / `理工楼`
+  - 当前已进入 `campus-web` map place projection；无已核验 `mapFeatureRefs[]` 的入口保持 point-only
+- `23号教职工公寓` / `20号教学楼` / `18号教学楼` / `21号教学楼` / `15号教职工公寓` / `14号教职工公寓` /
+  `16号教学楼` / `文华楼` / `10号教学楼` / `1号办公楼` / `2号办公楼` / `3号办公楼` / `中慧楼（音乐厅）` /
+  `南睿楼` / `北智楼` / `北综合楼` / `南综合楼`
   - canonical name 与 campus scope 已确认
-  - 当前 `park_pending_geometry`
+  - 当前已进入 `campus-web` map place projection；除已人工核对的建筑外，不写 `mapFeatureRefs[]`
+- `学生1号公寓` / `学生2号公寓` / `学生4号公寓` / `4号公寓楼` / `学生5号公寓` /
+  `学生6号公寓` / `学生7号公寓` / `学生8号公寓`
+  - canonical name 与 campus scope 已确认
+  - 当前已进入 `campus-web` map place projection；生活区楼栋面待制图资产核验
+- `篮球场` / `美术馆` / `逸夫体育馆` / `大礼堂` / `社科民族研究所（6号办公楼）` / `轮滑场地` /
+  `网球场` / `田径场/足球场` / `排球场` / `理工楼`
+  - canonical name 与 campus scope 已确认
+  - 当前已进入 `campus-web` map place projection；只对已核验 feature id 写 `mapFeatureRefs[]`
 
 ### 丰台校区
 
-#### Candidate families already visible on official map
+#### Fengtai official map visible candidates
 
 - 丰台校区北门
 - 图书馆
@@ -171,7 +228,7 @@ inventory 和 admission posture。
 - 聚贤餐厅
 - 馨雅餐厅
 
-#### Current posture
+#### Fengtai current posture
 
 - `综合楼` / `大礼堂` / `学生活动中心` / `综合体育馆` / `北体育场` / `南体育场` / `教师公寓` / `聚贤餐厅` /
   `馨雅餐厅`
@@ -214,8 +271,17 @@ inventory 和 admission posture。
 - admission posture
 - ambiguity family truth
 - 第一批 official-label-backed seed admission
+- 海淀校区 v0 MapLibre 底图资产：
+  - `apps/campus-web/public/map-assets/haidian-campus.geojson`
+  - 以 OpenStreetMap / Overpass API 抽取建筑、道路、运动场和边界几何
+  - 以中央民族大学官网海淀校区地图校验名称和校区拓扑
+  - 当前只把图书馆、校医院、民族剧院、理工楼等已核对对象通过 `mapFeatureRefs[]` 精确绑定
+- 海淀官方地图地点列表已补入 `campus-web` map place projection：
+  - 以中央民族大学官网校园地图和海淀校区官方地图图片作为 canonical label source
+  - 未核验建筑面或运动场 feature id 的地点仅作为 point-only place 展示
+  - 不允许用 OSM `name`、最近建筑或 label 文本反推 `mapFeatureRefs[]`
 
 当前仍未完成的是：
 
-- 剩余 parked candidate 的后续 admission
+- 剩余 parked candidate 的后续 admission 与建筑面核验绑定
 - 地图实际上线后的真实 staging smoke / 人工验收证据
