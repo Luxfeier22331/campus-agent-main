@@ -41,7 +41,9 @@ sanitized step projection -> finalization projection`
 - `single_step`
 - `gated multi_step`
 
-其中，`single_step` 只表示单个 typed tool 或 agent-as-tool step。已打开但仍保持
+其中，`terminal` 在目标态包括 first Execution Agent decision 直接完成的 no-tool /
+direct answer、clarification、reject、unsupported 与 fail-close outcome；`single_step`
+只表示单个 typed tool 或 agent-as-tool step。已打开但仍保持
 `typed_handoff_only` 的 deterministic structured capability 作为 typed tool step 执行：
 
 `app-api -> execution-control -> Go structured runtime -> execution response`
@@ -52,9 +54,10 @@ contract 执行，缺 contract、config 或 poller 时 fail closed。
 
 目标态在同一 governance boundary 内扩展为：
 
-`app-api -> execution-control Execution Agent Layer -> CapabilityExecutionWorkflow
--> typed activities or agent-as-tool activities -> sanitized step projection ->
-finalization projection`
+`app-api -> execution-control Execution Agent Layer -> first agent decision
+-> direct/no-tool terminal or CapabilityExecutionWorkflow capability steps
+-> typed activities or agent-as-tool activities -> sanitized step projection
+-> finalization projection`
 
 这表示 repo 采用 Execution Agent Layer-led governed multi-capability /
 agent-as-tool orchestration，而不是无中心 peer agent mesh。长期 deterministic
@@ -88,7 +91,9 @@ historical reference，不是 online answer serving dependency。
 Execution Agent Layer 长期负责：
 
 - admission / guardrails
-- capability routing
+- first agent decision
+- direct/no-tool terminal decision
+- capability routing when a campus capability/tool is needed
 - handoff shaping
 - workflow plan ownership
 - allowed capability / allowed tool / admitted agent-as-tool / step budget policy
@@ -113,6 +118,9 @@ Execution Agent Layer 不负责：
 - 将 semantic specialist 降级成扁平 tool bundle，或把 deterministic tool
   包装成无语义职责的 agent
 - 在 prompt 内隐式决定跨 capability / agent-as-tool step 协作顺序
+- 把 product identity/help/self-introduction 拆成 `assistant_intro`、`product_meta`
+  或类似 synthetic capability；这些应由 first agent decision 的 no-tool
+  terminal branch 在产品边界内回答
 
 补充约束：
 
@@ -120,6 +128,9 @@ Execution Agent Layer 不负责：
   `knowledge` router
 - `public chat` 当前 knowledge-only 只是 surface posture，不反向定义
   Execution Agent Layer 的长期角色
+- 当前代码仍存在 missing `requested_capability` 默认进入 `knowledge` 的实现缺口；
+  这不是目标架构原则。后续必须让 first agent decision 显式产生 terminal /
+  capability routing / workflow planning outcome，而不是由空字段隐式落到 RAG。
 - Execution Agent Layer 是 multi-capability / agent-as-tool manager，不是
   peer agent；它保留最终回复
   ownership，除非 workflow plan 显式采用 specialist handoff ownership transfer

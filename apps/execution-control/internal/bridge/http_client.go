@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	answerPath            = "/internal/bridge/supervisor/answer"
+	answerPath            = "/internal/bridge/retired-python/answer"
 	semanticExecutionPath = "/internal/bridge/semantic/execution"
 	readyzPath            = "/internal/bridge/readyz"
 	cancelPath            = "/internal/bridge/execution/cancel"

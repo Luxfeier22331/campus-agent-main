@@ -65,10 +65,10 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
         def fake_smoke(plan, *, timeout_seconds: float) -> dict[str, object]:
             observed_profiles.append(plan.profile)
             return {
-                "schema_version": "supervisor_runtime_process_smoke.v1",
+                "schema_version": "execution_control_process_smoke.v1",
                 "profile": plan.profile,
                 "passed": True,
-                "probes": {"answer_status": plan.expected_status},
+                "probes": {"answer_status": plan.expected_run_status},
                 "answer": {"workflow_trace_summary": _current_workflow_trace_summary(plan.profile)},
             }
 
@@ -94,7 +94,9 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
         self.assertEqual(artifact["summary"]["total_profiles"], len(observed_profiles))
         self.assertIn("rag_delegate", artifact["workflow_trace_replay"]["evaluated_profiles"])
 
-    def test_multi_capability_live_smoke_default_profiles_cover_governed_workflow_lane(self) -> None:
+    def test_multi_capability_live_smoke_default_profiles_cover_governed_workflow_lane(
+        self,
+    ) -> None:
         self.assertEqual(
             set(multi_capability_live_smoke_gate.DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES),
             {
@@ -122,7 +124,9 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
         self.assertEqual(
             set(multi_capability_live_smoke_gate.DEFAULT_PROCESS_SMOKE_PROFILES),
             set(multi_capability_live_smoke_gate.DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES)
-            | set(multi_capability_live_smoke_gate.DEFAULT_SINGLE_SURFACE_SDK_PROCESS_SMOKE_PROFILES),
+            | set(
+                multi_capability_live_smoke_gate.DEFAULT_SINGLE_SURFACE_SDK_PROCESS_SMOKE_PROFILES
+            ),
         )
         self.assertEqual(
             multi_capability_live_smoke_gate.PROFILE_WORKFLOW_TRACE_CASE_IDS[
@@ -144,7 +148,7 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
         )
 
     def test_multi_capability_live_smoke_assigns_distinct_local_ports_per_profile(self) -> None:
-        built_ports: list[tuple[str, int, int, int]] = []
+        built_ports: list[tuple[str, int, int]] = []
 
         def fake_build_process_smoke_plan(
             *,
@@ -152,22 +156,21 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
             output_dir,
             profile: str,
             api_port: int,
-            worker_port: int,
             object_store_port: int,
         ):
-            built_ports.append((profile, api_port, worker_port, object_store_port))
+            built_ports.append((profile, api_port, object_store_port))
             return SimpleNamespace(
                 profile=profile,
-                expected_status=200,
+                expected_run_status=200,
                 output_dir=output_dir,
             )
 
         def fake_smoke(plan, *, timeout_seconds: float) -> dict[str, object]:
             return {
-                "schema_version": "supervisor_runtime_process_smoke.v1",
+                "schema_version": "execution_control_process_smoke.v1",
                 "profile": plan.profile,
                 "passed": True,
-                "probes": {"answer_status": plan.expected_status},
+                "probes": {"answer_status": plan.expected_run_status},
                 "answer": {
                     "workflow_trace_summary": _current_workflow_trace_summary(plan.profile),
                 },
@@ -196,7 +199,6 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
         self.assertEqual(len(built_ports), 3)
         self.assertEqual(len({item[1] for item in built_ports}), 3)
         self.assertEqual(len({item[2] for item in built_ports}), 3)
-        self.assertEqual(len({item[3] for item in built_ports}), 3)
 
     def test_multi_capability_live_smoke_workflow_replay_is_blocking(self) -> None:
         def fake_smoke(plan, *, timeout_seconds: float) -> dict[str, object]:
@@ -207,10 +209,10 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
                     "selected_capability": "notice",
                 }
             return {
-                "schema_version": "supervisor_runtime_process_smoke.v1",
+                "schema_version": "execution_control_process_smoke.v1",
                 "profile": plan.profile,
                 "passed": True,
-                "probes": {"answer_status": plan.expected_status},
+                "probes": {"answer_status": plan.expected_run_status},
                 "answer": {
                     "workflow_trace_summary": summary,
                 },
@@ -233,10 +235,10 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
     def test_multi_capability_live_smoke_missing_mapped_trace_fails_gate(self) -> None:
         def fake_smoke(plan, *, timeout_seconds: float) -> dict[str, object]:
             return {
-                "schema_version": "supervisor_runtime_process_smoke.v1",
+                "schema_version": "execution_control_process_smoke.v1",
                 "profile": plan.profile,
                 "passed": True,
-                "probes": {"answer_status": plan.expected_status},
+                "probes": {"answer_status": plan.expected_run_status},
                 "answer": {},
             }
 
@@ -256,10 +258,10 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
     def test_multi_capability_live_smoke_replay_accepts_current_workflow_trace_shapes(self) -> None:
         def fake_smoke(plan, *, timeout_seconds: float) -> dict[str, object]:
             return {
-                "schema_version": "supervisor_runtime_process_smoke.v1",
+                "schema_version": "execution_control_process_smoke.v1",
                 "profile": plan.profile,
                 "passed": True,
-                "probes": {"answer_status": plan.expected_status},
+                "probes": {"answer_status": plan.expected_run_status},
                 "answer": {
                     "workflow_trace_summary": _current_workflow_trace_summary(plan.profile),
                 },
@@ -294,10 +296,10 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
                     "selected_capability": "notice",
                 }
             return {
-                "schema_version": "supervisor_runtime_process_smoke.v1",
+                "schema_version": "execution_control_process_smoke.v1",
                 "profile": plan.profile,
                 "passed": True,
-                "probes": {"answer_status": plan.expected_status},
+                "probes": {"answer_status": plan.expected_run_status},
                 "answer": {
                     "workflow_trace_summary": summary,
                 },
@@ -306,15 +308,19 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "multi-agent-live-smoke"
             with patch.object(multi_capability_live_smoke_gate, "run_process_smoke", fake_smoke):
-                first_payload = multi_capability_live_smoke_gate.run_multi_capability_live_smoke_gate(
-                    output_dir=output_dir,
-                    timeout_seconds=1,
-                    profiles=("rag_delegate",),
+                first_payload = (
+                    multi_capability_live_smoke_gate.run_multi_capability_live_smoke_gate(
+                        output_dir=output_dir,
+                        timeout_seconds=1,
+                        profiles=("rag_delegate",),
+                    )
                 )
-                second_payload = multi_capability_live_smoke_gate.run_multi_capability_live_smoke_gate(
-                    output_dir=output_dir,
-                    timeout_seconds=1,
-                    profiles=("rag_delegate",),
+                second_payload = (
+                    multi_capability_live_smoke_gate.run_multi_capability_live_smoke_gate(
+                        output_dir=output_dir,
+                        timeout_seconds=1,
+                        profiles=("rag_delegate",),
+                    )
                 )
 
         self.assertFalse(first_payload["passed"])

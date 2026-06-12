@@ -7,7 +7,8 @@
 这个目录承载 knowledge / RAG capability 的局部语义实现边界。
 
 - 接收来自 offline / eval / tooling caller 的稳定 `CapabilityRequest`，而不是继续暴露旧
-  prototype tool 风格接口；不得把 `apps/supervisor-agent-worker` 重新解释成 online serving 入口
+  prototype tool 风格接口；不得把 knowledge capability 重新解释成 online serving
+  入口或顶层路由器
 - 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence
   collection`、`evidence normalization`、`confidence` 返回
 - 返回 `CapabilityResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去

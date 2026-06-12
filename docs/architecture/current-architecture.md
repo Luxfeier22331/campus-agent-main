@@ -79,6 +79,10 @@ document/index release`
   `context.memory_recall -> plan.route -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`。
+- 当前代码尚未完成 first Execution Agent decision / direct no-tool terminal
+  branch：`CapabilityExecutionWorkflow` 在 `requested_capability` 为空时仍默认进入
+  `knowledge`，durable `PlanRouteActivity` 当前仍要求 executable handoff。因此
+  “hi / 你是谁”这类可直接回答的入口样本仍是主链路待补缺口，不能写成已闭环能力。
 - 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 self-hosted Qdrant
   `personal_memory_v1` collection；app-api chat submit 不再读取 PG
   `profile.memory_items` 并全量注入 `context.profile_memory`。
@@ -101,9 +105,9 @@ document/index release`
   staging closeout 与 notice / navigation / campus-services typed activity worker
   全量拆分。目标 durable runtime 见
   `docs/architecture/system/durable-agent-runtime-architecture.md`
-- Python `apps/supervisor-agent-worker` 不再是 online answer serving dependency；
-  retained bridge/server code 只作为 offline / eval / tooling / historical reference
-  存在，不得作为 staging readiness、online fallback 或 active workflow branch 恢复。
+- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 bridge/server
+  code 只可通过 git history 追溯，不得作为 staging readiness、online fallback 或
+  active workflow branch 恢复。
 - opened deterministic structured capability 必须作为 Go-owned typed Temporal
   activity 执行并写入 sanitized projection；未完成 worker contract 的 capability
   fail closed，不走 Python serving shortcut。
@@ -247,7 +251,8 @@ document/index release`
   Temporal activity metadata、queue wait、duration、provider/model、token/cost、
   cancel/timeout outcome 字段。
 - 当前 public durable chat path 已具备 capability-neutral metadata 与 workflow
-  branch skeleton；`campus_services` 与 `notice` 可进入 typed activity branch，
+  branch skeleton，但尚未具备 first Execution Agent decision 的 direct/no-tool
+  terminal path；`campus_services` 与 `notice` 可进入 typed activity branch，
   但产品级完整验收仍取决于对应 worker poller、structured read model、projection
   fixture 与 finalization closeout。`navigation` 仍默认 closed，必须 fail closed。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
@@ -284,16 +289,6 @@ document/index release`
   serving；缺 worker/config/poller 时 fail closed
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning
-
-### `apps/supervisor-agent-worker`
-
-- Python semantic worker historical/offline artifact
-- 不参与当前 online answer serving、staging readiness、Temporal workflow branch 或
-  app-api execution admission
-- 可保留用于 offline / eval / tooling / historical bridge reference；任何重新接入
-  serving 的需求必须先形成新的 ADR / contract，并不得作为 fallback 或兼容路径恢复
-- 不拥有 execution truth、provider hot path、RAG DTO canonical boundary、run/step
-  projection、cancel terminal truth 或 product-facing response finalization
 
 ### `apps/ingestion-worker`
 
@@ -380,8 +375,8 @@ document/index release`
   architecture：`docs/architecture/domains/authenticated-notice/architecture.md`
 - operator observability supporting
   architecture：`docs/architecture/system/operator-observability-architecture.md`
-- 当前 phase / pending work：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应
-  workstream `STATE.md`
+- 当前 pending work：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK /
+  Codex native session state
 
 ## 不在本文维护的真相
 

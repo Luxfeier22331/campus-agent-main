@@ -355,8 +355,8 @@ opening truth。
 - real live source executor 与 production observation storage rollout
 
 这些属于目标架构的一部分，而不是当前默认 surface；当前 active/deferred execution 仍以
-`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、对应 workstream `STATE.md` 与相关
-plan 为准。
+`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native
+session state 为准。
 
 ## Course Facts Internal Surface
 

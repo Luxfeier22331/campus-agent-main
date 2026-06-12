@@ -47,11 +47,13 @@ from campus_services_capability.response_builder import (
     transport_schedule_response,
 )
 from campus_services_capability.sdk_tool_executor import execute_campus_services_sdk_tool
-from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
 
 from tests.agent.campus_services_capability_fakes import (
     FakeCampusServicesQueryService,
     RecordingQueryHTTPTransport,
 )
+from tests.agent.tool_invocation_support import ToolInvocation
+
+OpenAIAgentsToolInvocation = ToolInvocation
 
 __all__ = [name for name in globals() if not name.startswith("__")]

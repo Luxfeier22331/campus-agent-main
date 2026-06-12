@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-09
-updated: 2026-06-10
+updated: 2026-06-12
 ---
 # Memory Plane Architecture
 
@@ -73,6 +73,7 @@ updated_at
 user request
 -> app-api creates execution run without PG memory full injection
 -> execution-control starts CapabilityExecutionWorkflow
+-> first Execution Agent decision determines whether memory/tool context is needed
 -> Temporal memory.recall activity
 -> Qdrant personal_memory_v1
 -> bounded memory context
@@ -80,13 +81,14 @@ user request
 -> sanitized run step projection
 ```
 
-`memory.recall` 是 capability-neutral execution step graph 的第一步，不属于 RAG
-worker 的私有前置逻辑：
+`memory.recall` 是 capability-neutral execution step，不属于 RAG worker 的私有前置逻辑；
+但目标态不要求每个 product identity / no-tool direct answer 都先做 memory recall：
 
 ```text
-context.memory_recall
--> plan.route
--> capability branch
+first_decision
+-> optional context.memory_recall
+-> capability routing / workflow planning
+-> capability branch when needed
 -> finalization.write
 ```
 

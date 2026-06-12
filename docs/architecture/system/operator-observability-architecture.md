@@ -373,6 +373,10 @@ dump 或 raw vendor payload 直接暴露给 panel。
 
 长期 multi-capability / agent-as-tool workflow 至少还要补以下 operator-facing summary truth：
 
+- `first_decision_summary`
+  - terminal intent、direct/no-tool vs capability-required branch、decision
+    version、prompt/instruction version、selected capability/tool if any、fail-close
+    reason 与 no-tool answer provenance
 - `workflow_plan_summary`
   - workflow mode、planner version、selected step sequence、allowed capabilities /
     allowed tools、admitted agent-as-tool steps、budget posture 与 terminal policy

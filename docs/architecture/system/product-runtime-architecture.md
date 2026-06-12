@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-06
+updated: 2026-06-12
 ---
 # Product Runtime Architecture
 
@@ -194,6 +194,9 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - surface policy 先于 execution routing
 - `app-api` 负责把 surface policy、account / session projection 与 request truth 组装为最小
   execution input
+- `app-api` 不选择 product persona、surface prompt profile 或 agent instructions；
+  first Execution Agent decision 与 capability/tool routing 属于 `execution-control`
+  / prompt-runtime 的 provider-facing execution boundary
 
 ### `apps/execution-control`
 
@@ -240,8 +243,8 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
     canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store
     只保留为 historical migration artifact
-- Python `apps/supervisor-agent-worker`
-  - offline / eval / tooling / historical bridge reference
+- Retired Python semantic bridge code
+  - 已从 active workspace 删除，只可通过 git history 追溯
   - 不参与 online answer serving、staging readiness 或 active product runtime
   - 不拥有 public execution ingress、caller auth、transport admission、provider hot path
     或 RAG step projection truth
@@ -349,9 +352,9 @@ contract 或 auth family route/endpoint truth。
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
 - `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
-- execution public ingress 已 hardcut 到 Go `apps/execution-control`；Python
-  `apps/supervisor-agent-worker` 只保留 offline / eval / tooling / historical bridge
-  reference，不参与 online answer hot path
+- execution public ingress 已 hardcut 到 Go `apps/execution-control`；retired Python
+  semantic bridge code 已从 active workspace 删除，只可通过 git history 追溯，不参与
+  online answer hot path
 
 ## Forbidden Shapes
 

@@ -183,10 +183,9 @@ retired / offline RAG SDK candidate 的定位层 smoke 可以不经过前端直�
 offline / eval / historical bridge behavior 复核，不作为 online RAG serving acceptance：
 
 ```bash
-uv run --all-packages python -m scripts.supervisor_runtime_process_smoke \
+uv run --all-packages python -m scripts.execution_control_process_smoke \
   --profile rag_delegate_sdk_candidate \
   --api-port 27151 \
-  --worker-port 27152 \
   --output-dir .tmp/rag-sdk-process-smoke
 ```
 

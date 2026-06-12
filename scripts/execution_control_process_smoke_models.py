@@ -19,7 +19,6 @@ class ProcessSmokePlan:
     output_dir: Path
     profile: str
     api_base_url: str
-    worker_base_url: str
     execution_run_path: str
     execution_run_payload: dict[str, object]
     expected_run_status: int

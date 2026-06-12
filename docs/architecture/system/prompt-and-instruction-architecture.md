@@ -45,14 +45,16 @@ code-owned runtime seam。当前接受的实现基线是：
   merged truth；但
   prompt-facing persona / family wording 应使用 `knowledge` 或中性的 knowledge-path
   wording，不再把 `knowledge` 当默认对外标签
-- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_stack.py`
-  负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence
-  packet 组装成 runtime stack
+- retired Python bridge 的 prompt stack 已从 active workspace 删除；developer
+  invariants、role prompt、trusted task packet、untrusted user/evidence packet 的
+  active owner 分别落在 `packages/prompt-runtime`、`packages/knowledge-capability`
+  与 Go-owned execution path
 - `packages/prompt-runtime` 负责 provider-facing prompt contract validation、
   provider-backed strict structured outputs、provider response normalization，并生成
   validated `PromptTrace`
-- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_executor.py`
-  只负责把 worker-local RAG prompt stack 绑定到 `packages/prompt-runtime`
+- active RAG prompt execution 不再通过 Python worker-local executor；Go-owned
+  Temporal RAG path 与 `packages/prompt-runtime` contract 承接 provider-facing
+  validation / normalization / trace
 - provider `refusal`、`incomplete` 与 request/schema failure 必须在 RAG prompt execution
   path fail-close，不得被当作 schema-valid success 放行
 - `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_
@@ -60,7 +62,8 @@ code-owned runtime seam。当前接受的实现基线是：
 - curriculum / handbook 的 deterministic-first protected paths 继续保持
   deterministic-first，不因 prompt rollout 回退成 prompt-first
 - 当前 phase 顺序、剩余 rollout 与 pending work 不在本文维护；应以
-  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md` 为准
+  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native
+  session state 为准
 - full agentic retrieval 的长期 target shape 另见
   `docs/architecture/system/agentic-retrieval-architecture.md`
 
@@ -108,16 +111,19 @@ code-owned runtime seam。当前接受的实现基线是：
 
 - 新的 text generation app 默认走 Responses API，而不是继续围绕旧 Chat Completions 组织产品主链路
 - 应用拥有的高优先级规则放在 `instructions` / `developer` 层，用户输入与 evidence 继续留在低优先级输入区
+- 工具以结构化 `tools` / function schema 形式暴露给模型，由模型基于 prompt
+  判断是否调用工具；不能把工具选择协议写成自然语言假 schema，也不能把每个
+  产品介绍或寒暄拆成 tool / capability
 - untrusted content 不进入 developer instruction zone；节点间数据交换尽量走 strict structured
   outputs，而不是自由文本通道
 - prompt / model 变更应绑定持续 eval，而不是只靠人工感受或一次性 smoke
 
 对应官方资料：
 
-- OpenAI Prompting
-  - `<https://platform.openai.com/docs/guides/prompting`>
-- OpenAI Responses vs Chat Completions
-  - `<https://platform.openai.com/docs/guides/responses-vs-chat-completions`>
+- OpenAI Responses migration guide
+  - `<https://developers.openai.com/api/docs/guides/migrate-to-responses#responses-benefits>`
+- OpenAI tools guide
+  - `<https://developers.openai.com/api/docs/guides/tools>`
 - OpenAI Structured Outputs
   - `<https://platform.openai.com/docs/guides/structured-outputs`>
 - OpenAI Evaluation Best Practices
@@ -387,9 +393,9 @@ repo 级 instruction hierarchy 固定拆成五层：
 当前实现边界：
 
 - `apps/execution-control`
-  - owns prompt config admission summary and deterministic terminal envelopes
-- `apps/supervisor-agent-worker`
-  - owns RAG prompt runtime assembly and provider client binding
+  - owns execution admission, first decision frame, prompt config admission
+    summary, deterministic terminal envelopes and provider-facing activity
+    dispatch through `packages/prompt-runtime`
 - `packages/prompt-runtime`
   - owns prompt contract validation, provider structured output execution,
     provider response normalization and prompt trace construction
@@ -397,6 +403,17 @@ repo 级 instruction hierarchy 固定拆成五层：
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
 - `apps/app-api`
   - 只消费 observability-safe prompt metadata，不参与 prompt assembly
+
+补充约束：
+
+- `apps/app-api` 不选择 `product persona` 或 `surface prompt profile`；它只投影
+  surface/session/account context 与 allowed capability/tool set
+- `system prompt` 在产品语义上必须影响第一模型决策，但实现 owner 仍是
+  `execution-control` / `packages/prompt-runtime` 的 provider-facing request
+  assembly，而不是 browser surface 或 app-api route handler
+- `assistant_intro` / `product_meta` 不作为 prompt family 或 capability；产品身份、
+  能力边界、普通寒暄由 first Execution Agent decision 的 direct/no-tool
+  terminal branch 处理
 
 禁止事项：
 
@@ -546,7 +563,7 @@ repo 当前推荐的 system / role 设计固定为：
 ### Execution Runtime Prompt Boundary
 
 - 不拥有长期 prompt 文案
-- 只负责 execution admission、transport、request packaging
+- 只负责 execution admission、transport、request packaging 与 first decision frame
 - owns deterministic execution terminal wording
 - owns runtime policy / routing frame / handoff projection
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
@@ -567,11 +584,14 @@ repo 当前推荐的 system / role 设计固定为：
 
 每个 agent 不维护一份“大 prompt”，而维护 `prompt family + mode`。
 
-当前 production execution terminal path 不再维护 prompt family；clarify /
-out-of-scope / reject / not-open 的 deterministic terminal wording 由 Go
-`execution-control` 的 direct terminal path 承接。若后续重新引入 LLM-assisted execution
-wording，必须作为新的显式 workstream 重新定义 prompt family、eval gate 与 code
-finalization，不得复用已删除的旧 execution prompt assets。
+当前 production execution terminal path 不再维护独立 synthetic prompt family；
+clarify / out-of-scope / reject / not-open 的 deterministic terminal wording 由 Go
+`execution-control` 的 direct terminal path 承接。目标态 first Execution Agent
+decision 可以产生 direct/no-tool terminal answer，但它必须复用 repo-global
+invariants、execution role instructions、typed task packet 与 strict output contract，
+不得新增 `assistant_intro` 或 product-persona prompt family。若后续重新引入更复杂的
+LLM-assisted execution wording，必须作为新的显式 workstream 重新定义 prompt family、
+eval gate 与 code finalization，不得复用已删除的旧 execution prompt assets。
 
 ### Knowledge Path (`packages/knowledge-capability`)
 
@@ -903,8 +923,8 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - `apps/execution-control` 已承担 prompt config admission summary；online RAG
   synthesis 由 Go provider adapter 创建 provider request、抽取 usage/cost、
   记录 cancel/timeout outcome，并将 sanitized provider summary 写入 step
-  projection。Python `apps/supervisor-agent-worker` 不再拥有 online provider
-  hot path，只保留 offline / eval / tooling / historical bridge reference
+  projection。Python `apps/supervisor-agent-worker` 已从 active workspace 删除，
+  不再拥有 online provider hot path
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture
 - Execution Agent Layer 的 `policy gate + scope gate` 与 knowledge-path grounding
@@ -920,17 +940,17 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - prompt-family live gate artifact 的持续更新
 
 这些工作属于当前项目级 active lane，执行顺序与完成状态以
-`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、对应 workstream `STATE.md` 与对应
-active plan 为准。
+`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native
+session state 为准。
 
 ## 外部参考
 
 以下外部资料用于 informing best practice，不替代 repo 内 source of truth：
 
-- OpenAI Prompting
-  - `<https://platform.openai.com/docs/guides/prompting`>
-- OpenAI Responses vs Chat Completions
-  - `<https://platform.openai.com/docs/guides/responses-vs-chat-completions`>
+- OpenAI Responses migration guide
+  - `<https://developers.openai.com/api/docs/guides/migrate-to-responses#responses-benefits>`
+- OpenAI tools guide
+  - `<https://developers.openai.com/api/docs/guides/tools>`
 - OpenAI Structured Outputs
   - `<https://platform.openai.com/docs/guides/structured-outputs`>
 - OpenAI Evaluation Best Practices

@@ -7,20 +7,18 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
-from scripts import supervisor_runtime_process_smoke_runtime as _runtime
-from scripts.supervisor_runtime_process_smoke_http import (
+from scripts import execution_control_process_smoke_runtime as _runtime
+from scripts.execution_control_process_smoke_http import (
     _request_status,
     post_execution_run_probe,
     terminate_processes,
     wait_for_json_status,
     wait_for_status,
 )
-from scripts.supervisor_runtime_process_smoke_models import ProcessCommandSpec, ProcessSmokePlan
-from scripts.supervisor_runtime_process_smoke_profiles import (
+from scripts.execution_control_process_smoke_models import ProcessCommandSpec, ProcessSmokePlan
+from scripts.execution_control_process_smoke_profiles import (
     MULTI_STEP_WORKFLOW_PROFILES,
     RAG_RETRIEVAL_PROFILES,
-    RAG_SDK_PROFILES,
-    SDK_STRUCTURED_OPENED_PROFILES,
     SELECTED_NOTICE_GUARDRAIL_PROFILES,
     STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
     TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
@@ -62,39 +60,21 @@ def build_process_smoke_plan(
     profile: str = "closed_gate",
     api_host: str = "127.0.0.1",
     api_port: int = 27051,
-    worker_host: str = "127.0.0.1",
-    worker_port: int = 27052,
     object_store_host: str = "127.0.0.1",
     object_store_port: int = 27061,
 ) -> ProcessSmokePlan:
     api_secret = os.getenv("API_WORKER_SHARED_SECRET", "execution-control-local-placeholder")
-    bridge_secret = os.getenv(
-        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
-        "supervisor-agent-worker-local-placeholder",
-    )
     structured_query_secret = _env_or_default(
         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
-        "supervisor-structured-query-local-placeholder",
+        "execution-control-structured-query-local-placeholder",
     )
     api_base_url = f"http://{api_host}:{api_port}"
-    worker_base_url = f"http://{worker_host}:{worker_port}"
     common_env = {
         "AGENT_RUNTIME_PROVIDER": "mock-runtime",
         "PROMPT_RUNTIME_PROVIDER": "mock-runtime",
         "PROMPT_RUNTIME_MODEL": "gpt-5.5",
         "PROMPT_RUNTIME_API_KEY": "process-smoke-prompt-key",
         "PROMPT_STRICT_STRUCTURED_OUTPUTS": "true",
-        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": bridge_secret,
-    }
-    worker_env = {
-        **common_env,
-        "SUPERVISOR_AGENT_WORKER_HOST": worker_host,
-        "SUPERVISOR_AGENT_WORKER_PORT": str(worker_port),
-        **_profile_worker_env(
-            profile,
-            api_base_url=api_base_url,
-            structured_query_secret=structured_query_secret,
-        ),
     }
     object_store_base_url = f"http://{object_store_host}:{object_store_port}"
     profile_api_env = _profile_api_env(
@@ -108,7 +88,6 @@ def build_process_smoke_plan(
         "API_WORKER_SHARED_SECRET": api_secret,
         "CAMPUS_AGENT_HTTP_HOST": api_host,
         "CAMPUS_AGENT_HTTP_PORT": str(api_port),
-        "SUPERVISOR_AGENT_WORKER_BASE_URL": worker_base_url,
         "EXECUTION_CONTROL_OTEL_ENABLED": "false",
         "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
         "EXECUTION_CONTROL_OPEN_CAPABILITIES": os.getenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", ""),
@@ -124,20 +103,6 @@ def build_process_smoke_plan(
     ) = profile_execution_run_expectation(profile)
     processes = (
         ProcessCommandSpec(
-            label="supervisor-agent-worker",
-            command=(
-                "uv",
-                "run",
-                "--all-packages",
-                "python",
-                "-m",
-                "campus_supervisor_agent_worker.bridge_server",
-            ),
-            cwd=repo_root,
-            env=worker_env,
-            log_path=output_dir / "supervisor-agent-worker.log",
-        ),
-        ProcessCommandSpec(
             label="execution-control",
             command=("go", "run", "./cmd/execution-control"),
             cwd=repo_root / "apps" / "execution-control",
@@ -147,7 +112,6 @@ def build_process_smoke_plan(
     )
     if profile_requires_object_store(profile):
         processes = (
-            processes[0],
             ProcessCommandSpec(
                 label="s3-smoke-object-store",
                 command=(
@@ -169,14 +133,13 @@ def build_process_smoke_plan(
                 },
                 log_path=output_dir / "s3-smoke-object-store.log",
             ),
-            processes[1],
+            *processes,
         )
     return ProcessSmokePlan(
         repo_root=repo_root,
         output_dir=output_dir,
         profile=profile,
         api_base_url=api_base_url,
-        worker_base_url=worker_base_url,
         execution_run_path=execution_run_path,
         execution_run_payload=execution_run_payload,
         expected_run_status=expected_run_status,
@@ -237,29 +200,6 @@ def _profile_api_env(
             "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
     return {}
-
-
-def _profile_worker_env(
-    profile: str,
-    *,
-    api_base_url: str,
-    structured_query_secret: str,
-) -> dict[str, str]:
-    if profile in RAG_SDK_PROFILES:
-        return {
-            "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
-        }
-    if (
-        profile not in MULTI_STEP_WORKFLOW_PROFILES
-        and profile not in SDK_STRUCTURED_OPENED_PROFILES
-    ):
-        return {}
-    return {
-        "EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL": api_base_url,
-        "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
-        "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
-        "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
-    }
 
 
 def _env_or_default(key: str, default: str) -> str:
@@ -335,16 +275,6 @@ def run_process_smoke(
                     start_new_session=True,
                 )
             )
-        worker_healthz = wait_for_status(
-            f"{plan.worker_base_url}/internal/bridge/healthz",
-            expected_statuses={200},
-            timeout_seconds=startup_timeout,
-            headers={
-                "x-supervisor-bridge-auth": process_by_label["supervisor-agent-worker"].env[
-                    "SUPERVISOR_AGENT_WORKER_SHARED_SECRET"
-                ]
-            },
-        )
         api_healthz = wait_for_status(
             f"{plan.api_base_url}/healthz",
             expected_statuses={200},
@@ -369,8 +299,7 @@ def run_process_smoke(
         run_text = json.dumps(run_body, ensure_ascii=False)
         forbidden_body_tokens = _forbidden_body_tokens(plan.profile)
         passed = (
-            worker_healthz == 200
-            and api_healthz == 200
+            api_healthz == 200
             and readyz[0] in plan.expected_readyz_statuses
             and metrics_status == 200
             and run_status == plan.expected_run_status
@@ -382,12 +311,10 @@ def run_process_smoke(
             "profile": plan.profile,
             "passed": passed,
             "api_base_url": plan.api_base_url,
-            "worker_base_url": plan.worker_base_url,
             "processes": [process_spec_to_artifact(process) for process in processes],
             "process_logs": process_logs,
             "runtime_preparation": (runtime_preparation_artifact),
             "probes": {
-                "worker_healthz_status": worker_healthz,
                 "api_healthz_status": api_healthz,
                 "readyz_status": readyz[0],
                 "readyz_body": readyz[1],
@@ -413,7 +340,6 @@ def run_process_smoke(
             "profile": plan.profile,
             "passed": False,
             "api_base_url": plan.api_base_url,
-            "worker_base_url": plan.worker_base_url,
             "process_logs": process_logs,
             "runtime_preparation": runtime_preparation_artifact,
             "process_exit_states": process_exit_states,
@@ -445,13 +371,10 @@ def _forbidden_body_tokens(profile: str) -> tuple[str, ...]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run execution-control + supervisor-agent-worker local process smoke."
-    )
+    parser = argparse.ArgumentParser(description="Run execution-control local process smoke.")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--profile", default="closed_gate")
     parser.add_argument("--api-port", type=int, default=27051)
-    parser.add_argument("--worker-port", type=int, default=27052)
     parser.add_argument("--object-store-port", type=int, default=27061)
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
     parser.add_argument(
@@ -475,7 +398,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         output_dir=Path(args.output_dir),
         profile=args.profile,
         api_port=args.api_port,
-        worker_port=args.worker_port,
         object_store_port=args.object_store_port,
     )
     summary = run_process_smoke(

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-23
-updated: 2026-04-29
+updated: 2026-06-12
 ---
 # Eval Benchmark Artifact Contract
 
@@ -151,7 +151,8 @@ uncorrelated cases with a reason.
 - `routing_frame`
 - `context_resolution`
 - `planning_outcome`
-- `direct_vs_delegate_branch`
+- `first_decision_branch`（preferred）
+- `direct_vs_delegate_branch`（legacy compatibility alias）
 - `handoff`
 - `selected_capability`
 - `selected_tools`
@@ -165,7 +166,8 @@ uncorrelated cases with a reason.
 
 `orchestration_case_results` 是 workflow trace gate 的 per-case verdict summary，至少允许承载：
 
-- `direct_vs_delegate_branch_correctness`
+- `first_decision_branch_correctness`（preferred）
+- `direct_vs_delegate_branch_correctness`（legacy compatibility alias）
 - `handoff_correctness`
 - `tool_argument_precision`
 - `guardrail_correctness`
@@ -183,8 +185,10 @@ uncorrelated cases with a reason.
   document payload 或 raw restricted payload
 - external trace ids / grader ids 只能作为 backlink；不能替代 repo-owned case truth 或
   release verdict
-- typed structured activity case 与 Python delegate case 都必须可落到同一
-  `workflow_trace_summary` shape，避免形成两套不可比的 artifact
+- direct/no-tool terminal、typed structured activity 与 capability-required case
+  都必须可落到同一 `workflow_trace_summary` shape，避免形成两套不可比的
+  artifact；legacy `direct_vs_delegate_*` 命名只作为兼容字段，不表示 active
+  Python delegate path
 - repo-owned workflow trace runtime gate 固定由
   `campus_evals.workflow_trace_gate` 消费 `workflow_trace_summary`，并将
   deterministic verdict 写回

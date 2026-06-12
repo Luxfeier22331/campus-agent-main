@@ -16,11 +16,6 @@ TS_PATH = (
     REPO_ROOT / "apps/app-api/src/modules/integration/generated/capability-execution-contract.ts"
 )
 GO_PATH = REPO_ROOT / "apps/execution-control/internal/contracts/capability_execution_contract.go"
-PY_GENERATED_DIR = (
-    REPO_ROOT / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated"
-)
-PY_PACKAGE_INIT_PATH = PY_GENERATED_DIR / "__init__.py"
-PY_PATH = PY_GENERATED_DIR / "capability_execution_contract.py"
 
 HEADER = "AUTO-GENERATED FROM capability-execution.openapi.yaml"
 
@@ -36,8 +31,6 @@ def main() -> None:
     outputs = {
         TS_PATH: _generate_ts(contract),
         GO_PATH: _generate_go(contract),
-        PY_PACKAGE_INIT_PATH: _generate_py_init(),
-        PY_PATH: _generate_py(contract),
     }
     if args.check:
         mismatches = [
@@ -538,219 +531,10 @@ type CapabilityExecutionResponseWire struct {
     )
 
 
-def _generate_py_init() -> str:
-    return '"""Generated capability execution contract package."""\n'
-
-
-def _generate_py(contract: dict[str, Any]) -> str:
-    meta = _contract_meta(contract)
-    capability_ids = _enum(contract, "CapabilityID")
-    requested_capabilities = _enum(contract, "RequestedCapability")
-    confidence_levels = _enum(contract, "ConfidenceLevel")
-    delegate_statuses = _enum(contract, "DelegateStatus")
-    execution_statuses = _enum(contract, "ExecutionStatus")
-    workflow_modes = _enum(contract, "WorkflowMode")
-    projection_kinds = _enum(contract, "StepOutputProjectionKind")
-    return (
-        f"# {HEADER}. Do not edit by hand.\n\n"
-        "from __future__ import annotations\n\n"
-        "from typing import Any, Literal\n\n"
-        "from pydantic import BaseModel, ConfigDict, Field\n\n"
-        f"EXECUTION_CONTRACT_VERSION = {_py_quote(meta['execution_contract_version'])}\n"
-        f"RESPONSE_CONTRACT = {_py_quote(meta['response_contract'])}\n"
-        f"RUNTIME_DECISIONS_SCHEMA_VERSION = {_py_quote(meta['runtime_decisions_schema_version'])}\n"
-        f"RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION = "
-        f"{_py_quote(meta['runtime_decision_summary_schema_version'])}\n"
-        f"WORKFLOW_TRACE_SUMMARY_VERSION = {_py_quote(meta['workflow_trace_summary_version'])}\n\n"
-        f"CapabilityID = {_py_literal(capability_ids)}\n"
-        f"RequestedCapability = {_py_literal(requested_capabilities)}\n"
-        f"ConfidenceLevel = {_py_literal(confidence_levels)}\n"
-        f"DelegateStatus = {_py_literal(delegate_statuses)}\n"
-        f"ExecutionStatus = {_py_literal(execution_statuses)}\n\n\n"
-        f"WorkflowMode = {_py_literal(workflow_modes)}\n"
-        f"StepOutputProjectionKind = {_py_literal(projection_kinds)}\n\n\n"
-        "class RuntimeDecisionSummaryWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    schema_version: Literal[RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION]\n"
-        "    planning_outcome: str\n"
-        '    scope_gate_decision: str = ""\n'
-        '    policy_gate_decision: str = ""\n'
-        '    context_preflight_state: str = ""\n'
-        '    routing_next_action: str = ""\n'
-        '    selected_capability: str = ""\n'
-        '    selected_tool: str = ""\n'
-        '    worker_role: str = ""\n'
-        '    terminal_outcome: str = ""\n'
-        '    fail_close_reason: str = ""\n'
-        "    runtime_versions: dict[str, Any] = Field(default_factory=dict)\n"
-        "    policy_artifact_versions: dict[str, Any] = Field(default_factory=dict)\n\n\n"
-        "class WorkflowPlanStepWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    step_id: str\n"
-        "    step_kind: str\n"
-        '    capability: str = ""\n'
-        '    worker_role: str = ""\n'
-        '    payload_kind: str = ""\n'
-        "    allowed_tools: list[str] = Field(default_factory=list)\n"
-        '    selected_tool: str = ""\n\n\n'
-        "class WorkflowPlanEdgeWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    from_step_id: str\n"
-        "    to_step_id: str\n"
-        "    condition: str\n"
-        '    required_projection_kind: str = ""\n\n\n'
-        "class ProjectionSafetySummaryWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    truncated: bool\n"
-        "    redacted: bool\n"
-        "    max_chars: int\n"
-        "    fields_present: list[str]\n\n\n"
-        "class StepOutputProjectionWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    projection_id: str\n"
-        "    source_step_id: str\n"
-        "    projection_kind: StepOutputProjectionKind\n"
-        "    content_hash: str\n"
-        "    payload: dict[str, Any]\n"
-        "    safety: ProjectionSafetySummaryWire\n\n\n"
-        "class WorkflowContextProjectionWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    projection_id: str\n"
-        "    source_step_id: str\n"
-        "    projection_kind: StepOutputProjectionKind\n"
-        "    content_hash: str\n"
-        "    safety: ProjectionSafetySummaryWire\n\n\n"
-        "class WorkflowCapabilityContextWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        '    schema_version: Literal["workflow-capability-context-v1"]\n'
-        '    visibility: Literal["capability_private"]\n'
-        "    workflow_run_ref: str\n"
-        "    step_id: str\n"
-        "    capability_id: CapabilityID\n"
-        '    worker_role: str = ""\n'
-        '    required_projection_kind: StepOutputProjectionKind | str = ""\n'
-        "    expected_output_artifacts: list[StepOutputProjectionKind]\n"
-        "    projection_refs: list[WorkflowContextProjectionWire]\n\n\n"
-        "class WorkflowPlanWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        '    schema_version: Literal["workflow-plan-v1"]\n'
-        "    plan_id: str\n"
-        "    workflow_mode: WorkflowMode\n"
-        "    allowed_capabilities: list[CapabilityID]\n"
-        "    steps: list[WorkflowPlanStepWire]\n"
-        "    edges: list[WorkflowPlanEdgeWire]\n"
-        "    terminal_policy: dict[str, Any]\n"
-        "    resume_policy: dict[str, Any]\n"
-        "    semantic_retry_policy: dict[str, Any]\n\n\n"
-        "class CapabilityInvocationWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    invocation_id: str\n"
-        '    parent_invocation_id: str = ""\n'
-        "    workflow_run_ref: str\n"
-        "    step_id: str\n"
-        "    capability_id: CapabilityID\n"
-        "    status: str\n"
-        "    allowed_tools: list[str]\n"
-        "    used_tools: list[str]\n"
-        "    projection_ids: list[str]\n"
-        '    fail_close_reason: str = ""\n\n\n'
-        "class RuntimeDecisionsWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="allow")\n\n'
-        "    schema_version: Literal[RUNTIME_DECISIONS_SCHEMA_VERSION]\n"
-        "    effective_capability: RequestedCapability\n"
-        "    lane: str\n"
-        "    routing_frame: dict[str, Any]\n"
-        "    runtime_decision_summary: RuntimeDecisionSummaryWire\n"
-        "    scope_gate: dict[str, Any] = Field(default_factory=dict)\n"
-        "    policy_gate: dict[str, Any] = Field(default_factory=dict)\n"
-        "    context_preflight: dict[str, Any] = Field(default_factory=dict)\n"
-        "    tool_policy: dict[str, Any] = Field(default_factory=dict)\n"
-        "    handoff: dict[str, Any] | None = None\n"
-        "    workflow_plan: WorkflowPlanWire | None = None\n"
-        "    terminal_envelope: dict[str, Any] | None = None\n\n\n"
-        "class CapabilityExecutionRequestWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    execution_contract_version: Literal[EXECUTION_CONTRACT_VERSION]\n"
-        "    response_contract: Literal[RESPONSE_CONTRACT]\n"
-        "    user_goal: str\n"
-        "    request_id: str\n"
-        "    effective_capability: RequestedCapability\n"
-        "    lane: str\n"
-        "    requested_capability: RequestedCapability\n"
-        "    trace: dict[str, Any]\n"
-        "    actor: dict[str, Any]\n"
-        "    context: dict[str, Any]\n"
-        "    version_query: dict[str, Any]\n"
-        "    runtime_decisions: RuntimeDecisionsWire | None = None\n"
-        '    conversation_id: str = ""\n'
-        "    safety_identifier: str | None = None\n"
-        "    requested_scope: dict[str, Any] | None = None\n\n\n"
-        "class CapabilityRequestWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    capability: CapabilityID\n"
-        '    worker_role: str = ""\n'
-        "    user_goal: str\n"
-        "    payload: dict[str, Any]\n"
-        "    allowed_tools: list[str]\n"
-        '    conversation_id: str = ""\n'
-        '    request_id: str = ""\n'
-        "    safety_identifier: str | None = None\n"
-        "    trace: dict[str, Any] = Field(default_factory=dict)\n"
-        "    actor: dict[str, Any] = Field(default_factory=dict)\n"
-        "    context: dict[str, Any] = Field(default_factory=dict)\n"
-        "    workflow_context: WorkflowCapabilityContextWire | None = None\n\n\n"
-        "class CapabilityResponseWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    capability: CapabilityID\n"
-        '    worker_role: str = ""\n'
-        "    status: DelegateStatus\n"
-        '    answer_text: str = ""\n'
-        '    follow_up_question: str = ""\n'
-        '    confidence: ConfidenceLevel = "low"\n'
-        "    result: dict[str, Any] | None = None\n"
-        "    error: dict[str, Any] | None = None\n"
-        "    capability_observability: dict[str, Any] | None = None\n\n\n"
-        "class WorkflowTraceSummaryWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    routing_frame: dict[str, Any]\n"
-        "    context_resolution: dict[str, Any]\n"
-        "    planning_outcome: str\n"
-        "    direct_vs_delegate_branch: str\n"
-        "    workflow_mode: WorkflowMode\n"
-        "    handoff: dict[str, Any]\n"
-        "    handoff_chain: list[dict[str, Any]]\n"
-        "    capability_invocations: list[CapabilityInvocationWire]\n"
-        "    selected_capability: str | None\n"
-        "    selected_tools: list[str]\n"
-        "    context_projections: list[WorkflowContextProjectionWire]\n"
-        "    answer_artifact_projection_ids: list[str]\n"
-        "    answer_artifact_kinds: list[StepOutputProjectionKind]\n"
-        "    tool_argument_summary: dict[str, Any]\n"
-        "    guardrail_outcomes: dict[str, Any]\n"
-        "    fail_close_reason: str\n"
-        "    runtime_versions: dict[str, Any]\n"
-        "    policy_artifact_versions: dict[str, Any]\n"
-        "    trace_steps: list[dict[str, Any]] = Field(default_factory=list)\n"
-        "    tool_call_summaries: list[dict[str, Any]] = Field(default_factory=list)\n\n\n"
-        "class CapabilityExecutionResponseWire(BaseModel):\n"
-        '    model_config = ConfigDict(extra="forbid")\n\n'
-        "    selected_capability: CapabilityID | None\n"
-        "    status: ExecutionStatus\n"
-        "    answer_text: str\n"
-        "    follow_up_question: str\n"
-        "    confidence: ConfidenceLevel\n"
-        "    result: dict[str, Any] | None\n"
-        "    error: dict[str, Any] | None\n"
-        "    trace_id: str\n"
-        "    observability: dict[str, Any] | None = None\n"
-        "    workflow_trace_summary: WorkflowTraceSummaryWire | None = None\n"
-    )
-
-
 def _ts_const_array(name: str, values: tuple[str, ...]) -> str:
     inline_array = "[" + ", ".join(_ts_quote(value) for value in values) + "]"
     inline_line = f"export const {name} = {inline_array} as const;"
-    if len(values) <= 3 and len(inline_line) <= 100:
+    if len(inline_line) <= 100:
         return inline_line + "\n"
     rendered_values = "".join(f"\t{_ts_quote(value)},\n" for value in values)
     return f"export const {name} = [\n{rendered_values}] as const;\n"
@@ -769,12 +553,6 @@ def _go_const_suffix(value: str) -> str:
 
 _ts_quote = json.dumps
 _go_quote = json.dumps
-_py_quote = json.dumps
-
-
-def _py_literal(values: tuple[str, ...]) -> str:
-    rendered = ",\n    ".join(_py_quote(value) for value in values)
-    return "Literal[\n    " + rendered + ",\n]"
 
 
 def _gofmt(source: str) -> str:

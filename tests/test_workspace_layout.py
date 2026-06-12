@@ -1,5 +1,4 @@
 import unittest
-from importlib import import_module
 from pathlib import Path
 
 from campus_contracts import CapabilityRequest, KnowledgeScope, RagRequestPayload
@@ -15,7 +14,6 @@ EXPECTED_WORKSPACES = {
     "apps/protected-panel-web",
     "apps/public-chat-web",
     "apps/execution-control",
-    "apps/supervisor-agent-worker",
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
@@ -34,6 +32,7 @@ class WorkspaceLayoutTest(unittest.TestCase):
 
     def test_standalone_supervisor_core_package_is_retired(self) -> None:
         self.assertFalse((ROOT / "packages/supervisor-core").exists())
+        self.assertFalse((ROOT / "apps/supervisor-agent-worker").exists())
 
     def test_contract_surface_exposes_generic_capability_request(self) -> None:
         request = CapabilityRequest(
@@ -56,28 +55,6 @@ class WorkspaceLayoutTest(unittest.TestCase):
                 )
             ),
         )
-
-    def test_supervisor_agent_worker_exposes_private_bridge_routes(self) -> None:
-        supervisor_agent_worker = import_module("campus_supervisor_agent_worker")
-        worker_settings = import_module("campus_supervisor_agent_worker.settings")
-
-        self.assertFalse(hasattr(supervisor_agent_worker, "create_app"))
-        self.assertTrue(hasattr(supervisor_agent_worker, "create_bridge_app"))
-
-        app = supervisor_agent_worker.create_bridge_app(settings=worker_settings.ApiSettings())
-
-        self.assertEqual(app.name, "campus-agent-v2")
-        self.assertEqual(
-            {route.path for route in app.routes},
-            {
-                "/internal/bridge/execution/cancel",
-                "/internal/bridge/semantic/execution",
-                "/internal/bridge/supervisor/answer",
-                "/internal/bridge/healthz",
-                "/internal/bridge/readyz",
-            },
-        )
-        self.assertEqual(app.runtime.provider, "")
 
 
 if __name__ == "__main__":

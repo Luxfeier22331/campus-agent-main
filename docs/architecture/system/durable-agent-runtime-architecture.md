@@ -69,7 +69,11 @@ Current implementation baseline:
   `CapabilityExecutionWorkflow`.
 - chat trajectory projection now uses the Temporal-visible capability-neutral
   graph: `context.memory_recall -> plan.route -> capability branch ->
-  finalization.write`. The `knowledge` branch runs `rag.plan ->
+  finalization.write`. This is the current durable branch skeleton, but it still
+  lacks a first Execution Agent decision that can end in a direct/no-tool
+  terminal answer before capability routing. Current code still defaults missing
+  `requested_capability` to `knowledge`; that is an implementation gap, not a
+  target invariant. The `knowledge` branch runs `rag.plan ->
   retrieval.indexed_lookup -> retrieval.expand_or_rescue -> evidence.selection
   -> synthesis -> grounding.verify`.
 - first-class step attempt evidence fields exist in the projection store,
@@ -83,9 +87,9 @@ Current implementation baseline:
   retrieval uses the Qdrant native adapter against the authenticated private
   data-plane, synthesis executes the provider call, records usage / estimated
   cost / cancel outcome and stores sanitized finalization input.
-- Python `apps/supervisor-agent-worker` is not in the current online answer
-  path. It may remain as offline / eval / tooling / historical bridge reference,
-  but must not be restored as a serving fallback or readiness dependency.
+- Python `apps/supervisor-agent-worker` has been removed from the active
+  workspace. Historical bridge code is recoverable only through git history and
+  must not be restored as a serving fallback or readiness dependency.
 
 ## Temporal Execution Plane
 
@@ -283,20 +287,35 @@ canceled / expired`
 
 ### Target Capability Execution Graph
 
-目标 `CapabilityExecutionWorkflow` 不以 RAG 为顶层入口。它先执行 capability-neutral
-context 与 routing step，再进入对应 capability branch：
+目标 `CapabilityExecutionWorkflow` 不以 RAG 为顶层入口。它先记录 durable run，
+执行 first Execution Agent decision；该 decision 可以直接产生 no-tool terminal
+outcome，也可以进入 capability routing / workflow planning，再进入对应 capability
+branch：
 
 ```text
-context.memory_recall
--> plan.route
+first_decision
+-> direct/no-tool terminal
+-> finalization.write
+
+first_decision
+-> optional context.memory_recall
+-> capability routing / workflow planning
 -> capability branch
 -> finalization.write
 ```
 
 固定规则：
 
+- `first_decision` 是 provider/model-facing 的第一 agent decision contract；
+  它使用 repo-global invariants / role instructions / typed task packet，并基于
+  admitted tool/capability set 判断是否需要工具。它不是 app-api 本地 prompt，
+  也不是 surface persona selector。
+- direct/no-tool terminal branch 覆盖产品身份说明、普通寒暄、澄清、拒绝、
+  out-of-scope 与 fail-close outcome；不得把这些拆成
+  `assistant_intro`、`product_meta` 或 synthetic capability。
 - `context.memory_recall` 使用 Qdrant `personal_memory_v1` recall bounded personal
-  memory context，输出 selected count、char budget 与 compact memory items。
+  memory context，输出 selected count、char budget 与 compact memory items；目标态下它应由
+  first decision / workflow plan 明确需要时执行，而不是为了默认进入 RAG 而无条件前置。
 - `plan.route` 承接 admission / routing / workflow plan projection，不读取 PG profile
   memory full dump，也不把所有请求默认压成 knowledge/RAG。
 - `knowledge` branch 承接 RAG retrieval、evidence、synthesis 与 grounding。
@@ -465,9 +484,9 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
 
 ### Retired Python Semantic Bridge
 
-`apps/supervisor-agent-worker` 不参与当前 online answer path。它只保留为 offline /
-eval / tooling / historical bridge reference；不得作为 serving fallback、staging
-readiness dependency 或 Temporal workflow branch 恢复。
+`apps/supervisor-agent-worker` 已从 active workspace 删除。旧 Python semantic
+bridge code 只可通过 git history 追溯；不得作为 serving fallback、staging readiness
+dependency 或 Temporal workflow branch 恢复。
 
 它不负责：
 

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-06-06
+updated: 2026-06-12
 ---
 # Capability Routing And Admission Architecture
 
@@ -38,16 +38,19 @@ supporting architecture，不得把它误读成“public chat 当前已经不是
 
 而是：
 
-`surface intake -> admission / guardrails -> capability routing ->
-workflow planning -> Temporal typed activity / agent-as-tool activity ->
-execution finalization`
+`surface intake -> admission / guardrails -> first Execution Agent decision ->
+direct/no-tool terminal or capability routing -> workflow planning ->
+Temporal typed activity / agent-as-tool activity -> execution finalization`
 
 其中固定规则如下：
 
-- 顶层默认先判定 `capability family`，而不是先判定 retrieval `scope`
-- capability family 判定之后，Execution Agent Layer 再决定本次请求是 terminal、
-  direct typed tool runtime、single agent-as-tool execution，还是 admitted
-  multi-step workflow
+- 顶层默认先做 first Execution Agent decision，判断请求是否可在产品边界内
+  直接回答 / 澄清 / 拒绝 / fail closed，还是需要进入某个 campus capability
+- 只有当 first decision 判断需要工具或校园能力时，才判定 `capability family`；
+  此时仍然是先判 capability family，而不是先判 retrieval `scope`
+- capability family 判定之后，Execution Agent Layer 再决定本次 capability
+  execution 是 direct typed tool runtime、single agent-as-tool execution，还是
+  admitted multi-step workflow
 - `requested_scope` 只属于 knowledge-family path，不是所有请求共享的顶层默认字段
 - `admission` 与 `routing` 必须分层，避免把 surface policy、capability readiness、run
   budget 与
@@ -88,8 +91,8 @@ execution finalization`
 
 1. `surface intake`
 1. `admission / guardrails`
-1. `capability routing`
-1. `workflow planning`
+1. `first Execution Agent decision`
+1. `capability routing / workflow planning when tools are needed`
 1. `typed tool / agent-as-tool execution`
 1. `execution finalization`
 
@@ -159,7 +162,39 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 current process-local execution protection。
 它们不得替代 durable run admission 或 lease coordination。
 
-### 3. Capability Routing
+### 3. First Execution Agent Decision
+
+`first Execution Agent decision` 是进入 provider / model reasoning 的第一层
+产品语义判断。它消费 app-api 投影后的 session / actor / surface context、
+repo-global invariants、allowed capability/tool set 与 user input。
+
+它长期只负责回答：
+
+- 当前请求是否属于产品边界内的普通对话、产品自我说明、澄清或拒绝
+- 当前请求是否需要调用 campus capability / typed tool / agent-as-tool
+- 若需要工具，下一步应进入哪个 capability routing family
+- 若不需要工具，terminal branch 的 user-facing answer / clarification /
+  reject / fail-close outcome 是什么
+
+固定规则：
+
+- `hi 你是谁`、产品能力边界说明、普通寒暄等不应被建模成
+  `assistant_intro`、`product_meta` 或其他 synthetic capability
+- first decision 必须受 repo-global invariants 与 surface admission 约束；它不能
+  打开被 deterministic gate 关闭的 capability
+- first decision 的 direct/no-tool terminal outcome 必须进入 sanitized
+  projection、workflow trace summary 或等价 operator-safe projection，不能只作为
+  transient prompt text 存在
+- 当前代码尚未完成这层 first decision：缺失 `requested_capability` 时仍会默认进入
+  `knowledge`。这是待实现缺口，不得写成 accepted target shape。
+
+OpenAI 官方 Responses / tools 文档给出的成熟 agent 形态是：通过系统级
+instructions 约束模型，并把工具以结构化 `tools` 配置暴露给模型，由模型基于
+prompt 判断是否调用已配置工具，必要时用 `tool_choice` 约束行为。本文目标态
+采用同样原则：工具选择属于第一 agent decision 的结构化能力，而不是把每个
+产品说明或寒暄都拆成一个 capability。
+
+### 4. Capability Routing
 
 `routing` 是 Execution Agent Layer-owned 的中立 capability 决策层。
 
@@ -186,7 +221,7 @@ current process-local execution protection。
 如果明确接受新的 deterministic capability，它必须先以 repo-owned typed tool / internal query
 service 入场；只有需要 semantic specialist 时才新增 family label，不能作为 hidden fallback。
 
-### 4. Workflow Planning
+### 5. Workflow Planning
 
 `workflow planning` 是 Execution Agent Layer-owned 的 deterministic governance 层。它长期只负责回答：
 
@@ -210,7 +245,7 @@ service 入场；只有需要 semantic specialist 时才新增 family label，�
 - Temporal workflow history 不替代 product projection；workflow/activity progress
   必须写入 repo-owned sanitized projection 后才能进入 panel / eval / badcase truth
 
-### 5. Typed Tool / Agent-As-Tool Execution
+### 6. Typed Tool / Agent-As-Tool Execution
 
 一旦 capability family 已确定，deterministic data access 归 typed tool /
 internal query service 拥有；semantic reasoning 归对应 agent-as-tool 拥有。
@@ -236,7 +271,7 @@ internal query service 拥有；semantic reasoning 归对应 agent-as-tool 拥�
 只消费 workflow plan 允许的 typed input projection，并只返回 bounded typed output，例如
 `StepOutputProjection`、evidence summary、change set、place context 或 grounding verdict。
 
-### 6. Execution Finalization
+### 7. Execution Finalization
 
 Execution Agent Layer 长期继续统一负责：
 
@@ -320,6 +355,17 @@ surface policy 只区分产品入口，不表达学生 / 教职工 / 院系之�
 - optional knowledge-family-specific `requested_scope`
 - optional routing confidence / routing summary
 
+first Execution Agent decision 还必须能表达 no-tool terminal intent，例如：
+
+- `direct_answer`
+- `clarification`
+- `reject`
+- `out_of_scope`
+- `unsupported_or_not_grounded`
+
+这些 terminal intent 不等于 capability id，`selected_capability` 可以为空或 `none`，
+但必须保留 decision provenance、instructions/prompt version 与 fail-close reason。
+
 补充约束：
 
 - 本文冻结的是概念 contract，而不是当前 wire shape
@@ -351,6 +397,9 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 ## Forbidden Shapes
 
 - 不把所有请求默认压成 `knowledge`，再在 knowledge path 内临时 patch 其他能力
+- 不为 product self-introduction、普通寒暄或能力边界说明新增
+  `assistant_intro`、`product_meta`、`surface prompt profile`、`product persona`
+  等 synthetic capability / persona 分支
 - 不用 `requested_scope` 充当 capability family 的代理字段
 - 不让 agent 反向改写 surface capability policy
 - 不把 structured runtime capability 伪装成 generic retrieval fallback

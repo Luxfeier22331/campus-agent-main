@@ -44,15 +44,15 @@ durable runtime contract 为当前 canonical source。`capability-execution.open
 - `docs/contracts/schemas/capability-execution.openapi.yaml`：OpenAPI 3.1.1 +
   JSON Schema 2020-12，冻结 capability execution request / response、runtime
   decisions summary 与 workflow trace summary 的 wire shape
-- `scripts/generate_capability_execution_contracts.py`：从上述 schema 生成三种 runtime
+- `scripts/generate_capability_execution_contracts.py`：从上述 schema 生成 active runtime
   artifact
 - `apps/app-api/src/modules/integration/generated/capability-execution-contract.ts`：Worker
   adapter 消费的 TS wire enum / interface
 - `apps/execution-control/internal/contracts/capability_execution_contract.go`：Go
   execution runtime 消费的 execution contract version、response contract 与 wire DTO
-- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/capability_execution_contract.py`：
-  offline eval / historical bridge tooling 可消费的 Pydantic DTO；不得重新接入
-  online serving path
+- Python bridge Pydantic DTO 已随 retired worker 从 active workspace 删除；如需
+  offline historical comparison，应从 git history 恢复到隔离环境，不能作为 active
+  generated artifact 或 serving seam
 
 生成物必须通过以下命令保持同步：
 
@@ -125,6 +125,10 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 `execution_payload` 生成 resolved branch steps，并把 selected capability、typed tool、
 payload kind、worker role 与 branch mode 写入 sanitized projection。当前 online path 不再把
 真实 delegate payload 送入 Python bridge，也不把旧 `runtime_decisions` 作为规划输入。
+目标态还需要在 `plan.route` 之前或其中显式承载 first Execution Agent decision：
+该 decision 可以返回 direct/no-tool terminal outcome，不产生 capability handoff；
+也可以进入 capability routing / workflow planning。当前代码事实仍要求 workflow plan
+具备 executable handoff，且缺失 capability 时默认 knowledge，这是待演进缺口。
 selected notice context + knowledge follow-through 会被 resolver 编译为 typed tool
 step + knowledge step。typed tool 输出会被 `execution-control` 投影成 canonical
 `StepOutputProjection`，再以 bounded result ref 输入后续 RAG step。operator / eval
@@ -631,7 +635,10 @@ approval / HITL 或 state-changing tool 作为产品目标。
 
 terminal response 的跨语言语义固定如下：
 
-- `completed`：必须有 canonical `selected_capability` 与 response-level confidence
+- `completed`：capability / tool execution path 必须有 canonical
+  `selected_capability` 与 response-level confidence；first decision 的 direct/no-tool
+  terminal path 允许 `selected_capability=null` 或 operator-normalized `none`，但必须
+  记录 first decision provenance、terminal intent 与 prompt/runtime versions
 - `needs_clarification` / `no_answer`：仍是 typed execution outcome，不等价于
   transport failure
 - `error`：必须携带 safe `{ code, message, retryable }`，并在
@@ -660,8 +667,9 @@ shared product path 已收口为：
   identity header 来恢复最终业务 actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
-- Python `apps/supervisor-agent-worker` 只保留 offline / eval / tooling / historical
-  bridge reference，不再暴露 public compatibility ingress，也不参与 online serving
+- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 bridge code
+  只可通过 git history 追溯，不再暴露 public compatibility ingress，也不参与
+  online serving
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 
@@ -669,6 +677,10 @@ shared product path 已收口为：
 
 - 当前 internal execution wire truth 仍是 `requested_capability + knowledge-only optional
   requested_scope`
+- 后续 contract 必须新增或明确 first Execution Agent decision projection：
+  `direct_answer` / `clarification` / `reject` / `out_of_scope` /
+  `unsupported_or_not_grounded` 不应被编码成 synthetic capability，也不应被迫产生
+  executable handoff
 - 在明确引入新版本 contract 之前，`app-api` 与 `execution-control` 继续按这组字段互操作，不把
   capability-neutral routing 误写成“当前 wire 已经 capability-family-native”
 - `requested_scope` 的长期语义应收窄为 knowledge-family-specific field；它不能代替 capability

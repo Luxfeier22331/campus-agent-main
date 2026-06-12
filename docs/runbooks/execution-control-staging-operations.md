@@ -478,8 +478,8 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 - `execution-control` 默认 admission 参数为 `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS=8`、
   `EXECUTION_CONTROL_QUEUE_CAPACITY=24`、`EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000`、
   `EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000`
-- retired `SUPERVISOR_AGENT_WORKER_*` 与 `EXECUTION_CONTROL_BRIDGE_*` env 不得出现在
-  active staging runtime env；出现时 deploy/start preflight fail closed
+- retired Python worker env 与 retired bridge env 不得出现在 active staging
+  runtime env；出现时 deploy/start preflight fail closed
 - 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
   `campus_services=2/4/1500ms`、`notice=2/4/1500ms`、`default=1/2/1500ms`；
   三元组含义为 `max_concurrent / queue_capacity / queue_timeout`

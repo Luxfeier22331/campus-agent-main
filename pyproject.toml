@@ -130,7 +130,6 @@ members = [
   "apps/legacy-office-conversion-service",
   "apps/official-web-collector",
   "apps/public-chat-web",
-  "apps/supervisor-agent-worker",
   "packages/*",
 ]
 

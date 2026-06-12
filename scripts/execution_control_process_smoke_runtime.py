@@ -11,11 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-from scripts.supervisor_runtime_process_smoke_models import (
+from scripts.execution_control_process_smoke_models import (
     ProcessCommandSpec,
     ProcessSmokePlan,
 )
-from scripts.supervisor_runtime_process_smoke_profiles import (
+from scripts.execution_control_process_smoke_profiles import (
     STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
     TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
     profile_requires_notice_read_model,
@@ -223,7 +223,7 @@ def _seed_structured_projection_smoke(
         "-m",
         "campus_ingestion_worker.smoke_structured_projection_postgres",
         "--release-id",
-        "supervisor-runtime-process-smoke",
+        "execution-control-process-smoke",
         "--generated-at",
         generated_at,
     ]

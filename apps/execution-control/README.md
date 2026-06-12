@@ -80,9 +80,9 @@ Current status:
 - Repo-local `Phase 8-12` implementation is in place: the structured query runtime
   foundation and transport schedule query kernel are landed without opening
   `campus_services` product serving.
-- Python `apps/supervisor-agent-worker` is not part of online answer serving,
-  readiness aggregation or worker topology. It is retained only for offline /
-  eval / tooling / historical bridge reference.
+- Python `apps/supervisor-agent-worker` has been removed from the active
+  workspace. Historical bridge code is recoverable only through git history and
+  is not part of readiness aggregation or worker topology.
 - Repo-local lifecycle streaming is owned by `app-api` over projection/event
   reads. `execution-control` does not expose the retired lifecycle answer SSE
   endpoint.
@@ -102,9 +102,9 @@ Current admission boundary:
   `default`; unset lane budgets inherit the global budget.
 - `active_answers == max_concurrent_answers` does not by itself make `/readyz`
   degraded if the queue can still accept short bursts.
-- Retired `EXECUTION_CONTROL_BRIDGE_*` and `SUPERVISOR_AGENT_WORKER_*` settings
-  fail closed in online execution-control config. Do not use them as local or
-  staging runtime inputs.
+- Retired bridge settings and retired Python worker settings fail closed in
+  online execution-control config. Do not use them as local or staging runtime
+  inputs.
 - `EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH` points at the Go-owned
   query-serving scope allowlist. When unset, local repo runs discover
   `configs/runtime/query-serving-scopes.v1.json` from the repo root; if no

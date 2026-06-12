@@ -40,8 +40,8 @@ browser -> protected-panel-web -> app-api
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
 - 当前 online answer path 已硬切为 Go-owned Temporal memory+RAG activity graph；Python
-  `supervisor-agent-worker` 不参与 serving，只保留 offline / eval / tooling / historical
-  bridge reference
+  `apps/supervisor-agent-worker` 已从 active workspace 删除，旧实现只可通过 git
+  history 追溯
 - online query path 与 offline data plane 持续分层
 - `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
   第二产品后端或 MediaWiki 替代物
@@ -87,8 +87,6 @@ browser -> protected-panel-web -> app-api
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/public-docs`](./apps/public-docs/)
 - [`apps/execution-control`](./apps/execution-control/)
-- [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)（offline /
-  eval / historical bridge reference，不在 online serving path）
 - [`packages/knowledge-capability`](./packages/knowledge-capability/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)

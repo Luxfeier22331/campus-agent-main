@@ -35,10 +35,14 @@ product data and sanitized run/event/step projection, not the execution queue.
   `planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`.
-- Python `apps/supervisor-agent-worker` is no longer part of online answer
-  serving. It remains only for offline/eval/tooling or historical bridge
-  reference. The `supervisor` concept is an abstract admission/routing/planning/
-  finalization role, not an app name.
+- The main answer path still lacks the first Execution Agent decision /
+  direct no-tool terminal branch. Current code still defaults missing
+  `requested_capability` to `knowledge`; that is a tracked implementation gap,
+  not accepted target architecture.
+- Python `apps/supervisor-agent-worker` has been removed from the active
+  workspace. Historical bridge code is recoverable only through git history. The
+  `supervisor` concept is an abstract admission/routing/planning/finalization
+  role, not an app name.
 - Qdrant remains self-hosted authenticated private data-plane infrastructure.
   API keys are data-plane secrets; transport hardening is an ops issue, not a
   reason to remove authentication.
@@ -73,6 +77,8 @@ Create or resume durable docs/ADRs/runbook work when any of these occur:
   serving scope.
 - Temporal workflow/activity topology, worker autoscaling, or projection schema
   changes.
+- First Execution Agent decision, direct/no-tool terminal projection, or
+  capability routing contract changes.
 - A data-plane source truth, ingestion release, query-enabled surface, or access
   boundary changes.
 - Staging/release evidence reveals drift between `app-api`, execution-control,

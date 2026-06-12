@@ -23,10 +23,6 @@ GENERATED_TS_PATH = Path(
 GENERATED_GO_PATH = Path(
     "apps/execution-control/internal/contracts/capability_execution_contract.go"
 )
-GENERATED_PY_PATH = Path(
-    "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/"
-    "capability_execution_contract.py"
-)
 
 
 def _load_openapi() -> dict[str, object]:
@@ -268,16 +264,14 @@ class CanonicalCapabilityExecutionSchemaTest(unittest.TestCase):
         for path, marker in (
             (GENERATED_TS_PATH, "AUTO-GENERATED FROM capability-execution.openapi.yaml"),
             (GENERATED_GO_PATH, "AUTO-GENERATED FROM capability-execution.openapi.yaml"),
-            (GENERATED_PY_PATH, "AUTO-GENERATED FROM capability-execution.openapi.yaml"),
         ):
             with self.subTest(path=str(path)):
                 self.assertTrue(path.exists())
                 self.assertIn(marker, path.read_text(encoding="utf-8"))
 
-    def test_workflow_trace_summary_is_generated_as_typed_wire_in_all_languages(self) -> None:
+    def test_workflow_trace_summary_is_generated_as_typed_wire_in_active_artifacts(self) -> None:
         ts_contract = GENERATED_TS_PATH.read_text(encoding="utf-8")
         go_contract = GENERATED_GO_PATH.read_text(encoding="utf-8")
-        py_contract = GENERATED_PY_PATH.read_text(encoding="utf-8")
 
         self.assertIn("interface CapabilityExecutionWorkflowTraceSummaryWire", ts_contract)
         self.assertIn("export type WorkflowMode = (typeof WORKFLOW_MODES)[number];", ts_contract)
@@ -295,13 +289,6 @@ class CanonicalCapabilityExecutionSchemaTest(unittest.TestCase):
         self.assertIn(
             'WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`',
             go_contract,
-        )
-        self.assertIn("WorkflowMode = Literal[", py_contract)
-        self.assertIn("workflow_mode: WorkflowMode", py_contract)
-        self.assertIn("class WorkflowTraceSummaryWire(BaseModel):", py_contract)
-        self.assertIn(
-            "workflow_trace_summary: WorkflowTraceSummaryWire | None = None",
-            py_contract,
         )
 
     def test_cross_language_generated_artifacts_are_in_sync(self) -> None:

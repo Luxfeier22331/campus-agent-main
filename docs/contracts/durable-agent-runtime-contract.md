@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-06-04
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 # Durable Agent Runtime Contract
 
@@ -183,7 +183,9 @@ Run step status enum 固定为：
 - `blocked`
   - step 缺 required projection、authz、freshness、source-trust 或 evidence 条件
 - `skipped`
-  - step 因 upstream terminal decision 不再需要执行，必须记录 skip reason
+  - step 因 upstream terminal decision 不再需要执行，必须记录 skip reason；典型来源是
+    first Execution Agent decision 已产生 direct/no-tool terminal outcome，后续
+    capability branch 不应被排队
 - `canceled`
   - step 随 run explicit cancel 或 step-local cancel 终止
 - `expired`

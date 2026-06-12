@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 # 目标架构
 
@@ -58,10 +58,11 @@ client/channel
 -> browser surface
 -> app-api surface policy / account-session / minimal context projection
 -> execution-control Execution Agent Layer
--> CapabilityExecutionWorkflow
--> context.memory_recall
--> plan.route
--> capability branch
+-> first Execution Agent decision
+-> direct/no-tool terminal or CapabilityExecutionWorkflow
+-> optional context.memory_recall
+-> capability routing / workflow planning
+-> capability branch when tools are needed
 -> finalization.write
 -> sanitized run event + step/attempt/result projection
 -> app-api response / stream / operator read model
@@ -341,6 +342,11 @@ collector/source admission
   typed structured activity、single-capability execution 还是 multi-capability /
   agent-as-tool workflow，并显式限制 allowed capabilities、allowed tools、step
   budget、timeout 与 fail-close terminal policy
+- first Execution Agent decision 是 provider/model-facing 的第一语义决策：它在
+  repo-global invariants、typed task packet、allowed tool/capability set 与 strict
+  output contract 下判断是否需要工具。产品自我说明、普通寒暄、澄清、拒绝、
+  out-of-scope 与 fail-close outcome 不新增 `assistant_intro`、`product_meta`、
+  `surface prompt profile` 或 `product persona` 分支。
 - 长期必须有 repo-owned `CapabilitySpec` registry 作为 capability-level
   canonical artifact；新增稳定 domain capability 或 explicit agent-as-tool
   不得只在 planner / prompt / runtime delegate map 中添加字符串 target
@@ -676,9 +682,11 @@ operator observability rollup`
 
 `workflow_trace` 是 orchestration 的一等 release gate，不是回答质量 gate 的附属字段。它至少需要覆盖：
 
-- `direct_vs_delegate_branch_correctness`
-  - 应直返 clarification / rejection / structured runtime 的 case 不得误入 Python delegate
-  - 应 delegate 的 semantic case 必须携带完整 `CapabilityRequest` handoff
+- `first_decision_branch_correctness`
+  - 应 direct/no-tool terminal 的 product identity、普通寒暄、clarification /
+    rejection / fail-close case 不得误入 `knowledge` 或其他 capability
+  - 应进入 capability/tool 的 semantic case 必须携带完整 typed routing /
+    workflow planning projection
 - `handoff_correctness`
   - capability family、target、allowed tools、missing slots、context resolution 与 policy
     reason 必须和 expected truth 对齐

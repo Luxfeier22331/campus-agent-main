@@ -36,7 +36,6 @@ This taxonomy follows the OpenTelemetry direction that:
 | Runtime / Layer | OTel SDK Allowed | Responsibility |
 | ----------------- | ------------------ | ---------------- |
 | `apps/execution-control` | yes | Online trace owner for request admission, orchestration, Temporal workflow/activity attempts, Go RAG/finalization workers, finalization, error and telemetry self-health |
-| `apps/supervisor-agent-worker` | offline/eval only | Historical bridge reference; may emit sanitized offline/eval observations, but does not own online answer telemetry |
 | `apps/ingestion-worker` | yes, or runtime event bridge | Emit offline run telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events; not retrieval or ingestion telemetry truth |
 | `packages/retrieval-core` | no | Vendor-neutral `RetrievalObservationSink` only |

@@ -10,9 +10,7 @@ from campus_contracts import (
     AuthorizationProjection,
     CapabilityRequest,
     ContextProjection,
-    WorkflowCapabilityContext,
 )
-from campus_prompt_runtime import PromptRuntimeProviderConfig
 from campus_services_capability.academic_calendar_adapter import academic_calendar_response
 from campus_services_capability.http_query_service import CampusServicesHTTPQueryService
 from campus_services_capability.query_service import (
@@ -20,17 +18,12 @@ from campus_services_capability.query_service import (
     CampusServicesAccessContext,
 )
 from campus_services_capability.sdk_tool_executor import execute_campus_services_sdk_tool
-from campus_supervisor_agent_worker.capability_delegates import _build_capability_delegates
-from campus_supervisor_agent_worker.openai_agents_runtime import (
-    OpenAIAgentsRunResult,
-    OpenAIAgentsToolCall,
-)
-from campus_supervisor_agent_worker.settings import ApiSettings
 
 from tests.agent.campus_services_capability_fakes import (
     FakeCampusServicesQueryService,
     RecordingQueryHTTPTransport,
 )
+from tests.agent.tool_invocation_support import ToolInvocation
 
 
 class CampusServicesAcademicCalendarTest(unittest.TestCase):
@@ -362,110 +355,9 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             "4 月 28 日不上课，属于运动会、春季社会实践周、劳动节假期课程调整。",
         )
 
-    def test_capability_delegates_route_academic_calendar_to_sdk_when_tool_is_admitted(self) -> None:
-        runner_called = False
-        query_service = FakeCampusServicesQueryService()
 
-        def fake_runner(agent, input_text, *, context, max_turns, run_config):
-            nonlocal runner_called
-            runner_called = True
-            _ = input_text, context, max_turns, run_config
-            self.assertEqual(agent.name, "campus_services")
-            self.assertEqual(agent.tools[0].name, "academic_calendar_lookup")
-
-            class ToolContext:
-                tool_call_id = "call-calendar"
-
-            import asyncio
-
-            tool_payload = asyncio.run(
-                agent.tools[0].on_invoke_tool(
-                    ToolContext(),
-                    '{"query_text":"今天第几教学周","query_kind":"date_week"}',
-                )
-            )
-            import json
-
-            tool_result = json.loads(tool_payload)
-            self.assertEqual(tool_result["outcome"], "resolved_current")
-            self.assertEqual(tool_result["week_index"], 11)
-            self.assertEqual(tool_result["source_ref_count"], 1)
-            return OpenAIAgentsRunResult(
-                final_output="今天是第 11 教学周。",
-                tool_calls=(
-                    OpenAIAgentsToolCall(
-                        name="academic_calendar_lookup",
-                        arguments={"query_text": "今天第几教学周", "query_kind": "date_week"},
-                        call_id="call-calendar",
-                    ),
-                ),
-                model_response_ref="resp-calendar",
-            )
-
-        delegates = _build_capability_delegates(
-            settings=ApiSettings(agents_sdk_runtime_enabled=True),
-            rag_prompt_executor=None,
-            campus_services_query_service=query_service,
-            notice_query_service=None,
-            openai_agents_runtime=_native_runtime(fake_runner),
-        )
-
-        response = delegates["campus_services"](_academic_calendar_request())
-
-        self.assertTrue(runner_called)
-        self.assertIsNotNone(query_service.last_academic_calendar_query)
-        self.assertEqual(response.status, "completed")
-        assert response.capability_observability is not None
-        self.assertEqual(response.capability_observability.selected_tool, "academic_calendar_lookup")
-        projection = response.capability_observability.safe_details["openai_agents_runtime_projection"]
-        self.assertEqual(projection["instruction_profile_id"], "academic_calendar_fact_lookup")
-
-
-def _native_runtime(runner):
-    return __import__(
-        "campus_supervisor_agent_worker.openai_agents_runtime",
-        fromlist=["OpenAIAgentsNativeRuntime"],
-    ).OpenAIAgentsNativeRuntime(
-        provider_config=PromptRuntimeProviderConfig(
-            provider="openai",
-            transport="responses",
-            api_key="test-key",
-            base_url="https://api.openai.com/v1",
-        ),
-        model_name="gpt-5.4-mini",
-        runner=runner,
-    )
-
-
-def _tool_execution(name: str, arguments: dict[str, object], call_id: str):
-    return type(
-        "_ToolExecution",
-        (),
-        {
-            "name": name,
-            "arguments": arguments,
-            "call_id": call_id,
-        },
-    )()
-
-
-def _academic_calendar_request() -> CapabilityRequest:
-    return CapabilityRequest(
-        capability="campus_services",
-        user_goal="今天第几教学周",
-        request_id="req-sdk-academic-calendar",
-        payload=AcademicCalendarLookupPayload(
-            query_text="今天第几教学周",
-            query_kind="date_week",
-        ),
-        allowed_tools=("academic_calendar_lookup",),
-        workflow_context=WorkflowCapabilityContext(
-            capability="campus_services",
-            workflow_run_ref="workflow:req-sdk-academic-calendar",
-            step_id="handoff:campus_services:academic_calendar_lookup",
-            capability_id="campus_services",
-        ),
-    )
+def _tool_execution(name: str, arguments: dict[str, object], call_id: str) -> ToolInvocation:
+    return ToolInvocation(name=name, arguments=arguments, call_id=call_id)
 
 
 if __name__ == "__main__":

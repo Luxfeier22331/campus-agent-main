@@ -10,10 +10,12 @@ from campus_contracts import (
     ContextProjection,
     ServiceGuideLookupPayload,
 )
-from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
 
 from tests.agent.campus_services_capability_fakes import FakeCampusServicesQueryService
 from tests.agent.test_notice_capability import _FakeNoticeQueryService
+from tests.agent.tool_invocation_support import ToolInvocation
+
+OpenAIAgentsToolInvocation = ToolInvocation
 
 
 class SdkOnlyDomainCapabilityExecutionTest(unittest.TestCase):

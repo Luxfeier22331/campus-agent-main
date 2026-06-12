@@ -589,7 +589,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
 
 def _tool_workflow_trace_summary(
     *,
-    target: str,
+    capability: str,
     tool: str,
     branch: str,
     mode: str,
@@ -602,11 +602,11 @@ def _tool_workflow_trace_summary(
         "planning_outcome": "preplanned",
         "direct_vs_delegate_branch": branch,
         "workflow_mode": mode,
-        "handoff": {"target": target},
-        "handoff_chain": [{"target": target, "selected_tool": tool}]
+        "handoff": {"target": capability},
+        "handoff_chain": [{"target": capability, "selected_tool": tool}]
         if mode == "single_step"
         else [],
-        "selected_capability": target,
+        "selected_capability": capability,
         "selected_tools": [tool],
         "tool_argument_summary": argument_summary,
         "trace_steps": [
@@ -641,10 +641,10 @@ def _tool_workflow_trace_summary(
         ],
         "capability_invocations": [
             {
-                "invocation_id": f"agent-invocation:{target}:1",
-                "workflow_run_ref": f"single_step:{target}:{tool}",
-                "step_id": f"handoff:{target}:{tool}",
-                "capability_id": target,
+                "invocation_id": f"agent-invocation:{capability}:1",
+                "workflow_run_ref": f"single_step:{capability}:{tool}",
+                "step_id": f"handoff:{capability}:{tool}",
+                "capability_id": capability,
                 "status": "completed",
             }
         ]

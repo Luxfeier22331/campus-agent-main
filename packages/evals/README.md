@@ -255,9 +255,10 @@ Evaluation helpers for campus-agent v2.
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
   验证 `snake_case` strict wire、execution contract version、enum、extra-field rejection、
   cancel / timeout / execution unavailable terminal semantics。
-- public-chat product-path eval 会 replay `workflow_trace_summary`，检查 selected capability、
-  direct/delegate/clarification/fail-close branch 与 fail-close reason 是否和产品路径 observation
-  一致；panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
+- public-chat product-path eval 会 replay `workflow_trace_summary`，检查 first decision
+  的 direct/no-tool、capability-required、clarification、reject 与 fail-close branch，
+  selected capability / tool 以及 fail-close reason 是否和产品路径 observation 一致；
+  panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
   provider / prompt key 做非暴露断言。
 - `multi-agent-runtime-contract` denominator 当前覆盖 12 条 workflow trace case、28 条
   tool-family case 与 10 条 public-chat product-path case。知识类 student_rules /
@@ -461,9 +462,10 @@ shape，而是把更多真实产品路径和 domain-specific case 扩编进这�
   - `workflow_mode` 只接受 `terminal`、`single_step`、`multi_step`；
     `multi_step` trace 必须至少有两段 handoff chain，避免把当前单 handoff projection
     冒充成多步 workflow
-- `direct_vs_delegate`
-  - 验证 Go structured runtime / non-delegate terminal / Python delegate 三类分支是否命中
-    expected truth
+- `first_decision_branch`
+  - 验证 direct/no-tool terminal、structured tool、capability-required 与 fail-close
+    分支是否命中 expected truth；legacy `direct_vs_delegate_branch` 字段只作为
+    workflow trace compatibility summary 保留，不再表示 Python delegate path
 - `tool_argument_precision`
   - 验证 selected tools、retrieval plan、structured lookup subtype、source channel、temporal
     scope、doc / version / service id 等参数是否精确

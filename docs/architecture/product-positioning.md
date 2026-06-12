@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-05-02
+updated: 2026-06-12
 ---
 # Product Positioning
 
@@ -140,6 +140,11 @@ ingestion / release 工作不进入用户 agent tool surface。
   路径，而不是默认混入 generic RAG
 - 顶层 Execution Agent Layer 长期应先做 capability routing，而不是默认把所有请求先压成 knowledge / `knowledge`
 
+产品助手还必须能在不调用校园 capability 的情况下回答产品身份、能力边界、普通寒暄与澄清类问题。
+这类 direct/no-tool answer 属于 first Execution Agent decision 的 terminal branch，
+不是 `assistant_intro`、`product_meta`、`product persona` 或 `surface prompt profile`。
+当语义识别到具体校园能力需求时，才进入对应 typed tool / capability workflow。
+
 能力开放口径固定为 readiness-first，而不是身份分层：
 
 - 普通用户默认共享同一组已开放、成熟、只读的 campus capabilities。
@@ -200,8 +205,8 @@ ingestion / release 工作不进入用户 agent tool surface。
   architecture：`docs/architecture/system/product-runtime-architecture.md`
 - 导航 / wayfinding
   长期能力边界：`docs/architecture/domains/navigation/architecture.md`
-- 当前 phase、pending work 与执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`
-  与对应 workstream `STATE.md`
+- 当前 pending work 与执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`
+  与 GSD SDK / Codex native session state
 
 因此：
 
