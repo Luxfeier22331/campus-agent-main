@@ -1,4 +1,5 @@
 import { AppApiRouteError } from "../../http";
+import { FENGTAI_MAP_PLACE_EXTENSIONS } from "./fengtai-map-place-extensions";
 import {
 	createFengtaiFeatureMapPlace,
 	createMapPlace,
@@ -632,6 +633,7 @@ const MAP_PLACES: CampusMapPlace[] = [
 		tags: ["公寓", "生活", "丰台"],
 		title: "教师公寓区",
 	}),
+	...FENGTAI_MAP_PLACE_EXTENSIONS,
 	createFengtaiFeatureMapPlace({
 		category: "landmark",
 		coordinates: FENGTAI_CAMPUS_POINTS.trackField,
@@ -688,15 +690,6 @@ const MAP_PLACES: CampusMapPlace[] = [
 		mapFeatureRefs: [{ fid: 7, layer: "sport", sourceId: "fengtai-campus" }],
 		tags: ["运动", "足球", "丰台"],
 		title: "足球场",
-	}),
-	createMapPlace({
-		campus: "丰台校区",
-		category: "gate",
-		coordinates: FENGTAI_CAMPUS_POINTS.southGate,
-		description: "丰台校区主要出入口之一。",
-		id: "fengtai-main-gate",
-		tags: ["出入口", "丰台"],
-		title: "丰台校区主入口",
 	}),
 	createMapPlace({
 		campus: "丰台校区",

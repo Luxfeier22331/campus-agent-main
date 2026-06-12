@@ -1,6 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MapPage } from "../src/app/routes/map-page";
+import {
+	expandMapResults,
+	installMapStyleTokens,
+	mockMapWorkspaceWidth,
+} from "./map-page-test-utils";
 
 const maplibreRuntimeMock = vi.hoisted(() => ({
 	canvas: null as HTMLElement | null,
@@ -34,83 +39,19 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 	setStyle: vi.fn(),
 }));
 
-vi.mock("../src/features/map/api", () => ({
-	getCampusMapPlaces: vi.fn().mockResolvedValue({
-		campus: {
-			defaultCenter: [116.3216, 39.9519],
-			id: "haidian",
-			name: "海淀校区",
-		},
-		places: [
-			{
-				accessNote: null,
-				campus: "海淀校区",
-				category: "building",
-				description: "图书馆与自习、借阅相关服务的主要位置。",
-				geojson: {
-					geometry: { coordinates: [116.3211, 39.9524], type: "Point" },
-					properties: { category: "building", placeId: "library", title: "图书馆" },
-					type: "Feature",
-				},
-				id: "library",
-				mapFeatureRefs: [{ fid: 849087992, layer: "building", sourceId: "haidian-campus" }],
-				sourceRefs: ["campus-map:projection:library"],
-				tags: ["学习"],
-				title: "图书馆",
+vi.mock("../src/features/map/api", async () => {
+	const { mapPagePlaces } = await import("./fixtures/map-page-data");
+	return {
+		getCampusMapPlaces: vi.fn().mockResolvedValue({
+			campus: {
+				defaultCenter: [116.3216, 39.9519],
+				id: "haidian",
+				name: "海淀校区",
 			},
-			{
-				accessNote: null,
-				campus: "海淀校区",
-				category: "service",
-				description: "学生事务相关位置。",
-				geojson: {
-					geometry: { coordinates: [116.3222, 39.9515], type: "Point" },
-					properties: { category: "service", placeId: "student-service", title: "学生事务中心" },
-					type: "Feature",
-				},
-				id: "student-service",
-				sourceRefs: ["campus-map:projection:student-service"],
-				tags: ["办事"],
-				title: "学生事务中心",
-			},
-			{
-				accessNote: null,
-				campus: "丰台校区",
-				category: "building",
-				description: "丰台校区荟贤食堂，设一层和二层。",
-				geojson: {
-					geometry: { coordinates: [116.10859555, 39.80931605], type: "Point" },
-					properties: {
-						category: "building",
-						placeId: "fengtai-huixian-canteen",
-						title: "荟贤食堂",
-					},
-					type: "Feature",
-				},
-				id: "fengtai-huixian-canteen",
-				mapFeatureRefs: [{ fid: 41, layer: "building", sourceId: "fengtai-campus" }],
-				sourceRefs: ["campus-map:projection:fengtai-huixian-canteen"],
-				tags: ["食堂", "生活"],
-				title: "荟贤食堂",
-			},
-			{
-				accessNote: "从东门进入后沿主路步行约 3 分钟。",
-				campus: "丰台校区",
-				category: "transport",
-				description: "丰台校区通勤和到访的主要入口。",
-				geojson: {
-					geometry: { coordinates: [116.11303405, 39.80722115], type: "Point" },
-					properties: { category: "transport", placeId: "fengtai-east-gate", title: "丰台东门" },
-					type: "Feature",
-				},
-				id: "fengtai-east-gate",
-				sourceRefs: ["campus-map:projection:fengtai-east-gate"],
-				tags: ["出入口", "交通"],
-				title: "丰台东门",
-			},
-		],
-	}),
-}));
+			places: mapPagePlaces,
+		}),
+	};
+});
 
 vi.mock("../src/features/map/maplibre-runtime", () => ({
 	loadMapLibre: maplibreRuntimeMock.loadMapLibre.mockResolvedValue({
@@ -228,22 +169,9 @@ vi.mock("../src/features/map/maplibre-runtime", () => ({
 }));
 
 describe("campus map page", () => {
-	function mockMapWorkspaceWidth(matches: boolean) {
-		window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-			addEventListener: vi.fn(),
-			addListener: vi.fn(),
-			dispatchEvent: vi.fn(),
-			matches: query === "(min-width: 960px)" ? matches : false,
-			media: query,
-			onchange: null,
-			removeEventListener: vi.fn(),
-			removeListener: vi.fn(),
-		}));
-	}
-
 	beforeEach(() => {
 		window.history.pushState({}, "", "/map");
-		mockMapWorkspaceWidth(true);
+		mockMapWorkspaceWidth(true, vi.fn);
 		maplibreRuntimeMock.fitBounds.mockReset();
 		maplibreRuntimeMock.flyTo.mockReset();
 		maplibreRuntimeMock.resize.mockReset();
@@ -260,31 +188,7 @@ describe("campus map page", () => {
 		maplibreRuntimeMock.setMinZoom.mockReset();
 		maplibreRuntimeMock.setStyle.mockReset();
 		maplibreRuntimeMock.loadMapLibre.mockClear();
-		document.documentElement.style.setProperty("--alpha-blue-8", "rgba(11, 48, 143, 0.08)");
-		document.documentElement.style.setProperty("--alpha-blue-12", "rgba(11, 48, 143, 0.12)");
-		document.documentElement.style.setProperty("--muc-red", "#a20000");
-		document.documentElement.style.setProperty("--neutral-0", "#ffffff");
-		document.documentElement.style.setProperty("--neutral-100", "#f4f5f7");
-		document.documentElement.style.setProperty("--neutral-150", "#eef0f3");
-		document.documentElement.style.setProperty("--neutral-300", "#d0d5dd");
-		document.documentElement.style.setProperty("--neutral-800", "#1d2939");
-		document.documentElement.style.setProperty("--map-style-background", "#edf1f4");
-		document.documentElement.style.setProperty("--map-style-boundary", "#a20000");
-		document.documentElement.style.setProperty("--map-style-building-fill", "#f9fafb");
-		document.documentElement.style.setProperty("--map-style-building-outline", "#98a2b3");
-		document.documentElement.style.setProperty("--map-style-green-fill", "#d9eadf");
-		document.documentElement.style.setProperty("--map-style-label", "#101828");
-		document.documentElement.style.setProperty("--map-style-road-fill", "#d6dce3");
-		document.documentElement.style.setProperty(
-			"--map-style-selection-fill",
-			"rgba(26, 115, 232, 0.14)",
-		);
-		document.documentElement.style.setProperty(
-			"--map-style-selection-halo",
-			"rgba(255, 255, 255, 0.92)",
-		);
-		document.documentElement.style.setProperty("--map-style-selection-outline", "#1a73e8");
-		document.documentElement.style.setProperty("--map-style-sport-fill", "#dce8f8");
+		installMapStyleTokens();
 	});
 
 	it("filters map places without exposing projection wording", async () => {
@@ -360,6 +264,9 @@ describe("campus map page", () => {
 			"p-2.5",
 		);
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toHaveTextContent("荟贤食堂");
+		expect(screen.getByRole("button", { name: "选择博雅楼" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "选择静园一号楼" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "选择丰台南门" })).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "选择图书馆" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "询问这个地点" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "反馈地点信息" })).toBeNull();
@@ -612,7 +519,7 @@ describe("campus map page", () => {
 	});
 
 	it("renders selected place in a closeable mobile bottom sheet", async () => {
-		mockMapWorkspaceWidth(false);
+		mockMapWorkspaceWidth(false, vi.fn);
 		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
@@ -767,11 +674,3 @@ describe("campus map page", () => {
 		expect(screen.queryByText("正在读取地图")).not.toBeInTheDocument();
 	});
 });
-
-async function expandMapResults() {
-	if (screen.queryByRole("button", { name: "收起地点结果" })) {
-		return;
-	}
-	const trigger = await screen.findByRole("button", { name: "展开地点结果" });
-	fireEvent.click(trigger);
-}

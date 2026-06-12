@@ -24,60 +24,19 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 	setStyle: vi.fn(),
 }));
 
-vi.mock("../src/features/map/api", () => ({
-	getCampusMapPlaces: vi.fn().mockResolvedValue({
-		campus: {
-			defaultCenter: [116.3216, 39.9519],
-			id: "muc-campuses",
-			name: "中央民族大学校区",
-		},
-		places: [
-			createApiPlace({
-				campus: "海淀校区",
-				coordinates: [116.3120537, 39.9472156],
-				id: "library",
-				mapFeatureRefs: [{ fid: 849087992, layer: "building", sourceId: "haidian-campus" }],
-				title: "图书馆",
-			}),
-			createApiPlace({
-				campus: "丰台校区",
-				coordinates: [116.10859555, 39.80931605],
-				id: "fengtai-huixian-canteen",
-				mapFeatureRefs: [{ fid: 41, layer: "building", sourceId: "fengtai-campus" }],
-				title: "荟贤食堂",
-			}),
-			createApiPlace({
-				campus: "丰台校区",
-				coordinates: [116.108483, 39.8104219],
-				id: "fengtai-juya-canteen",
-				mapFeatureRefs: [{ fid: 40, layer: "building", sourceId: "fengtai-campus" }],
-				title: "聚雅食堂",
-			}),
-			createApiPlace({
-				campus: "丰台校区",
-				coordinates: [116.10950564, 39.80796978],
-				id: "fengtai-basketball-court",
-				mapFeatureRefs: [{ fid: 2, layer: "sport", sourceId: "fengtai-campus" }],
-				title: "篮球场",
-			}),
-			{
-				accessNote: "从东门进入后沿主路步行约 3 分钟。",
-				campus: "丰台校区",
-				category: "transport",
-				description: "丰台校区通勤和到访的主要入口。",
-				geojson: {
-					geometry: { coordinates: [116.11303405, 39.80722115], type: "Point" },
-					properties: { category: "transport", placeId: "fengtai-east-gate", title: "丰台东门" },
-					type: "Feature",
-				},
-				id: "fengtai-east-gate",
-				sourceRefs: ["campus-map:projection:fengtai-east-gate"],
-				tags: ["出入口", "交通"],
-				title: "丰台东门",
+vi.mock("../src/features/map/api", async () => {
+	const { featureInteractionMapPlaces } = await import("./fixtures/map-page-data");
+	return {
+		getCampusMapPlaces: vi.fn().mockResolvedValue({
+			campus: {
+				defaultCenter: [116.3216, 39.9519],
+				id: "muc-campuses",
+				name: "中央民族大学校区",
 			},
-		],
-	}),
-}));
+			places: featureInteractionMapPlaces,
+		}),
+	};
+});
 
 vi.mock("../src/features/map/maplibre-runtime", () => ({
 	loadMapLibre: maplibreRuntimeMock.loadMapLibre.mockResolvedValue({
@@ -266,6 +225,46 @@ describe("campus map feature interactions", () => {
 		]);
 	});
 
+	it("selects newly bound Fengtai building places by clicking their polygons", async () => {
+		render(<MapPage />);
+
+		expect(await screen.findByRole("region", { name: "校园地图" })).toBeInTheDocument();
+		await waitForMapClickListener();
+		maplibreRuntimeMock.queryRenderedFeatures.mockReturnValueOnce([
+			renderedFeature({ fid: 6, layer: "building" }),
+		]);
+
+		act(() => emitMapEvent("click", { x: 160, y: 210 }));
+
+		expect(await screen.findByRole("dialog", { name: "博雅楼" })).toBeInTheDocument();
+		expect(window.location.search).toContain("place=fengtai-boya-building");
+		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
+			"all",
+			["==", ["get", "layer"], "building"],
+			["==", ["get", "fid"], 6],
+		]);
+	});
+
+	it("selects the Fengtai south gate from either bound gatehouse polygon", async () => {
+		render(<MapPage />);
+
+		expect(await screen.findByRole("region", { name: "校园地图" })).toBeInTheDocument();
+		await waitForMapClickListener();
+		maplibreRuntimeMock.queryRenderedFeatures.mockReturnValueOnce([
+			renderedFeature({ fid: 61, layer: "building" }),
+		]);
+
+		act(() => emitMapEvent("click", { x: 190, y: 290 }));
+
+		expect(await screen.findByRole("dialog", { name: "丰台南门" })).toBeInTheDocument();
+		expect(window.location.search).toContain("place=fengtai-main-gate");
+		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
+			"any",
+			["all", ["==", ["get", "layer"], "building"], ["==", ["get", "fid"], 60]],
+			["all", ["==", ["get", "layer"], "building"], ["==", ["get", "fid"], 61]],
+		]);
+	});
+
 	it("selects Haidian places by clicking OSM-backed building features", async () => {
 		window.history.pushState({}, "", "/map?campus=haidian");
 		render(<MapPage />);
@@ -336,31 +335,6 @@ describe("campus map feature interactions", () => {
 		]);
 	});
 });
-
-function createApiPlace(input: {
-	campus: "丰台校区" | "海淀校区";
-	coordinates: [number, number];
-	id: string;
-	mapFeatureRefs: Array<{ fid: number; layer: "building" | "sport"; sourceId: string }>;
-	title: string;
-}) {
-	return {
-		accessNote: null,
-		campus: input.campus,
-		category: "building",
-		description: `${input.campus}${input.title}。`,
-		geojson: {
-			geometry: { coordinates: input.coordinates, type: "Point" },
-			properties: { category: "building", placeId: input.id, title: input.title },
-			type: "Feature",
-		},
-		id: input.id,
-		mapFeatureRefs: input.mapFeatureRefs,
-		sourceRefs: [`campus-map:projection:${input.id}`],
-		tags: ["食堂", "生活"],
-		title: input.title,
-	};
-}
 
 function renderedFeature(input: {
 	fid: number;
