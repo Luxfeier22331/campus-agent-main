@@ -57,6 +57,17 @@ describe("campus map style", () => {
 		expect(
 			style.layers?.findIndex((layer) => layer.id === "campus-place-selected-fill"),
 		).toBeGreaterThan(style.layers?.findIndex((layer) => layer.id === "campus-sport") ?? -1);
+		expect(
+			style.layers?.findIndex((layer) => layer.id === "campus-place-selected-outline"),
+		).toBeLessThan(style.layers?.findIndex((layer) => layer.id === "campus-building-labels") ?? -1);
+		expect(style.layers?.find((layer) => layer.id === "campus-building-labels")).toEqual(
+			expect.objectContaining({
+				filter: ["all", ["has", "name"], ["==", ["get", "layer"], "building"]],
+				layout: expect.objectContaining({
+					"text-size": ["interpolate", ["linear"], ["zoom"], 14, 0, 15.5, 10, 17, 12, 19, 13],
+				}),
+			}),
+		);
 	});
 });
 

@@ -234,9 +234,11 @@ describe("campus map page", () => {
 		).toEqual(["丰台校区", "海淀校区"]);
 		await expandMapResults();
 		expect(screen.getByRole("group", { name: "地点类型" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "建筑" })).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "服务" })).toBeNull();
-		expect(screen.getByRole("button", { name: "交通" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "食堂" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "教学楼" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "宿舍" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "服务" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "出入口" })).toBeInTheDocument();
 		expect(screen.getByRole("region", { name: "地图画布" })).toBeInTheDocument();
 		expect(screen.getByRole("region", { name: "地图画布" })).toHaveClass("h-full", "w-full");
 		expect(screen.getByRole("region", { name: "地图画布" })).not.toHaveClass("absolute", "inset-0");
@@ -258,7 +260,7 @@ describe("campus map page", () => {
 			"aria-pressed",
 			"true",
 		);
-		expect(screen.queryByText("海淀校区地图为基础参考版。")).toBeNull();
+		expect(screen.queryByText("海淀校区当前提供基础地点参考。")).toBeNull();
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toHaveClass(
 			"bg-white/58",
 			"p-2.5",
@@ -315,7 +317,7 @@ describe("campus map page", () => {
 		expect(screen.getByRole("form", { name: "地点搜索" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "收起地点结果" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "丰台校区" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "建筑" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "食堂" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "地点" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toBeInTheDocument();
 		expect(screen.getByRole("region", { name: "地图画布" })).toBeInTheDocument();
@@ -569,9 +571,10 @@ describe("campus map page", () => {
 			);
 		});
 
-		fireEvent.click(screen.getByRole("button", { name: "建筑" }));
+		fireEvent.click(screen.getByRole("button", { name: "食堂" }));
 
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "选择聚雅食堂" })).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "选择图书馆" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "选择丰台东门" })).toBeNull();
 	});
@@ -588,10 +591,10 @@ describe("campus map page", () => {
 		fireEvent.click(screen.getByRole("button", { name: "海淀校区" }));
 
 		expect(await screen.findByRole("button", { name: "选择图书馆" })).toBeInTheDocument();
-		expect(screen.getByText("海淀校区地图为基础参考版。")).toBeInTheDocument();
+		expect(screen.getByText("海淀校区当前提供基础地点参考。")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "选择学生事务中心" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "服务" })).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "交通" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "出入口" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "选择荟贤食堂" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "选择丰台东门" })).toBeNull();
 		expect(screen.queryByText("当前校区缺少可展示的地图底图。")).toBeNull();

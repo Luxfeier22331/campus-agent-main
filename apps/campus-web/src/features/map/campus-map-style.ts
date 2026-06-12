@@ -212,7 +212,7 @@ export function createCampusMapStyle(
 					"text-allow-overlap": false,
 					"text-field": ["get", "name"],
 					"text-font": ["Open Sans Regular"],
-					"text-size": ["interpolate", ["linear"], ["zoom"], 15, 10, 17, 12, 18, 13],
+					"text-size": ["interpolate", ["linear"], ["zoom"], 14, 0, 15.5, 10, 17, 12, 19, 13],
 				},
 				paint: {
 					"text-color": colors.label,

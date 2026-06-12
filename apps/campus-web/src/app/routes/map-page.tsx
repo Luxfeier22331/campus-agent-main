@@ -32,9 +32,9 @@ import {
 	createMapPlaceViews,
 	filterMapPlaces,
 	getMapCampuses,
-	getMapCategories,
-	type MapCategoryFilter,
+	getMapTaskFilters,
 	type MapPlaceView,
+	type MapTaskFilter,
 } from "@/features/map/view-model";
 
 export function MapPage() {
@@ -61,7 +61,7 @@ export function MapPage() {
 	const [loading, setLoading] = useState(true);
 	const [query, setQuery] = useState("");
 	const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
-	const [selectedCategory, setSelectedCategory] = useState<MapCategoryFilter>("all");
+	const [selectedCategory, setSelectedCategory] = useState<MapTaskFilter>("all");
 
 	const places = useMemo(() => createMapPlaceViews(data?.places ?? []), [data]);
 	const campuses = useMemo(() => getMapCampuses(places), [places]);
@@ -73,7 +73,7 @@ export function MapPage() {
 		() => (selectedCampus ? places.filter((place) => place.place.campus === selectedCampus) : []),
 		[places, selectedCampus],
 	);
-	const categories = useMemo(() => getMapCategories(campusPlaces), [campusPlaces]);
+	const categories = useMemo(() => getMapTaskFilters(campusPlaces), [campusPlaces]);
 	const placeFeatureIndex = useMemo(() => createPlaceFeatureIndex(campusPlaces), [campusPlaces]);
 	const placeViewsById = useMemo(
 		() => new Map(campusPlaces.map((place) => [place.place.id, place])),
@@ -370,6 +370,7 @@ export function MapPage() {
 					onResetViewport={resetCampusViewport}
 					query={query}
 					selectedPlace={selected}
+					viewportControlsAvailable={mapLoaded}
 				/>
 			) : (
 				<MapStateShell>
@@ -399,7 +400,7 @@ export function MapPage() {
 		}
 	}
 
-	function selectCategory(nextCategory: MapCategoryFilter) {
+	function selectCategory(nextCategory: MapTaskFilter) {
 		mapMoveIntentRef.current = "filter";
 		setSelectedCategory(nextCategory);
 	}
@@ -435,13 +436,13 @@ export function MapPage() {
 
 function getCampusMapExperienceNotice(campus: string | null) {
 	if (campus === "海淀校区") {
-		return "海淀校区地图为基础参考版。";
+		return "海淀校区当前提供基础地点参考。";
 	}
 	return null;
 }
 
 function shouldFitMapForFilter(input: {
-	category: MapCategoryFilter;
+	category: MapTaskFilter;
 	campus: string | null;
 	intent: "filter" | "place";
 	query: string;
@@ -485,7 +486,7 @@ function setMapCanvasCursor(map: maplibregl.Map, cursor: "" | "pointer") {
 }
 
 function getViewportBoundsForFilteredPlaces(input: {
-	category: MapCategoryFilter;
+	category: MapTaskFilter;
 	profile: CampusMapProfile;
 	query: string;
 	places: Array<{ coordinates: [number, number] }>;
@@ -579,7 +580,7 @@ function readMapUrlState(campuses: string[]) {
 	if (typeof window === "undefined") {
 		return {
 			campus: null,
-			category: "all" as MapCategoryFilter,
+			category: "all" as MapTaskFilter,
 			placeId: null,
 			query: "",
 		};
@@ -596,7 +597,7 @@ function readMapUrlState(campuses: string[]) {
 }
 
 function writeMapUrlState(input: {
-	category: MapCategoryFilter;
+	category: MapTaskFilter;
 	campus: string;
 	placeId: string | null;
 	query: string;
@@ -623,13 +624,14 @@ function writeMapUrlState(input: {
 	}
 }
 
-function readMapCategoryParam(value: string | null): MapCategoryFilter {
+function readMapCategoryParam(value: string | null): MapTaskFilter {
 	switch (value) {
-		case "building":
-		case "gate":
-		case "landmark":
+		case "dining":
+		case "teaching":
+		case "dorm":
+		case "entrance":
 		case "service":
-		case "transport":
+		case "sport":
 			return value;
 		default:
 			return "all";

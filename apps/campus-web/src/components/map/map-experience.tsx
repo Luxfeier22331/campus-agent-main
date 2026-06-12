@@ -1,13 +1,17 @@
 import { List, LocateFixed, MapPin, Search, X } from "lucide-react";
-import type { RefObject } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import { useEffect, useState } from "react";
 
 import { Input } from "@/components/ui/input";
-import type { CampusMapPlaceCategory } from "@/features/map/model";
-import type { MapCategoryFilter, MapPlaceView } from "@/features/map/view-model";
+import {
+	groupMapPlacesForDisplay,
+	type MapPlaceView,
+	type MapTaskFilter,
+} from "@/features/map/view-model";
 import { cn } from "@/lib/utils";
 
 const DESKTOP_MAP_QUERY = "(min-width: 960px)";
+const DEFAULT_VISIBLE_PLACES_PER_GROUP = 5;
 
 export function MapExperience({
 	assetAvailable,
@@ -26,23 +30,25 @@ export function MapExperience({
 	onResetViewport,
 	query,
 	selectedPlace,
+	viewportControlsAvailable,
 }: {
 	assetAvailable: boolean;
 	campuses: string[];
-	categories: Array<{ label: string; value: CampusMapPlaceCategory }>;
-	category: MapCategoryFilter;
+	categories: Array<{ label: string; value: Exclude<MapTaskFilter, "all"> }>;
+	category: MapTaskFilter;
 	campus: string;
 	campusNotice: string | null;
 	filteredPlaces: MapPlaceView[];
 	mapRef: RefObject<HTMLElement | null>;
 	onCanvasClick: () => void;
-	onCategoryChange: (category: MapCategoryFilter) => void;
+	onCategoryChange: (category: MapTaskFilter) => void;
 	onCampusChange: (campus: string) => void;
 	onPlaceSelect: (placeId: string) => void;
 	onQueryChange: (query: string) => void;
 	onResetViewport: () => void;
 	query: string;
 	selectedPlace: MapPlaceView | null;
+	viewportControlsAvailable: boolean;
 }) {
 	const isDesktop = useIsDesktopMap();
 	const [placeListExpanded, setPlaceListExpanded] = useState(
@@ -71,6 +77,7 @@ export function MapExperience({
 				listExpanded={placeListExpanded}
 				onCategoryChange={onCategoryChange}
 				onCampusChange={onCampusChange}
+				onClearSelection={onCanvasClick}
 				onListExpandedChange={setPlaceListExpanded}
 				onPlaceSelect={onPlaceSelect}
 				onQueryChange={onQueryChange}
@@ -78,7 +85,7 @@ export function MapExperience({
 				query={query}
 				selectedPlaceId={selectedPlace?.place.id ?? null}
 			/>
-			{isDesktop || !selectedPlace ? (
+			{viewportControlsAvailable && (isDesktop || !selectedPlace) ? (
 				<MapViewportControls onResetViewport={onResetViewport} />
 			) : null}
 			{selectedPlace ? (
@@ -124,6 +131,7 @@ function MapSearchPanel({
 	listExpanded,
 	onCategoryChange,
 	onCampusChange,
+	onClearSelection,
 	onListExpandedChange,
 	onPlaceSelect,
 	onQueryChange,
@@ -132,15 +140,16 @@ function MapSearchPanel({
 	selectedPlaceId,
 }: {
 	campuses: string[];
-	categories: Array<{ label: string; value: CampusMapPlaceCategory }>;
-	category: MapCategoryFilter;
+	categories: Array<{ label: string; value: Exclude<MapTaskFilter, "all"> }>;
+	category: MapTaskFilter;
 	campus: string;
 	campusNotice: string | null;
 	compactResults: boolean;
 	isDesktop: boolean;
 	listExpanded: boolean;
-	onCategoryChange: (category: MapCategoryFilter) => void;
+	onCategoryChange: (category: MapTaskFilter) => void;
 	onCampusChange: (campus: string) => void;
+	onClearSelection: () => void;
 	onListExpandedChange: (expanded: boolean) => void;
 	onPlaceSelect: (placeId: string) => void;
 	onQueryChange: (query: string) => void;
@@ -148,6 +157,63 @@ function MapSearchPanel({
 	query: string;
 	selectedPlaceId: string | null;
 }) {
+	const [activeResultState, setActiveResultState] = useState({ index: -1, key: "" });
+	const hasQuery = query.trim().length > 0;
+	const resultStateKey = [
+		campus,
+		category,
+		query,
+		places.map((place) => place.place.id).join("|"),
+	].join("\u0000");
+	const activeResultIndex = activeResultState.key === resultStateKey ? activeResultState.index : -1;
+
+	function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			onListExpandedChange(true);
+			setActiveResultState((current) => ({
+				index: getNextResultIndex(
+					current.key === resultStateKey ? current.index : -1,
+					places.length,
+					1,
+				),
+				key: resultStateKey,
+			}));
+			return;
+		}
+		if (event.key === "ArrowUp") {
+			event.preventDefault();
+			onListExpandedChange(true);
+			setActiveResultState((current) => ({
+				index: getNextResultIndex(
+					current.key === resultStateKey ? current.index : -1,
+					places.length,
+					-1,
+				),
+				key: resultStateKey,
+			}));
+			return;
+		}
+		if (event.key === "Enter" && places.length > 0) {
+			event.preventDefault();
+			const place = places[activeResultIndex >= 0 ? activeResultIndex : 0];
+			if (place) {
+				onPlaceSelect(place.place.id);
+			}
+			return;
+		}
+		if (event.key === "Escape") {
+			event.preventDefault();
+			if (selectedPlaceId) {
+				onClearSelection();
+				return;
+			}
+			if (hasQuery) {
+				onQueryChange("");
+			}
+		}
+	}
+
 	return (
 		<aside
 			aria-label="地点搜索与结果"
@@ -180,7 +246,8 @@ function MapSearchPanel({
 							<Input
 								aria-label="搜索地点"
 								className={cn(
-									"rounded-full border-white/70 bg-white/72 pl-9 pr-3 shadow-[var(--shadow-xs)]",
+									"rounded-full border-white/70 bg-white/72 pl-9 shadow-[var(--shadow-xs)]",
+									hasQuery ? "pr-10" : "pr-3",
 									isDesktop ? "min-h-10" : "min-h-11",
 								)}
 								onChange={(event) => {
@@ -188,10 +255,24 @@ function MapSearchPanel({
 									onQueryChange(event.target.value);
 								}}
 								onFocus={() => onListExpandedChange(true)}
+								onKeyDown={handleSearchKeyDown}
 								placeholder="搜索地点"
 								type="search"
 								value={query}
 							/>
+							{hasQuery ? (
+								<button
+									aria-label="清除搜索"
+									className="absolute right-1 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full text-[var(--sys-text-muted)] outline-none hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)] focus-visible:shadow-[var(--state-focus-shadow)]"
+									onClick={() => {
+										onQueryChange("");
+										onListExpandedChange(true);
+									}}
+									type="button"
+								>
+									<X aria-hidden="true" className="size-4" />
+								</button>
+							) : null}
 						</div>
 					</form>
 					{compactResults ? null : (
@@ -234,6 +315,8 @@ function MapSearchPanel({
 						地点
 					</h2>
 					<PlaceList
+						activeResultIndex={activeResultIndex}
+						forceExpanded={hasQuery || category !== "all"}
 						places={places}
 						selectedPlaceId={selectedPlaceId}
 						onPlaceSelect={onPlaceSelect}
@@ -286,10 +369,10 @@ function CategoryFilters({
 	isDesktop,
 	onCategoryChange,
 }: {
-	categories: Array<{ label: string; value: CampusMapPlaceCategory }>;
-	category: MapCategoryFilter;
+	categories: Array<{ label: string; value: Exclude<MapTaskFilter, "all"> }>;
+	category: MapTaskFilter;
 	isDesktop: boolean;
-	onCategoryChange: (campus: MapCategoryFilter) => void;
+	onCategoryChange: (campus: MapTaskFilter) => void;
 }) {
 	return (
 		<fieldset className="flex gap-1.5 overflow-x-auto pb-0.5">
@@ -299,7 +382,7 @@ function CategoryFilters({
 				isDesktop={isDesktop}
 				onClick={() => onCategoryChange("all")}
 			>
-				全部类型
+				全部
 			</FilterButton>
 			{categories.map((item) => (
 				<FilterButton
@@ -344,47 +427,96 @@ function FilterButton({
 }
 
 function PlaceList({
+	activeResultIndex,
+	forceExpanded,
 	onPlaceSelect,
 	places,
 	selectedPlaceId,
 }: {
+	activeResultIndex: number;
+	forceExpanded: boolean;
 	onPlaceSelect: (placeId: string) => void;
 	places: MapPlaceView[];
 	selectedPlaceId: string | null;
 }) {
+	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
 	if (places.length === 0) {
-		return <InlineEmptyState message="没有找到匹配地点。" />;
+		return (
+			<section aria-label="地点结果">
+				<InlineEmptyState message="没有找到匹配地点。" />
+			</section>
+		);
 	}
 
+	const groups = groupMapPlacesForDisplay(places, { sortWithinGroups: true });
+	let placeIndex = 0;
+
 	return (
-		<div className="space-y-1">
-			{places.map((place) => {
-				const selected = selectedPlaceId === place.place.id;
+		<section aria-label="地点结果" className="space-y-3">
+			{groups.map((group) => {
+				const expanded = forceExpanded || expandedGroups.has(group.label);
+				const visiblePlaces = expanded
+					? group.places
+					: group.places.slice(0, DEFAULT_VISIBLE_PLACES_PER_GROUP);
+				const canToggle = group.places.length > DEFAULT_VISIBLE_PLACES_PER_GROUP;
 				return (
-					<button
-						aria-label={`选择${place.place.title}`}
-						aria-pressed={selected}
-						className={cn(
-							"w-full rounded-lg border border-transparent bg-white/58 p-2.5 text-left outline-none hover:bg-white/82 focus-visible:shadow-[var(--state-focus-shadow)]",
-							selected && "border-[var(--sys-text-strong)] bg-white/88",
-						)}
-						key={place.place.id}
-						onClick={() => onPlaceSelect(place.place.id)}
-						type="button"
-					>
-						<span className="block text-sm font-semibold text-[var(--sys-text-strong)]">
-							{place.place.title}
-						</span>
-						<span className="mt-0.5 block text-[11px] text-[var(--sys-text-muted)]">
-							{place.place.campus} · {place.categoryLabel}
-						</span>
-						<span className="mt-1 line-clamp-1 block text-xs leading-5 text-[var(--sys-text-muted)]">
-							{place.place.description}
-						</span>
-					</button>
+					<fieldset className="space-y-1" key={group.label}>
+						<legend className="px-2 text-[11px] font-semibold text-[var(--sys-text-subtle)]">
+							{group.label}
+						</legend>
+						{visiblePlaces.map((place) => {
+							const currentIndex = placeIndex;
+							placeIndex += 1;
+							const selected = selectedPlaceId === place.place.id;
+							const active = activeResultIndex === currentIndex;
+							return (
+								<button
+									aria-label={`选择${place.place.title}`}
+									aria-pressed={selected}
+									className={cn(
+										"w-full rounded-lg border border-transparent bg-white/58 p-2.5 text-left outline-none hover:bg-white/82 focus-visible:shadow-[var(--state-focus-shadow)]",
+										active && "border-[var(--sys-border-default)] bg-white/78",
+										selected && "border-[var(--sys-text-strong)] bg-white/88",
+									)}
+									key={place.place.id}
+									onClick={() => onPlaceSelect(place.place.id)}
+									type="button"
+								>
+									<span className="block text-sm font-semibold text-[var(--sys-text-strong)]">
+										{place.place.title}
+									</span>
+									<span className="mt-0.5 block text-[11px] text-[var(--sys-text-muted)]">
+										{place.place.campus} · {place.categoryLabel}
+									</span>
+									<span className="mt-1 line-clamp-1 block text-xs leading-5 text-[var(--sys-text-muted)]">
+										{place.place.description}
+									</span>
+								</button>
+							);
+						})}
+						{canToggle && !forceExpanded ? (
+							<button
+								className="min-h-10 rounded-lg px-2 text-sm font-medium text-[var(--sys-text-muted)] outline-none hover:bg-white/72 hover:text-[var(--sys-text-strong)] focus-visible:shadow-[var(--state-focus-shadow)]"
+								onClick={() =>
+									setExpandedGroups((current) => {
+										const next = new Set(current);
+										if (next.has(group.label)) {
+											next.delete(group.label);
+										} else {
+											next.add(group.label);
+										}
+										return next;
+									})
+								}
+								type="button"
+							>
+								{expanded ? `收起${group.label}` : `展开${group.label}`}
+							</button>
+						) : null}
+					</fieldset>
 				);
 			})}
-		</div>
+		</section>
 	);
 }
 
@@ -420,11 +552,21 @@ function MapPlacePopover({
 				"pointer-events-auto absolute z-30 border border-white/70 bg-white/86 shadow-[var(--shadow-sm)] backdrop-blur-md",
 				isDesktop
 					? "left-[384px] top-20 w-[min(340px,calc(100vw-412px))] rounded-2xl"
-					: "inset-x-3 bottom-3 rounded-2xl pb-[max(0px,env(safe-area-inset-bottom))]",
+					: "inset-x-3 bottom-3 max-h-[48dvh] overflow-y-auto rounded-2xl pb-[max(0px,env(safe-area-inset-bottom))]",
 			)}
 			data-variant={isDesktop ? "popover" : "sheet"}
 			role="dialog"
 		>
+			{isDesktop ? null : (
+				<button
+					aria-label="拖动关闭地点详情"
+					className="mx-auto mt-2 grid min-h-5 w-16 place-items-center rounded-full text-[var(--sys-text-subtle)] outline-none focus-visible:shadow-[var(--state-focus-shadow)]"
+					onClick={onClose}
+					type="button"
+				>
+					<span className="h-1 w-10 rounded-full bg-[var(--sys-border-default)]" />
+				</button>
+			)}
 			<div className="flex items-start gap-3 p-4">
 				<span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--sys-brand-interactive-subtle)] text-primary">
 					<MapPin aria-hidden="true" className="size-5" />
@@ -500,4 +642,12 @@ function useIsDesktopMap() {
 	}, []);
 
 	return matches;
+}
+
+function getNextResultIndex(current: number, total: number, direction: 1 | -1) {
+	if (total <= 0) {
+		return -1;
+	}
+	const safeCurrent = current >= 0 ? current : direction > 0 ? -1 : 0;
+	return (safeCurrent + direction + total) % total;
 }
