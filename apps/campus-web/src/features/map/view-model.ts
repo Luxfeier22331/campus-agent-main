@@ -29,6 +29,8 @@ export type MapMarkerVariant =
 	| "service"
 	| "transport";
 
+const CAMPUS_DISPLAY_ORDER = ["丰台校区", "海淀校区"] as const;
+
 export function createMapPlaceViews(places: CampusMapPlace[]): MapPlaceView[] {
 	return places.map((place) => {
 		const categoryLabel = formatCategoryLabel(place.category);
@@ -76,7 +78,9 @@ export function filterMapPlaces(
 }
 
 export function getMapCampuses(places: MapPlaceView[]) {
-	return Array.from(new Set(places.map((place) => place.place.campus)));
+	return sortCampusesForMapExperience(
+		Array.from(new Set(places.map((place) => place.place.campus))),
+	);
 }
 
 export function getMapCategories(places: MapPlaceView[]) {
@@ -114,5 +118,22 @@ function getMarkerVariant(place: CampusMapPlace): MapMarkerVariant {
 }
 
 function shouldUseFeatureHighlight(place: CampusMapPlace) {
-	return place.category === "building" && (place.mapFeatureRefs?.length ?? 0) > 0;
+	return (place.mapFeatureRefs?.length ?? 0) > 0;
+}
+
+function sortCampusesForMapExperience(campuses: string[]) {
+	return [...campuses].sort((left, right) => {
+		const leftIndex = CAMPUS_DISPLAY_ORDER.indexOf(left as (typeof CAMPUS_DISPLAY_ORDER)[number]);
+		const rightIndex = CAMPUS_DISPLAY_ORDER.indexOf(right as (typeof CAMPUS_DISPLAY_ORDER)[number]);
+		if (leftIndex >= 0 && rightIndex >= 0) {
+			return leftIndex - rightIndex;
+		}
+		if (leftIndex >= 0) {
+			return -1;
+		}
+		if (rightIndex >= 0) {
+			return 1;
+		}
+		return left.localeCompare(right, "zh-Hans-CN");
+	});
 }

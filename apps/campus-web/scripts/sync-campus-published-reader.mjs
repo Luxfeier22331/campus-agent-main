@@ -562,7 +562,7 @@ function createS3ObjectStore() {
 	const accessKeyId = requireEnv("OBJECT_STORE_ACCESS_KEY");
 	const secretAccessKey = requireEnv("OBJECT_STORE_SECRET_KEY");
 	const region = process.env.OBJECT_STORE_REGION?.trim() || "us-east-1";
-	const bucket = process.env.OBJECT_STORE_DERIVED_BUCKET?.trim() || "campus-rag-derived";
+	const bucket = resolvePublishedReaderObjectStoreBucket(process.env);
 	const client = new S3Client({
 		credentials: { accessKeyId, secretAccessKey },
 		endpoint,
@@ -594,6 +594,10 @@ function createS3ObjectStore() {
 			return new TextDecoder().decode(await response.Body.transformToByteArray());
 		},
 	};
+}
+
+export function resolvePublishedReaderObjectStoreBucket(env) {
+	return env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-rag-derived";
 }
 
 function isMissingObjectError(error) {

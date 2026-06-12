@@ -6,6 +6,8 @@ import { MapExperience } from "@/components/map/map-experience";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import { getCampusMapPlaces } from "@/features/map/api";
 import {
+	CAMPUS_HOVER_PLACE_FILL_LAYER_ID,
+	CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID,
 	CAMPUS_SELECTED_PLACE_FILL_LAYER_ID,
 	CAMPUS_SELECTED_PLACE_HALO_LAYER_ID,
 	CAMPUS_SELECTED_PLACE_OUTLINE_LAYER_ID,
@@ -16,14 +18,23 @@ import {
 	getCampusMapProfile,
 	getDefaultCampusMapProfile,
 } from "@/features/map/campus-map-style";
+import {
+	createFeatureRefKey,
+	createHitTestBox,
+	createPlaceFeatureIndex,
+	findPlaceForRenderedFeature,
+	INTERACTIVE_CAMPUS_MAP_LAYER_IDS,
+	type MapFeatureRefKey,
+} from "@/features/map/feature-selection";
 import { loadMapLibre, type MapLibreRuntime } from "@/features/map/maplibre-runtime";
-import type { CampusMapPlacesResponse } from "@/features/map/model";
+import type { CampusMapFeatureRef, CampusMapPlacesResponse } from "@/features/map/model";
 import {
 	createMapPlaceViews,
 	filterMapPlaces,
 	getMapCampuses,
 	getMapCategories,
 	type MapCategoryFilter,
+	type MapPlaceView,
 } from "@/features/map/view-model";
 
 export function MapPage() {
@@ -38,10 +49,14 @@ export function MapPage() {
 	const clearSelectionRef = useRef<() => void>(() => {
 		throw new Error("Campus map selection clearer was not initialized.");
 	});
+	const placeFeatureIndexRef = useRef<Map<MapFeatureRefKey, string>>(new Map());
+	const placeViewsByIdRef = useRef<Map<string, MapPlaceView>>(new Map());
+	const selectedFeatureRefKeySetRef = useRef<Set<MapFeatureRefKey>>(new Set());
 	const [data, setData] = useState<CampusMapPlacesResponse | null>(null);
 	const [mapLoaded, setMapLoaded] = useState(false);
 	const [mapRuntime, setMapRuntime] = useState<MapLibreRuntime | null>(null);
 	const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+	const [hoveredFeatureRefs, setHoveredFeatureRefs] = useState<CampusMapFeatureRef[]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [query, setQuery] = useState("");
@@ -59,6 +74,11 @@ export function MapPage() {
 		[places, selectedCampus],
 	);
 	const categories = useMemo(() => getMapCategories(campusPlaces), [campusPlaces]);
+	const placeFeatureIndex = useMemo(() => createPlaceFeatureIndex(campusPlaces), [campusPlaces]);
+	const placeViewsById = useMemo(
+		() => new Map(campusPlaces.map((place) => [place.place.id, place])),
+		[campusPlaces],
+	);
 	const filteredPlaces = useMemo(
 		() =>
 			selectedCampus
@@ -70,16 +90,30 @@ export function MapPage() {
 				: [],
 		[places, query, selectedCampus, selectedCategory],
 	);
-	const selected = filteredPlaces.find((place) => place.place.id === selectedPlaceId) ?? null;
+	const selected = campusPlaces.find((place) => place.place.id === selectedPlaceId) ?? null;
+	const selectedFeatureRefKeySet = useMemo(
+		() => new Set((selected?.featureRefs ?? []).map(createFeatureRefKey)),
+		[selected],
+	);
+	const visibleHoveredFeatureRefs = useMemo(
+		() =>
+			hoveredFeatureRefs.filter(
+				(featureRef) => !selectedFeatureRefKeySet.has(createFeatureRefKey(featureRef)),
+			),
+		[hoveredFeatureRefs, selectedFeatureRefKeySet],
+	);
 	selectPlaceRef.current = selectPlace;
 	clearSelectionRef.current = clearSelection;
+	placeFeatureIndexRef.current = placeFeatureIndex;
+	placeViewsByIdRef.current = placeViewsById;
+	selectedFeatureRefKeySetRef.current = selectedFeatureRefKeySet;
 
 	useEffect(() => {
 		setLoading(true);
 		setError(null);
 		getCampusMapPlaces()
 			.then((nextData) => {
-				const nextCampuses = Array.from(new Set(nextData.places.map((place) => place.campus)));
+				const nextCampuses = getMapCampuses(createMapPlaceViews(nextData.places));
 				const initialState = readMapUrlState(nextCampuses);
 				const defaultProfile =
 					(initialState.campus ? getCampusMapProfile(initialState.campus) : null) ??
@@ -123,8 +157,30 @@ export function MapPage() {
 				});
 				map.addControl(new runtime.NavigationControl({ visualizePitch: true }), "top-right");
 				map.addControl(new runtime.ScaleControl({ unit: "metric" }), "bottom-left");
-				map.on("click", () => {
+				map.on("click", (event) => {
+					const placeId = findPlaceIdAtPoint(map, event.point, placeFeatureIndexRef.current);
+					if (placeId) {
+						selectPlaceRef.current(placeId);
+						return;
+					}
 					clearSelectionRef.current();
+				});
+				map.on("mousemove", (event) => {
+					const placeId = findPlaceIdAtPoint(map, event.point, placeFeatureIndexRef.current);
+					const place = placeId ? placeViewsByIdRef.current.get(placeId) : null;
+					setHoveredFeatureRefs(
+						place
+							? place.featureRefs.filter(
+									(featureRef) =>
+										!selectedFeatureRefKeySetRef.current.has(createFeatureRefKey(featureRef)),
+								)
+							: [],
+					);
+					setMapCanvasCursor(map, place ? "pointer" : "");
+				});
+				map.on("mouseout", () => {
+					setHoveredFeatureRefs([]);
+					setMapCanvasCursor(map, "");
 				});
 				mapInstanceRef.current = map;
 				mapReadyProfileRef.current = selectedCampusProfile.campus;
@@ -213,13 +269,24 @@ export function MapPage() {
 	}, [mapLoaded, selected, selectedCampusProfile]);
 
 	useEffect(() => {
+		const map = mapInstanceRef.current;
+		if (!(map && selectedCampusProfile?.assetUrl && mapLoaded)) {
+			return;
+		}
+
+		const filter = createCampusMapFeatureFilter(visibleHoveredFeatureRefs);
+		map.setFilter(CAMPUS_HOVER_PLACE_FILL_LAYER_ID, filter);
+		map.setFilter(CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID, filter);
+	}, [mapLoaded, selectedCampusProfile, visibleHoveredFeatureRefs]);
+
+	useEffect(() => {
 		if (!data) {
 			return;
 		}
-		if (selectedPlaceId && !filteredPlaces.some((place) => place.place.id === selectedPlaceId)) {
+		if (selectedPlaceId && !campusPlaces.some((place) => place.place.id === selectedPlaceId)) {
 			setSelectedPlaceId(null);
 		}
-	}, [data, filteredPlaces, selectedPlaceId]);
+	}, [campusPlaces, data, selectedPlaceId]);
 
 	useEffect(() => {
 		if (!(data && selectedCampus)) {
@@ -292,6 +359,7 @@ export function MapPage() {
 					categories={categories}
 					category={selectedCategory}
 					campus={selectedCampus ?? ""}
+					campusNotice={getCampusMapExperienceNotice(selectedCampus)}
 					filteredPlaces={filteredPlaces}
 					mapRef={mapRef}
 					onCanvasClick={clearSelection}
@@ -313,6 +381,10 @@ export function MapPage() {
 
 	function selectCampus(nextCampus: string) {
 		mapMoveIntentRef.current = "filter";
+		setHoveredFeatureRefs([]);
+		if (mapInstanceRef.current) {
+			setMapCanvasCursor(mapInstanceRef.current, "");
+		}
 		setSelectedCampus(nextCampus);
 		setSelectedCategory("all");
 		setSelectedPlaceId(null);
@@ -361,6 +433,13 @@ export function MapPage() {
 	}
 }
 
+function getCampusMapExperienceNotice(campus: string | null) {
+	if (campus === "海淀校区") {
+		return "海淀校区地图为基础参考版。";
+	}
+	return null;
+}
+
 function shouldFitMapForFilter(input: {
 	category: MapCategoryFilter;
 	campus: string | null;
@@ -381,6 +460,28 @@ function clearMapMarkers(markers: maplibregl.Marker[]) {
 
 function shouldRenderPointMarker(place: { usesFeatureHighlight: boolean }) {
 	return !place.usesFeatureHighlight;
+}
+
+function findPlaceIdAtPoint(
+	map: maplibregl.Map,
+	point: { x: number; y: number },
+	index: Map<MapFeatureRefKey, string>,
+) {
+	const features = map.queryRenderedFeatures(createHitTestBox(point), {
+		layers: [...INTERACTIVE_CAMPUS_MAP_LAYER_IDS],
+	});
+	for (const feature of features) {
+		const placeId = findPlaceForRenderedFeature(index, feature);
+		if (placeId) {
+			return placeId;
+		}
+	}
+	return null;
+}
+
+function setMapCanvasCursor(map: maplibregl.Map, cursor: "" | "pointer") {
+	const canvas = map.getCanvas();
+	canvas.style.cursor = cursor;
 }
 
 function getViewportBoundsForFilteredPlaces(input: {

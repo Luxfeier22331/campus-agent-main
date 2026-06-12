@@ -22,8 +22,9 @@ const NAV_GROUPS = [
 	{
 		items: [
 			{ href: "/dining", icon: Utensils, label: "食堂数据" },
-			{ href: "/dining/svg-demo", icon: MapIcon, label: "SVG 工作台" },
-			{ href: "/dining/releases", icon: ClipboardList, label: "发布管理" },
+			{ href: "/dining/assets", icon: MapIcon, label: "食堂资产" },
+			{ href: "/dining/candidates", icon: ClipboardList, label: "发布候选" },
+			{ href: "/dining/releases", icon: ClipboardList, label: "发布历史" },
 		],
 		label: "食堂",
 	},

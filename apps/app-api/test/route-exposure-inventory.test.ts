@@ -75,4 +75,18 @@ describe("app-api route exposure inventory", () => {
 			).every((route) => route.callerClass === "collector-machine"),
 		).toBe(true);
 	});
+
+	it("exposes dining publish only through release candidate commands", () => {
+		const keys = new Set(
+			APP_API_ROUTE_EXPOSURE_INVENTORY.map((route) => `${route.method} ${route.path}`),
+		);
+
+		expect(keys.has("POST /api/ops/dining/releases")).toBe(false);
+		expect(keys.has("GET /api/ops/dining/releases/:releaseId/preview")).toBe(false);
+		expect(keys.has("POST /api/ops/dining/releases/:releaseId/publish")).toBe(false);
+		expect(keys.has("POST /api/ops/dining/release-candidates")).toBe(true);
+		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/validate")).toBe(true);
+		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/approve")).toBe(true);
+		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/publish")).toBe(true);
+	});
 });

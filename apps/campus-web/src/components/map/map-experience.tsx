@@ -15,6 +15,7 @@ export function MapExperience({
 	categories,
 	category,
 	campus,
+	campusNotice,
 	filteredPlaces,
 	mapRef,
 	onCanvasClick,
@@ -31,6 +32,7 @@ export function MapExperience({
 	categories: Array<{ label: string; value: CampusMapPlaceCategory }>;
 	category: MapCategoryFilter;
 	campus: string;
+	campusNotice: string | null;
 	filteredPlaces: MapPlaceView[];
 	mapRef: RefObject<HTMLElement | null>;
 	onCanvasClick: () => void;
@@ -63,6 +65,7 @@ export function MapExperience({
 				categories={categories}
 				category={category}
 				campus={campus}
+				campusNotice={campusNotice}
 				compactResults={!isDesktop && Boolean(selectedPlace)}
 				isDesktop={isDesktop}
 				listExpanded={placeListExpanded}
@@ -115,6 +118,7 @@ function MapSearchPanel({
 	categories,
 	category,
 	campus,
+	campusNotice,
 	compactResults,
 	isDesktop,
 	listExpanded,
@@ -131,6 +135,7 @@ function MapSearchPanel({
 	categories: Array<{ label: string; value: CampusMapPlaceCategory }>;
 	category: MapCategoryFilter;
 	campus: string;
+	campusNotice: string | null;
 	compactResults: boolean;
 	isDesktop: boolean;
 	listExpanded: boolean;
@@ -213,6 +218,7 @@ function MapSearchPanel({
 					isDesktop={isDesktop}
 					onCampusChange={onCampusChange}
 				/>
+				{campusNotice ? <CampusReferenceNotice message={campusNotice} /> : null}
 				{listExpanded && !compactResults ? (
 					<CategoryFilters
 						categories={categories}
@@ -263,6 +269,14 @@ function CampusSelector({
 				</FilterButton>
 			))}
 		</fieldset>
+	);
+}
+
+function CampusReferenceNotice({ message }: { message: string }) {
+	return (
+		<p className="rounded-xl border border-white/65 bg-white/56 px-3 py-2 text-xs leading-5 text-[var(--sys-text-muted)]">
+			{message}
+		</p>
 	);
 }
 

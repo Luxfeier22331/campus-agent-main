@@ -2,10 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { AppApiRouteError } from "../src/http";
+import { AppApiRouteError } from "../src/http";
 import {
 	buildDiningOperationsService,
+	createInitialDiningOperationsState,
 	createInMemoryDiningOperationsStore,
+	type DiningFloorplanObjectStore,
+	materializeInitialDiningFloorplanAssets,
 } from "../src/modules/dining-ops";
 
 const OPERATOR = {
@@ -13,12 +16,174 @@ const OPERATOR = {
 	principalId: "operator_01",
 };
 const HAIDIAN_CANTEEN_1_FLOOR_ID = "haidian-canteen-1-1f";
+const SVG_MARKUP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420">
+	${Array.from(
+		{ length: 5 },
+		(_, index) =>
+			`<g data-dining-role="window" data-dining-anchor-id="window-${String(index + 1).padStart(
+				2,
+				"0",
+			)}"><rect x="${64 + index * 24}" y="72" width="150" height="72" /></g>`,
+	).join("")}
+</svg>`;
 
 describe("dining operations service", () => {
-	it("keeps physical windows separate from stall assignments and published menu offerings", async () => {
+	it("stores uploaded floorplan SVGs in object storage before saving draft metadata", async () => {
+		const objectStore = createFakeFloorplanObjectStore();
+		const service = buildDiningOperationsService({
+			floorplanObjectStore: objectStore,
+			store: createInMemoryDiningOperationsStore(),
+		});
+
+		const result = await service.createFloorplanAsset({
+			actor: OPERATOR,
+			input: {
+				floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+				sourceFilename: "haidian-canteen-1-1f.svg",
+				svgMarkup: SVG_MARKUP,
+			},
+		});
+
+		expect(result.asset.bucket).toBe("campus-rag-derived");
+		expect(result.asset.byteSize).toBeGreaterThan(0);
+		expect(result.asset.contentType).toBe("image/svg+xml");
+		expect(result.asset.objectKey).toMatch(
+			/^dining\/floorplans\/assets\/haidian-canteen-1\/haidian-canteen-1-1f\/sha256-[a-f0-9]{64}\.svg$/,
+		);
+		expect(objectStore.puts).toEqual([
+			expect.objectContaining({
+				contentType: "image/svg+xml",
+				objectKey: result.asset.objectKey,
+			}),
+		]);
+	});
+
+	it("fails closed when a floorplan upload has no object store", async () => {
 		const service = buildDiningOperationsService({
 			store: createInMemoryDiningOperationsStore(),
 		});
+
+		await expect(
+			service.createFloorplanAsset({
+				actor: OPERATOR,
+				input: {
+					floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+					sourceFilename: "haidian-canteen-1-1f.svg",
+					svgMarkup: SVG_MARKUP,
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "dining_floorplan_object_store_unavailable",
+			name: "AppApiRouteError",
+			status: 503,
+		} satisfies Partial<AppApiRouteError>);
+	});
+
+	it("promotes uploaded floorplan SVGs to release-owned keys before publishing", async () => {
+		const objectStore = createFakeFloorplanObjectStore();
+		const initialState = createInitialDiningOperationsState(undefined, {
+			floorplanBucket: objectStore.bucket,
+		});
+		await materializeInitialDiningFloorplanAssets({
+			floorplanObjectStore: objectStore,
+			state: initialState,
+		});
+		const service = buildDiningOperationsService({
+			floorplanObjectStore: objectStore,
+			store: createInMemoryDiningOperationsStore(initialState),
+		});
+		await service.createFloorplanAsset({
+			actor: OPERATOR,
+			input: {
+				floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+				sourceFilename: "haidian-canteen-1-1f.svg",
+				svgMarkup: SVG_MARKUP,
+			},
+		});
+		const candidate = await service.createReleaseCandidate({
+			actor: OPERATOR,
+			input: { notes: "发布上传 SVG" },
+		});
+		await service.validateReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
+		});
+		await service.approveReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
+			input: { notes: "确认发布上传 SVG" },
+		});
+
+		const release = await service.publishReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
+		});
+
+		const promoted =
+			release.snapshot.floors[`haidian-canteen-1:${HAIDIAN_CANTEEN_1_FLOOR_ID}`]?.floor
+				.floorplanAsset;
+		expect(promoted?.objectKey).toMatch(
+			new RegExp(
+				`^dining/releases/${release.release.releaseId}/floorplans/haidian-canteen-1/haidian-canteen-1-1f/sha256-[a-f0-9]{64}\\.svg$`,
+			),
+		);
+		expect(objectStore.copies).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					sourceObjectKey: expect.stringContaining("dining/floorplans/assets/"),
+					targetObjectKey: promoted?.objectKey,
+				}),
+			]),
+		);
+		expect(objectStore.copies).toHaveLength(candidate.candidate.floorplanRefs.length);
+		expect(objectStore.jsonPuts.map((item) => item.objectKey)).toEqual(
+			expect.arrayContaining([
+				`dining/releases/${release.release.releaseId}/snapshot.json`,
+				`dining/releases/${release.release.releaseId}/validation-report.json`,
+			]),
+		);
+	});
+
+	it("fails closed when a candidate references floorplan objects that were not materialized", async () => {
+		const objectStore = createFakeFloorplanObjectStore();
+		const service = buildDiningOperationsService({
+			floorplanObjectStore: objectStore,
+			store: createInMemoryDiningOperationsStore(),
+		});
+		const candidate = await service.createReleaseCandidate({
+			actor: OPERATOR,
+			input: { notes: "发布未材料化的初始 SVG" },
+		});
+		await service.validateReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
+		});
+		await service.approveReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
+			input: { notes: "确认发布" },
+		});
+
+		await expect(
+			service.publishReleaseCandidate({
+				actor: OPERATOR,
+				candidateId: candidate.candidate.candidateId,
+			}),
+		).rejects.toMatchObject({
+			code: "dining_floorplan_object_store_error",
+			name: "AppApiRouteError",
+			status: 502,
+		} satisfies Partial<AppApiRouteError>);
+
+		const publishedFloor = await service.getPublishedFloor({
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+			hallId: "haidian-canteen-1",
+		});
+		expect(publishedFloor.source.releaseId).toBe("dining_release:initial");
+	});
+
+	it("keeps physical windows separate from stall assignments and published menu offerings", async () => {
+		const service = await createTestDiningOperationsService();
 
 		const halls = await service.listHalls();
 		expect(halls.halls.map((hall) => hall.hallId).sort()).toEqual([
@@ -90,24 +255,55 @@ describe("dining operations service", () => {
 			},
 		});
 
-		const preview = await service.previewRelease({
+		const candidate = await service.createReleaseCandidate({
 			actor: OPERATOR,
 			input: { notes: "更新一食堂窗口菜品" },
 		});
-		expect(preview.summary.changedWindowCount).toBeGreaterThanOrEqual(1);
+		expect(candidate.candidate).toMatchObject({
+			baseDraftVersionId: expect.stringMatching(/^dining_draft_version:/),
+			createdBy: OPERATOR.principalId,
+			notes: "更新一食堂窗口菜品",
+			publishMode: "manual",
+			scheduledAt: null,
+			snapshotHash: expect.stringMatching(/^sha256:/),
+			status: "candidate",
+		});
+		expect(candidate.validationReport).toBeNull();
 		expect(
-			preview.preview.floors[`haidian-canteen-1:${HAIDIAN_CANTEEN_1_FLOOR_ID}`]?.windows.find(
+			candidate.snapshot.floors[`haidian-canteen-1:${HAIDIAN_CANTEEN_1_FLOOR_ID}`]?.windows.find(
 				(window) => window.windowId === windowId,
 			),
 		).toMatchObject({
+			svgAnchorId: expect.stringMatching(/^window-/),
 			windowId,
 		});
 
-		const release = await service.publishRelease({
+		const validation = await service.validateReleaseCandidate({
 			actor: OPERATOR,
-			input: { notes: "发布一食堂窗口菜品" },
+			candidateId: candidate.candidate.candidateId,
+		});
+		expect(validation.validationReport).toMatchObject({
+			blockers: [],
+			status: "pass",
+			warnings: [],
+		});
+		const approval = await service.approveReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
+			input: { notes: "确认发布" },
+		});
+		expect(approval.candidate.status).toBe("approved");
+
+		const release = await service.publishReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
 		});
 		expect(release.release.status).toBe("published");
+		expect(release.release).toMatchObject({
+			candidateId: candidate.candidate.candidateId,
+			snapshotHash: expect.stringMatching(/^sha256:/),
+		});
+		expect(release.release.snapshotHash).not.toBe(candidate.candidate.snapshotHash);
 
 		const publishedFloor = await service.getPublishedFloor({
 			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
@@ -145,9 +341,7 @@ describe("dining operations service", () => {
 	});
 
 	it("edits windows, assignments, menu items, and menu offerings as separate draft objects", async () => {
-		const service = buildDiningOperationsService({
-			store: createInMemoryDiningOperationsStore(),
-		});
+		const service = await createTestDiningOperationsService();
 		const floor = await service.getFloor({
 			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
@@ -251,9 +445,7 @@ describe("dining operations service", () => {
 	});
 
 	it("summarizes published halls for the student dining app grid", async () => {
-		const service = buildDiningOperationsService({
-			store: createInMemoryDiningOperationsStore(),
-		});
+		const service = await createTestDiningOperationsService();
 
 		const halls = await service.getPublishedHalls();
 
@@ -271,9 +463,7 @@ describe("dining operations service", () => {
 	});
 
 	it("excludes removed offerings from student dining projections", async () => {
-		const service = buildDiningOperationsService({
-			store: createInMemoryDiningOperationsStore(),
-		});
+		const service = await createTestDiningOperationsService();
 		const floor = await service.getFloor({
 			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: "haidian-canteen-1",
@@ -293,9 +483,22 @@ describe("dining operations service", () => {
 			},
 			offeringId: offering?.offeringId ?? "",
 		});
-		await service.publishRelease({
+		const candidate = await service.createReleaseCandidate({
 			actor: OPERATOR,
 			input: { notes: "移除测试菜品" },
+		});
+		await service.validateReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
+		});
+		await service.approveReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
+			input: { notes: "确认移除测试菜品" },
+		});
+		await service.publishReleaseCandidate({
+			actor: OPERATOR,
+			candidateId: candidate.candidate.candidateId,
 		});
 
 		const publishedFloor = await service.getPublishedFloor({
@@ -312,6 +515,56 @@ describe("dining operations service", () => {
 		expect(halls.halls.find((hall) => hall.hallId === "haidian-canteen-1")?.offeringCount).toBe(
 			publishedFloor.windows.flatMap((window) => window.assignment?.offerings ?? []).length,
 		);
+	});
+
+	it("fails closed when publishing a stale dining release candidate", async () => {
+		const service = await createTestDiningOperationsService();
+		const before = await service.getPublishedFloor({
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+			hallId: "haidian-canteen-1",
+		});
+		const draft = await service.getFloor({
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+			hallId: "haidian-canteen-1",
+		});
+		const candidate = await service.createReleaseCandidate({
+			actor: OPERATOR,
+			input: { notes: "准备发布候选" },
+		});
+		await service.updateWindow({
+			actor: OPERATOR,
+			input: { label: "候选创建后的草稿修改" },
+			windowId: draft.windows[0]?.windowId ?? "",
+		});
+
+		await expect(
+			service.validateReleaseCandidate({
+				actor: OPERATOR,
+				candidateId: candidate.candidate.candidateId,
+			}),
+		).resolves.toMatchObject({
+			validationReport: {
+				blockers: [expect.objectContaining({ code: "stale_release_candidate" })],
+				status: "fail",
+			},
+		});
+		await expect(
+			service.approveReleaseCandidate({
+				actor: OPERATOR,
+				candidateId: candidate.candidate.candidateId,
+				input: { notes: "不应通过" },
+			}),
+		).rejects.toMatchObject({
+			code: "dining_release_candidate_invalid",
+			name: "AppApiRouteError",
+			status: 409,
+		} satisfies Partial<AppApiRouteError>);
+
+		const after = await service.getPublishedFloor({
+			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
+			hallId: "haidian-canteen-1",
+		});
+		expect(after.source.releaseId).toBe(before.source.releaseId);
 	});
 
 	it("fails closed when a published dining snapshot is missing required projection objects", async () => {
@@ -358,3 +611,100 @@ describe("dining operations service", () => {
 		]);
 	});
 });
+
+async function createTestDiningOperationsService() {
+	const objectStore = createFakeFloorplanObjectStore();
+	const initialState = createInitialDiningOperationsState(undefined, {
+		floorplanBucket: objectStore.bucket,
+	});
+	await materializeInitialDiningFloorplanAssets({
+		floorplanObjectStore: objectStore,
+		state: initialState,
+	});
+	return buildDiningOperationsService({
+		floorplanObjectStore: objectStore,
+		store: createInMemoryDiningOperationsStore(initialState),
+	});
+}
+
+function createFakeFloorplanObjectStore(): DiningFloorplanObjectStore & {
+	copies: Array<{ sourceObjectKey: string; targetObjectKey: string }>;
+	jsonPuts: Array<{ objectKey: string; value: unknown }>;
+	puts: Array<{ contentType: string; objectKey: string }>;
+} {
+	const objects = new Map<string, { byteSize: number; sha256: string }>();
+	const bucket = "campus-rag-derived";
+	const puts: Array<{ contentType: string; objectKey: string }> = [];
+	const copies: Array<{ sourceObjectKey: string; targetObjectKey: string }> = [];
+	const jsonPuts: Array<{ objectKey: string; value: unknown }> = [];
+	return {
+		bucket,
+		copies,
+		jsonPuts,
+		puts,
+		async copyObject(input) {
+			const source = objects.get(input.sourceObjectKey);
+			if (!source) {
+				throw new AppApiRouteError({
+					code: "dining_floorplan_object_store_error",
+					details: { objectKey: input.sourceObjectKey },
+					message: `Missing object ${input.sourceObjectKey}`,
+					retryable: false,
+					status: 502,
+				});
+			}
+			objects.set(input.targetObjectKey, source);
+			copies.push(input);
+			return {
+				bucket,
+				byteSize: source.byteSize,
+				contentType: "image/svg+xml",
+				objectKey: input.targetObjectKey,
+				sha256: source.sha256,
+			};
+		},
+		async headObject(input) {
+			const object = objects.get(input.objectKey);
+			return object
+				? {
+						bucket,
+						byteSize: object.byteSize,
+						contentType: input.objectKey.endsWith(".json") ? "application/json" : "image/svg+xml",
+						objectKey: input.objectKey,
+						sha256: object.sha256,
+					}
+				: null;
+		},
+		async putJson(input) {
+			const payload = JSON.stringify(input.value);
+			const object = {
+				byteSize: Buffer.byteLength(payload),
+				sha256: `sha256:${"0".repeat(64)}`,
+			};
+			objects.set(input.objectKey, object);
+			jsonPuts.push(input);
+			return {
+				bucket,
+				byteSize: object.byteSize,
+				contentType: "application/json",
+				objectKey: input.objectKey,
+				sha256: object.sha256,
+			};
+		},
+		async putSvg(input) {
+			const object = {
+				byteSize: Buffer.byteLength(input.svgMarkup),
+				sha256: input.sha256,
+			};
+			objects.set(input.objectKey, object);
+			puts.push({ contentType: "image/svg+xml", objectKey: input.objectKey });
+			return {
+				bucket,
+				byteSize: object.byteSize,
+				contentType: "image/svg+xml",
+				objectKey: input.objectKey,
+				sha256: object.sha256,
+			};
+		},
+	};
+}

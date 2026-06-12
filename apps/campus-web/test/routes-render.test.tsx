@@ -499,7 +499,10 @@ describe("campus routes", () => {
 	});
 
 	it("keeps dining floor rendering driven by the floor projection contract", () => {
-		expect(diningExperienceSource).toContain("floor.floor.svgAssetUrl");
+		expect(diningExperienceSource).toContain("floor.floor.svgMarkup");
+		expect(diningExperienceSource).toContain("dangerouslySetInnerHTML");
+		expect(diningExperienceSource).toContain("[data-dining-anchor-id]");
+		expect(diningExperienceSource).not.toContain("<img");
 		expect(diningPageSource).toContain("floor.filters.tags");
 		expect(diningPageSource).toContain("payload.windows");
 		expect(diningPageSource).not.toContain('id: "rice-bowl"');
@@ -562,6 +565,12 @@ describe("campus routes", () => {
 		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
 		expect(screen.getByText("18 元")).toBeInTheDocument();
 		expect(screen.getByLabelText("选择盖饭窗口")).toBeInTheDocument();
+		expect(screen.getByTestId("dining-inline-floorplan").querySelector("svg")).not.toBeNull();
+		fireEvent.click(screen.getByTestId("dining-anchor-window-01"));
+		expect(screen.getByTestId("dining-anchor-window-01")).toHaveClass("is-selected");
+		expect(screen.getAllByText("入口侧")[0]?.closest("button")).toHaveClass(
+			"bg-[var(--sys-brand-interactive-subtle)]",
+		);
 		fireEvent.change(screen.getByPlaceholderText("搜索食堂、窗口、菜品"), {
 			target: { value: "牛腩" },
 		});
@@ -680,6 +689,8 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 			floorId: input.floorId,
 			hallId: input.hallId,
 			label: input.label,
+			svgMarkup:
+				'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420"><g data-dining-role="window" data-dining-anchor-id="window-01"><rect x="64" y="72" width="150" height="72" /><text x="80" y="110">盖饭窗口</text></g></svg>',
 			svgAssetUrl: `/assets/dining/${input.hallId}-${input.floorId}.svg`,
 		},
 		source: {
@@ -721,6 +732,7 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 				geometry: { height: 72, width: 150, x: 64, y: 72 },
 				label: "一号窗口",
 				locationLabel: "入口侧",
+				svgAnchorId: "window-01",
 				status: "active",
 				tags: ["主食", "热餐"],
 				windowId: `${input.hallId}:${input.floorId}:window-01`,

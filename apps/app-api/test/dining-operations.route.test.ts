@@ -6,7 +6,10 @@ import { createApp } from "../src/app";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import {
 	buildDiningOperationsService,
+	createInitialDiningOperationsState,
 	createInMemoryDiningOperationsStore,
+	type DiningFloorplanObjectStore,
+	materializeInitialDiningFloorplanAssets,
 } from "../src/modules/dining-ops";
 
 const env = {
@@ -56,6 +59,7 @@ describe("dining operations routes", () => {
 	it("fails closed for non-operator principals", async () => {
 		const app = createApp(env, {
 			diningOperationsService: buildDiningOperationsService({
+				floorplanObjectStore: createFakeFloorplanObjectStore(),
 				store: createInMemoryDiningOperationsStore(),
 			}),
 			getPrincipal: vi.fn().mockResolvedValue(principal({ operator: false })),
@@ -70,10 +74,9 @@ describe("dining operations routes", () => {
 	});
 
 	it("allows operator principals to edit draft and publish dining projections", async () => {
+		const diningOperationsService = await createTestDiningOperationsService();
 		const app = createApp(env, {
-			diningOperationsService: buildDiningOperationsService({
-				store: createInMemoryDiningOperationsStore(),
-			}),
+			diningOperationsService,
 			getPrincipal: vi.fn().mockResolvedValue(principal({ operator: true })),
 		});
 
@@ -156,29 +159,104 @@ describe("dining operations routes", () => {
 		);
 		expect(offeringPatch.status).toBe(200);
 
-		const publish = await app.fetch(
+		const legacyDirectPublish = await app.fetch(
 			new Request("https://app-api.internal/api/ops/dining/releases", {
 				body: JSON.stringify({ notes: "发布一食堂窗口菜品" }),
 				headers: { "content-type": "application/json" },
 				method: "POST",
 			}),
 		);
+		expect(legacyDirectPublish.status).toBe(404);
+
+		const candidate = await app.fetch(
+			new Request("https://app-api.internal/api/ops/dining/release-candidates", {
+				body: JSON.stringify({ notes: "发布一食堂窗口菜品" }),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+		);
+		expect(candidate.status).toBe(201);
+		const candidateBody = (await candidate.json()) as {
+			candidate: { candidateId: string; status: string };
+			validationReport: null;
+		};
+		expect(candidateBody).toMatchObject({
+			candidate: { status: "candidate" },
+			validationReport: null,
+		});
+
+		const validate = await app.fetch(
+			new Request(
+				`https://app-api.internal/api/ops/dining/release-candidates/${encodeURIComponent(
+					candidateBody.candidate.candidateId,
+				)}/validate`,
+				{ method: "POST" },
+			),
+		);
+		expect(validate.status).toBe(200);
+		await expect(validate.json()).resolves.toMatchObject({
+			candidate: { status: "validated" },
+			validationReport: { blockers: [], status: "pass", warnings: [] },
+		});
+
+		const approve = await app.fetch(
+			new Request(
+				`https://app-api.internal/api/ops/dining/release-candidates/${encodeURIComponent(
+					candidateBody.candidate.candidateId,
+				)}/approve`,
+				{
+					body: JSON.stringify({ notes: "确认发布" }),
+					headers: { "content-type": "application/json" },
+					method: "POST",
+				},
+			),
+		);
+		expect(approve.status).toBe(200);
+
+		const publish = await app.fetch(
+			new Request(
+				`https://app-api.internal/api/ops/dining/release-candidates/${encodeURIComponent(
+					candidateBody.candidate.candidateId,
+				)}/publish`,
+				{ method: "POST" },
+			),
+		);
 		expect(publish.status).toBe(201);
 
 		const publicFloor = await app.fetch(new Request(HAIDIAN_CANTEEN_1_PUBLIC_FLOOR_PATH));
 		expect(publicFloor.status).toBe(200);
 		const publicFloorBody = (await publicFloor.json()) as {
+			floor: {
+				floorplanAsset?: {
+					bucket: string;
+					byteSize: number;
+					contentType: string;
+					objectKey: string;
+					sha256: string;
+				};
+				svgMarkup: string;
+			};
 			windows: Array<{
 				assignment: null | {
 					offerings: Array<{ name: string; priceLabel: string; specLabel: string | null }>;
 					stallProfile: { displayName: string };
 				};
+				svgAnchorId: string | null;
 				windowId: string;
 			}>;
 		};
+		expect(publicFloorBody.floor.svgMarkup).toContain("data-dining-anchor-id");
+		expect(publicFloorBody.floor.floorplanAsset).toMatchObject({
+			bucket: "campus-rag-derived",
+			contentType: "image/svg+xml",
+			objectKey: expect.stringContaining("dining/releases/"),
+			sha256: expect.stringMatching(/^sha256:/),
+		});
+		expect(publicFloorBody.floor.floorplanAsset?.byteSize).toBeGreaterThan(0);
 		expect(publicFloorBody.windows).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
+					svgAnchorId: expect.stringMatching(/^window-/),
 					assignment: expect.objectContaining({
 						offerings: expect.arrayContaining([
 							expect.objectContaining({
@@ -197,6 +275,7 @@ describe("dining operations routes", () => {
 	it("allows operator principals to patch dining draft objects independently", async () => {
 		const app = createApp(env, {
 			diningOperationsService: buildDiningOperationsService({
+				floorplanObjectStore: createFakeFloorplanObjectStore(),
 				store: createInMemoryDiningOperationsStore(),
 			}),
 			getPrincipal: vi.fn().mockResolvedValue(principal({ operator: true })),
@@ -299,3 +378,81 @@ describe("dining operations routes", () => {
 		});
 	});
 });
+
+async function createTestDiningOperationsService() {
+	const objectStore = createFakeFloorplanObjectStore();
+	const initialState = createInitialDiningOperationsState(undefined, {
+		floorplanBucket: objectStore.bucket,
+	});
+	await materializeInitialDiningFloorplanAssets({
+		floorplanObjectStore: objectStore,
+		state: initialState,
+	});
+	return buildDiningOperationsService({
+		floorplanObjectStore: objectStore,
+		store: createInMemoryDiningOperationsStore(initialState),
+	});
+}
+
+function createFakeFloorplanObjectStore(): DiningFloorplanObjectStore {
+	const objects = new Map<string, { byteSize: number; sha256: string }>();
+	const bucket = "campus-rag-derived";
+	return {
+		bucket,
+		async copyObject(input) {
+			const source = objects.get(input.sourceObjectKey);
+			if (!source) {
+				throw new Error(`Missing object ${input.sourceObjectKey}`);
+			}
+			objects.set(input.targetObjectKey, source);
+			return {
+				bucket,
+				byteSize: source.byteSize,
+				contentType: "image/svg+xml",
+				objectKey: input.targetObjectKey,
+				sha256: source.sha256,
+			};
+		},
+		async headObject(input) {
+			const object = objects.get(input.objectKey);
+			return object
+				? {
+						bucket,
+						byteSize: object.byteSize,
+						contentType: input.objectKey.endsWith(".json") ? "application/json" : "image/svg+xml",
+						objectKey: input.objectKey,
+						sha256: object.sha256,
+					}
+				: null;
+		},
+		async putJson(input) {
+			const payload = JSON.stringify(input.value);
+			const object = {
+				byteSize: Buffer.byteLength(payload),
+				sha256: "",
+			};
+			objects.set(input.objectKey, object);
+			return {
+				bucket,
+				byteSize: object.byteSize,
+				contentType: "application/json",
+				objectKey: input.objectKey,
+				sha256: "",
+			};
+		},
+		async putSvg(input) {
+			const object = {
+				byteSize: Buffer.byteLength(input.svgMarkup),
+				sha256: input.sha256,
+			};
+			objects.set(input.objectKey, object);
+			return {
+				bucket,
+				byteSize: object.byteSize,
+				contentType: "image/svg+xml",
+				objectKey: input.objectKey,
+				sha256: input.sha256,
+			};
+		},
+	};
+}

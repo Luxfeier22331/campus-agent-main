@@ -137,6 +137,25 @@ describe("campus experience projection seed", () => {
 			expect(place.geojson.properties.placeId).toBe(place.id);
 			expect(place.geojson.properties.title).toBe(place.title);
 		}
+		for (const fengtaiPlaceId of [
+			"fengtai-library",
+			"fengtai-hospital",
+			"fengtai-student-activity-center",
+			"fengtai-comprehensive-building",
+			"fengtai-zhiyuan-building",
+			"fengtai-bowen-building",
+			"fengtai-mingde-chongli-building",
+			"fengtai-teacher-apartment-zone",
+			"fengtai-track-field",
+			"fengtai-basketball-court",
+			"fengtai-volleyball-court",
+			"fengtai-tennis-court",
+			"fengtai-air-dome",
+			"fengtai-football-field",
+		]) {
+			expect(placeIds.has(fengtaiPlaceId), fengtaiPlaceId).toBe(true);
+			expect(placesById.get(fengtaiPlaceId)?.mapFeatureRefs?.length).toBeGreaterThan(0);
+		}
 		expect(placesById.get("fengtai-huixian-canteen")?.mapFeatureRefs).toEqual([
 			{ fid: 41, layer: "building", sourceId: "fengtai-campus" },
 		]);
@@ -148,6 +167,12 @@ describe("campus experience projection seed", () => {
 		]);
 		expect(placesById.get("haidian-hospital")?.mapFeatureRefs).toEqual([
 			{ fid: 548820883, layer: "building", sourceId: "haidian-campus" },
+		]);
+		expect(placesById.get("fengtai-library")?.mapFeatureRefs).toEqual([
+			{ fid: 49, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(placesById.get("fengtai-basketball-court")?.mapFeatureRefs).toEqual([
+			{ fid: 2, layer: "sport", sourceId: "fengtai-campus" },
 		]);
 		expect(placesById.get("haidian-canteen-1")?.mapFeatureRefs).toBeUndefined();
 		expect(placesById.get("fengtai-main-gate")?.mapFeatureRefs).toBeUndefined();

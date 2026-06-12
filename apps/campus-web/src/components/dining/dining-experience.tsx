@@ -100,46 +100,49 @@ export function InteractiveFloorplan({
 	selectedWindowId: string | null;
 	windows: DiningWindowProjection[];
 }) {
-	const canvas = floor.floor.canvas;
+	const selectedWindow = windows.find((window) => window.windowId === selectedWindowId) ?? null;
+	const normalizedMarkup = markDiningFloorplanAnchors(
+		floor.floor.svgMarkup,
+		windows,
+		selectedWindow?.svgAnchorId ?? null,
+	);
 	return (
 		<div className="overflow-auto rounded-xl border border-border bg-[var(--dining-svg-canvas-bg)] p-3">
-			<div
-				className="relative min-w-[640px] rounded-lg border border-border bg-white"
-				style={{ aspectRatio: `${canvas.width} / ${canvas.height}` }}
+			<fieldset
+				className="min-w-[640px] rounded-lg border border-border bg-white p-2 [&_.dining-svg-anchor]:cursor-pointer [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
+				data-testid="dining-inline-floorplan"
+				onClick={(event) => {
+					const target = event.target;
+					if (!(target instanceof Element)) {
+						return;
+					}
+					const anchorElement = target.closest("[data-dining-anchor-id]");
+					const anchorId = anchorElement?.getAttribute("data-dining-anchor-id");
+					const window = windows.find((item) => item.svgAnchorId === anchorId);
+					if (window) {
+						onSelectWindow(window.windowId);
+					}
+				}}
+				onKeyDown={(event) => {
+					if (event.key !== "Enter" && event.key !== " ") {
+						return;
+					}
+					const target = event.target;
+					if (!(target instanceof Element)) {
+						return;
+					}
+					const anchorId = target.getAttribute("data-dining-anchor-id");
+					const window = windows.find((item) => item.svgAnchorId === anchorId);
+					if (window) {
+						event.preventDefault();
+						onSelectWindow(window.windowId);
+					}
+				}}
 			>
-				<img
-					alt={`${floor.floor.label}平面图`}
-					className="absolute inset-0 size-full object-contain"
-					src={floor.floor.svgAssetUrl}
-				/>
-				{windows.map((window) => {
-					const selected = window.windowId === selectedWindowId;
-					return (
-						<button
-							aria-label={`选择${window.assignment?.stallProfile.displayName ?? window.label}`}
-							className={cn(
-								"absolute rounded-md border bg-white/90 px-2 text-left text-[11px] font-medium shadow-[var(--shadow-xs)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-								selected
-									? "border-[var(--sys-text-strong)] bg-[var(--sys-text-strong)] text-white"
-									: "border-[var(--sys-border-default)] text-[var(--sys-text-strong)] hover:border-primary",
-							)}
-							key={window.windowId}
-							onClick={() => onSelectWindow(window.windowId)}
-							style={{
-								height: `${(window.geometry.height / canvas.height) * 100}%`,
-								left: `${(window.geometry.x / canvas.width) * 100}%`,
-								top: `${(window.geometry.y / canvas.height) * 100}%`,
-								width: `${(window.geometry.width / canvas.width) * 100}%`,
-							}}
-							type="button"
-						>
-							<span className="line-clamp-2">
-								{window.assignment?.stallProfile.displayName ?? window.label}
-							</span>
-						</button>
-					);
-				})}
-			</div>
+				<legend className="sr-only">食堂平面图窗口选择</legend>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: app-api returns sanitized published SVG and this component only annotates dining anchors for selection. */}
+				<div dangerouslySetInnerHTML={{ __html: normalizedMarkup }} />
+			</fieldset>
 		</div>
 	);
 }
@@ -240,4 +243,34 @@ function formatSaleStatus(status: "available" | "paused" | "seasonal"): string {
 		return "暂停";
 	}
 	return "季节供应";
+}
+
+function markDiningFloorplanAnchors(
+	svgMarkup: string,
+	windows: DiningWindowProjection[],
+	selectedAnchorId: string | null,
+): string {
+	const parser = new DOMParser();
+	const document = parser.parseFromString(svgMarkup, "image/svg+xml");
+	const windowByAnchor = new Map(
+		windows.flatMap((window) => (window.svgAnchorId ? [[window.svgAnchorId, window]] : [])),
+	);
+	for (const element of document.querySelectorAll("[data-dining-anchor-id]")) {
+		const anchorId = element.getAttribute("data-dining-anchor-id");
+		const window = anchorId ? windowByAnchor.get(anchorId) : null;
+		element.classList.add("dining-svg-anchor");
+		if (anchorId === selectedAnchorId) {
+			element.classList.add("is-selected");
+		}
+		if (window && anchorId) {
+			element.setAttribute("role", "button");
+			element.setAttribute("tabindex", "0");
+			element.setAttribute(
+				"aria-label",
+				`选择${window.assignment?.stallProfile.displayName ?? window.label}`,
+			);
+			element.setAttribute("data-testid", `dining-anchor-${anchorId}`);
+		}
+	}
+	return new XMLSerializer().serializeToString(document.documentElement);
 }

@@ -27,18 +27,27 @@ const MODULES = [
 	{
 		area: "食堂",
 		description: "上传或替换食堂 SVG，维护区块锚点与窗口绑定。",
-		href: "/dining/svg-demo",
+		href: "/dining/assets",
 		icon: MapIcon,
-		label: "SVG 平面图",
+		label: "食堂资产",
 		owner: "dining ops",
-		status: "设计验证",
+		status: "已接入",
 	},
 	{
 		area: "食堂",
-		description: "创建预览、发布快照，并让学生侧只读取已发布版本。",
-		href: "/dining/releases",
+		description: "从明确草稿版本创建候选，查看校验结果并审批发布。",
+		href: "/dining/candidates",
 		icon: GitBranch,
-		label: "食堂发布",
+		label: "发布候选",
+		owner: "dining ops",
+		status: "候选发布",
+	},
+	{
+		area: "食堂",
+		description: "查看已发布快照、发布来源和回滚入口。",
+		href: "/dining/releases",
+		icon: History,
+		label: "发布历史",
 		owner: "dining ops",
 		status: "已接入",
 	},
@@ -99,13 +108,13 @@ const MODULES = [
 ] as const;
 
 const STATUS_SUMMARY = [
-	{ label: "已接入", value: 3 },
-	{ label: "设计验证", value: 1 },
+	{ label: "已接入", value: 5 },
+	{ label: "候选发布", value: 1 },
 	{ label: "预留路由", value: 5 },
 ] as const;
 
 const DELIVERY_STEPS = [
-	"食堂草稿编辑、SVG 绑定、发布和审计已在当前工作面接入。",
+	"食堂草稿编辑、SVG 资产、候选发布和审计已在当前工作面接入。",
 	"非 dining 模块先保留路由，不开放写 API，不承诺编辑器已经完成。",
 	"后续模块接入前必须先冻结对应 contract、权限和审计边界。",
 ] as const;
@@ -278,7 +287,7 @@ function StatusPill(input: { status: (typeof MODULES)[number]["status"] }) {
 			className={cn(
 				"inline-flex min-w-19 items-center justify-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 font-semibold text-xs",
 				input.status === "已接入" && "border-emerald-200 bg-emerald-50 text-emerald-700",
-				input.status === "设计验证" && "border-sky-200 bg-sky-50 text-sky-700",
+				input.status === "候选发布" && "border-sky-200 bg-sky-50 text-sky-700",
 				input.status === "预留路由" && "border-slate-200 bg-slate-50 text-slate-600",
 			)}
 		>

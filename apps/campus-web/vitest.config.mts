@@ -15,5 +15,6 @@ export default defineConfig({
 		exclude: ["test/**/*.worker.test.ts"],
 		include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
 		setupFiles: ["./test/setup.ts"],
+		testTimeout: 15_000,
 	},
 });

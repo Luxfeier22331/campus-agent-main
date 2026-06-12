@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+	resolvePublishedReaderObjectStoreBucket,
 	syncCampusPublishedReaderAssets,
 	syncCampusPublishedReaderDocs,
 } from "../scripts/sync-campus-published-reader.mjs";
@@ -24,6 +25,14 @@ afterEach(() => {
 });
 
 describe("campus-web published reader sync", () => {
+	it("uses the standard derived object store bucket env name", () => {
+		expect(
+			resolvePublishedReaderObjectStoreBucket({
+				OBJECT_STORE_BUCKET_DERIVED: "campus-rag-derived-local",
+			}),
+		).toBe("campus-rag-derived-local");
+	});
+
 	it("generates Rspress MDX reader pages with stable rootUnitId anchors", async () => {
 		const { client, manifestPath, root } = createPublishedReaderFixture();
 		const docsRoot = join(root, "docs");

@@ -1,4 +1,4 @@
-import { boolean, index, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 const dining = pgSchema("dining");
 
@@ -17,6 +17,7 @@ export const diningFloors = dining.table(
 		floorId: text("floor_id").primaryKey(),
 		hallId: text("hall_id").notNull(),
 		label: text("label").notNull(),
+		draftFloorplanAssetId: text("draft_floorplan_asset_id").notNull(),
 		svgAssetUrl: text("svg_asset_url").notNull(),
 		sortKey: text("sort_key").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -24,6 +25,33 @@ export const diningFloors = dining.table(
 	},
 	(table) => ({
 		hallIndex: index("dining_floors_hall_idx").on(table.hallId),
+	}),
+);
+
+export const diningFloorplanAssets = dining.table(
+	"floorplan_assets",
+	{
+		floorplanAssetId: text("floorplan_asset_id").primaryKey(),
+		hallId: text("hall_id").notNull(),
+		floorId: text("floor_id").notNull(),
+		bucket: text("bucket").notNull().default("campus-rag-derived"),
+		contentType: text("content_type").notNull().default("image/svg+xml"),
+		byteSize: integer("byte_size").notNull().default(0),
+		objectKey: text("object_key").notNull(),
+		sha256: text("sha256").notNull(),
+		sanitizedSvgMarkup: text("sanitized_svg_markup").notNull(),
+		anchorInventoryJson: jsonb("anchor_inventory_json")
+			.$type<Array<{ anchorId: string; role: string }>>()
+			.notNull()
+			.default([]),
+		sourceFilename: text("source_filename").notNull(),
+		status: text("status").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		createdBy: text("created_by").notNull(),
+	},
+	(table) => ({
+		floorIndex: index("dining_floorplan_assets_floor_idx").on(table.hallId, table.floorId),
+		statusIndex: index("dining_floorplan_assets_status_idx").on(table.status),
 	}),
 );
 
@@ -35,6 +63,7 @@ export const diningWindows = dining.table(
 		floorId: text("floor_id").notNull(),
 		label: text("label").notNull(),
 		locationLabel: text("location_label").notNull(),
+		svgAnchorId: text("svg_anchor_id"),
 		geometryJson: jsonb("geometry_json").$type<Record<string, unknown>>().notNull(),
 		tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
 		status: text("status").notNull().default("active"),
@@ -120,6 +149,90 @@ export const diningMenuOfferings = dining.table(
 	}),
 );
 
+export const diningDraftVersions = dining.table(
+	"draft_versions",
+	{
+		draftVersionId: text("draft_version_id").primaryKey(),
+		versionNumber: integer("version_number").notNull(),
+		summaryJson: jsonb("summary_json").$type<Record<string, unknown>>().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		createdBy: text("created_by").notNull(),
+	},
+	(table) => ({
+		versionIndex: index("dining_draft_versions_version_idx").on(table.versionNumber),
+	}),
+);
+
+export const diningReleaseCandidates = dining.table(
+	"release_candidates",
+	{
+		candidateId: text("candidate_id").primaryKey(),
+		baseDraftVersionId: text("base_draft_version_id").notNull(),
+		status: text("status").notNull(),
+		notes: text("notes").notNull(),
+		publishMode: text("publish_mode").notNull(),
+		scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+		expectedPredecessorReleaseId: text("expected_predecessor_release_id"),
+		snapshotHash: text("snapshot_hash").notNull(),
+		floorplanRefsJson: jsonb("floorplan_refs_json")
+			.$type<Record<string, unknown>[]>()
+			.notNull()
+			.default([]),
+		snapshotPayloadJson: jsonb("snapshot_payload_json").$type<Record<string, unknown>>().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		createdBy: text("created_by").notNull(),
+		approvedAt: timestamp("approved_at", { withTimezone: true }),
+		approvedBy: text("approved_by"),
+		cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+		cancelledBy: text("cancelled_by"),
+		publishedReleaseId: text("published_release_id"),
+	},
+	(table) => ({
+		statusCreatedIndex: index("dining_release_candidates_status_created_idx").on(
+			table.status,
+			table.createdAt,
+		),
+	}),
+);
+
+export const diningReleaseCandidateValidationReports = dining.table(
+	"release_candidate_validation_reports",
+	{
+		validationReportId: text("validation_report_id").primaryKey(),
+		candidateId: text("candidate_id").notNull(),
+		status: text("status").notNull(),
+		blockersJson: jsonb("blockers_json").$type<Record<string, unknown>[]>().notNull(),
+		warningsJson: jsonb("warnings_json").$type<Record<string, unknown>[]>().notNull(),
+		summaryJson: jsonb("summary_json").$type<Record<string, unknown>>().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		candidateIndex: index("dining_release_candidate_reports_candidate_idx").on(table.candidateId),
+	}),
+);
+
+export const diningReleaseScheduleJobs = dining.table(
+	"release_schedule_jobs",
+	{
+		scheduleJobId: text("schedule_job_id").primaryKey(),
+		candidateId: text("candidate_id").notNull(),
+		scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+		status: text("status").notNull(),
+		attemptCount: integer("attempt_count").notNull(),
+		lastErrorCode: text("last_error_code"),
+		lastErrorMessage: text("last_error_message"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		createdBy: text("created_by").notNull(),
+		executedAt: timestamp("executed_at", { withTimezone: true }),
+	},
+	(table) => ({
+		statusScheduledIndex: index("dining_release_schedule_jobs_status_scheduled_idx").on(
+			table.status,
+			table.scheduledAt,
+		),
+	}),
+);
+
 export const diningSourceObservations = dining.table(
 	"source_observations",
 	{
@@ -149,11 +262,14 @@ export const diningReleases = dining.table(
 	"releases",
 	{
 		releaseId: text("release_id").primaryKey(),
+		candidateId: text("candidate_id"),
 		notes: text("notes").notNull(),
 		status: text("status").notNull(),
 		published: boolean("published").notNull().default(false),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		publishedBy: text("published_by"),
+		predecessorReleaseId: text("predecessor_release_id"),
+		snapshotHash: text("snapshot_hash").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		createdBy: text("created_by").notNull(),
 	},
@@ -172,12 +288,25 @@ export const diningReleaseSnapshots = dining.table(
 		snapshotId: text("snapshot_id").primaryKey(),
 		releaseId: text("release_id").notNull(),
 		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull(),
+		svgObjectRefsJson: jsonb("svg_object_refs_json")
+			.$type<Record<string, unknown>[]>()
+			.notNull()
+			.default([]),
+		snapshotHash: text("snapshot_hash").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
 		releaseIndex: index("dining_release_snapshots_release_idx").on(table.releaseId),
 	}),
 );
+
+export const diningReleaseLatestPointer = dining.table("release_latest_pointer", {
+	scope: text("scope").primaryKey(),
+	releaseId: text("release_id").notNull(),
+	snapshotId: text("snapshot_id").notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	updatedBy: text("updated_by").notNull(),
+});
 
 export const diningAuditEvents = dining.table(
 	"audit_events",

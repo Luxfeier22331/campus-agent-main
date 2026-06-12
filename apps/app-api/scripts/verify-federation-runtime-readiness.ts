@@ -21,8 +21,10 @@ function hasPackage(specifier: string): boolean {
 }
 
 function hasRoutePattern(pattern: string): boolean {
-	const source = readFileSync(resolve(repoRoot, "apps/app-api/src/app/route-exposure.ts"), "utf8");
-	return source.includes(pattern);
+	const routeExposureFiles = ["route-exposure.ts", "route-exposure-inventory.ts"];
+	return routeExposureFiles.some((fileName) =>
+		readFileSync(resolve(repoRoot, `apps/app-api/src/app/${fileName}`), "utf8").includes(pattern),
+	);
 }
 
 const IMPLEMENTED_FEDERATION_ROUTES = [

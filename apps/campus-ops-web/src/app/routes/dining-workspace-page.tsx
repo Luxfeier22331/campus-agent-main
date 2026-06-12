@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SvgFloorplanWorkspace } from "../../components/dining/svg-floorplan-workspace";
 import {
 	assignDiningWindow,
+	createDiningFloorplanAsset,
 	createDiningMenuItem,
 	createDiningMenuOffering,
 	getDiningOpsFloor,
@@ -39,6 +40,16 @@ export function DiningWorkspacePage() {
 		queryKey: ["dining-ops", "floor", activeHallId, activeFloorId],
 	});
 	const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
+	const queryClient = useQueryClient();
+	const floorplanUploadMutation = useMutation({
+		mutationFn: createDiningFloorplanAsset,
+		onSuccess: () => {
+			void queryClient.invalidateQueries({
+				queryKey: ["dining-ops", "floor", activeHallId, activeFloorId],
+			});
+			void queryClient.invalidateQueries({ queryKey: ["dining-ops", "halls"] });
+		},
+	});
 
 	useEffect(() => {
 		if (!selectedWindowId && floorQuery.data?.windows[0]) {
@@ -88,8 +99,19 @@ export function DiningWorkspacePage() {
 				</div>
 				{floorQuery.data ? (
 					<SvgFloorplanWorkspace
+						floorId={floorQuery.data.floor.floorId}
+						floorplanAsset={floorQuery.data.floor.floorplanAsset}
+						onUploadSvg={(upload) => floorplanUploadMutation.mutateAsync(upload)}
 						onSelectWindow={setSelectedWindowId}
 						selectedWindowId={selectedWindowId}
+						uploadError={floorplanUploadMutation.isError ? "SVG 上传失败" : null}
+						uploadState={
+							floorplanUploadMutation.isPending
+								? "uploading"
+								: floorplanUploadMutation.isSuccess
+									? "success"
+									: "idle"
+						}
 						svgAssetUrl={floorQuery.data.floor.svgAssetUrl}
 						svgMarkup={floorQuery.data.floor.svgMarkup}
 						windows={floorQuery.data.windows}

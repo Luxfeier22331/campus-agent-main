@@ -1,4 +1,5 @@
 import { AppApiRouteError } from "../../http";
+import { DINING_CANVAS } from "./initial-data";
 import type {
 	DiningMenuOffering,
 	DiningOperationsService,
@@ -7,8 +8,7 @@ import type {
 	DiningOpsHall,
 	DiningPublicSaleStatus,
 	DiningPublishedSnapshot,
-} from ".";
-import { DINING_CANVAS } from "./initial-data";
+} from "./types";
 
 export function buildPublishedSnapshot(
 	state: DiningOperationsState,
@@ -56,6 +56,9 @@ export function buildFloorResponse(
 	const windows = state.windows.filter(
 		(window) => window.hallId === input.hallId && window.floorId === input.floorId,
 	);
+	const floorplanAsset = state.floorplanAssets.find(
+		(asset) => asset.floorplanAssetId === floor.draftFloorplanAssetId,
+	);
 	const windowIds = new Set(windows.map((window) => window.windowId));
 	const assignments = state.assignments.filter((assignment) => windowIds.has(assignment.windowId));
 	const assignmentIds = new Set(assignments.map((assignment) => assignment.assignmentId));
@@ -68,10 +71,24 @@ export function buildFloorResponse(
 		assignments,
 		floor: {
 			canvas: DINING_CANVAS,
+			draftVersionId: state.currentDraftVersion.draftVersionId,
 			floorId: floor.floorId,
+			floorplanAsset: floorplanAsset
+				? {
+						anchorInventory: floorplanAsset.anchorInventory,
+						bucket: floorplanAsset.bucket,
+						byteSize: floorplanAsset.byteSize,
+						contentType: floorplanAsset.contentType,
+						floorplanAssetId: floorplanAsset.floorplanAssetId,
+						objectKey: floorplanAsset.objectKey,
+						sha256: floorplanAsset.sha256,
+					}
+				: undefined,
+			floorplanAssetId: floorplanAsset?.floorplanAssetId,
 			hallId: hall.hallId,
 			label: `${hall.name}${floor.label}`,
 			svgAssetUrl: floor.svgAssetUrl,
+			svgMarkup: floorplanAsset?.sanitizedSvgMarkup,
 		},
 		menuItems: state.menuItems.filter((item) => menuItemIds.has(item.menuItemId)),
 		menuOfferings,
@@ -91,6 +108,9 @@ export function toPublicFloor(
 	}
 	if (!floor.floor.svgAssetUrl.trim()) {
 		throwInvalidProjection("Dining floor projection is missing SVG asset URL.");
+	}
+	if (!floor.floor.svgMarkup?.trim()) {
+		throwInvalidProjection("Dining floor projection is missing SVG markup.");
 	}
 	const windows = floor.windows.map((window) => {
 		const assignment = floor.assignments.find((item) => item.windowId === window.windowId);
@@ -139,6 +159,7 @@ export function toPublicFloor(
 			label: window.label,
 			locationLabel: window.locationLabel,
 			status: window.status,
+			svgAnchorId: window.svgAnchorId,
 			tags: uniqueStrings([
 				...(stall?.tags ?? []),
 				...window.tags,
@@ -154,9 +175,11 @@ export function toPublicFloor(
 		floor: {
 			canvas: floor.floor.canvas,
 			floorId: floor.floor.floorId,
+			floorplanAsset: floor.floor.floorplanAsset,
 			hallId: floor.floor.hallId,
 			label: floor.floor.label,
 			svgAssetUrl: floor.floor.svgAssetUrl,
+			svgMarkup: floor.floor.svgMarkup,
 		},
 		source,
 		windows,
@@ -171,7 +194,7 @@ export function toPublicHallSummary(hall: DiningOpsHall, snapshot: DiningPublish
 		if (!floor) {
 			throwInvalidProjection("Dining hall summary is missing a floor projection.");
 		}
-		if (!(floor.floor.canvas && floor.floor.svgAssetUrl.trim())) {
+		if (!(floor.floor.canvas && floor.floor.svgAssetUrl.trim() && floor.floor.svgMarkup?.trim())) {
 			throwInvalidProjection("Dining hall summary is missing floorplan projection fields.");
 		}
 	}

@@ -1,11 +1,15 @@
 import { appApiJson } from "@/platform/app-api/client";
 import type {
 	DiningAuditEvent,
+	DiningFloorplanAsset,
 	DiningMenuItem,
 	DiningMenuOffering,
 	DiningOpsFloorResponse,
 	DiningOpsHall,
 	DiningRelease,
+	DiningReleaseCandidate,
+	DiningReleaseCandidateEnvelope,
+	DiningReleaseScheduleJob,
 	DiningStallProfile,
 	DiningWindow,
 	DiningWindowAssignment,
@@ -20,6 +24,18 @@ export function getDiningOpsFloor(input: { floorId: string; hallId: string }) {
 		path: `/api/ops/dining/halls/${encodeURIComponent(input.hallId)}/floors/${encodeURIComponent(
 			input.floorId,
 		)}`,
+	});
+}
+
+export function createDiningFloorplanAsset(input: {
+	floorId: string;
+	sourceFilename: string;
+	svgMarkup: string;
+}) {
+	return appApiJson<{ asset: DiningFloorplanAsset }>({
+		body: input,
+		method: "POST",
+		path: "/api/ops/dining/floorplan-assets",
 	});
 }
 
@@ -46,6 +62,7 @@ export function updateDiningWindow(input: {
 	label?: string;
 	locationLabel?: string;
 	status?: DiningWindow["status"];
+	svgAnchorId?: string | null;
 	tags?: string[];
 	windowId: string;
 }) {
@@ -55,6 +72,7 @@ export function updateDiningWindow(input: {
 			label: input.label,
 			locationLabel: input.locationLabel,
 			status: input.status,
+			svgAnchorId: input.svgAnchorId,
 			tags: input.tags,
 		},
 		method: "PATCH",
@@ -116,16 +134,76 @@ export function updateDiningMenuOffering(input: {
 	});
 }
 
-export function publishDiningRelease(input: { notes: string }) {
-	return appApiJson<{ release: DiningRelease }>({
+export function createDiningReleaseCandidate(input: { notes: string }) {
+	return appApiJson<DiningReleaseCandidateEnvelope>({
 		body: input,
 		method: "POST",
-		path: "/api/ops/dining/releases",
+		path: "/api/ops/dining/release-candidates",
+	});
+}
+
+export function listDiningReleaseCandidates() {
+	return appApiJson<{ candidates: DiningReleaseCandidate[] }>({
+		path: "/api/ops/dining/release-candidates",
+	});
+}
+
+export function validateDiningReleaseCandidate(input: { candidateId: string }) {
+	return appApiJson<DiningReleaseCandidateEnvelope>({
+		method: "POST",
+		path: `/api/ops/dining/release-candidates/${encodeURIComponent(input.candidateId)}/validate`,
+	});
+}
+
+export function approveDiningReleaseCandidate(input: { candidateId: string; notes: string }) {
+	return appApiJson<DiningReleaseCandidateEnvelope>({
+		body: { notes: input.notes },
+		method: "POST",
+		path: `/api/ops/dining/release-candidates/${encodeURIComponent(input.candidateId)}/approve`,
+	});
+}
+
+export function scheduleDiningReleaseCandidate(input: {
+	candidateId: string;
+	scheduledAt: string;
+}) {
+	return appApiJson<DiningReleaseCandidateEnvelope & { scheduleJob: DiningReleaseScheduleJob }>({
+		body: { scheduledAt: input.scheduledAt },
+		method: "POST",
+		path: `/api/ops/dining/release-candidates/${encodeURIComponent(input.candidateId)}/schedule`,
+	});
+}
+
+export function publishDiningReleaseCandidate(input: { candidateId: string }) {
+	return appApiJson<{ release: DiningRelease }>({
+		method: "POST",
+		path: `/api/ops/dining/release-candidates/${encodeURIComponent(input.candidateId)}/publish`,
+	});
+}
+
+export function cancelDiningReleaseCandidate(input: { candidateId: string }) {
+	return appApiJson<DiningReleaseCandidateEnvelope>({
+		method: "POST",
+		path: `/api/ops/dining/release-candidates/${encodeURIComponent(input.candidateId)}/cancel`,
 	});
 }
 
 export function listDiningReleases() {
 	return appApiJson<{ releases: DiningRelease[] }>({ path: "/api/ops/dining/releases" });
+}
+
+export function getDiningRelease(input: { releaseId: string }) {
+	return appApiJson<{ release: DiningRelease }>({
+		path: `/api/ops/dining/releases/${encodeURIComponent(input.releaseId)}`,
+	});
+}
+
+export function rollbackDiningRelease(input: { notes: string; releaseId: string }) {
+	return appApiJson<{ release: DiningRelease }>({
+		body: { mode: "latest_pointer", notes: input.notes },
+		method: "POST",
+		path: `/api/ops/dining/releases/${encodeURIComponent(input.releaseId)}/rollback`,
+	});
 }
 
 export function listDiningAuditEvents() {

@@ -1,6 +1,6 @@
 import { Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DiningWindow } from "../../features/dining/model";
+import type { DiningFloorplanAsset, DiningWindow } from "../../features/dining/model";
 
 const FALLBACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" role="img" aria-label="食堂楼层示意图">
   <rect x="24" y="24" width="672" height="372" rx="20" fill="#fff" stroke="#d7dee8" />
@@ -28,10 +28,19 @@ export interface DiningSvgAnchor {
 }
 
 export function SvgFloorplanWorkspace(input: {
+	floorId: string;
+	floorplanAsset?: DiningFloorplanAsset;
 	onSelectWindow(windowId: string): void;
+	onUploadSvg(input: {
+		floorId: string;
+		sourceFilename: string;
+		svgMarkup: string;
+	}): Promise<unknown>;
 	selectedWindowId: string | null;
 	svgAssetUrl?: string | null;
 	svgMarkup?: string | null;
+	uploadError?: string | null;
+	uploadState?: "idle" | "uploading" | "success";
 	windows: DiningWindow[];
 }) {
 	const [assetSvg, setAssetSvg] = useState<string | null>(null);
@@ -50,6 +59,7 @@ export function SvgFloorplanWorkspace(input: {
 	);
 	const boundAnchorCount = anchors.filter((anchor) => anchor.windowId).length;
 	const missingBindingCount = anchors.length - boundAnchorCount;
+	const shortSha = input.floorplanAsset?.sha256.replace(/^sha256:/, "").slice(0, 12) ?? null;
 
 	useEffect(() => {
 		if (!input.selectedWindowId && anchors[0]?.windowId) {
@@ -91,7 +101,13 @@ export function SvgFloorplanWorkspace(input: {
 			<div className="dining-workbench-toolbar">
 				<div>
 					<p className="ops-eyebrow">Floorplan Asset</p>
-					<h3 className="font-semibold text-base">haidian-canteen-1-1f.svg</h3>
+					<h3 className="font-semibold text-base">{input.floorId}.svg</h3>
+					{input.floorplanAsset ? (
+						<p className="mt-1 max-w-[320px] truncate text-xs text-slate-500">
+							{shortSha ? `sha256:${shortSha}` : input.floorplanAsset.floorplanAssetId} ·{" "}
+							{formatBytes(input.floorplanAsset.byteSize)}
+						</p>
+					) : null}
 				</div>
 				<ul className="dining-metrics" aria-label="SVG 资产指标">
 					<Metric label="区块" value={anchors.length} />
@@ -100,25 +116,40 @@ export function SvgFloorplanWorkspace(input: {
 				</ul>
 				<button
 					className="ops-secondary-button"
+					disabled={input.uploadState === "uploading"}
 					onClick={() => fileInputRef.current?.click()}
 					type="button"
 				>
 					<Upload aria-hidden="true" className="size-4" />
-					上传替换 SVG
+					{input.uploadState === "uploading" ? "上传中" : "上传替换 SVG"}
 				</button>
 				<input
 					accept=".svg,image/svg+xml"
+					aria-label="上传替换 SVG 文件"
 					className="sr-only"
 					onChange={(event) => {
+						const inputElement = event.currentTarget;
 						const file = event.currentTarget.files?.[0];
 						if (!file) {
 							return;
 						}
-						void file.text().then(setUploadedSvg);
+						void readSvgFile(file).then(async (svgMarkup) => {
+							setUploadedSvg(svgMarkup);
+							await input.onUploadSvg({
+								floorId: input.floorId,
+								sourceFilename: file.name,
+								svgMarkup,
+							});
+							inputElement.value = "";
+						});
 					}}
 					ref={fileInputRef}
 					type="file"
 				/>
+				{input.uploadState === "success" ? (
+					<p className="text-emerald-700 text-xs">SVG 已上传</p>
+				) : null}
+				{input.uploadError ? <p className="text-red-600 text-xs">{input.uploadError}</p> : null}
 			</div>
 			<div className="dining-workbench-grid">
 				<section className="dining-workbench-pane">
@@ -218,6 +249,31 @@ function Metric(input: { label: string; value: number }) {
 			<p>{input.label}</p>
 		</li>
 	);
+}
+
+function formatBytes(value: number): string {
+	if (value < 1024) {
+		return `${value} B`;
+	}
+	return `${(value / 1024).toFixed(1)} KB`;
+}
+
+function readSvgFile(file: File): Promise<string> {
+	if ("text" in file && typeof file.text === "function") {
+		return file.text();
+	}
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.addEventListener("load", () => {
+			if (typeof reader.result === "string") {
+				resolve(reader.result);
+				return;
+			}
+			reject(new Error("SVG 文件读取失败"));
+		});
+		reader.addEventListener("error", () => reject(new Error("SVG 文件读取失败")));
+		reader.readAsText(file);
+	});
 }
 
 function extractDiningAnchors(markup: string, windows: DiningWindow[]): DiningSvgAnchor[] {

@@ -11,6 +11,10 @@ export interface ReaderSyncInput {
 	targetRoot?: string;
 }
 
+export function resolvePublishedReaderObjectStoreBucket(env: {
+	OBJECT_STORE_BUCKET_DERIVED?: string;
+}): string;
+
 export function syncCampusPublishedReaderDocs(
 	input: ReaderSyncInput,
 ): Promise<{ generatedDocumentCount: number }>;

@@ -1,12 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MapPage } from "../src/app/routes/map-page";
-import { createCampusMapStyle, getCampusMapProfile } from "../src/features/map/campus-map-style";
 
 const maplibreRuntimeMock = vi.hoisted(() => ({
+	canvas: null as HTMLElement | null,
 	fitBounds: vi.fn(),
 	flyTo: vi.fn(),
-	fullscreenControlCount: 0,
 	loadMapLibre: vi.fn(),
 	mapOptions: null as null | {
 		center?: [number, number];
@@ -22,9 +21,10 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 		};
 		zoom?: number;
 	},
-	mapClickListeners: [] as Array<() => void>,
+	mapClickListeners: [] as Array<(event: { point: { x: number; y: number } }) => void>,
 	markerElements: [] as HTMLElement[],
 	navigationControlCount: 0,
+	queryRenderedFeatures: vi.fn(),
 	resize: vi.fn(),
 	scaleControlCount: 0,
 	setFilter: vi.fn(),
@@ -53,6 +53,7 @@ vi.mock("../src/features/map/api", () => ({
 					type: "Feature",
 				},
 				id: "library",
+				mapFeatureRefs: [{ fid: 849087992, layer: "building", sourceId: "haidian-campus" }],
 				sourceRefs: ["campus-map:projection:library"],
 				tags: ["学习"],
 				title: "图书馆",
@@ -113,11 +114,6 @@ vi.mock("../src/features/map/api", () => ({
 
 vi.mock("../src/features/map/maplibre-runtime", () => ({
 	loadMapLibre: maplibreRuntimeMock.loadMapLibre.mockResolvedValue({
-		FullscreenControl: class {
-			constructor() {
-				maplibreRuntimeMock.fullscreenControlCount += 1;
-			}
-		},
 		Map: class {
 			container: HTMLElement;
 			constructor(options: {
@@ -135,6 +131,7 @@ vi.mock("../src/features/map/maplibre-runtime", () => ({
 				zoom?: number;
 			}) {
 				this.container = options.container;
+				maplibreRuntimeMock.canvas = document.createElement("canvas");
 				maplibreRuntimeMock.mapOptions = options;
 			}
 			flyTo(input: unknown) {
@@ -145,15 +142,21 @@ vi.mock("../src/features/map/maplibre-runtime", () => ({
 				maplibreRuntimeMock.fitBounds(input, options);
 				return this;
 			}
+			getCanvas() {
+				return maplibreRuntimeMock.canvas;
+			}
 			once(_eventName: string, listener: () => void) {
 				listener();
 				return this;
 			}
-			on(eventName: string, listener: () => void) {
+			on(eventName: string, listener: (event: { point: { x: number; y: number } }) => void) {
 				if (eventName === "click") {
 					maplibreRuntimeMock.mapClickListeners.push(listener);
 				}
 				return this;
+			}
+			queryRenderedFeatures(input: unknown, options: unknown) {
+				return maplibreRuntimeMock.queryRenderedFeatures(input, options);
 			}
 			remove() {
 				return this;
@@ -244,11 +247,12 @@ describe("campus map page", () => {
 		maplibreRuntimeMock.fitBounds.mockReset();
 		maplibreRuntimeMock.flyTo.mockReset();
 		maplibreRuntimeMock.resize.mockReset();
-		maplibreRuntimeMock.fullscreenControlCount = 0;
 		maplibreRuntimeMock.mapClickListeners.length = 0;
 		maplibreRuntimeMock.mapOptions = null;
 		maplibreRuntimeMock.markerElements.length = 0;
 		maplibreRuntimeMock.navigationControlCount = 0;
+		maplibreRuntimeMock.queryRenderedFeatures.mockReset();
+		maplibreRuntimeMock.queryRenderedFeatures.mockReturnValue([]);
 		maplibreRuntimeMock.scaleControlCount = 0;
 		maplibreRuntimeMock.setFilter.mockReset();
 		maplibreRuntimeMock.setMaxBounds.mockReset();
@@ -319,12 +323,16 @@ describe("campus map page", () => {
 		expect(screen.queryByRole("group", { name: "地点类型" })).toBeNull();
 		expect(screen.getByRole("button", { name: "海淀校区" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "丰台校区" })).toBeInTheDocument();
+		expect(
+			within(screen.getByRole("group", { name: "选择校区" }))
+				.getAllByRole("button")
+				.map((button) => button.textContent),
+		).toEqual(["丰台校区", "海淀校区"]);
 		await expandMapResults();
 		expect(screen.getByRole("group", { name: "地点类型" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "建筑" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "交通" })).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "服务" })).toBeNull();
-		expect(screen.queryByRole("button", { name: "地标" })).toBeNull();
+		expect(screen.getByRole("button", { name: "交通" })).toBeInTheDocument();
 		expect(screen.getByRole("region", { name: "地图画布" })).toBeInTheDocument();
 		expect(screen.getByRole("region", { name: "地图画布" })).toHaveClass("h-full", "w-full");
 		expect(screen.getByRole("region", { name: "地图画布" })).not.toHaveClass("absolute", "inset-0");
@@ -346,13 +354,13 @@ describe("campus map page", () => {
 			"aria-pressed",
 			"true",
 		);
-		expect(screen.queryByRole("button", { name: "选择图书馆" })).toBeNull();
+		expect(screen.queryByText("海淀校区地图为基础参考版。")).toBeNull();
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toHaveClass(
 			"bg-white/58",
 			"p-2.5",
 		);
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toHaveTextContent("荟贤食堂");
-		expect(screen.getByRole("button", { name: "选择丰台东门" })).toHaveTextContent("丰台东门");
+		expect(screen.queryByRole("button", { name: "选择图书馆" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "询问这个地点" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "反馈地点信息" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "询问" })).toBeNull();
@@ -360,6 +368,7 @@ describe("campus map page", () => {
 	});
 
 	it("keeps the map panel compact until the user opens search results", async () => {
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		expect(await screen.findByRole("searchbox", { name: "搜索地点" })).toBeInTheDocument();
@@ -384,6 +393,7 @@ describe("campus map page", () => {
 	});
 
 	it("keeps map navigation separate while allowing the place list to collapse", async () => {
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		expect(await screen.findByRole("searchbox", { name: "搜索地点" })).toBeInTheDocument();
@@ -411,6 +421,7 @@ describe("campus map page", () => {
 	});
 
 	it("lets the user return to the current campus view from map controls", async () => {
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		expect(await screen.findByRole("button", { name: "回到当前校区" })).toBeInTheDocument();
@@ -431,6 +442,7 @@ describe("campus map page", () => {
 	});
 
 	it("loads the Fengtai campus base layers into MapLibre", async () => {
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		expect(await screen.findByRole("button", { name: "展开地点结果" })).toBeInTheDocument();
@@ -485,50 +497,8 @@ describe("campus map page", () => {
 		expect(maplibreRuntimeMock.scaleControlCount).toBe(1);
 	});
 
-	it("keeps campus building labels local to the MapLibre style", () => {
-		const style = createCampusMapStyle(readTestMapStyleColors(), getCampusMapProfile("丰台校区"));
-
-		expect(style.glyphs).toBeUndefined();
-		expect(style.layers?.find((layer) => layer.id === "campus-building-labels")).toEqual(
-			expect.objectContaining({
-				layout: expect.objectContaining({
-					"text-field": ["get", "name"],
-				}),
-			}),
-		);
-		expect(style.layers?.find((layer) => layer.id === "campus-place-selected-fill")).toEqual(
-			expect.objectContaining({
-				filter: ["==", ["get", "fid"], -1],
-				paint: expect.objectContaining({
-					"fill-color": "rgba(26, 115, 232, 0.14)",
-					"fill-opacity": 1,
-				}),
-				type: "fill",
-			}),
-		);
-		expect(style.layers?.find((layer) => layer.id === "campus-place-selected-halo")).toEqual(
-			expect.objectContaining({
-				filter: ["==", ["get", "fid"], -1],
-				paint: expect.objectContaining({
-					"line-color": "rgba(255, 255, 255, 0.92)",
-					"line-opacity": 0.94,
-				}),
-				type: "line",
-			}),
-		);
-		expect(style.layers?.find((layer) => layer.id === "campus-place-selected-outline")).toEqual(
-			expect.objectContaining({
-				filter: ["==", ["get", "fid"], -1],
-				paint: expect.objectContaining({
-					"line-color": "#1a73e8",
-					"line-opacity": 0.98,
-				}),
-				type: "line",
-			}),
-		);
-	});
-
 	it("syncs campus map selection between list, marker, details, polygon highlight, and flyTo", async () => {
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		await expandMapResults();
@@ -556,8 +526,21 @@ describe("campus map page", () => {
 			"true",
 		);
 		expect(screen.getByRole("dialog", { name: "学生事务中心" })).toBeInTheDocument();
-		expect(screen.getByText("当前校区缺少可展示的地图底图。")).toBeInTheDocument();
-		expect(maplibreRuntimeMock.flyTo).not.toHaveBeenCalled();
+		expect(screen.queryByText("当前校区缺少可展示的地图底图。")).toBeNull();
+		expect(maplibreRuntimeMock.setStyle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sources: {
+					"haidian-campus": {
+						data: "/map-assets/haidian-campus.geojson",
+						type: "geojson",
+					},
+				},
+			}),
+		);
+		expect(maplibreRuntimeMock.flyTo).toHaveBeenLastCalledWith({
+			center: [116.3222, 39.9515],
+			zoom: 17,
+		});
 
 		fireEvent.click(screen.getByRole("button", { name: "丰台校区" }));
 		await expandMapResults();
@@ -568,10 +551,11 @@ describe("campus map page", () => {
 			"aria-pressed",
 			"true",
 		);
-		expect(maplibreRuntimeMock.setFilter).toHaveBeenLastCalledWith(
-			"campus-place-selected-outline",
-			["==", ["get", "fid"], -1],
-		);
+		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
+			"==",
+			["get", "fid"],
+			-1,
+		]);
 
 		fireEvent.click(screen.getByRole("button", { name: "选择荟贤食堂" }));
 
@@ -603,6 +587,7 @@ describe("campus map page", () => {
 	});
 
 	it("closes the place popover when the map canvas is clicked", async () => {
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		await expandMapResults();
@@ -610,14 +595,15 @@ describe("campus map page", () => {
 		expect(screen.getByRole("dialog", { name: "荟贤食堂" })).toBeInTheDocument();
 
 		act(() => {
-			maplibreRuntimeMock.mapClickListeners.at(-1)?.();
+			maplibreRuntimeMock.mapClickListeners.at(-1)?.({ point: { x: 0, y: 0 } });
 		});
 
 		expect(screen.queryByRole("dialog", { name: "荟贤食堂" })).toBeNull();
-		expect(maplibreRuntimeMock.setFilter).toHaveBeenLastCalledWith(
-			"campus-place-selected-outline",
-			["==", ["get", "fid"], -1],
-		);
+		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
+			"==",
+			["get", "fid"],
+			-1,
+		]);
 		await expandMapResults();
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toHaveAttribute(
 			"aria-pressed",
@@ -627,6 +613,7 @@ describe("campus map page", () => {
 
 	it("renders selected place in a closeable mobile bottom sheet", async () => {
 		mockMapWorkspaceWidth(false);
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		expect(await screen.findByRole("button", { name: "展开地点结果" })).toHaveClass("min-h-11");
@@ -651,6 +638,7 @@ describe("campus map page", () => {
 	});
 
 	it("filters campus map places by campus and category without synthetic places", async () => {
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		expect(await screen.findByRole("button", { name: "展开地点结果" })).toBeInTheDocument();
@@ -682,6 +670,7 @@ describe("campus map page", () => {
 	});
 
 	it("switches campus map context without mixing places or base maps", async () => {
+		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		expect(await screen.findByRole("button", { name: "展开地点结果" })).toBeInTheDocument();
@@ -692,13 +681,23 @@ describe("campus map page", () => {
 		fireEvent.click(screen.getByRole("button", { name: "海淀校区" }));
 
 		expect(await screen.findByRole("button", { name: "选择图书馆" })).toBeInTheDocument();
+		expect(screen.getByText("海淀校区地图为基础参考版。")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "选择学生事务中心" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "服务" })).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "交通" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "选择荟贤食堂" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "选择丰台东门" })).toBeNull();
-		expect(screen.getByText("当前校区缺少可展示的地图底图。")).toBeInTheDocument();
-		expect(maplibreRuntimeMock.markerElements).toHaveLength(0);
+		expect(screen.queryByText("当前校区缺少可展示的地图底图。")).toBeNull();
+		expect(maplibreRuntimeMock.setStyle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sources: {
+					"haidian-campus": {
+						data: "/map-assets/haidian-campus.geojson",
+						type: "geojson",
+					},
+				},
+			}),
+		);
 	});
 
 	it("restores campus map state from the URL and writes state changes back", async () => {
@@ -768,22 +767,6 @@ describe("campus map page", () => {
 		expect(screen.queryByText("正在读取地图")).not.toBeInTheDocument();
 	});
 });
-
-function readTestMapStyleColors() {
-	return {
-		background: "#edf1f4",
-		boundary: "#a20000",
-		buildingFill: "#f9fafb",
-		buildingOutline: "#98a2b3",
-		greenFill: "#d9eadf",
-		label: "#101828",
-		roadFill: "#d6dce3",
-		selectionFill: "rgba(26, 115, 232, 0.14)",
-		selectionHalo: "rgba(255, 255, 255, 0.92)",
-		selectionOutline: "#1a73e8",
-		sportFill: "#dce8f8",
-	};
-}
 
 async function expandMapResults() {
 	if (screen.queryByRole("button", { name: "收起地点结果" })) {

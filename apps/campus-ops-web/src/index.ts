@@ -26,7 +26,8 @@ const FORWARDED_HEADERS = ["accept", "content-type", "cookie", "x-trace-id"] as 
 const SHELL_EXACT_PATHS = new Set([
 	"/",
 	"/dining",
-	"/dining/svg-demo",
+	"/dining/assets",
+	"/dining/candidates",
 	"/dining/releases",
 	"/dining/audit",
 	"/map",
@@ -79,7 +80,7 @@ const worker = {
 			});
 		}
 
-		if (isAllowedCampusOpsAppApiRequest(url.pathname)) {
+		if (isAllowedCampusOpsAppApiRequest(url.pathname, request.method)) {
 			return proxyToAppApi(request, env);
 		}
 

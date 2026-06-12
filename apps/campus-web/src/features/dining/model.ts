@@ -26,8 +26,18 @@ export interface DiningFloorResponse {
 			width: number;
 		};
 		floorId: string;
+		floorplanAsset?: {
+			anchorInventory: Array<{ anchorId: string; role: string }>;
+			bucket: string;
+			byteSize: number;
+			contentType: string;
+			floorplanAssetId: string;
+			objectKey: string;
+			sha256: string;
+		};
 		hallId: string;
 		label: string;
+		svgMarkup: string;
 		svgAssetUrl: string;
 	};
 	source: {
@@ -57,6 +67,7 @@ export interface DiningWindowProjection {
 	};
 	label: string;
 	locationLabel: string;
+	svgAnchorId: string | null;
 	status: "active" | "closed" | "maintenance";
 	tags: string[];
 	windowId: string;

@@ -7,9 +7,14 @@ export const FENGTAI_CAMPUS_NAME = "丰台校区";
 export const CAMPUS_SELECTED_PLACE_FILL_LAYER_ID = "campus-place-selected-fill";
 export const CAMPUS_SELECTED_PLACE_HALO_LAYER_ID = "campus-place-selected-halo";
 export const CAMPUS_SELECTED_PLACE_OUTLINE_LAYER_ID = "campus-place-selected-outline";
+export const CAMPUS_HOVER_PLACE_FILL_LAYER_ID = "campus-place-hover-fill";
+export const CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID = "campus-place-hover-outline";
 export const EMPTY_CAMPUS_MAP_FEATURE_FILTER: ExpressionSpecification = ["==", ["get", "fid"], -1];
 const FENGTAI_CAMPUS_BOUNDS: [number, number, number, number] = [
 	116.1051993, 39.8063459, 116.1159622, 39.8136322,
+];
+const HAIDIAN_CAMPUS_BOUNDS: [number, number, number, number] = [
+	116.3084827, 39.9444838, 116.3194888, 39.9556239,
 ];
 
 export interface CampusMapProfile {
@@ -40,15 +45,6 @@ export interface CampusMapStyleColors {
 
 const CAMPUS_MAP_PROFILES = [
 	createCampusMapProfile({
-		assetUrl: null,
-		bounds: [116.3198, 39.9504, 116.3241, 39.9532],
-		campus: HAIDIAN_CAMPUS_NAME,
-		initialZoom: 15.8,
-		maxZoom: 20.2,
-		minZoom: 12.8,
-		sourceId: "haidian-campus",
-	}),
-	createCampusMapProfile({
 		assetUrl: "/map-assets/fengtai-campus.geojson",
 		bounds: FENGTAI_CAMPUS_BOUNDS,
 		campus: FENGTAI_CAMPUS_NAME,
@@ -56,6 +52,15 @@ const CAMPUS_MAP_PROFILES = [
 		maxZoom: 20.2,
 		minZoom: 12.8,
 		sourceId: FENGTAI_CAMPUS_SOURCE_ID,
+	}),
+	createCampusMapProfile({
+		assetUrl: "/map-assets/haidian-campus.geojson",
+		bounds: HAIDIAN_CAMPUS_BOUNDS,
+		campus: HAIDIAN_CAMPUS_NAME,
+		initialZoom: 15.8,
+		maxZoom: 20.2,
+		minZoom: 12.8,
+		sourceId: "haidian-campus",
 	}),
 ] as const satisfies CampusMapProfile[];
 
@@ -125,6 +130,38 @@ export function createCampusMapStyle(
 				type: "fill",
 			},
 			{
+				filter: ["==", ["get", "layer"], "sport"],
+				id: "campus-sport",
+				paint: {
+					"fill-color": colors.sportFill,
+					"fill-opacity": 0.84,
+					"fill-outline-color": colors.buildingOutline,
+				},
+				source: profile.sourceId,
+				type: "fill",
+			},
+			{
+				filter: EMPTY_CAMPUS_MAP_FEATURE_FILTER,
+				id: CAMPUS_HOVER_PLACE_FILL_LAYER_ID,
+				paint: {
+					"fill-color": colors.selectionFill,
+					"fill-opacity": 0.62,
+				},
+				source: profile.sourceId,
+				type: "fill",
+			},
+			{
+				filter: EMPTY_CAMPUS_MAP_FEATURE_FILTER,
+				id: CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID,
+				paint: {
+					"line-color": colors.selectionOutline,
+					"line-opacity": 0.72,
+					"line-width": ["interpolate", ["linear"], ["zoom"], 14, 1.4, 17, 2.1, 20, 3],
+				},
+				source: profile.sourceId,
+				type: "line",
+			},
+			{
 				filter: EMPTY_CAMPUS_MAP_FEATURE_FILTER,
 				id: CAMPUS_SELECTED_PLACE_FILL_LAYER_ID,
 				paint: {
@@ -156,17 +193,6 @@ export function createCampusMapStyle(
 				},
 				source: profile.sourceId,
 				type: "line",
-			},
-			{
-				filter: ["==", ["get", "layer"], "sport"],
-				id: "campus-sport",
-				paint: {
-					"fill-color": colors.sportFill,
-					"fill-opacity": 0.84,
-					"fill-outline-color": colors.buildingOutline,
-				},
-				source: profile.sourceId,
-				type: "fill",
 			},
 			{
 				filter: ["==", ["get", "layer"], "boundary"],

@@ -1,23 +1,35 @@
-const STATIC_ALLOWED_PATHS = new Set([
-	"/api/ops/dining/halls",
-	"/api/ops/dining/window-assignments",
-	"/api/ops/dining/menu-items",
-	"/api/ops/dining/menu-offerings",
-	"/api/ops/dining/releases",
-	"/api/ops/dining/audit-events",
+const STATIC_ALLOWED_ROUTES = new Set([
+	"POST /api/ops/dining/floorplan-assets",
+	"GET /api/ops/dining/halls",
+	"POST /api/ops/dining/window-assignments",
+	"POST /api/ops/dining/menu-items",
+	"POST /api/ops/dining/menu-offerings",
+	"GET /api/ops/dining/release-candidates",
+	"POST /api/ops/dining/release-candidates",
+	"GET /api/ops/dining/releases",
+	"GET /api/ops/dining/audit-events",
 ]);
 
-export function isAllowedCampusOpsAppApiRequest(pathname: string): boolean {
-	if (STATIC_ALLOWED_PATHS.has(pathname)) {
+const DYNAMIC_ALLOWED_ROUTES = [
+	/^GET \/api\/ops\/dining\/halls\/[^/]+\/floors\/[^/]+$/,
+	/^PATCH \/api\/ops\/dining\/windows\/[^/]+$/,
+	/^PATCH \/api\/ops\/dining\/window-assignments\/[^/]+$/,
+	/^PATCH \/api\/ops\/dining\/menu-items\/[^/]+$/,
+	/^PATCH \/api\/ops\/dining\/menu-offerings\/[^/]+$/,
+	/^GET \/api\/ops\/dining\/release-candidates\/[^/]+$/,
+	/^POST \/api\/ops\/dining\/release-candidates\/[^/]+\/validate$/,
+	/^POST \/api\/ops\/dining\/release-candidates\/[^/]+\/approve$/,
+	/^POST \/api\/ops\/dining\/release-candidates\/[^/]+\/schedule$/,
+	/^POST \/api\/ops\/dining\/release-candidates\/[^/]+\/publish$/,
+	/^POST \/api\/ops\/dining\/release-candidates\/[^/]+\/cancel$/,
+	/^GET \/api\/ops\/dining\/releases\/[^/]+$/,
+	/^POST \/api\/ops\/dining\/releases\/[^/]+\/rollback$/,
+];
+
+export function isAllowedCampusOpsAppApiRequest(pathname: string, method = "GET"): boolean {
+	const routeKey = `${method.toUpperCase()} ${pathname}`;
+	if (STATIC_ALLOWED_ROUTES.has(routeKey)) {
 		return true;
 	}
-	return (
-		/^\/api\/ops\/dining\/halls\/[^/]+\/floors\/[^/]+$/.test(pathname) ||
-		/^\/api\/ops\/dining\/windows\/[^/]+$/.test(pathname) ||
-		/^\/api\/ops\/dining\/window-assignments\/[^/]+$/.test(pathname) ||
-		/^\/api\/ops\/dining\/menu-items\/[^/]+$/.test(pathname) ||
-		/^\/api\/ops\/dining\/menu-offerings\/[^/]+$/.test(pathname) ||
-		/^\/api\/ops\/dining\/releases\/[^/]+\/preview$/.test(pathname) ||
-		/^\/api\/ops\/dining\/releases\/[^/]+\/publish$/.test(pathname)
-	);
+	return DYNAMIC_ALLOWED_ROUTES.some((pattern) => pattern.test(routeKey));
 }

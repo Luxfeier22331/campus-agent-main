@@ -1,6 +1,7 @@
 export interface DiningOpsHall {
 	campus: string;
 	floors: Array<{
+		draftFloorplanAssetId?: string;
 		floorId: string;
 		label: string;
 		svgAssetUrl: string;
@@ -58,10 +59,25 @@ export interface DiningMenuOffering {
 	specLabel: string | null;
 }
 
+export interface DiningFloorplanAsset {
+	anchorInventory: Array<{ anchorId: string; role: string }>;
+	bucket: string;
+	byteSize: number;
+	contentType: string;
+	floorId: string;
+	floorplanAssetId: string;
+	hallId: string;
+	objectKey: string;
+	sha256: string;
+}
+
 export interface DiningOpsFloorResponse {
 	assignments: DiningWindowAssignment[];
 	floor: {
+		draftVersionId?: string;
 		floorId: string;
+		floorplanAsset?: DiningFloorplanAsset;
+		floorplanAssetId?: string;
 		hallId: string;
 		label: string;
 		svgMarkup?: string;
@@ -74,13 +90,70 @@ export interface DiningOpsFloorResponse {
 }
 
 export interface DiningRelease {
+	candidateId: string | null;
 	createdAt: string;
 	createdBy: string;
 	notes: string;
+	predecessorReleaseId: string | null;
 	publishedAt: string | null;
 	publishedBy: string | null;
 	releaseId: string;
-	status: "draft" | "published";
+	snapshotHash: string;
+	status: "published";
+}
+
+export interface DiningReleaseValidationIssue {
+	code: string;
+	message: string;
+	ref: Record<string, string>;
+}
+
+export interface DiningReleaseValidationReport {
+	blockers: DiningReleaseValidationIssue[];
+	candidateId: string;
+	createdAt: string;
+	status: "fail" | "pass";
+	summary: Record<string, unknown>;
+	validationReportId: string;
+	warnings: DiningReleaseValidationIssue[];
+}
+
+export interface DiningReleaseCandidate {
+	approvedAt: string | null;
+	approvedBy: string | null;
+	baseDraftVersionId: string;
+	cancelledAt: string | null;
+	cancelledBy: string | null;
+	candidateId: string;
+	createdAt: string;
+	createdBy: string;
+	expectedPredecessorReleaseId: string | null;
+	notes: string;
+	publishedReleaseId: string | null;
+	publishMode: "manual" | "scheduled";
+	scheduledAt: string | null;
+	snapshotHash: string;
+	status:
+		| "candidate"
+		| "validated"
+		| "approved"
+		| "scheduled"
+		| "publishing"
+		| "published"
+		| "failed"
+		| "cancelled";
+}
+
+export interface DiningReleaseCandidateEnvelope {
+	candidate: DiningReleaseCandidate;
+	validationReport: DiningReleaseValidationReport | null;
+}
+
+export interface DiningReleaseScheduleJob {
+	candidateId: string;
+	scheduleJobId: string;
+	scheduledAt: string;
+	status: "scheduled" | "executed" | "failed" | "cancelled";
 }
 
 export interface DiningAuditEvent {

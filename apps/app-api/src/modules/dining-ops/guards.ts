@@ -7,7 +7,7 @@ import type {
 	DiningStallProfile,
 	DiningWindow,
 	DiningWindowAssignment,
-} from ".";
+} from "./types";
 
 export function requireWindow(state: DiningOperationsState, windowId: string): DiningWindow {
 	const window = state.windows.find((item) => item.windowId === windowId);

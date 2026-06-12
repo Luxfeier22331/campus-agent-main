@@ -1,81 +1,29 @@
 import { AppApiRouteError } from "../../http";
+import {
+	createFengtaiFeatureMapPlace,
+	createMapPlace,
+	createOfficialHaidianMapPlace,
+} from "./map-place-factory";
+import type {
+	CampusExperienceService,
+	CampusMapPlace,
+	FeedbackCategory,
+	SubmitFeedbackInput,
+} from "./types";
 
-export type CampusMapPlaceCategory = "building" | "gate" | "landmark" | "service" | "transport";
-export type CampusMapFeatureLayer = "boundary" | "building" | "sport";
-
-export interface CampusMapFeatureRef {
-	fid: number;
-	layer: CampusMapFeatureLayer;
-	sourceId: string;
-}
-
-export interface CampusMapPlace {
-	accessNote: string | null;
-	campus: string;
-	category: CampusMapPlaceCategory;
-	description: string;
-	geojson: {
-		type: "Feature";
-		geometry: {
-			type: "Point";
-			coordinates: [number, number];
-		};
-		properties: {
-			category: CampusMapPlaceCategory;
-			placeId: string;
-			title: string;
-		};
-	};
-	id: string;
-	mapFeatureRefs?: CampusMapFeatureRef[];
-	sourceRefs: string[];
-	tags: string[];
-	title: string;
-}
-
-export interface CampusMapPlacesResponse {
-	campus: {
-		defaultCenter: [number, number];
-		id: string;
-		name: string;
-	};
-	places: CampusMapPlace[];
-}
-
-export type FeedbackCategory =
-	| "content_issue"
-	| "dining_issue"
-	| "experience_issue"
-	| "map_issue"
-	| "other";
-
-export interface SubmitFeedbackInput {
-	body: string;
-	category: FeedbackCategory;
-	contact: string | null;
-	routeContext: string;
-}
-
-export interface SubmitFeedbackResponse {
-	feedback: {
-		category: FeedbackCategory;
-		feedbackId: string;
-		receivedAt: string;
-		routeContext: string;
-		status: "received";
-	};
-}
-
-export interface CampusExperienceService {
-	getMapPlace(input: { placeId: string }): Promise<{ place: CampusMapPlace }>;
-	getMapPlaces(): Promise<CampusMapPlacesResponse>;
-	submitFeedback(input: SubmitFeedbackInput): Promise<SubmitFeedbackResponse>;
-}
+export type {
+	CampusExperienceService,
+	CampusMapFeatureLayer,
+	CampusMapFeatureRef,
+	CampusMapPlace,
+	CampusMapPlaceCategory,
+	CampusMapPlacesResponse,
+	FeedbackCategory,
+	SubmitFeedbackInput,
+	SubmitFeedbackResponse,
+} from "./types";
 
 const CAMPUS_CENTER: [number, number] = [116.2145, 39.8798];
-const MUC_CAMPUS_MAP_URL = "https://www.muc.edu.cn/xxgk1/xydt.htm";
-const MUC_HAIDIAN_CAMPUS_MAP_IMAGE_URL =
-	"https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0B_612F3.png";
 
 const HAIDIAN_CAMPUS_POINTS = {
 	auditorium: [116.31423, 39.94947],
@@ -131,10 +79,24 @@ const HAIDIAN_CAMPUS_POINTS = {
 } satisfies Record<string, [number, number]>;
 
 const FENGTAI_CAMPUS_POINTS = {
+	airDome: [116.1105551, 39.80740844],
+	basketballCourt: [116.10950564, 39.80796978],
+	bowenBuilding: [116.11519845, 39.81125338],
 	huixianCanteen: [116.10859555, 39.80931605],
+	hospital: [116.10771574, 39.80672638],
 	juyaCanteen: [116.108483, 39.8104219],
+	library: [116.11299427, 39.81212831],
+	mingdeChongliBuilding: [116.11401955, 39.8098871],
 	northGate: [116.1130193, 39.813499125],
+	studentActivityCenter: [116.11074239, 39.80933773],
+	teacherApartmentZone: [116.108, 39.81225],
+	tennisCourt: [116.11061528, 39.80833822],
+	trackField: [116.10855328, 39.80787223],
+	volleyballCourt: [116.10944692, 39.80787089],
 	southGate: [116.11303405, 39.80722115],
+	comprehensiveBuilding: [116.11264512, 39.80841759],
+	footballField: [116.11148134, 39.80745864],
+	zhiyuanBuilding: [116.11506213, 39.81206215],
 } satisfies Record<string, [number, number]>;
 
 const MAP_PLACES: CampusMapPlace[] = [
@@ -577,6 +539,156 @@ const MAP_PLACES: CampusMapPlace[] = [
 		tags: ["食堂", "生活", "丰台"],
 		title: "聚雅食堂",
 	}),
+	createFengtaiFeatureMapPlace({
+		category: "building",
+		coordinates: FENGTAI_CAMPUS_POINTS.library,
+		description: "丰台校区图书馆，位于校区北侧学习区。",
+		id: "fengtai-library",
+		mapFeatureRefs: [{ fid: 49, layer: "building", sourceId: "fengtai-campus" }],
+		tags: ["学习", "自习", "借阅", "丰台"],
+		title: "图书馆",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "service",
+		coordinates: FENGTAI_CAMPUS_POINTS.hospital,
+		description: "丰台校区校医院，位于校区南侧。",
+		id: "fengtai-hospital",
+		mapFeatureRefs: [{ fid: 23, layer: "building", sourceId: "fengtai-campus" }],
+		tags: ["医疗", "门诊", "丰台"],
+		title: "校医院",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "building",
+		coordinates: FENGTAI_CAMPUS_POINTS.studentActivityCenter,
+		description: "丰台校区大学生活动中心，位于校区中部生活服务区域。",
+		id: "fengtai-student-activity-center",
+		mapFeatureRefs: [{ fid: 47, layer: "building", sourceId: "fengtai-campus" }],
+		tags: ["活动", "学生服务", "丰台"],
+		title: "大学生活动中心",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "building",
+		coordinates: FENGTAI_CAMPUS_POINTS.comprehensiveBuilding,
+		description: "丰台校区综合楼，位于校区南侧。",
+		id: "fengtai-comprehensive-building",
+		mapFeatureRefs: [{ fid: 59, layer: "building", sourceId: "fengtai-campus" }],
+		tags: ["综合楼", "丰台"],
+		title: "综合楼",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "building",
+		coordinates: FENGTAI_CAMPUS_POINTS.zhiyuanBuilding,
+		description: "致远楼位于丰台校区东北侧教学区。",
+		id: "fengtai-zhiyuan-building",
+		mapFeatureRefs: [{ fid: 50, layer: "building", sourceId: "fengtai-campus" }],
+		tags: ["教学", "丰台"],
+		title: "致远楼",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "building",
+		coordinates: FENGTAI_CAMPUS_POINTS.bowenBuilding,
+		description: "博文楼位于丰台校区东侧教学区。",
+		id: "fengtai-bowen-building",
+		mapFeatureRefs: [{ fid: 51, layer: "building", sourceId: "fengtai-campus" }],
+		tags: ["教学", "丰台"],
+		title: "博文楼",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "building",
+		coordinates: FENGTAI_CAMPUS_POINTS.mingdeChongliBuilding,
+		description: "明德楼、崇礼楼与共美厅位于丰台校区东南侧。",
+		id: "fengtai-mingde-chongli-building",
+		mapFeatureRefs: [{ fid: 56, layer: "building", sourceId: "fengtai-campus" }],
+		tags: ["教学", "活动", "丰台"],
+		title: "明德楼、崇礼楼与共美厅",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "building",
+		coordinates: FENGTAI_CAMPUS_POINTS.teacherApartmentZone,
+		description: "教师公寓区位于丰台校区西北侧和北侧生活区。",
+		id: "fengtai-teacher-apartment-zone",
+		mapFeatureRefs: [
+			{ fid: 1, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 2, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 3, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 4, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 24, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 25, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 26, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 27, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 28, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 29, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 30, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 31, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 32, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 33, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 34, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 35, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 36, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 37, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 38, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 39, layer: "building", sourceId: "fengtai-campus" },
+		],
+		tags: ["公寓", "生活", "丰台"],
+		title: "教师公寓区",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "landmark",
+		coordinates: FENGTAI_CAMPUS_POINTS.trackField,
+		description: "田径场位于丰台校区南侧运动区。",
+		id: "fengtai-track-field",
+		mapFeatureRefs: [{ fid: 63, layer: "building", sourceId: "fengtai-campus" }],
+		tags: ["运动", "田径", "丰台"],
+		title: "田径场",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "landmark",
+		coordinates: FENGTAI_CAMPUS_POINTS.basketballCourt,
+		description: "篮球场位于丰台校区南侧运动区。",
+		id: "fengtai-basketball-court",
+		mapFeatureRefs: [{ fid: 2, layer: "sport", sourceId: "fengtai-campus" }],
+		tags: ["运动", "篮球", "丰台"],
+		title: "篮球场",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "landmark",
+		coordinates: FENGTAI_CAMPUS_POINTS.volleyballCourt,
+		description: "排球场位于丰台校区南侧运动区。",
+		id: "fengtai-volleyball-court",
+		mapFeatureRefs: [
+			{ fid: 3, layer: "sport", sourceId: "fengtai-campus" },
+			{ fid: 4, layer: "sport", sourceId: "fengtai-campus" },
+		],
+		tags: ["运动", "排球", "丰台"],
+		title: "排球场",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "landmark",
+		coordinates: FENGTAI_CAMPUS_POINTS.tennisCourt,
+		description: "网球场位于丰台校区南侧运动区。",
+		id: "fengtai-tennis-court",
+		mapFeatureRefs: [{ fid: 6, layer: "sport", sourceId: "fengtai-campus" }],
+		tags: ["运动", "网球", "丰台"],
+		title: "网球场",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "landmark",
+		coordinates: FENGTAI_CAMPUS_POINTS.airDome,
+		description: "气膜馆位于丰台校区南侧运动区。",
+		id: "fengtai-air-dome",
+		mapFeatureRefs: [{ fid: 5, layer: "sport", sourceId: "fengtai-campus" }],
+		tags: ["运动", "体育馆", "丰台"],
+		title: "气膜馆",
+	}),
+	createFengtaiFeatureMapPlace({
+		category: "landmark",
+		coordinates: FENGTAI_CAMPUS_POINTS.footballField,
+		description: "足球场位于丰台校区南侧运动区。",
+		id: "fengtai-football-field",
+		mapFeatureRefs: [{ fid: 7, layer: "sport", sourceId: "fengtai-campus" }],
+		tags: ["运动", "足球", "丰台"],
+		title: "足球场",
+	}),
 	createMapPlace({
 		campus: "丰台校区",
 		category: "gate",
@@ -652,77 +764,6 @@ export function parseFeedbackCategory(value: unknown): FeedbackCategory {
 		message: "category must be a supported feedback category.",
 		retryable: false,
 		status: 400,
-	});
-}
-
-function createPointFeature(
-	placeId: string,
-	title: string,
-	category: CampusMapPlaceCategory,
-	coordinates: [number, number],
-): CampusMapPlace["geojson"] {
-	return {
-		type: "Feature",
-		geometry: {
-			type: "Point",
-			coordinates,
-		},
-		properties: {
-			category,
-			placeId,
-			title,
-		},
-	};
-}
-
-function createMapPlace(input: {
-	campus: string;
-	category: CampusMapPlaceCategory;
-	coordinates: [number, number];
-	description: string;
-	id: string;
-	mapFeatureRefs?: CampusMapFeatureRef[];
-	sourceRefs?: string[];
-	tags: string[];
-	title: string;
-}): CampusMapPlace {
-	return {
-		accessNote: null,
-		campus: input.campus,
-		category: input.category,
-		description: input.description,
-		geojson: createPointFeature(input.id, input.title, input.category, input.coordinates),
-		id: input.id,
-		...(input.mapFeatureRefs ? { mapFeatureRefs: input.mapFeatureRefs } : {}),
-		sourceRefs: input.sourceRefs ?? [`campus-map:projection:${input.id}`],
-		tags: input.tags,
-		title: input.title,
-	};
-}
-
-function createOfficialHaidianMapPlace(input: {
-	category: CampusMapPlaceCategory;
-	coordinates: [number, number];
-	description: string;
-	id: string;
-	mapFeatureRefs?: CampusMapFeatureRef[];
-	tags: string[];
-	title: string;
-}) {
-	return createMapPlace({
-		campus: "海淀校区",
-		category: input.category,
-		coordinates: input.coordinates,
-		description: input.description,
-		id: input.id,
-		...(input.mapFeatureRefs ? { mapFeatureRefs: input.mapFeatureRefs } : {}),
-		sourceRefs: [
-			MUC_CAMPUS_MAP_URL,
-			MUC_HAIDIAN_CAMPUS_MAP_IMAGE_URL,
-			`campus-map:projection:${input.id}`,
-		],
-		tags: input.tags,
-		title: input.title,
 	});
 }
 

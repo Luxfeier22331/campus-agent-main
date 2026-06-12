@@ -49,6 +49,21 @@ export function registerDiningOpsRoutes(input: {
 		);
 	});
 
+	input.app.post("/api/ops/dining/floorplan-assets", async (c) => {
+		const authorized = await requireDiningOperator(c.req.raw, input);
+		if (authorized.response) {
+			return authorized.response;
+		}
+		const body = parseFloorplanAssetBody(await readJsonRequestBody(c.req.raw));
+		return jsonResponse(
+			await authorized.scope.resolveDiningOperationsService().createFloorplanAsset({
+				actor: authorized.actor,
+				input: body,
+			}),
+			{ status: 201 },
+		);
+	});
+
 	input.app.post("/api/ops/dining/window-assignments", async (c) => {
 		const authorized = await requireDiningOperator(c.req.raw, input);
 		if (authorized.response) {
@@ -147,14 +162,24 @@ export function registerDiningOpsRoutes(input: {
 		return jsonResponse(await authorized.scope.resolveDiningOperationsService().listReleases());
 	});
 
-	input.app.post("/api/ops/dining/releases", async (c) => {
+	input.app.get("/api/ops/dining/release-candidates", async (c) => {
 		const authorized = await requireDiningOperator(c.req.raw, input);
 		if (authorized.response) {
 			return authorized.response;
 		}
-		const body = parseReleaseBody(await readJsonRequestBody(c.req.raw));
 		return jsonResponse(
-			await authorized.scope.resolveDiningOperationsService().publishRelease({
+			await authorized.scope.resolveDiningOperationsService().listReleaseCandidates(),
+		);
+	});
+
+	input.app.post("/api/ops/dining/release-candidates", async (c) => {
+		const authorized = await requireDiningOperator(c.req.raw, input);
+		if (authorized.response) {
+			return authorized.response;
+		}
+		const body = parseReleaseCandidateBody(await readJsonRequestBody(c.req.raw));
+		return jsonResponse(
+			await authorized.scope.resolveDiningOperationsService().createReleaseCandidate({
 				actor: authorized.actor,
 				input: body,
 			}),
@@ -162,31 +187,112 @@ export function registerDiningOpsRoutes(input: {
 		);
 	});
 
-	input.app.get("/api/ops/dining/releases/:releaseId/preview", async (c) => {
+	input.app.get("/api/ops/dining/release-candidates/:candidateId", async (c) => {
 		const authorized = await requireDiningOperator(c.req.raw, input);
 		if (authorized.response) {
 			return authorized.response;
 		}
 		return jsonResponse(
-			await authorized.scope.resolveDiningOperationsService().previewRelease({
-				actor: authorized.actor,
-				input: { notes: `Preview ${c.req.param("releaseId")}` },
+			await authorized.scope.resolveDiningOperationsService().getReleaseCandidate({
+				candidateId: c.req.param("candidateId"),
 			}),
 		);
 	});
 
-	input.app.post("/api/ops/dining/releases/:releaseId/publish", async (c) => {
+	input.app.post("/api/ops/dining/release-candidates/:candidateId/validate", async (c) => {
 		const authorized = await requireDiningOperator(c.req.raw, input);
 		if (authorized.response) {
 			return authorized.response;
 		}
-		const body = parseReleaseBody(await readJsonRequestBody(c.req.raw));
 		return jsonResponse(
-			await authorized.scope.resolveDiningOperationsService().publishRelease({
+			await authorized.scope.resolveDiningOperationsService().validateReleaseCandidate({
 				actor: authorized.actor,
+				candidateId: c.req.param("candidateId"),
+			}),
+		);
+	});
+
+	input.app.post("/api/ops/dining/release-candidates/:candidateId/approve", async (c) => {
+		const authorized = await requireDiningOperator(c.req.raw, input);
+		if (authorized.response) {
+			return authorized.response;
+		}
+		const body = parseApproveBody(await readJsonRequestBody(c.req.raw));
+		return jsonResponse(
+			await authorized.scope.resolveDiningOperationsService().approveReleaseCandidate({
+				actor: authorized.actor,
+				candidateId: c.req.param("candidateId"),
 				input: body,
 			}),
+		);
+	});
+
+	input.app.post("/api/ops/dining/release-candidates/:candidateId/schedule", async (c) => {
+		const authorized = await requireDiningOperator(c.req.raw, input);
+		if (authorized.response) {
+			return authorized.response;
+		}
+		const body = parseScheduleBody(await readJsonRequestBody(c.req.raw));
+		return jsonResponse(
+			await authorized.scope.resolveDiningOperationsService().scheduleReleaseCandidate({
+				actor: authorized.actor,
+				candidateId: c.req.param("candidateId"),
+				input: body,
+			}),
+		);
+	});
+
+	input.app.post("/api/ops/dining/release-candidates/:candidateId/publish", async (c) => {
+		const authorized = await requireDiningOperator(c.req.raw, input);
+		if (authorized.response) {
+			return authorized.response;
+		}
+		return jsonResponse(
+			await authorized.scope.resolveDiningOperationsService().publishReleaseCandidate({
+				actor: authorized.actor,
+				candidateId: c.req.param("candidateId"),
+			}),
 			{ status: 201 },
+		);
+	});
+
+	input.app.post("/api/ops/dining/release-candidates/:candidateId/cancel", async (c) => {
+		const authorized = await requireDiningOperator(c.req.raw, input);
+		if (authorized.response) {
+			return authorized.response;
+		}
+		return jsonResponse(
+			await authorized.scope.resolveDiningOperationsService().cancelReleaseCandidate({
+				actor: authorized.actor,
+				candidateId: c.req.param("candidateId"),
+			}),
+		);
+	});
+
+	input.app.get("/api/ops/dining/releases/:releaseId", async (c) => {
+		const authorized = await requireDiningOperator(c.req.raw, input);
+		if (authorized.response) {
+			return authorized.response;
+		}
+		return jsonResponse(
+			await authorized.scope.resolveDiningOperationsService().getRelease({
+				releaseId: c.req.param("releaseId"),
+			}),
+		);
+	});
+
+	input.app.post("/api/ops/dining/releases/:releaseId/rollback", async (c) => {
+		const authorized = await requireDiningOperator(c.req.raw, input);
+		if (authorized.response) {
+			return authorized.response;
+		}
+		const body = parseRollbackBody(await readJsonRequestBody(c.req.raw));
+		return jsonResponse(
+			await authorized.scope.resolveDiningOperationsService().rollbackRelease({
+				actor: authorized.actor,
+				input: body,
+				releaseId: c.req.param("releaseId"),
+			}),
 		);
 	});
 
@@ -247,9 +353,20 @@ function parseWindowPatchBody(body: unknown) {
 		locationLabel:
 			"locationLabel" in record ? requireString(record.locationLabel, "locationLabel") : undefined,
 		status: "status" in record ? requireWindowStatus(record.status) : undefined,
+		svgAnchorId:
+			"svgAnchorId" in record ? nullableString(record.svgAnchorId, "svgAnchorId") : undefined,
 		tags: "tags" in record ? requireStringArray(record.tags, "tags") : undefined,
 	};
 	return requireNonEmptyPatch(parsed);
+}
+
+function parseFloorplanAssetBody(body: unknown) {
+	const record = requireRecord(body);
+	return {
+		floorId: requireString(record.floorId, "floorId"),
+		sourceFilename: requireString(record.sourceFilename, "sourceFilename"),
+		svgMarkup: requireString(record.svgMarkup, "svgMarkup"),
+	};
 }
 
 function parseWindowAssignmentPatchBody(body: unknown) {
@@ -309,9 +426,37 @@ function parseStallProfile(value: unknown) {
 	};
 }
 
-function parseReleaseBody(body: unknown) {
+function parseReleaseCandidateBody(body: unknown) {
 	const record = requireRecord(body);
 	return {
+		notes: requireString(record.notes, "notes"),
+	};
+}
+
+function parseApproveBody(body: unknown) {
+	const record = requireRecord(body);
+	return {
+		notes: requireString(record.notes, "notes"),
+	};
+}
+
+function parseScheduleBody(body: unknown) {
+	const record = requireRecord(body);
+	const scheduledAt = requireString(record.scheduledAt, "scheduledAt");
+	if (Number.isNaN(Date.parse(scheduledAt))) {
+		throw validationError("scheduledAt");
+	}
+	return { scheduledAt };
+}
+
+function parseRollbackBody(body: unknown) {
+	const record = requireRecord(body);
+	const mode = requireString(record.mode, "mode");
+	if (mode !== "latest_pointer") {
+		throw validationError("mode");
+	}
+	return {
+		mode: "latest_pointer" as const,
 		notes: requireString(record.notes, "notes"),
 	};
 }

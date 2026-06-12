@@ -10,15 +10,26 @@ const DiningWorkspacePage = lazy(() =>
 		default: module.DiningWorkspacePage,
 	})),
 );
-const DiningSvgDemoPage = lazy(() =>
-	import("./routes/dining-svg-demo-page").then((module) => ({
-		default: module.DiningSvgDemoPage,
-	})),
-);
 const HomePage = lazy(() =>
 	import("./routes/home-page").then((module) => ({ default: module.HomePage })),
 );
 const ReleasesPage = lazy(() =>
+	import("./routes/releases-page").then((module) => ({ default: module.ReleasesPage })),
+);
+const AssetsPage = lazy(() =>
+	import("./routes/placeholder-page").then((module) => ({
+		default: () => (
+			<module.PlaceholderPage description="食堂 SVG 资产和锚点绑定入口" title="食堂资产" />
+		),
+	})),
+);
+const CandidatesPage = lazy(() =>
+	import("./routes/releases-page").then((module) => ({ default: module.ReleasesPage })),
+);
+const CandidateDetailPage = lazy(() =>
+	import("./routes/releases-page").then((module) => ({ default: module.ReleasesPage })),
+);
+const ReleaseDetailPage = lazy(() =>
 	import("./routes/releases-page").then((module) => ({ default: module.ReleasesPage })),
 );
 const MapPlaceholderPage = lazy(() =>
@@ -72,16 +83,34 @@ const diningFloorRoute = createRoute({
 	path: "/dining/$hallId/$floorId",
 });
 
-const diningSvgDemoRoute = createRoute({
-	component: DiningSvgDemoPage,
+const diningAssetsRoute = createRoute({
+	component: AssetsPage,
 	getParentRoute: () => rootRoute,
-	path: "/dining/svg-demo",
+	path: "/dining/assets",
+});
+
+const diningCandidatesRoute = createRoute({
+	component: CandidatesPage,
+	getParentRoute: () => rootRoute,
+	path: "/dining/candidates",
+});
+
+const diningCandidateDetailRoute = createRoute({
+	component: CandidateDetailPage,
+	getParentRoute: () => rootRoute,
+	path: "/dining/candidates/$candidateId",
 });
 
 const releasesRoute = createRoute({
 	component: ReleasesPage,
 	getParentRoute: () => rootRoute,
 	path: "/dining/releases",
+});
+
+const releaseDetailRoute = createRoute({
+	component: ReleaseDetailPage,
+	getParentRoute: () => rootRoute,
+	path: "/dining/releases/$releaseId",
 });
 
 const auditRoute = createRoute({
@@ -124,8 +153,11 @@ const routeTree = rootRoute.addChildren([
 	indexRoute,
 	diningRoute,
 	diningFloorRoute,
-	diningSvgDemoRoute,
+	diningAssetsRoute,
+	diningCandidatesRoute,
+	diningCandidateDetailRoute,
 	releasesRoute,
+	releaseDetailRoute,
 	auditRoute,
 	mapRoute,
 	feedbackRoute,

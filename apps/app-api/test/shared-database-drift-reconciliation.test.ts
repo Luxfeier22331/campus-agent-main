@@ -23,10 +23,16 @@ const latestSpecs = buildExpectedTableSpecs(migrationContext.latestSnapshot);
 const snapshot0009Specs = buildExpectedTableSpecs(snapshot0009);
 const DINING_TABLES = [
 	"dining.audit_events",
+	"dining.draft_versions",
 	"dining.floors",
+	"dining.floorplan_assets",
 	"dining.halls",
 	"dining.menu_items",
 	"dining.menu_offerings",
+	"dining.release_candidate_validation_reports",
+	"dining.release_candidates",
+	"dining.release_latest_pointer",
+	"dining.release_schedule_jobs",
 	"dining.release_snapshots",
 	"dining.releases",
 	"dining.source_observations",

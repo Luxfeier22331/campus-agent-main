@@ -42,28 +42,80 @@ describe("campus ops worker boundary", () => {
 		});
 
 		const allowed = [
-			"/api/ops/dining/halls",
-			"/api/ops/dining/halls/haidian-canteen-1/floors/1f",
-			"/api/ops/dining/windows/haidian-canteen-1:1f:window-01",
-			"/api/ops/dining/window-assignments",
-			"/api/ops/dining/window-assignments/assignment:haidian-canteen-1:1f:haidian-canteen-1:1f:window-01",
-			"/api/ops/dining/menu-items",
-			"/api/ops/dining/menu-items/menu:fanqie-niunanfan:1",
-			"/api/ops/dining/menu-offerings",
-			"/api/ops/dining/menu-offerings/offering:assignment:haidian-canteen-1:1f:haidian-canteen-1:1f:window-01:menu:fanqie-niunanfan:1",
-			"/api/ops/dining/releases",
-			"/api/ops/dining/releases/dining_release:initial/preview",
-			"/api/ops/dining/releases/dining_release:initial/publish",
-			"/api/ops/dining/audit-events",
+			{ method: "GET", path: "/api/ops/dining/halls" },
+			{ method: "GET", path: "/api/ops/dining/halls/haidian-canteen-1/floors/1f" },
+			{ method: "PATCH", path: "/api/ops/dining/windows/haidian-canteen-1:1f:window-01" },
+			{ method: "POST", path: "/api/ops/dining/window-assignments" },
+			{
+				method: "PATCH",
+				path: "/api/ops/dining/window-assignments/assignment:haidian-canteen-1:1f:haidian-canteen-1:1f:window-01",
+			},
+			{ method: "POST", path: "/api/ops/dining/menu-items" },
+			{ method: "PATCH", path: "/api/ops/dining/menu-items/menu:fanqie-niunanfan:1" },
+			{ method: "POST", path: "/api/ops/dining/menu-offerings" },
+			{
+				method: "PATCH",
+				path: "/api/ops/dining/menu-offerings/offering:assignment:haidian-canteen-1:1f:haidian-canteen-1:1f:window-01:menu:fanqie-niunanfan:1",
+			},
+			{ method: "POST", path: "/api/ops/dining/floorplan-assets" },
+			{ method: "GET", path: "/api/ops/dining/release-candidates" },
+			{ method: "POST", path: "/api/ops/dining/release-candidates" },
+			{ method: "GET", path: "/api/ops/dining/release-candidates/dining_release_candidate:1" },
+			{
+				method: "POST",
+				path: "/api/ops/dining/release-candidates/dining_release_candidate:1/validate",
+			},
+			{
+				method: "POST",
+				path: "/api/ops/dining/release-candidates/dining_release_candidate:1/approve",
+			},
+			{
+				method: "POST",
+				path: "/api/ops/dining/release-candidates/dining_release_candidate:1/schedule",
+			},
+			{
+				method: "POST",
+				path: "/api/ops/dining/release-candidates/dining_release_candidate:1/publish",
+			},
+			{
+				method: "POST",
+				path: "/api/ops/dining/release-candidates/dining_release_candidate:1/cancel",
+			},
+			{ method: "GET", path: "/api/ops/dining/releases" },
+			{ method: "GET", path: "/api/ops/dining/releases/dining_release:initial" },
+			{ method: "POST", path: "/api/ops/dining/releases/dining_release:initial/rollback" },
+			{ method: "GET", path: "/api/ops/dining/audit-events" },
 		];
 
-		for (const path of allowed) {
-			const response = await worker.fetch(new Request(`https://ops.mucwiki-edge.link${path}`), env);
+		for (const route of allowed) {
+			const response = await worker.fetch(
+				new Request(`https://ops.mucwiki-edge.link${route.path}`, { method: route.method }),
+				env,
+			);
 			expect(response.status).toBe(200);
 		}
 
 		const unknown = await worker.fetch(
 			new Request("https://ops.mucwiki-edge.link/api/ops/dining/source-observations"),
+			env,
+		);
+		const legacyDirectPublish = await worker.fetch(
+			new Request("https://ops.mucwiki-edge.link/api/ops/dining/releases", {
+				method: "POST",
+			}),
+			env,
+		);
+		const legacyPreview = await worker.fetch(
+			new Request(
+				"https://ops.mucwiki-edge.link/api/ops/dining/releases/dining_release:initial/preview",
+			),
+			env,
+		);
+		const legacyPublish = await worker.fetch(
+			new Request(
+				"https://ops.mucwiki-edge.link/api/ops/dining/releases/dining_release:initial/publish",
+				{ method: "POST" },
+			),
 			env,
 		);
 		const federation = await worker.fetch(
@@ -72,16 +124,22 @@ describe("campus ops worker boundary", () => {
 		);
 
 		expect(unknown.status).toBe(404);
+		expect(legacyDirectPublish.status).toBe(404);
+		expect(legacyPreview.status).toBe(404);
+		expect(legacyPublish.status).toBe(404);
 		expect(federation.status).toBe(404);
-		expect(seen).toEqual(allowed);
+		expect(seen).toEqual(allowed.map((route) => route.path));
 	});
 
 	it("serves registered operator shell routes", async () => {
 		for (const path of [
 			"/",
 			"/dining",
-			"/dining/svg-demo",
+			"/dining/assets",
+			"/dining/candidates",
+			"/dining/candidates/dining_release_candidate:1",
 			"/dining/releases",
+			"/dining/releases/dining_release:initial",
 			"/dining/audit",
 			"/map",
 			"/feedback",
