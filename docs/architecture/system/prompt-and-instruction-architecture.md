@@ -393,12 +393,16 @@ repo 级 instruction hierarchy 固定拆成五层：
 当前实现边界：
 
 - `apps/execution-control`
-  - owns execution admission, first decision frame, prompt config admission
-    summary, deterministic terminal envelopes and provider-facing activity
-    dispatch through `packages/prompt-runtime`
+  - owns execution admission, first decision activity scheduling, prompt config
+    admission summary, deterministic terminal envelopes and sanitized
+    finalization/projection
+- `apps/agent-runtime`
+  - owns primary agent SDK instructions, model-visible strict tool schemas,
+    tool-call loop, direct/no-tool final output and SDK trace normalization
 - `packages/prompt-runtime`
-  - owns prompt contract validation, provider structured output execution,
-    provider response normalization and prompt trace construction
+  - owns provider-facing prompt contract validation, structured output execution,
+    provider response normalization and prompt trace construction for
+    knowledge/RAG synthesis and other explicit provider activities
 - `packages/knowledge-capability`
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
 - `apps/app-api`
@@ -408,9 +412,9 @@ repo 级 instruction hierarchy 固定拆成五层：
 
 - `apps/app-api` 不选择 `product persona` 或 `surface prompt profile`；它只投影
   surface/session/account context 与 allowed capability/tool set
-- `system prompt` 在产品语义上必须影响第一模型决策，但实现 owner 仍是
-  `execution-control` / `packages/prompt-runtime` 的 provider-facing request
-  assembly，而不是 browser surface 或 app-api route handler
+- `system prompt` 在产品语义上必须影响第一模型决策；当前实现 owner 是
+  `apps/agent-runtime` primary agent instructions，而不是 browser surface 或
+  app-api route handler
 - `assistant_intro` / `product_meta` 不作为 prompt family 或 capability；产品身份、
   能力边界、普通寒暄由 first Execution Agent decision 的 direct/no-tool
   terminal branch 处理
@@ -584,12 +588,13 @@ repo 当前推荐的 system / role 设计固定为：
 
 每个 agent 不维护一份“大 prompt”，而维护 `prompt family + mode`。
 
-当前 production execution terminal path 不再维护独立 synthetic prompt family；
-clarify / out-of-scope / reject / not-open 的 deterministic terminal wording 由 Go
-`execution-control` 的 direct terminal path 承接。目标态 first Execution Agent
-decision 可以产生 direct/no-tool terminal answer，但它必须复用 repo-global
-invariants、execution role instructions、typed task packet 与 strict output contract，
-不得新增 `assistant_intro` 或 product-persona prompt family。若后续重新引入更复杂的
+当前 production execution terminal path 不维护独立 synthetic prompt family。
+`apps/agent-runtime` primary agent 可以产生 direct/no-tool terminal answer、
+`clarification_required`、`out_of_scope` 与 `unsupported_by_evidence` 等 terminal
+reason；Go `execution-control` 负责把它们 finalization 为 product-safe response 和
+sanitized projection。该路径必须复用 repo-global invariants、execution role
+instructions、typed task packet 与 strict tool/output contract，不得新增
+`assistant_intro` 或 product-persona prompt family。若后续重新引入更复杂的
 LLM-assisted execution wording，必须作为新的显式 workstream 重新定义 prompt family、
 eval gate 与 code finalization，不得复用已删除的旧 execution prompt assets。
 

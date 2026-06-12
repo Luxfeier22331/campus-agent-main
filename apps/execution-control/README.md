@@ -18,12 +18,15 @@ Current status:
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Starts Temporal `CapabilityExecutionWorkflow` and executes the current
-  capability-neutral graph through Go worker roles:
-  `context.memory_recall -> plan.route -> capability branch ->
-  finalization.write`. The `knowledge` branch runs `rag.plan ->
-  retrieval.indexed_lookup -> retrieval.expand_or_rescue -> evidence.selection
-  -> synthesis -> grounding.verify`.
+- Starts Temporal `CapabilityExecutionWorkflow` and executes the current primary
+  agent graph through worker roles:
+  `context.memory_recall -> agent.primary -> finalization.write`.
+  `agent.primary` is polled by `activity-worker-agent` and calls
+  `apps/agent-runtime`, which uses OpenAI Agents SDK for the model-facing tool
+  loop and direct/no-tool final output. The retained deterministic support path
+  still contains `plan.route -> capability branch`; the `knowledge` branch runs
+  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
+  evidence.selection -> synthesis -> grounding.verify`.
 - Reports Go-owned `/readyz` runtime health for Temporal, run projection store,
   RAG lookup/synthesis, prompt pricing gate, capability gates and worker pollers.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
@@ -55,6 +58,17 @@ Current status:
 - Owns Temporal workflow command admission and sanitized run projection writes.
   Terminal answer delivery is read from product projection through `app-api`,
   not from a synchronous execution-control answer endpoint.
+- Owns the primary agent activity bridge configuration:
+  `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL`,
+  `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET`, and
+  `EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS`. Missing agent runtime config
+  fails closed when `agent.primary` executes.
+- The paired `apps/agent-runtime` process uses
+  `AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL` and
+  `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET` to execute model-visible
+  read-only typed tools through execution-control `/internal/query/...`
+  endpoints. Missing internal-query config fails closed at the selected tool,
+  not by fabricating an answer.
 - Owns the structured tool policy summary. Python only validates that the
   preplanned payload kind matches the Go-provided `allowed_tools`.
 - Hosts the gate-closed structured query runtime foundation for campus services
@@ -413,6 +427,10 @@ JSON
 ) \
   http://127.0.0.1:27051/internal/execution/runs
 ```
+
+The `retrieval.query` sample above is the retained deterministic support-path
+handoff shape. The primary model-facing SDK path exposes `knowledge_query` as the
+workflow-signal tool; `retrieval.query` remains knowledge-internal / closed.
 
 Detailed local smoke / cutover / runback steps:
 

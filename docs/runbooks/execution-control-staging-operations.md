@@ -15,6 +15,8 @@ updated: 2026-06-06
   - `execution-control`
   - `workflow-worker`
   - `activity-worker-context`
+  - `agent-runtime`
+  - `activity-worker-agent`
   - `activity-worker-knowledge`
   - `activity-worker-campus-services`
   - `activity-worker-notice`
@@ -64,6 +66,13 @@ updated: 2026-06-06
   - `activity-worker-context`
     - Go-owned context activity poller for `campus-agent.activity.context`
     - owns capability-neutral memory recall before routing
+  - `agent-runtime`
+    - Node/TypeScript model-facing primary agent runtime based on OpenAI
+      Agents SDK
+    - exposes only internal `/internal/agent-runs` behind the bridge shared secret
+  - `activity-worker-agent`
+    - Go-owned primary agent activity poller for `campus-agent.activity.agent`
+    - calls `agent-runtime` and projects SDK selected tools, usage and trace refs
   - `activity-worker-knowledge`
     - Go-owned knowledge activity poller for `campus-agent.activity.knowledge`
     - owns RAG plan, Qdrant lookup, rescue, evidence selection, synthesis and
@@ -106,8 +115,8 @@ updated: 2026-06-06
 当前 staging execution runtime 口径：
 
 - staging 必须证明 Temporal-backed execution path、run projection store、
-  workflow worker、RAG activity worker、finalization activity worker 与 app-api
-  execution runtime ready。
+  workflow worker、primary agent runtime/worker、RAG activity worker、finalization
+  activity worker 与 app-api execution runtime ready。
 - staging 不再使用 PG lease worker loop / recovery loop 作为 online serving path；旧 lease
   表只允许作为 historical migration artifact 存在。
 - `execution-control-control`、`supervisor-scheduler`、`supervisor-recovery`、
@@ -275,6 +284,12 @@ staging 不应依赖 repo-root `.env.staging.local`。
 - `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN=<metrics bearer token>`
 - `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
+- `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://agent-runtime:27062`
+- `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET=<agent runtime bridge secret>`
+- `AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL=http://execution-control:8000`
+- `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET=<structured query secret>`；该值必须与
+  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` 一致，供 primary agent runtime
+  typed tool executor 调用 execution-control internal query endpoints。
 - `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=<run projection Postgres URL>`；
   这是 execution projection store 的显式 URL，不从 `STAGING_INGESTION_SHARED_POSTGRES_URL`、
   `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL`、root `.env`、
@@ -289,6 +304,7 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:<instance>`
@@ -444,7 +460,8 @@ infra/local/staging/status-execution-control-staging.sh --check
 `--check` 通过标准：
 
 - `otel-collector`、`execution-control`、`workflow-worker`、
-  `activity-worker-context`、`activity-worker-knowledge`、
+  `activity-worker-context`、`agent-runtime`、`activity-worker-agent`、
+  `activity-worker-knowledge`、
   `activity-worker-campus-services`、`activity-worker-notice`、
   `activity-worker-navigation`、`activity-worker-finalization`、
   `worker-autoscaler` 与 `temporal` 都在当前 compose project 中运行
@@ -625,6 +642,8 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - `.tmp/execution-control-staging/logs/execution-control.log`
 - `.tmp/execution-control-staging/logs/workflow-worker.log`
 - `.tmp/execution-control-staging/logs/activity-worker-context.log`
+- `.tmp/execution-control-staging/logs/agent-runtime.log`
+- `.tmp/execution-control-staging/logs/activity-worker-agent.log`
 - `.tmp/execution-control-staging/logs/activity-worker-knowledge.log`
 - `.tmp/execution-control-staging/logs/activity-worker-campus-services.log`
 - `.tmp/execution-control-staging/logs/activity-worker-notice.log`
@@ -649,6 +668,8 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
   - `.tmp/execution-control-staging/logs/execution-control.log`
   - `.tmp/execution-control-staging/logs/workflow-worker.log`
   - `.tmp/execution-control-staging/logs/activity-worker-context.log`
+  - `.tmp/execution-control-staging/logs/agent-runtime.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-agent.log`
   - `.tmp/execution-control-staging/logs/activity-worker-knowledge.log`
   - `.tmp/execution-control-staging/logs/activity-worker-campus-services.log`
   - `.tmp/execution-control-staging/logs/activity-worker-notice.log`

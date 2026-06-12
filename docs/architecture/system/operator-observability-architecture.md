@@ -125,6 +125,9 @@ eval attribution / badcase projection / release-evidence-shaped local fixture`
   cost
 - projection refs：result refs、answer artifact refs、evidence / retrieval / grounding
   projection refs where available
+- primary-agent metadata：`agent.primary` step 的 `selected_tools`、
+  `terminal_reason`、`sdk_trace_ref` 与 bounded `tool_result_refs`；SDK raw trace 只能作为
+  backlink/debug sink，不能替代 sanitized step result projection
 
 消费者职责：
 

@@ -33,10 +33,11 @@ updated: 2026-06-12
 `hub-web same-site allowlisted /api/* -> app-api`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-knowledge /
-capability workers / activity-worker-finalization -> memory recall / typed
-capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
-models -> sanitized projection`
+workflow-worker / activity-worker-context / activity-worker-agent /
+activity-worker-knowledge / capability workers / activity-worker-finalization ->
+memory recall / OpenAI Agents SDK primary agent loop / typed capability branch /
+Go RAG DTO/runtime -> Qdrant / provider / structured read models -> sanitized
+projection`
 
 `browser -> public-docs static reader assets`
 
@@ -75,14 +76,24 @@ document/index release`
 - retired PG lease tables、lane budget、worker heartbeat、PG lease worker loop 与
   recovery loop 只允许作为 historical migration artifact / retired code path 出现，
   不参与当前 online serving
-- 当前在线 RAG 路径已退出 Python bridge，并硬切为 Temporal-visible memory + RAG graph：
-  `context.memory_recall -> plan.route -> rag.plan -> retrieval.indexed_lookup ->
+- 当前在线主问答路径已进入 first Execution Agent decision / direct no-tool terminal
+  branch：`CapabilityExecutionWorkflow` 执行
+  `context.memory_recall -> agent.primary -> finalization.write`。
+  `agent.primary` 由 `activity-worker-agent` 调用 `apps/agent-runtime`，后者使用
+  OpenAI Agents SDK 承接模型-facing instructions、tool loop 与 direct/no-tool
+  final output；Go `execution-control` 保留 durable envelope、Temporal timeout /
+  cancel、memory projection refs、visible capability allowlist、sanitized
+  `agent.primary` step projection 与 finalization ownership。
+- 当前 ordinary chat 的 target shape 是缺失 explicit capability hint 时由
+  `agent.primary` 在 admitted visible tool set 内决策；`app-api` 已允许
+  `requestedCapability=null`，但 Go `execution-control` 仍存在缺失
+  `requested_capability` 默认写成 `knowledge` 的 implementation gap。
+- `plan.route -> capability branch` 不再是主问答链路的第一模型决策。它仍作为
+  Go-owned deterministic structured planner / typed activity / historical RAG graph
+  support path 保留，服务显式 typed branch、测试与内部 policy 约束；知识分支
+  RAG graph 仍为 `rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
-  grounding.verify -> finalization.write`。
-- 当前代码尚未完成 first Execution Agent decision / direct no-tool terminal
-  branch：`CapabilityExecutionWorkflow` 在 `requested_capability` 为空时仍默认进入
-  `knowledge`，durable `PlanRouteActivity` 当前仍要求 executable handoff。因此
-  “hi / 你是谁”这类可直接回答的入口样本仍是主链路待补缺口，不能写成已闭环能力。
+  grounding.verify`。
 - 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 self-hosted Qdrant
   `personal_memory_v1` collection；app-api chat submit 不再读取 PG
   `profile.memory_items` 并全量注入 `context.profile_memory`。
@@ -244,28 +255,40 @@ document/index release`
   projection truth。旧 PG lease worker loop / recovery loop 不再参与 online
   serving。
 - 当前 `CapabilityExecutionWorkflow` 主干已切为 `context.memory_recall ->
-  plan.route -> capability branch -> finalization.write`。`knowledge` 分支执行
-  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
-  evidence.selection -> synthesis -> grounding.verify`，每个 step 写入
+  agent.primary -> finalization.write` 或 `context.memory_recall ->
+  agent.primary -> knowledge RAG graph -> finalization.write`。`agent.primary`
+  通过 OpenAI Agents SDK 暴露 model-visible read-only tool catalog，由模型在
+  agent loop 内决定是否调用工具；无工具请求可直接产出 final output。knowledge
+  请求只向模型暴露 `knowledge_query` workflow-signal tool，实际 RAG 仍进入
+  Go-owned Temporal graph；`retrieval.query` 不作为 model-visible tool 暴露。
+  当前仍需移除 Go execution run creation 对缺失 `requested_capability` 的
+  default-knowledge 写入，才能让 ordinary chat fully product-agent-first。
+  每个主干 step 写入
   `RunStep -> StepAttempt -> StepResult` projection。attempt projection 已包含
   Temporal activity metadata、queue wait、duration、provider/model、token/cost、
   cancel/timeout outcome 字段。
-- 当前 public durable chat path 已具备 capability-neutral metadata 与 workflow
-  branch skeleton，但尚未具备 first Execution Agent decision 的 direct/no-tool
-  terminal path；`campus_services` 与 `notice` 可进入 typed activity branch，
-  但产品级完整验收仍取决于对应 worker poller、structured read model、projection
-  fixture 与 finalization closeout。`navigation` 仍默认 closed，必须 fail closed。
+- 当前 public durable chat path 已具备 capability-neutral metadata、primary agent
+  direct/no-tool terminal branch 与 agent-result finalization。`campus_services`
+  与 `notice` 已有 model-visible read-only tool catalog 与 typed/internal-query
+  bridge 基底；产品级完整验收仍取决于对应 worker poller、structured read model、
+  projection fixture 与 opening evidence。`navigation` 仍默认 closed，必须 fail
+  closed。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
   解释为全局 scheduler。当前缺口是 staging 真实 provider cancel evidence、
   worker autoscaler actuation、notice / navigation / campus-services typed branch
   产品验收，以及 RAG retrieval quality/profiling 的持续优化。
-- 拥有 deterministic structured planner；当前实现位于
+- 仍拥有 deterministic structured planner；当前实现位于
   `apps/execution-control/internal/structuredplanning`。`PlanRouteActivity` 从
   capability-neutral `execution_payload` 读取 user goal、requested capability、
   scope、version query 与 session context，输出 resolved capability branch steps。
-- `CapabilityExecutionWorkflow` 已能执行 resolved branch plan：knowledge step
-  进入 Go RAG graph；`campus_services` / `notice` step 进入 typed tool activity；
+  该能力当前不是主问答链路第一模型决策，而是 typed branch / RAG graph 的内部
+  support path。
+- `CapabilityExecutionWorkflow` 的当前主干由 primary agent SDK loop 承接工具选择
+  与 direct answer；当 primary agent 选择 `knowledge_query` 时，workflow 使用
+  agent result projection ref 作为 plan/dependency input 进入 Go RAG graph。
+  保留的 resolved branch plan 仍可执行：knowledge step 进入 Go RAG graph；
+  `campus_services` / `notice` step 进入 typed tool activity；
   selected-notice follow-through 可由 resolver 编译为 typed tool step + knowledge
   step。workflow trace / projection 只记录 bounded result refs、step metadata 与 safe
   summaries，不携带 raw projection payload。旧 bridge v6 `runtime_decisions` 不再是

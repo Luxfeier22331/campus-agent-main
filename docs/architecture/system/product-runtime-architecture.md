@@ -27,8 +27,9 @@ supporting architecture。
 `hub-web same-site allowlisted /api/* -> app-api`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-knowledge /
-capability workers / activity-worker-finalization -> sanitized projection`
+workflow-worker / activity-worker-context / activity-worker-agent /
+activity-worker-knowledge / capability workers / activity-worker-finalization ->
+sanitized projection`
 
 `browser -> public-docs static reader assets`
 
@@ -60,8 +61,9 @@ model`
 
 - 当前 `public chat` 的 knowledge-only posture 只表示该 surface 当前开放的 capability set
 - 它不等于整个产品的长期入口语义
-- capability-neutral routing 与 surface capability policy 统一由 shared
-  product/runtime + Execution Agent Layer supporting architecture 表达
+- ordinary chat 的目标态 first decision 由 primary agent 在 admitted visible
+  tool set 内完成；surface capability policy 仍由 shared `app-api` 表达，
+  durable admission / projection 仍由 Execution Agent Layer 表达
 
 ## Accepted Surface Shape
 
@@ -191,12 +193,12 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 固定规则：
 
 - 不把某个 surface 当前开放的 capability 直接写成整个 repo 的长期入口原则
-- surface policy 先于 execution routing
+- surface policy 先于 primary agent tool decision
 - `app-api` 负责把 surface policy、account / session projection 与 request truth 组装为最小
   execution input
 - `app-api` 不选择 product persona、surface prompt profile 或 agent instructions；
-  first Execution Agent decision 与 capability/tool routing 属于 `execution-control`
-  / prompt-runtime 的 provider-facing execution boundary
+  first Execution Agent decision 由 primary agent runtime 在 `execution-control`
+  裁剪后的 visible tool set 内完成
 
 ### `apps/execution-control`
 

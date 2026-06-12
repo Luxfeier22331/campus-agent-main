@@ -683,7 +683,9 @@ icy.md`。
   posture，不表示长期产品入口必须 `knowledge-only` 或 `RAG-first`
 - `requestedCapability` 缺失不应在目标态被 app-api 伪造成 `knowledge`。app-api
   只投影 surface/session/account context 与 caller hint；first Execution Agent
-  decision / capability routing 属于 execution-control
+  decision 由 primary agent runtime 在 execution-control 裁剪后的 visible tool
+  set 内完成。当前 execution-control 仍存在缺失 capability 默认 `knowledge` 的
+  implementation gap，应在后续代码收口中删除
 - `requestedScope` 可选；它只属于 knowledge-family path。未提供时 `app-api` 不得伪造默认 serving
   surface，最终 scope 由 downstream agent 解析，并在 finalized projection /
   observability 中回填 `resolvedScope`

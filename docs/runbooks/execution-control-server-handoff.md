@@ -25,8 +25,10 @@ updated: 2026-06-09
 - compose file: `infra/local/docker-compose.execution-control-runtime.yml`
 - services:
   - `execution-control`
+  - `agent-runtime`
   - `workflow-worker`
   - `activity-worker-context`
+  - `activity-worker-agent`
   - `activity-worker-knowledge`
   - `activity-worker-campus-services`
   - `activity-worker-notice`
@@ -56,6 +58,11 @@ updated: 2026-06-09
   - `EMBEDDING_*`
   - `PROMPT_RUNTIME_*`
   - `EXECUTION_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
+  - `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL`
+  - `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET`
+  - `AGENT_RUNTIME_SHARED_SECRET`
+  - `AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL`
+  - `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`
 - conditional:
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`
@@ -65,6 +72,12 @@ updated: 2026-06-09
     notice 还需要 object-store/read-model 依赖
 
 禁止把 deploy-only secret 写回 repo-tracked `.env.example`。
+
+`AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL` 是 primary agent runtime 调用
+execution-control internal query typed tools 的容器内地址；compose / staging baseline 使用
+`http://execution-control:8000`。`AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`
+必须与 `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` 一致，否则 typed tool executor fail
+closed。
 
 ## Deployment Steps
 

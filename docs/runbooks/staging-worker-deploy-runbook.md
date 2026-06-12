@@ -38,6 +38,8 @@ updated: 2026-05-07
   - `execution-control`
   - `workflow-worker`
   - `activity-worker-context`
+  - `agent-runtime`
+  - `activity-worker-agent`
   - `activity-worker-knowledge`
   - `activity-worker-campus-services`
   - `activity-worker-notice`

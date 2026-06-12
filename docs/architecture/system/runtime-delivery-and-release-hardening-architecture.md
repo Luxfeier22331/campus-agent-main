@@ -50,8 +50,8 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   upstream 参与 staging execution seam
 - 当前 repo-owned staging execution runtime 已 hardcut 到
   `execution-control + Temporal + workflow-worker + activity-worker-context +
-  activity-worker-knowledge + capability workers +
-  activity-worker-finalization + worker-autoscaler`；
+  activity-worker-agent + agent-runtime + activity-worker-knowledge +
+  capability workers + activity-worker-finalization + worker-autoscaler`；
   legacy dev-backed execution host 与 Python bridge serving path 不再是 active
   runback path
 - `execution-control` readiness 代表 execution runtime 是否适合接收新请求；

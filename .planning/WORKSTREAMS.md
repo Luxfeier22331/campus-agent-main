@@ -44,11 +44,14 @@ status as current project truth.
 - Temporal execution-control normal-path staging closeout has real `nc-arm-6c`
   evidence; remaining closeout work is failure-mode proof for cancel, timeout,
   late completion, and panel/eval/operator consumption.
-- Main answer path first-decision work remains open: product identity /
-  no-tool direct answer, clarification/reject/fail-close terminal outcome, and
-  explicit capability routing must be projected before defaulting to any
-  capability. The current missing-capability -> `knowledge` default is a code
-  gap to remove, not target truth.
+- Main answer path first-decision work has moved into the primary agent SDK loop:
+  direct/no-tool turns finalize from `agent.primary`; knowledge turns use
+  `knowledge_query` to enter the Go RAG graph. Remaining work is tool backend
+  maturity, visible catalog drift checks, clarification / reject / fail-close
+  terminal projection depth, and panel/eval consumption of the normalized agent
+  trajectory. A concrete architecture gap remains: ordinary chat with missing
+  `requested_capability` must stop defaulting to `knowledge` and instead let
+  `agent.primary` choose within the admitted visible tool set.
 - Step projection should remain the panel/eval/operator diagnostic spine and
   must carry cancel/timeout/token/cost evidence for failure-mode runs.
 - Eval / badcase / future release evidence should converge on the app-api-owned

@@ -18,7 +18,8 @@ policy、reference、runbook，以及已归档的历史 plan。
 - [architecture/target-architecture.md](./architecture/target-architecture.md)
   - 长期目标架构与不可退回约束
 - [architecture/system/capability-routing-and-admission-architecture.md](./architecture/system/capability-routing-and-admission-architecture.md)
-  - capability routing、surface admission 与 structured/runtime opening owner
+  - primary agent first decision、surface admission、visible tool set 与
+    structured/runtime opening owner
 - [architecture/system/execution-and-agents-architecture.md](./architecture/system/execution-and-agents-architecture.md)
   - execution runtime、capability / agent-as-tool、handoff 与 workflow ownership
 - [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
@@ -62,6 +63,9 @@ policy、reference、runbook，以及已归档的历史 plan。
 
 - 需要回答“产品是什么、当前系统真相是什么、长期要收口到哪里”，先读 `architecture/`
 - 需要回答“顶层 capability routing、surface allowlist 与 admission/routing 分层如何设计”，读
+  `architecture/system/capability-routing-and-admission-architecture.md`
+- 需要回答“普通 chat 为什么不应默认伪造成 knowledge、primary agent 如何选择 no-tool /
+  notice / campus_services / knowledge tool”，读
   `architecture/system/capability-routing-and-admission-architecture.md`
 - 需要回答“Execution Agent Layer、structured runtime、capability handoff 与
   SDK-native execution 如何分层”，读

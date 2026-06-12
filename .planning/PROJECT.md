@@ -14,7 +14,7 @@ Product/browser surfaces
 -> execution-control
 -> Temporal
 -> capability activity workers
--> Go RAG DTO/runtime / typed tools
+-> OpenAI Agents SDK primary agent loop / Go RAG DTO/runtime / typed tools
 -> Qdrant / provider / structured data-plane services
 ```
 
@@ -31,14 +31,21 @@ product data and sanitized run/event/step projection, not the execution queue.
 - Default query-enabled surfaces are `regulations/student_rules`,
   `regulations/institutional_rules`, `curriculum/curriculum_plan`, and
   `official_web/stable_reference`.
-- RAG now enters execution as a Go-owned seven-step Temporal activity graph:
+- The main answer path now enters the OpenAI Agents SDK primary agent loop after
+  memory recall: direct/no-tool turns use `context.memory_recall ->
+  agent.primary -> finalization.write`; knowledge turns use
+  `context.memory_recall -> agent.primary -> knowledge_query workflow signal ->
+  Go RAG graph -> finalization.write`. Go/Temporal keep durable workflow,
+  admission, timeout/cancel, RAG graph execution and sanitized projection
+  ownership.
+- Target ordinary chat routing is primary-agent-first: missing
+  `requested_capability` should expose the admitted visible tool set to
+  `agent.primary` instead of being defaulted to `knowledge`. Current
+  `execution-control` still has that default-knowledge implementation gap.
+- RAG remains available as a Go-owned seven-step Temporal activity support path:
   `planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`.
-- The main answer path still lacks the first Execution Agent decision /
-  direct no-tool terminal branch. Current code still defaults missing
-  `requested_capability` to `knowledge`; that is a tracked implementation gap,
-  not accepted target architecture.
 - Python `apps/supervisor-agent-worker` has been removed from the active
   workspace. Historical bridge code is recoverable only through git history. The
   `supervisor` concept is an abstract admission/routing/planning/finalization
@@ -77,8 +84,8 @@ Create or resume durable docs/ADRs/runbook work when any of these occur:
   serving scope.
 - Temporal workflow/activity topology, worker autoscaling, or projection schema
   changes.
-- First Execution Agent decision, direct/no-tool terminal projection, or
-  capability routing contract changes.
+- Primary agent SDK loop, direct/no-tool terminal projection, visible tool
+  catalog, or capability routing contract changes.
 - A data-plane source truth, ingestion release, query-enabled surface, or access
   boundary changes.
 - Staging/release evidence reveals drift between `app-api`, execution-control,

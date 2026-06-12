@@ -67,15 +67,16 @@ Current implementation baseline:
 
 - online chat path already enters the Temporal-backed
   `CapabilityExecutionWorkflow`.
-- chat trajectory projection now uses the Temporal-visible capability-neutral
-  graph: `context.memory_recall -> plan.route -> capability branch ->
-  finalization.write`. This is the current durable branch skeleton, but it still
-  lacks a first Execution Agent decision that can end in a direct/no-tool
-  terminal answer before capability routing. Current code still defaults missing
-  `requested_capability` to `knowledge`; that is an implementation gap, not a
-  target invariant. The `knowledge` branch runs `rag.plan ->
-  retrieval.indexed_lookup -> retrieval.expand_or_rescue -> evidence.selection
-  -> synthesis -> grounding.verify`.
+- chat trajectory projection now uses the Temporal-visible primary agent graph:
+  `context.memory_recall -> agent.primary -> finalization.write`. `agent.primary`
+  calls `apps/agent-runtime`, which uses OpenAI Agents SDK for the model-facing
+  tool loop and direct/no-tool final output. Go `execution-control` keeps
+  durable workflow ownership, visible capability filtering, timeout/cancel,
+  sanitized step projection and finalization. The retained deterministic branch
+  support path still contains `plan.route -> capability branch`; the `knowledge`
+  branch runs `rag.plan -> retrieval.indexed_lookup ->
+  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
+  grounding.verify`.
 - first-class step attempt evidence fields exist in the projection store,
   execution-control `/steps` API, app-api operator summary and panel trajectory:
   Temporal workflow/activity metadata, queue wait, duration, provider/model,
@@ -87,6 +88,10 @@ Current implementation baseline:
   retrieval uses the Qdrant native adapter against the authenticated private
   data-plane, synthesis executes the provider call, records usage / estimated
   cost / cancel outcome and stores sanitized finalization input.
+- online primary agent execution is owned by `activity-worker-agent` +
+  `apps/agent-runtime`: SDK selected tools, tool result refs, usage summary and
+  SDK trace refs are normalized into repo-owned sanitized projection before
+  app-api / panel / eval consumption.
 - Python `apps/supervisor-agent-worker` has been removed from the active
   workspace. Historical bridge code is recoverable only through git history and
   must not be restored as a serving fallback or readiness dependency.
@@ -288,19 +293,20 @@ canceled / expired`
 ### Target Capability Execution Graph
 
 目标 `CapabilityExecutionWorkflow` 不以 RAG 为顶层入口。它先记录 durable run，
-执行 first Execution Agent decision；该 decision 可以直接产生 no-tool terminal
-outcome，也可以进入 capability routing / workflow planning，再进入对应 capability
-branch：
+准备 bounded context，再执行 `agent.primary` first decision；该 decision 可以直接
+产生 no-tool terminal outcome，也可以选择 admitted tool / workflow signal，再进入
+对应 typed tool 或 RAG graph：
 
 ```text
-first_decision
+context.memory_recall when needed
+-> agent.primary first_decision
 -> direct/no-tool terminal
 -> finalization.write
 
-first_decision
--> optional context.memory_recall
--> capability routing / workflow planning
--> capability branch
+context.memory_recall when needed
+-> agent.primary first_decision
+-> admitted tool / workflow signal
+-> typed tool or knowledge RAG graph
 -> finalization.write
 ```
 
@@ -316,8 +322,9 @@ first_decision
 - `context.memory_recall` 使用 Qdrant `personal_memory_v1` recall bounded personal
   memory context，输出 selected count、char budget 与 compact memory items；目标态下它应由
   first decision / workflow plan 明确需要时执行，而不是为了默认进入 RAG 而无条件前置。
-- `plan.route` 承接 admission / routing / workflow plan projection，不读取 PG profile
-  memory full dump，也不把所有请求默认压成 knowledge/RAG。
+- `plan.route` 只能作为 retained deterministic support path / historical
+  planning artifact，不读取 PG profile memory full dump，也不把普通 chat
+  缺失 capability 的请求默认压成 knowledge/RAG。
 - `knowledge` branch 承接 RAG retrieval、evidence、synthesis 与 grounding。
 - `campus_services` branch 承接 service guide/status/schedule/contact/calendar typed
   tools 或明确 semantic specialist step。
@@ -718,13 +725,15 @@ worker autoscaler 边界固定为：
   and cancel commands
 - split execution worker binaries exist:
   `cmd/workflow-worker`, `cmd/activity-worker-context`,
-  `cmd/activity-worker-knowledge`, `cmd/activity-worker-campus-services`,
-  `cmd/activity-worker-notice`, `cmd/activity-worker-navigation`, and
-  `cmd/activity-worker-finalization`; Docker Compose runs them as separate
-  services with explicit `<env>:<role>:<instance>` worker identity.
+  `cmd/activity-worker-agent`, `cmd/activity-worker-knowledge`,
+  `cmd/activity-worker-campus-services`, `cmd/activity-worker-notice`,
+  `cmd/activity-worker-navigation`, and `cmd/activity-worker-finalization`;
+  Docker Compose runs them as separate services with explicit
+  `<env>:<role>:<instance>` worker identity.
 - step projection writeback exists for the current capability execution
-  trajectory: `memory.recall`、`plan.route`、branch steps and
-  `finalization.write` write sanitized step / attempt / result projection rows.
+  trajectory: `agent.primary`、branch steps and `finalization.write` write
+  sanitized step / attempt / result projection rows; retained deterministic
+  support paths can still project `plan.route` where explicitly used.
   Attempt rows include Temporal activity metadata, queue wait, duration,
   provider/model, token/cost and cancel/timeout fields. Online RAG lookup and
   synthesis run inside Go `activity-worker-knowledge`, so lookup latency,
@@ -782,16 +791,20 @@ worker autoscaler 边界固定为：
   `synthesis`、`grounding.verify` 与 `finalization.write` 均写 sanitized step
   trajectory。剩余缺口是 bounded semantic retry / replan 的真实 policy execution，
   而不是只在 `WorkflowPlan.SemanticRetryPolicy` 中声明字段。
-- broader agent-as-tool / provider-native tool loop 尚未成为 online current truth。若后续
-  打开，它必须作为 Temporal activity 内部 substrate 运行，并受 `WorkflowPlan`、
-  `ToolSpec`、`CapabilitySpec`、timeout / budget 与 sanitized projection 约束；不得恢复
-  retired Python bridge 或让 provider tool loop 拥有 repo-level orchestration。
+- primary model-facing SDK loop 已进入 current worktree：`agent.primary` 通过 strict
+  `tool-catalog.v1` 暴露 model-visible read-only tools，`knowledge_query` 作为 workflow
+  signal 进入 Go-owned RAG graph，campus-services / notice tools 通过
+  execution-control internal query executor 读取 bounded projection/read model。剩余缺口
+  不再是“是否接入 provider-native tool loop”，而是移除 ordinary chat 缺失
+  `requested_capability` 时默认 `knowledge` 的 implementation gap，并继续硬化
+  strict argument schema、typed terminal outcome、operator/eval trajectory
+  consumer 与 fail-close projection。
 - panel / eval / observability 仍需要进一步统一到 step-level trajectory：routing、
-  planning、tool、retrieval、rerank、selection、synthesis、grounding、replan 与
-  agent-as-tool activity 应作为诊断阶段进入 badcase、RAGAS、golden dataset 与 operator
-  panel projection。非 staging 阶段的正确落点是 app-api sanitized trajectory export
-  与 eval/badcase normalizer；release evidence 只能先生成 release-evidence-shaped local
-  fixture，不接真实 Temporal metrics 或 staging closeout。
+  primary agent、typed tool、retrieval、rerank、selection、synthesis、grounding 与
+  replan 应作为诊断阶段进入 badcase、RAGAS、golden dataset 与 operator panel
+  projection。非 staging 阶段的正确落点是 app-api sanitized trajectory export 与
+  eval/badcase normalizer；release evidence 只能先生成 release-evidence-shaped local fixture，
+  不接真实 Temporal metrics 或 staging closeout。
 
 这些 gap 不得通过简单多开实例、HTTP load balancing、Redis queue 或 K8s HPA 标记为已解决。
 

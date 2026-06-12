@@ -17,8 +17,10 @@ hub-web same-site allowlisted /api/* -> app-api
 
 browser -> public-chat-web -> app-api -> execution-control
 -> Temporal -> workflow-worker / activity-worker-context /
-activity-worker-knowledge / capability workers / activity-worker-finalization
--> memory recall / typed capability branch / Go RAG DTO/runtime
+activity-worker-agent / activity-worker-knowledge / capability workers /
+activity-worker-finalization
+-> memory recall / OpenAI Agents SDK primary agent loop / typed capability
+branch / Go RAG DTO/runtime
 -> Qdrant / provider / structured read models -> sanitized projection
 
 browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
@@ -39,9 +41,14 @@ browser -> protected-panel-web -> app-api
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
-- 当前 online answer path 已硬切为 Go-owned Temporal memory+RAG activity graph；Python
-  `apps/supervisor-agent-worker` 已从 active workspace 删除，旧实现只可通过 git
-  history 追溯
+- 当前 online answer path 已硬切为 Go/Temporal durable envelope +
+  OpenAI Agents SDK primary agent loop；目标态 ordinary chat 由 primary
+  agent 在 admitted tool catalog 内决定 direct/no-tool、notice、
+  campus_services 或 `knowledge_query`；knowledge 请求由 primary agent 选择
+  `knowledge_query` workflow signal 后进入 Go-owned RAG graph；当前代码仍有
+  缺失 `requested_capability` 默认 `knowledge` 的 implementation gap；Python
+  `apps/supervisor-agent-worker`
+  已从 active workspace 删除，旧实现只可通过 git history 追溯
 - online query path 与 offline data plane 持续分层
 - `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
   第二产品后端或 MediaWiki 替代物
@@ -87,6 +94,7 @@ browser -> protected-panel-web -> app-api
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/public-docs`](./apps/public-docs/)
 - [`apps/execution-control`](./apps/execution-control/)
+- [`apps/agent-runtime`](./apps/agent-runtime/)
 - [`packages/knowledge-capability`](./packages/knowledge-capability/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)

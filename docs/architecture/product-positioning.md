@@ -138,12 +138,14 @@ ingestion / release 工作不进入用户 agent tool surface。
 - 服务开放状态、临时关闭、班车安排等结构化当前状态问题应由独立 domain capability 承接
 - 用户明确在找通知、讲座、公示或结果原文时，应优先进入 notice discovery / canonical notice reading
   路径，而不是默认混入 generic RAG
-- 顶层 Execution Agent Layer 长期应先做 capability routing，而不是默认把所有请求先压成 knowledge / `knowledge`
+- 普通 chat 的第一语义决策长期由 primary agent 在 admitted tool set 内完成，而不是默认把所有请求先压成
+  knowledge / `knowledge`
 
 产品助手还必须能在不调用校园 capability 的情况下回答产品身份、能力边界、普通寒暄与澄清类问题。
 这类 direct/no-tool answer 属于 first Execution Agent decision 的 terminal branch，
 不是 `assistant_intro`、`product_meta`、`product persona` 或 `surface prompt profile`。
-当语义识别到具体校园能力需求时，才进入对应 typed tool / capability workflow。
+当 primary agent 识别到具体校园能力需求时，才调用对应 typed tool /
+workflow signal 并进入对应 capability workflow。
 
 能力开放口径固定为 readiness-first，而不是身份分层：
 

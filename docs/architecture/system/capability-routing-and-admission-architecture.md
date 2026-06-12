@@ -38,20 +38,25 @@ supporting architecture，不得把它误读成“public chat 当前已经不是
 
 而是：
 
-`surface intake -> admission / guardrails -> first Execution Agent decision ->
-direct/no-tool terminal or capability routing -> workflow planning ->
-Temporal typed activity / agent-as-tool activity -> execution finalization`
+`surface intake -> admission / guardrails -> durable run creation ->
+primary agent first decision -> direct/no-tool terminal or admitted tool /
+workflow signal -> typed tool / RAG graph / agent-as-tool activity ->
+execution finalization`
 
 其中固定规则如下：
 
 - 顶层默认先做 first Execution Agent decision，判断请求是否可在产品边界内
   直接回答 / 澄清 / 拒绝 / fail closed，还是需要进入某个 campus capability
-- 只有当 first decision 判断需要工具或校园能力时，才判定 `capability family`；
-  此时仍然是先判 capability family，而不是先判 retrieval `scope`
-- capability family 判定之后，Execution Agent Layer 再决定本次 capability
-  execution 是 direct typed tool runtime、single agent-as-tool execution，还是
-  admitted multi-step workflow
+- 只有当 first decision 判断需要工具或校园能力时，才通过已暴露 tool /
+  workflow signal 形成 capability family；此时仍然是先判 capability family，
+  而不是先判 retrieval `scope`
+- capability family 判定之后，Execution Agent Layer 只负责把 selected tool /
+  workflow signal 纳入 durable workflow、step admission 与 sanitized projection；
+  它不再用旧 `plan.route` 抢占普通 chat 的第一语义决策
 - `requested_scope` 只属于 knowledge-family path，不是所有请求共享的顶层默认字段
+- `requested_capability` 是 explicit caller hint / compatibility field；普通
+  chat 缺失该字段时，目标态不得由 `app-api` 或 `execution-control` 默认伪造成
+  `knowledge`
 - `admission` 与 `routing` 必须分层，避免把 surface policy、capability readiness、run
   budget 与
   domain reasoning 混在一起
@@ -69,9 +74,12 @@ Temporal typed activity / agent-as-tool activity -> execution finalization`
 
 ## Current Truth Vs Forward Truth
 
-当前 repo 仍保持以下 merged truth：
+当前 repo 仍保持以下 current / implementation truth：
 
-- `public-chat-web -> app-api` 的公开 chat 请求当前只开放 `knowledge`
+- `public-chat-web -> app-api` 的公开 chat posture 曾长期以 `knowledge`
+  为默认主路径；当前 worktree 已接入 `agent.primary`，但 Go
+  `execution-control` 仍存在缺失 `requested_capability` 时默认写成
+  `knowledge` 的 implementation gap
 - `place_lookup` 在 execution contract 中仍存在，但当前产品路径继续 fail-close；
   地图 UI、route planning 与 `place_card` product consumption 等 navigation 能力等地图产品上线后再开放
 - `notice`、`campus_services` 是已冻结的 semantic specialist family；internal
@@ -84,6 +92,8 @@ Temporal typed activity / agent-as-tool activity -> execution finalization`
 
 - 顶层 Execution Agent Layer 必须是 neutral capability router
 - 不允许把 “当前公开主路径最成熟的是 knowledge QA” 反写成长期入口必须 `RAG-first`
+- 普通 chat 未显式传 `requested_capability` 时，目标态 first decision 必须由
+  primary agent 在 surface admitted tool set 内完成
 
 ## Layered Execution Shape
 
@@ -91,8 +101,8 @@ Temporal typed activity / agent-as-tool activity -> execution finalization`
 
 1. `surface intake`
 1. `admission / guardrails`
-1. `first Execution Agent decision`
-1. `capability routing / workflow planning when tools are needed`
+1. `primary agent first decision`
+1. `tool / workflow-signal projection when tools are needed`
 1. `typed tool / agent-as-tool execution`
 1. `execution finalization`
 
@@ -106,12 +116,15 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - surface-level request normalization
 - surface capability allowlist 检查
 - 最小 typed context projection
+- optional explicit caller hint normalization，例如保留 `requestedCapability`
+  作为 compatibility hint
 
 它长期不负责：
 
 - domain reasoning
 - retrieval planning
 - 在多个 capability family 之间做最终 handoff
+- 缺失 `requestedCapability` 时伪造 `knowledge`
 
 补充约束：
 
@@ -165,14 +178,15 @@ current process-local execution protection。
 ### 3. First Execution Agent Decision
 
 `first Execution Agent decision` 是进入 provider / model reasoning 的第一层
-产品语义判断。它消费 app-api 投影后的 session / actor / surface context、
-repo-global invariants、allowed capability/tool set 与 user input。
+产品语义判断。目标态由 primary agent runtime 承接；它消费 app-api 投影后的
+session / actor / surface context、repo-global invariants、allowed tool set
+与 user input。
 
 它长期只负责回答：
 
 - 当前请求是否属于产品边界内的普通对话、产品自我说明、澄清或拒绝
 - 当前请求是否需要调用 campus capability / typed tool / agent-as-tool
-- 若需要工具，下一步应进入哪个 capability routing family
+- 若需要工具，应调用哪个 model-visible read-only tool 或 workflow signal
 - 若不需要工具，terminal branch 的 user-facing answer / clarification /
   reject / fail-close outcome 是什么
 
@@ -185,8 +199,15 @@ repo-global invariants、allowed capability/tool set 与 user input。
 - first decision 的 direct/no-tool terminal outcome 必须进入 sanitized
   projection、workflow trace summary 或等价 operator-safe projection，不能只作为
   transient prompt text 存在
-- 当前代码尚未完成这层 first decision：缺失 `requested_capability` 时仍会默认进入
-  `knowledge`。这是待实现缺口，不得写成 accepted target shape。
+- 当前 worktree 已把 first decision 接入 `agent.primary`，但
+  `execution-control` 仍有缺失 `requested_capability` 默认写成 `knowledge`
+  的残留；这是 implementation gap，不是目标态原则。目标态应向 OpenAI
+  Agents SDK primary agent 暴露 workflow 裁剪后的 visible tool set，由模型决定
+  是否直接 no-tool 回答或调用已开放工具。knowledge-family 对 primary agent
+  只暴露 `knowledge_query` workflow signal；该 signal 只选择进入 Go-owned RAG
+  Temporal graph，不暴露 `retrieval.query` 或 raw retrieval endpoint。Go
+  `execution-control` 仍拥有 deterministic admission、visible tool 裁剪、
+  Temporal timeout/cancel、RAG graph execution 与 finalization。
 
 OpenAI 官方 Responses / tools 文档给出的成熟 agent 形态是：通过系统级
 instructions 约束模型，并把工具以结构化 `tools` 配置暴露给模型，由模型基于
@@ -196,7 +217,8 @@ prompt 判断是否调用已配置工具，必要时用 `tool_choice` 约束行�
 
 ### 4. Capability Routing
 
-`routing` 是 Execution Agent Layer-owned 的中立 capability 决策层。
+`routing` 是 primary agent selected tool / workflow signal 被 durable workflow
+接纳后的治理投影，不再是普通 chat 的独立第一语义入口。
 
 它长期只负责回答：
 
@@ -210,6 +232,7 @@ prompt 判断是否调用已配置工具，必要时用 `tool_choice` 约束行�
 - knowledge-family 内部的 query rewrite
 - retrieval `scope` 的细粒度解析
 - notice/service/navigation 域内的最终业务解释
+- 抢在 primary agent 之前把缺失 capability 的普通 chat 默认改写成 `knowledge`
 
 长期默认只路由到 repo admitted capability family / semantic specialist family，例如：
 
@@ -340,7 +363,8 @@ surface policy 只区分产品入口，不表达学生 / 教职工 / 院系之�
 
 ## Routing Intent
 
-长期上，Execution Agent Layer 的顶层 routing 输出必须是 typed routing intent，而不是 prompt 内部隐式决策。
+长期上，primary agent 的顶层工具选择必须被投影为 typed routing intent，而不是只停留在
+未结构化、不可观测的 prompt 内部隐式决策。
 
 它至少应显式表达：
 

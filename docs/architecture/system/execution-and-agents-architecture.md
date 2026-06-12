@@ -22,14 +22,16 @@ supporting architecture。
 当前主路径遵循：
 
 `app-api -> execution-control -> Temporal workflow -> activity worker ->
-Go RAG DTO/runtime or typed capability worker -> data plane / provider ->
-sanitized step projection -> finalization projection`
+OpenAI Agents SDK primary agent loop / Go RAG DTO/runtime / typed capability
+worker -> data plane / provider -> sanitized step projection -> finalization
+projection`
 
 目标态的产品 agent 与 runtime substrate 分层如下：
 
 - `Campus Assistant` 是 product-level agent experience。
-- `Execution Agent Layer` 位于 `execution-control` 内，承接 admission、routing、
-  workflow planning、capability dispatch 与 finalization。
+- `Execution Agent Layer` 位于 `execution-control` 内，承接 admission、visible
+  tool/capability 裁剪、workflow command/query/cancel、step admission、projection
+  与 finalization；首轮工具选择由 primary agent SDK loop 在已裁剪 tool set 内完成。
 - `CapabilityExecutionWorkflow` 是 Temporal durable workflow，负责编排 run lifecycle、
   retry、timeout、cancel 与 step ordering；它不是 agent 本身。
 - capability worker 只执行被 workflow admitted 的 typed tool 或 explicit
@@ -54,10 +56,10 @@ contract 执行，缺 contract、config 或 poller 时 fail closed。
 
 目标态在同一 governance boundary 内扩展为：
 
-`app-api -> execution-control Execution Agent Layer -> first agent decision
--> direct/no-tool terminal or CapabilityExecutionWorkflow capability steps
--> typed activities or agent-as-tool activities -> sanitized step projection
--> finalization projection`
+`app-api -> execution-control Execution Agent Layer -> CapabilityExecutionWorkflow
+-> context.memory_recall -> agent.primary OpenAI Agents SDK loop -> direct/no-tool
+terminal or admitted SDK function tool / workflow signal -> typed tool / RAG
+graph -> sanitized step projection -> finalization projection`
 
 这表示 repo 采用 Execution Agent Layer-led governed multi-capability /
 agent-as-tool orchestration，而不是无中心 peer agent mesh。长期 deterministic
@@ -91,11 +93,13 @@ historical reference，不是 online answer serving dependency。
 Execution Agent Layer 长期负责：
 
 - admission / guardrails
-- first agent decision
+- first agent decision through the primary agent SDK loop
 - direct/no-tool terminal decision
-- capability routing when a campus capability/tool is needed
+- visible tool/capability set裁剪
+- durable projection of selected tool / workflow signal when a campus capability
+  is needed
 - handoff shaping
-- workflow plan ownership
+- workflow lifecycle ownership
 - allowed capability / allowed tool / admitted agent-as-tool / step budget policy
 - response finalization
 - fail-close terminal semantics
@@ -117,7 +121,8 @@ Execution Agent Layer 不负责：
 - product-layer auth/session ownership
 - 将 semantic specialist 降级成扁平 tool bundle，或把 deterministic tool
   包装成无语义职责的 agent
-- 在 prompt 内隐式决定跨 capability / agent-as-tool step 协作顺序
+- 绕过 repo-owned visible capability/tool set，在 prompt 内隐式扩大跨 capability /
+  agent-as-tool step 协作顺序
 - 把 product identity/help/self-introduction 拆成 `assistant_intro`、`product_meta`
   或类似 synthetic capability；这些应由 first agent decision 的 no-tool
   terminal branch 在产品边界内回答
@@ -128,9 +133,12 @@ Execution Agent Layer 不负责：
   `knowledge` router
 - `public chat` 当前 knowledge-only 只是 surface posture，不反向定义
   Execution Agent Layer 的长期角色
-- 当前代码仍存在 missing `requested_capability` 默认进入 `knowledge` 的实现缺口；
-  这不是目标架构原则。后续必须让 first agent decision 显式产生 terminal /
-  capability routing / workflow planning outcome，而不是由空字段隐式落到 RAG。
+- 当前 worktree 已接入 `agent.primary`，`CapabilityExecutionWorkflow` 先执行
+  `context.memory_recall`，再进入 OpenAI Agents SDK primary agent loop；但
+  `execution-control` 仍存在 missing `requested_capability` 默认写成
+  `knowledge` 的实现残留。目标态必须删除该残留，让 first decision 在 workflow
+  裁剪后的 visible tool set 内完成；direct/no-tool final output 通过
+  `agent_result_ref` 进入 Go finalization。
 - Execution Agent Layer 是 multi-capability / agent-as-tool manager，不是
   peer agent；它保留最终回复
   ownership，除非 workflow plan 显式采用 specialist handoff ownership transfer
@@ -159,6 +167,11 @@ Execution Agent Layer 不负责：
   `academic_calendar_lookup`、`campus_notice_discover`、internal selected notice
   resolve (`payload_kind=campus_notice_get`)；公开 answer 入口是否 direct-execute 由
   ToolSpec runtime posture 决定
+- primary agent activity dispatch：`activity-worker-agent` 调用 `apps/agent-runtime`
+  `/internal/agent-runs`，传入 user goal、memory projection refs 与 visible
+  capability set，并要求返回 completed final output、selected tool names、
+  bounded tool result refs、SDK trace ref 与 usage summary；缺 runtime config、非
+  completed status 或空 final output 必须 fail closed
 - runtime metrics、structured logs、audit writer、cost / token / latency accounting
   与 failure fingerprint
 - transport / timeout / bridge unavailable / policy unavailable 等 fail-close response
@@ -171,6 +184,9 @@ Execution Agent Layer 不负责：
   readyz/metrics 与 projection command。
 - `workflow-worker`：poll Temporal workflow task queue，执行 deterministic
   workflow code。
+- `activity-worker-agent`：poll primary agent activity queue，调用 OpenAI Agents
+  SDK runtime，执行 model-facing tool loop 或 direct/no-tool answer，并只写
+  sanitized result projection。
 - `activity-worker-{capability}`：poll capability activity task queue，执行
   typed tool 或 agent-as-tool activity，并写 sanitized projection。
 - `projection-worker`：在 selected implementation 中把 workflow/activity
@@ -184,14 +200,15 @@ Execution Agent Layer 不负责：
 - Go `execution-control` 已拥有 execution ingress、lifecycle、Temporal cancel、
   per-lane admission、metrics、OTel seam 与 execution audit backflow
 - 当前 active chat execution path 已硬切到 Temporal-backed
-  `CapabilityExecutionWorkflow`；PG `runtime.agent_runs`、events 与 step tables
-  是 sanitized projection store，不是 execution queue truth。旧 PG
-  lease coordinator / worker loop / recovery loop 只保留为 historical migration artifact。
-  进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection。
-  当前 RAG path 已落成 Go-owned memory + RAG activity graph；剩余缺口是 staging
-  Temporal poller proof、worker autoscaler actuation、panel/eval step trajectory
-  深化，以及 notice / navigation / campus-services typed worker contract
-  全量接入。完整 target 见
+  `CapabilityExecutionWorkflow`；主干为 `context.memory_recall -> agent.primary ->
+  finalization.write`。PG `runtime.agent_runs`、events 与 step tables 是 sanitized
+  projection store，不是 execution queue truth。旧 PG lease coordinator / worker
+  loop / recovery loop 只保留为 historical migration artifact。进程内 lifecycle、
+  active count 与 bounded queue 只保留为本进程 runtime protection。当前 RAG
+  support path 已落成 Go-owned memory + RAG activity graph；剩余缺口是
+  staging Temporal poller proof、worker autoscaler actuation、panel/eval step
+  trajectory 深化，以及 notice / navigation / campus-services typed worker
+  contract 全量接入。完整 target 见
   `docs/architecture/system/durable-agent-runtime-architecture.md`
 - Go `execution-control` 取消 path 已收口到 Temporal workflow cancel +
   sanitized cancel projection；RAG lookup/provider adapter 必须使用 cancellable
@@ -205,16 +222,20 @@ Execution Agent Layer 不负责：
   `campus_services`、`notice` capability label，并将它们映射到
   `rag`、`navigation`、`campus_services`、`notice` lane；`requested_scope` 仍只允许
   knowledge path 使用
-- Go `execution-control` 已拥有 deterministic effective capability / lane inference：
-  当 caller 未显式传 `requested_capability` 时，常见地点、校车/班车、通知/公告/公示
-  与 knowledge-family 请求会先被归入对应 runtime lane；versioned / scoped
-  knowledge 请求仍保持 knowledge path；capability inference、runtime policy 与
-  structured handoff planner 共用 `configs/runtime/intent-policy.v1.json` 作为 signal
-  taxonomy 单一来源
+- historical deterministic effective capability / lane inference 仍以测试、
+  intent policy 与 support path 形态存在；它不能继续作为普通 chat 的 first
+  decision owner。目标态下 caller 未显式传 `requested_capability` 时，常见地点、
+  校车/班车、通知/公告/公示与 knowledge-family 请求应由 primary agent 在
+  admitted tool catalog 内选择 no-tool、notice、campus_services 或
+  `knowledge_query`，而不是由 deterministic planner 预先归入某个 runtime lane。
 - legacy execution OpenAPI schema 仍生成 TS / Go /
   Python historical bridge artifacts，但不再定义 current online RAG serving path；
   current online run command/query path 是 `app-api -> execution-control -> Temporal`
   与 PG sanitized projection
+- `apps/agent-runtime` 是 current online model-facing runtime：基于 OpenAI Agents
+  SDK 定义 primary agent、function tools、bounded `tool-catalog.v1` 与 SDK
+  result normalizer。它不拥有 durable run state、source truth、product auth、
+  Temporal command/cancel 或 panel/eval canonical projection。
 - current internal run command/query seam 采用 strict wire policy：internal seam 固定
   `snake_case`，不接受 camelCase 或未知 top-level wrapper 字段；retired bridge artifacts
   如果用于 offline/eval，也必须保持 strict decode
@@ -243,10 +264,11 @@ Execution Agent Layer 不负责：
   直接拼 notice -> rag 固定 step list。workflow trace summary 额外记录
   `answer_artifact_projection_ids` 与 `answer_artifact_kinds`，用于证明最终答复使用了哪些
   bounded artifact。不得把单 handoff trace 包装成 `multi_step`
-- `plan.route` 是 Execution Agent Layer 的 current durable planning step。它从
+- `plan.route` 是 Execution Agent Layer 的 retained deterministic support path。它从
   `execution_payload` 读取 bounded request context，输出 resolved branch steps、selected
-  capability、typed tool 与 worker role。旧 `runtime_decisions` / bridge handoff 只属于
-  historical direct serving contract，不是 current durable chat path 的规划输入。
+  capability、typed tool 与 worker role。当前主问答链路第一决策不再先进入
+  `plan.route`；旧 `runtime_decisions` / bridge handoff 只属于 historical direct
+  serving contract，不是 current durable chat path 的规划输入。
 - `apps/execution-control/internal/execution` 已有 repo-owned `WorkflowRunStore`
   接口、in-memory 实现与 PostgreSQL backend，用于约束 run id、state、step timeline
   与 handoff chain、context projections 的内部 run-state shape。生产打开 `multi_step` 必须配置
@@ -337,7 +359,10 @@ protected panel step trajectory。在线 knowledge / RAG graph 已由 Go
 `activity-worker-knowledge` 承接：`rag.plan`、`retrieval.indexed_lookup`、
 `retrieval.expand_or_rescue`、`evidence.selection`、`synthesis` 与
 `grounding.verify` 均写 sanitized step projection；`finalization.write` 由
-Go `activity-worker-finalization` 承接。
+Go `activity-worker-finalization` 承接。当前主干额外包含 `agent.primary`，由
+`activity-worker-agent` 写入 SDK selected tools、bounded tool result refs、usage
+与 SDK trace ref；`finalization.write` 从 `agent_result_ref` 生成 product-safe
+final answer projection。
 
 Python semantic bridge 只保留 offline / eval / tooling / historical reference：
 
@@ -571,15 +596,17 @@ hash 与 safety posture，不承担下游 capability / agent-as-tool prompt cont
 
 ## Agent Framework / Agents SDK Boundary
 
-agent framework 是显式 domain agent-as-tool 的内部实现 substrate，不是 repo-level
-orchestration owner。
+agent framework 是 model-facing agent loop 的实现 substrate，不是 repo-level durable
+execution owner。
 
 当前 accepted worker truth 是：online hot path 不再由 retired Python bridge 承接。
-OpenAI Agents SDK / provider-native function calling 可以作为 explicit semantic
-agent-as-tool activity 的内部实现 substrate，但不能成为 repo-level
-orchestration owner。当前代码事实是 Go `activity-worker-knowledge` 直接调用
-Responses API 做 RAG synthesis，尚未在 online path 打开 SDK-native tool loop；retired
-Python bridge 仍只可用于 offline / eval / tooling / historical reference。
+OpenAI Agents SDK 已作为 current online primary agent loop 接入
+`apps/agent-runtime`：它负责 Agent instructions、function tools、SDK run loop、
+direct/no-tool final output、selected tool summary、SDK trace ref 与 usage summary。
+Go `apps/execution-control` / Temporal 仍拥有 durable run、admission、visible
+capability allowlist、timeout/cancel、projection、finalization 与 fail-close
+semantics。retired Python bridge 仍只可用于 offline / eval / tooling /
+historical reference。
 
 SDK / provider-native tool loop 可用于承接：
 
@@ -591,8 +618,8 @@ SDK / provider-native tool loop 可用于承接：
 
 官方 Agents SDK 的当前 primitive 与 repo 边界对齐方式固定如下：
 
-- `Agent` / `Runner` / function tools 可以替代某个 admitted agent-as-tool activity
-  内部的手写 tool loop glue
+- `Agent` / `Runner` / function tools 可以替代 primary agent 或某个 admitted
+  agent-as-tool activity 内部的手写 tool loop glue
 - agents-as-tools 可以用于一个 admitted explicit agent-as-tool step 内部的
   bounded specialist call
 - SDK handoff 只作为实现 substrate；repo-level step / handoff truth 仍是 Go
@@ -625,25 +652,22 @@ SDK / provider-native tool loop 可用于承接：
   regression lifecycle
 - source-truth / projection-backed structured query service 的 data-plane truth
 
-当前 online answer path 不采用 retired Python SDK-native worker runtime。retired
-Python / Agents SDK path 只保留为 offline / eval / tooling / historical candidate：
+当前 online answer path 不采用 retired Python SDK-native worker runtime。当前 online
+等价链路必须是：
 
-`offline/eval harness -> Python SDK-backed semantic candidate -> sanitized fixture/projection`
-
-online 等价链路必须是：
-
-`Go execution-control -> Temporal activity DTO -> capability activity worker`
+`Go execution-control -> Temporal activity DTO -> activity-worker-agent -> apps/agent-runtime`
 
 `-> sanitized projection -> Go finalization`
 
-如果某个 online capability worker 选择使用 SDK / provider-native function calling，它也必须
-运行在这个 Temporal activity envelope 内：activity input 只携带 run / step /
-projection refs、ToolSpec-admitted tool subset 与 bounded payload hash；activity attempt
-记录 task queue、worker id、provider request ref、latency、token、estimated cost、
-cancel / timeout outcome。SDK run / trace 可以作为 activity-local debug input，但进入
-app-api / panel / eval 的内容必须先经过 repo-owned sanitized projection。不得把
-SDK-native agent graph、tool schema、provider trace、raw provider response、raw
-prompt 或 SDK-native state 直接写入 shared contracts。
+如果 primary agent 或某个 online capability worker 使用 SDK / provider-native
+function calling，它也必须运行在 Temporal activity envelope 内：activity input 只携带
+run / step / projection refs、repo-admitted model-visible tool subset、visible
+capability set 与 bounded payload hash；activity attempt 记录 task queue、worker id、
+provider request ref、latency、token、estimated cost、cancel / timeout outcome。
+SDK run / trace 可以作为 activity-local debug input，但进入 app-api / panel /
+eval 的内容必须先经过 repo-owned sanitized projection。不得把 SDK-native agent
+graph、tool schema、provider trace、raw provider response、raw prompt 或 SDK-native
+state 直接写入 shared contracts。
 
 Provider-native function calling 如果后续进入某个 capability，也只能由 repo-owned
 ToolSpec、Temporal activity DTO、runtime policy 与 eval denominator 先冻结，再由该
@@ -653,16 +677,22 @@ finalization。Python adapter 不能重新成为 online provider hot path。
 
 ### Agents SDK Admission Order
 
-SDK runtime 不是 repo-wide owner。若后续在 offline/eval 或某个 online capability
-activity 内使用 agent framework，按以下顺序 admission：
+SDK runtime 不是 repo-wide owner。online primary agent 与后续 capability activity
+使用 agent framework 时，按以下顺序 admission：
 
 1. Read-only structured domain capability tools：必须先有 ToolSpec / Go runtime
-   policy / eval denominator，然后由 capability worker adapter 将 admitted tool
-   subset 编译为 SDK/provider function tools。
-1. RAG-internal semantic loop：当前 online RAG 不使用 SDK loop。若后续打开
-   SDK/provider tool loop，只能在 `knowledge` activity 内消费 Go RAG step graph
-   已产生的 deterministic query slot 与 bounded evidence projection；`retrieval.query`
-   继续保持 capability-internal / closed，不能重新打开为 public serving retrieval path。
+   policy / eval denominator 或 `tool-catalog.v1` model-visible registry，然后由
+   `apps/agent-runtime` 或 capability worker adapter 将 admitted tool subset 编译为
+   SDK/provider function tools。
+1. Primary agent loop：只接收 workflow 裁剪后的 visible capability set；模型可以
+   在该集合内选择是否调用工具，也可以直接 no-tool final output，但不能看到全局工具全集。
+   knowledge-family 只暴露 `knowledge_query` workflow-signal tool；该 signal
+   选择 Go-owned RAG graph，不把 `retrieval.query` 暴露为 SDK/provider function。
+1. RAG-internal semantic loop：当前 online RAG support path 仍由 Go RAG step graph
+   承接。若后续打开 SDK/provider tool loop，只能在 `knowledge` activity 内消费
+   Go RAG step graph 已产生的 deterministic query slot 与 bounded evidence
+   projection；`retrieval.query` 继续保持 capability-internal / closed，不能重新打开为
+   public serving retrieval path。
 1. Multi-step workflow step internals：online workflow step internals 由 Temporal
    activity DTO、ToolSpec、CapabilitySpec 与 projection contract 表达。SDK 可以实现某个
    admitted step 的内部 loop，但不能由 Python bridge 生成或改写全局 workflow plan。
@@ -679,7 +709,7 @@ activity 内使用 agent framework，按以下顺序 admission：
 - SDK-native tracing export，除非有单独 redaction/exporter gate
 - 预约、提交、支付、工单等 state-changing tool
 
-引入 SDK 或其他 agent framework 作为 online agent-as-tool substrate 之前，repo-owned
+引入 SDK 或其他 agent framework 到更多 online agent-as-tool substrate 之前，repo-owned
 workflow runtime 仍需继续补齐：
 
 - resumable workflow state：Temporal 是 execution truth；PG 只保存 sanitized projection。
@@ -696,13 +726,13 @@ workflow runtime 仍需继续补齐：
 
 ## Tool And Function Calling Target
 
-长期 tool use 采用 application-owned orchestration：
+长期 tool use 采用 application-owned orchestration + SDK model-facing loop：
 
 ```text
 Go execution-control
--> ToolSpec / allowed_tools
--> domain capability tool loop
--> thin adapter
+-> visible capability set / tool-catalog.v1 / ToolSpec
+-> OpenAI Agents SDK primary agent loop or domain capability tool loop
+-> thin adapter / internal query bridge
 -> internal query service
 -> sanitized CapabilityResponse
 -> Go finalization
@@ -712,8 +742,13 @@ Go execution-control
 
 - `apps/execution-control`
   - 拥有 deterministic tool admission、capability / lane / scope / version guard、
-    opening gate、workflow plan、max-call / timeout posture、fail-close terminal
-    semantics 与 low-cardinality observability labels
+    opening gate、visible capability set、workflow plan、max-call / timeout
+    posture、fail-close terminal semantics 与 low-cardinality observability labels
+- `apps/agent-runtime`
+  - 拥有 primary agent instructions、SDK function tool loop、selected tool summary、
+    direct/no-tool final output、SDK trace ref normalization 与 usage summary
+  - 不拥有 source truth、surface admission、Temporal lifecycle、panel/eval canonical
+    projection 或 tool opening posture
 - domain capability / explicit agent-as-tool
   - 拥有 family 内部的 tool sequencing、capability clarification、provider-native
     function calling adapter、typed result consumption 与 answer shaping
@@ -727,14 +762,15 @@ Go execution-control
   - 拥有 tool selection、argument precision、no-tool correctness、fail-close
     correctness、tool result usage 与 hallucinated tool prevention 的 denominator
 
-当前 `ToolSpec` registry 位于 `configs/runtime/tools.v3.json`，是 repo-owned callable
-truth 的 canonical artifact，而不是 scattered runtime 常量。`surface` 决定它是
-capability-facing `structured_handoff`，还是只能在 agent 内部使用的
-`capability_internal` function。`function_schema` 表示该 callable 是否可以生成 strict
-provider / SDK function schema；`runtime_posture` 才表达它是
-`typed_activity_admitted`、`capability_internal_admitted`、`internal_function`、`closed`
-或其他 repo-owned admission posture。schema 可用不等于 runtime 已开放，也不等于可以进入
-Go `allowed_tools`。
+当前 model-facing SDK tool catalog 位于 `configs/runtime/tool-catalog.v1.json`。
+它只暴露 read-only、model-visible、projection-backed internal query tools，以及
+不执行数据读取的 workflow-signal tool。`knowledge_query` 是当前唯一
+workflow-signal tool，用于让 primary agent 选择进入 Go RAG graph；它不是
+retrieval backend，也不对应 execution-control raw retrieval HTTP endpoint。
+legacy Go `ToolSpec` registry 位于 `configs/runtime/tools.v3.json`，仍是
+deterministic structured planner / typed branch support path 的 callable truth。schema
+可用不等于 runtime 已开放，也不等于可以进入 model-visible SDK catalog 或 Go
+`allowed_tools`。
 
 它至少约束：
 
@@ -747,21 +783,23 @@ Go `allowed_tools`。
 - business outcome、fail-close reason 与 observability labels
 - eval denominator 与 provider function schema generation policy
 
-Provider-native function calling 只能由 ToolSpec 生成的 strict schema 驱动。agent framework
-或 provider SDK 可以承担调用循环、arguments validation ergonomics 与 trace capture，但 trace
-进入 app-api、panel、eval 或 workflow summary 前必须经过 repo-owned bounded projection。
-面向 domain capability / agent-as-tool 的 provider/SDK tool loop 只能接收
-WorkflowPlan 已选 capability 内的 ToolSpec-admitted subset；RAG 这类内部 loop 只能接收显式
-`capability_internal_admitted` 的 `capability_internal` function。
+Provider-native function calling / Agents SDK tool loop 只能由 repo-owned catalog
+生成的 strict schema 驱动。agent framework 或 provider SDK 可以承担调用循环、
+arguments validation ergonomics 与 trace capture，但 trace 进入 app-api、panel、eval
+或 workflow summary 前必须经过 repo-owned bounded projection。primary agent 只能接收
+workflow 裁剪后的 visible capability set；面向 domain capability / agent-as-tool 的
+provider/SDK tool loop 只能接收 WorkflowPlan 已选 capability 内的 admitted subset。
+RAG 这类内部 loop 只能接收显式 `capability_internal_admitted` 的
+`capability_internal` function。
 
 并行 tool / capability fanout 默认由 Go `WorkflowPlan` 显式表达，而不是交给 provider 在单轮
 function calling 中自由并发。provider-native parallel tool call 只有在 ToolSpec、
 runtime_posture、eval denominator 与 result merge policy 都明确允许时才可打开；否则
 domain capability adapter 应保持 single-call loop 或 serial loop。
 
-Python worker 只保留 offline / eval / tooling / historical substrate。若后续需要
-online SDK/tool-loop runtime，应作为 Go-owned execution-control worker plane 下的明确
-capability activity adapter 重新设计，而不是恢复 retired Python bridge fallback。
+Python worker 只保留 offline / eval / tooling / historical substrate。online
+SDK/tool-loop runtime 由 `apps/agent-runtime` 在 Go-owned Temporal activity envelope
+下承接，而不是恢复 retired Python bridge fallback。
 内部 deterministic query function，例如 selected notice resolve/context，不能因为存在
 DTO/schema 就进入 structured handoff tool loop。缺失 admission、wrong tool、非对象
 arguments、schema 不存在、SDK 运行时缺失或 query service failure 必须转成结构化
@@ -770,35 +808,43 @@ provider correlation，但 raw provider response 不进入 `CapabilityResponse`�
 trace、panel 或 eval canonical surface。
 
 Agents SDK 当前不承载 `campus_notice_get`。`campus_notice_get` 保持 notice internal
-resolve runtime seam；它不是 structured handoff tool，也不是 provider/SDK function tool。
-当前 ToolSpec-admitted structured tools 是
-`campus_notice_discover`、`service_status_lookup`、
+resolve runtime seam；它不是 structured handoff tool，也不是 model-visible SDK
+function tool。当前 model-visible read-only SDK tools 是
+`knowledge_query`、`campus_notice_discover`、`service_status_lookup`、
 `service_guide_lookup`、`transport_schedule_lookup`、
 `contact_directory_lookup`、`academic_calendar_lookup` 与
-`campus_notice_change_set_lookup`。当前 online path 由 Temporal typed activity 执行这些
-tools；SDK shell 只可承接 offline/eval 的 argument completion / tool loop 行为复核。
+`campus_notice_change_set_lookup`。当前 online primary agent path 由 SDK loop 决定是否
+调用这些 tools；除 `knowledge_query` 外，tool handler 通过 execution-control
+internal query service 读取 bounded projection/read model。`knowledge_query` 只产生
+workflow signal，随后由 `CapabilityExecutionWorkflow` 使用 agent result projection ref
+进入 Go-owned RAG graph。保留的 Temporal typed activity path 仍作为 deterministic
+branch support 机制存在。
 projection-backed structured query、Temporal policy、source truth、Go opening
 gate/admission、ToolSpec gate 与 Go finalization 由 repo-owned runtime 承担。
 SDK `FunctionTool` surface 只能由
-repo-owned ToolSpec 派生；SDK run / trace / native state 不得进入
+repo-owned catalog / ToolSpec 派生；SDK run / trace / native state 不得进入
 `packages/contracts`、panel、eval 或 `workflow_trace_summary`。缺 provider、model、
-API key 或 SDK dependency 时只能返回稳定 fail-close evidence 或 degraded
-offline/eval readiness，不得恢复旧 provider loop 或 non-SDK answer fallback。
+API key、agent runtime config 或 SDK dependency 时只能返回稳定 fail-close evidence，
+不得恢复旧 provider loop 或 non-SDK answer fallback。
 
-`knowledge` 的 Agents SDK 接入只保留为 offline/eval candidate，不属于 current online
-RAG synthesis runtime，也不属于 ToolSpec structured handoff。它的内部 function 仍必须由
+`knowledge` 的 Agents SDK 接入不属于 current online RAG synthesis runtime，也不属于
+ToolSpec structured handoff。它的内部 function 仍必须由
 ToolSpec 注册与校验，但不得进入 structured handoff allowed-tools。它固定遵循：
 
 - `retrieval.query` 保持 `capability_internal` / `closed`，不开放为 public ToolSpec、
   provider tool 或 Go preplanned structured handoff tool
+- primary agent 只可选择 `knowledge_query` workflow signal 来进入 knowledge path；
+  它不能直接提供 corpus、collection、source filter、top-k 或 raw retrieval query
 - `retrieve_evidence` 是 `capability_internal` /
   `capability_internal_admitted` 的 internal function，只返回已 admission 的 bounded
   evidence anchors；它不是用户意图级 tool，也不是 Go preplanned structured handoff tool
 - Execution Agent Layer 仍拥有 admission、capability routing、workflow plan、
-  opening gate 与 finalization；SDK 不承接 online RAG synthesis loop
+  opening gate 与 finalization；当前 SDK 只承接 primary agent loop，不承接 online
+  RAG synthesis loop
 - `packages/knowledge-capability` 只定义 SDK-neutral `RagSdkRunRequest`、
   bounded evidence projection、claim/list-item support 与 sanitized trace
-  projection；官方 SDK import 保留在 retired Python bridge
+  projection；官方 SDK import 只应出现在 `apps/agent-runtime` 或明确 admitted 的
+  activity adapter 内
 - SDK `FunctionTool` 只能读取 planner 已产生的 deterministic query slot 和 bounded evidence
   anchors；模型不能提供 corpus、collection、source filter、target document ids、version ids、
   revision track、top-k 或 serving surface
@@ -809,8 +855,8 @@ ToolSpec 注册与校验，但不得进入 structured handoff allowed-tools。�
   SDK run state 与 raw evidence dump 不得出现在 shared contracts、panel、
   workflow trace 或 eval canonical artifact
 - RAG query-enabled answer path 不再保留 `closed` / `candidate` / `shadow` /
-  `fallback_only` rollout runtime；SDK runtime unavailable 不影响 online serving
-  admission，也不得回退到旧 deterministic answer synthesis
+  `fallback_only` rollout runtime；knowledge-family SDK runtime unavailable 不应导致
+  回退到旧 deterministic answer synthesis
 
 notice-family 的目标态需要把 capability-facing tool 与内部 query function 分开。通知用户面默认
 是 source-link / card-first：`title`、official URL、source family、发布时间、短摘要或

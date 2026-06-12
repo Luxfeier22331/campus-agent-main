@@ -121,24 +121,35 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - 更新共享 fixture matrix 中的 canonical valid / invalid 样本
 - 更新 `multi-agent-runtime-contract` gate 或对应 targeted tests
 
-`plan.route` 是 current durable planning contract。它从 capability-neutral
-`execution_payload` 生成 resolved branch steps，并把 selected capability、typed tool、
-payload kind、worker role 与 branch mode 写入 sanitized projection。当前 online path 不再把
-真实 delegate payload 送入 Python bridge，也不把旧 `runtime_decisions` 作为规划输入。
-目标态还需要在 `plan.route` 之前或其中显式承载 first Execution Agent decision：
-该 decision 可以返回 direct/no-tool terminal outcome，不产生 capability handoff；
-也可以进入 capability routing / workflow planning。当前代码事实仍要求 workflow plan
-具备 executable handoff，且缺失 capability 时默认 knowledge，这是待演进缺口。
-selected notice context + knowledge follow-through 会被 resolver 编译为 typed tool
-step + knowledge step。typed tool 输出会被 `execution-control` 投影成 canonical
-`StepOutputProjection`，再以 bounded result ref 输入后续 RAG step。operator / eval
-可见的 `workflow_trace_summary.context_projections` 只包含 sanitized compatibility
-summary：
-`projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
-notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace
-至少包含两个 ordered capability steps。semantic retry/replan 与 resumable resume
-仍不是当前 public contract 承诺；它们需要由 `WorkflowPlan` policy、
-Temporal activity graph 与 sanitized projection 一起落地，不能只声明字段。
+`agent.primary` 是 current durable first-decision contract。它在
+`context.memory_recall` 之后执行，由 `activity-worker-agent` 调用
+`apps/agent-runtime`，后者使用 OpenAI Agents SDK 暴露 repo-owned
+`tool-catalog.v1` 中的 model-visible read-only tools。`agent.primary` 可以返回
+direct/no-tool terminal outcome，不产生 capability handoff；也可以选择
+`knowledge_query` workflow-signal tool 进入 Go-owned RAG Temporal graph，或选择
+campus-services / notice typed read-only tool。所有 SDK selected tools、bounded tool
+result refs、SDK trace ref、usage summary 与 terminal reason 都必须写入 sanitized
+step / attempt / result projection，再由 `app-api` operator read model、panel 与 eval
+消费。
+
+`requested_capability` 在 forward contract 中只是 explicit caller hint /
+compatibility field。普通 chat 缺失该字段时，不得由 `app-api` 或
+`execution-control` 伪造成 `knowledge`；first decision 应由 `agent.primary` 在
+surface / workflow 已裁剪的 visible tool set 内完成。当前 Go
+`execution-control` 仍有缺失 `requested_capability` 默认写成 `knowledge` 的实现残留；
+这是 implementation gap，不是 contract 目标态。
+
+`plan.route -> capability branch` 仍是 retained deterministic support path，而不是当前
+online first decision owner。`retrieval.query` 保持 knowledge capability 内部 closed
+tool；primary agent 不接收 corpus、collection、top-k 或 raw retrieval query slot。
+selected notice context + knowledge follow-through 仍可在 support path 内被 resolver
+编译为 typed tool step + knowledge step。typed tool 输出会被 `execution-control` 投影成
+canonical `StepOutputProjection`，再以 bounded result ref 输入后续 RAG step。
+operator / eval 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized compatibility
+summary：`projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与
+`safety`，不包含 notice 正文 payload。semantic retry/replan 与 resumable resume
+仍不是当前 public contract 承诺；它们需要由 `WorkflowPlan` policy、Temporal activity
+graph 与 sanitized projection 一起落地，不能只声明字段。
 
 ## 设计原则
 
@@ -422,6 +433,9 @@ payload 或 provider raw response。
   `campus_services`、`notice`。这只是 internal execution
   capability label，不等于对应 browser surface 已开放；当前公开 chat surface
   仍由 `app-api` surface capability policy 决定允许子集
+- `requested_capability` 缺失的目标态语义是“未给 explicit caller hint”，不是
+  “默认 knowledge”。普通 chat 应交给 `agent.primary` 基于 admitted tool catalog
+  选择 direct/no-tool、notice、campus_services 或 `knowledge_query`
 - `requested_scope` 可选；当前 wire truth 仍保留这个顶层字段，但它只应被解释为 knowledge-family path 的
   scope hint。如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许
   agent 自主解析最终 serving surface，而不是由 `app-api` 或 `execution-control` 伪造默认
@@ -644,7 +658,7 @@ terminal response 的跨语言语义固定如下：
 - `error`：必须携带 safe `{ code, message, retryable }`，并在
   `workflow_trace_summary.fail_close_reason` 中保留 deterministic failure class
 - `cancelled`：允许 `selected_capability=null`，表示 execution lifecycle 已终止，
-  不要求 agent handoff 已发生
+  不要求 capability handoff 已发生
 - timeout / execution-control unavailable / provider circuit open 不能伪装成
   completed answer；它们必须通过 typed `error` / HTTP status / workflow trace
   summary 保留 fail-close provenance
@@ -675,14 +689,15 @@ shared product path 已收口为：
 
 ## Forward Evolution
 
-- 当前 internal execution wire truth 仍是 `requested_capability + knowledge-only optional
-  requested_scope`
-- 后续 contract 必须新增或明确 first Execution Agent decision projection：
-  `direct_answer` / `clarification` / `reject` / `out_of_scope` /
-  `unsupported_or_not_grounded` 不应被编码成 synthetic capability，也不应被迫产生
-  executable handoff
-- 在明确引入新版本 contract 之前，`app-api` 与 `execution-control` 继续按这组字段互操作，不把
-  capability-neutral routing 误写成“当前 wire 已经 capability-family-native”
+- 当前 internal execution wire truth 仍保留 `requested_capability + knowledge-only optional
+  requested_scope` 作为 app-api -> execution-control admission hint；它不等同于 primary
+  agent 的 model-visible tool catalog，也不能作为 ordinary chat 的默认
+  semantic route。
+- first Execution Agent decision 已由 `agent.primary` 承接：
+  `answer_completed` / `clarification_required` / `out_of_scope` /
+  `unsupported_by_evidence` 不编码成 synthetic capability，也不要求 executable handoff。
+- `app-api` 与 `execution-control` 继续按现有 request fields 互操作，但 durable execution
+  projection 的 canonical first-decision truth 是 `agent.primary` step/result projection。
 - `requested_scope` 的长期语义应收窄为 knowledge-family-specific field；它不能代替 capability
   routing，也不应要求非 knowledge path 伪造等价字段
 - `selected_capability` 的语义不变：它继续序列化 current execution path 实际选中的 admitted runtime

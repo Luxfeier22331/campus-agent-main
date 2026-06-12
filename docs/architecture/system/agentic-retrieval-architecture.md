@@ -472,10 +472,11 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 - Python SDK suite 只覆盖 offline/eval/historical bridge behavior，不作为 online RAG
   serving acceptance
 - public/chat product-path E2E 必须证明
-  `execution-control -> Temporal context memory + knowledge RAG graph -> Go
-  activity-worker-context / activity-worker-knowledge /
-  activity-worker-finalization -> sanitized projection -> app-api` 返回 canonical
-  product response
+  `execution-control -> Temporal context memory -> activity-worker-agent /
+  agent-runtime primary agent -> knowledge_query workflow signal ->
+  admitted knowledge RAG graph ->
+  activity-worker-knowledge -> activity-worker-finalization -> sanitized
+  projection -> app-api` 返回 canonical product response
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker
 - SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；
