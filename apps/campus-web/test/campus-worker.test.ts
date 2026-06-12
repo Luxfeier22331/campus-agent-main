@@ -156,11 +156,33 @@ describe("campus worker boundary", () => {
 		await expect(response.text()).resolves.toContain("Rspress canonical reader");
 	});
 
+	it("serves Pagefind static search bundle assets", async () => {
+		let assetPath: string | null = null;
+		const env = createEnv();
+		env.ASSETS = {
+			fetch: (request) => {
+				assetPath = new URL(request.url).pathname;
+				return new Response("export const version = 'test';", {
+					headers: { "content-type": "text/javascript" },
+				});
+			},
+		};
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/pagefind/pagefind.js"),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		expect(assetPath).toBe("/pagefind/pagefind.js");
+		await expect(response.text()).resolves.toContain("version");
+	});
+
 	it("keeps static Rspress and vendor assets outside the worker-first route gate", () => {
 		const wranglerConfig = readTextFixture("wrangler.toml");
 
 		expect(wranglerConfig).toContain(
-			'run_worker_first = [ "/*", "!/assets/*", "!/static/*", "!/vendor/*", "!/_docs/*", "!/map-assets/*" ]',
+			'run_worker_first = [ "/*", "!/assets/*", "!/static/*", "!/vendor/*", "!/_docs/*", "!/pagefind/*", "!/map-assets/*" ]',
 		);
 		expect(wranglerConfig).not.toContain("!/_gated-docs/*");
 	});

@@ -50,6 +50,7 @@ const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/fede
 const PUBLIC_READER_ASSET_PREFIX = "/_docs/";
 const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
 const PUBLIC_MAP_ASSET_PREFIX = "/map-assets/";
+const PUBLIC_PAGEFIND_ASSET_PREFIX = "/pagefind/";
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -143,6 +144,10 @@ const worker = {
 			}
 
 			if (url.pathname.startsWith(PUBLIC_MAP_ASSET_PREFIX)) {
+				return serveStaticAsset(request, env);
+			}
+
+			if (url.pathname.startsWith(PUBLIC_PAGEFIND_ASSET_PREFIX)) {
 				return serveStaticAsset(request, env);
 			}
 

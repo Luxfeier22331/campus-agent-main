@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-21
-updated: 2026-04-27
+updated: 2026-06-12
 ---
 # App API Document Reader HTTP Contract
 
@@ -15,7 +15,8 @@ control-plane HTTP contract。
 
 - docs site 通过 same-site `/api/docs/*` 应读取哪些稳定 seam
 - 哪些能力继续属于 control-plane API，哪些正文内容不应再由 API 每次返回
-- docs search、version list、citation target、reader asset resolve 各自返回什么
+- restricted / gated docs search、version list、citation permalink、reader asset resolve
+  各自返回什么
 - chat source-card payload 应遵循什么最小 contract
 
 它不负责：
@@ -39,7 +40,7 @@ control-plane HTTP contract。
 
 - `browser -> campus-web /docs/* -> Rspress-powered reader assets`
 - `browser -> campus-web same-origin /api/docs/* -> app-api`
-- `campus-web Q&A source cards -> campus-web /docs/* canonical reader target`
+- `campus-web Q&A source cards -> campus-web /docs/* reader permalink`
 
 因此：
 
@@ -48,6 +49,8 @@ control-plane HTTP contract。
   `/api/docs/*`
 - proxy 后的 contract 必须保持与本文一致
 - public published reader 正文默认不应通过这些 API endpoint 逐次返回
+- public published docs 的页面、目录、版本元数据与搜索默认在 build/deploy 时 materialize
+  为 Rspress/static assets；只有 restricted / gated 场景需要运行时 `/api/docs/*`。
 
 `campus-web` docs delivery rule：
 
@@ -72,6 +75,9 @@ control-plane HTTP contract。
 - restricted admission 失败时直接 fail-close，不返回“伪装成不存在”的高亮内容片段
 - `docId` / `versionId` 可以存在于 API payload，供 client 关联 control-plane 状态；
   默认学生侧 reader UI 不应展示这些内部 identity 字段
+- 既有 response 中的 `canonicalUrl` 字段名暂时保留为 wire compatibility；它的语义是
+  reader permalink，不是 SEO canonical URL，也不表示公开文档站运行时必须调用
+  `app-api` 解析链接
 
 ## Endpoint Summary
 
@@ -280,9 +286,12 @@ control-plane HTTP contract。
 - 授权失败、对象不存在或 projection 不可安全判定时 fail-close
 - `campus-web` 必须在 Worker 内先调用 admission，再尝试读取 `/_gated-docs/*` 静态资产
 
-## Docs Search Contract
+## Restricted / Gated Docs Search Contract
 
 ### `GET /api/docs/collections/:corpus/:collection/search`
+
+该 endpoint 只负责需要 principal-specific visibility 裁剪的 restricted / gated docs search。
+public published docs search 默认由 campus-web build 阶段生成的 Pagefind static index 承担。
 
 查询参数：
 
@@ -314,14 +323,14 @@ control-plane HTTP contract。
 
 固定规则：
 
-- docs search 的结果目标始终是 canonical reader
+- docs search 的结果目标始终是 reader permalink
 - docs search 不返回 synthesis answer
 - docs search 不返回 operator-only compact source trace
-- docs search 只返回 jump target，不返回正文资产本身
+- docs search 只返回 reader permalink，不返回正文资产本身
 
 ## Source Card Shared Payload
 
-chat 与 docs search 共用如下最小 citation target 形态：
+chat 与 restricted / gated docs search 共用如下最小 citation target 形态：
 
 ```json
 {
@@ -340,7 +349,7 @@ chat 与 docs search 共用如下最小 citation target 形态：
 
 - source card 是 browser-safe citation target，不是 raw retrieval trace
 - assistant prose 不承载这些字段的字符串拼接版本
-- `canonicalUrl` 必须可直接落到 docs reader
+- `canonicalUrl` 是既有 wire 字段名，必须可直接落到 docs reader permalink
 - source card 自身不承载整篇 reader payload
 
 ## Forbidden Shapes

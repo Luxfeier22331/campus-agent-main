@@ -3,9 +3,30 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	type DocsVersionsResponse,
 	fetchDocsVersionControlPayload,
+	readStaticDocsVersionPayload,
 } from "../src/docs/reader/reader-version-controls";
 
 describe("campus docs reader version controls", () => {
+	it("reads static public version metadata from the reader page", () => {
+		const payload: DocsVersionsResponse = {
+			versions: [
+				{ isCurrent: true, label: "当前版本", versionSlug: "current" },
+				{ isCurrent: false, label: "2025", versionSlug: "2025" },
+			],
+		};
+		const panel = document.createElement("section");
+		panel.dataset.docsVersions = JSON.stringify(payload);
+
+		expect(readStaticDocsVersionPayload(panel)).toEqual(payload);
+	});
+
+	it("ignores invalid static public version metadata", () => {
+		const panel = document.createElement("section");
+		panel.dataset.docsVersions = JSON.stringify({ versions: [{ label: "current" }] });
+
+		expect(readStaticDocsVersionPayload(panel)).toBeNull();
+	});
+
 	it("fails closed when the versions endpoint returns invalid JSON", async () => {
 		const fetchImplementation = vi.fn(
 			async () =>

@@ -45,8 +45,8 @@ describe("campus-web published reader sync", () => {
 
 		expect(result).toMatchObject({
 			generatedGatedDocumentCount: 1,
-			generatedPublicDocumentCount: 1,
-			generatedDocumentCount: 2,
+			generatedPublicDocumentCount: 2,
+			generatedDocumentCount: 3,
 		});
 		const currentMdx = readFileSync(
 			join(docsRoot, "docs/regulations/student_rules/student-attendance.mdx"),
@@ -68,21 +68,31 @@ describe("campus-web published reader sync", () => {
 			join(docsRoot, "docs/regulations/student_rules/student-attendance/v/2026-current.mdx"),
 			"utf8",
 		);
-
+		expect(currentMdx).toContain("data-pagefind-body");
+		expect(currentMdx).toContain("docs-pagefind-page-meta");
+		expect(currentMdx).toContain('data-pagefind-meta="title:学生考勤管理规定"');
+		expect(currentMdx).toContain("data-pagefind-filter=");
+		expect(currentMdx).toContain('data-pagefind-ignore="all"');
 		expect(currentMdx).toContain('data-root-unit-id="attendance-root"');
 		expect(currentMdx).toContain('<span id="general"></span>');
 		expect(currentMdx).toContain("学生应按时参加教学活动。");
+		expect(currentMdx).toContain("data-docs-versions=");
+		expect(currentMdx).toContain("&quot;versionSlug&quot;:&quot;2025-history&quot;");
 		expect(currentMdx).not.toContain("doc_id");
 		expect(currentMdx).not.toContain("version_id");
 		expect(versionMdx).toContain('data-docs-version-slug="2026-current"');
+		expect(versionMdx).not.toContain("data-pagefind-body");
 		expect(gatedMdx).toContain("GatedReaderBootstrap");
+		expect(gatedMdx).not.toContain("data-pagefind-body");
 		expect(gatedMdx).toContain(
-			'import GatedReaderBootstrap from "../../../../src/components/docs/gated-reader-bootstrap";',
+			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
 		);
 		expect(gatedVersionMdx).toContain(
-			'import GatedReaderBootstrap from "../../../../../../src/components/docs/gated-reader-bootstrap";',
+			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
 		);
+		expect(gatedVersionMdx).not.toContain("data-pagefind-body");
 		expect(collectionIndex).toContain("学生考勤管理规定");
+		expect(collectionIndex).not.toContain("data-pagefind-body");
 		expect(collectionIndex).not.toContain("restricted-policy");
 		expect(collectionIndex).not.toContain("受限制度");
 	});
@@ -98,9 +108,9 @@ describe("campus-web published reader sync", () => {
 		});
 
 		expect(result).toMatchObject({
-			copiedDocumentCount: 2,
+			copiedDocumentCount: 3,
 			copiedGatedDocumentCount: 1,
-			copiedPublicDocumentCount: 1,
+			copiedPublicDocumentCount: 2,
 		});
 		expect(
 			readFileSync(
@@ -120,10 +130,53 @@ describe("campus-web published reader sync", () => {
 				"utf8",
 			),
 		).toContain("restricted-root");
+		const searchUnits = JSON.parse(
+			readFileSync(join(targetRoot, "pagefind/campus-docs-search-units.json"), "utf8"),
+		) as {
+			units: Array<{
+				anchor: string;
+				canonicalUrl: string;
+				documentSlug: string;
+				highlightRootUnitIds: string[];
+				title: string;
+				versionSlug: string;
+			}>;
+		};
+		expect(searchUnits.units).toEqual([
+			{
+				anchor: "general",
+				canonicalUrl: "/docs/regulations/student_rules/student-attendance",
+				collection: "student_rules",
+				corpus: "regulations",
+				docId: "doc_public",
+				documentSlug: "student-attendance",
+				documentTitle: "学生考勤管理规定",
+				highlightRootUnitIds: ["attendance-root"],
+				searchUnitId: "search_public_current_general",
+				snippet: "学生应按时参加教学活动。",
+				title: "总则",
+				versionId: "version_public",
+				versionSlug: "2026-current",
+			},
+		]);
+	});
+
+	it("fails closed when the published reader manifest omits Pagefind search units", async () => {
+		const { client, manifestPath, root } = createPublishedReaderFixture({
+			includeSearchUnits: false,
+		});
+
+		await expect(
+			syncCampusPublishedReaderAssets({
+				client,
+				manifestFilePath: manifestPath,
+				targetRoot: join(root, "public"),
+			}),
+		).rejects.toThrow("campus docs reader manifest must contain searchUnits[]");
 	});
 });
 
-function createPublishedReaderFixture(): {
+function createPublishedReaderFixture(input: { includeSearchUnits?: boolean } = {}): {
 	client: ObjectStoreClient;
 	manifestPath: string;
 	root: string;
@@ -168,10 +221,17 @@ function createPublishedReaderFixture(): {
 	const gatedMeta = JSON.stringify({ sourceLabel: "受限制度" });
 	const objects = new Map<string, string>([
 		["reader/public.json", publicReader],
+		["reader/public-history.json", publicReader],
 		["outline/public.json", publicOutline],
+		["outline/public-history.json", publicOutline],
 		["meta/public.json", publicMeta],
+		["meta/public-history.json", publicMeta],
 		[
 			"manifest/public.json",
+			buildAssetManifest({ meta: publicMeta, outline: publicOutline, reader: publicReader }),
+		],
+		[
+			"manifest/public-history.json",
 			buildAssetManifest({ meta: publicMeta, outline: publicOutline, reader: publicReader }),
 		],
 		["reader/gated.json", gatedReader],
@@ -182,6 +242,38 @@ function createPublishedReaderFixture(): {
 			buildAssetManifest({ meta: gatedMeta, outline: gatedOutline, reader: gatedReader }),
 		],
 	]);
+	const searchUnits = [
+		{
+			anchor: "general",
+			canonicalUrl: "/docs/regulations/student_rules/student-attendance#general",
+			collection: "student_rules",
+			corpus: "regulations",
+			docId: "doc_public",
+			documentSlug: "student-attendance",
+			documentTitle: "学生考勤管理规定",
+			highlightRootUnitIds: ["attendance-root"],
+			searchUnitId: "search_public_current_general",
+			snippet: "学生应按时参加教学活动。",
+			title: "总则",
+			versionId: "version_public",
+			versionSlug: "2026-current",
+		},
+		{
+			anchor: "restricted",
+			canonicalUrl: "/docs/regulations/student_rules/restricted-policy#restricted",
+			collection: "student_rules",
+			corpus: "regulations",
+			docId: "doc_gated",
+			documentSlug: "restricted-policy",
+			documentTitle: "受限制度",
+			highlightRootUnitIds: ["restricted-root"],
+			searchUnitId: "search_gated_current_restricted",
+			snippet: "这是一条受限正文。",
+			title: "受限章节",
+			versionId: "version_gated",
+			versionSlug: "2026-current",
+		},
+	];
 	const manifest = {
 		entries: [
 			{
@@ -208,6 +300,31 @@ function createPublishedReaderFixture(): {
 				versionId: "version_public",
 				versionLabel: "现行版",
 				versionSlug: "2026-current",
+			},
+			{
+				collection: "student_rules",
+				corpus: "regulations",
+				deliveryMode: "public_static_asset",
+				docId: "doc_public",
+				documentSlug: "student-attendance",
+				isCurrent: false,
+				sourceObjects: {
+					"asset-manifest": "manifest/public-history.json",
+					meta: "meta/public-history.json",
+					outline: "outline/public-history.json",
+					reader: "reader/public-history.json",
+				},
+				targetObjects: {
+					"asset-manifest":
+						"_docs/regulations/student_rules/student-attendance/2025-history/asset-manifest.json",
+					meta: "_docs/regulations/student_rules/student-attendance/2025-history/meta.json",
+					outline: "_docs/regulations/student_rules/student-attendance/2025-history/outline.json",
+					reader: "_docs/regulations/student_rules/student-attendance/2025-history/reader.json",
+				},
+				title: "学生考勤管理规定",
+				versionId: "version_public_history",
+				versionLabel: "2025 版",
+				versionSlug: "2025-history",
 			},
 			{
 				collection: "student_rules",
@@ -261,6 +378,7 @@ function createPublishedReaderFixture(): {
 				versionSlug: "2026-current",
 			},
 		],
+		...(input.includeSearchUnits === false ? {} : { searchUnits }),
 		surface: "public_docs",
 	};
 	const manifestPath = join(root, "manifest.json");

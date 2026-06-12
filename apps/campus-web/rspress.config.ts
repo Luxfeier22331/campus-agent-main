@@ -2,24 +2,30 @@ import path from "node:path";
 import { defineConfig } from "@rspress/core";
 import { buildRspressSidebarConfig } from "./scripts/rspress-sidebar";
 
-const docsRoot = path.join(__dirname, "docs");
+const docsRoot = path.resolve(
+	__dirname,
+	process.env.CAMPUS_WEB_RSPRESS_DOCS_ROOT?.trim() || "docs",
+);
 
 export default defineConfig({
+	builderConfig: {
+		source: {
+			alias: {
+				"@": path.resolve(__dirname, "src"),
+			},
+		},
+	},
 	description: "中央民族大学校园问答内的文档阅读面。",
 	globalUIComponents: [
-		path.join(__dirname, "src/components/docs/search-keyboard-guard.tsx"),
 		path.join(__dirname, "src/components/docs/mobile-sidebar-guard.tsx"),
 		path.join(__dirname, "src/components/docs/docs-content-enhancer.tsx"),
 		path.join(__dirname, "src/components/docs/reader-state-enhancer.tsx"),
+		path.join(__dirname, "src/components/docs/pagefind-search.tsx"),
 	],
 	lang: "zh",
 	logoHref: "/",
 	logoText: "中央民族大学校园问答",
 	root: docsRoot,
-	search: {
-		mode: "local",
-		searchHooks: path.join(__dirname, "src/docs/search/docs-search-hook.ts"),
-	},
 	themeConfig: {
 		darkMode: false,
 		enableContentAnimation: false,

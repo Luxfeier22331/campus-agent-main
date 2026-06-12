@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import {
 	type DocsVersionsResponse,
 	fetchDocsVersionControlPayload,
+	readStaticDocsVersionPayload,
 } from "@/docs/reader/reader-version-controls";
 import { buildVersionReaderHref, parseReaderLocationState } from "@/features/docs/reader-state";
 
@@ -39,16 +40,21 @@ async function enhanceVersionControls(): Promise<void> {
 		return;
 	}
 
+	const staticPayload = readStaticDocsVersionPayload(panel);
 	let payload: DocsVersionsResponse;
-	try {
-		payload = await fetchDocsVersionControlPayload({
-			collection: docsCollection,
-			corpus: docsCorpus,
-			documentSlug: docsDocumentSlug,
-		});
-	} catch {
-		renderVersionControlError(panel);
-		return;
+	if (staticPayload) {
+		payload = staticPayload;
+	} else {
+		try {
+			payload = await fetchDocsVersionControlPayload({
+				collection: docsCollection,
+				corpus: docsCorpus,
+				documentSlug: docsDocumentSlug,
+			});
+		} catch {
+			renderVersionControlError(panel);
+			return;
+		}
 	}
 	if (payload.versions.length <= 1) {
 		return;

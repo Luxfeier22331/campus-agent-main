@@ -2,10 +2,20 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { createS3ObjectStore } from "./published-reader-object-store.mjs";
+import { writePagefindSearchUnits } from "./published-reader-pagefind-units.mjs";
+import {
+	escapeAttribute,
+	escapeHtml,
+	escapeMarkdownLinkText,
+	formatJson,
+	writeText,
+} from "./published-reader-text.mjs";
+
+export { resolvePublishedReaderObjectStoreBucket } from "./published-reader-object-store.mjs";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_DOCS_ROOT = resolve(APP_ROOT, "docs");
+const DEFAULT_DOCS_ROOT = resolve(APP_ROOT, ".generated/docs");
 const DEFAULT_PUBLIC_ROOT = resolve(APP_ROOT, "public");
 const CORE_SOURCE_LABELS = {
 	"asset-manifest": "manifest",
@@ -22,7 +32,9 @@ const COLLECTION_ORDER = [
 ];
 
 export async function syncCampusPublishedReaderDocs(input) {
-	const docsRoot = resolve(input.docsRoot ?? DEFAULT_DOCS_ROOT);
+	const docsRoot = resolve(
+		input.docsRoot ?? process.env.CAMPUS_WEB_RSPRESS_DOCS_ROOT?.trim() ?? DEFAULT_DOCS_ROOT,
+	);
 	const manifest = await loadManifest(input);
 	const readerEntries = manifest.entries
 		.filter(
@@ -34,13 +46,14 @@ export async function syncCampusPublishedReaderDocs(input) {
 		(entry) => entry.deliveryMode === "public_static_asset",
 	);
 	const currentPublicEntries = publicEntries.filter((entry) => entry.isCurrent);
+	const publicVersionsByDocument = buildPublicVersionsByDocument(publicEntries);
 	rmSync(resolve(docsRoot, "docs"), { force: true, recursive: true });
 	writeText(resolve(docsRoot, "_meta.json"), formatJson(buildRootMeta()));
 	writeText(resolve(docsRoot, "index.md"), buildHomePage(currentPublicEntries));
 	writeBootstrapPages(docsRoot);
 	writeCollectionMetaFiles({ docsRoot, entries: currentPublicEntries });
 	for (const entry of readerEntries) {
-		await writeReaderPage({ client: input.client, docsRoot, entry });
+		await writeReaderPage({ client: input.client, docsRoot, entry, publicVersionsByDocument });
 	}
 	return {
 		generatedDocumentCount: readerEntries.length,
@@ -61,6 +74,7 @@ export async function syncCampusPublishedReaderAssets(input) {
 	let copiedAssetCount = 0;
 	rmSync(resolve(targetRoot, "_docs"), { force: true, recursive: true });
 	rmSync(resolve(targetRoot, "_gated-docs"), { force: true, recursive: true });
+	rmSync(resolve(targetRoot, "pagefind", "campus-docs-search-units.json"), { force: true });
 	for (const entry of entries) {
 		const copies = [];
 		for (const [targetLabel, targetObject] of Object.entries(entry.targetObjects)) {
@@ -86,6 +100,7 @@ export async function syncCampusPublishedReaderAssets(input) {
 			copiedAssetCount += 1;
 		}
 	}
+	writePagefindSearchUnits({ entries, manifest, targetRoot });
 	return {
 		copiedAssetCount,
 		copiedDocumentCount: entries.length,
@@ -108,7 +123,13 @@ async function writeReaderPage(input) {
 	const meta = input.entry.sourceObjects.meta
 		? JSON.parse(await input.client.readTextObject({ key: input.entry.sourceObjects.meta }))
 		: {};
-	const mdx = buildReaderMdx({ entry: input.entry, meta, reader });
+	const mdx = buildReaderMdx({
+		entry: input.entry,
+		meta,
+		reader,
+		searchable: false,
+		versions: input.publicVersionsByDocument.get(resolveDocumentVersionKey(input.entry)) ?? [],
+	});
 	const versionPath = resolve(
 		input.docsRoot,
 		"docs",
@@ -128,20 +149,18 @@ async function writeReaderPage(input) {
 				input.entry.collection,
 				`${input.entry.documentSlug}.mdx`,
 			),
-			mdx,
+			buildReaderMdx({
+				entry: input.entry,
+				meta,
+				reader,
+				searchable: true,
+				versions: input.publicVersionsByDocument.get(resolveDocumentVersionKey(input.entry)) ?? [],
+			}),
 		);
 	}
 }
 
 function writeGatedReaderPage(input) {
-	const versionMdx = buildGatedReaderMdx({
-		entry: input.entry,
-		importPath: "../../../../../../src/components/docs/gated-reader-bootstrap",
-	});
-	const currentMdx = buildGatedReaderMdx({
-		entry: input.entry,
-		importPath: "../../../../src/components/docs/gated-reader-bootstrap",
-	});
 	const versionPath = resolve(
 		input.docsRoot,
 		"docs",
@@ -151,18 +170,24 @@ function writeGatedReaderPage(input) {
 		"v",
 		`${input.entry.versionSlug}.mdx`,
 	);
+	const currentPath = resolve(
+		input.docsRoot,
+		"docs",
+		input.entry.corpus,
+		input.entry.collection,
+		`${input.entry.documentSlug}.mdx`,
+	);
+	const versionMdx = buildGatedReaderMdx({
+		entry: input.entry,
+		importPath: "@/components/docs/gated-reader-bootstrap",
+	});
+	const currentMdx = buildGatedReaderMdx({
+		entry: input.entry,
+		importPath: "@/components/docs/gated-reader-bootstrap",
+	});
 	writeText(versionPath, versionMdx);
 	if (input.entry.isCurrent) {
-		writeText(
-			resolve(
-				input.docsRoot,
-				"docs",
-				input.entry.corpus,
-				input.entry.collection,
-				`${input.entry.documentSlug}.mdx`,
-			),
-			currentMdx,
-		);
+		writeText(currentPath, currentMdx);
 	}
 }
 
@@ -194,7 +219,14 @@ async function loadManifest(input) {
 	if (!Array.isArray(parsed.entries)) {
 		throw new Error("campus docs reader manifest must contain entries[]");
 	}
-	return { entries: parsed.entries.map(normalizeEntry), generatedAt: parsed.generatedAt };
+	if (!Array.isArray(parsed.searchUnits)) {
+		throw new Error("campus docs reader manifest must contain searchUnits[]");
+	}
+	return {
+		entries: parsed.entries.map(normalizeEntry),
+		generatedAt: parsed.generatedAt,
+		searchUnits: parsed.searchUnits,
+	};
 }
 
 function normalizeEntry(value) {
@@ -233,7 +265,6 @@ function normalizeEntry(value) {
 	}
 	return entry;
 }
-
 function writeBootstrapPages(docsRoot) {
 	writeText(
 		resolve(docsRoot, "reader-bootstrap.mdx"),
@@ -245,7 +276,7 @@ function writeBootstrapPages(docsRoot) {
 			'readerMeasure: "standard"',
 			"---",
 			"",
-			'import GatedReaderBootstrap from "../src/components/docs/gated-reader-bootstrap";',
+			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
 			"",
 			"<GatedReaderBootstrap />",
 			"",
@@ -262,7 +293,7 @@ function writeBootstrapPages(docsRoot) {
 			"outline: false",
 			"---",
 			"",
-			'import GatedCollectionBootstrap from "../src/components/docs/gated-collection-bootstrap";',
+			'import GatedCollectionBootstrap from "@/components/docs/gated-collection-bootstrap";',
 			"",
 			"<GatedCollectionBootstrap />",
 			"",
@@ -282,9 +313,15 @@ function buildReaderMdx(input) {
 		'readerOutline: "document"',
 		"---",
 		"",
-		buildMetaPanel({ entry: input.entry, meta: input.meta }),
+		...(input.searchable
+			? [buildPagefindMetadata({ entry: input.entry, searchable: input.searchable, title })]
+			: []),
+		buildMetaPanel({ entry: input.entry, meta: input.meta, versions: input.versions }),
 		"",
 	];
+	if (input.searchable) {
+		lines.push('<main data-pagefind-body className="docs-pagefind-body">', "");
+	}
 	for (const section of input.reader.sections ?? []) {
 		const anchor = String(section.anchor ?? "").trim();
 		if (anchor) {
@@ -310,7 +347,24 @@ function buildReaderMdx(input) {
 			);
 		}
 	}
+	if (input.searchable) {
+		lines.push("</main>", "");
+	}
 	return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function buildPagefindMetadata(input) {
+	if (!input.searchable) {
+		return "";
+	}
+	const filters = [
+		`corpus:${input.entry.corpus}`,
+		`collection:${input.entry.collection}`,
+		`documentSlug:${input.entry.documentSlug}`,
+		`versionSlug:${input.entry.versionSlug}`,
+		`documentKind:${resolveDocumentKind(input.entry)}`,
+	].join(", ");
+	return `<span className="docs-pagefind-page-meta" data-pagefind-ignore data-pagefind-meta="title:${escapeAttribute(input.title)}" data-pagefind-filter="${escapeAttribute(filters)}"></span>`;
 }
 
 function buildMetaPanel(input) {
@@ -322,8 +376,15 @@ function buildMetaPanel(input) {
 		["版本", versionLabel],
 		["来源", sourceLabel],
 	];
+	const versionPayload = JSON.stringify({
+		versions: input.versions.map((version) => ({
+			isCurrent: version.isCurrent,
+			label: version.label,
+			versionSlug: version.versionSlug,
+		})),
+	});
 	return [
-		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}">`,
+		`<section className="document-meta-panel" aria-label="文档来源与版本" data-pagefind-ignore="all" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
 		'\t<p className="document-meta-summary">',
 		`\t\t<span>${escapeHtml(versionLabel)}</span>`,
 		`\t\t<span>来源：${escapeHtml(sourceLabel)}</span>`,
@@ -341,6 +402,29 @@ function buildMetaPanel(input) {
 		"\t</details>",
 		"</section>",
 	].join("\n");
+}
+
+function buildPublicVersionsByDocument(entries) {
+	const versionsByDocument = new Map();
+	for (const entry of entries) {
+		const key = resolveDocumentVersionKey(entry);
+		versionsByDocument.set(key, [
+			...(versionsByDocument.get(key) ?? []),
+			{
+				isCurrent: entry.isCurrent,
+				label: entry.versionLabel || "当前版",
+				versionSlug: entry.versionSlug,
+			},
+		]);
+	}
+	for (const [key, versions] of versionsByDocument) {
+		versionsByDocument.set(key, versions.sort(comparePublicVersion));
+	}
+	return versionsByDocument;
+}
+
+function resolveDocumentVersionKey(entry) {
+	return `${entry.corpus}/${entry.collection}/${entry.documentSlug}`;
 }
 
 function writeCollectionMetaFiles(input) {
@@ -557,72 +641,17 @@ function validateAssetManifest(entry, copies) {
 	}
 }
 
-function createS3ObjectStore() {
-	const endpoint = requireEnv("OBJECT_STORE_ENDPOINT");
-	const accessKeyId = requireEnv("OBJECT_STORE_ACCESS_KEY");
-	const secretAccessKey = requireEnv("OBJECT_STORE_SECRET_KEY");
-	const region = process.env.OBJECT_STORE_REGION?.trim() || "us-east-1";
-	const bucket = resolvePublishedReaderObjectStoreBucket(process.env);
-	const client = new S3Client({
-		credentials: { accessKeyId, secretAccessKey },
-		endpoint,
-		forcePathStyle: true,
-		region,
-	});
-	return {
-		async readOptionalBytesObject(input) {
-			try {
-				const response = await client.send(
-					new GetObjectCommand({ Bucket: bucket, Key: input.key }),
-				);
-				if (!response.Body) {
-					throw new Error(`empty object body: ${input.key}`);
-				}
-				return response.Body.transformToByteArray();
-			} catch (error) {
-				if (isMissingObjectError(error)) {
-					return;
-				}
-				throw error;
-			}
-		},
-		async readTextObject(input) {
-			const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: input.key }));
-			if (!response.Body) {
-				throw new Error(`empty object body: ${input.key}`);
-			}
-			return new TextDecoder().decode(await response.Body.transformToByteArray());
-		},
-	};
-}
-
-export function resolvePublishedReaderObjectStoreBucket(env) {
-	return env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-rag-derived";
-}
-
-function isMissingObjectError(error) {
-	return Boolean(
-		error &&
-			typeof error === "object" &&
-			(error.name === "NoSuchKey" ||
-				error.Code === "NoSuchKey" ||
-				error.Code === "NotFound" ||
-				error.$metadata?.httpStatusCode === 404),
-	);
-}
-
-function requireEnv(name) {
-	const value = process.env[name]?.trim();
-	if (!value) {
-		throw new Error(`${name} is required for campus docs published reader sync`);
-	}
-	return value;
-}
-
 function compareEntryRoute(left, right) {
 	return `${left.corpus}/${left.collection}/${left.documentSlug}/${left.versionSlug}`.localeCompare(
 		`${right.corpus}/${right.collection}/${right.documentSlug}/${right.versionSlug}`,
 	);
+}
+
+function comparePublicVersion(left, right) {
+	if (left.isCurrent !== right.isCurrent) {
+		return left.isCurrent ? -1 : 1;
+	}
+	return left.versionSlug.localeCompare(right.versionSlug);
 }
 
 function sortedCorpora(byScope) {
@@ -737,23 +766,6 @@ function assertSafePathSegment(value, label) {
 
 function normalizeText(value) {
 	return String(value ?? "").trim();
-}
-
-function escapeHtml(value) {
-	return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-function escapeMarkdownLinkText(value) {
-	return value.replaceAll("[", "\\[").replaceAll("]", "\\]");
-}
-
-function writeText(path, content) {
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, content, "utf8");
-}
-
-function formatJson(value) {
-	return `${JSON.stringify(value, undefined, "\t")}\n`;
 }
 
 async function main() {

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-21
-updated: 2026-06-10
+updated: 2026-06-12
 ---
 # Document Site Architecture
 
@@ -18,7 +18,7 @@ architecture。
   model 各自负责什么
 - 为什么 canonical doc 正文优先以 published reader assets / Rspress-built reader
   pages 交付，而不是每次经 API 返回整篇正文
-- chat 来源、docs search 与直接阅读为什么必须共享同一个 canonical reader target
+- chat 来源、docs search 与直接阅读为什么必须共享同一个 reader permalink
 
 它不负责：
 
@@ -40,10 +40,12 @@ campus-web Rspress docs source/build output`
 这意味着：
 
 - `campus-web` 是学生侧产品入口、账号壳、导航与 `/docs/*` browser route owner
-- Rspress 是 docs reader/render/search engine，不拥有 canonical document truth
-- `app-api` 继续拥有 docs navigation/search/resolve/version/admission truth
+- Rspress 是 docs reader/render engine；Pagefind 是 public static docs search
+  engine；二者都不拥有 canonical document truth
+- `app-api` 继续拥有 docs publish manifest、restricted/gated navigation/search/resolve/version/
+  admission truth
 - published reader assets 是正文发布产物，不是新的 truth layer
-- Q&A source card、docs search result 与直接阅读必须落到同一 canonical reader URL
+- Q&A source card、docs search result 与直接阅读必须落到同一 reader permalink
 - 旧 `apps/public-docs` 不再是 forward product surface；它只保留为 Rspress/MDX/
   anchor/highlight/search 管线的 reference implementation
 
@@ -62,7 +64,7 @@ campus-web Rspress docs source/build output`
 
 - canonical document registry
 - visibility / entitlement truth
-- docs search ranking truth
+- public static search ranking truth 或 restricted / gated docs search ranking truth
 - reader asset manifest truth
 - raw chunk、source-truth 或 provider artifact 解释
 
@@ -72,7 +74,6 @@ campus-web Rspress docs source/build output`
 
 - MDX reader rendering
 - docs-native TOC / outline / page shell
-- local search UI / search index skeleton
 - stable anchor DOM 与 `data-root-unit-id` highlight DOM
 - version switcher / reader enhancer 这类 reader interaction
 
@@ -82,6 +83,20 @@ campus-web Rspress docs source/build output`
 - Rspress frontmatter、route file 或 search index 不成为 document/version truth
 - 更换 reader engine 必须更新 ADR、contract tests 与 build gate
 
+### Pagefind Public Search Engine
+
+长期负责：
+
+- build-time public current docs static index
+- public docs search UI 与 browser-side search execution
+- public result 到 reader permalink 的回链映射
+
+固定约束：
+
+- Pagefind 只索引 anonymous public current reader pages
+- gated / restricted、bootstrap、collection index 与 historical `/v/*` 页面不得进入匿名索引
+- Pagefind sidecar 只能消费 app-api docs sync manifest 中的 public current search units
+
 ### `apps/app-api`
 
 长期负责：
@@ -90,8 +105,8 @@ campus-web Rspress docs source/build output`
 - canonical visibility / authz resolution
 - current-vs-historical version resolution
 - published reader asset resolution
-- docs search runtime APIs
-- citation/source-card target shaping
+- restricted / gated docs search runtime APIs
+- citation/source-card reader permalink shaping
 
 长期不负责：
 
@@ -115,9 +130,9 @@ document-units -> chunks -> index`
 用户态稳定定位单位固定拆成两层：
 
 - `anchor`
-  - 稳定导航位置，进入 `#anchor`
+  - 稳定导航位置，进入 URL fragment identifier：`#anchor`
 - `rootUnitId`
-  - 稳定高亮单位，进入 `?hl=rootUnitId`
+  - 稳定高亮单位，进入 highlight query parameter：`?hl=rootUnitId`
 
 固定规则：
 
@@ -131,7 +146,7 @@ document-units -> chunks -> index`
 canonical doc 正文交付长期采用：
 
 - Rspress-built reader pages / static reader assets
-- `/api/docs/*` control-plane API
+- restricted / gated `/api/docs/*` control-plane API
 
 固定拆分：
 
@@ -142,10 +157,10 @@ canonical doc 正文交付长期采用：
   - gated reader bootstrap route 与 controlled static asset package；正文读取仍必须经过
     same-origin app-api resolve/admission
 - `/api/docs/*`
-  - current version pointer
-  - version list
-  - docs search
-  - citation/source-card target resolve
+  - restricted / gated current version pointer
+  - restricted / gated version list
+  - restricted / gated docs search
+  - restricted / gated citation/source-card permalink resolve
   - restricted admission
 
 当前 campus-web implementation posture：
@@ -155,7 +170,7 @@ canonical doc 正文交付长期采用：
 - `/docs/*` 优先交付 Rspress-built reader HTML；未 materialize 的 docs route 才回到
   React docs shell 的 explicit error/empty path
 - React `DocsPage` 不再承担自研 reader/search；它只处理未命中 static reader route 时的
-  canonical resolve handoff 或明确错误
+  restricted / gated resolve handoff 或明确错误
 - `/api/docs/*` 继续经 campus-web Worker Service Binding 进入 `app-api`
 - unknown `/api/*`、operator APIs 与 generic app-api proxy 继续 fail closed
 
@@ -164,7 +179,7 @@ published reader asset package 与 deploy-time sync 的正式 contract 统一看
 
 ## Route And URL Model
 
-长期 canonical route 语义固定为：
+长期 reader permalink 语义固定为：
 
 - 当前版：
   - `/docs/:corpus/:collection/:docSlug`
@@ -181,14 +196,14 @@ published reader asset package 与 deploy-time sync 的正式 contract 统一看
 - 历史版本必须显式进入 `/v/:versionSlug`
 - `anchor` 表示稳定导航位置
 - `hl` 只表示一次跳转的高亮意图，不承担版本选择或权限表达
-- source card 与 docs search result 必须直接生成 canonical reader target
+- source card 与 docs search result 必须直接生成 reader permalink
 
 ## Source Card And Citation Jump Model
 
 chat 的来源展示长期必须采用：
 
 - browser-safe structured source cards
-- canonical reader jump target
+- reader permalink jump target
 
 而不是：
 
@@ -218,7 +233,12 @@ docs search 与 chat 继续是两条不同能力：
 
 固定约束：
 
-- docs search 结果必须直接回链 canonical reader
+- public published docs search 默认使用 Pagefind static index；需要 principal / entitlement
+  裁剪的 restricted / gated docs search 才进入 `/api/docs/*`
+- 当前已实现的 `/api/docs/*` search 仍是 public current only，不作为公开文档站热路径；
+  真正开放 restricted / gated search 前必须补 principal-aware visible search 与 entitlement
+  裁剪测试
+- docs search 结果必须直接回链 reader permalink
 - docs search 不返回 raw retrieval trace
 - docs search 不负责返回整篇正文
 - chat 不能替代 docs 站导航、目录、版本入口与系统性阅读
@@ -244,7 +264,7 @@ docs search 与 chat 继续是两条不同能力：
 - published reader asset -> MDX generator
 - `data-root-unit-id` DOM projection
 - reader state enhancer
-- docs search result -> canonical reader suggestion mapping
+- docs search result -> reader permalink suggestion mapping
 - Rspress theme ideas
 
 但 `apps/public-docs` 不再承担：

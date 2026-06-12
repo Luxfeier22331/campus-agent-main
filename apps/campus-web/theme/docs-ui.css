@@ -1,15 +1,15 @@
 :root {
-	--docs-accent: var(--sys-brand-interactive);
-	--docs-accent-strong: var(--sys-brand-interactive);
-	--docs-accent-soft: var(--sys-brand-interactive-subtle);
-	--docs-identity: var(--sys-brand-identity);
-	--docs-ink: var(--sys-text-strong);
-	--docs-muted: var(--sys-text-muted);
-	--docs-faint: var(--sys-text-subtle);
-	--docs-border: var(--sys-border-subtle);
+	--docs-accent: var(--sys-brand-interactive, #2563eb);
+	--docs-accent-strong: var(--sys-brand-interactive, #1d4ed8);
+	--docs-accent-soft: var(--sys-brand-interactive-subtle, #eaf2ff);
+	--docs-identity: var(--sys-brand-identity, #2563eb);
+	--docs-ink: var(--sys-text-strong, #172033);
+	--docs-muted: var(--sys-text-muted, #5d6678);
+	--docs-faint: var(--sys-text-subtle, #788295);
+	--docs-border: var(--sys-border-subtle, #d8dee8);
 	--docs-border-soft: color-mix(in srgb, var(--docs-border) 72%, transparent);
-	--docs-surface: var(--sys-surface-default);
-	--docs-surface-soft: var(--sys-bg-subtle);
+	--docs-surface: var(--sys-surface-default, #ffffff);
+	--docs-surface-soft: var(--sys-bg-subtle, #f6f8fb);
 	--docs-sidebar-width: 17rem;
 	--docs-reader-padding: 2rem;
 	--docs-reader-page-max-standard: 68rem;
@@ -250,11 +250,167 @@
 
 .rspress-doc .reader-block.docs-reader-highlight {
 	border-radius: 0.45rem;
-	background: color-mix(in srgb, var(--docs-identity) 10%, transparent);
-	box-shadow: 0 0 0 0.28rem color-mix(in srgb, var(--docs-identity) 10%, transparent);
+	background: color-mix(in srgb, var(--docs-identity, #2563eb) 10%, transparent);
+	box-shadow: 0 0 0 0.28rem color-mix(in srgb, var(--docs-identity, #2563eb) 10%, transparent);
 	transition:
 		background-color 0.18s ease,
 		box-shadow 0.18s ease;
+}
+
+.docs-pagefind-page-meta {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+.docs-pagefind-trigger {
+	position: fixed;
+	right: 1rem;
+	bottom: 1rem;
+	z-index: 70;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 2.75rem;
+	padding: 0 0.9rem;
+	border: 1px solid var(--docs-border);
+	border-radius: 999px;
+	background: var(--docs-surface);
+	color: var(--docs-ink);
+	box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+	cursor: pointer;
+	font: inherit;
+	font-size: 0.9rem;
+	font-weight: 680;
+}
+
+.docs-pagefind-trigger:hover {
+	border-color: color-mix(in srgb, var(--docs-accent) 28%, var(--docs-border));
+	color: var(--docs-accent-strong);
+}
+
+.docs-pagefind-trigger:focus-visible,
+.docs-pagefind-close:focus-visible,
+.docs-pagefind-result:focus-visible {
+	outline: 2px solid var(--docs-accent);
+	outline-offset: 3px;
+}
+
+.docs-pagefind-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 90;
+	display: grid;
+	place-items: start center;
+	padding: 6rem 1rem 1rem;
+}
+
+.docs-pagefind-backdrop {
+	position: fixed;
+	inset: 0;
+	border: 0;
+	background: rgba(15, 23, 42, 0.24);
+	cursor: default;
+}
+
+.docs-pagefind-panel {
+	position: relative;
+	z-index: 1;
+	width: min(42rem, 100%);
+	max-height: min(42rem, calc(100dvh - 7rem));
+	overflow: auto;
+	border: 1px solid var(--docs-border);
+	border-radius: 0.75rem;
+	background: var(--docs-surface);
+	box-shadow: 0 24px 60px rgba(16, 24, 40, 0.2);
+}
+
+.docs-pagefind-searchbox {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.65rem;
+	padding: 0.85rem 0.95rem;
+	border-bottom: 1px solid var(--docs-border-soft);
+	color: var(--docs-faint);
+}
+
+.docs-pagefind-searchbox input {
+	min-height: 2.25rem;
+	min-width: 0;
+	border: 0;
+	background: transparent;
+	color: var(--docs-ink);
+	font: inherit;
+	font-size: 1rem;
+	outline: 0;
+}
+
+.docs-pagefind-searchbox input::placeholder {
+	color: var(--docs-faint);
+}
+
+.docs-pagefind-close {
+	display: inline-grid;
+	place-items: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--docs-muted);
+	cursor: pointer;
+}
+
+.docs-pagefind-close:hover {
+	background: var(--docs-surface-soft);
+	color: var(--docs-ink);
+}
+
+.docs-pagefind-status {
+	margin: 0;
+	padding: 0.7rem 0.95rem 0.25rem;
+	color: var(--docs-muted);
+	font-size: 0.86rem;
+}
+
+.docs-pagefind-results {
+	display: grid;
+	gap: 0.35rem;
+	padding: 0.45rem 0.55rem 0.7rem;
+}
+
+.docs-pagefind-result {
+	display: grid;
+	gap: 0.28rem;
+	padding: 0.7rem 0.75rem;
+	border-radius: 0.55rem;
+	color: var(--docs-ink);
+	text-decoration: none;
+}
+
+.docs-pagefind-result:hover {
+	background: var(--docs-surface-soft);
+	color: var(--docs-ink);
+	text-decoration: none;
+}
+
+.docs-pagefind-result span {
+	font-weight: 700;
+	line-height: 1.35;
+}
+
+.docs-pagefind-result small {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+	color: var(--docs-muted);
+	font-size: 0.84rem;
+	line-height: 1.5;
 }
 
 .rspress-doc .docs-table-scroll,
@@ -442,6 +598,20 @@
 @media (max-width: 720px) {
 	:root {
 		--docs-reader-padding: 1rem;
+	}
+
+	.docs-pagefind-trigger {
+		right: 0.85rem;
+		bottom: calc(0.85rem + env(safe-area-inset-bottom));
+	}
+
+	.docs-pagefind-modal {
+		padding: 4.5rem 0.75rem 0.75rem;
+	}
+
+	.docs-pagefind-panel {
+		max-height: calc(100dvh - 5.5rem);
+		border-radius: 0.7rem;
 	}
 
 	.rspress-doc .document-meta-details dl {

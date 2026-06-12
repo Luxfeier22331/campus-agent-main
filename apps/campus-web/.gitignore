@@ -1,3 +1,7 @@
+.generated/
 doc_build/
+public/_docs/
+public/_gated-docs/
 public/docs/
+public/pagefind/
 public/static/

@@ -15,6 +15,20 @@ export interface DocsVersionControlRequest {
 
 const VERSION_ERROR_MESSAGE = "文档版本信息暂不可用。";
 
+export function readStaticDocsVersionPayload(element: HTMLElement): DocsVersionsResponse | null {
+	const raw = element.dataset.docsVersions;
+	if (!raw) {
+		return null;
+	}
+	let payload: unknown;
+	try {
+		payload = JSON.parse(raw);
+	} catch {
+		return null;
+	}
+	return isDocsVersionsResponse(payload) ? payload : null;
+}
+
 export async function fetchDocsVersionControlPayload({
 	collection,
 	corpus,

@@ -68,8 +68,8 @@ surface 名称，后续对象 key 迁移应单独冻结。
 禁止把以下内容当作 seed handoff：
 
 - `apps/campus-web/docs/docs/`、`apps/campus-web/public/_docs/`、
-  `apps/campus-web/public/_gated-docs/`、`apps/campus-web/doc_build/` 或 repo-root
-  `var/` 中的本地生成产物提交进 git。
+  `apps/campus-web/public/_gated-docs/`、`apps/campus-web/public/pagefind/`、
+  `apps/campus-web/doc_build/` 或 repo-root `var/` 中的本地生成产物提交进 git。
 - 缺少对象存储 reader assets 的单独 manifest。
 - 需要接手者重新采集源站才能得到正文的说明。
 - 从对象存储扫描推导公开文档子集的脚本或手工步骤。
@@ -115,9 +115,12 @@ uv run --all-packages python -m \
 - `curriculum/curriculum_plan`
 - `regulations/student_rules`
 - `regulations/institutional_rules`
+- `regulations/scoped_rules`
 
-`regulations/scoped_rules` 当前是院级/专项 regulation holding collection，不进入当前
-document-site read-model、docs sync manifest 或默认 RAG consumption。
+`regulations/scoped_rules` 当前仍不是默认 RAG / query-enabled surface；它只允许作为
+`gated_asset` reader document 进入 document-site read-model 与 docs sync manifest，由
+`app-api` 做 reader admission，不得因此进入匿名公开正文、默认问答 scope 或 index release
+allowlist。
 
 ### 2. 迁移并导入 app-api docs read model
 
@@ -160,6 +163,18 @@ CAMPUS_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter campus-web docs:sync:published-reader
 ```
 
+本地 `docs:sync:published-reader` 会先加载当前 worktree 的 repo-root `.env`
+以及 `apps/campus-web/.env` / `.dev.vars`。`infra/local/docker-compose.minio.yml`
+只负责启动本机 MinIO；Docker compose 里的 `${OBJECT_STORE_*:-minioadmin}` 默认值不会自动进入
+Node / pnpm build 进程。每个 worktree 需要自己具备 `.env`，至少包含：
+
+```bash
+OBJECT_STORE_ENDPOINT=http://localhost:9000
+OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived
+OBJECT_STORE_ACCESS_KEY=minioadmin
+OBJECT_STORE_SECRET_KEY=minioadmin
+```
+
 staging manifest：
 
 ```bash
@@ -182,13 +197,16 @@ pnpm --filter campus-web docs:sync:published-reader
 固定规则：
 
 - `docs:sync:published-reader` 只按 manifest 写入 generated Rspress source 与
-  `public/_docs` / `public/_gated-docs`。
-- `public_static_asset` 生成 Rspress MDX reader page。
+  `public/_docs` / `public/_gated-docs` / `public/pagefind/campus-docs-search-units.json`。
+- published reader Rspress source 固定写入 `apps/campus-web/.generated/docs`；tracked
+  `apps/campus-web/docs` 只保留 scaffold，不得承载发布生成物。
+- `public_static_asset` current version 生成带 `data-pagefind-body` 的 Rspress MDX reader
+  page，并进入 Pagefind static index；historical `/v/*` 不进入匿名搜索索引。
 - `gated_asset` 同步 gated reader static assets，并生成无正文 Rspress bootstrap
   reader page；该 page 只能通过 same-origin `/api/docs/*` resolve/admission 后读取正文，
-  不得把 gated 文档标题或 slug 放进匿名 collection index。
+  不得把 gated 文档标题或 slug 放进匿名 collection index 或 Pagefind index。
 - sync 后必须运行 `pnpm --filter campus-web docs:build`，由 Rspress 生成 `/docs/*`
-  reader output。
+  reader output，并由 Pagefind 生成 `/pagefind/*` static search bundle。
 
 ### 5. 构建并部署 campus-web
 
@@ -206,12 +224,17 @@ pnpm --filter campus-web deploy:staging
 
 `campus-web` build 会先运行 `docs:build`；该命令等价于
 `docs:build:published-reader`，必须读取 docs sync manifest 与对象存储 reader assets。
+`build:staging` 会改走 `docs:build:published-reader:staging`，由
+`scripts/run-with-staging-ingestion-env.mjs` 从 `.env.staging.local` 的
+`STAGING_INGESTION_OBJECT_STORE_*` 显式投影出 `OBJECT_STORE_*`，不得从本地 `.env`
+或 Docker MinIO 默认值补齐 staging 配置。
 `docs:build:scaffold` 只用于本地 Rspress 编译/视觉 sanity，不得作为 product 或 staging
 文档验收。
 
 随后 build 继续运行 Vite build 与 bundle budget check。
-`wrangler.toml` 必须允许 `/docs/*`、`/static/*`、`/vendor/*` 由 static assets delivery
-处理，同时 Worker 继续显式代理 `/api/docs/*`，不得开放 generic `/api/*`。
+`wrangler.toml` 必须允许 `/docs/*`、`/static/*`、`/vendor/*`、`/pagefind/*` 由 static
+assets delivery 处理，同时 Worker 继续显式代理 `/api/docs/*`，不得开放 generic
+`/api/*`。
 
 ## 验证
 
@@ -251,9 +274,13 @@ pnpm --dir apps/app-api docs:gated:smoke:staging
 - `/docs/*` 在 campus-web origin 下返回 Rspress reader 页面。
 - `/api/docs/*` 仍由 campus-web Worker 显式代理到 `app-api`。
 - unknown `/api/*`、`/api/ops/*` 继续 fail closed。
+- public docs search 消费 Pagefind static index；公开文档站 UI 不再调用
+  `/api/docs/*/search`。
+- Pagefind index 只包含 public current reader pages，不包含 gated/restricted、bootstrap、
+  collection index 或 historical `/v/*` 页面。
 - reader asset URL 不包含 `localhost`、`127.0.0.1` 或对象存储 endpoint。
-- Q&A source card、docs search result 和直接阅读都生成
-  `/docs/:corpus/:collection/:docSlug?hl=<rootUnitId>#<anchor>` 语义 URL。
+- Q&A source card、docs search result 和直接阅读都生成 reader permalink：
+  `/docs/:corpus/:collection/:docSlug?hl=<rootUnitId>#<anchor>`。
 - active deploy/smoke 不再要求部署独立 docs staging hostname。
 
 ## 回滚

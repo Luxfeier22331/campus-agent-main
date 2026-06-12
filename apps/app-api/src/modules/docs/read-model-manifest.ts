@@ -2,6 +2,7 @@ export const DOCS_READ_MODEL_MANIFEST_SCHEMA_VERSION = "document_reader_publish_
 export const DOCS_READ_MODEL_ALLOWED_SCOPES = [
 	"curriculum/curriculum_plan",
 	"regulations/institutional_rules",
+	"regulations/scoped_rules",
 	"regulations/student_rules",
 ] as const;
 
@@ -94,6 +95,21 @@ export interface PublicDocsSyncManifest {
 		versionSlug: string;
 	}>;
 	generatedAt: string;
+	searchUnits: Array<{
+		anchor: string;
+		canonicalUrl: string;
+		collection: string;
+		corpus: string;
+		docId: string;
+		documentSlug: string;
+		documentTitle: string;
+		highlightRootUnitIds: string[];
+		searchUnitId: string;
+		snippet: string;
+		title: string;
+		versionId: string;
+		versionSlug: string;
+	}>;
 	surface: "public_docs";
 }
 
@@ -147,6 +163,11 @@ export function buildPublicDocsSyncManifestFromReadModel(
 			.filter((version) => isPublicExportedVersion(version) || isGatedExportedVersion(version))
 			.map((version) => [version.versionId, version]),
 	);
+	const publicCurrentVersionsById = new Map(
+		plan.documentVersions
+			.filter((version) => version.isCurrent && isPublicExportedVersion(version))
+			.map((version) => [version.versionId, version]),
+	);
 
 	return {
 		entries: plan.readerAssets
@@ -177,8 +198,42 @@ export function buildPublicDocsSyncManifestFromReadModel(
 				`${left.docId}:${left.versionId}`.localeCompare(`${right.docId}:${right.versionId}`),
 			),
 		generatedAt,
+		searchUnits: plan.searchUnits
+			.flatMap((unit) => {
+				const version = publicCurrentVersionsById.get(unit.versionId);
+				const document = version ? documentsByDocId.get(version.docId) : null;
+				if (!(version && document)) {
+					return [];
+				}
+				return [
+					{
+						anchor: unit.anchor,
+						canonicalUrl: buildCurrentReaderCanonicalUrl(document.canonicalUrl),
+						collection: document.collection,
+						corpus: document.corpus,
+						docId: document.docId,
+						documentSlug: document.documentSlug,
+						documentTitle: document.title,
+						highlightRootUnitIds: unit.highlightRootUnitIds,
+						searchUnitId: unit.searchUnitId,
+						snippet: unit.snippet,
+						title: unit.title,
+						versionId: version.versionId,
+						versionSlug: version.versionSlug,
+					},
+				];
+			})
+			.sort((left, right) =>
+				`${left.corpus}/${left.collection}/${left.documentSlug}/${left.versionSlug}/${left.anchor}/${left.searchUnitId}`.localeCompare(
+					`${right.corpus}/${right.collection}/${right.documentSlug}/${right.versionSlug}/${right.anchor}/${right.searchUnitId}`,
+				),
+			),
 		surface: "public_docs",
 	};
+}
+
+function buildCurrentReaderCanonicalUrl(canonicalUrl: string): string {
+	return canonicalUrl.split("#", 1)[0].split("?", 1)[0].replace(/\/$/u, "");
 }
 
 function isPublicExportedVersion(version: DocsReadModelDocumentVersionInput): boolean {
