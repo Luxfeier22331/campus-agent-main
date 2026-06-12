@@ -33,7 +33,7 @@ def _synthetic_payload() -> dict[str, object]:
                     "expected_launch_state": "open",
                     "expected_next_action": "delegate",
                     "expected_scope_class": "in_scope",
-                    "expected_target": "rag-agent",
+                    "expected_target": "knowledge",
                     "expected_task_kind": "knowledge_lookup",
                     "requested_capability": "knowledge",
                     "tags": ["synthetic", "knowledge", "accepted_regression"],
@@ -56,7 +56,7 @@ def _synthetic_payload() -> dict[str, object]:
                     "expected_next_action": "delegate",
                     "expected_scope_class": "in_scope",
                     "expected_scope_reason": "structured_runtime_candidate_signal",
-                    "expected_target": "notice-agent",
+                    "expected_target": "notice",
                     "expected_task_kind": "notice_lookup",
                     "requested_capability": "knowledge",
                     "tags": ["synthetic", "notice", "exploratory_candidate"],
@@ -79,7 +79,7 @@ class IntentSyntheticTest(unittest.TestCase):
         self.assertEqual(cases[0].case_id, "synthetic-knowledge-scholarship-001")
         self.assertIn("synthetic_regression", cases[0].tags)
         self.assertIn("query_style:colloquial", cases[0].tags)
-        self.assertEqual(cases[0].expected_target, "rag-agent")
+        self.assertEqual(cases[0].expected_target, "knowledge")
 
     def test_load_intent_synthetic_exploratory_cases_reads_only_exploratory_cases(self) -> None:
         with TemporaryDirectory() as tmpdir:
@@ -136,7 +136,7 @@ class IntentSyntheticTest(unittest.TestCase):
                         "expected_launch_state": "open",
                         "expected_next_action": "delegate",
                         "expected_scope_class": "in_scope",
-                        "expected_target": "rag-agent",
+                        "expected_target": "knowledge",
                         "expected_task_kind": "knowledge_lookup",
                         "requested_capability": "knowledge",
                         "tags": ["synthetic", "knowledge"],

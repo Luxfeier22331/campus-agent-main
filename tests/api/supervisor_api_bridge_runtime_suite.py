@@ -47,8 +47,8 @@ class SupervisorApiBridgeRuntimeTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (_ for _ in ()).throw(
-                MissingAgentDelegateError("missing delegate for agent target: rag-agent")
+            capability_handler=lambda request: (_ for _ in ()).throw(
+                MissingCapabilityDelegateError("missing delegate for capability: knowledge")
             ),
         )
 
@@ -56,7 +56,7 @@ class SupervisorApiBridgeRuntimeTest(SupervisorApiBridgeBaseTest):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v6_payload(request_id="req-supervisor-error"),
+            json_body=_capability_execution_payload(request_id="req-supervisor-error"),
         )
 
         self.assertEqual(response.status_code, 500)

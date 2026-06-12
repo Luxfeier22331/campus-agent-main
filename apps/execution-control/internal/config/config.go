@@ -19,8 +19,6 @@ type Config struct {
 	WorkerSharedSecret                  string
 	DefaultActorID                      string
 	DefaultActorRoles                   []string
-	BridgeBaseURL                       string
-	BridgeSharedSecret                  string
 	BridgeResponseLimitBytes            int64
 	BridgeBreakerFailureThreshold       int
 	BridgeBreakerOpenMS                 int
@@ -69,7 +67,8 @@ type Config struct {
 	StructuredQueryTimeoutMS            int
 	StructuredProjectionDatabaseURL     string
 	PromptRuntimeProvider               string
-	SupervisorPromptModel               string
+	ProviderPricingPath                 string
+	ExecutionPromptModel                string
 	AgentPromptModel                    string
 	PromptRuntimeAPIKey                 string
 	PromptRuntimeTransport              string
@@ -83,6 +82,20 @@ type Config struct {
 	NoticeBodyObjectStoreRegion         string
 	NoticeBodyObjectStoreBucket         string
 	NoticeBodyObjectStoreBodyLimitBytes int64
+	QdrantURL                           string
+	QdrantQueryAPIKey                   string
+	QdrantWriteAPIKey                   string
+	QdrantTLSCACertPath                 string
+	QdrantTimeoutSeconds                float64
+	PersonalMemoryCollection            string
+	PersonalMemoryTopK                  int
+	PersonalMemoryMaxChars              int
+	PersonalMemoryScoreThreshold        float64
+	EmbeddingProvider                   string
+	EmbeddingBaseURL                    string
+	EmbeddingAPIKey                     string
+	EmbeddingModel                      string
+	EmbeddingDimensions                 int
 }
 
 type LaneBudget struct {
@@ -100,20 +113,11 @@ type envValues struct {
 	BearerToken                         string  `env:"API_BEARER_TOKEN"`
 	WorkerSharedSecret                  string  `env:"API_WORKER_SHARED_SECRET"`
 	DefaultActorID                      string  `env:"API_DEFAULT_ACTOR_ID"`
-	BridgeBaseURL                       string  `env:"SUPERVISOR_AGENT_WORKER_BASE_URL"`
-	BridgeSharedSecret                  string  `env:"SUPERVISOR_AGENT_WORKER_SHARED_SECRET"`
-	BridgeResponseLimitBytes            int64   `env:"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES" envDefault:"1048576"`
-	BridgeBreakerFailureThreshold       int     `env:"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD" envDefault:"5"`
-	BridgeBreakerOpenMS                 int     `env:"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS" envDefault:"10000"`
-	BridgeRetryMaxAttempts              int     `env:"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS" envDefault:"2"`
-	BridgeRetryBaseMS                   int     `env:"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS" envDefault:"50"`
 	MaxConcurrentAnswers                int     `env:"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS" envDefault:"8"`
 	QueueCapacity                       int     `env:"EXECUTION_CONTROL_QUEUE_CAPACITY" envDefault:"24"`
 	QueueTimeoutMS                      int     `env:"EXECUTION_CONTROL_QUEUE_TIMEOUT_MS" envDefault:"3000"`
 	RequestTimeoutMS                    int     `env:"EXECUTION_CONTROL_REQUEST_TIMEOUT_MS" envDefault:"45000"`
 	RequestBodyLimitBytes               int64   `env:"EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES" envDefault:"1048576"`
-	BridgeTimeoutMS                     int     `env:"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS" envDefault:"35000"`
-	BridgeCancelTimeoutMS               int     `env:"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
 	ShutdownGraceMS                     int     `env:"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS" envDefault:"45000"`
 	MetricsBearerToken                  string  `env:"EXECUTION_CONTROL_METRICS_BEARER_TOKEN"`
 	IntentPolicyPath                    string  `env:"EXECUTION_CONTROL_INTENT_POLICY_PATH"`
@@ -142,6 +146,7 @@ type envValues struct {
 	StructuredQueryTimeoutMS            int     `env:"EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
 	PromptRuntimeTransport              string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
 	PromptRuntimeBaseURL                string  `env:"PROMPT_RUNTIME_BASE_URL"`
+	ProviderPricingPath                 string  `env:"EXECUTION_CONTROL_PROVIDER_PRICING_PATH" envDefault:"../../configs/runtime/provider-pricing.v1.json"`
 	PromptStrictStructuredOutputs       string  `env:"PROMPT_STRICT_STRUCTURED_OUTPUTS" envDefault:"true"`
 	NoticeReadModelTable                string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
 	NoticeBodyObjectStoreEndpoint       string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"`
@@ -150,9 +155,27 @@ type envValues struct {
 	NoticeBodyObjectStoreRegion         string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION" envDefault:"us-east-1"`
 	NoticeBodyObjectStoreBucket         string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET"`
 	NoticeBodyObjectStoreBodyLimitBytes int64   `env:"EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
+	QdrantURL                           string  `env:"QDRANT_URL"`
+	QdrantQueryAPIKey                   string  `env:"QDRANT_QUERY_API_KEY"`
+	QdrantWriteAPIKey                   string  `env:"QDRANT_WRITE_API_KEY"`
+	QdrantTLSCACertPath                 string  `env:"QDRANT_TLS_CA_CERT_PATH"`
+	QdrantTimeoutSeconds                float64 `env:"QDRANT_TIMEOUT_SECONDS" envDefault:"10"`
+	PersonalMemoryCollection            string  `env:"PERSONAL_MEMORY_COLLECTION" envDefault:"personal_memory_v1"`
+	PersonalMemoryTopK                  int     `env:"PERSONAL_MEMORY_TOP_K" envDefault:"5"`
+	PersonalMemoryMaxChars              int     `env:"PERSONAL_MEMORY_MAX_CHARS" envDefault:"1200"`
+	PersonalMemoryScoreThreshold        float64 `env:"PERSONAL_MEMORY_SCORE_THRESHOLD" envDefault:"0"`
+	EmbeddingProvider                   string  `env:"EMBEDDING_PROVIDER"`
+	EmbeddingBaseURL                    string  `env:"EMBEDDING_BASE_URL"`
+	EmbeddingAPIKey                     string  `env:"EMBEDDING_API_KEY"`
+	EmbeddingModel                      string  `env:"EMBEDDING_MODEL"`
+	EmbeddingDimensions                 int     `env:"EMBEDDING_DIMENSIONS"`
 }
 
 func LoadFromEnv() (Config, error) {
+	return LoadFromEnvForRole("")
+}
+
+func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	values, err := parseEnvValues()
 	if err != nil {
 		return Config{}, err
@@ -209,13 +232,42 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	embeddingDimensions, err := readNonNegativeIntStrict("EMBEDDING_DIMENSIONS", values.EmbeddingDimensions)
+	if err != nil {
+		return Config{}, err
+	}
+	personalMemoryTopK, err := readPositiveIntStrict("PERSONAL_MEMORY_TOP_K", values.PersonalMemoryTopK)
+	if err != nil {
+		return Config{}, err
+	}
+	personalMemoryMaxChars, err := readPositiveIntStrict(
+		"PERSONAL_MEMORY_MAX_CHARS",
+		values.PersonalMemoryMaxChars,
+	)
+	if err != nil {
+		return Config{}, err
+	}
 	if err := rejectRetiredDurableWorkerLoopSettings(); err != nil {
 		return Config{}, err
 	}
 	if err := rejectRetiredDurableRecoveryLoopSettings(); err != nil {
 		return Config{}, err
 	}
+	if err := rejectRetiredPythonBridgeSettings(); err != nil {
+		return Config{}, err
+	}
+	if err := rejectRetiredSupervisorSettings(); err != nil {
+		return Config{}, err
+	}
 	if err := validateTemporalSettings(values, runtimeProfile); err != nil {
+		return Config{}, err
+	}
+	if err := validatePersonalMemorySettings(
+		values,
+		runtimeProfile,
+		embeddingDimensions,
+		runtimeRole,
+	); err != nil {
 		return Config{}, err
 	}
 
@@ -229,20 +281,11 @@ func LoadFromEnv() (Config, error) {
 		WorkerSharedSecret:                  strings.TrimSpace(values.WorkerSharedSecret),
 		DefaultActorID:                      strings.TrimSpace(values.DefaultActorID),
 		DefaultActorRoles:                   readStringList("API_DEFAULT_ACTOR_ROLES"),
-		BridgeBaseURL:                       strings.TrimRight(strings.TrimSpace(values.BridgeBaseURL), "/"),
-		BridgeSharedSecret:                  strings.TrimSpace(values.BridgeSharedSecret),
-		BridgeResponseLimitBytes:            values.BridgeResponseLimitBytes,
-		BridgeBreakerFailureThreshold:       values.BridgeBreakerFailureThreshold,
-		BridgeBreakerOpenMS:                 values.BridgeBreakerOpenMS,
-		BridgeRetryMaxAttempts:              values.BridgeRetryMaxAttempts,
-		BridgeRetryBaseMS:                   values.BridgeRetryBaseMS,
 		MaxConcurrentAnswers:                values.MaxConcurrentAnswers,
 		QueueCapacity:                       values.QueueCapacity,
 		QueueTimeoutMS:                      values.QueueTimeoutMS,
 		RequestTimeoutMS:                    values.RequestTimeoutMS,
 		RequestBodyLimitBytes:               values.RequestBodyLimitBytes,
-		BridgeTimeoutMS:                     values.BridgeTimeoutMS,
-		BridgeCancelTimeoutMS:               values.BridgeCancelTimeoutMS,
 		ShutdownGraceMS:                     values.ShutdownGraceMS,
 		MetricsBearerToken:                  strings.TrimSpace(values.MetricsBearerToken),
 		IntentPolicyPath:                    strings.TrimSpace(values.IntentPolicyPath),
@@ -279,7 +322,8 @@ func LoadFromEnv() (Config, error) {
 		StructuredQueryTimeoutMS:            values.StructuredQueryTimeoutMS,
 		StructuredProjectionDatabaseURL:     readStructuredProjectionDatabaseURL(),
 		PromptRuntimeProvider:               readString("PROMPT_RUNTIME_PROVIDER", ""),
-		SupervisorPromptModel:               readPromptModel("SUPERVISOR_PROMPT_MODEL"),
+		ProviderPricingPath:                 strings.TrimSpace(values.ProviderPricingPath),
+		ExecutionPromptModel:                readPromptModel("EXECUTION_PROMPT_MODEL"),
 		AgentPromptModel:                    readPromptModel("AGENT_PROMPT_MODEL"),
 		PromptRuntimeAPIKey:                 readString("PROMPT_RUNTIME_API_KEY", ""),
 		PromptRuntimeTransport:              defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
@@ -293,6 +337,20 @@ func LoadFromEnv() (Config, error) {
 		NoticeBodyObjectStoreRegion:         defaultString(strings.TrimSpace(values.NoticeBodyObjectStoreRegion), "us-east-1"),
 		NoticeBodyObjectStoreBucket:         strings.TrimSpace(values.NoticeBodyObjectStoreBucket),
 		NoticeBodyObjectStoreBodyLimitBytes: values.NoticeBodyObjectStoreBodyLimitBytes,
+		QdrantURL:                           strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
+		QdrantQueryAPIKey:                   strings.TrimSpace(values.QdrantQueryAPIKey),
+		QdrantWriteAPIKey:                   strings.TrimSpace(values.QdrantWriteAPIKey),
+		QdrantTLSCACertPath:                 strings.TrimSpace(values.QdrantTLSCACertPath),
+		QdrantTimeoutSeconds:                values.QdrantTimeoutSeconds,
+		PersonalMemoryCollection:            defaultString(strings.TrimSpace(values.PersonalMemoryCollection), "personal_memory_v1"),
+		PersonalMemoryTopK:                  personalMemoryTopK,
+		PersonalMemoryMaxChars:              personalMemoryMaxChars,
+		PersonalMemoryScoreThreshold:        values.PersonalMemoryScoreThreshold,
+		EmbeddingProvider:                   strings.TrimSpace(values.EmbeddingProvider),
+		EmbeddingBaseURL:                    strings.TrimRight(strings.TrimSpace(values.EmbeddingBaseURL), "/"),
+		EmbeddingAPIKey:                     strings.TrimSpace(values.EmbeddingAPIKey),
+		EmbeddingModel:                      strings.TrimSpace(values.EmbeddingModel),
+		EmbeddingDimensions:                 embeddingDimensions,
 	}, nil
 }
 
@@ -313,12 +371,6 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		{"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS", values.MaxConcurrentAnswers},
 		{"EXECUTION_CONTROL_QUEUE_TIMEOUT_MS", values.QueueTimeoutMS},
 		{"EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", values.RequestTimeoutMS},
-		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", values.BridgeTimeoutMS},
-		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", values.BridgeCancelTimeoutMS},
-		{"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", values.BridgeBreakerFailureThreshold},
-		{"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", values.BridgeBreakerOpenMS},
-		{"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", values.BridgeRetryMaxAttempts},
-		{"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", values.BridgeRetryBaseMS},
 		{"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", values.ShutdownGraceMS},
 		{"EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
 		{"EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS", values.OTelExportIntervalMS},
@@ -337,11 +389,11 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 	if values.RequestBodyLimitBytes <= 0 {
 		return fmt.Errorf("EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES must be a positive integer")
 	}
-	if values.BridgeResponseLimitBytes <= 0 {
-		return fmt.Errorf("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES must be a positive integer")
-	}
 	if values.NoticeBodyObjectStoreBodyLimitBytes <= 0 {
 		return fmt.Errorf("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES must be a positive integer")
+	}
+	if values.QdrantTimeoutSeconds <= 0 {
+		return fmt.Errorf("QDRANT_TIMEOUT_SECONDS must be greater than zero")
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("EXECUTION_CONTROL_OTEL_SAMPLE_RATIO must be a number between 0 and 1")
@@ -379,6 +431,73 @@ func validateTemporalSettings(values envValues, runtimeProfile string) error {
 		return fmt.Errorf("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY must be <env>:<role>:<instance>")
 	}
 	return nil
+}
+
+func validatePersonalMemorySettings(
+	values envValues,
+	runtimeProfile string,
+	embeddingDimensions int,
+	runtimeRole string,
+) error {
+	if runtimeProfile == "local" {
+		return nil
+	}
+	role := normalizeRuntimeRole(runtimeRole)
+	switch role {
+	case "workflow", "activity-finalization", "activity-campus-services", "activity-notice", "activity-navigation":
+		return nil
+	}
+	required := []struct {
+		name  string
+		value string
+	}{
+		{"QDRANT_URL", values.QdrantURL},
+		{"QDRANT_QUERY_API_KEY", values.QdrantQueryAPIKey},
+		{"QDRANT_TLS_CA_CERT_PATH", values.QdrantTLSCACertPath},
+		{"EMBEDDING_API_KEY", values.EmbeddingAPIKey},
+		{"EMBEDDING_MODEL", values.EmbeddingModel},
+	}
+	if role == "" || role == "execution-control" {
+		required = append(required, struct {
+			name  string
+			value string
+		}{"QDRANT_WRITE_API_KEY", values.QdrantWriteAPIKey})
+	}
+	for _, item := range required {
+		if strings.TrimSpace(item.value) == "" {
+			return fmt.Errorf("%s is required for deployed personal memory recall", item.name)
+		}
+	}
+	if !strings.HasPrefix(strings.TrimSpace(values.QdrantURL), "https://") {
+		return fmt.Errorf("QDRANT_URL must use https for deployed personal memory recall")
+	}
+	if embeddingDimensions <= 0 {
+		return fmt.Errorf("EMBEDDING_DIMENSIONS must be a positive integer for deployed personal memory recall")
+	}
+	return nil
+}
+
+func normalizeRuntimeRole(value string) string {
+	switch strings.TrimSpace(value) {
+	case "activity-context", "activity-worker-context", "context":
+		return "activity-context"
+	case "activity-knowledge", "activity-worker-knowledge", "knowledge":
+		return "activity-knowledge"
+	case "activity-campus-services", "activity-worker-campus-services", "campus_services":
+		return "activity-campus-services"
+	case "activity-notice", "activity-worker-notice", "notice":
+		return "activity-notice"
+	case "activity-navigation", "activity-worker-navigation", "navigation":
+		return "activity-navigation"
+	case "activity-finalization", "activity-worker-finalization", "finalization":
+		return "activity-finalization"
+	case "workflow", "workflow-worker":
+		return "workflow"
+	case "execution-control", "http", "api":
+		return "execution-control"
+	default:
+		return strings.TrimSpace(value)
+	}
 }
 
 func normalizeRuntimeProfile(value string) (string, error) {
@@ -583,6 +702,38 @@ func rejectRetiredDurableRecoveryLoopSettings() error {
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
 			return fmt.Errorf("%s is retired; use Temporal retry and timeout policies", name)
+		}
+	}
+	return nil
+}
+
+func rejectRetiredPythonBridgeSettings() error {
+	retired := []string{
+		"SUPERVISOR_AGENT_WORKER_BASE_URL",
+		"SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
+		"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES",
+		"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
+		"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS",
+		"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
+		"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS",
+		"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS",
+		"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS",
+	}
+	for _, name := range retired {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return fmt.Errorf("%s is retired; online answer execution uses Temporal RAG activities", name)
+		}
+	}
+	return nil
+}
+
+func rejectRetiredSupervisorSettings() error {
+	retired := []string{
+		"SUPERVISOR_PROMPT_MODEL",
+	}
+	for _, name := range retired {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return fmt.Errorf("%s is retired; use EXECUTION_PROMPT_MODEL", name)
 		}
 	}
 	return nil

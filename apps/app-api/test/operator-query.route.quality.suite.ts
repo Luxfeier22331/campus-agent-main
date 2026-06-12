@@ -176,7 +176,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					modelName: null,
 					principalType: null,
 					requestedCapability: null,
-					selectedTarget: null,
+					selectedCapability: null,
 					surface: null,
 					window: "24h",
 				},
@@ -401,7 +401,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					modelName: null,
 					principalType: null,
 					requestedCapability: null,
-					selectedTarget: null,
+					selectedCapability: null,
 					surface: "public_chat_web",
 					window: "24h",
 				},
@@ -504,7 +504,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					modelName: null,
 					principalType: null,
 					requestedCapability: null,
-					selectedTarget: null,
+					selectedCapability: null,
 					surface: "public_chat_web",
 					window: "24h",
 				},
@@ -543,7 +543,7 @@ export function registerOperatorQueryQualitySuite(): void {
 							},
 							openedAt: "2026-03-28T08:00:10.000Z",
 							requestId: "req_01HQ",
-							selectedTarget: "rag-agent",
+							selectedCapability: "knowledge",
 							status: "open",
 							summary: "citationExpected=true 但 citationCount=0",
 							surface: "public_chat_web",
@@ -565,7 +565,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/badcases?window=24h&surface=public_chat_web&selectedTarget=rag-agent&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
+					"https://app-api.internal/api/operator/quality/badcases?window=24h&surface=public_chat_web&selectedCapability=knowledge&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
 				),
 			);
 
@@ -589,7 +589,7 @@ export function registerOperatorQueryQualitySuite(): void {
 						},
 						openedAt: "2026-03-28T08:00:10.000Z",
 						requestId: "req_01HQ",
-						selectedTarget: "rag-agent",
+						selectedCapability: "knowledge",
 						status: "open",
 						summary: "citationExpected=true 但 citationCount=0",
 						surface: "public_chat_web",
@@ -606,7 +606,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					cursor: null,
 					detectedBy: "runtime_monitor",
 					limit: null,
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "open",
 					surface: "public_chat_web",
 					window: "24h",
@@ -651,7 +651,7 @@ export function registerOperatorQueryQualitySuite(): void {
 								traceLink: "https://sentry.example/traces/trace_01HQ",
 							},
 							requestId: "req_01HQ",
-							selectedTarget: "rag-agent",
+							selectedCapability: "knowledge",
 							summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
 							surface: "public_chat_web",
 							traceId: "trace_01HQ",
@@ -672,7 +672,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/eval-candidates?window=24h&surface=public_chat_web&selectedTarget=rag-agent&status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
+					"https://app-api.internal/api/operator/quality/eval-candidates?window=24h&surface=public_chat_web&selectedCapability=knowledge&status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
 				),
 			);
 
@@ -700,7 +700,7 @@ export function registerOperatorQueryQualitySuite(): void {
 							traceLink: "https://sentry.example/traces/trace_01HQ",
 						},
 						requestId: "req_01HQ",
-						selectedTarget: "rag-agent",
+						selectedCapability: "knowledge",
 						summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
 						surface: "public_chat_web",
 						traceId: "trace_01HQ",
@@ -716,7 +716,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					cursor: null,
 					detectedBy: "runtime_monitor",
 					limit: null,
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "open",
 					surface: "public_chat_web",
 					window: "24h",

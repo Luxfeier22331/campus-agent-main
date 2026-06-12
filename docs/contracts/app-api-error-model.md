@@ -15,7 +15,7 @@ updated: 2026-04-06
 
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
-- execution contract：`docs/contracts/app-api-supervisor-execution.md`
+- execution contract：`docs/contracts/capability-execution.md`
 
 ## Error Envelope
 
@@ -118,7 +118,7 @@ updated: 2026-04-06
 
 用于：
 
-- `supervisor_unavailable`
+- `execution_runtime_unavailable`
 
 ### `503 Service Unavailable`
 
@@ -149,7 +149,7 @@ updated: 2026-04-06
   `404 conversation_not_found`
 - 幂等键冲突
   `409 idempotency_conflict`
-- supervisor 在请求已 durable 接受后失败
+- execution-control 在请求已 durable 接受后失败
   `200 + result.kind=error`
 
 ## Domain Codes
@@ -181,7 +181,7 @@ updated: 2026-04-06
 ### Dependency / Runtime
 
 - `dependency_not_ready`
-- `supervisor_unavailable`
+- `execution_runtime_unavailable`
 - `execution_timeout`
 - `internal_error`
 

@@ -74,6 +74,7 @@ func (s *fakeTransportScheduleReadModelStore) LoadBundleForRelease(
 
 type fakeServiceStatusReadModelStore struct {
 	releaseID          string
+	currentReleaseErr  error
 	bundle             projectionBundle
 	loadCount          int
 	projectionReady    bool
@@ -86,6 +87,9 @@ func (s fakeServiceStatusReadModelStore) HealthCheck(context.Context) error {
 }
 
 func (s *fakeServiceStatusReadModelStore) CurrentReleaseID(context.Context) (string, error) {
+	if s.currentReleaseErr != nil {
+		return "", s.currentReleaseErr
+	}
 	if s.releaseID == "" {
 		return "service-status-release-1", nil
 	}
@@ -108,6 +112,35 @@ func (s *fakeServiceStatusReadModelStore) LoadBundleForRelease(
 ) (projectionBundle, error) {
 	s.loadCount++
 	return s.bundle, nil
+}
+
+type fakeCampusServicesOpsReleaseStore struct {
+	release            campusServicesOpsRelease
+	loadCount          int
+	projectionReady    bool
+	projectionReadySet bool
+	projectionReadyErr error
+}
+
+func (s fakeCampusServicesOpsReleaseStore) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (s *fakeCampusServicesOpsReleaseStore) LatestPublishedRelease(
+	context.Context,
+) (campusServicesOpsRelease, error) {
+	s.loadCount++
+	return normalizeCampusServicesOpsRelease(s.release), nil
+}
+
+func (s *fakeCampusServicesOpsReleaseStore) ProjectionReady(context.Context) (bool, error) {
+	if s.projectionReadyErr != nil {
+		return false, s.projectionReadyErr
+	}
+	if s.projectionReadySet {
+		return s.projectionReady, nil
+	}
+	return s.release.ReleaseID != "", nil
 }
 
 func mustProjectionBundle(t *testing.T, payload string) projectionBundle {

@@ -42,6 +42,8 @@ class RunWithStagingIngestionEnvScriptTest(unittest.TestCase):
             "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=",
             "STAGING_INGESTION_QDRANT_URL=",
             "STAGING_INGESTION_QDRANT_API_KEY=",
+            "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=",
+            "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=",
         ):
             self.assertIn(key, source)
 

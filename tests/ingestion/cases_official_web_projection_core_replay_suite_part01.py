@@ -318,7 +318,7 @@ class OfficialWebProjectionCoreReplayTestPart01(unittest.TestCase):
             stable_match = {
                 "consumerFamily": "stable_reference_candidate",
                 "ownerSurface": "official_web/stable_reference",
-                "ownerAgentOrRuntime": "rag-agent",
+                "ownerCapabilityOrRuntime": "knowledge",
                 "materializationPolicy": "release_gate_required",
                 "selectedWriteTarget": "official_web/stable_reference",
                 "reviewPolicy": "release_gate_required",
@@ -329,7 +329,7 @@ class OfficialWebProjectionCoreReplayTestPart01(unittest.TestCase):
             contact_match = {
                 "consumerFamily": "contact_directory_candidate",
                 "ownerSurface": "contact_directory_lookup",
-                "ownerAgentOrRuntime": "campus-services-agent",
+                "ownerCapabilityOrRuntime": "campus_services",
                 "materializationPolicy": "candidate_only",
                 "selectedWriteTarget": "campus_services/contact_directory",
                 "reviewPolicy": "selected_write_requires_review",
@@ -340,7 +340,7 @@ class OfficialWebProjectionCoreReplayTestPart01(unittest.TestCase):
             news_match = {
                 "consumerFamily": "notice_news_candidate",
                 "ownerSurface": "future_notice_runtime",
-                "ownerAgentOrRuntime": "notice-agent",
+                "ownerCapabilityOrRuntime": "notice",
                 "materializationPolicy": "inventory_only",
                 "selectedWriteTarget": "",
                 "reviewPolicy": "inventory_only",
@@ -530,7 +530,7 @@ class OfficialWebProjectionCoreReplayTestPart01(unittest.TestCase):
             contact_match = {
                 "consumerFamily": "contact_directory_candidate",
                 "ownerSurface": "contact_directory_lookup",
-                "ownerAgentOrRuntime": "campus-services-agent",
+                "ownerCapabilityOrRuntime": "campus_services",
                 "materializationPolicy": "candidate_only",
                 "selectedWriteTarget": "campus_services/contact_directory",
                 "reviewPolicy": "selected_write_requires_review",

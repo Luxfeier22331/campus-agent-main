@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,36 +9,20 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 )
 
 func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		ExecutionAuditEnabled:         true,
-		PromptRuntimeProvider:         "openai-responses",
-		SupervisorPromptModel:         "gpt-supervisor",
-		AgentPromptModel:              "gpt-agent",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.ExecutionAuditEnabled = true
 	})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	executionAuditRuntime := expectRecord(t, body["execution_audit_runtime"], "execution_audit_runtime")
@@ -49,30 +32,15 @@ func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) 
 }
 
 func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"campus_services"},
-		PromptRuntimeProvider:         "openai-responses",
-		SupervisorPromptModel:         "gpt-supervisor",
-		AgentPromptModel:              "gpt-agent",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"campus_services"}
 	})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
@@ -113,23 +81,8 @@ func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailab
 		"conflict_records":[],
 		"manual_review_sources":[]
 	}`
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"campus_services"},
-		PromptRuntimeProvider:         "openai-responses",
-		SupervisorPromptModel:         "gpt-supervisor",
-		AgentPromptModel:              "gpt-agent",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"campus_services"}
 	})
 	useStructuredQueryRuntimeFixtures(
 		t,
@@ -144,7 +97,7 @@ func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailab
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
@@ -189,23 +142,8 @@ func TestReadyzDegradesWhenOpenedCampusServicesContactDirectoryUnavailable(t *te
 			}
 		]
 	}`
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"campus_services"},
-		PromptRuntimeProvider:         "openai-responses",
-		SupervisorPromptModel:         "gpt-supervisor",
-		AgentPromptModel:              "gpt-agent",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"campus_services"}
 	})
 	bundle := decodeProjectionBundleFixture(t, projectionFixture)
 	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
@@ -225,7 +163,7 @@ func TestReadyzDegradesWhenOpenedCampusServicesContactDirectoryUnavailable(t *te
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
@@ -236,30 +174,15 @@ func TestReadyzDegradesWhenOpenedCampusServicesContactDirectoryUnavailable(t *te
 }
 
 func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		OpenCapabilities:              []string{"notice"},
-		PromptRuntimeProvider:         "openai-responses",
-		SupervisorPromptModel:         "gpt-supervisor",
-		AgentPromptModel:              "gpt-agent",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs: true,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"notice"}
 	})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
@@ -270,30 +193,15 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
 }
 
 func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                             "campus-agent",
-		MaxConcurrentAnswers:                8,
-		OpenCapabilities:                    []string{"notice"},
-		PromptRuntimeProvider:               "openai-responses",
-		SupervisorPromptModel:               "gpt-supervisor",
-		AgentPromptModel:                    "gpt-agent",
-		PromptRuntimeAPIKey:                 "test-key",
-		PromptRuntimeTransport:              "responses",
-		PromptRuntimeBaseURL:                "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs:       true,
-		NoticeReadModelDatabaseURL:          "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
-		NoticeReadModelTable:                "ingestion_projection.internal_notice_read_model",
-		NoticeBodyObjectStoreEndpoint:       "http://127.0.0.1:1",
-		NoticeBodyObjectStoreAccessKey:      "access-key",
-		NoticeBodyObjectStoreSecretKey:      "secret-object-key",
-		NoticeBodyObjectStoreBucket:         "notice-body",
-		NoticeBodyObjectStoreBodyLimitBytes: 1_048_576,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OpenCapabilities = []string{"notice"}
+		cfg.NoticeReadModelDatabaseURL = "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent"
+		cfg.NoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
+		cfg.NoticeBodyObjectStoreEndpoint = "http://127.0.0.1:1"
+		cfg.NoticeBodyObjectStoreAccessKey = "access-key"
+		cfg.NoticeBodyObjectStoreSecretKey = "secret-object-key"
+		cfg.NoticeBodyObjectStoreBucket = "notice-body"
+		cfg.NoticeBodyObjectStoreBodyLimitBytes = 1_048_576
 	})
 	defer func() {
 		_ = server.Shutdown(context.Background())
@@ -303,7 +211,7 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
@@ -327,40 +235,24 @@ func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
 }
 
 func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:                             "campus-agent",
-		MaxConcurrentAnswers:                8,
-		PromptRuntimeProvider:               "openai-responses",
-		SupervisorPromptModel:               "gpt-supervisor",
-		AgentPromptModel:                    "gpt-agent",
-		PromptRuntimeAPIKey:                 "test-key",
-		PromptRuntimeTransport:              "responses",
-		PromptRuntimeBaseURL:                "https://api.openai.com/v1",
-		PromptStrictStructuredOutputs:       true,
-		NoticeReadModelDatabaseURL:          "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
-		NoticeReadModelTable:                "ingestion_projection.internal_notice_read_model",
-		NoticeBodyObjectStoreEndpoint:       "http://127.0.0.1:1",
-		NoticeBodyObjectStoreAccessKey:      "access-key",
-		NoticeBodyObjectStoreSecretKey:      "secret-object-key",
-		NoticeBodyObjectStoreBucket:         "notice-body",
-		NoticeBodyObjectStoreBodyLimitBytes: 1_048_576,
-	}, &fakeBridge{
-		configured: true,
-		readyz: bridge.ReadyzResponse{
-			StatusCode: http.StatusOK,
-			Body:       json.RawMessage(`{"status":"ready"}`),
-		},
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.NoticeReadModelDatabaseURL = "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent"
+		cfg.NoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
+		cfg.NoticeBodyObjectStoreEndpoint = "http://127.0.0.1:1"
+		cfg.NoticeBodyObjectStoreAccessKey = "access-key"
+		cfg.NoticeBodyObjectStoreSecretKey = "secret-object-key"
+		cfg.NoticeBodyObjectStoreBucket = "notice-body"
+		cfg.NoticeBodyObjectStoreBodyLimitBytes = 1_048_576
 	})
 	defer func() {
 		_ = server.Shutdown(context.Background())
 	}()
-	markTemporalReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
@@ -382,39 +274,23 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 	defer lease.Release()
 
 	server := NewServerWithDependencies(
-		config.Config{
-			AppName:                       "campus-agent",
-			MaxConcurrentAnswers:          1,
-			QueueCapacity:                 1,
-			QueueTimeoutMS:                1_000,
-			PromptRuntimeProvider:         "openai-responses",
-			SupervisorPromptModel:         "gpt-supervisor",
-			AgentPromptModel:              "gpt-agent",
-			PromptRuntimeAPIKey:           "test-key",
-			PromptRuntimeTransport:        "responses",
-			PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-			PromptStrictStructuredOutputs: true,
-		},
-		&fakeBridge{
-			configured: true,
-			readyz: bridge.ReadyzResponse{
-				StatusCode: http.StatusOK,
-				Body: json.RawMessage(`{
-					"status":"ready"
-				}`),
-			},
-		},
+		readyServerConfigForTest(t, func(cfg *config.Config) {
+			cfg.MaxConcurrentAnswers = 1
+			cfg.QueueCapacity = 1
+			cfg.QueueTimeoutMS = 1_000
+		}),
 		controller,
 		nil,
 		nil,
 	)
 	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
 
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	transportRuntime := expectRecord(t, body["transport_runtime"], "transport_runtime")

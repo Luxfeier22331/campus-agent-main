@@ -1,11 +1,10 @@
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversationStore } from "../../chat";
 import type {
+	CapabilityExecutionResponse,
 	ExecutionControlRuntimeClient,
 	RequestedScope,
-	SupervisorExecutionResponse,
 } from "../../integration";
-import type { ProfileMemoryProjectionStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry } from "../../telemetry";
 import type { VersionQuery } from "../../version-query";
@@ -41,8 +40,8 @@ export interface ChatCommandResponse {
 		conversation: ReturnType<typeof import("../../chat").toConversationResponse>;
 		result: ChatCommandResult;
 	};
+	execution?: CapabilityExecutionResponse;
 	requestId: string;
-	supervisor?: SupervisorExecutionResponse;
 	traceId: string;
 }
 
@@ -66,7 +65,6 @@ export interface ChatCommandStreamEvent {
 		requestId: string;
 		runId?: string | null;
 		runPhase?: RuntimeRunPhase;
-		sequence?: number;
 		status: string;
 		traceId: string;
 	};
@@ -105,19 +103,17 @@ export interface ChatCommandServiceDependencies {
 	generateId?: (prefix: string) => string;
 	isExecutionRuntimeConfigured?: boolean;
 	now?: () => Date;
-	profileMemoryStore?: ProfileMemoryProjectionStore;
 	requireExecutionRuntime?: boolean;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;
 	executionRuntime?: ExecutionControlRuntimeClient;
-	supervisor?: unknown;
 	telemetry?: AppTelemetry;
 	traceBacklinkRecorder?: {
 		record(input: {
 			errorCode?: string | null;
 			requestId: string;
-			selectedTarget?: string | null;
+			selectedCapability?: string | null;
 			status?: string | null;
 			surface?: string | null;
 			traceId: string;

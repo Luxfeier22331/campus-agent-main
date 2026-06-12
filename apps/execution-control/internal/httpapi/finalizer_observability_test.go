@@ -2,9 +2,9 @@ package httpapi
 
 import "testing"
 
-func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusTraceRefs(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
+func TestBuildStructuredExecutionObservabilitySummarizesServiceStatusTraceRefs(t *testing.T) {
+	observability := buildStructuredExecutionObservability(
+		"campus_services",
 		"completed",
 		map[string]any{
 			"subject_query":        "丰台校区通勤班车在哪里上车",
@@ -32,9 +32,9 @@ func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusTraceRefs(
 	}
 }
 
-func TestBuildStructuredSupervisorObservabilityDoesNotInferSelectedToolFromResultShape(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
+func TestBuildStructuredExecutionObservabilityDoesNotInferSelectedToolFromResultShape(t *testing.T) {
+	observability := buildStructuredExecutionObservability(
+		"campus_services",
 		"completed",
 		map[string]any{
 			"subject_query": "丰台校区通勤班车在哪里上车",
@@ -51,9 +51,9 @@ func TestBuildStructuredSupervisorObservabilityDoesNotInferSelectedToolFromResul
 	}
 }
 
-func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusFailClose(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
+func TestBuildStructuredExecutionObservabilitySummarizesServiceStatusFailClose(t *testing.T) {
+	observability := buildStructuredExecutionObservability(
+		"campus_services",
 		"no_answer",
 		map[string]any{
 			"subject_query":       "图书馆今天开门吗",
@@ -81,8 +81,8 @@ func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusFailClose(
 	}
 }
 
-func TestBuildRagSupervisorObservabilitySeparatesRuntimeErrorFromEvidenceUnsupported(t *testing.T) {
-	observability := buildRagSupervisorObservability(
+func TestBuildRagExecutionObservabilitySeparatesRuntimeErrorFromEvidenceUnsupported(t *testing.T) {
+	observability := buildRagExecutionObservability(
 		"error",
 		map[string]any{
 			"evidence": map[string]any{

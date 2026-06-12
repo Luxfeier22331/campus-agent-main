@@ -110,7 +110,7 @@ execution path 的长期规则：
 
 - `apps/app-api` 提供最小 typed actor/context
 - `apps/execution-control` 只做 caller admission，不恢复最终业务 actor
-- supervisor / agent 基于 typed projection 做 planning、clarification、wording
+- Execution Agent Layer / agent 基于 typed projection 做 planning、clarification、wording
 
 ## Restricted Documents And Retrieval
 
@@ -146,7 +146,7 @@ identity / authz truth。
 - verification 成功也不会变成 principal、profile、entitlement 或 retrieval visibility
   truth
 - interactive challenge escalation 属于 product runtime / edge provider
-  posture，不下沉到 supervisor、retrieval 或 panel
+  posture，不下沉到 Execution Agent Layer、retrieval 或 panel
 - raw captcha token、provider-specific risk signal 与 challenge state 不进入
   execution path、retrieval path 或 operator read model
 
@@ -160,7 +160,8 @@ identity / authz truth。
 - `/wiki` 不是 hub internal slug
 - 不迁移 MediaWiki 用户、页面内容或上传媒体
 - 不把 MediaWiki cookie、session、user table 或 password hash 导入 `apps/app-api`
-- 不让 supervisor、agent、retrieval 或 operator panel 读取 MediaWiki identity state
+- 不让 Execution Agent Layer、agent、retrieval 或 operator panel 读取 MediaWiki
+  identity state
 - 不设置 `.muc.wiki` 共享 auth cookie；new app-set auth cookie scope 保持在 hub/app
   browser shell 的 origin 语义内，并由 app-api / Better Auth 负责 server-side truth
 
@@ -170,7 +171,7 @@ extension 进入新的 workstream；不得把本地 MediaWiki session 复用当�
 ## Forbidden Shapes
 
 - 不把 memory 提升成授权来源
-- 不把 raw JWT / raw session 洩漏给 supervisor / agent / retrieval
+- 不把 raw JWT / raw session 洩漏给 Execution Agent Layer / agent / retrieval
 - 不把 MediaWiki cookie / session / password hash 提升为 app identity truth
 - 不把 captcha token / challenge state / risk score 提升成 identity 或 authorization
   truth

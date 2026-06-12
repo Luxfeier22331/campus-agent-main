@@ -9,7 +9,7 @@ export interface OperatorSafetyAnomalyListFilters {
 	cursor?: string | null;
 	window?: string | null;
 	surface?: string | null;
-	selectedTarget?: string | null;
+	selectedCapability?: string | null;
 	severity?: string | null;
 	status?: string | null;
 	anomalyCode?: string | null;
@@ -20,7 +20,7 @@ export interface NormalizedOperatorSafetyAnomalyListFilters {
 	cursor: string | null;
 	window: OperatorOverviewWindow | null;
 	surface: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	severity: string | null;
 	status: string | null;
 	anomalyCode: string | null;
@@ -49,7 +49,7 @@ export interface OperatorSafetyAnomalyListResult {
 		traceId: string;
 		surface: string;
 		principalType: string;
-		selectedTarget: string | null;
+		selectedCapability: string | null;
 		anomalyCode: string;
 		severity: "high" | "medium";
 		status: "open";

@@ -300,7 +300,7 @@ def _post_academic_calendar_probe(
         method="POST",
         headers={
             "content-type": "application/json",
-            "x-supervisor-query-auth": secret,
+            "x-execution-query-auth": secret,
         },
     )
     try:

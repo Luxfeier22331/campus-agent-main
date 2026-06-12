@@ -24,7 +24,7 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 
         self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
 
-    def test_rejects_internal_function_posture_even_when_agent_internal(self) -> None:
+    def test_rejects_internal_function_posture_even_when_capability_internal(self) -> None:
         with self.assertRaisesRegex(
             AgentsSdkToolBridgeError,
             "runtime_posture_not_admitted",
@@ -62,16 +62,16 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            [(descriptor.name, descriptor.owner_agent) for descriptor in descriptors],
+            [(descriptor.name, descriptor.owner_capability) for descriptor in descriptors],
             [
-                ("service_status_lookup", "campus-services-agent"),
-                ("service_guide_lookup", "campus-services-agent"),
-                ("transport_schedule_lookup", "campus-services-agent"),
-                ("contact_directory_lookup", "campus-services-agent"),
+                ("service_status_lookup", "campus_services"),
+                ("service_guide_lookup", "campus_services"),
+                ("transport_schedule_lookup", "campus_services"),
+                ("contact_directory_lookup", "campus_services"),
             ],
         )
         for descriptor in descriptors:
-            self.assertEqual(descriptor.runtime_posture, "sdk_adapter_admitted")
+            self.assertEqual(descriptor.runtime_posture, "typed_activity_admitted")
             self.assertTrue(descriptor.read_only)
             self.assertTrue(descriptor.function_schema_strict)
 
@@ -90,7 +90,7 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 
         self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
 
-    def test_rejects_agent_internal_tool_surface(self) -> None:
+    def test_rejects_capability_internal_tool_surface(self) -> None:
         with self.assertRaisesRegex(
             AgentsSdkToolBridgeError,
             "runtime_posture_not_admitted",
@@ -104,12 +104,12 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 
         self.assertEqual(len(descriptors), 1)
         self.assertEqual(descriptors[0].name, "retrieve_evidence")
-        self.assertEqual(descriptors[0].owner_agent, "rag-agent")
-        self.assertEqual(descriptors[0].runtime_posture, "sdk_internal_admitted")
+        self.assertEqual(descriptors[0].owner_capability, "knowledge")
+        self.assertEqual(descriptors[0].runtime_posture, "capability_internal_admitted")
         self.assertTrue(descriptors[0].read_only)
         self.assertTrue(descriptors[0].function_schema_strict)
 
-    def test_admits_sdk_adapter_admitted_domain_agent_tools(self) -> None:
+    def test_admits_typed_activity_admitted_domain_capability_tools(self) -> None:
         descriptors = build_agents_sdk_tool_descriptors(
             (
                 "campus_notice_discover",
@@ -120,16 +120,16 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            [(descriptor.name, descriptor.owner_agent) for descriptor in descriptors],
+            [(descriptor.name, descriptor.owner_capability) for descriptor in descriptors],
             [
-                ("campus_notice_discover", "notice-agent"),
-                ("service_guide_lookup", "campus-services-agent"),
-                ("contact_directory_lookup", "campus-services-agent"),
-                ("academic_calendar_lookup", "campus-services-agent"),
+                ("campus_notice_discover", "notice"),
+                ("service_guide_lookup", "campus_services"),
+                ("contact_directory_lookup", "campus_services"),
+                ("academic_calendar_lookup", "campus_services"),
             ],
         )
         for descriptor in descriptors:
-            self.assertEqual(descriptor.runtime_posture, "sdk_adapter_admitted")
+            self.assertEqual(descriptor.runtime_posture, "typed_activity_admitted")
             self.assertTrue(descriptor.read_only)
             self.assertTrue(descriptor.function_schema_strict)
 
@@ -168,7 +168,7 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 def _sdk_candidate_tool_registry(
     tool_name: str,
     *,
-    runtime_posture: str = "sdk_adapter_admitted",
+    runtime_posture: str = "typed_activity_admitted",
 ):
     registry = default_tool_spec_registry()
     return replace(

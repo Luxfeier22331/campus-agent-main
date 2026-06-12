@@ -44,6 +44,7 @@ updated: 2026-05-01
 
 `apps/app-api` 当前运行时直接消费的逻辑分域：
 
+- `campus_services_ops.*`
 - `app_auth.*`
 - `chat.*`
 - `runtime.*`
@@ -60,6 +61,9 @@ updated: 2026-05-01
 
 补充说明：
 
+- `campus_services_ops.*` 是 `campus_services` 人工校对、override draft、release
+  snapshot 与 audit event 的 app-api owned ops schema；它不保存 raw notice/chat evidence，也不
+  替代 execution-control typed runtime read model。
 - `official_web` control-plane 引入的额外逻辑分域单独冻结在
   `docs/data/app-api-official-web-schema.md`
 - 本文继续只覆盖当前 browser-facing app surfaces、request projection 基线与 app-api
@@ -78,6 +82,7 @@ updated: 2026-05-01
 `apps/app-api` 的数据库代码组织固定为：
 
 - `app_auth.*`
+- `campus_services_ops.*`
 - `chat.*`
 - `runtime.*`
 - `operator.*`
@@ -87,6 +92,9 @@ updated: 2026-05-01
 
 `official_web` control-plane 落地时，可以在保持同一 migration pipeline 的前提下新增
 `official_web.*`；具体规则另见 `docs/data/app-api-official-web-schema.md`。
+
+`campus_services_ops.*` 的表级 shape 另见
+`docs/data/campus-services-ops-source-truth-schema.md`。
 
 它们共享：
 
@@ -535,7 +543,7 @@ identity product schemas when materialized.
 - `requested_scope_json` nullable
 - `version_query_json` nullable
 - `resolved_scope_json` nullable
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `error_code` nullable
 - `question_preview`
@@ -586,7 +594,7 @@ identity product schemas when materialized.
   current
 - `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 agent
   自主解析 surface，这里必须落最终解析结果
-- `selected_target` 表示 finalized execution 实际选择的 current runtime target；它不承载
+- `selected_capability` 表示 finalized execution 实际选择的 capability id；它不承载
   forward family vocabulary，也不应被重载为 operator-facing display label
 - `run_id` 是 durable agent runtime 的 answer execution backlink；cutover 前旧同步执行
   路径可以为空，durable chat 主路径必须在第一次 command-side commit 后显式绑定真实
@@ -595,7 +603,7 @@ identity product schemas when materialized.
   object、rewritten query、clarification/no-answer reason 与 retrieved title
   summary；不要写 raw evidence snippet、score 或 backend payload
 - `rejected` 覆盖两类显式 fail-close：
-  - supervisor policy reject
+  - execution policy reject
   - app-api precheck reject，例如 future `Phase I` throttle 命中后的
     `error_code=rate_limit_exceeded`
 - 因此 `rate_limit_exceeded` 不新增新的 request status；它固定表现为 `status=rejected`
@@ -672,7 +680,7 @@ identity product schemas when materialized.
 - `version_query_summary` nullable
 - `resolved_scope_summary` nullable
 - `collection` nullable
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `error_code` nullable
 - `started_at`
@@ -717,7 +725,7 @@ identity product schemas when materialized.
 - `(started_at desc)`
 - `(status, started_at desc)`
 - `(surface, started_at desc)`
-- `(selected_target, started_at desc)`
+- `(selected_capability, started_at desc)`
 - `(principal_type, started_at desc)`
 - `(model_name, started_at desc)`
 - `(collection, started_at desc)`
@@ -729,7 +737,7 @@ identity product schemas when materialized.
 - `accepted` 阶段的 `resolved_scope_summary` 与 `collection` 必须保持 `null`
 - `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection
   回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
-- `selected_target` 继续只保存 current runtime target，供 operator projection /
+- `selected_capability` 继续只保存 raw capability id，供 operator projection /
   aggregate 过滤；future family grouping 如有需要，应走显式新字段或 projection
 - `version_query_mode` / `version_query_summary` 只保存 operator-safe 版本查询摘要，不回放
   raw caller payload
@@ -777,7 +785,7 @@ identity product schemas when materialized.
 - `requested_scope_json` nullable
 - `version_query_json` nullable
 - `resolved_scope_json` nullable
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `error_code` nullable
 - `question_preview`
@@ -828,7 +836,7 @@ identity product schemas when materialized.
 - `entitlement_snapshot_id` nullable
 - `policy_projection_version` nullable
 - `requested_capability` nullable
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `terminal_code` nullable
 - `summary`
@@ -1085,7 +1093,7 @@ identity product schemas when materialized.
 - `bucket_start`
 - `bucket_end`
 - `surface`
-- `selected_target` nullable
+- `selected_capability` nullable
 - `requested_capability` nullable
 - `principal_type`
 - `collection` nullable
@@ -1098,7 +1106,7 @@ identity product schemas when materialized.
 - `(domain, granularity, bucket_start)`
 - `(request_id, granularity, bucket_start)`
 - `(domain, surface, bucket_start)`
-- `(domain, selected_target, bucket_start)`
+- `(domain, selected_capability, bucket_start)`
 
 规则：
 
@@ -1127,7 +1135,7 @@ identity product schemas when materialized.
 - `request_id`
 - `trace_id`
 - `surface`
-- `selected_target` nullable
+- `selected_capability` nullable
 - `status`
 - `cause_class`
 - `detected_by`
@@ -1176,7 +1184,7 @@ identity product schemas when materialized.
 - `trace_id`
 - `surface`
 - `request_started_at`
-- `selected_target` nullable
+- `selected_capability` nullable
 - `requested_capability` nullable
 - `principal_type`
 - `collection` nullable

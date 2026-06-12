@@ -97,7 +97,12 @@ func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Respo
 	if err != nil {
 		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, "temporal_scope_ambiguous")
 	}
-	matchResult := matchServiceStatusRecord(bundle.ServiceStatusRecords, request, queryTime)
+	matchResult := matchServiceStatusRecord(
+		bundle.ServiceStatusRecords,
+		request,
+		queryTime,
+		bundle.ServiceStatusSourceIncomplete,
+	)
 	if matchResult.err != nil {
 		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, matchResult.err.Error())
 	}
@@ -156,6 +161,7 @@ func matchServiceStatusRecord(
 	records []serviceStatusRecord,
 	request serviceStatusRequest,
 	queryTime time.Time,
+	sourceIncomplete bool,
 ) serviceStatusMatchResult {
 	query := normalizeSearchText(request.SubjectQuery)
 	campusScope := normalizeSearchText(request.CampusScope)
@@ -186,6 +192,9 @@ func matchServiceStatusRecord(
 	if len(matches) == 0 {
 		if everMatched {
 			return serviceStatusMatchResult{err: errors.New("current_state_unverifiable")}
+		}
+		if sourceIncomplete {
+			return serviceStatusMatchResult{err: errors.New("source_truth_unavailable")}
 		}
 		return serviceStatusMatchResult{ok: false}
 	}

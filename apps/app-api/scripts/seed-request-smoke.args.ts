@@ -1,4 +1,4 @@
-import type { RequestedScope, SupervisorExecutionResponse } from "../src/modules/integration";
+import type { CapabilityExecutionResponse, RequestedScope } from "../src/modules/integration";
 
 export const DEFAULT_SMOKE_EMAIL = "help_bot@outlook.com";
 export const DEFAULT_SMOKE_NAME = "Campus Agent Smoke";
@@ -13,8 +13,8 @@ export interface RequestSmokeSeedScenario {
 	key: string;
 	prompt: string;
 	requestedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
-	status: SupervisorExecutionResponse["status"];
+	response: CapabilityExecutionResponse;
+	status: CapabilityExecutionResponse["status"];
 }
 
 function normalizeOptionalValue(value: string | undefined): string | null {

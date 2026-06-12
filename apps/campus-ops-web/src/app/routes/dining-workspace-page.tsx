@@ -1,7 +1,10 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { type FieldErrors, useFieldArray, useForm } from "react-hook-form";
+import { z } from "zod";
 
 import {
 	type DiningSvgAnchor,
@@ -24,6 +27,29 @@ import type {
 	DiningOpsFloorResponse,
 	DiningWindow,
 } from "../../features/dining/model";
+
+const windowEditorSchema = z.object({
+	locationLabel: z.string().trim().min(1, "餐饮点位置不能为空。"),
+	offerings: z.array(
+		z.object({
+			key: z.string(),
+			menuItemId: z.string().nullable(),
+			name: z.string().trim().min(1, "菜品名称和价格不能为空。"),
+			offeringId: z.string().nullable(),
+			priceLabel: z.string().trim().min(1, "菜品名称和价格不能为空。"),
+			saleStatus: z.enum(["available", "paused", "seasonal", "removed"]),
+			specLabel: z.string(),
+			tags: z.array(z.string()),
+		}),
+	),
+	stallName: z.string().trim().min(1, "对外名称不能为空。"),
+	stallType: z.string().trim().min(1, "餐饮类型不能为空。"),
+	windowLabel: z.string().trim().min(1, "餐饮点名称不能为空。"),
+	windowStatus: z.enum(["active", "closed", "maintenance"]),
+});
+
+type WindowEditorValues = z.infer<typeof windowEditorSchema>;
+type OfferingDraft = WindowEditorValues["offerings"][number];
 
 export function DiningWorkspacePage() {
 	const params = useParams({ strict: false }) as Partial<{ floorId: string; hallId: string }>;
@@ -163,50 +189,34 @@ function WindowEditor(input: {
 }) {
 	const queryClient = useQueryClient();
 	const [anchorBindingWindowId, setAnchorBindingWindowId] = useState("");
-	const current = useMemo(() => {
-		if (!(input.floor && input.selectedWindow)) {
-			return null;
-		}
-		const assignment = input.floor.assignments.find(
-			(item) => item.windowId === input.selectedWindow?.windowId,
-		);
-		const stall = assignment
-			? input.floor.stallProfiles.find((item) => item.stallProfileId === assignment.stallProfileId)
-			: null;
-		const offerings = assignment
-			? input.floor.menuOfferings
-					.filter((item) => item.assignmentId === assignment.assignmentId)
-					.map((offering) => ({
-						menu:
-							input.floor?.menuItems.find((item) => item.menuItemId === offering.menuItemId) ??
-							null,
-						offering,
-					}))
-			: [];
-		return { assignment, offerings, stall };
-	}, [input.floor, input.selectedWindow]);
-	const [windowLabel, setWindowLabel] = useState("");
-	const [locationLabel, setLocationLabel] = useState("");
-	const [windowStatus, setWindowStatus] = useState<DiningWindow["status"]>("active");
-	const [stallName, setStallName] = useState("");
-	const [stallType, setStallType] = useState("food_window");
-	const [offeringDrafts, setOfferingDrafts] = useState<OfferingDraft[]>([]);
-	const [draftValidationError, setDraftValidationError] = useState<string | null>(null);
+	const current = useMemo(
+		() => resolveCurrentWindowState(input.floor, input.selectedWindow),
+		[input.floor, input.selectedWindow],
+	);
 	const defaultAnchorBindingWindowId =
 		input.floor?.windows.find((window) => !window.svgAnchorId)?.windowId ?? "";
+	const form = useForm<WindowEditorValues>({
+		defaultValues: buildWindowEditorValues(input.selectedWindow, current),
+		resolver: zodResolver(windowEditorSchema),
+	});
+	const {
+		control,
+		formState: { errors },
+		handleSubmit,
+		register,
+		reset,
+	} = form;
+	const { append, fields } = useFieldArray({
+		control,
+		keyName: "formRowId",
+		name: "offerings",
+	});
+	const formErrorMessage = firstFormErrorMessage(errors);
 
 	useEffect(() => {
 		setAnchorBindingWindowId(defaultAnchorBindingWindowId);
-		setWindowLabel(input.selectedWindow?.label ?? "");
-		setLocationLabel(input.selectedWindow?.locationLabel ?? "");
-		setWindowStatus(input.selectedWindow?.status ?? "active");
-		setStallName(current?.stall?.displayName ?? input.selectedWindow?.label ?? "");
-		setStallType(current?.stall?.stallType ?? "food_window");
-		setOfferingDrafts(
-			current?.offerings.map(({ menu, offering }) => toOfferingDraft(offering, menu)) ?? [],
-		);
-		setDraftValidationError(null);
-	}, [current, defaultAnchorBindingWindowId, input.selectedWindow]);
+		reset(buildWindowEditorValues(input.selectedWindow, current));
+	}, [current, defaultAnchorBindingWindowId, input.selectedWindow, reset]);
 
 	const bindAnchorMutation = useMutation({
 		mutationFn: async () => {
@@ -234,32 +244,26 @@ function WindowEditor(input: {
 	});
 
 	const saveMutation = useMutation({
-		mutationFn: async () => {
+		mutationFn: async (values: WindowEditorValues) => {
 			if (!input.selectedWindowId) {
 				throw new Error("window is required");
 			}
-			const validationError = validateOfferingDrafts(offeringDrafts);
-			if (validationError) {
-				setDraftValidationError(validationError);
-				throw new Error(validationError);
-			}
-			setDraftValidationError(null);
 			await updateDiningWindow({
-				label: windowLabel,
-				locationLabel,
-				status: windowStatus,
+				label: values.windowLabel,
+				locationLabel: values.locationLabel,
+				status: values.windowStatus,
 				tags: input.selectedWindow?.tags ?? [],
 				windowId: input.selectedWindowId,
 			});
 			const assignment = await assignDiningWindow({
 				stallProfile: {
-					displayName: stallName,
-					stallType,
+					displayName: values.stallName,
+					stallType: values.stallType,
 					tags: current?.stall?.tags ?? input.selectedWindow?.tags ?? [],
 				},
 				windowId: input.selectedWindowId,
 			});
-			for (const draft of offeringDrafts.filter((item) => item.name.trim())) {
+			for (const draft of values.offerings) {
 				const menuItem = draft.menuItemId
 					? await updateDiningMenuItem({
 							menuItemId: draft.menuItemId,
@@ -338,11 +342,7 @@ function WindowEditor(input: {
 			) : input.selectedWindow ? (
 				<form
 					className="mt-4 space-y-4"
-					onSubmit={(event) => {
-						event.preventDefault();
-						setDraftValidationError(null);
-						saveMutation.mutate();
-					}}
+					onSubmit={handleSubmit((values) => saveMutation.mutate(values))}
 				>
 					<div>
 						<p className="text-xs text-zinc-500">{input.selectedWindow.locationLabel}</p>
@@ -350,21 +350,15 @@ function WindowEditor(input: {
 					</div>
 					<label className="ops-field">
 						<span>餐饮点名称</span>
-						<input value={windowLabel} onChange={(event) => setWindowLabel(event.target.value)} />
+						<input aria-label="餐饮点名称" {...register("windowLabel")} />
 					</label>
 					<label className="ops-field">
 						<span>餐饮点位置</span>
-						<input
-							value={locationLabel}
-							onChange={(event) => setLocationLabel(event.target.value)}
-						/>
+						<input aria-label="餐饮点位置" {...register("locationLabel")} />
 					</label>
 					<label className="ops-field">
 						<span>餐饮点状态</span>
-						<select
-							value={windowStatus}
-							onChange={(event) => setWindowStatus(event.target.value as DiningWindow["status"])}
-						>
+						<select aria-label="餐饮点状态" {...register("windowStatus")}>
 							<option value="active">active</option>
 							<option value="closed">closed</option>
 							<option value="maintenance">maintenance</option>
@@ -372,35 +366,30 @@ function WindowEditor(input: {
 					</label>
 					<label className="ops-field">
 						<span>对外名称</span>
-						<input value={stallName} onChange={(event) => setStallName(event.target.value)} />
+						<input aria-label="对外名称" {...register("stallName")} />
 					</label>
 					<label className="ops-field">
 						<span>餐饮类型</span>
-						<input value={stallType} onChange={(event) => setStallType(event.target.value)} />
+						<input aria-label="餐饮类型" {...register("stallType")} />
 					</label>
 					<div className="space-y-3">
 						<div className="flex items-center justify-between">
 							<p className="font-semibold text-sm">菜品价格</p>
 							<button
 								className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
-								onClick={() => setOfferingDrafts((items) => [...items, createEmptyOfferingDraft()])}
+								onClick={() => append(createEmptyOfferingDraft())}
 								type="button"
 							>
 								新增菜品
 							</button>
 						</div>
-						{offeringDrafts.map((draft) => (
-							<div className="rounded-lg border border-zinc-200 p-3" key={draft.key}>
+						{fields.map((draft, index) => (
+							<div className="rounded-lg border border-zinc-200 p-3" key={draft.formRowId}>
 								<label className="ops-field">
 									<span>菜品名称</span>
 									<input
 										aria-label={`菜品名称 ${draft.offeringId || draft.key}`}
-										value={draft.name}
-										onChange={(event) =>
-											setOfferingDrafts((items) =>
-												updateOfferingDraft(items, draft.key, { name: event.target.value }),
-											)
-										}
+										{...register(`offerings.${index}.name`)}
 									/>
 								</label>
 								<div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -408,37 +397,18 @@ function WindowEditor(input: {
 										<span>价格</span>
 										<input
 											aria-label={`价格 ${draft.offeringId || draft.key}`}
-											value={draft.priceLabel}
-											onChange={(event) =>
-												setOfferingDrafts((items) =>
-													updateOfferingDraft(items, draft.key, { priceLabel: event.target.value }),
-												)
-											}
+											{...register(`offerings.${index}.priceLabel`)}
 										/>
 									</label>
 									<label className="ops-field">
 										<span>规格</span>
-										<input
-											value={draft.specLabel}
-											onChange={(event) =>
-												setOfferingDrafts((items) =>
-													updateOfferingDraft(items, draft.key, { specLabel: event.target.value }),
-												)
-											}
-										/>
+										<input {...register(`offerings.${index}.specLabel`)} />
 									</label>
 									<label className="ops-field sm:col-span-2">
 										<span>售卖状态</span>
 										<select
 											aria-label={`售卖状态 ${draft.offeringId || draft.key}`}
-											value={draft.saleStatus}
-											onChange={(event) =>
-												setOfferingDrafts((items) =>
-													updateOfferingDraft(items, draft.key, {
-														saleStatus: event.target.value as OfferingDraft["saleStatus"],
-													}),
-												)
-											}
+											{...register(`offerings.${index}.saleStatus`)}
 										>
 											<option value="available">available</option>
 											<option value="paused">paused</option>
@@ -454,10 +424,8 @@ function WindowEditor(input: {
 						<Save aria-hidden="true" className="size-4" />
 						保存草稿
 					</button>
-					{draftValidationError ? (
-						<p className="text-red-600 text-sm">{draftValidationError}</p>
-					) : null}
-					{saveMutation.isError && !draftValidationError ? (
+					{formErrorMessage ? <p className="text-red-600 text-sm">{formErrorMessage}</p> : null}
+					{saveMutation.isError && !formErrorMessage ? (
 						<p className="text-red-600 text-sm">保存失败</p>
 					) : null}
 					{saveMutation.isSuccess ? <p className="text-emerald-700 text-sm">草稿已保存</p> : null}
@@ -469,15 +437,41 @@ function WindowEditor(input: {
 	);
 }
 
-interface OfferingDraft {
-	key: string;
-	menuItemId: string | null;
-	name: string;
-	offeringId: string | null;
-	priceLabel: string;
-	saleStatus: DiningMenuOffering["saleStatus"];
-	specLabel: string;
-	tags: string[];
+function buildWindowEditorValues(
+	selectedWindow: DiningWindow | null,
+	current: ReturnType<typeof resolveCurrentWindowState> | null,
+): WindowEditorValues {
+	return {
+		locationLabel: selectedWindow?.locationLabel ?? "",
+		offerings:
+			current?.offerings.map(({ menu, offering }) => toOfferingDraft(offering, menu)) ?? [],
+		stallName: current?.stall?.displayName ?? selectedWindow?.label ?? "",
+		stallType: current?.stall?.stallType ?? "food_window",
+		windowLabel: selectedWindow?.label ?? "",
+		windowStatus: selectedWindow?.status ?? "active",
+	};
+}
+
+function resolveCurrentWindowState(
+	floor: DiningOpsFloorResponse | null,
+	selectedWindow: DiningWindow | null,
+) {
+	if (!(floor && selectedWindow)) {
+		return null;
+	}
+	const assignment = floor.assignments.find((item) => item.windowId === selectedWindow.windowId);
+	const stall = assignment
+		? floor.stallProfiles.find((item) => item.stallProfileId === assignment.stallProfileId)
+		: null;
+	const offerings = assignment
+		? floor.menuOfferings
+				.filter((item) => item.assignmentId === assignment.assignmentId)
+				.map((offering) => ({
+					menu: floor.menuItems.find((item) => item.menuItemId === offering.menuItemId) ?? null,
+					offering,
+				}))
+		: [];
+	return { assignment, offerings, stall };
 }
 
 function toOfferingDraft(offering: DiningMenuOffering, menu: DiningMenuItem | null): OfferingDraft {
@@ -506,18 +500,21 @@ function createEmptyOfferingDraft(): OfferingDraft {
 	};
 }
 
-function updateOfferingDraft(
-	items: OfferingDraft[],
-	key: string,
-	patch: Partial<OfferingDraft>,
-): OfferingDraft[] {
-	return items.map((item) => (item.key === key ? { ...item, ...patch } : item));
+function firstFormErrorMessage(errors: FieldErrors<WindowEditorValues>): string | null {
+	return findErrorMessage(errors);
 }
 
-function validateOfferingDrafts(items: OfferingDraft[]): string | null {
-	for (const item of items) {
-		if (!(item.name.trim() && item.priceLabel.trim())) {
-			return "菜品名称和价格不能为空。";
+function findErrorMessage(value: unknown): string | null {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+	if ("message" in value && typeof value.message === "string") {
+		return value.message;
+	}
+	for (const nested of Object.values(value)) {
+		const message = findErrorMessage(nested);
+		if (message) {
+			return message;
 		}
 	}
 	return null;

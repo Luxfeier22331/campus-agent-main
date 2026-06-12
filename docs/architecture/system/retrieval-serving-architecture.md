@@ -35,7 +35,7 @@ truth。
 固定规则：
 
 - 顶层产品入口不先判 retrieval `scope`
-- 只有当 supervisor 已把请求路由到 knowledge-family path 后，`requested_scope`、version
+- 只有当 Execution Agent Layer 已把请求路由到 knowledge-family path 后，`requested_scope`、version
   mode、retrieval planning 才开始成立
 - `service_status_lookup`、`campus_notice_discover`、internal selected notice resolve
   (`payload_kind=campus_notice_get`) 与 `place_lookup` 这类结构化 capability 不应再被误读成
@@ -77,7 +77,7 @@ truth。
   `compare` 这四种 version query mode；`freshness_sensitive` 与 `live_assisted`
   仍未作为产品 route 默认开放
 
-这里的 `agent` 默认指 knowledge-family `rag-agent` specialist，而不是顶层 capability router。
+这里的 `agent` 默认指 knowledge-family `knowledge` specialist，而不是顶层 capability router。
 
 ## Current Baseline Vs Target Agentic Retrieval
 
@@ -131,7 +131,7 @@ evidence selection -> synthesis -> grounding`
 
 ## Serving Policy
 
-serving truth 不写死在 supervisor、API shell 或 env 默认值里。
+serving truth 不写死在 Execution Agent Layer、API shell 或 env 默认值里。
 
 它由以下信息共同决定：
 
@@ -278,9 +278,10 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
     completion、component-eval target pass 或 serving adoption truth
 - production observation 集成边界固定在 runtime adapter，不进入 `packages/retrieval-core`：
   retrieval-core 只暴露 `RetrievalObservationSink` /
-  `build_retrieval_observation_event_sink()` 这种注入 seam；`supervisor-agent-worker`
-  或后续 runtime shell 负责把 `retrieval.runtime_observation` 转成 OTel-compatible log/event、
-  derived metrics 或 backend-specific export
+  `build_retrieval_observation_event_sink()` 这种注入 seam；online path 由 Go
+  `activity-worker-knowledge` / `execution-control` runtime adapter 负责把
+  `retrieval.runtime_observation` 转成 OTel-compatible log/event、derived metrics 或
+  backend-specific export。Python bridge 只允许保留 offline / eval / historical sink。
 - OTel bridge 的默认映射是 log/event first：event name
   `retrieval.runtime_observation`，attributes 至少包含 `request_id`、`plan_id`、`step_id`、
   `scope.corpus`、`scope.collection`、`query_mode`、`retrieval_mode`、`terminal_state`、
@@ -411,14 +412,15 @@ structured query seam。
 - structured runtime surface 与 `fresh_news` 一类 retrieval surface 可以并存，但不能互相冒充
 - structured campus-services runtime 不回退成 `service_catalog` reopening、generic
   retrieval alias 或 raw source scan
-- 在长期 multi-agent workflow 中，structured runtime surface 可以向 `rag-agent`
-  提供 bounded context projection，例如 notice context、service facts、schedule baseline
-  或 place context；这些 projection 只能辅助 retrieval framing / grounding validation，
+- 在长期 multi-capability / agent-as-tool workflow 中，structured runtime surface
+  可以向 `knowledge` 提供 bounded context projection，例如 notice context、
+  service facts、schedule baseline 或 place context；这些 projection 只能辅助
+  retrieval framing / grounding validation，
   不改变 query-serving collection allowlist，也不绕过 authz / freshness / source-trust gate
 
 ## Forbidden Shapes
 
-- 不把 serving surface 写死在 supervisor 或 entry shell
+- 不把 serving surface 写死在 Execution Agent Layer 或 entry shell
 - 不让 retrieval backend 自行猜测用户是不是要查历史版本
 - 不把历史版本先全量检索再由回答层事后丢弃
 - 不把 alias / family resolution 静默下沉成 retrieval backend 的黑盒字符串替换

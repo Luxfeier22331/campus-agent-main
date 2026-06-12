@@ -13,18 +13,18 @@ auth、public request body limit、transport admission、queue、metrics 或 pub
 
 Python worker 只负责：
 
-- 接收 Go `execution-control` 已投影好的 private `SupervisorRequest`
+- 接收 Go `execution-control` 已投影好的 private `ExecutionRequest`
 - 装配默认 agent delegate map，并调用 worker 内部 private agent dispatcher
 - 绑定 RAG prompt runtime / provider-backed executor
 - 消费 Go bridge v6 中的 deterministic delegate handoff plan，并把完整
-  `AgentRequest` 注入 agent dispatcher；不在 Python routing / framing 中重新构造
+  `CapabilityRequest` 注入 agent dispatcher；不在 Python routing / framing 中重新构造
   RAG、navigation 或 structured payload
 - 消费 Go bridge v6 中的 `routing_frame` / `scope_gate` / `policy_gate` /
   `context_preflight` / `handoff`；缺失 Go-owned routing frame 或 delegate handoff
   时 fail-closed
-- 返回 agent 的 `AgentResponse`；Go `execution-control` 负责 public
-  `SupervisorResponse` finalization 与 response observability projection
-- 在配置 structured query internal seam 时，为 `campus-services-agent`
+- 返回 agent 的 `CapabilityResponse`；Go `execution-control` 负责 public
+  `ExecutionResponse` finalization 与 response observability projection
+- 在配置 structured query internal seam 时，为 `campus_services`
   注入 Go `execution-control` query service client
 - 暴露 private bridge health / readiness
 - 接收 Go `execution-control` 的 cooperative cancel signal，并在 Python bridge flag store
@@ -41,9 +41,9 @@ Python worker 不负责：
   的 deterministic runtime truth
 - terminal envelope、structured tool policy 或 deterministic structured runtime
   planner truth
-- public `SupervisorResponse` finalization / response assembly / response
+- public `ExecutionResponse` finalization / response assembly / response
   observability truth
-- deterministic runtime policy 或 public supervisor orchestration truth
+- deterministic runtime policy 或 public execution orchestration truth
 - retrieval / ingestion data-plane ownership
 
 ## Private Bridge Surface
@@ -72,17 +72,17 @@ Go `execution-control` `/readyz` 会聚合 Python worker readiness，并发布�
 execution `transport_runtime`、lifecycle/cancel runtime truth 与
 `prompt_config_gate`。
 
-bridge answer route 只接受 `supervisor_bridge_v6` delegate handoff，并要求
-`response_contract=agent_response`。请求必须携带
+bridge answer route 只接受 `execution_bridge_v6` delegate handoff，并要求
+`response_contract=capability_response`。请求必须携带
 `runtime_decisions.handoff.agent_request`，且 routing frame 的
 `suggested_next_action` 必须是 `delegate`。Non-delegate terminal routing 由 Go
 `execution-control` 的 non-stream / lifecycle SSE direct terminal path 处理，不再发送给
-Python bridge。`supervisor_bridge_v6` 之前的 shape、flat preplanned fields 与 legacy
+Python bridge。`execution_bridge_v6` 之前的 shape、flat preplanned fields 与 legacy
 handoff payload fragment 不是 active compatibility path。
 
-这里的 `AgentRequest` / `AgentResponse` / `agent_response` /
+这里的 `CapabilityRequest` / `CapabilityResponse` / `capability_response` /
 `runtime_decisions.handoff.agent_request` 是 bridge v6 的 canonical private agent
-handoff contract；worker 内部 active naming 使用 agent handoff、agent request 和
+handoff contract；worker 内部 active naming 使用 capability handoff、agent request 和
 agent dispatch。
 
 `/internal/bridge/execution/cancel` 记录 cooperative cancellation state。默认
@@ -160,7 +160,7 @@ audit writer 负责回流到 `app-api` internal ingest。
 是 supervisor runtime harness 注入的内部 wiring，只用于 Python worker 调用同一
 supervisor runtime 内 Go `execution-control` 的 internal
 `/internal/query/campus-services/*` seam。普通 repo `.env` 不需要手写这两个值；
-未由 harness 注入时，`campus-services-agent` 继续保持 internal query service
+未由 harness 注入时，`campus_services` 继续保持 internal query service
 unavailable，不会打开产品 serving gate。
 
 ## Retrieval Observation Env

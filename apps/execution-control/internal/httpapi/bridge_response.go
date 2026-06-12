@@ -1,3 +1,5 @@
+//go:build retired_bridge_serving
+
 package httpapi
 
 import (
@@ -34,7 +36,7 @@ func (s *Server) writeTelemetryFailure(
 		response,
 		http.StatusServiceUnavailable,
 		"telemetry_delivery_failed",
-		"Supervisor telemetry delivery failed.",
+		"Execution telemetry delivery failed.",
 		true,
 		requestID,
 		traceID,
@@ -62,7 +64,7 @@ func (s *Server) writeExecutionAuditFailure(
 		response,
 		http.StatusServiceUnavailable,
 		"execution_audit_delivery_failed",
-		"Supervisor execution audit delivery failed.",
+		"Execution audit delivery failed.",
 		true,
 		requestID,
 		traceID,
@@ -80,21 +82,21 @@ func (s *Server) bridgeExecutionError(
 		errors.Is(context.Cause(requestCtx), lifecycle.ErrExecutionCanceled) ||
 		errors.Is(context.Cause(bridgeCtx), lifecycle.ErrExecutionCanceled) {
 		return "execution_cancelled",
-			"Supervisor execution was cancelled.",
+			"Execution was cancelled.",
 			statusClientClosedRequest,
 			"cancelled",
 			lifecycle.StateCanceled
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(requestCtx.Err(), context.Canceled) {
 		return "client_canceled",
-			"Supervisor execution client disconnected.",
+			"Execution client disconnected.",
 			statusClientClosedRequest,
 			"client_canceled",
 			lifecycle.StateClientCanceled
 	}
 	if errors.Is(requestCtx.Err(), context.DeadlineExceeded) {
 		return "transport_request_timeout",
-			"Supervisor execution request timed out.",
+			"Execution request timed out.",
 			http.StatusGatewayTimeout,
 			"request_timeout",
 			lifecycle.StateTimedOut
@@ -149,14 +151,14 @@ func (s *Server) prepareBridgeResponse(
 		)
 	}
 	switch bridgeResponse.Kind {
-	case "agent_response":
+	case "capability_response":
 		body, err := decodeJSONObject(bridgeResponse.Body)
 		if err != nil {
 			return s.invalidBridgePreparedResponse(
 				"Supervisor Python bridge returned an invalid response body.",
 			)
 		}
-		supervisorResponse, err := finalizeAgentBridgeResponse(
+		executionResponse, err := finalizeAgentBridgeResponse(
 			body,
 			executionRequest.TraceID,
 			finalizerContextWithWorkflowRun(
@@ -169,7 +171,7 @@ func (s *Server) prepareBridgeResponse(
 				"Supervisor Python bridge returned an invalid agent response.",
 			)
 		}
-		rawSupervisorResponse, err := json.Marshal(supervisorResponse)
+		rawExecutionResponse, err := json.Marshal(executionResponse)
 		if err != nil {
 			return s.invalidBridgePreparedResponse(
 				"Supervisor Python bridge response could not be finalized.",
@@ -177,11 +179,11 @@ func (s *Server) prepareBridgeResponse(
 		}
 		s.metrics.RecordBridgeSuccess()
 		return preparedBridgeResponse{
-			Body:       rawSupervisorResponse,
+			Body:       rawExecutionResponse,
 			StatusCode: bridgeResponse.StatusCode,
 			Outcome: bridgeWriteOutcome{
 				State:          lifecycle.StateCompleted,
-				Outcome:        "supervisor_response",
+				Outcome:        "execution_response",
 				StatusCode:     bridgeResponse.StatusCode,
 				CircuitSuccess: true,
 			},
@@ -270,7 +272,7 @@ func mustMarshalErrorBody(code string, message string, retryable bool) []byte {
 
 func validBridgeResponseEnvelope(bridgeResponse bridge.ExecuteResponse) bool {
 	switch bridgeResponse.Kind {
-	case "agent_response":
+	case "capability_response":
 		return bridgeResponse.StatusCode >= 200 && bridgeResponse.StatusCode < 300
 	case "supervisor_error":
 		return bridgeResponse.StatusCode >= 400 && bridgeResponse.StatusCode < 600

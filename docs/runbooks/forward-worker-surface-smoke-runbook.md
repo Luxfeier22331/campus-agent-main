@@ -141,10 +141,18 @@ profile 语义：
   identity，启动或复用 `public-chat-web dev:live-smoke`，再通过
   `http://127.0.0.1:27011 -> service binding app-api -> http://127.0.0.1:27051`
   执行真实 public/chat 请求
-- `staging`：部署验收 profile，默认使用 `chat-staging` / `api-staging`
-- `local-real-provider`：复用 `dev` 的 public/chat 产品路径编排，但强制启用真实 provider
+- `staging`：部署验收 profile，默认使用 `chat-staging` /
+  `api-staging`；execution-control 只作为 app-api trusted machine upstream，不作为
+  public smoke surface
+- `local-real-provider`：复用 `dev` 的 public/chat 产品路径编排，但强制启用
+  Temporal execution-control runtime 并默认使用真实
+  `PROMPT_RUNTIME_PROVIDER=openai-responses`。它用于验证
+  `public-chat-web -> app-api -> execution-control -> Temporal memory + RAG
+  graph -> Go activity workers -> Go finalizer`，不是 deployed staging smoke，
+  也不是 notice discover 专用 smoke
 
-RAG SDK loop 的定位层 smoke 可以不经过前端直接执行：
+retired / offline RAG SDK candidate 的定位层 smoke 可以不经过前端直接执行。它只用于
+offline / eval / historical bridge behavior 复核，不作为 online RAG serving acceptance：
 
 ```bash
 uv run --all-packages python -m scripts.supervisor_runtime_process_smoke \

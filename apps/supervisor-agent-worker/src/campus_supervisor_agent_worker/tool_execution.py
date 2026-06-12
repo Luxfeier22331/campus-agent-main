@@ -3,14 +3,14 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
-from campus_contracts import AgentRequest, AgentResponse
-from campus_notice_agent.query_service import NoticeQueryService
-from campus_rag_agent.rag_sdk_models import RagSdkRunRequest
-from campus_rag_agent.rag_sdk_tools import (
+from campus_contracts import CapabilityRequest, CapabilityResponse
+from campus_knowledge_capability.rag_sdk_models import RagSdkRunRequest
+from campus_knowledge_capability.rag_sdk_tools import (
     RagSdkToolError,
     execute_retrieve_evidence_tool,
 )
-from campus_services_agent.query_service import CampusServicesQueryService
+from campus_notice_capability.query_service import NoticeQueryService
+from campus_services_capability.query_service import CampusServicesQueryService
 
 from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
 from campus_supervisor_agent_worker.tool_spec_registry import (
@@ -21,13 +21,13 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
     default_tool_spec_registry,
 )
 
-ToolResult = Mapping[str, object] | AgentResponse | str
+ToolResult = Mapping[str, object] | CapabilityResponse | str
 StructuredToolResult = object
 ToolHandler = Callable[[OpenAIAgentsToolInvocation, "ToolExecutionContext"], ToolResult]
 StructuredToolHandler = Callable[
     [OpenAIAgentsToolInvocation, "ToolExecutionContext"], StructuredToolResult
 ]
-InternalFunctionHandler = Callable[["ToolExecutionContext"], AgentResponse]
+InternalFunctionHandler = Callable[["ToolExecutionContext"], CapabilityResponse]
 
 
 class ToolExecutionError(ValueError):
@@ -36,7 +36,7 @@ class ToolExecutionError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class ToolExecutionContext:
-    agent_request: AgentRequest | None = None
+    agent_request: CapabilityRequest | None = None
     rag_sdk_request: RagSdkRunRequest | None = None
     admission: ToolSpecAdmission | None = None
 
@@ -71,7 +71,7 @@ class ToolExecutionRegistry:
         context: ToolExecutionContext,
     ) -> StructuredToolResult:
         tool = self._required_tool(invocation.name)
-        if tool.runtime_posture != "sdk_adapter_admitted":
+        if tool.runtime_posture != "typed_activity_admitted":
             raise ToolExecutionError(
                 f"tool is not registered for preplanned structured execution: {tool.name}"
             )
@@ -87,7 +87,7 @@ class ToolExecutionRegistry:
         name: str,
         *,
         context: ToolExecutionContext,
-    ) -> AgentResponse:
+    ) -> CapabilityResponse:
         tool = self._required_tool(name)
         if tool.runtime_posture != "internal_function":
             raise ToolExecutionError(f"tool is not registered as internal_function: {tool.name}")
@@ -124,7 +124,7 @@ class ToolExecutionSession:
                 agent_request=context.agent_request,
             )
         tool = self._required_tool(invocation.name)
-        if tool.runtime_posture not in {"sdk_adapter_admitted", "sdk_internal_admitted"}:
+        if tool.runtime_posture not in {"typed_activity_admitted", "capability_internal_admitted"}:
             raise ToolExecutionError(
                 f"tool runtime_posture is not SDK-executable: {tool.name} ({tool.runtime_posture})"
             )
@@ -144,7 +144,7 @@ class ToolExecutionSession:
                 agent_request=context.agent_request,
             )
         tool = self._required_tool(invocation.name)
-        if tool.runtime_posture != "sdk_adapter_admitted":
+        if tool.runtime_posture != "typed_activity_admitted":
             raise ToolExecutionError(
                 "tool runtime_posture is not preplanned structured-executable: "
                 f"{tool.name} ({tool.runtime_posture})"
@@ -156,7 +156,7 @@ class ToolExecutionSession:
         name: str,
         *,
         context: ToolExecutionContext,
-    ) -> AgentResponse:
+    ) -> CapabilityResponse:
         if context.admission is not None:
             self._validate_context_admits_internal_function(name, context=context)
         elif context.agent_request is not None:
@@ -213,7 +213,7 @@ class ToolExecutionSession:
         self,
         name: str,
         *,
-        agent_request: AgentRequest,
+        agent_request: CapabilityRequest,
     ) -> None:
         try:
             expected_allowed_tools = self.tool_registry.expected_allowed_tools_for_request(
@@ -224,7 +224,7 @@ class ToolExecutionSession:
         if agent_request.allowed_tools != expected_allowed_tools:
             raise ToolExecutionError(
                 "agent_request.allowed_tools must match ToolSpec admission for "
-                f"target={agent_request.target} payload={agent_request.payload.__class__.__name__}: "
+                f"capability={agent_request.capability} payload={agent_request.payload.__class__.__name__}: "
                 f"got {agent_request.allowed_tools!r}, want {expected_allowed_tools!r}"
             )
         if name not in expected_allowed_tools:
@@ -234,7 +234,7 @@ class ToolExecutionSession:
         self,
         name: str,
         *,
-        agent_request: AgentRequest,
+        agent_request: CapabilityRequest,
     ) -> None:
         try:
             admission = self.tool_registry.admission_for_request(agent_request)
@@ -247,7 +247,7 @@ class ToolExecutionSession:
         if agent_request.allowed_tools != admission.expected_allowed_tools:
             raise ToolExecutionError(
                 "agent_request.allowed_tools must match ToolSpec admission for "
-                f"target={agent_request.target} payload={agent_request.payload.__class__.__name__}: "
+                f"capability={agent_request.capability} payload={agent_request.payload.__class__.__name__}: "
                 f"got {agent_request.allowed_tools!r}, want {admission.expected_allowed_tools!r}"
             )
 
@@ -287,7 +287,7 @@ def build_default_tool_execution_registry(
     structured_handlers: dict[str, StructuredToolHandler] = {}
     internal_function_handlers: dict[str, InternalFunctionHandler] = {}
 
-    def _require_agent_request(context: ToolExecutionContext) -> AgentRequest:
+    def _require_agent_request(context: ToolExecutionContext) -> CapabilityRequest:
         if context.agent_request is None:
             raise ToolExecutionError("agent_request is required for this tool")
         return context.agent_request
@@ -303,7 +303,7 @@ def build_default_tool_execution_registry(
         )
 
     def _campus_services_query_access_context(context: ToolExecutionContext):
-        from campus_services_agent.query_service import CampusServicesAccessContext
+        from campus_services_capability.query_service import CampusServicesAccessContext
 
         request = _require_agent_request(context)
         return CampusServicesAccessContext(
@@ -312,7 +312,7 @@ def build_default_tool_execution_registry(
         )
 
     def _notice_query_access_context(context: ToolExecutionContext):
-        from campus_notice_agent.query_service import NoticeAccessContext
+        from campus_notice_capability.query_service import NoticeAccessContext
 
         request = _require_agent_request(context)
         return NoticeAccessContext(
@@ -320,14 +320,14 @@ def build_default_tool_execution_registry(
             authorization=request.context.authorization,
         )
 
-    from campus_services_agent.query_service import (
+    from campus_services_capability.query_service import (
         AcademicCalendarQuery,
         ContactDirectoryQuery,
         ServiceGuideQuery,
         ServiceStatusQuery,
         TransportScheduleQuery,
     )
-    from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
+    from campus_services_capability.sdk_tool_executor import execute_campus_services_sdk_tool
 
     for tool_name in (
         "service_status_lookup",
@@ -418,9 +418,12 @@ def build_default_tool_execution_registry(
         )
     )
 
-    from campus_notice_agent.notice_get_runtime import run_notice_get_internal_request
-    from campus_notice_agent.query_service import NoticeChangeSetLookupQuery, NoticeDiscoverQuery
-    from campus_notice_agent.sdk_tool_executor import execute_notice_sdk_tool
+    from campus_notice_capability.notice_get_runtime import run_notice_get_internal_request
+    from campus_notice_capability.query_service import (
+        NoticeChangeSetLookupQuery,
+        NoticeDiscoverQuery,
+    )
+    from campus_notice_capability.sdk_tool_executor import execute_notice_sdk_tool
 
     for tool_name in (
         "campus_notice_discover",
@@ -533,17 +536,17 @@ def _validate_registry_bindings(
             if tool.name in sdk_handlers or tool.name in internal_function_handlers:
                 raise ToolExecutionError(f"closed tool must not be registered: {tool.name}")
             continue
-        if tool.runtime_posture in {"sdk_adapter_admitted", "sdk_internal_admitted"}:
+        if tool.runtime_posture in {"typed_activity_admitted", "capability_internal_admitted"}:
             if tool.name not in sdk_handlers:
                 raise ToolExecutionError(f"sdk tool is missing handler: {tool.name}")
             if (
-                tool.runtime_posture == "sdk_adapter_admitted"
+                tool.runtime_posture == "typed_activity_admitted"
                 and tool.name not in structured_handlers
             ):
                 raise ToolExecutionError(
                     f"preplanned structured tool is missing handler: {tool.name}"
                 )
-            if tool.runtime_posture != "sdk_adapter_admitted" and tool.name in structured_handlers:
+            if tool.runtime_posture != "typed_activity_admitted" and tool.name in structured_handlers:
                 raise ToolExecutionError(
                     f"non-structured sdk tool must not be registered as preplanned: {tool.name}"
                 )

@@ -8,7 +8,7 @@ from unittest.mock import patch
 import httpx
 from campus_contracts import (
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
@@ -100,8 +100,8 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 personalization_hint=None,
             )
             self.assertEqual(bundle, retrieved_bundle)
-            return AgentResponse(
-                target="rag-agent",
+            return CapabilityResponse(
+                capability="knowledge",
                 status="completed",
                 answer_text="学生证遗失后应补办学生证。",
                 confidence="high",
@@ -137,8 +137,8 @@ class HandbookLiveExecutorTest(unittest.TestCase):
 
         def fake_delegate(request, *, retriever):
             seen_requests.append(request)
-            return AgentResponse(
-                target="rag-agent",
+            return CapabilityResponse(
+                capability="knowledge",
                 status="no_answer",
                 answer_text="当前依据不足。",
                 confidence="low",
@@ -200,7 +200,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "图书馆开放到 22:00。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "status": "completed",
                         "traceId": "trace_eval_01HQ",
                         "result": {
@@ -338,7 +338,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "2024 版学生手册中学生证补办需先挂失。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "status": "completed",
                         "traceId": "trace_eval_historical_01HQ",
                         "result": None,
@@ -405,7 +405,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "图书馆开放到 22:00。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "status": "completed",
                         "traceId": "trace_eval_01HQ",
                         "result": None,
@@ -447,8 +447,8 @@ class HandbookLiveExecutorTest(unittest.TestCase):
     def test_build_handbook_live_executor_marks_pre_retrieval_clarification(self) -> None:
         def fake_delegate(request, *, retriever):
             del retriever
-            return AgentResponse(
-                target="rag-agent",
+            return CapabilityResponse(
+                capability="knowledge",
                 status="needs_clarification",
                 follow_up_question="请说明你想咨询哪一类奖学金。",
                 confidence="low",
@@ -504,8 +504,8 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 personalization_hint=None,
             )
             self.assertEqual(bundle, retrieved_bundle)
-            return AgentResponse(
-                target="rag-agent",
+            return CapabilityResponse(
+                capability="knowledge",
                 status="no_answer",
                 answer_text="在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
                 confidence="low",

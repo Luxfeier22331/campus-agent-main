@@ -1,7 +1,7 @@
 import { AppApiRouteError } from "../../../http";
 import {
+	type CapabilityExecutionResponse,
 	ExecutionControlTransportError,
-	type SupervisorExecutionResponse,
 } from "../../integration";
 
 export function createPreAcceptError(input: {
@@ -29,7 +29,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 	};
 	followUpQuestion: string;
 	result: null;
-	selectedTarget: null;
+	selectedCapability: null;
 	status: "error";
 	traceId: string;
 } {
@@ -43,7 +43,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 			},
 			followUpQuestion: "",
 			result: null,
-			selectedTarget: null,
+			selectedCapability: null,
 			status: "error",
 			traceId: "",
 		};
@@ -58,7 +58,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 		},
 		followUpQuestion: "",
 		result: null,
-		selectedTarget: null,
+		selectedCapability: null,
 		status: "error",
 		traceId: "",
 	};
@@ -66,7 +66,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 
 export function buildAbuseThrottleRejectedResponse(input: {
 	traceId: string;
-}): SupervisorExecutionResponse {
+}): CapabilityExecutionResponse {
 	return {
 		answerText: "Too many requests. Please wait a few minutes and try again.",
 		error: {
@@ -97,7 +97,7 @@ export function buildAbuseThrottleRejectedResponse(input: {
 			semanticOutcome: "policy_refusal",
 		},
 		result: null,
-		selectedTarget: null,
+		selectedCapability: null,
 		status: "rejected",
 		traceId: input.traceId,
 	};

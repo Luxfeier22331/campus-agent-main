@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from campus_contracts import AgentRequest
+from campus_contracts import CapabilityRequest
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +28,7 @@ _GENERIC_PROFILE = AgentsSdkInstructionProfile(
 _NOTICE_DISCOVER_PROFILE = AgentsSdkInstructionProfile(
     profile_id="notice_discover_card_search",
     instructions=(
-        "You are the notice-agent card-search runtime. "
+        "You are the notice card-search runtime. "
         "Use only the supplied repo-owned notice discovery tool. "
         "Answer strictly from the returned notice cards. "
         "Return concise notice card guidance with titles and source URLs only, and do not invent body text."
@@ -40,7 +40,7 @@ _NOTICE_DISCOVER_PROFILE = AgentsSdkInstructionProfile(
 _NOTICE_CHANGE_SET_PROFILE = AgentsSdkInstructionProfile(
     profile_id="notice_change_set_transport_override",
     instructions=(
-        "You are the notice-agent transport override runtime. "
+        "You are the notice transport override runtime. "
         "Use only the supplied repo-owned notice change-set tool. "
         "Answer strictly from the returned bounded notice change set. "
         "State only the current effective transport change facts and source-backed notice references. "
@@ -53,7 +53,7 @@ _NOTICE_CHANGE_SET_PROFILE = AgentsSdkInstructionProfile(
 _SERVICE_GUIDE_PROFILE = AgentsSdkInstructionProfile(
     profile_id="service_guide_source_backed_guidance",
     instructions=(
-        "You are the campus-services-agent service guide runtime. "
+        "You are the campus_services service guide runtime. "
         "Use only the supplied repo-owned service guide tool. "
         "Answer as a source-backed service guide from the tool result only. "
         "Use entry_refs.url as the user-facing entry when present, and treat source_refs as provenance only. "
@@ -68,7 +68,7 @@ _SERVICE_GUIDE_PROFILE = AgentsSdkInstructionProfile(
 _SERVICE_STATUS_PROFILE = AgentsSdkInstructionProfile(
     profile_id="service_status_fact_lookup",
     instructions=(
-        "You are the campus-services-agent service status runtime. "
+        "You are the campus_services service status runtime. "
         "Use only the supplied repo-owned service status tool. "
         "Answer with the current service state from the tool result only. "
         "Keep the answer terse, include effective window or status note when present, "
@@ -81,7 +81,7 @@ _SERVICE_STATUS_PROFILE = AgentsSdkInstructionProfile(
 _TRANSPORT_SCHEDULE_PROFILE = AgentsSdkInstructionProfile(
     profile_id="transport_schedule_temporal_lookup",
     instructions=(
-        "You are the campus-services-agent transport schedule runtime. "
+        "You are the campus_services transport schedule runtime. "
         "Use only the supplied repo-owned transport schedule tool. "
         "Answer with route, direction, departure or operating-window facts from the tool result only. "
         "Do not invent schedules, stops, or service states."
@@ -93,7 +93,7 @@ _TRANSPORT_SCHEDULE_PROFILE = AgentsSdkInstructionProfile(
 _CONTACT_DIRECTORY_PROFILE = AgentsSdkInstructionProfile(
     profile_id="contact_directory_fact_lookup",
     instructions=(
-        "You are the campus-services-agent contact directory runtime. "
+        "You are the campus_services contact directory runtime. "
         "Use only the supplied repo-owned contact directory tool. "
         "Answer with contact names, channels, values, and bounded source-backed notes from the tool result only. "
         "Do not invent contact points, office hours, or locations."
@@ -105,7 +105,7 @@ _CONTACT_DIRECTORY_PROFILE = AgentsSdkInstructionProfile(
 _CALENDAR_PROFILE = AgentsSdkInstructionProfile(
     profile_id="academic_calendar_fact_lookup",
     instructions=(
-        "You are the campus-services-agent academic calendar fact lookup runtime. "
+        "You are the campus_services academic calendar fact lookup runtime. "
         "Use only the supplied repo-owned academic calendar tool. "
         "Answer with calendar facts from the tool result only and keep the response concise. "
         "Use the user's wording first. Do not correct the user with phrases like "
@@ -120,15 +120,15 @@ _CALENDAR_PROFILE = AgentsSdkInstructionProfile(
 )
 
 
-def instruction_profile_for_request(request: AgentRequest) -> AgentsSdkInstructionProfile:
+def instruction_profile_for_request(request: CapabilityRequest) -> AgentsSdkInstructionProfile:
     if (
-        request.target == "notice-agent"
+        request.capability == "notice"
         and "campus_notice_change_set_lookup" in request.allowed_tools
     ):
         return _NOTICE_CHANGE_SET_PROFILE
-    if request.target == "notice-agent" and "campus_notice_discover" in request.allowed_tools:
+    if request.capability == "notice" and "campus_notice_discover" in request.allowed_tools:
         return _NOTICE_DISCOVER_PROFILE
-    if request.target == "campus-services-agent":
+    if request.capability == "campus_services":
         if "service_guide_lookup" in request.allowed_tools:
             return _SERVICE_GUIDE_PROFILE
         if "service_status_lookup" in request.allowed_tools:

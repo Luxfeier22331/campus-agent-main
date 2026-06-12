@@ -71,7 +71,7 @@ export interface OfficialWebTargetInventoryManifestEntry {
 	inventory_only: boolean;
 	materialization_policy: OfficialWebConsumerMaterializationPolicy;
 	notes: string;
-	owner_agent_or_runtime: string;
+	owner_capability_or_runtime: string;
 	owner_surface: string;
 	preview_status: string;
 	release_blockers: string[];
@@ -261,7 +261,7 @@ export function normalizeOfficialWebTargetInventoryManifest(
 			inventoryOnly: entry.inventory_only,
 			materializationPolicy: entry.materialization_policy,
 			notes: entry.notes,
-			ownerAgentOrRuntime: entry.owner_agent_or_runtime,
+			ownerCapabilityOrRuntime: entry.owner_capability_or_runtime,
 			ownerSurface: entry.owner_surface,
 			previewStatus: entry.preview_status,
 			releaseBlockers: entry.release_blockers,

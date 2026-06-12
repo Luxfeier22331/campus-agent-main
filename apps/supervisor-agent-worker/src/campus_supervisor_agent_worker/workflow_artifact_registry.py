@@ -6,16 +6,16 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-WORKFLOW_ARTIFACT_REGISTRY_SCHEMA_VERSION = "workflow-artifact-registry-v1"
-DEFAULT_WORKFLOW_ARTIFACT_REGISTRY_PATH = Path("configs/runtime/workflow-artifacts.v1.json")
-SUPPORTED_OWNER_AGENTS = {
-    "rag-agent",
-    "navigation-agent",
-    "campus-services-agent",
-    "notice-agent",
+WORKFLOW_ARTIFACT_REGISTRY_SCHEMA_VERSION = "workflow-artifact-registry-v2"
+DEFAULT_WORKFLOW_ARTIFACT_REGISTRY_PATH = Path("configs/runtime/workflow-artifacts.v2.json")
+SUPPORTED_OWNER_CAPABILITIES = {
+    "knowledge",
+    "navigation",
+    "campus_services",
+    "notice",
 }
 SUPPORTED_VISIBILITIES = {
-    "agent_private",
+    "capability_private",
     "operator_safe_summary",
     "finalizer_input",
 }
@@ -36,7 +36,7 @@ class WorkflowArtifactRegistryError(ValueError):
 class WorkflowArtifact:
     kind: str
     display_name: str
-    owner_agent: str
+    owner_capability: str
     producer_tools: tuple[str, ...]
     source_truth_owner: str
     visibility: str
@@ -53,7 +53,7 @@ class WorkflowArtifact:
 @dataclass(frozen=True, slots=True)
 class WorkflowCapabilityBinding:
     binding_id: str
-    owner_agent: str
+    owner_capability: str
     tool_name: str
     produces: tuple[str, ...]
     consumes: tuple[str, ...]
@@ -124,15 +124,15 @@ def default_workflow_artifact_registry() -> WorkflowArtifactRegistry:
     return load_workflow_artifact_registry()
 
 
-def validate_agent_projection_kinds_against_artifacts(
-    agent_registry,
+def validate_capability_projection_kinds_against_artifacts(
+    capability_registry,
     artifact_registry: WorkflowArtifactRegistry,
 ) -> None:
-    for agent in agent_registry.agents:
-        for kind in agent.context_projection_kinds:
+    for capability in capability_registry.capabilities:
+        for kind in capability.context_projection_kinds:
             if not artifact_registry.registered_kind_or_alias(kind):
                 raise WorkflowArtifactRegistryError(
-                    f"AgentSpec {agent.agent_id} context_projection_kind {kind!r} "
+                    f"CapabilitySpec {capability.capability_id} context_projection_kind {kind!r} "
                     "is outside workflow artifact registry"
                 )
 
@@ -148,10 +148,10 @@ def validate_tool_producers_against_artifacts(
                 raise WorkflowArtifactRegistryError(
                     f"{artifact.kind} producer tool is missing from ToolSpec: {tool_name}"
                 )
-            if tool.owner_agent != artifact.owner_agent:
+            if tool.owner_capability != artifact.owner_capability:
                 raise WorkflowArtifactRegistryError(
-                    f"{artifact.kind} producer tool {tool_name} owner={tool.owner_agent}, "
-                    f"want {artifact.owner_agent}"
+                    f"{artifact.kind} producer tool {tool_name} owner={tool.owner_capability}, "
+                    f"want {artifact.owner_capability}"
                 )
             if not tool.read_only:
                 raise WorkflowArtifactRegistryError(
@@ -160,7 +160,7 @@ def validate_tool_producers_against_artifacts(
 
 
 def validate_capability_bindings(
-    agent_registry,
+    capability_registry,
     tool_registry,
     artifact_registry: WorkflowArtifactRegistry,
 ) -> None:
@@ -173,19 +173,19 @@ def validate_capability_bindings(
                 f"workflow capability binding duplicate binding_id: {binding.binding_id}"
             )
         binding_ids.add(binding.binding_id)
-        agent = agent_registry.agent_by_id(binding.owner_agent)
-        if agent is None:
+        capability = capability_registry.capability_by_id(binding.owner_capability)
+        if capability is None:
             raise WorkflowArtifactRegistryError(
-                f"{binding.binding_id} owner_agent is missing from AgentSpec: {binding.owner_agent}"
+                f"{binding.binding_id} owner_capability is missing from CapabilitySpec: {binding.owner_capability}"
             )
         if binding.opening_gate not in SUPPORTED_OPENING_GATES:
             raise WorkflowArtifactRegistryError(
                 f"{binding.binding_id} opening_gate is unsupported: {binding.opening_gate}"
             )
-        if binding.opening_gate != agent.opening_gate:
+        if binding.opening_gate != capability.opening_gate:
             raise WorkflowArtifactRegistryError(
                 f"{binding.binding_id} opening_gate={binding.opening_gate} does not match "
-                f"AgentSpec {binding.owner_agent} opening_gate={agent.opening_gate}"
+                f"CapabilitySpec {binding.owner_capability} opening_gate={capability.opening_gate}"
             )
         if binding.state_changing:
             raise WorkflowArtifactRegistryError(
@@ -201,9 +201,9 @@ def validate_capability_bindings(
                 raise WorkflowArtifactRegistryError(
                     f"{binding.binding_id} tool is missing from ToolSpec: {binding.tool_name}"
                 )
-            if tool.owner_agent != binding.owner_agent:
+            if tool.owner_capability != binding.owner_capability:
                 raise WorkflowArtifactRegistryError(
-                    f"{binding.binding_id} tool owner={tool.owner_agent}, want {binding.owner_agent}"
+                    f"{binding.binding_id} tool owner={tool.owner_capability}, want {binding.owner_capability}"
                 )
             if not tool.read_only:
                 raise WorkflowArtifactRegistryError(
@@ -244,7 +244,7 @@ def _parse_binding(value: object) -> WorkflowCapabilityBinding:
     item = _mapping(value, "binding")
     return WorkflowCapabilityBinding(
         binding_id=_required_string(item.get("binding_id"), "binding_id"),
-        owner_agent=_required_string(item.get("owner_agent"), "owner_agent"),
+        owner_capability=_required_string(item.get("owner_capability"), "owner_capability"),
         tool_name=str(item.get("tool_name") or "").strip(),
         produces=_string_tuple(item.get("produces"), "produces"),
         consumes=_string_tuple(item.get("consumes", []), "consumes"),
@@ -262,7 +262,7 @@ def _parse_artifact(value: object) -> WorkflowArtifact:
     return WorkflowArtifact(
         kind=_required_string(item.get("kind"), "kind"),
         display_name=_required_string(item.get("display_name"), "display_name"),
-        owner_agent=_required_string(item.get("owner_agent"), "owner_agent"),
+        owner_capability=_required_string(item.get("owner_capability"), "owner_capability"),
         producer_tools=_string_tuple(item.get("producer_tools"), "producer_tools"),
         source_truth_owner=_required_string(item.get("source_truth_owner"), "source_truth_owner"),
         visibility=_required_string(item.get("visibility"), "visibility"),
@@ -321,9 +321,9 @@ def _validate_registry(registry: WorkflowArtifactRegistry) -> None:
 
 
 def _validate_artifact(artifact: WorkflowArtifact, raw_tokens: set[str]) -> None:
-    if artifact.owner_agent not in SUPPORTED_OWNER_AGENTS:
+    if artifact.owner_capability not in SUPPORTED_OWNER_CAPABILITIES:
         raise WorkflowArtifactRegistryError(
-            f"{artifact.kind} owner_agent is unsupported: {artifact.owner_agent}"
+            f"{artifact.kind} owner_capability is unsupported: {artifact.owner_capability}"
         )
     if artifact.visibility not in SUPPORTED_VISIBILITIES:
         raise WorkflowArtifactRegistryError(
@@ -365,7 +365,7 @@ def _repo_root() -> Path:
         if (parent / DEFAULT_WORKFLOW_ARTIFACT_REGISTRY_PATH).exists():
             return parent
     raise WorkflowArtifactRegistryError(
-        "repo root with configs/runtime/workflow-artifacts.v1.json was not found"
+        "repo root with configs/runtime/workflow-artifacts.v2.json was not found"
     )
 
 

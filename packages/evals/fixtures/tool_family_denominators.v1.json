@@ -4,47 +4,47 @@
 	"tools": [
 		{
 			"tool_name": "service_status_lookup",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
 			"tool_name": "service_guide_lookup",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
 			"tool_name": "transport_schedule_lookup",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
 			"tool_name": "contact_directory_lookup",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
 			"tool_name": "academic_calendar_lookup",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
 			"tool_name": "campus_notice_change_set_lookup",
-			"capability_family": "notice-agent",
+			"capability_family": "notice",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
 			"tool_name": "campus_notice_discover",
-			"capability_family": "notice-agent",
+			"capability_family": "notice",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
 			"tool_name": "campus_notice_get",
-			"capability_family": "notice-agent",
+			"capability_family": "notice",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
 			"tool_name": "retrieval.query",
-			"capability_family": "rag-agent",
+			"capability_family": "knowledge",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		}
 	],

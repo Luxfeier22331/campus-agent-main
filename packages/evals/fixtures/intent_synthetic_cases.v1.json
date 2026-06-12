@@ -18,7 +18,7 @@
 				"expected_launch_state": "open",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_target": "rag-agent",
+				"expected_target": "knowledge",
 				"expected_task_kind": "knowledge_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "knowledge"]
@@ -76,7 +76,7 @@
 						"expected_allowed_tools": ["academic_calendar_lookup"],
 						"expected_capability": "campus_services",
 						"expected_scope_reason": "structured_runtime_candidate_signal",
-						"expected_target": "campus-services-agent",
+						"expected_target": "campus_services",
 						"expected_task_kind": "campus_services_lookup"
 					},
 					"axis": { "query_style": "short" }
@@ -175,7 +175,7 @@
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
 				"expected_scope_reason": "structured_runtime_candidate_signal",
-				"expected_target": "campus-services-agent",
+				"expected_target": "campus_services",
 				"expected_task_kind": "campus_services_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "campus_services", "transport_schedule"]
@@ -275,7 +275,7 @@
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
 				"expected_scope_reason": "structured_runtime_candidate_signal",
-				"expected_target": "campus-services-agent",
+				"expected_target": "campus_services",
 				"expected_task_kind": "campus_services_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "campus_services", "service_status"]
@@ -365,7 +365,7 @@
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
 				"expected_scope_reason": "structured_runtime_candidate_signal",
-				"expected_target": "campus-services-agent",
+				"expected_target": "campus_services",
 				"expected_task_kind": "campus_services_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "campus_services", "service_guide"]
@@ -479,7 +479,7 @@
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
 				"expected_scope_reason": "structured_runtime_candidate_signal",
-				"expected_target": "notice-agent",
+				"expected_target": "notice",
 				"expected_task_kind": "notice_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "notice", "discover"]
@@ -589,7 +589,7 @@
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
 				"expected_scope_reason": "structured_runtime_candidate_signal",
-				"expected_target": "notice-agent",
+				"expected_target": "notice",
 				"expected_task_kind": "notice_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "notice", "selected_notice"]
@@ -1100,7 +1100,7 @@
 				"expected_launch_state": "open",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_target": "campus-services-agent",
+				"expected_target": "campus_services",
 				"expected_task_kind": "campus_services_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "exploratory", "campus_services"]
@@ -1154,7 +1154,7 @@
 				"expected_launch_state": "open",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_target": "campus-services-agent",
+				"expected_target": "campus_services",
 				"expected_task_kind": "campus_services_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "exploratory", "transport_schedule"]
@@ -1207,7 +1207,7 @@
 				"expected_launch_state": "open",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_target": "notice-agent",
+				"expected_target": "notice",
 				"expected_task_kind": "notice_lookup",
 				"requested_capability": "knowledge",
 				"tags": ["synthetic", "exploratory", "notice"]

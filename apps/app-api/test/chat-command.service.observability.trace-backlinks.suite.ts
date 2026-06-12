@@ -5,6 +5,7 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
 	createTelemetryMock,
 } from "./chat-command.service.test-support";
@@ -25,7 +26,7 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: {
@@ -35,11 +36,11 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 					},
 					followUpQuestion: "",
 					result: null,
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "error",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 			telemetry,
 			traceBacklinkRecorder,
 		});
@@ -62,7 +63,7 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 		expect(traceBacklinkRecorder.record).toHaveBeenCalledWith({
 			errorCode: "supervisor_timeout",
 			requestId: "req_0001",
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 			status: "error",
 			surface: "public_chat_web",
 			traceId: "trace_0002",
@@ -89,17 +90,17 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
 					followUpQuestion: "",
 					result: null,
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 			traceBacklinkRecorder,
 		});
 

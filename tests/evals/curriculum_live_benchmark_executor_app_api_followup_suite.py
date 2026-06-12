@@ -50,7 +50,7 @@ class CurriculumLiveExecutorAppApiFollowUpTest(unittest.TestCase):
                         "supervisor": {
                             "answerText": "第一学期有法理学导论等课程。",
                             "followUpQuestion": "",
-                            "selectedTarget": "rag-agent",
+                            "selectedCapability": "knowledge",
                             "status": "completed",
                             "traceId": "trace_curriculum_eval_followup_01",
                             "result": {
@@ -116,7 +116,7 @@ class CurriculumLiveExecutorAppApiFollowUpTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "status": "completed",
                         "traceId": "trace_curriculum_eval_followup_02",
                         "result": {
@@ -252,7 +252,7 @@ class CurriculumLiveExecutorAppApiFollowUpTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "第四学期有大学英语(四)、中华民族共同体概论、中国近代边疆民族史料研读、世界现当代史。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "status": "completed",
                         "traceId": "trace_curriculum_eval_followup_03",
                         "result": {

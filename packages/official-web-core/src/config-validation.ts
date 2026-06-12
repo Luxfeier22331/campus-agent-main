@@ -281,8 +281,8 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		assertNonEmpty(entry.targetLabel, `targetInventory ${entry.inventoryId} targetLabel`);
 		assertNonEmpty(entry.ownerSurface, `targetInventory ${entry.inventoryId} ownerSurface`);
 		assertNonEmpty(
-			entry.ownerAgentOrRuntime,
-			`targetInventory ${entry.inventoryId} ownerAgentOrRuntime`,
+			entry.ownerCapabilityOrRuntime,
+			`targetInventory ${entry.inventoryId} ownerCapabilityOrRuntime`,
 		);
 		assertNonEmpty(entry.previewStatus, `targetInventory ${entry.inventoryId} previewStatus`);
 		assertNonEmpty(entry.notes, `targetInventory ${entry.inventoryId} notes`);
@@ -335,9 +335,9 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 				`targetInventory ${entry.inventoryId} ownerSurface must match admission target`,
 			);
 		}
-		if (entry.ownerAgentOrRuntime !== consumerRule.ownerAgentOrRuntime) {
+		if (entry.ownerCapabilityOrRuntime !== consumerRule.ownerCapabilityOrRuntime) {
 			throw new Error(
-				`targetInventory ${entry.inventoryId} ownerAgentOrRuntime must match consumer denominator`,
+				`targetInventory ${entry.inventoryId} ownerCapabilityOrRuntime must match consumer denominator`,
 			);
 		}
 		if (entry.selectedWriteTarget !== admissionTarget.selectedWriteTarget) {

@@ -5,7 +5,7 @@ import type {
 	ExecutionControlRunEvent,
 	ExecutionControlRunStepTrajectory,
 } from "../integration";
-import { runtimeRunPhaseFromSupervisorStatus } from "../runtime-run";
+import { runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 import {
 	isAllowedTimeseriesGranularity,
 	normalizeAuditListFilters,
@@ -69,7 +69,7 @@ function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 			links: badcase.links,
 			requestId: badcase.requestId,
 			runId: badcase.runId,
-			selectedTarget: badcase.selectedTarget,
+			selectedCapability: badcase.selectedCapability,
 			summary: badcase.summary,
 			surface: badcase.surface,
 			traceId: badcase.traceId,
@@ -171,19 +171,53 @@ function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) 
 			const attempts = trajectory.attempts.filter((attempt) => attempt.stepId === step.stepId);
 			const results = trajectory.results.filter((result) => result.stepId === step.stepId);
 			const latestResult = results.at(-1);
+			const latestAttempt = attempts.at(-1);
+			const totalInputTokens = attempts.reduce(
+				(total, attempt) => total + numberOrZero(attempt.inputTokens),
+				0,
+			);
+			const totalOutputTokens = attempts.reduce(
+				(total, attempt) => total + numberOrZero(attempt.outputTokens),
+				0,
+			);
+			const totalEstimatedCostMicrousd = attempts.reduce(
+				(total, attempt) => total + numberOrZero(attempt.estimatedCostMicrousd),
+				0,
+			);
 			return {
 				attemptCount: attempts.length,
 				capability: step.capability,
+				cancelOutcome: latestAttempt?.cancelOutcome || null,
+				durationMs: positiveNumberOrNull(latestAttempt?.durationMs),
+				estimatedCostMicrousd: totalEstimatedCostMicrousd,
+				inputTokens: totalInputTokens,
 				latestResultRef: latestResult?.projectionRef ?? null,
+				modelName: latestAttempt?.modelName || null,
+				modelProvider: latestAttempt?.modelProvider || null,
+				outputTokens: totalOutputTokens,
+				providerRequestRef: latestAttempt?.providerRequestRef || null,
+				queueWaitMs: positiveNumberOrNull(latestAttempt?.scheduleToStartMs),
 				resultCount: results.length,
 				status: step.status,
 				stepId: step.stepId,
 				stepKind: step.stepKind,
 				taskQueue: step.taskQueue,
+				timeoutOutcome: latestAttempt?.timeoutOutcome || null,
 				workerId: step.workerId,
 			};
 		}),
 	};
+}
+
+function numberOrZero(value: number | undefined): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function positiveNumberOrNull(value: number | undefined): number | null {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return null;
+	}
+	return value;
 }
 
 async function loadRuntimeRunSummary(
@@ -247,7 +281,7 @@ async function loadRuntimeRunSummary(
 		},
 		run: {
 			conversationId: run.conversationId,
-			phase: runtimeRunPhaseFromSupervisorStatus(run.status),
+			phase: runtimeRunPhaseFromExecutionStatus(run.status),
 			requestId: run.requestId,
 			runId: run.runId,
 			status: run.status,

@@ -11,6 +11,7 @@ const routesDir = join(__dirname, "../src/app/routes");
 const routeFiles = [
 	"auth.ts",
 	"campus-experience.ts",
+	"campus-services-ops.ts",
 	"chat.ts",
 	"chat-run-routes.ts",
 	"dining-ops.ts",

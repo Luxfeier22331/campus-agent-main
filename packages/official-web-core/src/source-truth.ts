@@ -64,7 +64,7 @@ export interface OfficialWebPageSignalSummary {
 export interface OfficialWebConsumerMatch {
 	consumerFamily: OfficialWebConsumerFamily;
 	ownerSurface: string;
-	ownerAgentOrRuntime: string;
+	ownerCapabilityOrRuntime: string;
 	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
 	selectedWriteTarget: string;
 	reviewPolicy: string;

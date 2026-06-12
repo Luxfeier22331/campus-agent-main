@@ -13,9 +13,9 @@ updated: 2026-04-28
 它覆盖：
 
 - `packages/contracts` 内 transport schedule shared types 的目标 shape
-- `apps/supervisor-agent-worker -> packages/campus-services-agent` 的 transport schedule
-  capability 语义
-- `campus-services-agent -> thin tool adapter -> internal query service`
+- `execution-control -> typed capability activity / internal query service`
+  的 active execution seam
+- `campus_services -> typed tool adapter -> internal query service`
   的 request/result seam
 - route、班次、首末班、运营窗口、停运公告引用与 schedule snapshot metadata 的 typed
   结果边界
@@ -31,15 +31,15 @@ updated: 2026-04-28
 
 - `transport_schedule_lookup` 已通过 `campus-services-product-path` opening gate，
   tool-level verdict 为 `open`（Phase 6，2026-04-27）。
-- `transport_schedule_lookup` 当前是 ToolSpec-admitted Agents SDK domain-agent adapter
-  tool；SDK 只承接 agent-side argument completion / single tool loop。projection-backed
-  schedule query、route/snapshot temporal policy、source provenance、Go admission
-  与 Go finalization 仍归 repo-owned runtime。
-- 公开 answer / stream 入口对该 tool 走 Go-owned `single_step` bridge lane，不再使用
-  Go typed-tool-runtime 快捷路径。内部 structured query endpoint 仍由 Go runtime 提供，
-  作为 SDK tool adapter 的只读 backend。
-- `packages/contracts`、Go structured query runtime、Python thin adapter 与
-  projection-backed data-plane 均已纳入 opening gate denominator。
+- `transport_schedule_lookup` 是 repo-owned ToolSpec-admitted read-only typed tool。
+  projection-backed schedule query、route/snapshot temporal policy、source
+  provenance、admission 与 finalization 归 repo-owned runtime。
+- 公开 answer / stream 入口的目标路径是 typed Temporal activity / worker contract。
+  内部 structured query endpoint 由 Go runtime 提供；任何 SDK / Python adapter
+  只能作为 offline / eval / historical reference，不作为 active serving handoff。
+- `packages/contracts`、Go structured query runtime、ToolSpec /
+  CapabilitySpec seam 与 projection-backed data-plane 均已纳入 opening gate
+  denominator。
 - local gate 判定命令：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
@@ -804,4 +804,4 @@ TransportOperationalNotice
 - `docs/domains/campus-services.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
-- `docs/contracts/rag-agent-retrieval-plan-contract.md`
+- `docs/contracts/knowledge-retrieval-plan-contract.md`

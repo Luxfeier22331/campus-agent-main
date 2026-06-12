@@ -247,7 +247,7 @@ truth 已开放。
 这些指标默认至少按以下维度支持切分：
 
 - `surface`
-- `selected_target`
+- `selected_capability`
 - `requested_capability`
 - `requested_scope`
 - `principal_type`
@@ -256,7 +256,7 @@ truth 已开放。
 
 ## Raw Target And Derived Label Rule
 
-`selected_target` 的长期职责固定为 raw runtime target dimension。
+`selected_capability` 的长期职责固定为 raw capability dimension。
 
 它继续用于：
 
@@ -273,19 +273,19 @@ truth 已开放。
 
 如果 operator surface 需要展示或分组，必须通过显式 projection 派生，例如：
 
-- `selected_target`
-  - raw runtime target，例如 `rag-agent`
+- `selected_capability`
+  - raw capability id，例如 `knowledge`
 - `capability_family`
-  - family wording，例如 `rag-agent`
-- `selected_target_label`
-  - operator-facing display label，例如 `检索专家`
+  - family wording，例如 `knowledge`
+- `selected_capability_label`
+  - operator-facing display label，例如 `知识问答`
 
 固定约束：
 
-- raw `selected_target` 不能被 schema rename、display copy 或 report summary 静默重载
+- raw `selected_capability` 不能被 schema rename、display copy 或 report summary 静默重载
 - panel 默认展示 derived label / display label；只有 debug/filter surface 才直接暴露 raw
-  target
-- 如果未来 admission 新 runtime family，也必须先补 mapping / projection，再开放 operator-facing
+  capability id
+- 如果未来 admission 新 capability family，也必须先补 mapping / projection，再开放 operator-facing
   wording
 
 ## Agentic Retrieval Monitoring Extension
@@ -306,14 +306,15 @@ dump 或 raw vendor payload 直接暴露给 panel。
 
 ## Governed Multi-Agent Workflow Monitoring Extension
 
-长期 multi-agent workflow 至少还要补以下 operator-facing summary truth：
+长期 multi-capability / agent-as-tool workflow 至少还要补以下 operator-facing summary truth：
 
 - `workflow_plan_summary`
-  - workflow mode、planner version、selected step sequence、allowed agents /
-    allowed tools、budget posture 与 terminal policy
-- `agent_step_summary`
-  - 每个 step 的 agent family、step input projection kind、step output projection kind、
-    latency、status、business outcome 与 fail-close reason
+  - workflow mode、planner version、selected step sequence、allowed capabilities /
+    allowed tools、admitted agent-as-tool steps、budget posture 与 terminal policy
+- `capability_step_summary`
+  - 每个 step 的 capability family / admitted agent-as-tool family、step input
+    projection kind、step output projection kind、latency、status、business
+    outcome 与 fail-close reason
 - `cross_agent_context_summary`
   - context projection id、source step、target step、projection kind、content hash、
     visibility posture 与 safety summary
@@ -337,7 +338,8 @@ dump 或 raw vendor payload 直接暴露给 panel。
   alternate runtime path
 - 对 `single_step` 不能包装成 `multi_step`；对 typed structured activity 不能伪造 agent
   collaboration trace
-- 需要区分“multi-agent 规划正确但某个 step 证据不足”和“顶层 routing / workflow plan 错误”
+- 需要区分“multi-capability / agent-as-tool 规划正确但某个 step 证据不足”和
+  “顶层 routing / workflow plan 错误”
 
 ## Plan-Level And Step-Level Metrics
 
@@ -409,10 +411,10 @@ dump 或 raw vendor payload 直接暴露给 panel。
 
 ## Structured Runtime Summary Minimum
 
-当 `campus-services-agent` / `notice-agent` 这类 structured runtime lane 后续真的
+当 `campus_services` / `notice` 这类 structured runtime lane 后续真的
 admission 到产品主路径时，`request-scoped observability fact` 至少要保留以下 compact fields：
 
-- `selected_target`
+- `selected_capability`
 - `tool_name`
 - `tool_business_outcome`
 - `fail_close_reason`
@@ -437,7 +439,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 - 如果 runtime lane 尚未 opening 或本次请求命中 fail-close，这份 summary 也必须记录 deterministic
   business outcome，而不是把 closed gate 模糊写成普通 success
 - 如果 operator 需要 capability family / 产品命名标签，必须通过独立 projection 或 UI mapping
-  派生，而不是改写 `selected_target`
+  派生，而不是改写 `selected_capability`
 
 ### Release-Gate / Regression Evals
 
@@ -471,7 +473,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 - `request_id`
 - `trace_id`
 - principal class / entitlement snapshot id / policy projection version
-- selected target
+- selected capability / selected tool
 - status / reason code
 - source doc id summary
 - fail-close / deny / approval markers
@@ -575,19 +577,22 @@ boundary。
 runtime OTel 接入口径、事件 taxonomy、attribute allowlist、forbidden fields 与 runtime
 ownership matrix 固定在
 `docs/reference/runtime-otel-telemetry-taxonomy.md`。该 reference 的核心约束是：OTel SDK
-只进入 `apps/*` runtime / adapter / deployment 层；`retrieval-core`、`rag-agent`、
+只进入 `apps/*` runtime / adapter / deployment 层；`retrieval-core`、`knowledge`、
 `ingestion-core` 与 `contracts` 保持 vendor-neutral，不直接依赖 Sentry、Axiom、Collector
 或 OpenTelemetry SDK。
 
 当前 runtime bridge 已收口为：
 
 - `apps/execution-control` 是 online trace owner，负责 request admission、bridge
-  attempt 与 finalization 的 sanitized OTLP trace signal
+  attempt、Temporal workflow/activity attempt 与 finalization 的 sanitized OTLP
+  trace signal
 - `apps/execution-control` 在启用 OTel 后对 configured product answer paths 采用
   fail-close 语义；telemetry 交付失败返回 `telemetry_delivery_failed`，sampling 丢弃仍只作为
   显式采样计数
-- `apps/supervisor-agent-worker` 负责把 `retrieval.runtime_observation` 映射成 sanitized
-  runtime event sink
+- online knowledge / RAG observation 由 Go `activity-worker-knowledge` /
+  `execution-control` runtime adapter 把 `retrieval.runtime_observation` 映射成
+  sanitized runtime event sink；
+  Python bridge 只可保留 offline / eval / historical sink
 - `apps/ingestion-worker` 负责 offline run-level started/completed/failed telemetry
 - `infra/otel/` 提供 repo-owned local debug Collector config 与 staging Sentry/Axiom
   fan-out template

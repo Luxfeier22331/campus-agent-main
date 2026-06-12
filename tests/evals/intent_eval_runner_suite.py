@@ -21,7 +21,6 @@ class IntentEvalRunnerTest(unittest.TestCase):
                     expected_launch_state="open",
                     expected_next_action="delegate",
                     expected_scope_class="in_scope",
-                    expected_target="rag-agent",
                 ),
                 IntentCase(
                     case_id="intent-notice-candidate",
@@ -32,7 +31,6 @@ class IntentEvalRunnerTest(unittest.TestCase):
                     expected_launch_state="open",
                     expected_next_action="delegate",
                     expected_scope_class="in_scope",
-                    expected_target="rag-agent",
                 ),
                 IntentCase(
                     case_id="intent-place-closed",
@@ -73,7 +71,6 @@ class IntentEvalRunnerTest(unittest.TestCase):
                     expected_launch_state="open",
                     expected_next_action="delegate",
                     expected_scope_class="in_scope",
-                    expected_target="navigation-agent",
                     critical=True,
                 ),
             )
@@ -95,7 +92,6 @@ class IntentEvalRunnerTest(unittest.TestCase):
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
-            expected_target="rag-agent",
         )
 
         report = run_intent_cases((case,))

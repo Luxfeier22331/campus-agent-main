@@ -1,0 +1,27 @@
+{
+	"schema_version": "provider-pricing-v1",
+	"currency": "USD",
+	"models": [
+		{
+			"provider": "openai",
+			"model": "gpt-5-mini",
+			"input_microusd_per_1k_tokens": 250,
+			"cached_input_microusd_per_1k_tokens": 25,
+			"output_microusd_per_1k_tokens": 2000
+		},
+		{
+			"provider": "openai",
+			"model": "gpt-5",
+			"input_microusd_per_1k_tokens": 1250,
+			"cached_input_microusd_per_1k_tokens": 125,
+			"output_microusd_per_1k_tokens": 10000
+		},
+		{
+			"provider": "openai",
+			"model": "gpt-5.4",
+			"input_microusd_per_1k_tokens": 1250,
+			"cached_input_microusd_per_1k_tokens": 125,
+			"output_microusd_per_1k_tokens": 10000
+		}
+	]
+}

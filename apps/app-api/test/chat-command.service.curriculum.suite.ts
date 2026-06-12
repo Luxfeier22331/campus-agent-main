@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
 	CURRICULUM_PROGRAM_SLOT_NAME,
 	CURRICULUM_SEMESTER_SLOT_NAME,
@@ -9,8 +10,8 @@ import {
 	createConversation,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCurriculumSuite(): void {
@@ -21,7 +22,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 		};
 		const commandStore = createCommandStore({ conversation });
 		const { store: conversationStore } = createConversationStore({ conversation });
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -41,7 +42,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_0002",
 				})
@@ -62,7 +63,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_0004",
 				}),
@@ -72,7 +73,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		await service.submit({
@@ -176,7 +177,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: null,
@@ -190,11 +191,11 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "needs_clarification",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({
@@ -222,7 +223,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "民大的民族班有法学、信息与计算科学、计算机科学与技术。",
 					error: null,
@@ -237,11 +238,11 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							sources: [{ doc_id: "curriculum:program-family-membership" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({
@@ -269,7 +270,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
 						"思想政治理论课包括习近平新时代中国特色社会主义思想概论、马克思主义基本原理、中华民族共同体概论等课程。",
@@ -285,11 +286,11 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 							sources: [{ doc_id: "curriculum:中央民族大学通识课程思想政治理论课教学计划" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({

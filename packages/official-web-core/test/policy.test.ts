@@ -167,7 +167,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "contact_directory_candidate",
 					ownerSurface: "contact_directory_lookup",
-					ownerAgentOrRuntime: "campus-services-agent",
+					ownerCapabilityOrRuntime: "campus_services",
 					materializationPolicy: "candidate_only",
 					pageFamilies: [
 						"article_detail",
@@ -188,7 +188,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "service_guide_candidate",
 					ownerSurface: "service_guide_lookup",
-					ownerAgentOrRuntime: "campus-services-agent",
+					ownerCapabilityOrRuntime: "campus_services",
 					materializationPolicy: "candidate_only",
 					pageFamilies: ["article_detail", "directory_page", "generic_content_page"],
 					titleKeywords: ["办理", "申请", "指南", "服务"],
@@ -211,7 +211,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "stable_reference_candidate",
 					ownerSurface: "official_web/stable_reference",
-					ownerAgentOrRuntime: "rag-agent",
+					ownerCapabilityOrRuntime: "knowledge",
 					materializationPolicy: "release_gate_required",
 					pageFamilies: ["article_detail", "directory_page", "generic_content_page"],
 					titleKeywords: ["学校简介", "学校概况", "现任领导", "机构设置"],
@@ -227,7 +227,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "regulation_candidate",
 					ownerSurface: "regulations/institutional_rules",
-					ownerAgentOrRuntime: "rag-agent",
+					ownerCapabilityOrRuntime: "knowledge",
 					materializationPolicy: "release_gate_required",
 					pageFamilies: ["article_detail", "generic_content_page"],
 					titleKeywords: ["办法", "规定", "细则", "制度"],
@@ -243,7 +243,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "notice_news_candidate",
 					ownerSurface: "future_notice_runtime",
-					ownerAgentOrRuntime: "notice-agent",
+					ownerCapabilityOrRuntime: "notice",
 					materializationPolicy: "inventory_only",
 					pageFamilies: ["article_detail"],
 					titleKeywords: ["新闻", "通知", "公告", "讲座", "活动"],
@@ -317,7 +317,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 					inventoryOnly: false,
 					materializationPolicy: "candidate_only",
 					notes: "test inventory target",
-					ownerAgentOrRuntime: "campus-services-agent",
+					ownerCapabilityOrRuntime: "campus_services",
 					ownerSurface: "contact_directory_lookup",
 					previewStatus: "candidate",
 					releaseBlockers: ["no_preview_evidence"],

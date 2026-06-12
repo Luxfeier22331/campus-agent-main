@@ -24,9 +24,9 @@ func TestWorkflowArtifactRegistryLoadsDefaultOntology(t *testing.T) {
 }
 
 func TestWorkflowArtifactRegistryValidatesDefaultRuntimeBindings(t *testing.T) {
-	agents, err := LoadAgentSpecRegistry("")
+	capabilities, err := LoadCapabilitySpecRegistry("")
 	if err != nil {
-		t.Fatalf("LoadAgentSpecRegistry default failed: %v", err)
+		t.Fatalf("LoadCapabilitySpecRegistry default failed: %v", err)
 	}
 	tools, err := LoadToolSpecRegistry("")
 	if err != nil {
@@ -36,13 +36,13 @@ func TestWorkflowArtifactRegistryValidatesDefaultRuntimeBindings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadWorkflowArtifactRegistry default failed: %v", err)
 	}
-	if err := ValidateAgentSpecProjectionKindsAgainstArtifacts(agents, artifacts); err != nil {
-		t.Fatalf("AgentSpec projection kinds drifted from artifact registry: %v", err)
+	if err := ValidateCapabilitySpecProjectionKindsAgainstArtifacts(capabilities, artifacts); err != nil {
+		t.Fatalf("CapabilitySpec projection kinds drifted from artifact registry: %v", err)
 	}
 	if err := ValidateToolSpecProducerToolsAgainstArtifacts(tools, artifacts); err != nil {
 		t.Fatalf("ToolSpec producer tools drifted from artifact registry: %v", err)
 	}
-	if err := ValidateCapabilityBindings(agents, tools, artifacts); err != nil {
+	if err := ValidateCapabilityBindings(capabilities, tools, artifacts); err != nil {
 		t.Fatalf("workflow capability bindings drifted from runtime registries: %v", err)
 	}
 }

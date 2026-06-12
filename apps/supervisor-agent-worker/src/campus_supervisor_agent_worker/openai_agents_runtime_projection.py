@@ -4,7 +4,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from campus_contracts import AgentObservability, AgentRequest, AgentResponse, ErrorInfo
+from campus_contracts import (
+    CapabilityObservability,
+    CapabilityRequest,
+    CapabilityResponse,
+    ErrorInfo,
+)
 
 from campus_supervisor_agent_worker.agents_sdk_trace_projection import (
     build_agents_sdk_tool_lifecycle_projection,
@@ -39,7 +44,7 @@ class OpenAIAgentsToolExecutionRecord:
 
 
 def response_from_native_runtime_result(
-    request: AgentRequest,
+    request: CapabilityRequest,
     result: OpenAIAgentsRunResult,
     *,
     descriptors,
@@ -49,7 +54,7 @@ def response_from_native_runtime_result(
     instruction_profile_id: str = "",
     result_usage_mode: str = "",
     surface_execution_mode: str = "",
-) -> AgentResponse:
+) -> CapabilityResponse:
     descriptor_by_name = {descriptor.name: descriptor for descriptor in descriptors}
     tool_call = _single_tool_call(result.tool_calls)
     descriptor = descriptor_by_name.get(tool_call.name)
@@ -96,7 +101,7 @@ def response_from_native_runtime_result(
     )
     _validate_expected_output_artifacts(request.workflow_context, output_projection_ref)
     trace_projection = build_agents_sdk_trace_projection(
-        target=request.target,
+        capability=request.capability,
         selected_tool=tool_call.name,
         runtime_posture=descriptor.runtime_posture,
         tool_call_count=1,
@@ -112,7 +117,7 @@ def response_from_native_runtime_result(
         surface_execution_mode=surface_execution_mode,
         workflow_run_ref=request.workflow_context.workflow_run_ref,
         step_id=request.workflow_context.step_id,
-        agent_id=request.workflow_context.agent_id,
+        capability_id=request.workflow_context.capability_id,
         step_status="completed",
         terminal_reason="",
         fail_close_reason="",
@@ -126,13 +131,13 @@ def response_from_native_runtime_result(
         tool_output_submitted=bool(tool_execution_records),
         tool_execution_owner="repo" if tool_execution_records else "not_executed",
     )
-    return AgentResponse(
-        target=request.target,
+    return CapabilityResponse(
+        capability=request.capability,
         status="completed",
         answer_text=final_output,
         confidence="medium",
         result=response_result,
-        agent_observability=AgentObservability(
+        capability_observability=CapabilityObservability(
             selected_tool=tool_call.name,
             tool_attempted=True,
             tool_outcome="sdk_completed",
@@ -149,7 +154,7 @@ def response_from_native_runtime_result(
 
 
 def runtime_error_response(
-    request: AgentRequest,
+    request: CapabilityRequest,
     failure_class: str,
     message: str,
     *,
@@ -158,7 +163,7 @@ def runtime_error_response(
     latency_ms: int = 0,
     runtime_posture: str = "",
     tool_execution_count: int = 0,
-) -> AgentResponse:
+) -> CapabilityResponse:
     selected_tool = request.allowed_tools[0] if request.allowed_tools else ""
     tool_attempted = failure_class not in {
         "runtime_disabled",
@@ -173,7 +178,7 @@ def runtime_error_response(
     if bridge_reason:
         error_projection["bridge_reason"] = bridge_reason
     trace_projection = build_agents_sdk_trace_projection(
-        target=request.target,
+        capability=request.capability,
         selected_tool=selected_tool,
         runtime_posture=runtime_posture,
         tool_call_count=0,
@@ -188,14 +193,14 @@ def runtime_error_response(
         model_response_ref="",
         workflow_run_ref=request.workflow_context.workflow_run_ref,
         step_id=request.workflow_context.step_id,
-        agent_id=request.workflow_context.agent_id,
+        capability_id=request.workflow_context.capability_id,
         step_status="error",
         terminal_reason=failure_class,
         fail_close_reason=failure_class,
         input_projection_refs=request.workflow_context.projection_refs,
     )
-    return AgentResponse(
-        target=request.target,
+    return CapabilityResponse(
+        capability=request.capability,
         status="error",
         confidence="low",
         error=ErrorInfo(
@@ -203,7 +208,7 @@ def runtime_error_response(
             message=message,
             retryable=retryable,
         ),
-        agent_observability=AgentObservability(
+        capability_observability=CapabilityObservability(
             selected_tool=selected_tool,
             tool_attempted=tool_attempted,
             tool_outcome=failure_class,
@@ -492,7 +497,7 @@ def _promote_notice_change_set_fields(
 
 
 def _workflow_output_projection_ref(
-    request: AgentRequest,
+    request: CapabilityRequest,
     *,
     records: tuple[OpenAIAgentsToolExecutionRecord, ...],
 ) -> dict[str, object] | None:

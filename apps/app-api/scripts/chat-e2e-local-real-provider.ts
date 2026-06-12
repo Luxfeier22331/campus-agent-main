@@ -35,8 +35,8 @@ const child = spawn("pnpm", args, {
 			process.env.SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED || "true",
 		EXECUTION_CONTROL_TIMEOUT_MS:
 			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
-		SUPERVISOR_AGENT_WORKER_TIMEOUT_MS:
-			process.env.SUPERVISOR_AGENT_WORKER_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
+		EXECUTION_CONTROL_REQUEST_TIMEOUT_MS:
+			process.env.EXECUTION_CONTROL_REQUEST_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
 	},
 	stdio: "inherit",
 });

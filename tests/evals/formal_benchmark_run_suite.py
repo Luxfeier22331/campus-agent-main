@@ -110,8 +110,8 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
                         context_resolution={"resolved_scope": "regulations/student_rules"},
                         planning_outcome="delegate",
                         direct_vs_delegate_branch="delegate",
-                        handoff={"target": "rag-agent"},
-                        selected_target="rag-agent",
+                        handoff={"target": "knowledge"},
+                        selected_capability="knowledge",
                         selected_tools=("retrieval.query",),
                         tool_argument_summary={"collection": "student_rules"},
                         guardrail_outcomes={"scope_gate": "pass"},
@@ -137,7 +137,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
             )
 
         result = payload["results"][0]
-        self.assertEqual(result["workflow_trace_summary"]["selected_target"], "rag-agent")
+        self.assertEqual(result["workflow_trace_summary"]["selected_capability"], "knowledge")
         self.assertEqual(result["workflow_trace_summary"]["selected_tools"], ["retrieval.query"])
         self.assertTrue(
             result["orchestration_case_results"]["trace_projection_completeness"]["passed"]

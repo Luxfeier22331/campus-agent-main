@@ -5,13 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from campus_supervisor_agent_worker.agent_spec_registry import load_agent_spec_registry
+from campus_supervisor_agent_worker.capability_spec_registry import load_capability_spec_registry
 from campus_supervisor_agent_worker.tool_spec_registry import load_tool_spec_registry
 from campus_supervisor_agent_worker.workflow_artifact_registry import (
     WorkflowArtifactRegistryError,
     load_workflow_artifact_registry,
-    validate_agent_projection_kinds_against_artifacts,
     validate_capability_bindings,
+    validate_capability_projection_kinds_against_artifacts,
     validate_tool_producers_against_artifacts,
 )
 
@@ -20,7 +20,7 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
     def test_loads_default_registry_and_calendar_alias(self) -> None:
         registry = load_workflow_artifact_registry()
 
-        self.assertEqual(registry.schema_version, "workflow-artifact-registry-v1")
+        self.assertEqual(registry.schema_version, "workflow-artifact-registry-v2")
         self.assertIsNotNone(registry.artifact_by_kind("academic_calendar_facts"))
         alias = registry.artifact_by_kind("calendar_fact")
         self.assertIsNotNone(alias)
@@ -31,9 +31,9 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
         assert grounding is not None
         self.assertFalse(grounding.answer_eligible)
 
-    def test_agent_spec_projection_kinds_are_registered_artifacts(self) -> None:
-        validate_agent_projection_kinds_against_artifacts(
-            load_agent_spec_registry(),
+    def test_capability_spec_projection_kinds_are_registered_artifacts(self) -> None:
+        validate_capability_projection_kinds_against_artifacts(
+            load_capability_spec_registry(),
             load_workflow_artifact_registry(),
         )
 
@@ -45,7 +45,7 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
 
     def test_capability_bindings_validate_against_runtime_registries(self) -> None:
         validate_capability_bindings(
-            load_agent_spec_registry(),
+            load_capability_spec_registry(),
             load_tool_spec_registry(),
             load_workflow_artifact_registry(),
         )
@@ -71,7 +71,7 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
         payload["bindings"] = [
             {
                 "binding_id": "sample.open.without.tool",
-                "owner_agent": "rag-agent",
+                "owner_capability": "knowledge",
                 "tool_name": "",
                 "produces": ["sample_artifact"],
                 "consumes": [],
@@ -88,7 +88,7 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
             WorkflowArtifactRegistryError, "open binding must declare tool_name"
         ):
             validate_capability_bindings(
-                load_agent_spec_registry(),
+                load_capability_spec_registry(),
                 load_tool_spec_registry(),
                 load_workflow_artifact_registry(_write_registry(payload)),
             )
@@ -98,7 +98,7 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
         payload["bindings"] = [
             {
                 "binding_id": "sample.binding.a",
-                "owner_agent": "rag-agent",
+                "owner_capability": "knowledge",
                 "tool_name": "retrieval.query",
                 "produces": ["sample_artifact"],
                 "consumes": [],
@@ -111,7 +111,7 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
             },
             {
                 "binding_id": "sample.binding.b",
-                "owner_agent": "rag-agent",
+                "owner_capability": "knowledge",
                 "tool_name": "retrieval.query",
                 "produces": ["sample_artifact"],
                 "consumes": [],
@@ -128,7 +128,7 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
             WorkflowArtifactRegistryError, "ambiguous open producer bindings"
         ):
             validate_capability_bindings(
-                load_agent_spec_registry(),
+                load_capability_spec_registry(),
                 load_tool_spec_registry(),
                 load_workflow_artifact_registry(_write_registry(payload)),
             )
@@ -136,19 +136,19 @@ class WorkflowArtifactRegistryLoaderSuite(unittest.TestCase):
 
 def _minimal_registry() -> dict[str, object]:
     return {
-        "schema_version": "workflow-artifact-registry-v1",
+        "schema_version": "workflow-artifact-registry-v2",
         "registry_version": "test",
-        "visibility_values": ["agent_private"],
+        "visibility_values": ["capability_private"],
         "support_status_values": ["planned_contract_gap"],
         "forbidden_raw_key_tokens": ["raw_response"],
         "artifacts": [
             {
                 "kind": "sample_artifact",
                 "display_name": "SampleArtifact",
-                "owner_agent": "rag-agent",
+                "owner_capability": "knowledge",
                 "producer_tools": [],
                 "source_truth_owner": "test",
-                "visibility": "agent_private",
+                "visibility": "capability_private",
                 "current_projection_support": "planned_contract_gap",
                 "answer_eligible": True,
                 "requires_grounding": False,
@@ -162,7 +162,7 @@ def _minimal_registry() -> dict[str, object]:
         "bindings": [
             {
                 "binding_id": "sample.binding.closed",
-                "owner_agent": "rag-agent",
+                "owner_capability": "knowledge",
                 "tool_name": "",
                 "produces": ["sample_artifact"],
                 "consumes": [],
@@ -179,7 +179,7 @@ def _minimal_registry() -> dict[str, object]:
 
 def _write_registry(payload: dict[str, object]) -> Path:
     temp_dir = Path(tempfile.mkdtemp(prefix="workflow-artifacts-"))
-    path = temp_dir / "workflow-artifacts.v1.json"
+    path = temp_dir / "workflow-artifacts.v2.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 

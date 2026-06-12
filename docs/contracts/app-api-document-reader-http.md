@@ -106,7 +106,7 @@ control-plane HTTP contract。
 固定规则：
 
 - 该 endpoint 只表达 docs surface 真正依赖的控制面依赖
-- 不把 supervisor execution readiness、chat runtime readiness、operator surface
+- 不把 execution-control readiness、chat runtime readiness、operator surface
   readiness 混入 docs readiness
 - campus docs readiness smoke 应通过 same-origin bridge 调用这个 endpoint，而不是调用根
   `/readyz`

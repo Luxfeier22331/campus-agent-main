@@ -46,7 +46,7 @@ func TestHTTPClientExecuteCallsPrivateBridgeEndpoint(t *testing.T) {
 		if string(body) != `{"user_goal":"hello"}` {
 			t.Fatalf("body = %s, want projected payload", string(body))
 		}
-		writer.Header().Set("x-supervisor-bridge-kind", "agent_response")
+		writer.Header().Set("x-supervisor-bridge-kind", "capability_response")
 		writer.Header().Set("content-type", "application/json")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte(`{"status":"completed"}`))
@@ -67,8 +67,8 @@ func TestHTTPClientExecuteCallsPrivateBridgeEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute returned error: %v", err)
 	}
-	if response.Kind != "agent_response" {
-		t.Fatalf("kind = %q, want agent_response", response.Kind)
+	if response.Kind != "capability_response" {
+		t.Fatalf("kind = %q, want capability_response", response.Kind)
 	}
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
@@ -106,8 +106,11 @@ func TestHTTPClientExecuteSemanticCallsPrivateSemanticEndpoint(t *testing.T) {
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("unmarshal semantic payload: %v", err)
 		}
-		if payload["bridge_version"] != "semantic_bridge_execution_v1" {
-			t.Fatalf("bridge_version = %v", payload["bridge_version"])
+		if payload["execution_contract_version"] != "semantic_bridge_execution_v1" {
+			t.Fatalf(
+				"execution_contract_version = %v",
+				payload["execution_contract_version"],
+			)
 		}
 		if payload["run_id"] != "run-001" {
 			t.Fatalf("run_id = %v", payload["run_id"])
@@ -134,7 +137,7 @@ func TestHTTPClientExecuteSemanticCallsPrivateSemanticEndpoint(t *testing.T) {
 		if execution["user_goal"] != "hello" {
 			t.Fatalf("execution.user_goal = %v", execution["user_goal"])
 		}
-		writer.Header().Set("x-supervisor-bridge-kind", "semantic_agent_response")
+		writer.Header().Set("x-supervisor-bridge-kind", "semantic_capability_response")
 		writer.Header().Set("content-type", "application/json")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte(`{"status":"completed"}`))
@@ -160,8 +163,8 @@ func TestHTTPClientExecuteSemanticCallsPrivateSemanticEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute semantic returned error: %v", err)
 	}
-	if response.Kind != "semantic_agent_response" {
-		t.Fatalf("kind = %q, want semantic_agent_response", response.Kind)
+	if response.Kind != "semantic_capability_response" {
+		t.Fatalf("kind = %q, want semantic_capability_response", response.Kind)
 	}
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
@@ -295,7 +298,7 @@ func TestHTTPClientExecuteHonorsContextCancellation(t *testing.T) {
 
 func TestHTTPClientRejectsOversizedBridgeResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("x-supervisor-bridge-kind", "agent_response")
+		writer.Header().Set("x-supervisor-bridge-kind", "capability_response")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte(`{"status":"completed","padding":"too-large"}`))
 	}))

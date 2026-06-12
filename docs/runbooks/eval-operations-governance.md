@@ -48,7 +48,7 @@ Current default posture:
 ## Deterministic Product-Path Gates
 
 `multi-agent-runtime-contract` is the deterministic acceptance gate for the
-supervisor-led multi-agent runtime contract. Run it with:
+capability execution runtime contract. Run it with:
 
 ```bash
 uv run --all-packages python -m scripts.eval_gate accept \
@@ -59,13 +59,13 @@ uv run --all-packages python -m scripts.eval_gate accept \
 
 The gate covers:
 
-- supervisor execution schema/generated artifact drift check
-- cross-language supervisor execution fixture matrix for Python bridge, Go runtime
+- capability execution schema/generated artifact drift check
+- cross-language capability execution fixture matrix for Python bridge, Go runtime
   and TypeScript app-api adapter
 - workflow trace evaluator and fixture denominator
 - tool-family denominator evaluator and fixture denominator
 - public-chat product-path evaluator, including sanitized
-  `workflow_trace_summary` replay against selected target, branch and fail-close
+  `workflow_trace_summary` replay against selected capability, branch and fail-close
   reason
 - targeted execution-control, app-api and protected-panel-web test lanes, including
   panel raw bridge/provider/prompt key non-exposure checks
@@ -80,15 +80,15 @@ True product-path runtime E2E should use `public-chat-product-path
 
 Failure handling:
 
-- supervisor execution contract generation failure: update
-  `docs/contracts/schemas/supervisor-execution.openapi.yaml` first, then regenerate
+- capability execution contract generation failure: update
+  `docs/contracts/schemas/capability-execution.openapi.yaml` first, then regenerate
   artifacts with `pnpm contracts:generate`
 - strict fixture matrix failure: update the canonical schema, generated artifacts
   and fixture truth together; do not special-case one language runtime
 - fixture or evaluator failure: fix the eval-owned case truth, evaluator
   semantics or sanitized artifact contract first
-- supervisor/app-api/panel targeted lane failure: fix the owning runtime surface
-  before rerunning the gate
+- execution-control/app-api/panel targeted lane failure: fix the owning runtime
+  surface before rerunning the gate
 - missing or malformed `multi-agent-runtime-contract-gate.json`: treat as a gate
   implementation failure
 

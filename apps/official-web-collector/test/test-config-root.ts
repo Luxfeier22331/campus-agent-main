@@ -226,7 +226,7 @@ export function writeTestConfigRoot(
 					{
 						consumer_family: "contact_directory_candidate",
 						owner_surface: "contact_directory_lookup",
-						owner_agent_or_runtime: "campus-services-agent",
+						owner_capability_or_runtime: "campus_services",
 						materialization_policy: "candidate_only",
 						page_families: [
 							"article_detail",
@@ -261,7 +261,7 @@ export function writeTestConfigRoot(
 					{
 						consumer_family: "service_guide_candidate",
 						owner_surface: "service_guide_lookup",
-						owner_agent_or_runtime: "campus-services-agent",
+						owner_capability_or_runtime: "campus_services",
 						materialization_policy: "candidate_only",
 						page_families: ["article_detail", "directory_page", "generic_content_page"],
 						title_keywords: ["办理", "申请", "补办", "挂失", "指南", "服务"],
@@ -297,7 +297,7 @@ export function writeTestConfigRoot(
 					{
 						consumer_family: "academic_calendar_candidate",
 						owner_surface: "academic_calendar_lookup",
-						owner_agent_or_runtime: "campus-services-agent",
+						owner_capability_or_runtime: "campus_services",
 						materialization_policy: "candidate_only",
 						page_families: ["article_detail", "generic_content_page"],
 						title_keywords: ["校历", "教学周", "放假安排", "补课安排", "节假日安排"],
@@ -313,7 +313,7 @@ export function writeTestConfigRoot(
 					{
 						consumer_family: "stable_reference_candidate",
 						owner_surface: "official_web/stable_reference",
-						owner_agent_or_runtime: "rag-agent",
+						owner_capability_or_runtime: "knowledge",
 						materialization_policy: "release_gate_required",
 						page_families: ["article_detail", "directory_page", "generic_content_page"],
 						title_keywords: ["学校简介", "学校概况", "现任领导", "机构设置"],
@@ -329,7 +329,7 @@ export function writeTestConfigRoot(
 					{
 						consumer_family: "regulation_candidate",
 						owner_surface: "regulations/institutional_rules",
-						owner_agent_or_runtime: "rag-agent",
+						owner_capability_or_runtime: "knowledge",
 						materialization_policy: "release_gate_required",
 						page_families: ["article_detail", "generic_content_page"],
 						title_keywords: ["办法", "规定", "细则", "制度"],
@@ -345,7 +345,7 @@ export function writeTestConfigRoot(
 					{
 						consumer_family: "student_regulation_candidate",
 						owner_surface: "regulations/student_rules",
-						owner_agent_or_runtime: "rag-agent",
+						owner_capability_or_runtime: "knowledge",
 						materialization_policy: "release_gate_required",
 						page_families: ["article_detail", "generic_content_page"],
 						title_keywords: ["办法", "规定", "细则", "制度"],
@@ -361,7 +361,7 @@ export function writeTestConfigRoot(
 					{
 						consumer_family: "notice_news_candidate",
 						owner_surface: "future_notice_runtime",
-						owner_agent_or_runtime: "notice-agent",
+						owner_capability_or_runtime: "notice",
 						materialization_policy: "inventory_only",
 						page_families: ["article_detail"],
 						title_keywords: ["新闻", "通知", "公告", "讲座", "活动"],

@@ -285,7 +285,7 @@ ServiceGuideEntryRecord
 固定语义：
 
 - `online_url` 是用户可见入口引用，不是自动提交 endpoint
-- `location_ref` 可被 `navigation-agent` 后续消费，但 `service_guide_lookup` 不做路线规划
+- `location_ref` 可被 `navigation` 后续消费，但 `service_guide_lookup` 不做路线规划
 - 电话和邮箱可内嵌在 guide record 中；纯联系人查找后续仍由
   `contact_directory_lookup` 承接
 

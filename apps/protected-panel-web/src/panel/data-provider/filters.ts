@@ -187,7 +187,7 @@ export function appendOperatorAggregateFilters(
 ) {
 	query.set("window", resolveOperatorWindow(filter?.window));
 	appendOptionalQueryParam(query, "surface", filter?.surface);
-	appendOptionalQueryParam(query, "selectedTarget", filter?.selectedTarget);
+	appendOptionalQueryParam(query, "selectedCapability", filter?.selectedCapability);
 	appendOptionalQueryParam(query, "requestedCapability", filter?.requestedCapability);
 	appendOptionalQueryParam(query, "principalType", filter?.principalType);
 	appendOptionalQueryParam(query, "collection", filter?.collection);
@@ -206,7 +206,7 @@ export function appendOperatorTimeseriesFilters(
 		query.set("granularity", granularity);
 	}
 	appendOptionalQueryParam(query, "surface", filter?.surface);
-	appendOptionalQueryParam(query, "selectedTarget", filter?.selectedTarget);
+	appendOptionalQueryParam(query, "selectedCapability", filter?.selectedCapability);
 	appendOptionalQueryParam(query, "requestedCapability", filter?.requestedCapability);
 	appendOptionalQueryParam(query, "principalType", filter?.principalType);
 	appendOptionalQueryParam(query, "collection", filter?.collection);

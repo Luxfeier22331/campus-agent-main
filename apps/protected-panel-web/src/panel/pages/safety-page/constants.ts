@@ -10,7 +10,7 @@ export interface SafetyFilterState {
 	anomalyCode: string;
 	page: number;
 	perPage: number;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	severity: string;
 	status: string;
 	surface: string | null;

@@ -63,7 +63,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 						collection: "student_rules",
 						corpus: "regulations",
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					startedAt: "2026-03-28T08:00:00.000Z",
 					status: "completed",
 					surface: "public_chat_web",
@@ -103,7 +103,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 							corpus: "regulations",
 						},
 						resolvedScope: null,
-						selectedTarget: "rag-agent",
+						selectedCapability: "knowledge",
 					},
 				},
 			}),
@@ -204,7 +204,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 
 		await expect(
 			protectedPanelDataProvider.getOperatorOverview({
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				signal: undefined,
 				surface: "public_chat_web",
 			}),
@@ -224,7 +224,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		});
 
 		expect(fetchSpy).toHaveBeenCalledWith(
-			"/api/operator/overview?window=24h&surface=public_chat_web&selectedTarget=rag-agent",
+			"/api/operator/overview?window=24h&surface=public_chat_web&selectedCapability=knowledge",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",
@@ -376,7 +376,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 							},
 							requestId: "req_01",
 							runId: "run_01",
-							selectedTarget: "navigation-agent",
+							selectedCapability: "navigation",
 							summary: "Intent classifier selected the wrong target",
 							surface: "public_chat_web",
 							traceId: "trace_01",
@@ -422,7 +422,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 							review: {
 								suggestedLabels: ["wrong_intent"],
 							},
-							selectedTarget: "rag-agent",
+							selectedCapability: "knowledge",
 							summary: "Negative answer feedback for answer: wrong_intent.",
 							surface: "public_chat_web",
 							traceId: "trace_feedback_01",
@@ -448,7 +448,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 				detectedBy: "runtime_monitor",
 				page: 1,
 				perPage: 10,
-				selectedTarget: "navigation-agent",
+				selectedCapability: "navigation",
 				signal: undefined,
 				status: "open",
 				surface: "public_chat_web",
@@ -491,7 +491,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 				detectedBy: "runtime_monitor",
 				page: 2,
 				perPage: 10,
-				selectedTarget: "navigation-agent",
+				selectedCapability: "navigation",
 				signal: undefined,
 				status: "open",
 				surface: "public_chat_web",
@@ -507,7 +507,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 
 		expect(fetchSpy).toHaveBeenNthCalledWith(
 			1,
-			"/api/operator/quality/eval-candidates?limit=10&window=24h&surface=public_chat_web&selectedTarget=navigation-agent&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor",
+			"/api/operator/quality/eval-candidates?limit=10&window=24h&surface=public_chat_web&selectedCapability=navigation&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",
@@ -517,7 +517,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		);
 		expect(fetchSpy).toHaveBeenNthCalledWith(
 			2,
-			"/api/operator/quality/eval-candidates?limit=10&window=24h&surface=public_chat_web&selectedTarget=navigation-agent&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor&cursor=cursor_eval_02",
+			"/api/operator/quality/eval-candidates?limit=10&window=24h&surface=public_chat_web&selectedCapability=navigation&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor&cursor=cursor_eval_02",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",
@@ -544,7 +544,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 						openedAt: "2026-04-01T10:00:00.000Z",
 						requestId: "req_01",
 						runId: "run_01",
-						selectedTarget: "rag-agent",
+						selectedCapability: "knowledge",
 						status: "open",
 						summary: "Missing citation.",
 						surface: "public_chat_web",
@@ -563,7 +563,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 				detectedBy: "runtime_monitor",
 				page: 1,
 				perPage: 10,
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				status: "open",
 				surface: "public_chat_web",
 				window: "24h",
@@ -579,7 +579,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		});
 
 		expect(fetchSpy).toHaveBeenCalledWith(
-			"/api/operator/quality/badcases?limit=10&window=24h&surface=public_chat_web&selectedTarget=rag-agent&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
+			"/api/operator/quality/badcases?limit=10&window=24h&surface=public_chat_web&selectedCapability=knowledge&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",
@@ -622,7 +622,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 
 		await expect(
 			protectedPanelDataProvider.getOperatorIntentSummary({
-				selectedTarget: "navigation-agent",
+				selectedCapability: "navigation",
 				surface: "public_chat_web",
 				window: "24h",
 			}),
@@ -639,7 +639,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		});
 
 		expect(fetchSpy).toHaveBeenCalledWith(
-			"/api/operator/intent/summary?window=24h&surface=public_chat_web&selectedTarget=navigation-agent",
+			"/api/operator/intent/summary?window=24h&surface=public_chat_web&selectedCapability=navigation",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",

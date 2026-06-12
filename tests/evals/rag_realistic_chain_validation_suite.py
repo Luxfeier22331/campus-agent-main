@@ -23,7 +23,7 @@ class RagRealisticChainValidationTest(unittest.TestCase):
 
         self.assertIn(PORTAL_PASSWORD_CASE_ID, by_id)
         portal_case = by_id[PORTAL_PASSWORD_CASE_ID]
-        self.assertEqual(portal_case.expected_target, "campus-services-agent")
+        self.assertEqual(portal_case.expected_target, "campus_services")
         self.assertEqual(portal_case.validation_path, "supervisor_route")
         self.assertFalse(portal_case.execute_with_rag)
 
@@ -38,7 +38,7 @@ class RagRealisticChainValidationTest(unittest.TestCase):
         discovery = results["scholarship-discovery-undergrad"]
         self.assertEqual(discovery.status, "completed")
         self.assertTrue(discovery.retrieval_called)
-        self.assertEqual(discovery.expected_target, "rag-agent")
+        self.assertEqual(discovery.expected_target, "knowledge")
         self.assertIn("当前已收录依据中，本科生奖学金相关制度包括：", discovery.answer_text)
         self.assertIn("以当年通知/学院细则为准", discovery.answer_text)
         self.assertGreaterEqual(len(discovery.supporting_doc_ids), 4)

@@ -24,9 +24,11 @@ VALID_STAGING_ENV = textwrap.dedent(
     STAGING_INGESTION_OBJECT_STORE_REGION=auto
     STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=access
     STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=secret
-    STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
+
+    STAGING_INGESTION_QDRANT_URL=https://127.0.0.1:6333
     STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
     STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-read
+    STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
     STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
     STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
     STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -44,7 +46,6 @@ VALID_STAGING_ENV = textwrap.dedent(
     OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
     EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics
     EXECUTION_CONTROL_SHARED_SECRET=worker-secret
-    SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
     EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
     EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@example/campus_agent
     TEMPORAL_POSTGRES_PASSWORD=temporal-postgres-password
@@ -53,7 +54,11 @@ VALID_STAGING_ENV = textwrap.dedent(
     EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow
     EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001
-    EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:001
+    EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:001
+    EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001
+    EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:001
+    EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:001
+    EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:001
     EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
@@ -141,7 +146,11 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
                     EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow
                     EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
                     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001
-                    EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:001
+                    EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:001
+                    EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001
+                    EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:001
+                    EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:001
+                    EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:001
                     EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001
                     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
                     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
@@ -156,6 +165,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertIn("CLOUDFLARE_API_TOKEN", payload["blockers"])
         self.assertIn("STAGING_INGESTION_OBJECT_STORE_ENDPOINT", payload["blockers"])
         self.assertIn("STAGING_INGESTION_QDRANT_URL", payload["blockers"])
+        self.assertIn("STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH", payload["blockers"])
         self.assertIn("STAGING_INGESTION_EMBEDDING_API_KEY", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", payload["blockers"])

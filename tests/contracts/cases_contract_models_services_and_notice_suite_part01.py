@@ -112,9 +112,9 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             "regulations/student_rules",
         )
 
-    def test_agent_request_serializes_forward_agent_allowed_tools(self) -> None:
-        request = AgentRequest(
-            target="campus-services-agent",
+    def test_capability_request_serializes_forward_allowed_tools(self) -> None:
+        request = CapabilityRequest(
+            capability="campus_services",
             user_goal="图书馆今天开门吗",
             payload=ServiceStatusLookupPayload(
                 subject_query="图书馆今天开门吗",
@@ -125,15 +125,15 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
 
         payload = asdict(request)
 
-        self.assertEqual(payload["target"], "campus-services-agent")
+        self.assertEqual(payload["capability"], "campus_services")
         self.assertEqual(tuple(payload["allowed_tools"]), ("service_status_lookup",))
 
     def test_agent_request_rejects_unknown_allowed_tool(self) -> None:
         with self.assertRaisesRegex(
             ValueError, "unsupported allowed_tool: transport_notice_latest"
         ):
-            AgentRequest(
-                target="campus-services-agent",
+            CapabilityRequest(
+                capability="campus_services",
                 user_goal="校车现在开吗",
                 payload=TransportScheduleLookupPayload(
                     query_text="校车现在开吗",
@@ -143,8 +143,8 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             )
 
     def test_agent_request_accepts_contact_directory_allowed_tool(self) -> None:
-        request = AgentRequest(
-            target="campus-services-agent",
+        request = CapabilityRequest(
+            capability="campus_services",
             user_goal="招生办电话是多少",
             payload=ContactDirectoryLookupPayload(
                 query_text="招生办电话是多少",
@@ -156,8 +156,8 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
         self.assertEqual(request.allowed_tools, ("contact_directory_lookup",))
 
     def test_agent_request_accepts_academic_calendar_as_campus_service_tool(self) -> None:
-        request = AgentRequest(
-            target="campus-services-agent",
+        request = CapabilityRequest(
+            capability="campus_services",
             user_goal="今天第几教学周",
             payload=AcademicCalendarLookupPayload(
                 query_text="今天第几教学周",
@@ -169,10 +169,10 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
 
         self.assertEqual(request.allowed_tools, ("academic_calendar_lookup",))
 
-    def test_agent_request_rejects_retired_calendar_agent_target(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported agent target: calendar-agent"):
-            AgentRequest(
-                target="calendar-agent",  # type: ignore[arg-type]
+    def test_capability_request_rejects_retired_calendar_capability(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported capability: calendar"):
+            CapabilityRequest(
+                capability="calendar",  # type: ignore[arg-type]
                 user_goal="今天第几教学周",
                 payload=AcademicCalendarLookupPayload(
                     query_text="今天第几教学周",

@@ -5,8 +5,7 @@ import {
 	DRAFT_CONVERSATION_TITLE,
 	toConversationResponse,
 } from "../../chat";
-import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
-import type { ProfileMemoryProjectionItem } from "../../profile-memory";
+import type { CapabilityExecutionResponse, RequestedScope } from "../../integration";
 import { extractRequestDiagnosticsSummary } from "../../request-diagnostics";
 import {
 	buildAcceptedRequestObservabilityFact,
@@ -14,7 +13,7 @@ import {
 } from "../../request-observability";
 import type { VersionQuery } from "../../version-query";
 import {
-	buildSupervisorSessionProjection,
+	buildExecutionSessionProjection,
 	deriveCurriculumSessionSlots,
 } from "../curriculum-session";
 import type { AcceptRequestWrite, FinalizeRequestWrite, RequestExecutionStatus } from "../store";
@@ -34,29 +33,16 @@ export function buildConversationTitle(currentTitle: string, prompt: string): st
 	return prompt.length <= 80 ? prompt : `${prompt.slice(0, 77)}...`;
 }
 
-export function buildSupervisorContextProjection(input: {
+export function buildCapabilityExecutionContextProjection(input: {
 	actor: ResolvedAppPrincipal["actor"];
 	authorization: ResolvedAppPrincipal["authorization"];
-	profileMemoryItems?: ProfileMemoryProjectionItem[];
 	sessionSlots: ChatConversation["sessionSlots"];
 	turnCount: number;
 }) {
 	return {
 		actor: input.actor,
 		authorization: input.authorization ?? buildExecutionAuthorizationContext(input.actor),
-		profileMemory: {
-			items:
-				input.profileMemoryItems?.map((item) => ({
-					confidence: item.confidence,
-					itemId: item.itemId,
-					key: item.key,
-					lastVerifiedAt: item.lastVerifiedAt,
-					sourceType: item.sourceType,
-					value: item.value,
-					visibility: item.visibility,
-				})) ?? [],
-		},
-		session: buildSupervisorSessionProjection({
+		session: buildExecutionSessionProjection({
 			sessionSlots: input.sessionSlots,
 			turnCount: input.turnCount,
 		}),
@@ -131,7 +117,7 @@ export function buildAcceptedWrite(input: {
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
 			resolvedScope: null,
-			selectedTarget: null,
+			selectedCapability: null,
 			status: "accepted",
 			errorCode: null,
 			questionPreview: previewText(input.prompt),
@@ -182,7 +168,7 @@ export function buildAcceptedWrite(input: {
 
 function resolveFinalizedScope(input: {
 	requestedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 }): RequestedScope | null {
 	const corpus = input.response.observability?.resolvedScopeCorpus?.trim();
 	const collection = input.response.observability?.resolvedScopeCollection?.trim();
@@ -204,7 +190,7 @@ export function buildFinalizedWrite(input: {
 	requestId: string;
 	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	runId: string | null;
 	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
@@ -216,20 +202,20 @@ export function buildFinalizedWrite(input: {
 	write: FinalizeRequestWrite;
 } {
 	const normalizedTraceId = input.response.traceId || input.traceId;
-	const normalizedSupervisorResponse = {
+	const normalizedExecutionResponse = {
 		...input.response,
 		traceId: normalizedTraceId,
-	} satisfies SupervisorExecutionResponse;
+	} satisfies CapabilityExecutionResponse;
 	const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
 	const sourceDocIds = extractSourceDocIds(input.response.result);
 	const structuredParts = normalizeChatResponseStructuredParts({
 		result: input.response.result,
-		selectedTarget: input.response.selectedTarget,
+		selectedCapability: input.response.selectedCapability,
 		status: input.response.status,
 	});
 	const resolvedScope = resolveFinalizedScope({
 		requestedScope: input.requestedScope,
-		response: normalizedSupervisorResponse,
+		response: normalizedExecutionResponse,
 	});
 	let assistantKind: ChatMessage["kind"];
 	let assistantText: string;
@@ -274,7 +260,7 @@ export function buildFinalizedWrite(input: {
 			(input.response.status === "approval_required"
 				? "The request requires approval before it can continue."
 				: input.response.status === "rejected"
-					? "The request was rejected by supervisor policy."
+					? "The request was rejected by execution policy."
 					: input.response.status === "cancelled"
 						? "The request was cancelled."
 						: "The request could not be completed.");
@@ -368,7 +354,7 @@ export function buildFinalizedWrite(input: {
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
 			resolvedScope,
-			selectedTarget: input.response.selectedTarget,
+			selectedCapability: input.response.selectedCapability,
 			status,
 			errorCode,
 			questionPreview: "",
@@ -392,7 +378,7 @@ export function buildFinalizedWrite(input: {
 			requestedCapability: input.requestedCapability,
 			requestedScope: input.requestedScope,
 			resolvedScope,
-			response: normalizedSupervisorResponse,
+			response: normalizedExecutionResponse,
 			safetyIdentifier: input.safetyIdentifier,
 			sourceDocIds,
 			startedAt: input.startedAt,
@@ -410,7 +396,7 @@ export function buildFinalizedWrite(input: {
 				traceId: normalizedTraceId,
 				conversationId: input.conversation.id,
 				status,
-				selectedTarget: input.response.selectedTarget,
+				selectedCapability: input.response.selectedCapability,
 				answerPreview: previewText(assistantText),
 				errorCode,
 				...(diagnostics ? { diagnostics } : {}),
@@ -436,8 +422,8 @@ export function buildFinalizedWrite(input: {
 				conversation: toConversationResponse(input.conversation),
 				result,
 			},
+			execution: normalizedExecutionResponse,
 			requestId: input.requestId,
-			supervisor: normalizedSupervisorResponse,
 			traceId: normalizedTraceId,
 		},
 		write,

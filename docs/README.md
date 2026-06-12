@@ -20,12 +20,15 @@ policy、reference、runbook，以及已归档的历史 plan。
 - [architecture/system/capability-routing-and-admission-architecture.md](./architecture/system/capability-routing-and-admission-architecture.md)
   - capability routing、surface admission 与 structured/runtime opening owner
 - [architecture/system/execution-and-agents-architecture.md](./architecture/system/execution-and-agents-architecture.md)
-  - execution runtime、agent family、handoff 与 workflow ownership
+  - execution runtime、capability / agent-as-tool、handoff 与 workflow ownership
 - [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
   - retrieval-side agentic planning、evidence contract 与 retrieval/runtime split
 - [architecture/system/identity-platform-architecture.md](./architecture/system/identity-platform-architecture.md)
   - MUC Wiki Identity Platform、auth runtime adapter 与 account/federation
     product boundary
+- [architecture/system/memory-plane-architecture.md](./architecture/system/memory-plane-architecture.md)
+  - Qdrant-native Personal Memory Index、Temporal `memory.recall` 与 bounded
+    memory context
 - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - 当前项目级 active lane 与 pending work
 - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
@@ -61,8 +64,8 @@ policy、reference、runbook，以及已归档的历史 plan。
 - 需要回答“产品是什么、当前系统真相是什么、长期要收口到哪里”，先读 `architecture/`
 - 需要回答“顶层 capability routing、surface allowlist 与 admission/routing 分层如何设计”，读
   `architecture/system/capability-routing-and-admission-architecture.md`
-- 需要回答“supervisor、structured runtime、agent handoff 与 SDK-native execution
-  如何分层”，读
+- 需要回答“Execution Agent Layer、structured runtime、capability handoff 与
+  SDK-native execution 如何分层”，读
   `architecture/system/execution-and-agents-architecture.md`
 - 需要回答“retrieval planner、bounded evidence、RAG side agent runtime 如何分层”，读
   `architecture/system/agentic-retrieval-architecture.md`
@@ -84,6 +87,8 @@ policy、reference、runbook，以及已归档的历史 plan。
   `contracts/app-api-dining-http.md`、
   `contracts/app-api-dining-ops-http.md` 与
   `data/dining-operations-schema.md`
+- 需要回答“personal memory 如何用 Qdrant recall、在哪里写入和消费、Temporal 如何参与 memory 生命周期”，读
+  `architecture/system/memory-plane-architecture.md`
 - 需要回答“为什么接受这条边界”，读 `decisions/`
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
 - 需要回答“MUC Campus Q&A 前端设计稿、页面边界、截图和 design token 是什么”，读

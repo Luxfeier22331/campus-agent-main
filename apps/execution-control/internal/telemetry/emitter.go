@@ -41,7 +41,7 @@ type Event struct {
 	PolicyGateDecision    string
 	RoutingNextAction     string
 	PlanningOutcome       string
-	SelectedTarget        string
+	SelectedCapability    string
 	SelectedTool          string
 	TerminalOutcome       string
 	FailCloseReason       string
@@ -212,7 +212,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("failure_code", event.FailureCode),
 		attribute.Int64("queue_wait_ms", event.QueueWait.Milliseconds()),
 		attribute.String("routing_next_action", event.RoutingNextAction),
-		attribute.String("selected_target", event.SelectedTarget),
+		attribute.String("selected_capability", event.SelectedCapability),
 		attribute.String("selected_tool", event.SelectedTool),
 		attribute.String("scope_gate_decision", event.ScopeGateDecision),
 		attribute.String("terminal_outcome", event.TerminalOutcome),

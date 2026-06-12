@@ -8,20 +8,20 @@ var (
 	defaultToolSpecRegistryOK   bool
 )
 
-func AllowedToolsForTarget(target string) []string {
+func AllowedToolsForCapability(capability string) []string {
 	registry, ok := DefaultToolSpecRegistry()
 	if !ok {
 		return nil
 	}
-	return registry.AllowedToolsForTarget(target)
+	return registry.AllowedToolsForCapability(capability)
 }
 
-func AllowedToolsForPayloadKind(target string, payloadKind string) []string {
+func AllowedToolsForCapabilityPayloadKind(capability string, payloadKind string) []string {
 	registry, ok := DefaultToolSpecRegistry()
 	if !ok {
 		return nil
 	}
-	return registry.AllowedToolsForPayloadKind(target, payloadKind)
+	return registry.AllowedToolsForCapabilityPayloadKind(capability, payloadKind)
 }
 
 func DefaultToolSpecRegistry() (ToolSpecRegistry, bool) {

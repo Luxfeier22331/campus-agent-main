@@ -35,17 +35,19 @@ func BridgePayloadForHandoff(
 	payload["user_goal"] = userGoal
 	decisions["handoff"] = map[string]any{
 		"planning_outcome": "preplanned",
-		"target":           handoff.Target,
+		"capability":       handoff.Capability,
+		"worker_role":      handoff.WorkerRole,
 		"allowed_tools":    append([]string{}, handoff.AllowedTools...),
-		"agent_request": map[string]any{
-			"target":            handoff.Target,
+		"capability_request": map[string]any{
+			"capability":        handoff.Capability,
+			"worker_role":       handoff.WorkerRole,
 			"user_goal":         userGoal,
 			"conversation_id":   payload["conversation_id"],
 			"request_id":        payload["request_id"],
 			"safety_identifier": payload["safety_identifier"],
 			"trace":             payload["trace"],
 			"actor":             payload["actor"],
-			"context":           sanitizedAgentContext(payload["context"]),
+			"context":           sanitizedCapabilityContext(payload["context"]),
 			"workflow_context":  workflowContext,
 			"payload": map[string]any{
 				"kind":    handoff.PayloadKind,
@@ -56,8 +58,9 @@ func BridgePayloadForHandoff(
 	}
 	if summary, ok := decisions["runtime_decision_summary"].(map[string]any); ok {
 		summary["planning_outcome"] = "preplanned"
-		summary["selected_target"] = handoff.Target
+		summary["selected_capability"] = handoff.Capability
 		summary["selected_tool"] = selectedTool
+		summary["worker_role"] = handoff.WorkerRole
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -74,9 +77,9 @@ func workflowContextForHandoff(
 	requiredProjectionKind := strings.TrimSpace(handoff.RequiredProjectionKind)
 	if requiredProjectionKind != "" && !workflowHasProjectionKind(projections, requiredProjectionKind) {
 		return nil, fmt.Errorf(
-			"required projection %q is unavailable for handoff target %q",
+			"required projection %q is unavailable for capability %q",
 			requiredProjectionKind,
-			handoff.Target,
+			handoff.Capability,
 		)
 	}
 	projectionRefs := make([]map[string]any, 0, len(projections))
@@ -87,12 +90,12 @@ func workflowContextForHandoff(
 		projectionRefs = append(projectionRefs, projection.SummaryMap())
 	}
 	return map[string]any{
-		"schema_version":            "workflow-agent-context-v1",
-		"visibility":                "agent_private",
+		"schema_version":            "workflow-capability-context-v1",
+		"visibility":                "capability_private",
 		"workflow_run_ref":          "workflow:" + strings.TrimSpace(requestID),
-		"step_id":                   "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
-		"agent_id":                  handoff.Target,
-		"target":                    handoff.Target,
+		"step_id":                   runtimeStepIDForHandoff(handoff.Capability, handoff.PayloadKind),
+		"capability_id":             handoff.Capability,
+		"worker_role":               handoff.WorkerRole,
 		"required_projection_kind":  requiredProjectionKind,
 		"expected_output_artifacts": append([]string{}, handoff.ExpectedArtifacts...),
 		"projection_refs":           projectionRefs,
@@ -113,7 +116,7 @@ func projectionAllowedForHandoff(handoff RuntimeHandoff, projection StepOutputPr
 		return false
 	}
 	requiredProjectionKind := strings.TrimSpace(handoff.RequiredProjectionKind)
-	if handoff.Target == "rag-agent" {
+	if handoff.Capability == "knowledge" {
 		return projection.ProjectionKind == ProjectionKindScheduleBaseline ||
 			projection.ProjectionKind == ProjectionKindNoticeContext ||
 			projection.ProjectionKind == ProjectionKindNoticeChangeSet
@@ -124,13 +127,13 @@ func projectionAllowedForHandoff(handoff RuntimeHandoff, projection StepOutputPr
 	return false
 }
 
-func sanitizedAgentContext(rawContext any) map[string]any {
+func sanitizedCapabilityContext(rawContext any) map[string]any {
 	context, _ := rawContext.(map[string]any)
 	if len(context) == 0 {
 		return map[string]any{}
 	}
 	sanitized := make(map[string]any, len(context))
-	for _, key := range []string{"actor", "authorization", "profile_memory", "session"} {
+	for _, key := range []string{"actor", "authorization", "session"} {
 		if value, exists := context[key]; exists {
 			sanitized[key] = value
 		}
@@ -161,7 +164,7 @@ func bridgeUserGoalForHandoff(
 	changeSetProjection StepOutputProjection,
 ) string {
 	userGoal, _ := rawUserGoal.(string)
-	if handoff.Target != "rag-agent" {
+	if handoff.Capability != "knowledge" {
 		return userGoal
 	}
 	parts := []string{strings.TrimSpace(userGoal)}
@@ -216,7 +219,7 @@ func selectedToolForRuntimeHandoff(handoff RuntimeHandoff) string {
 	if len(handoff.AllowedTools) == 1 {
 		return handoff.AllowedTools[0]
 	}
-	if handoff.Target == "rag-agent" {
+	if handoff.Capability == "knowledge" {
 		return "retrieval.query"
 	}
 	return ""

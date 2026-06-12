@@ -278,7 +278,7 @@ class OperatorObservabilityCliTest(unittest.TestCase):
                 {
                     "case_id": "case-1",
                     "passed": False,
-                    "reason": "selected target mismatch",
+                    "reason": "selected capability mismatch",
                     "request_correlation": {
                         "case_id": "case-1",
                         "request_id": "req_01",

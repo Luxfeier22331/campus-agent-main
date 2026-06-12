@@ -104,10 +104,15 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("Deploy checkout contains repo-local runtime secret file", result.stderr)
 
     def test_checkout_guard_rejects_wrong_pinned_sha(self) -> None:
-        result = _run_checkout_guard(mutate="", expected_sha="0000000000000000000000000000000000000000")
+        result = _run_checkout_guard(
+            mutate="", expected_sha="0000000000000000000000000000000000000000"
+        )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Deploy checkout HEAD does not match EXECUTION_CONTROL_STAGING_EXPECTED_SHA", result.stderr)
+        self.assertIn(
+            "Deploy checkout HEAD does not match EXECUTION_CONTROL_STAGING_EXPECTED_SHA",
+            result.stderr,
+        )
 
     def test_checkout_guard_requires_pinned_sha(self) -> None:
         result = _run_checkout_guard(mutate="", expected_sha=None)
@@ -123,7 +128,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("execution_control_staging_uv_run", core_script)
         self.assertIn("UV_PROJECT_ENVIRONMENT=", core_script)
         self.assertIn("UV_CACHE_DIR=", core_script)
-        self.assertIn('${execution_control_staging_runtime_dir}/uv', core_script)
+        self.assertIn("${execution_control_staging_runtime_dir}/uv", core_script)
 
     def test_staging_lifecycle_does_not_call_uv_run_without_runtime_wrapper(self) -> None:
         for source_path in STAGING_DIR.glob("execution-control-staging-*.sh"):
@@ -194,6 +199,8 @@ def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProces
                     "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
                     "STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com",
                     "STAGING_INGESTION_QDRANT_API_KEY=qdrant-key",
+                    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key",
+                    "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
                     "STAGING_INGESTION_EMBEDDING_PROVIDER=gitee",
                     "STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1",
                     "STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key",
@@ -210,7 +217,6 @@ def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProces
                     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER=Bearer axiom",
                     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime",
                     "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
-                    "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                     "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://projection@staging-db.example.com:5432/campus_agent",
                     "TEMPORAL_POSTGRES_PASSWORD=temporal-password",
@@ -219,7 +225,11 @@ def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProces
                     "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow",
                     "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001",
                     "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001",
-                    "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=staging:activity-rag:001",
+                    "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:001",
+                    "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001",
+                    "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:001",
+                    "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:001",
+                    "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:001",
                     "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001",
                     "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
                     "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
@@ -245,7 +255,9 @@ def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProces
         )
 
 
-def _run_checkout_guard(*, mutate: str, expected_sha: str | None) -> subprocess.CompletedProcess[str]:
+def _run_checkout_guard(
+    *, mutate: str, expected_sha: str | None
+) -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
         common_path = _copy_staging_modules(root)
@@ -262,7 +274,7 @@ def _run_checkout_guard(*, mutate: str, expected_sha: str | None) -> subprocess.
           if [[ {expected_sha!r} == HEAD ]]; then
             export EXECUTION_CONTROL_STAGING_EXPECTED_SHA="$(git rev-parse HEAD)"
           else
-            export EXECUTION_CONTROL_STAGING_EXPECTED_SHA={expected_sha or ''}
+            export EXECUTION_CONTROL_STAGING_EXPECTED_SHA={expected_sha or ""}
           fi
         fi
         {mutate}

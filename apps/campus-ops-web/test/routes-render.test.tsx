@@ -293,6 +293,10 @@ describe("campus ops routes", () => {
 
 		expect(await screen.findByText("海淀一食堂")).toBeInTheDocument();
 		expect(await screen.findByRole("button", { name: "上传替换 SVG" })).toBeInTheDocument();
+		expect(screen.getByRole("table", { name: "SVG 区块目录" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "放大平面图" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "缩小平面图" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "适配平面图" })).toBeInTheDocument();
 		fireEvent.click(await screen.findByRole("button", { name: "SVG 区块 window-01" }));
 		expect(screen.getByDisplayValue("一号窗口")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("盖饭窗口")).toBeInTheDocument();
@@ -377,7 +381,8 @@ describe("campus ops routes", () => {
 	it("binds an unassigned SVG anchor to an existing dining point", async () => {
 		renderWithQueryClient(<DiningWorkspacePage />);
 
-		expect(await screen.findByRole("button", { name: "SVG 区块 stall-new" })).toBeInTheDocument();
+		await screen.findByRole("table", { name: "SVG 区块目录" });
+		expect(screen.getByRole("button", { name: "SVG 区块 stall-new" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "SVG 区块 stall-new" }));
 
 		expect(screen.getByText("区块未绑定餐饮点")).toBeInTheDocument();

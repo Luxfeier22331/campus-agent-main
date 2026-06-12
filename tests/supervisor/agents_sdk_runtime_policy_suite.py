@@ -24,7 +24,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                 "admission_reason": "disabled",
                 "runtime_enabled": False,
                 "runtime_admitted": False,
-                "runtime_posture": "domain_agent_adapter_admitted",
+                "runtime_posture": "domain_capability_adapter_admitted",
             },
         )
 

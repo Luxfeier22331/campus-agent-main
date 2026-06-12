@@ -5,15 +5,15 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
+    ExecutionObservability,
+    ExecutionResponse,
     KnowledgeScope,
     RagResultDiagnostics,
     RagResultPayload,
-    SupervisorObservability,
-    SupervisorResponse,
     VersionQuery,
 )
 from campus_evals import (
@@ -94,9 +94,9 @@ def _response(
     collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
     diagnostics: RagResultDiagnostics | None = None,
-) -> AgentResponse:
-    return AgentResponse(
-        target="rag-agent",
+) -> CapabilityResponse:
+    return CapabilityResponse(
+        capability="knowledge",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -116,18 +116,18 @@ __all__ = (
     "CURRICULUM_SCOPE",
     "HANDBOOK_SCOPE",
     "ActorContext",
-    "AgentResponse",
+    "CapabilityResponse",
     "ErrorInfo",
     "EvidenceBundle",
     "EvidenceSource",
+    "ExecutionObservability",
+    "ExecutionResponse",
     "ExecutionResult",
     "GoldenCase",
     "KnowledgeScope",
     "ObservedTrace",
     "RagResultDiagnostics",
     "RagResultPayload",
-    "SupervisorObservability",
-    "SupervisorResponse",
     "TraceExpectation",
     "VersionQuery",
     "_is_lookup_style_goal",

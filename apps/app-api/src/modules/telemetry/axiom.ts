@@ -27,7 +27,7 @@ const AXIOM_BASE_ALLOWED_FIELDS = [
 	"request_id",
 	"requested_capability",
 	"requested_scope_summary",
-	"selected_target",
+	"selected_capability",
 	"status",
 	"surface",
 	"trace_id",

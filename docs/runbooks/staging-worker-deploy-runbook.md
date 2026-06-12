@@ -33,8 +33,18 @@ updated: 2026-06-09
 
 - `apps/execution-control` 的前向 deploy substrate 已正式冻结为 Docker-first internal
   execution service
-- 当前 repo-owned staging execution runtime 已收敛到 `nc-arm-6c` 上的
-  `otel-collector + execution-control + supervisor-agent-worker` 三容器
+- 当前 repo-owned staging execution runtime 已收敛到 `nc-arm-6c` 上：
+  - `otel-collector`
+  - `execution-control`
+  - `workflow-worker`
+  - `activity-worker-context`
+  - `activity-worker-knowledge`
+  - `activity-worker-campus-services`
+  - `activity-worker-notice`
+  - `activity-worker-navigation`
+  - `activity-worker-finalization`
+  - `worker-autoscaler`
+  - Temporal
 - 这条 canonical execution runtime 的运维姿势、systemd connector、自愈与日志规则统一记录在
   `execution-control-staging-operations.md`
 - Python public compatibility ingress 已退出 active staging path
@@ -75,7 +85,7 @@ updated: 2026-06-09
     worker-staging-app-api`、Cloudflare secret presence、repo-owned staging config
     verification、`db:bootstrap:staging`、`db:migrate:staging` 与
     `db:reconcile-shared-drift:staging`
-  - deploy 时通过 `--var EXECUTION_CONTROL_BASE_URL:<url>` 注入当前 supervisor execution
+  - deploy 时通过 `--var EXECUTION_CONTROL_BASE_URL:<url>` 注入当前 execution-control
     upstream
   - `pnpm deploy:staging` 会在 publish 时自动注入
     `SENTRY_RELEASE=app-api@staging-<sha>`；只有需要固定 release 名时才覆写
@@ -290,8 +300,13 @@ execution-control retrieval runtime 数据面。`nc-arm-6c:/srv/docker/campus-ag
 - `STAGING_INGESTION_OBJECT_STORE_ENDPOINT`
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY`
 - `STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY`
-- `STAGING_INGESTION_QDRANT_URL`
-- `STAGING_INGESTION_QDRANT_API_KEY`
+- `STAGING_INGESTION_QDRANT_URL`，必须是 self-hosted Qdrant HTTPS endpoint，例如
+  `https://127.0.0.1:6333`
+- `STAGING_INGESTION_QDRANT_API_KEY`，只用于 Qdrant service/admin lifecycle
+- `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY`，投影为 online runtime
+  `QDRANT_QUERY_API_KEY`
+- `STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH`，指向 ops-owned CA bundle，例如
+  `/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`
 - `STAGING_INGESTION_EMBEDDING_*`
 - `STAGING_INGESTION_SPARSE_*`
 

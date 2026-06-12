@@ -15,7 +15,7 @@ data、plan、runbook、reference、policy 聚到一页，减少在多个目录�
   - canonical identity、profile/session memory、authorization truth 与 restricted
     rollout boundary
 - `navigation.md`
-  - navigation agent、place catalog、route/wayfinding boundary 与相关执行入口
+  - navigation capability、place catalog、route/wayfinding boundary 与相关执行入口
 - `official-web.md`
   - `official_web` source channel、control plane、serving split 与 operator surface
 - `authenticated-notice.md`

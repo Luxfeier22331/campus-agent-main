@@ -6,15 +6,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 from campus_contracts import EvidenceBundle
-from campus_prompt_runtime import PromptRuntimeProviderConfig
-from campus_rag_agent.rag_sdk_models import (
+from campus_knowledge_capability.rag_sdk_models import (
     RagQueryIntent,
     RagSdkEvidenceAnchor,
     RagSdkEvidenceProjection,
     RagSdkRunRequest,
     RagTaskKind,
 )
-from campus_rag_agent.rag_sdk_output import RagSdkAnswerOutput
+from campus_knowledge_capability.rag_sdk_output import RagSdkAnswerOutput
+from campus_prompt_runtime import PromptRuntimeProviderConfig
 from campus_supervisor_agent_worker.agents_sdk_function_tools import (
     build_agents_sdk_function_tool,
 )
@@ -25,7 +25,7 @@ from campus_supervisor_agent_worker.openai_agents_rag_runtime import (
     OpenAIAgentsRagRuntime,
 )
 
-from tests.agent.rag_agent_test_support import _make_handbook_source
+from tests.agent.knowledge_capability_test_support import _make_handbook_source
 
 
 class OpenAIAgentsRagRuntimeTest(unittest.TestCase):
@@ -152,7 +152,7 @@ class OpenAIAgentsRagRuntimeTest(unittest.TestCase):
         self.assertEqual(result.trace_projection["model_response_ref"], "resp-rag-sdk-001")
         self.assertIsNotNone(captured_kwargs)
         assert captured_kwargs is not None
-        self.assertEqual(captured_kwargs["agent_name"], "rag-agent-native-runtime")
+        self.assertEqual(captured_kwargs["agent_name"], "knowledge-native-runtime")
         self.assertEqual(captured_kwargs["input_text"], "有哪些本科生可以申请的奖学金")
         self.assertEqual(captured_kwargs["tool_descriptors"][0].name, "retrieve_evidence")
         self.assertEqual(captured_kwargs["output_type"].__name__, "_RagSdkStructuredOutput")

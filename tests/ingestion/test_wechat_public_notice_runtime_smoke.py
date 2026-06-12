@@ -233,7 +233,7 @@ def _entry(
         unit_id=unit_id,
         primary_role="notice_window",
         semantic_owner="notice_body",
-        default_agent="notice-agent",
+        default_agent="notice",
         target_surface=target_surface,
         temporal_policy="announcement_window",
         completeness_status="complete",

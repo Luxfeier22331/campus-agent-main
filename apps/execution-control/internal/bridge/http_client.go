@@ -76,14 +76,14 @@ func (c *HTTPClient) ExecuteSemantic(
 	request SemanticExecutionRequest,
 ) (ExecuteResponse, error) {
 	body, err := json.Marshal(semanticExecutionWireRequest{
-		BridgeVersion:   "semantic_bridge_execution_v1",
-		RunID:           request.RunID,
-		StepExecutionID: request.StepExecutionID,
-		StepID:          request.StepID,
-		Lane:            request.Lane,
-		WorkerID:        request.WorkerID,
-		Attempt:         request.Attempt,
-		Execution:       request.Execution.Payload,
+		ExecutionContractVersion: "semantic_bridge_execution_v1",
+		RunID:                    request.RunID,
+		StepExecutionID:          request.StepExecutionID,
+		StepID:                   request.StepID,
+		Lane:                     request.Lane,
+		WorkerID:                 request.WorkerID,
+		Attempt:                  request.Attempt,
+		Execution:                request.Execution.Payload,
 	})
 	if err != nil {
 		return ExecuteResponse{}, err
@@ -132,14 +132,14 @@ func (c *HTTPClient) Cancel(ctx context.Context, request CancelRequest) (CancelR
 }
 
 type semanticExecutionWireRequest struct {
-	BridgeVersion   string          `json:"bridge_version"`
-	RunID           string          `json:"run_id"`
-	StepExecutionID string          `json:"step_execution_id"`
-	StepID          string          `json:"step_id"`
-	Lane            string          `json:"lane"`
-	WorkerID        string          `json:"worker_id"`
-	Attempt         int             `json:"attempt"`
-	Execution       json.RawMessage `json:"execution"`
+	ExecutionContractVersion string          `json:"execution_contract_version"`
+	RunID                    string          `json:"run_id"`
+	StepExecutionID          string          `json:"step_execution_id"`
+	StepID                   string          `json:"step_id"`
+	Lane                     string          `json:"lane"`
+	WorkerID                 string          `json:"worker_id"`
+	Attempt                  int             `json:"attempt"`
+	Execution                json.RawMessage `json:"execution"`
 }
 
 type rawResponse struct {

@@ -56,7 +56,7 @@ export function toRequestProjectionRecord(
 		requestedScope: row.requestedScopeJson ?? null,
 		...(row.versionQueryJson ? { versionQuery: row.versionQueryJson } : {}),
 		resolvedScope: row.resolvedScopeJson ?? null,
-		selectedTarget: row.selectedTarget ?? null,
+		selectedCapability: row.selectedCapability ?? null,
 		sourceDocIds: row.sourceDocIdsJson ?? [],
 		startedAt: row.startedAt.toISOString(),
 		status: row.status as RequestProjectionRecord["status"],
@@ -102,7 +102,7 @@ export function toAuditListItem(
 		occurredAt: row.occurredAt.toISOString(),
 		principalType: row.principalType,
 		requestId: row.requestId,
-		selectedTarget: row.selectedTarget ?? null,
+		selectedCapability: row.selectedCapability ?? null,
 		status: row.status,
 		summary: row.summary,
 		surface: row.surface,
@@ -207,8 +207,8 @@ export function buildObservabilityConditions(
 	if (filters.surface) {
 		conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 	}
-	if (filters.selectedTarget) {
-		conditions.push(eq(requestObservabilityFact.selectedTarget, filters.selectedTarget));
+	if (filters.selectedCapability) {
+		conditions.push(eq(requestObservabilityFact.selectedCapability, filters.selectedCapability));
 	}
 	if (filters.requestedCapability) {
 		conditions.push(eq(requestObservabilityFact.requestedCapability, filters.requestedCapability));
@@ -249,8 +249,8 @@ export function buildQualityGradeConditions(
 	if (filters.surface) {
 		conditions.push(eq(qualityGradeProjection.surface, filters.surface));
 	}
-	if (filters.selectedTarget) {
-		conditions.push(eq(qualityGradeProjection.selectedTarget, filters.selectedTarget));
+	if (filters.selectedCapability) {
+		conditions.push(eq(qualityGradeProjection.selectedCapability, filters.selectedCapability));
 	}
 	if (filters.requestedCapability) {
 		conditions.push(eq(qualityGradeProjection.requestedCapability, filters.requestedCapability));

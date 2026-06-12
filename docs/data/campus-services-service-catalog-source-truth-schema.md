@@ -201,7 +201,7 @@ handbook / official-web / portal source truth
 
 - request/result contract
 - Go structured query runtime
-- campus-services-agent thin adapter
+- campus_services thin adapter
 - admission/eval/observability gate
 - panel/operator 可见 release evidence
 

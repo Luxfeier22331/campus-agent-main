@@ -41,13 +41,21 @@ status as current project truth.
 
 ## Current Backlog Signals
 
-- Temporal execution-control staging closeout still requires real machine
-  ingress, worker poller, projection, smoke, and observability evidence.
-- Step projection should become the panel/eval/operator diagnostic spine.
+- Temporal execution-control normal-path staging closeout has real `nc-arm-6c`
+  evidence; remaining closeout work is failure-mode proof for cancel, timeout,
+  late completion, and panel/eval/operator consumption.
+- Step projection should remain the panel/eval/operator diagnostic spine and
+  must carry cancel/timeout/token/cost evidence for failure-mode runs.
 - Worker autoscaler remains an operations-plane proof: read Temporal/task queue
   metrics and downstream budgets, output desired replicas, never write
   workflow/run/event/terminal state.
 - Notice, navigation, and campus-services capabilities should continue as typed
   activity/tool contracts, not entry-level agents.
+- Campus services P1 now has an app-api operator-maintained source channel base:
+  manual attestations, bounded service-status / transport overrides, preview,
+  publish release snapshot, and audit events. Remaining gap is wiring the
+  published current-effective release into execution-control structured read
+  model/runtime proof; do not treat notice candidate review or release-task
+  evidence as mature enough for this lane.
 - Remote deploy worktrees must remain clean pinned deploy checkouts; secrets and
   runtime env belong to ops/Docker-managed config, not repo checkout state.

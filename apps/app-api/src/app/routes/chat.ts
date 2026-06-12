@@ -339,7 +339,7 @@ export function registerChatRoutes(input: {
 			return jsonResponse(
 				{
 					answer: response.answer,
-					supervisor: response.supervisor ?? null,
+					execution: response.execution ?? null,
 				},
 				{
 					headers: {

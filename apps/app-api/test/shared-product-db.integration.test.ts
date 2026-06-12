@@ -9,10 +9,11 @@ import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { createPgChatConversationStore } from "../src/modules/chat";
 import type {
-	SupervisorExecutionInput,
-	SupervisorExecutionResponse,
+	CapabilityExecutionInput,
+	CapabilityExecutionResponse,
 } from "../src/modules/integration/execution-control";
 import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
+import { createExecutionRuntimeFromCapabilityClient } from "./chat-command.service.test-support";
 import {
 	buildSharedDbIntegrationEnv,
 	convergeSharedDbForAppApiIntegration,
@@ -252,7 +253,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 		expect(createResponse.status).toBe(201);
 
 		const supervisor: {
-			execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
+			execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
 		} = {
 			execute: vi
 				.fn()
@@ -273,7 +274,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_eval_curriculum_01",
 				})
@@ -294,7 +295,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_eval_curriculum_02",
 				}),
@@ -303,7 +304,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 			chatCommandService: buildChatCommandService({
 				conversationStore: createPgChatConversationStore(env),
 				store: createPgChatCommandStore(env),
-				supervisor,
+				executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			}),
 		});
 

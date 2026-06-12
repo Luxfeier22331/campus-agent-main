@@ -248,7 +248,7 @@ def _deserialize_workflow_trace_summary(payload: object) -> WorkflowTraceSummary
         handoff_chain=tuple(dict(item) for item in handoff_chain)
         if isinstance(handoff_chain, list)
         else (),
-        selected_target=str(payload.get("selected_target") or ""),
+        selected_capability=str(payload.get("selected_capability") or ""),
         selected_tools=tuple(str(item) for item in selected_tools)
         if isinstance(selected_tools, list)
         else (),
@@ -424,7 +424,7 @@ def _write_repair_summary(
         {
             "schema_version": 1,
             "repair_of": str(benchmark_dir),
-            "selected_target_count": len(targets),
+            "selected_capability_count": len(targets),
             "applied_target_count": applied_target_count,
             "status_counts": dict(
                 Counter(str(entry.get("status") or "unknown") for entry in repair_entries)

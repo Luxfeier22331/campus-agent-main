@@ -79,7 +79,7 @@ def _accept_decision() -> dict[str, object]:
             "expected_next_action": "delegate",
             "expected_policy_reason": "knowledge_query",
             "expected_scope_class": "in_scope",
-            "expected_target": "rag-agent",
+            "expected_target": "knowledge",
             "expected_task_kind": "knowledge_lookup",
             "requested_capability": "knowledge",
             "tags": ["observed_regression", "feedback", "wrong_intent"],

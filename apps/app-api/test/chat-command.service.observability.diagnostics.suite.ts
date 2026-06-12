@@ -5,6 +5,7 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
 } from "./chat-command.service.test-support";
 
@@ -17,7 +18,7 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
 						"在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
@@ -41,11 +42,11 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 							],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "no_answer",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({
@@ -98,7 +99,7 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "民族学本科人才培养方案总学分要求以培养方案正文为准。",
 					error: null,
@@ -128,11 +129,11 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 							sources: [{ doc_id: "curriculum:民族学本科人才培养方案" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({

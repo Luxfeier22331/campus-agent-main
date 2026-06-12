@@ -8,7 +8,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { SupervisorExecutionWorkflowTraceSummary } from "../../modules/integration/supervisor-types";
+import type { CapabilityExecutionWorkflowTraceSummary } from "../../modules/integration/capability-execution-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -47,7 +47,7 @@ export const requestExecution = runtime.table(
 		requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
 		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
 		resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
-		selectedTarget: text("selected_target"),
+		selectedCapability: text("selected_capability"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		questionPreview: text("question_preview").notNull(),
@@ -126,7 +126,7 @@ export const requestObservabilityFact = runtime.table(
 		versionQuerySummary: text("version_query_summary"),
 		resolvedScopeSummary: text("resolved_scope_summary"),
 		collection: text("collection"),
-		selectedTarget: text("selected_target"),
+		selectedCapability: text("selected_capability"),
 		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
@@ -159,7 +159,7 @@ export const requestObservabilityFact = runtime.table(
 		toolHistoricalDowngradeReason: text("tool_historical_downgrade_reason"),
 		workflowTraceSummaryJson: jsonb(
 			"workflow_trace_summary_json",
-		).$type<SupervisorExecutionWorkflowTraceSummary | null>(),
+		).$type<CapabilityExecutionWorkflowTraceSummary | null>(),
 		intentCapability: text("intent_capability"),
 		intentTaskKind: text("intent_task_kind"),
 		intentLaunchState: text("intent_launch_state"),
@@ -216,9 +216,9 @@ export const requestObservabilityFact = runtime.table(
 			table.surface,
 			table.startedAt,
 		),
-		selectedTargetStartedAtIndex: index(
-			"runtime_request_observability_selected_target_started_at_idx",
-		).on(table.selectedTarget, table.startedAt),
+		selectedCapabilityStartedAtIndex: index(
+			"runtime_request_observability_selected_capability_started_at_idx",
+		).on(table.selectedCapability, table.startedAt),
 		principalTypeStartedAtIndex: index(
 			"runtime_request_observability_principal_type_started_at_idx",
 		).on(table.principalType, table.startedAt),

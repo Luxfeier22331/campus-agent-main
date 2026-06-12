@@ -63,8 +63,11 @@ Accepted on 2026-04-23.
 
 - repo 入口文档与 architecture docs 必须把 `apps/execution-control = Docker-first internal
   execution service` 作为 accepted truth
-- runbook 必须把 `execution-control + supervisor-agent-worker` 双容器作为当前 execution
-  runtime truth
+- runbook 必须把当前 execution runtime truth 写成：
+  `execution-control + Temporal + workflow-worker + activity-worker-context +
+  activity-worker-knowledge + activity-worker-campus-services +
+  activity-worker-notice + activity-worker-navigation +
+  activity-worker-finalization + worker-autoscaler`
 - dev-backed staging 兼容路径已退出 active runbook / script surface
 - Go `apps/execution-control` 是当前 Docker execution ingress，拥有 execution transport、
   admission、queue、timeout、readiness、metrics 与 graceful drain

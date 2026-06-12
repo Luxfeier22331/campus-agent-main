@@ -13,7 +13,7 @@ func TestMetricsEndpointRequiresBearerTokenWhenConfigured(t *testing.T) {
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers: 8,
 		MetricsBearerToken:   "metrics-token",
-	}, nil)
+	})
 
 	unauthorized := httptest.NewRecorder()
 	server.ServeHTTP(unauthorized, newTestRequest(http.MethodGet, "/metrics", nil))
@@ -35,7 +35,7 @@ func TestMetricsEndpointRequiresBearerTokenOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers: 8,
 		RuntimeProfile:       "staging",
-	}, nil)
+	})
 
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/metrics", nil))
@@ -43,7 +43,7 @@ func TestMetricsEndpointRequiresBearerTokenOutsideLocalProfile(t *testing.T) {
 }
 
 func TestMetricsUsesStableRouteLabelForUnknownPaths(t *testing.T) {
-	server := NewServer(config.Config{MaxConcurrentAnswers: 8}, nil)
+	server := newServerForTest()
 
 	unknown := httptest.NewRecorder()
 	server.ServeHTTP(unknown, newTestRequest(http.MethodGet, "/unexpected/student/123", nil))
@@ -63,7 +63,7 @@ func TestMetricsUsesStableRouteLabelForUnknownPaths(t *testing.T) {
 }
 
 func TestMetricsUsesServiceGuideRouteLabel(t *testing.T) {
-	server := NewServer(config.Config{MaxConcurrentAnswers: 8}, nil)
+	server := newServerForTest()
 
 	serviceGuide := httptest.NewRecorder()
 	server.ServeHTTP(
@@ -89,7 +89,7 @@ func TestMetricsUsesServiceGuideRouteLabel(t *testing.T) {
 }
 
 func TestMetricsUsesAcademicCalendarRouteLabel(t *testing.T) {
-	server := NewServer(config.Config{MaxConcurrentAnswers: 8}, nil)
+	server := newServerForTest()
 
 	academicCalendar := httptest.NewRecorder()
 	server.ServeHTTP(

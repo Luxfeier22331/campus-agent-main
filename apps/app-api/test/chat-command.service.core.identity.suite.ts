@@ -2,15 +2,15 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createHmac,
 	createPrincipal,
-	createProfileMemoryProjectionStore,
 	createTelemetryMock,
 	deriveSafetyIdentifier,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreIdentitySuite(): void {
@@ -57,7 +57,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		const expectedSafetyIdentifier = createHmac("sha256", safetySecret)
 			.update("principal:user_01HQ")
 			.digest("hex");
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -67,7 +67,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 						sources: [{ doc_id: "handbook:library-hours" }],
 					},
 				},
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				status: "completed",
 				traceId: "trace_0002",
 			}),
@@ -79,7 +79,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			telemetry,
 		});
 
@@ -103,9 +103,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			context: {
 				actor: createPrincipal().actor,
 				authorization: createPrincipal().authorization,
-				profileMemory: {
-					items: [],
-				},
 				session: {
 					confirmedSlots: [],
 					turnCount: 0,
@@ -189,7 +186,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				entitlementSnapshotId: "entitlements-2026-03-29",
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
 				visibilityScope: "main",
@@ -257,7 +254,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			expect.objectContaining({
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
 			}),
@@ -265,29 +262,16 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
 	});
 
-	it("injects active user-visible profile memory into supervisor context without changing authz", async () => {
+	it("does not project PG profile memory during chat submit because execution-control owns memory recall", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const profileMemoryStore = createProfileMemoryProjectionStore({
-			items: [
-				{
-					confidence: "low",
-					itemId: "mem_recent_goal",
-					key: "recent_goal",
-					lastVerifiedAt: "2026-04-27T00:00:00.000Z",
-					sourceType: "user_declared",
-					value: "准备保研材料",
-					visibility: "user_visible",
-				},
-			],
-		});
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "可以，先看培养方案和学院通知。",
 				error: null,
 				followUpQuestion: "",
 				result: {},
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				status: "completed",
 				traceId: "trace_0002",
 			}),
@@ -297,9 +281,8 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
-			profileMemoryStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		await service.submit({
@@ -312,26 +295,10 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			surface: "public_chat_web",
 		});
 
-		expect(profileMemoryStore.listProjectionItems).toHaveBeenCalledWith({
-			ownerUserId: "user_01HQ",
-		});
 		expect(supervisor.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
-				context: expect.objectContaining({
-					authorization: createPrincipal().authorization,
-					profileMemory: {
-						items: [
-							{
-								confidence: "low",
-								itemId: "mem_recent_goal",
-								key: "recent_goal",
-								lastVerifiedAt: "2026-04-27T00:00:00.000Z",
-								sourceType: "user_declared",
-								value: "准备保研材料",
-								visibility: "user_visible",
-							},
-						],
-					},
+				context: expect.not.objectContaining({
+					profileMemory: expect.anything(),
 				}),
 			}),
 		);

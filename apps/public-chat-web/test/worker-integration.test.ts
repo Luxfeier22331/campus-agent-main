@@ -6,9 +6,9 @@ import type {
 	ExecutionAuthorizationContext,
 } from "../../app-api/src/modules/auth";
 import type {
+	CapabilityExecutionInput,
+	CapabilityExecutionResponse,
 	ExecutionControlRuntimeClient,
-	SupervisorExecutionInput,
-	SupervisorExecutionResponse,
 } from "../../app-api/src/modules/integration";
 import {
 	buildChatCommandService,
@@ -57,7 +57,7 @@ function durableRun(overrides: Record<string, unknown> = {}) {
 
 function durableFinalizationEvent(input: {
 	requestId: string;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	runId: string;
 	traceId: string;
 }) {
@@ -79,7 +79,7 @@ function durableFinalizationEvent(input: {
 }
 
 function toExecutionControlWireResponse(
-	response: SupervisorExecutionResponse,
+	response: CapabilityExecutionResponse,
 ): Record<string, unknown> {
 	return {
 		answer_text: response.answerText,
@@ -88,7 +88,7 @@ function toExecutionControlWireResponse(
 		follow_up_question: response.followUpQuestion,
 		observability: toSnakeCaseRecord(response.observability ?? null),
 		result: response.result && typeof response.result === "object" ? response.result : null,
-		selected_target: response.selectedTarget,
+		selected_capability: response.selectedCapability,
 		status: response.status,
 		trace_id: response.traceId,
 		workflow_trace_summary: toSnakeCaseRecord(response.workflowTraceSummary ?? null),
@@ -118,12 +118,11 @@ function toSnakeCaseValue(value: unknown): unknown {
 	return toSnakeCaseRecord(value);
 }
 
-function supervisorInputContextFromWire(value: unknown): SupervisorExecutionInput["context"] {
+function executionInputContextFromWire(value: unknown): CapabilityExecutionInput["context"] {
 	const context = recordFromWire(value, "execution payload context");
 	return {
 		actor: executionActorFromWire(context.actor),
 		authorization: executionAuthorizationFromWire(context.authorization),
-		profileMemory: profileMemoryFromWire(context.profile_memory),
 		session: sessionFromWire(context.session),
 	};
 }
@@ -181,33 +180,7 @@ function executionAuthorizationFromWire(value: unknown): ExecutionAuthorizationC
 	};
 }
 
-function profileMemoryFromWire(
-	value: unknown,
-): SupervisorExecutionInput["context"]["profileMemory"] {
-	const profileMemory = recordFromWire(value, "execution payload profile memory");
-	const items = Array.isArray(profileMemory.items) ? profileMemory.items : [];
-	return {
-		items: items.flatMap((item) => {
-			if (!item || typeof item !== "object" || Array.isArray(item)) {
-				return [];
-			}
-			const record = item as Record<string, unknown>;
-			return [
-				{
-					confidence: stringOrUndefined(record.confidence),
-					itemId: requiredString(record.item_id, "profile_memory.items[].item_id"),
-					key: requiredString(record.key, "profile_memory.items[].key"),
-					lastVerifiedAt: stringOrUndefined(record.last_verified_at),
-					sourceType: stringOrUndefined(record.source_type),
-					value: requiredString(record.value, "profile_memory.items[].value"),
-					visibility: stringOrUndefined(record.visibility),
-				},
-			];
-		}),
-	};
-}
-
-function sessionFromWire(value: unknown): SupervisorExecutionInput["context"]["session"] {
+function sessionFromWire(value: unknown): CapabilityExecutionInput["context"]["session"] {
 	const session = recordFromWire(value, "execution payload session");
 	const confirmedSlots = Array.isArray(session.confirmed_slots) ? session.confirmed_slots : [];
 	return {
@@ -361,11 +334,11 @@ describe("public chat web chat integration", () => {
 		});
 	});
 
-	it("routes campus-services prompts through public-chat-web into structured agent handoffs", async () => {
+	it("routes campus-services prompts through public-chat-web into structured capability handoffs", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const observedResults: Record<string, unknown>[] = [];
-		const supervisorExecute = vi.fn(async (input: SupervisorExecutionInput) => {
+		const supervisorExecute = vi.fn(async (input: CapabilityExecutionInput) => {
 			const route = findCampusServicesRoutingCase(input.userGoal);
 			const response = buildCampusServicesExecutionResponse(input, route);
 			observedResults.push(response.result as Record<string, unknown>);
@@ -399,7 +372,7 @@ describe("public chat web chat integration", () => {
 					user_goal: string;
 				};
 				const response = await supervisorExecute({
-					context: supervisorInputContextFromWire(executionPayload.context),
+					context: executionInputContextFromWire(executionPayload.context),
 					conversationId: createInput.conversationId,
 					requestId: executionPayload.request_id,
 					requestedCapability: createInput.requestedCapability,
@@ -530,13 +503,13 @@ describe("public chat web chat integration", () => {
 
 		expect(supervisorExecute).toHaveBeenCalledTimes(CAMPUS_SERVICES_ROUTING_CASES.length);
 		for (const [index, route] of CAMPUS_SERVICES_ROUTING_CASES.entries()) {
-			const supervisorInput = supervisorExecute.mock.calls[index]?.[0];
-			expect(supervisorInput).toMatchObject({
+			const executionInput = supervisorExecute.mock.calls[index]?.[0];
+			expect(executionInput).toMatchObject({
 				requestedCapability: null,
 				surface: "public_chat_web",
 				userGoal: route.prompt,
 			});
-			expect(supervisorInput?.context.actor).toMatchObject({
+			expect(executionInput?.context.actor).toMatchObject({
 				principalId: "user_01HQ",
 				principalType: "student",
 				userId: "user_01HQ",
@@ -545,7 +518,7 @@ describe("public chat web chat integration", () => {
 			expect(observedResults[index]).toMatchObject({
 				allowed_tools: [route.expectedTool],
 				payload_kind: route.expectedTool,
-				target: "campus-services-agent",
+				target: "campus_services",
 				tool_result: {
 					outcome: "resolved_current",
 				},
@@ -558,7 +531,7 @@ describe("public chat web chat integration", () => {
 					retrievedTitleSummary: [route.expectedTool],
 					semanticOutcome: "resolved_current",
 				},
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: "completed",
 				surface: "public_chat_web",
 			});
@@ -577,7 +550,7 @@ describe("public chat web chat integration", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const observedResults: Record<string, unknown>[] = [];
-		const supervisorExecute = vi.fn(async (input: SupervisorExecutionInput) => {
+		const supervisorExecute = vi.fn(async (input: CapabilityExecutionInput) => {
 			const currentCase = findCampusServicesGuardrailCase(input.userGoal);
 			const response = buildCampusServicesGuardrailExecutionResponse(input, currentCase);
 			observedResults.push(response.result as Record<string, unknown>);
@@ -611,7 +584,7 @@ describe("public chat web chat integration", () => {
 					user_goal: string;
 				};
 				const response = await supervisorExecute({
-					context: supervisorInputContextFromWire(executionPayload.context),
+					context: executionInputContextFromWire(executionPayload.context),
 					conversationId: createInput.conversationId,
 					requestId: executionPayload.request_id,
 					requestedCapability: createInput.requestedCapability,
@@ -742,8 +715,8 @@ describe("public chat web chat integration", () => {
 
 		expect(supervisorExecute).toHaveBeenCalledTimes(CAMPUS_SERVICES_GUARDRAIL_CASES.length);
 		for (const [index, currentCase] of CAMPUS_SERVICES_GUARDRAIL_CASES.entries()) {
-			const supervisorInput = supervisorExecute.mock.calls[index]?.[0];
-			expect(supervisorInput).toMatchObject({
+			const executionInput = supervisorExecute.mock.calls[index]?.[0];
+			expect(executionInput).toMatchObject({
 				requestedCapability: null,
 				surface: "public_chat_web",
 				userGoal: currentCase.prompt,
@@ -752,12 +725,12 @@ describe("public chat web chat integration", () => {
 			expect(observedResults[index]).toMatchObject({
 				allowed_tools: [currentCase.expectedTool],
 				payload_kind: currentCase.expectedTool,
-				target: "campus-services-agent",
+				target: "campus_services",
 			});
 
 			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
 			expect(finalizedWrite.requestExecution).toMatchObject({
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: currentCase.expectedStatus,
 				surface: "public_chat_web",
 			});

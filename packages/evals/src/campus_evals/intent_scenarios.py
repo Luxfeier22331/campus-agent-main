@@ -165,7 +165,6 @@ def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
                 expected_next_action="delegate",
                 expected_scope_class="in_scope",
                 expected_scope_reason="structured_runtime_candidate_signal",
-                expected_target="campus-services-agent",
                 expected_allowed_tools=("academic_calendar_lookup",),
             ),
         ),
@@ -192,7 +191,6 @@ def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
-            expected_target="rag-agent",
         )
         for index, (goal, explicit_case) in enumerate(goals, start=1)
     )
@@ -282,7 +280,6 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
-            expected_target="campus-services-agent",
             expected_allowed_tools=_campus_services_allowed_tools(goal),
             critical=True,
             tags=("campus_services", "candidate_only"),
@@ -316,7 +313,6 @@ def _notice_candidate_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
-            expected_target="notice-agent",
             expected_allowed_tools=("campus_notice_discover",),
             critical=True,
             tags=("notice", "candidate_only"),
@@ -367,7 +363,6 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="explicit_requested_capability",
-            expected_target="campus-services-agent",
             expected_allowed_tools=_campus_services_allowed_tools(goal),
         )
         for index, goal in enumerate(service_goals, start=1)
@@ -383,7 +378,6 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="explicit_requested_capability",
-            expected_target="notice-agent",
             expected_allowed_tools=("campus_notice_discover",),
         )
         for index, goal in enumerate(notice_goals, start=1)
@@ -538,7 +532,6 @@ def _contextual_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="campus_context_signal",
-            expected_target="rag-agent",
         ),
         IntentCase(
             case_id="intent-followup-internal-context-001",
@@ -551,7 +544,6 @@ def _contextual_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="campus_context_signal",
-            expected_target="rag-agent",
         ),
         *(
             IntentCase(
@@ -624,7 +616,6 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
-            expected_target="notice-agent",
             expected_allowed_tools=(),
             expected_context_resolution_state="resolved",
             expected_context_reference_type="selected_notice",
@@ -665,7 +656,6 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="campus_scope_signal",
-            expected_target="rag-agent",
             expected_context_resolution_state="resolved",
             expected_context_reference_type="curriculum_slot",
             critical=True,
@@ -695,7 +685,6 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="campus_context_signal",
-            expected_target="rag-agent",
             expected_context_resolution_state="resolved",
             expected_context_reference_type="previous_goal",
             critical=True,
@@ -740,7 +729,6 @@ def intent_version_compat_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
-            expected_target="rag-agent",
             tags=("version_compat",),
         ),
     )

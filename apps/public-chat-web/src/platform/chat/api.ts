@@ -87,6 +87,7 @@ async function requestJson<T>(input: {
 	headers?: HeadersInit;
 	method?: string;
 	path: string;
+	signal?: AbortSignal;
 }): Promise<T> {
 	const response = await fetch(input.path, {
 		body: input.body,
@@ -96,6 +97,7 @@ async function requestJson<T>(input: {
 			...(input.headers ?? {}),
 		},
 		method: input.method ?? "GET",
+		signal: input.signal,
 	});
 
 	const contentType = response.headers.get("content-type") ?? "";
@@ -442,4 +444,36 @@ export async function* subscribeChatRunEventStream(input: {
 	for await (const event of parseRunEventSse(response)) {
 		yield event;
 	}
+}
+
+export async function cancelChatRun(input: {
+	reason: string;
+	runId: string;
+	signal?: AbortSignal;
+}): Promise<{
+	run: {
+		conversationId: string;
+		phase: ChatRunPhase;
+		requestId: string;
+		runId: string;
+		status: string;
+		terminalReason?: string;
+		traceId: string;
+	};
+}> {
+	const runId = input.runId.trim();
+	if (!runId) {
+		throw new Error("runId is required.");
+	}
+	return requestJson({
+		body: JSON.stringify({
+			reason: input.reason.trim(),
+		}),
+		headers: {
+			"content-type": "application/json",
+		},
+		method: "POST",
+		path: `/api/chat/runs/${encodeURIComponent(runId)}/cancel`,
+		signal: input.signal,
+	});
 }

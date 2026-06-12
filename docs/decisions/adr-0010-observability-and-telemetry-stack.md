@@ -16,7 +16,7 @@ updated: 2026-04-26
 - `apps/execution-control` 入口边界
 - `apps/execution-control` execution runtime、runtime policy、finalization 与审计投影
 - `apps/supervisor-agent-worker` private agent bridge
-- `packages/rag-agent` / `packages/retrieval-core` 的在线回答链路
+- `packages/knowledge-capability` / `packages/retrieval-core` 的在线回答链路
 - `apps/ingestion-worker` / `packages/ingestion-core` 的离线摄入链路
 - 后续 Cloudflare public entry、consumer app 与其他 agent 的运行时壳
 

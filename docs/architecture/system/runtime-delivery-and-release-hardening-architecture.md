@@ -50,10 +50,15 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   service
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
-- 当前 repo-owned staging execution runtime 已 hardcut 到 `execution-control + supervisor-agent-worker`
-  双容器；legacy dev-backed supervisor host 不再是 active runback path
-- `execution-control` readiness 代表 execution runtime 是否适合接收新请求；瞬时并发满载不单独定义为
-  runtime broken，queue full / draining / bridge unhealthy 才进入 degraded posture
+- 当前 repo-owned staging execution runtime 已 hardcut 到
+  `execution-control + Temporal + workflow-worker + activity-worker-context +
+  activity-worker-knowledge + capability workers +
+  activity-worker-finalization + worker-autoscaler`；
+  legacy dev-backed execution host 与 Python bridge serving path 不再是 active
+  runback path
+- `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
+  瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
+  projection / RAG runtime unhealthy 才进入 degraded posture
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
   共同决定
 
@@ -125,7 +130,7 @@ release identity 的长期规则固定为：
 
 - `app-api` deploy 时必须显式注入真实可达的 `EXECUTION_CONTROL_BASE_URL`
 - forward deploy truth 应指向 Docker-first Go execution ingress
-- 如果 Docker supervisor ingress 由 Cloudflare Access 保护，`app-api` 必须同时注入
+- 如果 Docker execution-control ingress 由 Cloudflare Access 保护，`app-api` 必须同时注入
   `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
 - repo-owned staging runbook 只消费 `execution-control` execution origin；不再保留

@@ -11,7 +11,7 @@ import {
 } from "./chat-command.service.test-support";
 
 describe("chat command service", () => {
-	it("fails closed instead of using a legacy direct supervisor execution path", async () => {
+	it("fails closed instead of using a legacy direct execution path", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const legacySupervisor = {
@@ -23,7 +23,6 @@ describe("chat command service", () => {
 			now: () => new Date("2026-06-06T00:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: legacySupervisor,
 		});
 
 		await expect(

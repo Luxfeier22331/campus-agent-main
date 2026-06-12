@@ -142,18 +142,38 @@ type RunStepProjection struct {
 }
 
 type StepAttemptProjection struct {
-	AttemptID            string
-	StepID               string
-	RunID                string
-	Attempt              int
-	Status               string
-	TaskQueue            string
-	WorkerID             string
-	StartedAt            time.Time
-	CompletedAt          time.Time
-	UpdatedAt            time.Time
-	PayloadSchemaVersion string
-	SanitizedPayload     map[string]any
+	AttemptID             string
+	StepID                string
+	RunID                 string
+	Attempt               int
+	Status                string
+	TaskQueue             string
+	WorkerID              string
+	WorkflowID            string
+	TemporalRunID         string
+	ActivityID            string
+	ActivityType          string
+	ActivityAttempt       int
+	ScheduledAt           time.Time
+	StartedAt             time.Time
+	CompletedAt           time.Time
+	ScheduleToStartMS     int64
+	DurationMS            int64
+	ProviderRequestRef    string
+	ProviderResponseID    string
+	ModelProvider         string
+	ModelName             string
+	InputTokens           int64
+	OutputTokens          int64
+	CachedInputTokens     int64
+	EstimatedCostMicroUSD int64
+	PricingVersion        string
+	CancelOutcome         CancelOutcome
+	TimeoutOutcome        TimeoutOutcome
+	TerminalReason        string
+	UpdatedAt             time.Time
+	PayloadSchemaVersion  string
+	SanitizedPayload      map[string]any
 }
 
 type StepResultProjection struct {
@@ -174,3 +194,33 @@ type DurableRunCancelRequest struct {
 	Reason string
 	Now    time.Time
 }
+
+type DurableRunCompleteRequest struct {
+	RunID            string
+	TerminalReason   DurableTerminalReason
+	FinalResponseRef string
+	Now              time.Time
+}
+
+type CancelOutcome string
+
+const (
+	CancelOutcomeNotRequested                CancelOutcome = "not_requested"
+	CancelOutcomeRequestedBeforeStart        CancelOutcome = "requested_before_start"
+	CancelOutcomeActivityContextCanceled     CancelOutcome = "activity_context_canceled"
+	CancelOutcomeBridgeCancelDelivered       CancelOutcome = "bridge_cancel_delivered"
+	CancelOutcomeProviderConnectionAborted   CancelOutcome = "provider_connection_aborted"
+	CancelOutcomeProviderBackgroundCancelled CancelOutcome = "provider_background_cancelled"
+	CancelOutcomeCompletedBeforeCancel       CancelOutcome = "completed_before_cancel"
+	CancelOutcomeAbortUnproven               CancelOutcome = "abort_unproven"
+)
+
+type TimeoutOutcome string
+
+const (
+	TimeoutOutcomeNotTimedOut     TimeoutOutcome = "not_timed_out"
+	TimeoutOutcomeActivityTimeout TimeoutOutcome = "activity_timeout"
+	TimeoutOutcomeBridgeTimeout   TimeoutOutcome = "bridge_timeout"
+	TimeoutOutcomeProviderTimeout TimeoutOutcome = "provider_timeout"
+	TimeoutOutcomeWorkflowTimeout TimeoutOutcome = "workflow_timeout"
+)

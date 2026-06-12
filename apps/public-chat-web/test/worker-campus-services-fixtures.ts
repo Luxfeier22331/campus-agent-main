@@ -1,6 +1,6 @@
 import type {
-	SupervisorExecutionInput,
-	SupervisorExecutionResponse,
+	CapabilityExecutionInput,
+	CapabilityExecutionResponse,
 } from "../../app-api/src/modules/integration";
 
 import type {
@@ -325,9 +325,9 @@ export function findCampusServicesRoutingCase(prompt: string): CampusServicesRou
 }
 
 export function buildCampusServicesExecutionResponse(
-	input: SupervisorExecutionInput,
+	input: CapabilityExecutionInput,
 	route: CampusServicesRoutingCase,
-): SupervisorExecutionResponse {
+): CapabilityExecutionResponse {
 	return {
 		answerText: route.expectedAnswerFragment,
 		error: null,
@@ -363,7 +363,7 @@ export function buildCampusServicesExecutionResponse(
 		result: {
 			allowed_tools: [route.expectedTool],
 			payload_kind: route.expectedTool,
-			target: "campus-services-agent",
+			target: "campus_services",
 			tool_result: route.toolResult,
 			diagnostics: {
 				grounding_verdict: "supported",
@@ -371,7 +371,7 @@ export function buildCampusServicesExecutionResponse(
 				semantic_outcome: "resolved_current",
 			},
 		},
-		selectedTarget: "campus-services-agent",
+		selectedCapability: "campus_services",
 		status: "completed",
 		traceId: input.traceId,
 	};
@@ -386,9 +386,9 @@ export function findCampusServicesGuardrailCase(prompt: string): CampusServicesG
 }
 
 export function buildCampusServicesGuardrailExecutionResponse(
-	input: SupervisorExecutionInput,
+	input: CapabilityExecutionInput,
 	currentCase: CampusServicesGuardrailCase,
-): SupervisorExecutionResponse {
+): CapabilityExecutionResponse {
 	const errorPayload =
 		currentCase.expectedStatus === "rejected"
 			? {
@@ -446,7 +446,7 @@ export function buildCampusServicesGuardrailExecutionResponse(
 		result: {
 			allowed_tools: [currentCase.expectedTool],
 			payload_kind: currentCase.expectedTool,
-			target: "campus-services-agent",
+			target: "campus_services",
 			tool_result: currentCase.toolResult,
 			diagnostics: {
 				grounding_verdict:
@@ -460,7 +460,7 @@ export function buildCampusServicesGuardrailExecutionResponse(
 							: "resolved_current",
 			},
 		},
-		selectedTarget: "campus-services-agent",
+		selectedCapability: "campus_services",
 		status: currentCase.expectedStatus,
 		traceId: input.traceId,
 	};

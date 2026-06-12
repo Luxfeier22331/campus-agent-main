@@ -14,8 +14,8 @@ Product/browser surfaces
 -> execution-control
 -> Temporal
 -> capability activity workers
--> semantic agent worker / typed tools
--> retrieval-core / structured data-plane services
+-> Go RAG DTO/runtime / typed tools
+-> Qdrant / provider / structured data-plane services
 ```
 
 `app-api` owns product API, auth/session, conversation/request projection, and
@@ -38,12 +38,14 @@ product data and sanitized run/event/step projection, not the execution queue.
 - Default query-enabled surfaces are `regulations/student_rules`,
   `regulations/institutional_rules`, `curriculum/curriculum_plan`, and
   `official_web/stable_reference`.
-- RAG, navigation, notice, and campus-services capabilities enter execution as
-  typed workflow activities/tools. A semantic agent is only used when the step
-  needs semantic reasoning, and it does not own source truth.
-- `apps/supervisor-agent-worker` remains the Python semantic worker app for
-  prompt/provider/delegate execution. The `supervisor` concept is an abstract
-  admission/routing/planning/finalization role, not an app name.
+- RAG now enters execution as a Go-owned seven-step Temporal activity graph:
+  `planning -> rag.plan -> retrieval.indexed_lookup ->
+  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
+  grounding.verify -> finalization.write`.
+- Python `apps/supervisor-agent-worker` is no longer part of online answer
+  serving. It remains only for offline/eval/tooling or historical bridge
+  reference. The `supervisor` concept is an abstract admission/routing/planning/
+  finalization role, not an app name.
 - Qdrant remains self-hosted authenticated private data-plane infrastructure.
   API keys are data-plane secrets; transport hardening is an ops issue, not a
   reason to remove authentication.

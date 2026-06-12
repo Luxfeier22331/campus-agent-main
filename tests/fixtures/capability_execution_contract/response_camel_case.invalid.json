@@ -1,0 +1,10 @@
+{
+	"selectedCapability": "knowledge",
+	"status": "completed",
+	"answerText": "This is not canonical supervisor wire.",
+	"followUpQuestion": "",
+	"confidence": "high",
+	"result": null,
+	"error": null,
+	"traceId": "trace-contract-camel"
+}

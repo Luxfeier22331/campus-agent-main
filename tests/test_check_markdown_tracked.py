@@ -85,7 +85,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
             "apps/public-docs/docs/curriculum-plan/special-programs/computer-science-ethnic-experimental-program.mdx",
             relative_paths,
         )
-        self.assertIn("packages/rag-agent/AGENTS.md", relative_paths)
+        self.assertIn("packages/navigation-capability/AGENTS.md", relative_paths)
         self.assertNotIn(".planning/PROJECT.md", relative_paths)
         self.assertNotIn("apps/public-chat-web/vendor/vercel-ai-chatbot/README.md", relative_paths)
 

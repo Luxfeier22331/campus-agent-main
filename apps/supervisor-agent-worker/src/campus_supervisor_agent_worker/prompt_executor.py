@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import httpx
+from campus_knowledge_capability.prompt_execution import (
+    RagAnswerPromptOutput,
+    RagClarifyPromptOutput,
+    RagPromptExecutionResult,
+)
+from campus_knowledge_capability.prompt_packets import RagPromptPacket
+from campus_knowledge_capability.prompts.registry import get_rag_prompt_spec
 from campus_prompt_runtime import (
     PromptRuntimeProviderConfig,
     ResponsesStructuredOutputExecutor,
     build_prompt_trace,
 )
-from campus_rag_agent.prompt_execution import (
-    RagAnswerPromptOutput,
-    RagClarifyPromptOutput,
-    RagPromptExecutionResult,
-)
-from campus_rag_agent.prompt_packets import RagPromptPacket
-from campus_rag_agent.prompts.registry import get_rag_prompt_spec
 from pydantic import BaseModel, ConfigDict
 
 from campus_supervisor_agent_worker.prompt_stack import (

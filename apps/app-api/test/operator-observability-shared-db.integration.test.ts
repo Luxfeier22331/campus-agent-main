@@ -211,7 +211,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "actor_departments_json", "principal_type",
           "principal_label", "entitlement_snapshot_id", "entitlement_groups_json",
           "visibility_scope", "applicability_scope", "idempotency_key", "request_fingerprint_sha256",
-          "trace_id", "requested_capability", "requested_scope_json", "selected_target",
+          "trace_id", "requested_capability", "requested_scope_json", "selected_capability",
           "status", "error_code", "question_preview", "answer_preview", "diagnostics_json",
           "source_doc_ids_json", "started_at", "completed_at", "duration_ms", "created_at", "updated_at"
         ) values (
@@ -220,7 +220,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           '[]'::jsonb, 'student',
           'Jane Doe', 'entitlements-2026-04-03', '["students"]'::jsonb,
           'main', 'undergraduate', null, null,
-          $5, 'knowledge', '{"corpus":"regulations","collection":"student_rules"}'::jsonb, 'rag-agent',
+          $5, 'knowledge', '{"corpus":"regulations","collection":"student_rules"}'::jsonb, 'knowledge',
           'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。', null,
           '["handbook:library-hours","handbook:holiday-hours"]'::jsonb, '${requestStartedAt.toISOString()}',
           '${requestCompletedAt.toISOString()}', 842, '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}'
@@ -233,7 +233,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
         insert into "runtime"."request_observability_fact" (
           "request_id", "trace_id", "conversation_id", "surface", "principal_type",
           "entitlement_snapshot_id", "policy_projection_version", "requested_capability",
-          "requested_scope_summary", "collection", "selected_target", "status", "error_code",
+          "requested_scope_summary", "collection", "selected_capability", "status", "error_code",
           "started_at", "completed_at", "duration_ms", "retrieval_attempted", "candidate_count",
           "retrieved_source_count", "empty_recall", "citation_expected", "citation_count",
           "citation_missing", "refusal_class", "acl_decision", "acl_anomaly_code", "fail_closed",
@@ -242,7 +242,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
         ) values (
           $1, $2, $3, 'public_chat_web', 'student',
           'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
-          'regulations/student_rules', 'student_rules', 'rag-agent', 'completed', null,
+          'regulations/student_rules', 'student_rules', 'knowledge', 'completed', null,
           '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, true, 4,
           2, false, true, 0,
           true, null, 'allowed', 'projection_missing', false,
@@ -258,13 +258,13 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "request_id", "trace_id", "surface", "conversation_id", "principal_type",
           "principal_id", "principal_label", "entitlement_snapshot_id", "entitlement_groups_json",
           "visibility_scope", "applicability_scope", "requested_capability", "requested_scope_json",
-          "selected_target", "status", "error_code", "question_preview", "answer_preview",
+          "selected_capability", "status", "error_code", "question_preview", "answer_preview",
           "diagnostics_json", "source_doc_ids_json", "started_at", "completed_at", "duration_ms", "projected_at"
         ) values (
           $1, $2, 'public_chat_web', $3, 'student',
           'user_obs_01', 'Jane Doe', 'entitlements-2026-04-03', '["students"]'::jsonb,
           'main', 'undergraduate', 'knowledge', '{"corpus":"regulations","collection":"student_rules"}'::jsonb,
-          'rag-agent', 'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。',
+          'knowledge', 'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。',
           null, '["handbook:library-hours","handbook:holiday-hours"]'::jsonb,
           '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, '${requestProjectedAt.toISOString()}'
         )
@@ -276,11 +276,11 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
         insert into "operator"."request_audit_projection" (
           "audit_event_id", "request_id", "trace_id", "occurred_at", "event_type", "surface",
           "principal_type", "entitlement_snapshot_id", "policy_projection_version", "requested_capability",
-          "selected_target", "status", "terminal_code", "summary", "diagnostics_json", "projected_at"
+          "selected_capability", "status", "terminal_code", "summary", "diagnostics_json", "projected_at"
         ) values (
           $1, $2, $3, '${requestCompletedAt.toISOString()}', 'request.completed', 'public_chat_web',
           'student', 'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
-          'rag-agent', 'completed', 'completed', 'Knowledge request completed via rag-agent.',
+          'knowledge', 'completed', 'completed', 'Knowledge request completed via knowledge.',
           '{"aclAnomalyCode":null,"failClosed":false,"sourceDocIds":["handbook:library-hours","handbook:holiday-hours"]}'::jsonb,
           '${requestProjectedAt.toISOString()}'
         )
@@ -291,11 +291,11 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 			`
         insert into "operator"."metric_rollup" (
           "rollup_id", "request_id", "domain", "granularity", "bucket_start", "bucket_end", "surface",
-          "selected_target", "requested_capability", "principal_type", "collection", "model_name",
+          "selected_capability", "requested_capability", "principal_type", "collection", "model_name",
           "metrics_json", "projected_at"
         ) values (
           $1, $2, 'quality', '1h', '${qualityBucketStart.toISOString()}', '${qualityBucketEnd.toISOString()}', 'public_chat_web',
-          'rag-agent', 'knowledge', 'student', 'student_rules', '${modelName}',
+          'knowledge', 'knowledge', 'student', 'student_rules', '${modelName}',
           '{"approvalRequiredCount":0,"citationEligibleCount":2,"citationMissCount":1,"emptyRecallCount":0,"needsClarificationCount":0,"noAnswerCount":0,"rejectedCount":0,"requestCount":4,"retrievalEligibleCount":4}'::jsonb,
           '${requestProjectedAt.toISOString()}'
         )
@@ -305,10 +305,10 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 		await dbClient.query(
 			`
         insert into "operator"."quality_badcase_projection" (
-          "badcase_id", "request_id", "trace_id", "surface", "selected_target", "status",
+          "badcase_id", "request_id", "trace_id", "surface", "selected_capability", "status",
           "cause_class", "detected_by", "opened_at", "summary", "grade_json", "projected_at"
         ) values (
-          $1, $2, $3, 'public_chat_web', 'rag-agent', 'open',
+          $1, $2, $3, 'public_chat_web', 'knowledge', 'open',
           'citation_missing', 'runtime_monitor', '${badcaseOpenedAt.toISOString()}',
           'citationExpected=true 但 citationCount=0', null, '${badcaseOpenedAt.toISOString()}'
         )
@@ -514,11 +514,11 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 					anomalyCode: "projection_missing",
 					principalType: "student",
 					requestId,
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					severity: "high",
 					status: "open",
 					summary:
-						"knowledge request finalized without the required policy projection for rag agent.",
+						"knowledge request finalized without the required policy projection for knowledge capability.",
 					surface: "public_chat_web",
 					traceId,
 				},

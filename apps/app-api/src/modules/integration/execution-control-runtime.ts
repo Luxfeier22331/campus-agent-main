@@ -54,6 +54,41 @@ export interface ExecutionControlRunCancelInput {
 	traceId?: string | null;
 }
 
+export interface ExecutionControlPersonalMemoryUpsertInput {
+	compactText: string;
+	memoryId: string;
+	tenantId?: string | null;
+	traceHeaders?: TracePropagationHeaders;
+	traceId?: string | null;
+	updatedAt: string;
+	userId: string;
+}
+
+export interface ExecutionControlPersonalMemoryDisableInput {
+	memoryId: string;
+	tenantId?: string | null;
+	traceHeaders?: TracePropagationHeaders;
+	traceId?: string | null;
+	updatedAt: string;
+	userId: string;
+}
+
+export interface ExecutionControlPersonalMemoryDisableOwnerInput {
+	tenantId?: string | null;
+	traceHeaders?: TracePropagationHeaders;
+	traceId?: string | null;
+	updatedAt: string;
+	userId: string;
+}
+
+export interface ExecutionControlPersonalMemoryResult {
+	memoryId: string;
+	pointId: string;
+	schemaVersion: string;
+	status: string;
+	updatedAt: string;
+}
+
 export interface ExecutionControlRun {
 	admittedAt: string;
 	completedAt: string;
@@ -108,18 +143,38 @@ export interface ExecutionControlRunStep {
 }
 
 export interface ExecutionControlStepAttempt {
+	activityAttempt: number;
+	activityId: string;
+	activityType: string;
 	attempt: number;
 	attemptId: string;
+	cachedInputTokens: number;
+	cancelOutcome: string;
 	completedAt: string;
+	durationMs: number;
+	estimatedCostMicrousd: number;
+	inputTokens: number;
+	modelName: string;
+	modelProvider: string;
+	outputTokens: number;
 	payloadSchemaVersion: string;
+	pricingVersion: string;
+	providerRequestRef: string;
+	providerResponseId: string;
 	runId: string;
 	sanitizedPayload: JsonRecord;
+	scheduleToStartMs: number;
+	scheduledAt: string;
 	startedAt: string;
 	status: string;
 	stepId: string;
 	taskQueue: string;
+	temporalRunId: string;
+	terminalReason: string;
+	timeoutOutcome: string;
 	updatedAt: string;
 	workerId: string;
+	workflowId: string;
 }
 
 export interface ExecutionControlStepResult {
@@ -149,6 +204,18 @@ export interface ExecutionControlRuntimeClient {
 	listRunSteps(input: ExecutionControlRunQuery): Promise<ExecutionControlRunStepTrajectory>;
 }
 
+export interface ExecutionControlPersonalMemoryClient {
+	disableOwnerMemory(
+		input: ExecutionControlPersonalMemoryDisableOwnerInput,
+	): Promise<{ status: string; updatedAt: string; userId: string }>;
+	disableExplicitMemory(
+		input: ExecutionControlPersonalMemoryDisableInput,
+	): Promise<ExecutionControlPersonalMemoryResult>;
+	upsertExplicitMemory(
+		input: ExecutionControlPersonalMemoryUpsertInput,
+	): Promise<ExecutionControlPersonalMemoryResult>;
+}
+
 export function isExecutionControlRuntimeConfigured(env: ExecutionControlRuntimeEnv): boolean {
 	return Boolean(
 		env.EXECUTION_CONTROL_BASE_URL?.trim() && env.EXECUTION_CONTROL_SHARED_SECRET?.trim(),
@@ -164,108 +231,10 @@ export function createExecutionControlRuntimeClient(
 ): ExecutionControlRuntimeClient {
 	const fetchImplementation = input.fetchImplementation ?? fetch;
 	const traceDataProvider = input.traceDataProvider ?? (() => ({}));
-
-	async function requestExecutionControl(
-		path: string,
-		options: {
-			body?: JsonRecord;
-			expectedStatus: number;
-			method: "GET" | "POST";
-			traceHeaders?: TracePropagationHeaders;
-			traceId?: string | null;
-		},
-	): Promise<JsonRecord> {
-		const baseUrl = env.EXECUTION_CONTROL_BASE_URL?.trim();
-		const sharedSecret = env.EXECUTION_CONTROL_SHARED_SECRET?.trim();
-		if (!(baseUrl && sharedSecret)) {
-			throw new ExecutionControlTransportError({
-				code: "dependency_not_ready",
-				message: "Execution control runtime is not configured.",
-				retryable: true,
-				status: 503,
-			});
-		}
-
-		const timeoutMs = parsePositiveInteger(
-			env.EXECUTION_CONTROL_TIMEOUT_MS,
-			DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
-		);
-		let response: Response;
-		try {
-			response = await new Promise<Response>((resolve, reject) => {
-				const controller = new AbortController();
-				const timeoutId = setTimeout(() => {
-					controller.abort();
-					reject(
-						new ExecutionControlTransportError({
-							code: "execution_timeout",
-							message: `Execution control runtime request exceeded ${timeoutMs}ms timeout.`,
-							retryable: true,
-							status: 504,
-						}),
-					);
-				}, timeoutMs);
-
-				fetchImplementation(`${baseUrl}${path}`, {
-					body: options.body ? JSON.stringify(options.body) : undefined,
-					headers: createExecutionControlRequestHeaders({
-						env,
-						payload: {
-							traceHeaders: options.traceHeaders,
-							traceId: options.traceId?.trim() || "",
-						},
-						sharedSecret,
-						traceDataProvider,
-					}),
-					method: options.method,
-					signal: controller.signal,
-				})
-					.then(resolve)
-					.catch((error) => {
-						if (error instanceof Error && error.name === "AbortError") {
-							reject(
-								new ExecutionControlTransportError({
-									code: "execution_timeout",
-									message: `Execution control runtime request exceeded ${timeoutMs}ms timeout.`,
-									retryable: true,
-									status: 504,
-								}),
-							);
-							return;
-						}
-
-						reject(error);
-					})
-					.finally(() => {
-						clearTimeout(timeoutId);
-					});
-			});
-		} catch (error) {
-			if (error instanceof ExecutionControlTransportError) {
-				throw error;
-			}
-
-			throw new ExecutionControlTransportError({
-				code: "execution_control_unavailable",
-				message:
-					error instanceof Error ? error.message : "Execution control runtime request failed.",
-				retryable: true,
-				status: 502,
-			});
-		}
-
-		const parsed = await parseExecutionControlJsonResponse(response);
-		if (response.status !== options.expectedStatus) {
-			const errorEnvelope = parseExecutionControlErrorEnvelope(parsed, response.status);
-			throw new ExecutionControlTransportError({
-				code: errorEnvelope.code,
-				message: errorEnvelope.message,
-				retryable: errorEnvelope.retryable,
-				status: response.status,
-			});
-		}
-		return parsed;
-	}
+	const requestExecutionControl = createExecutionControlRequester(env, {
+		fetchImplementation,
+		traceDataProvider,
+	});
 
 	return {
 		async cancelRun(cancelInput: ExecutionControlRunCancelInput): Promise<ExecutionControlRun> {
@@ -325,6 +294,209 @@ export function createExecutionControlRuntimeClient(
 			);
 			return parseRunStepTrajectory(parsed);
 		},
+	};
+}
+
+export function createExecutionControlPersonalMemoryClient(
+	env: ExecutionControlRuntimeEnv,
+	input: {
+		fetchImplementation?: typeof fetch;
+		traceDataProvider?: () => Record<string, unknown>;
+	} = {},
+): ExecutionControlPersonalMemoryClient {
+	const requestExecutionControl = createExecutionControlRequester(env, {
+		fetchImplementation: input.fetchImplementation ?? fetch,
+		traceDataProvider: input.traceDataProvider ?? (() => ({})),
+	});
+
+	return {
+		async disableOwnerMemory(
+			memoryInput: ExecutionControlPersonalMemoryDisableOwnerInput,
+		): Promise<{ status: string; updatedAt: string; userId: string }> {
+			const parsed = await requestExecutionControl("/internal/memory/personal/owner:disable", {
+				body: {
+					tenant_id: memoryInput.tenantId ?? "",
+					updated_at: memoryInput.updatedAt,
+					user_id: memoryInput.userId,
+				},
+				expectedStatus: 202,
+				method: "POST",
+				traceHeaders: memoryInput.traceHeaders,
+				traceId: memoryInput.traceId,
+			});
+			return parsePersonalMemoryOwnerDisableResult(parsed);
+		},
+		async disableExplicitMemory(
+			memoryInput: ExecutionControlPersonalMemoryDisableInput,
+		): Promise<ExecutionControlPersonalMemoryResult> {
+			const parsed = await requestExecutionControl("/internal/memory/personal/items:disable", {
+				body: {
+					memory_id: memoryInput.memoryId,
+					tenant_id: memoryInput.tenantId ?? "",
+					updated_at: memoryInput.updatedAt,
+					user_id: memoryInput.userId,
+				},
+				expectedStatus: 202,
+				method: "POST",
+				traceHeaders: memoryInput.traceHeaders,
+				traceId: memoryInput.traceId,
+			});
+			return parsePersonalMemoryResult(parsed);
+		},
+		async upsertExplicitMemory(
+			memoryInput: ExecutionControlPersonalMemoryUpsertInput,
+		): Promise<ExecutionControlPersonalMemoryResult> {
+			const parsed = await requestExecutionControl("/internal/memory/personal/items:upsert", {
+				body: {
+					capability: "any",
+					compact_text: memoryInput.compactText,
+					memory_id: memoryInput.memoryId,
+					memory_type: "profile",
+					source: "explicit",
+					status: "active",
+					tenant_id: memoryInput.tenantId ?? "",
+					updated_at: memoryInput.updatedAt,
+					user_id: memoryInput.userId,
+				},
+				expectedStatus: 202,
+				method: "POST",
+				traceHeaders: memoryInput.traceHeaders,
+				traceId: memoryInput.traceId,
+			});
+			return parsePersonalMemoryResult(parsed);
+		},
+	};
+}
+
+function parsePersonalMemoryOwnerDisableResult(value: JsonRecord): {
+	status: string;
+	updatedAt: string;
+	userId: string;
+} {
+	return {
+		status: readRequiredString(value, "status"),
+		updatedAt: readRequiredString(value, "updated_at"),
+		userId: readRequiredString(value, "user_id"),
+	};
+}
+
+function createExecutionControlRequester(
+	env: ExecutionControlRuntimeEnv,
+	input: {
+		fetchImplementation: typeof fetch;
+		traceDataProvider: () => Record<string, unknown>;
+	},
+): (
+	path: string,
+	options: {
+		body?: JsonRecord;
+		expectedStatus: number;
+		method: "GET" | "POST";
+		traceHeaders?: TracePropagationHeaders;
+		traceId?: string | null;
+	},
+) => Promise<JsonRecord> {
+	return async function requestExecutionControl(
+		path: string,
+		options: {
+			body?: JsonRecord;
+			expectedStatus: number;
+			method: "GET" | "POST";
+			traceHeaders?: TracePropagationHeaders;
+			traceId?: string | null;
+		},
+	): Promise<JsonRecord> {
+		const baseUrl = env.EXECUTION_CONTROL_BASE_URL?.trim();
+		const sharedSecret = env.EXECUTION_CONTROL_SHARED_SECRET?.trim();
+		if (!(baseUrl && sharedSecret)) {
+			throw new ExecutionControlTransportError({
+				code: "dependency_not_ready",
+				message: "Execution control runtime is not configured.",
+				retryable: true,
+				status: 503,
+			});
+		}
+
+		const timeoutMs = parsePositiveInteger(
+			env.EXECUTION_CONTROL_TIMEOUT_MS,
+			DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
+		);
+		let response: Response;
+		try {
+			response = await new Promise<Response>((resolve, reject) => {
+				const controller = new AbortController();
+				const timeoutId = setTimeout(() => {
+					controller.abort();
+					reject(
+						new ExecutionControlTransportError({
+							code: "execution_timeout",
+							message: `Execution control runtime request exceeded ${timeoutMs}ms timeout.`,
+							retryable: true,
+							status: 504,
+						}),
+					);
+				}, timeoutMs);
+
+				input
+					.fetchImplementation(`${baseUrl}${path}`, {
+						body: options.body ? JSON.stringify(options.body) : undefined,
+						headers: createExecutionControlRequestHeaders({
+							env,
+							payload: {
+								traceHeaders: options.traceHeaders,
+								traceId: options.traceId?.trim() || "",
+							},
+							sharedSecret,
+							traceDataProvider: input.traceDataProvider,
+						}),
+						method: options.method,
+						signal: controller.signal,
+					})
+					.then(resolve)
+					.catch((error) => {
+						if (error instanceof Error && error.name === "AbortError") {
+							reject(
+								new ExecutionControlTransportError({
+									code: "execution_timeout",
+									message: `Execution control runtime request exceeded ${timeoutMs}ms timeout.`,
+									retryable: true,
+									status: 504,
+								}),
+							);
+							return;
+						}
+
+						reject(error);
+					})
+					.finally(() => {
+						clearTimeout(timeoutId);
+					});
+			});
+		} catch (error) {
+			if (error instanceof ExecutionControlTransportError) {
+				throw error;
+			}
+
+			throw new ExecutionControlTransportError({
+				code: "execution_control_unavailable",
+				message:
+					error instanceof Error ? error.message : "Execution control runtime request failed.",
+				retryable: true,
+				status: 502,
+			});
+		}
+
+		const parsed = await parseExecutionControlJsonResponse(response);
+		if (response.status !== options.expectedStatus) {
+			const errorEnvelope = parseExecutionControlErrorEnvelope(parsed, response.status);
+			throw new ExecutionControlTransportError({
+				code: errorEnvelope.code,
+				message: errorEnvelope.message,
+				retryable: errorEnvelope.retryable,
+				status: response.status,
+			});
+		}
+		return parsed;
 	};
 }
 
@@ -425,6 +597,16 @@ function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTra
 	};
 }
 
+function parsePersonalMemoryResult(payload: JsonRecord): ExecutionControlPersonalMemoryResult {
+	return {
+		memoryId: readRequiredString(payload, "memory_id"),
+		pointId: readRequiredString(payload, "point_id"),
+		schemaVersion: readRequiredString(payload, "schema_version"),
+		status: readRequiredString(payload, "status"),
+		updatedAt: readRequiredString(payload, "updated_at"),
+	};
+}
+
 function parseRunStep(value: unknown, index: number): ExecutionControlRunStep {
 	const record = readArrayRecord(value, `steps[${index}]`);
 	return {
@@ -448,18 +630,38 @@ function parseRunStep(value: unknown, index: number): ExecutionControlRunStep {
 function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAttempt {
 	const record = readArrayRecord(value, `attempts[${index}]`);
 	return {
+		activityAttempt: readRequiredNumber(record, "activity_attempt"),
+		activityId: readRequiredString(record, "activity_id"),
+		activityType: readRequiredString(record, "activity_type"),
 		attempt: readRequiredNumber(record, "attempt"),
 		attemptId: readRequiredString(record, "attempt_id"),
+		cachedInputTokens: readRequiredNumber(record, "cached_input_tokens"),
+		cancelOutcome: readRequiredString(record, "cancel_outcome"),
 		completedAt: readRequiredString(record, "completed_at"),
+		durationMs: readRequiredNumber(record, "duration_ms"),
+		estimatedCostMicrousd: readRequiredNumber(record, "estimated_cost_microusd"),
+		inputTokens: readRequiredNumber(record, "input_tokens"),
+		modelName: readRequiredString(record, "model_name"),
+		modelProvider: readRequiredString(record, "model_provider"),
+		outputTokens: readRequiredNumber(record, "output_tokens"),
 		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
+		pricingVersion: readRequiredString(record, "pricing_version"),
+		providerRequestRef: readRequiredString(record, "provider_request_ref"),
+		providerResponseId: readRequiredString(record, "provider_response_id"),
 		runId: readRequiredString(record, "run_id"),
 		sanitizedPayload: readRequiredRecord(record, "sanitized_payload"),
+		scheduleToStartMs: readRequiredNumber(record, "schedule_to_start_ms"),
+		scheduledAt: readRequiredString(record, "scheduled_at"),
 		startedAt: readRequiredString(record, "started_at"),
 		status: readRequiredString(record, "status"),
 		stepId: readRequiredString(record, "step_id"),
 		taskQueue: readRequiredString(record, "task_queue"),
+		temporalRunId: readRequiredString(record, "temporal_run_id"),
+		terminalReason: readRequiredString(record, "terminal_reason"),
+		timeoutOutcome: readRequiredString(record, "timeout_outcome"),
 		updatedAt: readRequiredString(record, "updated_at"),
 		workerId: readRequiredString(record, "worker_id"),
+		workflowId: readRequiredString(record, "workflow_id"),
 	};
 }
 

@@ -8,9 +8,9 @@ import (
 )
 
 func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[string]any {
-	var selectedTarget any
-	if wire.SelectedTarget != nil {
-		selectedTarget = *wire.SelectedTarget
+	var selectedCapability any
+	if wire.SelectedCapability != nil {
+		selectedCapability = *wire.SelectedCapability
 	}
 	return map[string]any{
 		"routing_frame":                  wire.RoutingFrame,
@@ -20,8 +20,8 @@ func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[
 		"workflow_mode":                  string(wire.WorkflowMode),
 		"handoff":                        wire.Handoff,
 		"handoff_chain":                  wire.HandoffChain,
-		"agent_invocations":              workflowAgentInvocationWireMaps(wire.AgentInvocations),
-		"selected_target":                selectedTarget,
+		"capability_invocations":         workflowCapabilityInvocationWireMaps(wire.CapabilityInvocations),
+		"selected_capability":            selectedCapability,
 		"selected_tools":                 wire.SelectedTools,
 		"context_projections":            workflowContextProjectionWireMaps(wire.ContextProjections),
 		"answer_artifact_projection_ids": append([]string{}, wire.AnswerArtifactProjectionIDs...),
@@ -117,17 +117,17 @@ func workflowContextProjectionWireMaps(
 	return items
 }
 
-func workflowAgentInvocationWire(
-	invocations []execution.AgentInvocation,
-) []contractsv1.AgentInvocationWire {
-	items := make([]contractsv1.AgentInvocationWire, 0, len(invocations))
+func workflowCapabilityInvocationWire(
+	invocations []execution.CapabilityInvocation,
+) []contractsv1.CapabilityInvocationWire {
+	items := make([]contractsv1.CapabilityInvocationWire, 0, len(invocations))
 	for _, invocation := range invocations {
-		items = append(items, contractsv1.AgentInvocationWire{
+		items = append(items, contractsv1.CapabilityInvocationWire{
 			InvocationID:       invocation.InvocationID,
 			ParentInvocationID: invocation.ParentInvocationID,
 			WorkflowRunRef:     invocation.WorkflowRunRef,
 			StepID:             invocation.StepID,
-			AgentID:            contractsv1.AgentTarget(invocation.AgentID),
+			CapabilityID:       contractsv1.CapabilityID(invocation.CapabilityID),
 			Status:             invocation.Status,
 			AllowedTools:       append([]string{}, invocation.AllowedTools...),
 			UsedTools:          append([]string{}, invocation.UsedTools...),
@@ -138,8 +138,8 @@ func workflowAgentInvocationWire(
 	return items
 }
 
-func workflowAgentInvocationWireMaps(
-	invocations []contractsv1.AgentInvocationWire,
+func workflowCapabilityInvocationWireMaps(
+	invocations []contractsv1.CapabilityInvocationWire,
 ) []map[string]any {
 	items := make([]map[string]any, 0, len(invocations))
 	for _, invocation := range invocations {
@@ -147,7 +147,7 @@ func workflowAgentInvocationWireMaps(
 			"invocation_id":    invocation.InvocationID,
 			"workflow_run_ref": invocation.WorkflowRunRef,
 			"step_id":          invocation.StepID,
-			"agent_id":         string(invocation.AgentID),
+			"capability_id":    string(invocation.CapabilityID),
 			"status":           invocation.Status,
 			"allowed_tools":    append([]string{}, invocation.AllowedTools...),
 			"used_tools":       append([]string{}, invocation.UsedTools...),
@@ -184,21 +184,21 @@ func workflowMode(
 	return "single_step"
 }
 
-func workflowTraceSelectedTarget(workflowMode string, target string) string {
+func workflowTraceSelectedCapability(workflowMode string, target string) string {
 	if workflowMode == "terminal" {
 		return "none"
 	}
 	return target
 }
 
-func validFinalizerHandoffInvariant(target string, context supervisorFinalizerContext) bool {
+func validFinalizerHandoffInvariant(target string, context executionFinalizerContext) bool {
 	isDelegate := context.Branch == "delegate" || context.RuntimeDecisions.RoutingNextAction == "delegate"
 	if !isDelegate {
 		return true
 	}
 	if context.WorkflowRun != nil {
 		for _, handoff := range context.WorkflowRun.HandoffChain {
-			if handoff.Target == target {
+			if handoff.Capability == target {
 				return true
 			}
 		}
@@ -207,10 +207,10 @@ func validFinalizerHandoffInvariant(target string, context supervisorFinalizerCo
 	if context.Handoff == nil {
 		return false
 	}
-	if context.RuntimeDecisions.SelectedTarget != "" && context.RuntimeDecisions.SelectedTarget != target {
+	if context.RuntimeDecisions.SelectedCapability != "" && context.RuntimeDecisions.SelectedCapability != target {
 		return false
 	}
-	if context.Handoff.Target != "" && context.Handoff.Target != target {
+	if context.Handoff.Capability != "" && context.Handoff.Capability != target {
 		return false
 	}
 	if context.SelectedTool != "" && len(context.Handoff.AllowedTools) > 0 {
@@ -229,8 +229,8 @@ func workflowRuntimeVersions(source map[string]any) map[string]any {
 	if _, exists := versions["workflow_trace_summary"]; !exists {
 		versions["workflow_trace_summary"] = contractsv1.WorkflowTraceSummaryVersion
 	}
-	if _, exists := versions["bridge_contract"]; !exists {
-		versions["bridge_contract"] = contractsv1.BridgeVersion
+	if _, exists := versions["execution_contract"]; !exists {
+		versions["execution_contract"] = contractsv1.ExecutionContractVersion
 	}
 	if _, exists := versions["response_contract"]; !exists {
 		versions["response_contract"] = contractsv1.ResponseContract
@@ -270,7 +270,8 @@ func workflowHandoffSummary(
 		return map[string]any{}
 	}
 	return map[string]any{
-		"target":        defaultString(handoff.Target, target),
+		"capability":    defaultString(handoff.Capability, target),
+		"worker_role":   handoff.WorkerRole,
 		"payload_kind":  handoff.PayloadKind,
 		"allowed_tools": append([]string{}, handoff.AllowedTools...),
 	}
@@ -301,16 +302,16 @@ func workflowTraceRun(
 	}
 	if run.Mode == execution.WorkflowModeSingleStep && handoff != nil {
 		run.HandoffChain = append(run.HandoffChain, execution.HandoffStep{
-			Target:       defaultString(handoff.Target, target),
+			Capability:   defaultString(handoff.Capability, target),
 			PayloadKind:  handoff.PayloadKind,
 			AllowedTools: append([]string{}, handoff.AllowedTools...),
 			SelectedTool: selectedTool,
 		})
-		run.AgentInvocations = append(run.AgentInvocations, execution.AgentInvocation{
-			InvocationID:   "agent-invocation:" + defaultString(handoff.Target, target) + ":1",
+		run.CapabilityInvocations = append(run.CapabilityInvocations, execution.CapabilityInvocation{
+			InvocationID:   "capability-invocation:" + defaultString(handoff.Capability, target) + ":1",
 			WorkflowRunRef: workflowRunRef(run, target, selectedTool),
-			StepID:         "handoff:" + defaultString(handoff.Target, target) + ":" + handoff.PayloadKind,
-			AgentID:        defaultString(handoff.Target, target),
+			StepID:         "capability:" + defaultString(handoff.Capability, target) + ":" + handoff.PayloadKind,
+			CapabilityID:   defaultString(handoff.Capability, target),
 			Status:         status,
 			AllowedTools:   append([]string{}, handoff.AllowedTools...),
 			UsedTools:      workflowSelectedTools(handoff, selectedTool),
@@ -330,7 +331,7 @@ func workflowTraceRun(
 			StepID:       "handoff",
 			SpanKind:     "handoff",
 			ParentStepID: "runtime_policy",
-			Target:       target,
+			Capability:   target,
 			Outcome:      branch,
 		})
 	}
@@ -340,7 +341,7 @@ func workflowTraceRun(
 			SpanKind:     "tool_call",
 			ParentStepID: workflowToolCallParentStep(branch),
 			ToolName:     selectedTool,
-			Target:       target,
+			Capability:   target,
 			Outcome:      status,
 			ResultStatus: status,
 			RetryCount:   0,
@@ -456,7 +457,7 @@ func workflowToolCallSummaries(
 		"result_projection":   "bounded_summary",
 		"raw_result_included": false,
 		"tool_name":           selectedTool,
-		"target":              target,
+		"capability":          target,
 		"result_status":       status,
 		"argument_summary":    safeWorkflowMap(argumentSummary),
 		"source_ids":          workflowSourceIDs(result),

@@ -1,7 +1,7 @@
 import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
 import { applyTracePropagationHeaders, resolveTracePropagationHeaders } from "../telemetry/trace";
 
-import type { SupervisorExecutionInput } from "./supervisor-types";
+import type { CapabilityExecutionInput } from "./capability-execution-types";
 
 type ExecutionControlReadyzRecord = Record<string, unknown>;
 type ExecutionControlReadinessCheckStatus = "ready" | "not_ready" | "not_reported";
@@ -409,7 +409,7 @@ export function mapStatusCodeToErrorCode(status: number): string {
 
 export function createExecutionControlRequestHeaders(input: {
 	env: Pick<Env, "EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET">;
-	payload: Pick<SupervisorExecutionInput, "traceHeaders" | "traceId">;
+	payload: Pick<CapabilityExecutionInput, "traceHeaders" | "traceId">;
 	sharedSecret: string;
 	traceDataProvider: () => Record<string, unknown>;
 	accept?: string;

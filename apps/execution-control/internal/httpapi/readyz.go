@@ -2,13 +2,12 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -17,8 +16,9 @@ type promptConfigGate struct {
 	Admitted                bool   `json:"admitted"`
 	Reason                  string `json:"reason"`
 	Provider                string `json:"provider"`
+	PricingVersion          string `json:"pricing_version"`
 	Transport               string `json:"transport"`
-	SupervisorModel         string `json:"supervisor_model"`
+	ExecutionModel          string `json:"execution_model"`
 	AgentModel              string `json:"agent_model"`
 	StrictStructuredOutputs bool   `json:"strict_structured_outputs"`
 }
@@ -29,41 +29,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid readiness auth.", false)
 		return
 	}
-	bridgeConfigured := s.bridge != nil && s.bridge.Configured()
-	bridgeReachable := false
-	bridgeHealthy := false
-	bridgeStatusCode := 0
-	bridgeStatus := ""
-	bridgeLastError := ""
-	readinessBody := map[string]any{}
-	bridgeCircuit := s.bridgeBreaker.Snapshot()
-	if bridgeConfigured && bridgeCircuit.State == string(bridge.CircuitOpen) {
-		bridgeLastError = "Supervisor Python bridge circuit is open."
-	} else if bridgeConfigured {
-		ctx, cancel := context.WithTimeout(request.Context(), time.Second)
-		defer cancel()
-
-		bridgeReadyz, err := s.bridge.Readyz(ctx)
-		if err == nil {
-			parsedBody, parseErr := decodeJSONObject(bridgeReadyz.Body)
-			if parseErr == nil {
-				readinessBody = parsedBody
-				bridgeReachable = true
-				bridgeStatusCode = bridgeReadyz.StatusCode
-				bridgeStatus, _ = readinessBody["status"].(string)
-				bridgeHealthy = bridgeReadyz.StatusCode == http.StatusOK && bridgeStatus == "ready"
-			} else {
-				bridgeLastError = "Supervisor Python bridge returned invalid readiness JSON."
-			}
-		} else {
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				bridgeLastError = "Supervisor Python bridge readiness timed out."
-			} else {
-				bridgeLastError = "Supervisor Python bridge readiness check failed."
-			}
-		}
-	}
-
 	transportStatus := s.admission.Status()
 	telemetryStatus := s.telemetry.Status()
 	executionAuditStatus := s.executionAudit.Status()
@@ -75,17 +40,20 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	promptGate := evaluatePromptConfigGate(s.config)
+	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
+	ragRuntimeStatus := s.ragRuntimeStatus(request.Context())
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	structuredRuntimeHealthy := s.openStructuredRuntimeHealthy(structuredQueryStatus)
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
-	ready := bridgeHealthy &&
-		transportStatus.Healthy &&
+	ready := transportStatus.Healthy &&
 		telemetryHealthy &&
 		executionAuditHealthy &&
 		structuredRuntimeHealthy &&
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
+		personalMemoryStatus["healthy"] == true &&
+		ragRuntimeStatus["healthy"] == true &&
 		promptGate.Admitted
 	statusCode := http.StatusOK
 	statusText := "ready"
@@ -94,7 +62,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		statusText = "degraded"
 	}
 
-	bridgeSnapshot := s.metrics.BridgeRuntimeSnapshot()
 	responseBody := map[string]any{
 		"status":                   statusText,
 		"transport_runtime":        transportStatus,
@@ -104,43 +71,10 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"structured_query_runtime": structuredQueryStatus,
 		"run_projection_store":     runProjectionStoreStatus,
 		"temporal_runtime":         temporalRuntimeStatus,
+		"personal_memory_runtime":  personalMemoryStatus,
+		"rag_runtime":              ragRuntimeStatus,
 		"capability_gates":         s.capabilityGateStatus(),
 		"prompt_config_gate":       promptGate,
-		"bridge_runtime": map[string]any{
-			"configured": bridgeConfigured,
-			"reachable":  bridgeReachable,
-			"healthy":    bridgeHealthy,
-			"worker_status": defaultString(
-				bridgeStatus,
-				func() string {
-					if bridgeConfigured {
-						return "degraded"
-					}
-					return ""
-				}(),
-			),
-			"status_code":                  bridgeStatusCode,
-			"last_error":                   bridgeLastError,
-			"last_bridge_failure_code":     bridgeSnapshot.LastBridgeFailureCode,
-			"last_bridge_failure_at":       bridgeSnapshot.LastBridgeFailureAt,
-			"last_bridge_success_at":       bridgeSnapshot.LastBridgeSuccessAt,
-			"circuit_state":                bridgeCircuit.State,
-			"circuit_open_until":           bridgeCircuit.OpenUntil,
-			"circuit_consecutive_failures": bridgeCircuit.ConsecutiveFailures,
-			"circuit_open_count":           bridgeCircuit.OpenCount,
-			"circuit_rejected_count":       bridgeCircuit.RejectedCount,
-		},
-	}
-	for _, key := range []string{
-		"runtime_provider",
-		"supervisor_model",
-		"agent_model",
-		"prompt_runtime",
-		"prompt_http_pool",
-	} {
-		if value, ok := readinessBody[key]; ok {
-			responseBody[key] = value
-		}
 	}
 
 	writeJSON(response, statusCode, responseBody)
@@ -187,6 +121,78 @@ func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 	return status
 }
 
+func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
+	status := map[string]any{
+		"healthy":                  false,
+		"lookup_configured":        s.ragLookupExecutor != nil,
+		"lookup_healthy":           false,
+		"lookup_last_error":        "",
+		"synthesis_configured":     s.ragSynthesisExecutor != nil,
+		"synthesis_healthy":        false,
+		"synthesis_last_error":     "",
+		"provider_execution_owner": "go",
+		"retrieval_adapter":        "qdrant_native",
+	}
+	if s.ragLookupErr != nil {
+		status["lookup_last_error"] = "rag lookup executor could not be initialized"
+	} else if s.ragLookupExecutor == nil {
+		status["lookup_last_error"] = "rag lookup executor is not configured"
+	} else {
+		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+		defer cancel()
+		if err := s.ragLookupExecutor.HealthCheck(checkCtx); err != nil {
+			status["lookup_last_error"] = "rag lookup health check failed"
+		} else {
+			status["lookup_healthy"] = true
+		}
+	}
+	if s.ragSynthesisErr != nil {
+		status["synthesis_last_error"] = "rag synthesis executor could not be initialized"
+	} else if s.ragSynthesisExecutor == nil {
+		status["synthesis_last_error"] = "rag synthesis executor is not configured"
+	} else {
+		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+		defer cancel()
+		if err := s.ragSynthesisExecutor.HealthCheck(checkCtx); err != nil {
+			status["synthesis_last_error"] = "rag synthesis health check failed"
+		} else {
+			status["synthesis_healthy"] = true
+		}
+	}
+	status["healthy"] = status["lookup_healthy"] == true && status["synthesis_healthy"] == true
+	return status
+}
+
+func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any {
+	status := map[string]any{
+		"collection":          defaultString(strings.TrimSpace(s.config.PersonalMemoryCollection), "personal_memory_v1"),
+		"configured":          s.personalMemoryExecutor != nil,
+		"data_plane":          "qdrant_native",
+		"healthy":             false,
+		"last_error":          "",
+		"online_recall_owner": "execution-control",
+		"query_key_role":      "read_only",
+		"top_k":               s.config.PersonalMemoryTopK,
+		"total_char_budget":   s.config.PersonalMemoryMaxChars,
+	}
+	if s.personalMemoryErr != nil {
+		status["last_error"] = "personal memory executor could not be initialized"
+		return status
+	}
+	if s.personalMemoryExecutor == nil {
+		status["last_error"] = "personal memory executor is not configured"
+		return status
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+	defer cancel()
+	if err := s.personalMemoryExecutor.HealthCheck(checkCtx); err != nil {
+		status["last_error"] = "personal memory health check failed"
+		return status
+	}
+	status["healthy"] = true
+	return status
+}
+
 func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 	return append([]string{
 		defaultString(strings.TrimSpace(cfg.TemporalTaskQueue), "campus-agent.workflow"),
@@ -195,7 +201,8 @@ func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 
 func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
 	required := []string{
-		temporalruntime.ActivityTaskQueueRAG,
+		temporalruntime.ActivityTaskQueueContext,
+		temporalruntime.ActivityTaskQueueKnowledge,
 		temporalruntime.ActivityTaskQueueFinalization,
 	}
 	capabilityQueues := map[string]string{
@@ -240,15 +247,16 @@ func containsRequiredTemporalTaskQueues(
 }
 
 func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
-	provider := strings.TrimSpace(cfg.PromptRuntimeProvider)
+	providerName := strings.TrimSpace(cfg.PromptRuntimeProvider)
 	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
 	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
-	supervisorModel := strings.TrimSpace(cfg.SupervisorPromptModel)
+	executionModel := strings.TrimSpace(cfg.ExecutionPromptModel)
 	agentModel := strings.TrimSpace(cfg.AgentPromptModel)
 	apiKey := strings.TrimSpace(cfg.PromptRuntimeAPIKey)
 	reason := ""
+	pricingVersion := ""
 	switch {
-	case provider == "":
+	case providerName == "":
 		reason = "prompt_provider_not_configured"
 	case agentModel == "":
 		reason = "prompt_models_not_configured"
@@ -261,15 +269,34 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 	case baseURL == "":
 		reason = "prompt_base_url_not_configured"
 	}
+	if reason == "" {
+		catalog, err := provider.LoadPricingCatalog(cfg.ProviderPricingPath)
+		switch {
+		case err != nil:
+			reason = "provider_pricing_not_configured"
+		case !promptModelHasPricing(catalog, providerName, agentModel):
+			reason = "agent_model_pricing_missing"
+		case executionModel != "" && !promptModelHasPricing(catalog, providerName, executionModel):
+			reason = "execution_model_pricing_missing"
+		default:
+			pricingVersion = catalog.SchemaVersion
+		}
+	}
 	return promptConfigGate{
 		Admitted:                reason == "",
 		Reason:                  reason,
-		Provider:                provider,
+		Provider:                providerName,
+		PricingVersion:          pricingVersion,
 		Transport:               transport,
-		SupervisorModel:         supervisorModel,
+		ExecutionModel:          executionModel,
 		AgentModel:              agentModel,
 		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
 	}
+}
+
+func promptModelHasPricing(catalog provider.PricingCatalog, providerName string, modelName string) bool {
+	_, ok := catalog.Lookup(providerName, modelName)
+	return ok
 }
 
 func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {

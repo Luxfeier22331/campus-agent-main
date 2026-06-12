@@ -203,15 +203,6 @@ func TestParseAnswerRequestProjectsTrustedWorkerContext(t *testing.T) {
 						"policy_projection_version":"phase1-authorization-projection-v1"
 					}
 				},
-				"profile_memory":{
-					"items":[
-						{
-							"item_id":"memory-001",
-							"key":"recent_goal",
-							"value":"咨询保研"
-						}
-					]
-				},
 				"session":{
 					"confirmed_slots":[
 						{"name":"policy_topic","value":"推免资格","confirmed":true}
@@ -242,14 +233,41 @@ func TestParseAnswerRequestProjectsTrustedWorkerContext(t *testing.T) {
 		t.Fatal("expected requested_scope to be projected")
 	}
 	contextRecord := expectExecutionRecord(t, payload["context"], "context")
-	profileMemory := expectExecutionRecord(t, contextRecord["profile_memory"], "context.profile_memory")
-	items, ok := profileMemory["items"].([]any)
-	if !ok || len(items) != 1 {
-		t.Fatalf("profile_memory.items = %#v, want length 1", profileMemory["items"])
+	if _, ok := contextRecord["profile_memory"]; ok {
+		t.Fatal("context.profile_memory must not be projected; memory recall is Temporal-owned")
 	}
 	session := expectExecutionRecord(t, contextRecord["session"], "context.session")
 	if session["turn_count"] != float64(2) {
 		t.Fatalf("turn_count = %v, want 2", session["turn_count"])
+	}
+}
+
+func TestParseAnswerRequestRejectsLegacyProfileMemoryContext(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"保研政策怎么准备？",
+			"request_id":"req-trusted-worker-legacy-memory",
+			"context":{
+				"actor":{"user_id":"student@example.edu","principal_id":"principal-001"},
+				"authorization":{"principal_id":"principal-001"},
+				"profile_memory":{"items":[]},
+				"session":{"confirmed_slots":[],"turn_count":1}
+			}
+		}`),
+		map[string]string{
+			"x-worker-origin-auth": "worker-secret",
+		},
+		config.Config{
+			AuthMode:           "trusted-worker",
+			WorkerSharedSecret: "worker-secret",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected legacy context.profile_memory to be rejected")
+	}
+	if httpErr.Code != "invalid_request" {
+		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
 	}
 }
 

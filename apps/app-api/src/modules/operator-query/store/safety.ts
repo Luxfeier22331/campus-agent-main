@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { formatOperatorTargetSummaryLabel } from "../../operator-target-labels";
+import { formatOperatorCapabilitySummaryLabel } from "../../operator-target-labels";
 import {
 	buildIncidentBackfillHint,
 	SAFETY_ALERT_LOOKBACK_MS,
@@ -49,11 +49,11 @@ export function inferSafetyAnomalySeverity(
 export function summarizeSafetyAnomaly(
 	row: Pick<
 		RequestObservabilityFactRow,
-		"aclAnomalyCode" | "failClosed" | "requestedCapability" | "selectedTarget" | "status"
+		"aclAnomalyCode" | "failClosed" | "requestedCapability" | "selectedCapability" | "status"
 	>,
 ): string {
 	const capability = row.requestedCapability ?? "request";
-	const target = formatOperatorTargetSummaryLabel(row.selectedTarget);
+	const target = formatOperatorCapabilitySummaryLabel(row.selectedCapability);
 
 	switch (row.aclAnomalyCode) {
 		case "projection_missing":

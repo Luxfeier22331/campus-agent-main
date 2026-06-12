@@ -26,7 +26,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 "case_id": case.case_id,
                 "request_id": f"request-{case.case_id}",
                 "trace_id": f"trace-{case.case_id}",
-                "selected_target": case.expected.selected_target,
+                "selected_capability": case.expected.selected_capability,
                 "terminal_outcome": case.expected.terminal_outcome,
                 "fail_close_reason": case.expected.fail_close_reason,
                 "response_contract": case.expected.response_contract,
@@ -159,7 +159,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                                 "case_id": case.case_id,
                                 "request_id": "req_public_01",
                                 "trace_id": "trace_public_01",
-                                "selected_target": case.expected.selected_target,
+                                "selected_capability": case.expected.selected_capability,
                                 "terminal_outcome": case.expected.terminal_outcome,
                                 "fail_close_reason": case.expected.fail_close_reason,
                                 "response_contract": case.expected.response_contract,
@@ -205,7 +205,7 @@ class EvalProfileGateSuite(unittest.TestCase):
         case = next(
             item
             for item in case_set.cases
-            if item.expected.selected_target == "campus-services-agent"
+            if item.expected.selected_capability == "campus_services"
             and item.expected.terminal_outcome == "completed"
         )
 
@@ -220,14 +220,14 @@ class EvalProfileGateSuite(unittest.TestCase):
                                 "case_id": case.case_id,
                                 "request_id": "req_public_trace_replay",
                                 "trace_id": "trace_public_trace_replay",
-                                "selected_target": case.expected.selected_target,
+                                "selected_capability": case.expected.selected_capability,
                                 "terminal_outcome": case.expected.terminal_outcome,
                                 "fail_close_reason": case.expected.fail_close_reason,
                                 "response_contract": case.expected.response_contract,
                                 "operator_backflow": case.expected.operator_backflow,
                                 "workflow_trace_summary": {
                                     "direct_vs_delegate_branch": "delegate",
-                                    "selected_target": "notice-agent",
+                                    "selected_capability": "notice",
                                     "selected_tools": ["campus_notice_discover"],
                                     "fail_close_reason": "",
                                 },
@@ -248,7 +248,7 @@ class EvalProfileGateSuite(unittest.TestCase):
 
         self.assertFalse(report.passed)
         self.assertIn(
-            "workflow_trace_summary.selected_target expected",
+            "workflow_trace_summary.selected_capability expected",
             payload["sanitized_results"][0]["reason"],
         )
 
@@ -392,7 +392,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                     },
                     "supervisor": {
                         "status": "completed",
-                        "selectedTarget": "campus-services-agent",
+                        "selectedCapability": "campus_services",
                         "answerText": "ok",
                         "traceId": "trace_runtime_01",
                         "observability": {
@@ -402,7 +402,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                         "workflow_trace_summary": {
                             "planning_outcome": "direct_structured_tool",
                             "direct_vs_delegate_branch": "direct",
-                            "selected_target": "campus-services-agent",
+                            "selected_capability": "campus_services",
                             "selected_tools": ["service_status_lookup"],
                             "tool_call_summaries": [
                                 {
@@ -476,7 +476,7 @@ def _single_public_chat_case_path(root: Path, case) -> Path:
                         "user_goal": case.user_goal,
                         "split": case.split,
                         "expected": {
-                            "selected_target": case.expected.selected_target,
+                            "selected_capability": case.expected.selected_capability,
                             "terminal_outcome": case.expected.terminal_outcome,
                             "fail_close_reason": case.expected.fail_close_reason,
                             "response_contract": case.expected.response_contract,

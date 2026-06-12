@@ -189,7 +189,7 @@ authenticated notice 中出现的电话不默认进入稳定 contact directory�
 
 - `packages/contracts` 内的 request/result model implementation
 - Go structured query runtime
-- campus-services-agent thin adapter
+- campus_services thin adapter
 - admission/eval/observability gate
 - panel/operator 可见的 release evidence
 

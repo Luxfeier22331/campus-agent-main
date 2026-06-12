@@ -2,7 +2,7 @@ import unittest
 from importlib import import_module
 from pathlib import Path
 
-from campus_contracts import AgentRequest, KnowledgeScope, RagRequestPayload
+from campus_contracts import CapabilityRequest, KnowledgeScope, RagRequestPayload
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,9 +19,9 @@ EXPECTED_WORKSPACES = {
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
-    "packages/navigation-agent",
+    "packages/navigation-capability",
     "packages/official-web-core",
-    "packages/rag-agent",
+    "packages/knowledge-capability",
     "packages/retrieval-core",
     "packages/shared",
 }
@@ -35,9 +35,9 @@ class WorkspaceLayoutTest(unittest.TestCase):
     def test_standalone_supervisor_core_package_is_retired(self) -> None:
         self.assertFalse((ROOT / "packages/supervisor-core").exists())
 
-    def test_contract_surface_exposes_generic_agent_request(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+    def test_contract_surface_exposes_generic_capability_request(self) -> None:
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(

@@ -12,7 +12,7 @@ updated: 2026-04-25
 
 它回答的是：
 
-- supervisor-led execution path 应该如何分层设计 system / developer / task instructions
+- Execution Agent Layer-led execution path 应该如何分层设计 system / developer / task instructions
 - 哪些内容必须继续由代码拥有，哪些内容适合交给 prompt
 - prompt assets 在 repo 中由谁拥有、如何版本化、如何进入 eval / release gate
 - retrieval evidence、personalization、observability 与 prompt 之间的边界如何固定
@@ -31,18 +31,20 @@ code-owned runtime seam。当前接受的实现基线是：
 
 - Go `apps/execution-control` 拥有 intent framing、routing、policy 与 response
   finalization
-- `packages/rag-agent` 拥有 ambiguity handling、query planning、retrieval-oriented
-  answer shaping
+- `packages/knowledge-capability` 拥有 ambiguity handling、query planning、
+  retrieval-oriented answer shaping
 - `packages/retrieval-core` 拥有 evidence retrieval kernel
 
 补充约束：
 
 - repo-global developer invariants 由 `packages/prompt-runtime` 持有
-- package-owned role prompt 当前由 `packages/rag-agent` prompt registry 持有；
-  Python production supervisor terminal prompt family 已移除
-- `packages/rag-agent` 的 runtime package 名称继续保持 current merged truth；但
-  prompt-facing persona / family wording 应使用 `rag-agent` 或中性的 knowledge-path
-  wording，不再把 `rag-agent` 当默认对外标签
+- package-owned role prompt 当前由 `packages/knowledge-capability` prompt
+  registry 持有；
+  Python production legacy terminal prompt family 已移除
+- `packages/knowledge-capability` 的 runtime package 名称继续保持 current
+  merged truth；但
+  prompt-facing persona / family wording 应使用 `knowledge` 或中性的 knowledge-path
+  wording，不再把 `knowledge` 当默认对外标签
 - `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_stack.py`
   负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence
   packet 组装成 runtime stack
@@ -324,7 +326,7 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 - 拥有语义终态 finalization
 - 长期上应区分 `policy_refusal`、`out_of_scope` 与普通 `needs_clarification`
 
-### `packages/rag-agent` ownership
+### `packages/knowledge-capability` Ownership
 
 - 只处理已进入 in-scope knowledge path 的问题
 - 拥有 ambiguity handling、retrieval planning、grounded answer
@@ -350,7 +352,8 @@ repo 级 instruction hierarchy 固定拆成五层：
 1. `platform/runtime invariants`
 
 - 来自产品边界、架构边界、安全边界
-- 例如当前 `supervisor-led orchestration`、`agent contract`、`restricted deny no leak`
+- 例如当前 `Execution Agent Layer-led orchestration`、`capability contract`、
+  `restricted deny no leak`
 
 1. `role instructions`
 
@@ -390,7 +393,7 @@ repo 级 instruction hierarchy 固定拆成五层：
 - `packages/prompt-runtime`
   - owns prompt contract validation, provider structured output execution,
     provider response normalization and prompt trace construction
-- `packages/rag-agent`
+- `packages/knowledge-capability`
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
 - `apps/app-api`
   - 只消费 observability-safe prompt metadata，不参与 prompt assembly
@@ -486,7 +489,7 @@ structured output + code-side finalization`
 repo 最终追求的是：
 
 - 一个极薄、稳定、可版本化的 repo-global invariants block
-- 按 supervisor / agent / mode 拆分的 package-owned prompt family
+- 按 execution / agent / mode 拆分的 package-owned prompt family
 - 明确的 trusted task packet 与 untrusted evidence packet 分区
 - strict structured outputs、grounding validator 与 code-owned finalization
 
@@ -502,9 +505,9 @@ repo 当前推荐的 system / role 设计固定为：
 
 直接含义：
 
-- `packages/rag-agent` 的 prompt family 只负责 `answer / clarify / no-answer /
-  unsupported` 的 grounded wording
-- Python worker 当前不拥有 production supervisor terminal prompt family；
+- `packages/knowledge-capability` 的 prompt family 只负责 `answer / clarify /
+  no-answer / unsupported` 的 grounded wording
+- Python worker 当前不拥有 production execution terminal prompt family；
   non-delegate terminal routing 由 Go direct terminal path 返回，Go 继续负责
   delegated agent response finalization
 - `packages/retrieval-core` 不拥有 top-level system prompt
@@ -540,17 +543,17 @@ repo 当前推荐的 system / role 设计固定为：
 - 只拥有 product-layer session / principal / request context projection
 - 可拥有 consumer-facing UX copy prompt，但不拥有 agent instructions
 
-### Supervisor Runtime Prompt Boundary
+### Execution Runtime Prompt Boundary
 
 - 不拥有长期 prompt 文案
 - 只负责 execution admission、transport、request packaging
-- owns deterministic supervisor terminal wording
+- owns deterministic execution terminal wording
 - owns runtime policy / routing frame / handoff projection
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
 
-### `packages/rag-agent`
+### `packages/knowledge-capability`
 
-- owns knowledge-path / `rag-agent` role instructions
+- owns knowledge-path / `knowledge` role instructions
 - owns answer / clarify / no-answer / unsupported prompt families
 - owns evidence-to-answer prompt packet assembly
 - 不拥有 authz truth、serving truth、product identity truth
@@ -564,13 +567,13 @@ repo 当前推荐的 system / role 设计固定为：
 
 每个 agent 不维护一份“大 prompt”，而维护 `prompt family + mode`。
 
-当前 production supervisor terminal path 不再维护 prompt family；clarify /
+当前 production execution terminal path 不再维护 prompt family；clarify /
 approval-required / out-of-scope / reject 的 deterministic terminal wording 由 Go
-`execution-control` 的 direct terminal path 承接。若后续重新引入 LLM-assisted supervisor
+`execution-control` 的 direct terminal path 承接。若后续重新引入 LLM-assisted execution
 wording，必须作为新的显式 workstream 重新定义 prompt family、eval gate 与 code
-finalization，不得复用已删除的旧 supervisor prompt assets。
+finalization，不得复用已删除的旧 execution prompt assets。
 
-### Knowledge Path (`packages/rag-agent`)
+### Knowledge Path (`packages/knowledge-capability`)
 
 - `rag_answer_v1`
 - `rag_clarify_v1`
@@ -587,13 +590,13 @@ finalization，不得复用已删除的旧 supervisor prompt assets。
 
 prompt assets 长期放在各自 package source tree 内，而不是集中堆到 repo root：
 
-- `packages/rag-agent/src/campus_rag_agent/prompts/`
+- `packages/knowledge-capability/src/campus_knowledge_capability/prompts/`
 
 prompt-facing vocabulary 规则固定为：
 
-- package path / runtime target 继续可以保留在 owner metadata 与代码装配面
+- package path / `runtime_target` metadata 继续可以保留在 owner metadata 与代码装配面
 - model-facing `<role>` 文案默认使用 capability wording 或 forward family label
-- 不把 `rag-agent` / `navigation-agent` 这类 raw runtime target 当作默认 prompt persona
+- 不把 `knowledge` / `navigation` 这类 raw capability id 当作默认 prompt persona
   名称
 
 每个 prompt family 至少包含：
@@ -665,7 +668,7 @@ task packet 由 code 生成，不由模型猜。
 - `response_constraints`
 - `output_schema_name`
 
-RAG agent 可额外带：
+knowledge / RAG capability 可额外带：
 
 - `query_plan_kind`
 - `clarification_reason`
@@ -851,8 +854,8 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 ### 继续保持 code-owned 的部分
 
-- supervisor routing
-- supervisor deterministic terminal wording
+- Execution Agent Layer routing
+- deterministic execution terminal wording
 - authz / visibility gate
 - serving-surface filter
 - retrieval planning
@@ -882,9 +885,9 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - 我们需要显式 prompt architecture，而且当前产品主链路已经落地第一版 runtime seam
 - 但不需要把系统改写成 prompt-first RAG
-- supervisor terminal prompt family 当前已移除；deterministic terminal wording 由 Go
+- execution terminal prompt family 当前已移除；deterministic terminal wording 由 Go
   direct terminal path 承接
-- knowledge-path prompt 应按 mode 拆分，并避免把 raw runtime target label 写成 model-facing
+- knowledge-path prompt 应按 mode 拆分，并避免把 raw capability id 写成 model-facing
   persona
 - 结构化、高精度场景继续优先 deterministic composer
 - 幻觉治理的主力仍然是 `scope/evidence/finalization/eval`，而不是继续把 system prompt 写得更长
@@ -895,14 +898,16 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - package-owned prompt registry、prompt packet 与 strict validation seam
   已成为 knowledge path 产品主链路的一部分
-- `apps/execution-control` 已承担 prompt config admission summary；Python
-  `apps/supervisor-agent-worker` 仍实际创建 RAG provider client，并通过
-  `packages/prompt-runtime` 执行 prompt contract validation、structured output 与
-  prompt trace 接入现有 diagnostics / observability
+- `apps/execution-control` 已承担 prompt config admission summary；online RAG
+  synthesis 由 Go provider adapter 创建 provider request、抽取 usage/cost、
+  记录 cancel/timeout outcome，并将 sanitized provider summary 写入 step
+  projection。Python `apps/supervisor-agent-worker` 不再拥有 online provider
+  hot path，只保留 offline / eval / tooling / historical bridge reference
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture
-- supervisor 的 `policy gate + scope gate` 与 knowledge-path grounding validator
-  共同承担 prompt-side hallucination control，而不是把控制责任退回“更长的 system prompt”
+- Execution Agent Layer 的 `policy gate + scope gate` 与 knowledge-path grounding
+  validator 共同承担 prompt-side hallucination control，而不是把控制责任退回
+  “更长的 system prompt”
 - `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与
   restricted deny final semantics 继续保持 deterministic-first protected path
 

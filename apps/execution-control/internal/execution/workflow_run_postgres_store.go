@@ -97,7 +97,7 @@ func (s *PostgresWorkflowRunStore) Create(
 	if err != nil {
 		return WorkflowRun{}, err
 	}
-	agentInvocations, err := workflowRunAgentInvocationsJSON(run)
+	agentInvocations, err := workflowRunCapabilityInvocationsJSON(run)
 	if err != nil {
 		return WorkflowRun{}, err
 	}
@@ -105,7 +105,7 @@ func (s *PostgresWorkflowRunStore) Create(
 		ctx,
 		`insert into runtime.workflow_runs (
 			run_id, request_id, trace_id, plan_id, workflow_mode, branch, state,
-			handoff_chain, steps, agent_invocations, context_projections, tool_call_summaries
+			handoff_chain, steps, capability_invocations, context_projections, tool_call_summaries
 		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb)`,
 		run.RunID,
 		run.RequestID,
@@ -164,13 +164,13 @@ func (s *PostgresWorkflowRunStore) AppendStep(
 	})
 }
 
-func (s *PostgresWorkflowRunStore) AppendAgentInvocation(
+func (s *PostgresWorkflowRunStore) AppendCapabilityInvocation(
 	ctx context.Context,
 	runID string,
-	invocation AgentInvocation,
+	invocation CapabilityInvocation,
 ) (WorkflowRun, error) {
 	return s.updateLocked(ctx, runID, func(run WorkflowRun) (WorkflowRun, error) {
-		run.AgentInvocations = append(run.AgentInvocations, cloneAgentInvocation(invocation))
+		run.CapabilityInvocations = append(run.CapabilityInvocations, cloneCapabilityInvocation(invocation))
 		return run, validateWorkflowRun(run)
 	})
 }
@@ -241,7 +241,7 @@ func (s *PostgresWorkflowRunStore) updateLocked(
 	if err != nil {
 		return WorkflowRun{}, err
 	}
-	agentInvocations, err := workflowRunAgentInvocationsJSON(run)
+	agentInvocations, err := workflowRunCapabilityInvocationsJSON(run)
 	if err != nil {
 		return WorkflowRun{}, err
 	}
@@ -249,7 +249,7 @@ func (s *PostgresWorkflowRunStore) updateLocked(
 		ctx,
 		`update runtime.workflow_runs
 		set workflow_mode = $2, branch = $3, state = $4, handoff_chain = $5::jsonb,
-			steps = $6::jsonb, agent_invocations = $7::jsonb, context_projections = $8::jsonb,
+			steps = $6::jsonb, capability_invocations = $7::jsonb, context_projections = $8::jsonb,
 			tool_call_summaries = $9::jsonb, updated_at = now()
 		where run_id = $1`,
 		run.RunID,
@@ -290,8 +290,8 @@ func workflowRunJSON(run WorkflowRun) (string, string, string, string, error) {
 	return string(handoffChain), string(steps), string(contextProjections), string(toolCallSummaries), nil
 }
 
-func workflowRunAgentInvocationsJSON(run WorkflowRun) (string, error) {
-	agentInvocations, err := json.Marshal(run.AgentInvocations)
+func workflowRunCapabilityInvocationsJSON(run WorkflowRun) (string, error) {
+	agentInvocations, err := json.Marshal(run.CapabilityInvocations)
 	if err != nil {
 		return "", err
 	}
@@ -336,7 +336,7 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 		}
 	}
 	if len(agentInvocationsRaw) > 0 {
-		if err := json.Unmarshal(agentInvocationsRaw, &run.AgentInvocations); err != nil {
+		if err := json.Unmarshal(agentInvocationsRaw, &run.CapabilityInvocations); err != nil {
 			return WorkflowRun{}, err
 		}
 	}
@@ -356,8 +356,8 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 	if run.Steps == nil {
 		run.Steps = []WorkflowStep{}
 	}
-	if run.AgentInvocations == nil {
-		run.AgentInvocations = []AgentInvocation{}
+	if run.CapabilityInvocations == nil {
+		run.CapabilityInvocations = []CapabilityInvocation{}
 	}
 	if run.ContextProjections == nil {
 		run.ContextProjections = []StepOutputProjection{}
@@ -375,7 +375,7 @@ func isUniqueViolation(err error) bool {
 
 const workflowRunSelectSQL = `select
 	run_id, request_id, trace_id, plan_id, workflow_mode, branch, state,
-	handoff_chain, steps, agent_invocations, context_projections, tool_call_summaries
+	handoff_chain, steps, capability_invocations, context_projections, tool_call_summaries
 from runtime.workflow_runs`
 
 const workflowRunSchemaSQL = `
@@ -391,7 +391,7 @@ create table if not exists runtime.workflow_runs (
 	state text not null,
 	handoff_chain jsonb not null default '[]'::jsonb,
 	steps jsonb not null default '[]'::jsonb,
-	agent_invocations jsonb not null default '[]'::jsonb,
+	capability_invocations jsonb not null default '[]'::jsonb,
 	context_projections jsonb not null default '[]'::jsonb,
 	tool_call_summaries jsonb not null default '[]'::jsonb,
 	created_at timestamptz not null default now(),
@@ -399,7 +399,7 @@ create table if not exists runtime.workflow_runs (
 );
 
 alter table runtime.workflow_runs
-	add column if not exists agent_invocations jsonb not null default '[]'::jsonb;
+	add column if not exists capability_invocations jsonb not null default '[]'::jsonb;
 
 alter table runtime.workflow_runs
 	add column if not exists context_projections jsonb not null default '[]'::jsonb;

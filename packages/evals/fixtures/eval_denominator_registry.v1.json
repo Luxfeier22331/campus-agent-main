@@ -6,7 +6,7 @@
 		{
 			"surface_id": "student_rules",
 			"domain_owner": "regulations/student_rules",
-			"capability_family": "rag-agent",
+			"capability_family": "knowledge",
 			"admission_state": "admitted",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -15,7 +15,7 @@
 		{
 			"surface_id": "institutional_rules",
 			"domain_owner": "regulations/institutional_rules",
-			"capability_family": "rag-agent",
+			"capability_family": "knowledge",
 			"admission_state": "admitted",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -31,7 +31,7 @@
 		{
 			"surface_id": "curriculum_plan",
 			"domain_owner": "curriculum/curriculum_plan",
-			"capability_family": "rag-agent",
+			"capability_family": "knowledge",
 			"admission_state": "admitted",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -40,7 +40,7 @@
 		{
 			"surface_id": "official_web/stable_reference",
 			"domain_owner": "official_web/stable_reference",
-			"capability_family": "rag-agent",
+			"capability_family": "knowledge",
 			"admission_state": "admitted",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -49,7 +49,7 @@
 		{
 			"surface_id": "service_status_lookup",
 			"domain_owner": "campus_services/service_status",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"admission_state": "opened_tool",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -63,7 +63,7 @@
 		{
 			"surface_id": "transport_schedule_lookup",
 			"domain_owner": "campus_services/transport_schedule",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"admission_state": "opened_tool",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -77,7 +77,7 @@
 		{
 			"surface_id": "service_guide_lookup",
 			"domain_owner": "campus_services/service_guide",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"admission_state": "opened_tool",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -91,7 +91,7 @@
 		{
 			"surface_id": "contact_directory_lookup",
 			"domain_owner": "campus_services/contact_directory",
-			"capability_family": "campus-services-agent",
+			"capability_family": "campus_services",
 			"admission_state": "opened_tool",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -105,7 +105,7 @@
 		{
 			"surface_id": "campus_notice_discover",
 			"domain_owner": "campus_notices/internal_notice_read_model",
-			"capability_family": "notice-agent",
+			"capability_family": "notice",
 			"admission_state": "opened_tool",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -119,7 +119,7 @@
 		{
 			"surface_id": "campus_notice_get",
 			"domain_owner": "campus_notices/internal_notice_read_model",
-			"capability_family": "notice-agent",
+			"capability_family": "notice",
 			"admission_state": "opened_tool",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
@@ -161,7 +161,7 @@
 		{
 			"surface_id": "agentic_retrieval_plan",
 			"domain_owner": "retrieval/agentic_plan_freshness",
-			"capability_family": "rag-agent",
+			"capability_family": "knowledge",
 			"admission_state": "planning_gate",
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,

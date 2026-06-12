@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-06-04
-updated: 2026-06-06
+updated: 2026-06-08
 ---
 # Durable Agent Runtime Schema
 
@@ -163,14 +163,14 @@ retired baseline 消费规则：
 - terminal statuses 必须写 `terminal_reason`
 - active statuses 不允许写 `completed_at`
 - `request_id` 是 correlation，不能替代 `run_id`
-- `owner_user_id` 是 app-api 投影后的 principal id，不从 supervisor header 反推
+- `owner_user_id` 是 app-api 投影后的 principal id，不从 execution-control header 反推
 - `metadata_json` 不保存 raw prompt、raw answer、provider raw response、auth
   material 或 restricted raw body
-- `metadata_json.execution_payload` 是 app-api 提供给 supervisor 的执行投影；它必须
+- `metadata_json.execution_payload` 是 app-api 提供给 execution-control 的执行投影；它必须
   与外层 `request_id`、`conversation_id` 和非空 `trace_id` 对齐，且必须包含非空
   `user_goal`
-- `metadata_json` 不允许由 app-api 写入 agent `handoff`；handoff planning 属于
-  supervisor execution control plane
+- `metadata_json` 不允许由 app-api 写入 capability `handoff`；routing /
+  branch planning 属于 execution-control Execution Agent Layer
 
 ## `runtime.agent_run_events`
 
@@ -282,12 +282,31 @@ retired baseline 消费规则：
 - `attempt_id`
 - `run_id`
 - `step_id`
-- `lease_id`
+- `attempt`
 - `worker_id`
-- `attempt_no`
+- `task_queue`
+- `workflow_id`
+- `temporal_run_id`
+- `activity_id`
+- `activity_type`
+- `activity_attempt`
 - `status`
+- `scheduled_at`
 - `started_at`
 - `completed_at`
+- `schedule_to_start_ms`
+- `duration_ms`
+- `provider_request_ref`
+- `provider_response_id`
+- `model_provider`
+- `model_name`
+- `input_tokens`
+- `output_tokens`
+- `cached_input_tokens`
+- `estimated_cost_microusd`
+- `pricing_version`
+- `cancel_outcome`
+- `timeout_outcome`
 - `terminal_reason`
 - `failure_kind`
 - `created_at`
@@ -297,25 +316,58 @@ retired baseline 消费规则：
 最小索引：
 
 - primary key `(attempt_id)`
-- unique `(run_id, step_id, attempt_no)`
-- `(lease_id)`
+- unique `(run_id, step_id, attempt)`
 - `(worker_id, status, started_at)`
 - `(run_id, step_id, status)`
+- `(run_id, step_id, attempt)`
 
 `status` enum：
 
+- `started`
 - `running`
+- `completed`
 - `succeeded`
 - `failed`
 - `blocked`
 - `canceled`
 - `expired`
 
+`cancel_outcome` enum：
+
+- `not_requested`
+- `requested_before_start`
+- `activity_context_canceled`
+- `bridge_cancel_delivered`
+- `provider_connection_aborted`
+- `provider_background_cancelled`
+- `completed_before_cancel`
+- `abort_unproven`
+
+`timeout_outcome` enum：
+
+- `not_timed_out`
+- `activity_timeout`
+- `bridge_timeout`
+- `provider_timeout`
+- `workflow_timeout`
+
 规则：
 
-- attempt 必须引用 active lease
-- retry 必须新建 attempt 并递增 `attempt_no`
+- attempt 必须来自 Temporal activity task 或明确标记为本地 unit-test projection；active
+  serving 不引用 PG lease。
+- retry 必须新建 attempt 并递增 `attempt` / `activity_attempt`
 - failed attempt 不得原地改写成 succeeded
+- `scheduled_at` / `started_at` / `completed_at`、`schedule_to_start_ms` 与
+  `duration_ms` 是 operator latency 诊断主线；缺失值只能表示 activity metadata
+  不可得，不得从 Temporal history 反查给 panel。
+- provider-facing attempt 必须写 `provider_request_ref`、`provider_response_id`、
+  `model_provider`、`model_name`、token usage、`estimated_cost_microusd` 与
+  `pricing_version`。若 provider 已完成但 usage 缺失，result diagnostic 必须标记
+  `provider_usage_missing`，不得静默写 0。
+- admitted online provider model 必须存在 repo-owned pricing artifact；缺 pricing 是
+  readiness / config failure，不是免费模型或 zero-cost fallback。
+- cancel / timeout 只以 `cancel_outcome` / `timeout_outcome` 记录已证明的下游结果；
+  无法证明 provider hard-abort 时必须写 `abort_unproven`。
 - metadata 不保存 raw prompt、raw provider response、raw source body、auth
   material 或 object store credential
 

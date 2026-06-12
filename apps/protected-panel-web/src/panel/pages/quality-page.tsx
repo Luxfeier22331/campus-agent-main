@@ -44,14 +44,14 @@ export function QualityPage() {
 		evalPage: 1,
 		page: 1,
 		perPage: 10,
-		selectedTarget: null,
+		selectedCapability: null,
 		surface: searchParams.get("surface"),
 		window: (searchParams.get("window") as QualityFilterState["window"] | null) ?? "24h",
 	});
 
 	const deferredWindow = useDeferredValue(filters.window);
 	const deferredSurface = useDeferredValue(filters.surface);
-	const deferredSelectedTarget = useDeferredValue(filters.selectedTarget);
+	const deferredSelectedCapability = useDeferredValue(filters.selectedCapability);
 	const deferredBadcaseStatus = useDeferredValue(filters.badcaseStatus);
 	const deferredBadcaseCauseClass = useDeferredValue(filters.badcaseCauseClass);
 	const deferredBadcaseDetectedBy = useDeferredValue(filters.badcaseDetectedBy);
@@ -59,7 +59,7 @@ export function QualityPage() {
 	const isRefreshing =
 		filters.window !== deferredWindow ||
 		filters.surface !== deferredSurface ||
-		filters.selectedTarget !== deferredSelectedTarget ||
+		filters.selectedCapability !== deferredSelectedCapability ||
 		filters.badcaseStatus !== deferredBadcaseStatus ||
 		filters.badcaseCauseClass !== deferredBadcaseCauseClass ||
 		filters.badcaseDetectedBy !== deferredBadcaseDetectedBy;
@@ -69,7 +69,7 @@ export function QualityPage() {
 			{
 				queryFn: ({ signal }) =>
 					dataProvider.getOperatorQualitySummary({
-						selectedTarget: deferredSelectedTarget,
+						selectedCapability: deferredSelectedCapability,
 						signal,
 						surface: deferredSurface,
 						window: deferredWindow,
@@ -78,7 +78,7 @@ export function QualityPage() {
 					"protected-panel-quality-summary",
 					deferredWindow,
 					deferredSurface,
-					deferredSelectedTarget,
+					deferredSelectedCapability,
 				] as const,
 				staleTime: 30_000,
 			},
@@ -86,7 +86,7 @@ export function QualityPage() {
 				queryFn: ({ signal }) =>
 					dataProvider.getOperatorQualityTimeseries({
 						granularity: resolveOverviewGranularity(deferredWindow),
-						selectedTarget: deferredSelectedTarget,
+						selectedCapability: deferredSelectedCapability,
 						signal,
 						surface: deferredSurface,
 						window: deferredWindow,
@@ -96,7 +96,7 @@ export function QualityPage() {
 					deferredWindow,
 					resolveOverviewGranularity(deferredWindow),
 					deferredSurface,
-					deferredSelectedTarget,
+					deferredSelectedCapability,
 				] as const,
 				staleTime: 30_000,
 			},
@@ -110,7 +110,7 @@ export function QualityPage() {
 				detectedBy: normalizeFilterValue(deferredBadcaseDetectedBy),
 				page: filters.page,
 				perPage: filters.perPage,
-				selectedTarget: deferredSelectedTarget,
+				selectedCapability: deferredSelectedCapability,
 				signal,
 				status: normalizeFilterValue(deferredBadcaseStatus),
 				surface: deferredSurface,
@@ -122,7 +122,7 @@ export function QualityPage() {
 			filters.perPage,
 			deferredWindow,
 			deferredSurface,
-			deferredSelectedTarget,
+			deferredSelectedCapability,
 			deferredBadcaseStatus,
 			deferredBadcaseCauseClass,
 			deferredBadcaseDetectedBy,
@@ -137,7 +137,7 @@ export function QualityPage() {
 				detectedBy: normalizeFilterValue(deferredBadcaseDetectedBy),
 				page: filters.evalPage,
 				perPage: filters.perPage,
-				selectedTarget: deferredSelectedTarget,
+				selectedCapability: deferredSelectedCapability,
 				signal,
 				status: normalizeFilterValue(deferredBadcaseStatus),
 				surface: deferredSurface,
@@ -149,7 +149,7 @@ export function QualityPage() {
 			filters.perPage,
 			deferredWindow,
 			deferredSurface,
-			deferredSelectedTarget,
+			deferredSelectedCapability,
 			deferredBadcaseStatus,
 			deferredBadcaseCauseClass,
 			deferredBadcaseDetectedBy,
@@ -238,13 +238,13 @@ export function QualityPage() {
 						filterSummaryItems={filterSummaryItems}
 						filters={filters}
 						isRefreshing={isRefreshing}
-						onSelectedTargetChange={(value) => {
+						onSelectedCapabilityChange={(value) => {
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,
 									evalPage: 1,
 									page: 1,
-									selectedTarget: normalizeFilterValue(value),
+									selectedCapability: normalizeFilterValue(value),
 								}));
 							});
 						}}

@@ -4,7 +4,7 @@ import type {
 	ChatPlaceCard,
 	ChatSourceItem,
 } from "../../chat";
-import type { SupervisorExecutionResponse } from "../../integration";
+import type { CapabilityExecutionResponse } from "../../integration";
 import {
 	dedupeStable,
 	isRecord,
@@ -57,11 +57,11 @@ function normalizePlaceRef(
 }
 
 export function normalizePlaceCardPart(input: {
-	selectedTarget: string | null;
-	status: SupervisorExecutionResponse["status"];
+	selectedCapability: string | null;
+	status: CapabilityExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (input.selectedTarget !== "navigation-agent" || input.status !== "completed") {
+	if (input.selectedCapability !== "navigation" || input.status !== "completed") {
 		return [];
 	}
 
@@ -464,11 +464,11 @@ export function resultEvidenceSources(result: unknown): unknown[] {
 }
 
 export function normalizeSourceItemsPart(input: {
-	selectedTarget: string | null;
-	status: SupervisorExecutionResponse["status"];
+	selectedCapability: string | null;
+	status: CapabilityExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (input.selectedTarget !== "rag-agent" || input.status !== "completed") {
+	if (input.selectedCapability !== "knowledge" || input.status !== "completed") {
 		return [];
 	}
 
@@ -643,11 +643,11 @@ function buildCampusServiceTraceCards(input: {
 }
 
 export function normalizeCampusServiceTracePart(input: {
-	selectedTarget: string | null;
-	status: SupervisorExecutionResponse["status"];
+	selectedCapability: string | null;
+	status: CapabilityExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (input.selectedTarget !== "campus-services-agent" || input.status !== "completed") {
+	if (input.selectedCapability !== "campus_services" || input.status !== "completed") {
 		return [];
 	}
 
@@ -680,8 +680,8 @@ export function normalizeCampusServiceTracePart(input: {
 }
 
 export function normalizeChatResponseStructuredParts(input: {
-	selectedTarget: string | null;
-	status: SupervisorExecutionResponse["status"];
+	selectedCapability: string | null;
+	status: CapabilityExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
 	return [

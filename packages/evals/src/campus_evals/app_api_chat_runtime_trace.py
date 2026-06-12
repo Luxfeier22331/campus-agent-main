@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from campus_contracts import (
     ClaimSupport,
+    ExecutionResponse,
     KnowledgeScope,
     PromptTrace,
     RagResultPayload,
     RemoteContentSuspicionSummary,
     SourceTrustSummary,
-    SupervisorResponse,
 )
 
 from campus_evals.models import ObservedTrace
@@ -169,7 +169,7 @@ def _parse_remote_content_suspicion_summary(
     )
 
 
-def _build_observed_trace(*, scope: dict[str, str], response: SupervisorResponse) -> ObservedTrace:
+def _build_observed_trace(*, scope: dict[str, str], response: ExecutionResponse) -> ObservedTrace:
     retrieved_sources = ()
     supporting_sources = ()
     if isinstance(response.result, RagResultPayload):

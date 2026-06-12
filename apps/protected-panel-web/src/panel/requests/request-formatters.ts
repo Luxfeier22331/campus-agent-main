@@ -10,14 +10,14 @@ import type {
 } from "../types";
 
 export const CURRENT_RUNTIME_TARGET_OPTIONS = [
-	{ label: "检索专家", value: "rag-agent" },
-	{ label: "导航能力", value: "navigation-agent" },
-	{ label: "校园服务", value: "campus-services-agent" },
-	{ label: "通知能力", value: "notice-agent" },
+	{ label: "检索专家", value: "knowledge" },
+	{ label: "导航能力", value: "navigation" },
+	{ label: "校园服务", value: "campus_services" },
+	{ label: "通知能力", value: "notice" },
 ] as const;
 
 export function formatDuration(durationMs: number | null) {
-	if (durationMs === null) {
+	if (durationMs === null || !Number.isFinite(durationMs)) {
 		return PANEL_COPY.pending;
 	}
 
@@ -26,6 +26,20 @@ export function formatDuration(durationMs: number | null) {
 	}
 
 	return `${(durationMs / 1000).toFixed(2)} s`;
+}
+
+function formatTokenCostSummary(input: {
+	estimatedCostMicrousd: number;
+	inputTokens: number;
+	outputTokens: number;
+}) {
+	const inputTokens = Number.isFinite(input.inputTokens) ? input.inputTokens : 0;
+	const outputTokens = Number.isFinite(input.outputTokens) ? input.outputTokens : 0;
+	const estimatedCostMicrousd = Number.isFinite(input.estimatedCostMicrousd)
+		? input.estimatedCostMicrousd
+		: 0;
+	const cost = estimatedCostMicrousd > 0 ? `${estimatedCostMicrousd} microUSD` : "cost=0";
+	return `tokens=${inputTokens}/${outputTokens} · ${cost}`;
 }
 
 export function formatScope(scope: Record<string, unknown> | null) {
@@ -110,19 +124,19 @@ export function formatCapabilityLabel(capability: string | null) {
 	}
 }
 
-export function formatSelectedTargetLabel(target: string | null) {
+export function formatSelectedCapabilityLabel(target: string | null) {
 	if (!target) {
 		return PANEL_COPY.notSelected;
 	}
 
 	switch (target) {
-		case "rag-agent":
+		case "knowledge":
 			return "检索专家";
-		case "navigation-agent":
+		case "navigation":
 			return "导航能力";
-		case "campus-services-agent":
+		case "campus_services":
 			return "校园服务";
-		case "notice-agent":
+		case "notice":
 			return "通知能力";
 		default:
 			return target;
@@ -449,6 +463,14 @@ export function buildRequestStepTrajectoryEntries(
 				step.workerId || PANEL_COPY.unknown,
 				`attempts=${step.attemptCount}`,
 				`results=${step.resultCount}`,
+				`queue=${formatDuration(step.queueWaitMs)}`,
+				`duration=${formatDuration(step.durationMs)}`,
+				step.modelProvider && step.modelName
+					? `${step.modelProvider}/${step.modelName}`
+					: PANEL_COPY.notAvailable,
+				formatTokenCostSummary(step),
+				`cancel=${step.cancelOutcome || PANEL_COPY.none}`,
+				`timeout=${step.timeoutOutcome || PANEL_COPY.none}`,
 				step.latestResultRef || PANEL_COPY.none,
 			].join(" · "),
 		})),

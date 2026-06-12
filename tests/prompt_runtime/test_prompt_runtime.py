@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import httpx
 from campus_contracts import PromptTrace
+from campus_knowledge_capability.prompts.registry import get_rag_prompt_spec
 from campus_prompt_runtime import (
     NormalizedProviderGroundingSupport,
     PromptRuntimeHTTPSettings,
@@ -16,7 +17,6 @@ from campus_prompt_runtime import (
     normalize_provider_grounding_supports,
     validate_prompt_trace_contract,
 )
-from campus_rag_agent.prompts.registry import get_rag_prompt_spec
 from pydantic import BaseModel
 
 

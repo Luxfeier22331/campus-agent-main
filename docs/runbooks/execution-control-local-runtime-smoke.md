@@ -8,13 +8,13 @@ updated: 2026-04-24
 
 ## 文档边界
 
-这份 runbook 覆盖本地 `execution-control` execution runtime smoke。面向本地开发时优先使用
-direct-process smoke；Docker smoke 只用于验证部署 substrate。
+这份 runbook 覆盖本地 `execution-control` Temporal runtime smoke。面向本地开发时优先使用
+Docker compose runtime，因为当前 online answer path 需要 Temporal、run projection store、
+workflow worker、RAG activity worker 与 finalization activity worker 同时存在。
 
 它回答的是：
 
-- 如何在本机直接启动 `execution-control + Python orchestration` 两个进程
-- 何时使用 Docker substrate smoke
+- 如何在本机启动 `execution-control + Temporal + split workers`
 - 最小 health / ready / metrics / execution run command smoke 要怎么做
 - 当前 accepted runback 路径是什么
 
@@ -37,30 +37,27 @@ direct-process smoke；Docker smoke 只用于验证部署 substrate。
   - `GET /internal/execution/runs/:runId`
   - `GET /internal/execution/runs/:runId/events`
   - `POST /internal/execution/runs/:runId/cancel`
-- `supervisor-agent-worker`
-  - Python orchestration worker
-  - `POST /internal/bridge/supervisor/answer`
-  - `GET /internal/bridge/healthz`
-  - `GET /internal/bridge/readyz`
+- `workflow-worker`
+- `activity-worker-context`
+- `activity-worker-knowledge`
+- `activity-worker-campus-services`
+- `activity-worker-notice`
+- `activity-worker-navigation`
+- `activity-worker-finalization`
+- `temporal`
+- `run_projection_store`
+- authenticated private data-plane dependencies such as Qdrant
 
-direct-process smoke entry：
-
-- [`scripts/supervisor_runtime_process_smoke.py`](../../scripts/supervisor_runtime_process_smoke.py)
-
-Docker substrate smoke entry：
+Docker runtime smoke entry：
 
 - [`infra/local/docker-compose.execution-control-runtime.yml`](../../infra/local/docker-compose.execution-control-runtime.yml)
 - [`infra/local/start-execution-control-runtime.sh`](../../infra/local/start-execution-control-runtime.sh)
 
 ## Required Env
 
-本地开发 smoke 默认使用 direct-process runner 启动。它不改写 localhost，也不启动 Docker /
-Wrangler。
-
 手动绕过启动脚本时，最小必填：
 
 ```bash
-export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
 export API_WORKER_SHARED_SECRET=worker-secret
 export EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
 export EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE=true
@@ -68,7 +65,11 @@ export EXECUTION_CONTROL_TEMPORAL_ADDRESS=127.0.0.1:7233
 export EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
 export EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=local:execution-control:001
 export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=local:workflow-worker:001
-export EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY=local:activity-rag:001
+export EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=local:activity-context:001
+export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=local:activity-knowledge:001
+export EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=local:activity-campus-services:001
+export EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=local:activity-notice:001
+export EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=local:activity-navigation:001
 export EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=local:activity-finalization:001
 export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=local-workflow-salt
 ```
@@ -96,7 +97,8 @@ export EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000
 
 说明：
 
-- `mock-runtime` 允许当前 smoke 聚焦 transport / bridge / readiness，而不是 provider 凭据
+- 本地 smoke 必须配置 Temporal、projection store、Qdrant、embedding provider 与 prompt
+  provider；缺任一时 `/readyz` 应 fail closed
 - `EXECUTION_CONTROL_DOCKER_GOPROXY` 是 Go module proxy，不是 Docker registry mirror；本地默认可用
   `goproxy.cn` 缓解 `proxy.golang.org` TLS handshake timeout
 - 不要把 `EXECUTION_CONTROL_DOCKER_GOSUMDB` 设为 `off`；保持 `sum.golang.org` 继续校验
@@ -104,26 +106,7 @@ export EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000
 - 如果没有配置真实 prompt runtime，`/readyz` 可能返回 `503 degraded`
 - `503 degraded` 不阻塞 transport smoke，但必须在记录中解释原因
 
-## Step 1. Run Direct-Process Smoke
-
-```bash
-uv run --all-packages python -m scripts.supervisor_runtime_process_smoke \
-  --output-dir .tmp/execution-control-process-smoke
-```
-
-这个入口会：
-
-- 用 `uv run --all-packages python -m campus_supervisor_agent_worker.bridge_server`
-  启动 Python worker
-- 用 `go run ./cmd/execution-control` 启动 Go execution-control
-- 探测 worker `/internal/bridge/healthz`
-- 探测 execution-control `/healthz`、`/readyz`、`/metrics`
-- 对 `/internal/execution/runs` 发起 Temporal execution run command probe
-
-它是本地开发联调的推荐入口；不要为了本地 smoke 先构建 Docker 镜像。Temporal 已硬切为
-execution plane；缺 Temporal 或 projection store 时应 fail closed。
-
-## Step 2. Docker Substrate Smoke
+## Step 1. Docker Runtime Smoke
 
 需要验证 Docker-first deploy substrate 时，先跑 deploy-side doctor gate：
 
@@ -131,7 +114,7 @@ execution plane；缺 Temporal 或 projection store 时应 fail closed。
 uv run --all-packages python -m scripts.doctor_env execution-control --json
 ```
 
-再启动本地双容器 runtime：
+再启动本地 compose runtime：
 
 ```bash
 infra/local/start-execution-control-runtime.sh
@@ -141,7 +124,7 @@ infra/local/start-execution-control-runtime.sh
 
 - `execution-control` -> `http://127.0.0.1:27051`
 
-## Step 3. Probe Health And Readiness
+## Step 2. Probe Health And Readiness
 
 ```bash
 curl -sS http://127.0.0.1:27051/healthz
@@ -150,15 +133,18 @@ curl -sS http://127.0.0.1:27051/metrics
 ```
 
 启动后不要只等待 `/healthz`。`execution-control` 可能已经开始监听，但
-`supervisor-agent-worker` 仍在导入 Python package、尚未开放 bridge 端口；这时立即打
-answer path 会得到 bridge `connection refused` 的假阴性。
+Temporal poller、RAG lookup/synthesis 或 run projection store 仍未 ready；这时立即打
+answer path 会得到真实 fail-closed 诊断。
 
 正式发起 answer smoke 前，至少等待 `/readyz` 中：
 
-- `bridge_runtime.reachable = true`
-- `bridge_runtime.circuit_state = "closed"`
+- `temporal_runtime.healthy = true`
+- `run_projection_store.healthy = true`
+- `rag_runtime.lookup_healthy = true`
+- `rag_runtime.synthesis_healthy = true`
+- `prompt_config_gate.admitted = true`
 
-`/readyz` 返回 `503 degraded` 时仍可继续轮询；只有 bridge reachable 后才进入 Step 3。
+`/readyz` 返回 `503 degraded` 时仍可继续轮询；只有 required runtime ready 后才进入 Step 3。
 
 最小通过标准：
 
@@ -166,18 +152,8 @@ answer path 会得到 bridge `connection refused` 的假阴性。
 - `/metrics = 200`
 - `/readyz`
   - `200 ready`
-  - 或 `503 degraded`，但 body 必须能解释是 bridge / prompt runtime /
-    audit / transport 中哪一层未 ready
-
-当前 `bridge_runtime` 额外暴露：
-
-- `last_answer_failure_code`
-- `last_answer_failure_at`
-- `last_answer_success_at`
-- `circuit_state`
-- `circuit_open_until`
-- `circuit_open_count`
-- `circuit_rejected_count`
+  - 或 `503 degraded`，但 body 必须能解释是 Temporal / projection store /
+    RAG runtime / prompt pricing / audit / transport 中哪一层未 ready
 
 当前 `/metrics` 最小关注项：
 
@@ -196,20 +172,19 @@ answer path 会得到 bridge `connection refused` 的假阴性。
 - `campus_execution_control_execution_audit_dropped_total`
 - `campus_execution_control_execution_audit_failed_total`
 - `campus_execution_control_telemetry_enabled`
-- `campus_execution_control_bridge_duration_ms`
-- `campus_execution_control_bridge_failures_total`
-- `campus_execution_control_bridge_circuit_state`
-- `campus_execution_control_bridge_circuit_open_total`
-- `campus_execution_control_bridge_circuit_rejected_total`
+- Temporal task queue / poller readiness and RAG activity evidence must be
+  inspected from `/readyz` and smoke artifacts until a dedicated metric contract
+  is promoted
 
 如果设置了 `EXECUTION_CONTROL_METRICS_BEARER_TOKEN`，拉取 `/metrics` 时必须带
 `authorization: Bearer <token>`。本地默认不设置该 token。
 
 `transport_runtime` 中的 `active_answers == max_concurrent_answers` 不单独代表
 runtime 不健康；只要未 draining 且 admission queue 仍能接收短突发，`/readyz` 可以继续
-返回 `200 ready`。队列满、draining 或 bridge 不健康才会让 readiness degraded。
+返回 `200 ready`。队列满、draining、Temporal / projection / RAG runtime 不健康才会让
+readiness degraded。
 
-## Step 4. Probe Answer Path
+## Step 3. Probe Answer Path
 
 推荐直接用固定 smoke profile，自动落盘 artifact：
 
@@ -321,9 +296,9 @@ Go `apps/execution-control` 当前结构化日志最小字段：
 - 不记录 raw auth secret
 - 不记录 raw request body
 
-## Step 5. Shutdown
+## Step 4. Shutdown
 
-关闭 `execution-control + supervisor-agent-worker` 双容器 runtime：
+关闭 execution-control compose runtime：
 
 ```bash
 infra/local/start-execution-control-runtime.sh down

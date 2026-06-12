@@ -62,7 +62,10 @@ Selected libraries:
 - dining-owned allowlist sanitizer for the backend security boundary
 - optional `svgo` for optimization only, with `id` and `data-dining-*`
   attributes preserved
-- optional `@panzoom/panzoom` for pan/zoom interaction
+- `react-zoom-pan-pinch` for student and ops inline SVG viewport controls
+- `@tanstack/react-table` for the ops SVG anchor inventory table
+- `react-hook-form`, `@hookform/resolvers` and `zod` for the ops detail editor
+  form state and validation
 
 Not selected as the primary floorplan technology: `konva`, `react-konva`,
 `fabric`, `d3`, MapLibre or indoor-navigation frameworks.

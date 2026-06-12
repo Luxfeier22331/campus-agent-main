@@ -22,17 +22,17 @@ members = [
     "campus-evals",
     "campus-ingestion-core",
     "campus-ingestion-worker",
+    "campus-knowledge-capability",
     "campus-legacy-office-conversion-service",
-    "campus-navigation-agent",
-    "campus-notice-agent",
+    "campus-navigation-capability",
+    "campus-notice-capability",
     "campus-official-web-collector",
     "campus-official-web-core",
     "campus-prompt-runtime",
     "campus-public-chat-web",
-    "campus-rag-agent",
     "campus-regulation-semantics",
     "campus-retrieval-core",
-    "campus-services-agent",
+    "campus-services-capability",
     "campus-shared",
     "campus-supervisor-agent-worker",
     "campus-wechat-official-account-core",
@@ -382,14 +382,37 @@ requires-dist = [
 ]
 
 [[package]]
+name = "campus-knowledge-capability"
+version = "0.1.0"
+source = { editable = "packages/knowledge-capability" }
+dependencies = [
+    { name = "campus-contracts" },
+    { name = "campus-ingestion-core" },
+    { name = "campus-prompt-runtime" },
+    { name = "campus-regulation-semantics" },
+    { name = "campus-retrieval-core" },
+    { name = "campus-shared" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
+    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
+    { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
+    { name = "campus-shared", editable = "packages/shared" },
+]
+
+[[package]]
 name = "campus-legacy-office-conversion-service"
 version = "0.1.0"
 source = { virtual = "apps/legacy-office-conversion-service" }
 
 [[package]]
-name = "campus-navigation-agent"
+name = "campus-navigation-capability"
 version = "0.1.0"
-source = { editable = "packages/navigation-agent" }
+source = { editable = "packages/navigation-capability" }
 dependencies = [
     { name = "campus-contracts" },
 ]
@@ -398,9 +421,9 @@ dependencies = [
 requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 
 [[package]]
-name = "campus-notice-agent"
+name = "campus-notice-capability"
 version = "0.1.0"
-source = { editable = "packages/notice-agent" }
+source = { editable = "packages/notice-capability" }
 dependencies = [
     { name = "boto3" },
     { name = "campus-contracts" },
@@ -447,29 +470,6 @@ version = "0.1.0"
 source = { virtual = "apps/public-chat-web" }
 
 [[package]]
-name = "campus-rag-agent"
-version = "0.1.0"
-source = { editable = "packages/rag-agent" }
-dependencies = [
-    { name = "campus-contracts" },
-    { name = "campus-ingestion-core" },
-    { name = "campus-prompt-runtime" },
-    { name = "campus-regulation-semantics" },
-    { name = "campus-retrieval-core" },
-    { name = "campus-shared" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
-    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
-    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
-    { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
-    { name = "campus-shared", editable = "packages/shared" },
-]
-
-[[package]]
 name = "campus-regulation-semantics"
 version = "0.1.0"
 source = { editable = "packages/regulation-semantics" }
@@ -502,9 +502,9 @@ requires-dist = [
 ]
 
 [[package]]
-name = "campus-services-agent"
+name = "campus-services-capability"
 version = "0.1.0"
-source = { editable = "packages/campus-services-agent" }
+source = { editable = "packages/campus-services-capability" }
 dependencies = [
     { name = "campus-contracts" },
 ]

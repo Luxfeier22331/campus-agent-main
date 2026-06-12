@@ -16,7 +16,7 @@ updated: 2026-06-11
 - shared product topology：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api` runtime 与内部边界：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api -> execution-control`
-  内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
+  内部执行契约：`docs/contracts/capability-execution.md`
 - internal eval benchmark
   ingress：`docs/contracts/app-api-eval-benchmark-http.md`
 - operator observability query
@@ -73,7 +73,8 @@ contract test carrier。新增 route 必须声明：
 
 - `browser-surface`：由 campus-web / legacy public chat same-origin proxy 调用
 - `operator-via-panel`：由 protected panel internal bridge 调用
-- `machine-internal`：由 supervisor / eval / ingestion 等 trusted machine caller 调用
+- `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
+  caller 调用
 - `collector-machine`：由 official-web collector command caller 调用
 - `system`：health / readiness probe
 
@@ -273,7 +274,7 @@ assistant message 可以包含 `feedback`：
 - `feedback` 只表示当前登录用户对该 assistant message 的 latest answer-quality feedback
 - user message 不返回 feedback state
 - assistant message 未反馈时返回 `feedback: null`
-- `feedback` 不影响权限、routing、memory、serving surface 或 supervisor admission
+- `feedback` 不影响权限、routing、memory、serving surface 或 execution admission
 
 ### Conversation Detail
 
@@ -309,8 +310,14 @@ assistant message 可以包含 `feedback`：
   memory
 - `key` 必须是安全的 typed key，不接受 authorization / permission / ACL 类 key
 - `value` 是用户声明的短文本偏好或目标，不能作为 ACL、serving surface 或 approval 权限来源
-- 关闭 memory projection 后，后续 execution `ContextProjection.profile_memory.items`
-  必须为空
+- profile memory API 是 product/manual management surface；online chat hot path 不再由
+  `app-api` 读取 PG memory rows 并全量注入 `ContextProjection.profile_memory.items`
+- 开启 profile memory 后，manual write path 必须同步到 execution-control / Qdrant
+  `personal_memory_v1` index，后续 online recall 由 `context.memory_recall` activity
+  按 top-k / char budget 选择 bounded memory context
+- 关闭 memory projection 后，后续 `memory.recall` 不得返回该用户的 active personal
+  memory item；legacy `ContextProjection.profile_memory.items` 如仍存在于 DTO，只能为空或被
+  execution side 忽略
 
 ### Request Projection Summary
 
@@ -334,7 +341,7 @@ assistant message 可以包含 `feedback`：
     "corpus": "regulations",
     "collection": "student_rules"
   },
-  "selectedTarget": "rag-agent",
+  "selectedCapability": "knowledge",
   "questionPreview": "图书馆开放到几点？",
   "answerPreview": "图书馆开放到 22:00。",
   "errorCode": null,
@@ -348,7 +355,7 @@ assistant message 可以包含 `feedback`：
 
 补充约束：
 
-- `selectedTarget` 始终表示 request finalized 后的 current runtime target。
+- `selectedCapability` 始终表示 request finalized 后的 capability id。
 - 它当前只承载 raw contract truth，不承载 forward family label，也不承载 operator-facing
   localized wording。
 - 如果 browser 或 panel 需要展示友好名称，必须由 app-owned mapping / presentation layer
@@ -380,7 +387,7 @@ assistant message 可以包含 `feedback`：
     "officialWebHandoff": "not_configured",
     "operatorBridge": "configured",
     "publicChatOrigin": "configured",
-    "supervisorApi": "ready"
+    "executionControl": "ready"
   },
   "preflight": {
     "campusServicesProductPath": {
@@ -423,7 +430,7 @@ assistant message 可以包含 `feedback`：
     "details": {
       "failed": {
         "auth": "better-auth session runtime failed probe",
-        "supervisorApi": "supervisor /readyz returned 503"
+        "executionControl": "execution-control /readyz returned 503"
       }
     }
   }
@@ -711,10 +718,11 @@ Upsert 一个用户声明的 profile memory item。
 
 - 所有接口都要求 resolved session principal
 - memory item `key` 使用小写 typed key，并拒绝 authorization / permission / ACL 类 key
-- `profileMemory.enabled=false` 不删除已有 item，但 execution projection 必须返回空 memory
-- 删除 item 后，该 item 不得再进入后续 `ContextProjection.profile_memory.items`
-- profile memory 不进入 authorization filter、serving surface、approval 或 tool
-  permission
+- `profileMemory.enabled=false` 不删除已有 item，但 execution-control / Qdrant personal
+  memory recall 必须停止返回 active memory context
+- 删除 item 后，该 item 必须被同步 disable / remove from `personal_memory_v1` recall path；
+  不得再被 `context.memory_recall` 返回
+- profile memory 不进入 authorization filter、serving surface、approval 或 tool permission
 
 ## Chat Endpoints
 
@@ -1036,7 +1044,7 @@ terminal event 额外携带：
 规则：
 
 - run projection 启用时，`request.accepted` 在 app-api accept commit 与
-  supervisor durable run create 均成功后发送；其 data 必须包含 `runId`
+  execution durable run create 均成功后发送；其 data 必须包含 `runId`
 - terminal event 在 finalization commit 后发送；因此 terminal `answer` 是
   app-owned DB/projection truth 的产物
 - submit stream 的浏览器连接不拥有 finalization；app-api 必须通过 request
@@ -1151,7 +1159,7 @@ browser-visible run event projection：
       "corpus": "regulations",
       "collection": "student_rules"
     },
-    "selectedTarget": "rag-agent",
+    "selectedCapability": "knowledge",
     "questionPreview": "图书馆开放到几点？",
     "answerPreview": "图书馆开放到 22:00。",
     "errorCode": null,

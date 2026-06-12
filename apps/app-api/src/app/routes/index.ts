@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { registerAuthRoutes } from "./auth";
 import { registerCampusExperienceRoutes } from "./campus-experience";
+import { registerCampusServicesOpsRoutes } from "./campus-services-ops";
 import { registerChatRoutes } from "./chat";
 import { registerDiningOpsRoutes } from "./dining-ops";
 import { registerDocsRoutes } from "./docs";
@@ -111,6 +112,12 @@ export function registerAppRoutes(input: {
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 	registerOperatorRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerCampusServicesOpsRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

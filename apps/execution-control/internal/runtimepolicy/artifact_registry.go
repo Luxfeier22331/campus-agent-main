@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	WorkflowArtifactRegistrySchemaVersion = "workflow-artifact-registry-v1"
-	defaultWorkflowArtifactRegistryPath   = "configs/runtime/workflow-artifacts.v1.json"
+	WorkflowArtifactRegistrySchemaVersion = "workflow-artifact-registry-v2"
+	defaultWorkflowArtifactRegistryPath   = "configs/runtime/workflow-artifacts.v2.json"
 )
 
 var supportedArtifactProjectionStatuses = map[string]struct{}{
@@ -20,7 +20,7 @@ var supportedArtifactProjectionStatuses = map[string]struct{}{
 }
 
 var supportedArtifactVisibilities = map[string]struct{}{
-	"agent_private":         {},
+	"capability_private":    {},
 	"operator_safe_summary": {},
 	"finalizer_input":       {},
 }
@@ -48,7 +48,7 @@ type WorkflowArtifactRegistry struct {
 type WorkflowArtifact struct {
 	Kind                     string   `json:"kind"`
 	DisplayName              string   `json:"display_name"`
-	OwnerAgent               string   `json:"owner_agent"`
+	OwnerCapability          string   `json:"owner_capability"`
 	ProducerTools            []string `json:"producer_tools"`
 	SourceTruthOwner         string   `json:"source_truth_owner"`
 	Visibility               string   `json:"visibility"`
@@ -64,7 +64,7 @@ type WorkflowArtifact struct {
 
 type WorkflowCapabilityBinding struct {
 	BindingID       string   `json:"binding_id"`
-	OwnerAgent      string   `json:"owner_agent"`
+	OwnerCapability string   `json:"owner_capability"`
 	ToolName        string   `json:"tool_name"`
 	Produces        []string `json:"produces"`
 	Consumes        []string `json:"consumes"`
@@ -163,12 +163,11 @@ func (a WorkflowArtifact) Validate(globalRawTokens map[string]struct{}) error {
 	if strings.TrimSpace(a.DisplayName) == "" {
 		return fmt.Errorf("%s display_name must not be empty", a.Kind)
 	}
-	if strings.TrimSpace(a.OwnerAgent) == "" {
-		return fmt.Errorf("%s owner_agent must not be empty", a.Kind)
+	if strings.TrimSpace(a.OwnerCapability) == "" {
+		return fmt.Errorf("%s owner_capability must not be empty", a.Kind)
 	}
-	if _, ok := supportedToolOwnerCapabilities[a.OwnerAgent]; !ok &&
-		a.OwnerAgent != "execution-control" {
-		return fmt.Errorf("%s owner_agent is unsupported: %s", a.Kind, a.OwnerAgent)
+	if !SupportedCapability(a.OwnerCapability) && a.OwnerCapability != "execution-control" {
+		return fmt.Errorf("%s owner_capability is unsupported: %s", a.Kind, a.OwnerCapability)
 	}
 	if strings.TrimSpace(a.SourceTruthOwner) == "" {
 		return fmt.Errorf("%s source_truth_owner must not be empty", a.Kind)
@@ -223,16 +222,16 @@ func (r WorkflowArtifactRegistry) RegisteredKindOrAlias(kind string) bool {
 	return ok
 }
 
-func ValidateAgentSpecProjectionKindsAgainstArtifacts(
-	agentRegistry AgentSpecRegistry,
+func ValidateCapabilitySpecProjectionKindsAgainstArtifacts(
+	capabilityRegistry CapabilitySpecRegistry,
 	artifactRegistry WorkflowArtifactRegistry,
 ) error {
-	for _, agent := range agentRegistry.Agents {
-		for _, kind := range agent.ContextProjectionKinds {
+	for _, capability := range capabilityRegistry.Capabilities {
+		for _, kind := range capability.ContextProjectionKinds {
 			if !artifactRegistry.RegisteredKindOrAlias(kind) {
 				return fmt.Errorf(
-					"agent spec %s context_projection_kind %q is outside workflow artifact registry",
-					agent.ID,
+					"capability spec %s context_projection_kind %q is outside workflow artifact registry",
+					capability.ID,
 					kind,
 				)
 			}
@@ -251,13 +250,13 @@ func ValidateToolSpecProducerToolsAgainstArtifacts(
 			if !ok {
 				return fmt.Errorf("%s producer tool is missing from ToolSpec: %s", artifact.Kind, toolName)
 			}
-			if tool.OwnerAgent != artifact.OwnerAgent {
+			if tool.OwnerCapability != artifact.OwnerCapability {
 				return fmt.Errorf(
 					"%s producer tool %s owner = %s, want %s",
 					artifact.Kind,
 					toolName,
-					tool.OwnerAgent,
-					artifact.OwnerAgent,
+					tool.OwnerCapability,
+					artifact.OwnerCapability,
 				)
 			}
 			if !tool.ReadOnly {
@@ -269,7 +268,7 @@ func ValidateToolSpecProducerToolsAgainstArtifacts(
 }
 
 func ValidateCapabilityBindings(
-	agentRegistry AgentSpecRegistry,
+	capabilityRegistry CapabilitySpecRegistry,
 	toolRegistry ToolSpecRegistry,
 	artifactRegistry WorkflowArtifactRegistry,
 ) error {
@@ -284,12 +283,12 @@ func ValidateCapabilityBindings(
 			return fmt.Errorf("workflow capability binding duplicate binding_id: %s", binding.BindingID)
 		}
 		seenBindingIDs[binding.BindingID] = struct{}{}
-		agent, ok := agentRegistry.AgentByID(binding.OwnerAgent)
+		capability, ok := capabilityRegistry.CapabilityByID(binding.OwnerCapability)
 		if !ok {
 			return fmt.Errorf(
-				"%s owner_agent is missing from AgentSpec: %s",
+				"%s owner_capability is missing from capability spec: %s",
 				binding.BindingID,
-				binding.OwnerAgent,
+				binding.OwnerCapability,
 			)
 		}
 		if _, ok := supportedBindingOpeningGates[binding.OpeningGate]; !ok {
@@ -299,13 +298,13 @@ func ValidateCapabilityBindings(
 				binding.OpeningGate,
 			)
 		}
-		if binding.OpeningGate != agent.OpeningGate {
+		if binding.OpeningGate != capability.OpeningGate {
 			return fmt.Errorf(
-				"%s opening_gate=%s does not match AgentSpec %s opening_gate=%s",
+				"%s opening_gate=%s does not match capability spec %s opening_gate=%s",
 				binding.BindingID,
 				binding.OpeningGate,
-				binding.OwnerAgent,
-				agent.OpeningGate,
+				binding.OwnerCapability,
+				capability.OpeningGate,
 			)
 		}
 		if binding.StateChanging {
@@ -323,12 +322,12 @@ func ValidateCapabilityBindings(
 					binding.ToolName,
 				)
 			}
-			if tool.OwnerAgent != binding.OwnerAgent {
+			if tool.OwnerCapability != binding.OwnerCapability {
 				return fmt.Errorf(
 					"%s tool owner=%s, want %s",
 					binding.BindingID,
-					tool.OwnerAgent,
-					binding.OwnerAgent,
+					tool.OwnerCapability,
+					binding.OwnerCapability,
 				)
 			}
 			if !tool.ReadOnly {

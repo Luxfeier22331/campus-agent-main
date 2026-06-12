@@ -5,17 +5,22 @@ import (
 	"testing"
 )
 
-func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
+func setStagingPersonalMemoryEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("QDRANT_URL", "https://qdrant:6333")
+	t.Setenv("QDRANT_QUERY_API_KEY", "readonly-key")
+	t.Setenv("QDRANT_WRITE_API_KEY", "write-key")
+	t.Setenv("QDRANT_TLS_CA_CERT_PATH", "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem")
+	t.Setenv("EMBEDDING_API_KEY", "embedding-key")
+	t.Setenv("EMBEDDING_MODEL", "text-embedding-3-large")
+	t.Setenv("EMBEDDING_DIMENSIONS", "3072")
+}
+
+func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "")
 	t.Setenv("API_DEFAULT_ACTOR_ID", "")
 	t.Setenv("API_DEFAULT_ACTOR_ROLES", "")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_BASE_URL", "")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_HOST", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_PORT", "")
 	t.Setenv("EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS", "")
@@ -23,11 +28,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_QUEUE_TIMEOUT_MS", "")
 	t.Setenv("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", "")
 	t.Setenv("EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES", "")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "")
 	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
 	t.Setenv("EXECUTION_CONTROL_INTENT_POLICY_PATH", "")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_URL", "")
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET", "")
@@ -55,7 +58,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "")
-	t.Setenv("SUPERVISOR_PROMPT_MODEL", "")
+	t.Setenv("EXECUTION_PROMPT_MODEL", "")
 	t.Setenv("AGENT_PROMPT_MODEL", "")
 	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
 	t.Setenv("LLM_API_KEY", "")
@@ -84,24 +87,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.DefaultActorID != "" {
 		t.Fatalf("default actor id = %q, want empty", cfg.DefaultActorID)
 	}
-	if cfg.BridgeBaseURL != "" {
-		t.Fatalf("bridge base url = %q, want empty", cfg.BridgeBaseURL)
-	}
-	if cfg.BridgeSharedSecret != "" {
-		t.Fatalf("bridge shared secret = %q, want empty", cfg.BridgeSharedSecret)
-	}
-	if cfg.BridgeBreakerFailureThreshold != 5 {
-		t.Fatalf("bridge breaker failure threshold = %d, want 5", cfg.BridgeBreakerFailureThreshold)
-	}
-	if cfg.BridgeBreakerOpenMS != 10_000 {
-		t.Fatalf("bridge breaker open ms = %d, want 10000", cfg.BridgeBreakerOpenMS)
-	}
-	if cfg.BridgeRetryMaxAttempts != 2 {
-		t.Fatalf("bridge retry max attempts = %d, want 2", cfg.BridgeRetryMaxAttempts)
-	}
-	if cfg.BridgeRetryBaseMS != 50 {
-		t.Fatalf("bridge retry base ms = %d, want 50", cfg.BridgeRetryBaseMS)
-	}
 	if cfg.MaxConcurrentAnswers != 8 {
 		t.Fatalf("max concurrent answers = %d, want 8", cfg.MaxConcurrentAnswers)
 	}
@@ -116,12 +101,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.RequestBodyLimitBytes != 1_048_576 {
 		t.Fatalf("body limit = %d, want 1048576", cfg.RequestBodyLimitBytes)
-	}
-	if cfg.BridgeTimeoutMS != 35_000 {
-		t.Fatalf("bridge timeout = %d, want 35000", cfg.BridgeTimeoutMS)
-	}
-	if cfg.BridgeResponseLimitBytes != 1_048_576 {
-		t.Fatalf("bridge response limit = %d, want 1048576", cfg.BridgeResponseLimitBytes)
 	}
 	if cfg.ShutdownGraceMS != 45_000 {
 		t.Fatalf("shutdown grace = %d, want 45000", cfg.ShutdownGraceMS)
@@ -194,13 +173,19 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeBodyObjectStoreBodyLimitBytes)
 	}
 	if cfg.PromptRuntimeProvider != "" ||
-		cfg.SupervisorPromptModel != "" ||
+		cfg.ExecutionPromptModel != "" ||
 		cfg.AgentPromptModel != "" ||
 		cfg.PromptRuntimeAPIKey != "" ||
 		cfg.PromptRuntimeTransport != "responses" ||
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
 		!cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
+	}
+	if cfg.PersonalMemoryCollection != "personal_memory_v1" ||
+		cfg.PersonalMemoryTopK != 5 ||
+		cfg.PersonalMemoryMaxChars != 1200 ||
+		cfg.EmbeddingDimensions != 0 {
+		t.Fatalf("unexpected local personal memory defaults: %#v", cfg)
 	}
 }
 
@@ -226,6 +211,7 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "7000")
+	setStagingPersonalMemoryEnv(t)
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -238,6 +224,80 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 		cfg.TemporalWorkflowIDSalt != "workflow-salt" ||
 		cfg.TemporalStartTimeoutMS != 7000 {
 		t.Fatalf("unexpected Temporal settings: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected deployed personal memory settings to be required")
+	}
+}
+
+func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:workflow-worker:001")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+
+	if _, err := LoadFromEnvForRole("workflow"); err != nil {
+		t.Fatalf("workflow worker must not require personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-finalization"); err != nil {
+		t.Fatalf("finalization worker must not require personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-context"); err == nil {
+		t.Fatal("context worker must require query-side personal memory config")
+	}
+	if _, err := LoadFromEnvForRole("activity-knowledge"); err == nil {
+		t.Fatal("knowledge worker must require query-side personal memory config")
+	}
+	if _, err := LoadFromEnvForRole("activity-campus-services"); err != nil {
+		t.Fatalf("campus services worker must not require personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-notice"); err != nil {
+		t.Fatalf("notice worker must not require personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-navigation"); err != nil {
+		t.Fatalf("navigation worker must not require personal memory config: %v", err)
+	}
+	setStagingPersonalMemoryEnv(t)
+	t.Setenv("QDRANT_WRITE_API_KEY", "")
+	if _, err := LoadFromEnvForRole("activity-context"); err != nil {
+		t.Fatalf("context worker recall must not require QDRANT_WRITE_API_KEY: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-knowledge"); err != nil {
+		t.Fatalf("knowledge worker recall must not require QDRANT_WRITE_API_KEY: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("execution-control"); err == nil {
+		t.Fatal("execution-control memory write API must require QDRANT_WRITE_API_KEY")
+	}
+}
+
+func TestLoadFromEnvRejectsHTTPQdrantForDeployedPersonalMemory(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
+	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+	setStagingPersonalMemoryEnv(t)
+	t.Setenv("QDRANT_URL", "http://qdrant:6333")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected deployed personal memory to reject http Qdrant URL")
+	}
+	if !strings.Contains(err.Error(), "QDRANT_URL must use https") {
+		t.Fatalf("error = %v, want https diagnostic", err)
 	}
 }
 
@@ -289,7 +349,7 @@ func TestLoadFromEnvRejectsRetiredDurableWorkerLoopSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED", "true")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "rag")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request")
+	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "capability:knowledge:rag_request")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
@@ -316,7 +376,7 @@ func TestLoadFromEnvRejectsAnyRetiredDurableLoopSetting(t *testing.T) {
 	}{
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "rag"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "handoff:rag-agent:rag_request"},
+		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "capability:knowledge:rag_request"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000"},
@@ -360,6 +420,7 @@ func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
+	setStagingPersonalMemoryEnv(t)
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -404,12 +465,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_QUEUE_CAPACITY", "12")
 	t.Setenv("EXECUTION_CONTROL_QUEUE_TIMEOUT_MS", "2500")
 	t.Setenv("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", "30000")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000")
-	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "7500")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "4")
-	t.Setenv("EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "15")
 	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "20000")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_INTENT_POLICY_PATH", "/etc/campus-agent/intent-policy.v1.json")
@@ -436,7 +491,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", "true")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
-	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
+	t.Setenv("EXECUTION_PROMPT_MODEL", "gpt-execution")
 	t.Setenv("AGENT_PROMPT_MODEL", "gpt-agent")
 	t.Setenv("PROMPT_RUNTIME_API_KEY", "prompt-key")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "responses")
@@ -453,12 +508,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.QueueCapacity != 12 ||
 		cfg.QueueTimeoutMS != 2500 ||
 		cfg.RequestTimeoutMS != 30000 ||
-		cfg.BridgeTimeoutMS != 25000 ||
-		cfg.BridgeResponseLimitBytes != 2048 ||
-		cfg.BridgeBreakerFailureThreshold != 3 ||
-		cfg.BridgeBreakerOpenMS != 7500 ||
-		cfg.BridgeRetryMaxAttempts != 4 ||
-		cfg.BridgeRetryBaseMS != 15 ||
 		cfg.ShutdownGraceMS != 20000 ||
 		cfg.MetricsBearerToken != "metrics-token" ||
 		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||
@@ -486,7 +535,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.WorkflowRunDatabaseURL != "postgresql://workflow.example/db" ||
 		!cfg.WorkflowRunAutoMigrate ||
 		cfg.PromptRuntimeProvider != "openai-responses" ||
-		cfg.SupervisorPromptModel != "gpt-supervisor" ||
+		cfg.ExecutionPromptModel != "gpt-execution" ||
 		cfg.AgentPromptModel != "gpt-agent" ||
 		cfg.PromptRuntimeAPIKey != "prompt-key" ||
 		cfg.PromptRuntimeTransport != "responses" ||
@@ -494,6 +543,40 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.PromptStrictStructuredOutputs ||
 		cfg.NoticeBodyObjectStoreBodyLimitBytes != 4096 {
 		t.Fatalf("unexpected config: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvRejectsRetiredSupervisorPromptModel(t *testing.T) {
+	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected retired supervisor prompt model env to fail")
+	} else if !strings.Contains(err.Error(), "SUPERVISOR_PROMPT_MODEL is retired") {
+		t.Fatalf("error = %q, want retired supervisor prompt model error", err.Error())
+	}
+}
+
+func TestLoadFromEnvRejectsRetiredPythonBridgeSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{"SUPERVISOR_AGENT_WORKER_BASE_URL", "http://127.0.0.1:27052"},
+		{"SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "bridge-secret"},
+		{"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048"},
+		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000"},
+		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", "500"},
+		{"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3"},
+		{"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "7500"},
+		{"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "4"},
+		{"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "15"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(tc.name, tc.value)
+			if _, err := LoadFromEnv(); err == nil {
+				t.Fatalf("expected retired Python bridge setting %s to fail", tc.name)
+			}
+		})
 	}
 }
 

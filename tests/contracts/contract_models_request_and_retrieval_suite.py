@@ -5,7 +5,7 @@ from tests.contracts.contract_models_test_support import *
 
 class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
     def test_supervisor_request_defaults_do_not_inject_fixed_capability_or_scope(self) -> None:
-        request = SupervisorRequest(user_goal="library hours")
+        request = ExecutionRequest(user_goal="library hours")
 
         self.assertEqual(request.conversation_id, "")
         self.assertEqual(request.request_id, "")
@@ -63,20 +63,20 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
 
     def test_supervisor_request_rejects_removed_availability_capability(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported requested_capability: availability"):
-            SupervisorRequest(
+            ExecutionRequest(
                 user_goal="官网能打开吗",
                 requested_capability="availability",  # type: ignore[arg-type]
             )
 
     def test_supervisor_request_does_not_accept_removed_availability_target_field(self) -> None:
         with self.assertRaisesRegex(TypeError, "availability_target_id"):
-            SupervisorRequest(
+            ExecutionRequest(
                 user_goal="官网能打开吗",
                 availability_target_id="official-homepage",  # type: ignore[call-arg]
             )
 
     def test_supervisor_request_accepts_typed_context_projection(self) -> None:
-        request = SupervisorRequest(
+        request = ExecutionRequest(
             user_goal="保研政策怎么准备？",
             context=ContextProjection(
                 actor=ActorContext(
@@ -142,7 +142,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
 
     def test_supervisor_request_rejects_non_hex_safety_identifier(self) -> None:
         with self.assertRaises(ValueError):
-            SupervisorRequest(
+            ExecutionRequest(
                 user_goal="保研政策怎么准备？",
                 safety_identifier="student-001",
             )
@@ -177,7 +177,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
         )
 
     def test_supervisor_request_actor_only_no_longer_projects_authorization_filter(self) -> None:
-        request = SupervisorRequest(
+        request = ExecutionRequest(
             user_goal="保研政策怎么准备？",
             actor=ActorContext(
                 user_id="student-001",

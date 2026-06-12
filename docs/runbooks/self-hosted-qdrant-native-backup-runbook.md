@@ -43,10 +43,10 @@ Network contract:
 - bind REST and gRPC to `127.0.0.1` or a private interface
 - do not expose `6333` or `6334` directly to the public internet
 - use API key authentication
-- same-host Docker data-plane traffic uses HTTP + API key; TLS is not a blocker
-  for `http://qdrant:6333` inside `campus-agent-data-plane`
-- cross-host, public, Tunnel, or VPC-to-VPC Qdrant traffic must use TLS and an
-  explicit network isolation boundary
+- same-host Docker data-plane traffic uses native HTTPS + API key; staging /
+  production do not accept `api_key + http://` for Qdrant query runtime
+- TLS files are ops-owned runtime material under
+  `/srv/docker/campus-agent/staging/qdrant/tls/` and are not committed to the repo
 - query runtime receives a read-only Qdrant key through deployment secrets only
 - ingestion, snapshot backup, and restore operations use the admin Qdrant key
 
@@ -84,11 +84,22 @@ QDRANT_HTTP_PORT=6333
 QDRANT_GRPC_PORT=6334
 QDRANT_STORAGE_DIR=/srv/lib/campus-agent/qdrant/storage
 QDRANT_SNAPSHOTS_DIR=/srv/backups/campus-agent/qdrant-snapshots/native
+QDRANT_TLS_DIR=/srv/docker/campus-agent/staging/qdrant/tls
 ```
+
+The TLS directory must contain:
+
+```text
+ca.pem
+server.crt
+server.key
+```
+
+The server certificate SAN must include `qdrant`, `localhost`, and `127.0.0.1`.
 
 Start Qdrant. Create the shared Docker data-plane network first. Qdrant keeps
 host-side ports bound to loopback, while supervisor containers reach it through
-Docker service DNS `http://qdrant:6333` on `campus-agent-data-plane`:
+Docker service DNS `https://qdrant:6333` on `campus-agent-data-plane`:
 
 ```bash
 cd /srv/apps/campus-agent
@@ -101,8 +112,10 @@ docker compose --env-file .env.qdrant.local \
 Health checks:
 
 ```bash
-curl -fsS -H "api-key: $QDRANT_API_KEY" http://127.0.0.1:6333/readyz
-curl -fsS -H "api-key: $QDRANT_API_KEY" http://127.0.0.1:6333/collections
+curl --cacert "$QDRANT_TLS_DIR/ca.pem" -fsS \
+  -H "api-key: $QDRANT_API_KEY" https://127.0.0.1:6333/readyz
+curl --cacert "$QDRANT_TLS_DIR/ca.pem" -fsS \
+  -H "api-key: $QDRANT_API_KEY" https://127.0.0.1:6333/collections
 ```
 
 ## Staging Env Projection
@@ -112,9 +125,10 @@ The staging runtime env file must point retrieval runtime at this node:
 - `/srv/docker/campus-agent/staging/env/runtime.env`
 
 ```bash
-STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
-STAGING_INGESTION_QDRANT_API_KEY=<admin-or-runtime-api-key>
+STAGING_INGESTION_QDRANT_URL=https://127.0.0.1:6333
+STAGING_INGESTION_QDRANT_API_KEY=<admin-api-key>
 STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<read-only-api-key>
+STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
 STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS=30
 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
@@ -129,10 +143,11 @@ STAGING_INGESTION_SPARSE_LANGUAGE=none
 
 The staging lifecycle script keeps this value as the host-side Qdrant URL. It
 projects the container-side runtime URL to
-`QDRANT_DOCKER_URL=http://qdrant:6333`. When the URL is local, the lifecycle
-script starts repo-owned Qdrant with the configured admin and read-only keys.
-Missing Qdrant values or an unreachable container-side Qdrant endpoint fail
-closed. The same readiness path creates and deletes a temporary
+`QDRANT_DOCKER_URL=https://qdrant:6333`. When the URL is local, the lifecycle
+script starts repo-owned Qdrant with native TLS, the configured admin key, and
+the configured read-only key. Missing Qdrant values, missing CA path, HTTP URL,
+or an unreachable container-side Qdrant endpoint fail closed. The same readiness
+path creates and deletes a temporary
 `bm25_canary_*` collection to prove self-hosted Qdrant can execute
 `qdrant/bm25` server-side inference. `/readyz` alone is not enough.
 
@@ -175,7 +190,9 @@ collection snapshot operations.
 Create a snapshot:
 
 ```bash
-QDRANT_URL=http://127.0.0.1:6333 QDRANT_API_KEY=<admin-api-key> \
+QDRANT_URL=https://127.0.0.1:6333 \
+QDRANT_API_KEY=<admin-api-key> \
+QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem \
   infra/local/qdrant-native-snapshot.sh create-collection \
   --collection <physical_collection> \
   --alias <serving_alias> \
@@ -191,7 +208,9 @@ Restore a snapshot:
 
 ```bash
 cd /srv/backups/campus-agent/qdrant-snapshots/<corpus>/<collection>/<release_id>/<backup_id>
-QDRANT_URL=http://127.0.0.1:6333 QDRANT_API_KEY=<admin-api-key> \
+QDRANT_URL=https://127.0.0.1:6333 \
+QDRANT_API_KEY=<admin-api-key> \
+QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem \
   qdrant-native-snapshot.sh restore-collection \
   --collection <target_physical_collection> \
   --snapshot <physical_collection>.snapshot \

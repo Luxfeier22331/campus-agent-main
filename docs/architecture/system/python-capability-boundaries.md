@@ -8,44 +8,44 @@ updated: 2026-06-08
 
 ## 文档边界
 
-本文冻结 Python side current implementation boundary 与长期退出在线回答热路径的约束。它不改变
-Temporal / Go execution-control 的 ownership，只说明当前 Python bridge 承担什么、哪些职责必须迁出、
-以及 Python 后续只能保留在哪些非热路径场景。
+本文冻结 Python side retired / offline boundary。它不改变 Temporal / Go
+execution-control 的 ownership，只说明 Python 不再参与 online answer hot path，以及后续只能保留在哪些
+非热路径场景。
 
 ## Runtime Boundary
 
 Python 不再拥有 deterministic execution runtime truth。
 
-- `apps/supervisor-agent-worker` 只负责 private bridge parsing、prompt runtime assembly
-  与 agent delegate dispatch
-- Go `apps/execution-control` 继续拥有 admission、routing frame、structured runtime、
-  lifecycle、observability、final response shaping 与 fail-close terminal envelope
-- Python worker 只消费 Go canonical bridge envelope 与 Go preplanned `AgentRequest`
-- 当前 online answer path 仍经过 Python `apps/supervisor-agent-worker`，这是 current
-  implementation gap，不是长期 target architecture
-- 长期 online answer hot path 必须迁到 Go-owned workflow / capability activity worker
-  envelope；Python 只允许保留 offline ingestion / eval / tooling，或迁移期受限 semantic bridge
-- Python 不得长期拥有 provider cancellation、token / estimated cost accounting、
+- `apps/supervisor-agent-worker` 不参与当前 online answer serving
+- Go `apps/execution-control` 拥有 admission、routing frame、structured runtime、
+  lifecycle、observability、Temporal memory + RAG graph、provider usage/cost projection、
+  final response shaping 与 fail-close terminal envelope
+- Python worker 不消费 online Go canonical bridge envelope，也不作为 Temporal activity backend
+- Python 只允许保留 offline ingestion / eval / tooling 或 historical bridge reference
+- Python 不拥有 online RAG provider cancellation、token / estimated cost accounting、
   sanitized step projection、workflow step truth 或 top-level semantic orchestration
 
 ## Agent Boundary
 
-`packages/rag-agent` 当前保留 knowledge-family semantic agent 能力：
+`packages/knowledge-capability 当前保留 knowledge-family semantic agent 能力：
 
-- query framing、scope-specific semantic planning、answer synthesis、grounding validation
-- prompt packet assembly 与 provider-backed semantic execution
-- retrieval evidence 到 `AgentResponse` 的 contract 化
+- query framing、scope-specific semantic planning、bounded synthesis packet assembly、
+  grounding validation
+- online RAG provider-backed synthesis 已迁入 Go `SynthesizeRAGAnswerActivity`；
+  Python `OpenAIAgentsRagRuntime` 仅保留 non-serving / test artifact，不是默认 online
+  runtime
+- retrieval evidence 到 `CapabilityResponse` 的 contract 化
 
-长期上，这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个
-不可观测的 Python bridge 黑盒。RAG online path 目标 step graph 至少包括 `rag.plan`、
+这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个
+不可观测的 Python bridge 黑盒。当前 RAG online path step graph 包括 `rag.plan`、
 `retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、`evidence.selection`、
 `synthesis`、`grounding.verify` 与 `finalization.write`。
 
 内部拆分规则：
 
-- `service.py` 保持 agent service facade，不继续吸收 scope planning 大块逻辑
+- `service.py` 保持 capability service facade，不继续吸收 scope planning 大块逻辑
 - scope-specific logic 分到 `service_scope_*`
-- direct answer composition 分到 `agent_answering_*`
+- direct answer composition 分到 `answering_*`
 - grounding validation 的 result、trust policy、support policy、
   source-trust summary 分文件维护
 
@@ -90,8 +90,9 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 ## Guardrails
 
 - 不把 Go runtime types、Qdrant / S3 / provider SDK types 写入 `packages/contracts`
-- 不把 deterministic supervisor admission、routing、structured payload planning 写回 Python
-- 不把 ingestion source-truth / projection logic 拉入 `packages/rag-agent`
+- 不把 deterministic Execution Agent Layer admission、routing、structured payload
+  planning 写回 Python
+- 不把 ingestion source-truth / projection logic 拉入 `packages/knowledge-capability`
 - 不把 retrieval backend private helpers 重新塞进 agent service
 - 大模块出现增长时优先按 owner 拆文件，而不是在 facade 继续堆分支
 - 不把 Python 继续保留在长期 online answer hot path 当作默认扩容策略

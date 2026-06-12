@@ -56,6 +56,9 @@ updated: 2026-06-06
 ## Identity、authz 与 operator control plane
 
 - `adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  - memory ownership / online recall 部分由
+    `adr-0049-qdrant-native-personal-memory-index.md` supersede；identity / authz
+    边界继续生效。
 - `adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `adr-0023-operator-observability-control-plane-and-sink-participation.md`
@@ -69,6 +72,7 @@ updated: 2026-06-06
 - `adr-0014-versioned-document-serving-and-history-query.md`
 - `adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+- `adr-0049-qdrant-native-personal-memory-index.md`
 - `adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `adr-0044-structured-projection-release-catalog-and-read-model.md`
 
@@ -81,7 +85,7 @@ updated: 2026-06-06
 
 - `adr-0005-campus-services-taxonomy.md`
 - `adr-0021-institution-scoped-entity-alias-governance.md`
-- `adr-0027-navigation-agent-and-spatial-truth.md`
+- `adr-0027-navigation-capability-and-spatial-truth.md`
 - `adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 
 ## Official Web 决策

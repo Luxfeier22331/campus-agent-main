@@ -343,7 +343,7 @@ def _post_service_guide_probe(
         method="POST",
         headers={
             "content-type": "application/json",
-            "x-supervisor-query-auth": secret,
+            "x-execution-query-auth": secret,
         },
     )
     try:

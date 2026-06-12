@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-06-09
 ---
 # Execution Control Server Handoff
 
@@ -10,7 +10,7 @@ updated: 2026-04-27
 
 这份 runbook 只定义 Docker-first `execution-control` server handoff baseline：
 
-- `execution-control + supervisor-agent-worker` 双容器部署契约
+- `execution-control + Temporal + split workers` compose deployment contract
 - server env / health / logging / restart / resource 基线
 - `app-api` execution origin 对接约束
 
@@ -25,9 +25,17 @@ updated: 2026-04-27
 - compose file: `infra/local/docker-compose.execution-control-runtime.yml`
 - services:
   - `execution-control`
-  - `supervisor-agent-worker`
+  - `workflow-worker`
+  - `activity-worker-context`
+  - `activity-worker-knowledge`
+  - `activity-worker-campus-services`
+  - `activity-worker-notice`
+  - `activity-worker-navigation`
+  - `activity-worker-finalization`
+  - `worker-autoscaler`
+  - `temporal`
 - ingress:
-  - machine-local reverse proxy 或 tunnel 指向 `execution-control:8000`
+  - machine-local reverse proxy 指向 `execution-control:8000`
 - upstream contract:
   - `app-api` 调用 `STAGING_EXECUTION_CONTROL_BASE_URL`（或对应环境等价键）
   - worker origin auth 由 `API_WORKER_SHARED_SECRET` 控制
@@ -38,11 +46,19 @@ updated: 2026-04-27
 
 - required:
   - `API_WORKER_SHARED_SECRET`
-  - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET`
-  - `SUPERVISOR_AGENT_WORKER_BASE_URL`（compose 内可固定为 service DNS）
   - `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
-  - `SUPERVISOR_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
+  - `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`
+  - `EXECUTION_CONTROL_TEMPORAL_ADDRESS`
+  - `EXECUTION_CONTROL_TEMPORAL_NAMESPACE`
+  - `QDRANT_URL`
+  - `QDRANT_QUERY_API_KEY`
+  - `QDRANT_TLS_CA_CERT_PATH`
+  - `EMBEDDING_*`
+  - `PROMPT_RUNTIME_*`
+  - `EXECUTION_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
 - conditional:
+  - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
+    `QDRANT_API_KEY`
   - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、
     `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
   - 打开 `campus_services` / `notice` capability 时：`CAMPUS_SHARED_POSTGRES_URL`；

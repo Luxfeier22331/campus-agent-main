@@ -8,10 +8,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -30,39 +33,118 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 	return httptest.NewRequestWithContext(context.Background(), method, target, body)
 }
 
+func newServerForTest() *Server {
+	return NewServer(config.Config{})
+}
+
+func newWorkerAuthServerForTest() *Server {
+	server := newServerForTest()
+	server.config.WorkerSharedSecret = "secret"
+	return server
+}
+
+func newStructuredQueryAuthServerForTest() *Server {
+	return NewServer(config.Config{
+		InternalQuerySharedSecret:         "query-secret",
+		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
+	})
+}
+
 func delegateAnswerBody(requestID string) io.Reader {
 	return strings.NewReader(
 		`{"user_goal":"学生手册图书馆开放时间","request_id":"` + requestID + `","requested_scope":{"corpus":"regulations","collection":"student_rules"}}`,
 	)
 }
 
-type fakeBridge struct {
-	configured        bool
-	response          bridge.ExecuteResponse
-	readyz            bridge.ReadyzResponse
-	executeErr        error
-	readyzErr         error
-	seen              bridge.Request
-	seenSemantic      bridge.SemanticExecutionRequest
-	executeFn         func(context.Context, bridge.Request) (bridge.ExecuteResponse, error)
-	executeSemanticFn func(context.Context, bridge.SemanticExecutionRequest) (bridge.ExecuteResponse, error)
-	cancelFn          func(context.Context, bridge.CancelRequest) (bridge.CancelResponse, error)
-}
-
 type readyTemporalStarter struct {
 	readiness temporalruntime.RuntimeReadiness
 }
 
-func (readyTemporalStarter) StartChatAnswerWorkflow(
+type readyRAGLookupExecutor struct{}
+
+type readyPersonalMemoryExecutor struct{}
+
+func (readyPersonalMemoryExecutor) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (readyPersonalMemoryExecutor) Recall(
+	_ context.Context,
+	request memoryruntime.RecallRequest,
+) (memoryruntime.RecallResult, error) {
+	return memoryruntime.FinalizeRecallResult(memoryruntime.RecallResult{
+		MemoryRef:     "projection://runs/" + request.RunID + "/memory/recall",
+		RunID:         request.RunID,
+		SchemaVersion: "memory_recall_result_v1",
+	})
+}
+
+func (readyPersonalMemoryExecutor) Upsert(
+	_ context.Context,
+	request memoryruntime.UpsertRequest,
+) (memoryruntime.UpsertResult, error) {
+	return memoryruntime.NormalizeUpsertResult(request), nil
+}
+
+func (readyPersonalMemoryExecutor) Disable(
+	_ context.Context,
+	request memoryruntime.DisableRequest,
+) (memoryruntime.UpsertResult, error) {
+	return memoryruntime.UpsertResult{
+		MemoryID:      request.MemoryID,
+		PointID:       memoryruntime.PointID(request.UserID, request.MemoryID),
+		SchemaVersion: "personal_memory_upsert_result_v1",
+		Status:        "disabled",
+		UpdatedAt:     request.UpdatedAt,
+	}, nil
+}
+
+func (readyPersonalMemoryExecutor) DisableOwner(
+	_ context.Context,
+	request memoryruntime.DisableOwnerRequest,
+) (memoryruntime.DisableOwnerResult, error) {
+	return memoryruntime.DisableOwnerResult{
+		SchemaVersion: "personal_memory_owner_disable_result_v1",
+		Status:        "disabled",
+		UpdatedAt:     request.UpdatedAt,
+		UserID:        request.UserID,
+	}, nil
+}
+
+func (readyRAGLookupExecutor) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (readyRAGLookupExecutor) Lookup(
 	context.Context,
-	temporalruntime.ChatAnswerWorkflowInput,
+	ragruntime.PlanProjection,
+) (ragruntime.RetrievalLookupResult, error) {
+	return ragruntime.RetrievalLookupResult{}, nil
+}
+
+type readyRAGSynthesisExecutor struct{}
+
+func (readyRAGSynthesisExecutor) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (readyRAGSynthesisExecutor) ExecuteRAGSynthesis(
+	context.Context,
+	ragSynthesisPacket,
+) (ragSynthesisResult, error) {
+	return ragSynthesisResult{}, nil
+}
+
+func (readyTemporalStarter) StartCapabilityExecutionWorkflow(
+	context.Context,
+	temporalruntime.CapabilityExecutionWorkflowInput,
 ) error {
 	return nil
 }
 
-func (readyTemporalStarter) CancelChatAnswerWorkflow(
+func (readyTemporalStarter) CancelCapabilityExecutionWorkflow(
 	context.Context,
-	temporalruntime.ChatAnswerWorkflowCancelInput,
+	temporalruntime.CapabilityExecutionWorkflowCancelInput,
 ) error {
 	return nil
 }
@@ -81,7 +163,13 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueRAG,
+				Name:    temporalruntime.ActivityTaskQueueContext,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -101,49 +189,60 @@ func markTemporalReadyForTest(server *Server) {
 	server.temporalStarterErr = nil
 }
 
-var _ bridge.Client = (*fakeBridge)(nil)
-
-func (f *fakeBridge) Configured() bool {
-	return f.configured
+func markRAGRuntimeReadyForTest(server *Server) {
+	server.personalMemoryExecutor = readyPersonalMemoryExecutor{}
+	server.personalMemoryErr = nil
+	server.ragLookupExecutor = readyRAGLookupExecutor{}
+	server.ragLookupErr = nil
+	server.ragSynthesisExecutor = readyRAGSynthesisExecutor{}
+	server.ragSynthesisErr = nil
 }
 
-func (f *fakeBridge) Execute(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
-	f.seen = request
-	if f.executeFn != nil {
-		return f.executeFn(ctx, request)
+func providerPricingCatalogForTest(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "provider-pricing.v1.json")
+	body := `{
+		"schema_version":"provider-pricing-v1",
+		"currency":"USD",
+		"models":[{
+			"provider":"openai",
+			"model":"gpt-5-mini",
+			"input_microusd_per_1k_tokens":250,
+			"cached_input_microusd_per_1k_tokens":25,
+			"output_microusd_per_1k_tokens":2000
+		}]
+	}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write provider pricing catalog: %v", err)
 	}
-	if f.executeErr != nil {
-		return bridge.ExecuteResponse{}, f.executeErr
-	}
-	return f.response, nil
+	return path
 }
 
-func (f *fakeBridge) ExecuteSemantic(
-	ctx context.Context,
-	request bridge.SemanticExecutionRequest,
-) (bridge.ExecuteResponse, error) {
-	f.seenSemantic = request
-	if f.executeSemanticFn != nil {
-		return f.executeSemanticFn(ctx, request)
+func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) config.Config {
+	t.Helper()
+	cfg := config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		PromptRuntimeProvider:         "openai",
+		AgentPromptModel:              "gpt-5-mini",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		ProviderPricingPath:           providerPricingCatalogForTest(t),
+		PromptStrictStructuredOutputs: true,
 	}
-	return bridge.ExecuteResponse{}, errors.New("unexpected semantic bridge execution")
+	for _, mutate := range mutators {
+		mutate(&cfg)
+	}
+	return cfg
 }
 
-func (f *fakeBridge) Readyz(_ context.Context) (bridge.ReadyzResponse, error) {
-	if f.readyzErr != nil {
-		return bridge.ReadyzResponse{}, f.readyzErr
-	}
-	return f.readyz, nil
-}
-
-func (f *fakeBridge) Cancel(ctx context.Context, request bridge.CancelRequest) (bridge.CancelResponse, error) {
-	if f.cancelFn != nil {
-		return f.cancelFn(ctx, request)
-	}
-	return bridge.CancelResponse{
-		StatusCode: http.StatusNotFound,
-		Body:       json.RawMessage(`{"error":{"code":"execution_not_found"}}`),
-	}, nil
+func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Server {
+	t.Helper()
+	server := NewServer(readyServerConfigForTest(t, mutators...))
+	markTemporalReadyForTest(server)
+	markRAGRuntimeReadyForTest(server)
+	return server
 }
 
 func writeStructuredQueryProjectionFixture(t *testing.T, body string) string {

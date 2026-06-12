@@ -188,7 +188,7 @@ class EvalGateTest(unittest.TestCase):
 
         self.assertEqual([summary["exit_code"] for summary in summaries], [0] * len(profiles))
 
-    def test_multi_agent_product_path_deprecated_alias_is_rejected(self) -> None:
+    def test_multi_capability_product_path_deprecated_alias_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
             run_eval_acceptance(
                 profile="multi-agent-product-path",

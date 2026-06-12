@@ -46,8 +46,9 @@ type RuntimeDecisionSummary struct {
 	PlanningOutcome        string
 	WorkflowMode           WorkflowMode
 	WorkflowPlanID         string
-	SelectedTarget         string
+	SelectedCapability     string
 	SelectedTool           string
+	WorkerRole             string
 	TerminalOutcome        string
 	FailCloseReason        string
 	RuntimeVersions        map[string]any
@@ -63,8 +64,9 @@ func (s RuntimeDecisionSummary) Map() map[string]any {
 		"context_preflight_state":  s.ContextPreflightState,
 		"routing_next_action":      s.RoutingNextAction,
 		"planning_outcome":         s.PlanningOutcome,
-		"selected_target":          s.SelectedTarget,
+		"selected_capability":      s.SelectedCapability,
 		"selected_tool":            s.SelectedTool,
+		"worker_role":              s.WorkerRole,
 		"terminal_outcome":         s.TerminalOutcome,
 		"fail_close_reason":        s.FailCloseReason,
 		"runtime_versions":         cloneAnyMap(s.RuntimeVersions),
@@ -84,7 +86,8 @@ func cloneAnyMap(source map[string]any) map[string]any {
 }
 
 type RuntimeHandoff struct {
-	Target                 string
+	Capability             string
+	WorkerRole             string
 	PayloadKind            string
 	Payload                map[string]any
 	AllowedTools           []string
@@ -122,16 +125,6 @@ type authorizationProjection struct {
 	RetrievalFilter       authorizedRetrievalFilter
 }
 
-type profileMemoryItem struct {
-	ItemID         string
-	Key            string
-	Value          string
-	SourceType     string
-	Confidence     string
-	Visibility     string
-	LastVerifiedAt string
-}
-
 type sessionSlot struct {
 	Name      string
 	Value     string
@@ -148,7 +141,6 @@ type selectedNoticeRef struct {
 type contextProjection struct {
 	Actor             actorContext
 	Authorization     authorizationProjection
-	ProfileMemory     []profileMemoryItem
 	SessionSlots      []sessionSlot
 	SelectedNoticeRef selectedNoticeRef
 	TurnCount         int
@@ -229,7 +221,7 @@ func ParseAnswerRequestWithIntentPolicy(
 		return AnswerExecutionRequest{}, &HTTPError{
 			Status:    400,
 			Code:      "missing_request_id",
-			Message:   "request_id is required for supervisor execution lifecycle tracking.",
+			Message:   "request_id is required for execution lifecycle tracking.",
 			Retryable: false,
 		}
 	}
@@ -331,14 +323,14 @@ func ParseAnswerRequestWithIntentPolicy(
 	)
 
 	bridgePayload := map[string]any{
-		"bridge_version":       contractsv1.BridgeVersion,
-		"response_contract":    contractsv1.ResponseContract,
-		"user_goal":            userGoal,
-		"conversation_id":      conversationID,
-		"request_id":           requestID,
-		"effective_capability": effectiveRequestedCapability,
-		"lane":                 laneForCapability(effectiveRequestedCapability),
-		"requested_capability": effectiveRequestedCapability,
+		"execution_contract_version": contractsv1.ExecutionContractVersion,
+		"response_contract":          contractsv1.ResponseContract,
+		"user_goal":                  userGoal,
+		"conversation_id":            conversationID,
+		"request_id":                 requestID,
+		"effective_capability":       effectiveRequestedCapability,
+		"lane":                       laneForCapability(effectiveRequestedCapability),
+		"requested_capability":       effectiveRequestedCapability,
 		"trace": map[string]any{
 			"trace_id": traceID,
 		},

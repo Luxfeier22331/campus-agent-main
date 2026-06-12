@@ -6,7 +6,6 @@ execution_control_staging_capture_compose_logs() {
   execution_control_staging_compose logs --no-color otel-collector >"${execution_control_staging_otel_collector_log_file}" 2>&1 || true
   execution_control_staging_compose logs --no-color --since 5m otel-collector >"${execution_control_staging_otel_collector_recent_log_file}" 2>&1 || true
   execution_control_staging_compose logs --no-color execution-control >"${execution_control_staging_execution_control_log_file}" 2>&1 || true
-  execution_control_staging_compose logs --no-color supervisor-agent-worker >"${execution_control_staging_supervisor_agent_worker_log_file}" 2>&1 || true
 }
 
 execution_control_staging_collector_logs_have_export_errors() {

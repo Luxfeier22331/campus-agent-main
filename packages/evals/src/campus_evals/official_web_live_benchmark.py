@@ -12,8 +12,8 @@ from unittest.mock import patch
 import campus_retrieval_core.backend_qdrant as backend_qdrant_module
 import campus_retrieval_core.service as retrieval_service_module
 from campus_contracts import (
-    AgentRequest,
-    AgentResponse,
+    CapabilityRequest,
+    CapabilityResponse,
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
@@ -21,6 +21,7 @@ from campus_contracts import (
 from campus_retrieval_core import retrieve_sources
 
 from campus_evals.formal_benchmark import repair_formal_benchmark, run_formal_benchmark
+from campus_evals.knowledge_inprocess_delegate import delegate_to_knowledge_capability_inprocess
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
     accept_live_benchmark_profile,
@@ -32,7 +33,6 @@ from campus_evals.live_benchmark import (
     build_default_output_dir as build_shared_default_output_dir,
 )
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
-from campus_evals.rag_inprocess_delegate import delegate_to_rag_agent_inprocess
 from campus_evals.scenarios import official_web_stable_reference_release_gate_cases
 
 STABLE_REFERENCE_RUN_PREFIX = "official-web-stable-reference-live-gate"
@@ -44,7 +44,7 @@ OFFICIAL_WEB_SCOPE_CHOICES = ("stable_reference",)
 OfficialWebLiveScopeKey = Literal["stable_reference"]
 
 Retriever = Callable[..., EvidenceBundle]
-Delegate = Callable[..., AgentResponse]
+Delegate = Callable[..., CapabilityResponse]
 
 
 def build_default_output_dir(*, prefix: str, timestamp: str | None = None) -> Path:
@@ -54,7 +54,7 @@ def build_default_output_dir(*, prefix: str, timestamp: str | None = None) -> Pa
 def build_official_web_live_executor(
     *,
     retriever: Retriever = retrieve_sources,
-    delegate: Delegate = delegate_to_rag_agent_inprocess,
+    delegate: Delegate = delegate_to_knowledge_capability_inprocess,
     qdrant_collection_name: str | None = None,
 ) -> Callable[[GoldenCase], ExecutionResult]:
     def _execute(case: GoldenCase) -> ExecutionResult:
@@ -71,8 +71,8 @@ def build_official_web_live_executor(
                 retrieved_evidence = retriever(*args, **kwargs)
             return retrieved_evidence
 
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal=case.user_goal,
             payload=RagRequestPayload(scope=case.scope),
             actor=case.actor,

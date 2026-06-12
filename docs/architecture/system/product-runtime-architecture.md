@@ -26,8 +26,9 @@ delivery/runtime seam 的 supporting architecture。
 
 `campus-web same-origin allowlisted /api/* -> app-api`
 
-`browser -> public-chat-web legacy chat surface -> app-api -> execution-control
--> Temporal -> activity worker -> supervisor-agent-worker private bridge`
+`browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
+workflow-worker / activity-worker-context / activity-worker-knowledge /
+capability workers / activity-worker-finalization -> sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
@@ -65,7 +66,7 @@ model`
 - 当前 `public chat` 的 knowledge-only posture 只表示该 surface 当前开放的 capability set
 - 它不等于整个产品的长期入口语义
 - capability-neutral routing 与 surface capability policy 统一由 shared
-  product/runtime + supervisor supporting architecture 表达
+  product/runtime + Execution Agent Layer supporting architecture 表达
 
 ## Accepted Surface Shape
 
@@ -239,17 +240,18 @@ runtime`
 - `apps/execution-control`
   - 当前 execution ingress
   - 当前 active chat execution path 已硬切到 Temporal-backed
-    `ChatAnswerWorkflow`；run store、events 与 step ledger 是 app-api / panel /
-    eval 消费的 sanitized projection store
+    `CapabilityExecutionWorkflow`；run store、events 与 step ledger 是 app-api /
+    panel / eval 消费的 sanitized projection store
+  - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行，不经过 Python
+    bridge
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
     canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store
     只保留为 historical migration artifact
 - Python `apps/supervisor-agent-worker`
-  - current private semantic bridge worker, not the long-term online hot path target
-  - 负责消费 Go 已投影的 private bridge request，并通过 worker 内部
-    agent dispatcher 调用 agent
-  - 负责在 semantic orchestration checkpoints 观测 Go 投递的 cooperative cancel
-  - 不再拥有 public execution ingress、caller auth 或 transport admission
+  - offline / eval / tooling / historical bridge reference
+  - 不参与 online answer serving、staging readiness 或 active product runtime
+  - 不拥有 public execution ingress、caller auth、transport admission、provider hot path
+    或 RAG step projection truth
 
 长期边界固定为：
 
@@ -263,7 +265,8 @@ runtime`
   budget projection 与 finalization；Temporal 拥有 workflow history、task queue、
   retry、timeout 与 worker dispatch。process-local limiter 只能作为本进程 protection
 - Go runtime 可以继续吸收 deterministic execution runtime kernel，但不能因此把
-  semantic orchestration、domain-agent reasoning 或 retrieval planning 塞进 `apps/*`
+  semantic orchestration、explicit agent-as-tool reasoning 或 retrieval planning
+  塞进 `apps/*`
 
 ## Operator Projection And Read Model
 
@@ -354,10 +357,9 @@ contract 或 auth family route/endpoint truth。
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
 - `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
-- 这项冻结不等于提前冻结 `apps/execution-control` 的单一 Python/HTTP framework
 - execution public ingress 已 hardcut 到 Go `apps/execution-control`；Python
-  `apps/supervisor-agent-worker` 只保留 current private semantic bridge，长期退出
-  online answer hot path
+  `apps/supervisor-agent-worker` 只保留 offline / eval / tooling / historical bridge
+  reference，不参与 online answer hot path
 
 ## Forbidden Shapes
 
@@ -371,7 +373,7 @@ contract 或 auth family route/endpoint truth。
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
-- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/capability-execution.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/data/app-api-schema.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`

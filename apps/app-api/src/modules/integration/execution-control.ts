@@ -1,5 +1,22 @@
+export type {
+	CapabilityExecutionContextProjection,
+	CapabilityExecutionInput,
+	CapabilityExecutionObservability,
+	CapabilityExecutionPromptTrace,
+	CapabilityExecutionResponse,
+	CapabilityExecutionSelectedNoticeRef,
+	CapabilityExecutionSessionSlot,
+	CapabilityExecutionSessionSummary,
+	CapabilityExecutionWorkflowTraceSummary,
+	RequestedScope,
+} from "./capability-execution-types";
 export {
+	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
+	type ExecutionControlPersonalMemoryClient,
+	type ExecutionControlPersonalMemoryDisableInput,
+	type ExecutionControlPersonalMemoryResult,
+	type ExecutionControlPersonalMemoryUpsertInput,
 	type ExecutionControlRun,
 	type ExecutionControlRunCancelInput,
 	type ExecutionControlRunCreateInput,
@@ -22,17 +39,4 @@ export {
 	ExecutionControlTransportError,
 	probeExecutionControlReady,
 } from "./execution-control-transport";
-export { parseSupervisorExecutionResponsePayload } from "./supervisor-response";
-export type {
-	RequestedScope,
-	SupervisorContextProjection,
-	SupervisorExecutionInput,
-	SupervisorExecutionObservability,
-	SupervisorExecutionResponse,
-	SupervisorExecutionWorkflowTraceSummary,
-	SupervisorProfileMemoryItem,
-	SupervisorProfileMemorySummary,
-	SupervisorPromptTrace,
-	SupervisorSessionSlot,
-	SupervisorSessionSummary,
-} from "./supervisor-types";
+export { parseExecutionFinalizationResponsePayload } from "./execution-finalization-response";

@@ -6,7 +6,7 @@ import {
 import type { OperatorOverviewWindow } from "../../types";
 
 export interface OverviewFilterState {
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	surface: string | null;
 	window: OperatorOverviewWindow;
 }

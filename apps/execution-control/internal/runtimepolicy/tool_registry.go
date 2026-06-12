@@ -9,15 +9,15 @@ import (
 )
 
 const (
-	ToolSpecSchemaVersion = "tool-spec-registry-v2"
-	defaultToolSpecPath   = "configs/runtime/tools.v2.json"
+	ToolSpecSchemaVersion = "tool-spec-registry-v3"
+	defaultToolSpecPath   = "configs/runtime/tools.v3.json"
 )
 
-var supportedToolOwnerCapabilities = map[string]string{
-	"rag-agent":             "knowledge",
-	"navigation-agent":      "place_lookup",
-	"campus-services-agent": "campus_services",
-	"notice-agent":          "notice",
+var supportedCapabilityWorkerRoles = map[string]string{
+	"knowledge":       "activity-worker-knowledge",
+	"navigation":      "activity-worker-navigation",
+	"campus_services": "activity-worker-campus-services",
+	"notice":          "activity-worker-notice",
 }
 
 var supportedToolBackends = map[string]struct{}{
@@ -26,16 +26,16 @@ var supportedToolBackends = map[string]struct{}{
 }
 
 var supportedToolSurfaces = map[string]struct{}{
-	"structured_handoff": {},
-	"agent_internal":     {},
+	"structured_handoff":  {},
+	"capability_internal": {},
 }
 
 var supportedRuntimePostures = map[string]struct{}{
-	"closed":                {},
-	"typed_handoff_only":    {},
-	"sdk_adapter_admitted":  {},
-	"sdk_internal_admitted": {},
-	"internal_function":     {},
+	"closed":                       {},
+	"typed_handoff_only":           {},
+	"typed_activity_admitted":      {},
+	"capability_internal_admitted": {},
+	"internal_function":            {},
 }
 
 type ToolFunctionSchemaSpec struct {
@@ -45,7 +45,7 @@ type ToolFunctionSchemaSpec struct {
 
 type ToolSpec struct {
 	Name             string                 `json:"name"`
-	OwnerAgent       string                 `json:"owner_agent"`
+	OwnerCapability  string                 `json:"owner_capability"`
 	Capability       string                 `json:"capability"`
 	PayloadKind      string                 `json:"payload_kind"`
 	PayloadSchemaRef string                 `json:"payload_schema_ref"`
@@ -111,15 +111,14 @@ func (t ToolSpec) Validate() error {
 	if strings.TrimSpace(t.Name) == "" {
 		return fmt.Errorf("name must not be empty")
 	}
-	if strings.TrimSpace(t.OwnerAgent) == "" {
-		return fmt.Errorf("%s owner_agent must not be empty", t.Name)
+	if strings.TrimSpace(t.OwnerCapability) == "" {
+		return fmt.Errorf("%s owner_capability must not be empty", t.Name)
 	}
-	expectedCapability, ok := supportedToolOwnerCapabilities[t.OwnerAgent]
-	if !ok {
-		return fmt.Errorf("%s owner_agent is unsupported: %s", t.Name, t.OwnerAgent)
+	if !SupportedCapability(t.OwnerCapability) {
+		return fmt.Errorf("%s owner_capability is unsupported: %s", t.Name, t.OwnerCapability)
 	}
-	if t.Capability != expectedCapability {
-		return fmt.Errorf("%s capability = %q, want %q", t.Name, t.Capability, expectedCapability)
+	if t.Capability != t.OwnerCapability {
+		return fmt.Errorf("%s capability = %q, want %q", t.Name, t.Capability, t.OwnerCapability)
 	}
 	if strings.TrimSpace(t.PayloadKind) == "" {
 		return fmt.Errorf("%s payload_kind must not be empty", t.Name)
@@ -153,9 +152,9 @@ func (t ToolSpec) Validate() error {
 			return fmt.Errorf("%s function_schema.strict must be true when available", t.Name)
 		}
 		if t.Surface != "structured_handoff" &&
-			(t.Surface != "agent_internal" || t.RuntimePosture != "sdk_internal_admitted") {
+			(t.Surface != "capability_internal" || t.RuntimePosture != "capability_internal_admitted") {
 			return fmt.Errorf(
-				"%s function_schema can only be available for structured_handoff or sdk_internal_admitted agent_internal tools",
+				"%s function_schema can only be available for structured_handoff or admitted capability_internal tools",
 				t.Name,
 			)
 		}
@@ -164,36 +163,36 @@ func (t ToolSpec) Validate() error {
 	if _, ok := supportedRuntimePostures[runtimePosture]; !ok {
 		return fmt.Errorf("%s runtime_posture is unsupported: %s", t.Name, runtimePosture)
 	}
-	if runtimePosture == "sdk_internal_admitted" && t.Surface != "agent_internal" {
-		return fmt.Errorf("%s sdk_internal_admitted posture requires agent_internal surface", t.Name)
+	if runtimePosture == "capability_internal_admitted" && t.Surface != "capability_internal" {
+		return fmt.Errorf("%s capability_internal_admitted posture requires capability_internal surface", t.Name)
 	}
-	if runtimePosture == "internal_function" && t.Surface != "agent_internal" {
-		return fmt.Errorf("%s internal_function posture requires agent_internal surface", t.Name)
+	if runtimePosture == "internal_function" && t.Surface != "capability_internal" {
+		return fmt.Errorf("%s internal_function posture requires capability_internal surface", t.Name)
 	}
 	if runtimePosture == "internal_function" && functionSchema.Available {
 		return fmt.Errorf("%s internal_function posture must not expose function_schema", t.Name)
 	}
-	if strings.HasPrefix(runtimePosture, "sdk_") && !functionSchema.Available {
+	if runtimePosture == "typed_activity_admitted" && !functionSchema.Available {
 		return fmt.Errorf("%s runtime posture requires function_schema.available", t.Name)
 	}
 	return nil
 }
 
-func (r ToolSpecRegistry) AllowedToolsForTarget(target string) []string {
+func (r ToolSpecRegistry) AllowedToolsForCapability(capability string) []string {
 	allowed := make([]string, 0)
 	for _, tool := range r.Tools {
-		if tool.Active && tool.Surface == "structured_handoff" && tool.OwnerAgent == target {
+		if tool.Active && tool.Surface == "structured_handoff" && tool.OwnerCapability == capability {
 			allowed = append(allowed, tool.Name)
 		}
 	}
 	return allowed
 }
 
-func (r ToolSpecRegistry) AllowedToolsForPayloadKind(target string, payloadKind string) []string {
+func (r ToolSpecRegistry) AllowedToolsForCapabilityPayloadKind(capability string, payloadKind string) []string {
 	for _, tool := range r.Tools {
 		if tool.Active &&
 			tool.Surface == "structured_handoff" &&
-			tool.OwnerAgent == target &&
+			tool.OwnerCapability == capability &&
 			tool.PayloadKind == payloadKind {
 			return []string{tool.Name}
 		}
@@ -201,11 +200,11 @@ func (r ToolSpecRegistry) AllowedToolsForPayloadKind(target string, payloadKind 
 	return nil
 }
 
-func (r ToolSpecRegistry) PayloadKindsForTarget(target string) []string {
+func (r ToolSpecRegistry) PayloadKindsForCapability(capability string) []string {
 	seen := map[string]struct{}{}
 	result := make([]string, 0)
 	for _, tool := range r.Tools {
-		if tool.OwnerAgent != target {
+		if tool.OwnerCapability != capability {
 			continue
 		}
 		if _, ok := seen[tool.PayloadKind]; ok {
@@ -217,8 +216,8 @@ func (r ToolSpecRegistry) PayloadKindsForTarget(target string) []string {
 	return result
 }
 
-func (r ToolSpecRegistry) PayloadKindBelongsToTarget(target string, payloadKind string) bool {
-	for _, candidate := range r.PayloadKindsForTarget(target) {
+func (r ToolSpecRegistry) PayloadKindBelongsToCapability(capability string, payloadKind string) bool {
+	for _, candidate := range r.PayloadKindsForCapability(capability) {
 		if candidate == payloadKind {
 			return true
 		}
@@ -242,10 +241,19 @@ func (t ToolSpec) effectiveRuntimePosture() string {
 	if posture != "" {
 		return posture
 	}
-	if t.Surface == "agent_internal" {
+	if t.Surface == "capability_internal" {
 		return "closed"
 	}
 	return "typed_handoff_only"
+}
+
+func SupportedCapability(capability string) bool {
+	_, ok := supportedCapabilityWorkerRoles[capability]
+	return ok
+}
+
+func WorkerRoleForCapability(capability string) string {
+	return supportedCapabilityWorkerRoles[capability]
 }
 
 func (t ToolSpec) effectiveFunctionSchema() ToolFunctionSchemaSpec {

@@ -9,10 +9,10 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
+func TestFinalizeAgentBridgeResponseBuildsExecutionEnvelope(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             "rag-agent",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "图书馆开放到 22:00。",
 			"follow_up_question": "",
@@ -31,13 +31,13 @@ func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
 			},
 		},
 		"trace-finalizer-1",
-		supervisorFinalizerContext{},
+		executionFinalizerContext{},
 	)
 	if err != nil {
 		t.Fatalf("finalize returned error: %v", err)
 	}
-	if response["selected_target"] != "rag-agent" {
-		t.Fatalf("selected_target = %v, want rag-agent", response["selected_target"])
+	if response["selected_capability"] != "knowledge" {
+		t.Fatalf("selected_capability = %v, want knowledge", response["selected_capability"])
 	}
 	if response["status"] != "completed" {
 		t.Fatalf("status = %v, want completed", response["status"])
@@ -62,29 +62,29 @@ func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
 	if !ok {
 		t.Fatalf("workflow_trace_summary = %#v, want object", response["workflow_trace_summary"])
 	}
-	if traceSummary["selected_target"] != "rag-agent" {
-		t.Fatalf("trace selected_target = %v, want rag-agent", traceSummary["selected_target"])
+	if traceSummary["selected_capability"] != "knowledge" {
+		t.Fatalf("trace selected_capability = %v, want knowledge", traceSummary["selected_capability"])
 	}
 }
 
-func TestTerminalSupervisorResponseIncludesCanonicalNullableFields(t *testing.T) {
-	response := terminalSupervisorResponse(
+func TestTerminalExecutionResponseIncludesCanonicalNullableFields(t *testing.T) {
+	response := terminalExecutionResponse(
 		map[string]any{
-			"selected_target":    nil,
-			"status":             "no_answer",
-			"answer_text":        "该请求无法进入当前已开放的校园助理执行链路。",
-			"follow_up_question": "",
-			"confidence":         "low",
+			"selected_capability": nil,
+			"status":              "no_answer",
+			"answer_text":         "该请求无法进入当前已开放的校园助理执行链路。",
+			"follow_up_question":  "",
+			"confidence":          "low",
 			"observability": map[string]any{
 				"fail_closed": true,
 			},
 		},
 		"trace-terminal-canonical",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "terminal",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ContextPreflightState: "not_follow_up",
-				FailCloseReason:       "agent_spec_admission_failed",
+				FailCloseReason:       "capability_spec_admission_failed",
 				PlanningOutcome:       "invalid_plan",
 				PolicyGateDecision:    "delegate",
 				RoutingNextAction:     "delegate",
@@ -110,15 +110,15 @@ func TestTerminalSupervisorResponseIncludesCanonicalNullableFields(t *testing.T)
 	if err != nil {
 		t.Fatalf("marshal terminal response: %v", err)
 	}
-	if _, err := contractsv1.DecodeSupervisorResponseWireJSON(rawResponse); err != nil {
-		t.Fatalf("decode terminal supervisor response wire: %v; body=%s", err, string(rawResponse))
+	if _, err := contractsv1.DecodeCapabilityExecutionResponseWireJSON(rawResponse); err != nil {
+		t.Fatalf("decode terminal execution response wire: %v; body=%s", err, string(rawResponse))
 	}
 }
 
 func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             "rag-agent",
+			"capability":         "knowledge",
 			"status":             "completed",
 			"answer_text":        "图书馆开放到 22:00。",
 			"follow_up_question": "",
@@ -130,18 +130,18 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 			},
 		},
 		"trace-finalizer-canonical-wire",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:     "allow",
 				PolicyGateDecision:    "allow",
 				ContextPreflightState: "not_follow_up",
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
-				SelectedTarget:        "rag-agent",
+				SelectedCapability:    "knowledge",
 				SelectedTool:          "retrieval.query",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Target:       "rag-agent",
+				Capability:   "knowledge",
 				PayloadKind:  "rag_request",
 				Payload:      map[string]any{"scope": map[string]any{"corpus": "regulations", "collection": "student_rules"}},
 				AllowedTools: []string{"retrieval.query"},
@@ -159,9 +159,9 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 	if err != nil {
 		t.Fatalf("marshal finalized response: %v", err)
 	}
-	wire, err := contractsv1.DecodeSupervisorResponseWireJSON(rawResponse)
+	wire, err := contractsv1.DecodeCapabilityExecutionResponseWireJSON(rawResponse)
 	if err != nil {
-		t.Fatalf("decode canonical supervisor response wire: %v; body=%s", err, string(rawResponse))
+		t.Fatalf("decode canonical execution response wire: %v; body=%s", err, string(rawResponse))
 	}
 	if wire.WorkflowTraceSummary == nil {
 		t.Fatal("workflow trace summary is nil")
@@ -169,9 +169,9 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 	if wire.WorkflowTraceSummary.WorkflowMode != "single_step" {
 		t.Fatalf("workflow_mode = %v, want single_step", wire.WorkflowTraceSummary.WorkflowMode)
 	}
-	if wire.WorkflowTraceSummary.SelectedTarget == nil ||
-		*wire.WorkflowTraceSummary.SelectedTarget != "rag-agent" {
-		t.Fatalf("selected_target = %#v, want rag-agent", wire.WorkflowTraceSummary.SelectedTarget)
+	if wire.WorkflowTraceSummary.SelectedCapability == nil ||
+		*wire.WorkflowTraceSummary.SelectedCapability != "knowledge" {
+		t.Fatalf("selected_capability = %#v, want knowledge", wire.WorkflowTraceSummary.SelectedCapability)
 	}
 	if len(wire.WorkflowTraceSummary.TraceSteps) == 0 {
 		t.Fatal("trace steps are empty")
@@ -186,7 +186,7 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             "campus-services-agent",
+			"capability":         "campus_services",
 			"status":             "completed",
 			"answer_text":        "当前班车正常运行。",
 			"follow_up_question": "",
@@ -195,7 +195,7 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 				"outcome":             "resolved_current",
 				"related_notice_refs": []any{"notice:muc_internal_portal:353903"},
 			},
-			"agent_observability": map[string]any{
+			"capability_observability": map[string]any{
 				"selected_tool":    "transport_schedule_lookup",
 				"tool_attempted":   true,
 				"tool_outcome":     "resolved_current",
@@ -207,18 +207,18 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 			},
 		},
 		"trace-finalizer-workflow",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:     "allow",
 				PolicyGateDecision:    "allow",
 				ContextPreflightState: "not_follow_up",
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
-				SelectedTarget:        "campus-services-agent",
+				SelectedCapability:    "campus_services",
 				SelectedTool:          "transport_schedule_lookup",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Target:       "campus-services-agent",
+				Capability:   "campus_services",
 				PayloadKind:  "transport_schedule_lookup",
 				Payload:      map[string]any{"intent": "next_departure"},
 				AllowedTools: []string{"transport_schedule_lookup"},
@@ -244,15 +244,15 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 		t.Fatalf("workflow_mode = %v, want single_step", traceSummary["workflow_mode"])
 	}
 	handoffChain, ok := traceSummary["handoff_chain"].([]map[string]any)
-	if !ok || len(handoffChain) != 1 || handoffChain[0]["target"] != "campus-services-agent" {
+	if !ok || len(handoffChain) != 1 || handoffChain[0]["capability"] != "campus_services" {
 		t.Fatalf(
-			"handoff_chain = %#v, want single campus-services-agent handoff",
+			"handoff_chain = %#v, want single campus_services handoff",
 			traceSummary["handoff_chain"],
 		)
 	}
-	agentInvocations, ok := traceSummary["agent_invocations"].([]map[string]any)
-	if !ok || len(agentInvocations) != 1 || agentInvocations[0]["agent_id"] != "campus-services-agent" {
-		t.Fatalf("agent_invocations = %#v, want campus-services-agent invocation", traceSummary["agent_invocations"])
+	agentInvocations, ok := traceSummary["capability_invocations"].([]map[string]any)
+	if !ok || len(agentInvocations) != 1 || agentInvocations[0]["capability_id"] != "campus_services" {
+		t.Fatalf("capability_invocations = %#v, want campus_services invocation", traceSummary["capability_invocations"])
 	}
 	if traceSummary["planning_outcome"] != "preplanned" {
 		t.Fatalf("planning_outcome = %v, want preplanned", traceSummary["planning_outcome"])
@@ -296,9 +296,9 @@ func TestWorkflowSelectedToolsFromRunDoesNotSynthesizeFallbackTool(t *testing.T)
 	selected := workflowTraceSelectedTools(
 		execution.WorkflowRun{
 			Mode:         execution.WorkflowModeSingleStep,
-			HandoffChain: []execution.HandoffStep{{Target: "campus-services-agent"}},
+			HandoffChain: []execution.HandoffStep{{Capability: "campus_services"}},
 		},
-		&execution.RuntimeHandoff{Target: "campus-services-agent"},
+		&execution.RuntimeHandoff{Capability: "campus_services"},
 		"transport_schedule_lookup",
 	)
 
@@ -336,20 +336,20 @@ func TestWorkflowSummarySourceIDsUsesExplicitSafeDetails(t *testing.T) {
 func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             "campus-services-agent",
+			"capability":         "campus_services",
 			"status":             "completed",
 			"answer_text":        "当前班车正常运行。",
 			"follow_up_question": "",
 			"confidence":         "high",
 		},
 		"trace-finalizer-missing-handoff",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "delegate",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
-				PlanningOutcome:   "preplanned",
-				RoutingNextAction: "delegate",
-				SelectedTarget:    "campus-services-agent",
-				SelectedTool:      "transport_schedule_lookup",
+				PlanningOutcome:    "preplanned",
+				RoutingNextAction:  "delegate",
+				SelectedCapability: "campus_services",
+				SelectedTool:       "transport_schedule_lookup",
 			},
 		},
 	)
@@ -359,26 +359,26 @@ func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testi
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRejectsSelectedTargetMismatch(t *testing.T) {
+func TestFinalizeAgentBridgeResponseRejectsSelectedCapabilityMismatch(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             "notice-agent",
+			"capability":         "notice",
 			"status":             "completed",
 			"answer_text":        "通知详情。",
 			"follow_up_question": "",
 			"confidence":         "high",
 		},
 		"trace-finalizer-target-mismatch",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			Branch: "delegate",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
-				PlanningOutcome:   "preplanned",
-				RoutingNextAction: "delegate",
-				SelectedTarget:    "campus-services-agent",
-				SelectedTool:      "service_status_lookup",
+				PlanningOutcome:    "preplanned",
+				RoutingNextAction:  "delegate",
+				SelectedCapability: "campus_services",
+				SelectedTool:       "service_status_lookup",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Target:       "campus-services-agent",
+				Capability:   "campus_services",
 				PayloadKind:  "service_status_lookup",
 				Payload:      map[string]any{"subject_query": "校园卡"},
 				AllowedTools: []string{"service_status_lookup"},
@@ -388,14 +388,14 @@ func TestFinalizeAgentBridgeResponseRejectsSelectedTargetMismatch(t *testing.T) 
 	)
 
 	if err == nil {
-		t.Fatal("expected selected target mismatch to be rejected")
+		t.Fatal("expected selected capability mismatch to be rejected")
 	}
 }
 
 func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             "campus-services-agent",
+			"capability":         "campus_services",
 			"status":             "completed",
 			"answer_text":        "校园卡服务当前正常。",
 			"follow_up_question": "",
@@ -404,7 +404,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				"outcome":             "resolved_current",
 				"related_notice_refs": []any{"notice:muc_internal_portal:353903"},
 			},
-			"agent_observability": map[string]any{
+			"capability_observability": map[string]any{
 				"selected_tool":    "service_status_lookup",
 				"tool_attempted":   true,
 				"tool_outcome":     "resolved_current",
@@ -413,7 +413,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				"safe_details": map[string]any{
 					"agent_execution_projection": map[string]any{
 						"schema_version":        "agent-execution-projection-v1",
-						"projection_owner":      "campus-services-agent",
+						"projection_owner":      "campus_services",
 						"selected_tool":         "service_status_lookup",
 						"payload_kind":          "service_status_lookup",
 						"tool_selection_reason": "typed_payload_allowed_tool",
@@ -435,14 +435,14 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 			},
 		},
 		"trace-finalizer-tool-calls",
-		supervisorFinalizerContext{
+		executionFinalizerContext{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:     "allow",
 				PolicyGateDecision:    "allow",
 				ContextPreflightState: "not_follow_up",
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
-				SelectedTarget:        "campus-services-agent",
+				SelectedCapability:    "campus_services",
 				SelectedTool:          "service_status_lookup",
 				RuntimeVersions: map[string]any{
 					"execution_control_runtime": "go-runtime-control-plane-v1",
@@ -452,7 +452,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				},
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Target:       "campus-services-agent",
+				Capability:   "campus_services",
 				PayloadKind:  "service_status_lookup",
 				Payload:      map[string]any{"campus_scope": "haidian", "subject_query": "校园卡服务"},
 				AllowedTools: []string{"transport_schedule_lookup", "service_status_lookup"},
@@ -478,8 +478,8 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 		t.Fatalf("tool_name = %v, want service_status_lookup", toolCall["tool_name"])
 	}
 	if toolCall["schema_version"] != "tool-call-summary-v1" ||
-		toolCall["tool_call_id"] != "single_step:campus-services-agent:service_status_lookup:tool_call" ||
-		toolCall["workflow_run_ref"] != "single_step:campus-services-agent:service_status_lookup" ||
+		toolCall["tool_call_id"] != "single_step:campus_services:service_status_lookup:tool_call" ||
+		toolCall["workflow_run_ref"] != "single_step:campus_services:service_status_lookup" ||
 		toolCall["step_id"] != "tool_call" ||
 		toolCall["lifecycle_state"] != "completed" ||
 		toolCall["result_projection"] != "bounded_summary" ||

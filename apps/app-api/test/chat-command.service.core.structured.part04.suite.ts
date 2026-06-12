@@ -2,18 +2,19 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 	it("persists navigation place cards even when point geometry is absent", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "民族博物馆在海淀校区西侧，靠近图书馆。",
 				error: null,
@@ -44,7 +45,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 						place_id: "muc.haidian.museum",
 					},
 				},
-				selectedTarget: "navigation-agent",
+				selectedCapability: "navigation",
 				status: "completed",
 				traceId: "trace_0003",
 			}),
@@ -55,7 +56,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			now: () => new Date("2026-04-11T10:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		await service.submit({
@@ -82,7 +83,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			},
 		});
 	});
-	it("normalizes supervisor traceId in finalized responses when upstream payload omits it", async () => {
+	it("normalizes execution traceId in finalized responses when upstream payload omits it", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({
@@ -90,7 +91,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
@@ -100,11 +101,11 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 							sources: [{ doc_id: "handbook:library-hours" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "",
 				}),
-			},
+			}),
 		});
 
 		const response = await service.submit({
@@ -118,7 +119,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 
 		expect(response.traceId).toBe("trace_0001");
 		expect(response.answer.result.traceId).toBe("trace_0001");
-		expect(response.supervisor).toMatchObject({
+		expect(response.execution).toMatchObject({
 			status: "completed",
 			traceId: "trace_0001",
 		});

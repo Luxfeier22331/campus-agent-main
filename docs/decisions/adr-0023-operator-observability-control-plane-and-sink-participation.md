@@ -156,7 +156,7 @@ updated: 2026-04-03
   - `surface`
   - `route`
   - `status`
-  - `selected_target`
+  - `selected_capability`
   - `requested_capability`
   - `requested_scope_summary`
   - `principal_type`
@@ -200,7 +200,7 @@ updated: 2026-04-03
   - `request_id`
   - `trace_id`
   - `surface`
-  - `selected_target`
+  - `selected_capability`
   - `requested_capability`
   - `requested_scope_summary`
   - `principal_type`

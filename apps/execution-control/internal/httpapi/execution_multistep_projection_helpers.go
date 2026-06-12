@@ -1,7 +1,10 @@
+//go:build retired_bridge_serving
+
 package httpapi
 
 import (
 	"fmt"
+
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
@@ -34,7 +37,7 @@ func validateWorkflowStepArtifacts(
 	}
 	return fmt.Errorf(
 		"supervisor multi-step step %q did not produce required artifacts: %s",
-		"handoff:"+handoff.Target+":"+handoff.PayloadKind,
+		"capability:"+handoff.Capability+":"+handoff.PayloadKind,
 		strings.Join(missing, ", "),
 	)
 }
@@ -70,7 +73,7 @@ func runtimeSelectedTool(handoff execution.RuntimeHandoff) string {
 	if len(handoff.AllowedTools) == 1 {
 		return handoff.AllowedTools[0]
 	}
-	if handoff.Target == "rag-agent" {
+	if handoff.Capability == "knowledge" {
 		return "retrieval.query"
 	}
 	return ""
@@ -148,7 +151,7 @@ func workflowProjectionIDsForSourceStep(
 }
 
 func workflowStepStatus(response bridge.ExecuteResponse) string {
-	if response.Kind != "agent_response" {
+	if response.Kind != "capability_response" {
 		return "error"
 	}
 	body, err := decodeJSONObject(response.Body)
@@ -167,7 +170,7 @@ func workflowRunParentStepID(index int, handoffs []execution.RuntimeHandoff) str
 		return "runtime_policy"
 	}
 	previous := handoffs[index-1]
-	return "handoff:" + previous.Target + ":" + previous.PayloadKind
+	return "capability:" + previous.Capability + ":" + previous.PayloadKind
 }
 
 func workflowProjectionsFromBridgeResponse(
@@ -175,7 +178,7 @@ func workflowProjectionsFromBridgeResponse(
 	sourceStepID string,
 	response bridge.ExecuteResponse,
 ) []execution.StepOutputProjection {
-	if response.Kind != "agent_response" {
+	if response.Kind != "capability_response" {
 		return nil
 	}
 	body, err := decodeJSONObject(response.Body)
@@ -185,7 +188,7 @@ func workflowProjectionsFromBridgeResponse(
 	status, _ := body["status"].(string)
 	result, _ := body["result"].(map[string]any)
 	switch {
-	case handoff.Target == "campus-services-agent" && handoff.PayloadKind == "transport_schedule_lookup":
+	case handoff.Capability == "campus_services" && handoff.PayloadKind == "transport_schedule_lookup":
 		if status != "completed" {
 			return nil
 		}
@@ -201,7 +204,7 @@ func workflowProjectionsFromBridgeResponse(
 			return nil
 		}
 		return []execution.StepOutputProjection{projection}
-	case handoff.Target == "notice-agent" && handoff.PayloadKind == "campus_notice_get":
+	case handoff.Capability == "notice" && handoff.PayloadKind == "campus_notice_get":
 		if status != "completed" {
 			return nil
 		}
@@ -215,7 +218,7 @@ func workflowProjectionsFromBridgeResponse(
 			return nil
 		}
 		return []execution.StepOutputProjection{projection}
-	case handoff.Target == "notice-agent" && handoff.PayloadKind == "campus_notice_change_set_lookup":
+	case handoff.Capability == "notice" && handoff.PayloadKind == "campus_notice_change_set_lookup":
 		if status != "completed" {
 			return nil
 		}
@@ -233,7 +236,7 @@ func workflowProjectionsFromBridgeResponse(
 			return nil
 		}
 		return []execution.StepOutputProjection{projection}
-	case handoff.Target == "rag-agent" && handoff.PayloadKind == "rag_request":
+	case handoff.Capability == "knowledge" && handoff.PayloadKind == "rag_request":
 		return workflowRagStepOutputProjections(sourceStepID, status, result)
 	default:
 		return nil
@@ -399,7 +402,7 @@ func executionProjectionAllowedForHandoff(
 		return false
 	}
 	requiredProjectionKind := handoff.RequiredProjectionKind
-	if handoff.Target == "rag-agent" {
+	if handoff.Capability == "knowledge" {
 		return projection.ProjectionKind == execution.ProjectionKindScheduleBaseline ||
 			projection.ProjectionKind == execution.ProjectionKindNoticeContext ||
 			projection.ProjectionKind == execution.ProjectionKindNoticeChangeSet

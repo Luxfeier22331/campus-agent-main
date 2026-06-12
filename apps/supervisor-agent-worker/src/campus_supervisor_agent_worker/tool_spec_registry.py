@@ -8,10 +8,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from campus_contracts import AgentRequest
+from campus_contracts import CapabilityRequest
 
-TOOL_SPEC_SCHEMA_VERSION = "tool-spec-registry-v2"
-DEFAULT_TOOL_SPEC_PATH = Path("configs/runtime/tools.v2.json")
+TOOL_SPEC_SCHEMA_VERSION = "tool-spec-registry-v3"
+DEFAULT_TOOL_SPEC_PATH = Path("configs/runtime/tools.v3.json")
 
 
 class ToolSpecRegistryError(ValueError):
@@ -27,7 +27,7 @@ class ToolFunctionSchemaSpec:
 @dataclass(frozen=True, slots=True)
 class ToolSpec:
     name: str
-    owner_agent: str
+    owner_capability: str
     capability: str
     payload_kind: str
     payload_schema_ref: str
@@ -72,13 +72,17 @@ class ToolSpecRegistry:
                 return tool
         return None
 
-    def agent_facing_tools(self) -> tuple[ToolSpec, ...]:
+    def capability_facing_tools(self) -> tuple[ToolSpec, ...]:
         return tuple(
             tool for tool in self.tools if tool.active and tool.surface == "structured_handoff"
         )
 
-    def agent_facing_tool_names_for_target(self, target: str) -> tuple[str, ...]:
-        return tuple(tool.name for tool in self.agent_facing_tools() if tool.owner_agent == target)
+    def capability_facing_tool_names_for_capability(self, capability: str) -> tuple[str, ...]:
+        return tuple(
+            tool.name
+            for tool in self.capability_facing_tools()
+            if tool.owner_capability == capability
+        )
 
     def callable_schema_tools(self) -> tuple[ToolSpec, ...]:
         return tuple(
@@ -89,8 +93,8 @@ class ToolSpecRegistry:
             and (
                 tool.surface == "structured_handoff"
                 or (
-                    tool.surface == "agent_internal"
-                    and tool.runtime_posture == "sdk_internal_admitted"
+                    tool.surface == "capability_internal"
+                    and tool.runtime_posture == "capability_internal_admitted"
                 )
             )
         )
@@ -100,8 +104,8 @@ class ToolSpecRegistry:
             tool
             for tool in self.tools
             if tool.active
-            and tool.surface == "agent_internal"
-            and tool.runtime_posture == "sdk_internal_admitted"
+            and tool.surface == "capability_internal"
+            and tool.runtime_posture == "capability_internal_admitted"
             and tool.function_schema.available
         )
 
@@ -110,7 +114,7 @@ class ToolSpecRegistry:
             tool
             for tool in self.tools
             if tool.active
-            and tool.surface == "agent_internal"
+            and tool.surface == "capability_internal"
             and tool.runtime_posture == "internal_function"
             and not tool.function_schema.available
         )
@@ -121,11 +125,11 @@ class ToolSpecRegistry:
             raise ToolSpecRegistryError(f"unknown ToolSpec tool: {name}")
         return _resolve_class(tool.payload_schema_ref)
 
-    def payload_kinds_for_target(self, target: str) -> tuple[str, ...]:
+    def payload_kinds_for_capability(self, capability: str) -> tuple[str, ...]:
         seen: set[str] = set()
         result: list[str] = []
         for tool in self.tools:
-            if tool.owner_agent != target:
+            if tool.owner_capability != capability:
                 continue
             if tool.payload_kind in seen:
                 continue
@@ -133,35 +137,37 @@ class ToolSpecRegistry:
             result.append(tool.payload_kind)
         return tuple(result)
 
-    def payload_kind_belongs_to_target(self, target: str, payload_kind: str) -> bool:
-        return payload_kind in self.payload_kinds_for_target(target)
+    def payload_kind_belongs_to_capability(self, capability: str, payload_kind: str) -> bool:
+        return payload_kind in self.payload_kinds_for_capability(capability)
 
-    def payload_kind_for_request(self, target: str, payload: object) -> str:
-        return self.admission_for_payload(target, payload).payload_kind
+    def payload_kind_for_request(self, capability: str, payload: object) -> str:
+        return self.admission_for_payload(capability, payload).payload_kind
 
-    def expected_allowed_tools_for_request(self, request: AgentRequest) -> tuple[str, ...]:
+    def expected_allowed_tools_for_request(self, request: CapabilityRequest) -> tuple[str, ...]:
         return self.admission_for_request(request).expected_allowed_tools
 
-    def expected_allowed_tools_for_payload(self, target: str, payload: object) -> tuple[str, ...]:
-        return self.admission_for_payload(target, payload).expected_allowed_tools
+    def expected_allowed_tools_for_payload(
+        self, capability: str, payload: object
+    ) -> tuple[str, ...]:
+        return self.admission_for_payload(capability, payload).expected_allowed_tools
 
-    def admission_for_request(self, request: AgentRequest) -> ToolSpecAdmission:
-        return self.admission_for_payload(request.target, request.payload)
+    def admission_for_request(self, request: CapabilityRequest) -> ToolSpecAdmission:
+        return self.admission_for_payload(request.capability, request.payload)
 
-    def validate_allowed_tools_for_request(self, request: AgentRequest) -> ToolSpecAdmission:
+    def validate_allowed_tools_for_request(self, request: CapabilityRequest) -> ToolSpecAdmission:
         admission = self.admission_for_request(request)
         if request.allowed_tools != admission.expected_allowed_tools:
             raise ToolSpecRegistryError(
-                "AgentRequest.allowed_tools must match ToolSpec admission for "
-                f"target={request.target} payload={request.payload.__class__.__name__}: "
+                "CapabilityRequest.allowed_tools must match ToolSpec admission for "
+                f"capability={request.capability} payload={request.payload.__class__.__name__}: "
                 f"got {request.allowed_tools!r}, want {admission.expected_allowed_tools!r}"
             )
         return admission
 
-    def admission_for_payload(self, target: str, payload: object) -> ToolSpecAdmission:
+    def admission_for_payload(self, capability: str, payload: object) -> ToolSpecAdmission:
         matching_inactive: list[str] = []
         for tool in self.tools:
-            if tool.owner_agent != target:
+            if tool.owner_capability != capability:
                 continue
             payload_class = _resolve_class(tool.payload_schema_ref)
             if not isinstance(payload, payload_class):
@@ -175,7 +181,7 @@ class ToolSpecRegistry:
                     expected_allowed_tools=(tool.name,),
                     tool=tool,
                 )
-            if tool.surface == "agent_internal":
+            if tool.surface == "capability_internal":
                 return ToolSpecAdmission(
                     payload_kind=tool.payload_kind,
                     expected_allowed_tools=(),
@@ -183,12 +189,12 @@ class ToolSpecRegistry:
                 )
         if matching_inactive:
             raise ToolSpecRegistryError(
-                "ToolSpec match is inactive for target="
-                f"{target} payload={payload.__class__.__name__}: {matching_inactive}"
+                "ToolSpec match is inactive for capability="
+                f"{capability} payload={payload.__class__.__name__}: {matching_inactive}"
             )
         raise ToolSpecRegistryError(
-            "AgentRequest target/payload pair is outside the ToolSpec boundary: "
-            f"target={target} payload={payload.__class__.__name__}"
+            "CapabilityRequest capability/payload pair is outside the ToolSpec boundary: "
+            f"capability={capability} payload={payload.__class__.__name__}"
         )
 
 
@@ -222,7 +228,7 @@ def _parse_tool(value: object) -> ToolSpec:
     function_schema = _mapping(item.get("function_schema"), "function_schema")
     return ToolSpec(
         name=_required_string(item.get("name"), "name"),
-        owner_agent=_required_string(item.get("owner_agent"), "owner_agent"),
+        owner_capability=_required_string(item.get("owner_capability"), "owner_capability"),
         capability=_required_string(item.get("capability"), "capability"),
         payload_kind=_required_string(item.get("payload_kind"), "payload_kind"),
         payload_schema_ref=_required_string(item.get("payload_schema_ref"), "payload_schema_ref"),
@@ -252,12 +258,13 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
             tool.function_schema.available
             and tool.surface != "structured_handoff"
             and (
-                tool.surface != "agent_internal" or tool.runtime_posture != "sdk_internal_admitted"
+                tool.surface != "capability_internal"
+                or tool.runtime_posture != "capability_internal_admitted"
             )
         ):
             raise ToolSpecRegistryError(
                 f"{tool.name} function_schema can only be available for "
-                "structured_handoff or sdk_internal_admitted agent_internal tools"
+                "structured_handoff or capability_internal_admitted capability_internal tools"
             )
         if tool.function_schema.available and not tool.function_schema.strict:
             raise ToolSpecRegistryError(
@@ -267,27 +274,32 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
             raise ToolSpecRegistryError(f"{tool.name} active tools must be read_only")
         if tool.runtime_posture not in {
             "closed",
-            "typed_handoff_only",
-            "sdk_adapter_admitted",
-            "sdk_internal_admitted",
+            "typed_activity_admitted",
+            "capability_internal_admitted",
             "internal_function",
         }:
             raise ToolSpecRegistryError(
                 f"{tool.name} runtime_posture is unsupported: {tool.runtime_posture}"
             )
-        if tool.runtime_posture == "sdk_internal_admitted" and tool.surface != "agent_internal":
+        if (
+            tool.runtime_posture == "capability_internal_admitted"
+            and tool.surface != "capability_internal"
+        ):
             raise ToolSpecRegistryError(
-                f"{tool.name} sdk_internal_admitted posture requires agent_internal surface"
+                f"{tool.name} capability_internal_admitted posture requires capability_internal surface"
             )
-        if tool.runtime_posture == "internal_function" and tool.surface != "agent_internal":
+        if tool.runtime_posture == "internal_function" and tool.surface != "capability_internal":
             raise ToolSpecRegistryError(
-                f"{tool.name} internal_function posture requires agent_internal surface"
+                f"{tool.name} internal_function posture requires capability_internal surface"
             )
         if tool.runtime_posture == "internal_function" and tool.function_schema.available:
             raise ToolSpecRegistryError(
                 f"{tool.name} internal_function posture must not expose function_schema"
             )
-        if tool.runtime_posture.startswith("sdk_") and not tool.function_schema.available:
+        if (
+            tool.runtime_posture in {"typed_activity_admitted", "capability_internal_admitted"}
+            and not tool.function_schema.available
+        ):
             raise ToolSpecRegistryError(
                 f"{tool.name} runtime posture requires function_schema.available"
             )
@@ -320,7 +332,7 @@ def _repo_root() -> Path:
     for parent in current.parents:
         if (parent / DEFAULT_TOOL_SPEC_PATH).exists():
             return parent
-    raise ToolSpecRegistryError("repo root with configs/runtime/tools.v2.json was not found")
+    raise ToolSpecRegistryError("repo root with configs/runtime/tools.v3.json was not found")
 
 
 def _load_json(path: Path) -> dict[str, object]:

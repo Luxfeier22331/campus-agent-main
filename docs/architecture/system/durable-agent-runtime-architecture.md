@@ -58,15 +58,27 @@ app-api stream / projection -> browser surface`
 
 Current implementation baseline:
 
-- online chat path already enters Temporal-backed `ChatAnswerWorkflow`.
-- first chat trajectory projection currently has three coarse steps:
-  `planning`、`semantic.rag`、`finalization`.
-- this is sufficient to prove Temporal + projection wiring, but not sufficient for
-  production RAG diagnosis, cancellation accounting, token/cost attribution or worker
-  performance profiling.
-- target RAG execution must split `semantic.rag` into durable typed steps
-  instead of leaving retrieval, selection, synthesis and grounding inside one
-  opaque activity.
+- online chat path already enters the Temporal-backed
+  `CapabilityExecutionWorkflow`.
+- chat trajectory projection now uses the Temporal-visible capability-neutral
+  graph: `context.memory_recall -> plan.route -> capability branch ->
+  finalization.write`. The `knowledge` branch runs `rag.plan ->
+  retrieval.indexed_lookup -> retrieval.expand_or_rescue -> evidence.selection
+  -> synthesis -> grounding.verify`.
+- first-class step attempt evidence fields exist in the projection store,
+  execution-control `/steps` API, app-api operator summary and panel trajectory:
+  Temporal workflow/activity metadata, queue wait, duration, provider/model,
+  token/cost and cancel/timeout outcome.
+- `provider_execution_summary_v1` and provider pricing readiness are
+  repo-owned contracts. Activity context cancellation, timeout outcomes and Go
+  provider connection abort are projected as first-class attempt outcomes.
+- online RAG lookup and synthesis are owned by Go `activity-worker-knowledge`:
+  retrieval uses the Qdrant native adapter against the authenticated private
+  data-plane, synthesis executes the provider call, records usage / estimated
+  cost / cancel outcome and stores sanitized finalization input.
+- Python `apps/supervisor-agent-worker` is not in the current online answer
+  path. It may remain as offline / eval / tooling / historical bridge reference,
+  but must not be restored as a serving fallback or readiness dependency.
 
 ## Temporal Execution Plane
 
@@ -86,7 +98,7 @@ Repo owns：
 
 - product auth/session/conversation truth
 - request/run product projection
-- capability admission, ToolSpec and AgentSpec policy
+- capability admission, ToolSpec and CapabilitySpec policy
 - source-truth ownership
 - final answer contract
 - sanitized step / event / result projection
@@ -187,7 +199,7 @@ canceled / expired`
 
 固定规则：
 
-- supervisor 只调度 typed step，不调用自由 agent。
+- Execution Agent Layer 只调度 typed step，不调用自由 agent。
 - deterministic data access 必须表现为 typed tool step。
 - semantic specialist 必须表现为 agent-as-tool step。
 - step input 只能引用 sanitized projection；不得携带 raw prompt、raw provider
@@ -242,7 +254,7 @@ canceled / expired`
   transition；它不自动停止外部 provider、Qdrant、HTTP 或 SDK 调用。activity implementation
   与 provider adapter 必须监听 cancel context / heartbeat cancellation，并对下游请求执行
   abort 或 close。无法证明 hard-abort 的 provider call 必须在 attempt projection 中标记为
-  `cancel_observed_abort_unproven` 或等价 terminal outcome，不得把 product canceled state
+  `abort_unproven` 或等价 terminal outcome，不得把 product canceled state
   误写成 token cost 已停止。
 
 ### Activity Attempt
@@ -262,10 +274,40 @@ canceled / expired`
   projection。provider raw response、raw prompt 与 SDK-native trace 不能作为 canonical
   projection。
 
-### Target RAG Step Graph
+### Target Capability Execution Graph
 
-当前 coarse `semantic.rag` step 只是迁移中间态。目标 RAG durable graph 固定拆成：
+目标 `CapabilityExecutionWorkflow` 不以 RAG 为顶层入口。它先执行 capability-neutral
+context 与 routing step，再进入对应 capability branch：
 
+```text
+context.memory_recall
+-> plan.route
+-> capability branch
+-> finalization.write
+```
+
+固定规则：
+
+- `context.memory_recall` 使用 Qdrant `personal_memory_v1` recall bounded personal
+  memory context，输出 selected count、char budget 与 compact memory items。
+- `plan.route` 承接 admission / routing / workflow plan projection，不读取 PG profile
+  memory full dump，也不把所有请求默认压成 knowledge/RAG。
+- `knowledge` branch 承接 RAG retrieval、evidence、synthesis 与 grounding。
+- `campus_services` branch 承接 service guide/status/schedule/contact/calendar typed
+  tools 或明确 semantic specialist step。
+- `notice` branch 承接 notice discovery、selected notice ref resolution、source card
+  与 bounded notice context。
+- `navigation` branch 在产品/worker path 未开放前 fail closed；开放后只消费 place /
+  route / point typed context，不拥有 timetable 或 service-status truth。
+- `finalization.write` 只消费 admitted step results，写 sanitized finalization
+  projection 与 user-facing answer event。
+
+### Current Knowledge/RAG Implementation Graph
+
+当前 online RAG durable graph 已硬切为：
+
+1. `memory.recall`
+1. `planning`
 1. `rag.plan`
 1. `retrieval.indexed_lookup`
 1. `retrieval.expand_or_rescue`
@@ -276,6 +318,10 @@ canceled / expired`
 
 固定规则：
 
+- `memory.recall` 使用 Qdrant `personal_memory_v1` recall bounded personal memory
+  context，输出 selected count、char budget 与 compact memory items。
+- `planning` 承接 execution admission / workflow plan projection，不读取 PG
+  profile memory full dump。
 - `rag.plan` 输出 admitted query mode、scope、budget、required evidence
   contract 与 no-widening policy。
 - `retrieval.indexed_lookup` 承接 Qdrant / retrieval-core indexed retrieval，输出 bounded
@@ -300,13 +346,14 @@ Temporal Task Queue 是 worker dispatch substrate。
 
 第一组 target task queue family：
 
-- `agent.workflow`
-- `agent.activity.rag`
-- `agent.activity.notice`
-- `agent.activity.navigation`
-- `agent.activity.campus_services`
-- `agent.activity.finalization`
-- `agent.activity.projection`
+- `campus-agent.workflow`
+- `activity.context`
+- `activity.knowledge`
+- `activity.campus_services`
+- `activity.notice`
+- `activity.navigation`
+- `activity.finalization`
+- `activity.projection`
 
 固定规则：
 
@@ -320,9 +367,9 @@ Temporal Task Queue 是 worker dispatch substrate。
 
 `Lane` 是 production scheduling 的能力预算维度。
 
-当前 canonical lane family 包括：
+目标 canonical lane family 包括：
 
-- `rag`
+- `knowledge`
 - `notice`
 - `navigation`
 - `campus_services`
@@ -330,9 +377,11 @@ Temporal Task Queue 是 worker dispatch substrate。
 
 长期规则：
 
-- lane 预算由 durable scheduler / lease coordinator 拥有。
+- lane 预算由 workflow admission policy、Temporal task queue budget projection、
+  downstream budget projection 与 worker autoscaler 共同定义；不得重新引入 PG lease
+  coordinator 作为 online execution truth。
 - lane queue 与 worker pool 可以独立扩容。
-- RAG、notice、navigation 与 campus services 不得互相占死 execution capacity。
+- knowledge、notice、navigation 与 campus services 不得互相占死 execution capacity。
 - provider、Qdrant、Postgres、object store 等 downstream budget 必须作为 scheduler 输入。
 - 新增 lane 必须同步 contract、observability、eval denominator 与 runbook。
 
@@ -380,7 +429,7 @@ Temporal Task Queue 是 worker dispatch substrate。
 
 - product-layer auth/session/conversation ownership
 - browser-facing capability policy
-- domain-agent semantic reasoning
+- capability / explicit agent-as-tool semantic reasoning
 - retrieval backend implementation
 - worker autoscaling decision
 
@@ -407,23 +456,11 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
   - reads Temporal task queue metrics, worker poller health, downstream budget projection
     and SLO policy; adjusts worker replica count only.
 
-### Current Python Semantic Bridge
+### Retired Python Semantic Bridge
 
-`apps/supervisor-agent-worker` 当前是 Python semantic bridge worker；它在 current online
-answer path 中消费 Temporal activity 授权的 bounded step payload，但不是长期 online hot
-path target。
-
-它负责：
-
-- 消费 Temporal activity task 或 activity 授权的 bounded step payload
-- domain-agent dispatch
-- prompt runtime / provider client binding
-- agent-local tool loop
-- retrieval / tool result consumption
-- bounded `AgentResponse` / `StepOutputProjection` 产出
-
-长期目标是把 online capability activity worker 收口到 Go-owned runtime envelope。Python
-只允许继续用于 offline ingestion / eval / tooling，或在迁移期间作为受限 semantic bridge。
+`apps/supervisor-agent-worker` 不参与当前 online answer path。它只保留为 offline /
+eval / tooling / historical bridge reference；不得作为 serving fallback、staging
+readiness dependency 或 Temporal workflow branch 恢复。
 
 它不负责：
 
@@ -431,6 +468,8 @@ path target。
 - global admission truth
 - product identity truth
 - final public response envelope
+- RAG DTO canonical boundary
+- provider hot path, token/cost accounting, cancel outcome truth
 
 ### Worker Pools
 
@@ -527,7 +566,7 @@ current process-local execution protection。
 - SSE / WebSocket 连接断开不等于 run 自动失败。
 - 是否断线取消由 run policy 决定，不能由 transport accident 隐式决定。
 - client 可以用 `run_id` 查询 terminal status。
-- cancel 必须是显式 command，并经过 app-api / supervisor admission。
+- cancel 必须是显式 command，并经过 app-api / Execution Agent Layer admission。
 - resume 只能恢复 event stream 或读取已投影状态；不能重新执行同一个 run，除非创建明确 retry /
   repair run。
 
@@ -618,7 +657,8 @@ worker autoscaler 边界固定为：
 - global / per-lane admission
 - bounded in-memory queue
 - timeout / cancel / drain
-- bridge circuit breaker
+- retired bridge circuit breaker code still exists only behind historical /
+  retired bridge paths; it is not an online serving dependency
 - metrics / OTel / execution audit seam
 - `WorkflowRunStore` foundation for gated multi-step path
 - isolated historical run projection store kernel in `apps/execution-control/internal/execution`
@@ -634,9 +674,9 @@ worker autoscaler 边界固定为：
 - Temporal owns queued workflow/activity execution, retry, timeout, and worker
   poller semantics. PG runtime tables are the sanitized product projection store,
   not the scheduler truth.
-- cancel command is Temporal-owned first: execution-control cancels the
-  `ChatAnswerWorkflow` and then writes sanitized cancel projection; lease release
-  semantics are not part of the online cancel path.
+- cancel command is Temporal-owned first: execution-control cancels the current
+  answer workflow implementation and then writes sanitized cancel projection;
+  lease release semantics are not part of the online cancel path.
 - app-api execution runtime adapter and product request cutover foundation:
   accepted chat requests create execution-control runs, persist `run_id`
   backlinks in `runtime.request_execution`, and execution-configured blocking /
@@ -651,12 +691,19 @@ worker autoscaler 边界固定为：
   execution-control run status, browser-visible events, browser resume stream,
   and cancel commands
 - split execution worker binaries exist:
-  `cmd/workflow-worker`, `cmd/activity-worker-rag`, and
+  `cmd/workflow-worker`, `cmd/activity-worker-context`,
+  `cmd/activity-worker-knowledge`, `cmd/activity-worker-campus-services`,
+  `cmd/activity-worker-notice`, `cmd/activity-worker-navigation`, and
   `cmd/activity-worker-finalization`; Docker Compose runs them as separate
   services with explicit `<env>:<role>:<instance>` worker identity.
-- step projection writeback exists for the first chat trajectory:
-  `planning`、`semantic.rag`、`finalization` write sanitized step / attempt / result
-  projection rows.
+- step projection writeback exists for the current capability execution
+  trajectory: `memory.recall`、`plan.route`、branch steps and
+  `finalization.write` write sanitized step / attempt / result projection rows.
+  Attempt rows include Temporal activity metadata, queue wait, duration,
+  provider/model, token/cost and cancel/timeout fields. Online RAG lookup and
+  synthesis run inside Go `activity-worker-knowledge`, so lookup latency,
+  provider usage / cost and `provider_connection_aborted` evidence can be filled
+  from activity execution.
 - repo-owned staging durable reconnect harness:
   `pnpm --dir apps/app-api chat:durable:e2e:staging` proves the product stream can
   be disconnected after `request.accepted` and resumed from the existing durable
@@ -679,7 +726,7 @@ worker autoscaler 边界固定为：
   stream by `run_id + after_sequence`, terminal events load canonical
   conversation truth before clearing pending state, and draft `/chat` routes are
   replaced with the canonical conversation route after recovery
-- product run phase projection: app-api maps supervisor durable run status into
+- product run phase projection: app-api maps execution durable run status into
   a typed product phase, `request.accepted` emits the created durable run phase,
   public-chat persists that phase in pending-run state, and protected panel
   request detail displays the same phase instead of deriving queue state locally
@@ -693,19 +740,26 @@ worker autoscaler 边界固定为：
 - execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，历史
   PG lease proof command 已退出默认 build；`run_projection*.go` 仍有 projection store 与
   historical schema artifact 混合命名，需要后续纯命名整理，但不得重新接回 serving。
-- step-level projection 已有首条 chat trajectory 写入；app-api operator query 与
+- step-level projection 已进入 current chat trajectory；app-api operator query 与
   protected panel 已开始消费 `agent_run_steps`、`agent_step_attempts`、
   `agent_step_results` 作为诊断主线。eval / badcase 归因仍需要继续统一到 step
   trajectory。
 - worker autoscaler 已有 dry-run proof：可以基于 task queue observation、poller
   health 与 downstream budget projection 计算 desired replicas，且不写
   workflow/run/step/event truth。真实基础设施扩缩容接入仍未启用。
-- RAG 还需要接入 durable typed-tool step graph：retrieval/domain typed
-  tools、evidence verifier、replan、synthesis、grounding 与 finalization 需要
-  成为可审计 step trajectory，而不是只停在 answer-level run event。
-- panel / eval / observability 需要统一到 step-level trajectory：routing、planning、tool、
-  retrieval、rerank、selection、synthesis、grounding 应作为诊断阶段进入 badcase、RAGAS、
-  golden dataset 与 operator panel projection。
+- RAG durable typed step graph 已进入 current online path：`rag.plan`、
+  `retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、`evidence.selection`、
+  `synthesis`、`grounding.verify` 与 `finalization.write` 均写 sanitized step
+  trajectory。剩余缺口是 bounded semantic retry / replan 的真实 policy execution，
+  而不是只在 `WorkflowPlan.SemanticRetryPolicy` 中声明字段。
+- broader agent-as-tool / provider-native tool loop 尚未成为 online current truth。若后续
+  打开，它必须作为 Temporal activity 内部 substrate 运行，并受 `WorkflowPlan`、
+  `ToolSpec`、`CapabilitySpec`、timeout / budget 与 sanitized projection 约束；不得恢复
+  retired Python bridge 或让 provider tool loop 拥有 repo-level orchestration。
+- panel / eval / observability 仍需要进一步统一到 step-level trajectory：routing、
+  planning、tool、retrieval、rerank、selection、synthesis、grounding、replan 与
+  agent-as-tool activity 应作为诊断阶段进入 badcase、RAGAS、golden dataset 与 operator
+  panel projection。
 
 这些 gap 不得通过简单多开实例、HTTP load balancing、Redis queue 或 K8s HPA 标记为已解决。
 

@@ -7,27 +7,27 @@ from campus_contracts import (
     AcademicCalendarLookupResult,
     AcademicCalendarRelatedContext,
     ActorContext,
-    AgentRequest,
     AuthorizationProjection,
+    CapabilityRequest,
     ContextProjection,
-    WorkflowAgentContext,
+    WorkflowCapabilityContext,
 )
 from campus_prompt_runtime import PromptRuntimeProviderConfig
-from campus_services_agent.academic_calendar_adapter import academic_calendar_response
-from campus_services_agent.http_query_service import CampusServicesHTTPQueryService
-from campus_services_agent.query_service import (
+from campus_services_capability.academic_calendar_adapter import academic_calendar_response
+from campus_services_capability.http_query_service import CampusServicesHTTPQueryService
+from campus_services_capability.query_service import (
     AcademicCalendarQuery,
     CampusServicesAccessContext,
 )
-from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
-from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
+from campus_services_capability.sdk_tool_executor import execute_campus_services_sdk_tool
+from campus_supervisor_agent_worker.capability_delegates import _build_capability_delegates
 from campus_supervisor_agent_worker.openai_agents_runtime import (
     OpenAIAgentsRunResult,
     OpenAIAgentsToolCall,
 )
 from campus_supervisor_agent_worker.settings import ApiSettings
 
-from tests.agent.campus_services_agent_fakes import (
+from tests.agent.campus_services_capability_fakes import (
     FakeCampusServicesQueryService,
     RecordingQueryHTTPTransport,
 )
@@ -36,8 +36,8 @@ from tests.agent.campus_services_agent_fakes import (
 class CampusServicesAcademicCalendarTest(unittest.TestCase):
     def test_academic_calendar_payload_routes_through_internal_query_service(self) -> None:
         query_service = FakeCampusServicesQueryService()
-        request = AgentRequest(
-            target="campus-services-agent",
+        request = CapabilityRequest(
+            capability="campus_services",
             user_goal="今天第几教学周",
             payload=AcademicCalendarLookupPayload(
                 query_text="今天第几教学周",
@@ -91,9 +91,9 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(response.target, "campus-services-agent")
+        self.assertEqual(response.capability, "campus_services")
         self.assertEqual(response.status, "no_answer")
-        self.assertEqual(response.agent_observability.failure_class, "fail_close")
+        self.assertEqual(response.capability_observability.failure_class, "fail_close")
 
     def test_http_query_service_posts_academic_calendar_payload_and_decodes_result(self) -> None:
         transport = RecordingQueryHTTPTransport(
@@ -362,7 +362,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             "4 月 28 日不上课，属于运动会、春季社会实践周、劳动节假期课程调整。",
         )
 
-    def test_agent_delegates_route_academic_calendar_to_sdk_when_tool_is_admitted(self) -> None:
+    def test_capability_delegates_route_academic_calendar_to_sdk_when_tool_is_admitted(self) -> None:
         runner_called = False
         query_service = FakeCampusServicesQueryService()
 
@@ -370,7 +370,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             nonlocal runner_called
             runner_called = True
             _ = input_text, context, max_turns, run_config
-            self.assertEqual(agent.name, "campus-services-agent")
+            self.assertEqual(agent.name, "campus_services")
             self.assertEqual(agent.tools[0].name, "academic_calendar_lookup")
 
             class ToolContext:
@@ -402,7 +402,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
                 model_response_ref="resp-calendar",
             )
 
-        delegates = _build_agent_delegates(
+        delegates = _build_capability_delegates(
             settings=ApiSettings(agents_sdk_runtime_enabled=True),
             rag_prompt_executor=None,
             campus_services_query_service=query_service,
@@ -410,14 +410,14 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             openai_agents_runtime=_native_runtime(fake_runner),
         )
 
-        response = delegates["campus-services-agent"](_academic_calendar_request())
+        response = delegates["campus_services"](_academic_calendar_request())
 
         self.assertTrue(runner_called)
         self.assertIsNotNone(query_service.last_academic_calendar_query)
         self.assertEqual(response.status, "completed")
-        assert response.agent_observability is not None
-        self.assertEqual(response.agent_observability.selected_tool, "academic_calendar_lookup")
-        projection = response.agent_observability.safe_details["openai_agents_runtime_projection"]
+        assert response.capability_observability is not None
+        self.assertEqual(response.capability_observability.selected_tool, "academic_calendar_lookup")
+        projection = response.capability_observability.safe_details["openai_agents_runtime_projection"]
         self.assertEqual(projection["instruction_profile_id"], "academic_calendar_fact_lookup")
 
 
@@ -449,9 +449,9 @@ def _tool_execution(name: str, arguments: dict[str, object], call_id: str):
     )()
 
 
-def _academic_calendar_request() -> AgentRequest:
-    return AgentRequest(
-        target="campus-services-agent",
+def _academic_calendar_request() -> CapabilityRequest:
+    return CapabilityRequest(
+        capability="campus_services",
         user_goal="今天第几教学周",
         request_id="req-sdk-academic-calendar",
         payload=AcademicCalendarLookupPayload(
@@ -459,11 +459,11 @@ def _academic_calendar_request() -> AgentRequest:
             query_kind="date_week",
         ),
         allowed_tools=("academic_calendar_lookup",),
-        workflow_context=WorkflowAgentContext(
-            target="campus-services-agent",
+        workflow_context=WorkflowCapabilityContext(
+            capability="campus_services",
             workflow_run_ref="workflow:req-sdk-academic-calendar",
-            step_id="handoff:campus-services-agent:academic_calendar_lookup",
-            agent_id="campus-services-agent",
+            step_id="handoff:campus_services:academic_calendar_lookup",
+            capability_id="campus_services",
         ),
     )
 

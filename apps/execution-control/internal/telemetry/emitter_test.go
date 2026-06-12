@@ -237,7 +237,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"request_id":                           true,
 		"requested_capability":                 true,
 		"routing_next_action":                  true,
-		"selected_target":                      true,
+		"selected_capability":                  true,
 		"selected_tool":                        true,
 		"scope_gate_decision":                  true,
 		"terminal_outcome":                     true,

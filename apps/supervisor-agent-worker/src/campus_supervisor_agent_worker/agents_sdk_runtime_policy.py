@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 
-DEFAULT_AGENTS_SDK_RUNTIME_POSTURE = "domain_agent_adapter_admitted"
+DEFAULT_AGENTS_SDK_RUNTIME_POSTURE = "domain_capability_adapter_admitted"
 
 
 def agents_sdk_runtime_status(

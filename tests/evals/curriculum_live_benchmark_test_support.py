@@ -7,7 +7,7 @@ from unittest.mock import patch
 import httpx
 from campus_contracts import (
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     ClaimSupport,
     EvidenceBundle,
     EvidenceSource,
@@ -180,8 +180,8 @@ __all__ = (
     "HISTORY_FOLLOW_UP_DOC_ID",
     "LAW_FOLLOW_UP_DOC_ID",
     "ActorContext",
-    "AgentResponse",
     "AppApiEvalClientSettings",
+    "CapabilityResponse",
     "ClaimSupport",
     "EvidenceBundle",
     "EvidenceSource",

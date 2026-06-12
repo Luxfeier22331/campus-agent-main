@@ -10,7 +10,7 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
     def test_staging_runtime_rejects_missing_worker_shared_secret(self) -> None:
         result = run_common_script_with_env(
             repo_env="",
-            app_api_dev_vars="APP_API_INTERNAL_SHARED_SECRET=app-internal-secret\nSUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052\n",
+            app_api_dev_vars="APP_API_INTERNAL_SHARED_SECRET=app-internal-secret\n",
             staging_env=textwrap.dedent(
                 """
                 STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent
@@ -21,8 +21,11 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
-                STAGING_INGESTION_QDRANT_URL=http://127.0.0.1:6333
+
+                STAGING_INGESTION_QDRANT_URL=https://127.0.0.1:6333
                 STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -33,7 +36,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
                 """
@@ -58,7 +60,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
             staging_env=textwrap.dedent(
                 """
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -97,7 +98,11 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -108,7 +113,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -144,7 +148,11 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -155,7 +163,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent
@@ -184,7 +191,11 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret
                 STAGING_INGESTION_OBJECT_STORE_REGION=auto
                 STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging
+
                 STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com
+                STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
+                STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key
+                STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
                 STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
                 STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
                 STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
@@ -195,7 +206,6 @@ class SupervisorStagingFailClosedTest(unittest.TestCase):
                 STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
                 STAGING_INGESTION_SPARSE_LANGUAGE=none
                 EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token
-                SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
                 EXECUTION_CONTROL_SHARED_SECRET=worker-secret
                 EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
                 EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://durable@staging-db.example.com:5432/campus_agent

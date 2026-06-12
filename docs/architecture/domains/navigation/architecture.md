@@ -13,7 +13,7 @@ updated: 2026-05-01
 它回答的是：
 
 - 校园导航在长期产品形态里属于什么能力边界
-- `supervisor`、`navigation-agent`、`app-api`、spatial truth 各自负责什么
+- Execution Agent Layer、`navigation`、`app-api`、spatial truth 各自负责什么
 - 用户当前位置、地点别名、路线图谱与地图呈现分别属于哪一层
 - 外部地图 provider 与瓦片地图在长期形态里应怎样参与
 
@@ -32,17 +32,18 @@ updated: 2026-05-01
 - campus service discovery
 - campus navigation / wayfinding
 
-其中导航不是附属工具，而是 supervisor-led multi-agent product 中的稳定 capability family。
+其中导航不是附属工具，而是 Execution Agent Layer-led multi-capability / agent-as-tool
+product 中的稳定 capability family。
 
 长期导航主链路固定为：
 
 ```text
 web surface -> app-api -> execution-control -> Temporal activity
--> capability worker -> navigation-agent / typed spatial tools
--> spatial truth / provider adapters -> supervisor response
+-> capability worker -> navigation / typed spatial tools
+-> spatial truth / provider adapters -> execution response
 ```
 
-在长期 multi-agent workflow 中，`navigation-agent` 也可以作为 bounded spatial
+在长期 multi-capability / agent-as-tool workflow 中，`navigation` 也可以作为 bounded spatial
 specialist 被调用，向其它 domain agent 或 Go finalizer 提供 `PlaceContext`、
 `StopContext`、route summary 或 accessibility warning projection。它不因此拥有
 timetable truth、service-status truth、notice truth 或 retrieval evidence truth。
@@ -78,7 +79,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 - 导航能力既可以被 chat surface 消费，也可以被未来独立的 map / wayfinding surface 消费
 - chat 内 route card、mini-map 与路线解释仍然是重要消费形态，但不再被提升为唯一产品入口真相
-- 如果未来存在独立地图入口，它也必须与 chat 共享同一条 `app-api -> execution-control -> navigation-agent`
+- 如果未来存在独立地图入口，它也必须与 chat 共享同一条 `app-api -> execution-control -> navigation`
   truth chain
 
 长期推荐形态包括：
@@ -112,7 +113,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - provider-specific route or geocode logic
 - browser map rendering
 
-### `packages/navigation-agent`
+### `packages/navigation-capability`
 
 长期负责：
 
@@ -120,7 +121,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - route planning inside the capability boundary
 - ambiguity handling and clarification
 - navigation answer shaping
-- provider candidate orchestration inside the agent boundary
+- provider candidate orchestration inside the capability boundary
 - transport pickup/dropoff point ref 的消费与路线侧整合
 - manager-style workflow 中的 bounded `PlaceContext` / `StopContext` step output
   projection
@@ -211,7 +212,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 固定规则：
 
 - alias 必须带 institution scope
-- alias resolution owner 在 `navigation-agent`
+- alias resolution owner 在 `navigation`
 - retrieval / graph executor 只消费 canonical entity truth，不消费自由文本 alias 真相
 - 高歧义地点默认进入 `needs_clarification`，不得用 top1 猜测代替
 
@@ -255,7 +256,8 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 - browser geolocation 是 input source，不是 canonical truth
 - map / geocode / route provider 是 adapter，不是 campus truth owner
-- provider geocode、POI search、secondary route candidates 可以参与 agent 内部执行
+- provider geocode、POI search、secondary route candidates 可以参与
+  navigation capability 内部执行
 - provider-specific IDs、SDK types、payload shapes 不进入 `packages/contracts`
 
 针对“学校 + 周边关键地点”的底图、自建范围与 provider 成本 posture，见
@@ -263,7 +265,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 ## Result Posture
 
-长期导航结果必须继续兼容 repo 现有 supervisor terminal semantics：
+长期导航结果必须继续兼容 repo 现有 execution terminal semantics：
 
 - `completed`
 - `needs_clarification`
@@ -277,7 +279,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - 无法安全解析地点时，应 `needs_clarification`
 - 缺少可信 route truth 时，应 `no_answer` 或 `error`
 - 未授权访问 restricted spatial truth 时，应 fail-closed
-- 不得在导航域为了“更像地图 app”而绕开 supervisor 终态合同
+- 不得在导航域为了“更像地图 app”而绕开 execution 终态合同
 
 ## Non-Goals
 

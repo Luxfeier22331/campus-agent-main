@@ -1,14 +1,14 @@
-const TARGET_SUMMARY_LABELS: Record<string, string> = {
-	"rag-agent": "rag agent",
-	"navigation-agent": "navigation agent",
-	"campus-services-agent": "campus services agent",
-	"notice-agent": "notice agent",
+const CAPABILITY_SUMMARY_LABELS: Record<string, string> = {
+	campus_services: "campus services capability",
+	knowledge: "knowledge capability",
+	navigation: "navigation capability",
+	notice: "notice capability",
 };
 
-export function formatOperatorTargetSummaryLabel(target: string | null): string {
-	if (!target) {
-		return "unassigned target";
+export function formatOperatorCapabilitySummaryLabel(capability: string | null): string {
+	if (!capability) {
+		return "unassigned capability";
 	}
 
-	return TARGET_SUMMARY_LABELS[target] ?? target;
+	return CAPABILITY_SUMMARY_LABELS[capability] ?? capability;
 }

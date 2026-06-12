@@ -544,7 +544,7 @@ def _projection_entry(
         unit_id=unit_id,
         primary_role=primary_role,
         semantic_owner="notice_body",
-        default_agent="notice-agent",
+        default_agent="notice",
         target_surface=target_surface,
         temporal_policy="point_in_time_publication",
         completeness_status="complete",

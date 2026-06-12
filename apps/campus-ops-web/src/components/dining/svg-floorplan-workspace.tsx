@@ -1,5 +1,7 @@
-import { Upload } from "lucide-react";
+import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { Maximize2, Upload, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import type { DiningFloorplanAsset, DiningWindow } from "../../features/dining/model";
 
 const FALLBACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" role="img" aria-label="食堂楼层示意图">
@@ -57,7 +59,7 @@ export function SvgFloorplanWorkspace(input: {
 	const selectedWindow = input.windows.find((window) => window.windowId === input.selectedWindowId);
 	const selectedAnchorId =
 		input.selectedAnchorId ?? (selectedWindow ? anchorIdForWindow(selectedWindow) : null);
-	const normalizedMarkup = useMemo(
+	const normalizedFloorplan = useMemo(
 		() => markSelectedAnchor(markup, selectedAnchorId),
 		[markup, selectedAnchorId],
 	);
@@ -167,66 +169,192 @@ export function SvgFloorplanWorkspace(input: {
 			<div className="dining-workbench-grid">
 				<section className="dining-workbench-pane">
 					<PaneHeader eyebrow="区块" title="区块目录" />
-					<div className="dining-anchor-list">
-						{anchors.map((anchor) => (
-							<button
-								aria-label={`SVG 区块 ${anchor.anchorId}`}
-								className={[
-									"dining-anchor-row",
-									anchor.anchorId === selectedAnchorId ? "is-selected" : "",
-								].join(" ")}
-								key={anchor.anchorId}
-								onClick={() => selectAnchor(anchor)}
-								type="button"
-							>
-								<span>
-									<span className="dining-anchor-id">{anchor.anchorId}</span>
-									<span className="dining-anchor-meta">{formatAnchorRole(anchor.role)}</span>
-								</span>
-								<span className={anchor.windowId ? "dining-status-bound" : "dining-status-missing"}>
-									{anchor.windowLabel ?? "未绑定"}
-								</span>
-							</button>
-						))}
-						{anchors.length === 0 ? (
-							<p className="p-3 text-sm text-zinc-500">SVG 中没有 data-dining-anchor-id。</p>
-						) : null}
-					</div>
+					<AnchorInventoryTable
+						anchors={anchors}
+						onSelectAnchor={selectAnchor}
+						selectedAnchorId={selectedAnchorId}
+					/>
 				</section>
 				<section className="dining-floorplan-pane">
 					<PaneHeader eyebrow="预览" title="平面图预览" />
-					<button
-						aria-label="SVG 平面图预览"
-						className="dining-svg-preview"
-						onKeyDown={(event) => {
-							if (event.key !== "Enter" && event.key !== " ") {
-								return;
-							}
-							const selectedAnchor = anchors.find((anchor) => anchor.anchorId === selectedAnchorId);
-							if (selectedAnchor) {
-								event.preventDefault();
-								selectAnchor(selectedAnchor);
-							}
-						}}
-						onClick={(event) => {
-							const target = event.target;
-							if (!(target instanceof Element)) {
-								return;
-							}
-							const element = target.closest("[data-dining-anchor-id]");
-							const anchorId = element?.getAttribute("data-dining-anchor-id");
-							const anchor = anchors.find((item) => item.anchorId === anchorId);
-							if (anchor) {
-								selectAnchor(anchor);
-							}
-						}}
-						type="button"
+					<TransformWrapper
+						centerOnInit
+						limitToBounds={false}
+						maxScale={3}
+						minScale={0.65}
+						wheel={{ step: 0.08 }}
+						pinch={{ step: 6 }}
 					>
-						{/* biome-ignore lint/security/noDangerouslySetInnerHtml: demo SVG markup is parsed and reserialized before inline anchor interaction; production upload validation is server-side. */}
-						<div dangerouslySetInnerHTML={{ __html: normalizedMarkup }} />
-					</button>
+						<SvgPreviewSurface
+							anchors={anchors}
+							markup={normalizedFloorplan.markup}
+							onSelectAnchor={selectAnchor}
+							selectedAnchorId={selectedAnchorId}
+							selectedZoomTarget={normalizedFloorplan.selectedZoomTarget}
+						/>
+					</TransformWrapper>
 				</section>
 			</div>
+		</div>
+	);
+}
+
+function AnchorInventoryTable(input: {
+	anchors: DiningSvgAnchor[];
+	onSelectAnchor(anchor: DiningSvgAnchor): void;
+	selectedAnchorId: string | null;
+}) {
+	const columns = useMemo<ColumnDef<DiningSvgAnchor>[]>(
+		() => [
+			{
+				accessorKey: "anchorId",
+				cell: ({ row }) => (
+					<button
+						aria-label={`SVG 区块 ${row.original.anchorId}`}
+						className={[
+							"dining-anchor-row",
+							row.original.anchorId === input.selectedAnchorId ? "is-selected" : "",
+						].join(" ")}
+						onClick={() => input.onSelectAnchor(row.original)}
+						type="button"
+					>
+						<span className="dining-anchor-id">{row.original.anchorId}</span>
+					</button>
+				),
+				header: "区块",
+			},
+			{
+				accessorKey: "role",
+				cell: ({ row }) => (
+					<span className="dining-anchor-meta">{formatAnchorRole(row.original.role)}</span>
+				),
+				header: "类型",
+			},
+			{
+				accessorKey: "windowLabel",
+				cell: ({ row }) => (
+					<span className={row.original.windowId ? "dining-status-bound" : "dining-status-missing"}>
+						{row.original.windowLabel ?? "未绑定"}
+					</span>
+				),
+				header: "绑定",
+			},
+		],
+		[input.onSelectAnchor, input.selectedAnchorId],
+	);
+	const table = useReactTable({
+		columns,
+		data: input.anchors,
+		getCoreRowModel: getCoreRowModel(),
+	});
+	if (input.anchors.length === 0) {
+		return <p className="p-3 text-sm text-zinc-500">SVG 中没有 data-dining-anchor-id。</p>;
+	}
+	return (
+		<div className="dining-anchor-table-wrap">
+			<table aria-label="SVG 区块目录" className="dining-anchor-table">
+				<thead>
+					{table.getHeaderGroups().map((headerGroup) => (
+						<tr key={headerGroup.id}>
+							{headerGroup.headers.map((header) => (
+								<th key={header.id}>
+									{header.isPlaceholder
+										? null
+										: flexRender(header.column.columnDef.header, header.getContext())}
+								</th>
+							))}
+						</tr>
+					))}
+				</thead>
+				<tbody>
+					{table.getRowModel().rows.map((row) => (
+						<tr key={row.id}>
+							{row.getVisibleCells().map((cell) => (
+								<td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+							))}
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+	);
+}
+
+function SvgPreviewSurface(input: {
+	anchors: DiningSvgAnchor[];
+	markup: string;
+	onSelectAnchor(anchor: DiningSvgAnchor): void;
+	selectedAnchorId: string | null;
+	selectedZoomTarget: string | null;
+}) {
+	const { centerView, resetTransform, zoomIn, zoomOut, zoomToElement } = useControls();
+	useEffect(() => {
+		if (!input.selectedZoomTarget) {
+			return;
+		}
+		const selector = `[data-dining-zoom-target="${input.selectedZoomTarget}"]`;
+		if (!document.querySelector(selector)) {
+			return;
+		}
+		zoomToElement(selector, 1.35, 160, "easeOut");
+	}, [input.selectedZoomTarget, zoomToElement]);
+	return (
+		<div className="dining-svg-preview-shell">
+			<div className="dining-svg-controls" role="toolbar" aria-label="平面图视图控制">
+				<button aria-label="放大平面图" onClick={() => zoomIn(0.25, 120)} type="button">
+					<ZoomIn aria-hidden="true" className="size-4" />
+				</button>
+				<button aria-label="缩小平面图" onClick={() => zoomOut(0.25, 120)} type="button">
+					<ZoomOut aria-hidden="true" className="size-4" />
+				</button>
+				<button
+					aria-label="适配平面图"
+					onClick={() => {
+						resetTransform(0);
+						centerView(1, 120);
+					}}
+					type="button"
+				>
+					<Maximize2 aria-hidden="true" className="size-4" />
+				</button>
+			</div>
+			<TransformComponent
+				contentClass="dining-svg-preview-content"
+				wrapperClass="dining-svg-preview"
+			>
+				<button
+					aria-label="SVG 平面图预览"
+					className="dining-svg-preview-button"
+					onKeyDown={(event) => {
+						if (event.key !== "Enter" && event.key !== " ") {
+							return;
+						}
+						const selectedAnchor = input.anchors.find(
+							(anchor) => anchor.anchorId === input.selectedAnchorId,
+						);
+						if (selectedAnchor) {
+							event.preventDefault();
+							input.onSelectAnchor(selectedAnchor);
+						}
+					}}
+					onClick={(event) => {
+						const target = event.target;
+						if (!(target instanceof Element)) {
+							return;
+						}
+						const element = target.closest("[data-dining-anchor-id]");
+						const anchorId = element?.getAttribute("data-dining-anchor-id");
+						const anchor = input.anchors.find((item) => item.anchorId === anchorId);
+						if (anchor) {
+							input.onSelectAnchor(anchor);
+						}
+					}}
+					type="button"
+				>
+					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: demo SVG markup is parsed and reserialized before inline anchor interaction; production upload validation is server-side. */}
+					<div dangerouslySetInnerHTML={{ __html: input.markup }} />
+				</button>
+			</TransformComponent>
 		</div>
 	);
 }
@@ -324,14 +452,38 @@ function anchorIdForWindow(window: DiningWindow): string {
 	return window.svgAnchorId ?? window.windowId.split(":").at(-1) ?? window.windowId;
 }
 
-function markSelectedAnchor(markup: string, selectedAnchorId: string | null): string {
+function markSelectedAnchor(
+	markup: string,
+	selectedAnchorId: string | null,
+): { markup: string; selectedZoomTarget: string | null } {
 	const parser = new DOMParser();
 	const document = parser.parseFromString(markup, "image/svg+xml");
+	let selectedZoomTarget: string | null = null;
 	for (const element of document.querySelectorAll("[data-dining-anchor-id]")) {
+		const anchorId = element.getAttribute("data-dining-anchor-id");
 		element.classList.add("dining-svg-anchor");
-		if (element.getAttribute("data-dining-anchor-id") === selectedAnchorId) {
+		if (anchorId) {
+			const zoomTarget = toDiningZoomTarget(anchorId);
+			element.setAttribute("data-dining-zoom-target", zoomTarget);
+			if (anchorId === selectedAnchorId) {
+				selectedZoomTarget = zoomTarget;
+			}
+		}
+		if (anchorId === selectedAnchorId) {
 			element.classList.add("is-selected");
 		}
 	}
-	return new XMLSerializer().serializeToString(document.documentElement);
+	return {
+		markup: new XMLSerializer().serializeToString(document.documentElement),
+		selectedZoomTarget,
+	};
+}
+
+function toDiningZoomTarget(anchorId: string): string {
+	const slug = anchorId.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "anchor";
+	let hash = 0;
+	for (const char of anchorId) {
+		hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+	}
+	return `dining-anchor-${slug}-${hash.toString(36)}`;
 }

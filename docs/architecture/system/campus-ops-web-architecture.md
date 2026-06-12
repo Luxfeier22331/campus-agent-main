@@ -112,6 +112,13 @@ does not use Konva/react-konva as the primary floorplan technology and does not
 include freeform floorplan shape editing. MapLibre is reserved for outdoor map
 operations if map ops is later accepted.
 
+Current dining UI library choices are:
+
+- `react-zoom-pan-pinch` for inline SVG pan/zoom controls
+- `@tanstack/react-table` for the SVG anchor inventory
+- `react-hook-form`, `@hookform/resolvers` and `zod` for the dining detail
+  editor form
+
 Dining publish UI is candidate-first:
 
 ```text

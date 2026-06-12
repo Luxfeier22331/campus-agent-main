@@ -2,7 +2,8 @@ package temporalruntime
 
 const (
 	WorkflowTaskQueue              = "campus-agent.workflow"
-	ActivityTaskQueueRAG           = "campus-agent.activity.rag"
+	ActivityTaskQueueContext       = "campus-agent.activity.context"
+	ActivityTaskQueueKnowledge     = "campus-agent.activity.knowledge"
 	ActivityTaskQueueStructured    = "campus-agent.activity.structured"
 	ActivityTaskQueueNotice        = "campus-agent.activity.notice"
 	ActivityTaskQueueNavigation    = "campus-agent.activity.navigation"
@@ -10,5 +11,5 @@ const (
 	ActivityTaskQueueFinalization  = "campus-agent.activity.finalization"
 	ActivityTaskQueueProjection    = "campus-agent.activity.projection"
 
-	ChatAnswerWorkflowType = "ChatAnswerWorkflow"
+	CapabilityExecutionWorkflowType = "CapabilityExecutionWorkflow"
 )

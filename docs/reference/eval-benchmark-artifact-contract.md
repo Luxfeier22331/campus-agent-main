@@ -153,7 +153,7 @@ uncorrelated cases with a reason.
 - `planning_outcome`
 - `direct_vs_delegate_branch`
 - `handoff`
-- `selected_target`
+- `selected_capability`
 - `selected_tools`
 - `tool_argument_summary`
 - `trace_steps`
@@ -408,7 +408,7 @@ operator publish 只允许从 accepted artifact 进入。
 - `tool_routing_product_path`
 - `public_chat_entry_e2e`
 - `answer_quality_contract`
-- `multi_agent_runtime_contract`
+- `multi_capability_runtime_contract`
 
 后续新 corpus 只有在：
 

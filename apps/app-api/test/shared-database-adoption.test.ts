@@ -93,6 +93,16 @@ ADD COLUMN "run_intent" text NOT NULL DEFAULT 'baseline';`),
 		});
 		expect(
 			parseMigrationStatement(
+				'ALTER TABLE "runtime"."request_execution" RENAME COLUMN "old_capability" TO "selected_capability";',
+			),
+		).toMatchObject({
+			existsKey: "runtime.request_execution:selected_capability",
+			fromColumn: "old_capability",
+			kind: "rename_column",
+			toColumn: "selected_capability",
+		});
+		expect(
+			parseMigrationStatement(
 				'ALTER TABLE "official_web"."run_outbox" ADD CONSTRAINT "run_outbox_run_id_crawl_runs_run_id_fk" FOREIGN KEY ("run_id") REFERENCES "official_web"."crawl_runs"("run_id") ON DELETE cascade ON UPDATE no action;',
 			),
 		).toMatchObject({
@@ -146,6 +156,16 @@ ON "official_web"."crawl_runs" USING btree (
 		).toMatchObject({
 			existsKey: "official_web@official_web_crawl_runs_site_scheduler_idx",
 			kind: "drop_index",
+		});
+		expect(
+			parseMigrationStatement(
+				'ALTER INDEX IF EXISTS "operator"."operator_metric_rollup_domain_target_bucket_idx" RENAME TO "operator_metric_rollup_domain_capability_bucket_idx";',
+			),
+		).toMatchObject({
+			existsKey: "operator@operator_metric_rollup_domain_capability_bucket_idx",
+			fromIndex: "operator_metric_rollup_domain_target_bucket_idx",
+			index: "operator_metric_rollup_domain_capability_bucket_idx",
+			kind: "rename_index",
 		});
 		expect(
 			parseMigrationStatement(

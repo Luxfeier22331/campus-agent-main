@@ -76,20 +76,21 @@ answer 层长期至少保留以下指标族：
 
 ## 决策 4：Workflow 的核心指标族
 
-对 `supervisor -> agent -> retrieval` 这类 agentic workflow，长期至少保留以下指标族：
+对 `Execution Agent Layer -> capability -> retrieval / typed tool` 这类 agentic
+workflow，长期至少保留以下指标族：
 
 - `status accuracy` `completed`、`needs_clarification`、`no_answer`、`error` 是否与
   truth 一致
 - `intent-frame accuracy` top-level intent / task framing 是否与 truth 一致
-- `routing accuracy` 是否选择了正确的 agent，或在不该委派时正确保持不委派
+- `routing accuracy` 是否选择了正确的 capability / typed tool，或在不该委派时正确保持不委派
 - `slot completeness / missing-slot accuracy` 是否识别出 cohort、major、campus、target
   policy 等关键缺失信息
 - `clarification accuracy` 是否在应澄清时澄清，不应澄清时不误触发
 - `no-answer accuracy` 是否在证据不足或范围不符时正确拒答
 - `personalization correctness` 是否正确使用 verified identity / typed memory 做
   personalization，且没有错误过拟合到未验证个人背景
-- `delegation / handoff accuracy` 是否发生了正确的 agent delegation / handoff，且没有越级绕过
-  supervisor policy
+- `delegation / handoff accuracy` 是否发生了正确的 capability delegation / handoff，且没有越级绕过
+  execution policy
 - `trace path correctness` 是否发生了正确的 retrieval 调用、fail-closed 行为与其他关键中间路径
 
 补充约束：

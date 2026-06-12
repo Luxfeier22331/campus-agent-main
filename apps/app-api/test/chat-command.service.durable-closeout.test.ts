@@ -9,12 +9,12 @@ import type {
 } from "../src/modules/integration/execution-control";
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
@@ -63,7 +63,7 @@ function answerResponsePayload(text = "国家奖学金每学年评审一次。")
 				sources: [{ doc_id: "student_rules:national-scholarship" }],
 			},
 		},
-		selected_target: "rag-agent",
+		selected_capability: "knowledge",
 		status: "completed",
 		trace_id: "trace_0001",
 	};
@@ -96,7 +96,7 @@ describe("chat command durable stream closeout", () => {
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
 		const waitUntilPromises: Promise<unknown>[] = [];
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -126,7 +126,6 @@ describe("chat command durable stream closeout", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 			telemetry,
 		});
 
@@ -195,7 +194,7 @@ describe("chat command durable stream closeout", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const waitUntilPromises: Promise<unknown>[] = [];
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -225,7 +224,6 @@ describe("chat command durable stream closeout", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			supervisor,
 		});
 
 		const events: string[] = [];

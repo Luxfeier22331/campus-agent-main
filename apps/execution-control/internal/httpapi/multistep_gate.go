@@ -1,3 +1,5 @@
+//go:build retired_bridge_serving
+
 package httpapi
 
 import (
@@ -20,7 +22,7 @@ func (s *Server) rejectMultiStepWorkflowUnavailable(
 		response,
 		http.StatusServiceUnavailable,
 		"supervisor_multistep_workflow_unavailable",
-		"Supervisor multi-step workflow runtime is not available.",
+		"Execution multi-step workflow runtime is not available.",
 		true,
 	)
 	return true
@@ -45,7 +47,7 @@ func (s *Server) rejectMultiStepWorkflowUnavailableStream(
 		Retryable:  true,
 		Error: &errorInfo{
 			Code:      "supervisor_multistep_workflow_unavailable",
-			Message:   "Supervisor multi-step workflow runtime is not available.",
+			Message:   "Execution multi-step workflow runtime is not available.",
 			Retryable: true,
 		},
 		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),

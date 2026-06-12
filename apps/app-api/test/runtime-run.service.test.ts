@@ -125,7 +125,7 @@ describe("runtime run service", () => {
 				principal: createPrincipal(),
 				runId: "run_01HQ",
 			}),
-		).rejects.toThrow("Supervisor durable run status is not supported.");
+		).rejects.toThrow("Execution durable run status is not supported.");
 	});
 
 	it("rejects listed browser events that do not advance the requested cursor", async () => {
@@ -159,7 +159,7 @@ describe("runtime run service", () => {
 				principal: createPrincipal(),
 				runId: "run_01HQ",
 			}),
-		).rejects.toThrow("Supervisor durable run events must advance the requested cursor.");
+		).rejects.toThrow("Execution durable run events must advance the requested cursor.");
 	});
 
 	it("subscribes to browser-visible durable run events by cursor until terminal event arrives", async () => {

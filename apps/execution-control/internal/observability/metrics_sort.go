@@ -94,8 +94,8 @@ func sortedRuntimeDecisionKeys(items map[runtimeDecisionKey]uint64) []runtimeDec
 		if keys[left].PlanningOutcome != keys[right].PlanningOutcome {
 			return keys[left].PlanningOutcome < keys[right].PlanningOutcome
 		}
-		if keys[left].SelectedTarget != keys[right].SelectedTarget {
-			return keys[left].SelectedTarget < keys[right].SelectedTarget
+		if keys[left].SelectedCapability != keys[right].SelectedCapability {
+			return keys[left].SelectedCapability < keys[right].SelectedCapability
 		}
 		if keys[left].SelectedTool != keys[right].SelectedTool {
 			return keys[left].SelectedTool < keys[right].SelectedTool

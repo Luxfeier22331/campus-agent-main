@@ -13,8 +13,6 @@ func routeLabelFor(method string, path string) string {
 		return "/readyz"
 	case method == http.MethodGet && path == "/metrics":
 		return "/metrics"
-	case method == http.MethodPost && path == "/internal/execution/cancel":
-		return "/internal/execution/cancel"
 	case method == http.MethodPost && path == "/internal/execution/runs":
 		return "/internal/execution/runs"
 	case method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&

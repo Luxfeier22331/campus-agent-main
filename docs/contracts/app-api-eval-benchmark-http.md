@@ -16,7 +16,7 @@ ingress seam。
 - browser-facing app contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - `app-api -> execution-control`
-  内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
+  内部执行契约：`docs/contracts/capability-execution.md`
 - operator observability ingest/query
   seam：`docs/contracts/app-api-operator-observability-http.md`
 - eval artifact truth：`docs/reference/eval-benchmark-artifact-contract.md`
@@ -156,7 +156,7 @@ response body：
   },
   "supervisor": {
     "status": "completed",
-    "selectedTarget": "rag-agent",
+    "selectedCapability": "knowledge",
     "traceId": "trace_eval_01HQ",
     "answerText": "图书馆开放到 22:00。",
     "followUpQuestion": "",

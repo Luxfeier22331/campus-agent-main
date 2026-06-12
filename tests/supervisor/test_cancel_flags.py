@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from campus_contracts import SupervisorRequest, TraceContext
+from campus_contracts import ExecutionRequest, TraceContext
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
 
 
-def _request(request_id: str, trace_id: str = "trace-001") -> SupervisorRequest:
-    return SupervisorRequest(
+def _request(request_id: str, trace_id: str = "trace-001") -> ExecutionRequest:
+    return ExecutionRequest(
         user_goal="library hours",
         request_id=request_id,
         trace=TraceContext(trace_id=trace_id),

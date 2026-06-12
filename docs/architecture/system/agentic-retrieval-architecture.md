@@ -13,7 +13,7 @@ updated: 2026-06-08
 它回答的是：
 
 - durable planner-first typed-tool retrieval 在本仓库里应长成什么样
-- `rag-agent`、`retrieval-core`、runtime truth 各自负责什么
+- `knowledge`、`retrieval-core`、runtime truth 各自负责什么
 - multi-step retrieval、freshness / live branch、query activity、durable step
   trajectory 应如何收口
 
@@ -52,7 +52,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 - 让 retrieval backend 自行决定产品 scope 的自治代理
 - 把 service status、transport schedule、canonical notice reading 这类结构化当前状态问题强行塞进
   retrieval planner
-- 把 `rag-agent` 重新变成所有 campus capability 的默认 fallback 或 hidden mega-agent
+- 把 `knowledge` 重新变成所有 campus capability 的默认 fallback 或 hidden mega-agent
 
 ## Why Agentic Retrieval Exists Here
 
@@ -74,45 +74,54 @@ architecture，不得把它误读成当前已开放产品 truth。
   runtime capability 不属于 retrieval-core 本身
 - 它们应通过 projection-backed internal query service + typed domain tool 提供；只有需要语义判断时
   才进入 agent-as-tool
-- `rag-agent` 可以消费这些 typed domain tool / agent-as-tool 产出的 bounded context projection，但不能代持它们的
+- `knowledge` 可以消费这些 typed domain tool / agent-as-tool 产出的 bounded context projection，但不能代持它们的
   source truth、temporal semantics 或 opening gate
 
 ## Long-Term Execution Shape
 
 主链路中的 RAG 片段固定为：
 
-`supervisor typed step admission -> Temporal workflow activity -> rag-agent planner
--> typed retrieval/domain activities -> retrieval-core executor / domain query service
--> evidence verifier -> supporting evidence selection -> rag-agent synthesis ->
-grounding validation -> supervisor finalization`
+```text
+Execution Agent Layer typed step admission
+-> Temporal workflow activity
+-> knowledge planner
+-> typed retrieval/domain activities
+-> retrieval-core executor / domain query service
+-> evidence verifier
+-> supporting evidence selection
+-> knowledge synthesis
+-> grounding validation
+-> execution finalization
+```
 
 其中：
 
-- supervisor 负责 capability / policy / top-level routing admission
-- `rag-agent` 负责 plan 与 answer 语义
+- Execution Agent Layer 负责 capability / policy / top-level routing admission
+- `knowledge` 负责 plan 与 answer 语义
 - `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
 - Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
   repo-owned projection 负责 step attempt、result、event 与 eval/panel truth
 - evidence contract 驱动 replan / clarification / fail-close；synthesis 不得补洞
-- 当前实现中的 Temporal-visible RAG 仍是 coarse `semantic.rag` step；目标必须拆成
+- 当前实现中的 Temporal-visible RAG 已拆成
   `rag.plan`、`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、
   `evidence.selection`、`synthesis`、`grounding.verify`、`finalization.write` 等
-  durable steps，使 RAG 从“能答”升级为“可证明地答”
+  durable steps；后续优化重点是让每个 step 的 evidence、latency、token/cost、
+  cancel/timeout 与 grounding verdict 更可证明，而不是恢复 coarse activity
 
-当 retrieval 处于 multi-agent workflow 中时，长期片段固定为：
+当 retrieval 处于 multi-capability / agent-as-tool workflow 中时，长期片段固定为：
 
-`upstream typed tool / agent-as-tool StepOutputProjection -> rag-agent context
+`upstream typed tool / agent-as-tool StepOutputProjection -> knowledge context
 framing -> typed retrieval plan -> retrieval/domain tools -> evidence verifier ->
-supporting evidence -> grounding validation -> supervisor finalization`
+supporting evidence -> grounding validation -> execution finalization`
 
-允许进入 `rag-agent` 的 upstream context 必须是 bounded projection，例如
+允许进入 `knowledge` 的 upstream context 必须是 bounded projection，例如
 `CanonicalNoticeContext`、`NoticeChangeSet`、`ServiceGuideFacts`、`ScheduleBaseline`
 或 `PlaceContext`。这些 projection 只能作为 retrieval framing / evidence comparison
 input，不得绕过 query-enabled surface、authz filter、freshness gate 或 source-trust gate。
 
 ## Ownership Model
 
-### `packages/rag-agent`
+### `packages/knowledge-capability`
 
 长期负责：
 
@@ -437,7 +446,7 @@ LlamaIndex 是 ingestion / retrieval implementation dependency，不是 `campus-
 
 ## Internal Agents SDK Loop
 
-`rag-agent` 可以在 deterministic scope/version/preflight、retrieval plan、retrieval
+`knowledge` 可以在 deterministic scope/version/preflight、retrieval plan、retrieval
 execution 与 supporting evidence selection 之后使用官方 OpenAI Agents SDK 作为内部 semantic
 loop runtime。该 SDK loop 只替代或补强 answer synthesis / structured output / internal
 guardrail ergonomics，不拥有 retrieval truth。
@@ -459,11 +468,13 @@ guardrail ergonomics，不拥有 retrieval truth。
 
 SDK loop 的验收口径固定为产品 contract，而不是 provider run success：
 
-- Python SDK suite 必须证明 internal DTO、function tool boundary、guardrail、rollout mode、
-  sanitized trace projection 与 worker runner contract 未漂移
+- Python SDK suite 只覆盖 offline/eval/historical bridge behavior，不作为 online RAG
+  serving acceptance
 - public/chat product-path E2E 必须证明
-  `execution-control -> Temporal activity -> supervisor-agent-worker ->
-  rag-agent SDK loop -> Go finalizer` 返回 canonical `SupervisorResponse`
+  `execution-control -> Temporal context memory + knowledge RAG graph -> Go
+  activity-worker-context / activity-worker-knowledge /
+  activity-worker-finalization -> sanitized projection -> app-api` 返回 canonical
+  product response
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker
 - SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；
@@ -495,6 +506,6 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `docs/architecture/system/operator-observability-architecture.md`
-- `docs/contracts/rag-agent-retrieval-plan-contract.md`
+- `docs/contracts/knowledge-retrieval-plan-contract.md`
 - `docs/data/retrieval-query-activity-model.md`
 - `docs/reference/runtime-serving-and-index-terms.md`

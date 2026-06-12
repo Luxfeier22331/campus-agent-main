@@ -500,7 +500,7 @@ def _public_chat_observation_from_execution(
         case_id=case_id,
         request_id=execution.request_correlation.request_id,
         trace_id=execution.request_correlation.trace_id,
-        selected_target=response.selected_target or "none",
+        selected_capability=response.selected_capability or "none",
         terminal_outcome=response.status,
         fail_close_reason=(
             response.workflow_trace_summary.fail_close_reason

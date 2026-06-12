@@ -117,8 +117,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             {
                 "!tests/",
                 "!tests/fixtures/",
-                "!tests/fixtures/supervisor_execution_contract/",
-                "!tests/fixtures/supervisor_execution_contract/**",
+                "!tests/fixtures/capability_execution_contract/",
+                "!tests/fixtures/capability_execution_contract/**",
             }.issubset(patterns)
         )
 
@@ -129,11 +129,12 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         self.assertTrue(
             {
                 "!configs/runtime/",
-                "!configs/runtime/agents.v2.json",
+                "!configs/runtime/capabilities.v1.json",
                 "!configs/runtime/intent-policy.v1.json",
+                "!configs/runtime/provider-pricing.v1.json",
                 "!configs/runtime/query-serving-scopes.v1.json",
-                "!configs/runtime/tools.v2.json",
-                "!configs/runtime/workflow-artifacts.v1.json",
+                "!configs/runtime/tools.v3.json",
+                "!configs/runtime/workflow-artifacts.v2.json",
                 "!tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
             }.issubset(patterns)
         )
@@ -150,8 +151,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         dockerfile = (repo_root / "apps/execution-control/Dockerfile").read_text(encoding="utf-8")
 
         copy_statement = (
-            "COPY tests/fixtures/supervisor_execution_contract "
-            "/src/tests/fixtures/supervisor_execution_contract"
+            "COPY tests/fixtures/capability_execution_contract "
+            "/src/tests/fixtures/capability_execution_contract"
         )
 
         self.assertIn(copy_statement, dockerfile)

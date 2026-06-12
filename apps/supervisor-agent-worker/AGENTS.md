@@ -8,13 +8,13 @@
 
 - 接收 Go `apps/execution-control` 已规范化的 bridge envelope
 - 执行 prompt runtime assembly 与 agent delegate dispatch
-- 返回 `AgentResponse`，由 Go finalizer 生成 public supervisor response
+- 返回 `CapabilityResponse`，由 Go finalizer 生成 public execution response
 
 ## Boundaries
 
 - 不在这里新增 capability keyword inference、lane inference 或 structured payload planner
 - 不在这里发布 execution lifecycle / cancel counter / runtime truth
-- 不在这里恢复 Python supervisor response finalizer
+- 不在这里恢复 Python execution response finalizer
 - bridge parser 只做 DTO 防御性校验；缺失 Go-owned decision 时 fail closed
 
 ## Module Rules

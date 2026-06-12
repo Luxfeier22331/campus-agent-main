@@ -33,8 +33,11 @@ func TestObserveIntentForEvalProjectsGoRuntimePolicyAndPlanning(t *testing.T) {
 	if observed.SchemaVersion != "intent-schema-1.0.0" {
 		t.Fatalf("schema_version = %q, want intent-schema-1.0.0", observed.SchemaVersion)
 	}
-	if observed.Target != "rag-agent" {
-		t.Fatalf("target = %q, want rag-agent", observed.Target)
+	if observed.Capability != "knowledge" {
+		t.Fatalf("capability = %q, want knowledge", observed.Capability)
+	}
+	if observed.SelectedCapability != "knowledge" {
+		t.Fatalf("selected_capability = %q, want knowledge", observed.SelectedCapability)
 	}
 	if observed.PlanningOutcome != "preplanned" {
 		t.Fatalf("planning_outcome = %q, want preplanned", observed.PlanningOutcome)
@@ -61,8 +64,11 @@ func TestObserveIntentForEvalReportsTerminalOutcomeForClosedPlaceLookup(t *testi
 	if observed.NextAction != "out_of_scope" {
 		t.Fatalf("next_action = %q, want out_of_scope", observed.NextAction)
 	}
-	if observed.Target != "none" {
-		t.Fatalf("target = %q, want none", observed.Target)
+	if observed.Capability != "place_lookup" {
+		t.Fatalf("capability = %q, want place_lookup", observed.Capability)
+	}
+	if observed.SelectedCapability != "none" {
+		t.Fatalf("selected_capability = %q, want none", observed.SelectedCapability)
 	}
 	if observed.TerminalStatus != "no_answer" {
 		t.Fatalf("terminal_status = %q, want no_answer", observed.TerminalStatus)

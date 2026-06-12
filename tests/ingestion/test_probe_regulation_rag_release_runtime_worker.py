@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import ssl
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -11,6 +12,47 @@ _MODULE_NAME = "campus_ingestion_worker.probe_regulation_rag_release_runtime"
 
 
 class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
+    def test_qdrant_endpoint_check_uses_configured_tls_ca_for_https(self) -> None:
+        worker = importlib.import_module(_MODULE_NAME)
+        tls_context = ssl.create_default_context()
+
+        class _FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self, _limit: int) -> bytes:
+                return b"all shards are ready"
+
+        def urlopen_side_effect(request, **kwargs):
+            self.assertEqual(request.full_url, "https://qdrant.internal:6333/readyz")
+            self.assertEqual(request.headers.get("Api-key"), "readonly-key")
+            self.assertIs(kwargs.get("context"), tls_context)
+            self.assertEqual(kwargs.get("timeout"), 7.0)
+            return _FakeResponse()
+
+        settings = SimpleNamespace(
+            qdrant_url="https://qdrant.internal:6333",
+            qdrant_api_key="readonly-key",
+            qdrant_tls_ca_cert_path="/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+            qdrant_timeout_seconds=7.0,
+        )
+
+        with (
+            patch("ssl.create_default_context", return_value=tls_context) as create_context,
+            patch(f"{_MODULE_NAME}.urlopen", side_effect=urlopen_side_effect),
+        ):
+            result = worker._check_qdrant_endpoint(settings=settings, path="/readyz")
+
+        self.assertEqual(result, {"status": 200, "body_prefix": "all shards are ready"})
+        create_context.assert_called_once_with(
+            cafile="/srv/docker/campus-agent/staging/qdrant/tls/ca.pem"
+        )
+
     def test_main_reports_all_current_rag_surfaces_and_release_guard_status(self) -> None:
         worker = importlib.import_module(_MODULE_NAME)
         profiles = {

@@ -372,7 +372,7 @@ FailureRecord
 - `CanonicalReference`
   - 来自 canonical document / reader truth，而不是 retrieval backend 私有 locator
 - `SupportingEvidence`
-  - 由 `rag-agent` 的 evidence selection policy 从 merged candidate set 中受控选出
+  - 由 `knowledge` 的 evidence selection policy 从 merged candidate set 中受控选出
 - `QueryActivity.selected_supporting_evidence_ids`
   - 只记录结果引用，不重复内嵌 browser payload
 - `QueryActivity.stage_attribution`
@@ -389,7 +389,7 @@ FailureRecord
 
 ## 相关稳定文档
 
-- `docs/contracts/rag-agent-retrieval-plan-contract.md`
+- `docs/contracts/knowledge-retrieval-plan-contract.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/data/canonical-document-reader-model.md`
-- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/capability-execution.md`

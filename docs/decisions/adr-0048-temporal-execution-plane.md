@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0048
 status: accepted
 created: 2026-06-06
-updated: 2026-06-06
+updated: 2026-06-08
 supersedes:
   - adr-0047-run-centric-durable-agent-runtime.md
 ---
@@ -16,6 +16,13 @@ Accepted on 2026-06-06.
 本 ADR supersedes `adr-0047-run-centric-durable-agent-runtime.md` 对长期 execution
 substrate 的 PG scheduler / lease queue 决策。ADR-0047 仍保留为当前 PG run-level durable
 baseline 与历史设计依据。
+
+## Terminology Superseded
+
+本 ADR 使用 `execution-control` / Temporal worker plane 作为 active target
+terminology。旧文档、legacy contract 或历史 symbol 中的 `supervisor` 在目标态映射为
+`Execution Agent Layer`，不再作为独立 worker、Python bridge 或 active architecture
+concept。
 
 ## 背景
 
@@ -96,7 +103,7 @@ Repo owns：
 
 - product auth/session/conversation truth
 - request/run product projection
-- capability admission and ToolSpec / AgentSpec policy
+- capability admission and ToolSpec / CapabilitySpec policy
 - source-truth ownership
 - final answer contract
 - sanitized step / event / result projection
@@ -132,7 +139,8 @@ migration evidence, not target execution substrate.
 第一组 target task queue family：
 
 - `campus-agent.workflow`
-- `campus-agent.activity.rag`
+- `campus-agent.activity.context`
+- `campus-agent.activity.knowledge`
 - `campus-agent.activity.notice`
 - `campus-agent.activity.navigation`
 - `campus-agent.activity.campus_services`
@@ -195,6 +203,101 @@ RAG 不作为 product entry agent 或 global router；它是 knowledge-family ca
 内部的 agentic retrieval specialist。notice / navigation / services 默认
 tools-first，只有需要语义消歧、摘要、跨工具编排或 answer shaping 时才表现为
 agent-as-tool。
+
+### 决策 9：RAG step boundary 必须是真实 DTO/activity 边界
+
+2026-06-08 补充评估：
+
+- 当前 online chat path 已经进入 Temporal-backed `CapabilityExecutionWorkflow`。
+- 当前 knowledge branch trajectory 已硬切为 Temporal-visible memory + route + RAG graph：
+  `context.memory_recall -> plan.route -> rag.plan -> retrieval.indexed_lookup ->
+  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
+  grounding.verify -> finalization.write`。
+- Go `activity-worker-knowledge` 拥有 online RAG lookup 与 synthesis provider execution，
+  并通过 repo-owned DTO、`provider_execution_summary_v1` 与 step attempt evidence
+  记录 lookup latency、provider request ref、latency、token、estimated cost、
+  cancel / timeout outcome。
+- Python `supervisor-agent-worker` 不再参与 online answer path；它只保留 offline /
+  eval / tooling / historical bridge reference。
+
+本 ADR 冻结以下判断：
+
+1. `semantic.rag` 已从 active workflow graph 退役，不得作为 serving fallback 或
+   compatibility branch 恢复。
+1. 真实 RAG boundary 不等于投影更多 step 名称；每个 durable step 必须有
+   repo-owned DTO input / output、Temporal Activity boundary、sanitized
+   `RunStep -> StepAttempt -> StepResult` projection、明确 failure / cancel /
+   timeout ownership。
+1. RAG target graph 固定为：
+
+   ```text
+   memory.recall
+   -> planning
+   -> rag.plan
+   -> retrieval.indexed_lookup
+   -> retrieval.expand_or_rescue
+   -> evidence.selection
+   -> synthesis
+   -> grounding.verify
+   -> finalization.write
+   ```
+
+1. `synthesis` 只能消费 bounded supporting evidence projection，不得消费 raw prompt、
+   raw provider response、raw source body 或 SDK-native trace。
+1. `grounding.verify` 必须成为 Temporal-visible durable step；在真实 verifier
+   输出 claim / list-item support、source span、coverage 与 unsupported branch
+   之前，不得把 default `grounded` 当作证明。
+1. Python 不再作为 online stage backend 被 activity 调用；不得拥有 online
+   provider cancellation、token/cost accounting、workflow step truth、projection
+   truth 或 top-level semantic orchestration。
+1. Rust rewrite 不是默认下一步；只有 step-level latency / CPU profiling 证明某个
+   retrieval、selection、ranking 或 grounding stage 是 CPU 热点后，才允许把该 stage
+   迁入 Rust 或单独高性能 service。
+
+#### Step Contract Skeleton
+
+本 ADR 只冻结 boundary 不变量，不冻结最终 package 路径或字段全集。后续实现计划必须把
+以下 DTO family 落成 repo-owned contract，并由 tests 固定 raw payload 禁止项：
+
+- `RagPlanProjection`：admitted query mode、scope、collection / profile refs、
+  evidence budget、no-widening policy、required evidence contract。
+- `RetrievalLookupRequest` / `RetrievalLookupResult`：authorized filter refs、
+  retrieval profile refs、query activity summary、candidate summary、Qdrant /
+  retrieval latency、timeout outcome。
+- `RetrievalRescueRequest` / `RetrievalRescueResult`：只表达已 admission 的 parent
+  context expansion、freshness branch、same-document support 或 rescue branch，不扩大
+  query-enabled surface。
+- `EvidenceSelectionResult`：answer-bearing evidence refs、span refs、bounded excerpts、
+  rejection reasons、coverage status、payload hash。
+- `RagSynthesisPacketProjection`：由 Go `EvidenceSelectionResult` assembly 得到；
+  不得由 Python bridge 黑盒直接产出。
+- `GroundingVerificationResult`：claim / list-item support verdict、unsupported fields、
+  source trust summary、clarification / fail-close branch。
+- `FinalizationPacket`：final answer projection input、source refs、policy closeout、
+  user-facing event material。
+
+#### Implemented Direction
+
+- DTO family 先由 Go `apps/execution-control/internal/ragruntime` 拥有；只有出现稳定跨语言消费需求时
+  才提升到 shared contract。
+- stage backend 直接迁入 Go implementation；不新增 Python stage endpoint。
+- `retrieval.indexed_lookup` 使用 Go Qdrant native adapter，连接 self-hosted
+  authenticated private data-plane。
+- `grounding.verify` 先采用 Go deterministic verifier，输出 sanitized support verdict；
+  不把默认 `grounded` 当作证明。
+- Panel / eval 读取 PG sanitized step projection，不读取 Temporal history、raw provider
+  trace、raw prompt 或 raw source body。
+
+#### Falsifier
+
+如果实现评估证明：
+
+- stage DTO 无法在不泄漏 raw prompt、raw source body、raw provider response 或 auth
+  material 的情况下表达 required semantics；或
+- step split 导致 online latency / operational complexity 明显恶化，且 step-level
+  evidence 不能改善 eval、badcase、cancel 或 autoscaling 决策；
+
+则应先设计更小的 semantic stage backend contract，而不是继续机械拆 activity。
 
 ## 结果
 

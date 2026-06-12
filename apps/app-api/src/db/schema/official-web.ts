@@ -239,7 +239,7 @@ export const runOutbox = officialWeb.table(
 	}),
 );
 
-export const runAdmissionDecisions = officialWeb.table(
+export const officialWebRunAdmissionDecisions = officialWeb.table(
 	"run_admission_decisions",
 	{
 		decisionId: text("decision_id").primaryKey(),

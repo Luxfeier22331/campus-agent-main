@@ -12,9 +12,9 @@ func normalizeWorkflowTraceKeyToken(value string) string {
 	return builder.String()
 }
 
-func allowedAgentTarget(target string) bool {
+func allowedCapabilityID(target string) bool {
 	switch target {
-	case "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent":
+	case "knowledge", "navigation", "campus_services", "notice":
 		return true
 	default:
 		return false
@@ -39,19 +39,19 @@ func allowedConfidence(confidence string) bool {
 	}
 }
 
-func buildSupervisorObservability(
+func buildExecutionObservability(
 	target string,
 	status string,
 	result map[string]any,
 	selectedTool string,
 ) map[string]any {
-	if target == "rag-agent" {
-		return buildRagSupervisorObservability(status, result, selectedTool)
+	if target == "knowledge" {
+		return buildRagExecutionObservability(status, result, selectedTool)
 	}
-	return buildStructuredSupervisorObservability(target, status, result, selectedTool)
+	return buildStructuredExecutionObservability(target, status, result, selectedTool)
 }
 
-func buildRagSupervisorObservability(
+func buildRagExecutionObservability(
 	status string,
 	result map[string]any,
 	selectedTool string,
@@ -107,7 +107,7 @@ func buildRagSupervisorObservability(
 	}
 }
 
-func buildStructuredSupervisorObservability(
+func buildStructuredExecutionObservability(
 	target string,
 	status string,
 	result map[string]any,
@@ -184,7 +184,7 @@ func refusalClassForAgentStatus(status string) string {
 
 func scopeClassForTarget(target string) string {
 	switch target {
-	case "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent":
+	case "knowledge", "navigation", "campus_services", "notice":
 		return "in_scope"
 	default:
 		return ""

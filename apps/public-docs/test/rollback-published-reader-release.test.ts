@@ -85,7 +85,7 @@ describe("rollback published reader release", () => {
 		});
 	});
 
-	it("fails closed when the selected target has no Worker version id", () => {
+	it("fails closed when the chosen rollback target has no Worker version id", () => {
 		expect(() =>
 			resolvePublicDocsRollbackTarget({
 				environment: "staging",

@@ -11,7 +11,6 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -20,14 +19,18 @@ import (
 type Role string
 
 const (
-	RoleWorkflow     Role = "workflow"
-	RoleRAG          Role = "activity-rag"
-	RoleFinalization Role = "activity-finalization"
+	RoleWorkflow       Role = "workflow"
+	RoleContext        Role = "activity-context"
+	RoleKnowledge      Role = "activity-knowledge"
+	RoleCampusServices Role = "activity-campus-services"
+	RoleNotice         Role = "activity-notice"
+	RoleNavigation     Role = "activity-navigation"
+	RoleFinalization   Role = "activity-finalization"
 )
 
 func Run(role Role) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	cfg, err := config.LoadFromEnv()
+	cfg, err := config.LoadFromEnvForRole(string(role))
 	if err != nil {
 		logger.Error("campus execution worker config invalid", "role", string(role), "error", err.Error())
 		os.Exit(1)
@@ -67,12 +70,40 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 	switch role {
 	case RoleWorkflow:
 		return temporalruntime.NewWorkflowWorker(temporalClient, cfg.TemporalTaskQueue), nil
-	case RoleRAG:
+	case RoleContext:
 		server := newActivityServer(cfg)
-		return temporalruntime.NewRAGActivityWorker(
+		return temporalruntime.NewContextActivityWorker(
 			temporalClient,
-			temporalruntime.ActivityTaskQueueRAG,
-			server.TemporalRAGActivities(),
+			temporalruntime.ActivityTaskQueueContext,
+			server.TemporalContextActivities(),
+		), nil
+	case RoleKnowledge:
+		server := newActivityServer(cfg)
+		return temporalruntime.NewKnowledgeActivityWorker(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueKnowledge,
+			server.TemporalKnowledgeActivities(),
+		), nil
+	case RoleCampusServices:
+		server := newActivityServer(cfg)
+		return temporalruntime.NewTypedToolActivityWorker(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueCampusService,
+			server.TemporalTypedToolActivities(),
+		), nil
+	case RoleNotice:
+		server := newActivityServer(cfg)
+		return temporalruntime.NewTypedToolActivityWorker(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueNotice,
+			server.TemporalTypedToolActivities(),
+		), nil
+	case RoleNavigation:
+		server := newActivityServer(cfg)
+		return temporalruntime.NewTypedToolActivityWorker(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueNavigation,
+			server.TemporalTypedToolActivities(),
 		), nil
 	case RoleFinalization:
 		server := newActivityServer(cfg)
@@ -87,10 +118,5 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 }
 
 func newActivityServer(cfg config.Config) *httpapi.Server {
-	bridgeClient := bridge.NewHTTPClientWithResponseLimit(
-		cfg.BridgeBaseURL,
-		cfg.BridgeSharedSecret,
-		cfg.BridgeResponseLimitBytes,
-	)
-	return httpapi.NewServerWithDependencies(cfg, bridgeClient, nil, nil, nil)
+	return httpapi.NewServerWithDependencies(cfg, nil, nil, nil)
 }

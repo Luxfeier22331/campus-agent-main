@@ -1,5 +1,5 @@
 import type { ResolvedAppPrincipal } from "./auth";
-import type { RequestedScope, SupervisorExecutionResponse } from "./integration";
+import type { CapabilityExecutionResponse, RequestedScope } from "./integration";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -23,7 +23,7 @@ function toScopeSummary(scope: RequestedScope | null | undefined): string | null
 
 function normalizeAclDecision(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.aclDecision) {
@@ -44,7 +44,7 @@ function normalizeAclDecision(input: {
 
 function normalizeFailClosed(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	status: RequestExecutionStatus;
 }): boolean | null {
 	if (typeof input.response.observability?.failClosed === "boolean") {
@@ -71,7 +71,7 @@ function normalizeFailClosed(input: {
 
 function normalizeRefusalClass(
 	diagnostics: RequestDiagnosticsSummary | null,
-	response: SupervisorExecutionResponse,
+	response: CapabilityExecutionResponse,
 	status: RequestExecutionStatus,
 ): string | null {
 	if (response.observability?.refusalClass) {
@@ -122,7 +122,7 @@ function deriveSemanticOutcomeFromDiagnostics(
 
 function normalizeSemanticOutcome(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.semanticOutcome) {
@@ -157,7 +157,7 @@ function normalizeScopeClass(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.scopeClass) {
@@ -183,7 +183,7 @@ function normalizeScopeClass(input: {
 
 function normalizePolicyReason(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.policyReason) {
@@ -317,7 +317,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		templateSha256: null,
 		retrievedSourceCount: null,
 		retrievalAttempted: null,
-		selectedTarget: null,
+		selectedCapability: null,
 		selectedTool: null,
 		startedAt: input.startedAt,
 		status: "accepted",
@@ -342,7 +342,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
-	response: SupervisorExecutionResponse;
+	response: CapabilityExecutionResponse;
 	safetyIdentifier?: string | null;
 	sourceDocIds: string[];
 	startedAt: string;
@@ -465,7 +465,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		templateSha256: observability?.promptTrace?.templateSha256 ?? null,
 		retrievedSourceCount,
 		retrievalAttempted,
-		selectedTarget: input.response.selectedTarget,
+		selectedCapability: input.response.selectedCapability,
 		selectedTool: observability?.selectedTool ?? null,
 		startedAt: input.startedAt,
 		status: input.status,

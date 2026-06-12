@@ -8,17 +8,18 @@ import (
 )
 
 var (
-	ErrDurableRunExists                 = errors.New("durable run already exists")
+	ErrDurableRunExists                = errors.New("durable run already exists")
 	ErrRunProjectionStoreNotConfigured = errors.New("run projection store not configured")
-	ErrDurableRunNotFound               = errors.New("durable run not found")
-	ErrInvalidDurableRun                = errors.New("invalid durable run")
-	ErrInvalidRunTransition             = errors.New("invalid durable run transition")
-	ErrConversationActiveRun            = errors.New("conversation active run")
-	ErrInvalidRunEvent                  = errors.New("invalid durable run event")
-	ErrInvalidRunStep                   = errors.New("invalid run step projection")
-	ErrInvalidStepAttempt               = errors.New("invalid step attempt projection")
-	ErrInvalidStepResult                = errors.New("invalid step result projection")
-	ErrInvalidDurableRunCancel          = errors.New("invalid durable run cancel")
+	ErrDurableRunNotFound              = errors.New("durable run not found")
+	ErrInvalidDurableRun               = errors.New("invalid durable run")
+	ErrInvalidDurableRunComplete       = errors.New("invalid durable run complete")
+	ErrInvalidRunTransition            = errors.New("invalid durable run transition")
+	ErrConversationActiveRun           = errors.New("conversation active run")
+	ErrInvalidRunEvent                 = errors.New("invalid durable run event")
+	ErrInvalidRunStep                  = errors.New("invalid run step projection")
+	ErrInvalidStepAttempt              = errors.New("invalid step attempt projection")
+	ErrInvalidStepResult               = errors.New("invalid step result projection")
+	ErrInvalidDurableRunCancel         = errors.New("invalid durable run cancel")
 )
 
 type RunProjectionStore interface {
@@ -30,6 +31,7 @@ type RunProjectionStore interface {
 		DurableRun,
 		error,
 	)
+	CompleteRunProjection(context.Context, DurableRunCompleteRequest) (DurableRun, error)
 	CancelRunProjection(context.Context, DurableRunCancelRequest) (DurableRun, error)
 	AppendRunEvent(context.Context, DurableRunEvent) (DurableRunEvent, error)
 	ListRunEvents(context.Context, string) ([]DurableRunEvent, error)

@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 
 from campus_contracts import (
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
@@ -88,9 +88,9 @@ def _response(
     answer_text: str = "",
     sources: tuple[EvidenceSource, ...] = (),
     follow_up_question: str = "",
-) -> AgentResponse:
-    return AgentResponse(
-        target="rag-agent",
+) -> CapabilityResponse:
+    return CapabilityResponse(
+        capability="knowledge",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -109,7 +109,7 @@ def _response(
 __all__ = (
     "HANDBOOK_SCOPE",
     "ActorContext",
-    "AgentResponse",
+    "CapabilityResponse",
     "EvidenceBundle",
     "EvidenceSource",
     "ExecutionResult",

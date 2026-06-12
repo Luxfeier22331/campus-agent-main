@@ -566,6 +566,9 @@ describe("campus routes", () => {
 		expect(screen.getByText("18 元")).toBeInTheDocument();
 		expect(screen.getByLabelText("选择盖饭窗口")).toBeInTheDocument();
 		expect(screen.getByTestId("dining-inline-floorplan").querySelector("svg")).not.toBeNull();
+		expect(screen.getByRole("button", { name: "放大平面图" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "缩小平面图" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "适配平面图" })).toBeInTheDocument();
 		fireEvent.click(screen.getByTestId("dining-anchor-window-01"));
 		expect(screen.getByTestId("dining-anchor-window-01")).toHaveClass("is-selected");
 		expect(screen.getAllByText("入口侧")[0]?.closest("button")).toHaveClass(

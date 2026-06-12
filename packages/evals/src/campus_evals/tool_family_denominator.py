@@ -8,7 +8,7 @@ TOOL_FAMILY_DENOMINATOR_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "tool_family_denominators.v1.json"
 )
 TOOL_SPEC_REGISTRY_PATH = (
-    Path(__file__).resolve().parents[4] / "configs" / "runtime" / "tools.v2.json"
+    Path(__file__).resolve().parents[4] / "configs" / "runtime" / "tools.v3.json"
 )
 
 
@@ -106,7 +106,7 @@ def tool_spec_sdk_internal_function_names(path: str | Path | None = None) -> tup
         tool = _mapping(raw_tool, "tool")
         if (
             tool.get("active") is True
-            and tool.get("surface") == "agent_internal"
+            and tool.get("surface") == "capability_internal"
             and tool.get("runtime_posture") == "sdk_internal_admitted"
         ):
             names.append(_required_string(tool.get("name"), "tool.name"))

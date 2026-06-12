@@ -11,6 +11,12 @@ updated: 2026-04-26
 
 Accepted on 2026-04-23.
 
+## Terminology Superseded
+
+本 ADR 标题和历史正文中的 `supervisor` 是历史命名。目标态 active architecture term 是
+`Execution Agent Layer`：它位于 `execution-control` 内，负责 admission、
+capability routing、workflow planning、capability dispatch 与 finalization。
+
 ## 背景
 
 `campus-agent` 当前已经冻结了以下方向：
@@ -18,34 +24,34 @@ Accepted on 2026-04-23.
 - `campus-agent` 是 institution-scoped campus assistant，而不是开放域 generalist
 - `apps/app-api -> apps/execution-control -> apps/supervisor-agent-worker -> agent`
   是长期执行主链
-- `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent` 已作为当前或前向
+- `knowledge`、`navigation`、`campus_services`、`notice` 已作为当前或前向
   capability family 落盘
 - 当前公开产品能力最成熟的主路径仍是 knowledge question answering
 
 但 repo 仍缺一条更高层的正式决策：
 
-- 顶层 supervisor 是否继续默认把产品入口理解成 `knowledge/RAG` 路由器
+- 顶层 Execution Agent Layer 是否继续默认把产品入口理解成 `knowledge/RAG` 路由器
 - `requested_scope` 是否仍应被默认理解成所有请求共享的顶层入口字段
 - `public chat` 当前 knowledge-only posture 是否会被误读成长期产品架构原则
 - clarification、approval、out-of-scope 与 capability routing 之间应如何分层
 
 如果这条边界不冻结，后续实现很容易继续退化为：
 
-- 所有请求先进入 `rag-agent`，再在 knowledge path 内临时补 notice/service/navigation 分叉
+- 所有请求先进入 `knowledge`，再在 knowledge path 内临时补 notice/service/navigation 分叉
 - 用 `requested_scope` 代替 capability routing
 - 把 `public chat` 当前 knowledge-only 姿态写成整个 repo 的长期入口真相
 - 把 routing clarification 与 agent clarification 混成一个模糊 clarification 桶
 
 ## 决策
 
-### 决策 1：supervisor 长期是 neutral capability router，而不是 knowledge-default router
+### 决策 1：Execution Agent Layer 是 Neutral Capability Router
 
-长期上，top-level supervisor 必须先回答“这是什么 capability family 的请求”，而不是默认先把请求当成 generic
-knowledge/RAG 问题。
+长期上，top-level Execution Agent Layer 必须先回答“这是什么 capability
+family 的请求”，而不是默认先把请求当成 generic knowledge/RAG 问题。
 
 直接含义：
 
-- `rag-agent` 仍是核心 capability family，但不再等于整个产品入口语义
+- `knowledge` 仍是核心 capability family，但不再等于整个产品入口语义
 - notice、service、navigation 与 future admitted capability 必须作为并列 family 被治理
 - capability routing 是 repo-owned architecture truth，不是 prompt 内部的临时推理副作用
 
@@ -115,7 +121,7 @@ knowledge/RAG 问题。
 - routing clarification precision
 - false handoff / false accept / false reject
 - approval-required recall
-- selected target / resolved scope / refusal class 的分层 observability
+- selected capability / resolved scope / refusal class 的分层 observability
 
 缺少这些证据时，不允许把新的 routing 变化视为稳定架构的一部分。
 
@@ -129,7 +135,7 @@ knowledge/RAG 问题。
 
 但这只表示 current rollout posture，不表示：
 
-- 长期 supervisor 仍是 knowledge-default router
+- 长期 Execution Agent Layer 仍是 knowledge-default router
 - 未来所有 surface 都必须先走 knowledge path
 
 ## 结果

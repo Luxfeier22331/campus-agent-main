@@ -11,23 +11,23 @@ import {
 	formatIntentNextActionLabel,
 	formatIntentScopeClassLabel,
 	formatIntentTaskKindLabel,
-	formatSelectedTargetLabel,
+	formatSelectedCapabilityLabel,
 } from "../src/panel/requests/request-formatters";
 
 describe("request target formatters", () => {
-	it("maps every current runtime target to a localized display label", () => {
-		expect(formatSelectedTargetLabel("rag-agent")).toBe("检索专家");
-		expect(formatSelectedTargetLabel("navigation-agent")).toBe("导航能力");
-		expect(formatSelectedTargetLabel("campus-services-agent")).toBe("校园服务");
-		expect(formatSelectedTargetLabel("notice-agent")).toBe("通知能力");
+	it("maps every current capability to a localized display label", () => {
+		expect(formatSelectedCapabilityLabel("knowledge")).toBe("检索专家");
+		expect(formatSelectedCapabilityLabel("navigation")).toBe("导航能力");
+		expect(formatSelectedCapabilityLabel("campus_services")).toBe("校园服务");
+		expect(formatSelectedCapabilityLabel("notice")).toBe("通知能力");
 	});
 
-	it("publishes current runtime target filter options as a closed set", () => {
+	it("publishes current capability filter options as a closed set", () => {
 		expect(CURRENT_RUNTIME_TARGET_OPTIONS).toEqual([
-			{ label: "检索专家", value: "rag-agent" },
-			{ label: "导航能力", value: "navigation-agent" },
-			{ label: "校园服务", value: "campus-services-agent" },
-			{ label: "通知能力", value: "notice-agent" },
+			{ label: "检索专家", value: "knowledge" },
+			{ label: "导航能力", value: "navigation" },
+			{ label: "校园服务", value: "campus_services" },
+			{ label: "通知能力", value: "notice" },
 		]);
 	});
 });
@@ -117,7 +117,7 @@ describe("request workflow trace formatters", () => {
 				guardrailOutcomes: { scope_gate: "allow" },
 				handoff: {
 					allowed_tools: ["transport_schedule_lookup", "service_status_lookup"],
-					target: "campus-services-agent",
+					target: "campus_services",
 				},
 				planningOutcome: "preplanned",
 				policyArtifactVersions: {
@@ -129,12 +129,12 @@ describe("request workflow trace formatters", () => {
 					bridge_contract: "supervisor_bridge_v6",
 					supervisor_api_runtime: "go-runtime-control-plane-v1",
 				},
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				selectedTools: ["service_status_lookup"],
 				toolArgumentSummary: {
 					safe_details: {
 						agent_execution_projection: {
-							projection_owner: "campus-services-agent",
+							projection_owner: "campus_services",
 							selected_tool: "service_status_lookup",
 							tool_selection_reason: "typed_payload_allowed_tool",
 						},
@@ -175,7 +175,7 @@ describe("request workflow trace formatters", () => {
 			{ label: "工具调用", value: "service_status_lookup:completed/resolved_current" },
 			{
 				label: "执行投影",
-				value: "service_status_lookup:campus-services-agent/typed_payload_allowed_tool",
+				value: "service_status_lookup:campus_services/typed_payload_allowed_tool",
 			},
 			{
 				label: "结果护栏",
@@ -220,12 +220,12 @@ describe("request workflow trace formatters", () => {
 				bridge_contract: "supervisor_bridge_v6",
 				supervisor_bridge_v6_raw_payload: "secret-bridge-payload",
 			},
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 			selectedTools: ["retrieval.query"],
 			toolArgumentSummary: {
 				safe_details: {
 					agent_execution_projection: {
-						projection_owner: "rag-agent",
+						projection_owner: "knowledge",
 						selected_tool: "retrieval.query",
 						tool_selection_reason: "typed_payload_allowed_tool",
 					},
@@ -371,7 +371,7 @@ describe("request replay formatters", () => {
 					requestedCapability: "knowledge",
 					requestedScope: { collection: "student_rules", corpus: "regulations" },
 					resolvedScope: { collection: "student_rules", corpus: "regulations" },
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 				},
 			}),
 		).toEqual([

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from campus_contracts import AgentResponse
+from campus_contracts import CapabilityResponse
 
 
-def bounded_notice_get_projection(response: AgentResponse) -> dict[str, object]:
+def bounded_notice_get_projection(response: CapabilityResponse) -> dict[str, object]:
     result = response.result
     projection: dict[str, object] = {
         "status": response.status,
@@ -26,9 +26,9 @@ def bounded_notice_get_projection(response: AgentResponse) -> dict[str, object]:
             value = getattr(result, field_name, None)
             if value not in (None, "", (), []):
                 projection[field_name] = value
-    if response.agent_observability is not None:
-        projection["source_ref_count"] = response.agent_observability.source_ref_count or 0
-        projection["tool_outcome"] = response.agent_observability.tool_outcome
+    if response.capability_observability is not None:
+        projection["source_ref_count"] = response.capability_observability.source_ref_count or 0
+        projection["tool_outcome"] = response.capability_observability.tool_outcome
     return projection
 
 

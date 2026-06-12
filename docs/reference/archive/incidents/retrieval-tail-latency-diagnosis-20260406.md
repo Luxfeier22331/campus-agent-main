@@ -90,7 +90,7 @@ Wave 2 的历史决策是：
   - 已解析单文档请求会跳过 follow-up support `query_points`
 - Wave 2 已完成：
   - `ingestion-core` 新增 `curriculum_program_semester_facts_projection.py`
-  - `rag-agent` 对特定 semester `course_list` 问句改路由到 `program_semester_facts`
+  - `knowledge` 对特定 semester `course_list` 问句改路由到 `program_semester_facts`
   - `evals/confidence` 已将其视为 curriculum internal collection
 
 ## Historical Significance

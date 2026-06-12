@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -9,12 +10,12 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/observability"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
@@ -23,8 +24,6 @@ import (
 
 type Server struct {
 	config                 config.Config
-	bridge                 bridge.Client
-	bridgeBreaker          *bridge.CircuitBreaker
 	admission              *admission.Controller
 	lifecycle              *lifecycle.Registry
 	logger                 *slog.Logger
@@ -36,6 +35,12 @@ type Server struct {
 	workflowRunsErr        error
 	runProjectionStore     execution.RunProjectionStore
 	runProjectionStoreErr  error
+	personalMemoryExecutor personalMemoryExecutor
+	personalMemoryErr      error
+	ragLookupExecutor      ragLookupExecutor
+	ragLookupErr           error
+	ragSynthesisExecutor   ragSynthesisExecutor
+	ragSynthesisErr        error
 	temporalStarter        temporalruntime.ChatWorkflowStarter
 	temporalStarterErr     error
 	temporalWorkersStarted bool
@@ -47,26 +52,105 @@ func (s *Server) TemporalWorkerActivities() any {
 	return s
 }
 
-type TemporalRAGActivities struct {
+type TemporalContextActivities struct {
 	server *Server
 }
 
-func (s *Server) TemporalRAGActivities() TemporalRAGActivities {
-	return TemporalRAGActivities{server: s}
+func (s *Server) TemporalContextActivities() TemporalContextActivities {
+	return TemporalContextActivities{server: s}
 }
 
-func (a TemporalRAGActivities) PlanChatAnswerActivity(
+func (a TemporalContextActivities) MemoryRecallActivity(
 	ctx context.Context,
-	input temporalruntime.PlanChatAnswerActivityInput,
-) (temporalruntime.PlanChatAnswerActivityOutput, error) {
-	return a.server.PlanChatAnswerActivity(ctx, input)
+	input temporalruntime.MemoryRecallActivityInput,
+) (temporalruntime.MemoryRecallActivityOutput, error) {
+	return a.server.MemoryRecallActivity(ctx, input)
 }
 
-func (a TemporalRAGActivities) InvokeSemanticWorkerActivity(
+func (a TemporalContextActivities) PlanRouteActivity(
 	ctx context.Context,
-	input temporalruntime.InvokeSemanticWorkerActivityInput,
-) (temporalruntime.InvokeSemanticWorkerActivityOutput, error) {
-	return a.server.InvokeSemanticWorkerActivity(ctx, input)
+	input temporalruntime.PlanRouteActivityInput,
+) (temporalruntime.PlanRouteActivityOutput, error) {
+	return a.server.PlanRouteActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) PlanReplanActivity(
+	ctx context.Context,
+	input temporalruntime.PlanReplanActivityInput,
+) (temporalruntime.PlanReplanActivityOutput, error) {
+	return a.server.PlanReplanActivity(ctx, input)
+}
+
+type TemporalKnowledgeActivities struct {
+	server *Server
+}
+
+func (s *Server) TemporalKnowledgeActivities() TemporalKnowledgeActivities {
+	return TemporalKnowledgeActivities{server: s}
+}
+
+func (a TemporalKnowledgeActivities) PlanRAGActivity(
+	ctx context.Context,
+	input temporalruntime.PlanRAGActivityInput,
+) (temporalruntime.PlanRAGActivityOutput, error) {
+	return a.server.PlanRAGActivity(ctx, input)
+}
+
+func (a TemporalKnowledgeActivities) RetrieveIndexedLookupActivity(
+	ctx context.Context,
+	input temporalruntime.RetrieveIndexedLookupActivityInput,
+) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
+	return a.server.RetrieveIndexedLookupActivity(ctx, input)
+}
+
+func (a TemporalKnowledgeActivities) ExpandOrRescueRetrievalActivity(
+	ctx context.Context,
+	input temporalruntime.ExpandOrRescueRetrievalActivityInput,
+) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
+	return a.server.ExpandOrRescueRetrievalActivity(ctx, input)
+}
+
+func (a TemporalKnowledgeActivities) SelectEvidenceActivity(
+	ctx context.Context,
+	input temporalruntime.SelectEvidenceActivityInput,
+) (temporalruntime.SelectEvidenceActivityOutput, error) {
+	return a.server.SelectEvidenceActivity(ctx, input)
+}
+
+func (a TemporalKnowledgeActivities) SynthesizeRAGAnswerActivity(
+	ctx context.Context,
+	input temporalruntime.SynthesizeRAGAnswerActivityInput,
+) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
+	return a.server.SynthesizeRAGAnswerActivity(ctx, input)
+}
+
+func (a TemporalKnowledgeActivities) VerifyGroundingActivity(
+	ctx context.Context,
+	input temporalruntime.VerifyGroundingActivityInput,
+) (temporalruntime.VerifyGroundingActivityOutput, error) {
+	return a.server.VerifyGroundingActivity(ctx, input)
+}
+
+type TemporalTypedToolActivities struct {
+	server *Server
+}
+
+func (s *Server) TemporalTypedToolActivities() TemporalTypedToolActivities {
+	return TemporalTypedToolActivities{server: s}
+}
+
+func (a TemporalTypedToolActivities) ExecuteTypedToolActivity(
+	ctx context.Context,
+	input temporalruntime.ExecuteTypedToolActivityInput,
+) (temporalruntime.ExecuteTypedToolActivityOutput, error) {
+	return a.server.ExecuteTypedToolActivity(ctx, input)
+}
+
+func (a TemporalTypedToolActivities) ExecuteAgentAsToolActivity(
+	ctx context.Context,
+	input temporalruntime.ExecuteAgentAsToolActivityInput,
+) (temporalruntime.ExecuteAgentAsToolActivityOutput, error) {
+	return a.server.ExecuteAgentAsToolActivity(ctx, input)
 }
 
 type TemporalFinalizationActivities struct {
@@ -77,11 +161,11 @@ func (s *Server) TemporalFinalizationActivities() TemporalFinalizationActivities
 	return TemporalFinalizationActivities{server: s}
 }
 
-func (a TemporalFinalizationActivities) FinalizeChatAnswerActivity(
+func (a TemporalFinalizationActivities) WriteFinalizationActivity(
 	ctx context.Context,
-	input temporalruntime.FinalizeChatAnswerActivityInput,
-) (temporalruntime.FinalizeChatAnswerActivityOutput, error) {
-	return a.server.FinalizeChatAnswerActivity(ctx, input)
+	input temporalruntime.WriteFinalizationActivityInput,
+) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	return a.server.WriteFinalizationActivity(ctx, input)
 }
 
 func (s *Server) MarkTemporalWorkersStarted(started bool) {
@@ -94,38 +178,14 @@ type errorInfo struct {
 	Retryable bool   `json:"retryable"`
 }
 
-type bridgeWriteOutcome struct {
-	State          lifecycle.State
-	Outcome        string
-	FailureKind    string
-	StatusCode     int
-	CircuitSuccess bool
-	CircuitFailure bool
-}
-
 const statusClientClosedRequest = 499
 
-func NewServer(cfg config.Config, bridgeClient bridge.Client) *Server {
-	return NewServerWithDependencies(
-		cfg,
-		bridgeClient,
-		nil,
-		nil,
-		nil,
-	)
-}
-
-func NewServerWithAdmission(
-	cfg config.Config,
-	bridgeClient bridge.Client,
-	admissionController *admission.Controller,
-) *Server {
-	return NewServerWithDependencies(cfg, bridgeClient, admissionController, nil, nil)
+func NewServer(cfg config.Config) *Server {
+	return NewServerWithDependencies(cfg, nil, nil, nil)
 }
 
 func NewServerWithDependencies(
 	cfg config.Config,
-	bridgeClient bridge.Client,
 	admissionController *admission.Controller,
 	logger *slog.Logger,
 	metrics *observability.Metrics,
@@ -135,24 +195,6 @@ func NewServerWithDependencies(
 	}
 	if cfg.RequestBodyLimitBytes <= 0 {
 		cfg.RequestBodyLimitBytes = 1_048_576
-	}
-	if cfg.BridgeTimeoutMS <= 0 {
-		cfg.BridgeTimeoutMS = 35_000
-	}
-	if cfg.BridgeCancelTimeoutMS <= 0 {
-		cfg.BridgeCancelTimeoutMS = 500
-	}
-	if cfg.BridgeBreakerFailureThreshold <= 0 {
-		cfg.BridgeBreakerFailureThreshold = 5
-	}
-	if cfg.BridgeBreakerOpenMS <= 0 {
-		cfg.BridgeBreakerOpenMS = 10_000
-	}
-	if cfg.BridgeRetryMaxAttempts <= 0 {
-		cfg.BridgeRetryMaxAttempts = 2
-	}
-	if cfg.BridgeRetryBaseMS <= 0 {
-		cfg.BridgeRetryBaseMS = 50
 	}
 	if cfg.StructuredQueryTimeoutMS <= 0 {
 		cfg.StructuredQueryTimeoutMS = 1_000
@@ -190,32 +232,64 @@ func NewServerWithDependencies(
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
+	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg)
+	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg)
+	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
-		config: cfg,
-		bridge: bridgeClient,
-		bridgeBreaker: bridge.NewCircuitBreaker(bridge.CircuitBreakerConfig{
-			FailureThreshold: cfg.BridgeBreakerFailureThreshold,
-			OpenDuration:     time.Duration(cfg.BridgeBreakerOpenMS) * time.Millisecond,
-		}),
-		admission:             admissionController,
-		lifecycle:             registry,
-		logger:                logger,
-		metrics:               metrics,
-		telemetry:             telemetryEmitter,
-		executionAudit:        executionAuditEmitter,
-		structuredQuery:       structuredQueryRuntime,
-		workflowRuns:          workflowRuns,
-		workflowRunsErr:       workflowRunsErr,
-		runProjectionStore:    runProjectionStore,
-		runProjectionStoreErr: runProjectionStoreErr,
-		temporalStarter:       temporalStarter,
-		temporalStarterErr:    temporalStarterErr,
-		intentPolicy:          intentPolicy,
-		intentPolicyErr:       intentPolicyErr,
+		config:                 cfg,
+		admission:              admissionController,
+		lifecycle:              registry,
+		logger:                 logger,
+		metrics:                metrics,
+		telemetry:              telemetryEmitter,
+		executionAudit:         executionAuditEmitter,
+		structuredQuery:        structuredQueryRuntime,
+		workflowRuns:           workflowRuns,
+		workflowRunsErr:        workflowRunsErr,
+		runProjectionStore:     runProjectionStore,
+		runProjectionStoreErr:  runProjectionStoreErr,
+		personalMemoryExecutor: personalMemoryExecutor,
+		personalMemoryErr:      personalMemoryErr,
+		ragLookupExecutor:      ragLookupExecutor,
+		ragLookupErr:           ragLookupErr,
+		ragSynthesisExecutor:   ragSynthesisExecutor,
+		ragSynthesisErr:        ragSynthesisErr,
+		temporalStarter:        temporalStarter,
+		temporalStarterErr:     temporalStarterErr,
+		intentPolicy:           intentPolicy,
+		intentPolicyErr:        intentPolicyErr,
 	}
 	return server
+}
+
+func newRAGSynthesisExecutor(cfg config.Config) (ragSynthesisExecutor, error) {
+	gate := evaluatePromptConfigGate(cfg)
+	if !gate.Admitted {
+		return nil, errors.New(gate.Reason)
+	}
+	catalog, err := provider.LoadPricingCatalog(cfg.ProviderPricingPath)
+	if err != nil {
+		return nil, err
+	}
+	return providerBackedRAGSynthesisExecutor{
+		client: provider.NewResponsesClient(provider.ResponsesClientConfig{
+			APIKey:        cfg.PromptRuntimeAPIKey,
+			BaseURL:       cfg.PromptRuntimeBaseURL,
+			ModelName:     cfg.AgentPromptModel,
+			ModelProvider: cfg.PromptRuntimeProvider,
+			Pricing:       catalog,
+		}),
+	}, nil
+}
+
+func newRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
+	return newQdrantRAGLookupExecutor(cfg)
+}
+
+func newPersonalMemoryExecutor(cfg config.Config) (personalMemoryExecutor, error) {
+	return newQdrantPersonalMemoryExecutor(cfg)
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
@@ -328,8 +402,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	case request.Method == http.MethodGet && path == "/metrics":
 		setOutcome(writer, "ok")
 		s.handleMetrics(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/execution/cancel":
-		s.handleCancel(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/runs":
 		s.handleExecutionRunCreate(writer, request)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
@@ -363,6 +435,12 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 			setOutcome(writer, "not_found")
 			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:upsert":
+		s.handlePersonalMemoryUpsert(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
+		s.handlePersonalMemoryDisable(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":
+		s.handlePersonalMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-guide":

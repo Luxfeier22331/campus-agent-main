@@ -5,17 +5,17 @@ from tests.contracts.contract_models_test_support import *
 
 class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
     def test_agent_request_serializes_workflow_context_projection_refs(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="这条通知依据学生手册哪条规定？",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_rules")
             ),
-            workflow_context=WorkflowAgentContext(
-                target="rag-agent",
+            workflow_context=WorkflowCapabilityContext(
+                capability="knowledge",
                 workflow_run_ref="workflow:req-test",
-                step_id="handoff:rag-agent:rag_request",
-                agent_id="rag-agent",
+                step_id="handoff:knowledge:rag_request",
+                capability_id="knowledge",
                 required_projection_kind="notice_context",
                 expected_output_artifacts=("evidence_bundle", "grounding_verdict"),
                 projection_refs=(_valid_projection_ref(),),
@@ -36,11 +36,11 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
 
     def test_workflow_agent_context_requires_required_projection_ref(self) -> None:
         with self.assertRaisesRegex(ValueError, "required projection"):
-            WorkflowAgentContext(
-                target="rag-agent",
+            WorkflowCapabilityContext(
+                capability="knowledge",
                 workflow_run_ref="workflow:req-test",
-                step_id="handoff:rag-agent:rag_request",
-                agent_id="rag-agent",
+                step_id="handoff:knowledge:rag_request",
+                capability_id="knowledge",
                 required_projection_kind="notice_context",
                 projection_refs=(),
             )
@@ -51,11 +51,11 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
             "raw_response": "secret",
         }
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
-            WorkflowAgentContext(
-                target="rag-agent",
+            WorkflowCapabilityContext(
+                capability="knowledge",
                 workflow_run_ref="workflow:req-test",
-                step_id="handoff:rag-agent:rag_request",
-                agent_id="rag-agent",
+                step_id="handoff:knowledge:rag_request",
+                capability_id="knowledge",
                 projection_refs=(invalid_ref,),
             )
 
@@ -71,11 +71,11 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
                 self.subTest(field_name=field_name),
                 self.assertRaisesRegex(ValueError, f"projection_refs\\[0\\].{field_name}"),
             ):
-                WorkflowAgentContext(
-                    target="rag-agent",
+                WorkflowCapabilityContext(
+                    capability="knowledge",
                     workflow_run_ref="workflow:req-test",
-                    step_id="handoff:rag-agent:rag_request",
-                    agent_id="rag-agent",
+                    step_id="handoff:knowledge:rag_request",
+                    capability_id="knowledge",
                     projection_refs=(
                         {
                             key: value
@@ -92,7 +92,7 @@ def _valid_projection_ref(
 ) -> dict[str, object]:
     return {
         "projection_id": projection_id,
-        "source_step_id": "handoff:notice-agent:campus_notice_get",
+        "source_step_id": "handoff:notice:campus_notice_get",
         "projection_kind": "notice_context",
         "content_hash": "sha256:test",
         "safety": {"max_chars": 1600, "fields_present": ["title"]},

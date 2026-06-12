@@ -430,7 +430,7 @@ def _projection_entry(source_notice_id: str) -> NoticeConsumptionProjectionEntry
         unit_id=f"notice_unit:wechat:{source_notice_id}",
         primary_role="notice_window",
         semantic_owner="notice_body",
-        default_agent="notice-agent",
+        default_agent="notice",
         target_surface="notice_level_query",
         temporal_policy="announcement_window",
         completeness_status="reference_only",

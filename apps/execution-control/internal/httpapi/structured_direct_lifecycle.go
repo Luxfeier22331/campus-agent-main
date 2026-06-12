@@ -1,3 +1,5 @@
+//go:build retired_bridge_serving
+
 package httpapi
 
 import (
@@ -32,11 +34,11 @@ func (s *Server) beginDirectStructuredExecution(
 		requestCancel()
 		code := "execution_lifecycle_unavailable"
 		status := http.StatusInternalServerError
-		message := "Supervisor execution lifecycle could not be registered."
+		message := "Execution lifecycle could not be registered."
 		if errors.Is(registerErr, lifecycle.ErrDuplicateExecution) {
 			code = "execution_already_in_flight"
 			status = http.StatusConflict
-			message = "Supervisor execution request_id is already active."
+			message = "Execution request_id is already active."
 		}
 		setOutcome(response, code)
 		writeError(
@@ -137,11 +139,11 @@ func (s *Server) beginDirectStructuredStreamExecution(
 		requestCancel()
 		code := "execution_lifecycle_unavailable"
 		status := http.StatusInternalServerError
-		message := "Supervisor execution lifecycle could not be registered."
+		message := "Execution lifecycle could not be registered."
 		if errors.Is(registerErr, lifecycle.ErrDuplicateExecution) {
 			code = "execution_already_in_flight"
 			status = http.StatusConflict
-			message = "Supervisor execution request_id is already active."
+			message = "Execution request_id is already active."
 		}
 		setOutcome(response, code)
 		emitStructuredRuntimeStreamFailure(response, executionRequest, status, code, message, true)
@@ -203,7 +205,7 @@ func (s *Server) beginDirectStructuredStreamExecution(
 				executionRequest,
 				http.StatusServiceUnavailable,
 				"telemetry_delivery_failed",
-				"Supervisor telemetry delivery failed.",
+				"Execution telemetry delivery failed.",
 				true,
 			)
 			return nil, nil, false
@@ -226,7 +228,7 @@ func (s *Server) beginDirectStructuredStreamExecution(
 				executionRequest,
 				http.StatusServiceUnavailable,
 				"execution_audit_delivery_failed",
-				"Supervisor execution audit delivery failed.",
+				"Execution audit delivery failed.",
 				true,
 			)
 			return nil, nil, false

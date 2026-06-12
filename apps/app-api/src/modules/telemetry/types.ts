@@ -88,7 +88,7 @@ export interface AppTelemetry {
 			durationMs: number;
 			errorCode: string | null;
 			retryable: boolean | null;
-			selectedTarget: string | null;
+			selectedCapability: string | null;
 			sourceDocIds: string[];
 			status:
 				| "completed"
@@ -121,7 +121,7 @@ export interface AppTelemetry {
 		requestedScopeSummary: string | null;
 		sampledAt: string;
 		scoreMilli: number | null;
-		selectedTarget: string | null;
+		selectedCapability: string | null;
 		surface: string;
 		traceId: string;
 		verdict: "pass" | "fail" | "needs_review";

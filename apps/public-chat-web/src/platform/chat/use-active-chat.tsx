@@ -24,7 +24,11 @@ import { getSerializedChatHistoryKey } from "./history-cache";
 import { mapShellConversationMessages } from "./message-parts";
 import { getBrowserPendingRunStore, type PendingRunStore, resumePendingRun } from "./pending-run";
 import { useChatbotShellRuntime } from "./runtime";
-import { submitShellChatRequestStream, subscribeShellRunEventStream } from "./transport";
+import {
+	cancelShellRun,
+	submitShellChatRequestStream,
+	subscribeShellRunEventStream,
+} from "./transport";
 import type { ShellRequestOutcome } from "./types";
 
 export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
@@ -97,6 +101,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 	const activeRequestRef = useRef<{
 		controller: AbortController;
 		requestId: string | null;
+		runId: string | null;
 	} | null>(null);
 	const { mutate } = useSWRConfig();
 	const { setSessionUnauthenticated } = useChatbotShellRuntime();
@@ -213,6 +218,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 			activeRequestRef.current = {
 				controller,
 				requestId: null,
+				runId: null,
 			};
 
 			try {
@@ -238,6 +244,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 					activeRequestRef.current = {
 						controller,
 						requestId: event.requestId,
+						runId: event.runId ?? activeRequestRef.current?.runId ?? null,
 					};
 					if (event.event === "execution.running") {
 						setStatus("streaming");
@@ -422,7 +429,26 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 			setShowCreditCardAlert,
 			status,
 			async stop() {
-				activeRequestRef.current?.controller.abort();
+				const active = activeRequestRef.current;
+				if (active?.runId) {
+					try {
+						await cancelShellRun({
+							reason: "user_requested",
+							runId: active.runId,
+						});
+					} catch (error) {
+						const message =
+							error instanceof Error ? error.message : "当前无法取消请求，请稍后再试。";
+						setStatus("error");
+						setThreadError(message);
+						toast({
+							description: message,
+							type: "error",
+						});
+						return;
+					}
+				}
+				active?.controller.abort();
 				setStatus("ready");
 			},
 			threadError,

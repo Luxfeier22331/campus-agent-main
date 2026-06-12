@@ -24,10 +24,10 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         delegate_case = _workflow_case(
             direct_vs_delegate_branch="delegate",
             workflow_mode="single_step",
-            selected_target="rag-agent",
+            selected_capability="knowledge",
             selected_tools=("retrieval.query",),
-            handoff={"target": "rag-agent"},
-            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
+            handoff={"target": "knowledge"},
+            handoff_chain=({"target": "knowledge", "selected_tool": "retrieval.query"},),
             tool_argument_summary={"collection": "student_rules"},
             tool_call_summaries=(
                 {
@@ -43,16 +43,16 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         delegate_summary = _trace_summary(
             workflow_mode="single_step",
             direct_vs_delegate_branch="delegate",
-            selected_target="rag-agent",
+            selected_capability="knowledge",
             selected_tools=("retrieval.query",),
-            handoff={"target": "rag-agent"},
-            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
-            agent_invocations=(
+            handoff={"target": "knowledge"},
+            handoff_chain=({"target": "knowledge", "selected_tool": "retrieval.query"},),
+            capability_invocations=(
                 {
-                    "invocation_id": "agent-invocation:rag-agent:1",
+                    "invocation_id": "agent-invocation:knowledge:1",
                     "workflow_run_ref": "run-test",
-                    "step_id": "handoff:rag-agent:rag_request",
-                    "agent_id": "rag-agent",
+                    "step_id": "handoff:knowledge:rag_request",
+                    "capability_id": "knowledge",
                     "status": "completed",
                 },
             ),
@@ -76,7 +76,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             _workflow_case(
                 direct_vs_delegate_branch="fail_close",
                 workflow_mode="terminal",
-                selected_target="none",
+                selected_capability="none",
                 selected_tools=(),
                 handoff={},
                 handoff_chain=(),
@@ -88,7 +88,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             _trace_summary(
                 workflow_mode="terminal",
                 direct_vs_delegate_branch="fail_close",
-                selected_target="none",
+                selected_capability="none",
                 selected_tools=(),
                 handoff={},
                 handoff_chain=(),
@@ -104,12 +104,12 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         multi_step_case = _workflow_case(
             direct_vs_delegate_branch="delegate",
             workflow_mode="multi_step",
-            selected_target="rag-agent",
+            selected_capability="knowledge",
             selected_tools=("retrieval.query",),
-            handoff={"target": "rag-agent"},
+            handoff={"target": "knowledge"},
             handoff_chain=(
-                {"target": "rag-agent", "selected_tool": "retrieval.query"},
-                {"target": "notice-agent", "payload_kind": "campus_notice_get"},
+                {"target": "knowledge", "selected_tool": "retrieval.query"},
+                {"target": "notice", "payload_kind": "campus_notice_get"},
             ),
             tool_argument_summary={"collection": "student_rules"},
             tool_call_summaries=(
@@ -123,10 +123,10 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         single_step_projection = _trace_summary(
             workflow_mode="multi_step",
             direct_vs_delegate_branch="delegate",
-            selected_target="rag-agent",
+            selected_capability="knowledge",
             selected_tools=("retrieval.query",),
-            handoff={"target": "rag-agent"},
-            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
+            handoff={"target": "knowledge"},
+            handoff_chain=({"target": "knowledge", "selected_tool": "retrieval.query"},),
             tool_argument_summary={"collection": "student_rules"},
             tool_call_summaries=(
                 {
@@ -147,8 +147,8 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             _workflow_case(fail_close_expected=True, fail_close_reason="policy_unavailable"),
             _trace_summary(
                 direct_vs_delegate_branch="delegate",
-                handoff={"target": "rag-agent"},
-                selected_target="rag-agent",
+                handoff={"target": "knowledge"},
+                selected_capability="knowledge",
                 selected_tools=("retrieval.query",),
                 tool_argument_summary={"collection": "student_rules"},
                 guardrail_outcomes={"visibility": "restricted"},
@@ -197,14 +197,14 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         self.assertIn("result_status", results.tool_result_status_correctness.reason)
         self.assertIn("source_ids", results.evidence_source_selection.reason)
 
-    def test_fails_selected_target_mismatch_even_when_handoff_payload_matches(self) -> None:
+    def test_fails_selected_capability_mismatch_even_when_handoff_payload_matches(self) -> None:
         results = evaluate_workflow_trace_case(
             _workflow_case(),
-            _trace_summary(selected_target="rag-agent"),
+            _trace_summary(selected_capability="knowledge"),
         )
 
         self.assertFalse(results.handoff_correctness.passed)
-        self.assertIn("selected_target", results.handoff_correctness.reason)
+        self.assertIn("selected_capability", results.handoff_correctness.reason)
 
     def test_fails_selected_tools_mismatch_even_when_arguments_match(self) -> None:
         results = evaluate_workflow_trace_case(
@@ -304,16 +304,16 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             _trace_summary(
                 direct_vs_delegate_branch="multi_step",
                 workflow_mode="multi_step",
-                selected_target="rag-agent",
+                selected_capability="knowledge",
                 selected_tools=("retrieval.query",),
                 handoff_chain=(
-                    {"target": "notice-agent", "payload_kind": "campus_notice_get"},
-                    {"target": "rag-agent", "payload_kind": "rag_request"},
+                    {"target": "notice", "payload_kind": "campus_notice_get"},
+                    {"target": "knowledge", "payload_kind": "rag_request"},
                 ),
                 context_projections=(
                     {
                         "projection_id": "proj-notice-001",
-                        "source_step_id": "handoff:notice-agent:campus_notice_get",
+                        "source_step_id": "handoff:notice:campus_notice_get",
                         "projection_kind": "notice_context",
                         "content_hash": "sha256:test",
                         "payload": {
@@ -322,20 +322,20 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                         "safety": {"max_chars": 1600, "fields_present": ["title"]},
                     },
                 ),
-                agent_invocations=(
+                capability_invocations=(
                     {
-                        "invocation_id": "agent-invocation:notice-agent:campus_notice_get",
+                        "invocation_id": "agent-invocation:notice:campus_notice_get",
                         "workflow_run_ref": "run-test",
-                        "step_id": "handoff:notice-agent:campus_notice_get",
-                        "agent_id": "notice-agent",
+                        "step_id": "handoff:notice:campus_notice_get",
+                        "capability_id": "notice",
                         "status": "completed",
                     },
                     {
-                        "invocation_id": "agent-invocation:rag-agent:rag_request",
-                        "parent_invocation_id": "agent-invocation:notice-agent:campus_notice_get",
+                        "invocation_id": "agent-invocation:knowledge:rag_request",
+                        "parent_invocation_id": "agent-invocation:notice:campus_notice_get",
                         "workflow_run_ref": "run-test",
-                        "step_id": "handoff:rag-agent:rag_request",
-                        "agent_id": "rag-agent",
+                        "step_id": "handoff:knowledge:rag_request",
+                        "capability_id": "knowledge",
                         "status": "completed",
                         "projection_ids": ["proj-notice-001"],
                     },
@@ -364,14 +364,14 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                                 "planning_outcome": "preplanned",
                                 "direct_vs_delegate_branch": "delegate",
                                 "workflow_mode": "single_step",
-                                "handoff": {"target": "campus-services-agent"},
+                                "handoff": {"target": "campus_services"},
                                 "handoff_chain": [
                                     {
-                                        "target": "campus-services-agent",
+                                        "target": "campus_services",
                                         "selected_tool": "transport_schedule_lookup",
                                     }
                                 ],
-                                "selected_target": "campus-services-agent",
+                                "selected_capability": "campus_services",
                                 "selected_tools": ["transport_schedule_lookup"],
                                 "tool_argument_summary": {
                                     "payload_kind": "transport_schedule_lookup"
@@ -393,12 +393,12 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                                         "retry_count": 0,
                                     },
                                 ],
-                                "agent_invocations": [
+                                "capability_invocations": [
                                     {
-                                        "invocation_id": "agent-invocation:campus-services-agent:1",
-                                        "workflow_run_ref": "single_step:campus-services-agent:transport_schedule_lookup",
-                                        "step_id": "handoff:campus-services-agent:transport_schedule_lookup",
-                                        "agent_id": "campus-services-agent",
+                                        "invocation_id": "agent-invocation:campus_services:1",
+                                        "workflow_run_ref": "single_step:campus_services:transport_schedule_lookup",
+                                        "step_id": "handoff:campus_services:transport_schedule_lookup",
+                                        "capability_id": "campus_services",
                                         "status": "completed",
                                     }
                                 ],
@@ -447,7 +447,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
 
         self.assertEqual(case.expectation.direct_vs_delegate_branch, "multi_step")
         self.assertEqual(case.expectation.workflow_mode, "multi_step")
-        self.assertEqual(case.expectation.selected_target, "rag-agent")
+        self.assertEqual(case.expectation.selected_capability, "knowledge")
         self.assertEqual(
             case.expectation.selected_tools,
             (

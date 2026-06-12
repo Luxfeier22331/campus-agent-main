@@ -4,13 +4,13 @@ from campus_contracts import (
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
+    ExecutionResponse,
     RagResultDiagnostics,
     RagResultPayload,
-    SupervisorResponse,
     WorkflowTraceSummary,
 )
 
-from .app_api_chat_observability_decoding import _parse_supervisor_observability
+from .app_api_chat_observability_decoding import _parse_execution_observability
 from .app_api_chat_runtime_support import (
     _optional_bool,
     _optional_list,
@@ -28,13 +28,13 @@ from .app_api_chat_runtime_trace import (
 )
 
 __all__ = (
+    "_build_execution_response",
+    "_build_execution_response_from_internal_eval",
     "_build_observed_trace",
-    "_build_supervisor_response",
-    "_build_supervisor_response_from_internal_eval",
 )
 
 
-def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
+def _build_execution_response(result: dict[str, object]) -> ExecutionResponse:
     kind = _required_string(result.get("kind"), "answer.result.kind")
     request_id = _required_string(result.get("requestId"), "answer.result.requestId")
     del request_id
@@ -42,8 +42,8 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
     del trace_id
 
     if kind == "answer":
-        return SupervisorResponse(
-            selected_target="rag-agent",
+        return ExecutionResponse(
+            selected_capability="knowledge",
             status="completed",
             answer_text=_required_string(result.get("text"), "answer.result.text"),
             confidence="low",
@@ -51,8 +51,8 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
         )
     if kind == "clarification":
         follow_up = _required_string(result.get("text"), "answer.result.text")
-        return SupervisorResponse(
-            selected_target="rag-agent",
+        return ExecutionResponse(
+            selected_capability="knowledge",
             status="needs_clarification",
             answer_text=follow_up,
             follow_up_question=follow_up,
@@ -60,8 +60,8 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
             result=None,
         )
     if kind == "no_answer":
-        return SupervisorResponse(
-            selected_target="rag-agent",
+        return ExecutionResponse(
+            selected_capability="knowledge",
             status="no_answer",
             answer_text=_required_string(result.get("text"), "answer.result.text"),
             confidence="low",
@@ -70,8 +70,8 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
     if kind == "error":
         message = _required_string(result.get("message"), "answer.result.message")
         error_code = _required_string(result.get("errorCode"), "answer.result.errorCode")
-        return SupervisorResponse(
-            selected_target=None,
+        return ExecutionResponse(
+            selected_capability=None,
             status="error",
             answer_text=message,
             confidence="low",
@@ -85,32 +85,32 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
     raise ValueError(f"unsupported app-api result kind: {kind}")
 
 
-def _build_supervisor_response_from_internal_eval(payload: dict[str, object]) -> SupervisorResponse:
-    status = _required_string(payload.get("status"), "supervisor.status")
-    selected_target = _optional_string(payload.get("selectedTarget"))
+def _build_execution_response_from_internal_eval(payload: dict[str, object]) -> ExecutionResponse:
+    status = _required_string(payload.get("status"), "execution.status")
+    selected_capability = _optional_string(payload.get("selectedCapability"))
     answer_text = _optional_string(payload.get("answerText")) or ""
     follow_up_question = _optional_string(payload.get("followUpQuestion")) or ""
-    trace_id = _required_string(payload.get("traceId"), "supervisor.traceId")
+    trace_id = _required_string(payload.get("traceId"), "execution.traceId")
     del trace_id
     error_payload = _optional_record(payload.get("error"))
 
     error = None
     if error_payload is not None:
         error = ErrorInfo(
-            code=_required_string(error_payload.get("code"), "supervisor.error.code"),
-            message=_required_string(error_payload.get("message"), "supervisor.error.message"),
+            code=_required_string(error_payload.get("code"), "execution.error.code"),
+            message=_required_string(error_payload.get("message"), "execution.error.message"),
             retryable=bool(error_payload.get("retryable")),
         )
 
-    return SupervisorResponse(
-        selected_target=selected_target,
+    return ExecutionResponse(
+        selected_capability=selected_capability,
         status=status,  # type: ignore[arg-type]
         answer_text=answer_text,
         follow_up_question=follow_up_question,
         confidence="low",
-        result=_parse_supervisor_result(payload.get("result")),
+        result=_parse_execution_result(payload.get("result")),
         error=error,
-        observability=_parse_supervisor_observability(payload.get("observability")),
+        observability=_parse_execution_observability(payload.get("observability")),
         workflow_trace_summary=_parse_workflow_trace_summary(
             payload.get("workflow_trace_summary")
             if "workflow_trace_summary" in payload
@@ -147,7 +147,7 @@ def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
         or "",
         handoff=_optional_record(record.get("handoff")) or {},
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
-        selected_target=_optional_string(_record_value(record, "selected_target", "selectedTarget"))
+        selected_capability=_optional_string(_record_value(record, "selected_capability", "selectedCapability"))
         or "",
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(
@@ -188,7 +188,7 @@ def _tuple_of_records(value: object) -> tuple[dict[str, object], ...]:
     return tuple(dict(item) for item in _optional_list(value) if isinstance(item, dict))
 
 
-def _parse_supervisor_result(value: object) -> RagResultPayload | None:
+def _parse_execution_result(value: object) -> RagResultPayload | None:
     record = _optional_record(value)
     evidence_record = _optional_record(record.get("evidence")) if record is not None else None
     if evidence_record is None:

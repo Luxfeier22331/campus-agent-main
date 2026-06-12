@@ -1,1 +1,1 @@
-"""Generated supervisor execution contract package."""
+"""Generated capability execution contract package."""

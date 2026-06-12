@@ -9,7 +9,7 @@ import (
 
 func ResolveCapabilityPlan(
 	capabilityPlan CapabilityPlan,
-	agentRegistry runtimepolicy.AgentSpecRegistry,
+	capabilityRegistry runtimepolicy.CapabilitySpecRegistry,
 	toolRegistry runtimepolicy.ToolSpecRegistry,
 	artifactRegistry runtimepolicy.WorkflowArtifactRegistry,
 ) (*WorkflowPlan, error) {
@@ -31,7 +31,7 @@ func ResolveCapabilityPlan(
 		if err := resolveArtifactRequirement(
 			artifactKind,
 			capabilityPlan,
-			agentRegistry,
+			capabilityRegistry,
 			toolRegistry,
 			artifactsByKind,
 			bindingsByArtifact,
@@ -66,7 +66,7 @@ func ResolveCapabilityPlan(
 func resolveArtifactRequirement(
 	artifactKind string,
 	capabilityPlan CapabilityPlan,
-	agentRegistry runtimepolicy.AgentSpecRegistry,
+	capabilityRegistry runtimepolicy.CapabilitySpecRegistry,
 	toolRegistry runtimepolicy.ToolSpecRegistry,
 	artifactsByKind map[string]runtimepolicy.WorkflowArtifact,
 	bindingsByArtifact map[string][]runtimepolicy.WorkflowCapabilityBinding,
@@ -132,9 +132,9 @@ func resolveArtifactRequirement(
 	}
 	selected := openBindings[0]
 
-	agent, ok := agentRegistry.AgentByID(selected.OwnerAgent)
-	if !ok || !agent.Active || agent.OpeningGate != "open" {
-		return resolverError("producer_closed", "owner agent is not open for "+artifactKind)
+	capability, ok := capabilityRegistry.CapabilityByID(selected.OwnerCapability)
+	if !ok || !capability.Active || capability.OpeningGate != "open" {
+		return resolverError("producer_closed", "owner capability is not open for "+artifactKind)
 	}
 	if selected.ToolName != "" {
 		tool, ok := toolRegistry.ToolByName(selected.ToolName)
@@ -144,7 +144,7 @@ func resolveArtifactRequirement(
 		if !tool.Active {
 			return resolverError("tool_gate_closed", "tool is not open for "+selected.BindingID)
 		}
-		if tool.RuntimePosture == "closed" && tool.Surface != "agent_internal" {
+		if tool.RuntimePosture == "closed" && tool.Surface != "capability_internal" {
 			return resolverError("tool_gate_closed", "tool is not open for "+selected.BindingID)
 		}
 	}
@@ -156,7 +156,7 @@ func resolveArtifactRequirement(
 		if err := resolveArtifactRequirement(
 			consumed,
 			capabilityPlan,
-			agentRegistry,
+			capabilityRegistry,
 			toolRegistry,
 			artifactsByKind,
 			bindingsByArtifact,
@@ -179,14 +179,14 @@ func buildResolvedKnowledgeWorkflowPlan(
 	capabilityPlan CapabilityPlan,
 	steps map[string]runtimepolicy.WorkflowCapabilityBinding,
 ) (*WorkflowPlan, error) {
-	noticeStep, ok := steps["handoff:notice-agent:campus_notice_get"]
+	noticeStep, ok := steps["capability:notice:campus_notice_get"]
 	if !ok {
 		return nil, resolverError(
 			"artifact_owner_missing",
 			"resolved knowledge capability is missing notice context step",
 		)
 	}
-	ragEvidenceStep, ok := steps["handoff:rag-agent:rag_request"]
+	ragEvidenceStep, ok := steps["capability:knowledge:rag_request"]
 	if !ok {
 		return nil, resolverError(
 			"artifact_owner_missing",
@@ -197,7 +197,7 @@ func buildResolvedKnowledgeWorkflowPlan(
 	noticeHandoff := capabilityBindingToHandoff(noticeStep, capabilityPlan)
 	ragHandoff := capabilityBindingToHandoff(ragEvidenceStep, capabilityPlan)
 	return MultiStepWorkflowPlan(
-		"plan:resolver:notice-agent:rag-agent:notice_knowledge_followthrough",
+		"plan:resolver:notice:knowledge:notice_knowledge_followthrough",
 		noticeHandoff,
 		ragHandoff,
 		"notice_context",
@@ -211,21 +211,21 @@ func buildResolvedTransportNoticeOverrideWorkflowPlan(
 	capabilityPlan CapabilityPlan,
 	steps map[string]runtimepolicy.WorkflowCapabilityBinding,
 ) (*WorkflowPlan, error) {
-	scheduleStep, ok := steps["handoff:campus-services-agent:transport_schedule_lookup"]
+	scheduleStep, ok := steps["capability:campus_services:transport_schedule_lookup"]
 	if !ok {
 		return nil, resolverError(
 			"artifact_owner_missing",
 			"resolved transport override capability is missing schedule baseline step",
 		)
 	}
-	changeSetStep, ok := steps["handoff:notice-agent:campus_notice_change_set_lookup"]
+	changeSetStep, ok := steps["capability:notice:campus_notice_change_set_lookup"]
 	if !ok {
 		return nil, resolverError(
 			"artifact_owner_missing",
 			"resolved transport override capability is missing notice change-set step",
 		)
 	}
-	ragStep, ok := steps["handoff:rag-agent:rag_request"]
+	ragStep, ok := steps["capability:knowledge:rag_request"]
 	if !ok {
 		return nil, resolverError(
 			"artifact_owner_missing",
@@ -236,7 +236,7 @@ func buildResolvedTransportNoticeOverrideWorkflowPlan(
 	changeSetHandoff := capabilityBindingToHandoff(changeSetStep, capabilityPlan)
 	ragHandoff := capabilityBindingToHandoff(ragStep, capabilityPlan)
 	return MultiStepWorkflowPlanFromHandoffs(
-		"plan:resolver:campus-services-agent:notice-agent:rag-agent:transport_notice_override",
+		"plan:resolver:campus_services:notice:knowledge:transport_notice_override",
 		[]Handoff{scheduleHandoff, changeSetHandoff, ragHandoff},
 		[]WorkflowPlanEdge{
 			{
@@ -271,7 +271,7 @@ func capabilityBindingToHandoff(
 			payload["source_family"] = capabilityPlan.Constraints.SelectedNotice.SourceFamily
 		}
 		return Handoff{
-			Target:       binding.OwnerAgent,
+			Capability:   binding.OwnerCapability,
 			PayloadKind:  "campus_notice_get",
 			Payload:      payload,
 			AllowedTools: []string{},
@@ -289,7 +289,7 @@ func capabilityBindingToHandoff(
 			}
 		}
 		return Handoff{
-			Target:       binding.OwnerAgent,
+			Capability:   binding.OwnerCapability,
 			PayloadKind:  "rag_request",
 			Payload:      payload,
 			AllowedTools: []string{},
@@ -330,10 +330,10 @@ func capabilityBindingToHandoff(
 			payload["service_time_query"] = serviceTimeQuery
 		}
 		return Handoff{
-			Target:       binding.OwnerAgent,
+			Capability:   binding.OwnerCapability,
 			PayloadKind:  "transport_schedule_lookup",
 			Payload:      payload,
-			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind(binding.OwnerAgent, "transport_schedule_lookup"),
+			AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind(binding.OwnerCapability, "transport_schedule_lookup"),
 		}
 	case "notice.notice_change_set.transport_override_lookup":
 		payload := map[string]any{
@@ -357,10 +357,10 @@ func capabilityBindingToHandoff(
 			}
 		}
 		return Handoff{
-			Target:       binding.OwnerAgent,
+			Capability:   binding.OwnerCapability,
 			PayloadKind:  "campus_notice_change_set_lookup",
 			Payload:      payload,
-			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind(binding.OwnerAgent, "campus_notice_change_set_lookup"),
+			AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind(binding.OwnerCapability, "campus_notice_change_set_lookup"),
 		}
 	default:
 		return Handoff{}
@@ -370,16 +370,16 @@ func capabilityBindingToHandoff(
 func stepIdentityForBinding(binding runtimepolicy.WorkflowCapabilityBinding) string {
 	switch binding.BindingID {
 	case "notice.notice_context.selected_notice_get":
-		return "handoff:notice-agent:campus_notice_get"
+		return "capability:notice:campus_notice_get"
 	case "notice.notice_change_set.transport_override_lookup":
-		return "handoff:notice-agent:campus_notice_change_set_lookup"
+		return "capability:notice:campus_notice_change_set_lookup"
 	case "campus_services.schedule_baseline.transport_schedule_lookup":
-		return "handoff:campus-services-agent:transport_schedule_lookup"
+		return "capability:campus_services:transport_schedule_lookup"
 	case "rag.evidence_bundle.retrieval_query", "rag.grounding_verdict.retrieval_query":
-		return "handoff:rag-agent:rag_request"
+		return "capability:knowledge:rag_request"
 	default:
 		if binding.ToolName != "" {
-			return "binding:" + binding.OwnerAgent + ":" + binding.ToolName
+			return "binding:" + binding.OwnerCapability + ":" + binding.ToolName
 		}
 		return "binding:" + binding.BindingID
 	}

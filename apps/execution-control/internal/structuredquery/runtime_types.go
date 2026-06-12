@@ -17,6 +17,7 @@ const (
 
 type Options struct {
 	ServiceStatusReadModelStore         ServiceStatusReadModelStore
+	CampusServicesOpsReleaseStore       CampusServicesOpsReleaseStore
 	TransportScheduleReadModelStore     TransportScheduleReadModelStore
 	ServiceGuideReadModelStore          ServiceGuideReadModelStore
 	ContactDirectoryReadModelStore      ContactDirectoryReadModelStore
@@ -38,6 +39,8 @@ type Options struct {
 type Runtime struct {
 	serviceStatusReadModelStore     ServiceStatusReadModelStore
 	serviceStatusBundleCache        projectionBundleCache
+	campusServicesOpsReleaseStore   CampusServicesOpsReleaseStore
+	campusServicesOpsReleaseCache   campusServicesOpsReleaseCache
 	transportScheduleReadModelStore TransportScheduleReadModelStore
 	transportScheduleBundleCache    projectionBundleCache
 	serviceGuideReadModelStore      ServiceGuideReadModelStore
@@ -57,6 +60,9 @@ type Status struct {
 	ServiceStatusProjectionReady         bool   `json:"service_status_projection_ready"`
 	ServiceStatusReadModelConfigured     bool   `json:"service_status_read_model_configured"`
 	ServiceStatusReadModelHealthy        bool   `json:"service_status_read_model_healthy"`
+	CampusServicesOpsReleaseConfigured   bool   `json:"campus_services_ops_release_configured"`
+	CampusServicesOpsReleaseReady        bool   `json:"campus_services_ops_release_ready"`
+	CampusServicesOpsReleaseHealthy      bool   `json:"campus_services_ops_release_healthy"`
 	ServiceGuideProjectionReady          bool   `json:"service_guide_projection_ready"`
 	ContactDirectoryProjectionReady      bool   `json:"contact_directory_projection_ready"`
 	AcademicCalendarProjectionReady      bool   `json:"academic_calendar_projection_ready"`
@@ -95,20 +101,21 @@ type temporalQuery struct {
 }
 
 type projectionBundle struct {
-	SchemaVersion                string                             `json:"schema_version"`
-	ServiceStatusRecords         []serviceStatusRecord              `json:"service_status_records"`
-	ServiceGuideRecords          []serviceGuideRecord               `json:"service_guide_records"`
-	ServiceGuideConflicts        []serviceGuideConflictRecord       `json:"conflict_records"`
-	ServiceGuideManualReviews    []serviceGuideManualReviewRecord   `json:"manual_review_sources"`
-	ContactDirectoryRecords      []contactDirectoryRecord           `json:"contact_records"`
-	ContactDirectoryConflicts    []contactDirectoryConflictRecord   `json:"contact_conflict_records"`
-	ContactDirectoryManualReview []contactDirectoryManualReviewInfo `json:"contact_manual_review_sources"`
-	AcademicCalendarRecords      []academicCalendarRecord           `json:"academic_calendar_records"`
-	TransportScheduleSnapshots   []transportScheduleSnapshotRecord  `json:"transport_schedule_snapshots"`
-	TransportRoutes              []transportRouteRecord             `json:"transport_routes"`
-	ScheduledDepartures          []scheduledDepartureRecord         `json:"scheduled_departures"`
-	TransportServiceExceptions   []transportServiceExceptionRecord  `json:"transport_service_exceptions"`
-	TransportOperationalNotices  []transportOperationalNoticeRecord `json:"transport_operational_notices"`
+	SchemaVersion                 string                             `json:"schema_version"`
+	ServiceStatusRecords          []serviceStatusRecord              `json:"service_status_records"`
+	ServiceStatusSourceIncomplete bool                               `json:"-"`
+	ServiceGuideRecords           []serviceGuideRecord               `json:"service_guide_records"`
+	ServiceGuideConflicts         []serviceGuideConflictRecord       `json:"conflict_records"`
+	ServiceGuideManualReviews     []serviceGuideManualReviewRecord   `json:"manual_review_sources"`
+	ContactDirectoryRecords       []contactDirectoryRecord           `json:"contact_records"`
+	ContactDirectoryConflicts     []contactDirectoryConflictRecord   `json:"contact_conflict_records"`
+	ContactDirectoryManualReview  []contactDirectoryManualReviewInfo `json:"contact_manual_review_sources"`
+	AcademicCalendarRecords       []academicCalendarRecord           `json:"academic_calendar_records"`
+	TransportScheduleSnapshots    []transportScheduleSnapshotRecord  `json:"transport_schedule_snapshots"`
+	TransportRoutes               []transportRouteRecord             `json:"transport_routes"`
+	ScheduledDepartures           []scheduledDepartureRecord         `json:"scheduled_departures"`
+	TransportServiceExceptions    []transportServiceExceptionRecord  `json:"transport_service_exceptions"`
+	TransportOperationalNotices   []transportOperationalNoticeRecord `json:"transport_operational_notices"`
 }
 
 type ProjectionBundle = projectionBundle

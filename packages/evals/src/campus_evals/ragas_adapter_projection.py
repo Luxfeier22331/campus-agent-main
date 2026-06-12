@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts import (
-    AgentResponse,
+    CapabilityResponse,
     EvidenceBundle,
+    ExecutionResponse,
     RagResultPayload,
-    SupervisorResponse,
 )
 
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
@@ -125,9 +125,9 @@ def _build_statement_level_contexts(
     evidence: EvidenceBundle,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     try:
-        from campus_rag_agent import RagAgent
+        from campus_knowledge_capability import KnowledgeCapability
 
-        draft = RagAgent().build_answer(evidence)
+        draft = KnowledgeCapability().build_answer(evidence)
         return (
             draft.supporting_contexts,
             tuple(_source_projection_id(source) for source in draft.supporting_sources),
@@ -173,10 +173,10 @@ def _is_metric_applicable(case: GoldenCase, metric_name: str) -> bool:
 
 def _require_supported_response(
     execution: ExecutionResult,
-) -> AgentResponse | SupervisorResponse:
+) -> CapabilityResponse | ExecutionResponse:
     response = execution.response
-    if not isinstance(response, (AgentResponse, SupervisorResponse)):
-        raise TypeError("execution.response must be AgentResponse or SupervisorResponse")
+    if not isinstance(response, (CapabilityResponse, ExecutionResponse)):
+        raise TypeError("execution.response must be CapabilityResponse or ExecutionResponse")
     return response
 
 

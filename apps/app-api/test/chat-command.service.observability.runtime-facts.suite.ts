@@ -5,6 +5,7 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
 } from "./chat-command.service.test-support";
 
@@ -17,7 +18,7 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor: {
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
@@ -53,11 +54,11 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 							sources: [{ doc_id: "handbook:library-hours" }, { doc_id: "handbook:holiday-hours" }],
 						},
 					},
-					selectedTarget: "rag-agent",
+					selectedCapability: "knowledge",
 					status: "completed",
 					traceId: "trace_0002",
 				}),
-			},
+			}),
 		});
 
 		await service.submit({
@@ -101,7 +102,7 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				requestedScopeSummary: null,
 				resolvedScopeSummary: null,
 				retrievalAttempted: null,
-				selectedTarget: null,
+				selectedCapability: null,
 				status: "accepted",
 				traceAvailable: true,
 				traceId: "trace_0001",
@@ -138,7 +139,7 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				resolvedScopeSummary: null,
 				retrievedSourceCount: 2,
 				retrievalAttempted: true,
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				status: "completed",
 				traceAvailable: true,
 				traceId: "trace_0002",

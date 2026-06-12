@@ -2,41 +2,41 @@ package httpapi
 
 import "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 
-func shapeStructuredSupervisorResponse(
+func shapeStructuredExecutionResponse(
 	target string,
 	payloadKind string,
 	result map[string]any,
 	traceID string,
-	context supervisorFinalizerContext,
+	context executionFinalizerContext,
 ) map[string]any {
 	outcome := stringValue(result["outcome"])
-	status := supervisorStatusForStructuredOutcome(outcome)
+	status := executionStatusForStructuredOutcome(outcome)
 	answerText := structuredAnswerText(payloadKind, result, status)
-	supervisorResponse, err := finalizeAgentBridgeResponse(
+	executionResponse, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":              target,
-			"status":              status,
-			"answer_text":         answerText,
-			"follow_up_question":  "",
-			"confidence":          confidenceForStructuredOutcome(outcome),
-			"result":              result,
-			"error":               nil,
-			"agent_observability": structuredDirectAgentObservability(target, payloadKind, result),
+			"capability":               target,
+			"status":                   status,
+			"answer_text":              answerText,
+			"follow_up_question":       "",
+			"confidence":               confidenceForStructuredOutcome(outcome),
+			"result":                   result,
+			"error":                    nil,
+			"capability_observability": structuredDirectCapabilityObservability(target, payloadKind, result),
 		},
 		traceID,
 		structuredFinalizerContext(context, payloadKind),
 	)
 	if err != nil {
 		return map[string]any{
-			"selected_target":    target,
-			"status":             "error",
-			"answer_text":        "结构化查询结果未通过 supervisor finalization。",
-			"follow_up_question": "",
-			"confidence":         "low",
-			"result":             result,
+			"selected_capability": target,
+			"status":              "error",
+			"answer_text":         "结构化查询结果未通过 execution finalization。",
+			"follow_up_question":  "",
+			"confidence":          "low",
+			"result":              result,
 			"error": map[string]any{
 				"code":      "structured_finalization_failed",
-				"message":   "structured supervisor finalization invariant failed",
+				"message":   "structured execution finalization invariant failed",
 				"retryable": false,
 			},
 			"observability": map[string]any{
@@ -45,7 +45,7 @@ func shapeStructuredSupervisorResponse(
 				"selected_tool":     payloadKind,
 			},
 			"workflow_trace_summary": workflowTraceSummaryWireMap(buildWorkflowTraceSummaryWire(
-				supervisorFinalizerContext{
+				executionFinalizerContext{
 					SelectedTool: payloadKind,
 					RuntimeDecisions: execution.RuntimeDecisionSummary{
 						FailCloseReason: "structured_finalization_failed",
@@ -65,10 +65,10 @@ func shapeStructuredSupervisorResponse(
 			"trace_id": traceID,
 		}
 	}
-	return supervisorResponse
+	return executionResponse
 }
 
-func structuredDirectAgentObservability(
+func structuredDirectCapabilityObservability(
 	target string,
 	payloadKind string,
 	result map[string]any,
@@ -85,8 +85,8 @@ func structuredDirectAgentObservability(
 		"source_ref_count": sourceRefCount,
 		"access_decision":  "allowed",
 		"safe_details": map[string]any{
-			"agent_execution_projection": map[string]any{
-				"schema_version":        "agent-execution-projection-v1",
+			"capability_execution_projection": map[string]any{
+				"schema_version":        "capability-execution-projection-v1",
 				"projection_owner":      target,
 				"selected_tool":         payloadKind,
 				"payload_kind":          payloadKind,
@@ -121,9 +121,9 @@ func structuredDirectGuardrailOutcome(outcome string, failCloseReason string, so
 }
 
 func structuredFinalizerContext(
-	context supervisorFinalizerContext,
+	context executionFinalizerContext,
 	payloadKind string,
-) supervisorFinalizerContext {
+) executionFinalizerContext {
 	if context.SelectedTool == "" {
 		context.SelectedTool = payloadKind
 	}
@@ -133,7 +133,7 @@ func structuredFinalizerContext(
 	return context
 }
 
-func supervisorStatusForStructuredOutcome(outcome string) string {
+func executionStatusForStructuredOutcome(outcome string) string {
 	switch outcome {
 	case "resolved_current", "resolved_historical_reference":
 		return "completed"

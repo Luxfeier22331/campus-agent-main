@@ -91,8 +91,12 @@ Library choices:
   browser DOM sanitizers do not define the backend security boundary.
 - `svgo` is optional optimization only. It must preserve `id` and
   `data-dining-*` attributes if introduced.
-- `@panzoom/panzoom` is optional for viewport pan/zoom. It is not required for
-  anchor binding.
+- `react-zoom-pan-pinch` is the React viewport interaction library for
+  student-facing and operator-facing inline SVG pan/zoom. It does not own SVG
+  validation, sanitization, anchor extraction or dining data.
+- `@tanstack/react-table` owns the operator anchor inventory table behavior.
+- `react-hook-form`, `@hookform/resolvers` and `zod` own the operator detail
+  editor form state and validation.
 - `konva`, `react-konva`, `fabric`, `d3` and map/navigation frameworks are not
   the primary dining floorplan technology. They are only appropriate if the
   product explicitly becomes an online drawing editor or a navigation map.

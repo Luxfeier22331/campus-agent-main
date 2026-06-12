@@ -21,8 +21,8 @@ DEFAULT_AGENTS_SDK_TOOL_TIMEOUT_SECONDS = 1.0
 DEFAULT_AGENTS_SDK_TOOL_MAX_RESULT_BYTES = 8192
 SDK_ADAPTER_RUNTIME_POSTURES = frozenset(
     {
-        "sdk_adapter_admitted",
-        "sdk_internal_admitted",
+        "typed_activity_admitted",
+        "capability_internal_admitted",
     }
 )
 
@@ -40,7 +40,7 @@ class AgentsSdkToolDescriptor:
     name: str
     description: str
     parameters: dict[str, Any]
-    owner_agent: str
+    owner_capability: str
     capability: str
     payload_kind: str
     payload_schema_ref: str
@@ -83,17 +83,17 @@ def build_agents_sdk_tool_descriptors(
 def _validate_tool_admitted_for_sdk_bridge(tool: ToolSpec) -> None:
     if not tool.active:
         raise _bridge_error("tool_inactive", f"ToolSpec tool is inactive: {tool.name}")
-    if tool.surface not in {"structured_handoff", "agent_internal"}:
+    if tool.surface not in {"structured_handoff", "capability_internal"}:
         raise _bridge_error(
             "unsupported_tool_surface",
-            "SDK tool bridge only accepts structured_handoff or sdk_internal_admitted "
-            f"agent_internal tools: {tool.name}",
+            "SDK tool bridge only accepts structured_handoff or capability_internal_admitted "
+            f"capability_internal tools: {tool.name}",
         )
-    if tool.surface == "agent_internal" and tool.runtime_posture != "sdk_internal_admitted":
+    if tool.surface == "capability_internal" and tool.runtime_posture != "capability_internal_admitted":
         raise _bridge_error(
             "runtime_posture_not_admitted",
-            "SDK tool bridge requires sdk_internal_admitted runtime posture for "
-            f"agent_internal tool {tool.name}: {tool.runtime_posture}",
+            "SDK tool bridge requires capability_internal_admitted runtime posture for "
+            f"capability_internal tool {tool.name}: {tool.runtime_posture}",
         )
     if not tool.read_only:
         raise _bridge_error(
@@ -145,7 +145,7 @@ def _descriptor_from_tool(
         name=tool.name,
         description=tool.description,
         parameters=deepcopy(parameters),
-        owner_agent=tool.owner_agent,
+        owner_capability=tool.owner_capability,
         capability=tool.capability,
         payload_kind=tool.payload_kind,
         payload_schema_ref=tool.payload_schema_ref,

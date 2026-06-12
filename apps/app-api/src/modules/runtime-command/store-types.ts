@@ -1,6 +1,6 @@
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
-import type { SupervisorExecutionWorkflowTraceSummary } from "../integration/supervisor-types";
+import type { CapabilityExecutionWorkflowTraceSummary } from "../integration/capability-execution-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -47,7 +47,7 @@ export interface RequestExecutionWrite {
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 	resolvedScope: RequestedScope | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -89,7 +89,7 @@ export interface RequestObservabilityFactWrite {
 	versionQuerySummary: string | null;
 	resolvedScopeSummary: string | null;
 	collection: string | null;
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	selectedTool?: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
@@ -114,7 +114,7 @@ export interface RequestObservabilityFactWrite {
 	toolBusinessOutcome?: string | null;
 	toolFailCloseReason?: string | null;
 	toolHistoricalDowngradeReason?: string | null;
-	workflowTraceSummary?: SupervisorExecutionWorkflowTraceSummary | null;
+	workflowTraceSummary?: CapabilityExecutionWorkflowTraceSummary | null;
 	modelProvider: string | null;
 	modelName: string | null;
 	intentCapability: string | null;

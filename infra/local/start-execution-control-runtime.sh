@@ -60,10 +60,11 @@ const keys = [
   "PROMPT_RUNTIME_PROVIDER",
   "PROMPT_RUNTIME_TRANSPORT",
   "PROMPT_RUNTIME_MODEL",
-  "SUPERVISOR_PROMPT_MODEL",
+  "EXECUTION_PROMPT_MODEL",
   "AGENT_PROMPT_MODEL",
   "PROMPT_RUNTIME_API_KEY",
   "PROMPT_RUNTIME_BASE_URL",
+  "EXECUTION_CONTROL_PROVIDER_PRICING_PATH",
   "PROMPT_RUNTIME_REASONING_EFFORT",
   "PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
   "PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
@@ -105,18 +106,15 @@ const keys = [
   "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
   "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY",
-  "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
   "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
-  "SUPERVISOR_AGENT_WORKER_THREADS",
-  "SUPERVISOR_AGENT_WORKER_BASE_URL",
   "EXECUTION_CONTROL_SHARED_SECRET",
-  "SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
-  "EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
-  "EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS",
-  "EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS",
-  "EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS",
   "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
   "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
   "EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS",
@@ -131,7 +129,10 @@ const keys = [
   "OBJECT_STORE_REGION",
   "OBJECT_STORE_BUCKET_DERIVED",
   "QDRANT_URL",
-  "QDRANT_API_KEY",
+  "QDRANT_QUERY_API_KEY",
+  "QDRANT_WRITE_API_KEY",
+  "QDRANT_TLS_CA_CERT_PATH",
+  "QDRANT_TLS_DIR",
   "QDRANT_TIMEOUT_SECONDS",
   "DOCUMENT_REGISTRY_DATABASE_URL",
   "CAMPUS_SHARED_POSTGRES_URL",
@@ -174,30 +175,32 @@ const workerSharedSecret =
   process.env.API_WORKER_SHARED_SECRET?.trim() ||
   process.env.EXECUTION_CONTROL_SHARED_SECRET?.trim() ||
   "execution-control-local-placeholder";
-const bridgeSharedSecret =
-  process.env.SUPERVISOR_AGENT_WORKER_SHARED_SECRET?.trim() ||
-  process.env.SUPERVISOR_AGENT_WORKER_LOCAL_SHARED_SECRET?.trim() ||
-  process.env.EXECUTION_CONTROL_SHARED_SECRET?.trim() ||
-  "supervisor-agent-worker-local-placeholder";
 const internalQuerySharedSecret =
   process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET?.trim() ||
-  "supervisor-internal-query-local-placeholder";
-const bridgeBaseUrl =
-  process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
-  "http://supervisor-agent-worker:27052";
+  "execution-control-internal-query-local-placeholder";
 
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
-resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 resolved.set("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", internalQuerySharedSecret);
-resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY")) {
   resolved.set("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "local:execution-control:001");
 }
 if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY")) {
   resolved.set("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY", "local:workflow-worker:001");
 }
-if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY")) {
-  resolved.set("EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY", "local:activity-rag:001");
+if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY", "local:activity-context:001");
+}
+if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY", "local:activity-knowledge:001");
+}
+if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY", "local:activity-campus-services:001");
+}
+if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY", "local:activity-notice:001");
+}
+if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY", "local:activity-navigation:001");
 }
 if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY")) {
   resolved.set(
@@ -221,6 +224,37 @@ for (const [key, value] of resolved.entries()) {
 }
 NODE
   )
+  if [[ -z "${QDRANT_TLS_DIR:-}" && -n "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+    QDRANT_TLS_DIR="$(dirname "${QDRANT_TLS_CA_CERT_PATH}")"
+    export QDRANT_TLS_DIR
+  fi
+}
+
+execution_control_runtime_require_runtime_env() {
+  if [[ -z "${QDRANT_URL:-}" ]]; then
+    echo "QDRANT_URL is required for execution-control runtime." >&2
+    return 1
+  fi
+  if [[ "${QDRANT_URL}" != https://* ]]; then
+    echo "QDRANT_URL must use https for authenticated Qdrant data-plane." >&2
+    return 1
+  fi
+  if [[ -z "${QDRANT_QUERY_API_KEY:-}" ]]; then
+    echo "QDRANT_QUERY_API_KEY is required for online Qdrant query access." >&2
+    return 1
+  fi
+  if [[ -z "${QDRANT_WRITE_API_KEY:-}" ]]; then
+    echo "QDRANT_WRITE_API_KEY is required for personal memory indexing." >&2
+    return 1
+  fi
+  if [[ -z "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+    echo "QDRANT_TLS_CA_CERT_PATH is required for HTTPS Qdrant data-plane." >&2
+    return 1
+  fi
+  if [[ -z "${QDRANT_TLS_DIR:-}" ]]; then
+    echo "QDRANT_TLS_DIR is required for mounting Qdrant TLS trust material." >&2
+    return 1
+  fi
 }
 
 main() {
@@ -228,6 +262,7 @@ main() {
 
   docker_bin="$(require_command docker)"
   load_runtime_env
+  execution_control_runtime_require_runtime_env
   ensure_data_plane_network
 
   if [[ "$#" -eq 0 ]]; then

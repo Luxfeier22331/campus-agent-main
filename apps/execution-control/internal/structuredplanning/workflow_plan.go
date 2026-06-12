@@ -30,7 +30,7 @@ type WorkflowPlan struct {
 	SchemaVersion       string
 	PlanID              string
 	WorkflowMode        WorkflowMode
-	AllowedAgents       []string
+	AllowedCapabilities []string
 	Steps               []WorkflowPlanStep
 	Edges               []WorkflowPlanEdge
 	TerminalPolicy      WorkflowTerminalPolicy
@@ -44,7 +44,8 @@ type WorkflowPlan struct {
 type WorkflowPlanStep struct {
 	StepID       string
 	StepKind     WorkflowStepKind
-	Target       string
+	Capability   string
+	WorkerRole   string
 	PayloadKind  string
 	AllowedTools []string
 	SelectedTool string
@@ -72,20 +73,21 @@ type SemanticRetryPolicy struct {
 func SingleStepPlan(handoff Handoff) *WorkflowPlan {
 	selectedTool := selectedToolForHandoff(handoff)
 	step := WorkflowPlanStep{
-		StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
+		StepID:       stepIDForHandoff(handoff),
 		StepKind:     WorkflowStepKindHandoff,
-		Target:       handoff.Target,
+		Capability:   handoff.Capability,
+		WorkerRole:   runtimepolicy.WorkerRoleForCapability(handoff.Capability),
 		PayloadKind:  handoff.PayloadKind,
 		AllowedTools: append([]string{}, handoff.AllowedTools...),
 		SelectedTool: selectedTool,
 	}
 	return &WorkflowPlan{
-		SchemaVersion: WorkflowPlanSchemaVersion,
-		PlanID:        "plan:single_step:" + handoff.Target + ":" + handoff.PayloadKind,
-		WorkflowMode:  WorkflowModeSingleStep,
-		AllowedAgents: []string{handoff.Target},
-		Steps:         []WorkflowPlanStep{step},
-		Edges:         []WorkflowPlanEdge{},
+		SchemaVersion:       WorkflowPlanSchemaVersion,
+		PlanID:              "plan:single_step:" + handoff.Capability + ":" + handoff.PayloadKind,
+		WorkflowMode:        WorkflowModeSingleStep,
+		AllowedCapabilities: []string{handoff.Capability},
+		Steps:               []WorkflowPlanStep{step},
+		Edges:               []WorkflowPlanEdge{},
 		TerminalPolicy: WorkflowTerminalPolicy{
 			FailCloseOnInvalidPlan: true,
 		},
@@ -104,12 +106,12 @@ func SingleStepPlan(handoff Handoff) *WorkflowPlan {
 
 func MultiStepCapabilityPreplan(planID string, capabilityPlan CapabilityPlan) *WorkflowPlan {
 	return &WorkflowPlan{
-		SchemaVersion: WorkflowPlanSchemaVersion,
-		PlanID:        planID,
-		WorkflowMode:  WorkflowModeMultiStep,
-		AllowedAgents: []string{},
-		Steps:         []WorkflowPlanStep{},
-		Edges:         []WorkflowPlanEdge{},
+		SchemaVersion:       WorkflowPlanSchemaVersion,
+		PlanID:              planID,
+		WorkflowMode:        WorkflowModeMultiStep,
+		AllowedCapabilities: []string{},
+		Steps:               []WorkflowPlanStep{},
+		Edges:               []WorkflowPlanEdge{},
 		TerminalPolicy: WorkflowTerminalPolicy{
 			FailCloseOnInvalidPlan: true,
 		},
@@ -137,11 +139,11 @@ func MultiStepWorkflowPlan(
 	firstStep := workflowPlanStepForHandoff(first)
 	secondStep := workflowPlanStepForHandoff(second)
 	return &WorkflowPlan{
-		SchemaVersion: WorkflowPlanSchemaVersion,
-		PlanID:        planID,
-		WorkflowMode:  WorkflowModeMultiStep,
-		AllowedAgents: []string{first.Target, second.Target},
-		Steps:         []WorkflowPlanStep{firstStep, secondStep},
+		SchemaVersion:       WorkflowPlanSchemaVersion,
+		PlanID:              planID,
+		WorkflowMode:        WorkflowModeMultiStep,
+		AllowedCapabilities: []string{first.Capability, second.Capability},
+		Steps:               []WorkflowPlanStep{firstStep, secondStep},
 		Edges: []WorkflowPlanEdge{
 			{
 				FromStepID:             firstStep.StepID,
@@ -180,23 +182,23 @@ func MultiStepWorkflowPlanFromHandoffs(
 	capabilityPlan CapabilityPlan,
 ) *WorkflowPlan {
 	steps := make([]WorkflowPlanStep, 0, len(handoffs))
-	allowedAgents := make([]string, 0, len(handoffs))
+	allowedCapabilities := make([]string, 0, len(handoffs))
 	expectedArtifacts := map[string][]string{}
 	clonedHandoffs := make([]Handoff, 0, len(handoffs))
 	for _, handoff := range handoffs {
 		step := workflowPlanStepForHandoff(handoff)
 		steps = append(steps, step)
-		allowedAgents = append(allowedAgents, handoff.Target)
+		allowedCapabilities = append(allowedCapabilities, handoff.Capability)
 		expectedArtifacts[step.StepID] = expectedArtifactsForHandoff(handoff)
 		clonedHandoffs = append(clonedHandoffs, cloneHandoffValue(handoff))
 	}
 	return &WorkflowPlan{
-		SchemaVersion: WorkflowPlanSchemaVersion,
-		PlanID:        planID,
-		WorkflowMode:  WorkflowModeMultiStep,
-		AllowedAgents: allowedAgents,
-		Steps:         steps,
-		Edges:         edges,
+		SchemaVersion:       WorkflowPlanSchemaVersion,
+		PlanID:              planID,
+		WorkflowMode:        WorkflowModeMultiStep,
+		AllowedCapabilities: allowedCapabilities,
+		Steps:               steps,
+		Edges:               edges,
 		TerminalPolicy: WorkflowTerminalPolicy{
 			FailCloseOnInvalidPlan: true,
 		},
@@ -214,9 +216,10 @@ func MultiStepWorkflowPlanFromHandoffs(
 
 func workflowPlanStepForHandoff(handoff Handoff) WorkflowPlanStep {
 	return WorkflowPlanStep{
-		StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
+		StepID:       stepIDForHandoff(handoff),
 		StepKind:     WorkflowStepKindHandoff,
-		Target:       handoff.Target,
+		Capability:   handoff.Capability,
+		WorkerRole:   runtimepolicy.WorkerRoleForCapability(handoff.Capability),
 		PayloadKind:  handoff.PayloadKind,
 		AllowedTools: append([]string{}, handoff.AllowedTools...),
 		SelectedTool: selectedToolForHandoff(handoff),
@@ -276,7 +279,7 @@ func (p *WorkflowPlan) Map() map[string]any {
 		"schema_version":        p.SchemaVersion,
 		"plan_id":               p.PlanID,
 		"workflow_mode":         string(p.WorkflowMode),
-		"allowed_agents":        append([]string{}, p.AllowedAgents...),
+		"allowed_capabilities":  append([]string{}, p.AllowedCapabilities...),
 		"steps":                 steps,
 		"edges":                 edges,
 		"terminal_policy":       p.TerminalPolicy.Map(),
@@ -289,7 +292,8 @@ func (s WorkflowPlanStep) Map() map[string]any {
 	item := map[string]any{
 		"step_id":      s.StepID,
 		"step_kind":    string(s.StepKind),
-		"target":       s.Target,
+		"capability":   s.Capability,
+		"worker_role":  s.WorkerRole,
 		"payload_kind": s.PayloadKind,
 		"allowed_tools": append(
 			[]string{},
@@ -332,9 +336,9 @@ func (p SemanticRetryPolicy) Map() map[string]any {
 	}
 }
 
-func ValidateWorkflowPlanWithAgentSpec(
+func ValidateWorkflowPlanWithCapabilitySpec(
 	plan *WorkflowPlan,
-	registry runtimepolicy.AgentSpecRegistry,
+	registry runtimepolicy.CapabilitySpecRegistry,
 	toolRegistry runtimepolicy.ToolSpecRegistry,
 ) error {
 	if plan == nil {
@@ -344,34 +348,34 @@ func ValidateWorkflowPlanWithAgentSpec(
 		if step.StepKind != WorkflowStepKindHandoff {
 			continue
 		}
-		agent, ok := registry.AgentByID(step.Target)
+		capability, ok := registry.CapabilityByID(step.Capability)
 		if !ok {
-			return fmt.Errorf("workflow plan step[%d] target is outside AgentSpec: %s", index, step.Target)
+			return fmt.Errorf("workflow plan step[%d] capability is outside CapabilitySpec: %s", index, step.Capability)
 		}
-		if !agent.Active || agent.OpeningGate != "open" {
-			return fmt.Errorf("workflow plan step[%d] AgentSpec target is not open: %s", index, step.Target)
+		if !capability.Active || capability.OpeningGate != "open" {
+			return fmt.Errorf("workflow plan step[%d] CapabilitySpec capability is not open: %s", index, step.Capability)
 		}
-		if !toolRegistry.PayloadKindBelongsToTarget(step.Target, step.PayloadKind) {
+		if !toolRegistry.PayloadKindBelongsToCapability(step.Capability, step.PayloadKind) {
 			return fmt.Errorf(
-				"workflow plan step[%d] payload_kind %q is outside AgentSpec for target %s",
+				"workflow plan step[%d] payload_kind %q is outside CapabilitySpec for capability %s",
 				index,
 				step.PayloadKind,
-				step.Target,
+				step.Capability,
 			)
 		}
-		if !allowedToolsWithinAgentSpec(step.AllowedTools, agent.AllowedStructuredHandoffTools) {
+		if !allowedToolsWithinCapabilitySpec(step.AllowedTools, capability.AllowedStructuredTools) {
 			return fmt.Errorf(
-				"workflow plan step[%d] allowed_tools %#v are outside AgentSpec for target %s",
+				"workflow plan step[%d] allowed_tools %#v are outside CapabilitySpec for capability %s",
 				index,
 				step.AllowedTools,
-				step.Target,
+				step.Capability,
 			)
 		}
 	}
 	return nil
 }
 
-func allowedToolsWithinAgentSpec(allowedTools []string, allowedStructuredTools []string) bool {
+func allowedToolsWithinCapabilitySpec(allowedTools []string, allowedStructuredTools []string) bool {
 	for _, tool := range allowedTools {
 		if !containsString(allowedStructuredTools, tool) {
 			return false
@@ -391,13 +395,13 @@ func containsString(values []string, expected string) bool {
 
 func expectedArtifactsForHandoff(handoff Handoff) []string {
 	switch {
-	case handoff.Target == "notice-agent" && handoff.PayloadKind == "campus_notice_get":
+	case handoff.Capability == "notice" && handoff.PayloadKind == "campus_notice_get":
 		return []string{"notice_context"}
-	case handoff.Target == "notice-agent" && handoff.PayloadKind == "campus_notice_change_set_lookup":
+	case handoff.Capability == "notice" && handoff.PayloadKind == "campus_notice_change_set_lookup":
 		return []string{"notice_change_set"}
-	case handoff.Target == "campus-services-agent" && handoff.PayloadKind == "transport_schedule_lookup":
+	case handoff.Capability == "campus_services" && handoff.PayloadKind == "transport_schedule_lookup":
 		return []string{"schedule_baseline"}
-	case handoff.Target == "rag-agent" && handoff.PayloadKind == "rag_request":
+	case handoff.Capability == "knowledge" && handoff.PayloadKind == "rag_request":
 		return []string{"evidence_bundle", "grounding_verdict"}
 	default:
 		return nil
@@ -408,10 +412,14 @@ func selectedToolForHandoff(handoff Handoff) string {
 	if len(handoff.AllowedTools) == 1 {
 		return handoff.AllowedTools[0]
 	}
-	if handoff.Target == "rag-agent" {
+	if handoff.Capability == "knowledge" {
 		return "retrieval.query"
 	}
 	return ""
+}
+
+func stepIDForHandoff(handoff Handoff) string {
+	return "capability:" + handoff.Capability + ":" + handoff.PayloadKind
 }
 
 func cloneCapabilityPlanValue(source CapabilityPlan) CapabilityPlan {
@@ -451,7 +459,7 @@ func cloneHandoff(handoff Handoff) *Handoff {
 
 func cloneHandoffValue(handoff Handoff) Handoff {
 	return Handoff{
-		Target:       handoff.Target,
+		Capability:   handoff.Capability,
 		PayloadKind:  handoff.PayloadKind,
 		Payload:      cloneAnyMap(handoff.Payload),
 		AllowedTools: append([]string{}, handoff.AllowedTools...),

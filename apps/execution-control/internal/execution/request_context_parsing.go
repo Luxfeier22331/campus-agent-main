@@ -27,6 +27,18 @@ func parseContextProjection(raw json.RawMessage, authMode string) (contextProjec
 	if err != nil {
 		return contextProjection{}, false, fmt.Errorf("context must be an object")
 	}
+	if err := assertSupportedFields(
+		rawContext,
+		[]string{
+			"actor",
+			"authorization",
+			"session",
+		},
+		"context",
+		"unsupported context fields are not allowed: %s",
+	); err != nil {
+		return contextProjection{}, false, err
+	}
 
 	projectedActor, err := parseActorContext(rawContext["actor"], "context.actor")
 	if err != nil {
@@ -40,10 +52,6 @@ func parseContextProjection(raw json.RawMessage, authMode string) (contextProjec
 	if err != nil {
 		return contextProjection{}, false, err
 	}
-	profileMemory, err := parseProfileMemorySummary(rawContext["profile_memory"])
-	if err != nil {
-		return contextProjection{}, false, err
-	}
 	sessionSlots, selectedNoticeRef, turnCount, err := parseSessionSummary(rawContext["session"])
 	if err != nil {
 		return contextProjection{}, false, err
@@ -52,7 +60,6 @@ func parseContextProjection(raw json.RawMessage, authMode string) (contextProjec
 	return contextProjection{
 		Actor:             projectedActor,
 		Authorization:     authorization,
-		ProfileMemory:     profileMemory,
 		SessionSlots:      sessionSlots,
 		SelectedNoticeRef: selectedNoticeRef,
 		TurnCount:         turnCount,
@@ -282,82 +289,6 @@ func parseAuthorizedRetrievalFilter(
 		VisibilityScope:       visibilityScope,
 		PolicyProjectionValue: policyProjectionVersion,
 	}, nil
-}
-
-func parseProfileMemorySummary(raw json.RawMessage) ([]profileMemoryItem, error) {
-	if len(raw) == 0 || string(raw) == "null" {
-		return nil, nil
-	}
-	rawMemory, err := parseObject(raw, "context.profile_memory")
-	if err != nil {
-		return nil, fmt.Errorf("context.profile_memory must be an object")
-	}
-	if len(rawMemory["items"]) == 0 {
-		return nil, nil
-	}
-	rawItems, err := parseArray(rawMemory["items"], "context.profile_memory.items")
-	if err != nil {
-		return nil, err
-	}
-
-	items := make([]profileMemoryItem, 0, len(rawItems))
-	for _, rawItem := range rawItems {
-		objectItem, err := parseObject(rawItem, "context.profile_memory.items[]")
-		if err != nil {
-			return nil, fmt.Errorf("context.profile_memory.items must only contain objects")
-		}
-		itemID, err := requireString(
-			objectItem["item_id"],
-			"context.profile_memory.items[].item_id",
-		)
-		if err != nil {
-			return nil, err
-		}
-		key, err := requireString(objectItem["key"], "context.profile_memory.items[].key")
-		if err != nil {
-			return nil, err
-		}
-		value, err := requireString(objectItem["value"], "context.profile_memory.items[].value")
-		if err != nil {
-			return nil, err
-		}
-		sourceType, err := parseOptionalString(objectItem["source_type"])
-		if err != nil {
-			return nil, fmt.Errorf("context.profile_memory.items[].source_type must be a string")
-		}
-		confidence, err := parseOptionalString(objectItem["confidence"])
-		if err != nil {
-			return nil, fmt.Errorf("context.profile_memory.items[].confidence must be a string")
-		}
-		visibility, err := parseOptionalString(objectItem["visibility"])
-		if err != nil {
-			return nil, fmt.Errorf("context.profile_memory.items[].visibility must be a string")
-		}
-		lastVerifiedAt, err := parseOptionalString(objectItem["last_verified_at"])
-		if err != nil {
-			return nil, fmt.Errorf("context.profile_memory.items[].last_verified_at must be a string")
-		}
-		if sourceType == "" {
-			sourceType = "user_declared"
-		}
-		if confidence == "" {
-			confidence = "low"
-		}
-		if visibility == "" {
-			visibility = "user_visible"
-		}
-		items = append(items, profileMemoryItem{
-			ItemID:         itemID,
-			Key:            key,
-			Value:          value,
-			SourceType:     sourceType,
-			Confidence:     confidence,
-			Visibility:     visibility,
-			LastVerifiedAt: lastVerifiedAt,
-		})
-	}
-
-	return items, nil
 }
 
 func parseSessionSummary(raw json.RawMessage) ([]sessionSlot, selectedNoticeRef, int, error) {

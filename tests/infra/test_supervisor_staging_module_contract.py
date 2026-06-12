@@ -40,9 +40,6 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
             encoding="utf-8"
         )
-        worker_dockerfile = (ROOT / "apps/supervisor-agent-worker/Dockerfile").read_text(
-            encoding="utf-8"
-        )
         execution_control_dockerfile = (ROOT / "apps/execution-control/Dockerfile").read_text(
             encoding="utf-8"
         )
@@ -56,6 +53,9 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertNotIn('"OTEL_COLLECTOR_AXIOM_METRICS_DATASET"', env_script)
         self.assertIn('"EXECUTION_CONTROL_OTEL_ENABLED"', env_script)
         self.assertIn('"SUPERVISOR_AGENT_WORKER_OTEL_ENABLED"', env_script)
+        self.assertIn("is retired; use Go Temporal RAG worker settings", env_script)
+        self.assertNotIn('resolved.set("SUPERVISOR_AGENT_WORKER', env_script)
+        self.assertNotIn("export SUPERVISOR_AGENT_WORKER", env_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_ENV_FILE", env_script)
         self.assertNotIn(".env.staging.local", env_script)
         self.assertNotIn('"EXECUTION_CONTROL_STAGING_TUNNEL_TOKEN"', env_script)
@@ -86,7 +86,11 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
             "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
             "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY",
-            "EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY",
+            "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
             "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
             "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
             "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
@@ -99,7 +103,7 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED",
         ):
             self.assertIn(f'{retired_key}",', env_script)
-            self.assertIn("is retired; use Temporal execution-control settings", env_script)
+            self.assertIn("is retired; use Go Temporal RAG worker settings", env_script)
             self.assertNotIn(f"{retired_key}=", env_example)
             self.assertNotIn(f"{retired_key}:", compose)
         self.assertIn("EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL", env_script)
@@ -121,15 +125,16 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-${EXECUTION_CONTROL_SHARED_SECRET:-}",
             env_script,
         )
-        self.assertIn("COPY packages/prompt-runtime ./packages/prompt-runtime", worker_dockerfile)
-        self.assertIn(
-            "COPY packages/regulation-semantics ./packages/regulation-semantics",
-            worker_dockerfile,
-        )
-        self.assertIn('"packages/prompt-runtime"', worker_dockerfile)
-        self.assertIn('"packages/regulation-semantics"', worker_dockerfile)
-        self.assertIn("/app/packages/prompt-runtime/src", worker_dockerfile)
-        self.assertIn("/app/packages/regulation-semantics/src", worker_dockerfile)
+        self.assertIn("EXECUTION_CONTROL_SHARED_SECRET=", env_example)
+        self.assertNotIn("SUPERVISOR_AGENT_WORKER_SHARED_SECRET=", env_example)
+        self.assertNotIn("supervisor-agent-worker:", compose)
+        self.assertNotIn("activity-worker-rag:", compose)
+        self.assertIn("activity-worker-context:", compose)
+        self.assertIn("activity-worker-knowledge:", compose)
+        self.assertIn("activity-worker-campus-services:", compose)
+        self.assertIn("activity-worker-notice:", compose)
+        self.assertIn("activity-worker-navigation:", compose)
+        self.assertIn("activity-worker-finalization:", compose)
         self.assertIn("./cmd/worker-autoscaler", execution_control_dockerfile)
         self.assertIn("/usr/local/bin/worker-autoscaler", execution_control_dockerfile)
         self.assertIn("!packages/prompt-runtime/", dockerignore)
@@ -159,6 +164,16 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertNotIn("execution_control_staging_app_api_readyz_url", proof_script)
         self.assertNotIn("cloudflared", proof_script)
 
+    def test_go_rag_runtime_compose_receives_projected_embedding_dimension(self) -> None:
+        compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
+            encoding="utf-8"
+        )
+        embedding_dimension_env = (
+            "EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:?set EMBEDDING_DIMENSIONS}"
+        )
+
+        self.assertEqual(compose.count(embedding_dimension_env), 3)
+
     def test_core_module_owns_process_compose_and_uv_helpers(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
             encoding="utf-8"
@@ -170,7 +185,11 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("Operation not permitted", core_script)
         self.assertIn('[[ "${services}" == *"otel-collector"* ]]', core_script)
         self.assertIn('[[ "${services}" == *"workflow-worker"* ]]', core_script)
-        self.assertIn('[[ "${services}" == *"activity-worker-rag"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-context"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-knowledge"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-campus-services"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-notice"* ]]', core_script)
+        self.assertIn('[[ "${services}" == *"activity-worker-navigation"* ]]', core_script)
         self.assertIn('[[ "${services}" == *"activity-worker-finalization"* ]]', core_script)
         self.assertIn("execution_control_staging_probe_http_url", core_script)
         self.assertIn("execution_control_staging_probe_json_path_equals", core_script)
@@ -217,10 +236,10 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertIn("LOCAL_POSTGRES_USER", data_plane_script)
         self.assertIn("EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY", data_plane_script)
         self.assertIn("QDRANT_READ_ONLY_API_KEY", data_plane_script)
-        self.assertIn(
-            'base+"/readyz", headers={"api-key": os.environ.get("QDRANT_API_KEY", "")}',
-            data_plane_script,
-        )
+        self.assertIn("QDRANT_TLS_CA_CERT_PATH", data_plane_script)
+        self.assertIn("QDRANT_TLS_DIR", data_plane_script)
+        self.assertIn("rag_runtime.lookup_healthy", data_plane_script)
+        self.assertIn("rag_runtime.synthesis_healthy", data_plane_script)
         self.assertIn(
             "execution_control_staging_requires_local_postgres_dependency", data_plane_script
         )
@@ -231,14 +250,56 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
             "execution_control_staging_requires_local_qdrant_dependency", data_plane_script
         )
         self.assertIn("execution_control_staging_require_container_qdrant_ready", data_plane_script)
-        self.assertIn("bm25_canary_", data_plane_script)
-        self.assertIn('model="qdrant/bm25"', data_plane_script)
-        self.assertIn("Qdrant server-side BM25 inference is not available", data_plane_script)
-        self.assertIn("collection_created = False", data_plane_script)
-        self.assertIn("collection_created = True", data_plane_script)
-        self.assertIn("if collection_created:", data_plane_script)
+        self.assertIn("execution-control Go RAG lookup runtime is not healthy", data_plane_script)
+        self.assertIn(
+            "execution-control Go RAG synthesis runtime is not healthy", data_plane_script
+        )
         self.assertNotIn("host.docker.internal", data_plane_script)
         self.assertNotIn("rewriteLocalhostForDocker", data_plane_script)
+
+    def test_qdrant_data_plane_uses_native_tls_and_read_only_online_key(self) -> None:
+        runtime_compose = (
+            ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
+        ).read_text(encoding="utf-8")
+        qdrant_compose = (ROOT / "infra/local/docker-compose.qdrant-single-node.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("QDRANT_QUERY_API_KEY:", runtime_compose)
+        self.assertIn("QDRANT_TLS_CA_CERT_PATH:", runtime_compose)
+        self.assertNotIn("QDRANT_API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY}", runtime_compose)
+        self.assertIn('QDRANT__SERVICE__ENABLE_TLS: "true"', qdrant_compose)
+        self.assertIn("QDRANT__TLS__CERT: /qdrant/tls/server.crt", qdrant_compose)
+        self.assertIn("QDRANT__TLS__KEY: /qdrant/tls/server.key", qdrant_compose)
+        self.assertIn("${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:/qdrant/tls:ro", qdrant_compose)
+
+    def test_execution_finalization_response_naming_does_not_restore_supervisor_wire(self) -> None:
+        httpapi_sources = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / "apps/execution-control/internal/httpapi").glob("*.go")
+        )
+        app_api_sources = "\n".join(
+            (ROOT / relative).read_text(encoding="utf-8")
+            for relative in (
+                "apps/app-api/src/modules/integration/execution-finalization-contract.ts",
+                "apps/app-api/src/modules/integration/execution-finalization-response.ts",
+                "apps/app-api/src/modules/integration/execution-control.ts",
+                "apps/app-api/src/modules/integration/index.ts",
+                "apps/app-api/src/modules/runtime-command/service/durable.ts",
+                "apps/app-api/src/modules/runtime-command/service/stream.ts",
+            )
+        )
+
+        self.assertIn("ExecutionFinalizationResponseWire", httpapi_sources)
+        self.assertNotIn("SupervisorExecutionResponseWire", httpapi_sources)
+        self.assertIn("parseExecutionFinalizationResponsePayload", app_api_sources)
+        self.assertNotIn("parseSupervisorExecutionResponsePayload", app_api_sources)
+        self.assertNotIn("SupervisorExecutionResponseWire", app_api_sources)
+        self.assertNotIn("parseSupervisorSse", app_api_sources)
+        self.assertNotIn("mapSupervisorLifecycleEvent", app_api_sources)
+        self.assertNotIn("parseSupervisorTerminalResponse", app_api_sources)
+        self.assertNotIn("supervisorStreamErrorResponse", app_api_sources)
+        self.assertNotIn("SupervisorLifecycleContractError", app_api_sources)
 
     def test_observability_module_and_lifecycle_scripts_capture_collector_logs(self) -> None:
         observability_script = (
@@ -286,6 +347,38 @@ class SupervisorStagingModuleContractTest(unittest.TestCase):
         self.assertNotIn("--config", start_script)
         self.assertNotIn("execution-control-staging-placeholder", start_script)
         self.assertNotIn("execution-control-staging-placeholder", status_script)
+
+    def test_temporal_rag_closeout_evidence_script_uses_sanitized_projection(self) -> None:
+        evidence_script = (STAGING_DIR / "capture-temporal-rag-closeout-evidence.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("--request-id", evidence_script)
+        self.assertIn("status-execution-control-staging.sh", evidence_script)
+        self.assertIn("runtime.agent_runs", evidence_script)
+        self.assertIn("runtime.agent_run_steps", evidence_script)
+        self.assertIn("runtime.agent_run_events", evidence_script)
+        self.assertIn("runtime.agent_step_attempts", evidence_script)
+        self.assertIn("runtime.agent_step_results", evidence_script)
+        self.assertIn("finalized_response", evidence_script)
+        self.assertIn("run-events.csv", evidence_script)
+        self.assertIn("provider-token-cost.csv", evidence_script)
+        self.assertIn("PASS_FAIL.md", evidence_script)
+        self.assertIn("Scenario", evidence_script)
+        self.assertIn("Result", evidence_script)
+        self.assertIn("Failure Reason", evidence_script)
+        self.assertIn(
+            "write_pass_fail \"failed\" \"${failure_reason}\"\n"
+            "  printf 'evidence_dir=%s\\n' \"${output_dir}\"\n"
+            "  exit 1",
+            evidence_script,
+        )
+        self.assertIn("printf '%s\\n'", evidence_script)
+        self.assertIn("| psql", evidence_script)
+        self.assertNotIn('--command "$CAMPUS_EVIDENCE_SQL"', evidence_script)
+        self.assertNotIn("PROMPT_RUNTIME_API_KEY", evidence_script)
+        self.assertNotIn("QDRANT_API_KEY", evidence_script)
+        self.assertNotIn("QDRANT_QUERY_API_KEY", evidence_script)
 
     def test_machine_ingress_contract_replaces_exec_staging_tunnel_surface(self) -> None:
         env_example = (ROOT / ".env.staging.local.example").read_text(encoding="utf-8")

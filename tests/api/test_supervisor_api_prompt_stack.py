@@ -4,7 +4,7 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
-    AgentRequest,
+    CapabilityRequest,
     ContextProjection,
     EvidenceBundle,
     EvidenceSource,
@@ -12,7 +12,7 @@ from campus_contracts import (
     RagRequestPayload,
     TraceContext,
 )
-from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
+from campus_knowledge_capability.prompt_packets import build_rag_answer_prompt_packet
 from campus_supervisor_agent_worker.app import create_bridge_app
 from campus_supervisor_agent_worker.prompt_stack import (
     build_rag_prompt_stack,
@@ -59,8 +59,8 @@ class SupervisorApiPromptStackTest(unittest.TestCase):
         self.assertEqual(app.runtime.prompt_runtime.agent_prompt_model, "gpt-5.2-mini")
 
     def test_build_rag_prompt_stack_keeps_evidence_out_of_developer_zone(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
+        request = CapabilityRequest(
+            capability="knowledge",
             user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
             request_id="req-rag-prompt-stack",
             trace=TraceContext(trace_id="trace-rag-prompt-stack"),

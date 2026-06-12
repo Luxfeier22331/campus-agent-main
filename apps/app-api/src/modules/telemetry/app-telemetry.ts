@@ -234,7 +234,7 @@ export function createAppTelemetry(
 					principalType: input.principalType,
 					requestedCapability: input.requestedCapability,
 					requestedScope: input.requestedScope,
-					selectedTarget: input.selectedTarget,
+					selectedCapability: input.selectedCapability,
 					status: input.status,
 					surface: input.surface,
 					traceId: input.traceId,
@@ -245,7 +245,7 @@ export function createAppTelemetry(
 					requestedScope: input.requestedScope,
 					resolvedScope: input.resolvedScope,
 					safetyIdentifier: input.safetyIdentifier,
-					selectedTarget: input.selectedTarget,
+					selectedCapability: input.selectedCapability,
 				});
 			});
 
@@ -265,7 +265,7 @@ export function createAppTelemetry(
 						requestId: input.requestId,
 						requestedCapability: input.requestedCapability,
 						requestedScope: input.requestedScope,
-						selectedTarget: input.selectedTarget,
+						selectedCapability: input.selectedCapability,
 						status: input.status,
 						surface: input.surface,
 						traceId: input.traceId,
@@ -336,7 +336,7 @@ export function createAppTelemetry(
 						requestId: input.requestId,
 						requestedCapability: input.requestedCapability,
 						requestedScopeSummary: input.requestedScopeSummary,
-						selectedTarget: input.selectedTarget,
+						selectedCapability: input.selectedCapability,
 						surface: input.surface,
 						traceId: input.traceId,
 					},

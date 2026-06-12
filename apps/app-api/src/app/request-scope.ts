@@ -16,6 +16,10 @@ import {
 	createPgAuthenticatedNoticeRunProcessingQueryStore,
 } from "../modules/authenticated-notice-run-processing-query";
 import { buildCampusExperienceService } from "../modules/campus-experience";
+import {
+	buildCampusServicesOpsService,
+	createPgCampusServicesOpsStore,
+} from "../modules/campus-services-ops";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import {
 	buildDiningOperationsService,
@@ -28,6 +32,7 @@ import {
 	createPgIdentityPlatformStore,
 } from "../modules/identity-platform";
 import {
+	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
@@ -116,6 +121,7 @@ export function createRequestScopeFactory(input: {
 			let authenticatedNoticeRunProcessingQueryService =
 				input.dependencies.authenticatedNoticeRunProcessingQueryService ?? null;
 			let campusExperienceService = input.dependencies.campusExperienceService ?? null;
+			let campusServicesOpsService = input.dependencies.campusServicesOpsService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
 			let diningOperationsService = input.dependencies.diningOperationsService ?? null;
@@ -206,6 +212,17 @@ export function createRequestScopeFactory(input: {
 				return chatConversationService;
 			}
 
+			function resolveCampusServicesOpsService() {
+				if (campusServicesOpsService) {
+					return campusServicesOpsService;
+				}
+
+				campusServicesOpsService = buildCampusServicesOpsService({
+					store: createPgCampusServicesOpsStore(input.env, { getDb: runtime.getFreshDb }),
+				});
+				return campusServicesOpsService;
+			}
+
 			function resolveChatCommandService() {
 				if (chatCommandService) {
 					return chatCommandService;
@@ -216,9 +233,6 @@ export function createRequestScopeFactory(input: {
 				});
 				chatCommandService = buildChatCommandService({
 					conversationStore: chatConversationStore,
-					profileMemoryStore: createPgProfileMemoryStore(input.env, {
-						getDb: runtime.getFreshDb,
-					}),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
 					executionRuntime,
@@ -404,6 +418,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				profileMemoryService = buildProfileMemoryService({
+					memoryIndexer: createExecutionControlPersonalMemoryClient(input.env),
 					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return profileMemoryService;
@@ -441,6 +456,7 @@ export function createRequestScopeFactory(input: {
 				resolveAuthenticatedNoticeRunProcessingCommandService,
 				resolveAuthenticatedNoticeRunProcessingQueryService,
 				resolveCampusExperienceService,
+				resolveCampusServicesOpsService,
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDiningOperationsService,

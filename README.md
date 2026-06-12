@@ -5,8 +5,8 @@
 ## Overview
 
 当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`campus-web first`、
-`supervisor-led` 的校园助理系统：`campus-web` 学生侧主体验、账号浏览器 shell 与文档阅读面、
-受保护运营面、共享 `app-api`、内部 `execution-control`，以及按能力边界拆分的 agent /
+Execution Agent Layer-led 的校园助理系统：`campus-web` 学生侧主体验、账号浏览器 shell 与文档阅读面、
+受保护运营面、共享 `app-api`、内部 `execution-control`，以及按能力边界拆分的 capability /
 retrieval / ingestion packages。
 
 当前 merged truth 的主路径为：
@@ -16,9 +16,11 @@ browser -> campus-web -> student experience / account shell
 
 campus-web same-origin allowlisted /api/* -> app-api
 
-browser -> public-chat-web legacy chat surface -> app-api -> execution-control
--> Temporal -> activity worker -> supervisor-agent-worker
--> rag-agent / retrieval-core
+browser -> public-chat-web -> app-api -> execution-control
+-> Temporal -> workflow-worker / activity-worker-context /
+activity-worker-knowledge / capability workers / activity-worker-finalization
+-> memory recall / typed capability branch / Go RAG DTO/runtime
+-> Qdrant / provider / structured read models -> sanitized projection
 
 browser -> campus-web /docs/* -> Rspress-powered canonical reader
 
@@ -36,8 +38,9 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
-- 当前 online answer path 仍包含 Python `supervisor-agent-worker` bridge；它是当前实现事实和迁移缺口，
-  长期目标是 Go-owned workflow / capability activity worker plane
+- 当前 online answer path 已硬切为 Go-owned Temporal memory+RAG activity graph；Python
+  `supervisor-agent-worker` 不参与 serving，只保留 offline / eval / tooling / historical
+  bridge reference
 - online query path 与 offline data plane 持续分层
 - `apps/campus-web` 是当前学生侧 product entry surface、账号浏览器
   shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`
@@ -67,7 +70,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
     `protected-panel-web`、`app-api`、`execution-control`、`ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
-    `rag-agent`、`retrieval-core`、`ingestion-core`、`contracts`
+    `knowledge-capability`、`retrieval-core`、`ingestion-core`、`contracts`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
@@ -83,8 +86,9 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 - [`apps/campus-web`](./apps/campus-web/)
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/execution-control`](./apps/execution-control/)
-- [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)
-- [`packages/rag-agent`](./packages/rag-agent/)
+- [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)（offline /
+  eval / historical bridge reference，不在 online serving path）
+- [`packages/knowledge-capability`](./packages/knowledge-capability/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)
 

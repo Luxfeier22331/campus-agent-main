@@ -5,6 +5,7 @@ import type { AuthenticatedNoticeProcessingQueryService } from "../modules/authe
 import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/authenticated-notice-run-processing-command";
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
 import type { CampusExperienceService } from "../modules/campus-experience";
+import type { CampusServicesOpsService } from "../modules/campus-services-ops";
 import type { ChatConversationService } from "../modules/chat";
 import type { DiningOperationsService } from "../modules/dining-ops";
 import type { DocsService } from "../modules/docs";
@@ -41,6 +42,7 @@ export interface AppDependencies {
 	authenticatedNoticeRunProcessingCommandService?: AuthenticatedNoticeRunProcessingCommandService;
 	authenticatedNoticeRunProcessingQueryService?: AuthenticatedNoticeRunProcessingQueryService;
 	campusExperienceService?: CampusExperienceService;
+	campusServicesOpsService?: CampusServicesOpsService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
 	diningOperationsService?: DiningOperationsService;
@@ -113,6 +115,8 @@ export interface AppRequestScope {
 	resolveAuthenticatedNoticeRunProcessingCommandService(): AuthenticatedNoticeRunProcessingCommandService;
 	resolveAuthenticatedNoticeRunProcessingQueryService(): AuthenticatedNoticeRunProcessingQueryService;
 	resolveCampusExperienceService(): CampusExperienceService;
+	resolveCampusExperienceService(): CampusExperienceService;
+	resolveCampusServicesOpsService(): CampusServicesOpsService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
 	resolveDiningOperationsService(): DiningOperationsService;

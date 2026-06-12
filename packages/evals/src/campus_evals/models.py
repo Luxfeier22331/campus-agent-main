@@ -5,18 +5,18 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts import (
-    ALLOWED_AGENT_TARGETS,
+    ALLOWED_CAPABILITY_IDS,
     ActorContext,
-    AgentResponse,
-    AgentTarget,
+    CapabilityID,
+    CapabilityResponse,
     EvidenceSource,
+    ExecutionResponse,
+    ExecutionStatus,
     KnowledgeScope,
-    SupervisorResponse,
-    SupervisorStatus,
     VersionQuery,
     WorkflowTraceSummary,
 )
-from campus_contracts.models import ALLOWED_SUPERVISOR_STATUSES
+from campus_contracts.models import ALLOWED_EXECUTION_STATUSES
 
 from campus_evals.operator_observability import OperatorRequestCorrelation
 
@@ -32,23 +32,23 @@ ALLOWED_SOURCE_TYPES = (
     "incident_backfill",
     "synthetic_expansion",
 )
-ExpectedRuntimeTarget = AgentTarget | Literal["none"]
+ExpectedCapability = CapabilityID | Literal["none"]
 CapabilityFamilyLabel = Literal[
-    "none", "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent"
+    "none", "knowledge", "navigation", "campus_services", "notice"
 ]
-ALLOWED_EXPECTED_RUNTIME_TARGETS = ("none", *ALLOWED_AGENT_TARGETS)
+ALLOWED_EXPECTED_CAPABILITIES = ("none", *ALLOWED_CAPABILITY_IDS)
 ALLOWED_CAPABILITY_FAMILY_LABELS = (
     "none",
-    "rag-agent",
-    "navigation-agent",
-    "campus-services-agent",
-    "notice-agent",
+    "knowledge",
+    "navigation",
+    "campus_services",
+    "notice",
 )
-_RUNTIME_TARGET_TO_CAPABILITY_FAMILY: dict[AgentTarget, CapabilityFamilyLabel] = {
-    "rag-agent": "rag-agent",
-    "navigation-agent": "navigation-agent",
-    "campus-services-agent": "campus-services-agent",
-    "notice-agent": "notice-agent",
+_CAPABILITY_TO_CAPABILITY_FAMILY: dict[CapabilityID, CapabilityFamilyLabel] = {
+    "knowledge": "knowledge",
+    "navigation": "navigation",
+    "campus_services": "campus_services",
+    "notice": "notice",
 }
 _FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = (
     "raw_prompt",
@@ -81,10 +81,10 @@ _FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS = (
 _JWT_VALUE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")
 
 
-def capability_family_for_runtime_target(target: AgentTarget | None) -> CapabilityFamilyLabel:
-    if target is None:
+def capability_family_for_capability(capability: CapabilityID | None) -> CapabilityFamilyLabel:
+    if capability is None:
         return "none"
-    return _RUNTIME_TARGET_TO_CAPABILITY_FAMILY[target]
+    return _CAPABILITY_TO_CAPABILITY_FAMILY[capability]
 
 
 def reject_forbidden_workflow_trace_keys(payload: object, field_name: str) -> None:
@@ -160,15 +160,15 @@ class TraceExpectation:
     clarification_expected: bool | None = None
     error_expected: bool | None = None
     fail_closed_expected: bool | None = None
-    expected_runtime_target: ExpectedRuntimeTarget | None = None
+    expected_capability: ExpectedCapability | None = None
     expected_capability_family: CapabilityFamilyLabel | None = None
 
     def __post_init__(self) -> None:
         if (
-            self.expected_runtime_target is not None
-            and self.expected_runtime_target not in ALLOWED_EXPECTED_RUNTIME_TARGETS
+            self.expected_capability is not None
+            and self.expected_capability not in ALLOWED_EXPECTED_CAPABILITIES
         ):
-            raise ValueError(f"unsupported expected_runtime_target: {self.expected_runtime_target}")
+            raise ValueError(f"unsupported expected_capability: {self.expected_capability}")
         if (
             self.expected_capability_family is not None
             and self.expected_capability_family not in ALLOWED_CAPABILITY_FAMILY_LABELS
@@ -176,14 +176,14 @@ class TraceExpectation:
             raise ValueError(
                 f"unsupported expected_capability_family: {self.expected_capability_family}"
             )
-        if self.expected_runtime_target is not None and self.expected_capability_family is not None:
-            runtime_target = (
-                None if self.expected_runtime_target == "none" else self.expected_runtime_target
+        if self.expected_capability is not None and self.expected_capability_family is not None:
+            capability = (
+                None if self.expected_capability == "none" else self.expected_capability
             )
-            expected_family = capability_family_for_runtime_target(runtime_target)
+            expected_family = capability_family_for_capability(capability)
             if expected_family != self.expected_capability_family:
                 raise ValueError(
-                    "expected_runtime_target and expected_capability_family must describe the same lane"
+                    "expected_capability and expected_capability_family must describe the same lane"
                 )
 
 
@@ -209,7 +209,7 @@ class GoldenCase:
     source_type: SourceType
     user_goal: str
     actor: ActorContext
-    expected_status: SupervisorStatus
+    expected_status: ExecutionStatus
     scope: KnowledgeScope
     version_query: VersionQuery = field(default_factory=VersionQuery)
     conversation_turns: tuple[str, ...] = field(default_factory=tuple)
@@ -243,7 +243,7 @@ class GoldenCase:
             raise ValueError(f"unsupported split: {self.split}")
         if self.source_type not in ALLOWED_SOURCE_TYPES:
             raise ValueError(f"unsupported source_type: {self.source_type}")
-        if self.expected_status not in ALLOWED_SUPERVISOR_STATUSES:
+        if self.expected_status not in ALLOWED_EXECUTION_STATUSES:
             raise ValueError(f"unsupported expected_status: {self.expected_status}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
@@ -300,7 +300,7 @@ class OrchestrationCaseResults:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
-    response: AgentResponse | SupervisorResponse
+    response: CapabilityResponse | ExecutionResponse
     observed_trace: ObservedTrace | None = None
     request_correlation: OperatorRequestCorrelation | None = None
     workflow_trace_summary: WorkflowTraceSummary | None = None

@@ -61,7 +61,7 @@ class RetrievalCoreStructureTest(unittest.TestCase):
     def test_retrieval_core_does_not_import_rag_retrieval_intent_owner(self) -> None:
         for path in RETRIEVAL_CORE.rglob("*.py"):
             source = path.read_text(encoding="utf-8")
-            self.assertNotIn("campus_rag_agent.retrieval_intent", source)
+            self.assertNotIn("campus_knowledge_capability.retrieval_intent", source)
             self.assertNotIn("RetrievalIntent", source)
 
 

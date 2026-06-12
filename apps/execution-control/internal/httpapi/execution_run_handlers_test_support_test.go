@@ -42,7 +42,7 @@ func durableRunCreateBodyForTest(runID string, conversationID string) string {
 				"runtime_decisions":{"runtime_decision_summary":{}}
 			},
 			"handoff":{
-				"target":"rag-tool",
+				"capability":"rag-tool",
 				"payload_kind":"rag_request",
 				"allowed_tools":["retrieval.query"],
 				"payload":{"query_text":"hello"}
@@ -60,9 +60,15 @@ func createHTTPAPIQueuedDurableRunForTest(
 	handoff map[string]any,
 ) {
 	t.Helper()
+	userGoal := "hello"
+	if handoff != nil {
+		if payload, ok := handoff["payload"].(map[string]any); ok {
+			userGoal = firstNonEmptyText(payload["query_text"], userGoal)
+		}
+	}
 	metadata := map[string]any{
 		"execution_payload": map[string]any{
-			"user_goal":       "hello",
+			"user_goal":       userGoal,
 			"request_id":      "req-executor-001",
 			"conversation_id": conversationID,
 			"trace":           map[string]any{"trace_id": "trace-executor-001"},
@@ -104,7 +110,7 @@ func createHTTPAPIQueuedDurableRunForTest(
 
 func ragHandoffForDurableWorkerTest(queryText string) map[string]any {
 	return map[string]any{
-		"target":        "rag-agent",
+		"capability":    "knowledge",
 		"payload_kind":  "rag_request",
 		"allowed_tools": []any{"retrieval.query"},
 		"payload":       map[string]any{"query_text": queryText},
@@ -130,9 +136,9 @@ func assertHTTPAPIDurableEventTypes(
 	}
 }
 
-func durableAgentResponseBodyForTest(answerText string) json.RawMessage {
+func durableCapabilityResponseBodyForTest(answerText string) json.RawMessage {
 	body, err := json.Marshal(map[string]any{
-		"target":             "rag-agent",
+		"capability":         "knowledge",
 		"status":             "completed",
 		"answer_text":        answerText,
 		"follow_up_question": "",

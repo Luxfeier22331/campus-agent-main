@@ -4,16 +4,16 @@ from tests.evals.golden_cases_test_support import (
     CURRICULUM_SCOPE,
     HANDBOOK_SCOPE,
     ActorContext,
-    AgentResponse,
+    CapabilityResponse,
     ErrorInfo,
     EvidenceBundle,
+    ExecutionResponse,
     ExecutionResult,
     GoldenCase,
     KnowledgeScope,
     ObservedTrace,
     RagResultDiagnostics,
     RagResultPayload,
-    SupervisorResponse,
     TraceExpectation,
     _response,
     _source,
@@ -281,7 +281,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
         self.assertEqual(report.by_metric["expected_doc_hit"].passed, 1)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_runner_accepts_supervisor_clarification_without_rag_evidence(self) -> None:
+    def test_runner_accepts_execution_clarification_without_rag_evidence(self) -> None:
         case = GoldenCase(
             case_id="supervisor-clarify-1",
             split="release_gate",
@@ -299,8 +299,8 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
         report = run_cases(
             (case,),
             executor=lambda _: ExecutionResult(
-                response=SupervisorResponse(
-                    selected_target=None,
+                response=ExecutionResponse(
+                    selected_capability=None,
                     status="needs_clarification",
                     follow_up_question="请先说明你想查询的知识范围或资料集合。",
                     confidence="low",
@@ -340,21 +340,21 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
         def executor(case: GoldenCase) -> ExecutionResult:
             if case.case_id == "approval-required-1":
                 return ExecutionResult(
-                    response=SupervisorResponse(
-                        selected_target=None,
+                    response=ExecutionResponse(
+                        selected_capability=None,
                         status="approval_required",
                         answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
                         confidence="low",
                     )
                 )
             return ExecutionResult(
-                response=SupervisorResponse(
-                    selected_target=None,
+                response=ExecutionResponse(
+                    selected_capability=None,
                     status="rejected",
                     confidence="low",
                     error=ErrorInfo(
                         code="request_rejected",
-                        message="request was rejected by supervisor policy",
+                        message="request was rejected by execution policy",
                     ),
                 )
             )
@@ -372,8 +372,8 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
 
         def executor(case: GoldenCase) -> ExecutionResult:
             return ExecutionResult(
-                response=AgentResponse(
-                    target="rag-agent",
+                response=CapabilityResponse(
+                    capability="knowledge",
                     status="error",
                     confidence="low",
                     answer_text="",

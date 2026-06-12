@@ -29,7 +29,7 @@ export function SafetyPage() {
 		anomalyCode: "",
 		page: 1,
 		perPage: 10,
-		selectedTarget: null,
+		selectedCapability: null,
 		severity: "",
 		status: "",
 		surface: null,
@@ -38,7 +38,7 @@ export function SafetyPage() {
 
 	const deferredWindow = useDeferredValue(filters.window);
 	const deferredSurface = useDeferredValue(filters.surface);
-	const deferredSelectedTarget = useDeferredValue(filters.selectedTarget);
+	const deferredSelectedCapability = useDeferredValue(filters.selectedCapability);
 	const deferredSeverity = useDeferredValue(filters.severity);
 	const deferredStatus = useDeferredValue(filters.status);
 	const deferredAnomalyCode = useDeferredValue(filters.anomalyCode);
@@ -46,7 +46,7 @@ export function SafetyPage() {
 	const isRefreshing =
 		filters.window !== deferredWindow ||
 		filters.surface !== deferredSurface ||
-		filters.selectedTarget !== deferredSelectedTarget ||
+		filters.selectedCapability !== deferredSelectedCapability ||
 		filters.severity !== deferredSeverity ||
 		filters.status !== deferredStatus ||
 		filters.anomalyCode !== deferredAnomalyCode;
@@ -56,7 +56,7 @@ export function SafetyPage() {
 			{
 				queryFn: ({ signal }) =>
 					dataProvider.getOperatorSafetySummary({
-						selectedTarget: deferredSelectedTarget,
+						selectedCapability: deferredSelectedCapability,
 						signal,
 						surface: deferredSurface,
 						window: deferredWindow,
@@ -65,7 +65,7 @@ export function SafetyPage() {
 					"protected-panel-safety-summary",
 					deferredWindow,
 					deferredSurface,
-					deferredSelectedTarget,
+					deferredSelectedCapability,
 				] as const,
 				staleTime: 30_000,
 			},
@@ -78,7 +78,7 @@ export function SafetyPage() {
 				anomalyCode: normalizeFilterValue(deferredAnomalyCode),
 				page: filters.page,
 				perPage: filters.perPage,
-				selectedTarget: deferredSelectedTarget,
+				selectedCapability: deferredSelectedCapability,
 				severity: normalizeFilterValue(deferredSeverity),
 				signal,
 				status: normalizeFilterValue(deferredStatus),
@@ -91,7 +91,7 @@ export function SafetyPage() {
 			filters.perPage,
 			deferredWindow,
 			deferredSurface,
-			deferredSelectedTarget,
+			deferredSelectedCapability,
 			deferredSeverity,
 			deferredStatus,
 			deferredAnomalyCode,
@@ -141,12 +141,12 @@ export function SafetyPage() {
 						filterSummaryItems={summaryFilterItems}
 						filters={filters}
 						isRefreshing={isRefreshing}
-						onSelectedTargetChange={(value) => {
+						onSelectedCapabilityChange={(value) => {
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,
 									page: 1,
-									selectedTarget: normalizeFilterValue(value),
+									selectedCapability: normalizeFilterValue(value),
 								}));
 							});
 						}}

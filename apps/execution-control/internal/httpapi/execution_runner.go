@@ -1,3 +1,5 @@
+//go:build retired_bridge_serving
+
 package httpapi
 
 import (
@@ -93,12 +95,12 @@ func (s *Server) runBridgeExecution(
 		requestCancel()
 		code := "execution_lifecycle_unavailable"
 		status := http.StatusInternalServerError
-		message := "Supervisor execution lifecycle could not be registered."
+		message := "Execution lifecycle could not be registered."
 		retryable := true
 		if errors.Is(registerErr, lifecycle.ErrDuplicateExecution) {
 			code = "execution_already_in_flight"
 			status = http.StatusConflict
-			message = "Supervisor execution request_id is already active."
+			message = "Execution request_id is already active."
 			retryable = true
 		}
 		return executionRunResult{
@@ -275,7 +277,7 @@ func (s *Server) runBridgeExecution(
 		return terminalResult(executionTerminal{
 			State:      lifecycle.StateFailed,
 			Code:       "supervisor_bridge_invalid_plan",
-			Message:    "Supervisor workflow handoff is required before bridge execution.",
+			Message:    "Execution workflow handoff is required before bridge execution.",
 			StatusCode: http.StatusBadGateway,
 			Retryable:  false,
 			Outcome:    "supervisor_bridge_invalid_plan",
@@ -289,7 +291,7 @@ func (s *Server) runBridgeExecution(
 		return terminalResult(executionTerminal{
 			State:      lifecycle.StateFailed,
 			Code:       "supervisor_bridge_invalid_plan",
-			Message:    "Supervisor workflow handoff could not be projected.",
+			Message:    "Execution workflow handoff could not be projected.",
 			StatusCode: http.StatusBadGateway,
 			Retryable:  false,
 			Outcome:    "supervisor_bridge_invalid_plan",
@@ -585,7 +587,7 @@ func executionAuditDeliveryTerminal() *executionTerminal {
 	return &executionTerminal{
 		State:       lifecycle.StateFailed,
 		Code:        "execution_audit_delivery_failed",
-		Message:     "Supervisor execution audit delivery failed.",
+		Message:     "Execution audit delivery failed.",
 		StatusCode:  http.StatusServiceUnavailable,
 		Retryable:   true,
 		Outcome:     "execution_audit_delivery_failed",
@@ -597,7 +599,7 @@ func telemetryDeliveryTerminal() *executionTerminal {
 	return &executionTerminal{
 		State:       lifecycle.StateFailed,
 		Code:        "telemetry_delivery_failed",
-		Message:     "Supervisor telemetry delivery failed.",
+		Message:     "Execution telemetry delivery failed.",
 		StatusCode:  http.StatusServiceUnavailable,
 		Retryable:   true,
 		Outcome:     "telemetry_delivery_failed",

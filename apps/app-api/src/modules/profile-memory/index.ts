@@ -11,7 +11,11 @@ export {
 	normalizeProfileMemoryKey,
 	normalizeProfileMemoryValue,
 } from "./model";
-export type { ProfileMemoryService, ProfileMemoryServiceDependencies } from "./service";
+export type {
+	ProfileMemoryIndexer,
+	ProfileMemoryService,
+	ProfileMemoryServiceDependencies,
+} from "./service";
 export { buildProfileMemoryService } from "./service";
 export type {
 	ProfileMemoryProjectionStore,

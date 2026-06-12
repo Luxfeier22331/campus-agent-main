@@ -69,7 +69,7 @@ class CommandRunner(Protocol):
 
 _SHARED_OPENING_CHECKS = (
     "supervisor_go_structured_runtime_tests",
-    "campus_services_agent_adapter_tests",
+    "campus_services_capability_adapter_tests",
     "app_api_campus_services_runtime_tests",
     "public_chat_worker_e2e_tests",
     "app_api_typecheck",
@@ -182,7 +182,7 @@ def _supervisor_go_structured_runtime_command() -> tuple[str, ...]:
     )
 
 
-def _campus_services_agent_adapter_command() -> tuple[str, ...]:
+def _campus_services_capability_adapter_command() -> tuple[str, ...]:
     return (
         "uv",
         "run",
@@ -190,7 +190,7 @@ def _campus_services_agent_adapter_command() -> tuple[str, ...]:
         "python",
         "-m",
         "unittest",
-        "tests.agent.test_campus_services_agent",
+        "tests.agent.test_campus_services_capability",
     )
 
 
@@ -275,8 +275,8 @@ def run_campus_services_product_path_opening_gate(
             cwd=EXECUTION_CONTROL_DIR,
         ),
         _run_command_check(
-            check_id="campus_services_agent_adapter_tests",
-            command=_campus_services_agent_adapter_command(),
+            check_id="campus_services_capability_adapter_tests",
+            command=_campus_services_capability_adapter_command(),
             command_runner=command,
             cwd=REPO_ROOT,
         ),

@@ -30,16 +30,9 @@ type SelectedNoticeRef struct {
 	TargetSurface string
 }
 
-type ProfileMemoryItem struct {
-	Key        string
-	Value      string
-	Visibility string
-}
-
 type Context struct {
 	SessionSlots      []SessionSlot
 	SelectedNoticeRef SelectedNoticeRef
-	ProfileMemory     []ProfileMemoryItem
 }
 
 type Request struct {

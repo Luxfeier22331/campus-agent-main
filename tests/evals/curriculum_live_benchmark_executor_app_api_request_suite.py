@@ -54,7 +54,7 @@ class CurriculumLiveExecutorAppApiRequestTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "民族学本科人才培养方案。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "status": "completed",
                         "traceId": "trace_curriculum_eval_01HQ",
                         "result": {
@@ -215,7 +215,7 @@ class CurriculumLiveExecutorAppApiRequestTest(unittest.TestCase):
                     },
                     "supervisor": {
                         "status": "needs_clarification",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "answerText": "请明确是法学民族实验班还是其他法学培养方案。",
                         "followUpQuestion": "请明确是法学民族实验班还是其他法学培养方案。",
                         "traceId": "trace_curriculum_eval_clarify_01HQ",
@@ -335,7 +335,7 @@ class CurriculumLiveExecutorAppApiRequestTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "2024 与 2025 版培养方案在第四学期课程安排上存在差异。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-agent",
+                        "selectedCapability": "knowledge",
                         "status": "completed",
                         "traceId": "trace_curriculum_eval_compare_01HQ",
                         "result": None,

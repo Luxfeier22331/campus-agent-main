@@ -70,8 +70,8 @@ updated: 2026-04-03
 
 ## 边界
 
-- `packages/rag-agent` 负责 retrieval strategy selection、clarification / no-answer
-  / error 映射、answer / confidence 组装
+- `packages/knowledge-capability` 负责 retrieval strategy selection、
+  clarification / no-answer / error 映射、answer / confidence 组装
 - `packages/retrieval-core` 负责 query preprocessing、candidate
   retrieval、fusion、evidence normalization
 - `packages/contracts` 继续只冻结 `EvidenceBundle` / `EvidenceSource` 等共享

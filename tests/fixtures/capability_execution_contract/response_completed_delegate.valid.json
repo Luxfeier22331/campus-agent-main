@@ -1,0 +1,100 @@
+{
+	"selected_capability": "knowledge",
+	"status": "completed",
+	"answer_text": "请假制度以学生手册当前版本为准。",
+	"follow_up_question": "",
+	"confidence": "high",
+	"result": {
+		"evidence": {
+			"sources": [
+				{
+					"doc_id": "student_rules:leave-policy"
+				}
+			]
+		}
+	},
+	"error": null,
+	"observability": {
+		"semantic_outcome": "grounded_answer",
+		"retrieval_attempted": true,
+		"retrieved_source_count": 1,
+		"selected_tool": "retrieval.query"
+	},
+	"workflow_trace_summary": {
+		"routing_frame": {
+			"suggested_next_action": "delegate"
+		},
+		"context_resolution": {
+			"state": "not_follow_up"
+		},
+		"planning_outcome": "preplanned",
+		"direct_vs_delegate_branch": "delegate",
+		"workflow_mode": "single_step",
+		"handoff": {
+			"capability": "knowledge",
+			"capability_request": {
+				"capability": "knowledge"
+			}
+		},
+		"handoff_chain": [
+			{
+				"capability": "knowledge",
+				"payload_kind": "rag_request",
+				"selected_tool": "retrieval.query"
+			}
+		],
+		"capability_invocations": [
+			{
+				"invocation_id": "capability-invocation:knowledge:1",
+				"workflow_run_ref": "single_step:knowledge:retrieval.query",
+				"step_id": "capability:knowledge:rag_request",
+				"capability_id": "knowledge",
+				"status": "completed",
+				"allowed_tools": [],
+				"used_tools": ["retrieval.query"],
+				"projection_ids": []
+			}
+		],
+		"selected_capability": "knowledge",
+		"selected_tools": ["retrieval.query"],
+		"context_projections": [],
+		"answer_artifact_projection_ids": [],
+		"answer_artifact_kinds": [],
+		"tool_argument_summary": {
+			"collection": "student_rules"
+		},
+		"trace_steps": [
+			{
+				"step_id": "runtime_policy",
+				"span_kind": "runtime_policy",
+				"parent_step_id": "",
+				"outcome": "delegate"
+			},
+			{
+				"step_id": "finalization",
+				"span_kind": "finalization",
+				"parent_step_id": "runtime_policy",
+				"outcome": "completed"
+			}
+		],
+		"tool_call_summaries": [
+			{
+				"tool_name": "retrieval.query",
+				"result_status": "completed",
+				"business_outcome": "grounded_answer",
+				"source_ids": ["student_rules:leave-policy"]
+			}
+		],
+		"guardrail_outcomes": {
+			"scope_gate": "allow"
+		},
+		"fail_close_reason": "",
+		"runtime_versions": {
+			"workflow_trace_summary": "workflow-trace-summary-v4"
+		},
+		"policy_artifact_versions": {
+			"intent_policy": "intent-policy.v1"
+		}
+	},
+	"trace_id": "trace-contract-completed"
+}

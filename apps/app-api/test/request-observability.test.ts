@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
-import type { SupervisorExecutionResponse } from "../src/modules/integration";
+import type { CapabilityExecutionResponse } from "../src/modules/integration";
 import {
 	buildAcceptedRequestObservabilityFact,
 	buildFinalizedRequestObservabilityFact,
@@ -49,15 +49,15 @@ function createPrincipal(): ResolvedAppPrincipal {
 }
 
 function createResponse(
-	overrides: Partial<SupervisorExecutionResponse> = {},
-): SupervisorExecutionResponse {
+	overrides: Partial<CapabilityExecutionResponse> = {},
+): CapabilityExecutionResponse {
 	return {
 		answerText: "当前没有足够依据回答这个问题。",
 		error: null,
 		followUpQuestion: "",
 		observability: null,
 		result: null,
-		selectedTarget: "rag-agent",
+		selectedCapability: "knowledge",
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
@@ -312,7 +312,7 @@ describe("request observability", () => {
 					toolFailCloseReason: null,
 					toolHistoricalDowngradeReason: null,
 				},
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				status: "completed",
 				workflowTraceSummary: {
 					contextResolution: {
@@ -325,7 +325,7 @@ describe("request observability", () => {
 					},
 					handoff: {
 						payload_kind: "transport_schedule_lookup",
-						target: "campus-services-agent",
+						target: "campus_services",
 					},
 					handoffChain: [],
 					contextProjections: [],
@@ -339,7 +339,7 @@ describe("request observability", () => {
 					runtimeVersions: {
 						"execution-control": "test",
 					},
-					selectedTarget: "campus-services-agent",
+					selectedCapability: "campus_services",
 					selectedTools: ["transport_schedule_lookup"],
 					traceSteps: [],
 					toolCallSummaries: [],
@@ -357,14 +357,14 @@ describe("request observability", () => {
 		});
 
 		expect(fact).toMatchObject({
-			selectedTarget: "campus-services-agent",
+			selectedCapability: "campus_services",
 			selectedTool: "transport_schedule_lookup",
 			toolBusinessOutcome: "resolved_current",
 			toolFailCloseReason: null,
 			toolHistoricalDowngradeReason: null,
 			workflowTraceSummary: {
 				directVsDelegateBranch: "direct",
-				selectedTarget: "campus-services-agent",
+				selectedCapability: "campus_services",
 				selectedTools: ["transport_schedule_lookup"],
 			},
 		});
@@ -476,7 +476,7 @@ describe("request observability", () => {
 			requestedScope: null,
 			resolvedScope: null,
 			response: createResponse({
-				selectedTarget: null,
+				selectedCapability: null,
 			}),
 			sourceDocIds: [],
 			startedAt: "2026-04-11T09:00:00.000Z",
@@ -491,7 +491,7 @@ describe("request observability", () => {
 			refusalClass: "out_of_scope",
 			scopeClass: "out_of_scope",
 			semanticOutcome: "out_of_scope",
-			selectedTarget: null,
+			selectedCapability: null,
 		});
 	});
 
@@ -569,7 +569,7 @@ describe("request observability", () => {
 			refusalClass: "no_answer",
 			scopeClass: "in_scope",
 			semanticOutcome: "unsupported_by_evidence",
-			selectedTarget: "rag-agent",
+			selectedCapability: "knowledge",
 		});
 	});
 

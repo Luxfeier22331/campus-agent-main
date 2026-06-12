@@ -2,13 +2,14 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
 	expectNoInternalLocators,
 	type FinalizeRequestWrite,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
@@ -393,7 +394,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 				},
 			},
 		] as const;
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(async (input) => {
 				const currentCase = cases.find((candidate) => candidate.prompt === input.userGoal);
 				if (!currentCase) {
@@ -404,7 +405,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 					error: null,
 					followUpQuestion: "",
 					result: currentCase.result,
-					selectedTarget: "campus-services-agent",
+					selectedCapability: "campus_services",
 					status: "completed",
 					traceId: "trace_0003",
 				} as const;
@@ -415,7 +416,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 		});
 
 		for (const [index, currentCase] of cases.entries()) {
@@ -442,7 +443,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 
 			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
 			expect(finalizedWrite.assistantMessage.text).toBe(answerText);
-			expect(finalizedWrite.requestExecution.selectedTarget).toBe("campus-services-agent");
+			expect(finalizedWrite.requestExecution.selectedCapability).toBe("campus_services");
 			const tracePart = finalizedWrite.assistantMessage.structuredParts.find(
 				(part) => part.type === "campus_service_trace_cards",
 			);

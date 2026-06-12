@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from campus_contracts import AgentResponse, ClaimSupport, EvidenceSource, RagResultPayload
-from campus_rag_agent.handbook_query_planning import plan_student_handbook_query
+from campus_contracts import CapabilityResponse, ClaimSupport, EvidenceSource, RagResultPayload
+from campus_knowledge_capability.handbook_query_planning import plan_student_handbook_query
 from campus_regulation_semantics.regulation_semantic_registry import (
     canonical_regulation_condition_subject,
 )
@@ -40,7 +40,7 @@ _JUDGMENT_ANSWER_ROLES = frozenset(
 class AnswerReadyComponentRuntimeArtifact:
     case_id: str
     query: str
-    response: AgentResponse
+    response: CapabilityResponse
     retrieval_runtime_observations: tuple[Mapping[str, object], ...] = field(default_factory=tuple)
     release_contract_status: str = ""
     release_contract_failure_classes: tuple[str, ...] = field(default_factory=tuple)
@@ -67,7 +67,7 @@ def collect_answer_ready_component_runtime_observations(
 def build_answer_ready_component_observation(
     *,
     query: str,
-    response: AgentResponse,
+    response: CapabilityResponse,
     retrieval_runtime_observations: Sequence[Mapping[str, object]] = (),
     release_contract_status: str = "",
     release_contract_failure_classes: Sequence[str] = (),
@@ -159,7 +159,7 @@ def build_answer_ready_component_observation(
 def _task_kind_from_runtime(
     *,
     query: str,
-    response: AgentResponse,
+    response: CapabilityResponse,
     collection: str,
     selected_roles: Sequence[str],
 ) -> str:
@@ -288,14 +288,14 @@ def _polarity_for_source(source: EvidenceSource) -> str:
     return (attributes.condition_polarity or attributes.polarity or source.polarity).strip()
 
 
-def _clarification_reason(response: AgentResponse) -> str:
+def _clarification_reason(response: CapabilityResponse) -> str:
     result = response.result
     if not isinstance(result, RagResultPayload) or result.diagnostics is None:
         return ""
     return result.diagnostics.clarification_reason.strip()
 
 
-def _no_answer_reason(response: AgentResponse) -> str:
+def _no_answer_reason(response: CapabilityResponse) -> str:
     result = response.result
     if not isinstance(result, RagResultPayload) or result.diagnostics is None:
         return ""
@@ -309,7 +309,7 @@ def _clarification_condition_subject(*, query: str, task_kind: str) -> str:
     return ""
 
 
-def _is_unsupported_no_hit(response: AgentResponse) -> bool:
+def _is_unsupported_no_hit(response: CapabilityResponse) -> bool:
     result = response.result
     if response.status != "no_answer" or not isinstance(result, RagResultPayload):
         return False

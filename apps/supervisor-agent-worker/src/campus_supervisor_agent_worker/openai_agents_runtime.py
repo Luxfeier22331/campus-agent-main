@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from campus_contracts import AgentRequest
+from campus_contracts import CapabilityRequest
 from campus_prompt_runtime import PromptRuntimeProviderConfig
 
 from campus_supervisor_agent_worker.agents_sdk_function_tools import (
@@ -78,13 +78,13 @@ class OpenAIAgentsNativeRuntime:
     def run_agent(
         self,
         *,
-        agent_request: AgentRequest,
+        agent_request: CapabilityRequest,
         instruction_profile: AgentsSdkInstructionProfile,
         tool_descriptors: tuple[AgentsSdkToolDescriptor, ...],
         execute_tool: OpenAIAgentsToolExecutor | None = None,
     ) -> OpenAIAgentsRunResult:
         return self.run(
-            agent_name=agent_request.target,
+            agent_name=agent_request.capability,
             instructions=instruction_profile.instructions,
             input_text=agent_request.user_goal,
             context=agent_request.context,

@@ -6,12 +6,12 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ARTIFACT_REGISTRY_PATH = ROOT / "configs/runtime/workflow-artifacts.v1.json"
-AGENT_SPEC_PATH = ROOT / "configs/runtime/agents.v2.json"
+ARTIFACT_REGISTRY_PATH = ROOT / "configs/runtime/workflow-artifacts.v2.json"
+CAPABILITY_SPEC_PATH = ROOT / "configs/runtime/capabilities.v1.json"
 GO_EXECUTION_PROJECTION_PATH = (
     ROOT / "apps/execution-control/internal/execution/step_output_projection.go"
 )
-OPENAPI_CONTRACT_PATH = ROOT / "docs/contracts/schemas/supervisor-execution.openapi.yaml"
+OPENAPI_CONTRACT_PATH = ROOT / "docs/contracts/schemas/capability-execution.openapi.yaml"
 
 EXPECTED_ARTIFACT_KINDS = (
     "notice_context",
@@ -54,7 +54,7 @@ class WorkflowArtifactRegistrySuite(unittest.TestCase):
         registry = _load_registry()
         artifacts = registry["artifacts"]
 
-        self.assertEqual(registry["schema_version"], "workflow-artifact-registry-v1")
+        self.assertEqual(registry["schema_version"], "workflow-artifact-registry-v2")
         self.assertEqual(tuple(item["kind"] for item in artifacts), EXPECTED_ARTIFACT_KINDS)
         self.assertEqual(
             {
@@ -109,17 +109,19 @@ class WorkflowArtifactRegistrySuite(unittest.TestCase):
                 self.assertNotIn(f"- {kind}", contract_text)
                 self.assertNotIn(f'"{kind}"', go_text)
 
-    def test_agent_spec_context_projection_kinds_are_registered_or_explicit_aliases(self) -> None:
+    def test_capability_spec_context_projection_kinds_are_registered_or_explicit_aliases(
+        self,
+    ) -> None:
         registry = _load_registry()
         artifacts = registry["artifacts"]
         artifact_kinds = {item["kind"] for item in artifacts}
         aliases = {alias for item in artifacts for alias in item.get("known_aliases", [])}
-        agent_spec = json.loads(AGENT_SPEC_PATH.read_text(encoding="utf-8"))
+        capability_spec = json.loads(CAPABILITY_SPEC_PATH.read_text(encoding="utf-8"))
 
         observed = {
             kind
-            for agent in agent_spec["agents"]
-            for kind in agent.get("context_projection_kinds", [])
+            for capability in capability_spec["capabilities"]
+            for kind in capability.get("context_projection_kinds", [])
         }
 
         self.assertTrue(observed)

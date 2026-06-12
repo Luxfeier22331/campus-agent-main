@@ -323,7 +323,6 @@ execution_control_staging_rotate_log_file_if_needed() {
 
 execution_control_staging_rotate_logs_if_needed() {
   execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_execution_control_log_file}"
-  execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_supervisor_agent_worker_log_file}"
   execution_control_staging_rotate_log_file_if_needed "${execution_control_staging_otel_collector_log_file}"
 }
 
@@ -355,10 +354,8 @@ execution_control_staging_print_process_status() {
 execution_control_staging_compose() {
   local docker_bin
   local worker_shared_secret
-  local bridge_shared_secret
   docker_bin="$(execution_control_staging_require_command docker)"
   worker_shared_secret="${EXECUTION_CONTROL_SHARED_SECRET:?EXECUTION_CONTROL_SHARED_SECRET is required}"
-  bridge_shared_secret="${execution_control_staging_bridge_shared_secret:?SUPERVISOR_AGENT_WORKER_SHARED_SECRET is required}"
 
   (
     cd "${execution_control_staging_repo_root}" || exit
@@ -368,7 +365,6 @@ execution_control_staging_compose() {
     EXECUTION_CONTROL_RUNTIME_PROFILE=staging \
     API_AUTH_MODE=trusted-worker \
     API_WORKER_SHARED_SECRET="${worker_shared_secret}" \
-    SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
     CAMPUS_SHARED_POSTGRES_URL="${CAMPUS_SHARED_POSTGRES_DOCKER_URL:?CAMPUS_SHARED_POSTGRES_DOCKER_URL is required}" \
     DOCUMENT_REGISTRY_DATABASE_URL="${DOCUMENT_REGISTRY_DOCKER_DATABASE_URL:?DOCUMENT_REGISTRY_DOCKER_DATABASE_URL is required}" \
     RAW_ASSET_REGISTRY_DATABASE_URL="${RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL:?RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL is required}" \
@@ -377,13 +373,21 @@ execution_control_staging_compose() {
     RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL="${RAW_ASSET_REGISTRY_OPERATOR_DOCKER_DATABASE_URL:-${RAW_ASSET_REGISTRY_DOCKER_DATABASE_URL}}" \
     OBJECT_STORE_ENDPOINT="${OBJECT_STORE_DOCKER_ENDPOINT:?OBJECT_STORE_DOCKER_ENDPOINT is required}" \
     QDRANT_URL="${QDRANT_DOCKER_URL:?QDRANT_DOCKER_URL is required}" \
+    QDRANT_QUERY_API_KEY="${QDRANT_QUERY_API_KEY:?QDRANT_QUERY_API_KEY is required}" \
+    QDRANT_WRITE_API_KEY="${QDRANT_WRITE_API_KEY:?QDRANT_WRITE_API_KEY is required}" \
+    QDRANT_TLS_CA_CERT_PATH="${QDRANT_TLS_CA_CERT_PATH:?QDRANT_TLS_CA_CERT_PATH is required}" \
+    QDRANT_TLS_DIR="${QDRANT_TLS_DIR:-$(dirname "${QDRANT_TLS_CA_CERT_PATH:?QDRANT_TLS_CA_CERT_PATH is required}")}" \
     EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL="${EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL:?EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL is required}" \
     EXECUTION_CONTROL_TEMPORAL_ADDRESS="${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?EXECUTION_CONTROL_TEMPORAL_ADDRESS is required}" \
     EXECUTION_CONTROL_TEMPORAL_NAMESPACE="${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?EXECUTION_CONTROL_TEMPORAL_NAMESPACE is required}" \
     EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE="${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}" \
     EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY is required}" \
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY is required}" \
-    EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_RAG_WORKER_IDENTITY is required}" \
+    EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY is required}" \
+    EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY is required}" \
+    EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY is required}" \
+    EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY is required}" \
+    EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY is required}" \
     EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY is required}" \
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT is required}" \
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS="${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}" \
@@ -402,9 +406,12 @@ execution_control_staging_compose_project_running() {
   [[ "${services}" == *"otel-collector"* ]] &&
     [[ "${services}" == *"execution-control"* ]] &&
     [[ "${services}" == *"workflow-worker"* ]] &&
-    [[ "${services}" == *"activity-worker-rag"* ]] &&
-    [[ "${services}" == *"activity-worker-finalization"* ]] &&
-    [[ "${services}" == *"supervisor-agent-worker"* ]]
+    [[ "${services}" == *"activity-worker-context"* ]] &&
+    [[ "${services}" == *"activity-worker-knowledge"* ]] &&
+    [[ "${services}" == *"activity-worker-campus-services"* ]] &&
+    [[ "${services}" == *"activity-worker-notice"* ]] &&
+    [[ "${services}" == *"activity-worker-navigation"* ]] &&
+    [[ "${services}" == *"activity-worker-finalization"* ]]
 }
 
 execution_control_staging_run_projection_schema_command() {

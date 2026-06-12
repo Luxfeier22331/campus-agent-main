@@ -71,7 +71,8 @@ Readiness must confirm:
 
 Required activity task queues:
 
-- `campus-agent.activity.rag`
+- `campus-agent.activity.context`
+- `campus-agent.activity.knowledge`
 - `campus-agent.activity.finalization`
 
 Capability-gated activity task queues:
@@ -172,3 +173,24 @@ A Temporal closeout is not complete until the evidence directory contains:
 - step trajectory projection for at least one run
 - Sentry / Axiom evidence for the same time window
 - failure-mode evidence or explicit blocker
+
+Failure-mode evidence is captured per scenario:
+
+```bash
+infra/local/staging/capture-temporal-rag-closeout-evidence.sh \
+  --request-id <request_id> \
+  --scenario normal-answer
+
+infra/local/staging/capture-temporal-rag-closeout-evidence.sh \
+  --request-id <request_id> \
+  --scenario cancel-during-synthesis
+
+infra/local/staging/capture-temporal-rag-closeout-evidence.sh \
+  --request-id <request_id> \
+  --scenario activity-timeout-late-completion
+```
+
+Each scenario directory must contain `PASS_FAIL.md` with command, timestamp,
+host, git SHA, result, and failure reason. A cancel proof passes only when the
+sanitized synthesis attempt records `provider_connection_aborted` and no
+finalization projection is written after the canceled terminal state.

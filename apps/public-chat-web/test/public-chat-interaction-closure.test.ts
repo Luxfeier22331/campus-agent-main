@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import transportSource from "../src/platform/chat/transport.ts?raw";
 import activeChatSource from "../src/platform/chat/use-active-chat.tsx?raw";
 import promptInputSource from "../vendor/vercel-ai-chatbot/components/ai-elements/prompt-input.tsx?raw";
 import appSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
@@ -33,6 +34,16 @@ describe("public chat interaction closure", () => {
 	it("keeps stop available while lifecycle stream is running", () => {
 		expect(multimodalInputSource).toContain('status === "submitted" || status === "streaming"');
 		expect(multimodalInputSource).toContain('aria-label="停止生成"');
+	});
+
+	it("routes Stop through the durable run cancel command once a run id is known", () => {
+		expect(transportSource).toContain("cancelShellRun");
+		expect(activeChatSource).toContain("runId: string | null");
+		expect(activeChatSource).toContain("runId: event.runId");
+		expect(activeChatSource).toContain("await cancelShellRun({");
+		expect(activeChatSource.indexOf("await cancelShellRun({")).toBeLessThan(
+			activeChatSource.indexOf("active?.controller.abort()"),
+		);
 	});
 
 	it("exposes chat messages and request errors through persistent accessible regions", () => {

@@ -86,13 +86,18 @@ def _build_qdrant_client(settings: RetrievalSettings) -> QdrantClient:
     client_factory = _resolve_qdrant_client_factory()
     if settings.qdrant_url == ":memory:":
         return client_factory(location=":memory:")
+    client_kwargs = {
+        "url": settings.qdrant_url,
+        "api_key": settings.qdrant_api_key,
+        "timeout": settings.qdrant_timeout_seconds,
+        "cloud_inference": False,
+        "check_compatibility": False,
+        "trust_env": False,
+    }
+    if settings.qdrant_tls_ca_cert_path:
+        client_kwargs["verify"] = settings.qdrant_tls_ca_cert_path
     return client_factory(
-        url=settings.qdrant_url,
-        api_key=settings.qdrant_api_key,
-        timeout=settings.qdrant_timeout_seconds,
-        cloud_inference=False,
-        check_compatibility=False,
-        trust_env=False,
+        **client_kwargs,
     )
 
 

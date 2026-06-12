@@ -2,30 +2,28 @@ from .supervisor_api_bridge_support import *
 
 
 class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
-    def test_bridge_answer_route_accepts_v6_agent_response_contract(self) -> None:
+    def test_bridge_answer_route_accepts_capability_execution_contract(self) -> None:
         captured_requests = []
 
         def fake_agent(request):
             captured_requests.append(request)
-            return AgentResponse(
-                target=request.target,
+            return CapabilityResponse(
+                capability=request.capability,
                 status="completed",
                 answer_text="Agent response returned to Go finalizer.",
                 confidence="high",
             )
 
-        body = _bridge_v6_payload(
+        body = _capability_execution_payload(
             user_goal="保研政策怎么准备？",
             request_id="req-v6-agent-response",
             trace_id="trace-v6-agent-response",
         )
-        body["bridge_version"] = "supervisor_bridge_v6"
-        body["response_contract"] = "agent_response"
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=fake_agent,
+            capability_handler=fake_agent,
         )
 
         response = app.handle(
@@ -36,13 +34,13 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "agent_response")
-        self.assertEqual(response.json_body["target"], "rag-agent")
+        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "capability_response")
+        self.assertEqual(response.json_body["capability"], "knowledge")
         self.assertEqual(response.json_body["status"], "completed")
         self.assertEqual(len(captured_requests), 1)
-        self.assertEqual(captured_requests[0].target, "rag-agent")
+        self.assertEqual(captured_requests[0].capability, "knowledge")
 
-    def test_bridge_answer_route_rejects_bridge_v4_after_agent_response_hardcut(
+    def test_bridge_answer_route_rejects_old_execution_contract_version(
         self,
     ) -> None:
         app = create_bridge_app(
@@ -56,22 +54,22 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
             json_body={
-                **_bridge_v6_payload(request_id="req-v4-rejected"),
-                "bridge_version": "supervisor_bridge_v4",
+                **_capability_execution_payload(request_id="req-v4-rejected"),
+                "execution_contract_version": "supervisor_bridge_v4",
             },
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
-        self.assertIn("supervisor_bridge_v6", response.json_body["error"]["message"])
+        self.assertIn("capability_execution_v1", response.json_body["error"]["message"])
 
-    def test_bridge_answer_route_accepts_supervisor_request_payload(self) -> None:
+    def test_bridge_answer_route_accepts_execution_request_payload(self) -> None:
         captured_requests = []
 
         def fake_agent(request):
             captured_requests.append(request)
-            return AgentResponse(
-                target=request.target,
+            return CapabilityResponse(
+                capability=request.capability,
                 status="completed",
                 answer_text="Projected context reached supervisor.",
                 confidence="high",
@@ -82,10 +80,10 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
                 app_name="campus-agent-v2",
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=fake_agent,
+            capability_handler=fake_agent,
         )
 
-        body = _bridge_v6_payload(
+        body = _capability_execution_payload(
             user_goal="保研政策怎么准备？",
             conversation_id="conv-001",
             request_id="req-001",
@@ -124,15 +122,17 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["x-supervisor-bridge-kind"],
-            "agent_response",
+            "capability_response",
         )
         self.assertEqual(response.json_body["status"], "completed")
-        self.assertEqual(response.json_body["target"], "rag-agent")
+        self.assertEqual(response.json_body["capability"], "knowledge")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].trace.trace_id, "trace-001")
         self.assertEqual(captured_requests[0].context.actor.user_id, "student@example.edu")
 
-    def test_bridge_answer_route_rejects_legacy_payload_without_bridge_v6_marker(self) -> None:
+    def test_bridge_answer_route_rejects_legacy_payload_without_execution_contract_marker(
+        self,
+    ) -> None:
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
@@ -165,7 +165,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
-        self.assertIn("bridge_version", response.json_body["error"]["message"])
+        self.assertIn("execution_contract_version", response.json_body["error"]["message"])
 
     def test_bridge_answer_rejects_non_string_actor_projection_fields(self) -> None:
         captured_requests = []
@@ -185,10 +185,10 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (
+            capability_handler=lambda request: (
                 captured_requests.append(request)
-                or AgentResponse(
-                    target=request.target,
+                or CapabilityResponse(
+                    capability=request.capability,
                     status="completed",
                     answer_text="unexpected",
                     confidence="high",
@@ -200,7 +200,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v6_payload(
+            json_body=_capability_execution_payload(
                 request_id="req-reject-non-string-actor",
                 actor={"user_id": "student@example.edu"},
                 context=context,
@@ -218,17 +218,17 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (
+            capability_handler=lambda request: (
                 captured_requests.append(request)
-                or AgentResponse(
-                    target=request.target,
+                or CapabilityResponse(
+                    capability=request.capability,
                     status="completed",
                     answer_text="unexpected",
                     confidence="high",
                 )
             ),
         )
-        body = _bridge_v6_payload(
+        body = _capability_execution_payload(
             request_id="req-reject-non-string-scope",
         )
         body["requested_scope"] = {
@@ -275,10 +275,10 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (
+            capability_handler=lambda request: (
                 captured_requests.append(request)
-                or AgentResponse(
-                    target=request.target,
+                or CapabilityResponse(
+                    capability=request.capability,
                     status="completed",
                     answer_text="ok",
                     confidence="high",
@@ -290,7 +290,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v6_payload(
+            json_body=_capability_execution_payload(
                 request_id="req-selected-notice-ref",
                 context=context,
             ),
@@ -311,10 +311,10 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             ),
-            agent_handler=lambda request: (
+            capability_handler=lambda request: (
                 captured_requests.append(request)
-                or AgentResponse(
-                    target=request.target,
+                or CapabilityResponse(
+                    capability=request.capability,
                     status="completed",
                     answer_text="unexpected",
                     confidence="high",
@@ -326,13 +326,13 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v6_payload_with_handoff(
+            json_body=_capability_execution_payload_with_handoff(
                 user_goal="明天去丰台的班车",
                 request_id="req-reject-unsupported-nested-payload",
                 trace_id="trace-reject-unsupported-nested-payload",
                 effective_capability="campus_services",
                 lane="campus_services",
-                handoff_target="campus-services-agent",
+                handoff_capability="campus_services",
                 payload_kind="transport_schedule_lookup",
                 allowed_tools=["transport_schedule_lookup"],
                 payload={

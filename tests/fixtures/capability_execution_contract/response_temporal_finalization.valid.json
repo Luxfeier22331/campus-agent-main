@@ -1,0 +1,54 @@
+{
+	"selected_capability": "knowledge",
+	"status": "completed",
+	"answer_text": "国家奖学金按学校现行评审办法执行。",
+	"error": null,
+	"follow_up_question": "",
+	"confidence": "high",
+	"result": {
+		"evidence": {
+			"query_text": "中央民族大学本科学生国家奖学金评审办法",
+			"sources": [
+				{
+					"doc_id": "student_rules:national-scholarship",
+					"chunk_id": "student_rules:national-scholarship:chunk-001",
+					"source_title": "中央民族大学本科学生国家奖学金评审办法",
+					"snippet": "国家奖学金实行等额评审，坚持公开、公平、公正、择优的原则。",
+					"source_ref": "campus-agent://regulations/student_rules/docs/student_rules:national-scholarship",
+					"structural_ref": "span://student_rules:national-scholarship/chunk-001"
+				}
+			]
+		},
+		"diagnostics": {
+			"semantic_outcome": "grounded_answer",
+			"grounding_verdict": "supported",
+			"prompt_runtime_state": "go_provider_synthesis_completed",
+			"prompt_runtime_detail": "provider_execution_summary_v1",
+			"answer_artifact_ref": "provider://requests/run_temporal_finalization/synthesis",
+			"provider_response_ref": "resp_temporal_finalization",
+			"provider_pricing_ref": "provider-pricing-v1",
+			"retrieval_stage_ref": "projection://runs/run_temporal_finalization/retrieval/indexed-lookup",
+			"evidence_selection_ref": "projection://runs/run_temporal_finalization/evidence/selection",
+			"synthesis_step_ref": "projection://runs/run_temporal_finalization/synthesis",
+			"step_projection_schema": "step-result-projection-v1"
+		}
+	},
+	"observability": {
+		"selected_tool": "retrieval.query",
+		"result_outcome": "grounded_answer"
+	},
+	"workflow_trace_summary": {
+		"workflow_mode": "single_step",
+		"selected_capability": "knowledge",
+		"selected_tools": ["retrieval.query"],
+		"answer_artifact_kinds": ["provider_execution_summary"],
+		"answer_artifact_refs": ["provider://requests/run_temporal_finalization/synthesis"],
+		"runtime_versions": {
+			"provider_summary": "provider_execution_summary_v1"
+		},
+		"policy_artifact_versions": {
+			"provider_pricing": "provider-pricing-v1"
+		}
+	},
+	"trace_id": "trace-temporal-finalization"
+}

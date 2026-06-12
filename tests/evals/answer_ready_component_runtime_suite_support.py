@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from campus_contracts import (
-    AgentResponse,
+    CapabilityResponse,
     ClaimSupport,
     EvidenceBundle,
     RagResultDiagnostics,
@@ -18,7 +18,10 @@ from campus_evals.answer_ready_component_runtime import (
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
-from tests.agent.rag_agent_test_support import _make_handbook_source, _make_official_web_source
+from tests.agent.knowledge_capability_test_support import (
+    _make_handbook_source,
+    _make_official_web_source,
+)
 
 
 def _answer_ready_anchor(**metadata: object) -> dict[str, object]:

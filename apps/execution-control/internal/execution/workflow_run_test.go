@@ -9,7 +9,7 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 		State:  WorkflowStateCompleted,
 		HandoffChain: []HandoffStep{
 			{
-				Target:       "rag-agent",
+				Capability:   "knowledge",
 				PayloadKind:  "rag_request",
 				AllowedTools: []string{"retrieval.query"},
 				SelectedTool: "retrieval.query",
@@ -26,7 +26,7 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 				StepID:       "tool_call",
 				SpanKind:     "tool_call",
 				ParentStepID: "handoff",
-				Target:       "rag-agent",
+				Capability:   "knowledge",
 				ToolName:     "retrieval.query",
 				Outcome:      "completed",
 				ResultStatus: "completed",
@@ -42,12 +42,12 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 				RuntimeRetryCount: 1,
 			},
 		},
-		AgentInvocations: []AgentInvocation{
+		CapabilityInvocations: []CapabilityInvocation{
 			{
-				InvocationID:   "agent-invocation:rag-agent:1",
+				InvocationID:   "capability-invocation:knowledge:1",
 				WorkflowRunRef: "run-001",
-				StepID:         "handoff:rag-agent:rag_request",
-				AgentID:        "rag-agent",
+				StepID:         "capability:knowledge:rag_request",
+				CapabilityID:   "knowledge",
 				Status:         "completed",
 				AllowedTools:   []string{"retrieval.query"},
 				UsedTools:      []string{"retrieval.query"},
@@ -59,7 +59,7 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 	if len(handoffChain) != 1 {
 		t.Fatalf("handoff chain length = %d, want 1", len(handoffChain))
 	}
-	if handoffChain[0]["target"] != "rag-agent" ||
+	if handoffChain[0]["capability"] != "knowledge" ||
 		handoffChain[0]["selected_tool"] != "retrieval.query" {
 		t.Fatalf("handoff chain = %#v, want selected rag handoff", handoffChain)
 	}
@@ -73,18 +73,18 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 	if steps[2]["attempt_count"] != 2 || steps[2]["runtime_retry_count"] != 1 {
 		t.Fatalf("finalization step = %#v, want bridge run state", steps[2])
 	}
-	agentInvocations := run.AgentInvocationMaps()
+	agentInvocations := run.CapabilityInvocationMaps()
 	if len(agentInvocations) != 1 {
 		t.Fatalf("agent invocations = %#v, want one projected invocation", agentInvocations)
 	}
-	if agentInvocations[0]["agent_id"] != "rag-agent" {
-		t.Fatalf("agent invocation = %#v, want rag-agent", agentInvocations[0])
+	if agentInvocations[0]["capability_id"] != "knowledge" {
+		t.Fatalf("agent invocation = %#v, want knowledge", agentInvocations[0])
 	}
 }
 
 func TestHandoffStepProjectsNilAllowedToolsAsEmptyArray(t *testing.T) {
 	item := HandoffStep{
-		Target:      "rag-agent",
+		Capability:  "knowledge",
 		PayloadKind: "rag_request",
 	}.Map()
 
@@ -107,13 +107,13 @@ func TestWorkflowRunProjectsMultiStepHandoffChain(t *testing.T) {
 		State:  WorkflowStateRunning,
 		HandoffChain: []HandoffStep{
 			{
-				Target:       "rag-agent",
+				Capability:   "knowledge",
 				PayloadKind:  "rag_request",
 				AllowedTools: []string{"retrieval.query"},
 				SelectedTool: "retrieval.query",
 			},
 			{
-				Target:       "notice-agent",
+				Capability:   "notice",
 				PayloadKind:  "campus_notice_get",
 				AllowedTools: []string{},
 				SelectedTool: "",
@@ -126,8 +126,8 @@ func TestWorkflowRunProjectsMultiStepHandoffChain(t *testing.T) {
 	if len(handoffChain) != 2 {
 		t.Fatalf("handoff chain length = %d, want 2", len(handoffChain))
 	}
-	if handoffChain[0]["target"] != "rag-agent" ||
-		handoffChain[1]["target"] != "notice-agent" {
+	if handoffChain[0]["capability"] != "knowledge" ||
+		handoffChain[1]["capability"] != "notice" {
 		t.Fatalf("handoff chain = %#v, want ordered multi-step chain", handoffChain)
 	}
 }

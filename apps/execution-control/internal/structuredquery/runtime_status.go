@@ -6,6 +6,7 @@ import (
 
 func (r *Runtime) Status(ctx context.Context) Status {
 	hasPostgresProjection := r.serviceStatusReadModelStore != nil ||
+		r.campusServicesOpsReleaseStore != nil ||
 		r.transportScheduleReadModelStore != nil ||
 		r.serviceGuideReadModelStore != nil ||
 		r.contactDirectoryReadModelStore != nil ||
@@ -16,6 +17,11 @@ func (r *Runtime) Status(ctx context.Context) Status {
 	}
 	if r.serviceStatusReadModelStore != nil {
 		status.ServiceStatusProjectionReady = projectionReady(ctx, r.serviceStatusReadModelStore)
+	}
+	if r.campusServicesOpsReleaseStore != nil {
+		status.CampusServicesOpsReleaseReady = projectionReady(ctx, r.campusServicesOpsReleaseStore)
+		status.ServiceStatusProjectionReady = status.ServiceStatusProjectionReady ||
+			status.CampusServicesOpsReleaseReady
 	}
 	if r.transportScheduleReadModelStore != nil {
 		status.TransportScheduleImplemented = projectionReady(ctx, r.transportScheduleReadModelStore)
@@ -34,6 +40,13 @@ func (r *Runtime) Status(ctx context.Context) Status {
 		ctx,
 		r.serviceStatusReadModelStore,
 		"service_status_read_model_unhealthy",
+		status.NoticeRuntimeLastError,
+	)
+	status.CampusServicesOpsReleaseConfigured = r.campusServicesOpsReleaseStore != nil
+	status.CampusServicesOpsReleaseHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+		ctx,
+		r.campusServicesOpsReleaseStore,
+		"campus_services_ops_release_unhealthy",
 		status.NoticeRuntimeLastError,
 	)
 	status.TransportScheduleReadModelConfigured = r.transportScheduleReadModelStore != nil

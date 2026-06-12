@@ -440,11 +440,11 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
 
         return runner
     if normalized == "multi-agent-runtime-contract":
-        from campus_evals.multi_agent_runtime_contract_gate import main as runner
+        from campus_evals.multi_capability_runtime_contract_gate import main as runner
 
         return runner
     if normalized == "multi-agent-live-smoke":
-        from campus_evals.multi_agent_live_smoke_gate import main as runner
+        from campus_evals.multi_capability_live_smoke_gate import main as runner
 
         return runner
     if normalized == "public-chat-entry-e2e":
@@ -523,7 +523,7 @@ def _audit_workflow_dispatch_choices(workflow_path: Path) -> dict[str, object]:
 def _audit_workflow_contract_generation_check(workflow_path: Path) -> dict[str, object]:
     text = workflow_path.read_text(encoding="utf-8")
     required_tokens = (
-        "scripts.generate_supervisor_execution_contracts",
+        "scripts.generate_capability_execution_contracts",
         "--check",
         "multi-agent-runtime-contract",
         "actions/upload-artifact",

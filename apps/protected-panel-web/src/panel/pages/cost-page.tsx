@@ -30,7 +30,7 @@ import { PanelPage } from "../panel-page";
 import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../panel-select";
 import {
 	CURRENT_RUNTIME_TARGET_OPTIONS,
-	formatSelectedTargetLabel,
+	formatSelectedCapabilityLabel,
 	formatSurfaceLabel,
 } from "../requests/request-formatters";
 import type { OperatorCostSummaryRecord, OperatorOverviewWindow } from "../types";
@@ -42,7 +42,7 @@ import {
 import { resolveOverviewGranularity } from "./overview-domain";
 
 interface CostFilterState {
-	selectedTarget: string | null;
+	selectedCapability: string | null;
 	surface: string | null;
 	window: OperatorOverviewWindow;
 }
@@ -262,26 +262,26 @@ export function CostPage() {
 	useAuthenticated();
 	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
 	const [filters, setFilters] = useState<CostFilterState>({
-		selectedTarget: null,
+		selectedCapability: null,
 		surface: null,
 		window: "24h",
 	});
 
 	const deferredWindow = useDeferredValue(filters.window);
 	const deferredSurface = useDeferredValue(filters.surface);
-	const deferredSelectedTarget = useDeferredValue(filters.selectedTarget);
+	const deferredSelectedCapability = useDeferredValue(filters.selectedCapability);
 
 	const isRefreshing =
 		filters.window !== deferredWindow ||
 		filters.surface !== deferredSurface ||
-		filters.selectedTarget !== deferredSelectedTarget;
+		filters.selectedCapability !== deferredSelectedCapability;
 
 	const [summaryQuery, timeseriesQuery] = useQueries({
 		queries: [
 			{
 				queryFn: ({ signal }) =>
 					dataProvider.getOperatorCostSummary({
-						selectedTarget: deferredSelectedTarget,
+						selectedCapability: deferredSelectedCapability,
 						signal,
 						surface: deferredSurface,
 						window: deferredWindow,
@@ -290,7 +290,7 @@ export function CostPage() {
 					"protected-panel-cost-summary",
 					deferredWindow,
 					deferredSurface,
-					deferredSelectedTarget,
+					deferredSelectedCapability,
 				] as const,
 				staleTime: 30_000,
 			},
@@ -298,7 +298,7 @@ export function CostPage() {
 				queryFn: ({ signal }) =>
 					dataProvider.getOperatorCostTimeseries({
 						granularity: resolveOverviewGranularity(deferredWindow),
-						selectedTarget: deferredSelectedTarget,
+						selectedCapability: deferredSelectedCapability,
 						signal,
 						surface: deferredSurface,
 						window: deferredWindow,
@@ -308,7 +308,7 @@ export function CostPage() {
 					deferredWindow,
 					resolveOverviewGranularity(deferredWindow),
 					deferredSurface,
-					deferredSelectedTarget,
+					deferredSelectedCapability,
 				] as const,
 				staleTime: 30_000,
 			},
@@ -339,13 +339,13 @@ export function CostPage() {
 					? formatSurfaceLabel(filters.surface)
 					: PANEL_COPY.overviewPage.filters.allSurfaces
 			}`,
-			`${PANEL_COPY.costPage.filterSummary.selectedTarget}: ${
-				filters.selectedTarget
-					? formatSelectedTargetLabel(filters.selectedTarget)
+			`${PANEL_COPY.costPage.filterSummary.selectedCapability}: ${
+				filters.selectedCapability
+					? formatSelectedCapabilityLabel(filters.selectedCapability)
 					: PANEL_COPY.overviewPage.filters.allTargets
 			}`,
 		],
-		[filters.selectedTarget, filters.surface, filters.window],
+		[filters.selectedCapability, filters.surface, filters.window],
 	);
 
 	return (
@@ -419,12 +419,12 @@ export function CostPage() {
 										))}
 									</TextField>
 									<TextField
-										label={PANEL_COPY.costPage.filters.selectedTarget}
+										label={PANEL_COPY.costPage.filters.selectedCapability}
 										onChange={(event) => {
 											startTransition(() => {
 												setFilters((current) => ({
 													...current,
-													selectedTarget: normalizeFilterValue(event.target.value),
+													selectedCapability: normalizeFilterValue(event.target.value),
 												}));
 											});
 										}}
@@ -432,7 +432,7 @@ export function CostPage() {
 										size="small"
 										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 180, xs: "100%" } }}
-										value={filters.selectedTarget ?? ""}
+										value={filters.selectedCapability ?? ""}
 									>
 										{TARGET_OPTIONS.map((option) => (
 											<MenuItem key={option.value ?? "all"} value={option.value ?? ""}>

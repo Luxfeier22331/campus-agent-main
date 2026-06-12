@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import SupervisorObservability
+from campus_contracts import ExecutionObservability
 
 from .app_api_chat_runtime_support import (
     _optional_bool,
@@ -21,13 +21,13 @@ def _optional_string_mapping(value: object) -> dict[str, str]:
     }
 
 
-def _parse_supervisor_observability(value: object) -> SupervisorObservability | None:
+def _parse_execution_observability(value: object) -> ExecutionObservability | None:
     record = _optional_record(value)
     if record is None:
         return None
     from .app_api_chat_runtime_decoding import _parse_observed_source
 
-    return SupervisorObservability(
+    return ExecutionObservability(
         retrieval_attempted=_optional_bool(
             record.get("retrievalAttempted")
             if "retrievalAttempted" in record

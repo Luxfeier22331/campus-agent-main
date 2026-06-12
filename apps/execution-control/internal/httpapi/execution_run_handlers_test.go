@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -17,21 +16,21 @@ type fakeTemporalStarter struct {
 	cancelRunID  string
 	cancelReason string
 	cancelErr    error
-	input        temporalruntime.ChatAnswerWorkflowInput
+	input        temporalruntime.CapabilityExecutionWorkflowInput
 	err          error
 }
 
-func (f *fakeTemporalStarter) StartChatAnswerWorkflow(
+func (f *fakeTemporalStarter) StartCapabilityExecutionWorkflow(
 	_ context.Context,
-	input temporalruntime.ChatAnswerWorkflowInput,
+	input temporalruntime.CapabilityExecutionWorkflowInput,
 ) error {
 	f.input = input
 	return f.err
 }
 
-func (f *fakeTemporalStarter) CancelChatAnswerWorkflow(
+func (f *fakeTemporalStarter) CancelCapabilityExecutionWorkflow(
 	_ context.Context,
-	input temporalruntime.ChatAnswerWorkflowCancelInput,
+	input temporalruntime.CapabilityExecutionWorkflowCancelInput,
 ) error {
 	f.cancelRunID = input.RunID
 	f.cancelReason = input.Reason
@@ -49,7 +48,13 @@ func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.Ru
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueRAG,
+				Name:    temporalruntime.ActivityTaskQueueContext,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -67,14 +72,7 @@ func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.Ru
 func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
-	server := NewServer(config.Config{
-		WorkerSharedSecret:     "secret",
-		RequestBodyLimitBytes:  1_048_576,
-		MaxConcurrentAnswers:   8,
-		TemporalNamespace:      "campus-agent-test",
-		TemporalTaskQueue:      temporalruntime.WorkflowTaskQueue,
-		TemporalWorkflowIDSalt: "test-salt",
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -103,7 +101,7 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 					"runtime_decisions":{"runtime_decision_summary":{}}
 				},
 				"handoff":{
-					"target":"rag-tool",
+					"capability":"rag-tool",
 					"payload_kind":"rag_request",
 					"allowed_tools":["retrieval.query"],
 					"payload":{"query_text":"hello"}
@@ -141,11 +139,7 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 
 func TestExecutionRunCreateFailsClosedWhenTemporalStarterMissing(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	response := httptest.NewRecorder()
@@ -164,11 +158,7 @@ func TestExecutionRunCreateFailsClosedWhenTemporalStarterMissing(t *testing.T) {
 func TestExecutionRunCreateFailsClosedWhenTemporalStartFails(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{err: context.DeadlineExceeded}
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -191,11 +181,7 @@ func TestExecutionRunCreateFailsClosedWhenTemporalStartFails(t *testing.T) {
 func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
@@ -231,11 +217,7 @@ func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 
 func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -247,14 +229,14 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		ragHandoffForDurableWorkerTest("hello"),
 	)
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
-		StepID:               "planning",
+		StepID:               "plan.route",
 		RunID:                "run-temporal-trajectory",
 		ConversationID:       "conv-temporal-trajectory",
 		StepKind:             "planning",
 		Capability:           "knowledge",
 		Status:               "completed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueRAG,
-		WorkerID:             "staging:rag:worker-1",
+		TaskQueue:            temporalruntime.ActivityTaskQueueContext,
+		WorkerID:             "staging:context:worker-1",
 		StartedAt:            now,
 		CompletedAt:          now.Add(100 * time.Millisecond),
 		UpdatedAt:            now.Add(100 * time.Millisecond),
@@ -267,39 +249,59 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("upsert step: %v", err)
 	}
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
-		AttemptID:            "planning:attempt:1",
-		StepID:               "planning",
-		RunID:                "run-temporal-trajectory",
-		Attempt:              1,
-		Status:               "completed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueRAG,
-		WorkerID:             "staging:rag:worker-1",
-		StartedAt:            now,
-		CompletedAt:          now.Add(100 * time.Millisecond),
-		UpdatedAt:            now.Add(100 * time.Millisecond),
-		PayloadSchemaVersion: "step-attempt-projection-v1",
+		AttemptID:             "plan.route:attempt:1",
+		StepID:                "plan.route",
+		RunID:                 "run-temporal-trajectory",
+		Attempt:               1,
+		Status:                "completed",
+		TaskQueue:             temporalruntime.ActivityTaskQueueContext,
+		WorkerID:              "staging:context:worker-1",
+		WorkflowID:            "campus-agent.chat.run-temporal-trajectory",
+		TemporalRunID:         "temporal-run-trajectory",
+		ActivityID:            "activity-planning-1",
+		ActivityType:          "PlanRouteActivity",
+		ActivityAttempt:       1,
+		ScheduledAt:           now.Add(-25 * time.Millisecond),
+		StartedAt:             now,
+		CompletedAt:           now.Add(100 * time.Millisecond),
+		ScheduleToStartMS:     25,
+		DurationMS:            100,
+		ProviderRequestRef:    "provider://requests/req_001",
+		ProviderResponseID:    "resp_001",
+		ModelProvider:         "openai",
+		ModelName:             "gpt-5-mini",
+		InputTokens:           120,
+		OutputTokens:          42,
+		CachedInputTokens:     10,
+		EstimatedCostMicroUSD: 321,
+		PricingVersion:        "provider-pricing-v1",
+		CancelOutcome:         execution.CancelOutcomeNotRequested,
+		TimeoutOutcome:        execution.TimeoutOutcomeNotTimedOut,
+		TerminalReason:        "answer_completed",
+		UpdatedAt:             now.Add(100 * time.Millisecond),
+		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload: map[string]any{
-			"activity_type": "PlanChatAnswerActivity",
+			"activity_type": "PlanRouteActivity",
 			"raw_answer":    "must not leak",
 		},
 	}); err != nil {
 		t.Fatalf("upsert attempt: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "planning:result:1",
-		StepID:               "planning",
+		ResultID:             "plan.route:result:1",
+		StepID:               "plan.route",
 		RunID:                "run-temporal-trajectory",
-		AttemptID:            "planning:attempt:1",
+		AttemptID:            "plan.route:attempt:1",
 		Status:               "completed",
-		ResultKind:           "plan",
-		ProjectionRef:        "projection://runs/run-temporal-trajectory/planning",
+		ResultKind:           "route_plan",
+		ProjectionRef:        "projection://runs/run-temporal-trajectory/plan/route",
 		CreatedAt:            now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"result_ref":          "projection://runs/run-temporal-trajectory/planning/result",
+			"result_ref":          "projection://runs/run-temporal-trajectory/plan/route/result",
 			"raw_provider_result": "must not leak",
 			"selected_capability": "knowledge",
-			"selected_task_queue": temporalruntime.ActivityTaskQueueRAG,
+			"selected_task_queue": temporalruntime.ActivityTaskQueueContext,
 		},
 	}); err != nil {
 		t.Fatalf("upsert result: %v", err)
@@ -324,12 +326,38 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("steps = %#v, want one step", body["steps"])
 	}
 	step := expectRecord(t, steps[0], "steps[0]")
-	if step["step_kind"] != "planning" || step["task_queue"] != temporalruntime.ActivityTaskQueueRAG {
+	if step["step_kind"] != "planning" || step["task_queue"] != temporalruntime.ActivityTaskQueueContext {
 		t.Fatalf("step = %#v", step)
 	}
 	attempts, ok := body["attempts"].([]any)
 	if !ok || len(attempts) != 1 {
 		t.Fatalf("attempts = %#v, want one attempt", body["attempts"])
+	}
+	attempt := expectRecord(t, attempts[0], "attempts[0]")
+	for key, want := range map[string]any{
+		"workflow_id":             "campus-agent.chat.run-temporal-trajectory",
+		"temporal_run_id":         "temporal-run-trajectory",
+		"activity_id":             "activity-planning-1",
+		"activity_type":           "PlanRouteActivity",
+		"activity_attempt":        float64(1),
+		"schedule_to_start_ms":    float64(25),
+		"duration_ms":             float64(100),
+		"provider_request_ref":    "provider://requests/req_001",
+		"provider_response_id":    "resp_001",
+		"model_provider":          "openai",
+		"model_name":              "gpt-5-mini",
+		"input_tokens":            float64(120),
+		"output_tokens":           float64(42),
+		"cached_input_tokens":     float64(10),
+		"estimated_cost_microusd": float64(321),
+		"pricing_version":         "provider-pricing-v1",
+		"cancel_outcome":          string(execution.CancelOutcomeNotRequested),
+		"timeout_outcome":         string(execution.TimeoutOutcomeNotTimedOut),
+		"terminal_reason":         "answer_completed",
+	} {
+		if attempt[key] != want {
+			t.Fatalf("attempt[%s] = %#v, want %#v; attempt=%#v", key, attempt[key], want, attempt)
+		}
 	}
 	results, ok := body["results"].([]any)
 	if !ok || len(results) != 1 {
@@ -346,11 +374,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 func TestExecutionRunCancelFailsClosedWhenTemporalCancelFails(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{cancelErr: context.DeadlineExceeded}
-	server := NewServer(config.Config{
-		WorkerSharedSecret:    "secret",
-		RequestBodyLimitBytes: 1_048_576,
-		MaxConcurrentAnswers:  8,
-	}, nil)
+	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)

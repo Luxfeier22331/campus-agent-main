@@ -1,3 +1,6 @@
+import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import { useEffect } from "react";
+import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
@@ -101,48 +104,128 @@ export function InteractiveFloorplan({
 	windows: DiningWindowProjection[];
 }) {
 	const selectedWindow = windows.find((window) => window.windowId === selectedWindowId) ?? null;
-	const normalizedMarkup = markDiningFloorplanAnchors(
+	const normalizedFloorplan = markDiningFloorplanAnchors(
 		floor.floor.svgMarkup,
 		windows,
 		selectedWindow?.svgAnchorId ?? null,
 	);
 	return (
-		<div className="overflow-auto rounded-xl border border-border bg-[var(--dining-svg-canvas-bg)] p-3">
-			<fieldset
-				className="min-w-[640px] rounded-lg border border-border bg-white p-2 [&_.dining-svg-anchor]:cursor-pointer [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
-				data-testid="dining-inline-floorplan"
-				onClick={(event) => {
-					const target = event.target;
-					if (!(target instanceof Element)) {
-						return;
-					}
-					const anchorElement = target.closest("[data-dining-anchor-id]");
-					const anchorId = anchorElement?.getAttribute("data-dining-anchor-id");
-					const window = windows.find((item) => item.svgAnchorId === anchorId);
-					if (window) {
-						onSelectWindow(window.windowId);
-					}
-				}}
-				onKeyDown={(event) => {
-					if (event.key !== "Enter" && event.key !== " ") {
-						return;
-					}
-					const target = event.target;
-					if (!(target instanceof Element)) {
-						return;
-					}
-					const anchorId = target.getAttribute("data-dining-anchor-id");
-					const window = windows.find((item) => item.svgAnchorId === anchorId);
-					if (window) {
-						event.preventDefault();
-						onSelectWindow(window.windowId);
-					}
-				}}
+		<TransformWrapper
+			centerOnInit
+			limitToBounds={false}
+			maxScale={3}
+			minScale={0.65}
+			wheel={{ step: 0.08 }}
+			pinch={{ step: 6 }}
+		>
+			<DiningFloorplanZoomSurface
+				markup={normalizedFloorplan.markup}
+				onSelectWindow={onSelectWindow}
+				selectedZoomTarget={normalizedFloorplan.selectedZoomTarget}
+				windows={windows}
+			/>
+		</TransformWrapper>
+	);
+}
+
+function DiningFloorplanZoomSurface({
+	markup,
+	onSelectWindow,
+	selectedZoomTarget,
+	windows,
+}: {
+	markup: string;
+	onSelectWindow(windowId: string): void;
+	selectedZoomTarget: string | null;
+	windows: DiningWindowProjection[];
+}) {
+	const { centerView, resetTransform, zoomIn, zoomOut, zoomToElement } = useControls();
+	useEffect(() => {
+		if (!selectedZoomTarget) {
+			return;
+		}
+		const selector = `[data-dining-zoom-target="${selectedZoomTarget}"]`;
+		if (!document.querySelector(selector)) {
+			return;
+		}
+		zoomToElement(selector, 1.35, 160, "easeOut");
+	}, [selectedZoomTarget, zoomToElement]);
+
+	return (
+		<div className="rounded-xl border border-border bg-[var(--dining-svg-canvas-bg)] p-3">
+			<div
+				className="mb-2 flex flex-wrap justify-end gap-2"
+				role="toolbar"
+				aria-label="平面图视图控制"
 			>
-				<legend className="sr-only">食堂平面图餐饮点选择</legend>
-				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: app-api returns sanitized published SVG and this component only annotates dining anchors for selection. */}
-				<div dangerouslySetInnerHTML={{ __html: normalizedMarkup }} />
-			</fieldset>
+				<button
+					aria-label="放大平面图"
+					className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-white text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
+					onClick={() => zoomIn(0.25, 120)}
+					type="button"
+				>
+					<ZoomIn aria-hidden="true" className="size-4" />
+				</button>
+				<button
+					aria-label="缩小平面图"
+					className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-white text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
+					onClick={() => zoomOut(0.25, 120)}
+					type="button"
+				>
+					<ZoomOut aria-hidden="true" className="size-4" />
+				</button>
+				<button
+					aria-label="适配平面图"
+					className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-white text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
+					onClick={() => {
+						resetTransform(0);
+						centerView(1, 120);
+					}}
+					type="button"
+				>
+					<Maximize2 aria-hidden="true" className="size-4" />
+				</button>
+			</div>
+			<TransformComponent
+				contentClass="min-w-[640px]"
+				wrapperClass="w-full overflow-hidden rounded-lg border border-border bg-white"
+			>
+				<fieldset
+					className="rounded-lg p-2 [&_.dining-svg-anchor]:cursor-pointer [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
+					data-testid="dining-inline-floorplan"
+					onClick={(event) => {
+						const target = event.target;
+						if (!(target instanceof Element)) {
+							return;
+						}
+						const anchorElement = target.closest("[data-dining-anchor-id]");
+						const anchorId = anchorElement?.getAttribute("data-dining-anchor-id");
+						const window = windows.find((item) => item.svgAnchorId === anchorId);
+						if (window) {
+							onSelectWindow(window.windowId);
+						}
+					}}
+					onKeyDown={(event) => {
+						if (event.key !== "Enter" && event.key !== " ") {
+							return;
+						}
+						const target = event.target;
+						if (!(target instanceof Element)) {
+							return;
+						}
+						const anchorId = target.getAttribute("data-dining-anchor-id");
+						const window = windows.find((item) => item.svgAnchorId === anchorId);
+						if (window) {
+							event.preventDefault();
+							onSelectWindow(window.windowId);
+						}
+					}}
+				>
+					<legend className="sr-only">食堂平面图餐饮点选择</legend>
+					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: app-api returns sanitized published SVG and this component only annotates dining anchors for selection. */}
+					<div dangerouslySetInnerHTML={{ __html: markup }} />
+				</fieldset>
+			</TransformComponent>
 		</div>
 	);
 }
@@ -251,16 +334,24 @@ function markDiningFloorplanAnchors(
 	svgMarkup: string,
 	windows: DiningWindowProjection[],
 	selectedAnchorId: string | null,
-): string {
+): { markup: string; selectedZoomTarget: string | null } {
 	const parser = new DOMParser();
 	const document = parser.parseFromString(svgMarkup, "image/svg+xml");
 	const windowByAnchor = new Map(
 		windows.flatMap((window) => (window.svgAnchorId ? [[window.svgAnchorId, window]] : [])),
 	);
+	let selectedZoomTarget: string | null = null;
 	for (const element of document.querySelectorAll("[data-dining-anchor-id]")) {
 		const anchorId = element.getAttribute("data-dining-anchor-id");
 		const window = anchorId ? windowByAnchor.get(anchorId) : null;
 		element.classList.add("dining-svg-anchor");
+		if (anchorId) {
+			const zoomTarget = toDiningZoomTarget(anchorId);
+			element.setAttribute("data-dining-zoom-target", zoomTarget);
+			if (anchorId === selectedAnchorId) {
+				selectedZoomTarget = zoomTarget;
+			}
+		}
 		if (anchorId === selectedAnchorId) {
 			element.classList.add("is-selected");
 		}
@@ -274,5 +365,17 @@ function markDiningFloorplanAnchors(
 			element.setAttribute("data-testid", `dining-anchor-${anchorId}`);
 		}
 	}
-	return new XMLSerializer().serializeToString(document.documentElement);
+	return {
+		markup: new XMLSerializer().serializeToString(document.documentElement),
+		selectedZoomTarget,
+	};
+}
+
+function toDiningZoomTarget(anchorId: string): string {
+	const slug = anchorId.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "anchor";
+	let hash = 0;
+	for (const char of anchorId) {
+		hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+	}
+	return `dining-anchor-${slug}-${hash.toString(36)}`;
 }

@@ -10,6 +10,13 @@ export {
 	user,
 	verification,
 } from "./auth";
+export {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
 export { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 export {
 	diningAuditEvents,
@@ -48,6 +55,7 @@ export {
 } from "./identity";
 export {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -55,7 +63,6 @@ export {
 	officialWebTargetReleaseGates,
 	pageFreshness,
 	pageObservations,
-	runAdmissionDecisions,
 	runArtifacts,
 	runHeartbeats,
 	runOutbox,
@@ -97,6 +104,13 @@ import {
 	user,
 	verification,
 } from "./auth";
+import {
+	campusServicesOpsAuditEvents,
+	campusServicesOpsReleases,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+} from "./campus-services-ops";
 import { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 import {
 	diningAuditEvents,
@@ -135,6 +149,7 @@ import {
 } from "./identity";
 import {
 	crawlRuns,
+	officialWebRunAdmissionDecisions,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetJobCandidates,
 	officialWebTargetJobs,
@@ -142,7 +157,6 @@ import {
 	officialWebTargetReleaseGates,
 	pageFreshness,
 	pageObservations,
-	runAdmissionDecisions,
 	runArtifacts,
 	runHeartbeats,
 	runOutbox,
@@ -183,6 +197,11 @@ export const appApiSchema = {
 	oauthAccessToken,
 	oauthConsent,
 	jwks,
+	campusServicesOpsSourceAttestations,
+	campusServicesOpsStatusOverrides,
+	campusServicesOpsTransportOverrides,
+	campusServicesOpsReleases,
+	campusServicesOpsAuditEvents,
 	conversations,
 	messageFeedback,
 	messages,
@@ -222,7 +241,7 @@ export const appApiSchema = {
 	officialWebTargetPageAttempts,
 	officialWebTargetArtifactVerificationSummaries,
 	officialWebTargetReleaseGates,
-	runAdmissionDecisions,
+	officialWebRunAdmissionDecisions,
 	runHeartbeats,
 	runArtifacts,
 	pageObservations,

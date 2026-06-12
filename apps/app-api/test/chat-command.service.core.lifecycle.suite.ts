@@ -2,12 +2,13 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
 	createTelemetryMock,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreLifecycleSuite(): void {
@@ -15,14 +16,14 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
 					[
 						'event: execution.queued\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"queued","occurred_at":"2026-03-28T08:00:00.500Z"}',
 						'event: execution.running\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"running","occurred_at":"2026-03-28T08:00:01.000Z"}',
-						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0002","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","confidence":"high","error":null,"follow_up_question":"","result":{"evidence":{"sources":[{"doc_id":"handbook:library-hours"}]}},"selected_target":"rag-agent","status":"completed","trace_id":"trace_0002"}}',
+						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0002","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","confidence":"high","error":null,"follow_up_question":"","result":{"evidence":{"sources":[{"doc_id":"handbook:library-hours"}]}},"selected_capability":"knowledge","status":"completed","trace_id":"trace_0002"}}',
 					].join("\n\n"),
 					{
 						headers: {
@@ -38,7 +39,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			telemetry,
 		});
 		if (!service.submitStream) {
@@ -107,7 +108,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			},
 			requestExecution: {
 				requestId: "req_0001",
-				selectedTarget: "rag-agent",
+				selectedCapability: "knowledge",
 				status: "completed",
 				traceId: "trace_0002",
 			},
@@ -117,7 +118,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
@@ -136,7 +137,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			telemetry,
 		});
 		if (!service.submitStream) {
@@ -177,7 +178,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: SupervisorExecutionClient = {
+		const supervisor: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆在海淀校区主教学区西侧。",
 				error: null,
@@ -192,7 +193,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 						},
 					},
 				},
-				selectedTarget: "navigation-agent",
+				selectedCapability: "navigation",
 				status: "completed",
 				traceId: "trace_0002",
 			}),
@@ -202,7 +203,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-04-11T09:00:00.000Z"),
 			conversationStore,
 			store,
-			supervisor,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
 			telemetry,
 		});
 
@@ -232,7 +233,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
 				requestedCapability: null,
-				selectedTarget: "navigation-agent",
+				selectedCapability: "navigation",
 			},
 			requestObservabilityFact: {
 				requestedCapability: null,

@@ -17,7 +17,7 @@ updated: 2026-06-04
 - `document-reader-publish-contract.md`
 - `app-api-error-model.md`
 - `app-api-request-lifecycle.md`
-- `app-api-supervisor-execution.md`
+- `capability-execution.md`
 - `app-api-identity-platform-http.md` (forward product projection; not current
   route inventory)
 - `app-api-federation-http.md` (forward federation provider surface)
@@ -28,6 +28,7 @@ updated: 2026-06-04
 
 ## Operator / Official Web contract
 
+- `app-api-campus-services-ops-http.md`
 - `app-api-authenticated-notice-processing-http.md`
 - `app-api-operator-observability-http.md`
 - `app-api-official-web-http.md`
@@ -50,7 +51,7 @@ updated: 2026-06-04
 
 ## Retrieval internal contract
 
-- `rag-agent-retrieval-plan-contract.md`
+- `knowledge-retrieval-plan-contract.md`
 
 ## 使用规则
 

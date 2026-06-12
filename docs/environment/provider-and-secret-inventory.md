@@ -42,8 +42,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 ### Repo-root shared provider
 
 - Provider / system: OpenAI-compatible LLM provider
-  作用: supervisor / agent 在线回答，eval 默认 judge/ragas LLM
-  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `SUPERVISOR_PROMPT_MODEL`
+  作用: execution-control / agentic execution 在线回答，eval 默认 judge/ragas LLM
+  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `EXECUTION_PROMPT_MODEL`
   `AGENT_PROMPT_MODEL`
   放置位置: root `.env`
   何时必需: 真实 query path、live eval
@@ -60,12 +60,13 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - Provider / system: Qdrant
   作用: 向量索引与 hybrid retrieval backend
-  主要 env keys: `QDRANT_URL` `QDRANT_API_KEY`
+  主要 env keys: `QDRANT_URL` `QDRANT_API_KEY` `QDRANT_READ_ONLY_API_KEY`
+  `QDRANT_QUERY_API_KEY` `QDRANT_TLS_CA_CERT_PATH`
   放置位置: root `.env`
   何时必需: retrieval / indexing
   获取方式: 当前 staging / early production 默认使用自托管单节点 Qdrant；按
   `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md` 部署 container，并由 deploy
-  secret / env 提供 URL + API key
+  secret / env 提供 HTTPS URL、admin key、read-only query key 与 CA certificate path
 
 - Provider / system: Shared Postgres
   作用: app-api shared DB、document/raw registry
@@ -195,7 +196,11 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID`
   `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
   `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL`
-  `SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET`
+  `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`
+  `EXECUTION_CONTROL_TEMPORAL_*`
+  `QDRANT_API_KEY`
+  `EMBEDDING_*`
+  `PROMPT_RUNTIME_*`
   放置位置: `/srv/docker/campus-agent/staging/env/runtime.env` 或 Docker/ops-owned
   secret source
   何时必需: 当前 canonical staging execution runtime 需要
@@ -203,9 +208,9 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   deploy checkout；machine ingress 固定为 `execution-control-staging.mucwiki-edge.link`
 
 - Provider / system: Supervisor local runtime command template
-  作用: 本地 Docker 双容器 `execution-control` runtime 的 command-scoped override
+  作用: 本地 Docker `execution-control + Temporal + split workers` runtime 的
+  command-scoped override
   主要 env keys: `EXECUTION_CONTROL_RUNTIME_*` `EXECUTION_CONTROL_*`
-  `SUPERVISOR_AGENT_WORKER_*`
   放置位置: `env/commands/execution-control-runtime.env.example`
   何时必需: 只在本地 smoke / 运维排障需要显式覆写默认值时
   获取方式: 直接基于 repo template；不要把 deploy-only secret 回写到 root `.env.example`
@@ -229,7 +234,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 - 一个可达的 `base_url`
 - 一把 API key
 - 至少两个可用模型名：
-  - `SUPERVISOR_PROMPT_MODEL`
+  - `EXECUTION_PROMPT_MODEL`
   - `AGENT_PROMPT_MODEL`
 
 默认放置位置：
@@ -240,7 +245,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - `LLM_BASE_URL`
 - `LLM_API_KEY`
-- `SUPERVISOR_PROMPT_MODEL`
+- `EXECUTION_PROMPT_MODEL`
 - `AGENT_PROMPT_MODEL`
 - 可选 eval override：`EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY` `EVAL_LLM_TRANSPORT`
   `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`
@@ -322,14 +327,25 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - `QDRANT_URL`
 - `QDRANT_API_KEY`
+- `QDRANT_READ_ONLY_API_KEY`
+- `QDRANT_QUERY_API_KEY`
+- `QDRANT_TLS_CA_CERT_PATH`
 
 获取方式：
 
 1. 在目标服务器按
    [Self-Hosted Qdrant Native Backup Runbook](../runbooks/self-hosted-qdrant-native-backup-runbook.md)
    部署 single-node Qdrant。
-1. 生成 deploy-scoped `QDRANT_API_KEY`，写入服务器本地 env 或 deploy secret store。
-1. 把本机或内网 Qdrant URL 写入 `QDRANT_URL`，例如 `http://127.0.0.1:6333`。
+1. 生成 deploy-scoped `QDRANT_API_KEY` 与 `QDRANT_READ_ONLY_API_KEY`，写入服务器本地
+   env 或 deploy secret store。
+1. 把本机或内网 Qdrant URL 写入 `QDRANT_URL`，staging / production 必须使用 HTTPS，
+   例如 `https://127.0.0.1:6333`。
+1. online execution runtime 使用 read-only key 投影出的 `QDRANT_QUERY_API_KEY`，不得用
+   admin `QDRANT_API_KEY` 查询。
+1. execution-control personal memory write path 使用 `QDRANT_WRITE_API_KEY`；staging
+   可暂时由 `STAGING_INGESTION_QDRANT_API_KEY` 投影，长期应拆为单独 write-capable key。
+1. 配置 `QDRANT_TLS_CA_CERT_PATH` 指向 ops-owned CA bundle，例如
+   `/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`。
 1. 不把 `6333` / `6334` 直接暴露到公网。
 
 外部参考：

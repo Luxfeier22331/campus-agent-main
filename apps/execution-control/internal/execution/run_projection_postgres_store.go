@@ -189,14 +189,55 @@ create table if not exists runtime.agent_step_attempts (
 	status text not null,
 	task_queue text not null default '',
 	worker_id text not null default '',
+	workflow_id text not null default '',
+	temporal_run_id text not null default '',
+	activity_id text not null default '',
+	activity_type text not null default '',
+	activity_attempt integer not null default 0,
+	scheduled_at timestamptz,
 	started_at timestamptz,
 	completed_at timestamptz,
+	schedule_to_start_ms bigint not null default 0,
+	duration_ms bigint not null default 0,
+	provider_request_ref text not null default '',
+	provider_response_id text not null default '',
+	model_provider text not null default '',
+	model_name text not null default '',
+	input_tokens bigint not null default 0,
+	output_tokens bigint not null default 0,
+	cached_input_tokens bigint not null default 0,
+	estimated_cost_microusd bigint not null default 0,
+	pricing_version text not null default '',
+	cancel_outcome text not null default '',
+	timeout_outcome text not null default '',
+	terminal_reason text not null default '',
 	updated_at timestamptz not null,
 	payload_schema_version text not null,
 	sanitized_payload_json jsonb not null default '{}'::jsonb,
 	created_at timestamptz not null default now(),
 	unique (run_id, step_id, attempt)
 );
+
+alter table runtime.agent_step_attempts add column if not exists workflow_id text not null default '';
+alter table runtime.agent_step_attempts add column if not exists temporal_run_id text not null default '';
+alter table runtime.agent_step_attempts add column if not exists activity_id text not null default '';
+alter table runtime.agent_step_attempts add column if not exists activity_type text not null default '';
+alter table runtime.agent_step_attempts add column if not exists activity_attempt integer not null default 0;
+alter table runtime.agent_step_attempts add column if not exists scheduled_at timestamptz;
+alter table runtime.agent_step_attempts add column if not exists schedule_to_start_ms bigint not null default 0;
+alter table runtime.agent_step_attempts add column if not exists duration_ms bigint not null default 0;
+alter table runtime.agent_step_attempts add column if not exists provider_request_ref text not null default '';
+alter table runtime.agent_step_attempts add column if not exists provider_response_id text not null default '';
+alter table runtime.agent_step_attempts add column if not exists model_provider text not null default '';
+alter table runtime.agent_step_attempts add column if not exists model_name text not null default '';
+alter table runtime.agent_step_attempts add column if not exists input_tokens bigint not null default 0;
+alter table runtime.agent_step_attempts add column if not exists output_tokens bigint not null default 0;
+alter table runtime.agent_step_attempts add column if not exists cached_input_tokens bigint not null default 0;
+alter table runtime.agent_step_attempts add column if not exists estimated_cost_microusd bigint not null default 0;
+alter table runtime.agent_step_attempts add column if not exists pricing_version text not null default '';
+alter table runtime.agent_step_attempts add column if not exists cancel_outcome text not null default '';
+alter table runtime.agent_step_attempts add column if not exists timeout_outcome text not null default '';
+alter table runtime.agent_step_attempts add column if not exists terminal_reason text not null default '';
 
 create table if not exists runtime.agent_step_results (
 	result_id text primary key,

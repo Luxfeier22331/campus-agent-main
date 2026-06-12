@@ -58,7 +58,7 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 				sources: [{ doc_id: "student_rules:national-scholarship" }],
 			},
 		},
-		selected_target: "rag-agent",
+		selected_capability: "knowledge",
 		status: "completed",
 		trace_id: "trace_0001",
 	};

@@ -64,7 +64,7 @@ func directStructuredHandoffDecision(
 		return false
 	}
 	tool, ok := registry.ToolByName(selectedTool)
-	if !ok || tool.PayloadKind != handoff.PayloadKind || tool.OwnerAgent != handoff.Target {
+	if !ok || tool.PayloadKind != handoff.PayloadKind || tool.OwnerCapability != handoff.Capability {
 		return false
 	}
 	return tool.RuntimePosture == "typed_handoff_only"

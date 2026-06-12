@@ -16,7 +16,7 @@ func (s *Server) recordRuntimeDecision(request execution.AnswerExecutionRequest)
 		ContextPreflightState: request.RuntimeDecisions.ContextPreflightState,
 		RoutingNextAction:     request.RuntimeDecisions.RoutingNextAction,
 		PlanningOutcome:       request.RuntimeDecisions.PlanningOutcome,
-		SelectedTarget:        request.RuntimeDecisions.SelectedTarget,
+		SelectedCapability:    request.RuntimeDecisions.SelectedCapability,
 		SelectedTool:          request.RuntimeDecisions.SelectedTool,
 		TerminalOutcome:       request.RuntimeDecisions.TerminalOutcome,
 		FailCloseReason:       request.RuntimeDecisions.FailCloseReason,
@@ -32,7 +32,7 @@ func runtimeTelemetryEvent(
 	event.PolicyGateDecision = request.RuntimeDecisions.PolicyGateDecision
 	event.RoutingNextAction = request.RuntimeDecisions.RoutingNextAction
 	event.ScopeGateDecision = request.RuntimeDecisions.ScopeGateDecision
-	event.SelectedTarget = request.RuntimeDecisions.SelectedTarget
+	event.SelectedCapability = request.RuntimeDecisions.SelectedCapability
 	event.SelectedTool = request.RuntimeDecisions.SelectedTool
 	event.TerminalOutcome = request.RuntimeDecisions.TerminalOutcome
 	event.FailCloseReason = request.RuntimeDecisions.FailCloseReason
@@ -48,7 +48,7 @@ func runtimeAuditEvent(
 	event.PolicyGateDecision = request.RuntimeDecisions.PolicyGateDecision
 	event.RoutingNextAction = request.RuntimeDecisions.RoutingNextAction
 	event.ScopeGateDecision = request.RuntimeDecisions.ScopeGateDecision
-	event.SelectedTarget = request.RuntimeDecisions.SelectedTarget
+	event.SelectedCapability = request.RuntimeDecisions.SelectedCapability
 	event.SelectedTool = request.RuntimeDecisions.SelectedTool
 	event.TerminalOutcome = request.RuntimeDecisions.TerminalOutcome
 	event.FailCloseReason = request.RuntimeDecisions.FailCloseReason

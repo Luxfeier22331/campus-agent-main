@@ -113,7 +113,7 @@ candidate review manifest，不能直接写入 golden truth。
 denominator expectation、sanitized observation shape 与 deterministic verdict：
 
 - `public_chat_product_path`
-  - truth 来源是产品路径 case expectation：request / trace correlation、selected target、
+  - truth 来源是产品路径 case expectation：request / trace correlation、selected capability、
     terminal outcome、response contract 与 operator backflow summary
   - 不保存 raw transcript、raw prompt 或 provider raw response
 - `tool_family_denominators`

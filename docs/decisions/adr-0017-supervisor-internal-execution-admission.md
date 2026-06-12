@@ -11,6 +11,12 @@ updated: 2026-03-30
 
 Accepted on 2026-03-28.
 
+## Terminology Superseded
+
+本 ADR 标题中的 `Supervisor` 是历史命名。目标态 active architecture term 是
+`Execution Agent Layer`；本 ADR 的长期约束继续适用于 `execution-control` 内的
+Execution Agent Layer 与 internal execution admission。
+
 ## 背景
 
 `ADR-0012`、`ADR-0013`、`ADR-0015`、`ADR-0016` 与 `ADR-0034` 已经冻结了以下方向：

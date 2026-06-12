@@ -50,21 +50,36 @@ qdrant_url() {
   printf '%s' "${QDRANT_URL%/}"
 }
 
+qdrant_curl_tls_args() {
+  if [[ -n "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+    printf '%s\n' --cacert "${QDRANT_TLS_CA_CERT_PATH}"
+  fi
+}
+
 qdrant_get() {
+  local -a tls_args=()
+  mapfile -t tls_args < <(qdrant_curl_tls_args)
   curl --fail-with-body --silent --show-error \
+    "${tls_args[@]}" \
     -H "api-key: ${QDRANT_API_KEY}" \
     "$@"
 }
 
 qdrant_post() {
+  local -a tls_args=()
+  mapfile -t tls_args < <(qdrant_curl_tls_args)
   curl --fail-with-body --silent --show-error \
+    "${tls_args[@]}" \
     -X POST \
     -H "api-key: ${QDRANT_API_KEY}" \
     "$@"
 }
 
 qdrant_delete() {
+  local -a tls_args=()
+  mapfile -t tls_args < <(qdrant_curl_tls_args)
   curl --fail-with-body --silent --show-error \
+    "${tls_args[@]}" \
     -X DELETE \
     -H "api-key: ${QDRANT_API_KEY}" \
     "$@"

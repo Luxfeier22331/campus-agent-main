@@ -167,7 +167,59 @@ func validateStepAttemptProjection(attempt StepAttemptProjection) error {
 	case attempt.UpdatedAt.IsZero():
 		return fmt.Errorf("%w: updated_at is required", ErrInvalidStepAttempt)
 	}
+	if attempt.ActivityAttempt < 0 {
+		return fmt.Errorf("%w: activity_attempt must be non-negative", ErrInvalidStepAttempt)
+	}
+	if attempt.ScheduleToStartMS < 0 {
+		return fmt.Errorf("%w: schedule_to_start_ms must be non-negative", ErrInvalidStepAttempt)
+	}
+	if attempt.DurationMS < 0 {
+		return fmt.Errorf("%w: duration_ms must be non-negative", ErrInvalidStepAttempt)
+	}
+	if attempt.InputTokens < 0 ||
+		attempt.OutputTokens < 0 ||
+		attempt.CachedInputTokens < 0 ||
+		attempt.EstimatedCostMicroUSD < 0 {
+		return fmt.Errorf("%w: token and cost fields must be non-negative", ErrInvalidStepAttempt)
+	}
+	if err := validateCancelOutcome(attempt.CancelOutcome); err != nil {
+		return err
+	}
+	if err := validateTimeoutOutcome(attempt.TimeoutOutcome); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateCancelOutcome(value CancelOutcome) error {
+	switch value {
+	case "",
+		CancelOutcomeNotRequested,
+		CancelOutcomeRequestedBeforeStart,
+		CancelOutcomeActivityContextCanceled,
+		CancelOutcomeBridgeCancelDelivered,
+		CancelOutcomeProviderConnectionAborted,
+		CancelOutcomeProviderBackgroundCancelled,
+		CancelOutcomeCompletedBeforeCancel,
+		CancelOutcomeAbortUnproven:
+		return nil
+	default:
+		return fmt.Errorf("%w: unsupported cancel_outcome %q", ErrInvalidStepAttempt, value)
+	}
+}
+
+func validateTimeoutOutcome(value TimeoutOutcome) error {
+	switch value {
+	case "",
+		TimeoutOutcomeNotTimedOut,
+		TimeoutOutcomeActivityTimeout,
+		TimeoutOutcomeBridgeTimeout,
+		TimeoutOutcomeProviderTimeout,
+		TimeoutOutcomeWorkflowTimeout:
+		return nil
+	default:
+		return fmt.Errorf("%w: unsupported timeout_outcome %q", ErrInvalidStepAttempt, value)
+	}
 }
 
 func validateStepResultProjection(result StepResultProjection) error {

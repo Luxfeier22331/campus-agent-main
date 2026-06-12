@@ -550,8 +550,10 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.surface) {
 				conditions.push(eq(qualityBadcaseProjection.surface, filters.surface));
 			}
-			if (filters.selectedTarget) {
-				conditions.push(eq(qualityBadcaseProjection.selectedTarget, filters.selectedTarget));
+			if (filters.selectedCapability) {
+				conditions.push(
+					eq(qualityBadcaseProjection.selectedCapability, filters.selectedCapability),
+				);
 			}
 			if (filters.window) {
 				const bounds = resolveWindowBounds(filters.window, runtime.now());
@@ -635,7 +637,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 					openedAt: row.openedAt.toISOString(),
 					requestId: row.requestId,
 					runId: runBacklinksByRequestId.get(row.requestId) ?? null,
-					selectedTarget: row.selectedTarget ?? null,
+					selectedCapability: row.selectedCapability ?? null,
 					status: row.status,
 					summary: row.summary,
 					surface: row.surface,
@@ -680,8 +682,10 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.surface) {
 				conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 			}
-			if (filters.selectedTarget) {
-				conditions.push(eq(requestObservabilityFact.selectedTarget, filters.selectedTarget));
+			if (filters.selectedCapability) {
+				conditions.push(
+					eq(requestObservabilityFact.selectedCapability, filters.selectedCapability),
+				);
 			}
 
 			const observabilityQuery = db.select().from(requestObservabilityFact);
@@ -749,7 +753,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 							suggestedLabels: reviewLabels,
 						},
 						runId: null,
-						selectedTarget: requestRow.selectedTarget ?? null,
+						selectedCapability: requestRow.selectedCapability ?? null,
 						summary: feedbackSummary(answerKind, reasonCodes),
 						surface: requestRow.surface,
 						traceId: requestRow.traceId,
