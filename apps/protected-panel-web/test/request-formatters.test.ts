@@ -4,6 +4,7 @@ import {
 	buildRequestIntentEntries,
 	buildRequestReplayEntries,
 	buildRequestRuntimeRunEntries,
+	buildRequestStepTrajectoryEntries,
 	buildRequestWorkflowTraceEntries,
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatCapabilityLabel,
@@ -302,6 +303,54 @@ describe("request durable runtime formatters", () => {
 	it("keeps durable run rows compatible with non-durable historical records", () => {
 		expect(buildRequestRuntimeRunEntries(undefined)).toEqual([]);
 		expect(buildRequestRuntimeRunEntries(null)).toEqual([]);
+	});
+
+	it("formats primary agent trajectory diagnostics from sanitized step summaries", () => {
+		const entries = buildRequestStepTrajectoryEntries({
+			attemptCount: 1,
+			resultCount: 1,
+			steps: [
+				{
+					attemptCount: 1,
+					agentSdkTraceRef: "trace://openai-agents/trace-agent-001",
+					agentSelectedTools: ["knowledge_query"],
+					agentTerminalReason: "tool_selected",
+					agentToolResultRefs: ["agent-runtime://run-001/tools/knowledge_query"],
+					capability: "primary_agent",
+					cancelOutcome: null,
+					durationMs: 420,
+					estimatedCostMicrousd: 12,
+					failCloseReason: null,
+					inputTokens: 10,
+					lateCompletionOutcome: null,
+					latestResultRef: "projection://runs/run-001/agent/primary/result",
+					modelName: "gpt-5.5",
+					modelProvider: "openai",
+					outputTokens: 8,
+					providerRequestRef: null,
+					queueWaitMs: 5,
+					replanReason: null,
+					resultCount: 1,
+					status: "completed",
+					stepId: "agent.primary",
+					stepKind: "agent",
+					taskQueue: "campus-agent.activity.agent",
+					timeoutOutcome: null,
+					workerId: "test:agent:001",
+				},
+			],
+		});
+
+		expect(entries[1]).toMatchObject({
+			kind: "step",
+			stepId: "agent.primary",
+			diagnostics: expect.arrayContaining([
+				"agent_terminal=tool_selected",
+				"agent_tools=knowledge_query",
+				"sdk_trace=trace://openai-agents/trace-agent-001",
+				"tool_results=agent-runtime://run-001/tools/knowledge_query",
+			]),
+		});
 	});
 });
 

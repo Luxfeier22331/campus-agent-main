@@ -61,6 +61,9 @@ type Config struct {
 	TemporalWorkerIdentity              string
 	TemporalWorkflowIDSalt              string
 	TemporalStartTimeoutMS              int
+	AgentRuntimeBaseURL                 string
+	AgentRuntimeSharedSecret            string
+	AgentRuntimeTimeoutMS               int
 	QueryServingScopesPath              string
 	InternalQuerySharedSecret           string
 	StructuredQueryTrustedTimeRFC3339   string
@@ -140,6 +143,9 @@ type envValues struct {
 	TemporalWorkerIdentity              string  `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
 	TemporalWorkflowIDSalt              string  `env:"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"`
 	TemporalStartTimeoutMS              int     `env:"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS" envDefault:"5000"`
+	AgentRuntimeBaseURL                 string  `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
+	AgentRuntimeSharedSecret            string  `env:"EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"`
+	AgentRuntimeTimeoutMS               int     `env:"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS" envDefault:"30000"`
 	QueryServingScopesPath              string  `env:"EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH"`
 	InternalQuerySharedSecret           string  `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
 	StructuredQueryTrustedTimeRFC3339   string  `env:"EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
@@ -316,6 +322,9 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		TemporalWorkerIdentity:              strings.TrimSpace(values.TemporalWorkerIdentity),
 		TemporalWorkflowIDSalt:              strings.TrimSpace(values.TemporalWorkflowIDSalt),
 		TemporalStartTimeoutMS:              values.TemporalStartTimeoutMS,
+		AgentRuntimeBaseURL:                 strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
+		AgentRuntimeSharedSecret:            strings.TrimSpace(values.AgentRuntimeSharedSecret),
+		AgentRuntimeTimeoutMS:               values.AgentRuntimeTimeoutMS,
 		QueryServingScopesPath:              strings.TrimSpace(values.QueryServingScopesPath),
 		InternalQuerySharedSecret:           strings.TrimSpace(values.InternalQuerySharedSecret),
 		StructuredQueryTrustedTimeRFC3339:   strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
@@ -377,6 +386,7 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		{"EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS", values.ExecutionAuditTimeoutMS},
 		{"EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS", values.StructuredQueryTimeoutMS},
 		{"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", values.TemporalStartTimeoutMS},
+		{"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", values.AgentRuntimeTimeoutMS},
 	}
 	for _, check := range checks {
 		if check.value <= 0 {
@@ -444,7 +454,7 @@ func validatePersonalMemorySettings(
 	}
 	role := normalizeRuntimeRole(runtimeRole)
 	switch role {
-	case "workflow", "activity-finalization", "activity-campus-services", "activity-notice", "activity-navigation":
+	case "workflow", "activity-agent", "activity-finalization", "activity-campus-services", "activity-notice", "activity-navigation":
 		return nil
 	}
 	required := []struct {
@@ -481,6 +491,8 @@ func normalizeRuntimeRole(value string) string {
 	switch strings.TrimSpace(value) {
 	case "activity-context", "activity-worker-context", "context":
 		return "activity-context"
+	case "activity-agent", "activity-worker-agent", "agent":
+		return "activity-agent"
 	case "activity-knowledge", "activity-worker-knowledge", "knowledge":
 		return "activity-knowledge"
 	case "activity-campus-services", "activity-worker-campus-services", "campus_services":

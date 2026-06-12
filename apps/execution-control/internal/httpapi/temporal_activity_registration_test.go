@@ -13,6 +13,7 @@ func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 
 	for name, activities := range map[string]any{
 		"context":      server.TemporalContextActivities(),
+		"agent":        server.TemporalAgentActivities(),
 		"knowledge":    server.TemporalKnowledgeActivities(),
 		"typed_tool":   server.TemporalTypedToolActivities(),
 		"finalization": server.TemporalFinalizationActivities(),
@@ -41,6 +42,14 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	}
 	if _, ok := contextType.MethodByName("PlanRAGActivity"); ok {
 		t.Fatal("context activities expose knowledge method")
+	}
+
+	agentType := reflect.TypeOf(server.TemporalAgentActivities())
+	if _, ok := agentType.MethodByName("ExecutePrimaryAgentActivity"); !ok {
+		t.Fatal("agent activities missing ExecutePrimaryAgentActivity")
+	}
+	if _, ok := agentType.MethodByName("PlanRouteActivity"); ok {
+		t.Fatal("agent activities expose context method")
 	}
 
 	knowledgeType := reflect.TypeOf(server.TemporalKnowledgeActivities())
@@ -103,6 +112,14 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 			temporalClient,
 			"test-context",
 			server.TemporalContextActivities(),
+		)
+		worker.Stop()
+	})
+	assertDoesNotPanic(t, func() {
+		worker := temporalruntime.NewAgentActivityWorker(
+			temporalClient,
+			"test-agent",
+			server.TemporalAgentActivities(),
 		)
 		worker.Stop()
 	})

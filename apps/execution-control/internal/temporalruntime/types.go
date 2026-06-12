@@ -38,6 +38,48 @@ type MemoryRecallActivityOutput struct {
 	Status              string `json:"status"`
 }
 
+type ExecutePrimaryAgentActivityInput struct {
+	ConversationID       string   `json:"conversation_id"`
+	InputRef             string   `json:"input_ref"`
+	MemoryProjectionRefs []string `json:"memory_projection_refs"`
+	RequestID            string   `json:"request_id"`
+	RequestedCapability  string   `json:"requested_capability"`
+	RunID                string   `json:"run_id"`
+	TraceID              string   `json:"trace_id"`
+	TurnID               string   `json:"turn_id"`
+	VisibleCapabilities  []string `json:"visible_capabilities"`
+}
+
+type AgentToolResult struct {
+	Capability      string         `json:"capability"`
+	FailCloseReason string         `json:"fail_close_reason"`
+	PayloadKind     string         `json:"payload_kind"`
+	Result          map[string]any `json:"result"`
+	ResultRef       string         `json:"result_ref"`
+	Status          string         `json:"status"`
+	ToolName        string         `json:"tool_name"`
+}
+
+type ExecutePrimaryAgentActivityOutput struct {
+	AgentResultRef     string            `json:"agent_result_ref"`
+	FinalOutput        string            `json:"final_output"`
+	ProviderResponseID string            `json:"provider_response_id"`
+	RunID              string            `json:"run_id"`
+	SDKTraceRef        string            `json:"sdk_trace_ref"`
+	SelectedTools      []string          `json:"selected_tools"`
+	Status             string            `json:"status"`
+	TerminalReason     string            `json:"terminal_reason"`
+	ToolResults        []AgentToolResult `json:"tool_results"`
+	Usage              AgentUsageSummary `json:"usage"`
+}
+
+type AgentUsageSummary struct {
+	CachedInputTokens     int64 `json:"cached_input_tokens"`
+	EstimatedCostMicroUSD int64 `json:"estimated_cost_micro_usd"`
+	InputTokens           int64 `json:"input_tokens"`
+	OutputTokens          int64 `json:"output_tokens"`
+}
+
 type PlanRouteActivityInput struct {
 	ConversationID      string            `json:"conversation_id"`
 	MemoryRef           string            `json:"memory_ref"`
@@ -220,6 +262,7 @@ type ExecuteAgentAsToolActivityOutput struct {
 }
 
 type WriteFinalizationActivityInput struct {
+	AgentResultRef     string `json:"agent_result_ref"`
 	GroundingRef       string `json:"grounding_ref"`
 	RunID              string `json:"run_id"`
 	SelectedCapability string `json:"selected_capability"`

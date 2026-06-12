@@ -103,6 +103,38 @@ func (s *Server) temporalActivityRunAllowCompletedToolFinalization(
 	return run, nil
 }
 
+func (s *Server) temporalActivityRunAllowCompletedAgentFinalization(
+	ctx context.Context,
+	runID string,
+	traceID string,
+	agentResultRef string,
+) (execution.DurableRun, error) {
+	if s == nil || s.runProjectionStore == nil {
+		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
+	}
+	run, err := s.runProjectionStore.GetRun(ctx, runID)
+	if err != nil {
+		return execution.DurableRun{}, err
+	}
+	if run.TraceID != traceID {
+		return execution.DurableRun{}, fmt.Errorf(
+			"activity trace_id %s does not match run trace_id %s",
+			traceID,
+			run.TraceID,
+		)
+	}
+	if run.Status == execution.DurableRunStatusCompleted {
+		if _, err := temporalAgentResultFromRun(run, agentResultRef); err != nil {
+			return execution.DurableRun{}, err
+		}
+		return run, nil
+	}
+	if temporalRunTerminal(run.Status) {
+		return execution.DurableRun{}, fmt.Errorf("run %s is already terminal: %s", run.RunID, run.Status)
+	}
+	return run, nil
+}
+
 func temporalRunTerminal(status execution.DurableRunStatus) bool {
 	switch status {
 	case execution.DurableRunStatusCompleted,
@@ -444,6 +476,20 @@ func temporalFinalizedResponseFromRun(
 		return nil, fmt.Errorf("run metadata.temporal_rag.finalized_response must be an object")
 	}
 	return decoded, nil
+}
+
+func temporalAgentResultFromRun(
+	run execution.DurableRun,
+	agentResultRef string,
+) (map[string]any, error) {
+	raw, ok := run.Metadata["temporal_agent"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("run metadata.temporal_agent is required")
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["agent_result_ref"])) != agentResultRef {
+		return nil, fmt.Errorf("agent result ref drift")
+	}
+	return raw, nil
 }
 
 func temporalProjectionRef(runID string, suffix string) string {

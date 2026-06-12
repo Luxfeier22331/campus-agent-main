@@ -281,6 +281,10 @@ export interface RequestRuntimeRunSummary {
 		resultCount: number;
 		steps: Array<{
 			attemptCount: number;
+			agentSelectedTools?: string[];
+			agentSdkTraceRef?: string | null;
+			agentTerminalReason?: string | null;
+			agentToolResultRefs?: string[];
 			capability: string;
 			cancelOutcome: string | null;
 			durationMs: number | null;

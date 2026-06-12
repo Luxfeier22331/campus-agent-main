@@ -27,9 +27,6 @@ func CapabilityExecutionWorkflow(
 	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
 	var memory MemoryRecallActivityOutput
 	requestedCapability := input.RequestedCapability
-	if requestedCapability == "" {
-		requestedCapability = "knowledge"
-	}
 	if err := workflow.ExecuteActivity(contextCtx, MemoryRecallActivityName, MemoryRecallActivityInput{
 		RequestID:           input.RequestID,
 		RequestedCapability: requestedCapability,
@@ -38,33 +35,96 @@ func CapabilityExecutionWorkflow(
 	}).Get(ctx, &memory); err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
-	var plan PlanRouteActivityOutput
-	if err := workflow.ExecuteActivity(contextCtx, PlanRouteActivityName, PlanRouteActivityInput{
-		ConversationID:      input.ConversationID,
-		MemoryRef:           memory.MemoryRef,
-		Namespace:           input.Namespace,
-		PayloadSHA256:       input.PayloadSHA256,
-		PolicyVersions:      input.PolicyVersions,
-		RequestID:           input.RequestID,
-		RequestedCapability: requestedCapability,
-		RunID:               input.RunID,
-		SelectedMemoryChars: memory.SelectedMemoryChars,
-		SelectedMemoryCount: memory.SelectedMemoryCount,
-		TraceID:             input.TraceID,
-		TurnID:              input.TurnID,
-		WorkflowID:          input.WorkflowID,
-	}).Get(ctx, &plan); err != nil {
+	agentOptions := activityOptions
+	agentOptions.TaskQueue = ActivityTaskQueueAgent
+	agentCtx := workflow.WithActivityOptions(ctx, agentOptions)
+	var agent ExecutePrimaryAgentActivityOutput
+	if err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, ExecutePrimaryAgentActivityInput{
+		ConversationID:       input.ConversationID,
+		MemoryProjectionRefs: memoryProjectionRefs(memory),
+		RequestID:            input.RequestID,
+		RequestedCapability:  requestedCapability,
+		RunID:                input.RunID,
+		TraceID:              input.TraceID,
+		TurnID:               input.TurnID,
+		VisibleCapabilities:  visibleCapabilitiesForPrimaryAgent(requestedCapability),
+	}).Get(ctx, &agent); err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
-	branch, err := executeCapabilityBranchWithReplan(ctx, activityOptions, input, plan)
-	if err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+	if primaryAgentSelectedKnowledge(agent) {
+		synthesis, grounding, err := executeKnowledgeBranch(
+			ctx,
+			activityOptions,
+			input,
+			agent.AgentResultRef,
+			[]string{agent.AgentResultRef},
+		)
+		if err != nil {
+			return CapabilityExecutionWorkflowResult{}, err
+		}
+		finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
+			GroundingRef: grounding.GroundingRef,
+			RunID:        input.RunID,
+			SynthesisRef: synthesis.SynthesisRef,
+			TraceID:      input.TraceID,
+		})
+		if err != nil {
+			return CapabilityExecutionWorkflowResult{}, err
+		}
+		return workflowResultFromFinalization(finalization), nil
 	}
-	finalization, err := executeFinalization(ctx, activityOptions, branch.FinalizationInput(input.TraceID))
+	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
+		AgentResultRef: agent.AgentResultRef,
+		RunID:          input.RunID,
+		TraceID:        input.TraceID,
+	})
 	if err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
 	return workflowResultFromFinalization(finalization), nil
+}
+
+func primaryAgentSelectedKnowledge(agent ExecutePrimaryAgentActivityOutput) bool {
+	for _, tool := range agent.SelectedTools {
+		switch strings.TrimSpace(tool) {
+		case "knowledge_query":
+			return true
+		}
+	}
+	for _, result := range agent.ToolResults {
+		if strings.TrimSpace(result.ToolName) == "knowledge_query" {
+			return true
+		}
+		if signal, ok := result.Result["workflow_signal"].(string); ok &&
+			strings.TrimSpace(signal) == "knowledge_query" {
+			return true
+		}
+	}
+	return false
+}
+
+func memoryProjectionRefs(memory MemoryRecallActivityOutput) []string {
+	if strings.TrimSpace(memory.MemoryRef) == "" {
+		return nil
+	}
+	return []string{memory.MemoryRef}
+}
+
+func visibleCapabilitiesForPrimaryAgent(requestedCapability string) []string {
+	switch strings.TrimSpace(requestedCapability) {
+	case "knowledge":
+		return []string{"knowledge"}
+	case "campus_services":
+		return []string{"campus_services"}
+	case "notice":
+		return []string{"notice"}
+	case "place_lookup", "navigation":
+		return []string{"navigation"}
+	case "":
+		return []string{"knowledge", "campus_services", "notice"}
+	default:
+		return []string{}
+	}
 }
 
 type capabilityBranchExecutionResult struct {

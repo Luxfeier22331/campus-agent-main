@@ -172,6 +172,7 @@ function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) 
 			const results = trajectory.results.filter((result) => result.stepId === step.stepId);
 			const latestResult = results.at(-1);
 			const latestAttempt = attempts.at(-1);
+			const agentSummary = agentStepSummary(latestResult?.sanitizedPayload);
 			const totalInputTokens = attempts.reduce(
 				(total, attempt) => total + numberOrZero(attempt.inputTokens),
 				0,
@@ -186,6 +187,7 @@ function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) 
 			);
 			return {
 				attemptCount: attempts.length,
+				...agentSummary,
 				capability: step.capability,
 				cancelOutcome: latestAttempt?.cancelOutcome || null,
 				durationMs: positiveNumberOrNull(latestAttempt?.durationMs),
@@ -210,6 +212,55 @@ function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) 
 			};
 		}),
 	};
+}
+
+function agentStepSummary(payload: Record<string, unknown> | undefined) {
+	if (!payload) {
+		return {};
+	}
+	const selectedTools = stringArrayValue(payload.selected_tools);
+	const toolResultRefs = toolResultRefsFromPayload(payload.tool_results);
+	const sdkTraceRef = stringOrNull(payload.sdk_trace_ref);
+	const terminalReason = stringOrNull(payload.terminal_reason);
+	if (
+		selectedTools.length === 0 &&
+		toolResultRefs.length === 0 &&
+		sdkTraceRef === null &&
+		terminalReason === null
+	) {
+		return {};
+	}
+	return {
+		agentSdkTraceRef: sdkTraceRef,
+		agentSelectedTools: selectedTools,
+		agentTerminalReason: terminalReason,
+		agentToolResultRefs: toolResultRefs,
+	};
+}
+
+function toolResultRefsFromPayload(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value
+		.map((item) => {
+			if (!item || typeof item !== "object" || Array.isArray(item)) {
+				return "";
+			}
+			return stringOrNull((item as Record<string, unknown>).result_ref) ?? "";
+		})
+		.filter((item) => item.length > 0);
+}
+
+function stringArrayValue(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function stringOrNull(value: unknown): string | null {
+	return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 function numberOrZero(value: number | undefined): number {

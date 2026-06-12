@@ -489,6 +489,18 @@ export function buildRequestStepTrajectoryEntries(
 			if (step.replanReason) {
 				diagnostics.push(`replan=${step.replanReason}`);
 			}
+			if (step.agentTerminalReason) {
+				diagnostics.push(`agent_terminal=${step.agentTerminalReason}`);
+			}
+			if (step.agentSelectedTools && step.agentSelectedTools.length > 0) {
+				diagnostics.push(`agent_tools=${step.agentSelectedTools.join(",")}`);
+			}
+			if (step.agentSdkTraceRef) {
+				diagnostics.push(`sdk_trace=${step.agentSdkTraceRef}`);
+			}
+			if (step.agentToolResultRefs && step.agentToolResultRefs.length > 0) {
+				diagnostics.push(`tool_results=${step.agentToolResultRefs.join(",")}`);
+			}
 			return {
 				attempts: `attempts=${step.attemptCount} · results=${step.resultCount}`,
 				capability: step.capability || PANEL_COPY.unknown,

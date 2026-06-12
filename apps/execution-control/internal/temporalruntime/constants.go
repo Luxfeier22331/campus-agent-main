@@ -3,6 +3,7 @@ package temporalruntime
 const (
 	WorkflowTaskQueue              = "campus-agent.workflow"
 	ActivityTaskQueueContext       = "campus-agent.activity.context"
+	ActivityTaskQueueAgent         = "campus-agent.activity.agent"
 	ActivityTaskQueueKnowledge     = "campus-agent.activity.knowledge"
 	ActivityTaskQueueStructured    = "campus-agent.activity.structured"
 	ActivityTaskQueueNotice        = "campus-agent.activity.notice"

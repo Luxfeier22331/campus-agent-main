@@ -236,6 +236,9 @@ func (s *Server) WriteFinalizationActivity(
 	ctx context.Context,
 	input temporalruntime.WriteFinalizationActivityInput,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	if strings.TrimSpace(input.AgentResultRef) != "" {
+		return s.writePrimaryAgentFinalizationActivity(ctx, input)
+	}
 	if strings.TrimSpace(input.ToolResultRef) != "" {
 		return s.writeTypedToolFinalizationActivity(ctx, input)
 	}

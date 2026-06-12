@@ -150,14 +150,14 @@ function RequestStepTrajectoryTimeline(props: {
 				<Chip label={summaryText} size="small" variant="outlined" />
 			</Stack>
 			<Stack spacing={1.25}>
-				{steps.map((entry, index) => {
+				{steps.map((entry) => {
 					if (entry.kind !== "step") {
 						return null;
 					}
 					const color = stepStatusColor(entry.status);
 					return (
 						<Box
-							key={`${entry.stepId}:${index}`}
+							key={`${entry.stepId}:${entry.latestResultRef}:${entry.status}`}
 							sx={{
 								borderColor: "divider",
 								borderLeft: 3,
@@ -193,7 +193,10 @@ function RequestStepTrajectoryTimeline(props: {
 										},
 									}}
 								>
-									<RequestFieldRow label="能力 / 队列" value={`${entry.capability} · ${entry.taskQueue}`} />
+									<RequestFieldRow
+										label="能力 / 队列"
+										value={`${entry.capability} · ${entry.taskQueue}`}
+									/>
 									<RequestFieldRow label="Worker" value={entry.workerId} />
 									<RequestFieldRow label="Attempts" value={entry.attempts} />
 									<RequestFieldRow label="耗时" value={entry.duration} />
@@ -206,7 +209,12 @@ function RequestStepTrajectoryTimeline(props: {
 										value={
 											<Stack direction="row" flexWrap="wrap" gap={0.75}>
 												{entry.diagnostics.map((diagnostic) => (
-													<Chip key={diagnostic} label={diagnostic} size="small" variant="outlined" />
+													<Chip
+														key={diagnostic}
+														label={diagnostic}
+														size="small"
+														variant="outlined"
+													/>
 												))}
 											</Stack>
 										}

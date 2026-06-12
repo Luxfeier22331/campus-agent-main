@@ -312,6 +312,10 @@ export interface OperatorRuntimeRunSummary {
 		resultCount: number;
 		steps: Array<{
 			attemptCount: number;
+			agentSdkTraceRef?: string | null;
+			agentSelectedTools?: string[];
+			agentTerminalReason?: string | null;
+			agentToolResultRefs?: string[];
 			capability: string;
 			cancelOutcome: string | null;
 			durationMs: number | null;
