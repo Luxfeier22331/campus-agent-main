@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-12
 ---
 # App API Dining Ops HTTP Contract
 
@@ -16,14 +16,16 @@ updated: 2026-06-08
 - `docs/data/dining-operations-schema.md`
 - `docs/architecture/domains/dining/architecture.md`
 
-本文只把当前已实现 route 写入 implemented endpoint。Source observation 的 apply/reject
-语义只保留为边界说明，不进入当前计划开发周期的 route inventory。
+当前 contract 是 candidate-first release lifecycle。直接发布 current draft 的 route
+不是目标 contract，也不在当前 route inventory 中。Source observation 的
+apply/reject 语义只保留为边界说明，不进入当前计划开发周期的 route inventory。
 
-## Implemented Endpoints
+## Accepted Target Endpoints
 
 ```http
 GET    /api/ops/dining/halls
 GET    /api/ops/dining/halls/:hallId/floors/:floorId
+POST   /api/ops/dining/floorplan-assets
 PATCH  /api/ops/dining/windows/:windowId
 POST   /api/ops/dining/window-assignments
 PATCH  /api/ops/dining/window-assignments/:assignmentId
@@ -31,10 +33,17 @@ POST   /api/ops/dining/menu-items
 PATCH  /api/ops/dining/menu-items/:menuItemId
 POST   /api/ops/dining/menu-offerings
 PATCH  /api/ops/dining/menu-offerings/:offeringId
+GET    /api/ops/dining/release-candidates
+POST   /api/ops/dining/release-candidates
+GET    /api/ops/dining/release-candidates/:candidateId
+POST   /api/ops/dining/release-candidates/:candidateId/validate
+POST   /api/ops/dining/release-candidates/:candidateId/approve
+POST   /api/ops/dining/release-candidates/:candidateId/schedule
+POST   /api/ops/dining/release-candidates/:candidateId/publish
+POST   /api/ops/dining/release-candidates/:candidateId/cancel
 GET    /api/ops/dining/releases
-POST   /api/ops/dining/releases
-GET    /api/ops/dining/releases/:releaseId/preview
-POST   /api/ops/dining/releases/:releaseId/publish
+GET    /api/ops/dining/releases/:releaseId
+POST   /api/ops/dining/releases/:releaseId/rollback
 GET    /api/ops/dining/audit-events
 ```
 
@@ -68,6 +77,12 @@ Allowed anchor shape:
 
 `data-dining-anchor-id` is the SVG visual anchor. `windowId` remains the dining
 business object id. The binding lives in API data as `window.svgAnchorId`.
+
+Release candidates and published snapshots freeze `objectKey`, `sha256`,
+`anchorInventory` and `windowId <-> svgAnchorId` bindings. Publish promotes or
+copies each frozen SVG object into a release-owned immutable key before snapshot
+creation. Missing source objects fail closed and must not be synthesized during
+publish.
 
 ### Hall
 
@@ -175,6 +190,22 @@ navigation route graph truth.
     "floorId": "haidian-canteen-1-1f",
     "hallId": "haidian-canteen-1",
     "label": "海淀一食堂一层",
+    "draftVersionId": "dining_draft_version:42",
+    "floorplanAsset": {
+      "anchorInventory": [
+        {
+          "anchorId": "window-01",
+          "role": "window"
+        }
+      ],
+      "bucket": "campus-rag-derived",
+      "byteSize": 1024,
+      "contentType": "image/svg+xml",
+      "floorplanAssetId": "dining_floorplan_asset:...",
+      "objectKey": "dining/floorplans/assets/haidian-canteen-1/haidian-canteen-1-1f/sha256-....svg",
+      "sha256": "sha256:..."
+    },
+    "floorplanAssetId": "dining_floorplan_asset:...",
     "svgMarkup": "<svg ...>...</svg>",
     "svgAssetUrl": "/assets/dining/haidian-canteen-1-1f.svg"
   },
@@ -189,6 +220,61 @@ navigation route graph truth.
 
 - 这是 draft read，不是 student published projection
 - student-facing `/api/dining/*` 不能读取本 route
+
+## Floorplan Asset Routes
+
+### `POST /api/ops/dining/floorplan-assets`
+
+上传或替换某个 floor 的 SVG。`app-api` 必须 parse、sanitize、extract anchors，并返回
+draft asset metadata。该 route 不发布学生端 projection。
+
+请求：
+
+```json
+{
+  "floorId": "haidian-canteen-1-1f",
+  "sourceFilename": "haidian-canteen-1-1f.svg",
+  "svgMarkup": "<svg ...>...</svg>"
+}
+```
+
+返回 `201`：
+
+```json
+{
+  "asset": {
+    "anchorInventory": [
+      {
+        "anchorId": "window-01",
+        "role": "window"
+      },
+      {
+        "anchorId": "window-02",
+        "role": "window"
+      }
+    ],
+    "bucket": "campus-rag-derived",
+    "byteSize": 2048,
+    "contentType": "image/svg+xml",
+    "floorId": "haidian-canteen-1-1f",
+    "floorplanAssetId": "dining_floorplan_asset:...",
+    "hallId": "haidian-canteen-1",
+    "objectKey": "dining/floorplans/assets/haidian-canteen-1/haidian-canteen-1-1f/sha256-....svg",
+    "sha256": "sha256:...",
+    "status": "draft_ready"
+  }
+}
+```
+
+规则：
+
+- raw SVG 不得进入 release snapshot
+- sanitizer allowlist 是 backend security boundary
+- returned `objectKey` is a sanitized draft asset key under
+  `dining/floorplans/assets/{hallId}/{floorId}/sha256-{digest}.svg`
+- anchor extraction only reads sanitized SVG
+- object store must be configured; missing or partial object store config fails
+  closed with `dining_floorplan_object_store_unavailable`
 
 ## Write Routes
 
@@ -341,7 +427,155 @@ navigation route graph truth.
 }
 ```
 
-## Release Routes
+## Release Candidate Routes
+
+Release candidate routes are the accepted target publish lifecycle. They do not
+publish mutable current draft directly.
+
+### `GET /api/ops/dining/release-candidates`
+
+返回：
+
+```json
+{
+  "candidates": []
+}
+```
+
+### `POST /api/ops/dining/release-candidates`
+
+从当前 draft version 创建 candidate，并冻结 candidate snapshot refs。
+
+请求：
+
+```json
+{
+  "notes": "发布一食堂窗口菜品"
+}
+```
+
+返回 `201`：
+
+```json
+{
+  "candidate": {
+    "baseDraftVersionId": "dining_draft_version:42",
+    "candidateId": "dining_release_candidate:...",
+    "createdAt": "2026-06-11T00:00:00.000Z",
+    "createdBy": "operator_01",
+    "notes": "发布一食堂窗口菜品",
+    "publishMode": "manual",
+    "scheduledAt": null,
+    "snapshotHash": "sha256:...",
+    "status": "candidate"
+  },
+  "validationReport": null
+}
+```
+
+### `GET /api/ops/dining/release-candidates/:candidateId`
+
+返回 candidate detail、validation report、frozen floorplan refs、diff summary。
+
+### `POST /api/ops/dining/release-candidates/:candidateId/validate`
+
+重新生成 validation report。
+
+返回：
+
+```json
+{
+  "candidate": {
+    "candidateId": "dining_release_candidate:...",
+    "status": "validated"
+  },
+  "validationReport": {
+    "blockers": [],
+    "status": "pass",
+    "warnings": []
+  }
+}
+```
+
+Blocker examples:
+
+- `missing_floorplan_asset`
+- `floorplan_asset_checksum_mismatch`
+- `missing_svg_anchor`
+- `duplicate_svg_anchor_binding`
+- `unbound_required_window`
+- `missing_stall_profile_projection`
+- `missing_menu_item_projection`
+- `stale_release_candidate`
+
+### `POST /api/ops/dining/release-candidates/:candidateId/approve`
+
+审批 blocker-free candidate。
+
+请求：
+
+```json
+{
+  "notes": "确认发布"
+}
+```
+
+### `POST /api/ops/dining/release-candidates/:candidateId/schedule`
+
+为 approved candidate 设置定时发布。
+
+请求：
+
+```json
+{
+  "scheduledAt": "2026-06-12T00:00:00.000Z"
+}
+```
+
+规则：
+
+- only approved candidates can be scheduled
+- scheduler must revalidate before publish
+- scheduler must never publish mutable current draft
+
+### `POST /api/ops/dining/release-candidates/:candidateId/publish`
+
+发布 approved candidate，写 immutable snapshot，更新 latest pointer，并写 audit event。
+
+返回：
+
+```json
+{
+  "release": {
+    "candidateId": "dining_release_candidate:...",
+    "publishedAt": "2026-06-11T00:00:00.000Z",
+    "publishedBy": "operator_01",
+    "releaseId": "dining_release:...",
+    "snapshotHash": "sha256:...",
+    "status": "published"
+  },
+  "snapshot": {}
+}
+```
+
+规则：
+
+- publish is all-or-nothing
+- validation blockers fail closed
+- stale candidate fails closed
+- publish copies candidate floorplan objects into
+  `dining/releases/{releaseId}/floorplans/{hallId}/{floorId}/sha256-{digest}.svg`
+- publish writes `dining/releases/{releaseId}/snapshot.json`
+- publish writes `dining/releases/{releaseId}/validation-report.json`
+- missing floorplan source object fails closed
+- floorplan object checksum mismatch fails closed
+- failure must not update latest published pointer
+
+### `POST /api/ops/dining/release-candidates/:candidateId/cancel`
+
+取消尚未 published 的 candidate。Cancelled candidate 保留审计记录，不能再次发布。
+
+## Published Release Routes
 
 ### `GET /api/ops/dining/releases`
 
@@ -353,25 +587,30 @@ navigation route graph truth.
 }
 ```
 
-### `POST /api/ops/dining/releases`
+### `GET /api/ops/dining/releases/:releaseId`
 
-发布当前 draft，并返回 release 与 snapshot。
+返回 published release metadata、immutable snapshot summary 和 floorplan refs。
+
+### `POST /api/ops/dining/releases/:releaseId/rollback`
+
+回滚到历史 published release，或基于历史 snapshot 创建 rollback candidate。具体策略由实现选择，
+但不得回写 mutable draft。
 
 请求：
 
 ```json
 {
-  "notes": "发布一食堂窗口菜品"
+  "mode": "latest_pointer",
+  "notes": "回滚到上一版"
 }
 ```
 
-### `GET /api/ops/dining/releases/:releaseId/preview`
+规则：
 
-返回当前 draft 的 preview snapshot 和 summary。当前实现不按历史 release id 回放旧 draft。
-
-### `POST /api/ops/dining/releases/:releaseId/publish`
-
-按当前 draft 生成新的 published snapshot。当前实现不允许 best-effort 部分发布。
+- rollback must write audit event
+- rollback must not synthesize snapshot payload
+- rollback must not read draft tables to rebuild historical projection
+- rollback failure must leave latest pointer unchanged
 
 ## Source Observations Reserved Boundary
 

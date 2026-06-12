@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-11
 ---
 # App API Campus Ops HTTP Contract
 
@@ -15,7 +15,7 @@ operator HTTP contract 横切规则。
 
 - `/api/ops/*` 的调用方、authz、错误、pagination 与 audit 规则
 - `campus-ops-web` 与 `app-api` 的 proxy 边界
-- ops draft / release / published projection 的通用 envelope
+- ops draft / release candidate / release / published projection 的通用 envelope
 
 它不负责：
 
@@ -45,7 +45,9 @@ generic `/api/*`，也不 proxy `/api/auth/*` 或 `/api/federation/*`。
 
 - `campus_ops_viewer`：读取 ops workspace
 - `dining_editor`：编辑 dining draft
-- `dining_publisher`：发布 dining snapshot
+- `dining_release_approver`：审批 dining release candidate
+- `dining_release_scheduler`：定时发布 dining release candidate
+- `dining_publisher`：发布 approved dining release candidate
 
 在细粒度权限落地前，文档不得把这些位写成当前已实现 admission truth。普通 end-user、
 service principal、未登录请求和非 operator principal 对 `/api/ops/*` 必须 fail closed。
@@ -64,21 +66,64 @@ service principal、未登录请求和非 operator principal 对 `/api/ops/*` �
 - `dining_assignment_not_found`
 - `dining_menu_item_not_found`
 - `dining_menu_offering_not_found`
+- `dining_release_candidate_not_found`
+- `dining_release_candidate_stale`
+- `dining_release_blocked`
+- `dining_floorplan_asset_not_found`
+- `dining_floorplan_asset_mismatch`
 - `dining_release_not_published`
 
-## Release Envelope
+## Release Candidate Envelope
 
-Ops release command 返回：
+Ops release candidate command 返回：
+
+```json
+{
+  "candidate": {
+    "approvedAt": null,
+    "approvedBy": null,
+    "baseDraftVersionId": "dining_draft_version:42",
+    "candidateId": "dining_release_candidate:...",
+    "createdAt": "2026-06-11T00:00:00.000Z",
+    "createdBy": "operator_01",
+    "notes": "调整一食堂价格",
+    "publishMode": "manual",
+    "scheduledAt": null,
+    "snapshotHash": "sha256:...",
+    "status": "candidate"
+  },
+  "validationReport": {
+    "blockers": [],
+    "status": "pass",
+    "warnings": []
+  }
+}
+```
+
+规则：
+
+- release candidate 从一个明确 draft version 创建
+- release candidate 冻结 floorplan object refs、checksums、anchors 与 window binding
+- mutable draft 不能直接发布
+- approved candidate 可以立即发布或定时发布
+- scheduled job 只能发布 approved candidate，不能发布当前 draft
+- candidate publish 失败时不更新 latest published snapshot
+
+## Published Release Envelope
+
+Ops publish command 返回：
 
 ```json
 {
   "release": {
     "createdAt": "2026-06-08T00:00:00.000Z",
     "createdBy": "operator_01",
+    "candidateId": "dining_release_candidate:...",
     "notes": "调整一食堂价格",
     "publishedAt": "2026-06-08T00:00:00.000Z",
     "publishedBy": "operator_01",
     "releaseId": "dining_release:...",
+    "snapshotHash": "sha256:...",
     "status": "published"
   },
   "snapshot": {}
@@ -89,6 +134,7 @@ Ops release command 返回：
 
 - release snapshot 是学生端 `/api/dining/*` 的读取 truth
 - draft tables 不能直接被 `campus-web` 读取
+- release candidate 不能被 `campus-web` 读取
 - release publish 必须写 audit event
 - release 不允许 best-effort 部分发布；失败时不更新 latest published snapshot
 

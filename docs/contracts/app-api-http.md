@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-29
+updated: 2026-06-11
 ---
 # App API HTTP Contract
 
@@ -153,17 +153,24 @@ campus metadata and place records. Each place keeps a point GeoJSON feature as
 its interaction center; places backed by campus base-map geometry can also
 return `mapFeatureRefs[]` with explicit `{ sourceId, layer, fid }` bindings so
 the browser can highlight the matching MapLibre feature instead of inventing a
-point marker. Dining payloads read latest published release snapshots and
-return hall summaries plus window/assignment/offering floor projections;
-detailed field shape is frozen in `docs/contracts/app-api-dining-http.md`.
+point marker. `mapFeatureRefs[]` are the only binding contract between a product
+place and rendered campus map objects; browser interaction must not infer a
+place from base-map `name`, label text, `sourceRefs`, or nearest-geometry
+matching. Dining payloads read latest published release snapshots and return
+hall summaries plus window/assignment/offering floor projections; detailed field
+shape is frozen in `docs/contracts/app-api-dining-http.md`.
 Feedback accepts a global `category`, `routeContext`, `body`, and optional
 `contact`; it does not create per-page local feedback widgets.
 
 Student-facing dining routes read the latest published dining release snapshot.
-Dining draft, release command and audit routes are frozen separately in
-`docs/contracts/app-api-dining-ops-http.md`.
+Dining draft, release candidate, published release and audit routes are frozen
+separately in `docs/contracts/app-api-dining-ops-http.md`.
 
 ### Campus Ops
+
+Dining ops routes below describe the accepted target contract. Current
+implementation gaps, including legacy direct-draft publish routes, are tracked
+in `docs/contracts/app-api-dining-ops-http.md`.
 
 - `GET /api/ops/dining/halls`
 - `GET /api/ops/dining/halls/:hallId/floors/:floorId`
@@ -174,10 +181,18 @@ Dining draft, release command and audit routes are frozen separately in
 - `PATCH /api/ops/dining/menu-items/:menuItemId`
 - `POST /api/ops/dining/menu-offerings`
 - `PATCH /api/ops/dining/menu-offerings/:offeringId`
+- `POST /api/ops/dining/floorplan-assets`
+- `GET /api/ops/dining/release-candidates`
+- `POST /api/ops/dining/release-candidates`
+- `GET /api/ops/dining/release-candidates/:candidateId`
+- `POST /api/ops/dining/release-candidates/:candidateId/validate`
+- `POST /api/ops/dining/release-candidates/:candidateId/approve`
+- `POST /api/ops/dining/release-candidates/:candidateId/schedule`
+- `POST /api/ops/dining/release-candidates/:candidateId/publish`
+- `POST /api/ops/dining/release-candidates/:candidateId/cancel`
 - `GET /api/ops/dining/releases`
-- `POST /api/ops/dining/releases`
-- `GET /api/ops/dining/releases/:releaseId/preview`
-- `POST /api/ops/dining/releases/:releaseId/publish`
+- `GET /api/ops/dining/releases/:releaseId`
+- `POST /api/ops/dining/releases/:releaseId/rollback`
 - `GET /api/ops/dining/audit-events`
 
 These routes are `operator-via-panel` caller class routes consumed by

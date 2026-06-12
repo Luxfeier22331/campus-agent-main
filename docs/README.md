@@ -76,7 +76,8 @@ policy、reference、runbook，以及已归档的历史 plan。
   `architecture/system/document-site-architecture.md`、
   `contracts/app-api-document-reader-http.md` 与
   `decisions/adr-0051-campus-docs-rspress-reader-surface.md`
-- 需要回答“Campus Ops 运营工作台、饭堂地图编辑、draft/release/published projection 如何分层”，读
+- 需要回答“Campus Ops 运营工作台、饭堂地图编辑、draft/release candidate/release/published
+  projection 如何分层”，读
   `architecture/system/campus-ops-web-architecture.md`、
   `architecture/domains/dining/architecture.md`、
   `contracts/app-api-campus-ops-http.md`、

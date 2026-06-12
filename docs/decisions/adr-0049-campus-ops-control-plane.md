@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0049
 status: accepted
 created: 2026-06-08
-updated: 2026-06-09
+updated: 2026-06-12
 ---
 # ADR-0049 Campus Ops Control Plane
 
@@ -26,8 +26,9 @@ owner。
 
 新增 `apps/campus-ops-web` 作为 Campus Operations Control Plane 的 operator workspace。
 
-`apps/app-api` 拥有 dining operations 的写入、draft、release、audit 与学生端 published
-projection。`apps/campus-web` 只读取 published projection，不读取 draft，不提供编辑入口。
+`apps/app-api` 拥有 dining operations 的写入、draft、release candidate、release、audit
+与学生端 published projection。`apps/campus-web` 只读取 published projection，不读取 draft
+或 release candidate，不提供编辑入口。
 
 长期 shape 固定为：
 
@@ -36,7 +37,7 @@ operator browser
 -> campus-ops-web
 -> app-api /api/ops/dining/*
 -> dining draft tables
--> release preview / publish routes
+-> release candidate / validation / approval / schedule / publish routes
 -> immutable release snapshot
 -> campus-web public /api/dining/* projection
 ```
@@ -51,7 +52,8 @@ operator browser
 - dining hall / floor tree
 - indoor floor window selection
 - window, assignment, menu item, menu offering forms
-- release publish action surface and release list
+- release candidate validation, approval, scheduling and publish surfaces
+- published release list and rollback surface
 - audit list presentation
 
 `campus-ops-web` 不负责：
@@ -69,14 +71,62 @@ Dining operations 按以下对象分层：
 - physical space truth：hall、floor、window
 - assignment truth：window assignment -> stall profile
 - menu truth：menu item、menu offering
-- release truth：release metadata、immutable snapshot
+- release candidate truth：candidate metadata、validation report、approval、schedule
+- release truth：published release metadata、immutable snapshot、latest pointer
 - audit truth：operator action event
 
-Operator edits mutate draft objects. Student-facing routes read only the latest
-published snapshot. No query-time fallback to seed data, raw source observation,
-or draft tables is allowed.
+Operator edits mutate draft objects. Publish does not directly consume mutable
+draft. Operators must first create a release candidate from a specific draft
+version. Validation, approval, optional scheduling and publish all attach to that
+candidate. Student-facing routes read only the latest published snapshot. No
+query-time fallback to seed data, raw source observation, release candidate or
+draft tables is allowed.
 
-### 3. Source Observation 是保留边界，不是当前 route surface
+Directly publishing "whatever the current draft is" is not an accepted shape.
+The current route inventory is candidate-first and must not reintroduce direct
+draft publish routes.
+
+### 3. Release Candidate 是完整发布控制面
+
+Dining release lifecycle is:
+
+```text
+draft edit
+-> release candidate
+-> validation report
+-> approval
+-> publish now OR schedule publish
+-> immutable release snapshot
+-> latest pointer update
+-> audit event
+```
+
+Release candidates freeze:
+
+- `base_draft_version`
+- floorplan SVG bucket, object key, content type, byte size, checksum and anchor
+  inventory
+- `window_id <-> svg_anchor_id` bindings
+- validation blockers and warnings
+- publish mode, schedule and approval metadata
+
+Publish copies each frozen SVG object into a release-owned object key before
+snapshot creation, then writes the release `snapshot.json` and
+`validation-report.json` artifacts. Initial dining seed bootstrap must
+materialize seed SVG objects into the configured S3-compatible derived bucket so
+later candidate publishes do not depend on in-memory seed bytes.
+
+Scheduled publish is allowed only for approved release candidates. A cron or
+workflow job must never publish the mutable current draft. If the candidate is
+stale, validation blockers exist, an SVG object checksum mismatches, or the
+expected predecessor release no longer matches, publish fails closed and latest
+published remains unchanged.
+
+Rollback does not rewrite draft. It either moves the latest pointer to a
+previous published release or creates a new candidate from a historical snapshot,
+depending on the concrete HTTP contract accepted for the rollout.
+
+### 4. Source Observation 是保留边界，不是当前 route surface
 
 `dining.source_observations` 保留为 proposal/review storage boundary，不进入当前计划开发周期的
 implemented route surface。
@@ -84,7 +134,7 @@ implemented route surface。
 Source observation 不得直接写入 draft 或 published projection。它必须经过 operator
 review；如果后续 scope 接受 apply/reject command，它也只能进入 draft 或终止，不能直接发布。
 
-### 4. Dining Truth 不等于 Navigation Spatial Truth
+### 5. Dining Truth 不等于 Navigation Spatial Truth
 
 Dining floor/window truth 描述食堂内部楼层图、窗口区域、档口和菜单价格。
 Navigation spatial truth 描述校园建筑、道路、入口、路线与可达性。两者可以通过

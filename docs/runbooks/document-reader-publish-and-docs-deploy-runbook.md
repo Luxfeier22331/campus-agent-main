@@ -54,7 +54,7 @@ document-site seed truth。
 - docs sync manifest：`var/public-docs-sync-manifest.json` 或环境后缀文件，供
   `campus-web` 构建 Rspress reader assets。
 - 对象存储 reader assets：sync manifest 中 `sourceObjects` 指向的对象，以及当前
-  reader manifest object，例如
+  docs read-model manifest object，例如
   `public_docs/releases/reader_assets/current/public-docs-reader-assets.json`。
 - 环境配置说明：对象存储 endpoint、region、bucket、access key/secret，以及需要导入
   read model 时使用的 `APP_API_OPERATOR_DATABASE_URL` 或
@@ -167,12 +167,13 @@ export CAMPUS_DOCS_SYNC_MANIFEST_PATH="../../var/public-docs-sync-manifest.stagi
 pnpm --filter campus-web docs:sync:published-reader
 ```
 
-若 manifest 来自对象存储而不是本地文件，使用：
+若 docs sync manifest 来自对象存储而不是本地文件，使用一只包含 `entries[]` 的
+sync manifest object：
 
 ```bash
-export CAMPUS_DOCS_SYNC_MANIFEST_KEY="public_docs/releases/reader_assets/current/public-docs-reader-assets.json"
+export CAMPUS_DOCS_SYNC_MANIFEST_KEY="<docs-sync-manifest-object-key>"
 export OBJECT_STORE_ENDPOINT=<endpoint>
-export OBJECT_STORE_DERIVED_BUCKET=<bucket>
+export OBJECT_STORE_BUCKET_DERIVED=<bucket>
 export OBJECT_STORE_ACCESS_KEY=<access-key>
 export OBJECT_STORE_SECRET_KEY=<secret-key>
 pnpm --filter campus-web docs:sync:published-reader

@@ -222,6 +222,13 @@ Environment:
 - `APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI`
 - `APP_API_OPERATOR_DATABASE_URL`
 - `APP_API_DATABASE_SSLMODE`
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_REGION`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `OBJECT_STORE_DERIVED_ACCESS_KEY`
+- `OBJECT_STORE_DERIVED_SECRET_KEY`
+- `OBJECT_STORE_BUCKET_DERIVED`
 - `SENTRY_DSN`
 - `SENTRY_ENVIRONMENT`
 - `SENTRY_RELEASE`
@@ -250,6 +257,10 @@ Local development:
 - if current staging only targets `app-api + public-chat-web +
   protected-panel-web`, and does not yet enable official-web live control-plane,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` is optional for that rollout
+- dining floorplan upload and `dining:seed-initial-release` use the configured
+  S3-compatible derived bucket. Local dev normally points `OBJECT_STORE_*` at
+  MinIO; staging/prod can point the same env shape at R2/S3-compatible storage.
+  Missing object-store config fails closed for dining SVG upload and seed.
 
 Deployment minimum gate:
 
@@ -327,6 +338,7 @@ pnpm collection-rename:apply -- --write-report .tmp/collection-rename-apply.json
 pnpm collection-rename:replay -- --report .tmp/collection-rename-apply.json
 pnpm docs:import-read-model ../../var/docs-read-model-manifest.json
 pnpm docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json
+pnpm dining:seed-initial-release
 pnpm projection:drain
 pnpm test
 pnpm test:all
@@ -347,6 +359,8 @@ STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
   docs:import-read-model:staging ../../var/docs-read-model-manifest.json
 STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
   docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.staging.json
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
+  dining:seed-initial-release:staging
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
   pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
@@ -378,6 +392,9 @@ Deploy note:
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 - `db:bootstrap:staging` 负责补齐 `app_auth.*` / `chat.*` shared-product 面；现有
   staging 若只跑 `db:migrate:staging`，不会自动得到 `chat.messages.structured_parts_json`
+- `dining:seed-initial-release*` writes the initial dining DB release and
+  materializes seed SVG objects into `OBJECT_STORE_BUCKET_DERIVED`; run it only
+  with the intended dev/staging/prod DB and object-store env.
 - `federation:provision-muc-wiki:staging` 负责把 controlled `muc-wiki` client
   同步到 `identity.federation_*` product policy 与 Better Auth
   `app_auth.oauthClient` runtime table。它必须在 staging DB bootstrap/migrate/drift

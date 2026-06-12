@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-12
 ---
 # Dining Domain Architecture
 
@@ -13,7 +13,7 @@ updated: 2026-06-08
 它回答：
 
 - dining floor/window/stall/menu truth 属于哪个领域
-- draft、release、published projection 如何分层
+- draft、release candidate、release、published projection 如何分层
 - `campus-web` 与 `campus-ops-web` 分别消费什么
 - dining 与 navigation spatial truth 如何区分
 
@@ -33,7 +33,8 @@ student dining experience.
 Primary read/write split:
 
 ```text
-campus-ops-web -> app-api /api/ops/dining/* -> dining draft -> release snapshot
+campus-ops-web -> app-api /api/ops/dining/* -> dining draft
+  -> release candidate -> published release snapshot
 campus-web -> app-api /api/dining/* -> latest published release snapshot
 ```
 
@@ -49,8 +50,11 @@ Dining domain object family:
 - menu item
 - menu offering
 - source observation
+- release candidate
+- release validation report
 - release
 - release snapshot
+- release latest pointer
 - audit event
 
 The domain intentionally separates physical window, stall assignment, and menu offering:
@@ -73,8 +77,9 @@ The intended technology shape is:
 app-api upload path -> fast-xml-parser validate/parse/build
   -> dining-owned allowlist SVG sanitizer
   -> anchor extraction / diff
-  -> draft floor SVG asset
-  -> release snapshot
+  -> S3-compatible derived bucket draft floor SVG asset
+  -> release candidate frozen asset reference
+  -> release-owned SVG object + release snapshot
 campus-web / campus-ops-web -> sanitized inline SVG renderer
 ```
 
@@ -101,7 +106,7 @@ SVG assets must expose stable anchors:
 ```
 
 `data-dining-anchor-id` is the visual map anchor. Dining business objects bind
-to anchors in draft/release data:
+to anchors in draft, release candidate and release snapshot data:
 
 ```text
 windowId <-> svgAnchorId
@@ -110,6 +115,18 @@ windowId <-> svgAnchorId
 The SVG may contain visual structure, labels, entrances, seating areas and
 semantic roles. It must not contain menu, price, curated sale status, release
 status or operator-only data.
+
+SVG assets used by release candidates and release snapshots are immutable
+references. Draft upload writes sanitized SVG bytes under
+`dining/floorplans/assets/{hallId}/{floorId}/sha256-{digest}.svg` in the
+configured S3-compatible derived bucket. A candidate freezes the sanitized SVG
+bucket, object key, content type, byte size, checksum and extracted anchor
+inventory. Publish promotes/copies each candidate floorplan object into
+`dining/releases/{releaseId}/floorplans/{hallId}/{floorId}/sha256-{digest}.svg`
+before snapshot creation, then writes `snapshot.json` and
+`validation-report.json` under the same `dining/releases/{releaseId}/` prefix.
+Missing floorplan source objects fail closed; publish must not synthesize seed
+or draft SVG bytes.
 
 `campus-web` and `campus-ops-web` render the sanitized SVG inline so they can
 select, highlight and center a specific anchor. Rendering SVG through `<img>` is
@@ -124,8 +141,54 @@ DOM.
 - select an anchor by clicking the SVG
 - bind the anchor to a dining window
 - edit window, stall profile, menu item and menu offering draft data
-- block publish when required window bindings reference missing or duplicate
-  anchors
+- create release candidates from a specific draft version
+- show validation blockers and warnings before approval
+- approve, publish now, schedule publish, cancel candidate and inspect release
+  history
+- block candidate publish when required window bindings reference missing or
+  duplicate anchors
+
+## Release Lifecycle
+
+Dining publish is candidate-first. A mutable draft is never directly published
+as the long-term accepted shape.
+
+```text
+draft edit
+-> release candidate
+-> validation report
+-> approval
+-> publish now OR schedule publish
+-> immutable release snapshot
+-> latest pointer update
+-> audit event
+```
+
+Release candidate creation freezes:
+
+- `baseDraftVersion`
+- sanitized floorplan SVG object refs and checksums
+- extracted SVG anchor inventory
+- `windowId <-> svgAnchorId` bindings
+- candidate snapshot hash
+
+Validation must fail closed for:
+
+- missing required floor SVG
+- missing, duplicate or unbound required SVG anchors
+- stale candidate when draft version no longer matches `baseDraftVersion`
+- missing stall profile, assignment, menu item or offering projection fields
+- SVG object checksum mismatch
+- missing frozen SVG object in object storage
+
+Scheduled publish is a release candidate execution mode, not a cron publish of
+the mutable current draft. A scheduler may publish only an approved candidate
+whose validation report still passes and whose expected predecessor release
+still matches. Failure does not update the latest published pointer.
+
+Rollback does not mutate draft. It either moves the latest pointer back to a
+historical published release or creates a new candidate from a historical
+snapshot, depending on the accepted HTTP contract.
 
 ## Student Projection
 
@@ -155,6 +218,7 @@ They do not expose:
 - operator id
 - internal DB row metadata
 - unpublished menu offering
+- release candidate
 
 If no published release exists, the student route must return explicit empty or
 typed not-found behavior. It must not silently fall back to in-memory seed data.

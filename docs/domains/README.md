@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-23
+updated: 2026-06-11
 ---
 # Domains
 
@@ -25,7 +25,8 @@ data、plan、runbook、reference、policy 聚到一页，减少在多个目录�
   - campus services structured runtime、projection-owned service truth
     与 opening gate
 - `dining.md`
-  - dining operations、食堂地图 draft/release/published projection 与 ops workspace
+  - dining operations、食堂地图 draft/release candidate/release/published projection
+    与 ops workspace
 - `operator-observability.md`
   - panel observability、request projection、quality/safety/cost/audit read
     model、Sentry/Axiom 参与边界

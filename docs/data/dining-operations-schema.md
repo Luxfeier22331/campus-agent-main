@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-12
 ---
 # Dining Operations Schema
 
@@ -13,6 +13,7 @@ updated: 2026-06-08
 它回答：
 
 - dining operations 中哪些对象是 draft truth
+- release candidate 如何冻结 draft version 并进入发布控制面
 - release snapshot 如何成为学生端 published projection truth
 - source observation 与 draft/published 的关系
 - audit event 记录什么
@@ -33,18 +34,24 @@ updated: 2026-06-08
 
 ## Schema Family
 
-Current logical tables:
+Accepted target logical tables:
 
 - `dining.halls`
 - `dining.floors`
+- `dining.floorplan_assets`
 - `dining.windows`
 - `dining.window_assignments`
 - `dining.stall_profiles`
 - `dining.menu_items`
 - `dining.menu_offerings`
 - `dining.source_observations`
+- `dining.draft_versions`
+- `dining.release_candidates`
+- `dining.release_candidate_validation_reports`
+- `dining.release_schedule_jobs`
 - `dining.releases`
 - `dining.release_snapshots`
+- `dining.release_latest_pointer`
 - `dining.audit_events`
 
 ## Object Boundaries
@@ -71,11 +78,49 @@ Canonical fields:
 - `floor_id`
 - `hall_id`
 - `label`
-- `svg_asset_url`
-- `sanitized_svg_markup`
+- `draft_floorplan_asset_id`
 - `sort_key`
 - `created_at`
 - `updated_at`
+
+Rules:
+
+- floor rows point to the current draft floorplan asset
+- published floorplan data is read from release snapshots, not from this mutable
+  draft relation
+
+### `dining.floorplan_assets`
+
+Sanitized SVG asset metadata and extracted anchor inventory.
+
+Canonical fields:
+
+- `floorplan_asset_id`
+- `hall_id`
+- `floor_id`
+- `bucket`
+- `content_type`
+- `byte_size`
+- `object_key`
+- `sha256`
+- `sanitized_svg_markup`
+- `anchor_inventory_json`
+- `source_filename`
+- `status`
+- `created_at`
+- `created_by`
+
+Rules:
+
+- `object_key` must reference an immutable sanitized SVG object before it enters
+  a release candidate
+- `bucket`, `content_type` and `byte_size` are object-store metadata for the
+  sanitized SVG bytes and are frozen into candidate/release floorplan refs
+- draft-only temporary object keys must be promoted/copied before publish if
+  they are subject to cleanup
+- `anchor_inventory_json` is derived from sanitized SVG and stores
+  `data-dining-anchor-id` values and optional semantic role metadata
+- asset rows do not store menu, price, assignment or release status truth
 
 ### `dining.windows`
 
@@ -195,20 +240,141 @@ Rules:
 - observation cannot directly update published snapshot
 - apply/reject, if accepted in a later scope, must be explicit operator command
 
+### `dining.draft_versions`
+
+Monotonic draft version record used to freeze release candidates.
+
+Canonical fields:
+
+- `draft_version_id`
+- `version_number`
+- `summary_json`
+- `created_at`
+- `created_by`
+
+Rules:
+
+- every draft mutation that can affect published projection advances the draft
+  version or records a deterministic version boundary
+- release candidates reference a specific draft version through
+  `base_draft_version_id`
+- a candidate is stale when publish-time draft/version invariants no longer
+  match the candidate policy
+
+### `dining.release_candidates`
+
+Frozen candidate prepared from a specific draft version.
+
+Canonical fields:
+
+- `candidate_id`
+- `base_draft_version_id`
+- `status`
+- `notes`
+- `publish_mode`
+- `scheduled_at`
+- `expected_predecessor_release_id`
+- `snapshot_hash`
+- `floorplan_refs_json`
+- `snapshot_payload_json`
+- `created_at`
+- `created_by`
+- `approved_at`
+- `approved_by`
+- `cancelled_at`
+- `cancelled_by`
+- `published_release_id`
+
+Allowed status values:
+
+- `candidate`
+- `validated`
+- `approved`
+- `scheduled`
+- `publishing`
+- `published`
+- `failed`
+- `cancelled`
+
+Rules:
+
+- candidate creation freezes the draft version, floorplan object refs/checksums,
+  extracted anchors, window-anchor bindings and candidate snapshot hash
+- a candidate can be published immediately or scheduled after approval
+- publish commands operate on candidates, not mutable draft
+- candidate failure does not update the latest published pointer
+- cancelled candidates are retained for audit and cannot be published
+
+### `dining.release_candidate_validation_reports`
+
+Validation output attached to a release candidate.
+
+Canonical fields:
+
+- `validation_report_id`
+- `candidate_id`
+- `status`
+- `blockers_json`
+- `warnings_json`
+- `summary_json`
+- `created_at`
+
+Rules:
+
+- blocker-free validation is required before approval and publish
+- blockers include missing floor SVG, missing/duplicate required anchors,
+  missing floorplan object, checksum mismatch, stale candidate and missing
+  student projection fields
+- warnings may inform operators but do not replace explicit blockers
+
+### `dining.release_schedule_jobs`
+
+Scheduled execution request for an approved release candidate.
+
+Canonical fields:
+
+- `schedule_job_id`
+- `candidate_id`
+- `scheduled_at`
+- `status`
+- `attempt_count`
+- `last_error_code`
+- `last_error_message`
+- `created_at`
+- `created_by`
+- `executed_at`
+
+Rules:
+
+- scheduled jobs target approved candidates only
+- scheduler execution must revalidate candidate invariants before publish
+- scheduler must never publish mutable current draft state
+- failed jobs retain diagnostic error fields and do not update latest published
+  pointer
+
 ### `dining.releases`
 
-Release metadata.
+Published release metadata.
 
 Canonical fields:
 
 - `release_id`
+- `candidate_id`
 - `notes`
 - `status`
-- `published`
 - `published_at`
 - `published_by`
+- `predecessor_release_id`
+- `snapshot_hash`
 - `created_at`
 - `created_by`
+
+Rules:
+
+- release rows represent published releases only
+- release rows are created by publishing an approved candidate
+- rollback does not mutate draft; it either updates the latest pointer to a
+  previous release or creates a new candidate from a historical snapshot
 
 ### `dining.release_snapshots`
 
@@ -219,6 +385,8 @@ Canonical fields:
 - `snapshot_id`
 - `release_id`
 - `payload_json`
+- `svg_object_refs_json`
+- `snapshot_hash`
 - `created_at`
 
 Rules:
@@ -231,9 +399,30 @@ Rules:
   -> menu item relations captured inside the snapshot
 - snapshot payload must include sanitized SVG floorplan data and SVG anchor
   bindings for any student-visible floor
+- snapshot payload must include floorplan object bucket, key, content type,
+  byte size, checksum and anchor inventory for any student-visible floor
 - missing floorplan, stall profile or menu item projection data is a data
   integrity error; readers must fail closed rather than synthesize placeholder
   SVG anchors, food names, prices or tags
+
+### `dining.release_latest_pointer`
+
+Singleton or scoped pointer to the release currently served to student-facing
+routes.
+
+Canonical fields:
+
+- `scope`
+- `release_id`
+- `snapshot_id`
+- `updated_at`
+- `updated_by`
+
+Rules:
+
+- latest pointer is updated only after a complete release snapshot is written
+- release publish is atomic from the student reader perspective
+- partial publish never advances this pointer
 
 ### `dining.audit_events`
 
@@ -259,7 +448,8 @@ Rules:
 ## Initial Release
 
 The initial release materializes existing dining seed projection into
-`dining.*` and publishes `dining_release:initial`.
+`dining.*`, writes seed SVG objects into the configured S3-compatible derived
+bucket and publishes `dining_release:initial`.
 
 Initial scope:
 
@@ -269,7 +459,10 @@ Initial scope:
 - 每个窗口至少 1 个 offering；部分窗口包含 2-3 个 offering
 
 After materialization, production student-facing routes must read the DB-backed
-published snapshot, not in-memory seed data.
+published snapshot, not in-memory seed data. The seed SVG objects must exist in
+object storage before later candidates can copy their floorplan refs into
+release-owned keys. Publish must fail closed when a candidate references a
+missing SVG object; it must not recreate seed SVG bytes during publish.
 
 Initial seed ownership belongs to `apps/app-api/src/modules/dining-ops`, not
 `campus-experience`. `campus-experience` remains responsible for map and

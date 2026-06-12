@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-12
 ---
 # App API Dining HTTP Contract
 
@@ -17,8 +17,8 @@ updated: 2026-06-08
 - `docs/architecture/domains/dining/architecture.md`
 - `docs/data/dining-operations-schema.md`
 
-本文只描述学生端 published projection。Draft、audit、release command、source
-observation 与 operator 工作台字段属于
+本文只描述学生端 published projection。Draft、release candidate、release command、
+audit、source observation 与 operator 工作台字段属于
 `docs/contracts/app-api-dining-ops-http.md`。
 
 ## Implemented Endpoints
@@ -38,8 +38,8 @@ GET /api/dining/halls/:hallId/floors/:floorId
 - 没有 published release 或 floor 不存在时，floor route 返回 typed `404`。
 - published snapshot 缺少 sanitized SVG floorplan、SVG anchor binding、stall
   profile 或 menu item 时，route fail closed，不合成默认平面图、窗口、菜品名、价格或 tag。
-- 响应不包含 draft、audit event、operator principal、source observation、raw DB
-  row、service secret、auth row、cookie 或 token。
+- 响应不包含 draft、release candidate、audit event、operator principal、source
+  observation、raw DB row、service secret、auth row、cookie 或 token。
 - `removed` offering 不出现在学生端响应中。
 
 ## Hall Summary
@@ -91,6 +91,20 @@ GET /api/dining/halls/:hallId/floors/:floorId
     "hallId": "haidian-canteen-1",
     "floorId": "haidian-canteen-1-1f",
     "label": "海淀一食堂一层",
+    "floorplanAsset": {
+      "anchorInventory": [
+        {
+          "anchorId": "window-01",
+          "role": "window"
+        }
+      ],
+      "bucket": "campus-rag-derived",
+      "byteSize": 2048,
+      "contentType": "image/svg+xml",
+      "floorplanAssetId": "dining_floorplan_asset:...",
+      "objectKey": "dining/releases/dining_release:.../floorplans/haidian-canteen-1/haidian-canteen-1-1f/sha256-....svg",
+      "sha256": "sha256:..."
+    },
     "svgAssetUrl": "/assets/dining/haidian-canteen-1-1f.svg",
     "svgMarkup": "<svg ...>...</svg>"
   },
@@ -139,6 +153,8 @@ GET /api/dining/halls/:hallId/floors/:floorId
 
 - `floor.svgMarkup` 是 app-api 返回的 sanitized inline SVG；如响应只返回
   `svgAssetUrl`，该 asset 也必须是已 sanitize 的发布资产。
+- `floor.floorplanAsset` 是发布快照冻结的 SVG object metadata；`objectKey`
+  必须指向 release-owned key，不是 browser 直接下载 URL。
 - `windows[].svgAnchorId` 对应 SVG 中的 `data-dining-anchor-id`。
 - `svgAnchorId` 是 dining floorplan selection anchor，不是 campus navigation
   route graph。
