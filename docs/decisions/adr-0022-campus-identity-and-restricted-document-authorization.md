@@ -1,13 +1,41 @@
 ---
 doc_type: decision
 decision_id: ADR-0022
-status: accepted
+status: superseded
 created: 2026-04-02
-updated: 2026-06-04
+updated: 2026-06-12
 ---
 # ADR-0022 Campus Identity And Restricted Document Authorization
 
-## 背景
+## 状态
+
+Superseded on 2026-06-12.
+
+本文不再是当前 Campus Assistant 主问答产品的目标态决策。它曾假设仓库需要支持受限机构文档、学生
+/ 教职工 / 院系差异化 entitlement、restricted document retrieval 与 approval-style
+授权面；这些都已经被当前产品边界明确排除。
+
+当前有效口径以以下文档为准：
+
+- `docs/architecture/product-positioning.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/system/capability-routing-and-admission-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/memory-plane-architecture.md`
+
+当前主问答链路只面向普通用户开放成熟、只读、source-truth-ready 的校园能力。普通用户不按学生 /
+教职工 / 院系身份拆分 capability 权限；personal memory 只作为 per-user advisory
+context，不作为 source truth、capability opening、authorization 或 fail-close truth。
+
+本文只保留为历史材料，用于说明以下仍有效的边界教训：
+
+- prompt、retrieval 与 memory 不应自行拥有 product policy truth。
+- raw token、raw session、raw memory 与 raw source payload 不应进入 execution /
+  retrieval contract。
+- index metadata 只能是执行投影，不能伪装成 canonical product truth。
+- 如果未来重新提出受限文档或身份差异化能力，必须另起产品决策与 ADR，不能复用本文作为已接受目标态。
+
+## 历史背景
 
 `campus-agent` 当前已经冻结了以下长期边界：
 
@@ -32,7 +60,7 @@ updated: 2026-06-04
 - 把 `acl_groups` 扩成长期唯一权限模型
 - 把“适用于某类学生”和“只有某类人可见”混成一个过滤字段
 
-## 决策
+## 历史决策
 
 ### 决策 1：受限机构知识的 canonical authorization truth 继续由 `apps/app-api` 拥有
 
@@ -191,7 +219,7 @@ projection，不自行重建最终权限结论。
 - 避免把所有复杂度都压到 chunk-level ACL
 - 保持 serving surface 与 operator治理边界显式
 
-## 结果
+## 历史结果
 
 直接结果如下：
 
@@ -212,7 +240,7 @@ projection，不自行重建最终权限结论。
 - 不让 `supervisor` 或 `retrieval` 反向读取 raw auth store 做权限重建
 - 不把 personalization / memory 作为 restricted document 的授权依据
 
-## Complements
+## Historical Complements
 
 这项决策 complements：
 
@@ -222,7 +250,7 @@ projection，不自行重建最终权限结论。
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 
-## 外部依据
+## 历史外部依据
 
 - OWASP Authorization Cheat Sheet:
   <https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html>

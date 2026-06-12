@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 # Operator Observability Architecture
 
@@ -58,9 +58,9 @@ debugging / analysis / grading`
   - request list/detail、step timeline、trace correlation、projection-friendly diagnostics
 - `Quality`
   - retrieval quality、citation coverage、refusal distribution、badcase sampling
-- `Safety/Authz`
-  - ACL decision summary、deny / fail-close posture、projection anomaly、restricted
-    access diagnostics
+- `Safety/Boundary`
+  - capability readiness、source / evidence fail-close posture、projection anomaly
+    与 memory boundary diagnostics
 - `Cost`
   - token usage、estimated cost、model / target / surface 分布
 - `Audit`
@@ -150,7 +150,7 @@ eval attribution / badcase projection / release-evidence-shaped local fixture`
 - operator request projection
 - operator audit projection
 - operator quality / safety / cost aggregate read surfaces
-- operator-facing authz interpretation
+- operator-facing access / boundary interpretation
 - request identity、trace correlation、projection materialization 与 aggregate
   publication
 
@@ -259,7 +259,7 @@ runtime-internal package import 拼装它们。
   可见的 safe summary seam，用于证明最终答复依赖了哪些 repo-owned projection，而不是暴露
   raw artifact payload
 
-当前尚未全部落成 merged truth 的，是更完整的 `Safety/Authz`、`Cost`、`Audit` operator
+当前尚未全部落成 merged truth 的，是更完整的 `Safety/Boundary`、`Cost`、`Audit` operator
 product surface；这属于 rollout 进度问题，不是 ownership 未定。
 
 长期如果推进 full agentic retrieval，operator observability 还必须继续收口 planner / executor
@@ -284,10 +284,10 @@ truth 已开放。
   - 只对发生 retrieval attempt 的请求计数
 - citation miss rate
   - 只对 citation-expected grounded answer 计数
-- refusal rate
-  - 必须拆分 `no_answer`、`needs_clarification`、`approval_required`、`rejected`
-- ACL anomaly rate
-  - projection 缺失、冲突、fail-open suspicion、unauthorized evidence risk
+- refusal / fail-close rate
+  - 必须拆分 `no_answer`、`needs_clarification`、`rejected`、`error`
+- boundary anomaly rate
+  - projection 缺失、冲突、fail-open suspicion、unopened source / capability risk
 - token usage / token cost
   - input / output / cache hit usage
   - near-real-time estimated cost
@@ -447,7 +447,7 @@ dump 或 raw vendor payload 直接暴露给 panel。
 - empty recall
 - citation coverage
 - refusal distribution
-- ACL anomaly
+- boundary anomaly
 - token / cost
 
 要求：
@@ -493,7 +493,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 - 返回的是 current answer、historical reference、canonical body，还是 deterministic
   fail-close / unavailable
 - 显式历史参考或 fail-close 的原因是什么
-- notice 结果来自 public `official_web` 还是 restricted `internal_notice` source
+- notice 结果来自 public `official_web` 还是 authenticated-source `internal_notice` source
   family
 
 固定约束：
@@ -526,23 +526,22 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 
 它至少回答：
 
-- 这次 request 以什么 principal / entitlement snapshot 进入系统
+- 这次 request 以什么 account / session / surface projection 进入系统
 - 进入了哪个 target / capability / surface
-- 是否发生 retrieval、fail-close、approval gate、restricted deny
+- 是否发生 retrieval、fail-close、source gate 或 capability gate
 - 最终为什么
-  `completed`、`needs_clarification`、`no_answer`、`approval_required`、`rejected` 或
-  `error`
+  `completed`、`needs_clarification`、`no_answer`、`rejected` 或 `error`
 - 有没有 operator action 或治理异常需要追踪
 
 长期 audit 允许展示：
 
 - `request_id`
 - `trace_id`
-- principal class / entitlement snapshot id / policy projection version
+- caller projection version / policy projection version
 - selected capability / selected tool
 - status / reason code
 - source doc id summary
-- fail-close / deny / approval markers
+- fail-close / deny markers
 - safe summary diagnostics
 
 长期 audit 不允许展示：
@@ -589,7 +588,7 @@ safe deep link 投影进 panel backlink。该模板只用 app-owned `requestId` 
 长期职责：
 
 - high-volume structured runtime events
-- retrieval / citation / ACL / serving / ingestion analysis
+- retrieval / citation / serving / ingestion analysis
 - long-window trend、slice、cohort comparison
 - badcase slicing 与 rollup input
 
@@ -598,7 +597,7 @@ safe deep link 投影进 panel backlink。该模板只用 app-owned `requestId` 
 - retrieval summary events
 - no-answer / clarification / refusal reason summary
 - citation coverage summary
-- ACL decision summary
+- source / capability gate summary
 - token / cost attribution
 - official-web / ingestion / rebuild runtime events
 
@@ -696,7 +695,7 @@ ownership matrix 固定在
 - 不让 raw audit log 直接成为 operator query data plane
 - 不让 `apps/execution-control` 承担 observability query backend
 - 不把 production aggregate、sampled grades、release-gate eval truth 混成一张表
-- 不把 token / cost / ACL / citation 口径硬编码在前端
+- 不把 token / cost / source / citation 口径硬编码在前端
 - 不让 vendor-specific event schema 反向定义 `packages/contracts`
 
 ## 相关稳定文档
@@ -713,8 +712,6 @@ ownership matrix 固定在
   md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
   pation.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
-  .md`
 
 ## 外部参考
 

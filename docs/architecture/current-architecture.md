@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-08
+updated: 2026-06-12
 ---
 # 当前架构
 
@@ -127,7 +127,7 @@ document/index release`
 
 当前非默认公开查询面：
 
-- `campus_notices/internal_notice` restricted source-channel triage
+- `campus_notices/internal_notice` authenticated notice source-channel triage
   collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入
   `regulations/*`
 - `regulations/scoped_rules` notice-derived scoped-rule holding collection；当前
@@ -267,7 +267,7 @@ document/index release`
   current durable chat path 的规划输入。
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/execution-control/internal/runtimepolicy`，负责 product scope gate、
-  approval / reject gate、context follow-up preflight、query-enabled scope
+  readiness / reject gate、context follow-up preflight、query-enabled scope
   admission 与 structured tool policy version；intent signal taxonomy、reason
   code 与 case-set version 当前由 `configs/runtime/intent-policy.v1.json`
   持有，Go runtime policy 加载该 artifact，并在缺失或 version drift 时
@@ -364,7 +364,7 @@ document/index release`
   architecture：`docs/architecture/system/execution-and-agents-architecture.md`
 - prompt/instruction supporting
   architecture：`docs/architecture/system/prompt-and-instruction-architecture.md`
-- identity / authorization supporting
+- account / operator access / memory binding supporting
   architecture：`docs/architecture/system/identity-and-authorization-architecture.md`
 - retrieval / serving supporting
   architecture：`docs/architecture/system/retrieval-serving-architecture.md`

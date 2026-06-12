@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-06-04
+updated: 2026-06-12
 ---
 
 # Reference
@@ -42,7 +42,6 @@ updated: 2026-06-04
 - `internal-notice-offline-preparation-quality-acceptance.md`
 - `internal-notice-pdf-chunk-tuning-sample-set-contract.md`
 - `institutional-regulations-offline-inventory.md`
-- `restricted-document-center-artifact-contract.md`
 
 ## Authenticated Notice / Internal Notice Quality Acceptance
 
@@ -63,6 +62,9 @@ updated: 2026-06-04
 
 ## Historical Evidence / Archive
 
+- `restricted-document-center-artifact-contract.md`
+  - historical；只保留 document-center artifact 分层旧口径，不再是 active target
+    contract。
 - `archive/README.md`
 
 补充规则：

@@ -22,7 +22,7 @@ updated: 2026-04-25
 - 某个 vendor SDK 的具体调用方式
 - 某个模型版本的最终选型
 - 某次迭代的具体 prompt 文案
-- retrieval / authz / serving truth 的产品级决策
+- retrieval / serving / capability-opening truth 的产品级决策
 
 ## 当前接受的实现基线
 
@@ -98,7 +98,7 @@ code-owned runtime seam。当前接受的实现基线是：
 它不允许表达：
 
 - 未 admission 的 scope opening
-- authz 结论
+- account / operator access 结论
 - source-trust 提权
 - unrestricted live/web fallback
 
@@ -137,7 +137,7 @@ code-owned runtime seam。当前接受的实现基线是：
 禁止退化为：
 
 - `prompt-first orchestration`
-- 用 prompt 软约束代替 authz / serving filter
+- 用 prompt 软约束代替 serving filter、capability opening gate 或 source-trust gate
 - 把 retrieval snippets 或 external content 直接拼进 trusted instructions 区
 - 用一份 monolithic mega prompt 覆盖所有 agent、所有 mode、所有数据面
 
@@ -145,12 +145,11 @@ code-owned runtime seam。当前接受的实现基线是：
 
 以下内容长期不得依赖 prompt-only 软约束：
 
-- authz / visibility / entitlement 决策
 - current query-enabled scope
 - runtime profile / serving alias / release manifest
 - fail-close deny path
-- restricted document title / snippet 泄漏控制
-- irreversible action gate 或 approval gate
+- capability opening / readiness gate
+- source-trust / freshness gate
 
 这些 truth 继续由：
 
@@ -168,7 +167,6 @@ code-owned runtime seam。当前接受的实现基线是：
 它不能替代：
 
 - runtime profile / serving posture
-- authz / visibility enforcement
 - freshness gate
 - source-trust admission
 - candidate set 与 supporting evidence 的分层
@@ -202,16 +200,18 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 - `unsupported_by_evidence` 当前问题在范围内，但没有足够依据支持安全作答
 - `out_of_scope` 当前问题不属于当前 institution / capability / serving surface 所承接的产品范围
 - `policy_refusal` 当前问题触发平台或产品级禁止事项
-- `restricted_access_denied` 当前问题相关内容存在，但当前 actor 无权读取
-- `approval_required` 当前请求涉及不可直接执行的高风险动作
+- `capability_not_ready` 当前问题属于校园问答目标，但对应能力尚未达到主链路 opening gate
+- `source_truth_unavailable` 当前问题需要的 source truth 或 current-state truth 尚不可可靠消费
 
 补充约束：
 
 - transport / runtime status 可以在过渡期继续保持 `completed`、`needs_clarification`、`no_an
   swer`、`rejected`、`approval_required`、`error`
 - 但 observability、eval truth、prompt packet 与 operator projection 长期不得再把 `out_of_
-  scope`、`unsupported_by_evidence`、`policy_refusal`、`restricted_access_denied`
-  混成一个模糊的 `no_answer`
+  scope`、`unsupported_by_evidence`、`policy_refusal`、`capability_not_ready` 与
+  `source_truth_unavailable` 混成一个模糊的 `no_answer`
+- `capability_not_ready` 与 `source_truth_unavailable` 是 internal / operator vocabulary；
+  用户可见文案应映射为“当前无法自动查询”“暂无可靠来源确认”或等价表达，不直接暴露内部 capability 名称。
 - 如果当前 contract 尚未升级，这些语义至少也要以显式 `semantic_outcome` / `refusal_class` /
   `no_answer_reason` 投影存在
 
@@ -249,7 +249,7 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 - replan 必须显式记录原因
 - replan 次数必须受 budget 约束
 - planner 无法产出 admitted plan 时直接 fail-close
-- 不能因为第一次召回不理想，就隐式放宽 scope / authz / freshness 约束
+- 不能因为第一次召回不理想，就隐式放宽 scope / source-trust / freshness 约束
 
 ## 敏感主题处理规则
 
@@ -307,9 +307,9 @@ unsupported`
 
 - 对 freshness-sensitive 问题假装自己掌握最新状态
 
-1. `authorization hallucination`
+1. `boundary hallucination`
 
-- 用未授权或隐藏内容补答案，或泄漏 restricted title / snippet
+- 把未开放 capability、未可靠摄入的 current-state truth 或内部 source material 包装成可确认答案
 
 repo 的 hallucination control 必须分别针对这五类做 gate，而不是统一归类成“prompt 质量问题”。
 
@@ -336,7 +336,7 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 
 ### `packages/retrieval-core` ownership
 
-- 只拥有 retrieval / evidence shaping / authz filter execution
+- 只拥有 retrieval / evidence shaping / admitted source constraint execution
 - 不拥有 top-level policy refusal 或 product scope judgement
 
 ### prompt family
@@ -353,7 +353,7 @@ repo 级 instruction hierarchy 固定拆成五层：
 
 - 来自产品边界、架构边界、安全边界
 - 例如当前 `Execution Agent Layer-led orchestration`、`capability contract`、
-  `restricted deny no leak`
+  `source truth and capability opening gate`
 
 1. `role instructions`
 
@@ -422,9 +422,9 @@ typed packet。
 推荐的 repo-global system block 只包含以下语义：
 
 - 你属于一个 `institution-scoped campus assistant`
-- 你不得改写 policy / authz / serving-surface / scope truth
+- 你不得改写 policy / serving-surface / capability-opening / scope truth
 - 你不得用开放域世界知识补齐 institution-specific 缺口
-- 如果请求是 `unsupported`、`ambiguous`、`unauthorized` 或 `not grounded by evidence`，必须
+- 如果请求是 `unsupported`、`ambiguous`、`not opened` 或 `not grounded by evidence`，必须
   abstain 或要求澄清
 - 输出必须满足 typed schema，并接受 code-side finalization
 
@@ -432,10 +432,10 @@ typed packet。
 
 ```text
 You are an institution-scoped campus assistant.
-Never override policy, authorization, serving-surface, or scope truth supplied
+Never override policy, capability-opening, serving-surface, or scope truth supplied
 by code and typed packets.
 Never use open-world knowledge to fill institution-specific gaps.
-If the request is ambiguous, unauthorized, unsupported, or not grounded by
+If the request is ambiguous, not opened, unsupported, or not grounded by
 evidence, abstain or ask for clarification.
 Return only schema-compliant output. Code-side finalization is authoritative.
 ```
@@ -449,7 +449,7 @@ Return only schema-compliant output. Code-side finalization is authoritative.
 它不负责：
 
 - routing
-- authz
+- capability opening
 - query-enabled surface 判定
 - retrieval planning
 - answer finalization
@@ -483,7 +483,7 @@ structured output + code-side finalization`
 因此，repo 最终不追求：
 
 - 一份更长的总 system prompt
-- 把 routing / authz / serving truth 写成 prompt 文案
+- 把 routing / capability-opening / serving truth 写成 prompt 文案
 - 把 prompt 当作 agent graph 的唯一真相源
 
 repo 最终追求的是：
@@ -556,7 +556,7 @@ repo 当前推荐的 system / role 设计固定为：
 - owns knowledge-path / `knowledge` role instructions
 - owns answer / clarify / no-answer / unsupported prompt families
 - owns evidence-to-answer prompt packet assembly
-- 不拥有 authz truth、serving truth、product identity truth
+- 不拥有 account truth、operator access truth、serving truth 或 capability-opening truth
 
 ### `packages/retrieval-core`
 
@@ -568,7 +568,7 @@ repo 当前推荐的 system / role 设计固定为：
 每个 agent 不维护一份“大 prompt”，而维护 `prompt family + mode`。
 
 当前 production execution terminal path 不再维护 prompt family；clarify /
-approval-required / out-of-scope / reject 的 deterministic terminal wording 由 Go
+out-of-scope / reject / not-open 的 deterministic terminal wording 由 Go
 `execution-control` 的 direct terminal path 承接。若后续重新引入 LLM-assisted execution
 wording，必须作为新的显式 workstream 重新定义 prompt family、eval gate 与 code
 finalization，不得复用已删除的旧 execution prompt assets。
@@ -734,7 +734,7 @@ prompt 只能消费已经过 code 过滤的 personalization inputs。
 一致：
 
 - personalization 可以影响 wording、clarification、preference
-- 不能扩大 visibility / entitlement truth
+- 不能扩大 capability opening、source trust、account/session 或 operator access truth
 
 ## Observability And Storage
 
@@ -781,8 +781,9 @@ prompt 变更不是纯文案改动，而是 release-relevant change。
 
 1. `policy gate`
 
-- clarify / no-answer / deny-path / approval-required 是否正确
-- `policy_refusal`、`out_of_scope`、`restricted_access_denied` 的区分是否正确
+- clarify / no-answer / deny-path 是否正确
+- `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`capability_not_ready`
+  与 `source_truth_unavailable` 的区分是否正确
 
 1. `quality gate`
 
@@ -797,7 +798,7 @@ prompt 变更不是纯文案改动，而是 release-relevant change。
 - `student_rules` live accept
 - `curriculum_plan` live accept
 - alias / family ambiguity regression
-- restricted deny / fail-close regression
+- capability-not-open / source-unavailable / fail-close regression
 - out-of-scope / policy-refusal / unsupported-by-evidence regression
 
 prompt version bump 必须与 eval artifact 一起进入变更记录。
@@ -821,9 +822,10 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - 回答中的关键对象名、条件、时间、数量和制度名，必须能在 evidence packet 找到支持
 - 如果关键 claim 找不到支持，应 fail closed 为 `unsupported_by_evidence`
 
-1. `deny-path gate`
+1. `boundary gate`
 
-- restricted / hidden / unauthorized 内容不得通过 wording 绕出站
+- 未开放 capability、未可靠摄入的 current-state truth 或内部 source material 不得通过 wording
+  包装成可确认答案
 
 1. `freshness gate`
 
@@ -856,7 +858,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - Execution Agent Layer routing
 - deterministic execution terminal wording
-- authz / visibility gate
+- capability opening gate
 - serving-surface filter
 - retrieval planning
 - canonical entity / alias resolution
@@ -872,7 +874,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - curriculum 课程表 / 学期课表高结构答案
 - handbook procedure / materials / time 的高精度 deterministic path
-- restricted deny path final safety semantics
+- unavailable / not-open final safety semantics
 
 原因：
 
@@ -909,7 +911,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
   validator 共同承担 prompt-side hallucination control，而不是把控制责任退回
   “更长的 system prompt”
 - `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与
-  restricted deny final semantics 继续保持 deterministic-first protected path
+  not-open / unavailable final semantics 继续保持 deterministic-first protected path
 
 仍属当前 follow-up 但不在本文维护执行顺序的工作：
 

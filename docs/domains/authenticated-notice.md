@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-21
+updated: 2026-06-12
 ---
 # Authenticated Notice Domain
 
@@ -26,8 +26,15 @@ updated: 2026-04-21
 - `../decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `../decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `../decisions/adr-0037-unified-scoped-rules-holding-collection.md`
+
+## Historical References
+
 - `../decisions/adr-0041-authenticated-document-center-and-regulation-layer-spli
   t.md`
+- `../reference/restricted-document-center-artifact-contract.md`
+
+这两份文档只保留 document-center 旧设想与 artifact 分层历史，不再作为当前 authenticated notice
+主线或用户问答产品目标。
 
 ## 执行路由
 
@@ -56,4 +63,3 @@ updated: 2026-04-21
 - `../reference/internal-notice-manual-review-collection-strategy.md`
 - `../reference/internal-notice-manual-review-future-query-contract.md`
 - `../reference/internal-notice-pdf-chunk-tuning-sample-set-contract.md`
-- `../reference/restricted-document-center-artifact-contract.md`

@@ -28,7 +28,7 @@ updated: 2026-06-11
 
 - Campus Assistant product agent experience
 - execution-control-owned Execution Agent Layer
-- governed multi-capability / agent-as-tool architecture
+- governed tool-using campus assistant architecture
 - deterministic governance + bounded semantic agent execution
 - capability-neutral Execution Agent Layer routing
 - tools-first domain capability boundary；semantic specialist 以 agent-as-tool
@@ -56,7 +56,7 @@ updated: 2026-06-11
 ```text
 client/channel
 -> browser surface
--> app-api surface policy / identity / minimal context projection
+-> app-api surface policy / account-session / minimal context projection
 -> execution-control Execution Agent Layer
 -> CapabilityExecutionWorkflow
 -> context.memory_recall
@@ -87,6 +87,8 @@ workflow 保持 workflow / policy / budget / finalization ownership，typed tool
   与 finalization。
 - `Tool` 是 deterministic data access 或受控外部服务调用；没有稳定语义职责的
   deterministic capability 不得借用 `agent` 命名。
+- `knowledge` 是 capability family；RAG graph 是 `knowledge` 内部的 durable
+  execution shape，不是与 `knowledge` 并列的用户可见能力。
 
 目标拓扑图：
 
@@ -250,7 +252,8 @@ collector/source admission
 - 当前 target architecture 不默认接纳开放域 generalist / web capability 进入主 campus path
 - `requested_scope` 只属于 knowledge-family path，不再作为所有 capability 共用的顶层默认字段
 - retrieval plan 必须是 typed / observable artifact，而不是 prompt 内隐式黑盒
-- planner 不能绕过 runtime profile、authz、source-trust 或 freshness gate
+- planner 不能绕过 runtime profile、source-trust、freshness gate 或 capability
+  opening gate
 - admitted live retrieval 只能命中 repo-owned source channel，不得退化为 general web
   answer path
 - provider-native function calling、remote MCP、built-in web tool 或其他外部 tool
@@ -274,6 +277,10 @@ collector/source admission
   official URL、source family、发布时间与短摘要/匹配原因可以进入用户面；canonical body、
   OCR owner text、inline image text 与附件正文只能作为 source-truth、内部 context、
   下游 materialization 或 bounded summary/fact extraction 输入，不得作为默认全文输出。
+- 主问答产品不按学生 / 教职工 / 院系身份拆分普通 capability。account / session、
+  rate / quota、operator surface access 与 user-scoped memory binding 是产品层边界，不是普通校园问答能力差异来源。
+- restricted documents、内部受限材料、approval / HITL、预约 / 提交 / 支付 / 工单等状态变更能力不属于当前主问答产品目标；
+  不得把这些非目标反写成 capability opening gate 的默认复杂度。
 
 ## 长期产品/runtime 形态
 
@@ -454,10 +461,10 @@ repo-owned internal query service -> sanitized StepResult projection`
 - provider/SDK tool loop 只作为 agent-as-tool 内部的 bounded execution substrate；它不是
   顶层 routing engine，也不拥有跨 family permission expansion
 - provider-native function calling / Agents SDK 是 Python semantic runtime substrate，不是
-  repo-level orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
+  repo-level orchestration owner；它不能自行扩大工具全集、source surface、opening posture 或
   capability family
-- tool 必须优先建模为 read-only typed capability；state-changing tool 默认不进入
-  campus 主路径，除非另开 approval / HITL / audit / rollback / eval contract
+- tool 必须优先建模为 read-only typed capability；state-changing tool 不属于当前
+  campus 主问答产品目标
 - tool 后端必须是 repo-owned internal query service、retrieval-core 或已 admission
   的 source-channel adjunct，不得直接暴露 browser-facing API、raw SQL、raw object-store
   bytes、collector runtime 或 ingestion/index build path
@@ -495,8 +502,8 @@ tool 与 deterministic query function 的边界必须保持清晰：
   admitted agent-as-tool steps
 - Python worker delegate map 与 provider/SDK function schema 必须从这些 repo-owned
   artifacts 派生或被 drift test 校验
-- 新增 explicit agent-as-tool、打开 explicit handoff、打开 parallel fanout 或
-  新增 state-changing tool，都必须先补 contract、eval denominator 与 trace
+- 新增 explicit agent-as-tool、打开 explicit handoff 或打开 parallel fanout，都必须先补
+  contract、eval denominator 与 trace
   projection，不得只靠 prompt 约束
 
 长期需要一个 repo-owned `ToolSpec` registry 作为 canonical artifact。该 registry 至少固定：
@@ -504,7 +511,7 @@ tool 与 deterministic query function 的边界必须保持清晰：
 - `tool_name`
 - owner capability / capability family
 - payload schema / result schema
-- read-only 或 state-changing posture
+- read-only posture
 - opening gate 与 allowed surface
 - source-truth owner / internal query service owner
 - timeout budget、max result size 与 parallel-call policy
@@ -679,8 +686,8 @@ operator observability rollup`
   - structured tool / retrieval plan 的 corpus、collection、doc/version、service subtype、
     temporal scope 与 source-channel 参数必须可比对
 - `fail_close_correctness`
-  - policy unavailable、capability closed、query scope disabled、missing context 与
-    unauthorized visibility 必须进入可审计 terminal outcome
+  - policy unavailable、capability closed、query scope disabled、missing context、source
+    truth unavailable 与 evidence insufficient 必须进入可审计 terminal outcome
 - `trace_projection_completeness`
   - request correlation、runtime versions、policy artifact versions、planning outcome、
     selected capability / tool 与 source summary 必须进入 sanitized artifact
@@ -692,7 +699,7 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 长期评分分层固定为：
 
 - deterministic gate 是 canonical release verdict 的第一层，覆盖 status、routing、retrieval、
-  citation、required facts、forbidden claims、policy / authz 与 fail-close
+  citation、required facts、forbidden claims、policy / opening posture 与 fail-close
 - supplemental graders 只能补充 grounding、relevance、tool / handoff semantics、
   workflow quality 与 human-calibrated rubric；它们是否 gating 由 repo-owned policy 决定
 - human review 必须持续校准 automated grader，避免把 grader drift 反向写成 truth
@@ -704,32 +711,31 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - eval artifact 可以保存 sanitized prompt summary、expected truth、observability summary、
   request / trace correlation、grader rationale summary 与 safe links
 - eval artifact 不得保存 raw JWT、raw cookies、raw auth envelope、raw transcript、
-  provider raw response、retrieval backend dump 或未经裁剪的 restricted document
-  payload
+  provider raw response、retrieval backend dump 或未经裁剪的 source body payload
 - trace / grader tooling 的原始结果必须先经过 eval-owned projection，再进入
   `apps/app-api` 的 operator-facing grade / backlink ingest
 
-## 长期 identity / authorization / memory 形态
+## 长期 account / memory 形态
 
-长期真相层固定拆成：
+长期主问答真相层固定拆成：
 
-- `verified identity`
-- `profile memory`
-- `session memory`
 - `institutional knowledge`
-- `authorization truth`
+- `account / session`
+- `user-scoped memory`
 
 长期 owner 固定为：
 
-- `apps/app-api` 拥有 canonical identity / authz product truth；online memory recall
-  由 execution-control / Temporal / Qdrant-native Personal Memory Index 承接
+- `apps/app-api` 拥有 account / session、operator access、rate / quota 与 user-scoped
+  memory binding 的 product truth；online memory recall 由 execution-control /
+  Temporal / Qdrant-native Personal Memory Index 承接
 - execution path 只消费最小 typed projection
-- retrieval 只消费 authz projection carrier，不拥有最终 entitlement resolution
-- memory 可以影响 routing、admission、applicability、query rewrite、planning / wording，
-  但不能伪造 identity 或 restricted entitlement
+- memory 可以影响 follow-up、preference、query framing、disambiguation、planning /
+  wording，但不能决定 capability opening、tool admission、source trust、fail-close、
+  operator access 或 account/session truth
 
 Memory Plane 的 Qdrant collection、online recall、写入链路与 Temporal 参与点，统一看
-`system/memory-plane-architecture.md`。本文只保留目标 repo 级 owner 与不可提权约束。
+`system/memory-plane-architecture.md`。本文只保留目标 repo 级 owner 与 advisory-context
+约束。
 
 ## 长期 retrieval / serving 形态
 
@@ -746,7 +752,7 @@ Memory Plane 的 Qdrant collection、online recall、写入链路与 Temporal �
 - query-enabled regulation scope 的 RAG release candidate 必须先通过
   `regulation_rag_release_admission.v1` scope-level manifest；该 manifest 绑定当前
   document identity/version/hash、document-units hash、cleaning/chunk/runtime profile
-  identity、reader current version 与 qrels/authz 检查结果。缺失或不匹配时只能进入
+  identity、reader current version 与 qrels/admission 检查结果。缺失或不匹配时只能进入
   `release_admission_blocked`，不得 embedding、index 或切 alias
 - RAG release lane 必须支持增量更新：用 document identity、version/hash 与 runtime
   profile identity 判断 unchanged / changed / deleted / withdrawn，不靠定时全量重建或
@@ -791,8 +797,7 @@ merged truth 只看 `docs/architecture/current-architecture.md`，不由本文�
 - regulation 之外更多 document family 的增量 RAG release lane rollout、scheduled
   reconciliation、rollback/current-pointer automation 与 operator-safe status projection
   扩面
-- restricted document rollout
-- 更完整的 identity / authz / memory productization
+- 更完整的 user-scoped memory productization
 - operator observability / audit control plane
 - deploy-side observability hardening
 

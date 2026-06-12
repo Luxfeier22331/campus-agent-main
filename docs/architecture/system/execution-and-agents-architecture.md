@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-08
+updated: 2026-06-12
 ---
 # Execution And Agents Architecture
 
@@ -267,7 +267,7 @@ Execution Agent Layer 不负责：
 - Go `execution-control` 已拥有 deterministic runtime policy foundation；当前实现位于
   `apps/execution-control/internal/runtimepolicy`，run command projection 传递
   `scope_gate`、`policy_gate`、`context_preflight`、`tool_policy` 与 `routing_frame`。
-  product-scope、approval-required、context-follow-up 与 terminal 裁决不得回退给
+  product-scope、readiness-required、context-follow-up 与 terminal 裁决不得回退给
   Python bridge 或 prompt fallback。
 - Go `execution-control` 已拥有 structured runtime foundation，但 structured payload
   只有在 typed Temporal activity contract、config gate 与 task queue poller 都 ready 后
@@ -575,7 +575,7 @@ SDK / provider-native tool loop 可用于承接：
 - code-first tool loop 与 handoff object modeling
 - provider-native function calling adapter 与 strict function schema execution
 - run / trace capture，便于投影到 repo-owned `workflow_trace_summary`
-- agent-as-tool 内部 guardrail / approval checkpoint 的实现 ergonomics
+- agent-as-tool 内部 guardrail / interruption checkpoint 的实现 ergonomics
 - resumable state 或 next-turn surface 的局部实现
 
 官方 Agents SDK 的当前 primitive 与 repo 边界对齐方式固定如下：
@@ -586,8 +586,9 @@ SDK / provider-native tool loop 可用于承接：
   bounded specialist call
 - SDK handoff 只作为实现 substrate；repo-level step / handoff truth 仍是 Go
   `WorkflowPlan`、Temporal activity graph 与 sanitized projection
-- SDK guardrails 可以作为内部 input / output / function-tool validation，但 repo-owned authz、
-  ToolSpec、evidence grounding 与 finalizer guardrail 仍是 release acceptance owner
+- SDK guardrails 可以作为内部 input / output / function-tool validation，但 repo-owned
+  ToolSpec、evidence grounding、source gate 与 finalizer guardrail 仍是 release
+  acceptance owner
 - SDK tracing 是 debug / evaluation input；默认不得把 raw provider transcript、prompt、
   tool payload、handoff graph 或 trace dump 写入 repo shared contract、panel、eval canonical
   fixture 或 public response
@@ -788,7 +789,7 @@ ToolSpec 注册与校验，但不得进入 structured handoff allowed-tools。�
   bounded evidence projection、claim/list-item support 与 sanitized trace
   projection；官方 SDK import 保留在 retired Python bridge
 - SDK `FunctionTool` 只能读取 planner 已产生的 deterministic query slot 和 bounded evidence
-  anchors；模型不能提供 corpus、collection、authz filter、target document ids、version ids、
+  anchors；模型不能提供 corpus、collection、source filter、target document ids、version ids、
   revision track、top-k 或 serving surface
 - accepted SDK output 必须把每个 factual claim 或 list item 绑定到返回 evidence 中的
   `source_id + chunk_id + excerpt + span_ref`；source-id-only citation 不足以完成回答
@@ -846,8 +847,7 @@ runtime observability、audit 与 eval 统一使用 repo-owned correlation id：
 - provider-native remote MCP / built-in web search 作为 campus answer-bearing fallback
 - raw SQL、raw object-store read、collector live crawl、ingestion write 或 index build
   暴露成 query-time tool
-- state-changing tool 在没有 approval / HITL / audit / rollback / eval contract 时进入
-  public chat 主路径
+- state-changing tool 进入 public chat 主路径；预约、提交、支付、工单等状态变更能力不是当前主问答产品目标
 - tool output 未裁剪就进入 prompt、workflow trace、panel 或 eval canonical asset
 
 当前 admitted SDK adapter surface 还需要区分两种执行语义，并在 safe observability 中显式记录：
@@ -906,7 +906,7 @@ query。
     miss 不得自动触发历史回退
   - 不作为默认正文阅读器；canonical notice body / OCR owner text 不得直接进入用户面全文输出
   - source family 至少显式区分 public `official_web` notice-like pages 与
-    restricted `campus_notices/internal_notice`
+    authenticated-source `campus_notices/internal_notice`
 - `notice`
   - 只在需要 notice 候选语义消歧、historical posture、短摘要/事实抽取或向下游 family
     提供 source-linked bounded context 时作为 agent-as-tool
@@ -944,7 +944,7 @@ projection owner 继续显式分层：
     RAG seam
 - `campus_notice_discover`
   - 只读 source-family-aware notice discovery projection
-  - public `official_web` notice-like pages 与 restricted
+  - public `official_web` notice-like pages 与 authenticated-source
     `campus_notices/internal_notice` 继续先分 projection，再由 `notice` 收口
 - `campus_notice_get`
   - 只作为 internal selected notice card/context resolve function
@@ -977,11 +977,11 @@ owner；它当前与长期负责：
 - ambiguity handling
 - clarification / no-answer / completed policy
 - grounded answer synthesis
-- personalization inputs within authz boundary
+- bounded personal memory inputs within source / capability boundary
 
 它不负责：
 
-- canonical authz truth
+- account / session / operator access truth
 - product-layer identity / session / memory ownership
 - retrieval vendor/runtime freeze
 
@@ -1025,7 +1025,7 @@ domain query service -> evidence verifier -> synthesis -> grounding`
 
 固定规则：
 
-- planner 不能绕过 runtime profile 或 authz projection
+- planner 不能绕过 runtime profile、query-enabled surface 或 source gate
 - executor 不能反向改写产品 scope、query mode 或 capability
 - plan 必须是 typed artifact，而不是只存在于 prompt 内部
 - evidence contract 驱动 replan / clarification / fail-close；synthesis 不得
@@ -1095,7 +1095,7 @@ execution path 的 prompt / instruction 继续遵循 package-owned ownership：
 当前实现中，legacy terminal wording 已由 Go direct terminal path 承接；Python worker
 不再维护 production execution terminal prompt family。
 
-prompt 不能替代 code-owned routing、authz、serving filter 或 fail-close terminal
+prompt 不能替代 code-owned routing、serving filter、source gate 或 fail-close terminal
 semantics。
 
 当前仍进入 provider 的 RAG prompt stack 固定为：

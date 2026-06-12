@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-21
-updated: 2026-04-27
+updated: 2026-06-12
 ---
 # Document Site Architecture
 
@@ -17,7 +17,7 @@ updated: 2026-04-27
   各自负责什么
 - 为什么 canonical doc 正文应优先以静态 reader assets 交付，而不是每次都走 API 取正文
 - chat 来源展示为什么必须跳回 canonical reader，而不是直接暴露 chunk / source-truth
-- public / restricted document reader 长期如何共用同一 reader contract
+- public document reader 如何保持 canonical reader contract
 
 它不负责：
 
@@ -64,7 +64,7 @@ updated: 2026-04-27
 
 - 文档站与 chat 是两条独立 browser surface
 - `public-docs` 既是 docs shell，也是静态 reader asset 的交付面
-- `app-api` 继续是 shared product/auth/visibility owner
+- `app-api` 继续是 shared product account / session 与 docs control-plane owner
 - chat 回答与 docs 阅读都只能消费 canonical reader truth，不能各自拼一套来源语义
 - docs control plane 与 reader content delivery 必须分层
 
@@ -101,8 +101,8 @@ updated: 2026-04-27
 
 长期不负责：
 
-- canonical auth/session/principal ownership
-- retrieval visibility 判定
+- canonical account/session ownership
+- retrieval source / version 判定
 - raw chunk/source-truth 解释
 - search / citation 的最终真相解析
 
@@ -110,14 +110,14 @@ updated: 2026-04-27
 
 - public、已发布、已 admission 的 reader content，优先以 Worker static assets 直接交付
 - docs shell 继续通过 same-site `/api/docs/*` 读取 control-plane truth
-- restricted 或未 admission 的 reader content，不得因为“已经静态化”就绕过 origin-side gate
+- 未 admission 的 reader content，不得因为“已经静态化”就绕过 origin-side gate
 
 ### `apps/app-api`
 
 长期负责：
 
 - reader admission
-- canonical visibility / authz resolution
+- reader source / version resolution
 - current-vs-historical version resolution
 - published reader asset resolution
 - docs search runtime APIs
@@ -183,7 +183,6 @@ canonical doc 的正文交付长期采用：
   - version list
   - docs search
   - citation/source-card target resolve
-  - restricted admission
   - future `historical / as_of / compare` capability routing
 
 固定来源规则：
@@ -192,22 +191,16 @@ canonical doc 的正文交付长期采用：
 - `public-docs` static assets 只是 deploy-time sync 复制品
 - repo tracked `assets/` 目录不承担长期 reader publish truth
 - browser/runtime 不直连对象存储；docs shell 运行时只消费 same-site `/api/docs/*` 与
-  `public-docs` 自己交付的 `/_docs/...`、`/_gated-docs/...` 静态路径
+  `public-docs` 自己交付的 `/_docs/...` 静态路径
 - 对象存储只属于 publish/deploy pipeline 输入，不属于 browser-facing dependency
 
 当前 `apps/public-docs` 的 deploy-time 资产目录为 `doc_build/`，Worker `ASSETS`
 binding 负责交付静态 reader shell / assets；动态 docs control-plane 请求通过 same-site
 `/api/docs/*` 进入 `app-api`，且 response 默认 `no-store`。
 
-restricted reader 的当前实现约束：
-
-- `public-docs` 会同步 `gated_asset` 到 `doc_build/_gated-docs/...` 静态路径
-- `/_gated-docs/*` 采用 Worker-first：先调用 `app-api`
-  `/api/docs/.../admission`，通过后才读取 `ASSETS`
-- admission 非 204 时必须 fail-close，不返回正文 bytes
-- gated 交付 response 默认 `Cache-Control: no-store` 且 `Vary: Cookie, Authorization`
-- `app-api` 只负责 admission/control-plane，不再承担 gated bytes streaming
-- 不得使用 presigned URL 作为默认交付路径
+gated / restricted reader 不属于当前主问答产品目标，也不是当前 docs-first
+reader contract 的 active opening requirement。若未来重新提出 gated reader，必须另起
+product decision 与 delivery contract，不能把当前 public reader 静态交付链路直接扩成受限文档面。
 
 Cloudflare Workers 当前官方 static assets 路由模型允许：
 
@@ -315,30 +308,19 @@ docs search 与 chat 继续是两条不同能力：
 - source card target 从第一天起就必须携带版本语义
 - 未来 compare / as_of 可以扩展为独立 view，但不能回退成 query-only 暗箱逻辑
 
-## Visibility And Authorization
+## Source And Version Admission
 
-长期 public / restricted 文档阅读必须共用同一 reader model，而不是维护两套 reader 真相。
+当前长期 reader model 只冻结 public docs / current reader 的 source、version 与
+admission truth。
 
 固定规则：
 
-- canonical authz truth 仍在 `app-api`
-- reader 与 chat retrieval 必须消费同一 visibility / version truth
-- 不允许出现 “reader 不可见但 chat 可答” 的泄露面
-- restricted collection 未 admission 时只能 fail-close，不得用前端隐藏代替 origin-side
-  enforcement
-- restricted reader 可以与 public reader 共用同一 reader asset format，但 delivery mode
-  不得等同于 public static assets direct-hit
-- `gated_asset` 的默认 delivery posture 固定为 same-site controlled proxy：
-  - browser 继续只请求 `public-docs` same-site URL
-  - `public-docs` 在服务端向 `app-api` 做逐请求 authz 校验
-  - 校验通过后再从对象存储受控读取并返回 asset bytes
-- first-launch / v1 默认继续采用逐请求实时校验，不先引入 grant token 本地验签
-- `presigned URL` 不是默认 restricted delivery 方案；只有 future optimization 明确被
-  admission 时才允许作为受控补充，而不是主路径
-- short-lived grant token 只作为 future optimization 预留，不作为当前默认 restricted delivery
-  contract
-- 独立 restricted docs surface 不是 first-launch 默认形态；只有当 restricted rollout 真正打开并需要
-  product-level surface split 时才考虑
+- reader 与 chat retrieval 必须消费同一 current / historical version truth。
+- 未 admission 的 collection 或 version 只能 fail-close，不得用前端隐藏代替 origin-side
+  enforcement。
+- public docs reader 不承诺受限文档、内部文件库或身份差异化文档访问。
+- gated / restricted reader 若未来进入产品目标，必须新增 ADR、delivery contract 与
+  operator/runbook；不能从本文推导为已接受目标态。
 
 ## Donor Posture
 
@@ -351,7 +333,7 @@ donor shell 的借鉴方向固定为：
 
 - canonical document truth
 - reader contract
-- authz / visibility
+- source / version / admission
 - citation jump contract
 
 因此：
@@ -366,9 +348,8 @@ donor shell 的借鉴方向固定为：
 - 不把 docs site 做成直连数据库或直连 index 的第二后端
 - 不把 raw chunk / source-truth / provider artifact 暴露给用户阅读面
 - 不把 citation URL 绑定到当前 chunk 切分策略
-- 不把 public 和 restricted 文档分别实现为两套 reader contract
 - 不把 docs search 与 chat answer 混成同一 API / 同一 UI 真相
-- 不把 restricted reader 暴露成匿名可直读的 public static path
+- 不把 gated / restricted reader 作为当前 public docs 默认交付形态
 
 ## 相关稳定文档
 

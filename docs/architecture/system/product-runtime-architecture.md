@@ -147,7 +147,7 @@ model`
 - public docs reader UI
 - static reader asset delivery via Worker `ASSETS`
 - same-site `/api/docs/*` seam into `apps/app-api` via Worker Service Binding
-- 不拥有 auth/session/principal truth、docs visibility truth 或 generic app-api proxy
+- 不拥有 auth/session/principal truth、docs source/version truth 或 generic app-api proxy
 
 ### `apps/protected-panel-web`
 
@@ -192,7 +192,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 - 不把某个 surface 当前开放的 capability 直接写成整个 repo 的长期入口原则
 - surface policy 先于 execution routing
-- `app-api` 负责把 surface policy、identity / authz projection 与 request truth 组装为最小
+- `app-api` 负责把 surface policy、account / session projection 与 request truth 组装为最小
   execution input
 
 ### `apps/execution-control`

@@ -49,9 +49,10 @@ execution finalization`
   direct typed tool runtime、single agent-as-tool execution，还是 admitted
   multi-step workflow
 - `requested_scope` 只属于 knowledge-family path，不是所有请求共享的顶层默认字段
-- `admission` 与 `routing` 必须分层，避免把 authz、surface policy、approval-required 与
+- `admission` 与 `routing` 必须分层，避免把 surface policy、capability readiness、run
+  budget 与
   domain reasoning 混在一起
-- `admission` 还必须区分 surface admission、identity / quota admission、run
+- `admission` 还必须区分 surface admission、account / quota admission、run
   admission、workflow/activity admission 与 task dispatch admission；process-local
   进程内 queue 只属于 execution-level local protection，不是 canonical production
   admission
@@ -122,11 +123,11 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 它长期负责：
 
 - surface 是否允许该 capability
-- authz / visibility / restricted posture
-- approval-required
+- capability 是否成熟并对该 surface opened
+- tool 是否只读、typed、admitted，并具备 source truth / result contract
 - hard reject
 - 明显 `out_of_scope`
-- per-user / per-org / per-conversation quota
+- per-user / per-conversation quota
 - run creation / workflow start 是否可被 admitted
 - durable step 是否可创建、排队到 Temporal activity task queue 并被 worker 消费
 
@@ -140,8 +141,8 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 
 - `surface admission`
   - `apps/app-api` 拥有；判断 browser surface、caller class 与 capability allowlist
-- `identity / quota admission`
-  - `apps/app-api` 与 durable scheduler 共同消费；canonical identity truth 仍在
+- `account / quota admission`
+  - `apps/app-api` 与 durable scheduler 共同消费；canonical account/session truth 仍在
     `apps/app-api`
 - `run admission`
   - `apps/execution-control` durable scheduler 拥有；判断是否创建 / 推进一个 run
@@ -166,7 +167,8 @@ current process-local execution protection。
 
 - 这次请求应该进入哪个 admitted capability family
 - 当前是否需要 `routing clarification`
-- 当前是否应直接 `delegate`、`approval_required`、`rejected` 或 `out_of_scope`
+- 当前是否应直接 `delegate`、`rejected`、`out_of_scope` 或进入内部
+  `capability_not_ready` / `unsupported_by_evidence` terminal branch
 
 它长期不负责：
 
@@ -254,6 +256,12 @@ Execution Agent Layer 长期继续统一负责：
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
 - `apps/execution-control` 不拥有 product-layer surface allowlist truth
 
+surface policy 只区分产品入口，不表达学生 / 教职工 / 院系之间的普通问答 capability 差异：
+
+- `chat` 面向普通用户开放成熟 read-only campus capabilities
+- `ops / panel` 面向 operator 开放校对、eval、badcase、ingestion / release 管理
+- `internal` 仅承接 query function、data-plane、debug 或 runtime-only seam
+
 禁止做法：
 
 - 把某个 surface 当前开放的 capability 直接写死成整个 repo 的长期入口原则
@@ -330,7 +338,7 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 - workflow mode 与 selected step sequence
 - cross-step context projection summary
 - routing / agent clarification 区分
-- policy / scope / approval 分支
+- policy / scope / opening posture 分支
 - requested scope 与 resolved scope 的分层
 
 固定规则：

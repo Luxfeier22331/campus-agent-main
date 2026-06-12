@@ -141,7 +141,7 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
   - 面向“帮我找通知/讲座/公示/结果”“把这条通知打开”这类显式 notice task
   - 通过 discover / get contract 返回 canonical notice metadata 与 normalized content
   - 可以作为 future public notice source family 被 structured runtime 消费，但这不自动决定
-    restricted notice source 如何并入同一 runtime
+    authenticated-source notice 如何并入同一 runtime
 
 这意味着：
 
@@ -150,7 +150,7 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
 - opening `fresh_news` 不等于所有 notice-like 页面都必须默认进入 generic RAG
 - 用户 intent 是“找 notice”或“问最近发生了什么/最新情况是什么”时，应先走 owning tool/runtime；若该 runtime
   不可用，则 fail-close，而不是误路由到 `knowledge`
-- public notice runtime 与 restricted notice runtime 是否共享同一个 `notice`
+- public notice runtime 与 authenticated-source notice runtime 是否共享同一个 `notice`
   source matrix，必须由显式 contract 冻结，而不是由 `fresh_news` opening 或 source-channel
   命名隐式决定
 - future public notice runtime 的 query seam 必须继续是 projection-backed：
@@ -288,7 +288,7 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
 因此：
 
 - `fresh_news` 的 seed baseline、local import/release、离线 qrels 或 eval 命中率，不自动等于
-  runtime opening approval
+  runtime opening readiness
 - `news_archive` 的存在只证明 repo 已保留历史语义，不证明当前产品应默认消费它
 
 ## Document Family 语义

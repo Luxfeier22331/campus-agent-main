@@ -304,8 +304,8 @@ product/control-plane endpoint。
 - `campus_notice_discover` 与 internal selected notice resolve
   (`payload_kind=campus_notice_get`) 已具备 Go-owned PG read-model 与
   S3-compatible source-backed bounded context query runtime；notice 请求使用
-  `payload + access_context` envelope 以在 Go 内执行 restricted notice fail-close
-  authorization
+  `payload + access_context` envelope 以在 Go 内执行 source-family、read-model 与
+  fail-close constraints
 - Python orchestration 仅在 execution runtime harness 注入
   `EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL` 与 `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
   时消费该 internal query seam
@@ -377,19 +377,15 @@ payload 或 provider raw response。
     "actor": {
       "user_id": "user_01HQ...",
       "principal_id": "principal_01HQ...",
-      "roles": ["student"],
-      "departments": []
+      "roles": ["user"]
     },
-    "authorization": {
-      "principal_id": "principal_01HQ...",
-      "entitlement_groups": ["students"],
-      "visibility_scope": "main",
-      "retrieval_filter": {
-        "entitlement_groups": ["students"],
-        "visibility_level": "public",
-        "visibility_scope": "main",
-        "policy_projection_version": "phase1-authorization-projection-v1"
-      }
+    "surface": {
+      "surface_id": "public-chat-web",
+      "caller_class": "chat_user",
+      "allowed_capabilities": ["knowledge"]
+    },
+    "quota": {
+      "policy_ref": "chat-default-v1"
     },
     "session": {
       "confirmed_slots": [],
@@ -408,8 +404,9 @@ payload 或 provider raw response。
 - `conversation_id` 来自 chat domain truth
 - `user_goal` 来自产品层 prompt
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
-  `actor`、`authorization.retrieval_filter`、`session.confirmed_slots`、可选的
-  `session.selected_notice_ref`，以及 turn count 摘要
+  `actor`、surface / quota summary、`session.confirmed_slots`、可选的
+  `session.selected_notice_ref`，以及 turn count 摘要。主问答 path 不要求学生 /
+  教职工 / 院系 entitlement envelope。
 - online personal memory 不再由 `app-api` 读取 PG `profile.memory_items` 后全量注入
   `context.profile_memory.items`。`app-api` 只提供 actor/session/request context；
   `execution-control` 在 `CapabilityExecutionWorkflow` 的 `context.memory_recall`
@@ -520,6 +517,9 @@ payload 或 provider raw response。
 - `rejected`
 - `cancelled`
 
+`approval_required` 保留为 historical / non-chat runtime vocabulary；当前主问答用户路径不把
+approval / HITL 或 state-changing tool 作为产品目标。
+
 `app-api` 依赖的最小字段只有：
 
 - `status`
@@ -624,7 +624,7 @@ payload 或 provider raw response。
   dependency 不健康，`app-api` 应按 retryable runtime unavailability 处理，而不是生成新的
   request identity 绕过 run projection
 - `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection
-  的最终状态，即使 browser chat surface 折叠为 `error`
+  的 historical / non-chat 最终状态，即使 browser chat surface 折叠为 `error`
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
 
 ## Terminal State Semantics
@@ -641,6 +641,10 @@ terminal response 的跨语言语义固定如下：
 - timeout / execution-control unavailable / provider circuit open 不能伪装成
   completed answer；它们必须通过 typed `error` / HTTP status / workflow trace
   summary 保留 fail-close provenance
+- `capability_not_ready`、`source_truth_unavailable`、`unsupported_by_evidence` 等属于
+  internal terminal reason / operator projection vocabulary。browser-facing wording
+  必须映射为“当前无法自动查询”“暂无可靠来源确认”或等价用户可理解表达，不直接暴露内部
+  capability 名称。
 
 Go finalizer 必须保证 delegate branch 与 `handoff.capability_request.capability`、
 `selected_capability`、runtime version provenance 一致；否则 fail-closed，而不是返回半结构化成功 body。
@@ -651,7 +655,7 @@ Go finalizer 必须保证 delegate branch 与 `handoff.capability_request.capabi
 shared product path 已收口为：
 
 - internal caller admission 由 Go `execution-control` 验证 runtime header
-- `context` 由 `app-api` 显式提供，并携带最终 `actor` 与 `authorization`
+- `context` 由 `app-api` 显式提供，并携带最终 `actor`、surface / quota 与 session summary
 - Go `execution-control` 的 `trusted-worker` 不依赖 Cloudflare Access JWT 或 edge
   identity header 来恢复最终业务 actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker

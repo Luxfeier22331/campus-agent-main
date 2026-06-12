@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 # Data Plane Architecture
 
@@ -293,7 +293,7 @@ artifacts 派生一条 product-delivery 子链：
 - published reader assets 属于 derived artifact，不改变 canonical chain
 - 长期真相继续落在对象存储，而不是 repo tracked `assets/` 目录
 - public docs deploy 只把公开子集同步到 Worker static assets
-- restricted / gated reader asset 不得因为采用同一 payload format 就自动进入匿名 public bundle
+- gated reader asset 如果未来另行接受，不得因为采用同一 payload format 就自动进入匿名 public bundle
 
 reader asset package / object key / deploy sync 细节统一看
 `docs/contracts/document-reader-publish-contract.md`。
@@ -322,8 +322,8 @@ retrieval acceptance -> serving alias publish`
 - 对 regulation scope，worker 必须校验 canonical cleaning provenance；缺失当前
   `normalizer_version`、runtime `cleaning_policy_version` 或 `normalization_quality=passed`
   时 fail closed，不进入 index / alias publish
-- incremental update 必须基于 document identity、version/hash、visibility/authz carrier
-  与 runtime profile identity 判定 unchanged / changed / withdrawn / deleted
+- incremental update 必须基于 document identity、version/hash、source/version
+  carrier 与 runtime profile identity 判定 unchanged / changed / withdrawn / deleted
 - changed candidate 生成新 release 或新 point set；withdrawn / deleted candidate 必须产生
   cleanup tombstone 或 explicit delete plan，不允许让 stale chunks 继续被 current alias 命中
 - no-longer-current historical / search-only candidate 如果不是 withdrawn / deleted，不得

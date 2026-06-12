@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-04
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 # Durable Agent Runtime Architecture
 
@@ -33,7 +33,7 @@ supporting architecture；实现状态必须单独写在 current architecture �
 
 `campus-agent` 的 production execution model 固定为：
 
-`surface request -> app-api surface / identity projection -> durable conversation
+`surface request -> app-api surface / account projection -> durable conversation
 and run projection -> execution-control -> Temporal workflow -> task queues ->
 workflow / activity worker pools -> typed step results -> sanitized run event +
 step / attempt / result projection -> app-api stream / projection / operator read
@@ -43,7 +43,7 @@ model -> browser surface / panel / eval / badcase`
 
 - HTTP request 不等于 agent execution lifetime。
 - `run_id` 是一次回答的 canonical execution object。
-- `conversation_id` 是上下文、权限、memory 与同会话并发策略的边界。
+- `conversation_id` 是上下文、account / session、memory binding 与同会话并发策略的边界。
 - `run_events` 是 streaming、trace、audit、operator projection 与 eval backlink
   的共同事实源。
 - `RunStep -> StepAttempt -> StepResult` 是 panel、eval、badcase 与 release
@@ -103,7 +103,7 @@ Temporal owns：
 
 Repo owns：
 
-- product auth/session/conversation truth
+- product account/session/conversation truth
 - request/run product projection
 - capability admission, ToolSpec and CapabilitySpec policy
 - source-truth ownership
@@ -127,15 +127,15 @@ from workflow/activity progress.
 它至少承载：
 
 - conversation id
-- actor / principal projection
+- actor / account projection
 - surface origin
-- authorization / visibility projection
+- session / caller / surface projection
 - committed turn summary
 - memory projection refs
 - active run policy state
 
-conversation 不存放 raw browser token、Access JWT、cookie、provider raw trace 或未经裁剪的完整
-restricted source body。
+conversation 不存放 raw browser token、Access JWT、cookie、provider raw trace、raw memory
+或未经裁剪的 source body。
 
 ### Turn
 
@@ -185,7 +185,7 @@ canceled / expired`
 - streaming 只订阅 run events，不拥有 execution truth。
 - panel 与 eval 只能消费 sanitized run event projection 或由它派生的 read model。
 - raw prompt、raw answer draft、raw provider response、raw transcript、auth
-  material 与 restricted raw body 不进入 canonical run event。
+  material 与 raw source body 不进入 canonical run event。
 
 ### Run Step
 
@@ -507,16 +507,16 @@ Owner：`apps/app-api`。
 - actor / session / operator context 是否满足产品入口条件
 - request 是否符合 surface contract
 
-### Identity / Quota Admission
+### Account / Quota Admission
 
-Owner：`apps/app-api` 与 scheduler 共享，但 canonical identity truth 在 `apps/app-api`。
+Owner：`apps/app-api` 与 scheduler 共享，但 canonical account / session truth 在
+`apps/app-api`。
 
 判断：
 
-- user / org / role / session 的预算
+- account / session 的预算
 - abuse control
 - per-conversation active run policy
-- restricted visibility posture
 
 ### Run Admission
 
