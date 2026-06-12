@@ -8,8 +8,6 @@ from pathlib import Path
 
 from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
-)
-from campus_ingestion_core.authenticated_notice_smoke_replay_run import (
     collector_run_ledger_database_url_from_env,
 )
 from campus_ingestion_core.collected_notice_ingest_queue_postgres import (

@@ -422,47 +422,13 @@ Behavior:
 - Intended for local subset validation and controlled current-truth replacement
   before running `campus_ingestion_worker.release_registry_scope`
 
-### `campus_ingestion_worker.official_web_historical_backfill`
+### Removed historical official-web backfill
 
-Backfills missing historical `official_web` run artifacts from recoverable local
-collector output into the source bucket.
-
-This is a historical recovery module, not a public CLI or part of the default
-operator path.
-
-Required env:
-
-- `OBJECT_STORE_ENDPOINT`
-- `OBJECT_STORE_ACCESS_KEY`
-- `OBJECT_STORE_SECRET_KEY`
-
-Optional env:
-
-- `OBJECT_STORE_BUCKET_SOURCE`
-- `INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR`
-
-Optional CLI args:
-
-- `--event-id`
-- `--limit`
-- `--local-output-glob`
-- `--dry-run`
-
-Command override example:
-
-- `env/commands/historical/official-web-history-backfill.env.example`
-
-Behavior:
-
-- Inventories historical inbox records against source-bucket
-  `source-truth-bundle.json` availability
-- Reuses recoverable local collector outputs instead of introducing worker-local
-  `/tmp` recovery paths into runtime execution
-- Uploads canonical run artifacts under `official_web/{siteId}/runs/{runId}/...`
-- Uploads canonical source assets under
-  `official_web/{rawAssetId}/undated/{rawVersionId}/...`
-- Rewrites the durable inbox payload `artifacts` array so later offline
-  execution can consume the canonical object-store refs
+The historical official-web backfill Python worker entrypoint has been removed.
+It was a one-off recovery path, not a current official-web release or ingestion
+lifecycle owner. If this recovery capability returns, rebuild it as an
+explicitly admitted ingestion-control recovery task with object-store inventory
+proof instead of restoring the Python CLI.
 
 ### `campus_ingestion_worker.audit_collection_runtime_state`
 
@@ -1019,23 +985,11 @@ Behavior:
 - Writes local release artifacts and publishes versioned/current projection
   artifacts to the derived bucket.
 
-### `campus_ingestion_worker.select_authenticated_notice_bundle`
+### Removed authenticated notice bundle selector
 
-Selects a bounded subset from an authenticated notice export bundle before
-downstream admission or materialization.
-
-Required CLI args:
-
-- `--bundle-path`
-- `--output-bundle-path`
-- `--output-manifest-path`
-- `--notice-id` or `--selection-path`
-
-Behavior:
-
-- Writes a selected bundle containing only requested notice ids.
-- Writes an export manifest with `filters.selected_notice_ids`.
-- Fails if any requested notice id is absent from the source bundle.
+The authenticated notice bundle selector Python worker entrypoint has been
+removed. Selection must be expressed as task admission input or fixture data for
+tests, not as a retained Python CLI.
 
 ### Authenticated Notice Object-Native Import
 
@@ -1450,51 +1404,15 @@ Behavior:
   and `normalization-summary.json` under the target output dir.
 - Does not write object store, Postgres, embedding, or Qdrant state.
 
-### `campus_ingestion_worker.backfill_authenticated_notice_browser_urls`
+### Removed authenticated notice browser URL backfill CLIs
 
-Bundle-level audit/backfill shell for authenticated notice browser URL metadata.
-
-Required CLI args:
-
-- `--bundle-path`
-- `--source-home-url`
-- `--summary-output-path`
-
-Optional CLI args:
-
-- `--bundle-output-path`
-
-Behavior:
-
-- Adds `portal_print_url`, `notice_browser_url`, and
-  `notice_browser_url_source` to bundle notice rows when they are missing.
-- Reports missing `notice_type` rows that cannot construct a portal print URL.
-- Writes a normalized bundle only when `--bundle-output-path` is provided.
-- Does not write object store, Postgres, embedding, or Qdrant state.
-
-### `campus_ingestion_worker.audit_authenticated_notice_browser_url_bundles`
-
-Multi-bundle coverage audit/backfill shell for authenticated notice browser URL
-metadata.
-
-Required CLI args:
-
-- one or more `--bundle-path`
-- `--source-home-url`
-- `--summary-output-path`
-
-Optional CLI args:
-
-- `--output-dir`
-
-Behavior:
-
-- Runs the same URL metadata backfill over each input bundle.
-- Aggregates `records_seen`, present/backfilled counts, missing notice-type
-  counts, unavailable counts, and URL source counts across all bundles.
-- Writes backfilled bundle copies under `--output-dir` when provided.
-- Does not import source truth, mutate object store, write Postgres, embed, or
-  publish query-serving state.
+The authenticated notice browser URL backfill and bundle-audit Python worker
+entrypoints have been removed. Browser URL derivation that is still required by
+canonical source-truth artifact generation remains in `campus_ingestion_core`;
+historical bundle rewriting should be rebuilt as an admitted ingestion-control
+task if it becomes necessary again.
+The removed CLIs did not own source-truth import, object-store mutation,
+Postgres writes, embedding, or query-serving publication.
 
 ### `campus_ingestion_worker.build_authenticated_notice_attachment_fetch_request_manifest`
 

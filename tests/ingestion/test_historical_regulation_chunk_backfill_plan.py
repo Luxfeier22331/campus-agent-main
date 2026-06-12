@@ -68,8 +68,10 @@ class HistoricalRegulationChunkBackfillPlanTest(unittest.TestCase):
             False,
         )
         self.assertIn(
-            "campus_ingestion_worker.prepare_historical_regulation_chunk_backfill",
-            evidence["chunk_only_execution_plan_md"],
+            "historical stock regulation backfill only", evidence["chunk_only_execution_plan_md"]
+        )
+        self.assertIn(
+            "No active Python worker command is retained", evidence["chunk_only_execution_plan_md"]
         )
         self.assertNotIn(
             "campus-ingestion-prepare-registry-scope-chunks",

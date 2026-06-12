@@ -143,14 +143,9 @@ uv run --all-packages python -m \
 ```
 
 如果 registry 当前指向的 `regulations/institutional_rules` 记录缺少
-`canonical.md`，但已存在通过 canonical materialization 产出的
-`document-units.jsonl`，先执行显式 backfill。该步骤只修复缺失的 canonical
-artifact，不覆盖已有 canonical，不在 reader publish 阶段临时合成正文：
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.backfill_missing_canonical_markdown_from_document_units
-```
+`canonical.md`，不要在 reader publish 阶段临时合成正文。旧的 Python
+canonical markdown backfill 执行入口已经从 active worker surface 删除；需要恢复时应按
+ingestion-control task / Rust kernel 目标形态重新建模。
 
 ```bash
 uv run --all-packages python -m \

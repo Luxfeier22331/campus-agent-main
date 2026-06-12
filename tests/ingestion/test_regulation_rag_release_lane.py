@@ -15,9 +15,6 @@ from campus_ingestion_core.regulation_rag_release_lane import (
     enqueue_regulation_rag_release_candidates_for_registry_delta,
     process_pending_regulation_rag_release_candidates,
 )
-from campus_ingestion_worker.generate_regulation_rag_release_selected_replay import (
-    build_selected_replay_dry_run,
-)
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
@@ -344,53 +341,6 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
         )
         self.assertNotIn("current-scoped-rule", candidates)
         self.assertNotIn("historical-scoped-rule-186977", candidates)
-
-    def test_phase_6_selected_replay_evidence_matches_real_sample_expectations(self) -> None:
-        payload = build_selected_replay_dry_run()
-
-        self.assertEqual(
-            payload["schema_version"],
-            "regulation_rag_release_selected_replay_dry_run_v1",
-        )
-        self.assertFalse(payload["write_enabled"])
-        self.assertEqual(payload["replay_mode"], "local_selected_record_dry_run")
-        self.assertEqual(payload["counts"]["selected_notice_count"], 5)
-        self.assertEqual(payload["counts"]["candidate_count"], 3)
-
-        by_notice_id = {item["source_notice_id"]: item for item in payload["notices"]}
-        self.assertEqual(
-            by_notice_id["355282"]["candidate_status"],
-            "serving_published",
-        )
-        self.assertEqual(
-            by_notice_id["355282"]["document_id"],
-            "institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:089bcf7907da",
-        )
-        self.assertEqual(
-            by_notice_id["355282"]["ragServingStatus"],
-            "serving_published",
-        )
-        self.assertEqual(
-            by_notice_id["351907"]["candidate_status"],
-            "held_search_only",
-        )
-        self.assertEqual(
-            by_notice_id["351907"]["registry_delta_behavior"],
-            "no_candidate_current_version_absent",
-        )
-        self.assertEqual(
-            by_notice_id["186977"]["candidate_status"],
-            "held_search_only",
-        )
-        self.assertEqual(
-            by_notice_id["186977"]["registry_delta_behavior"],
-            "no_candidate_current_version_absent",
-        )
-        self.assertEqual(by_notice_id["351699"]["candidate_status"], "no_candidate")
-        self.assertEqual(
-            by_notice_id["187233"]["candidate_status"],
-            "excluded_owner_body_recovery_required",
-        )
 
     def test_acceptance_failure_does_not_publish_serving_status(self) -> None:
         store = InMemoryRegulationRagReleaseCandidateStore()

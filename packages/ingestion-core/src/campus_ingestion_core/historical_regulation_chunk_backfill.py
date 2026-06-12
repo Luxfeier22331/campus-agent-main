@@ -228,11 +228,9 @@ def build_chunk_only_execution_plan_markdown(
         return "\n".join(lines) + "\n"
     lines.extend(
         [
-            "```bash",
-            "uv run --all-packages \\",
-            "  python -m campus_ingestion_worker.prepare_historical_regulation_chunk_backfill \\",
-            f"  --preparation-run-id-prefix {preparation_run_id_prefix}",
-            "```",
+            "No active Python worker command is retained for this historical",
+            "backfill. Rebuild this as an admitted ingestion-control task if",
+            "the recovery need returns.",
             "",
             "## Admitted Collections",
             "",

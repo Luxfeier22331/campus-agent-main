@@ -130,27 +130,13 @@ uv run --package campus-ingestion-worker python -m \
 
 ## Historical Browser URL Backfill
 
-全量历史补采前，先对已有 historical bundle 做 browser URL metadata
-coverage audit / backfill：
+旧 authenticated-notice browser URL bundle audit / backfill Python CLI 已删除。
+当前 canonical source-truth artifact materialization 会在生成 notice manifest 时派生
+`portal_print_url`、`notice_browser_url` 与 `notice_browser_url_source`。
 
-```bash
-uv run --package campus-ingestion-worker python -m \
-  campus_ingestion_worker.audit_authenticated_notice_browser_url_bundles \
-  --bundle-path /path/to/notices-bundle-a.json \
-  --bundle-path /path/to/notices-bundle-b.json \
-  --source-home-url https://my.muc.edu.cn \
-  --summary-output-path .tmp/authenticated-notice-url-backfill/summary.json \
-  --output-dir .tmp/authenticated-notice-url-backfill/bundles
-```
-
-固定要求：
-
-- 这一步只补 `portal_print_url`、`notice_browser_url` 与
-  `notice_browser_url_source`，不访问 portal、不写 object store、不写 Postgres
-- summary 中 `missing_notice_type_count` 必须先解释清楚；缺 notice type 的历史行不能构造
-  portal print route
-- 经过 backfill 的 bundle 仍需通过 bootstrap smoke 或 canonical replay 进入
-  source-truth，不得手工改 source-truth artifact
+如果后续确实需要重写 historical bundle，应作为 ingestion-control admission 的
+一次性 recovery task 重建，并在任务 closeout 中显式记录输入 bundle、派生策略版本、
+missing notice type 计数与输出 bundle object refs；不要恢复旧 Python CLI。
 
 需要重新访问 live portal 做完整历史补采时，使用 collector backfill：
 
