@@ -63,7 +63,7 @@ describe("dining operations schema", () => {
 	});
 
 	it("keeps the candidate-first dining migration safe for pre-existing dining rows", () => {
-		const sql = readAppFile("drizzle/0037_condemned_wong.sql");
+		const sql = readAppFile("drizzle/0039_condemned_wong.sql");
 
 		expect(sql).not.toContain(
 			'ALTER TABLE "dining"."floors" ADD COLUMN "draft_floorplan_asset_id" text NOT NULL;',
