@@ -12,7 +12,8 @@ func TestParseAnswerRequestProjectsBridgeV5CapabilityRequestForTransportSchedule
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"我明天早上要去丰台上课，最早的班车是几点",
-			"request_id":"req-transport-preplan"
+			"request_id":"req-transport-preplan",
+			"requested_capability":"campus_services"
 		}`),
 		map[string]string{
 			"authorization": "Bearer secret-token",

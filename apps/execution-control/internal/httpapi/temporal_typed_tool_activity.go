@@ -21,7 +21,7 @@ func (s *Server) ExecuteTypedToolActivity(
 		return temporalruntime.ExecuteTypedToolActivityOutput{}, err
 	}
 	if err := validateTypedToolActivityInput(input); err != nil {
-		return s.failTypedToolActivity(ctx, run, "typed_tool_input_invalid", err)
+		return s.failTypedToolActivity(ctx, run, input, "typed_tool_input_invalid", err)
 	}
 	startedAt := time.Now().UTC()
 	resultRef := temporalProjectionRef(run.RunID, "tools/"+input.ToolName)
@@ -54,20 +54,21 @@ func (s *Server) ExecuteTypedToolActivity(
 		AllowedTools: append([]string{}, input.AllowedTools...),
 	}, map[string]any{})
 	if err != nil {
-		return s.failTypedToolActivity(ctx, run, "typed_tool_payload_invalid", err)
+		return s.failTypedToolActivity(ctx, run, input, "typed_tool_payload_invalid", err)
 	}
 	response := s.executeStructuredRuntime(ctx, input.PayloadKind, rawPayload)
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return s.failTypedToolActivity(
 			ctx,
 			run,
+			input,
 			"typed_tool_runtime_failed",
 			fmt.Errorf("structured runtime returned status %d", response.StatusCode),
 		)
 	}
 	resultBody, err := structuredResultMap(response.Body)
 	if err != nil {
-		return s.failTypedToolActivity(ctx, run, "typed_tool_result_invalid", err)
+		return s.failTypedToolActivity(ctx, run, input, "typed_tool_result_invalid", err)
 	}
 	if err := s.replaceTemporalToolMetadata(ctx, run, func(metadata map[string]any) {
 		metadata[input.ToolName] = map[string]any{
@@ -142,10 +143,12 @@ func validateTypedToolActivityInput(input temporalruntime.ExecuteTypedToolActivi
 func (s *Server) failTypedToolActivity(
 	ctx context.Context,
 	run execution.DurableRun,
+	input temporalruntime.ExecuteTypedToolActivityInput,
 	failureKind string,
 	cause error,
 ) (temporalruntime.ExecuteTypedToolActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    input.Capability,
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "tools/failure"),
 		ResultKind:    "activity_failure",
@@ -278,7 +281,7 @@ func (s *Server) writeTypedToolFinalizationActivity(
 	}
 	toolResult, err := temporalToolResultFromRun(run, input.ToolResultRef, input.SelectedTool)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "typed_tool_result_missing", err)
+		return s.failFinalizationActivity(ctx, run, input.SelectedCapability, "typed_tool_result_missing", err)
 	}
 	capability := defaultString(strings.TrimSpace(input.SelectedCapability), toolResult.Capability)
 	toolName := defaultString(strings.TrimSpace(input.SelectedTool), toolResult.ToolName)

@@ -20,6 +20,10 @@ const ALLOWED_FAILURE_STAGES = new Set([
 	"synthesis",
 	"grounding",
 	"finalization",
+	"replan",
+	"clarification",
+	"rejected",
+	"no_answer",
 	"diagnostic",
 ]);
 const ALLOWED_TRAJECTORY_ATTRIBUTION_STATUSES = new Set([

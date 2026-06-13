@@ -328,6 +328,16 @@ go run ./cmd/worker-autoscaler \
   --evidence-path /path/to/worker-autoscaler-evidence.json
 ```
 
+Worker autoscaler apply-mode evidence-only proof:
+
+```bash
+go run ./cmd/worker-autoscaler \
+  --mode apply \
+  --input-path /path/to/autoscaler-input.json \
+  --evidence-path /path/to/worker-autoscaler-decision.json \
+  --actuator-evidence-path /path/to/worker-autoscaler-actuation.json
+```
+
 This command belongs to the Execution Operations Plane. It reads task queue /
 budget observations and writes desired-replica evidence only; it does not write
 Temporal workflow state, run projection, step projection, event projection, or

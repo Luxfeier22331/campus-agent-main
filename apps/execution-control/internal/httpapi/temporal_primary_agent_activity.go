@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -32,8 +33,10 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	}
 	startedAt := time.Now().UTC()
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
+	attempt := primaryAgentAttempt(input.Attempt)
+	replanReason := strings.TrimSpace(input.ReplanReason)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       1,
+		Attempt:       attempt,
 		Capability:    "primary_agent",
 		Run:           run,
 		Status:        "started",
@@ -44,8 +47,10 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
 		ProjectionRef: agentResultRef,
+		ReplanReason:  replanReason,
 		Payload: map[string]any{
 			"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
+			"replan_reason":          replanReason,
 			"requested_capability":   input.RequestedCapability,
 			"visible_capabilities":   append([]string{}, input.VisibleCapabilities...),
 		},
@@ -56,7 +61,22 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_request_failed", err)
 	}
+	output.RunID = run.RunID
+	output.AgentResultRef = agentResultRef
 	if strings.TrimSpace(output.Status) != "completed" {
+		completedAt := time.Now().UTC()
+		if err := s.projectPrimaryAgentToolResults(
+			ctx,
+			run,
+			startedAt,
+			completedAt,
+			attempt,
+			replanReason,
+			input.VisibleCapabilities,
+			output,
+		); err != nil {
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+		}
 		return s.failPrimaryAgentActivity(
 			ctx,
 			run,
@@ -72,8 +92,6 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime final_output is required"),
 		)
 	}
-	output.RunID = run.RunID
-	output.AgentResultRef = agentResultRef
 	if output.TerminalReason == "" {
 		output.TerminalReason = string(execution.DurableTerminalReasonAnswerCompleted)
 	}
@@ -86,8 +104,20 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
+	if err := s.projectPrimaryAgentToolResults(
+		ctx,
+		run,
+		startedAt,
+		completedAt,
+		attempt,
+		replanReason,
+		input.VisibleCapabilities,
+		output,
+	); err != nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:               1,
+		Attempt:               attempt,
 		Capability:            "primary_agent",
 		Run:                   run,
 		Status:                "completed",
@@ -105,6 +135,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		OutputTokens:          output.Usage.OutputTokens,
 		CachedInputTokens:     output.Usage.CachedInputTokens,
 		EstimatedCostMicroUSD: output.Usage.EstimatedCostMicroUSD,
+		ReplanReason:          replanReason,
 		Payload:               payload,
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -128,6 +159,177 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	return output, nil
+}
+
+func (s *Server) projectPrimaryAgentToolResults(
+	ctx context.Context,
+	run execution.DurableRun,
+	startedAt time.Time,
+	completedAt time.Time,
+	attempt int,
+	replanReason string,
+	visibleCapabilities []string,
+	output temporalruntime.ExecutePrimaryAgentActivityOutput,
+) error {
+	visible := stringSet(visibleCapabilities)
+	for index, result := range output.ToolResults {
+		if strings.TrimSpace(result.ToolName) == "knowledge_query" {
+			continue
+		}
+		toolName := strings.TrimSpace(result.ToolName)
+		if toolName == "" {
+			return fmt.Errorf("agent runtime tool result tool_name is required")
+		}
+		capability := strings.TrimSpace(result.Capability)
+		if capability == "" {
+			return fmt.Errorf("agent runtime tool result capability is required")
+		}
+		payloadKind := strings.TrimSpace(result.PayloadKind)
+		if payloadKind == "" {
+			return fmt.Errorf("agent runtime tool result payload_kind is required")
+		}
+		status := strings.TrimSpace(result.Status)
+		if status == "" {
+			return fmt.Errorf("agent runtime tool result status is required")
+		}
+		if err := validatePrimaryAgentSDKToolResult(toolName, capability, payloadKind); err != nil {
+			return err
+		}
+		if _, ok := visible[capability]; !ok {
+			return fmt.Errorf(
+				"agent runtime tool %s capability %s was not visible for this turn",
+				toolName,
+				capability,
+			)
+		}
+		callIndex := index + 1
+		stepID := fmt.Sprintf("sdk_tool.execute.%s.%d", toolName, callIndex)
+		resultRef := temporalProjectionRef(run.RunID, fmt.Sprintf("sdk-tools/%s/%d", toolName, callIndex))
+		if err := validateSDKToolArguments(toolName, result.ArgumentsJSON); err != nil {
+			payload := map[string]any{
+				"argument_validation": err.Error(),
+				"arguments_json":      cloneAnyMapFromMetadata(result.ArgumentsJSON),
+				"fail_close_reason":   "schema_contract_drift",
+				"payload_kind":        payloadKind,
+				"replan_reason":       strings.TrimSpace(replanReason),
+				"result":              cloneAnyMapFromMetadata(result.Result),
+				"runtime_surface":     "openai_agents_sdk_tool",
+				"sdk_result_ref":      strings.TrimSpace(result.ResultRef),
+				"selected_tool":       toolName,
+				"tool_status":         status,
+			}
+			if err := s.projectTemporalStep(ctx, temporalStepProjection{
+				Attempt:         attempt,
+				Capability:      capability,
+				Run:             run,
+				Status:          "failed",
+				StepID:          stepID,
+				StepKind:        "tool",
+				TaskQueue:       temporalruntime.ActivityTaskQueueForCapability(capability),
+				WorkerID:        s.config.TemporalWorkerIdentity,
+				StartedAt:       startedAt,
+				CompletedAt:     completedAt,
+				UpdatedAt:       completedAt,
+				ResultKind:      "activity_failure",
+				ProjectionRef:   resultRef,
+				FailCloseReason: "schema_contract_drift",
+				ReplanReason:    strings.TrimSpace(replanReason),
+				Payload:         payload,
+			}); err != nil {
+				return err
+			}
+			return fmt.Errorf("agent runtime tool %s arguments invalid fail_close_reason=schema_contract_drift: %w", toolName, err)
+		}
+		if err := s.projectTemporalStep(ctx, temporalStepProjection{
+			Attempt:         attempt,
+			Capability:      capability,
+			Run:             run,
+			Status:          temporalSDKToolStepStatus(status),
+			StepID:          stepID,
+			StepKind:        "tool",
+			TaskQueue:       temporalruntime.ActivityTaskQueueForCapability(capability),
+			WorkerID:        s.config.TemporalWorkerIdentity,
+			StartedAt:       startedAt,
+			CompletedAt:     completedAt,
+			UpdatedAt:       completedAt,
+			ResultKind:      temporalSDKToolResultKind(status),
+			ProjectionRef:   resultRef,
+			FailCloseReason: strings.TrimSpace(result.FailCloseReason),
+			ReplanReason:    strings.TrimSpace(replanReason),
+			Payload: map[string]any{
+				"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
+				"fail_close_reason": strings.TrimSpace(result.FailCloseReason),
+				"outcome":           result.Result["outcome"],
+				"payload_kind":      payloadKind,
+				"replan_reason":     strings.TrimSpace(replanReason),
+				"result":            cloneAnyMapFromMetadata(result.Result),
+				"runtime_surface":   "openai_agents_sdk_tool",
+				"sdk_result_ref":    strings.TrimSpace(result.ResultRef),
+				"selected_tool":     toolName,
+				"tool_status":       status,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func stringSet(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized != "" {
+			result[normalized] = struct{}{}
+		}
+	}
+	return result
+}
+
+func primaryAgentAttempt(attempt int) int {
+	if attempt <= 0 {
+		return 1
+	}
+	return attempt
+}
+
+func validatePrimaryAgentSDKToolResult(toolName string, capability string, payloadKind string) error {
+	registry, ok := runtimepolicy.DefaultToolSpecRegistry()
+	if !ok {
+		return fmt.Errorf("tool registry is not available")
+	}
+	tool, ok := registry.ToolByName(toolName)
+	if !ok {
+		return fmt.Errorf("agent runtime tool %s is not admitted", toolName)
+	}
+	if !tool.Active || !tool.ReadOnly || tool.RuntimePosture != "typed_activity_admitted" {
+		return fmt.Errorf("agent runtime tool %s is not admitted", toolName)
+	}
+	if tool.OwnerCapability != capability || tool.PayloadKind != payloadKind {
+		return fmt.Errorf(
+			"agent runtime tool %s drifted from admitted capability/payload kind",
+			toolName,
+		)
+	}
+	return nil
+}
+
+func temporalSDKToolStepStatus(status string) string {
+	switch strings.TrimSpace(status) {
+	case "completed":
+		return "completed"
+	default:
+		return "failed"
+	}
+}
+
+func temporalSDKToolResultKind(status string) string {
+	switch strings.TrimSpace(status) {
+	case "completed":
+		return "typed_tool_result"
+	default:
+		return "activity_failure"
+	}
 }
 
 func (s *Server) callAgentRuntime(
@@ -188,6 +390,7 @@ type agentRuntimeResponse struct {
 }
 
 type agentToolResult struct {
+	ArgumentsJSON   map[string]any `json:"arguments_json"`
 	Status          string         `json:"status"`
 	ToolName        string         `json:"tool_name"`
 	Capability      string         `json:"capability"`
@@ -208,6 +411,7 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 	toolResults := make([]temporalruntime.AgentToolResult, 0, len(response.ToolResults))
 	for _, result := range response.ToolResults {
 		toolResults = append(toolResults, temporalruntime.AgentToolResult{
+			ArgumentsJSON:   cloneAnyMapFromMetadata(result.ArgumentsJSON),
 			Capability:      result.Capability,
 			FailCloseReason: result.FailCloseReason,
 			PayloadKind:     result.PayloadKind,
@@ -242,6 +446,7 @@ func (s *Server) failPrimaryAgentActivity(
 	cause error,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "primary_agent",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "agent/primary/result"),
 		ResultKind:    "activity_failure",
@@ -260,6 +465,7 @@ func primaryAgentResultPayload(output temporalruntime.ExecutePrimaryAgentActivit
 	toolResults := make([]map[string]any, 0, len(output.ToolResults))
 	for _, result := range output.ToolResults {
 		toolResults = append(toolResults, map[string]any{
+			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
 			"capability":        result.Capability,
 			"fail_close_reason": result.FailCloseReason,
 			"payload_kind":      result.PayloadKind,

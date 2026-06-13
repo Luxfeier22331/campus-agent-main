@@ -30,6 +30,7 @@ export interface ToolExecutionResult {
 	toolName: string;
 	capability: string;
 	payloadKind: string;
+	argumentsJson?: Record<string, unknown>;
 	result: Record<string, unknown>;
 	resultRef: string;
 	failCloseReason?: string;
@@ -122,7 +123,10 @@ export function createPrimaryAgentRuntime(
 							if (catalogEntry.handler.type === "workflow_signal") {
 								return defaultToolExecutor(request);
 							}
-							return executor(request);
+							return executor(request).then((result) => ({
+								...result,
+								argumentsJson: result.argumentsJson ?? argumentsJson,
+							}));
 						},
 					};
 				});
@@ -185,6 +189,7 @@ async function defaultToolExecutor(request: ToolExecutionRequest): Promise<ToolE
 			toolName: request.tool.name,
 			capability: request.tool.capability,
 			payloadKind: request.tool.name,
+			argumentsJson: request.argumentsJson,
 			result: {
 				workflow_signal: request.tool.name,
 			},
@@ -196,6 +201,7 @@ async function defaultToolExecutor(request: ToolExecutionRequest): Promise<ToolE
 		toolName: request.tool.name,
 		capability: request.tool.capability,
 		payloadKind: request.tool.name,
+		argumentsJson: request.argumentsJson,
 		result: {
 			error: "tool executor is not configured",
 		},

@@ -38,10 +38,15 @@ product data and sanitized run/event/step projection, not the execution queue.
   Go RAG graph -> finalization.write`. Go/Temporal keep durable workflow,
   admission, timeout/cancel, RAG graph execution and sanitized projection
   ownership.
-- Target ordinary chat routing is primary-agent-first: missing
-  `requested_capability` should expose the admitted visible tool set to
-  `agent.primary` instead of being defaulted to `knowledge`. Current
-  `execution-control` still has that default-knowledge implementation gap.
+- Ordinary chat routing is primary-agent-first: missing `requested_capability`
+  now stays capability-neutral through `execution-control`, exposes the admitted
+  visible tool set to `agent.primary`, and uses neutral `any` memory recall
+  instead of defaulting to `knowledge`.
+- Model-selected campus-services / notice read-only tools are callable through
+  the agent-runtime execution-control internal query executor; their success or
+  fail-close results now project as normalized
+  `sdk_tool.execute.<tool>.<index>` steps instead of living only in SDK trace or
+  finalization payload.
 - RAG remains available as a Go-owned seven-step Temporal activity support path:
   `planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->

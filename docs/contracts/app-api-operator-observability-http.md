@@ -706,15 +706,18 @@ list endpoints 额外支持：
 - `retrievalPlan` 的来源固定为 request projection 中的
   `diagnosticsJson.retrievalPlanSummary`；它是 operator-safe typed projection，不是
   raw planner trace 或 provider debug payload
-- `runtimeRun.stepTrajectory` 是 request detail 的 canonical execution diagnostic
-  spine；它由 app-api 从 execution-control `/internal/execution/runs/:runId/steps`
-  和 app-owned projection materialize，不由 panel 从 Temporal history、sink query
-  或 raw runtime event 反推
-- `stepTrajectory.steps[*]` 至少表达 step identity、capability、status、task queue、
-  worker id、attempt/result count、queue wait、duration、provider/model、token/cost、
-  cancel/timeout outcome 与 latest result ref。forward required fields 还包括
-  fail-close reason、replan reason 与 late completion outcome；当前实现未 materialize
-  的字段不得由 panel 猜测补齐
+- `runtimeRun.operatorStepTrajectory` 是 request detail 的 canonical execution
+  diagnostic export；它由 app-api 从 execution-control
+  `/internal/execution/runs/:runId/steps` 和 app-owned projection materialize，不由
+  panel 从 Temporal history、sink query 或 raw runtime event 反推
+- `runtimeRun.stepTrajectory` 只保留 bounded compatibility display summary；panel、
+  eval、badcase 与 release-evidence-shaped fixture 必须优先消费
+  `operator_step_trajectory.v1`，不得把 `stepTrajectory` 当第二套 truth
+- `operatorStepTrajectory.steps[*]` 至少表达 step identity、capability、status、task
+  queue、worker id、attempt/result count、queue wait、duration、provider/model、
+  token/cost、cancel/timeout/late-completion outcome、fail-close reason、terminal
+  reason、replan reason 与 bounded projection refs；当前实现未 materialize 的字段不得由
+  panel 猜测补齐
 - 缺 required run / step / attempt / result projection state 时，app-api 必须返回 typed
   route error 或缺口诊断；不得静默合成成功 trajectory
 - `claimSupportSummary` 只返回 compact 的 claim-level 聚合：总 claim 数、unsupported claim
@@ -1601,8 +1604,9 @@ list endpoints 额外支持：
 
 - payload schema 固定为 `eval_diagnostic_badcases.v1`，source report schema 固定来自
   `ragas-diagnostic-combined-report.v1`
-- `failureStage` 只允许 `retrieval`、`rerank`、`selection`、
-  `evidence_selection`、`synthesis`、`grounding` 与 `diagnostic`
+- `failureStage` 只允许 `routing`、`primary_agent`、`agent`、`tool`、
+  `typed_tool`、`retrieval`、`rerank`、`selection`、`evidence_selection`、
+  `synthesis`、`grounding`、`finalization`、`replan` 与 `diagnostic`
 - `trajectoryAttribution` 必须来自 `operator_step_trajectory.v1` 的 operator-safe projection；
   缺少 trajectory 时显式写入 `trajectory_missing`，阶段无法归因时显式写入
   `attribution_missing`，不得从 workflow summary 或 request link 推断

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -266,5 +267,72 @@ func TestTypedToolFinalizationRejectsLateCompletionAfterCanceledRun(t *testing.T
 		if result.StepID == "finalization.write" {
 			t.Fatalf("late cancel wrote finalization result: %#v", result)
 		}
+	}
+}
+
+func TestExecuteStructuredRuntimeSupportsNoticeChangeSetTypedTool(t *testing.T) {
+	server := newServerForTest()
+	response := server.executeStructuredRuntime(
+		context.Background(),
+		"campus_notice_change_set_lookup",
+		[]byte(`{"payload":{"query_text":"丰台到海淀通勤车今天乘车点有没有变","route_labels":["丰台到海淀通勤车"],"service_date":"2026-01-02"}}`),
+	)
+
+	if response.StatusCode == http.StatusBadRequest {
+		t.Fatalf("notice change-set typed tool must be routed to structured runtime, got body %#v", response.Body)
+	}
+	if response.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want fail-closed temporarily_unverifiable", response.Outcome)
+	}
+}
+
+func TestExecuteTypedToolActivityFailureProjectsTypedCapability(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 12, 13, 0, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-typed-tool-failure-capability",
+		"conv-typed-tool-failure-capability",
+		now,
+		map[string]any{
+			"capability":    "notice",
+			"payload_kind":  "campus_notice_change_set_lookup",
+			"allowed_tools": []any{"campus_notice_change_set_lookup"},
+			"payload": map[string]any{
+				"service_date": "2026-01-02",
+			},
+		},
+	)
+
+	_, err := server.ExecuteTypedToolActivity(
+		context.Background(),
+		temporalruntime.ExecuteTypedToolActivityInput{
+			AllowedTools: []string{"campus_notice_change_set_lookup"},
+			Capability:   "notice",
+			Payload: map[string]any{
+				"service_date": "2026-01-02",
+			},
+			PayloadKind: "campus_notice_change_set_lookup",
+			RunID:       "run-typed-tool-failure-capability",
+			ToolName:    "campus_notice_change_set_lookup",
+			TraceID:     "trace-executor-001",
+			WorkerRole:  "activity-worker-notice",
+		},
+	)
+	if err == nil {
+		t.Fatal("expected invalid notice change-set payload to fail closed")
+	}
+	steps, listErr := store.ListRunSteps(context.Background(), "run-typed-tool-failure-capability")
+	if listErr != nil {
+		t.Fatalf("list steps: %v", listErr)
+	}
+	if len(steps) != 1 {
+		t.Fatalf("step count = %d, want failure step: %#v", len(steps), steps)
+	}
+	if steps[0].Capability != "notice" {
+		t.Fatalf("failed typed tool capability = %q, want notice", steps[0].Capability)
 	}
 }

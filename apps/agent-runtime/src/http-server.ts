@@ -67,6 +67,7 @@ export function createAgentRuntimeHandler(
 					tool_name: toolResult.toolName,
 					capability: toolResult.capability,
 					payload_kind: toolResult.payloadKind,
+					arguments_json: toolResult.argumentsJson ?? {},
 					result: toolResult.result,
 					result_ref: toolResult.resultRef,
 					fail_close_reason: toolResult.failCloseReason,

@@ -77,9 +77,8 @@ execution finalization`
 当前 repo 仍保持以下 current / implementation truth：
 
 - `public-chat-web -> app-api` 的公开 chat posture 曾长期以 `knowledge`
-  为默认主路径；当前 worktree 已接入 `agent.primary`，但 Go
-  `execution-control` 仍存在缺失 `requested_capability` 时默认写成
-  `knowledge` 的 implementation gap
+  为默认主路径；当前 worktree 已接入 `agent.primary`，且 Go `execution-control`
+  已停止把缺失 `requested_capability` 默认写成 `knowledge`
 - `place_lookup` 在 execution contract 中仍存在，但当前产品路径继续 fail-close；
   地图 UI、route planning 与 `place_card` product consumption 等 navigation 能力等地图产品上线后再开放
 - `notice`、`campus_services` 是已冻结的 semantic specialist family；internal
@@ -199,15 +198,19 @@ session / actor / surface context、repo-global invariants、allowed tool set
 - first decision 的 direct/no-tool terminal outcome 必须进入 sanitized
   projection、workflow trace summary 或等价 operator-safe projection，不能只作为
   transient prompt text 存在
-- 当前 worktree 已把 first decision 接入 `agent.primary`，但
-  `execution-control` 仍有缺失 `requested_capability` 默认写成 `knowledge`
-  的残留；这是 implementation gap，不是目标态原则。目标态应向 OpenAI
-  Agents SDK primary agent 暴露 workflow 裁剪后的 visible tool set，由模型决定
+- 当前 worktree 已把 first decision 接入 `agent.primary`，且
+  `execution-control` 已停止把缺失 `requested_capability` 默认写成 `knowledge`。
+  目标态应向 OpenAI Agents SDK primary agent 暴露 workflow 裁剪后的 visible
+  tool set，由模型决定
   是否直接 no-tool 回答或调用已开放工具。knowledge-family 对 primary agent
   只暴露 `knowledge_query` workflow signal；该 signal 只选择进入 Go-owned RAG
   Temporal graph，不暴露 `retrieval.query` 或 raw retrieval endpoint。Go
   `execution-control` 仍拥有 deterministic admission、visible tool 裁剪、
-  Temporal timeout/cancel、RAG graph execution 与 finalization。
+  Temporal timeout/cancel、RAG graph execution 与 finalization。对
+  campus-services / notice 这类 model-selected read-only typed tool，SDK loop
+  内部调用 execution-control internal query 后，execution-control 会把 success /
+  fail-close result 归一化成 `sdk_tool.execute.<tool>.<index>` step / result
+  projection，避免 tool 可调用性只停留在 SDK trace 或 finalization payload。
 
 OpenAI 官方 Responses / tools 文档给出的成熟 agent 形态是：通过系统级
 instructions 约束模型，并把工具以结构化 `tools` 配置暴露给模型，由模型基于

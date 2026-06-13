@@ -84,10 +84,11 @@ document/index release`
   final output；Go `execution-control` 保留 durable envelope、Temporal timeout /
   cancel、memory projection refs、visible capability allowlist、sanitized
   `agent.primary` step projection 与 finalization ownership。
-- 当前 ordinary chat 的 target shape 是缺失 explicit capability hint 时由
-  `agent.primary` 在 admitted visible tool set 内决策；`app-api` 已允许
-  `requestedCapability=null`，但 Go `execution-control` 仍存在缺失
-  `requested_capability` 默认写成 `knowledge` 的 implementation gap。
+- 当前 ordinary chat 缺失 explicit capability hint 时保持 capability-neutral：
+  `app-api` 允许 `requestedCapability=null`，Go `execution-control` 不再把缺失
+  `requested_capability` 写成 `knowledge`，而是把 admitted visible tool set
+  交给 `agent.primary` 决策。neutral memory recall 使用 `any` capability filter，
+  direct/no-tool finalization 归因到 `primary_agent`。
 - `plan.route -> capability branch` 不再是主问答链路的第一模型决策。它仍作为
   Go-owned deterministic structured planner / typed activity / historical RAG graph
   support path 保留，服务显式 typed branch、测试与内部 policy 约束；知识分支
@@ -108,10 +109,12 @@ document/index release`
   cancellable HTTP context，synthesis provider execution 由
   `SynthesizeRAGAnswerActivity` 记录 `provider_execution_summary_v1`、usage、
   estimated cost 与 cancel / timeout outcome。
-- 当前 cancel / timeout 证据由 Temporal activity context、Go lookup/provider adapter
-  和 sanitized step attempt projection 承接；后续 staging 仍需要真实 provider call 的
-  cancel evidence，但 repo-local projection path 已能记录
-  `provider_connection_aborted`。
+- 当前 cancel / timeout / late-completion 证据由 Temporal activity context、Go
+  lookup/provider adapter、user cancel projection closeout 和 sanitized step attempt
+  projection 承接；repo-local projection path 已能记录
+  `activity_context_canceled`、`requested_before_start`、
+  `provider_connection_aborted`、provider timeout 与 late completion ignored。后续
+  staging 仍需要真实 provider call 与 Temporal metrics evidence。
 - 当前仍未完成的是 worker autoscaler production actuation、Temporal poller proof 的
   staging closeout 与 notice / navigation / campus-services typed activity worker
   全量拆分。目标 durable runtime 见
@@ -261,8 +264,9 @@ document/index release`
   agent loop 内决定是否调用工具；无工具请求可直接产出 final output。knowledge
   请求只向模型暴露 `knowledge_query` workflow-signal tool，实际 RAG 仍进入
   Go-owned Temporal graph；`retrieval.query` 不作为 model-visible tool 暴露。
-  当前仍需移除 Go execution run creation 对缺失 `requested_capability` 的
-  default-knowledge 写入，才能让 ordinary chat fully product-agent-first。
+  campus-services / notice read-only tools 通过 strict `tool-catalog.v1` 暴露给
+  `agent.primary`，并由 execution-control internal query endpoint 执行；Go runtime
+  通过 tool catalog / tool spec / endpoint drift test 约束可调用性。
   每个主干 step 写入
   `RunStep -> StepAttempt -> StepResult` projection。attempt projection 已包含
   Temporal activity metadata、queue wait、duration、provider/model、token/cost、

@@ -72,7 +72,17 @@ export function formatEvalCoverageDiagnosticStatus(status: string) {
 export function formatRagasDiagnosticStageLabel(
 	stage: OperatorEvalCoverageRagasDiagnosticFailureStage,
 ) {
+	return formatDiagnosticStageLabel(stage);
+}
+
+export function formatDiagnosticStageLabel(stage: string) {
 	switch (stage) {
+		case "routing":
+			return "路由";
+		case "planning":
+			return "规划";
+		case "tool":
+			return "工具";
 		case "retrieval":
 			return "召回";
 		case "rerank":
@@ -85,10 +95,21 @@ export function formatRagasDiagnosticStageLabel(
 			return "生成";
 		case "grounding":
 			return "接地";
+		case "finalization":
+			return "终态写入";
+		case "replan":
+			return "重规划";
+		case "clarification":
+		case "needs_clarification":
+			return "澄清";
+		case "rejected":
+			return "拒绝";
+		case "no_answer":
+			return "无法回答";
 		case "diagnostic":
 			return "诊断";
 		default:
-			return rejectUnsupportedRagasFailureStage(stage);
+			return stage;
 	}
 }
 

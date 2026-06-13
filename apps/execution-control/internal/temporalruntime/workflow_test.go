@@ -277,6 +277,169 @@ func TestCapabilityExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKno
 	env.AssertExpectations(t)
 }
 
+func TestCapabilityExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	runID := "run-workflow-primary-replan-001"
+	traceID := "trace-workflow-primary-replan-001"
+	firstAgentResultRef := "projection://runs/" + runID + "/agent/primary/result/1"
+	secondAgentResultRef := "projection://runs/" + runID + "/agent/primary/result/2"
+	completedAt := time.Date(2026, 6, 12, 12, 30, 0, 0, time.UTC)
+
+	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).Return(MemoryRecallActivityOutput{
+		MemoryRef: "projection://runs/" + runID + "/memory/recall",
+		RunID:     runID,
+		Status:    "completed",
+	}, nil)
+	env.OnActivity(
+		ExecutePrimaryAgentActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
+			return input.RunID == runID &&
+				len(input.VisibleCapabilities) == 1 &&
+				input.VisibleCapabilities[0] == "campus_services"
+		}),
+	).Return(ExecutePrimaryAgentActivityOutput{
+		AgentResultRef: firstAgentResultRef,
+		FinalOutput:    "当前工具调用失败，准备重试。",
+		RunID:          runID,
+		SelectedTools:  []string{"transport_schedule_lookup"},
+		Status:         "failed",
+		TerminalReason: "agent_runtime_failed",
+		ToolResults: []AgentToolResult{{
+			Capability:      "campus_services",
+			FailCloseReason: "tool_handler_failed",
+			PayloadKind:     "transport_schedule_lookup",
+			ResultRef:       "agent-runtime://" + runID + "/tools/transport_schedule_lookup/1",
+			Status:          "failed",
+			ToolName:        "transport_schedule_lookup",
+		}},
+	}, nil).Once()
+	env.OnActivity(
+		ExecutePrimaryAgentActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
+			return input.RunID == runID &&
+				len(input.VisibleCapabilities) == 1 &&
+				input.VisibleCapabilities[0] == "campus_services"
+		}),
+	).Return(ExecutePrimaryAgentActivityOutput{
+		AgentResultRef: secondAgentResultRef,
+		FinalOutput:    "今晚六点班车当前投影可用。",
+		RunID:          runID,
+		SelectedTools:  []string{"transport_schedule_lookup"},
+		Status:         "completed",
+		TerminalReason: "answer_completed",
+	}, nil).Once()
+	env.OnActivity(
+		WriteFinalizationActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input WriteFinalizationActivityInput) bool {
+			return input.RunID == runID &&
+				input.TraceID == traceID &&
+				input.AgentResultRef == secondAgentResultRef
+		}),
+	).Return(WriteFinalizationActivityOutput{
+		CompletedAt:   completedAt,
+		ProjectionRef: "projection://runs/" + runID + "/finalization",
+		RunID:         runID,
+		Status:        "completed",
+	}, nil)
+
+	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
+		ConversationID:      "conv-workflow-primary-replan-001",
+		Namespace:           "campus-agent-test",
+		RequestID:           "req-workflow-primary-replan-001",
+		RequestedCapability: "campus_services",
+		RunID:               runID,
+		TaskQueue:           WorkflowTaskQueue,
+		TraceID:             traceID,
+		TurnID:              "turn-workflow-primary-replan-001",
+		WorkflowID:          "campus-agent.chat." + runID,
+	})
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	env.AssertExpectations(t)
+}
+
+func TestCapabilityExecutionWorkflowDoesNotRetryPrimaryAgentDeterministicFailClose(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	runID := "run-workflow-primary-no-replan-001"
+	traceID := "trace-workflow-primary-no-replan-001"
+	agentResultRef := "projection://runs/" + runID + "/agent/primary/result"
+	completedAt := time.Date(2026, 6, 12, 12, 35, 0, 0, time.UTC)
+
+	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).Return(MemoryRecallActivityOutput{
+		MemoryRef: "projection://runs/" + runID + "/memory/recall",
+		RunID:     runID,
+		Status:    "completed",
+	}, nil)
+	env.OnActivity(
+		ExecutePrimaryAgentActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
+			return input.RunID == runID && len(input.VisibleCapabilities) == 1
+		}),
+	).Return(ExecutePrimaryAgentActivityOutput{
+		AgentResultRef: agentResultRef,
+		FinalOutput:    "当前状态无法可靠确认。",
+		RunID:          runID,
+		SelectedTools:  []string{"transport_schedule_lookup"},
+		Status:         "completed",
+		TerminalReason: "unsupported_by_evidence",
+		ToolResults: []AgentToolResult{{
+			Capability:      "campus_services",
+			FailCloseReason: "current_state_unverifiable",
+			PayloadKind:     "transport_schedule_lookup",
+			ResultRef:       "agent-runtime://" + runID + "/tools/transport_schedule_lookup/1",
+			Status:          "completed",
+			ToolName:        "transport_schedule_lookup",
+		}},
+	}, nil).Once()
+	env.OnActivity(
+		WriteFinalizationActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input WriteFinalizationActivityInput) bool {
+			return input.RunID == runID &&
+				input.TraceID == traceID &&
+				input.AgentResultRef == agentResultRef
+		}),
+	).Return(WriteFinalizationActivityOutput{
+		CompletedAt:   completedAt,
+		ProjectionRef: "projection://runs/" + runID + "/finalization",
+		RunID:         runID,
+		Status:        "completed",
+	}, nil).Once()
+
+	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
+		ConversationID:      "conv-workflow-primary-no-replan-001",
+		Namespace:           "campus-agent-test",
+		RequestID:           "req-workflow-primary-no-replan-001",
+		RequestedCapability: "campus_services",
+		RunID:               runID,
+		TaskQueue:           WorkflowTaskQueue,
+		TraceID:             traceID,
+		TurnID:              "turn-workflow-primary-no-replan-001",
+		WorkflowID:          "campus-agent.chat." + runID,
+	})
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	env.AssertExpectations(t)
+}
+
 func TestCapabilityExecutionWorkflowDoesNotTreatRetrievalQueryAsPrimaryAgentSignal(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()

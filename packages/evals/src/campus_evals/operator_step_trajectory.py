@@ -28,11 +28,20 @@ def normalize_operator_step_trajectory(operator_request_detail: Mapping[str, obj
     _assert_operator_safe_trajectory_source(operator_request_detail)
     runtime_run = _mapping_field(operator_request_detail.get("runtimeRun"), "runtimeRun")
     step_trajectory = _mapping_field(
-        runtime_run.get("stepTrajectory"),
-        "runtimeRun.stepTrajectory",
+        runtime_run.get("operatorStepTrajectory"),
+        "runtimeRun.operatorStepTrajectory",
     )
     run = _mapping_field(runtime_run.get("run"), "runtimeRun.run")
-    raw_steps = _list_field(step_trajectory.get("steps"), "runtimeRun.stepTrajectory.steps")
+    raw_steps = _list_field(
+        step_trajectory.get("steps"),
+        "runtimeRun.operatorStepTrajectory.steps",
+    )
+    schema_version = _required_string(
+        step_trajectory.get("schemaVersion"),
+        "runtimeRun.operatorStepTrajectory.schemaVersion",
+    )
+    if schema_version != OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION:
+        raise ValueError("runtimeRun.operatorStepTrajectory.schemaVersion is unsupported")
 
     request_id = _required_string(run.get("requestId"), "runtimeRun.run.requestId")
     run_id = _required_string(run.get("runId"), "runtimeRun.run.runId")
@@ -49,7 +58,7 @@ def normalize_operator_step_trajectory(operator_request_detail: Mapping[str, obj
         "traceId": trace_id,
         "conversationId": conversation_id,
         "steps": [
-            _normalize_step(item, f"runtimeRun.stepTrajectory.steps[{index}]")
+            _normalize_step(item, f"runtimeRun.operatorStepTrajectory.steps[{index}]")
             for index, item in enumerate(raw_steps)
         ],
     }
@@ -70,6 +79,8 @@ def build_release_evidence_fixture(
     timeout_counts = _outcome_counts(steps, "timeoutOutcome", default="not_timed_out")
     cancel_counts = _outcome_counts(steps, "cancelOutcome", default="not_requested")
     late_counts = _outcome_counts(steps, "lateCompletionOutcome", default="not_late")
+    fail_close_counts = _outcome_counts(steps, "failCloseReason", default="")
+    replan_counts = _outcome_counts(steps, "replanReason", default="")
     return {
         "schemaVersion": OPERATOR_STEP_TRAJECTORY_RELEASE_FIXTURE_SCHEMA_VERSION,
         "evidenceMode": "local_fixture",
@@ -84,6 +95,8 @@ def build_release_evidence_fixture(
             "timeoutOutcomeCounts": timeout_counts,
             "cancelOutcomeCounts": cancel_counts,
             "lateCompletionOutcomeCounts": late_counts,
+            "failCloseReasonCounts": fail_close_counts,
+            "replanReasonCounts": replan_counts,
         },
         "trajectoryRefs": [
             {
@@ -156,10 +169,16 @@ def _normalize_step(value: object, field_name: str) -> dict:
         "workerId": _required_string(step.get("workerId"), f"{field_name}.workerId"),
         "modelProvider": _optional_string(step.get("modelProvider")),
         "modelName": _optional_string(step.get("modelName")),
-        "inputTokens": _non_negative_int(step.get("inputTokens"), f"{field_name}.inputTokens"),
-        "outputTokens": _non_negative_int(step.get("outputTokens"), f"{field_name}.outputTokens"),
+        "inputTokens": _non_negative_int(
+            step.get("inputTokens") or 0,
+            f"{field_name}.inputTokens",
+        ),
+        "outputTokens": _non_negative_int(
+            step.get("outputTokens") or 0,
+            f"{field_name}.outputTokens",
+        ),
         "estimatedCostMicrousd": _non_negative_int(
-            step.get("estimatedCostMicrousd"),
+            step.get("estimatedCostMicrousd") or 0,
             f"{field_name}.estimatedCostMicrousd",
         ),
         "providerRequestRef": _optional_string(step.get("providerRequestRef")),
@@ -169,8 +188,19 @@ def _normalize_step(value: object, field_name: str) -> dict:
         "cancelOutcome": _optional_string(step.get("cancelOutcome")),
         "timeoutOutcome": _optional_string(step.get("timeoutOutcome")),
         "lateCompletionOutcome": _optional_string(step.get("lateCompletionOutcome")),
-        "projectionRefs": [latest_ref] if latest_ref else [],
+        "projectionRefs": _normalized_projection_refs(step, latest_ref, field_name),
     }
+
+
+def _normalized_projection_refs(
+    step: Mapping[str, object],
+    latest_ref: str | None,
+    field_name: str,
+) -> list[str]:
+    refs_value = step.get("projectionRefs")
+    if refs_value is not None:
+        return _string_list_field(refs_value, f"{field_name}.projectionRefs")
+    return [latest_ref] if latest_ref else []
 
 
 def _match_step_for_stage(
@@ -190,9 +220,30 @@ def _match_step_for_stage(
 
 
 def _stage_aliases(stage: str) -> set[str]:
-    aliases = {stage}
-    if stage == "evidence_selection":
-        aliases.update({"selection", "evidence.selection"})
+    normalized = stage.strip().lower().replace("-", "_").replace(".", "_")
+    alias_map = {
+        "routing": {"routing", "route", "planning", "plan.route", "plan_route"},
+        "route": {"routing", "route", "planning", "plan.route", "plan_route"},
+        "planning": {"routing", "route", "planning", "plan.route", "plan_route"},
+        "primary_agent": {"agent", "primary_agent", "agent.primary", "agent_primary"},
+        "agent": {"agent", "primary_agent", "agent.primary", "agent_primary"},
+        "tool": {"tool", "typed_tool", "sdk_tool", "sdk_tool.execute", "tool_execution"},
+        "typed_tool": {"tool", "typed_tool", "sdk_tool", "sdk_tool.execute", "tool_execution"},
+        "retrieval": {"retrieval", "indexed_lookup", "retrieval.indexed_lookup"},
+        "rerank": {"rerank", "retrieval.rerank", "retrieval_rerank"},
+        "selection": {"selection", "evidence_selection", "evidence.selection"},
+        "evidence_selection": {"selection", "evidence_selection", "evidence.selection"},
+        "synthesis": {"synthesis", "answer_synthesis"},
+        "grounding": {"grounding", "grounding.verify", "grounding_verify"},
+        "finalization": {"finalization", "finalization.write", "finalization_write"},
+        "clarification": {"finalization", "finalization.write", "finalization_write"},
+        "needs_clarification": {"finalization", "finalization.write", "finalization_write"},
+        "rejected": {"finalization", "finalization.write", "finalization_write"},
+        "no_answer": {"finalization", "finalization.write", "finalization_write"},
+        "replan": {"replan", "plan.replan", "plan_replan"},
+    }
+    aliases = {stage, normalized}
+    aliases.update(alias_map.get(normalized, set()))
     return aliases
 
 

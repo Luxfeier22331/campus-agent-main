@@ -2,7 +2,7 @@ import { Stack, Typography } from "@mui/material";
 
 import { PANEL_COPY } from "../../panel-copy";
 import type { OperatorQualityEvalCandidateRecord } from "../../types";
-import { formatRagasDiagnosticStageLabel } from "../eval-coverage-domain";
+import { formatDiagnosticStageLabel } from "../eval-coverage-domain";
 
 function compactIdList(values: string[]) {
 	if (values.length === 0) {
@@ -44,7 +44,7 @@ export function EvalCandidateDiagnosticSummary(props: {
 			<Typography color="text.secondary" variant="caption">
 				{`${diagnostic.caseId} · ${diagnostic.metricName} ${diagnostic.score.toFixed(
 					2,
-				)}/${diagnostic.threshold.toFixed(2)} · ${formatRagasDiagnosticStageLabel(
+				)}/${diagnostic.threshold.toFixed(2)} · ${formatDiagnosticStageLabel(
 					diagnostic.failureStage,
 				)}`}
 			</Typography>

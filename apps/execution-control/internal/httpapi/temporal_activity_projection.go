@@ -154,6 +154,7 @@ func (s *Server) failTemporalPlanning(
 	cause error,
 ) (temporalruntime.PlanRouteActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "plan/route"),
 		ResultKind:    "activity_failure",
@@ -175,6 +176,7 @@ func (s *Server) failRAGPlanActivity(
 	cause error,
 ) (temporalruntime.PlanRAGActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "rag/plan"),
 		ResultKind:    "activity_failure",
@@ -196,6 +198,7 @@ func (s *Server) failRetrieveIndexedLookupActivity(
 	cause error,
 ) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/indexed-lookup"),
 		ResultKind:    "activity_failure",
@@ -217,6 +220,7 @@ func (s *Server) failExpandOrRescueRetrievalActivity(
 	cause error,
 ) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue"),
 		ResultKind:    "activity_failure",
@@ -238,6 +242,7 @@ func (s *Server) failSelectEvidenceActivity(
 	cause error,
 ) (temporalruntime.SelectEvidenceActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "evidence/selection"),
 		ResultKind:    "activity_failure",
@@ -259,6 +264,7 @@ func (s *Server) failVerifyGroundingActivity(
 	cause error,
 ) (temporalruntime.VerifyGroundingActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "grounding/verify"),
 		ResultKind:    "activity_failure",
@@ -276,10 +282,12 @@ func (s *Server) failVerifyGroundingActivity(
 func (s *Server) failFinalizationActivity(
 	ctx context.Context,
 	run execution.DurableRun,
+	capability string,
 	failureKind string,
 	cause error,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    capability,
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "finalization/write"),
 		ResultKind:    "activity_failure",
@@ -295,6 +303,7 @@ func (s *Server) failFinalizationActivity(
 }
 
 type temporalStepFailureProjection struct {
+	Capability      string
 	FailureKind     string
 	CancelOutcome   execution.CancelOutcome
 	FailCloseReason string
@@ -324,7 +333,7 @@ func (s *Server) failTemporalRunStep(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:         1,
-		Capability:      "knowledge",
+		Capability:      temporalFailureCapability(projection),
 		CancelOutcome:   temporalFailureCancelOutcome(ctx, projection.CancelOutcome),
 		FailCloseReason: temporalFailureFailCloseReason(projection),
 		Run:             run,
@@ -345,6 +354,13 @@ func (s *Server) failTemporalRunStep(
 		return execution.DurableRun{}, err
 	}
 	return s.failTemporalRun(ctx, run, projection.FailureKind, cause)
+}
+
+func temporalFailureCapability(projection temporalStepFailureProjection) string {
+	if capability := strings.TrimSpace(projection.Capability); capability != "" {
+		return capability
+	}
+	return "knowledge"
 }
 
 func temporalFailureFailCloseReason(projection temporalStepFailureProjection) string {

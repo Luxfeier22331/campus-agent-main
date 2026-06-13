@@ -54,6 +54,7 @@ func (s *Server) failAgentAsToolActivity(
 	cause error,
 ) (temporalruntime.ExecuteAgentAsToolActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "agent_as_tool",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "agent-as-tool/failure"),
 		ResultKind:    "activity_failure",

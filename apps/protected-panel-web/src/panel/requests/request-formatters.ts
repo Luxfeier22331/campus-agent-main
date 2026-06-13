@@ -9,6 +9,8 @@ import type {
 	RequestRuntimeRunSummary,
 } from "../types";
 
+export { buildRequestStepTrajectoryEntries } from "./request-step-trajectory-formatters";
+
 export const CURRENT_RUNTIME_TARGET_OPTIONS = [
 	{ label: "检索专家", value: "knowledge" },
 	{ label: "导航能力", value: "navigation" },
@@ -26,20 +28,6 @@ export function formatDuration(durationMs: number | null) {
 	}
 
 	return `${(durationMs / 1000).toFixed(2)} s`;
-}
-
-function formatTokenCostSummary(input: {
-	estimatedCostMicrousd: number;
-	inputTokens: number;
-	outputTokens: number;
-}) {
-	const inputTokens = Number.isFinite(input.inputTokens) ? input.inputTokens : 0;
-	const outputTokens = Number.isFinite(input.outputTokens) ? input.outputTokens : 0;
-	const estimatedCostMicrousd = Number.isFinite(input.estimatedCostMicrousd)
-		? input.estimatedCostMicrousd
-		: 0;
-	const cost = estimatedCostMicrousd > 0 ? `${estimatedCostMicrousd} microUSD` : "cost=0";
-	return `tokens=${inputTokens}/${outputTokens} · ${cost}`;
 }
 
 export function formatScope(scope: Record<string, unknown> | null) {
@@ -405,6 +393,10 @@ export type RequestStepTrajectoryEntry =
 	| {
 			attempts: string;
 			capability: string;
+			diagnosticGroups: Array<{
+				items: string[];
+				kind: "agent" | "provider" | "replan" | "runtime" | "terminal";
+			}>;
 			diagnostics: string[];
 			duration: string;
 			kind: "step";
@@ -463,65 +455,6 @@ export function buildRequestRuntimeRunEntries(run: RequestRuntimeRunSummary | nu
 			].join(" · "),
 		},
 	];
-}
-
-export function buildRequestStepTrajectoryEntries(
-	trajectory: RequestRuntimeRunSummary["stepTrajectory"] | null | undefined,
-) {
-	if (!trajectory) {
-		return [];
-	}
-
-	return [
-		{
-			kind: "summary" as const,
-			metrics: `${trajectory.steps.length} steps · attempts=${trajectory.attemptCount} · results=${trajectory.resultCount}`,
-		},
-		...trajectory.steps.map((step) => {
-			const diagnostics = [
-				`cancel=${step.cancelOutcome || PANEL_COPY.none}`,
-				`timeout=${step.timeoutOutcome || PANEL_COPY.none}`,
-				`late=${step.lateCompletionOutcome || PANEL_COPY.none}`,
-			];
-			if (step.failCloseReason) {
-				diagnostics.push(`fail_close=${step.failCloseReason}`);
-			}
-			if (step.replanReason) {
-				diagnostics.push(`replan=${step.replanReason}`);
-			}
-			if (step.agentTerminalReason) {
-				diagnostics.push(`agent_terminal=${step.agentTerminalReason}`);
-			}
-			if (step.agentSelectedTools && step.agentSelectedTools.length > 0) {
-				diagnostics.push(`agent_tools=${step.agentSelectedTools.join(",")}`);
-			}
-			if (step.agentSdkTraceRef) {
-				diagnostics.push(`sdk_trace=${step.agentSdkTraceRef}`);
-			}
-			if (step.agentToolResultRefs && step.agentToolResultRefs.length > 0) {
-				diagnostics.push(`tool_results=${step.agentToolResultRefs.join(",")}`);
-			}
-			return {
-				attempts: `attempts=${step.attemptCount} · results=${step.resultCount}`,
-				capability: step.capability || PANEL_COPY.unknown,
-				diagnostics,
-				duration: `queue=${formatDuration(step.queueWaitMs)} · duration=${formatDuration(step.durationMs)}`,
-				kind: "step" as const,
-				latestResultRef: step.latestResultRef || PANEL_COPY.none,
-				model:
-					step.modelProvider && step.modelName
-						? `${step.modelProvider}/${step.modelName}`
-						: PANEL_COPY.notAvailable,
-				providerRequestRef: step.providerRequestRef || PANEL_COPY.none,
-				status: step.status || PANEL_COPY.unknown,
-				stepId: step.stepId,
-				stepKind: step.stepKind || step.stepId,
-				taskQueue: step.taskQueue || PANEL_COPY.unknown,
-				tokenCost: formatTokenCostSummary(step),
-				workerId: step.workerId || PANEL_COPY.unknown,
-			};
-		}),
-	] satisfies RequestStepTrajectoryEntry[];
 }
 
 function formatClaimSupportSummary(summary: RequestClaimSupportSummary | null | undefined) {

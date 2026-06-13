@@ -91,7 +91,11 @@ Current implementation baseline:
 - online primary agent execution is owned by `activity-worker-agent` +
   `apps/agent-runtime`: SDK selected tools, tool result refs, usage summary and
   SDK trace refs are normalized into repo-owned sanitized projection before
-  app-api / panel / eval consumption.
+  app-api / panel / eval consumption. Model-selected read-only
+  campus-services / notice tool calls are projected as
+  `sdk_tool.execute.<tool>.<index>` tool steps with `typed_tool_result` or
+  `activity_failure` step results; `knowledge_query` remains a workflow signal
+  into the Go-owned RAG graph instead of a bounded JSON typed tool result.
 - Python `apps/supervisor-agent-worker` has been removed from the active
   workspace. Historical bridge code is recoverable only through git history and
   must not be restored as a serving fallback or readiness dependency.
@@ -735,10 +739,13 @@ worker autoscaler 边界固定为：
   sanitized step / attempt / result projection rows; retained deterministic
   support paths can still project `plan.route` where explicitly used.
   Attempt rows include Temporal activity metadata, queue wait, duration,
-  provider/model, token/cost and cancel/timeout fields. Online RAG lookup and
-  synthesis run inside Go `activity-worker-knowledge`, so lookup latency,
-  provider usage / cost and `provider_connection_aborted` evidence can be filled
-  from activity execution.
+  provider/model, token/cost, cancel/timeout/late-completion outcome,
+  fail-close reason and replan reason fields. Online RAG lookup and synthesis
+  run inside Go `activity-worker-knowledge`, so lookup latency, provider usage /
+  cost and `provider_connection_aborted` evidence can be filled from activity
+  execution. User cancel projection now marks incomplete step/attempt rows with
+  `requested_before_start` or `activity_context_canceled` while preserving
+  completed step evidence.
 - repo-owned staging durable reconnect harness:
   `pnpm --dir apps/app-api chat:durable:e2e:staging` proves the product stream can
   be disconnected after `request.accepted` and resumed from the existing durable
@@ -772,39 +779,58 @@ worker autoscaler 边界固定为：
   workflow、RAG activity、finalization activity 与已打开 capability 对应 activity
   task queue 的 recent poller。schedule-to-start latency 仍需要来自 Temporal metrics
   的真实采样进入 release evidence。
-- failure-mode staging proof 仍需闭环：cancel、timeout、late completion ignored /
-  accepted 与 semantic fail-close 必须能在 step trajectory、operator projection 与
-  release evidence 中被同一口径解释。
+- failure-mode staging proof 仍需闭环：repo-local projection 已能用同一
+  `operator_step_trajectory.v1` 口径解释 cancel、timeout、late completion ignored、
+  semantic fail-close 与 bounded replan；真实 staging run、Temporal metrics sampling
+  与 release evidence 仍后置。
 - execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，历史
   PG lease proof command 已退出默认 build；`run_projection*.go` 仍有 projection store 与
   historical schema artifact 混合命名，需要后续纯命名整理，但不得重新接回 serving。
 - step-level projection 已进入 current chat trajectory；app-api operator query 与
-  protected panel 已开始消费 `agent_run_steps`、`agent_step_attempts`、
-  `agent_step_results` 作为诊断主线。eval / badcase 归因仍需要继续统一到 app-api
-  owned `operator_step_trajectory.v1`；当前阶段只补离线 / fixture / local export
-  的 consumer contract，不做真实 staging evidence closeout。
-- worker autoscaler 已有 dry-run proof：可以基于 task queue observation、poller
-  health 与 downstream budget projection 计算 desired replicas，且不写
+  protected panel 消费 `agent_run_steps`、`agent_step_attempts`、
+  `agent_step_results` 作为诊断主线。app-api request observability detail 已从
+  execution-control sanitized step projection materialize
+  `operator_step_trajectory.v1`；panel formatter diagnostic groups、eval/badcase
+  stage attribution 与 release-evidence-shaped local fixture 已统一消费该 export。
+  当前阶段不做真实 staging evidence closeout。
+- worker autoscaler 已有 dry-run proof 与 apply-mode evidence-only 边界：可以基于
+  task queue observation、poller health 与 downstream budget projection 计算 desired
+  replicas；`apply` 没有显式 actuation evidence path 时 fail closed，提供路径时只写
+  ops-plane actuation evidence 与 desired replica operations，仍不写
   workflow/run/step/event truth。真实基础设施扩缩容接入仍未启用。
 - RAG durable typed step graph 已进入 current online path：`rag.plan`、
   `retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、`evidence.selection`、
   `synthesis`、`grounding.verify` 与 `finalization.write` 均写 sanitized step
-  trajectory。剩余缺口是 bounded semantic retry / replan 的真实 policy execution，
-  而不是只在 `WorkflowPlan.SemanticRetryPolicy` 中声明字段。
+  trajectory。primary-agent path 已具备 bounded semantic retry：失败的 SDK
+  typed tool result 只有在 typed outcome 属于
+  `provider_timeout`、`tool_handler_failed`、`provider_connection_aborted`、
+  `tool_executor_not_configured` 或 `transient_internal_query_failed` 时，才能在同一
+  visible capability/tool set 内最多重试一次；确定性 semantic / policy /
+  contract / admission failure 和未知原因不触发 replan，并通过 step attempt
+  `replan_reason` 投影。
 - primary model-facing SDK loop 已进入 current worktree：`agent.primary` 通过 strict
   `tool-catalog.v1` 暴露 model-visible read-only tools，`knowledge_query` 作为 workflow
   signal 进入 Go-owned RAG graph，campus-services / notice tools 通过
-  execution-control internal query executor 读取 bounded projection/read model。剩余缺口
-  不再是“是否接入 provider-native tool loop”，而是移除 ordinary chat 缺失
-  `requested_capability` 时默认 `knowledge` 的 implementation gap，并继续硬化
-  strict argument schema、typed terminal outcome、operator/eval trajectory
-  consumer 与 fail-close projection。
-- panel / eval / observability 仍需要进一步统一到 step-level trajectory：routing、
-  primary agent、typed tool、retrieval、rerank、selection、synthesis、grounding 与
-  replan 应作为诊断阶段进入 badcase、RAGAS、golden dataset 与 operator panel
-  projection。非 staging 阶段的正确落点是 app-api sanitized trajectory export 与
-  eval/badcase normalizer；release evidence 只能先生成 release-evidence-shaped local fixture，
-  不接真实 Temporal metrics 或 staging closeout。
+  execution-control internal query executor 读取 bounded projection/read model，并把
+  success / fail-close tool result 投影成
+  `sdk_tool.execute.<tool>.<index>` normalized tool step。ordinary chat 缺失
+  `requested_capability` 时已不再默认 `knowledge`，而是保持 capability-neutral
+  进入 `agent.primary`。`clarification_required`、`out_of_scope` 与
+  `unsupported_by_evidence` 已分别投影为 `needs_clarification`、`rejected` 与
+  `no_answer` finalization outcome。canonical `tool_function_schemas.v1` 已覆盖
+  model-visible strict function schema，agent-runtime 返回 `arguments_json`，并由
+  execution-control 在 SDK typed tool projection 前验证；schema drift 作为
+  `schema_contract_drift` fail-close step 投影。剩余缺口不再是“是否接入
+  provider-native tool loop”或“是否硬化 strict argument schema”，而是真实
+  runtime/staging proof。
+- panel / eval / observability 已统一到 step-level trajectory 的第一版 consumer
+  contract：routing、primary agent、typed tool、retrieval、rerank、selection、
+  synthesis、grounding、finalization、replan 与 terminal outcome
+  (`clarification` / `rejected` / `no_answer`) 都可作为诊断阶段进入
+  eval/badcase attribution，panel formatter 以 grouped diagnostics 展示 runtime /
+  terminal / replan / agent outcome。release evidence 当前只能生成
+  release-evidence-shaped local fixture，不接真实 Temporal metrics 或 staging
+  closeout。
 
 这些 gap 不得通过简单多开实例、HTTP load balancing、Redis queue 或 K8s HPA 标记为已解决。
 

@@ -334,7 +334,8 @@ export type StepDiagnosisStage =
 	| "selection"
 	| "synthesis"
 	| "grounding"
-	| "finalization";
+	| "finalization"
+	| "replan";
 
 export function inferStepDiagnosisStage(input: {
 	causeClass: string;
@@ -350,12 +351,21 @@ export function inferStepDiagnosisStage(input: {
 		normalizedFailureStage === "selection" ||
 		normalizedFailureStage === "synthesis" ||
 		normalizedFailureStage === "grounding" ||
-		normalizedFailureStage === "finalization"
+		normalizedFailureStage === "finalization" ||
+		normalizedFailureStage === "replan"
 	) {
 		return normalizedFailureStage;
 	}
 	if (normalizedFailureStage === "evidence_selection") {
 		return "selection";
+	}
+	if (
+		normalizedFailureStage === "clarification" ||
+		normalizedFailureStage === "needs_clarification" ||
+		normalizedFailureStage === "rejected" ||
+		normalizedFailureStage === "no_answer"
+	) {
+		return "finalization";
 	}
 
 	const normalizedCause = input.causeClass.trim().toLowerCase();

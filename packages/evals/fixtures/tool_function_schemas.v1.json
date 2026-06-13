@@ -3,6 +3,28 @@
 	"tools": [
 		{
 			"type": "function",
+			"name": "knowledge_query",
+			"description": "Route this turn to the governed knowledge retrieval and grounded answer workflow when campus regulations, curriculum, or official-web facts are needed.",
+			"strict": true,
+			"parameters": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"query_text": {
+						"type": "string",
+						"description": "Original knowledge question to answer with governed retrieval."
+					},
+					"intent": {
+						"type": ["string", "null"],
+						"description": "Knowledge workflow intent.",
+						"enum": ["answer_question", "compare_rules", "clarify_scope", null]
+					}
+				},
+				"required": ["query_text", "intent"]
+			}
+		},
+		{
+			"type": "function",
 			"name": "service_status_lookup",
 			"description": "Lookup current or temporally qualified campus service status.",
 			"strict": true,

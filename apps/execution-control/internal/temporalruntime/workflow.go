@@ -35,20 +35,8 @@ func CapabilityExecutionWorkflow(
 	}).Get(ctx, &memory); err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
-	agentOptions := activityOptions
-	agentOptions.TaskQueue = ActivityTaskQueueAgent
-	agentCtx := workflow.WithActivityOptions(ctx, agentOptions)
-	var agent ExecutePrimaryAgentActivityOutput
-	if err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, ExecutePrimaryAgentActivityInput{
-		ConversationID:       input.ConversationID,
-		MemoryProjectionRefs: memoryProjectionRefs(memory),
-		RequestID:            input.RequestID,
-		RequestedCapability:  requestedCapability,
-		RunID:                input.RunID,
-		TraceID:              input.TraceID,
-		TurnID:               input.TurnID,
-		VisibleCapabilities:  visibleCapabilitiesForPrimaryAgent(requestedCapability),
-	}).Get(ctx, &agent); err != nil {
+	agent, err := executePrimaryAgentWithBoundedReplan(ctx, activityOptions, input, memory, requestedCapability)
+	if err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
 	if primaryAgentSelectedKnowledge(agent) {
@@ -82,6 +70,44 @@ func CapabilityExecutionWorkflow(
 		return CapabilityExecutionWorkflowResult{}, err
 	}
 	return workflowResultFromFinalization(finalization), nil
+}
+
+func executePrimaryAgentWithBoundedReplan(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input CapabilityExecutionWorkflowInput,
+	memory MemoryRecallActivityOutput,
+	requestedCapability string,
+) (ExecutePrimaryAgentActivityOutput, error) {
+	agentOptions := activityOptions
+	agentOptions.TaskQueue = ActivityTaskQueueAgent
+	agentCtx := workflow.WithActivityOptions(ctx, agentOptions)
+	visibleCapabilities := visibleCapabilitiesForPrimaryAgent(requestedCapability)
+	agentInput := ExecutePrimaryAgentActivityInput{
+		ConversationID:       input.ConversationID,
+		MemoryProjectionRefs: memoryProjectionRefs(memory),
+		RequestID:            input.RequestID,
+		RequestedCapability:  requestedCapability,
+		RunID:                input.RunID,
+		TraceID:              input.TraceID,
+		TurnID:               input.TurnID,
+		VisibleCapabilities:  visibleCapabilities,
+	}
+	var agent ExecutePrimaryAgentActivityOutput
+	if err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent); err != nil {
+		return ExecutePrimaryAgentActivityOutput{}, err
+	}
+	if !primaryAgentAllowsBoundedReplan(agent) {
+		return agent, nil
+	}
+	var retry ExecutePrimaryAgentActivityOutput
+	retryInput := agentInput
+	retryInput.Attempt = 2
+	retryInput.ReplanReason = primaryAgentReplanReason(agent)
+	if err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, retryInput).Get(ctx, &retry); err != nil {
+		return ExecutePrimaryAgentActivityOutput{}, err
+	}
+	return retry, nil
 }
 
 func primaryAgentSelectedKnowledge(agent ExecutePrimaryAgentActivityOutput) bool {
@@ -362,38 +388,6 @@ func setFromStrings(values []string) map[string]bool {
 		}
 	}
 	return result
-}
-
-func reasonForReplanFailure(step CapabilityBranchStep, err error) string {
-	if step.Capability == "knowledge" {
-		return "knowledge_branch_failed"
-	}
-	if step.ToolName != "" {
-		return "typed_tool_failed"
-	}
-	return "capability_branch_failed"
-}
-
-func workflowFailureAllowsReplan(step CapabilityBranchStep, err error) bool {
-	if err == nil {
-		return false
-	}
-	if step.Capability == "knowledge" {
-		return true
-	}
-	failure := sanitizeWorkflowFailure(err)
-	for _, reason := range []string{
-		"current_state_unverifiable",
-		"source_conflict",
-		"temporal_scope_ambiguous",
-		"clarification_required",
-		"not_found",
-	} {
-		if strings.Contains(failure, reason) {
-			return false
-		}
-	}
-	return true
 }
 
 func sanitizeWorkflowFailure(err error) string {

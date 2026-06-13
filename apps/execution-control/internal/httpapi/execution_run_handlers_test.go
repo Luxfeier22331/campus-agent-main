@@ -137,6 +137,62 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	}
 }
 
+func TestExecutionRunCreateKeepsNeutralCapabilityForPrimaryAgentWorkflow(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	starter := &fakeTemporalStarter{}
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = starter
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/execution/runs",
+		strings.NewReader(`{
+			"run_id":"run-temporal-neutral",
+			"conversation_id":"conv-temporal-neutral",
+			"turn_id":"turn-temporal-neutral",
+			"request_id":"req-temporal-neutral",
+			"trace_id":"trace-temporal-neutral",
+			"owner_user_id":"user-temporal-neutral",
+			"surface":"public-chat-web",
+			"lane":"default",
+			"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
+			"metadata":{
+				"execution_payload":{
+					"user_goal":"hi 你是谁",
+					"request_id":"req-temporal-neutral",
+					"conversation_id":"conv-temporal-neutral",
+					"trace":{"trace_id":"trace-temporal-neutral"},
+					"actor":{"user_id":"user-temporal-neutral"},
+					"context":{"actor":{"user_id":"user-temporal-neutral"}},
+					"runtime_decisions":{"runtime_decision_summary":{}}
+				}
+			}
+		}`),
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	if starter.input.RequestedCapability != "" {
+		t.Fatalf(
+			"workflow requested capability = %q, want empty before primary agent",
+			starter.input.RequestedCapability,
+		)
+	}
+	run, err := store.GetRun(context.Background(), "run-temporal-neutral")
+	if err != nil {
+		t.Fatalf("get run projection: %v", err)
+	}
+	if run.RequestedCapability != "" {
+		t.Fatalf("run requested capability = %q, want empty", run.RequestedCapability)
+	}
+}
+
 func TestExecutionRunCreateFailsClosedWhenTemporalStarterMissing(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
@@ -212,6 +268,146 @@ func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 	}
 	if starter.cancelReason != "user_requested" {
 		t.Fatalf("Temporal cancel reason = %q, want user_requested", starter.cancelReason)
+	}
+}
+
+func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	starter := &fakeTemporalStarter{}
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = starter
+	now := time.Date(2026, 6, 12, 1, 2, 3, 0, time.UTC)
+	runID := "run-temporal-cancel-steps"
+	conversationID := "conv-temporal-cancel-steps"
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		runID,
+		conversationID,
+		now,
+		ragHandoffForDurableWorkerTest("hello"),
+	)
+	if _, err := store.TransitionRun(
+		context.Background(),
+		runID,
+		execution.DurableRunStatusAdmitted,
+		"",
+		now.Add(2*time.Second),
+	); err != nil {
+		t.Fatalf("admit run: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		runID,
+		execution.DurableRunStatusRunning,
+		"",
+		now.Add(3*time.Second),
+	); err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	seedCancelProjectionStep := func(stepID string, status string, startedAt time.Time, completedAt time.Time) {
+		t.Helper()
+		if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
+			StepID:               stepID,
+			RunID:                runID,
+			ConversationID:       conversationID,
+			StepKind:             "agent",
+			Capability:           "primary_agent",
+			Status:               status,
+			TaskQueue:            temporalruntime.ActivityTaskQueueAgent,
+			WorkerID:             "test:agent:001",
+			StartedAt:            startedAt,
+			CompletedAt:          completedAt,
+			UpdatedAt:            now.Add(4 * time.Second),
+			PayloadSchemaVersion: "run-step-projection-v1",
+			SanitizedPayload:     map[string]any{"step_id": stepID},
+		}); err != nil {
+			t.Fatalf("seed step %s: %v", stepID, err)
+		}
+		if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
+			AttemptID:             stepID + ":attempt:1",
+			StepID:                stepID,
+			RunID:                 runID,
+			Attempt:               1,
+			Status:                status,
+			TaskQueue:             temporalruntime.ActivityTaskQueueAgent,
+			WorkerID:              "test:agent:001",
+			WorkflowID:            "campus-agent.chat." + runID,
+			ActivityID:            stepID + ":activity",
+			ActivityType:          "ExecutePrimaryAgentActivity",
+			ActivityAttempt:       1,
+			ScheduledAt:           now.Add(time.Second),
+			StartedAt:             startedAt,
+			CompletedAt:           completedAt,
+			CancelOutcome:         execution.CancelOutcomeNotRequested,
+			TimeoutOutcome:        execution.TimeoutOutcomeNotTimedOut,
+			LateCompletionOutcome: execution.LateCompletionOutcomeNotLate,
+			UpdatedAt:             now.Add(4 * time.Second),
+			PayloadSchemaVersion:  "step-attempt-projection-v1",
+			SanitizedPayload:      map[string]any{"step_id": stepID},
+		}); err != nil {
+			t.Fatalf("seed attempt %s: %v", stepID, err)
+		}
+	}
+	seedCancelProjectionStep(
+		"memory.recall",
+		"completed",
+		now.Add(3*time.Second),
+		now.Add(3500*time.Millisecond),
+	)
+	seedCancelProjectionStep("agent.primary", "running", now.Add(4*time.Second), time.Time{})
+	seedCancelProjectionStep("synthesis", "scheduled", time.Time{}, time.Time{})
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/execution/runs/"+runID+"/cancel",
+		strings.NewReader(`{"reason":"user_requested"}`),
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	steps, err := store.ListRunSteps(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list steps: %v", err)
+	}
+	stepByID := map[string]execution.RunStepProjection{}
+	for _, step := range steps {
+		stepByID[step.StepID] = step
+	}
+	if stepByID["memory.recall"].Status != "completed" {
+		t.Fatalf("completed step changed after cancel: %#v", stepByID["memory.recall"])
+	}
+	if stepByID["agent.primary"].Status != "canceled" ||
+		stepByID["synthesis"].Status != "canceled" {
+		t.Fatalf("incomplete steps were not canceled: %#v", stepByID)
+	}
+	attempts, err := store.ListStepAttempts(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list attempts: %v", err)
+	}
+	attemptByStep := map[string]execution.StepAttemptProjection{}
+	for _, attempt := range attempts {
+		attemptByStep[attempt.StepID] = attempt
+	}
+	if attemptByStep["memory.recall"].Status != "completed" ||
+		attemptByStep["memory.recall"].CancelOutcome != execution.CancelOutcomeNotRequested {
+		t.Fatalf("completed attempt changed after cancel: %#v", attemptByStep["memory.recall"])
+	}
+	if attemptByStep["agent.primary"].Status != "canceled" ||
+		attemptByStep["agent.primary"].CancelOutcome != execution.CancelOutcomeActivityContextCanceled ||
+		attemptByStep["agent.primary"].TerminalReason != string(execution.DurableTerminalReasonUserCanceled) {
+		t.Fatalf("started attempt cancel evidence = %#v", attemptByStep["agent.primary"])
+	}
+	if attemptByStep["synthesis"].Status != "canceled" ||
+		attemptByStep["synthesis"].CancelOutcome != execution.CancelOutcomeRequestedBeforeStart ||
+		attemptByStep["synthesis"].TerminalReason != string(execution.DurableTerminalReasonUserCanceled) {
+		t.Fatalf("scheduled attempt cancel evidence = %#v", attemptByStep["synthesis"])
 	}
 }
 

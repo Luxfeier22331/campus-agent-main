@@ -25,7 +25,10 @@ func memoryRecallRequestForRun(
 	}
 	capability := strings.TrimSpace(requestedCapability)
 	if capability == "" {
-		capability = firstNonEmptyText(payload["requested_capability"], run.RequestedCapability, "knowledge")
+		capability = firstNonEmptyText(payload["requested_capability"], run.RequestedCapability)
+	}
+	if capability == "" {
+		capability = "any"
 	}
 	userID := firstNonEmptyText(
 		nestedAny(payload, "actor", "user_id"),
@@ -123,6 +126,7 @@ func (s *Server) failMemoryRecallActivity(
 	cause error,
 ) (temporalruntime.MemoryRecallActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "memory",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "memory/recall"),
 		ResultKind:    "activity_failure",

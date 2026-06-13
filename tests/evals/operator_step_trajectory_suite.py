@@ -6,11 +6,12 @@ from campus_evals.operator_step_trajectory import (
     OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION,
     build_release_evidence_fixture,
     normalize_operator_step_trajectory,
+    trajectory_attribution_for_stage,
 )
 
 
 class OperatorStepTrajectorySuite(unittest.TestCase):
-    def test_normalizes_app_api_runtime_run_step_trajectory(self) -> None:
+    def test_normalizes_app_api_operator_step_trajectory_export(self) -> None:
         trajectory = normalize_operator_step_trajectory(_operator_request_detail())
 
         self.assertEqual(trajectory["schemaVersion"], OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION)
@@ -76,8 +77,39 @@ class OperatorStepTrajectorySuite(unittest.TestCase):
             ],
         )
 
+    def test_prefers_operator_step_trajectory_over_legacy_summary(self) -> None:
+        detail = _operator_request_detail()
+        detail["runtimeRun"]["stepTrajectory"] = {
+            "attemptCount": 1,
+            "resultCount": 1,
+            "steps": [
+                {
+                    "stepId": "wrong.legacy.summary",
+                    "stepKind": "diagnostic",
+                    "capability": "knowledge",
+                    "status": "completed",
+                    "attemptCount": 1,
+                    "resultCount": 1,
+                    "queueWaitMs": None,
+                    "durationMs": None,
+                    "taskQueue": "legacy",
+                    "workerId": "legacy",
+                    "inputTokens": 0,
+                    "outputTokens": 0,
+                    "estimatedCostMicrousd": 0,
+                }
+            ],
+        }
+
+        trajectory = normalize_operator_step_trajectory(detail)
+
+        self.assertEqual(
+            [step["stepId"] for step in trajectory["steps"]],
+            ["retrieval.indexed_lookup", "synthesis"],
+        )
+
     def test_rejects_workflow_summary_as_canonical_source(self) -> None:
-        with self.assertRaisesRegex(ValueError, "runtimeRun.stepTrajectory is required"):
+        with self.assertRaisesRegex(ValueError, "runtimeRun.operatorStepTrajectory is required"):
             normalize_operator_step_trajectory(
                 {
                     "requestId": "req_01HQ",
@@ -110,6 +142,11 @@ class OperatorStepTrajectorySuite(unittest.TestCase):
         self.assertEqual(fixture["sourceGitHead"], "git-main")
         self.assertEqual(fixture["summary"]["stepCount"], 2)
         self.assertEqual(fixture["summary"]["timeoutOutcomeCounts"], {"provider_timeout": 1})
+        self.assertEqual(fixture["summary"]["failCloseReasonCounts"], {})
+        self.assertEqual(
+            fixture["summary"]["replanReasonCounts"],
+            {"bounded_replan_after_provider_timeout": 1},
+        )
         self.assertEqual(
             fixture["trajectoryRefs"],
             [
@@ -130,6 +167,91 @@ class OperatorStepTrajectorySuite(unittest.TestCase):
             ],
         )
 
+    def test_builds_fail_close_counts_in_local_fixture(self) -> None:
+        detail = _operator_request_detail()
+        step = detail["runtimeRun"]["operatorStepTrajectory"]["steps"][1]  # type: ignore[index]
+        step["failCloseReason"] = "current_state_unverifiable"
+        step["replanReason"] = None
+
+        fixture = build_release_evidence_fixture(
+            normalize_operator_step_trajectory(detail),
+            generated_at="2026-06-11T10:00:00Z",
+            source_git_head="git-main",
+        )
+
+        self.assertEqual(
+            fixture["summary"]["failCloseReasonCounts"],
+            {"current_state_unverifiable": 1},
+        )
+        self.assertEqual(fixture["summary"]["replanReasonCounts"], {})
+
+    def test_attributes_common_diagnostic_stage_aliases(self) -> None:
+        trajectory = {
+            "schemaVersion": OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION,
+            "requestId": "req_alias",
+            "runId": "run_alias",
+            "traceId": "trace_alias",
+            "conversationId": "conv_alias",
+            "steps": [
+                _trajectory_step("plan.route", "routing"),
+                _trajectory_step("agent.primary", "agent"),
+                _trajectory_step("sdk_tool.execute.transport_schedule_lookup.1", "tool"),
+                _trajectory_step("retrieval.indexed_lookup", "retrieval"),
+                _trajectory_step("retrieval.rerank", "rerank"),
+                _trajectory_step("evidence.selection", "selection"),
+                _trajectory_step("synthesis", "synthesis"),
+                _trajectory_step("grounding.verify", "grounding"),
+                _trajectory_step("finalization.write", "finalization"),
+                _trajectory_step("plan.replan.1", "replan"),
+            ],
+        }
+
+        for stage, want_step_id in {
+            "routing": "plan.route",
+            "route": "plan.route",
+            "primary_agent": "agent.primary",
+            "agent": "agent.primary",
+            "tool": "sdk_tool.execute.transport_schedule_lookup.1",
+            "typed_tool": "sdk_tool.execute.transport_schedule_lookup.1",
+            "retrieval": "retrieval.indexed_lookup",
+            "rerank": "retrieval.rerank",
+            "evidence_selection": "evidence.selection",
+            "selection": "evidence.selection",
+            "synthesis": "synthesis",
+            "grounding": "grounding.verify",
+            "finalization": "finalization.write",
+            "replan": "plan.replan.1",
+        }.items():
+            with self.subTest(stage=stage):
+                attribution = trajectory_attribution_for_stage(
+                    trajectory,
+                    failure_stage=stage,
+                )
+                self.assertEqual(attribution["status"], "attributed")
+                self.assertEqual(attribution["stepId"], want_step_id)
+
+    def test_attributes_terminal_outcome_stages_to_finalization(self) -> None:
+        trajectory = {
+            "schemaVersion": OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION,
+            "requestId": "req_terminal",
+            "runId": "run_terminal",
+            "traceId": "trace_terminal",
+            "conversationId": "conv_terminal",
+            "steps": [
+                _trajectory_step("agent.primary", "agent"),
+                _trajectory_step("finalization.write", "finalization"),
+            ],
+        }
+
+        for stage in ("clarification", "needs_clarification", "rejected", "no_answer"):
+            with self.subTest(stage=stage):
+                attribution = trajectory_attribution_for_stage(
+                    trajectory,
+                    failure_stage=stage,
+                )
+                self.assertEqual(attribution["status"], "attributed")
+                self.assertEqual(attribution["stepId"], "finalization.write")
+
 
 def _operator_request_detail() -> dict[str, object]:
     return {
@@ -143,9 +265,12 @@ def _operator_request_detail() -> dict[str, object]:
                 "terminalReason": None,
                 "traceId": "trace_01HQ",
             },
-            "stepTrajectory": {
-                "attemptCount": 2,
-                "resultCount": 2,
+            "operatorStepTrajectory": {
+                "schemaVersion": "operator_step_trajectory.v1",
+                "conversationId": "conv_01HQ",
+                "requestId": "req_01HQ",
+                "runId": "run_01HQ",
+                "traceId": "trace_01HQ",
                 "steps": [
                     {
                         "attemptCount": 1,
@@ -160,6 +285,7 @@ def _operator_request_detail() -> dict[str, object]:
                         "modelName": None,
                         "modelProvider": None,
                         "outputTokens": 0,
+                        "projectionRefs": ["projection://runs/run_01HQ/retrieval"],
                         "providerRequestRef": None,
                         "queueWaitMs": 25,
                         "replanReason": None,
@@ -168,7 +294,10 @@ def _operator_request_detail() -> dict[str, object]:
                         "stepId": "retrieval.indexed_lookup",
                         "stepKind": "retrieval",
                         "taskQueue": "campus-agent.activity.knowledge",
+                        "terminalReason": None,
                         "timeoutOutcome": "not_timed_out",
+                        "toolName": None,
+                        "toolStatus": None,
                         "workerId": "worker-1",
                     },
                     {
@@ -184,6 +313,7 @@ def _operator_request_detail() -> dict[str, object]:
                         "modelName": "gpt-5-mini",
                         "modelProvider": "openai",
                         "outputTokens": 42,
+                        "projectionRefs": ["projection://runs/run_01HQ/synthesis"],
                         "providerRequestRef": "provider://requests/req_001",
                         "queueWaitMs": 30,
                         "replanReason": "bounded_replan_after_provider_timeout",
@@ -192,12 +322,32 @@ def _operator_request_detail() -> dict[str, object]:
                         "stepId": "synthesis",
                         "stepKind": "synthesis",
                         "taskQueue": "campus-agent.activity.knowledge",
+                        "terminalReason": None,
                         "timeoutOutcome": "provider_timeout",
+                        "toolName": None,
+                        "toolStatus": None,
                         "workerId": "worker-1",
                     },
                 ],
             },
         },
+    }
+
+
+def _trajectory_step(step_id: str, step_kind: str) -> dict[str, object]:
+    return {
+        "stepId": step_id,
+        "stepKind": step_kind,
+        "capability": "knowledge",
+        "toolName": None,
+        "status": "completed",
+        "attemptCount": 1,
+        "resultCount": 1,
+        "queueWaitMs": None,
+        "durationMs": None,
+        "taskQueue": "campus-agent.activity.test",
+        "workerId": "test:worker:001",
+        "projectionRefs": [f"projection://runs/run_alias/{step_id}"],
     }
 
 

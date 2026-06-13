@@ -310,7 +310,8 @@ function RequestShowContent() {
 	const intentEntries = buildRequestIntentEntries(observability?.intent);
 	const runtimeRunEntries = buildRequestRuntimeRunEntries(observabilityRecord?.runtimeRun);
 	const stepTrajectoryEntries = buildRequestStepTrajectoryEntries(
-		observabilityRecord?.runtimeRun?.stepTrajectory,
+		observabilityRecord?.runtimeRun?.operatorStepTrajectory ??
+			observabilityRecord?.runtimeRun?.stepTrajectory,
 	);
 	const replayEntries = buildRequestReplayEntries(observabilityRecord?.replay);
 	const workflowTraceEntries = buildRequestWorkflowTraceEntries(workflowTrace);

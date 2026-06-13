@@ -351,6 +351,96 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	}
 }
 
+func TestWriteFinalizationActivityKeepsDirectPrimaryAgentCapability(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 11, 45, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-direct-finalization",
+		"conv-primary-agent-direct-finalization",
+		now,
+		nil,
+	)
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:direct"})
+	attachRunProjectionStoreForHandlerTest(server, store)
+	agentResultRef := temporalProjectionRef("run-primary-agent-direct-finalization", "agent/primary/result")
+	run, err := store.GetRun(context.Background(), "run-primary-agent-direct-finalization")
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
+		for key, value := range map[string]any{
+			"agent_result_ref":     agentResultRef,
+			"final_output":         "你好，我是校园问答助手。",
+			"provider_response_id": "resp-primary-agent-direct-finalization",
+			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-direct-finalization",
+			"selected_tools":       []string{},
+			"tool_results":         []map[string]any{},
+			"terminal_reason":      "answer_completed",
+		} {
+			metadata[key] = value
+		}
+	}); err != nil {
+		t.Fatalf("replace temporal agent metadata: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-primary-agent-direct-finalization",
+		execution.DurableRunStatusAdmitted,
+		"",
+		now.Add(2*time.Second),
+	); err != nil {
+		t.Fatalf("admit run: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-primary-agent-direct-finalization",
+		execution.DurableRunStatusRunning,
+		"",
+		now.Add(3*time.Second),
+	); err != nil {
+		t.Fatalf("run run: %v", err)
+	}
+
+	_, err = server.WriteFinalizationActivity(
+		context.Background(),
+		temporalruntime.WriteFinalizationActivityInput{
+			AgentResultRef: agentResultRef,
+			RunID:          "run-primary-agent-direct-finalization",
+			TraceID:        "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("write finalization: %v", err)
+	}
+	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-direct-finalization")
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	var finalizationResponse map[string]any
+	for _, event := range events {
+		if event.EventType == execution.DurableRunEventTypeFinalizationCompleted {
+			var ok bool
+			finalizationResponse, ok = event.Payload["response"].(map[string]any)
+			if !ok {
+				t.Fatalf("finalization response payload = %#v", event.Payload["response"])
+			}
+		}
+	}
+	if finalizationResponse == nil {
+		t.Fatal("finalization.completed event missing")
+	}
+	if finalizationResponse["selected_capability"] != "primary_agent" {
+		t.Fatalf("selected_capability = %#v, want primary_agent for direct no-tool branch", finalizationResponse["selected_capability"])
+	}
+	workflowTrace := finalizationResponse["workflow_trace_summary"].(map[string]any)
+	if workflowTrace["selected_capability"] != "primary_agent" ||
+		workflowTrace["direct_vs_delegate_branch"] != "direct_answer" {
+		t.Fatalf("workflow trace = %#v", workflowTrace)
+	}
+}
+
 func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
@@ -453,5 +543,128 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 	traceSummary, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
 	if !ok || traceSummary["direct_vs_delegate_branch"] != "clarification" {
 		t.Fatalf("workflow trace summary = %#v", finalizationResponse["workflow_trace_summary"])
+	}
+}
+
+func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 12, 15, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-out-of-scope",
+		"conv-primary-agent-out-of-scope",
+		now,
+		ragHandoffForDurableWorkerTest("帮我订一张机票"),
+	)
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:002"})
+	attachRunProjectionStoreForHandlerTest(server, store)
+	agentResultRef := temporalProjectionRef("run-primary-agent-out-of-scope", "agent/primary/result")
+	run, err := store.GetRun(context.Background(), "run-primary-agent-out-of-scope")
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
+		for key, value := range map[string]any{
+			"agent_result_ref":     agentResultRef,
+			"final_output":         "这个请求不属于校园问答助手当前可处理的范围。",
+			"provider_response_id": "resp-primary-agent-out-of-scope",
+			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-out-of-scope",
+			"selected_tools":       []string{},
+			"tool_results":         []map[string]any{},
+			"terminal_reason":      "out_of_scope",
+			"usage": map[string]any{
+				"input_tokens":             11,
+				"output_tokens":            7,
+				"cached_input_tokens":      0,
+				"estimated_cost_micro_usd": 19,
+			},
+		} {
+			metadata[key] = value
+		}
+	}); err != nil {
+		t.Fatalf("replace temporal agent metadata: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-primary-agent-out-of-scope",
+		execution.DurableRunStatusAdmitted,
+		"",
+		now.Add(2*time.Second),
+	); err != nil {
+		t.Fatalf("admit run: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-primary-agent-out-of-scope",
+		execution.DurableRunStatusRunning,
+		"",
+		now.Add(3*time.Second),
+	); err != nil {
+		t.Fatalf("run run: %v", err)
+	}
+
+	_, err = server.WriteFinalizationActivity(
+		context.Background(),
+		temporalruntime.WriteFinalizationActivityInput{
+			AgentResultRef: agentResultRef,
+			RunID:          "run-primary-agent-out-of-scope",
+			TraceID:        "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("write finalization: %v", err)
+	}
+	completedRun, err := store.GetRun(context.Background(), "run-primary-agent-out-of-scope")
+	if err != nil {
+		t.Fatalf("get completed run: %v", err)
+	}
+	if completedRun.TerminalReason != execution.DurableTerminalReasonPolicyRejected {
+		t.Fatalf("terminal reason = %q", completedRun.TerminalReason)
+	}
+	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-out-of-scope")
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	var finalizationResponse map[string]any
+	for _, event := range events {
+		if event.EventType == execution.DurableRunEventTypeFinalizationCompleted {
+			var ok bool
+			finalizationResponse, ok = event.Payload["response"].(map[string]any)
+			if !ok {
+				t.Fatalf("finalization response payload = %#v", event.Payload["response"])
+			}
+		}
+	}
+	if finalizationResponse["status"] != "rejected" {
+		t.Fatalf("status = %#v", finalizationResponse["status"])
+	}
+	errorBody, ok := finalizationResponse["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("error = %#v", finalizationResponse["error"])
+	}
+	if errorBody["code"] != "request_rejected" || errorBody["retryable"] != false {
+		t.Fatalf("error = %#v", errorBody)
+	}
+	traceSummary, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
+	if !ok || traceSummary["direct_vs_delegate_branch"] != "out_of_scope" {
+		t.Fatalf("workflow trace summary = %#v", finalizationResponse["workflow_trace_summary"])
+	}
+	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-out-of-scope")
+	if err != nil {
+		t.Fatalf("list steps: %v", err)
+	}
+	var finalizationStep *execution.RunStepProjection
+	for index := range steps {
+		if steps[index].StepID == "finalization.write" && steps[index].Status == "completed" {
+			finalizationStep = &steps[index]
+		}
+	}
+	if finalizationStep == nil {
+		t.Fatalf("finalization step missing: %#v", steps)
+	}
+	response, ok := finalizationStep.SanitizedPayload["finalized_response"].(map[string]any)
+	if !ok || response["status"] != "rejected" {
+		t.Fatalf("finalization step payload = %#v", finalizationStep.SanitizedPayload)
 	}
 }

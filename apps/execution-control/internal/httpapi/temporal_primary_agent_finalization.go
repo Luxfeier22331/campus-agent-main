@@ -33,11 +33,11 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	agentResult, err := temporalAgentResultFromRun(run, input.AgentResultRef)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "agent_result_missing", err)
+		return s.failFinalizationActivity(ctx, run, "primary_agent", "agent_result_missing", err)
 	}
 	finalizedResponse, err := primaryAgentFinalizedResponse(run, agentResult)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "agent_finalization_invalid", err)
+		return s.failFinalizationActivity(ctx, run, "primary_agent", "agent_finalization_invalid", err)
 	}
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
@@ -148,7 +148,7 @@ func primaryAgentFinalizedResponse(
 		SelectedCapability: selectedCapability,
 		Status:             status,
 		AnswerText:         primaryAgentAnswerText(status, answerText),
-		Error:              nil,
+		Error:              primaryAgentErrorBody(status, terminalReason),
 		FollowUpQuestion:   followUpQuestion,
 		Confidence:         confidence,
 		Result: map[string]any{
@@ -196,11 +196,27 @@ func primaryAgentResponseFields(terminalReason string, answerText string) (strin
 	case "clarification_required":
 		return "needs_clarification", answerText, "medium"
 	case "out_of_scope":
-		return "error", "", "low"
+		return "rejected", "", "low"
 	case "unsupported_by_evidence":
 		return "no_answer", "", "low"
 	default:
 		return "completed", "", "medium"
+	}
+}
+
+func primaryAgentErrorBody(status string, terminalReason string) any {
+	if status != "rejected" {
+		return nil
+	}
+	code := "request_rejected"
+	message := "The request was rejected by execution policy."
+	if strings.TrimSpace(terminalReason) == "out_of_scope" {
+		message = "The request is outside the current campus assistant scope."
+	}
+	return map[string]any{
+		"code":      code,
+		"message":   message,
+		"retryable": false,
 	}
 }
 
@@ -227,6 +243,9 @@ func primaryAgentTraceBranch(terminalReason string) string {
 }
 
 func primaryAgentSelectedCapability(selectedTools []string) string {
+	if len(selectedTools) == 0 {
+		return "primary_agent"
+	}
 	for _, tool := range selectedTools {
 		switch tool {
 		case "service_status_lookup",
@@ -237,9 +256,11 @@ func primaryAgentSelectedCapability(selectedTools []string) string {
 			return "campus_services"
 		case "campus_notice_change_set_lookup", "campus_notice_discover":
 			return "notice"
+		case "knowledge_query":
+			return "knowledge"
 		}
 	}
-	return "knowledge"
+	return "primary_agent"
 }
 
 func stringSliceFromAny(value any) []string {

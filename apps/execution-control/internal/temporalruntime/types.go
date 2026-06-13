@@ -39,9 +39,11 @@ type MemoryRecallActivityOutput struct {
 }
 
 type ExecutePrimaryAgentActivityInput struct {
+	Attempt              int      `json:"attempt"`
 	ConversationID       string   `json:"conversation_id"`
 	InputRef             string   `json:"input_ref"`
 	MemoryProjectionRefs []string `json:"memory_projection_refs"`
+	ReplanReason         string   `json:"replan_reason"`
 	RequestID            string   `json:"request_id"`
 	RequestedCapability  string   `json:"requested_capability"`
 	RunID                string   `json:"run_id"`
@@ -51,6 +53,7 @@ type ExecutePrimaryAgentActivityInput struct {
 }
 
 type AgentToolResult struct {
+	ArgumentsJSON   map[string]any `json:"arguments_json"`
 	Capability      string         `json:"capability"`
 	FailCloseReason string         `json:"fail_close_reason"`
 	PayloadKind     string         `json:"payload_kind"`

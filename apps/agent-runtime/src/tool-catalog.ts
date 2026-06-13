@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 
 const exposureSchema = z.enum(["model_visible", "internal_only", "closed"]);
@@ -83,11 +84,17 @@ export interface JsonObjectSchema {
 }
 
 export function loadToolCatalog(path: string): ToolCatalog {
-	return loadToolCatalogFromObject(JSON.parse(readFileSync(path, "utf8")));
+	return loadToolCatalogFromObject(JSON.parse(readFileSync(path, "utf8")), {
+		toolFunctionSchemaPath: defaultToolFunctionSchemaPath(path),
+	});
 }
 
-export function loadToolCatalogFromObject(value: unknown): ToolCatalog {
+export function loadToolCatalogFromObject(
+	value: unknown,
+	options: { toolFunctionSchemaPath?: string } = {},
+): ToolCatalog {
 	const parsed = rawCatalogSchema.parse(value);
+	const functionSchemas = loadToolFunctionSchemas(options.toolFunctionSchemaPath);
 	const seen = new Set<string>();
 	const tools = parsed.tools.map((tool): ToolCatalogEntry => {
 		if (seen.has(tool.name)) {
@@ -112,7 +119,7 @@ export function loadToolCatalogFromObject(value: unknown): ToolCatalog {
 			handler: tool.handler,
 			timeoutMs: tool.timeout_ms,
 			resultProjectionPolicy: tool.result_projection_policy,
-			parameterSchema: parameterSchemaForTool(tool.name),
+			parameterSchema: functionSchemas.get(tool.name) ?? parameterSchemaForTool(tool.name),
 		};
 	});
 	return {
@@ -244,4 +251,55 @@ function strictObjectSchema(
 		properties,
 		required,
 	};
+}
+
+interface ToolFunctionSchemaFile {
+	schema_version?: unknown;
+	tools?: unknown;
+}
+
+function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObjectSchema> {
+	if (path === undefined || !existsSync(path)) {
+		return new Map();
+	}
+	const parsed = JSON.parse(readFileSync(path, "utf8")) as ToolFunctionSchemaFile;
+	if (parsed.schema_version !== "tool-function-schemas-v1" || !Array.isArray(parsed.tools)) {
+		throw new Error("tool function schema fixture must use tool-function-schemas-v1");
+	}
+	const result = new Map<string, JsonObjectSchema>();
+	for (const rawTool of parsed.tools) {
+		const tool = rawTool as {
+			name?: unknown;
+			parameters?: unknown;
+			strict?: unknown;
+			type?: unknown;
+		};
+		if (tool.type !== "function" || tool.strict !== true || typeof tool.name !== "string") {
+			continue;
+		}
+		const parameters = tool.parameters as JsonObjectSchema;
+		if (
+			parameters?.type !== "object" ||
+			parameters.additionalProperties !== false ||
+			!Array.isArray(parameters.required) ||
+			parameters.properties === undefined
+		) {
+			throw new Error(`tool ${tool.name} must provide a strict object parameter schema`);
+		}
+		result.set(tool.name, parameters);
+	}
+	return result;
+}
+
+function defaultToolFunctionSchemaPath(toolCatalogPath: string): string | undefined {
+	for (let dir = dirname(toolCatalogPath); ; dir = dirname(dir)) {
+		const candidate = join(dir, "packages", "evals", "fixtures", "tool_function_schemas.v1.json");
+		if (existsSync(candidate)) {
+			return candidate;
+		}
+		const parent = dirname(dir);
+		if (parent === dir) {
+			return;
+		}
+	}
 }

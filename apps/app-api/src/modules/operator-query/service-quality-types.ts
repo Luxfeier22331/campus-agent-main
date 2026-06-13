@@ -1,10 +1,14 @@
-import type { EvalDiagnosticTrajectoryAttribution } from "../operator-eval-diagnostic-badcases";
+import type {
+	EvalDiagnosticFailureStage,
+	EvalDiagnosticTrajectoryAttribution,
+} from "../operator-eval-diagnostic-badcases";
 import type {
 	MetricRatio,
 	OperatorDistributionBucket,
 	OperatorOverviewWindow,
 	OperatorResultWindow,
 } from "./service-metric-types";
+import type { StepDiagnosisStage } from "./store/shared";
 
 export interface OperatorQualityTimeseriesResult {
 	window: OperatorResultWindow;
@@ -63,16 +67,7 @@ export interface OperatorQualityBadcaseListResult {
 		selectedCapability: string | null;
 		status: string;
 		causeClass: string;
-		diagnosisStage:
-			| "routing"
-			| "planning"
-			| "tool"
-			| "retrieval"
-			| "rerank"
-			| "selection"
-			| "synthesis"
-			| "grounding"
-			| "finalization";
+		diagnosisStage: StepDiagnosisStage;
 		detectedBy: string;
 		openedAt: string;
 		summary: string;
@@ -101,16 +96,7 @@ export interface OperatorQualityEvalCandidateListResult {
 		surface: string;
 		selectedCapability: string | null;
 		causeClass: string;
-		diagnosisStage:
-			| "routing"
-			| "planning"
-			| "tool"
-			| "retrieval"
-			| "rerank"
-			| "selection"
-			| "synthesis"
-			| "grounding"
-			| "finalization";
+		diagnosisStage: StepDiagnosisStage;
 		summary: string;
 		grade: {
 			result: string;
@@ -141,18 +127,7 @@ export interface OperatorQualityEvalCandidateListResult {
 			answerShape: string | null;
 			caseId: string;
 			expectedDocIds: string[];
-			failureStage:
-				| "routing"
-				| "planning"
-				| "tool"
-				| "retrieval"
-				| "rerank"
-				| "selection"
-				| "evidence_selection"
-				| "synthesis"
-				| "grounding"
-				| "finalization"
-				| "diagnostic";
+			failureStage: EvalDiagnosticFailureStage;
 			metricFailureReason: string;
 			metricName: string;
 			presentationKind: string | null;

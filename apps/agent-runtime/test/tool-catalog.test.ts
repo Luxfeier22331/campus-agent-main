@@ -120,4 +120,22 @@ describe("tool catalog", () => {
 			expect(Array.isArray(tool.parameterSchema.required)).toBe(true);
 		}
 	});
+
+	it("uses the canonical tool function schema fixture for model-visible tools", () => {
+		const catalog = loadToolCatalog("../../configs/runtime/tool-catalog.v1.json");
+		const tools = buildVisibleToolDefinitions(catalog);
+
+		const transport = tools.find((tool) => tool.name === "transport_schedule_lookup");
+
+		expect(transport?.parameterSchema.required).toEqual([
+			"query_text",
+			"intent",
+			"route_selector",
+			"snapshot_query",
+			"service_time_query",
+			"result_limit",
+		]);
+		expect(transport?.parameterSchema.properties).toHaveProperty("route_selector");
+		expect(transport?.parameterSchema.properties).not.toHaveProperty("route_query");
+	});
 });

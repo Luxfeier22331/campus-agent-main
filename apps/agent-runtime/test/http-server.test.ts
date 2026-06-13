@@ -110,12 +110,16 @@ describe("agent runtime HTTP handler", () => {
 			status?: string;
 			final_output?: string;
 			terminal_reason?: string;
-			tool_results?: Array<{ fail_close_reason?: string }>;
+			tool_results?: Array<{
+				arguments_json?: Record<string, unknown>;
+				fail_close_reason?: string;
+			}>;
 		};
 		expect(body.status).toBe("failed");
 		expect(body.final_output).toBe("");
 		expect(body.terminal_reason).toBe("agent_runtime_failed");
 		expect(body.tool_results?.[0]?.fail_close_reason).toBe("source_truth_unavailable");
+		expect(body.tool_results?.[0]?.arguments_json).toEqual({ query_text: "校车" });
 	});
 });
 

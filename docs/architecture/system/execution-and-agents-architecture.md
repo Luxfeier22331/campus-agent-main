@@ -361,8 +361,10 @@ protected panel step trajectory。在线 knowledge / RAG graph 已由 Go
 `grounding.verify` 均写 sanitized step projection；`finalization.write` 由
 Go `activity-worker-finalization` 承接。当前主干额外包含 `agent.primary`，由
 `activity-worker-agent` 写入 SDK selected tools、bounded tool result refs、usage
-与 SDK trace ref；`finalization.write` 从 `agent_result_ref` 生成 product-safe
-final answer projection。
+与 SDK trace ref；model-selected campus-services / notice read-only tool result
+会进一步归一化为 `sdk_tool.execute.<tool>.<index>` step / result projection。
+`finalization.write` 从 `agent_result_ref` 生成 product-safe final answer
+projection。
 
 Python semantic bridge 只保留 offline / eval / tooling / historical reference：
 
@@ -714,15 +716,25 @@ workflow runtime 仍需继续补齐：
 
 - resumable workflow state：Temporal 是 execution truth；PG 只保存 sanitized projection。
   后续 resume / replay 必须围绕 Temporal workflow id、run id、step projection 与
-  policy version evidence 设计，不恢复 PG workflow backend
-- semantic retry/replan 计数与 policy execution，而不是只在 `WorkflowPlan` 中声明
-  `semantic_retry_policy`
+  policy version evidence 设计，不恢复 PG workflow backend。当前 browser resume 只读取
+  existing run event stream；缺少可审计 source envelope / policy version / tool catalog
+  version evidence 时，不新增隐式 replay / repair API。
+- semantic retry/replan policy matrix 已落到 primary-agent path 的第一版实现：
+  只有 `provider_timeout`、`tool_handler_failed`、`provider_connection_aborted`、
+  `tool_executor_not_configured`、`transient_internal_query_failed` 这类明确 typed
+  outcome 可在同一 visible capability/tool set 内最多重试一次；deterministic
+  semantic / policy / contract / admission failure 和未知原因 fail closed，并写入 step
+  attempt `replan_reason`。该 allow-list 已收口为 Temporal runtime 同包 policy，
+  不再散落在 workflow 流程里。后续工作是把相同 matrix 继续扩展到新打开 capability 的
+  activity graph，而不是恢复全局 planner fallback
 - broader `multi_step` admission denominator：新增链路必须先补 Temporal activity graph
   fixture、projection invariant 与 sanitized `workflow_trace_summary.context_projections`
   projection
-- eval denominator：继续覆盖 resume、semantic retry/replan、capability-owned /
-  agent-as-tool-owned clarification 与 fail-close provenance，避免把固定两步链路误当完整通用
-  agent graph
+- eval denominator：`operator_step_trajectory.v1` 已覆盖 semantic retry/replan、
+  terminal outcome (`clarification` / `rejected` / `no_answer`) 与 fail-close
+  provenance attribution；继续扩展时必须沿这条 sanitized trajectory，不得回退到
+  workflow summary 或 raw trace。resume / replay 仍只允许从 existing run event
+  stream 和未来 explicit retry/repair run 进入。
 
 ## Tool And Function Calling Target
 

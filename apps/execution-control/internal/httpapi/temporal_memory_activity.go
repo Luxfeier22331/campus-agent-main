@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -23,7 +22,7 @@ func (s *Server) MemoryRecallActivity(
 	startedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    defaultString(strings.TrimSpace(input.RequestedCapability), "knowledge"),
+		Capability:    request.RequestedCapability,
 		Run:           run,
 		Status:        "started",
 		StepID:        "memory.recall",

@@ -555,7 +555,7 @@ contract:
 `GET /internal/execution/runs/:runId/steps` returns the sanitized step
 trajectory for app-api materialization. It must include the available
 `RunStep`、`StepAttempt` 与 `StepResult` projection needed to build operator
-`runtimeRun.stepTrajectory`: step identity、capability、status、Temporal
+`runtimeRun.operatorStepTrajectory`: step identity、capability、status、Temporal
 task-queue / worker metadata、attempt/result count、queue wait、duration、
 provider/model usage、token/cost、cancel / timeout outcome、fail-close reason、
 replan reason、late-completion outcome 与 result refs. It is an internal
@@ -571,9 +571,11 @@ step/attempt/result projection，并能被 app-api operator read model 消费。
 
 ## Operator Step Trajectory Export
 
-`runtimeRun.stepTrajectory` 是 app-api 面向 panel、eval、badcase 与 future release
-evidence 的唯一 canonical diagnostic export。它不是 raw Temporal replay，也不是
-execution-control `/steps` response 的浏览器透传。
+`runtimeRun.operatorStepTrajectory` 是 app-api 面向 panel、eval、badcase 与 future
+release evidence 的唯一 canonical diagnostic export。它不是 raw Temporal replay，
+也不是 execution-control `/steps` response 的浏览器透传。`runtimeRun.stepTrajectory`
+只保留 request detail 的 bounded compatibility summary，不再是 eval / badcase /
+release-evidence-shaped fixture 的 canonical source。
 
 第一版 export contract 固定为 `operator_step_trajectory.v1`：
 
@@ -610,6 +612,15 @@ Eval / badcase / release-evidence-shaped local fixture rules：
 
 - 不允许直接消费 `workflow_trace_summary` 作为 canonical source；它只能作为 bounded
   compatibility display summary。
+- failure stage attribution 必须支持 routing / primary-agent / typed-tool /
+  retrieval / rerank / selection / evidence-selection / synthesis / grounding /
+  finalization / replan，以及 terminal outcome stage
+  (`clarification` / `needs_clarification` / `rejected` / `no_answer`) 的 common
+  alias；terminal outcome stage 归因到 `finalization.write`。无法匹配时仍返回
+  `attribution_missing`。
+- local fixture summary 必须统计 timeout、cancel、late-completion、
+  fail-close reason 与 replan reason counts；这些 counts 是 release-evidence-shaped
+  local evidence，不等于 staging proof。
 - 无法把 failure stage 绑定到 step trajectory 时，必须输出
   `trajectory_missing` 或 `attribution_missing`，不得从 raw artifact 或 sink trace 猜测。
 - 真实 staging run、Temporal metrics sampling、schedule-to-start release evidence 与

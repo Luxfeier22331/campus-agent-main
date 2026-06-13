@@ -339,6 +339,45 @@ export interface OperatorRuntimeRunSummary {
 			workerId: string;
 		}>;
 	};
+	operatorStepTrajectory: {
+		conversationId: string;
+		requestId: string;
+		runId: string;
+		schemaVersion: "operator_step_trajectory.v1";
+		steps: Array<{
+			agentSdkTraceRef?: string | null;
+			agentSelectedTools?: string[];
+			agentTerminalReason?: string | null;
+			agentToolResultRefs?: string[];
+			attemptCount: number;
+			capability: string;
+			cancelOutcome: string | null;
+			durationMs: number | null;
+			estimatedCostMicrousd: number;
+			failCloseReason: string | null;
+			inputTokens: number;
+			lateCompletionOutcome: string | null;
+			latestResultRef: string | null;
+			modelName: string | null;
+			modelProvider: string | null;
+			outputTokens: number;
+			projectionRefs: string[];
+			providerRequestRef: string | null;
+			queueWaitMs: number | null;
+			replanReason: string | null;
+			resultCount: number;
+			status: string;
+			stepId: string;
+			stepKind: string;
+			taskQueue: string;
+			terminalReason: string | null;
+			timeoutOutcome: string | null;
+			toolName: string | null;
+			toolStatus: string | null;
+			workerId: string;
+		}>;
+		traceId: string;
+	};
 }
 
 export interface OperatorOverviewResult {

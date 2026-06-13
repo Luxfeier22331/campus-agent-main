@@ -11,6 +11,10 @@ export type EvalDiagnosticFailureStage =
 	| "synthesis"
 	| "grounding"
 	| "finalization"
+	| "replan"
+	| "clarification"
+	| "rejected"
+	| "no_answer"
 	| "diagnostic";
 
 export interface EvalDiagnosticBadcasePayloadItem {

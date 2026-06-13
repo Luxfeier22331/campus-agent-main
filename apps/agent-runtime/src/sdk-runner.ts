@@ -243,6 +243,8 @@ function isToolExecutionResult(value: unknown): value is ToolExecutionResult {
 		typeof candidate.toolName === "string" &&
 		typeof candidate.capability === "string" &&
 		typeof candidate.payloadKind === "string" &&
+		(candidate.argumentsJson === undefined ||
+			recordFromUnknown(candidate.argumentsJson) !== undefined) &&
 		recordFromUnknown(candidate.result) !== undefined &&
 		typeof candidate.resultRef === "string"
 	);

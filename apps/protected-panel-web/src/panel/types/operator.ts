@@ -325,12 +325,20 @@ export interface RawOperatorQualityEvalCandidateRecord {
 		caseId: string;
 		expectedDocIds: string[];
 		failureStage:
+			| "routing"
+			| "planning"
+			| "tool"
 			| "retrieval"
 			| "rerank"
 			| "selection"
 			| "evidence_selection"
 			| "synthesis"
 			| "grounding"
+			| "finalization"
+			| "replan"
+			| "clarification"
+			| "rejected"
+			| "no_answer"
 			| "diagnostic";
 		metricFailureReason: string;
 		metricName: string;

@@ -130,14 +130,17 @@ direct/no-tool terminal outcome，不产生 capability handoff；也可以选择
 campus-services / notice typed read-only tool。所有 SDK selected tools、bounded tool
 result refs、SDK trace ref、usage summary 与 terminal reason 都必须写入 sanitized
 step / attempt / result projection，再由 `app-api` operator read model、panel 与 eval
-消费。
+消费。model-visible tool schema 以 canonical `tool_function_schemas.v1` fixture 为准；
+agent-runtime 必须把实际 tool call arguments 作为 `arguments_json` 返回给
+execution-control，execution-control 必须在投影 typed tool result 前按 canonical schema
+验证，schema drift 作为 `schema_contract_drift` fail-close step 处理。
 
 `requested_capability` 在 forward contract 中只是 explicit caller hint /
 compatibility field。普通 chat 缺失该字段时，不得由 `app-api` 或
 `execution-control` 伪造成 `knowledge`；first decision 应由 `agent.primary` 在
-surface / workflow 已裁剪的 visible tool set 内完成。当前 Go
-`execution-control` 仍有缺失 `requested_capability` 默认写成 `knowledge` 的实现残留；
-这是 implementation gap，不是 contract 目标态。
+surface / workflow 已裁剪的 visible tool set 内完成。当前 Go `execution-control`
+已按该 contract 保持 ordinary chat capability-neutral；neutral memory recall 使用
+`any` capability filter，direct/no-tool finalization 归因到 `primary_agent`。
 
 `plan.route -> capability branch` 仍是 retained deterministic support path，而不是当前
 online first decision owner。`retrieval.query` 保持 knowledge capability 内部 closed

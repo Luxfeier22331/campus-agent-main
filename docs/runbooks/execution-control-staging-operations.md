@@ -72,7 +72,8 @@ updated: 2026-06-06
     - exposes only internal `/internal/agent-runs` behind the bridge shared secret
   - `activity-worker-agent`
     - Go-owned primary agent activity poller for `campus-agent.activity.agent`
-    - calls `agent-runtime` and projects SDK selected tools, usage and trace refs
+    - calls `agent-runtime` and projects SDK selected tools, typed tool
+      success/fail-close results, usage and trace refs
   - `activity-worker-knowledge`
     - Go-owned knowledge activity poller for `campus-agent.activity.knowledge`
     - owns RAG plan, Qdrant lookup, rescue, evidence selection, synthesis and
@@ -833,10 +834,11 @@ projection store 或 Temporal runtime 未 ready 的 execution-control readyz，�
 readiness 假绿；`pnpm --dir apps/app-api chat:durable:e2e:staging` 仍必须通过，且
 `request.accepted` 必须包含 durable `runId` 与 `runPhase`。
 
-### Worker Autoscaler Dry-Run Evidence
+### Worker Autoscaler Dry-Run / Evidence-Only Apply
 
-本轮 staging 不要求 autoscaler 真实扩缩容容器或 Pod，但上线证据必须证明它只读
-Temporal task queue / downstream budget observation，并只写 desired replica evidence。
+本轮 staging 不要求 autoscaler 真实扩缩容容器或 Pod。当前 repo-local proof 只证明它读取
+Temporal task queue / downstream budget observation，并只写 desired replica /
+ops-plane actuation evidence；真实基础设施扩缩容 closeout 等链路成熟后再接入。
 
 准备 observation JSON，例如：
 
@@ -906,9 +908,19 @@ go run ./cmd/worker-autoscaler \
   --evidence-path "$evidence_dir/worker-autoscaler-evidence.json"
 ```
 
+可选本地 apply-mode evidence-only proof：
+
+```bash
+go run ./cmd/worker-autoscaler \
+  --mode apply \
+  --input-path "$evidence_dir/worker-autoscaler-input.json" \
+  --evidence-path "$evidence_dir/worker-autoscaler-decision.json" \
+  --actuator-evidence-path "$evidence_dir/worker-autoscaler-actuation.json"
+```
+
 通过标准：
 
-- `mode="dry_run"`
+- dry-run evidence `mode="dry_run"`；apply decision evidence `mode="apply"`
 - `writes_execution_state=false`
 - 每个 observed queue 都有 desired replica decision
 - evidence 不包含 workflow/run/step/event/terminal state write 表述

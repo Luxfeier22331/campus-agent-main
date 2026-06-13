@@ -57,6 +57,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 			toolName: request.tool.name,
 			capability: request.tool.capability,
 			payloadKind: request.tool.name,
+			argumentsJson: request.argumentsJson,
 			result,
 			resultRef: `agent-runtime://${request.runId}/tools/${request.tool.name}`,
 		};
@@ -73,6 +74,7 @@ function failedToolResult(
 		toolName: request.tool.name,
 		capability: request.tool.capability,
 		payloadKind: request.tool.name,
+		argumentsJson: request.argumentsJson,
 		result,
 		resultRef: `agent-runtime://${request.runId}/tools/${request.tool.name}/failed`,
 		failCloseReason,

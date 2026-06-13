@@ -115,6 +115,10 @@ describe("primary agent runtime", () => {
 		expect(result.toolResults[0]?.resultRef).toBe(
 			"agent-runtime://run-tool/tools/transport_schedule_lookup",
 		);
+		expect(result.toolResults[0]?.argumentsJson).toEqual({
+			query_text: "校车今天几点",
+			intent: "next_departure",
+		});
 		expect(result.usage.outputTokens).toBe(10);
 	});
 
@@ -156,6 +160,7 @@ describe("primary agent runtime", () => {
 				toolName: "knowledge_query",
 				capability: "knowledge",
 				payloadKind: "knowledge_query",
+				argumentsJson: { query_text: "学籍管理规定是什么" },
 				result: { workflow_signal: "knowledge_query" },
 				resultRef: "agent-runtime://run-knowledge-signal/tools/knowledge_query",
 			},
@@ -211,5 +216,9 @@ describe("primary agent runtime", () => {
 		expect(result.terminalReason).toBe("agent_runtime_failed");
 		expect(result.finalOutput).toBe("");
 		expect(result.toolResults[0]?.failCloseReason).toBe("source_truth_unavailable");
+		expect(result.toolResults[0]?.argumentsJson).toEqual({
+			query_text: "校车今天几点",
+			intent: "next_departure",
+		});
 	});
 });

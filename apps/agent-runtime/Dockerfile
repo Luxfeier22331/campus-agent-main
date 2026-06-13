@@ -10,6 +10,7 @@ RUN corepack enable pnpm \
 
 COPY apps/agent-runtime ./apps/agent-runtime
 COPY configs/runtime/tool-catalog.v1.json ./configs/runtime/tool-catalog.v1.json
+COPY packages/evals/fixtures/tool_function_schemas.v1.json ./packages/evals/fixtures/tool_function_schemas.v1.json
 
 RUN pnpm --filter agent-runtime typecheck
 
