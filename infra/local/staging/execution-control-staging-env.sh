@@ -22,6 +22,7 @@ execution_control_staging_load_env() {
 const [runtimeEnvPath] = process.argv.slice(2);
 const loadedPaths = [];
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const { parseEnv } = require("node:util");
 if (typeof parseEnv !== "function") {
   throw new Error("node:util.parseEnv is required for staging env projection");
@@ -282,6 +283,21 @@ const stagingOptionalMappings = [
 
 function envValue(key) {
   return sourceEnvValue(key);
+}
+
+function deriveAgentRuntimeBridgeSecret() {
+  const executionControlSecret = envValue("EXECUTION_CONTROL_SHARED_SECRET");
+  const internalQuerySecret = envValue("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
+  if (!executionControlSecret || !internalQuerySecret) {
+    return "";
+  }
+  return crypto
+    .createHash("sha256")
+    .update("campus-agent:agent-runtime-bridge:v1\0")
+    .update(executionControlSecret)
+    .update("\0")
+    .update(internalQuerySecret)
+    .digest("hex");
 }
 
 function isLocalEndpoint(value) {
@@ -665,7 +681,7 @@ if (!resolved.has("AGENT_RUNTIME_TOOL_CATALOG_PATH")) {
 const agentRuntimeSharedSecret =
   envValue("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET") ||
   envValue("AGENT_RUNTIME_SHARED_SECRET") ||
-  "";
+  deriveAgentRuntimeBridgeSecret();
 if (
   envValue("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET") &&
   envValue("AGENT_RUNTIME_SHARED_SECRET") &&
@@ -962,7 +978,7 @@ execution_control_staging_require_runtime_env_core() {
   fi
 
   if [[ -z "${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL:-}" ]]; then
-    echo "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL is required for primary agent runtime bridge." >&2
+    echo "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL was not projected for primary agent runtime bridge; fix staging env projection." >&2
     return 1
   fi
   if [[ "${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL}" != http://agent-runtime:27062 ]]; then
@@ -970,11 +986,11 @@ execution_control_staging_require_runtime_env_core() {
     return 1
   fi
   if [[ -z "${EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:-}" ]]; then
-    echo "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET is required for primary agent runtime bridge." >&2
+    echo "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET was not projected for primary agent runtime bridge; fix staging env projection." >&2
     return 1
   fi
   if [[ -z "${AGENT_RUNTIME_SHARED_SECRET:-}" ]]; then
-    echo "AGENT_RUNTIME_SHARED_SECRET is required for primary agent runtime server." >&2
+    echo "AGENT_RUNTIME_SHARED_SECRET was not projected for primary agent runtime server; fix staging env projection." >&2
     return 1
   fi
   if [[ "${EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET}" != "${AGENT_RUNTIME_SHARED_SECRET}" ]]; then
