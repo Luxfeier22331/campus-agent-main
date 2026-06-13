@@ -1,5 +1,7 @@
 ---
 doc_type: index
+truth_scope: product
+owner_boundary: apps/app-api
 status: active
 created: 2026-04-12
 updated: 2026-06-12
@@ -28,7 +30,6 @@ updated: 2026-06-12
 - `../architecture/system/identity-browser-experience-architecture.md`
 - `../architecture/system/federation-and-mucwiki-login-architecture.md`
 - `../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `../decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `../decisions/adr-0049-qdrant-native-personal-memory-index.md`
 - `../decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 
@@ -52,9 +53,13 @@ updated: 2026-06-12
 
 ## Historical References
 
-- `../decisions/adr-0022-campus-identity-and-restricted-document-authorization.m
-  d`
-- `../decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+- historical background:
+  `../decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- historical background:
+  `../decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+
+These ADRs are superseded background only; current identity, authorization and
+memory boundaries are owned by the architecture documents listed above.
 
 ## Follow-up Entry Points
 

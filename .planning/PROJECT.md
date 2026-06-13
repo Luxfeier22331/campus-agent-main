@@ -1,4 +1,4 @@
-# Campus Agent Project Truth
+# Campus Agent Project Work Map
 
 ## Purpose
 
@@ -24,7 +24,7 @@ admission, Temporal command/query/cancel, policy closeout, readiness, metrics,
 and sanitized projection writes. Temporal is the execution truth. PG stores
 product data and sanitized run/event/step projection, not the execution queue.
 
-## Active Truth
+## Active Work Map Facts
 
 - Product entry surface is `campus-web` at `https://campus.muc.wiki`; staging
   browser validation uses `https://campus-staging.mucwiki-edge.link`.
@@ -80,13 +80,17 @@ product data and sanitized run/event/step projection, not the execution queue.
 
 ## Owner Areas
 
-| Area | Owner Boundary | Primary Truth |
+| Area | Owner Boundary | Primary SoT |
 | --- | --- | --- |
 | Product Plane | `campus-web`, browser surfaces, product API, auth/session, request projection | `docs/architecture/system/product-runtime-architecture.md` |
 | Execution Plane | `execution-control`, Temporal, projection store, worker topology | `docs/architecture/system/durable-agent-runtime-architecture.md` |
-| Capability Plane | RAG, navigation, notice, campus services, semantic worker | `docs/architecture/system/execution-and-agents-architecture.md` |
+| Capability Plane | RAG, navigation, notice, campus services, semantic worker | `docs/architecture/system/tool-and-capability-runtime-architecture.md` |
 | Data Plane | Ingestion, object storage, Qdrant, source truth, read models | `docs/architecture/system/data-plane-architecture.md` |
 | Ops / QA | staging, release gates, observability, smoke evidence | `docs/runbooks/e2e-qa-release-runbook.md` |
+
+This file is a `planning_work_map`. It can point to current facts and work
+signals, but it does not override architecture, contract, data, ADR or runbook
+truth. Conflict resolution follows `docs/documentation-architecture.md`.
 
 ## Backlog Triggers
 

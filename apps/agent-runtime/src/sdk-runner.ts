@@ -21,6 +21,7 @@ export type OpenAIAgentsRunFunction = (
 		traceId: string;
 		workflowName: string;
 		traceIncludeSensitiveData: boolean;
+		signal?: AbortSignal;
 	},
 ) => Promise<OpenAIAgentsRunResultLike>;
 
@@ -71,6 +72,7 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 			traceId: input.traceId,
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,
+			signal: input.signal,
 		});
 		return {
 			finalOutput: String(result.finalOutput ?? ""),
@@ -95,6 +97,7 @@ const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => 
 	});
 	return runner.run(agent, input, {
 		maxTurns: options.maxTurns,
+		signal: options.signal,
 	}) as Promise<OpenAIAgentsRunResultLike>;
 };
 

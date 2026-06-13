@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: execution
+owner_boundary: supervisor-agent-worker
 status: active
 created: 2026-04-26
-updated: 2026-06-08
+updated: 2026-06-13
 ---
 # Python Capability Boundaries
 

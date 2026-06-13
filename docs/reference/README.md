@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/reference
 status: active
 created: 2026-04-12
-updated: 2026-06-12
+updated: 2026-06-13
 ---
-
 # Reference
 
 `reference/` 保存术语、指标、清单、质量验收记录和已落盘事实。
@@ -13,6 +14,9 @@ updated: 2026-06-12
 
 ## 基础术语与验证基线
 
+- `documentation-inventory.md`
+  - Documentation SoT cleanup 的 Phase 0 盘点基线；记录文档 owner class 与
+    likely drift signals，不替代 `docs/documentation-architecture.md`
 - `adr-governance-audit.md`
   - 全量 ADR corpus 的 drift、overlap 与分层审计记录
 - `runtime-serving-and-index-terms.md`
@@ -51,10 +55,13 @@ updated: 2026-06-12
 
 - `campus-navigation-authoritative-source-inventory.md`
 
-## Public Chat Web 活动基线
+## Public Chat Web Donor Baseline
 
 - `public-chat-web-donor-diff-classification.md`
+  - current donor diff truth and allowed seam baseline
 - `public-chat-web-donor-parity-review-checklist.md`
+  - current donor parity review gate; per-run evidence still belongs in smoke /
+    release artifacts, not in this reference
 
 ## Frontend Design Inputs
 
@@ -69,9 +76,6 @@ updated: 2026-06-12
 
 ## Historical Evidence / Archive
 
-- `restricted-document-center-artifact-contract.md`
-  - historical；只保留 document-center artifact 分层旧口径，不再是 active target
-    contract。
 - `archive/README.md`
 
 补充规则：

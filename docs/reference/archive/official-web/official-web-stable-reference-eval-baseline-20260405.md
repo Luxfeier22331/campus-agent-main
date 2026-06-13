@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: data
+owner_boundary: domains/official-web
 status: historical
 created: 2026-04-05
 updated: 2026-04-20
 ---
-
 # Official Web Stable Reference Eval Baseline 2026-04-05
 
 ## Historical Status

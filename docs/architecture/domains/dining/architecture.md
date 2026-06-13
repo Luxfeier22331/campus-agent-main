@@ -1,5 +1,7 @@
 ---
 doc_type: architecture
+truth_scope: capability
+owner_boundary: domains/dining
 status: active
 created: 2026-06-08
 updated: 2026-06-12

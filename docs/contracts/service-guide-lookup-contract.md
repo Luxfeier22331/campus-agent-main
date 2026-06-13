@@ -1,5 +1,7 @@
 ---
 doc_type: contract
+truth_scope: capability
+owner_boundary: domains/campus-services
 status: active
 created: 2026-04-25
 updated: 2026-04-26

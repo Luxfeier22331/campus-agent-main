@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: ops
+owner_boundary: apps/execution-control
 status: active
 created: 2026-05-01
 updated: 2026-05-01
 ---
-
 <!-- markdownlint-disable MD013 -->
 
 # Runtime OTel Telemetry Taxonomy

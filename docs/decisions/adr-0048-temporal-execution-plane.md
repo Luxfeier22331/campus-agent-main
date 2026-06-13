@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0048
 status: accepted
 created: 2026-06-06
@@ -309,8 +311,9 @@ agent-as-tool。
   `app-api -> execution-control -> Temporal` 作为长期拓扑。
 - `docs/architecture/system/durable-agent-runtime-architecture.md` 以 Temporal
   execution plane 取代 PG scheduler / lease coordinator 作为 target runtime substrate。
-- `docs/architecture/system/execution-and-agents-architecture.md` 的 target runtime
-  roles 改为 execution-control、Temporal workflow worker 与 activity worker pools。
+- `docs/architecture/system/durable-agent-runtime-architecture.md` 负责
+  execution-control、Temporal workflow worker 与 activity worker pools 的 target
+  runtime roles。
 - `docs/contracts/durable-agent-runtime-contract.md` 与
   `docs/data/durable-agent-runtime-schema.md` 中的 run / step / event 表述必须被
   解释为 repo-owned product projection / eval truth，而不是 Temporal 的内部

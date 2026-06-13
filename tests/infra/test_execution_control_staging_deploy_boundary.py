@@ -113,6 +113,55 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             "query-secret",
         )
 
+    def test_env_loader_projects_internal_agent_runtime_bridge_without_manual_secret(self) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env="\n".join(
+                (
+                    "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@staging-raw.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://5943f31433be5dd57beb3bb92bd1c660.r2.cloudflarestorage.com",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret",
+                    "STAGING_INGESTION_OBJECT_STORE_REGION=auto",
+                    "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
+                    "STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com",
+                    "STAGING_INGESTION_QDRANT_API_KEY=qdrant-key",
+                    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key",
+                    "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+                    "STAGING_INGESTION_EMBEDDING_PROVIDER=gitee",
+                    "STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1",
+                    "STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key",
+                    "STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B",
+                    "STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560",
+                    "STAGING_INGESTION_SPARSE_PROVIDER=qdrant",
+                    "STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25",
+                    "STAGING_INGESTION_SPARSE_TOKENIZER=multilingual",
+                    "STAGING_INGESTION_SPARSE_LANGUAGE=none",
+                    "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
+                    "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
+                    "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                    "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://projection@staging-db.example.com:5432/campus_agent",
+                )
+            ),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        projected = json.loads(result.stdout)
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"],
+            "http://agent-runtime:27062",
+        )
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"],
+            projected["AGENT_RUNTIME_SHARED_SECRET"],
+        )
+        self.assertRegex(
+            projected["EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"],
+            r"^[0-9a-f]{64}$",
+        )
+
     def test_compose_running_gate_includes_primary_agent_runtime_services(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
             encoding="utf-8"

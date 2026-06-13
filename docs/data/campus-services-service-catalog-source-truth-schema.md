@@ -1,5 +1,7 @@
 ---
 doc_type: data
+truth_scope: data
+owner_boundary: domains/campus-services
 status: active
 created: 2026-04-26
 updated: 2026-04-26

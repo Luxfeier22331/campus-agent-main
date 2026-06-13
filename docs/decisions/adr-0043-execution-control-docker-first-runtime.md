@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0043
 status: accepted
 created: 2026-04-23
@@ -38,7 +40,7 @@ Accepted on 2026-04-23.
 1. `app-api` 继续通过显式 `EXECUTION_CONTROL_BASE_URL` 调用一个真实可达的 execution origin；
    这项 ADR 不单独冻结 repo-level staging hostname。
 1. Go `execution-control` packaging / automation 落地后，repo-local Python public
-   compatibility entry 已移除；Python 侧只保留 `supervisor-agent-worker` private
+   execution entry 已移除；Python 侧只保留 `supervisor-agent-worker` private
    bridge worker。
 1. Docker-first execution service 的 runtime control plane 由 Go `apps/execution-control`
    承担；Python `apps/supervisor-agent-worker` 继续保留 semantic orchestration 与

@@ -1,5 +1,7 @@
 ---
 doc_type: reference
+truth_scope: data
+owner_boundary: domains/navigation
 status: active
 created: 2026-04-14
 updated: 2026-04-14

@@ -1,6 +1,10 @@
 ---
 doc_type: reference
+truth_scope: eval
+owner_boundary: packages/evals
 status: active
+created: 2026-06-13
+updated: 2026-06-13
 generated_by: campus_evals.golden_dataset_coverage_matrix
 source_report_schema: rag-eval-coverage-report-v2
 ---

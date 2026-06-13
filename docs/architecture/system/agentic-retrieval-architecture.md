@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: capability
+owner_boundary: packages/knowledge-capability
 status: active
 created: 2026-04-20
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Agentic Retrieval Architecture
 
@@ -504,7 +506,8 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 ## 相关稳定文档
 
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `docs/architecture/system/operator-observability-architecture.md`

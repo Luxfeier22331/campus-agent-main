@@ -1,10 +1,11 @@
 ---
 doc_type: contract
+truth_scope: product
+owner_boundary: apps/app-api
 status: active
 created: 2026-03-28
 updated: 2026-04-06
 ---
-
 # App API Error Model
 
 ## 文档边界

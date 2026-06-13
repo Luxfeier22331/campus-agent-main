@@ -90,9 +90,36 @@ describe("execution-control tool executor", () => {
 		const result = await executor(toolRequest());
 
 		expect(result.status).toBe("failed");
-		expect(result.failCloseReason).toBe("tool_handler_request_failed");
+		expect(result.failCloseReason).toBe("transient_internal_query_failed");
 		expect(result.result.error).toBe("execution-control query request failed");
 		expect(result.result.detail).toBe("network down");
+	});
+
+	it("passes run cancellation signal into structured query fetch timeout envelope", async () => {
+		const controller = new AbortController();
+		let observedSignal: AbortSignal | undefined;
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret",
+			fetchImpl: async (_request, init) => {
+				observedSignal = init?.signal ?? undefined;
+				return new Response(JSON.stringify({ outcome: "resolved_current" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			},
+		});
+
+		const result = await executor({ ...toolRequest(), signal: controller.signal });
+
+		expect(result.status).toBe("completed");
+		expect(observedSignal).toBeDefined();
+		expect(observedSignal).not.toBe(controller.signal);
+		expect(observedSignal?.aborted).toBe(false);
+
+		controller.abort();
+
+		expect(observedSignal?.aborted).toBe(true);
 	});
 });
 

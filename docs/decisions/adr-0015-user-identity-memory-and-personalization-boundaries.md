@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0015
 status: accepted
 created: 2026-03-28
@@ -188,12 +190,12 @@ ADR-0049 允许 memory 进入 bounded online recall。本文继续冻结以下�
   Memory Plane、`memory.recall` runtime 消费链路与 Temporal 参与点
 - `docs/architecture/system/product-runtime-architecture.md`
   负责 account、operator access 与 memory ownership 所在的 app boundary
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
   负责 Execution Agent Layer 如何消费 typed account / memory projection
-- `docs/architecture/system/execution-and-agents-architecture.md` 负责 retrieval-specific
+- `docs/architecture/system/agentic-retrieval-architecture.md` 负责 retrieval-specific
   personalization 与 `RagIntentFrame`
 - `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
-  已 supersede，仅作历史参考
+  是 superseded historical background，仅作历史参考
 - `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`
   负责 personal memory online recall truth、Qdrant collection 与 ADR-0015 memory 旧口径替代
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md` 负责 account /
@@ -224,8 +226,9 @@ ADR-0049 允许 memory 进入 bounded online recall。本文继续冻结以下�
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 - `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+  仅作为 superseded historical background
 - `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`

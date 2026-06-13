@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: data
+owner_boundary: domains/official-web
 status: historical
 created: 2026-04-18
 updated: 2026-04-20
 ---
-
 # Official Web Reading Guide
 
 这份阅读指南曾在 domain hub 建立前承担临时导航。

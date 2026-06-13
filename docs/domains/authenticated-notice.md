@@ -1,5 +1,7 @@
 ---
 doc_type: index
+truth_scope: data
+owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-12
 updated: 2026-06-12
@@ -31,7 +33,7 @@ updated: 2026-06-12
 
 - `../decisions/adr-0041-authenticated-document-center-and-regulation-layer-spli
   t.md`
-- `../reference/restricted-document-center-artifact-contract.md`
+- [restricted document center artifact historical contract](../reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md)
 
 这两份文档只保留 document-center 旧设想与 artifact 分层历史，不再作为当前 authenticated notice
 主线或用户问答产品目标。

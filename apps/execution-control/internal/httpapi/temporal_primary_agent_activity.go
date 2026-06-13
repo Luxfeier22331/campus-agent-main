@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -372,13 +373,17 @@ func (s *Server) callAgentRuntime(
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("decode agent runtime response: %w", err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("agent runtime returned HTTP %d", response.StatusCode)
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, agentRuntimeFailureFromResponse(
+			response.StatusCode,
+			decoded.Error,
+		)
 	}
 	return decoded.toTemporalOutput(), nil
 }
 
 type agentRuntimeResponse struct {
 	Status             string            `json:"status"`
+	Error              agentRuntimeError `json:"error"`
 	RunID              string            `json:"run_id"`
 	FinalOutput        string            `json:"final_output"`
 	ProviderResponseID string            `json:"provider_response_id"`
@@ -405,6 +410,36 @@ type agentRuntimeUsage struct {
 	OutputTokens          int64 `json:"output_tokens"`
 	CachedInputTokens     int64 `json:"cached_input_tokens"`
 	EstimatedCostMicroUSD int64 `json:"estimated_cost_micro_usd"`
+}
+
+type agentRuntimeError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type agentRuntimeHTTPError struct {
+	StatusCode int
+	Code       string
+	Message    string
+}
+
+func (err agentRuntimeHTTPError) Error() string {
+	message := strings.TrimSpace(err.Message)
+	if message == "" {
+		return fmt.Sprintf("agent runtime returned HTTP %d", err.StatusCode)
+	}
+	return message
+}
+
+func agentRuntimeFailureFromResponse(
+	statusCode int,
+	runtimeError agentRuntimeError,
+) error {
+	return agentRuntimeHTTPError{
+		StatusCode: statusCode,
+		Code:       strings.TrimSpace(runtimeError.Code),
+		Message:    strings.TrimSpace(runtimeError.Message),
+	}
 }
 
 func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecutePrimaryAgentActivityOutput {
@@ -445,6 +480,17 @@ func (s *Server) failPrimaryAgentActivity(
 	failureKind string,
 	cause error,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	payload := map[string]any{
+		"failure_kind": failureKind,
+		"message":      cause.Error(),
+	}
+	var runtimeHTTPError agentRuntimeHTTPError
+	if errors.As(cause, &runtimeHTTPError) {
+		payload["agent_runtime_http_status"] = runtimeHTTPError.StatusCode
+		if strings.TrimSpace(runtimeHTTPError.Code) != "" {
+			payload["agent_runtime_error_code"] = strings.TrimSpace(runtimeHTTPError.Code)
+		}
+	}
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
 		Capability:    "primary_agent",
 		FailureKind:   failureKind,
@@ -453,10 +499,7 @@ func (s *Server) failPrimaryAgentActivity(
 		StepID:        "agent.primary",
 		StepKind:      "agent",
 		TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
-		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
-		},
+		Payload:       payload,
 	}, cause)
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 }

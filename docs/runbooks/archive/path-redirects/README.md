@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: ops
+owner_boundary: docs/runbooks/archive/path-redirects
 status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Historical Path Redirects
 
 本目录保存旧 runbook 路径的 redirect note。

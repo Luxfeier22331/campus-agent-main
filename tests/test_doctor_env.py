@@ -37,8 +37,6 @@ def _execution_control_required_env() -> list[str]:
         "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001",
         "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
         "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
-        "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://agent-runtime:27062",
-        "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret",
     ]
 
 
@@ -162,6 +160,10 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertNotIn("transport_worker_threads", optional)
             self.assertNotIn("agent_worker_base_url", required)
             self.assertNotIn("agent_worker_shared_secret", required)
+            self.assertNotIn("agent_runtime_base_url", required)
+            self.assertNotIn("agent_runtime_shared_secret", required)
+            self.assertFalse(optional["agent_runtime_base_url"]["present"])
+            self.assertFalse(optional["agent_runtime_shared_secret"]["present"])
             self.assertNotIn("bridge_breaker_failure_threshold", optional)
             self.assertEqual(
                 required["run_projection_database_url"]["resolved_key"],

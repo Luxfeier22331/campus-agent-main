@@ -9,6 +9,7 @@ export interface PrimaryAgentRunInput {
 	input: string;
 	visibleCapabilities: string[];
 	memoryProjectionRefs?: string[];
+	signal?: AbortSignal;
 }
 
 export interface UsageSummary {
@@ -23,6 +24,7 @@ export interface ToolExecutionRequest {
 	argumentsJson: Record<string, unknown>;
 	runId: string;
 	traceId: string;
+	signal?: AbortSignal;
 }
 
 export interface ToolExecutionResult {
@@ -55,6 +57,7 @@ export interface AgentRunnerInput {
 	tools: SdkToolRuntime[];
 	runId: string;
 	traceId: string;
+	signal?: AbortSignal;
 }
 
 export interface AgentRunnerResult {
@@ -119,6 +122,7 @@ export function createPrimaryAgentRuntime(
 								argumentsJson,
 								runId: input.runId,
 								traceId: input.traceId,
+								signal: input.signal,
 							};
 							if (catalogEntry.handler.type === "workflow_signal") {
 								return defaultToolExecutor(request);
@@ -136,6 +140,7 @@ export function createPrimaryAgentRuntime(
 				tools: visibleTools,
 				runId: input.runId,
 				traceId: input.traceId,
+				signal: input.signal,
 			});
 			const toolResults = result.toolCalls
 				.map((call) => call.result)

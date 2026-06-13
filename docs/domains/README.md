@@ -1,5 +1,7 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/domains
 status: active
 created: 2026-04-12
 updated: 2026-06-11
@@ -38,8 +40,8 @@ data、plan、runbook、reference、policy 聚到一页，减少在多个目录�
 - 长期边界仍以 architecture / decisions 为准
 - 通用执行态入口固定为：
   - merged truth：`../architecture/current-architecture.md`
-  - repo 级当前真相：`../.planning/PROJECT.md`
-  - workstream registry：`../.planning/WORKSTREAMS.md`
+  - repo 级当前真相：`../../.planning/PROJECT.md`
+  - workstream registry：`../../.planning/WORKSTREAMS.md`
   - live session state：GSD SDK / Codex native session
 - domain hub 可以提示 active/deferred/completed plan 的阅读顺序，但不重复维护完整
   plan 细节

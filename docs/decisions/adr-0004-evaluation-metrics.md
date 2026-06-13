@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0004
 status: accepted
 created: 2026-03-22
@@ -164,8 +166,8 @@ split 和指标族的对应关系在长期上固定，但每个 split 的具体�
 
 - `docs/architecture/target-architecture.md` 只保留 `evals` 边界与可替换性原则
 - `docs/decisions/adr-0003-golden-dataset-governance.md` 负责 golden dataset 的真值治理
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d` 负责 identity / memory / personalization 的长期边界
+- `./adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  负责 identity / memory / personalization 的长期边界
 - 本 ADR 负责指标家族、指标分层与 gate 语义
 - `.planning/WORKSTREAMS.md` 与 `GSD SDK / Codex native session state` 负责当前阶段的
   metric wiring、阈值、runner 与报表实现

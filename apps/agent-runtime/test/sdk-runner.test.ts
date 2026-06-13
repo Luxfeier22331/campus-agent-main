@@ -193,4 +193,30 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			required: ["query_text"],
 		});
 	});
+
+	it("passes run cancellation signal to the SDK runner options", async () => {
+		const controller = new AbortController();
+		let observedSignal: AbortSignal | undefined;
+		const runner = createOpenAIAgentsRunner({
+			runSdk: async (_agent, _input, options) => {
+				observedSignal = options.signal;
+				return {
+					finalOutput: "done",
+					lastResponseId: "resp-sdk-signal",
+					newItems: [],
+				};
+			},
+		});
+
+		await runner({
+			input: "hi",
+			instructions: "Answer directly.",
+			tools: [],
+			runId: "run-sdk-signal",
+			traceId: "trace-run-sdk-signal",
+			signal: controller.signal,
+		});
+
+		expect(observedSignal).toBe(controller.signal);
+	});
 });

@@ -63,8 +63,6 @@ VALID_STAGING_ENV = textwrap.dedent(
     EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
-    EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://agent-runtime:27062
-    EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret
     """
 ).strip()
 
@@ -125,7 +123,11 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
 
     def test_staging_runbook_uses_current_preflight_cli_shape(self) -> None:
         runbook = (
-            REPO_ROOT / "docs" / "runbooks" / "execution-control-staging-operations.md"
+            REPO_ROOT
+            / "docs"
+            / "runbooks"
+            / "execution-control-staging"
+            / "durable-runtime-proof.md"
         ).read_text()
 
         self.assertIn("pnpm durable:cutover:preflight --json", runbook)
@@ -173,8 +175,8 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY", payload["blockers"])
-        self.assertIn("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", payload["blockers"])
-        self.assertIn("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", payload["blockers"])
+        self.assertNotIn("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", payload["blockers"])
+        self.assertNotIn("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", payload["blockers"])
 
     def test_passes_when_cutover_inputs_are_explicit(self) -> None:
         result = run_preflight(
@@ -237,10 +239,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
                 "STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560",
                 "STAGING_INGESTION_EMBEDDING_DIMENSIONS=1536",
             )
-            .replace(
-                "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://agent-runtime:27062",
-                "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://127.0.0.1:27062",
-            )
+            + "\nEXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://127.0.0.1:27062\n"
         )
         result = run_preflight(
             {

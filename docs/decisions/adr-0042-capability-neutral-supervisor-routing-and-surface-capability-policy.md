@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0042
 status: accepted
 created: 2026-04-23
@@ -166,8 +168,7 @@ no-tool、notice、campus_services、navigation 或 `knowledge_query`，而不�
 本 ADR complements：
 
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0030-institution-scoped-product-path-and-explicit-open-dom
   ain-admission.md`

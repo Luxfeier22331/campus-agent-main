@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/reference/archive/incidents
 status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Incident And Snapshot Archive
 
 本目录保存不再属于默认 reference 入口的历史 incident / implementation snapshot。

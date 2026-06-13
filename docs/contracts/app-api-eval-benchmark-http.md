@@ -1,5 +1,7 @@
 ---
 doc_type: contract
+truth_scope: eval
+owner_boundary: apps/app-api
 status: active
 created: 2026-04-23
 updated: 2026-04-23

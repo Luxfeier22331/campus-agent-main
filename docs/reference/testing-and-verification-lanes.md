@@ -1,5 +1,7 @@
 ---
 doc_type: reference
+truth_scope: repository
+owner_boundary: docs/reference
 status: active
 created: 2026-03-31
 updated: 2026-04-26

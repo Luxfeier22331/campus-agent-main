@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0028
 status: accepted
 created: 2026-04-05
@@ -203,6 +205,6 @@ renderer 选型。
 ## Related Docs
 
 - `docs/architecture/domains/navigation/architecture.md`
-- `docs/decisions/adr-0027-navigation-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`

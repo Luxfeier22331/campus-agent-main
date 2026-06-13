@@ -1,5 +1,7 @@
 ---
 doc_type: runbook
+truth_scope: ops
+owner_boundary: docs/runbooks
 status: active
 created: 2026-04-27
 updated: 2026-06-09
@@ -58,11 +60,6 @@ updated: 2026-06-09
   - `EMBEDDING_*`
   - `PROMPT_RUNTIME_*`
   - `EXECUTION_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
-  - `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL`
-  - `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET`
-  - `AGENT_RUNTIME_SHARED_SECRET`
-  - `AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL`
-  - `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`
 - conditional:
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`
@@ -73,11 +70,23 @@ updated: 2026-06-09
 
 禁止把 deploy-only secret 写回 repo-tracked `.env.example`。
 
-`AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL` 是 primary agent runtime 调用
-execution-control internal query typed tools 的容器内地址；compose / staging baseline 使用
-`http://execution-control:8000`。`AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`
-必须与 `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` 一致，否则 typed tool executor fail
-closed。
+Deployment/start 脚本必须投影同机 internal bridge runtime env：
+
+- `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL`：execution-control 调用
+  `agent-runtime` `/internal/agent-runs` 的地址；compose / staging baseline 使用
+  `http://agent-runtime:27062`。
+- `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET` 与 `AGENT_RUNTIME_SHARED_SECRET`：
+  两个进程之间的 bridge secret，必须一致；canonical staging loader 未收到显式值时会从
+  `EXECUTION_CONTROL_SHARED_SECRET` 和 `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
+  派生并同时注入。
+- `AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL`：primary agent runtime 调用
+  execution-control internal query typed tools 的地址；compose / staging baseline 使用
+  `http://execution-control:8000`。
+- `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`：默认等于
+  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`，否则 typed tool executor fail closed。
+
+这些是部署投影责任，不是用户在尚未部署前需要手工配置的外部输入。非 compose / 非 canonical
+topology 才应在 server-local env file 或等价 deployment secret source 覆写地址。
 
 ## Deployment Steps
 

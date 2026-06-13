@@ -1,5 +1,7 @@
 ---
 doc_type: reference
+truth_scope: ops
+owner_boundary: docs/environment
 status: active
 created: 2026-04-20
 updated: 2026-04-23

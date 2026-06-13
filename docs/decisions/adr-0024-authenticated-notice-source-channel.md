@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0024
 status: accepted
 created: 2026-04-03
@@ -186,6 +188,6 @@ restricted rollout 边界
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/architecture/system/data-plane-architecture.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
-  .md`
+- historical background:
+  `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `git history restricted-document rollout workstream`

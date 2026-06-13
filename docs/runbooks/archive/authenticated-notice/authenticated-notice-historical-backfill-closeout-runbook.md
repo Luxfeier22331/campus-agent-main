@@ -1,10 +1,11 @@
 ---
 doc_type: runbook
+truth_scope: ops
+owner_boundary: docs/runbooks/archive
 status: historical
 created: 2026-04-04
 updated: 2026-04-20
 ---
-
 # Authenticated Notice Historical Backfill Closeout Runbook
 
 ## Historical Note

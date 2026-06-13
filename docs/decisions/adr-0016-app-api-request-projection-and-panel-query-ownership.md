@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
@@ -145,5 +147,5 @@ projection、panel `Requests` domain 的长期 ownership
 
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
 - `docs/architecture/system/operator-observability-architecture.md`

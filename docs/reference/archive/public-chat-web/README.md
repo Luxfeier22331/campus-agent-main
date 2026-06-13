@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/reference/archive/public-chat-web
 status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Public Chat Web Donor Historical Archive
 
 ## Archive Status

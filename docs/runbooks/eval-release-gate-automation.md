@@ -1,10 +1,11 @@
 ---
 doc_type: runbook
+truth_scope: eval
+owner_boundary: packages/evals
 status: active
 created: 2026-04-23
 updated: 2026-04-27
 ---
-
 # Eval Release Gate Automation
 
 ## Purpose

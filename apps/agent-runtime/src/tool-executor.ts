@@ -33,10 +33,10 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 					payload: request.argumentsJson,
 					access_context: {},
 				}),
-				signal: AbortSignal.timeout(request.tool.timeoutMs),
+				signal: composedAbortSignal([request.signal, AbortSignal.timeout(request.tool.timeoutMs)]),
 			});
 		} catch (error) {
-			return failedToolResult(request, "tool_handler_request_failed", {
+			return failedToolResult(request, "transient_internal_query_failed", {
 				error: "execution-control query request failed",
 				detail: errorMessage(error),
 			});
@@ -83,4 +83,25 @@ function failedToolResult(
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+function composedAbortSignal(signals: Array<AbortSignal | undefined>): AbortSignal {
+	const activeSignals = signals.filter((signal): signal is AbortSignal => signal !== undefined);
+	if (activeSignals.length === 1) {
+		return activeSignals[0];
+	}
+	const controller = new AbortController();
+	const abort = (signal: AbortSignal) => {
+		if (!controller.signal.aborted) {
+			controller.abort(signal.reason);
+		}
+	};
+	for (const signal of activeSignals) {
+		if (signal.aborted) {
+			abort(signal);
+			break;
+		}
+		signal.addEventListener("abort", () => abort(signal), { once: true });
+	}
+	return controller.signal;
 }

@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/reference/archive/authenticated-notice
 status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Authenticated Notice Historical Archive
 
 ## Archive Status
@@ -50,6 +51,8 @@ updated: 2026-04-20
   - historical donor intake acceptance 快照
 - `docs/reference/archive/authenticated-notice/internal-notice-offline-preparation-quality-evidence.md`
   - `internal_notice` 离线 preparation / release 演进快照
+- `docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
+  - restricted document center 旧设想与 artifact 分层历史
 
 ## Historical Throughline
 

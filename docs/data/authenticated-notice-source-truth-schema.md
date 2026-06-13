@@ -1,5 +1,7 @@
 ---
 doc_type: data
+truth_scope: data
+owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
 updated: 2026-04-30
@@ -44,8 +46,6 @@ source-truth schema。
   boundary：`docs/architecture/system/data-plane-architecture.md`
 - `internal_notice` collection-specific offline preparation
   strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
-- restricted document center artifact
-  contract：`docs/reference/restricted-document-center-artifact-contract.md`
 - restricted
   rollout：`docs/architecture/system/identity-and-authorization-architecture.md`
 
@@ -635,8 +635,4 @@ decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`。
 - shared source-truth principles：`docs/architecture/system/data-plane-architecture.md`
 - `internal_notice` collection-specific offline preparation
   strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
-- restricted document center artifact
-  contract：`docs/reference/restricted-document-center-artifact-contract.md`
-- restricted authorization：`docs/decisions/adr-0022-campus-identity-and-restrict
-  ed-document-authorization.md`
 - object storage key 约定：`docs/decisions/adr-0002-local-minio-conventions.md`

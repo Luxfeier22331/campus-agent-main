@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: product
+owner_boundary: app-api
 status: active
 created: 2026-04-02
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Product Runtime Architecture
 
@@ -408,7 +410,7 @@ contract 或 auth family route/endpoint truth。
   md`
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 - `docs/architecture/system/identity-platform-architecture.md`
-- `docs/architecture/system/hub-account-experience-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`

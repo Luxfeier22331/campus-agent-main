@@ -1,3 +1,11 @@
+---
+doc_type: reference
+truth_scope: product
+owner_boundary: apps/campus-web
+status: active
+created: 2026-06-08
+updated: 2026-06-08
+---
 # MUC Campus Q&A Design Tokens v1.3.1
 
 这是 v1.3 的 token patch，重点补齐 **component state** 和 **mobile layout**，避免实现时在组件里临时硬编码。

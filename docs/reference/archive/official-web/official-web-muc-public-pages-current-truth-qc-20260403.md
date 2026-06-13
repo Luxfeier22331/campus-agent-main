@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: data
+owner_boundary: domains/official-web
 status: historical
 created: 2026-04-03
 updated: 2026-04-20
 ---
-
 # Official Web `muc_public_pages` Current-Truth QC Snapshot (Historical)
 
 ## Historical Redirect

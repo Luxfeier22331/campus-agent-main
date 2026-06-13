@@ -1,3 +1,11 @@
+---
+doc_type: index
+truth_scope: ops
+owner_boundary: docs/runbooks/muc-wiki-visual-modernization-assets
+status: active
+created: 2026-06-05
+updated: 2026-06-13
+---
 # MUC Wiki Visual Modernization Artifacts
 
 This directory snapshots the current `wiki.mucwiki-edge.link` MediaWiki visual

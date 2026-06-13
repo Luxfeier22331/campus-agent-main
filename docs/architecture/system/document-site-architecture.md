@@ -1,5 +1,7 @@
 ---
 doc_type: architecture
+truth_scope: product
+owner_boundary: apps/public-docs
 status: active
 created: 2026-04-21
 updated: 2026-06-12

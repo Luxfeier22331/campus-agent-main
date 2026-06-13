@@ -1,5 +1,7 @@
 ---
 doc_type: reference
+truth_scope: eval
+owner_boundary: packages/evals
 status: active
 created: 2026-03-31
 updated: 2026-06-12

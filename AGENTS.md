@@ -48,15 +48,17 @@
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
+- `docs/architecture/system/agent-framework-boundary-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/system/durable-agent-runtime-architecture.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/code-organization-and-decomposition-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/system/identity-platform-architecture.md`
-- `docs/architecture/system/hub-account-experience-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/architecture/system/memory-plane-architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`
@@ -83,7 +85,6 @@
 - `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`

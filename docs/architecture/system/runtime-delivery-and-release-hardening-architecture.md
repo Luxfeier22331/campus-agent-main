@@ -1,5 +1,7 @@
 ---
 doc_type: architecture
+truth_scope: ops
+owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-14
 updated: 2026-04-25

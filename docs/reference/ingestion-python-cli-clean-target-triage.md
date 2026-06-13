@@ -1,5 +1,7 @@
 ---
 doc_type: reference
+truth_scope: ops
+owner_boundary: packages/ingestion-core
 status: active
 created: 2026-06-12
 updated: 2026-06-12

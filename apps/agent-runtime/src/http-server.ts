@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PrimaryAgentRuntime } from "./primary-agent.ts";
+import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
 
 const runRequestSchema = z.object({
 	run_id: z.string().min(1),
@@ -46,15 +46,26 @@ export function createAgentRuntimeHandler(
 					},
 				});
 			}
-			const result = await options.runtime.run({
-				runId: parsed.run_id,
-				conversationId: parsed.conversation_id,
-				turnId: parsed.turn_id,
-				traceId: parsed.trace_id,
-				input: parsed.input,
-				visibleCapabilities: parsed.visible_capabilities,
-				memoryProjectionRefs: parsed.memory_projection_refs,
-			});
+			let result: PrimaryAgentRunResult;
+			try {
+				result = await options.runtime.run({
+					runId: parsed.run_id,
+					conversationId: parsed.conversation_id,
+					turnId: parsed.turn_id,
+					traceId: parsed.trace_id,
+					input: parsed.input,
+					visibleCapabilities: parsed.visible_capabilities,
+					memoryProjectionRefs: parsed.memory_projection_refs,
+					signal: request.signal,
+				});
+			} catch (error) {
+				return jsonResponse(500, {
+					error: {
+						code: "agent_runtime_failed",
+						message: errorMessage(error),
+					},
+				});
+			}
 			return jsonResponse(200, {
 				status: result.status,
 				run_id: result.runId,
@@ -103,4 +114,8 @@ function jsonResponse(status: number, body: unknown): Response {
 		status,
 		headers: { "content-type": "application/json" },
 	});
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }

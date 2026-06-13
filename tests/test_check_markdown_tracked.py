@@ -81,6 +81,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
         self.assertIn("apps/campus-web/docs/index.md", relative_paths)
         self.assertIn("infra/otel/README.md", relative_paths)
         self.assertIn("packages/navigation-capability/README.md", relative_paths)
+        self.assertIn("packages/retrieval-core/AGENTS.md", relative_paths)
         self.assertNotIn(".planning/PROJECT.md", relative_paths)
         self.assertNotIn("apps/public-chat-web/vendor/vercel-ai-chatbot/README.md", relative_paths)
 

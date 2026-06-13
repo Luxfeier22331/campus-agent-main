@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: ops
+owner_boundary: docs/runbooks
 status: active
 created: 2026-04-12
-updated: 2026-04-27
+updated: 2026-06-13
 ---
-
 # Runbooks
 
 `runbooks/` 保存可重复执行的操作步骤、部署流程和验收手册。
@@ -35,6 +36,9 @@ updated: 2026-04-27
 ## Environment-Specific Smoke / Evidence
 
 - `execution-control-staging-operations.md`
+  - `execution-control-staging/deploy-and-ingress.md`
+  - `execution-control-staging/daily-operations-and-recovery.md`
+  - `execution-control-staging/durable-runtime-proof.md`
 - `execution-control-staging-smoke-runbook.md`
 - `temporal-self-host-operations.md`
   - self-hosted Temporal substrate 运维入口；覆盖 persistence backup、namespace

@@ -1,5 +1,7 @@
 ---
 doc_type: reference
+truth_scope: product
+owner_boundary: apps/campus-web
 status: active
 created: 2026-06-08
 updated: 2026-06-08

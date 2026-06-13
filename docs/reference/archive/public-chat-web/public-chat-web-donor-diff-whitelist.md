@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: product
+owner_boundary: apps/public-chat-web
 status: historical
 created: 2026-04-09
 updated: 2026-04-20
 ---
-
 # Public Chat Web Donor Diff Whitelist
 
 ## Historical Status

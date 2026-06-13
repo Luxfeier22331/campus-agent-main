@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: execution
+owner_boundary: execution-control
 status: active
 created: 2026-04-23
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Capability Routing And Admission Architecture
 
@@ -439,11 +441,11 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
-- `docs/contracts/capability-execution.md`（legacy filename；active owner
-  是 Execution Agent Layer）
+- `docs/contracts/capability-execution.md`（active owner 是 Execution Agent Layer）
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`（historical
   ADR filename）

@@ -1,10 +1,11 @@
 ---
 doc_type: runbook
+truth_scope: ops
+owner_boundary: docs/runbooks
 status: active
 created: 2026-06-03
 updated: 2026-06-05
 ---
-
 # MUC Wiki Visual Modernization Runbook
 
 This runbook records the `nc-arm-6c` MediaWiki staging visual modernization

@@ -1,5 +1,7 @@
 ---
 doc_type: contract
+truth_scope: product
+owner_boundary: apps/chatkit-adapter
 status: active
 created: 2026-06-12
 updated: 2026-06-12

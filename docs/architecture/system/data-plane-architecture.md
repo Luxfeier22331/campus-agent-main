@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: data
+owner_boundary: ingestion-core
 status: active
 created: 2026-04-02
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Data Plane Architecture
 
@@ -508,8 +510,7 @@ closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
-- `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.m
-  d`
+- `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
 - `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput

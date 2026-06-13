@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
@@ -205,7 +207,6 @@ redaction 与字段裁剪。
 ## 相关文档
 
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/durable-agent-runtime-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

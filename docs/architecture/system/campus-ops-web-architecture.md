@@ -1,5 +1,7 @@
 ---
 doc_type: architecture
+truth_scope: product
+owner_boundary: apps/campus-ops-web
 status: active
 created: 2026-06-08
 updated: 2026-06-12

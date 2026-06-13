@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: ops
+owner_boundary: docs/reference/archive/incidents
 status: historical
 created: 2026-04-12
 updated: 2026-04-20
 ---
-
 # Provider `/responses` 接口契约异常问题报告（2026-04-12）
 
 ## Historical Note
