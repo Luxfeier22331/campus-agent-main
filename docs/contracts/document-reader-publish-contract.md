@@ -46,7 +46,8 @@ published reader assets 的长期语义固定拆成两层：
 - 对象存储是长期 publish artifact owner
 - `campus-web` 的 Rspress build/static assets 只是发布期复制品
 - repo `assets/` 目录或源码目录下的静态文件不承担长期 reader truth
-- 旧 `apps/public-docs` 不再是 forward product surface；其中脚本只能作为迁移参考
+- 旧 `apps/public-docs` 不再是 forward product surface，且已从 active workspace 删除；
+  历史脚本只能通过 git history 追溯
 
 ## Publish Source Of Truth
 
@@ -161,7 +162,8 @@ app-api docs read model
 
 当前 `app-api` 导出脚本仍沿用历史命名
 `docs:export-public-sync-manifest` 与 `PUBLIC_DOCS_SYNC_MANIFEST_PATH`。这些名称只表示
-“面向浏览器文档阅读面的发布 manifest”，不表示 `apps/public-docs` 仍是 forward surface。
+“面向浏览器文档阅读面的发布 manifest”，不表示已删除的 `apps/public-docs` 仍是
+forward surface。
 
 deploy sync manifest 的最小逻辑形态固定为：
 

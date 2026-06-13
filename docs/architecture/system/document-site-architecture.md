@@ -49,8 +49,8 @@ campus-web Rspress docs source/build output`
 - published reader assets 是正文发布产物，不是新的 truth layer
 - docs control plane 与 reader content delivery 必须分层
 - Q&A source card、docs search result 与直接阅读必须落到同一 reader permalink
-- 旧 `apps/public-docs` 不再是 forward product surface；它只保留为 Rspress/MDX/
-  anchor/highlight/search 管线的 reference implementation
+- 旧 `apps/public-docs` 不再是 forward product surface，且已从 active workspace 删除；
+  历史 Rspress/MDX/anchor/highlight/search 管线只能通过 git history 追溯
 
 ## Ownership
 
@@ -270,7 +270,7 @@ docs search 与 chat 继续是两条不同能力：
 - restricted / gated docs search 默认使用 `/_gated-docs-search/*` 受保护静态索引，
   由 campus-web Worker 先调用 app-api admission，再交付 index；查询词不发送到 API
 - `/api/docs/collections/:corpus/:collection/search` 已从 docs browser-facing HTTP
-  contract 退役；不得作为 campus-web、public-docs 或 browser search hook 的查询路径
+  contract 退役；不得作为 campus-web 或 browser search hook 的查询路径
 - docs search 结果必须直接回链 reader permalink：`canonicalUrl?hl=rootUnitId#anchor`
 - docs search 不返回 raw retrieval trace
 - docs search 不负责返回整篇正文
@@ -309,7 +309,8 @@ admission truth。
 
 ## Retired Surface Posture
 
-`apps/public-docs` 的旧 Rspress 实现中，以下资产可以迁移或参考：
+历史 `apps/public-docs` Rspress 实现中的以下资产已经迁移到 `campus-web /docs/*`，
+后续只可通过 git history 追溯来源：
 
 - published reader asset -> MDX generator
 - `data-root-unit-id` DOM projection
@@ -317,7 +318,7 @@ admission truth。
 - docs search result -> reader permalink suggestion mapping
 - Rspress theme ideas
 
-但 `apps/public-docs` 不再承担：
+已删除的 `apps/public-docs` 不再承担：
 
 - forward product entry
 - docs browser surface ownership

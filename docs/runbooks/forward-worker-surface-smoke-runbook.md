@@ -187,9 +187,8 @@ uv run --all-packages python -m scripts.execution_control_process_smoke \
 ## 与旧 smoke 的关系
 
 - `public-docs` 的本地 browser/live smoke 不再是 forward product topology 的 canonical
-  smoke 入口
-- `public-docs` package 只保留为 Rspress/MDX/anchor/highlight/search reference
-  implementation
+  smoke 入口；该 app 已删除，历史 Rspress/MDX/anchor/highlight/search 实现只能通过 git
+  history 追溯
 - `public-chat-web` 的本地 browser/live smoke 仍固定走 `dev:live-smoke` 单命令 auxiliary
   Worker 拓扑
 - 如果未来要增加 repo-level 一键 browser/live smoke，应围绕 `campus-web`、legacy

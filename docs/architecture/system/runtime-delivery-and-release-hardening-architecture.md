@@ -72,7 +72,7 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>
 - `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
 - `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
-- `apps/public-docs` -> retired/reference package, not a forward staging surface
+- `apps/public-docs` -> removed; docs staging surface is `apps/campus-web /docs/*`
 
 长期规则：
 

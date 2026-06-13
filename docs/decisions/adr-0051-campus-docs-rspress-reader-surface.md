@@ -12,10 +12,10 @@ updated: 2026-06-12
 source card、docs search、账号态、地图/饭堂/反馈支撑页共享同一个 `campus.muc.wiki`
 产品上下文。
 
-当前 `campus-web /docs/*` React 页面只能 resolve reader asset 并展示标题/外链，不能承担成熟
-docs reader。旧 `apps/public-docs` 已经证明 Rspress + generated MDX + stable anchor +
-`data-root-unit-id` highlight + docs search mapping 的技术路线可行，但它不再应该作为独立
-product surface 决定目标拓扑。
+当前 `campus-web /docs/*` 需要承担成熟 docs reader。历史 `apps/public-docs`
+已验证 Rspress + generated MDX + stable anchor + `data-root-unit-id` highlight +
+docs search mapping 的技术路线可行，但该独立 app 已删除，后续只能通过 git history
+追溯迁移来源。
 
 ## Decision
 
@@ -39,16 +39,15 @@ product surface 决定目标拓扑。
   search hook。
 - docs site search 只做精确 / 字面命中；同义词、别名、意图扩展与语义检索属于 RAG/chat
   能力，不进入文档站本地搜索。
-- 旧 `apps/public-docs` 退出 forward product topology，仅作为可迁移 reference
-  implementation。
+- 旧 `apps/public-docs` 退出 forward product topology，并从 active workspace 删除。
 
 ## Consequences
 
 - 不继续扩展 `campus-web` 自研完整 docs reader。
 - 不复活独立 `public-docs` browser surface 作为长期文档入口。
 - `campus-web` build / deploy gate 必须覆盖 Rspress docs build。
-- Reader state enhancer、MDX generator 与 docs search mapping 可以从旧
-  `apps/public-docs` 迁移，但必须改挂到 campus product shell 与同源 route。
+- Reader state enhancer、MDX generator 与 docs search mapping 已改挂到 campus product
+  shell 与同源 route；后续不得恢复独立 public-docs app。
 - 更换 reader engine 必须更新本 ADR、document-site architecture、contract tests 与 build
   checks。
 

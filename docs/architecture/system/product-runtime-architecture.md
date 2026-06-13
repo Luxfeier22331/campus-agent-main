@@ -59,8 +59,8 @@ model`
   conversation truth 或 execution engine 责任
 - `apps/public-chat-web` 是 legacy chat surface；它不再定义当前产品入口、账号入口或
   auth return target
-- `apps/public-docs` 是 retired/reference implementation，不再是 forward docs
-  product surface
+- `apps/public-docs` 已删除；当前 docs browser surface 只由 `campus-web /docs/*`
+  承担
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
   runtime adapter role
@@ -104,10 +104,6 @@ model`
   - legacy public chat surface；保留旧 `/login`、`/register`、`/forgot-password`、
     `/reset-password` route 作为 bounded redirect 到 campus account shell
   - 不拥有 account shell、captcha widget runtime 或 password-reset form runtime
-- `public-docs`
-  - retired/reference package；保留旧 Rspress/MDX/anchor/highlight/search 管线作为迁移资产
-  - 不作为 staging/product acceptance target，不拥有 docs route、account、auth return 或
-    product navigation
 - `chatkit-adapter`
   - internal protocol adapter for ChatKit custom server integration
   - maps ChatKit thread/item/action/event protocol to app-api conversation, message,
@@ -166,13 +162,6 @@ model`
 - browser auth handoff is
   `public-chat-web compat route -> campus-web /account/* -> /api/auth/* -> app-api`
 - 不拥有 auth/session/conversation truth
-
-### `apps/public-docs`
-
-- retired/reference package during deletion window
-- retains reusable Rspress reader implementation assets for migration only
-- not a current product entry, docs browser surface, staging deploy gate, or product
-  acceptance target
 
 ### `apps/chatkit-adapter`
 

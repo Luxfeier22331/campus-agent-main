@@ -115,12 +115,12 @@ def lint_exclusion_reason(path: str) -> str | None:
         return "temporary_workspace_artifact"
     if path.startswith(".worktrees/"):
         return "worktree_runtime_artifact"
-    if path.startswith("apps/public-docs/docs/.generated/course-maps/"):
-        return "generated_public_docs_course_map_data"
     if path.startswith("apps/public-chat-web/vendor/"):
         return "vendor_snapshot"
     if path.startswith("apps/app-api/drizzle/meta/"):
         return "generated_drizzle_metadata"
+    if path.startswith("docs/reference/muc-campus-qa-frontend-design/"):
+        return "design_reference_asset_snapshot"
     if path.startswith("docs/runbooks/muc-wiki-visual-modernization-assets/"):
         return "runbook_visual_asset_snapshot"
     if path in _EXCLUDED_GENERATED_FILES:
@@ -149,8 +149,6 @@ def lint_families_for_path(path: str) -> tuple[str, ...]:
     families: list[str] = []
     if _is_biome_tracked_file(path):
         families.append("web:lint")
-    if _is_public_docs_generated_file(path):
-        families.append("public-docs:lint")
     if _is_markdown_tracked_file(path):
         families.append("docs:lint")
     if _is_python_tracked_file(path):
@@ -208,19 +206,9 @@ def _is_markdown_tracked_file(path: str) -> bool:
         return True
     if path.startswith("docs/"):
         return path.endswith(".md") and "/archive/" not in path
-    if path.startswith("apps/public-docs/docs/"):
-        return False
     if path.startswith(("apps/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False
-
-
-def _is_public_docs_generated_file(path: str) -> bool:
-    if not path.startswith("apps/public-docs/docs/"):
-        return False
-    if path.startswith("apps/public-docs/docs/.generated/"):
-        return False
-    return path.endswith((".md", ".mdx"))
 
 
 def _is_python_tracked_file(path: str) -> bool:

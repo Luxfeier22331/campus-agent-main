@@ -27,8 +27,8 @@ theme 设计和文档内容采集不在本 runbook 内。
 - `campus-web` 负责在 build/deploy 期间按 manifest 生成 Rspress source，并把 object
   storage reader assets 复制到 campus-web static delivery roots。
 - `campus-web` 不扫描对象存储决定公开文档子集。
-- `apps/public-docs` 已退出 forward product topology；其中 Rspress/MDX/anchor/
-  highlight/search 管线只作为 reference implementation。
+- `apps/public-docs` 已退出 forward product topology 并从 active workspace 删除；历史
+  Rspress/MDX/anchor/highlight/search 管线只能通过 git history 追溯。
 - reader publisher 与 `app-api` docs read-model import 都必须 fail closed unsupported
   scope。`campus_notices/internal_notice` 是 notice source/card scope，不是文档站
   document scope。
@@ -37,7 +37,7 @@ theme 设计和文档内容采集不在本 runbook 内。
 
 - `app-api` 的导出命令仍叫 `docs:export-public-sync-manifest`。
 - staging smoke 仍读取 `PUBLIC_DOCS_SYNC_MANIFEST_PATH`。
-- 这些历史命名只表示“面向浏览器文档阅读面的发布 manifest”，不表示
+- 这些历史命名只表示“面向浏览器文档阅读面的发布 manifest”，不表示已删除的
   `apps/public-docs` 仍是产品入口。
 
 ## Seed 数据交付口径

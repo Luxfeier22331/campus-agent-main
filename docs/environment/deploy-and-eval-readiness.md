@@ -105,7 +105,8 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
   Q&A、account、docs、map、dining 与 feedback
 - `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
 - `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
-- `apps/public-docs` 是 retired/reference package，不再是 active staging browser surface
+- `apps/public-docs` 已删除；docs staging browser surface 由 `apps/campus-web`
+  `/docs/*` 承担
 
 固定要求：
 

@@ -76,7 +76,7 @@ class CheckEditorconfigTrackedTest(unittest.TestCase):
             return_value=(
                 repo_root / ".editorconfig",
                 repo_root / ".gitignore",
-                repo_root / "apps/public-docs/.gitignore",
+                repo_root / "apps/campus-web/.gitignore",
             ),
         ):
             run_mock.return_value = subprocess.CompletedProcess(
@@ -103,11 +103,11 @@ class CheckEditorconfigTrackedTest(unittest.TestCase):
                 target_dir,
                 (
                     repo_root / ".gitignore",
-                    repo_root / "apps/public-docs" / ".missing.gitignore",
+                    repo_root / "apps/campus-web" / ".missing.gitignore",
                 ),
                 root=repo_root,
             )
 
             self.assertTrue((target_dir / ".editorconfig").exists())
             self.assertTrue((target_dir / ".gitignore").exists())
-            self.assertFalse((target_dir / "apps/public-docs/.missing.gitignore").exists())
+            self.assertFalse((target_dir / "apps/campus-web/.missing.gitignore").exists())

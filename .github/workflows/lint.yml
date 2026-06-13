@@ -298,9 +298,6 @@ jobs:
       - name: Run Markdown lint
         run: pnpm docs:lint
 
-      - name: Run generated public docs lint
-        run: pnpm public-docs:lint
-
   lint-coverage:
     runs-on: ubuntu-latest
     steps:

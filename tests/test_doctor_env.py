@@ -441,7 +441,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "BETTER_AUTH_SECRET=dev-secret-dev-secret-dev-secret",
-                        "AUTH_SHELL_ORIGIN=https://hub.example.com",
+                        "AUTH_SHELL_ORIGIN=https://campus.example.com",
                         "PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com",
                         "EXECUTION_CONTROL_BASE_URL=https://execution-control.internal",
                         "EXECUTION_CONTROL_SHARED_SECRET=shared-secret",
@@ -458,7 +458,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "APP_API_BASE_URL=https://app-api.internal",
                         "PUBLIC_CHAT_HOSTNAME=chat.example.com",
-                        "HUB_WEB_BASE_URL=https://hub.example.com",
+                        "AUTH_SHELL_ORIGIN=https://campus.example.com",
                     ]
                 )
                 + "\n",

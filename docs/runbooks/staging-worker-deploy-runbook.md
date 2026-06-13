@@ -18,7 +18,8 @@ updated: 2026-06-09
 - `apps/campus-web`: `https://campus-staging.mucwiki-edge.link`
 - `apps/public-chat-web`: `https://chat-staging.mucwiki-edge.link`
 - `apps/protected-panel-web`: `https://panel-staging.mucwiki-edge.link`
-- `apps/public-docs`: retired package; not an active staging deploy or smoke gate
+- `apps/public-docs`: removed; docs deploy and smoke run through `apps/campus-web`
+  `/docs/*`
 
 它只回答：
 

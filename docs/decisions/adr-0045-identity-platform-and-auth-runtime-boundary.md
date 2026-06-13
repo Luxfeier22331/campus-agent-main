@@ -49,8 +49,7 @@ Identity Platform 至少覆盖：
 
 `apps/campus-web`、legacy `apps/public-chat-web`、`apps/protected-panel-web`、
 `apps/supervisor-api`、agent、retrieval 与 MediaWiki 都不得拥有 canonical app identity
-truth。`apps/public-docs` 是 retired/reference package，也不得重新成为 identity
-browser surface owner。
+truth。已删除的 `apps/public-docs` 也不得重新成为 identity browser surface owner。
 
 ### 决策 2：Better Auth 是 auth runtime adapter，不是产品账号模型
 

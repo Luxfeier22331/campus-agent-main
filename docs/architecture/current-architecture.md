@@ -220,13 +220,6 @@ document/index release`
 - 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用
   `apps/app-api`
 
-### `apps/public-docs`
-
-- retired/reference Worker docs package during deletion window
-- 不再拥有当前产品入口、文档 browser surface、账号导航或 staging acceptance gate
-- 其中 Rspress/MDX/anchor/highlight/search implementation 只作为 `campus-web /docs/*`
-  迁移参考
-
 ### `apps/chatkit-adapter`
 
 - internal FastAPI service that implements ChatKit custom server integration for
