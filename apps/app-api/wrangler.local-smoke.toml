@@ -26,6 +26,7 @@ APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
 EXECUTION_CONTROL_TIMEOUT_MS = "15000"
+CHATKIT_ADAPTER_BASE_URL = "http://127.0.0.1:8765"
 
 [[hyperdrive]]
 binding = "APP_API_DB"

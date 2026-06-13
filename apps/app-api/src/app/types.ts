@@ -45,6 +45,7 @@ export interface AppDependencies {
 	campusServicesOpsService?: CampusServicesOpsService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
+	fetchChatKitAdapter?: (request: Request) => Promise<Response> | Response;
 	diningOperationsService?: DiningOperationsService;
 	docsService?: DocsService;
 	docsReadinessProbe?: () => Promise<AppDocsReadinessResult>;
@@ -114,7 +115,6 @@ export interface AppRequestScope {
 	resolveAuthenticatedNoticeProcessingQueryService(): AuthenticatedNoticeProcessingQueryService;
 	resolveAuthenticatedNoticeRunProcessingCommandService(): AuthenticatedNoticeRunProcessingCommandService;
 	resolveAuthenticatedNoticeRunProcessingQueryService(): AuthenticatedNoticeRunProcessingQueryService;
-	resolveCampusExperienceService(): CampusExperienceService;
 	resolveCampusExperienceService(): CampusExperienceService;
 	resolveCampusServicesOpsService(): CampusServicesOpsService;
 	resolveChatCommandService(): ChatCommandService;

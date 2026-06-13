@@ -32,6 +32,13 @@ updated: 2026-06-09
 
 `campus-web same-origin allowlisted /api/* -> app-api`
 
+`browser -> campus-web Q&A -> app-api /api/chatkit -> chatkit-adapter ->
+app-api chat conversation/run routes -> execution-control -> Temporal ->
+workflow-worker / activity-worker-context / activity-worker-knowledge /
+capability workers / activity-worker-finalization -> memory recall / typed
+capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
+models -> sanitized projection`
+
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-knowledge /
 capability workers / activity-worker-finalization -> memory recall / typed
@@ -54,11 +61,15 @@ document/index release`
 - browser 不直打 `apps/execution-control`
 - `campus-web` 是当前学生侧 product entry surface 与 account browser shell，不是第二个
   product backend、generic app-api proxy 或 MediaWiki proxy
+- `campus-web` Q&A 使用 OpenAI ChatKit 官方 CDN web component runtime；该外部 frontend
+  runtime 是当前 accepted dependency，CSP 必须显式允许其 script/frame 资源
 - panel 不绕过 `apps/app-api`
 - campus / legacy public chat / panel 到 `apps/app-api` 的
   Worker-to-Worker 调用走 `APP_API` Service Binding；
   `https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
+- `apps/chatkit-adapter` 是 internal ChatKit protocol adapter；它不拥有产品后端、
+  conversation truth、execution truth、provider call 或 direct DB writes
 - `apps/app-api` 当前是 neutral Identity Platform 的 canonical product owner；
   Better Auth 是 auth runtime adapter，不是产品账号、校园身份、access entitlement 或
   federation policy schema owner
@@ -169,7 +180,10 @@ document/index release`
   的临时错误/empty path
 - 通过 allowlisted same-origin seam 与 Worker `APP_API` Service Binding 调用
   `apps/app-api` 的 `/api/me/*`、必要 `/api/auth/*`、implemented `/api/federation/*`、
-  docs/chat/map/dining/feedback endpoints
+  docs/chat/map/dining/feedback endpoints；Q&A 主线程通过 `/api/chatkit` 接入
+  ChatKit custom server integration
+- Q&A 主线程 UI、history/search、rename/delete、retry、stop 与 feedback 控件交给
+  ChatKit；`campus-web` 只保留产品壳、账号 modal、支撑导航、错误边界和文案治理
 - 不开放 generic `/api/*` proxy；未知 browser path fail-closed
 - 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
 - 不拥有 auth/session/principal/identity/federation truth；canonical identity 仍属于
@@ -194,6 +208,15 @@ document/index release`
 - 不再拥有当前产品入口、文档 browser surface、账号导航或 staging acceptance gate
 - 其中 Rspress/MDX/anchor/highlight/search implementation 只作为 `campus-web /docs/*`
   迁移参考
+
+### `apps/chatkit-adapter`
+
+- internal FastAPI service that implements ChatKit custom server integration for
+  `campus-web` Q&A
+- 只做 ChatKit thread/item/action/event protocol adapter
+- 通过 `apps/app-api` 的显式 conversation / run / feedback routes 读写产品真相
+- 不生成 answer、不直连 `apps/execution-control`、不写 DB、不拥有 conversation truth
+- 通过 `x-app-internal-auth` 与 signed campus principal headers 调用 `apps/app-api`
 
 ### `apps/protected-panel-web`
 

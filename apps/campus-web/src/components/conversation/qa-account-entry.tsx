@@ -1,28 +1,21 @@
-import { Link } from "@tanstack/react-router";
 import {
 	ChevronUp,
 	HelpCircle,
 	LogIn,
 	LogOut,
-	Plus,
-	Search,
 	Settings,
 	Sparkles,
 	UserPlus,
 	UserRound,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { AccountSettingsDialog } from "@/app/routes/account-page";
 import type { AccountSettingsSectionId } from "@/app/routes/account-settings-content";
-import { ConversationRow } from "@/components/conversation/conversation-row";
-import { getSessionPrincipal } from "@/features/conversation/api";
-import type { ConversationSummary } from "@/features/conversation/model";
 import { cn } from "@/lib/utils";
-import { UnauthorizedError } from "@/platform/api/client";
 import { signOutAccount } from "@/platform/auth/client";
 
-type AccountEntryState =
+export type AccountEntryState =
 	| {
 			status: "authenticated";
 			displayName: string;
@@ -30,150 +23,7 @@ type AccountEntryState =
 	  }
 	| { status: "loading" | "unauthenticated" | "unavailable" };
 
-export function ConversationSidebar({
-	activeConversationId,
-	className,
-	conversations,
-	onConversationArchived,
-	onConversationDeleted,
-	onConversationUpdated,
-	onLoginRequest,
-	onSearchOpen,
-}: {
-	activeConversationId?: string;
-	className?: string;
-	conversations: ConversationSummary[];
-	onConversationArchived?: (conversationId: string) => void;
-	onConversationDeleted?: (conversationId: string) => void;
-	onConversationUpdated?: (conversation: ConversationSummary) => void;
-	onLoginRequest?: () => void;
-	onSearchOpen: () => void;
-}) {
-	const [displayConversations, setDisplayConversations] = useState(conversations);
-	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
-	const groupedConversations = useMemo(
-		() => groupConversations(displayConversations),
-		[displayConversations],
-	);
-
-	useEffect(() => {
-		setDisplayConversations(conversations);
-	}, [conversations]);
-
-	useEffect(() => {
-		let cancelled = false;
-		getSessionPrincipal()
-			.then((session) => {
-				if (cancelled) {
-					return;
-				}
-				setAccountEntry({
-					displayName: session.principal.displayName,
-					email: session.principal.email,
-					status: "authenticated",
-				});
-			})
-			.catch((reason: unknown) => {
-				if (cancelled) {
-					return;
-				}
-				setAccountEntry({
-					status: reason instanceof UnauthorizedError ? "unauthenticated" : "unavailable",
-				});
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
-	return (
-		<aside
-			className={cn(
-				"w-[var(--layout-chat-sidebar-width)] shrink-0 flex-col border-r border-[var(--chat-sidebar-border)] bg-[var(--chat-sidebar-bg)] px-3 py-3",
-				className,
-			)}
-		>
-			<div className="min-w-0 px-2 py-2">
-				<p className="truncate text-sm font-semibold text-[var(--sys-text-strong)]">
-					中央民族大学校园问答
-				</p>
-				<p className="mt-0.5 text-xs text-[var(--sys-text-subtle)]">MUC Campus Q&A</p>
-			</div>
-			<Link
-				className="mt-3 inline-flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
-				to="/"
-			>
-				<Plus aria-hidden="true" className="size-4 text-[var(--sys-text-muted)]" />
-				新对话
-				<span
-					aria-hidden="true"
-					className="ml-auto text-xs font-normal text-[var(--sys-text-subtle)]"
-				>
-					⌘⇧O
-				</span>
-			</Link>
-			<button
-				className="mt-1 flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
-				onClick={onSearchOpen}
-				type="button"
-			>
-				<Search aria-hidden="true" className="size-4 shrink-0" />
-				搜索聊天
-				<span
-					aria-hidden="true"
-					className="ml-auto text-xs font-normal text-[var(--sys-text-subtle)]"
-				>
-					⌘K
-				</span>
-			</button>
-			<div className="mt-4 min-h-0 flex-1 overflow-y-auto">
-				{groupedConversations.length > 0 ? (
-					<div className="space-y-4">
-						{groupedConversations.map((group) => (
-							<section key={group.label}>
-								<p className="px-2 text-xs font-medium text-[var(--sys-text-subtle)]">
-									{group.label}
-								</p>
-								<div className="mt-2 space-y-1">
-									{group.items.map((conversation) => (
-										<ConversationRow
-											active={activeConversationId === conversation.id}
-											conversation={conversation}
-											key={conversation.id}
-											onArchived={(conversationId) => {
-												setDisplayConversations((current) =>
-													current.filter((item) => item.id !== conversationId),
-												);
-												onConversationArchived?.(conversationId);
-											}}
-											onDeleted={(conversationId) => {
-												setDisplayConversations((current) =>
-													current.filter((item) => item.id !== conversationId),
-												);
-												onConversationDeleted?.(conversationId);
-											}}
-											onUpdated={(updated) => {
-												setDisplayConversations((current) =>
-													upsertConversationSummary(current, updated),
-												);
-												onConversationUpdated?.(updated);
-											}}
-										/>
-									))}
-								</div>
-							</section>
-						))}
-					</div>
-				) : (
-					<p className="px-2 text-xs text-[var(--sys-text-subtle)]">暂无会话</p>
-				)}
-			</div>
-			<AccountEntry onLoginRequest={onLoginRequest} state={accountEntry} />
-		</aside>
-	);
-}
-
-function AccountEntry({
+export function QAAccountEntry({
 	onLoginRequest,
 	state,
 }: {
@@ -417,51 +267,4 @@ function getAccountLabel(state: AccountEntryState) {
 		return "登录";
 	}
 	return "账号";
-}
-
-function groupConversations(conversations: ConversationSummary[]) {
-	const groups = new Map<string, ConversationSummary[]>();
-	for (const conversation of conversations) {
-		const label = conversation.pinnedAt
-			? "置顶"
-			: getConversationGroupLabel(conversation.updatedAt);
-		groups.set(label, [...(groups.get(label) ?? []), conversation]);
-	}
-	const priority = new Map([
-		["置顶", 0],
-		["今天", 1],
-		["本周", 2],
-		["更早", 3],
-	]);
-	return Array.from(groups, ([label, items]) => ({ items, label })).sort(
-		(left, right) => (priority.get(left.label) ?? 99) - (priority.get(right.label) ?? 99),
-	);
-}
-
-function upsertConversationSummary(
-	conversations: ConversationSummary[],
-	summary: ConversationSummary,
-): ConversationSummary[] {
-	return [summary, ...conversations.filter((item) => item.id !== summary.id)];
-}
-
-function getConversationGroupLabel(updatedAt: string) {
-	const timestamp = Date.parse(updatedAt);
-	if (Number.isNaN(timestamp)) {
-		return "更早";
-	}
-	const now = new Date();
-	const updated = new Date(timestamp);
-	if (now.toDateString() === updated.toDateString()) {
-		return "今天";
-	}
-	const elapsedDays = (startOfDay(now).getTime() - startOfDay(updated).getTime()) / 86_400_000;
-	if (elapsedDays > 0 && elapsedDays < 7) {
-		return "本周";
-	}
-	return "更早";
-}
-
-function startOfDay(date: Date) {
-	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }

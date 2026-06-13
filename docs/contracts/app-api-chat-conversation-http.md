@@ -13,6 +13,11 @@ association, user-side archive/pin/delete state, answer feedback, and edit
 truncation. Browser surfaces, including `campus-web`, only render a UI
 projection and send commands through this contract.
 
+`campus-web` Q&A uses ChatKit custom server integration through
+`docs/contracts/campus-web-chatkit-adapter.md`. ChatKit thread/item/actions are
+adapter projections over this app-api conversation contract, not a second
+conversation truth.
+
 This contract does not define token delta streaming, share/export, file upload,
 batch management, or local browser-only conversation truth.
 

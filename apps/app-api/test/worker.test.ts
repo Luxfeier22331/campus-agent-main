@@ -159,6 +159,9 @@ describe("app-api worker foundation", () => {
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
 		expect(stagingVarsBlock).toContain('EXECUTION_CONTROL_TIMEOUT_MS = "95000"');
+		expect(stagingVarsBlock).toContain(
+			'CHATKIT_ADAPTER_BASE_URL = "https://chatkit-adapter-staging.mucwiki-edge.link"',
+		);
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
@@ -272,6 +275,9 @@ describe("app-api worker foundation", () => {
 	it("points the local smoke execution upstream at the docker-first execution-control port", () => {
 		expect(localSmokeWranglerConfig).toContain(
 			'EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"',
+		);
+		expect(localSmokeWranglerConfig).toContain(
+			'CHATKIT_ADAPTER_BASE_URL = "http://127.0.0.1:8765"',
 		);
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});

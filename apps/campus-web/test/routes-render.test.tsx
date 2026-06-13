@@ -1,3 +1,4 @@
+import type { UseChatKitOptions } from "@openai/chatkit-react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundPage, RootLayout } from "../src/app/root-layout";
@@ -9,11 +10,9 @@ import { DocsPage } from "../src/app/routes/docs-page";
 import { FeedbackPage } from "../src/app/routes/feedback-page";
 import { HomePage } from "../src/app/routes/home-page";
 import homePageSource from "../src/app/routes/home-page.tsx?raw";
-import conversationSidebarSource from "../src/components/conversation/conversation-sidebar.tsx?raw";
-import { MessageList } from "../src/components/conversation/message-list";
+import qaAccountEntrySource from "../src/components/conversation/qa-account-entry.tsx?raw";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
-import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
 import { UnauthorizedError } from "../src/platform/api/client";
 
 const diningApiMock = vi.hoisted(() => ({
@@ -23,16 +22,32 @@ const diningApiMock = vi.hoisted(() => ({
 const docsApiMock = vi.hoisted(() => ({
 	getDocsNavigation: vi.fn(),
 	resolveDocument: vi.fn(),
-	searchDocs: vi.fn(),
 }));
 const feedbackApiMock = vi.hoisted(() => ({
 	submitFeedback: vi.fn(),
 }));
 const conversationApiMock = vi.hoisted(() => ({
 	getSessionPrincipal: vi.fn(),
-	submitChatRequestStream: vi.fn(),
 }));
+const useChatKitMock = vi.hoisted(() =>
+	vi.fn((_: UseChatKitOptions) => ({ control: { id: "control" }, showHistory: vi.fn() })),
+);
 const navigateMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@openai/chatkit-react", () => ({
+	ChatKit: ({ className, control }: { className?: string; control: unknown }) => (
+		<div className={className} data-control={JSON.stringify(control)} data-testid="chatkit" />
+	),
+	useChatKit: useChatKitMock,
+}));
+
+function getLastChatKitOptions(): UseChatKitOptions {
+	const call = useChatKitMock.mock.calls.at(-1);
+	if (!call) {
+		throw new Error("useChatKit was not called.");
+	}
+	return call[0] as UseChatKitOptions;
+}
 
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
@@ -65,24 +80,7 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 vi.mock("../src/features/conversation/api", () => ({
-	getConversationDetail: vi.fn().mockResolvedValue({
-		createdAt: "2026-06-08T00:00:00.000Z",
-		id: "conv_01",
-		messages: [],
-		title: "测试会话",
-		updatedAt: "2026-06-08T00:00:00.000Z",
-	}),
 	getSessionPrincipal: conversationApiMock.getSessionPrincipal,
-	listConversations: vi.fn().mockResolvedValue([
-		{
-			createdAt: "2026-06-08T00:00:00.000Z",
-			id: "conv_recent",
-			title: "校园卡补办流程",
-			updatedAt: "2026-06-08T00:10:00.000Z",
-		},
-	]),
-	submitChatRequest: vi.fn(),
-	submitChatRequestStream: conversationApiMock.submitChatRequestStream,
 }));
 
 vi.mock("../src/features/docs/api", () => docsApiMock);
@@ -90,64 +88,9 @@ vi.mock("../src/features/feedback/api", () => feedbackApiMock);
 
 vi.mock("../src/features/dining/api", () => diningApiMock);
 
-function createCompletedStreamEvents(): ChatRequestStreamEvent[] {
-	return [
-		{
-			data: {
-				occurredAt: "2026-06-08T00:00:01.000Z",
-				requestId: "req_01",
-				status: "queued",
-				traceId: "trace_01",
-			},
-			event: "execution.queued",
-		},
-		{
-			data: {
-				occurredAt: "2026-06-08T00:00:02.000Z",
-				requestId: "req_01",
-				status: "running",
-				traceId: "trace_01",
-			},
-			event: "execution.running",
-		},
-		{
-			data: {
-				answer: {
-					conversation: {
-						archivedAt: null,
-						createdAt: "2026-06-08T00:00:00.000Z",
-						id: "conv_01",
-						messages: [],
-						pinnedAt: null,
-						title: "测试会话",
-						updatedAt: "2026-06-08T00:00:03.000Z",
-					},
-					result: {
-						kind: "clarification",
-						requestId: "req_01",
-						text: "需要补充哪个校区？",
-						traceId: "trace_01",
-					},
-				},
-				occurredAt: "2026-06-08T00:00:03.000Z",
-				requestId: "req_01",
-				status: "completed",
-				traceId: "trace_01",
-			},
-			event: "request.completed",
-		},
-	];
-}
-
-async function* createUnauthorizedStream(): AsyncGenerator<ChatRequestStreamEvent> {
-	yield* [];
-	throw new UnauthorizedError();
-}
-
 describe("campus routes", () => {
 	beforeEach(() => {
 		conversationApiMock.getSessionPrincipal.mockReset();
-		conversationApiMock.submitChatRequestStream.mockReset();
 		conversationApiMock.getSessionPrincipal.mockResolvedValue({
 			permissions: {
 				chat: true,
@@ -164,17 +107,10 @@ describe("campus routes", () => {
 				sessionId: "session_01",
 			},
 		});
-		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
-			for (const event of createCompletedStreamEvents()) {
-				await new Promise((resolve) => setTimeout(resolve, 0));
-				yield event;
-			}
-		});
 		diningApiMock.getDiningHalls.mockReset();
 		diningApiMock.getDiningFloor.mockReset();
 		docsApiMock.getDocsNavigation.mockReset();
 		docsApiMock.resolveDocument.mockReset();
-		docsApiMock.searchDocs.mockReset();
 		docsApiMock.getDocsNavigation.mockResolvedValue({
 			collection: {
 				collection: "student_rules",
@@ -220,20 +156,6 @@ describe("campus routes", () => {
 				versionSlug: "2026",
 			},
 		});
-		docsApiMock.searchDocs.mockResolvedValue({
-			query: "奖学金",
-			results: [
-				{
-					anchor: "scholarship",
-					canonicalUrl: "/docs/regulations/student_rules/scholarship",
-					documentTitle: "学生手册",
-					highlightRootUnitIds: ["unit_01"],
-					kind: "section_hit",
-					snippet: "奖学金评定需要满足对应条件。",
-					title: "奖学金评定",
-				},
-			],
-		});
 		feedbackApiMock.submitFeedback.mockReset();
 		feedbackApiMock.submitFeedback.mockResolvedValue({
 			feedback: {
@@ -242,6 +164,7 @@ describe("campus routes", () => {
 			},
 		});
 		navigateMock.mockReset();
+		useChatKitMock.mockClear();
 	});
 
 	it("renders the v1.3 Q&A home shell without app launcher debt", async () => {
@@ -256,7 +179,13 @@ describe("campus routes", () => {
 		expect(screen.getAllByRole("link", { name: "校园地图" }).length).toBeGreaterThan(0);
 		expect(screen.getAllByRole("link", { name: "饭堂分布图" }).length).toBeGreaterThan(0);
 		expect(screen.getAllByRole("link", { name: "反馈" }).length).toBeGreaterThan(0);
-		expect(screen.getByRole("heading", { name: "想了解什么校园信息？" })).toBeInTheDocument();
+		expect(screen.getByTestId("chatkit")).toBeInTheDocument();
+		expect(useChatKitMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				api: expect.objectContaining({ url: "/api/chatkit" }),
+				initialThread: null,
+			}),
+		);
 		expect(await screen.findByText("测试用户")).toBeInTheDocument();
 		expect(screen.getByText("user@muc.edu.cn")).toBeInTheDocument();
 		expect(screen.queryByRole("menu", { name: "账号" })).toBeNull();
@@ -271,11 +200,12 @@ describe("campus routes", () => {
 		expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("menuitem", { name: "账号设置" }));
 		expect(await screen.findByRole("dialog", { name: "账号设置" })).toBeInTheDocument();
-		expect(await screen.findByText("校园卡补办流程")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "中慧楼在哪里？" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "清真窗口在哪？" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "最近有哪些通知？" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "海淀校区饭堂分布图在哪看？" })).toBeInTheDocument();
+		expect(getLastChatKitOptions().startScreen?.prompts).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ prompt: "中慧楼在哪里？" }),
+				expect.objectContaining({ prompt: "清真窗口在哪？" }),
+			]),
+		);
 		expect(
 			screen.queryByText(
 				"历史会话只用于找回之前的问题；文档、校园地图和饭堂分布图保留在顶部导航中。",
@@ -299,13 +229,15 @@ describe("campus routes", () => {
 		expect(homePageSource).not.toContain("SupportCard");
 		expect(homePageSource).not.toContain("常用校园事务");
 		expect(homePageSource).not.toContain("rounded-full");
-		expect(conversationSidebarSource).not.toContain("rounded-full bg-[var(--sys-brand-identity)]");
-		expect(conversationSidebarSource).not.toContain(">民<");
-		expect(conversationSidebarSource).toContain("UserRound");
-		expect(conversationSidebarSource).toContain('role="menu"');
-		expect(conversationSidebarSource).toContain("ChevronUp");
-		expect(conversationSidebarSource).not.toContain("关闭账号面板");
+		expect(qaAccountEntrySource).not.toContain("rounded-full bg-[var(--sys-brand-identity)]");
+		expect(qaAccountEntrySource).not.toContain(">民<");
+		expect(qaAccountEntrySource).toContain("UserRound");
+		expect(qaAccountEntrySource).toContain('role="menu"');
+		expect(qaAccountEntrySource).toContain("ChevronUp");
+		expect(qaAccountEntrySource).not.toContain("关闭账号面板");
 		expect(qaShellSource).toContain("饭堂分布图");
+		expect(qaShellSource).not.toContain("ChatKit 管理");
+		expect(qaShellSource).not.toContain("ConversationSidebar");
 		expect(qaShellSource).not.toContain("rounded-lg px-3 text-sm font-medium");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
 	});
@@ -341,30 +273,6 @@ describe("campus routes", () => {
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 	});
 
-	it("opens an inline login dialog from the Q&A home instead of leaving the page", async () => {
-		conversationApiMock.submitChatRequestStream.mockImplementation(createUnauthorizedStream);
-		window.history.pushState({}, "", "/");
-		render(<HomePage />);
-
-		fireEvent.change(await screen.findByPlaceholderText("输入你想问的问题"), {
-			target: { value: "中慧楼在哪里？" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "发送" }));
-
-		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
-		expect(screen.getByLabelText("邮箱地址")).toBeInTheDocument();
-		expect(screen.getByLabelText("密码")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
-			"href",
-			"/account/register",
-		);
-		expect(screen.getByRole("link", { name: "忘记密码？" })).toHaveAttribute(
-			"href",
-			"/account/forgot-password",
-		);
-		expect(window.location.pathname).toBe("/");
-	});
-
 	it("opens the same inline login dialog from the signed-out account menu", async () => {
 		conversationApiMock.getSessionPrincipal.mockRejectedValue(new UnauthorizedError());
 		render(<HomePage />);
@@ -376,15 +284,6 @@ describe("campus routes", () => {
 		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
 			"href",
 			"/account/register",
-		);
-	});
-
-	it("prefills the home composer from a map place question", async () => {
-		window.history.pushState({}, "", "/?prompt=请介绍一下「图书馆」在哪里。");
-		render(<HomePage />);
-
-		expect(await screen.findByPlaceholderText("输入你想问的问题")).toHaveValue(
-			"请介绍一下「图书馆」在哪里。",
 		);
 	});
 
@@ -488,7 +387,6 @@ describe("campus routes", () => {
 		expect(screen.queryByRole("button", { name: "搜索" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "打开原文" })).toBeNull();
 		expect(screen.queryByText("完整正文可在文档页面中查看。")).toBeNull();
-		expect(docsApiMock.searchDocs).not.toHaveBeenCalled();
 
 		docsApiMock.getDocsNavigation.mockRejectedValueOnce(new Error("network"));
 		docsApiMock.resolveDocument.mockRejectedValueOnce(new Error("network"));
@@ -608,73 +506,19 @@ describe("campus routes", () => {
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalled();
 	});
 
-	it("renders the v1.3 conversation shell and streaming lifecycle states", async () => {
+	it("renders the v1.3 conversation shell with ChatKit as the thread surface", async () => {
 		render(<ConversationPage />);
 
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
 		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
-		expect(screen.getByRole("heading", { name: "测试会话" })).toBeInTheDocument();
-		fireEvent.change(await screen.findByPlaceholderText("今天需要什么帮助"), {
-			target: { value: "奖学金" },
-		});
-		fireEvent.click(screen.getByLabelText("发送"));
-
-		expect(await screen.findByText("奖学金")).toBeInTheDocument();
-		expect(await screen.findByText("正在连接校园助手。")).toBeInTheDocument();
-		expect(await screen.findByText("已排队")).toBeInTheDocument();
-		expect(await screen.findByText("正在处理")).toBeInTheDocument();
-		expect(await screen.findByText("已完成")).toBeInTheDocument();
-		expect(await screen.findByText("需要补充哪个校区？")).toBeInTheDocument();
-	});
-
-	it("renders source metadata and answer feedback controls", () => {
-		render(
-			<MessageList
-				messages={[
-					{
-						conversationId: "conv_01",
-						createdAt: "2026-06-08T00:00:00.000Z",
-						feedback: null,
-						id: "msg_01",
-						kind: "answer",
-						requestId: "req_01",
-						retryable: null,
-						role: "assistant",
-						structuredParts: [
-							{
-								sourceItems: [
-									{
-										collectionLabel: "学生手册",
-										pageLabel: "奖助学金",
-										primaryAction: {
-											disabledReason: null,
-											external: false,
-											href: "/docs/regulations/student_rules/scholarship",
-											label: "查看来源",
-										},
-										publisherLabel: "学生处",
-										sectionTitle: "申请条件",
-										snippet: "综合测评和课程成绩需要满足对应条件。",
-										title: "奖学金评定办法",
-										trustLabel: "已发布",
-										versionLabel: "2026",
-									},
-								],
-								type: "source_items",
-							},
-						],
-						text: "可以先确认奖学金类别和年级。",
-					},
-				]}
-				onDeleteFeedback={vi.fn()}
-				onSubmitFeedback={vi.fn()}
-			/>,
+		expect(screen.getByTestId("chatkit")).toBeInTheDocument();
+		expect(useChatKitMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				api: expect.objectContaining({ url: "/api/chatkit" }),
+				initialThread: "conv_01",
+			}),
 		);
-
-		expect(screen.getByText("学生处 · 已发布 · 2026")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "有帮助" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "没帮助" })).toBeInTheDocument();
 	});
 
 	it("renders fail-closed not found page", () => {

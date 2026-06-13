@@ -124,6 +124,7 @@ export function AccountLoginDialog({ onClose }: { onClose: () => void }) {
 						<h2 className="text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
 							登录
 						</h2>
+						<p className="mt-1 text-sm text-[var(--sys-text-muted)]">登录后继续提问。</p>
 					</div>
 					<button
 						aria-label="关闭登录"
@@ -137,7 +138,7 @@ export function AccountLoginDialog({ onClose }: { onClose: () => void }) {
 				<AccountEmailPasswordForm
 					mode="login"
 					oauthContext={null}
-					onSuccess={() => window.location.reload()}
+					onSuccess={onClose}
 					submitLabel="继续"
 				/>
 				<div className="mt-5 flex items-center justify-center gap-3 text-sm">

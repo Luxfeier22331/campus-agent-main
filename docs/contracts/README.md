@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-06-04
+updated: 2026-06-12
 ---
 # Contracts
 
@@ -12,6 +12,7 @@ updated: 2026-06-04
 
 - `app-api-http.md`
 - `app-api-chat-conversation-http.md`
+- `campus-web-chatkit-adapter.md`
 - `app-api-eval-benchmark-http.md`
 - `app-api-document-reader-http.md`
 - `document-reader-publish-contract.md`

@@ -26,6 +26,11 @@ delivery/runtime seam 的 supporting architecture。
 
 `campus-web same-origin allowlisted /api/* -> app-api`
 
+`browser -> campus-web Q&A -> app-api /api/chatkit -> chatkit-adapter ->
+app-api chat conversation/run routes -> execution-control -> Temporal ->
+workflow-worker / activity-worker-context / activity-worker-knowledge /
+capability workers / activity-worker-finalization -> sanitized projection`
+
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-knowledge /
 capability workers / activity-worker-finalization -> sanitized projection`
@@ -45,7 +50,12 @@ model`
   origin
 - `apps/campus-web` 是学生侧 product entry surface、account browser shell 与 docs
   browser route owner；它拥有 campus experience routes、账号浏览器页面、Rspress-powered
-  `/docs/*` reader delivery 与 same-origin proxy seam，但不拥有 backend truth
+  `/docs/*` reader delivery、Q&A ChatKit browser surface 与 same-origin proxy seam，但不拥有
+  backend truth
+- `campus-web` Q&A 使用 OpenAI ChatKit 官方 CDN web component runtime；CSP 显式允许
+  `https://cdn.platform.openai.com` 的 script/frame 资源
+- `apps/chatkit-adapter` 是 internal ChatKit protocol adapter；它不拥有 product backend、
+  conversation truth 或 execution engine 责任
 - `apps/public-chat-web` 是 legacy chat surface；它不再定义当前产品入口、账号入口或
   auth return target
 - `apps/public-docs` 是 retired/reference implementation，不再是 forward docs
@@ -77,8 +87,13 @@ model`
   - 使用 Cloudflare Worker + Vite React SPA + TanStack Router
   - 为 `/`、`/c/:conversationId`、`/map`、`/dining`、`/feedback` 与
     `/account/*` 交付 SPA shell，并为 `/docs/*` 交付 Rspress-powered canonical reader
-  - 只通过 allowlisted same-origin app-api seams 消费 `/api/me/*`、必要 auth endpoints、
-    implemented federation endpoints、`/api/docs/*` 与 campus experience endpoints
+  - Q&A 主体验使用 ChatKit custom server integration，经由 `/api/chatkit` 进入
+    app-api/session gate 与 internal `chatkit-adapter`
+  - Q&A 主线程 UI、history、history search、rename/delete、retry、stop 与 feedback 控件由
+    ChatKit runtime 承担；`campus-web` 不保留第二套自建聊天搜索、历史或消息操作 UI
+  - 只通过 allowlisted same-origin app-api seams 消费 `/api/me/*`、必要 auth
+    endpoints、implemented federation endpoints、`/api/chatkit`、`/api/docs/*` 与
+    campus experience endpoints
   - account browser shape 消费 Identity Platform product projection，不消费 Better Auth
     raw records
   - public production endpoint 固定为 `https://campus.muc.wiki`，staging endpoint 固定为
@@ -91,6 +106,12 @@ model`
   - retired/reference package；保留旧 Rspress/MDX/anchor/highlight/search 管线作为迁移资产
   - 不作为 staging/product acceptance target，不拥有 docs route、account、auth return 或
     product navigation
+- `chatkit-adapter`
+  - internal protocol adapter for ChatKit custom server integration
+  - maps ChatKit thread/item/action/event protocol to app-api conversation, message,
+    run, feedback, cancel, and stream contracts
+  - does not generate answers, own conversation truth, write DB rows, or call
+    `apps/execution-control` directly
 - `protected-panel-web`
   - 当前只承接 app-owned operator domains；`Requests`、`Official Web` 与
     `Authenticated Notice Processing` 已是 accepted shape
@@ -125,6 +146,7 @@ model`
 
 - student-facing campus UI and app grid
 - conversation/map/dining/feedback browser shells
+- ChatKit browser runtime CSP admission for Q&A
 - Rspress-powered `/docs/*` canonical reader delivery
 - `/account/*` account browser shell, auth forms, password reset pages, federation
   consent/error pages
@@ -149,6 +171,15 @@ model`
 - retains reusable Rspress reader implementation assets for migration only
 - not a current product entry, docs browser surface, staging deploy gate, or product
   acceptance target
+
+### `apps/chatkit-adapter`
+
+- internal ChatKit custom server integration adapter for `campus-web` Q&A
+- consumes signed app-api principal headers and calls app-api explicit chat routes
+- maps ChatKit history, item, feedback, retry, cancel, and stream semantics to app-api
+  contracts
+- does not own account/session, conversation truth, execution truth, database writes,
+  provider calls, or direct execution-control transport
 
 ### `apps/protected-panel-web`
 

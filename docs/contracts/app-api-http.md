@@ -33,6 +33,8 @@ updated: 2026-06-11
 - student dining public contract：`docs/contracts/app-api-dining-http.md`
 - dining ops HTTP contract：`docs/contracts/app-api-dining-ops-http.md`
 - chat conversation product contract：`docs/contracts/app-api-chat-conversation-http.md`
+- campus-web ChatKit protocol adapter：
+  `docs/contracts/campus-web-chatkit-adapter.md`
 
 这份文档不冻结：
 
@@ -725,6 +727,21 @@ Upsert 一个用户声明的 profile memory item。
 - profile memory 不进入 authorization filter、serving surface、approval 或 tool permission
 
 ## Chat Endpoints
+
+### `POST /api/chatkit`
+
+Same-origin browser endpoint used by `campus-web` ChatKit custom server
+integration. It validates the end-user session principal and chat access, then
+forwards the raw ChatKit request to `apps/chatkit-adapter` with signed principal
+headers and internal service authentication.
+
+Rules:
+
+- This is a single explicit endpoint, not a generic `/api/chatkit/*` proxy.
+- Browser cookies are not forwarded to `apps/chatkit-adapter`.
+- Missing adapter URL or service credential fails closed.
+- The adapter calls back into the existing app-api chat conversation/run routes.
+- Full mapping is frozen in `docs/contracts/campus-web-chatkit-adapter.md`.
 
 ### `GET /api/chat/conversations`
 

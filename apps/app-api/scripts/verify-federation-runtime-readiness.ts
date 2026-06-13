@@ -21,7 +21,12 @@ function hasPackage(specifier: string): boolean {
 }
 
 function hasRoutePattern(pattern: string): boolean {
-	const routeExposureFiles = ["route-exposure.ts", "route-exposure-inventory.ts"];
+	const routeExposureFiles = [
+		"route-exposure.ts",
+		"route-exposure-browser-inventory.ts",
+		"route-exposure-machine-inventory.ts",
+		"route-exposure-operator-inventory.ts",
+	];
 	return routeExposureFiles.some((fileName) =>
 		readFileSync(resolve(repoRoot, `apps/app-api/src/app/${fileName}`), "utf8").includes(pattern),
 	);
