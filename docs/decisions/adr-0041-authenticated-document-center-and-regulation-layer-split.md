@@ -252,7 +252,8 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
   tial-review-boundary.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
-- `docs/reference/restricted-document-center-artifact-contract.md`
+- historical background:
+  `docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
 - `docs/reference/authenticated-notice-file-release-export-contract.md`
 - `docs/reference/authenticated-notice-file-release-owner-recovery-readiness-con
   tract.md`

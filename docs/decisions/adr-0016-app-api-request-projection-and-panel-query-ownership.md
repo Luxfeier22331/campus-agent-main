@@ -147,5 +147,5 @@ projection、panel `Requests` domain 的长期 ownership
 
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
 - `docs/architecture/system/operator-observability-architecture.md`

@@ -19,7 +19,7 @@ Temporal-backed `CapabilityExecutionWorkflow` 与 capability workers。
 - shared product topology：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api` runtime 边界：`docs/architecture/system/product-runtime-architecture.md`
 - Execution Agent Layer / execution engine
-  边界：`docs/architecture/system/execution-and-agents-architecture.md`
+  边界：`docs/architecture/system/execution-agent-layer-architecture.md`
 - capability routing / admission supporting
   truth：`docs/architecture/system/capability-routing-and-admission-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`

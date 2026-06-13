@@ -238,7 +238,7 @@ query-serving。
 
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
-  d`
+- historical background:
+  `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`

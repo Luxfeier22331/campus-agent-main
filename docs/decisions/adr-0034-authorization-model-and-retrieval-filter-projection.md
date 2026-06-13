@@ -189,5 +189,4 @@ filter 与 approval / ownership truth；这些能力不是当前公开校园问�
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

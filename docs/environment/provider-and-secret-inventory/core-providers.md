@@ -69,9 +69,9 @@ owns this section group; the original path remains the stable index.
 
 相关真相见：
 
-- [../decisions/adr-0007-phase1-retrieval-baseline-update.md](../decisions/adr-0
+- [../../decisions/adr-0007-phase1-retrieval-baseline-update.md](../../decisions/adr-0
   007-phase1-retrieval-baseline-update.md)
-- [../policies/student-handbook-chunking-and-validation-policy.md](../policies/s
+- [../../policies/student-handbook-chunking-and-validation-policy.md](../../policies/s
   tudent-handbook-chunking-and-validation-policy.md)
 
 默认放置位置：
@@ -121,7 +121,7 @@ owns this section group; the original path remains the stable index.
 获取方式：
 
 1. 在目标服务器按
-   [Self-Hosted Qdrant Native Backup Runbook](../runbooks/self-hosted-qdrant-native-backup-runbook.md)
+   [Self-Hosted Qdrant Native Backup Runbook](../../runbooks/self-hosted-qdrant-native-backup-runbook.md)
    部署 single-node Qdrant。
 1. 生成 deploy-scoped `QDRANT_API_KEY` 与 `QDRANT_READ_ONLY_API_KEY`，写入服务器本地
    env 或 deploy secret store。
@@ -182,7 +182,7 @@ owns this section group; the original path remains the stable index.
 
 如果使用本地 Docker Postgres：
 
-- 使用 [../runbooks/local-postgres-dev-recovery-runbook.md](../runbooks/local-post
+- 使用 [../../runbooks/local-postgres-dev-recovery-runbook.md](../../runbooks/local-post
   gres-dev-recovery-runbook.md)
 - 或直接执行 `uv run --all-packages python -m scripts.restore_local_postgres_dev
   - -execute`
@@ -214,7 +214,7 @@ owns this section group; the original path remains the stable index.
 
 本地开发推荐获取方式：
 
-- 按 [../decisions/adr-0002-local-minio-conventions.md](../decisions/adr-0002-loc
+- 按 [../../decisions/adr-0002-local-minio-conventions.md](../../decisions/adr-0002-loc
   al-minio-conventions.md) 运行 Docker MinIO
 - 创建或确保 bucket：
   - `campus-rag-source`

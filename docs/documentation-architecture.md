@@ -291,6 +291,24 @@ product or architecture target is correct.
 and active lanes. They must not override architecture, contract, data or ADR
 truth.
 
+### Reference Graph
+
+Active and accepted documents must not use historical, superseded, deprecated or
+retired compatibility documents as current owner truth.
+
+Allowed historical references are limited to explicitly labeled historical /
+archive / superseded-background context. Internal compatibility entries do not
+survive as source-of-truth documents; migrate their references to the current
+owner document or delete the stale route.
+
+Concrete internal Markdown references in active and accepted documents must
+resolve to an existing file. Glob patterns, route placeholders and external
+absolute paths are not treated as concrete source-of-truth references.
+
+Markdown paths must not be split across lines. If a path is too long for normal
+prose, use a shorter relative path or a Markdown link label instead of breaking
+the `.md` suffix.
+
 ## Frontmatter Target
 
 New durable docs should use:
@@ -321,6 +339,7 @@ without `truth_scope` and `owner_boundary`.
   facts into active docs.
 - Prefer deleting stale cross-type summaries over maintaining compatibility
   notes that repeat another document's truth.
+- Remove internal compatibility entries after their references are migrated.
 
 ## Related Documents
 

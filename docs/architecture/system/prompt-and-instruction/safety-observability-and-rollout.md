@@ -360,5 +360,4 @@ session state 为准。
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/operator-observability-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

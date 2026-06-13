@@ -445,8 +445,7 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 - `docs/architecture/system/tool-and-capability-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
-- `docs/contracts/capability-execution.md`（legacy filename；active owner
-  是 Execution Agent Layer）
+- `docs/contracts/capability-execution.md`（active owner 是 Execution Agent Layer）
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`（historical
   ADR filename）

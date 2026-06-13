@@ -38,9 +38,13 @@ updated: 2026-06-12
 
 ## Historical References
 
-- `../decisions/adr-0022-campus-identity-and-restricted-document-authorization.m
-  d`
-- `../decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+- historical background:
+  `../decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- historical background:
+  `../decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+
+These ADRs are superseded background only; current identity, authorization and
+memory boundaries are owned by the architecture documents listed above.
 
 ## Follow-up Entry Points
 

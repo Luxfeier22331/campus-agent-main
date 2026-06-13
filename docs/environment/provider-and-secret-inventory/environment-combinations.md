@@ -88,7 +88,7 @@ owns this section group; the original path remains the stable index.
   ctor/.env.example)
 - [../../apps/wechat-official-account-collector/.env.example](../../apps/wechat-
   official-account-collector/.env.example)
-- [../runbooks/provider-secret-governance.md](../runbooks/provider-secret-govern
+- [../../runbooks/provider-secret-governance.md](../../runbooks/provider-secret-govern
   ance.md)
-- [../runbooks/local-postgres-dev-recovery-runbook.md](../runbooks/local-postgre
+- [../../runbooks/local-postgres-dev-recovery-runbook.md](../../runbooks/local-postgre
   s-dev-recovery-runbook.md)

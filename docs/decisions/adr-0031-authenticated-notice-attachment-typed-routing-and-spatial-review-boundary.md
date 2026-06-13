@@ -198,4 +198,4 @@ Accepted on 2026-04-08.
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0027-navigation-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`

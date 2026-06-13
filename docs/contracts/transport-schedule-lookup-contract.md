@@ -415,6 +415,6 @@ outcome semantics.
 
 - `docs/architecture/domains/campus-services/architecture.md`
 - `docs/domains/campus-services.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/contracts/knowledge-retrieval-plan-contract.md`

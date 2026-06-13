@@ -485,8 +485,7 @@ document-center permission model。
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
   .md`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
-  d`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 - `docs/decisions/adr-0041-authenticated-document-center-and-regulation-layer-sp
   lit.md`
 - `docs/reference/authenticated-notice-file-release-export-contract.md`

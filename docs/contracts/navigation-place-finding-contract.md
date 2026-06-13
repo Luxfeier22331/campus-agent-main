@@ -231,7 +231,7 @@ updated: 2026-04-26
 
 - `docs/architecture/domains/navigation/architecture.md`
 - `docs/domains/navigation.md`
-- `docs/decisions/adr-0027-navigation-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `docs/contracts/capability-execution.md`
 - `docs/data/campus-navigation-place-catalog.md`

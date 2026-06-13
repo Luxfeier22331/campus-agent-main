@@ -26,8 +26,6 @@ capability-local readiness.
   - `tool-and-capability-runtime-architecture.md`
 - Agent framework / OpenAI Agents SDK boundary:
   - `agent-framework-boundary-architecture.md`
-- Historical execution/agents compatibility route:
-  - `execution-and-agents-architecture.md`
 - Temporal, durable run/event/step projection, cancel, timeout and resume:
   - `durable-agent-runtime-architecture.md`
 - Prompt, system instruction and provider-facing prompt ownership:
@@ -55,12 +53,6 @@ capability-local readiness.
   - `identity-and-authorization-architecture.md`
 - Retired or offline Python capability boundary:
   - `python-capability-boundaries.md`
-
-## Legacy Route
-
-`execution-and-agents-architecture.md` remains as a compatibility route for
-historical links. It does not own body truth for Execution Agent Layer, agent
-framework, tool / capability or RAG internals after the Phase 4 split.
 
 ## Use Rules
 

@@ -69,9 +69,6 @@ updated: 2026-06-13
 
 ## Historical Evidence / Archive
 
-- `restricted-document-center-artifact-contract.md`
-  - historical；只保留 document-center artifact 分层旧口径，不再是 active target
-    contract。
 - `archive/README.md`
 
 补充规则：

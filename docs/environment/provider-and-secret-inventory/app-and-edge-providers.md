@@ -112,8 +112,8 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 相关内部文档：
 
-- [../../apps/ingestion-worker/README.md](../../apps/ingestion-worker/README.md)
-- [../decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md](../decisions/
+- [../../../apps/ingestion-worker/README.md](../../../apps/ingestion-worker/README.md)
+- [../../decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md](../../decisions/
   adr-0033-internal-notice-pdf-cloud-ocr-default.md)
 
 外部参考：

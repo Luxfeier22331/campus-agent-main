@@ -215,8 +215,9 @@ agent-as-tool 参与 typed step。
   production execution shape
 - `current-architecture.md` 必须明确当前已具备 run-level durable baseline，同时列出 step-level
   ledger、role split、lane worker pool 与 autoscaler 缺口
-- `execution-and-agents-architecture.md` 必须区分 durable run / step store、scheduler、
-  lease coordinator、worker roles、process-local limiter 与 tools-first domain capability
+- `durable-agent-runtime-architecture.md` 必须区分 durable run / step store、scheduler、
+  lease coordinator、worker roles 与 process-local limiter
+- `tool-and-capability-runtime-architecture.md` 必须区分 tools-first domain capability
 - `product-runtime-architecture.md` 必须把 browser streaming 改写成 run event subscription
   语义
 - `capability-routing-and-admission-architecture.md` 必须把 admission 拆成 surface、

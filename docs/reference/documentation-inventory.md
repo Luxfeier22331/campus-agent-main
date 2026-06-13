@@ -35,10 +35,10 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 269
-- Git tracked docs Markdown files: 238
-- Untracked docs Markdown files included: 31
-- Generated on: 2026-06-13
+- Current-worktree docs Markdown files: 268
+- Git tracked docs Markdown files: 268
+- Untracked docs Markdown files included: 0
+- Generated on: 2026-06-14
 
 ### By Directory Area
 
@@ -307,15 +307,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
   - Owner boundary: `execution-control`
-  - Ledger: `area=architecture`, `cluster=general`, `state=untracked`, `lines=122`
-  - Governance action: `keep_owner_truth`
-  - Drift signal: `ok`
-- `docs/architecture/system/execution-and-agents-architecture.md`
-  - Title: Execution And Agents Architecture
-  - Owner class: `supporting_architecture`
-  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
-  - Owner boundary: `docs`
-  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=90`
+  - Ledger: `area=architecture`, `cluster=execution`, `state=tracked`, `lines=122`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/architecture/system/file-asset-loader-architecture.md`
@@ -1838,12 +1830,12 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=public-chat-web`, `state=tracked`, `lines=169`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/restricted-document-center-artifact-contract.md`
+- `docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
   - Title: Restricted Document Center Artifact Contract
   - Owner class: `reference`
   - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=historical`
   - Owner boundary: `domains/authenticated-notice`
-  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=492`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=492`
   - Governance action: `keep_archive_historical`
   - Drift signal: `historical_path`
 - `docs/reference/runtime-otel-telemetry-taxonomy.md`

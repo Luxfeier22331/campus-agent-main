@@ -185,6 +185,6 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 ## Related Docs
 
 - `docs/architecture/domains/navigation/architecture.md`
-- `docs/decisions/adr-0027-navigation-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`

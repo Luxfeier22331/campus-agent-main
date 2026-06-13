@@ -362,6 +362,5 @@ sample set 不接受“纯随机抓取 PDF”。
 
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/reference/restricted-document-center-artifact-contract.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/architecture/system/data-plane-architecture.md`

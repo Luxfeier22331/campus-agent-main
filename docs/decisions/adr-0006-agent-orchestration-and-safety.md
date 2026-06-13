@@ -156,10 +156,12 @@ approval / HITL、预约、提交、支付、工单与其他状态变更 tool �
 ## 决策 7：文档分层关系
 
 - `docs/architecture/target-architecture.md` 负责长期编排边界、角色分工与系统形态
-- `docs/architecture/system/execution-and-agents-architecture.md` 负责 supervisor
-  如何承接这些长期规则，以及当前 execution engine runtime / Agno 集成边界
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d` 负责 account / memory / personalization 如何作为 typed context 进入编排，而不稀释
+- `docs/architecture/system/execution-agent-layer-architecture.md` 负责 Execution
+  Agent Layer 如何承接这些长期规则
+- `docs/architecture/system/agent-framework-boundary-architecture.md` 负责当前
+  model-facing SDK runtime 边界
+- `./adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  负责 account / memory / personalization 如何作为 typed context 进入编排，而不稀释
   capability readiness、source truth 或 fail-close 边界
 - `docs/architecture/system/data-plane-architecture.md`
   负责 phase-1 数据平面约束，以及对象存储 + registry + Qdrant

@@ -174,6 +174,5 @@ extension 进入新的 workstream；不得把本地 MediaWiki session 复用当�
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/system/memory-plane-architecture.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`

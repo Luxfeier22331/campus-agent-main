@@ -205,5 +205,5 @@ updated: 2026-04-14
 - `docs/domains/navigation.md`
 - `docs/reference/campus-navigation-authoritative-source-inventory.md`
 - `docs/architecture/domains/navigation/architecture.md`
-- `docs/decisions/adr-0027-navigation-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`

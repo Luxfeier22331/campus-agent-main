@@ -302,7 +302,7 @@ Phase 6 后，这条线的产品路径缺口不再放在本架构文档分散维
 - `docs/contracts/contact-directory-lookup-contract.md`
 - `docs/data/campus-services-transport-schedule-source-truth-schema.md`
 - `docs/data/campus-services-contact-directory-source-truth-schema.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/domains/navigation/architecture.md`
