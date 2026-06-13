@@ -44,6 +44,12 @@ describe("campus docs Rspress build boundary", () => {
 			"docs:sync:published-reader:raw",
 		);
 		expect(packageJson.scripts["docs:build:published-reader"]).toContain("rspress build");
+		expect(packageJson.scripts["docs:build:published-reader"]).toContain(
+			"filter-rspress-search-index.mjs",
+		);
+		expect(packageJson.scripts["docs:build:published-reader:staging"]).toContain(
+			"filter-rspress-search-index.mjs",
+		);
 		expect(packageJson.scripts.build).toContain("pnpm docs:build:published-reader");
 		expect(packageJson.scripts["build:staging"]).toContain(
 			"pnpm docs:build:published-reader:staging",
@@ -126,6 +132,8 @@ describe("campus docs Rspress build boundary", () => {
 		expect(cssSource).toContain(".document-meta-panel");
 		expect(cssSource).toContain(".docs-version-switcher");
 		expect(cssSource).toContain(".reader-block.docs-reader-highlight");
+		expect(cssSource).toContain(".rp-doc.rspress-doc table tr:hover");
+		expect(cssSource).toContain("background: transparent;");
 		expect(cssSource).toContain("var(--sys-brand-interactive,");
 		expect(cssSource).toContain("var(--docs-identity,");
 		expect(cssSource).not.toContain("公开文档");

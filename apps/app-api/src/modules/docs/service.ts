@@ -134,6 +134,7 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 				nodes: documents.map((document) => ({
 					canonicalUrl: document.canonicalUrl,
 					documentSlug: document.documentSlug,
+					displayTitle: resolveDocumentDisplayTitle(document.title),
 					isCurrent: true,
 					kind: "document" as const,
 					title: document.title,
@@ -255,6 +256,12 @@ function isPublicStaticVersion(record: DocsVersionAccessRecord): boolean {
 		record.deliveryMode === "public_static_asset" &&
 		record.entitlementGroups.length === 0
 	);
+}
+
+function resolveDocumentDisplayTitle(title: string): string {
+	const trimmed = title.trim();
+	const displayTitle = trimmed.replace(/^中央民族大学/u, "").trim();
+	return displayTitle || trimmed;
 }
 
 function buildVersionCanonicalUrl(record: DocsDocumentVersionRecord): string {

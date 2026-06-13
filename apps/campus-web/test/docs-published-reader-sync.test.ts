@@ -64,16 +64,27 @@ describe("campus-web published reader sync", () => {
 			join(docsRoot, "docs/regulations/student_rules/index.md"),
 			"utf8",
 		);
+		const collectionMeta = readFileSync(
+			join(docsRoot, "docs/regulations/student_rules/_meta.json"),
+			"utf8",
+		);
 		const versionMdx = readFileSync(
 			join(docsRoot, "docs/regulations/student_rules/student-attendance/v/2026-current.mdx"),
 			"utf8",
 		);
+		expect(currentMdx).toContain('title: "中央民族大学学生考勤管理规定"');
 		expect(currentMdx).toContain('docsSearchVisibility: "public_current"');
 		expect(currentMdx).not.toContain("data-pagefind-body");
 		expect(currentMdx).not.toContain("docs-pagefind-page-meta");
 		expect(currentMdx).toContain('data-root-unit-id="attendance-root"');
 		expect(currentMdx).toContain('<span id="general"></span>');
 		expect(currentMdx).toContain("学生应按时参加教学活动。");
+		expect(currentMdx).toContain('<div className="docs-table-scroll"');
+		expect(currentMdx).toContain('<table><tr><td>{"活动名称"}</td><td>{"学分"}</td></tr>');
+		expect(currentMdx).toContain('<td>{"*战场医疗救护"}</td>');
+		expect(currentMdx).toContain('<td rowSpan="2">{"0.5"}</td>');
+		expect(currentMdx).not.toContain("&lt;table&gt;&lt;tr&gt;&lt;td&gt;活动名称");
+		expect(currentMdx).toContain("&lt;img src=x onerror=alert(1)&gt;");
 		expect(currentMdx).toContain("data-docs-versions=");
 		expect(currentMdx).toContain("&quot;versionSlug&quot;:&quot;2025-history&quot;");
 		expect(currentMdx).not.toContain("doc_id");
@@ -89,7 +100,10 @@ describe("campus-web published reader sync", () => {
 			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
 		);
 		expect(gatedVersionMdx).toContain('docsSearchVisibility: "gated_bootstrap"');
-		expect(collectionIndex).toContain("学生考勤管理规定");
+		expect(collectionIndex).toContain("- [学生考勤管理规定](./student-attendance)");
+		expect(collectionIndex).not.toContain("- [中央民族大学学生考勤管理规定]");
+		expect(collectionMeta).toContain('"label": "学生考勤管理规定"');
+		expect(collectionMeta).not.toContain('"label": "中央民族大学学生考勤管理规定"');
 		expect(collectionIndex).toContain('docsSearchVisibility: "noindex"');
 		expect(collectionIndex).not.toContain("restricted-policy");
 		expect(collectionIndex).not.toContain("受限制度");
@@ -210,7 +224,7 @@ function createPublishedReaderFixture(
 	tempDir = mkdtempSync(join(tmpdir(), "campus-docs-sync-"));
 	const root = tempDir;
 	const publicReader = JSON.stringify({
-		document: { title: "学生考勤管理规定" },
+		document: { title: "中央民族大学学生考勤管理规定" },
 		sections: [
 			{
 				anchor: "general",
@@ -219,6 +233,16 @@ function createPublishedReaderFixture(
 						kind: "paragraph",
 						rootUnitId: "attendance-root",
 						text: "学生应按时参加教学活动。",
+					},
+					{
+						kind: "paragraph",
+						rootUnitId: "activity-credit-table",
+						text: '<table><tr><td>活动名称</td><td>学分</td></tr><tr><td>校级社会实践</td><td>1</td></tr><tr><td>*战场医疗救护</td><td rowspan="2">0.5</td></tr><tr><td>志愿服务</td></tr></table>',
+					},
+					{
+						kind: "paragraph",
+						rootUnitId: "unsafe-html-text",
+						text: "<img src=x onerror=alert(1)>",
 					},
 				],
 				title: "总则",
@@ -276,7 +300,7 @@ function createPublishedReaderFixture(
 			corpus: "regulations",
 			docId: "doc_public",
 			documentSlug: "student-attendance",
-			documentTitle: "学生考勤管理规定",
+			documentTitle: "中央民族大学学生考勤管理规定",
 			highlightRootUnitIds: ["attendance-root"],
 			searchUnitId: "search_public_current_general",
 			snippet: "学生应按时参加教学活动。",
@@ -322,7 +346,7 @@ function createPublishedReaderFixture(
 					outline: "_docs/regulations/student_rules/student-attendance/2026-current/outline.json",
 					reader: "_docs/regulations/student_rules/student-attendance/2026-current/reader.json",
 				},
-				title: "学生考勤管理规定",
+				title: "中央民族大学学生考勤管理规定",
 				versionId: "version_public",
 				versionLabel: "现行版",
 				versionSlug: "2026-current",
@@ -347,7 +371,7 @@ function createPublishedReaderFixture(
 					outline: "_docs/regulations/student_rules/student-attendance/2025-history/outline.json",
 					reader: "_docs/regulations/student_rules/student-attendance/2025-history/reader.json",
 				},
-				title: "学生考勤管理规定",
+				title: "中央民族大学学生考勤管理规定",
 				versionId: "version_public_history",
 				versionLabel: "2025 版",
 				versionSlug: "2025-history",

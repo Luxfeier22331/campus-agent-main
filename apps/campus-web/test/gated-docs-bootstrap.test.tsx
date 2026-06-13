@@ -56,6 +56,41 @@ describe("gated docs bootstrap", () => {
 		expect(screen.getByText("请稍后重试。")).toBeInTheDocument();
 	});
 
+	it("renders gated collection document display titles without changing canonical titles", async () => {
+		window.history.replaceState(null, "", "/docs/regulations/scoped_rules");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					collection: {
+						collection: "scoped_rules",
+						corpus: "regulations",
+						displayName: "专项规章",
+					},
+					nodes: [
+						{
+							canonicalUrl: "/docs/regulations/scoped_rules/student-attendance",
+							displayTitle: "学生考勤管理办法",
+							documentSlug: "student-attendance",
+							isCurrent: true,
+							kind: "document",
+							title: "中央民族大学学生考勤管理办法",
+						},
+					],
+				}),
+				{ headers: { "content-type": "application/json" }, status: 200 },
+			),
+		);
+
+		render(<GatedCollectionBootstrap />);
+
+		expect(await screen.findByRole("heading", { name: "专项规章" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "学生考勤管理办法" })).toHaveAttribute(
+			"href",
+			"/docs/regulations/scoped_rules/student-attendance",
+		);
+		expect(screen.queryByText("中央民族大学学生考勤管理办法")).not.toBeInTheDocument();
+	});
+
 	it("loads gated reader content after resolve and controlled asset fetch", async () => {
 		window.history.replaceState(
 			null,

@@ -163,9 +163,13 @@ export function buildPublicDocsSyncManifestFromReadModel(
 			.filter((version) => isPublicExportedVersion(version) || isGatedExportedVersion(version))
 			.map((version) => [version.versionId, version]),
 	);
-	const publicCurrentVersionsById = new Map(
+	const searchIndexedCurrentVersionsById = new Map(
 		plan.documentVersions
-			.filter((version) => version.isCurrent && isPublicExportedVersion(version))
+			.filter(
+				(version) =>
+					version.isCurrent &&
+					(isPublicExportedVersion(version) || isGatedExportedVersion(version)),
+			)
 			.map((version) => [version.versionId, version]),
 	);
 
@@ -200,7 +204,7 @@ export function buildPublicDocsSyncManifestFromReadModel(
 		generatedAt,
 		searchUnits: plan.searchUnits
 			.flatMap((unit) => {
-				const version = publicCurrentVersionsById.get(unit.versionId);
+				const version = searchIndexedCurrentVersionsById.get(unit.versionId);
 				const document = version ? documentsByDocId.get(version.docId) : null;
 				if (!(version && document)) {
 					return [];

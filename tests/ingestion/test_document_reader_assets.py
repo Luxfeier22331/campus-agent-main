@@ -266,6 +266,73 @@ class DocumentReaderAssetsTest(unittest.TestCase):
             },
         )
 
+    def test_build_document_reader_asset_package_excludes_table_units_from_reader_blocks(
+        self,
+    ) -> None:
+        record = _make_public_curriculum_record()
+        html_table = (
+            '<table><tr><td rowspan="2">比赛项目</td><td colspan="2">评分标准</td></tr>'
+            "<tr><td>第一名</td><td>第二名</td></tr>"
+            "<tr><td>全国大学生运动会</td><td>20分</td><td>15分</td></tr></table>"
+        )
+        pipe_table = (
+            "比赛项目 | 评分标准 / 第一名 | 评分标准 / 第二名\n"
+            "全国大学生运动会 | 20分 | 15分"
+        )
+        document_units_bytes = (
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "doc_id": record.document_id,
+                            "version_id": record.version_id,
+                            "chunk_id": "table-0001",
+                            "root_unit_id": "table-0001",
+                            "unit_type": "table",
+                            "clean_text": html_table,
+                            "anchor": {
+                                "section_path": ["竞赛成绩"],
+                                "page_start": 1,
+                                "page_end": 1,
+                            },
+                        },
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        {
+                            "doc_id": record.document_id,
+                            "version_id": record.version_id,
+                            "chunk_id": "table-0001-unit",
+                            "root_unit_id": "table-0001",
+                            "unit_type": "table_unit",
+                            "clean_text": pipe_table,
+                            "anchor": {
+                                "section_path": ["竞赛成绩"],
+                                "page_start": 1,
+                                "page_end": 1,
+                            },
+                        },
+                        ensure_ascii=False,
+                    ),
+                ]
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        package = build_document_reader_asset_package(
+            record=record,
+            canonical_markdown_bytes="# 竞赛成绩\n\n[表格]\n".encode(),
+            document_units_bytes=document_units_bytes,
+        )
+
+        reader_payload = json.loads(package.assets["reader.json"].decode("utf-8"))
+        blocks = reader_payload["sections"][0]["blocks"]
+
+        self.assertEqual([block["rootUnitId"] for block in blocks], ["table-0001"])
+        self.assertEqual(blocks[0]["kind"], "table")
+        self.assertEqual(blocks[0]["text"], html_table)
+        self.assertNotIn(pipe_table, json.dumps(reader_payload, ensure_ascii=False))
+
     def test_build_document_reader_publish_entry_marks_public_static_delivery(self) -> None:
         record = _make_public_curriculum_record()
 

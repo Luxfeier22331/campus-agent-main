@@ -159,7 +159,7 @@ describe("docs read model manifest", () => {
 		});
 	});
 
-	it("builds a deterministic import plan and exports only public static assets", () => {
+	it("builds a deterministic import plan and exports current public and gated search units", () => {
 		const plan = buildDocsReadModelImportPlan({
 			collections: [
 				{
@@ -383,6 +383,21 @@ describe("docs read model manifest", () => {
 					snippet: "法学专业培养目标。",
 					title: "培养目标",
 					versionId: "ver_law",
+					versionSlug: "2026-current",
+				},
+				{
+					anchor: "restricted",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/restricted",
+					collection: "curriculum_plan",
+					corpus: "curriculum",
+					docId: "curriculum:restricted",
+					documentSlug: "restricted",
+					documentTitle: "受限培养方案",
+					highlightRootUnitIds: ["restricted-root"],
+					searchUnitId: "search_restricted",
+					snippet: "受限正文。",
+					title: "受限章节",
+					versionId: "ver_restricted",
 					versionSlug: "2026-current",
 				},
 			],

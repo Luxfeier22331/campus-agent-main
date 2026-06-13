@@ -258,6 +258,7 @@ describe("docs service", () => {
 				{
 					canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
 					documentSlug: "law-ethnic-class-program",
+					displayTitle: "法学（民族班）培养方案",
 					isCurrent: true,
 					kind: "document",
 					title: "法学（民族班）培养方案",
@@ -385,6 +386,7 @@ describe("docs service", () => {
 			{
 				canonicalUrl: restrictedRegulationDoc.canonicalUrl,
 				documentSlug: restrictedRegulationDoc.documentSlug,
+				displayTitle: "中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
 				isCurrent: true,
 				kind: "document",
 				title: restrictedRegulationDoc.title,

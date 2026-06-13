@@ -382,6 +382,10 @@
 	overflow-wrap: anywhere;
 }
 
+.rp-doc.rspress-doc table tr:hover {
+	background: transparent;
+}
+
 .rspress-doc table th:last-child,
 .rspress-doc table td:last-child {
 	border-right: 0;

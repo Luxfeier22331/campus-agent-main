@@ -12,6 +12,7 @@ interface DocsNavigationResponse {
 	nodes: Array<{
 		canonicalUrl: string;
 		documentSlug: string;
+		displayTitle?: string;
 		isCurrent: boolean;
 		kind: "document";
 		title: string;
@@ -114,7 +115,7 @@ export default function GatedCollectionBootstrap() {
 				<ul className="gated-collection-list">
 					{nodes.map((node) => (
 						<li key={node.documentSlug}>
-							<a href={node.canonicalUrl}>{node.title}</a>
+							<a href={node.canonicalUrl}>{node.displayTitle ?? node.title}</a>
 						</li>
 					))}
 				</ul>

@@ -109,6 +109,7 @@ describe("docs request scope", () => {
 			{
 				canonicalUrl: "/docs/regulations/student_rules/student-attendance-management",
 				documentSlug: "student-attendance-management",
+				displayTitle: "学生考勤管理办法",
 				isCurrent: true,
 				kind: "document",
 				title: "中央民族大学学生考勤管理办法",

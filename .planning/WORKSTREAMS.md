@@ -81,6 +81,13 @@ status as current project truth.
   published current-effective release snapshots. Remaining gap is staging/runtime
   proof and opening evidence; do not treat notice candidate review or
   release-task evidence as mature enough for this lane.
+- Document reader appendix / form downloads are deferred backlog, not part of
+  the current docs hardening closeout. Current reader delivery renders appendix
+  tables as reader sections/blocks. Future work should expose "download original
+  appendix" only when source truth contains a real original file asset, delivered
+  as a reader supplement under the same document version package; generated
+  table exports may be added separately but must not be labeled as original
+  source files.
 - Bounded semantic retry / replan is now implemented as an explicit typed
   outcome allow-list: `provider_timeout`, `tool_handler_failed`,
   `provider_connection_aborted`, `tool_executor_not_configured`, and
