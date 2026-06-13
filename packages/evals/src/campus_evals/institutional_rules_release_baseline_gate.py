@@ -15,7 +15,6 @@ DEFAULT_RELEASE_RETRIEVAL_CASES = 45
 DEFAULT_GOLDEN_RETRIEVAL_CASES = 89
 DEFAULT_ANSWER_CASES = 42
 DEFAULT_API_PORT = 27151
-DEFAULT_WORKER_PORT = 27152
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +35,6 @@ def run_institutional_rules_release_baseline_gate(
     timeout_seconds: float = 90.0,
     startup_timeout_seconds: float = 240.0,
     api_port: int = DEFAULT_API_PORT,
-    worker_port: int = DEFAULT_WORKER_PORT,
 ) -> dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     command = command_runner or _run_command
@@ -87,7 +85,6 @@ def run_institutional_rules_release_baseline_gate(
             timeout_seconds=timeout_seconds,
             startup_timeout_seconds=startup_timeout_seconds,
             api_port=api_port,
-            worker_port=worker_port,
         ),
     )
     passed_checks = sum(1 for check in checks if check["passed"] is True)
@@ -221,7 +218,6 @@ def _run_product_path_smoke_check(
     timeout_seconds: float,
     startup_timeout_seconds: float,
     api_port: int,
-    worker_port: int,
 ) -> dict[str, object]:
     result = _run_command_check(
         check_id="rag_delegate_institutional_rules_product_path_smoke",
@@ -231,15 +227,13 @@ def _run_product_path_smoke_check(
             "--all-packages",
             "python",
             "-m",
-            "scripts.supervisor_runtime_process_smoke",
+            "scripts.execution_control_process_smoke",
             "--profile",
             "rag_delegate_institutional_rules",
             "--output-dir",
             str(output_dir / "product-path-smoke"),
             "--api-port",
             str(api_port),
-            "--worker-port",
-            str(worker_port),
             "--timeout-seconds",
             str(timeout_seconds),
             "--startup-timeout-seconds",
@@ -333,7 +327,6 @@ def build_parser() -> argparse.ArgumentParser:
     accept.add_argument("--timeout-seconds", type=float, default=90.0)
     accept.add_argument("--startup-timeout-seconds", type=float, default=240.0)
     accept.add_argument("--api-port", type=int, default=DEFAULT_API_PORT)
-    accept.add_argument("--worker-port", type=int, default=DEFAULT_WORKER_PORT)
     accept.add_argument("--cases-path")
     accept.add_argument("--collect-runtime", action="store_true")
     accept.add_argument("--artifact-path", action="append", default=[])
@@ -357,7 +350,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         timeout_seconds=float(args.timeout_seconds),
         startup_timeout_seconds=float(args.startup_timeout_seconds),
         api_port=int(args.api_port),
-        worker_port=int(args.worker_port),
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))

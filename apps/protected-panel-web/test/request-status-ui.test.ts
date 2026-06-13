@@ -121,13 +121,16 @@ describe("protected panel request status ui", () => {
 					cancelOutcome: "not_requested",
 					durationMs: 100,
 					estimatedCostMicrousd: 321,
+					failCloseReason: "current_state_unverifiable",
 					inputTokens: 120,
+					lateCompletionOutcome: "ignored_after_timeout",
 					latestResultRef: "projection://runs/run_01HQ/planning",
 					modelName: "gpt-5-mini",
 					modelProvider: "openai",
 					outputTokens: 42,
 					providerRequestRef: "provider://requests/req_001",
 					queueWaitMs: 25,
+					replanReason: "bounded_replan_after_provider_timeout",
 					resultCount: 1,
 					status: "completed",
 					stepId: "planning",
@@ -142,13 +145,16 @@ describe("protected panel request status ui", () => {
 					cancelOutcome: "not_requested",
 					durationMs: 45,
 					estimatedCostMicrousd: 0,
+					failCloseReason: null,
 					inputTokens: 0,
+					lateCompletionOutcome: "not_late",
 					latestResultRef: "projection://runs/run_01HQ/retrieval/indexed-lookup",
 					modelName: null,
 					modelProvider: null,
 					outputTokens: 0,
 					providerRequestRef: null,
 					queueWaitMs: 35,
+					replanReason: null,
 					resultCount: 1,
 					status: "completed",
 					stepId: "retrieval.indexed_lookup",
@@ -163,13 +169,16 @@ describe("protected panel request status ui", () => {
 					cancelOutcome: "not_requested",
 					durationMs: 250,
 					estimatedCostMicrousd: 640,
+					failCloseReason: null,
 					inputTokens: 220,
+					lateCompletionOutcome: "not_late",
 					latestResultRef: "projection://runs/run_01HQ/synthesis",
 					modelName: "gpt-5-mini",
 					modelProvider: "openai",
 					outputTokens: 80,
 					providerRequestRef: "provider://requests/req_002",
 					queueWaitMs: 20,
+					replanReason: null,
 					resultCount: 1,
 					status: "completed",
 					stepId: "synthesis",
@@ -184,13 +193,16 @@ describe("protected panel request status ui", () => {
 					cancelOutcome: "not_requested",
 					durationMs: 25,
 					estimatedCostMicrousd: 0,
+					failCloseReason: null,
 					inputTokens: 0,
+					lateCompletionOutcome: "not_late",
 					latestResultRef: "projection://runs/run_01HQ/grounding/verify",
 					modelName: null,
 					modelProvider: null,
 					outputTokens: 0,
 					providerRequestRef: null,
 					queueWaitMs: 8,
+					replanReason: null,
 					resultCount: 1,
 					status: "completed",
 					stepId: "grounding.verify",
@@ -205,13 +217,16 @@ describe("protected panel request status ui", () => {
 					cancelOutcome: "not_requested",
 					durationMs: 30,
 					estimatedCostMicrousd: 0,
+					failCloseReason: null,
 					inputTokens: 0,
+					lateCompletionOutcome: "not_late",
 					latestResultRef: "projection://runs/run_01HQ/finalization/write",
 					modelName: null,
 					modelProvider: null,
 					outputTokens: 0,
 					providerRequestRef: null,
 					queueWaitMs: 10,
+					replanReason: null,
 					resultCount: 1,
 					status: "completed",
 					stepId: "finalization.write",
@@ -223,37 +238,52 @@ describe("protected panel request status ui", () => {
 			],
 		});
 
-		expect(entries).toEqual([
-			{
-				label: "Step 总数",
-				value: "5 · attempts=3 · results=3",
-			},
-			{
-				label: "planning",
-				value:
-					"completed · campus-agent.activity.knowledge · staging:activity-knowledge:001 · attempts=1 · results=1 · queue=25 ms · duration=100 ms · openai/gpt-5-mini · tokens=120/42 · 321 microUSD · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/planning",
-			},
-			{
-				label: "retrieval.indexed_lookup",
-				value:
-					"completed · campus-agent.activity.knowledge · staging:activity-knowledge:001 · attempts=1 · results=1 · queue=35 ms · duration=45 ms · 暂无 · tokens=0/0 · cost=0 · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/retrieval/indexed-lookup",
-			},
-			{
-				label: "synthesis",
-				value:
-					"completed · campus-agent.activity.knowledge · staging:activity-knowledge:001 · attempts=1 · results=1 · queue=20 ms · duration=250 ms · openai/gpt-5-mini · tokens=220/80 · 640 microUSD · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/synthesis",
-			},
-			{
-				label: "grounding.verify",
-				value:
-					"completed · campus-agent.activity.knowledge · staging:activity-knowledge:001 · attempts=1 · results=1 · queue=8 ms · duration=25 ms · 暂无 · tokens=0/0 · cost=0 · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/grounding/verify",
-			},
-			{
-				label: "finalization.write",
-				value:
-					"completed · campus-agent.activity.finalization · staging:finalization:worker-1 · attempts=1 · results=1 · queue=10 ms · duration=30 ms · 暂无 · tokens=0/0 · cost=0 · cancel=not_requested · timeout=not_timed_out · projection://runs/run_01HQ/finalization/write",
-			},
+		expect(entries[0]).toEqual({
+			kind: "summary",
+			metrics: "5 steps · attempts=3 · results=3",
+		});
+		expect(entries.slice(1).map((entry) => (entry.kind === "step" ? entry.stepId : ""))).toEqual([
+			"planning",
+			"retrieval.indexed_lookup",
+			"synthesis",
+			"grounding.verify",
+			"finalization.write",
 		]);
+		expect(entries[1]).toMatchObject({
+			attempts: "attempts=1 · results=1",
+			capability: "knowledge",
+			diagnosticGroups: [
+				{
+					items: ["cancel=not_requested", "timeout=not_timed_out", "late=ignored_after_timeout"],
+					kind: "runtime",
+				},
+				{
+					items: ["fail_close=current_state_unverifiable"],
+					kind: "terminal",
+				},
+				{
+					items: ["replan=bounded_replan_after_provider_timeout"],
+					kind: "replan",
+				},
+			],
+			diagnostics: [
+				"cancel=not_requested",
+				"timeout=not_timed_out",
+				"late=ignored_after_timeout",
+				"fail_close=current_state_unverifiable",
+				"replan=bounded_replan_after_provider_timeout",
+			],
+			duration: "queue=25 ms · duration=100 ms",
+			kind: "step",
+			latestResultRef: "projection://runs/run_01HQ/planning",
+			model: "openai/gpt-5-mini",
+			providerRequestRef: "provider://requests/req_001",
+			status: "completed",
+			stepKind: "planning",
+			taskQueue: "campus-agent.activity.knowledge",
+			tokenCost: "tokens=120/42 · 321 microUSD",
+			workerId: "staging:activity-knowledge:001",
+		});
 		expect(JSON.stringify(entries)).not.toContain("raw");
 		expect(JSON.stringify(entries)).not.toContain("semantic.rag");
 	});

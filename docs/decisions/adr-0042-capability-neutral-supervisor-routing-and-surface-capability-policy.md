@@ -3,9 +3,9 @@ doc_type: decision
 decision_id: ADR-0042
 status: accepted
 created: 2026-04-23
-updated: 2026-04-26
+updated: 2026-06-12
 ---
-# ADR-0042 Capability-Neutral Supervisor Routing And Surface Capability Policy
+# ADR-0042 Capability-Neutral Execution Routing And Surface Capability Policy
 
 ## 状态
 
@@ -15,22 +15,25 @@ Accepted on 2026-04-23.
 
 本 ADR 标题和历史正文中的 `supervisor` 是历史命名。目标态 active architecture term 是
 `Execution Agent Layer`：它位于 `execution-control` 内，负责 admission、
-capability routing、workflow planning、capability dispatch 与 finalization。
+visible tool/capability 裁剪、workflow command/query/cancel、step admission、
+projection 与 finalization。普通 chat 的第一语义决策由 primary agent runtime
+在已裁剪 tool set 内完成。
 
 ## 背景
 
 `campus-agent` 当前已经冻结了以下方向：
 
 - `campus-agent` 是 institution-scoped campus assistant，而不是开放域 generalist
-- `apps/app-api -> apps/execution-control -> apps/supervisor-agent-worker -> agent`
-  是长期执行主链
+- `apps/app-api -> apps/execution-control -> Temporal -> activity workers ->
+  apps/agent-runtime primary agent loop / Go RAG graph / typed tools` 是当前
+  执行主链
 - `knowledge`、`navigation`、`campus_services`、`notice` 已作为当前或前向
   capability family 落盘
 - 当前公开产品能力最成熟的主路径仍是 knowledge question answering
 
 但 repo 仍缺一条更高层的正式决策：
 
-- 顶层 Execution Agent Layer 是否继续默认把产品入口理解成 `knowledge/RAG` 路由器
+- 顶层执行路径是否继续默认把产品入口理解成 `knowledge/RAG` 路由器
 - `requested_scope` 是否仍应被默认理解成所有请求共享的顶层入口字段
 - `public chat` 当前 knowledge-only posture 是否会被误读成长期产品架构原则
 - clarification、approval、out-of-scope 与 capability routing 之间应如何分层
@@ -44,16 +47,19 @@ capability routing、workflow planning、capability dispatch 与 finalization。
 
 ## 决策
 
-### 决策 1：Execution Agent Layer 是 Neutral Capability Router
+### 决策 1：Primary Agent 是普通 chat 的第一语义决策入口
 
-长期上，top-level Execution Agent Layer 必须先回答“这是什么 capability
-family 的请求”，而不是默认先把请求当成 generic knowledge/RAG 问题。
+长期上，普通 chat 先进入 product-level primary agent decision。模型在
+`execution-control` / workflow 裁剪后的 admitted tool set 内判断 direct
+no-tool、notice、campus_services、navigation 或 `knowledge_query`，而不是由
+入口默认先把请求当成 generic knowledge/RAG 问题。
 
 直接含义：
 
 - `knowledge` 仍是核心 capability family，但不再等于整个产品入口语义
 - notice、service、navigation 与 future admitted capability 必须作为并列 family 被治理
-- capability routing 是 repo-owned architecture truth，不是 prompt 内部的临时推理副作用
+- selected tool / workflow signal 必须进入 repo-owned sanitized projection，
+  不能只作为 prompt 内部临时推理副作用
 
 ### 决策 2：`admission` 与 `routing` 必须显式分层
 
@@ -102,14 +108,16 @@ family 的请求”，而不是默认先把请求当成 generic knowledge/RAG �
 长期固定区分：
 
 - `routing clarification`
-  - supervisor 无法稳定确定 capability family，或缺少顶层路由所需关键信息
+  - primary agent / Execution Agent Layer 无法稳定确定需要哪个 admitted
+    tool family，或缺少顶层工具选择所需关键信息
 - `agent clarification`
   - capability family 已确定，但 family 内部仍存在业务歧义或槽位缺失
 
 直接含义：
 
 - 两者在 contract、observability、eval 里不得再混成同一类 clarification
-- supervisor 拥有前者，agent 拥有后者
+- Execution Agent Layer 拥有前者的 durable terminal / projection 语义，具体
+  问句生成可由 primary agent runtime 完成；capability agent 拥有后者
 
 ### 决策 6：capability routing 变更必须进入独立 eval 与 observability
 
@@ -129,7 +137,7 @@ family 的请求”，而不是默认先把请求当成 generic knowledge/RAG �
 
 当前 merged truth 继续允许：
 
-- public chat 只开放 `knowledge`
+- public chat 仍可按 rollout posture 只开放成熟 capability 子集
 - `place_lookup` 在产品路径上继续 fail-close；地点查询、route planning、地图 UI 与
   `place_card` product consumption 等地图产品上线后再独立 admission
 
@@ -137,6 +145,8 @@ family 的请求”，而不是默认先把请求当成 generic knowledge/RAG �
 
 - 长期 Execution Agent Layer 仍是 knowledge-default router
 - 未来所有 surface 都必须先走 knowledge path
+- ordinary chat 缺失 `requested_capability` 时可以被 app-api 或
+  execution-control 默认伪造成 `knowledge`
 
 ## 结果
 
@@ -145,8 +155,9 @@ family 的请求”，而不是默认先把请求当成 generic knowledge/RAG �
 - 后续 architecture 文档必须把 capability-neutral routing 与 knowledge-family retrieval
   分开书写
 - `requested_scope` 的长期语义必须收窄为 knowledge-family-specific field
-- `apps/app-api`、`apps/execution-control`、`apps/supervisor-agent-worker` 与 agent
-  的边界说明必须围绕 `surface policy -> admission -> routing -> agent` 收口
+- `apps/app-api`、`apps/execution-control`、`apps/agent-runtime` 与 capability
+  workers 的边界说明必须围绕 `surface policy -> durable admission ->
+  primary agent decision -> admitted tool / RAG graph -> finalization` 收口
 - 当前 browser-facing / internal execution contract 若还保留 `requested_capability +
   requested_scope`，必须显式区分 current truth 与 forward evolution
 

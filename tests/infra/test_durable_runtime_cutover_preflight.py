@@ -55,6 +55,7 @@ VALID_STAGING_ENV = textwrap.dedent(
     EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001
     EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:001
+    EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:001
     EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001
     EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:001
     EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:001
@@ -62,6 +63,8 @@ VALID_STAGING_ENV = textwrap.dedent(
     EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000
+    EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://agent-runtime:27062
+    EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret
     """
 ).strip()
 
@@ -169,6 +172,9 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertIn("STAGING_INGESTION_EMBEDDING_API_KEY", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", payload["blockers"])
+        self.assertIn("EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY", payload["blockers"])
+        self.assertIn("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", payload["blockers"])
+        self.assertIn("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", payload["blockers"])
 
     def test_passes_when_cutover_inputs_are_explicit(self) -> None:
         result = run_preflight(
@@ -231,6 +237,10 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
                 "STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560",
                 "STAGING_INGESTION_EMBEDDING_DIMENSIONS=1536",
             )
+            .replace(
+                "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://agent-runtime:27062",
+                "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://127.0.0.1:27062",
+            )
         )
         result = run_preflight(
             {
@@ -246,6 +256,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertIn("STAGING_INGESTION_EMBEDDING_DIMENSIONS", payload["blockers"])
         self.assertIn("STAGING_INGESTION_SPARSE_MODEL", payload["blockers"])
         self.assertIn("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", payload["blockers"])
+        self.assertIn("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", payload["blockers"])
 
     def test_rejects_retired_pg_loop_env(self) -> None:
         invalid_env = VALID_STAGING_ENV + "\nEXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED=true\n"

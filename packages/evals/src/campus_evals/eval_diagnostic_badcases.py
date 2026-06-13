@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from campus_evals.models import reject_forbidden_workflow_trace_keys
+from campus_evals.operator_step_trajectory import trajectory_attribution_for_stage
 
 EVAL_DIAGNOSTIC_BADCASES_SCHEMA_VERSION = "eval_diagnostic_badcases.v1"
 RAGAS_DIAGNOSTIC_COMBINED_REPORT_SCHEMA_VERSION = "ragas-diagnostic-combined-report.v1"
@@ -105,6 +106,10 @@ def build_eval_diagnostic_badcases_projection(
                     ),
                     "answerShape": _optional_string(case.get("answer_shape")),
                     "presentationKind": _optional_string(case.get("presentation_kind")),
+                    "trajectoryAttribution": trajectory_attribution_for_stage(
+                        _optional_mapping_field(case.get("operator_step_trajectory")),
+                        failure_stage=failure_stage,
+                    ),
                 }
             )
 
@@ -263,6 +268,14 @@ def _compact_timestamp(value: str) -> str:
 def _mapping_field(value: object, field_name: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{field_name} is required")
+    return value
+
+
+def _optional_mapping_field(value: object) -> Mapping[str, object] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError("operator_step_trajectory must be an object")
     return value
 
 

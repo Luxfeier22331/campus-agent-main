@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
+    AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_COLUMNS,
     AuthenticatedNoticeCollectorRunObjectRefs,
     collector_run_refs_from_row,
 )
@@ -12,9 +13,6 @@ from campus_ingestion_core.authenticated_notice_run_enqueue import (
     AUTHENTICATED_NOTICE_RUN_ENQUEUE_EXECUTE_SCHEMA_VERSION,
     build_authenticated_notice_run_enqueue_plan,
     execute_authenticated_notice_run_enqueue_plan,
-)
-from campus_ingestion_core.authenticated_notice_smoke_replay_run import (
-    AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_COLUMNS,
 )
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
 from campus_ingestion_core.collected_notice_ingest_queue_store import (

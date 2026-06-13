@@ -19,6 +19,7 @@ architecture。
 - 为什么 canonical doc 正文优先以 published reader assets / Rspress-built reader
   pages 交付，而不是每次经 API 返回整篇正文
 - chat 来源、docs search 与直接阅读为什么必须共享同一个 reader permalink
+- docs control plane 与 reader content delivery 为什么必须分层
 
 它不负责：
 
@@ -46,6 +47,7 @@ campus-web Rspress docs source/build output`
 - `app-api` 继续拥有 docs publish manifest、restricted/gated navigation/search/resolve/version/
   admission truth
 - published reader assets 是正文发布产物，不是新的 truth layer
+- docs control plane 与 reader content delivery 必须分层
 - Q&A source card、docs search result 与直接阅读必须落到同一 reader permalink
 - 旧 `apps/public-docs` 不再是 forward product surface；它只保留为 Rspress/MDX/
   anchor/highlight/search 管线的 reference implementation
@@ -104,12 +106,22 @@ campus-web Rspress docs source/build output`
   per-document static index，并在 browser 本地执行查询
 - browser-facing docs site 不调用 `/api/docs/collections/:corpus/:collection/search`
 
+### Static Asset Delivery Constraints
+
+固定约束：
+
+- public、已发布、已 admission 的 reader content，优先以 campus-web Worker static assets
+  直接交付
+- docs shell 继续通过 same-origin `/api/docs/*` 读取 control-plane truth
+- 未 admission 的 reader content，不得因为“已经静态化”就绕过 origin-side gate
+- browser/runtime 不直连对象存储；对象存储只属于 publish/deploy pipeline 输入
+
 ### `apps/app-api`
 
 长期负责：
 
 - reader admission
-- canonical visibility / authz resolution
+- reader source / version resolution
 - current-vs-historical version resolution
 - published reader asset resolution
 - restricted / gated docs search data truth 与 admission
@@ -166,9 +178,10 @@ canonical doc 正文交付长期采用：
 - `/api/docs/*`
   - restricted / gated current version pointer
   - restricted / gated version list
-  - restricted / gated docs search
+  - restricted / gated docs search index admission 与 manifest resolution
   - restricted / gated citation/source-card permalink resolve
   - restricted admission
+  - future `historical / as_of / compare` capability routing
 
 当前 campus-web implementation posture：
 
@@ -180,8 +193,21 @@ canonical doc 正文交付长期采用：
   restricted / gated resolve handoff 或明确错误
 - `/api/docs/*` 继续经 campus-web Worker Service Binding 进入 `app-api`
 - unknown `/api/*`、operator APIs 与 generic app-api proxy 继续 fail closed
+- published reader assets 的长期真相源在对象存储
+- `campus-web` static assets 只是 deploy-time sync 复制品
+- repo tracked `assets/` 目录不承担长期 reader publish truth
+- browser/runtime 不直连对象存储；docs shell 运行时只消费 same-origin `/api/docs/*` 与
+  `campus-web` 自己交付的 `/_docs/...` / `/_gated-docs/...` 静态路径
 
-published reader asset package 与 deploy-time sync 的正式 contract 统一看
+Cloudflare Workers 当前官方 static assets 路由模型允许：
+
+- 命中静态资源时直接由 assets 层返回
+- 未命中时再进入 Worker 代码
+- 对指定路由显式 `run_worker_first`
+
+这是本文选择 “正文静态发布 + `/api/docs/*` 控制面” 的直接平台依据。
+
+reader asset package 与 deploy-time sync 的正式 contract 统一看
 `docs/contracts/document-reader-publish-contract.md`。
 
 ## Route And URL Model
@@ -250,9 +276,24 @@ docs search 与 chat 继续是两条不同能力：
 - docs search 不负责返回整篇正文
 - chat 不能替代 docs 站导航、目录、版本入口与系统性阅读
 
+## Versioning And Historical Posture
+
+版本规则继续服从 ADR-0014：
+
+- reader 默认只打开当前有效版本
+- historical / as_of / compare 必须显式化
+- 版本选择必须发生在 retrieval / reader materialization 之前
+
+对文档站的直接含义是：
+
+- first launch 即使只开放 current reader，也必须把 `versionId` / `versionSlug` 纳入 contract
+- source card target 从第一天起就必须携带版本语义
+- 未来 compare / as_of 可以扩展为独立 view，但不能回退成 query-only 暗箱逻辑
+
 ## Visibility And Authorization
 
-长期 public / restricted 文档阅读必须共用同一 reader model，而不是维护两套 reader 真相。
+当前长期 reader model 只冻结 public docs / current reader 的 source、version 与
+admission truth。
 
 固定规则：
 
@@ -263,6 +304,8 @@ docs search 与 chat 继续是两条不同能力：
   enforcement
 - restricted reader 可以与 public reader 共用同一 reader asset format，但 delivery mode
   不得伪装成匿名 public static path
+- 受限文档阅读只承诺当前已冻结的 gated reader/static index delivery；不得从本文推导出
+  学生 / 教职工差异化 capability 权限、内部文件库或 legacy ACL rollout
 
 ## Retired Surface Posture
 
@@ -280,6 +323,16 @@ docs search 与 chat 继续是两条不同能力：
 - docs browser surface ownership
 - staging/product acceptance target
 - OAuth/account/browser navigation owner
+- canonical document truth
+- reader contract
+- source / version / admission
+- citation jump contract
+
+因此：
+
+- 不把外部 docs 平台当成 canonical truth owner
+- 不把 static-site content pipeline 误当成 document registry / version truth
+- 不把 “正文静态化” 误解成 “docs 不再需要 app-api control plane”
 
 ## Forbidden Shapes
 
@@ -288,8 +341,8 @@ docs search 与 chat 继续是两条不同能力：
 - 不把 docs reader 做成直连数据库或直连 index 的第二后端
 - 不把 raw chunk / source-truth / provider artifact 暴露给用户阅读面
 - 不把 citation URL 绑定到当前 chunk 切分策略
-- 不把 public 和 restricted 文档分别实现为两套 reader contract
 - 不把 docs search 与 chat answer 混成同一 API / 同一 UI 真相
+- 不把 gated / restricted reader 作为当前 public docs 默认交付形态
 
 ## 相关稳定文档
 

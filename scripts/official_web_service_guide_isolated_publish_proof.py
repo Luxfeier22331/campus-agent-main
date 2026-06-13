@@ -33,6 +33,11 @@ from campus_ingestion_worker.release_official_web_selected_write import (
     release_official_web_selected_write,
 )
 
+from scripts.execution_control_process_smoke import (
+    _create_temporary_postgres_database,
+    _postgres_url_with_database,
+    _sanitize_postgres_database_name,
+)
 from scripts.official_web_service_guide_no_promotion_proof import (
     DEFAULT_PREVIEW_REPORT_NAME,
     load_execution_report_for_seam_report,
@@ -41,11 +46,6 @@ from scripts.official_web_service_guide_no_promotion_proof import (
 from scripts.service_guide_selected_write_runtime_smoke import (
     build_service_guide_selected_write_runtime_smoke_plan,
     run_service_guide_selected_write_runtime_smoke,
-)
-from scripts.supervisor_runtime_process_smoke import (
-    _create_temporary_postgres_database,
-    _postgres_url_with_database,
-    _sanitize_postgres_database_name,
 )
 
 

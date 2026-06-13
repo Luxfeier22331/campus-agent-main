@@ -4,6 +4,24 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildOperatorObservabilityCommandService } from "../src/modules/operator-observability-command";
 
+const trajectoryAttribution = {
+	status: "attributed",
+	stepId: "evidence.selection",
+	stepKind: "selection",
+	capability: "knowledge",
+	toolName: null,
+	stepStatus: "completed",
+	outcome: {
+		failCloseReason: null,
+		terminalReason: null,
+		replanReason: null,
+		cancelOutcome: "not_requested",
+		timeoutOutcome: "not_timed_out",
+		lateCompletionOutcome: "not_late",
+	},
+	projectionRefs: ["projection://runs/run_01HQ/evidence-selection"],
+};
+
 const diagnosticPayload = {
 	schemaVersion: "eval_diagnostic_badcases.v1",
 	evalRunId: "ragas_diagnostic_combined",
@@ -30,6 +48,7 @@ const diagnosticPayload = {
 			supportingChunkIds: ["chunk:wrong"],
 			answerShape: "eligibility_judgment",
 			presentationKind: "condition_table",
+			trajectoryAttribution,
 		},
 	],
 };
@@ -86,10 +105,183 @@ describe("operator eval diagnostic badcases command service", () => {
 					supportingDocIds: ["doc:wrong"],
 					surfaceKey: "regulations/student_rules",
 					thresholdMilli: 800,
+					trajectoryAttribution,
 				},
 			],
 			snapshotId: "eval_diagnostic_badcases:2026-05-21T090000Z",
 		});
+	});
+
+	it("accepts replan trajectory attribution as an operator-safe diagnostic stage", async () => {
+		const store = createCommandStore();
+		const service = buildOperatorObservabilityCommandService({
+			now: () => new Date("2026-05-21T10:00:00.000Z"),
+			store,
+		});
+		const replanAttribution = {
+			status: "attributed",
+			stepId: "plan.replan.1",
+			stepKind: "replan",
+			capability: "campus_services",
+			toolName: "transport_schedule_lookup",
+			stepStatus: "completed",
+			outcome: {
+				failCloseReason: null,
+				terminalReason: null,
+				replanReason: "bounded_replan_after_provider_timeout",
+				cancelOutcome: "not_requested",
+				timeoutOutcome: "provider_timeout",
+				lateCompletionOutcome: "ignored_after_timeout",
+			},
+			projectionRefs: ["projection://runs/run_01HQ/plan-replan-1"],
+		};
+
+		await expect(
+			service.ingestEvalDiagnosticBadcases({
+				payload: {
+					...diagnosticPayload,
+					badcases: [
+						{
+							...diagnosticPayload.badcases[0],
+							badcaseId: "ragas_diagnostic:transport-replan:faithfulness",
+							caseId: "transport-replan",
+							causeClass: "replan_failed",
+							failureStage: "replan",
+							metricFailureReason: "replan",
+							trajectoryAttribution: replanAttribution,
+						},
+					],
+				},
+			}),
+		).resolves.toEqual({
+			accepted: 1,
+			snapshotId: "eval_diagnostic_badcases:2026-05-21T090000Z",
+		});
+
+		expect(store.upsertEvalDiagnosticBadcases).toHaveBeenCalledWith({
+			badcases: [
+				expect.objectContaining({
+					badcaseId: "ragas_diagnostic:transport-replan:faithfulness",
+					causeClass: "replan_failed",
+					failureStage: "replan",
+					metricFailureReason: "replan",
+					trajectoryAttribution: replanAttribution,
+				}),
+			],
+			snapshotId: "eval_diagnostic_badcases:2026-05-21T090000Z",
+		});
+	});
+
+	it("accepts terminal outcome diagnostic stages attributed to finalization", async () => {
+		const store = createCommandStore();
+		const service = buildOperatorObservabilityCommandService({
+			now: () => new Date("2026-05-21T10:00:00.000Z"),
+			store,
+		});
+		const terminalAttribution = {
+			status: "attributed",
+			stepId: "finalization.write",
+			stepKind: "finalization",
+			capability: "primary_agent",
+			toolName: null,
+			stepStatus: "completed",
+			outcome: {
+				failCloseReason: null,
+				terminalReason: "clarification_required",
+				replanReason: null,
+				cancelOutcome: "not_requested",
+				timeoutOutcome: "not_timed_out",
+				lateCompletionOutcome: "not_late",
+			},
+			projectionRefs: ["projection://runs/run_01HQ/finalization/write"],
+		};
+
+		await expect(
+			service.ingestEvalDiagnosticBadcases({
+				payload: {
+					...diagnosticPayload,
+					badcases: [
+						{
+							...diagnosticPayload.badcases[0],
+							badcaseId: "ragas_diagnostic:terminal-clarification:answer_relevancy",
+							caseId: "terminal-clarification",
+							causeClass: "clarification_required",
+							failureStage: "clarification",
+							metricFailureReason: "clarification",
+							trajectoryAttribution: terminalAttribution,
+						},
+						{
+							...diagnosticPayload.badcases[0],
+							badcaseId: "ragas_diagnostic:terminal-rejected:answer_relevancy",
+							caseId: "terminal-rejected",
+							causeClass: "request_rejected",
+							failureStage: "rejected",
+							metricFailureReason: "rejected",
+							trajectoryAttribution: terminalAttribution,
+						},
+						{
+							...diagnosticPayload.badcases[0],
+							badcaseId: "ragas_diagnostic:terminal-no-answer:answer_relevancy",
+							caseId: "terminal-no-answer",
+							causeClass: "no_answer",
+							failureStage: "no_answer",
+							metricFailureReason: "no_answer",
+							trajectoryAttribution: terminalAttribution,
+						},
+					],
+				},
+			}),
+		).resolves.toEqual({
+			accepted: 3,
+			snapshotId: "eval_diagnostic_badcases:2026-05-21T090000Z",
+		});
+
+		expect(store.upsertEvalDiagnosticBadcases).toHaveBeenCalledWith({
+			badcases: [
+				expect.objectContaining({
+					failureStage: "clarification",
+					trajectoryAttribution: terminalAttribution,
+				}),
+				expect.objectContaining({
+					failureStage: "rejected",
+					trajectoryAttribution: terminalAttribution,
+				}),
+				expect.objectContaining({
+					failureStage: "no_answer",
+					trajectoryAttribution: terminalAttribution,
+				}),
+			],
+			snapshotId: "eval_diagnostic_badcases:2026-05-21T090000Z",
+		});
+	});
+
+	it("rejects diagnostic trajectory attribution that includes raw or local artifact fields", async () => {
+		const store = createCommandStore();
+		const service = buildOperatorObservabilityCommandService({ store });
+
+		await expect(
+			service.ingestEvalDiagnosticBadcases({
+				payload: {
+					...diagnosticPayload,
+					badcases: [
+						{
+							...diagnosticPayload.badcases[0],
+							trajectoryAttribution: {
+								...trajectoryAttribution,
+								outcome: {
+									...trajectoryAttribution.outcome,
+									artifactPath: "/tmp/raw-result.json",
+								},
+							},
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.upsertEvalDiagnosticBadcases).not.toHaveBeenCalled();
 	});
 
 	it("rejects diagnostic badcases that include raw answer or local artifact fields", async () => {

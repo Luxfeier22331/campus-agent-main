@@ -11,6 +11,10 @@ export type EvalDiagnosticFailureStage =
 	| "synthesis"
 	| "grounding"
 	| "finalization"
+	| "replan"
+	| "clarification"
+	| "rejected"
+	| "no_answer"
 	| "diagnostic";
 
 export interface EvalDiagnosticBadcasePayloadItem {
@@ -31,6 +35,32 @@ export interface EvalDiagnosticBadcasePayloadItem {
 	supportingDocIds: string[];
 	surfaceKey: string;
 	threshold: number;
+	trajectoryAttribution: EvalDiagnosticTrajectoryAttribution;
+}
+
+export type EvalDiagnosticTrajectoryAttributionStatus =
+	| "attributed"
+	| "attribution_missing"
+	| "trajectory_missing";
+
+export interface EvalDiagnosticTrajectoryOutcome {
+	cancelOutcome: string | null;
+	failCloseReason: string | null;
+	lateCompletionOutcome: string | null;
+	replanReason: string | null;
+	terminalReason: string | null;
+	timeoutOutcome: string | null;
+}
+
+export interface EvalDiagnosticTrajectoryAttribution {
+	capability: string | null;
+	outcome: EvalDiagnosticTrajectoryOutcome;
+	projectionRefs: string[];
+	status: EvalDiagnosticTrajectoryAttributionStatus;
+	stepId: string | null;
+	stepKind: string | null;
+	stepStatus: string | null;
+	toolName: string | null;
 }
 
 export interface EvalDiagnosticBadcasesProjection {
@@ -67,4 +97,5 @@ export interface EvalDiagnosticBadcaseProjectionWrite {
 	supportingDocIds: string[];
 	surfaceKey: string;
 	thresholdMilli: number;
+	trajectoryAttribution: EvalDiagnosticTrajectoryAttribution;
 }

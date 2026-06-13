@@ -40,6 +40,9 @@ describe("quality eval candidate UI", () => {
 		expect(diagnosticSummarySource).toContain("diagnostic.expectedDocIds");
 		expect(diagnosticSummarySource).toContain("diagnostic.supportingDocIds");
 		expect(diagnosticSummarySource).toContain("diagnostic.answerShape");
+		expect(diagnosticSummarySource).toContain("diagnostic.trajectoryAttribution");
+		expect(diagnosticSummarySource).toContain("trajectory.stepId");
+		expect(diagnosticSummarySource).toContain("trajectory.stepStatus");
 		expect(`${qualityCardsSource}\n${diagnosticSummarySource}`).not.toMatch(
 			/rawPrompt|rawAnswer|transcript|artifactPath/,
 		);

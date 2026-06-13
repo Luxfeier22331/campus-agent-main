@@ -18,7 +18,7 @@ if __package__ in {None, ""}:
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.supervisor_runtime_process_smoke_http import wait_for_status
+from scripts.execution_control_process_smoke_http import wait_for_status
 
 SMOKE_SCHEMA_VERSION = "academic_calendar_selected_write_runtime_smoke.v1"
 DEFAULT_REPORT_NAME = "academic-calendar-selected-write-runtime-smoke.json"

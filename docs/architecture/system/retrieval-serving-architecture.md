@@ -138,7 +138,7 @@ serving truth 不写死在 Execution Agent Layer、API shell 或 env 默认值�
 - collection runtime profile
 - serving alias / release manifest
 - current query-enabled scope
-- explicit authz projection
+- source / version / runtime-profile projection
 
 ## Incremental RAG Release Lane
 
@@ -191,7 +191,7 @@ serving truth 不写死在 Execution Agent Layer、API shell 或 env 默认值�
   canonical/chunk-only non-serving；不得进入 RAG release candidate、不得调用 index release
   executor，也不得作为 document-site read-model scope 发布
 - incremental decision 必须使用 document identity、document version/hash、chunk
-  profile identity、embedding/runtime profile identity 与 visibility/authz carrier；
+  profile identity、embedding/runtime profile identity 与 source/version carrier；
   profile 变化必须让旧 candidate / cache 失效
 - unchanged document 可以跳过 re-embedding，但 release manifest 必须仍能解释 skip reason
   与被复用的 prior release / point provenance
@@ -241,7 +241,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   point payload 混入不同 release/profile metadata 时 fail closed；guard cache key 必须包含
   collection 与 profile identity，profile 变更不得复用旧 guard 结果
 - 发布后 audit 必须检查 query-time filter 字段的 Qdrant payload indexes；缺
-  `document_id` / `version_id` / authz / visibility / current-version 等必要 index
+  `document_id` / `version_id` / source / current-version 等必要 index
   或 schema 不匹配时，post-publish audit fail closed
 - payload indexes 必须在 collection 创建后、points upsert 前建立；filterable HNSW
   不应等到 points 写入后才补建
@@ -305,11 +305,12 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 
 - serving-surface filter
 - version-selection filter
-- authz / visibility filter
+- source / version / runtime-profile filter
 - collection / entity / family filter
 
 `major`、`cohort`、`program`、recent goal 等 personalization signal 只允许影响
-applicability / preference / clarification，不得静默改写 visibility truth。
+applicability / preference / clarification，不得静默改写 source truth 或 capability
+opening truth。
 
 长期 target 里，这些 filter 仍然必须：
 
@@ -354,8 +355,8 @@ applicability / preference / clarification，不得静默改写 visibility truth
 - real live source executor 与 production observation storage rollout
 
 这些属于目标架构的一部分，而不是当前默认 surface；当前 active/deferred execution 仍以
-`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、对应 workstream `STATE.md` 与相关
-plan 为准。
+`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native
+session state 为准。
 
 ## Course Facts Internal Surface
 
@@ -400,7 +401,7 @@ structured query seam。
 - notice family
   - `campus_notice_discover`
   - internal selected notice resolve with `payload_kind=campus_notice_get`
-  - 继续区分 public `official_web` notice family 与 restricted `internal_notice`
+  - 继续区分 public `official_web` notice family 与 authenticated-source `internal_notice`
     notice family
 
 固定约束：
@@ -416,7 +417,7 @@ structured query seam。
   可以向 `knowledge` 提供 bounded context projection，例如 notice context、
   service facts、schedule baseline 或 place context；这些 projection 只能辅助
   retrieval framing / grounding validation，
-  不改变 query-serving collection allowlist，也不绕过 authz / freshness / source-trust gate
+  不改变 query-serving collection allowlist，也不绕过 freshness / source-trust gate
 
 ## Forbidden Shapes
 

@@ -15,6 +15,10 @@ type workflowTestActivityRegistrar interface {
 
 func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activities *Activities) {
 	env.RegisterActivityWithOptions(activities.MemoryRecallActivity, activity.RegisterOptions{Name: MemoryRecallActivityName})
+	env.RegisterActivityWithOptions(
+		activities.ExecutePrimaryAgentActivity,
+		activity.RegisterOptions{Name: ExecutePrimaryAgentActivityName},
+	)
 	env.RegisterActivityWithOptions(activities.PlanRouteActivity, activity.RegisterOptions{Name: PlanRouteActivityName})
 	env.RegisterActivityWithOptions(activities.PlanReplanActivity, activity.RegisterOptions{Name: PlanReplanActivityName})
 	env.RegisterActivityWithOptions(activities.PlanRAGActivity, activity.RegisterOptions{Name: PlanRAGActivityName})
@@ -46,6 +50,19 @@ func (Activities) MemoryRecallActivity(
 		SelectedMemoryChars: 0,
 		SelectedMemoryCount: 0,
 		Status:              "completed",
+	}, nil
+}
+
+func (Activities) ExecutePrimaryAgentActivity(
+	_ context.Context,
+	input ExecutePrimaryAgentActivityInput,
+) (ExecutePrimaryAgentActivityOutput, error) {
+	return ExecutePrimaryAgentActivityOutput{
+		AgentResultRef: "projection://runs/" + input.RunID + "/agent/primary/result",
+		FinalOutput:    "你好，我是校园问答助手。",
+		RunID:          input.RunID,
+		Status:         "completed",
+		TerminalReason: "answer_completed",
 	}, nil
 }
 

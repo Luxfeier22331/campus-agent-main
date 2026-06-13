@@ -241,6 +241,7 @@ SURFACE_SPECS = {
             "temporal_context_worker_identity": (
                 "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY",
             ),
+            "temporal_agent_worker_identity": ("EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY",),
             "temporal_knowledge_worker_identity": (
                 "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
             ),
@@ -258,8 +259,11 @@ SURFACE_SPECS = {
             ),
             "temporal_workflow_id_salt": ("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",),
             "temporal_start_timeout_ms": ("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",),
+            "agent_runtime_base_url": ("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",),
+            "agent_runtime_shared_secret": ("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET",),
         },
         "optional_settings": {
+            "agent_runtime_timeout_ms": ("EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",),
             "prompt_runtime_transport": ("PROMPT_RUNTIME_TRANSPORT",),
             "prompt_runtime_base_url": ("PROMPT_RUNTIME_BASE_URL", "LLM_BASE_URL"),
             "prompt_runtime_connect_timeout_seconds": ("PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",),

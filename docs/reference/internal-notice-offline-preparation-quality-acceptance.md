@@ -84,7 +84,7 @@ repo 当前的只读质量验收入口固定为：
 
 ```bash
 uv run --package campus-ingestion-worker python -m \
-  campus_ingestion_worker.validate_internal_notice_chunking
+  campus_ingestion_worker.validate_internal_notice_chunking \
   --preparation-run-id <prep_id> \
   --sample-dir <output_dir>
 ```

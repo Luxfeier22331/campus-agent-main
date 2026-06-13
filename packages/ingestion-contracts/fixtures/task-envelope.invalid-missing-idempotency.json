@@ -1,0 +1,24 @@
+{
+	"schema_version": "ingestion_task_envelope.v1",
+	"task_id": "task_invalid",
+	"run_id": "run_invalid",
+	"source_family": "curriculum",
+	"source_channel": "curriculum_plan",
+	"corpus": "curriculum",
+	"collection": "curriculum_plan",
+	"task_kind": "chunk_prepare",
+	"input_ref": {
+		"kind": "object_store",
+		"uri": "s3://campus-rag-derived/curriculum/curriculum_plan/document-units.jsonl"
+	},
+	"output_contract": "ingestion_chunk_set.v1",
+	"lease_policy": {
+		"lease_seconds": 300,
+		"heartbeat_seconds": 30
+	},
+	"retry_policy": {
+		"max_attempts": 3
+	},
+	"created_by": "operator",
+	"created_at": "2026-06-11T00:00:00Z"
+}

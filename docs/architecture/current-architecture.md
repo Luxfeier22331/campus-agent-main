@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-09
+updated: 2026-06-12
 ---
 # 当前架构
 
@@ -40,10 +40,11 @@ capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
 models -> sanitized projection`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-knowledge /
-capability workers / activity-worker-finalization -> memory recall / typed
-capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
-models -> sanitized projection`
+workflow-worker / activity-worker-context / activity-worker-agent /
+activity-worker-knowledge / capability workers / activity-worker-finalization ->
+memory recall / OpenAI Agents SDK primary agent loop / typed capability branch /
+Go RAG DTO/runtime -> Qdrant / provider / structured read models -> sanitized
+projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader /
 current React docs shell`
@@ -89,10 +90,25 @@ document/index release`
 - retired PG lease tables、lane budget、worker heartbeat、PG lease worker loop 与
   recovery loop 只允许作为 historical migration artifact / retired code path 出现，
   不参与当前 online serving
-- 当前在线 RAG 路径已退出 Python bridge，并硬切为 Temporal-visible memory + RAG graph：
-  `context.memory_recall -> plan.route -> rag.plan -> retrieval.indexed_lookup ->
+- 当前在线主问答路径已进入 first Execution Agent decision / direct no-tool terminal
+  branch：`CapabilityExecutionWorkflow` 执行
+  `context.memory_recall -> agent.primary -> finalization.write`。
+  `agent.primary` 由 `activity-worker-agent` 调用 `apps/agent-runtime`，后者使用
+  OpenAI Agents SDK 承接模型-facing instructions、tool loop 与 direct/no-tool
+  final output；Go `execution-control` 保留 durable envelope、Temporal timeout /
+  cancel、memory projection refs、visible capability allowlist、sanitized
+  `agent.primary` step projection 与 finalization ownership。
+- 当前 ordinary chat 缺失 explicit capability hint 时保持 capability-neutral：
+  `app-api` 允许 `requestedCapability=null`，Go `execution-control` 不再把缺失
+  `requested_capability` 写成 `knowledge`，而是把 admitted visible tool set
+  交给 `agent.primary` 决策。neutral memory recall 使用 `any` capability filter，
+  direct/no-tool finalization 归因到 `primary_agent`。
+- `plan.route -> capability branch` 不再是主问答链路的第一模型决策。它仍作为
+  Go-owned deterministic structured planner / typed activity / historical RAG graph
+  support path 保留，服务显式 typed branch、测试与内部 policy 约束；知识分支
+  RAG graph 仍为 `rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
-  grounding.verify -> finalization.write`。
+  grounding.verify`。
 - 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 self-hosted Qdrant
   `personal_memory_v1` collection；app-api chat submit 不再读取 PG
   `profile.memory_items` 并全量注入 `context.profile_memory`。
@@ -107,17 +123,19 @@ document/index release`
   cancellable HTTP context，synthesis provider execution 由
   `SynthesizeRAGAnswerActivity` 记录 `provider_execution_summary_v1`、usage、
   estimated cost 与 cancel / timeout outcome。
-- 当前 cancel / timeout 证据由 Temporal activity context、Go lookup/provider adapter
-  和 sanitized step attempt projection 承接；后续 staging 仍需要真实 provider call 的
-  cancel evidence，但 repo-local projection path 已能记录
-  `provider_connection_aborted`。
+- 当前 cancel / timeout / late-completion 证据由 Temporal activity context、Go
+  lookup/provider adapter、user cancel projection closeout 和 sanitized step attempt
+  projection 承接；repo-local projection path 已能记录
+  `activity_context_canceled`、`requested_before_start`、
+  `provider_connection_aborted`、provider timeout 与 late completion ignored。后续
+  staging 仍需要真实 provider call 与 Temporal metrics evidence。
 - 当前仍未完成的是 worker autoscaler production actuation、Temporal poller proof 的
   staging closeout 与 notice / navigation / campus-services typed activity worker
   全量拆分。目标 durable runtime 见
   `docs/architecture/system/durable-agent-runtime-architecture.md`
-- Python `apps/supervisor-agent-worker` 不再是 online answer serving dependency；
-  retained bridge/server code 只作为 offline / eval / tooling / historical reference
-  存在，不得作为 staging readiness、online fallback 或 active workflow branch 恢复。
+- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 bridge/server
+  code 只可通过 git history 追溯，不得作为 staging readiness、online fallback 或
+  active workflow branch 恢复。
 - opened deterministic structured capability 必须作为 Go-owned typed Temporal
   activity 执行并写入 sanitized projection；未完成 worker contract 的 capability
   fail closed，不走 Python serving shortcut。
@@ -142,7 +160,7 @@ document/index release`
 
 当前非默认公开查询面：
 
-- `campus_notices/internal_notice` restricted source-channel triage
+- `campus_notices/internal_notice` authenticated notice source-channel triage
   collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入
   `regulations/*`
 - `regulations/scoped_rules` notice-derived scoped-rule holding collection；当前
@@ -271,34 +289,48 @@ document/index release`
   projection truth。旧 PG lease worker loop / recovery loop 不再参与 online
   serving。
 - 当前 `CapabilityExecutionWorkflow` 主干已切为 `context.memory_recall ->
-  plan.route -> capability branch -> finalization.write`。`knowledge` 分支执行
-  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
-  evidence.selection -> synthesis -> grounding.verify`，每个 step 写入
+  agent.primary -> finalization.write` 或 `context.memory_recall ->
+  agent.primary -> knowledge RAG graph -> finalization.write`。`agent.primary`
+  通过 OpenAI Agents SDK 暴露 model-visible read-only tool catalog，由模型在
+  agent loop 内决定是否调用工具；无工具请求可直接产出 final output。knowledge
+  请求只向模型暴露 `knowledge_query` workflow-signal tool，实际 RAG 仍进入
+  Go-owned Temporal graph；`retrieval.query` 不作为 model-visible tool 暴露。
+  campus-services / notice read-only tools 通过 strict `tool-catalog.v1` 暴露给
+  `agent.primary`，并由 execution-control internal query endpoint 执行；Go runtime
+  通过 tool catalog / tool spec / endpoint drift test 约束可调用性。
+  每个主干 step 写入
   `RunStep -> StepAttempt -> StepResult` projection。attempt projection 已包含
   Temporal activity metadata、queue wait、duration、provider/model、token/cost、
   cancel/timeout outcome 字段。
-- 当前 public durable chat path 已具备 capability-neutral metadata 与 workflow
-  branch skeleton；`campus_services` 与 `notice` 可进入 typed activity branch，
-  但产品级完整验收仍取决于对应 worker poller、structured read model、projection
-  fixture 与 finalization closeout。`navigation` 仍默认 closed，必须 fail closed。
+- 当前 public durable chat path 已具备 capability-neutral metadata、primary agent
+  direct/no-tool terminal branch 与 agent-result finalization。`campus_services`
+  与 `notice` 已有 model-visible read-only tool catalog 与 typed/internal-query
+  bridge 基底；产品级完整验收仍取决于对应 worker poller、structured read model、
+  projection fixture 与 opening evidence。`navigation` 仍默认 closed，必须 fail
+  closed。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
   解释为全局 scheduler。当前缺口是 staging 真实 provider cancel evidence、
   worker autoscaler actuation、notice / navigation / campus-services typed branch
   产品验收，以及 RAG retrieval quality/profiling 的持续优化。
-- 拥有 deterministic structured planner；当前实现位于
+- 仍拥有 deterministic structured planner；当前实现位于
   `apps/execution-control/internal/structuredplanning`。`PlanRouteActivity` 从
   capability-neutral `execution_payload` 读取 user goal、requested capability、
   scope、version query 与 session context，输出 resolved capability branch steps。
-- `CapabilityExecutionWorkflow` 已能执行 resolved branch plan：knowledge step
-  进入 Go RAG graph；`campus_services` / `notice` step 进入 typed tool activity；
+  该能力当前不是主问答链路第一模型决策，而是 typed branch / RAG graph 的内部
+  support path。
+- `CapabilityExecutionWorkflow` 的当前主干由 primary agent SDK loop 承接工具选择
+  与 direct answer；当 primary agent 选择 `knowledge_query` 时，workflow 使用
+  agent result projection ref 作为 plan/dependency input 进入 Go RAG graph。
+  保留的 resolved branch plan 仍可执行：knowledge step 进入 Go RAG graph；
+  `campus_services` / `notice` step 进入 typed tool activity；
   selected-notice follow-through 可由 resolver 编译为 typed tool step + knowledge
   step。workflow trace / projection 只记录 bounded result refs、step metadata 与 safe
   summaries，不携带 raw projection payload。旧 bridge v6 `runtime_decisions` 不再是
   current durable chat path 的规划输入。
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/execution-control/internal/runtimepolicy`，负责 product scope gate、
-  approval / reject gate、context follow-up preflight、query-enabled scope
+  readiness / reject gate、context follow-up preflight、query-enabled scope
   admission 与 structured tool policy version；intent signal taxonomy、reason
   code 与 case-set version 当前由 `configs/runtime/intent-policy.v1.json`
   持有，Go runtime policy 加载该 artifact，并在缺失或 version drift 时
@@ -315,16 +347,6 @@ document/index release`
   serving；缺 worker/config/poller 时 fail closed
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning
-
-### `apps/supervisor-agent-worker`
-
-- Python semantic worker historical/offline artifact
-- 不参与当前 online answer serving、staging readiness、Temporal workflow branch 或
-  app-api execution admission
-- 可保留用于 offline / eval / tooling / historical bridge reference；任何重新接入
-  serving 的需求必须先形成新的 ADR / contract，并不得作为 fallback 或兼容路径恢复
-- 不拥有 execution truth、provider hot path、RAG DTO canonical boundary、run/step
-  projection、cancel terminal truth 或 product-facing response finalization
 
 ### `apps/ingestion-worker`
 
@@ -396,7 +418,7 @@ document/index release`
   architecture：`docs/architecture/system/execution-and-agents-architecture.md`
 - prompt/instruction supporting
   architecture：`docs/architecture/system/prompt-and-instruction-architecture.md`
-- identity / authorization supporting
+- account / operator access / memory binding supporting
   architecture：`docs/architecture/system/identity-and-authorization-architecture.md`
 - identity platform supporting
   architecture：`docs/architecture/system/identity-platform-architecture.md`
@@ -418,8 +440,8 @@ document/index release`
   architecture：`docs/architecture/domains/authenticated-notice/architecture.md`
 - operator observability supporting
   architecture：`docs/architecture/system/operator-observability-architecture.md`
-- 当前 phase / pending work：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应
-  workstream `STATE.md`
+- 当前 pending work：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK /
+  Codex native session state
 
 ## 不在本文维护的真相
 

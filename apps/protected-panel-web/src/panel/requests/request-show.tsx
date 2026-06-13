@@ -115,6 +115,120 @@ function RequestIntentSummary(props: {
 	);
 }
 
+function stepStatusColor(status: string): "default" | "error" | "info" | "success" | "warning" {
+	switch (status) {
+		case "completed":
+			return "success";
+		case "blocked":
+		case "failed":
+			return "error";
+		case "started":
+		case "running":
+			return "info";
+		case "canceled":
+		case "expired":
+			return "warning";
+		default:
+			return "default";
+	}
+}
+
+function RequestStepTrajectoryTimeline(props: {
+	entries: ReturnType<typeof buildRequestStepTrajectoryEntries>;
+}) {
+	if (props.entries.length === 0) {
+		return null;
+	}
+
+	const [summary, ...steps] = props.entries;
+	const summaryText = summary?.kind === "summary" ? summary.metrics : PANEL_COPY.unknown;
+
+	return (
+		<Stack spacing={1.5}>
+			<Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+				<Typography variant="subtitle2">Step 轨迹</Typography>
+				<Chip label={summaryText} size="small" variant="outlined" />
+			</Stack>
+			<Stack spacing={1.25}>
+				{steps.map((entry) => {
+					if (entry.kind !== "step") {
+						return null;
+					}
+					const color = stepStatusColor(entry.status);
+					return (
+						<Box
+							key={`${entry.stepId}:${entry.latestResultRef}:${entry.status}`}
+							sx={{
+								borderColor: "divider",
+								borderLeft: 3,
+								pl: 1.5,
+							}}
+						>
+							<Stack spacing={1}>
+								<Stack
+									direction={{ md: "row", xs: "column" }}
+									spacing={1}
+									sx={{ alignItems: { md: "center", xs: "flex-start" } }}
+								>
+									<Typography fontWeight={600} variant="body2">
+										{entry.stepKind}
+									</Typography>
+									<Typography color="text.secondary" variant="caption">
+										{entry.stepId}
+									</Typography>
+									<Chip
+										color={color}
+										label={entry.status}
+										size="small"
+										variant={color === "default" ? "outlined" : "filled"}
+									/>
+								</Stack>
+								<Box
+									sx={{
+										display: "grid",
+										gap: 1,
+										gridTemplateColumns: {
+											md: "repeat(3, minmax(0, 1fr))",
+											xs: "1fr",
+										},
+									}}
+								>
+									<RequestFieldRow
+										label="能力 / 队列"
+										value={`${entry.capability} · ${entry.taskQueue}`}
+									/>
+									<RequestFieldRow label="Worker" value={entry.workerId} />
+									<RequestFieldRow label="Attempts" value={entry.attempts} />
+									<RequestFieldRow label="耗时" value={entry.duration} />
+									<RequestFieldRow label="模型" value={entry.model} />
+									<RequestFieldRow label="Tokens / 成本" value={entry.tokenCost} />
+									<RequestFieldRow label="Provider Request" value={entry.providerRequestRef} />
+									<RequestFieldRow label="结果引用" value={entry.latestResultRef} />
+									<RequestFieldRow
+										label="诊断"
+										value={
+											<Stack direction="row" flexWrap="wrap" gap={0.75}>
+												{entry.diagnostics.map((diagnostic) => (
+													<Chip
+														key={diagnostic}
+														label={diagnostic}
+														size="small"
+														variant="outlined"
+													/>
+												))}
+											</Stack>
+										}
+									/>
+								</Box>
+							</Stack>
+						</Box>
+					);
+				})}
+			</Stack>
+		</Stack>
+	);
+}
+
 function formatRecordSummary(record: Record<string, unknown> | null | undefined) {
 	if (!record || Object.keys(record).length === 0) {
 		return PANEL_COPY.none;
@@ -196,7 +310,8 @@ function RequestShowContent() {
 	const intentEntries = buildRequestIntentEntries(observability?.intent);
 	const runtimeRunEntries = buildRequestRuntimeRunEntries(observabilityRecord?.runtimeRun);
 	const stepTrajectoryEntries = buildRequestStepTrajectoryEntries(
-		observabilityRecord?.runtimeRun?.stepTrajectory,
+		observabilityRecord?.runtimeRun?.operatorStepTrajectory ??
+			observabilityRecord?.runtimeRun?.stepTrajectory,
 	);
 	const replayEntries = buildRequestReplayEntries(observabilityRecord?.replay);
 	const workflowTraceEntries = buildRequestWorkflowTraceEntries(workflowTrace);
@@ -508,25 +623,7 @@ function RequestShowContent() {
 									{stepTrajectoryEntries.length > 0 ? (
 										<>
 											<Divider />
-											<Typography variant="subtitle2">Step 轨迹</Typography>
-											<Box
-												sx={{
-													display: "grid",
-													gap: 2,
-													gridTemplateColumns: {
-														md: "repeat(2, minmax(0, 1fr))",
-														xs: "1fr",
-													},
-												}}
-											>
-												{stepTrajectoryEntries.map((entry) => (
-													<RequestFieldRow
-														key={entry.label}
-														label={entry.label}
-														value={entry.value}
-													/>
-												))}
-											</Box>
+											<RequestStepTrajectoryTimeline entries={stepTrajectoryEntries} />
 										</>
 									) : null}
 								</Stack>

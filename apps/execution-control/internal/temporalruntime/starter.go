@@ -164,6 +164,7 @@ func (s *Starter) CheckReadiness(ctx context.Context) RuntimeReadiness {
 func normalizeActivityTaskQueues(values []string) []string {
 	queues := []string{
 		ActivityTaskQueueContext,
+		ActivityTaskQueueAgent,
 		ActivityTaskQueueKnowledge,
 		ActivityTaskQueueFinalization,
 	}
@@ -227,6 +228,7 @@ type WorkerOptions struct {
 	FinalizationQueue      string
 	WorkerID               string
 	ContextActivities      ContextActivities
+	AgentActivities        AgentActivities
 	KnowledgeActivities    KnowledgeActivities
 	FinalizationActivities FinalizationActivities
 }
@@ -235,6 +237,13 @@ type ContextActivities interface {
 	MemoryRecallActivity(context.Context, MemoryRecallActivityInput) (MemoryRecallActivityOutput, error)
 	PlanRouteActivity(context.Context, PlanRouteActivityInput) (PlanRouteActivityOutput, error)
 	PlanReplanActivity(context.Context, PlanReplanActivityInput) (PlanReplanActivityOutput, error)
+}
+
+type AgentActivities interface {
+	ExecutePrimaryAgentActivity(
+		context.Context,
+		ExecutePrimaryAgentActivityInput,
+	) (ExecutePrimaryAgentActivityOutput, error)
 }
 
 type KnowledgeActivities interface {
@@ -291,6 +300,9 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if options.ContextActivities == nil {
 		return nil, errors.New("temporal context activities are required")
 	}
+	if options.AgentActivities == nil {
+		return nil, errors.New("temporal agent activities are required")
+	}
 	if options.KnowledgeActivities == nil {
 		return nil, errors.New("temporal knowledge activities are required")
 	}
@@ -323,6 +335,7 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	}
 	workflowWorker := NewWorkflowWorker(temporalClient, workflowQueue)
 	contextWorker := NewContextActivityWorker(temporalClient, contextQueue, options.ContextActivities)
+	agentWorker := NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, options.AgentActivities)
 	knowledgeWorker := NewKnowledgeActivityWorker(temporalClient, knowledgeQueue, options.KnowledgeActivities)
 	finalizationWorker := NewFinalizationActivityWorker(
 		temporalClient,
@@ -331,7 +344,7 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	)
 	return &WorkerRuntime{
 		client:  temporalClient,
-		workers: []worker.Worker{workflowWorker, contextWorker, knowledgeWorker, finalizationWorker},
+		workers: []worker.Worker{workflowWorker, contextWorker, agentWorker, knowledgeWorker, finalizationWorker},
 	}, nil
 }
 
@@ -379,6 +392,19 @@ func NewContextActivityWorker(temporalClient client.Client, queue string, activi
 		activityRegisterOptions(PlanReplanActivityName),
 	)
 	return contextWorker
+}
+
+func NewAgentActivityWorker(temporalClient client.Client, queue string, activities AgentActivities) worker.Worker {
+	agentQueue := strings.TrimSpace(queue)
+	if agentQueue == "" {
+		agentQueue = ActivityTaskQueueAgent
+	}
+	agentWorker := worker.New(temporalClient, agentQueue, worker.Options{})
+	agentWorker.RegisterActivityWithOptions(
+		activities.ExecutePrimaryAgentActivity,
+		activityRegisterOptions(ExecutePrimaryAgentActivityName),
+	)
+	return agentWorker
 }
 
 func NewKnowledgeActivityWorker(temporalClient client.Client, queue string, activities KnowledgeActivities) worker.Worker {

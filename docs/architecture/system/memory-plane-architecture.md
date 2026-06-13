@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-06-09
-updated: 2026-06-10
+updated: 2026-06-12
 ---
 # Memory Plane Architecture
 
@@ -13,6 +13,11 @@ updated: 2026-06-10
 
 Memory Plane 的目标是让少量个人长期信息成为 online execution 可检索的 context，而不是把
 PG profile memory 全量塞进 prompt。
+
+Personal memory 是 per-user advisory context，不是身份、授权、source truth、capability
+opening 或 fail-close truth。它可以帮助 follow-up、偏好、常用地点 / 服务 / 别名消歧、query
+framing 与回答措辞；不能决定用户能使用哪些工具、能读取哪些 source、是否放宽 evidence requirement，或是否拥有 operator
+surface 权限。
 
 长期 owner 固定为：
 
@@ -68,6 +73,7 @@ updated_at
 user request
 -> app-api creates execution run without PG memory full injection
 -> execution-control starts CapabilityExecutionWorkflow
+-> first Execution Agent decision determines whether memory/tool context is needed
 -> Temporal memory.recall activity
 -> Qdrant personal_memory_v1
 -> bounded memory context
@@ -75,13 +81,14 @@ user request
 -> sanitized run step projection
 ```
 
-`memory.recall` 是 capability-neutral execution step graph 的第一步，不属于 RAG
-worker 的私有前置逻辑：
+`memory.recall` 是 capability-neutral execution step，不属于 RAG worker 的私有前置逻辑；
+但目标态不要求每个 product identity / no-tool direct answer 都先做 memory recall：
 
 ```text
-context.memory_recall
--> plan.route
--> capability branch
+first_decision
+-> optional context.memory_recall
+-> capability routing / workflow planning
+-> capability branch when needed
 -> finalization.write
 ```
 
@@ -113,9 +120,10 @@ score
 updated_at
 ```
 
-RAG / synthesis 可以消费 bounded memory context 来影响 routing、applicability、capability
-admission、query rewrite、answer defaults 和 wording。它不得用 memory 打开未开放 collection、
-绕过 restricted visibility、伪造 identity claim，或替代 institutional evidence。
+RAG / synthesis 可以消费 bounded memory context 来影响 follow-up、applicability、query
+framing、answer defaults 和 wording。它不得用 memory 打开未开放 capability / collection、
+放宽 source trust、覆盖 fail-close、伪造 account / session truth，或替代 institutional
+evidence。
 
 ## Write / Update Flow
 
@@ -182,5 +190,6 @@ Memory Plane 不是：
 - Do not let RAG / provider adapters write long-term memory inline during answer
   synthesis.
 - Do not store raw transcript as personal memory compact text.
-- Do not use memory as authorization truth or restricted document entitlement.
+- Do not use memory as authorization truth, capability-opening truth, source truth,
+  or fail-close override.
 - Do not require panel/eval memory influence tracing as v1 acceptance.

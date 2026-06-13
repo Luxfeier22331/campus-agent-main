@@ -282,7 +282,24 @@ operator-safe review candidate：
       "supportingDocIds": ["doc:wrong"],
       "supportingChunkIds": ["chunk:wrong"],
       "answerShape": "eligibility_judgment",
-      "presentationKind": "condition_table"
+      "presentationKind": "condition_table",
+      "trajectoryAttribution": {
+        "status": "attributed",
+        "stepId": "evidence.selection",
+        "stepKind": "selection",
+        "capability": "knowledge",
+        "toolName": null,
+        "stepStatus": "completed",
+        "outcome": {
+          "failCloseReason": null,
+          "terminalReason": null,
+          "replanReason": null,
+          "cancelOutcome": "not_requested",
+          "timeoutOutcome": "not_timed_out",
+          "lateCompletionOutcome": "not_late"
+        },
+        "projectionRefs": ["projection://runs/run_01HQ/evidence-selection"]
+      }
     }
   ]
 }
@@ -294,6 +311,8 @@ operator-safe review candidate：
   transcript、auth material、cookie 或 token 等字段
 - `failureStage` 固定允许 `retrieval`、`rerank`、`selection`、
   `evidence_selection`、`synthesis`、`grounding` 与 `diagnostic`
+- `trajectoryAttribution` 固定来自 `operator_step_trajectory.v1`；缺失或无法归因必须显式写成
+  `trajectory_missing` / `attribution_missing`，不得从 workflow summary 猜测
 - RAGAS diagnostic badcase 不携带 runtime `requestId` / `traceId`，app-api 不得为它生成或
   猜测 request correlation
 - 该 publish seam 只写 `operator.eval_diagnostic_badcase_projection`，不改变 deterministic

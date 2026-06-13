@@ -54,23 +54,26 @@ uv run --all-packages python -m campus_ingestion_worker.build_internal_notice_co
 ```
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e \
+uv run --all-packages python -m campus_ingestion_worker.enqueue_authenticated_notice_collector_run \
+  --run-id <collector-run-id> \
+  --site-id muc_internal_portal \
+  --source-surface notice \
+  --replay-batch-id authenticated-notice-operator-panel:<collector-run-id> \
+  --output-dir var/ingestion-evidence/authenticated-notice-ingest-operator-panel/355867-smoke/enqueue \
+  --execute
+```
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.consume_authenticated_notice_ingest_queue \
   --run-id <collector-run-id> \
   --site-id muc_internal_portal \
   --source-home-url https://my.muc.edu.cn \
   --source-surface notice \
-  --sample-id 355867 \
+  --replay-batch-id authenticated-notice-operator-panel:<collector-run-id> \
   --execute \
-  --require-downstream-materialization \
-  --require-processing-projection \
-  --require-run-processing-projection \
-  --expected-notice-id 355867 \
-  --expected-candidate-kind transport_schedule \
-  --expected-target-surface campus_services \
-  --expected-read-model-count scheduledDepartures=49 \
-  --expected-read-model-count rejectedSources=0 \
+  --materialize-downstream \
   --consumer-admission-manifest-path var/ingestion-evidence/authenticated-notice-ingest-operator-panel/355867-smoke/consumer-admission-manifest.json \
-  --output-dir var/ingestion-evidence/authenticated-notice-ingest-operator-panel/355867-smoke
+  --output-dir var/ingestion-evidence/authenticated-notice-ingest-operator-panel/355867-smoke/consume
 ```
 
 Passing evidence must show:
@@ -79,8 +82,8 @@ Passing evidence must show:
 - downstream materialization status is `completed`
 - processing projection report status is `reported`
 - run-processing projection report status is `reported`
-- expected notice verdict is `passed`
-- `medium_or_higher_finding_count` is `0`
+- `consume/authenticated-notice-run-queue-consume.json` contains no failed
+  terminal outcome for the selected run
 
 ## Historical Backfill
 

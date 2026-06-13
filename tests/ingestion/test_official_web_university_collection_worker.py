@@ -260,7 +260,7 @@ class _FakeCommandRunner:
             stdout = {"counts": {"emitted_documents": 2}}
         elif "campus_ingestion_worker.validate_official_web_projection" in command_tuple:
             stdout = {"valid": True, "counts": {"errors": 0}}
-        elif "campus-ingestion-audit-official-web-projection-chunking" in command_tuple:
+        elif "campus_ingestion_worker.audit_official_web_projection_chunking" in command_tuple:
             stdout = {"passed": self._chunk_audit_passed}
         elif "campus_ingestion_worker.official_web_projection_import" in command_tuple:
             stdout = {"status": "succeeded", "success_count": 2}

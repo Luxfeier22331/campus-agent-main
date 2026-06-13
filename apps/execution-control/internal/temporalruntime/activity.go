@@ -2,6 +2,7 @@ package temporalruntime
 
 const (
 	MemoryRecallActivityName            = "MemoryRecallActivity"
+	ExecutePrimaryAgentActivityName     = "ExecutePrimaryAgentActivity"
 	PlanRouteActivityName               = "PlanRouteActivity"
 	PlanReplanActivityName              = "PlanReplanActivity"
 	PlanRAGActivityName                 = "KnowledgePlanRAGActivity"

@@ -11,7 +11,7 @@ from campus_evals.workflow_trace_gate import (
     load_process_smoke_workflow_trace_summaries,
     load_workflow_trace_cases,
 )
-from scripts.supervisor_runtime_process_smoke import (
+from scripts.execution_control_process_smoke import (
     build_process_smoke_plan,
     run_process_smoke,
 )
@@ -74,13 +74,12 @@ def run_multi_capability_live_smoke_gate(
     report_paths = []
     for profile in profiles:
         profile_output_dir = process_output_dir / profile
-        api_port, worker_port, object_store_port = _reserve_profile_ports()
+        api_port, object_store_port = _reserve_profile_ports()
         plan = build_process_smoke_plan(
             repo_root=REPO_ROOT,
             output_dir=profile_output_dir,
             profile=profile,
             api_port=api_port,
-            worker_port=worker_port,
             object_store_port=object_store_port,
         )
         smoke_summary = run_process_smoke(plan, timeout_seconds=timeout_seconds)
@@ -124,7 +123,6 @@ def run_multi_capability_live_smoke_gate(
             "starts_wrangler": False,
             "profiles": list(profiles),
             "probes": [
-                "supervisor-agent-worker /internal/bridge/healthz",
                 "execution-control /healthz",
                 "execution-control /readyz",
                 "execution-control /metrics",
@@ -211,8 +209,8 @@ def _profile_case_ids_from_reports(report_paths: Sequence[Path]) -> list[tuple[s
     return profile_case_ids
 
 
-def _reserve_profile_ports() -> tuple[int, int, int]:
-    return (_reserve_local_port(), _reserve_local_port(), _reserve_local_port())
+def _reserve_profile_ports() -> tuple[int, int]:
+    return (_reserve_local_port(), _reserve_local_port())
 
 
 def _reserve_local_port() -> int:

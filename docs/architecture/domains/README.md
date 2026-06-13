@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 # Domain Architecture
 
@@ -20,7 +20,7 @@ owner、runtime shape 与 forbidden shapes。
 - `official-web/serving-and-news-retrieval-strategy.md`
   - official-web reference/news surface serving strategy
 - `authenticated-notice/architecture.md`
-  - authenticated notice source channel 与 restricted notice boundary
+  - authenticated notice source channel、source/data plane 与 regulation downstream
 - `campus-services/architecture.md`
   - campus services structured runtime、projection-backed query seam 与 opening gate
 - `dining/architecture.md`

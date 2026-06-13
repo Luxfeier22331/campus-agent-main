@@ -18,8 +18,10 @@ campus-web same-origin allowlisted /api/* -> app-api
 
 browser -> public-chat-web -> app-api -> execution-control
 -> Temporal -> workflow-worker / activity-worker-context /
-activity-worker-knowledge / capability workers / activity-worker-finalization
--> memory recall / typed capability branch / Go RAG DTO/runtime
+activity-worker-agent / activity-worker-knowledge / capability workers /
+activity-worker-finalization
+-> memory recall / OpenAI Agents SDK primary agent loop / typed capability
+branch / Go RAG DTO/runtime
 -> Qdrant / provider / structured read models -> sanitized projection
 
 browser -> campus-web /docs/* -> Rspress-powered canonical reader
@@ -38,9 +40,14 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
-- 当前 online answer path 已硬切为 Go-owned Temporal memory+RAG activity graph；Python
-  `supervisor-agent-worker` 不参与 serving，只保留 offline / eval / tooling / historical
-  bridge reference
+- 当前 online answer path 已硬切为 Go/Temporal durable envelope +
+  OpenAI Agents SDK primary agent loop；目标态 ordinary chat 由 primary
+  agent 在 admitted tool catalog 内决定 direct/no-tool、notice、
+  campus_services 或 `knowledge_query`；knowledge 请求由 primary agent 选择
+  `knowledge_query` workflow signal 后进入 Go-owned RAG graph；当前代码仍有
+  缺失 `requested_capability` 默认 `knowledge` 的 implementation gap；Python
+  `apps/supervisor-agent-worker`
+  已从 active workspace 删除，旧实现只可通过 git history 追溯
 - online query path 与 offline data plane 持续分层
 - `apps/campus-web` 是当前学生侧 product entry surface、账号浏览器
   shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`
@@ -86,8 +93,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 - [`apps/campus-web`](./apps/campus-web/)
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/execution-control`](./apps/execution-control/)
-- [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)（offline /
-  eval / historical bridge reference，不在 online serving path）
+- [`apps/agent-runtime`](./apps/agent-runtime/)
 - [`packages/knowledge-capability`](./packages/knowledge-capability/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)

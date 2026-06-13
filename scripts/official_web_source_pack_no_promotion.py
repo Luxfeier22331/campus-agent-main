@@ -110,7 +110,9 @@ def main(argv: Sequence[str] | None = None) -> None:
                     "uv",
                     "run",
                     "--all-packages",
-                    "campus-ingestion-official-web-handoff-dev",
+                    "python",
+                    "-m",
+                    "campus_ingestion_worker.official_web_handoff_receiver",
                 ),
                 env={
                     "INGESTION_WORKER_HTTP_HOST": "127.0.0.1",

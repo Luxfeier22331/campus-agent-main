@@ -114,6 +114,134 @@ func TestDryRunComputesReplicaDecisionsWithoutExecutionStateWrites(t *testing.T)
 	}
 }
 
+func TestApplyModeRequiresExplicitActuatorAndWritesNoEvidence(t *testing.T) {
+	dir := t.TempDir()
+	inputPath := filepath.Join(dir, "autoscaler-input.json")
+	evidencePath := filepath.Join(dir, "autoscaler-evidence.json")
+	writeFixture(t, inputPath, `{
+		"environment": "staging",
+		"generated_at": "2026-06-04T23:00:00Z",
+		"queues": [
+			{
+				"name": "campus-agent.activity.knowledge",
+				"role": "knowledge",
+				"pollers": 1,
+				"backlog": 9,
+				"schedule_to_start_ms": 1000,
+				"current_replicas": 1,
+				"min_replicas": 1,
+				"max_replicas": 5,
+				"target_schedule_to_start_ms": 500
+			}
+		],
+		"downstream_budgets": {
+			"knowledge": {"available": true, "max_replicas": 2}
+		}
+	}`)
+
+	err := run([]string{
+		"--mode", "apply",
+		"--input-path", inputPath,
+		"--evidence-path", evidencePath,
+	})
+
+	if err == nil {
+		t.Fatal("apply mode without explicit actuator must fail closed")
+	}
+	if !strings.Contains(err.Error(), "actuator-evidence-path") {
+		t.Fatalf("error = %q, want mention actuator-evidence-path", err.Error())
+	}
+	if _, statErr := os.Stat(evidencePath); !os.IsNotExist(statErr) {
+		t.Fatalf("decision evidence should not be written without actuator, stat err = %v", statErr)
+	}
+}
+
+func TestApplyModeWritesOpsPlaneActuationEvidenceOnly(t *testing.T) {
+	dir := t.TempDir()
+	inputPath := filepath.Join(dir, "autoscaler-input.json")
+	evidencePath := filepath.Join(dir, "autoscaler-evidence.json")
+	actuatorEvidencePath := filepath.Join(dir, "autoscaler-actuation-evidence.json")
+	writeFixture(t, inputPath, `{
+		"environment": "staging",
+		"generated_at": "2026-06-04T23:00:00Z",
+		"queues": [
+			{
+				"name": "campus-agent.activity.knowledge",
+				"role": "knowledge",
+				"pollers": 1,
+				"backlog": 9,
+				"schedule_to_start_ms": 1000,
+				"current_replicas": 1,
+				"min_replicas": 1,
+				"max_replicas": 5,
+				"target_schedule_to_start_ms": 500
+			}
+		],
+		"downstream_budgets": {
+			"knowledge": {"available": true, "max_replicas": 2}
+		}
+	}`)
+
+	err := run([]string{
+		"--mode", "apply",
+		"--input-path", inputPath,
+		"--evidence-path", evidencePath,
+		"--actuator-evidence-path", actuatorEvidencePath,
+	})
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	decision := readJSONRecord(t, evidencePath)
+	if decision["mode"] != "apply" {
+		t.Fatalf("mode = %v, want apply", decision["mode"])
+	}
+	if decision["writes_execution_state"] != false {
+		t.Fatalf("writes_execution_state = %v, want false", decision["writes_execution_state"])
+	}
+	decisions := expectArray(t, decision["decisions"], "decisions")
+	queueDecision := expectRecord(t, decisions[0], "decisions[0]")
+	if queueDecision["evidence_contract"] != "worker-autoscaler-actuation-decision-v1" {
+		t.Fatalf("evidence_contract = %v", queueDecision["evidence_contract"])
+	}
+
+	actuation := readJSONRecord(t, actuatorEvidencePath)
+	if actuation["evidence_contract"] != "worker-autoscaler-actuation-evidence-v1" {
+		t.Fatalf("actuation evidence_contract = %v", actuation["evidence_contract"])
+	}
+	if actuation["writes_execution_state"] != false {
+		t.Fatalf("actuation writes_execution_state = %v, want false", actuation["writes_execution_state"])
+	}
+	operations := expectArray(t, actuation["operations"], "operations")
+	operation := expectRecord(t, operations[0], "operations[0]")
+	if operation["task_queue"] != "campus-agent.activity.knowledge" {
+		t.Fatalf("operation task_queue = %v", operation["task_queue"])
+	}
+	if operation["current_replicas"] != float64(1) || operation["desired_replicas"] != float64(2) {
+		t.Fatalf("operation replicas = %#v", operation)
+	}
+	if operation["action"] != "scale" {
+		t.Fatalf("operation action = %v, want scale", operation["action"])
+	}
+	for _, path := range []string{evidencePath, actuatorEvidencePath} {
+		serialized, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read evidence %s: %v", path, err)
+		}
+		for _, forbidden := range []string{
+			"write_run_state",
+			"write_workflow_state",
+			"write_step_state",
+			"write_event_state",
+			"terminal_state_write",
+		} {
+			if strings.Contains(string(serialized), forbidden) {
+				t.Fatalf("evidence contains forbidden state-write wording %q: %s", forbidden, serialized)
+			}
+		}
+	}
+}
+
 func TestDryRunRejectsUnavailableDownstreamBudget(t *testing.T) {
 	dir := t.TempDir()
 	inputPath := filepath.Join(dir, "autoscaler-input.json")

@@ -27,9 +27,6 @@ func CapabilityExecutionWorkflow(
 	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
 	var memory MemoryRecallActivityOutput
 	requestedCapability := input.RequestedCapability
-	if requestedCapability == "" {
-		requestedCapability = "knowledge"
-	}
 	if err := workflow.ExecuteActivity(contextCtx, MemoryRecallActivityName, MemoryRecallActivityInput{
 		RequestID:           input.RequestID,
 		RequestedCapability: requestedCapability,
@@ -38,33 +35,122 @@ func CapabilityExecutionWorkflow(
 	}).Get(ctx, &memory); err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
-	var plan PlanRouteActivityOutput
-	if err := workflow.ExecuteActivity(contextCtx, PlanRouteActivityName, PlanRouteActivityInput{
-		ConversationID:      input.ConversationID,
-		MemoryRef:           memory.MemoryRef,
-		Namespace:           input.Namespace,
-		PayloadSHA256:       input.PayloadSHA256,
-		PolicyVersions:      input.PolicyVersions,
-		RequestID:           input.RequestID,
-		RequestedCapability: requestedCapability,
-		RunID:               input.RunID,
-		SelectedMemoryChars: memory.SelectedMemoryChars,
-		SelectedMemoryCount: memory.SelectedMemoryCount,
-		TraceID:             input.TraceID,
-		TurnID:              input.TurnID,
-		WorkflowID:          input.WorkflowID,
-	}).Get(ctx, &plan); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
-	}
-	branch, err := executeCapabilityBranchWithReplan(ctx, activityOptions, input, plan)
+	agent, err := executePrimaryAgentWithBoundedReplan(ctx, activityOptions, input, memory, requestedCapability)
 	if err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
-	finalization, err := executeFinalization(ctx, activityOptions, branch.FinalizationInput(input.TraceID))
+	if primaryAgentSelectedKnowledge(agent) {
+		synthesis, grounding, err := executeKnowledgeBranch(
+			ctx,
+			activityOptions,
+			input,
+			agent.AgentResultRef,
+			[]string{agent.AgentResultRef},
+		)
+		if err != nil {
+			return CapabilityExecutionWorkflowResult{}, err
+		}
+		finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
+			GroundingRef: grounding.GroundingRef,
+			RunID:        input.RunID,
+			SynthesisRef: synthesis.SynthesisRef,
+			TraceID:      input.TraceID,
+		})
+		if err != nil {
+			return CapabilityExecutionWorkflowResult{}, err
+		}
+		return workflowResultFromFinalization(finalization), nil
+	}
+	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
+		AgentResultRef: agent.AgentResultRef,
+		RunID:          input.RunID,
+		TraceID:        input.TraceID,
+	})
 	if err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
 	return workflowResultFromFinalization(finalization), nil
+}
+
+func executePrimaryAgentWithBoundedReplan(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input CapabilityExecutionWorkflowInput,
+	memory MemoryRecallActivityOutput,
+	requestedCapability string,
+) (ExecutePrimaryAgentActivityOutput, error) {
+	agentOptions := activityOptions
+	agentOptions.TaskQueue = ActivityTaskQueueAgent
+	agentCtx := workflow.WithActivityOptions(ctx, agentOptions)
+	visibleCapabilities := visibleCapabilitiesForPrimaryAgent(requestedCapability)
+	agentInput := ExecutePrimaryAgentActivityInput{
+		ConversationID:       input.ConversationID,
+		MemoryProjectionRefs: memoryProjectionRefs(memory),
+		RequestID:            input.RequestID,
+		RequestedCapability:  requestedCapability,
+		RunID:                input.RunID,
+		TraceID:              input.TraceID,
+		TurnID:               input.TurnID,
+		VisibleCapabilities:  visibleCapabilities,
+	}
+	var agent ExecutePrimaryAgentActivityOutput
+	if err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent); err != nil {
+		return ExecutePrimaryAgentActivityOutput{}, err
+	}
+	if !primaryAgentAllowsBoundedReplan(agent) {
+		return agent, nil
+	}
+	var retry ExecutePrimaryAgentActivityOutput
+	retryInput := agentInput
+	retryInput.Attempt = 2
+	retryInput.ReplanReason = primaryAgentReplanReason(agent)
+	if err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, retryInput).Get(ctx, &retry); err != nil {
+		return ExecutePrimaryAgentActivityOutput{}, err
+	}
+	return retry, nil
+}
+
+func primaryAgentSelectedKnowledge(agent ExecutePrimaryAgentActivityOutput) bool {
+	for _, tool := range agent.SelectedTools {
+		switch strings.TrimSpace(tool) {
+		case "knowledge_query":
+			return true
+		}
+	}
+	for _, result := range agent.ToolResults {
+		if strings.TrimSpace(result.ToolName) == "knowledge_query" {
+			return true
+		}
+		if signal, ok := result.Result["workflow_signal"].(string); ok &&
+			strings.TrimSpace(signal) == "knowledge_query" {
+			return true
+		}
+	}
+	return false
+}
+
+func memoryProjectionRefs(memory MemoryRecallActivityOutput) []string {
+	if strings.TrimSpace(memory.MemoryRef) == "" {
+		return nil
+	}
+	return []string{memory.MemoryRef}
+}
+
+func visibleCapabilitiesForPrimaryAgent(requestedCapability string) []string {
+	switch strings.TrimSpace(requestedCapability) {
+	case "knowledge":
+		return []string{"knowledge"}
+	case "campus_services":
+		return []string{"campus_services"}
+	case "notice":
+		return []string{"notice"}
+	case "place_lookup", "navigation":
+		return []string{"navigation"}
+	case "":
+		return []string{"knowledge", "campus_services", "notice"}
+	default:
+		return []string{}
+	}
 }
 
 type capabilityBranchExecutionResult struct {
@@ -302,38 +388,6 @@ func setFromStrings(values []string) map[string]bool {
 		}
 	}
 	return result
-}
-
-func reasonForReplanFailure(step CapabilityBranchStep, err error) string {
-	if step.Capability == "knowledge" {
-		return "knowledge_branch_failed"
-	}
-	if step.ToolName != "" {
-		return "typed_tool_failed"
-	}
-	return "capability_branch_failed"
-}
-
-func workflowFailureAllowsReplan(step CapabilityBranchStep, err error) bool {
-	if err == nil {
-		return false
-	}
-	if step.Capability == "knowledge" {
-		return true
-	}
-	failure := sanitizeWorkflowFailure(err)
-	for _, reason := range []string{
-		"current_state_unverifiable",
-		"source_conflict",
-		"temporal_scope_ambiguous",
-		"clarification_required",
-		"not_found",
-	} {
-		if strings.Contains(failure, reason) {
-			return false
-		}
-	}
-	return true
 }
 
 func sanitizeWorkflowFailure(err error) string {

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-06-06
+updated: 2026-06-12
 ---
 
 # Decisions
@@ -57,12 +57,17 @@ updated: 2026-06-06
 
 - `adr-0015-user-identity-memory-and-personalization-boundaries.md`
   - memory ownership / online recall 部分由
-    `adr-0049-qdrant-native-personal-memory-index.md` supersede；identity / authz
-    边界继续生效。
+    `adr-0049-qdrant-native-personal-memory-index.md` supersede；account / session、
+    raw state 与 memory boundary 继续生效。
 - `adr-0016-app-api-request-projection-and-panel-query-ownership.md`
-- `adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `adr-0023-operator-observability-control-plane-and-sink-participation.md`
+
+Historical / superseded：
+
+- `adr-0022-campus-identity-and-restricted-document-authorization.md`
+  - superseded；restricted documents 与身份差异化 capability 权限不是当前主问答目标。
 - `adr-0034-authorization-model-and-retrieval-filter-projection.md`
+  - superseded；受限文档 authorization projection 不是当前主问答 retrieval 目标。
 - `adr-0049-campus-ops-control-plane.md`
 
 ## Retrieval、data plane 与基础设施
@@ -108,6 +113,7 @@ updated: 2026-06-06
 - `adr-0037-unified-scoped-rules-holding-collection.md`
 - `adr-0040-regulation-work-title-and-edition-separation.md`
 - `adr-0041-authenticated-document-center-and-regulation-layer-split.md`
+  - superseded；仅保留 regulation semantic-owner 与 original artifact 分层历史。
 
 ## 维护规则
 

@@ -4,6 +4,7 @@ import {
 	buildRequestIntentEntries,
 	buildRequestReplayEntries,
 	buildRequestRuntimeRunEntries,
+	buildRequestStepTrajectoryEntries,
 	buildRequestWorkflowTraceEntries,
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatCapabilityLabel,
@@ -302,6 +303,165 @@ describe("request durable runtime formatters", () => {
 	it("keeps durable run rows compatible with non-durable historical records", () => {
 		expect(buildRequestRuntimeRunEntries(undefined)).toEqual([]);
 		expect(buildRequestRuntimeRunEntries(null)).toEqual([]);
+	});
+
+	it("formats primary agent trajectory diagnostics from sanitized step summaries", () => {
+		const entries = buildRequestStepTrajectoryEntries({
+			attemptCount: 1,
+			resultCount: 1,
+			steps: [
+				{
+					attemptCount: 1,
+					agentSdkTraceRef: "trace://openai-agents/trace-agent-001",
+					agentSelectedTools: ["knowledge_query"],
+					agentTerminalReason: "tool_selected",
+					agentToolResultRefs: ["agent-runtime://run-001/tools/knowledge_query"],
+					capability: "primary_agent",
+					cancelOutcome: null,
+					durationMs: 420,
+					estimatedCostMicrousd: 12,
+					failCloseReason: null,
+					inputTokens: 10,
+					lateCompletionOutcome: null,
+					latestResultRef: "projection://runs/run-001/agent/primary/result",
+					modelName: "gpt-5.5",
+					modelProvider: "openai",
+					outputTokens: 8,
+					providerRequestRef: null,
+					queueWaitMs: 5,
+					replanReason: null,
+					resultCount: 1,
+					status: "completed",
+					stepId: "agent.primary",
+					stepKind: "agent",
+					taskQueue: "campus-agent.activity.agent",
+					timeoutOutcome: null,
+					workerId: "test:agent:001",
+				},
+			],
+		});
+
+		expect(entries[1]).toMatchObject({
+			kind: "step",
+			stepId: "agent.primary",
+			diagnostics: expect.arrayContaining([
+				"agent_terminal=tool_selected",
+				"agent_tools=knowledge_query",
+				"sdk_trace=trace://openai-agents/trace-agent-001",
+				"tool_results=agent-runtime://run-001/tools/knowledge_query",
+			]),
+		});
+	});
+
+	it("formats operator step trajectory export with provider and token metadata", () => {
+		const entries = buildRequestStepTrajectoryEntries({
+			conversationId: "conv_01HQ",
+			requestId: "req_01HQ",
+			runId: "run_01HQ",
+			schemaVersion: "operator_step_trajectory.v1",
+			traceId: "trace_01HQ",
+			steps: [
+				{
+					attemptCount: 1,
+					capability: "knowledge",
+					cancelOutcome: "not_requested",
+					durationMs: 100,
+					estimatedCostMicrousd: 321,
+					failCloseReason: null,
+					inputTokens: 120,
+					lateCompletionOutcome: "ignored_after_timeout",
+					latestResultRef: "projection://runs/run_01HQ/synthesis",
+					modelName: "gpt-5-mini",
+					modelProvider: "openai",
+					outputTokens: 42,
+					projectionRefs: ["projection://runs/run_01HQ/synthesis"],
+					providerRequestRef: "provider://requests/req_001",
+					queueWaitMs: 25,
+					replanReason: "bounded_replan_after_provider_timeout",
+					resultCount: 1,
+					status: "completed",
+					stepId: "synthesis",
+					stepKind: "synthesis",
+					taskQueue: "campus-agent.activity.knowledge",
+					terminalReason: null,
+					timeoutOutcome: "provider_timeout",
+					toolName: null,
+					toolStatus: null,
+					workerId: "staging:activity-knowledge:001",
+				},
+			],
+		});
+
+		expect(entries[1]).toMatchObject({
+			kind: "step",
+			model: "openai/gpt-5-mini",
+			providerRequestRef: "provider://requests/req_001",
+			tokenCost: "tokens=120/42 · 321 microUSD",
+		});
+	});
+
+	it("groups operator step diagnostics by runtime outcome type", () => {
+		const entries = buildRequestStepTrajectoryEntries({
+			conversationId: "conv_01HQ",
+			requestId: "req_01HQ",
+			runId: "run_01HQ",
+			schemaVersion: "operator_step_trajectory.v1",
+			traceId: "trace_01HQ",
+			steps: [
+				{
+					attemptCount: 1,
+					capability: "knowledge",
+					cancelOutcome: "activity_context_canceled",
+					durationMs: 100,
+					estimatedCostMicrousd: 0,
+					failCloseReason: "current_state_unverifiable",
+					inputTokens: 0,
+					lateCompletionOutcome: "ignored_after_cancel",
+					latestResultRef: "projection://runs/run_01HQ/synthesis",
+					modelName: null,
+					modelProvider: null,
+					outputTokens: 0,
+					projectionRefs: ["projection://runs/run_01HQ/synthesis"],
+					providerRequestRef: null,
+					queueWaitMs: 25,
+					replanReason: "bounded_replan_after_provider_timeout",
+					resultCount: 1,
+					status: "canceled",
+					stepId: "synthesis",
+					stepKind: "synthesis",
+					taskQueue: "campus-agent.activity.knowledge",
+					terminalReason: "user_canceled",
+					timeoutOutcome: "provider_timeout",
+					toolName: null,
+					toolStatus: null,
+					workerId: "staging:activity-knowledge:001",
+				},
+			],
+		});
+
+		expect(entries[1]).toMatchObject({
+			diagnosticGroups: [
+				{
+					kind: "runtime",
+					items: expect.arrayContaining([
+						"cancel=activity_context_canceled",
+						"timeout=provider_timeout",
+						"late=ignored_after_cancel",
+					]),
+				},
+				{
+					kind: "terminal",
+					items: expect.arrayContaining([
+						"terminal=user_canceled",
+						"fail_close=current_state_unverifiable",
+					]),
+				},
+				{
+					kind: "replan",
+					items: ["replan=bounded_replan_after_provider_timeout"],
+				},
+			],
+		});
 	});
 });
 

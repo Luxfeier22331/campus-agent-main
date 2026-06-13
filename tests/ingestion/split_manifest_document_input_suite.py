@@ -9,6 +9,9 @@ from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.raw_ingestion_split_manifest import (
     _build_split_manifest_document_input,
 )
+from campus_ingestion_core.raw_ingestion_split_manifest_curriculum import (
+    CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
+)
 from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
 
 
@@ -124,6 +127,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
             default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         projected_rows = [
@@ -216,6 +220,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
             default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         projected_rows = [
@@ -298,6 +303,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
             default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         projected_rows = [
@@ -393,6 +399,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
             default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         projected_rows = [
@@ -464,6 +471,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
             default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         projected_rows = [
@@ -672,6 +680,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
             default_visibility_scope="shared-campus",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         self.assertEqual(document_input.metadata["entitlement_groups"], ["students"])
@@ -721,6 +730,7 @@ class SplitManifestDocumentInputTest(unittest.TestCase):
             default_visibility_scope=None,
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         self.assertEqual(document_input.metadata["entitlement_groups"], [])

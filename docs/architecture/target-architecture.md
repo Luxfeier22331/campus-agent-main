@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-08
+updated: 2026-06-12
 ---
 # 目标架构
 
@@ -28,7 +28,7 @@ updated: 2026-06-08
 
 - Campus Assistant product agent experience
 - execution-control-owned Execution Agent Layer
-- governed multi-capability / agent-as-tool architecture
+- governed tool-using campus assistant architecture
 - deterministic governance + bounded semantic agent execution
 - capability-neutral Execution Agent Layer routing
 - tools-first domain capability boundary；semantic specialist 以 agent-as-tool
@@ -41,26 +41,33 @@ updated: 2026-06-08
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
 - eval-governed quality lifecycle
-- durable planner-first typed-tool `agentic retrieval` target，且仍保持
-  bounded campus scope
-- repo-owned tool orchestration，provider-native function calling 只作为
-  explicit agent-as-tool 内部 adapter
+- primary-agent-first typed tool / RAG orchestration，且仍保持 bounded campus
+  scope
+- OpenAI Agents SDK 承接 model-facing primary agent tool loop；repo-owned
+  artifacts 继续拥有 tool contract、admission、source-trust、projection、eval
+  与 durable lifecycle truth
 - cross-step context 通过 typed artifact / projection 传递，而不是通过 prompt
   自由文本或 provider raw trace 传递
+- repo-owned execution projection spine：`Run -> RunEvent -> RunStep ->
+  StepAttempt -> StepResult -> Finalization` 是 panel、eval、badcase 与 release
+  evidence 的共同诊断主线
 
 长期主链路固定为：
 
 ```text
 client/channel
 -> browser surface
--> app-api surface policy / identity / minimal context projection
--> execution-control Execution Agent Layer
+-> app-api surface policy / account-session / minimal context projection
+-> execution-control durable run admission / Temporal command
 -> CapabilityExecutionWorkflow
--> context.memory_recall
--> plan.route
--> capability branch
+-> optional context.memory_recall
+-> agent.primary model-facing first decision
+-> direct/no-tool terminal or admitted tool / workflow signal
+-> typed tool / RAG graph when tools are needed
 -> finalization.write
--> app-api response / stream subscription
+-> sanitized run event + step/attempt/result projection
+-> app-api response / stream / operator read model
+-> browser surface / panel / eval / badcase
 ```
 
 这里的 multi-capability / agent-as-tool orchestration 不是无中心 peer swarm。长期默认是
@@ -73,15 +80,25 @@ workflow 保持 workflow / policy / budget / finalization ownership，typed tool
 
 - `Campus Assistant` 是用户看到的 product-level agent experience，不是一个独立 worker
   进程。
-- `Execution Agent Layer` 是 `execution-control` 内的语义控制层，负责 admission、
-  routing、workflow planning、capability dispatch 与 finalization。
+- `Execution Agent Layer` 是 `execution-control` 内的 durable execution
+  governance 层，负责 admission、workflow command/query/cancel、visible tool
+  裁剪、step admission、projection 与 finalization；首轮工具选择由 primary
+  agent runtime 在已裁剪 tool set 内完成。
 - `CapabilityExecutionWorkflow` 是 Temporal durable workflow；它编排 execution
   lifetime，但不是 agent 本身。
+- `agent-runtime` 是 model-facing primary agent runtime；它承接 OpenAI Agents
+  SDK instructions、function tool schema、tool loop、SDK trace 与 usage
+  normalization，但不拥有 run truth、source truth、product auth、Temporal
+  command/cancel 或 panel/eval projection。
 - `Capability Worker` 是按 capability / resource profile 拆分的 Temporal activity
   worker pool，例如 context / memory、knowledge、campus_services、notice、navigation
   与 finalization。
 - `Tool` 是 deterministic data access 或受控外部服务调用；没有稳定语义职责的
   deterministic capability 不得借用 `agent` 命名。
+- `knowledge` 是 capability family；RAG graph 是 `knowledge` 内部的 durable
+  execution shape，不是与 `knowledge` 并列的用户可见能力。
+- `requested_capability` 是 explicit caller hint / compatibility field，不是
+  普通 chat 的目标态默认语义路由字段；缺失时不得伪造成 `knowledge`。
 
 目标拓扑图：
 
@@ -108,6 +125,8 @@ flowchart LR
   subgraph Workers["Worker Pools"]
     Workflow["workflow-worker\ndeterministic orchestration"]
     Context["activity-worker-context\nmemory recall / context packet"]
+    PrimaryAgent["activity-worker-agent\nOpenAI Agents SDK bridge"]
+    AgentRuntime["agent-runtime\nmodel-facing primary agent loop"]
     Knowledge["activity-worker-knowledge\nRAG / evidence / synthesis support"]
     Services["activity-worker-campus-services\nservice tools"]
     Nav["activity-worker-navigation\nnavigation tools"]
@@ -122,10 +141,14 @@ flowchart LR
     Provider["LLM / Embedding Providers"]
   end
 
-  subgraph Observability["Observability"]
+  subgraph ExecutionProjection["Execution Projection"]
+    Projection["sanitized run/event/step/attempt/result projection"]
+    PanelOps["operator panel / eval / badcase\napp-api read models"]
+  end
+
+  subgraph TelemetrySinks["Telemetry Sinks"]
     Sentry["Sentry\ntraces / errors"]
     Axiom["Axiom\nruntime events"]
-    PanelOps["operator panel\nsanitized projections"]
   end
 
   Campus --> AppAPI
@@ -152,8 +175,11 @@ flowchart LR
   Notice --> PG
   Finalizer --> PG
 
-  Gateway --> PG
+  Gateway --> Projection
+  Workers --> Projection
+  Projection --> PG
   AppAPI --> PG
+  PG --> PanelOps
   AppAPI --> PanelOps
 
   AppAPI --> Sentry
@@ -165,8 +191,44 @@ flowchart LR
 
 长期摄入链路固定为：
 
-`crawler/job placeholder -> ingestion boundary ->
-raw/source-truth/projection/document/chunk/index`
+```text
+collector/source admission
+-> ingestion control plane
+-> task registry / lease / retry / dead-letter
+-> source-family executor
+-> raw asset
+-> provider output
+-> canonical source truth
+-> declared projections
+-> canonical document artifacts
+-> document-units
+-> chunks
+-> embedding / index
+-> release manifest
+-> alias / read-model publish
+-> app-api operator projection
+```
+
+长期 ingestion / data-plane runtime 目标不是 Python script collection，也不是把
+`apps/app-api` 扩成 ingestion executor。目标分工固定为：
+
+- `apps/app-api` 只承接 product/operator ingress、release gate command 与
+  operator-safe read model；不拥有 ingestion task execution、source mutation、
+  document/index materialization 或 Qdrant alias publish。
+- ingestion control plane 拥有 task admission、task registry、claim / lease /
+  retry / dead-letter、run shard state、telemetry closeout 与 operator projection
+  snapshot。
+- `apps/ingestion-worker` 是 durable executor shell；它按 source family 分派任务，
+  调用 ingestion contracts、deterministic kernels 与 provider/domain adapters，并把
+  redacted closeout 投影回 operator surface。
+- `packages/ingestion-core` 继续拥有 canonical data-plane contract、shared file asset
+  loader、source-truth / materialization / release task 语义与 collection strategy。
+- Rust 只作为 proof-gated deterministic kernel lane，用于 profiling 已证明的高吞吐
+  CPU / memory 热点，例如 JSONL streaming、document-units validation、chunk packing、
+  hash / dedup / diff、release manifest validation 与 embedding batch input preparation。
+- Python 只作为 offline ingestion / eval / tooling runtime，或 MinerU / OCR / ML /
+  domain extraction adapter；不得重新进入 online answer serving、top-level
+  orchestration、provider cancellation ownership 或 product projection ownership。
 
 ## 长期硬约束
 
@@ -197,10 +259,14 @@ raw/source-truth/projection/document/chunk/index`
   lane；文档站可见不等于 retrieval alias 已切换或 RAG 已可服务
 - surface capability allowlist 由 shared `app-api` / product runtime policy
   拥有，而不是由 agent 或 browser surface 自行推断
+- 普通 chat entry 缺失 `requested_capability` 时，目标态必须进入 primary
+  agent decision，而不是由 `app-api` 或 `execution-control` 默认改写成
+  `knowledge`
 - 当前 target architecture 不默认接纳开放域 generalist / web capability 进入主 campus path
 - `requested_scope` 只属于 knowledge-family path，不再作为所有 capability 共用的顶层默认字段
 - retrieval plan 必须是 typed / observable artifact，而不是 prompt 内隐式黑盒
-- planner 不能绕过 runtime profile、authz、source-trust 或 freshness gate
+- planner 不能绕过 runtime profile、source-trust、freshness gate 或 capability
+  opening gate
 - admitted live retrieval 只能命中 repo-owned source channel，不得退化为 general web
   answer path
 - provider-native function calling、remote MCP、built-in web tool 或其他外部 tool
@@ -213,6 +279,9 @@ raw/source-truth/projection/document/chunk/index`
 - worker autoscaler 只能调整 workflow / activity worker replica count，不得写
   workflow state、product run projection、step projection、event projection 或 terminal
   state
+- capability 不得只因为 typed tool / worker 函数可执行就进入 production-open；normal、
+  fail-close、cancel、timeout、late-completion 与 replan outcome 必须能写入
+  step/attempt/result projection，并能被 app-api operator read model 消费
 - tool output 不得以 provider 原始 trace、raw function response 或未裁剪正文形式进入
   app-api、panel、eval canonical asset 或 downstream prompt context
 - cross-capability handoff / context projection 必须使用 bounded typed artifact；不得把上一步
@@ -221,6 +290,10 @@ raw/source-truth/projection/document/chunk/index`
   official URL、source family、发布时间与短摘要/匹配原因可以进入用户面；canonical body、
   OCR owner text、inline image text 与附件正文只能作为 source-truth、内部 context、
   下游 materialization 或 bounded summary/fact extraction 输入，不得作为默认全文输出。
+- 主问答产品不按学生 / 教职工 / 院系身份拆分普通 capability。account / session、
+  rate / quota、operator surface access 与 user-scoped memory binding 是产品层边界，不是普通校园问答能力差异来源。
+- restricted documents、内部受限材料、approval / HITL、预约 / 提交 / 支付 / 工单等状态变更能力不属于当前主问答产品目标；
+  不得把这些非目标反写成 capability opening gate 的默认复杂度。
 
 ## 长期产品/runtime 形态
 
@@ -277,13 +350,19 @@ raw/source-truth/projection/document/chunk/index`
   之类前向 alias
 - 对已完成收口的 capability family，不再维护与 current-truth label 脱节的 synthetic
   alias；后续也不得继续无规则地新增混合命名
-- Execution Agent Layer 负责 admission / guardrails、capability routing、handoff、response
+- Execution Agent Layer 负责 admission / guardrails、visible tool/capability 裁剪、
+  workflow command/query/cancel、step admission、handoff shaping 与 response
   finalization
 - Execution Agent Layer 长期必须是 neutral capability router，而不是默认把所有请求先压成 `knowledge`
-- Execution Agent Layer 长期拥有 workflow plan ownership：它决定本次请求是 terminal、
-  typed structured activity、single-capability execution 还是 multi-capability /
-  agent-as-tool workflow，并显式限制 allowed capabilities、allowed tools、step
-  budget、timeout 与 fail-close terminal policy
+- Execution Agent Layer 长期拥有 durable workflow ownership：它决定本次 run 是否可创建 /
+  推进，并显式限制 allowed capabilities、allowed tools、step budget、timeout 与
+  fail-close terminal policy；本轮是否 direct no-tool 或调用哪个 model-visible
+  tool，由 primary agent runtime 在该 allowlist 内决策
+- first Execution Agent decision 是 provider/model-facing 的第一语义决策：它在
+  repo-global invariants、typed task packet、allowed tool/capability set 与 strict
+  output contract 下判断是否需要工具。产品自我说明、普通寒暄、澄清、拒绝、
+  out-of-scope 与 fail-close outcome 不新增 `assistant_intro`、`product_meta`、
+  `surface prompt profile` 或 `product persona` 分支。
 - 长期必须有 repo-owned `CapabilitySpec` registry 作为 capability-level
   canonical artifact；新增稳定 domain capability 或 explicit agent-as-tool
   不得只在 planner / prompt / runtime delegate map 中添加字符串 target
@@ -312,6 +391,11 @@ raw/source-truth/projection/document/chunk/index`
 - context inheritance 必须按 agent role 最小化；Execution Agent Layer 不得把完整 conversation、
   完整上游 answer、raw evidence dump、raw OCR、raw provider trace 或未裁剪 source body
   广播给后续 agent
+- first model-facing execution decision 应由 primary agent runtime 承接，而不是由
+  deterministic planner 先把空 capability 默认路由到 `knowledge`。成熟 agent runtime
+  形态是：repo 先提供 system instructions、tool catalog 与 deterministic gates，模型
+  在 SDK loop 内决定是否使用已暴露工具；repo durable workflow 只接收 sanitized
+  final output、selected tool summary 与 result refs。
 - campus services 的只读结构化查询默认由 typed tools / projection-backed internal query
   service 承接，包括 transport schedule、service status、service guide、temporary override
   与 contact directory。`campus_services` 只在需要语义消歧、跨工具编排、说明生成或
@@ -328,9 +412,11 @@ raw/source-truth/projection/document/chunk/index`
   `packages/navigation-capability`
 - `knowledge` 长期拆成 scope resolution、retrieval planning、answer
   synthesis、grounding validation 等内部角色；当前 runtime package 为 `packages/knowledge-capability`
-- `context.memory_recall` 与 `plan.route` 是 capability-neutral pre-dispatch step，
-  不属于 RAG worker 的私有前置逻辑。进入 `knowledge` branch 后，RAG 在线目标不是
-  单个 `semantic.rag` 黑盒 step，而是 durable typed step graph：
+- `context.memory_recall` 是 capability-neutral bounded context step，不属于
+  RAG worker 的私有前置逻辑；`plan.route` 只能作为 retained deterministic
+  support path / historical planning artifact，不再是普通 chat 的 first
+  model decision owner。进入 `knowledge` branch 后，RAG 在线目标不是单个
+  `semantic.rag` 黑盒 step，而是 durable typed step graph：
   `knowledge.rag.plan -> knowledge.retrieval.indexed_lookup ->
   knowledge.retrieval.expand_or_rescue -> knowledge.evidence.selection ->
   knowledge.synthesis -> knowledge.grounding.verify`。每个 step 必须产生
@@ -390,24 +476,26 @@ routing、policy、eval 与 observability 约束；它不是当前 campus path �
 
 长期 tool 架构固定为：
 
-`execution-control deterministic admission -> Temporal workflow step ->
-ToolSpec / allowed_tools -> typed activity or agent-as-tool activity ->
-repo-owned internal query service -> sanitized StepResult projection`
+`app-api surface admission -> execution-control durable run / visible tool
+裁剪 -> Temporal workflow -> primary agent SDK tool catalog -> direct no-tool
+answer or SDK function tool call -> repo-owned internal query service / RAG
+graph / typed activity -> sanitized StepResult projection`
 
 其中：
 
-- `execution-control` 与 workflow policy 拥有 tool admission、opening gate、
-  capability / lane / scope / version guard、`allowed_tools` planning、
-  workflow policy 与 fail-close terminal semantics
-- agent-as-tool 可以在自己的能力边界内使用 provider/SDK mediated tool loop，但只能消费 Go
-  durable step 中允许的 tool 子集
-- provider/SDK tool loop 只作为 agent-as-tool 内部的 bounded execution substrate；它不是
-  顶层 routing engine，也不拥有跨 family permission expansion
-- provider-native function calling / Agents SDK 是 Python semantic runtime substrate，不是
-  repo-level orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
-  capability family
-- tool 必须优先建模为 read-only typed capability；state-changing tool 默认不进入
-  campus 主路径，除非另开 approval / HITL / audit / rollback / eval contract
+- `execution-control` 与 workflow policy 拥有 deterministic admission、opening gate、
+  capability / lane / scope / version guard、visible capability allowlist、workflow
+  policy、Temporal timeout/cancel 与 fail-close terminal semantics
+- OpenAI Agents SDK 是 model-facing primary agent loop substrate：它拥有本轮工具选择、
+  function-tool 调用循环、direct/no-tool final output 与 SDK trace；它不拥有
+  source truth、capability opening posture、surface admission、Temporal lifecycle、
+  sanitized projection 或 panel/eval canonical evidence
+- agent-as-tool 可以在自己的能力边界内使用 provider/SDK mediated tool loop，但只能消费
+  durable workflow step 允许的 tool 子集
+- provider/SDK tool loop 不是跨 family permission expansion owner；它只能在
+  repo 预先暴露的 model-visible read-only tool catalog 内选择工具
+- tool 必须优先建模为 read-only typed capability；state-changing tool 不属于当前
+  campus 主问答产品目标
 - tool 后端必须是 repo-owned internal query service、retrieval-core 或已 admission
   的 source-channel adjunct，不得直接暴露 browser-facing API、raw SQL、raw object-store
   bytes、collector runtime 或 ingestion/index build path
@@ -416,6 +504,20 @@ repo-owned internal query service -> sanitized StepResult projection`
 - remote MCP / provider built-in web search 只能作为显式 admitted source-channel
   adjunct；未 admission 前不得作为 campus answer-bearing fallback
 
+目标态 canonical routing examples：
+
+- `hi，你是谁？`：primary agent direct/no-tool terminal answer；
+  finalization 写入 `agent.primary` result ref，不调用 RAG 或 synthetic
+  `assistant_intro` capability。
+- `最近有什么通知？帮我总结一下。`：primary agent 选择 notice capability 的
+  `campus_notice_discover`；必要时再消费 selected notice bounded context，默认不复制通知全文。
+- `今晚六点还有丰台去海淀的班车吗？`：primary agent 选择
+  `transport_schedule_lookup`；如存在近期变更，需要 consumption notice change-set
+  作为 bounded override 输入。
+- `信工有什么专业？`：primary agent 选择 `knowledge_query` workflow signal，
+  进入 Go-owned RAG graph；primary agent 不直接接收 `retrieval.query`、collection
+  或 top-k slot。
+
 tool 与 deterministic query function 的边界必须保持清晰：
 
 - capability-facing tool 应表达用户意图级能力，例如找通知、查班次、查服务状态或查办理指南。
@@ -423,9 +525,9 @@ tool 与 deterministic query function 的边界必须保持清晰：
   按 selected notice ref 取 bounded context、读取附件 refs 或读取 OCR owner text。
 - query function 不应因为实现上有 JSON schema 就自动进入 ToolSpec 顶层 tool surface。
 - SDK internal function 是 deterministic query function 的受控子类：可以由
-  `ToolSpec` 注册 strict function schema，但必须标为 `capability_internal`，并通过
-  `runtime_posture` 显式 admission；例如 RAG SDK 的 `retrieve_evidence` 只读取
-  admitted query slot 与 bounded evidence anchors，不进入 Go `allowed_tools`。
+  repo-owned tool catalog / `ToolSpec` 注册 strict function schema，但必须通过
+  runtime posture 显式 admission；例如 RAG 的 `retrieve_evidence` 只读取 admitted
+  query slot 与 bounded evidence anchors，不进入 public model-visible tool catalog。
 - notice family 默认只暴露 `campus_notice_discover` 这类 card discovery tool；
   selected notice card/context resolution 应优先作为 notice 或 Go internal query
   service 的 deterministic function。若未来确需 capability-facing resolve tool，也必须只返回
@@ -439,14 +541,17 @@ tool 与 deterministic query function 的边界必须保持清晰：
 - `CapabilitySpec` 定义 deterministic domain capability 的能力边界、
   input/output projection、allowed tools、context filter、opening gate、
   timeout/budget、trace projection 与 eval denominator
-- `ToolSpec` 定义 capability / agent-as-tool 内部可调用的 read-only
-  capability 或受控 function surface
+- `ToolSpec` / `tool-catalog.v1` 定义 capability / agent-as-tool / primary agent
+  内部可调用的 read-only capability 或受控 function surface；current model-facing
+  SDK catalog 由 `configs/runtime/tool-catalog.v1.json` 承接，legacy Go ToolSpec v3
+  仍服务 deterministic structured planner / typed branch support path
 - Go `WorkflowPlan` 只能选择已注册且 gate-ready 的 capabilities / tools /
-  admitted agent-as-tool steps
-- Python worker delegate map 与 provider/SDK function schema 必须从这些 repo-owned
-  artifacts 派生或被 drift test 校验
-- 新增 explicit agent-as-tool、打开 explicit handoff、打开 parallel fanout 或
-  新增 state-changing tool，都必须先补 contract、eval denominator 与 trace
+  admitted agent-as-tool steps；primary agent SDK loop 只能接收 workflow 已裁剪的
+  visible capability set
+- provider/SDK function schema 必须从 repo-owned artifacts 派生或被 drift test
+  校验；Python worker delegate map 只属于 offline / eval / historical bridge reference
+- 新增 explicit agent-as-tool、打开 explicit handoff 或打开 parallel fanout，都必须先补
+  contract、eval denominator 与 trace
   projection，不得只靠 prompt 约束
 
 长期需要一个 repo-owned `ToolSpec` registry 作为 canonical artifact。该 registry 至少固定：
@@ -454,7 +559,7 @@ tool 与 deterministic query function 的边界必须保持清晰：
 - `tool_name`
 - owner capability / capability family
 - payload schema / result schema
-- read-only 或 state-changing posture
+- read-only posture
 - opening gate 与 allowed surface
 - source-truth owner / internal query service owner
 - timeout budget、max result size 与 parallel-call policy
@@ -467,8 +572,8 @@ tool 与 deterministic query function 的边界必须保持清晰：
 
 - Go runtime policy 的 target/tool allowlist
 - Go structured planner 的 payload kind 与 planning outcome
-- Python domain capability / explicit agent-as-tool adapter dispatch table
 - provider-native function schema
+- OpenAI Agents SDK function tool schema / model-visible catalog
 - workflow trace / execution audit 的 sanitized projection
 - `packages/evals` tool selection、argument precision 与 fail-close denominator
 
@@ -619,9 +724,11 @@ operator observability rollup`
 
 `workflow_trace` 是 orchestration 的一等 release gate，不是回答质量 gate 的附属字段。它至少需要覆盖：
 
-- `direct_vs_delegate_branch_correctness`
-  - 应直返 clarification / rejection / structured runtime 的 case 不得误入 Python delegate
-  - 应 delegate 的 semantic case 必须携带完整 `CapabilityRequest` handoff
+- `first_decision_branch_correctness`
+  - 应 direct/no-tool terminal 的 product identity、普通寒暄、clarification /
+    rejection / fail-close case 不得误入 `knowledge` 或其他 capability
+  - 应进入 capability/tool 的 semantic case 必须携带完整 typed routing /
+    workflow planning projection
 - `handoff_correctness`
   - capability family、target、allowed tools、missing slots、context resolution 与 policy
     reason 必须和 expected truth 对齐
@@ -629,8 +736,8 @@ operator observability rollup`
   - structured tool / retrieval plan 的 corpus、collection、doc/version、service subtype、
     temporal scope 与 source-channel 参数必须可比对
 - `fail_close_correctness`
-  - policy unavailable、capability closed、query scope disabled、missing context 与
-    unauthorized visibility 必须进入可审计 terminal outcome
+  - policy unavailable、capability closed、query scope disabled、missing context、source
+    truth unavailable 与 evidence insufficient 必须进入可审计 terminal outcome
 - `trace_projection_completeness`
   - request correlation、runtime versions、policy artifact versions、planning outcome、
     selected capability / tool 与 source summary 必须进入 sanitized artifact
@@ -642,7 +749,7 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 长期评分分层固定为：
 
 - deterministic gate 是 canonical release verdict 的第一层，覆盖 status、routing、retrieval、
-  citation、required facts、forbidden claims、policy / authz 与 fail-close
+  citation、required facts、forbidden claims、policy / opening posture 与 fail-close
 - supplemental graders 只能补充 grounding、relevance、tool / handoff semantics、
   workflow quality 与 human-calibrated rubric；它们是否 gating 由 repo-owned policy 决定
 - human review 必须持续校准 automated grader，避免把 grader drift 反向写成 truth
@@ -654,32 +761,31 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - eval artifact 可以保存 sanitized prompt summary、expected truth、observability summary、
   request / trace correlation、grader rationale summary 与 safe links
 - eval artifact 不得保存 raw JWT、raw cookies、raw auth envelope、raw transcript、
-  provider raw response、retrieval backend dump 或未经裁剪的 restricted document
-  payload
+  provider raw response、retrieval backend dump 或未经裁剪的 source body payload
 - trace / grader tooling 的原始结果必须先经过 eval-owned projection，再进入
   `apps/app-api` 的 operator-facing grade / backlink ingest
 
-## 长期 identity / authorization / memory 形态
+## 长期 account / memory 形态
 
-长期真相层固定拆成：
+长期主问答真相层固定拆成：
 
-- `verified identity`
-- `profile memory`
-- `session memory`
 - `institutional knowledge`
-- `authorization truth`
+- `account / session`
+- `user-scoped memory`
 
 长期 owner 固定为：
 
-- `apps/app-api` 拥有 canonical identity / authz product truth；online memory recall
-  由 execution-control / Temporal / Qdrant-native Personal Memory Index 承接
+- `apps/app-api` 拥有 account / session、operator access、rate / quota 与 user-scoped
+  memory binding 的 product truth；online memory recall 由 execution-control /
+  Temporal / Qdrant-native Personal Memory Index 承接
 - execution path 只消费最小 typed projection
-- retrieval 只消费 authz projection carrier，不拥有最终 entitlement resolution
-- memory 可以影响 routing、admission、applicability、query rewrite、planning / wording，
-  但不能伪造 identity 或 restricted entitlement
+- memory 可以影响 follow-up、preference、query framing、disambiguation、planning /
+  wording，但不能决定 capability opening、tool admission、source trust、fail-close、
+  operator access 或 account/session truth
 
 Memory Plane 的 Qdrant collection、online recall、写入链路与 Temporal 参与点，统一看
-`system/memory-plane-architecture.md`。本文只保留目标 repo 级 owner 与不可提权约束。
+`system/memory-plane-architecture.md`。本文只保留目标 repo 级 owner 与 advisory-context
+约束。
 
 ## 长期 retrieval / serving 形态
 
@@ -696,7 +802,7 @@ Memory Plane 的 Qdrant collection、online recall、写入链路与 Temporal �
 - query-enabled regulation scope 的 RAG release candidate 必须先通过
   `regulation_rag_release_admission.v1` scope-level manifest；该 manifest 绑定当前
   document identity/version/hash、document-units hash、cleaning/chunk/runtime profile
-  identity、reader current version 与 qrels/authz 检查结果。缺失或不匹配时只能进入
+  identity、reader current version 与 qrels/admission 检查结果。缺失或不匹配时只能进入
   `release_admission_blocked`，不得 embedding、index 或切 alias
 - RAG release lane 必须支持增量更新：用 document identity、version/hash 与 runtime
   profile identity 判断 unchanged / changed / deleted / withdrawn，不靠定时全量重建或
@@ -741,8 +847,7 @@ merged truth 只看 `docs/architecture/current-architecture.md`，不由本文�
 - regulation 之外更多 document family 的增量 RAG release lane rollout、scheduled
   reconciliation、rollback/current-pointer automation 与 operator-safe status projection
   扩面
-- restricted document rollout
-- 更完整的 identity / authz / memory productization
+- 更完整的 user-scoped memory productization
 - operator observability / audit control plane
 - deploy-side observability hardening
 

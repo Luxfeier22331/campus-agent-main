@@ -35,6 +35,7 @@ func (s *Server) SynthesizeRAGAnswerActivity(
 	packet, err := temporalRAGSynthesisPacketForRun(run, input.RAGPlanRef, input.EvidenceRef)
 	if err != nil {
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Capability:    "knowledge",
 			FailureKind:   "rag_synthesis_packet_missing",
 			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
 			ResultKind:    "activity_failure",
@@ -58,6 +59,7 @@ func (s *Server) completeRAGSynthesisActivity(
 ) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
 	if s.ragSynthesisErr != nil {
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Capability:    "knowledge",
 			FailureKind:   "rag_synthesis_provider_not_configured",
 			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
 			ResultKind:    "activity_failure",
@@ -74,6 +76,7 @@ func (s *Server) completeRAGSynthesisActivity(
 	if s.ragSynthesisExecutor == nil {
 		cause := errors.New("rag synthesis executor is not configured")
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Capability:    "knowledge",
 			FailureKind:   "rag_synthesis_provider_not_configured",
 			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
 			ResultKind:    "activity_failure",
@@ -114,6 +117,7 @@ func (s *Server) completeRAGSynthesisActivity(
 	synthesisCompletedAt := time.Now().UTC()
 	if err != nil {
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Capability:      "knowledge",
 			CancelOutcome:   execution.CancelOutcome(synthesisResult.ProviderSummary.CancelOutcome),
 			FailureKind:     "rag_synthesis_provider_failed",
 			ProjectionRef:   temporalProjectionRef(run.RunID, "synthesis/provider"),
@@ -236,6 +240,9 @@ func (s *Server) WriteFinalizationActivity(
 	ctx context.Context,
 	input temporalruntime.WriteFinalizationActivityInput,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	if strings.TrimSpace(input.AgentResultRef) != "" {
+		return s.writePrimaryAgentFinalizationActivity(ctx, input)
+	}
 	if strings.TrimSpace(input.ToolResultRef) != "" {
 		return s.writeTypedToolFinalizationActivity(ctx, input)
 	}
@@ -264,7 +271,7 @@ func (s *Server) WriteFinalizationActivity(
 	}
 	finalizedResponse, err := temporalFinalizedResponseFromRun(run, input.SynthesisRef)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "finalization_packet_missing", err)
+		return s.failFinalizationActivity(ctx, run, "knowledge", "finalization_packet_missing", err)
 	}
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")

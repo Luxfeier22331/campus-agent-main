@@ -14,6 +14,9 @@ from campus_ingestion_core.collection_config import (
     CollectionTruthConfig,
     resolve_collection_truth_config,
 )
+from campus_ingestion_core.collection_ingestion_strategy import (
+    resolve_collection_ingestion_strategy,
+)
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.handbook_source_projections import (
     build_declared_projection_processed_keys,
@@ -21,9 +24,7 @@ from campus_ingestion_core.handbook_source_projections import (
 )
 from campus_ingestion_core.local_rebuild_support import (
     ALLOWED_REBUILD_IMPORT_MODES,
-    DEFAULT_CURRICULUM_PLAN_REPLAY_SOURCE_PDF,
     DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS,
-    DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF,
     LocalDataRebuildReport,
     QdrantAdmin,
     QdrantCollectionAdmin,
@@ -83,7 +84,20 @@ def _resolve_rebuild_target_qdrant_bindings(
             collection=request.collection,
         )
     ]
-    if request.import_mode == "provider_response_replay" and request.collection == "student_rules":
+    if request.import_mode == "provider_response_replay":
+        strategy = resolve_collection_ingestion_strategy(request.corpus, request.collection)
+        for corpus, collection in strategy.provider_replay_qdrant_targets:
+            target_bindings.append(
+                _resolve_target_qdrant_binding(
+                    corpus=corpus,
+                    collection=collection,
+                )
+            )
+    if _should_collect_declared_projection_processed_keys(
+        corpus=request.corpus,
+        collection=request.collection,
+        import_mode=request.import_mode,
+    ):
         projections_config = load_handbook_source_projections_config(
             collection_config.source_projections_path
         )
@@ -99,28 +113,6 @@ def _resolve_rebuild_target_qdrant_bindings(
                     collection=projection.target_collection,
                 )
             )
-    if (
-        request.import_mode == "provider_response_replay"
-        and request.collection == "curriculum_plan"
-    ):
-        target_bindings.append(
-            _resolve_target_qdrant_binding(
-                corpus="curriculum",
-                collection="course_facts",
-            )
-        )
-        target_bindings.append(
-            _resolve_target_qdrant_binding(
-                corpus="curriculum",
-                collection="program_family_facts",
-            )
-        )
-        target_bindings.append(
-            _resolve_target_qdrant_binding(
-                corpus="curriculum",
-                collection="program_semester_facts",
-            )
-        )
     deduped: list[QdrantIndexBinding] = []
     seen: set[tuple[str, str]] = set()
     for binding in target_bindings:
@@ -231,7 +223,11 @@ def rebuild_local_data(
             "exclude_key_count": len(processed_exclude_keys),
         },
     )
-    if _should_delete_document_registry_scope(collection=collection, import_mode=import_mode):
+    if _should_delete_document_registry_scope(
+        corpus=corpus,
+        collection=collection,
+        import_mode=import_mode,
+    ):
         _run_traced_stage(
             trace_recorder,
             "rebuild.cleanup.delete_registry_scope",
@@ -353,7 +349,10 @@ def _build_rebuild_import_env(
         raw_version_id = request.raw_version_id
         if raw_version_id is None:
             raise ValueError("raw_version_id is required for provider_response_replay")
-        source_pdf = request.source_pdf or _default_replay_source_pdf(request.collection)
+        source_pdf = request.source_pdf or _default_replay_source_pdf(
+            request.corpus,
+            request.collection,
+        )
         import_env["REPLAY_SOURCE_PDF"] = source_pdf
     return import_env
 
@@ -480,10 +479,16 @@ def _extra_processed_rebuild_keys(
     import_mode: str,
     registry: DocumentRegistry,
 ) -> tuple[str, ...]:
-    if import_mode != "provider_response_replay" or collection != "student_rules":
+    if not _should_collect_declared_projection_processed_keys(
+        corpus=corpus,
+        collection=collection,
+        import_mode=import_mode,
+    ):
         return ()
     return _declared_projection_processed_keys(
         source=source,
+        corpus=corpus,
+        collection=collection,
         registry=registry,
     )
 
@@ -627,7 +632,11 @@ def _processed_bucket_exclude_keys(
     collection: str,
     import_mode: str,
 ) -> tuple[str, ...]:
-    if import_mode != "provider_response_replay" or collection != "student_rules":
+    if not _should_preserve_source_provider_response_on_cleanup(
+        corpus=corpus,
+        collection=collection,
+        import_mode=import_mode,
+    ):
         return ()
     raw_version_id = _read_required_env(source, "RAW_VERSION_ID")
     collection_config = _resolve_runtime_collection_config(
@@ -644,9 +653,10 @@ def _processed_bucket_exclude_keys(
         ),
         collection_config=collection_config,
     )
-    source_pdf = (
-        source.get("REPLAY_SOURCE_PDF") or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
-    ).strip() or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
+    default_source_pdf = _default_replay_source_pdf(corpus, collection)
+    source_pdf = (source.get("REPLAY_SOURCE_PDF") or default_source_pdf).strip()
+    if not source_pdf:
+        source_pdf = default_source_pdf
     provider_response_key = build_source_ocr_artifact_key(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
@@ -661,8 +671,16 @@ def _processed_bucket_exclude_keys(
     return (provider_response_key,)
 
 
-def _should_delete_document_registry_scope(*, collection: str, import_mode: str) -> bool:
-    return not (collection == "student_rules" and import_mode == "provider_response_replay")
+def _should_delete_document_registry_scope(
+    *,
+    corpus: str,
+    collection: str,
+    import_mode: str,
+) -> bool:
+    if import_mode != "provider_response_replay":
+        return True
+    strategy = resolve_collection_ingestion_strategy(corpus, collection)
+    return strategy.delete_primary_registry_scope_for_provider_replay
 
 
 def _should_index_qdrant_for_replay(source: dict[str, str]) -> bool:
@@ -691,34 +709,64 @@ def _resolve_replay_source_pdf(
         return request.source_pdf
     raw_version_id = request.raw_version_id
     if raw_version_id is None:
-        return _default_replay_source_pdf(request.collection)
+        return _default_replay_source_pdf(request.corpus, request.collection)
     raw_asset_id = _resolve_collection_raw_asset_id(
         request=request, collection_config=collection_config
     )
     raw_asset_record = raw_asset_registry.get(raw_asset_id, raw_version_id)
     if raw_asset_record is not None and raw_asset_record.source_filename.strip():
         return raw_asset_record.source_filename.strip()
-    return _default_replay_source_pdf(request.collection)
+    return _default_replay_source_pdf(request.corpus, request.collection)
 
 
-def _default_replay_source_pdf(collection: str) -> str:
-    if collection == "curriculum_plan":
-        return DEFAULT_CURRICULUM_PLAN_REPLAY_SOURCE_PDF
-    return DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
+def _default_replay_source_pdf(corpus: str, collection: str) -> str:
+    strategy = resolve_collection_ingestion_strategy(corpus, collection)
+    if strategy.default_replay_source_pdf is None:
+        raise ValueError(
+            f"provider_response_replay source PDF is not registered: {corpus}/{collection}"
+        )
+    return strategy.default_replay_source_pdf
+
+
+def _should_collect_declared_projection_processed_keys(
+    *,
+    corpus: str,
+    collection: str,
+    import_mode: str,
+) -> bool:
+    if import_mode != "provider_response_replay":
+        return False
+    strategy = resolve_collection_ingestion_strategy(corpus, collection)
+    return strategy.preserve_source_provider_response_on_cleanup
+
+
+def _should_preserve_source_provider_response_on_cleanup(
+    *,
+    corpus: str,
+    collection: str,
+    import_mode: str,
+) -> bool:
+    if import_mode != "provider_response_replay":
+        return False
+    strategy = resolve_collection_ingestion_strategy(corpus, collection)
+    return strategy.preserve_source_provider_response_on_cleanup
 
 
 def _declared_projection_processed_keys(
     *,
     source: dict[str, str],
+    corpus: str,
+    collection: str,
     registry: DocumentRegistry,
 ) -> tuple[str, ...]:
     path_value = (source.get("HANDBOOK_SOURCE_PROJECTIONS_PATH") or "").strip()
     if not path_value:
         return ()
     config = load_handbook_source_projections_config(Path(path_value))
-    source_pdf = (
-        source.get("REPLAY_SOURCE_PDF") or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
-    ).strip() or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
+    default_source_pdf = _default_replay_source_pdf(corpus, collection)
+    source_pdf = (source.get("REPLAY_SOURCE_PDF") or default_source_pdf).strip()
+    if not source_pdf:
+        source_pdf = default_source_pdf
     keys = list(
         build_declared_projection_processed_keys(
             config=config,

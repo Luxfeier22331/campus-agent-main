@@ -49,18 +49,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "campus_ingestion_worker.official_web_handoff_receiver",
         "OfficialWebHandoffServerSettings",
     ),
-    "OfficialWebHistoricalBackfillResult": (
-        "campus_ingestion_worker.official_web_historical_backfill",
-        "OfficialWebHistoricalBackfillResult",
-    ),
-    "OfficialWebHistoricalBackfillSettings": (
-        "campus_ingestion_worker.official_web_historical_backfill",
-        "OfficialWebHistoricalBackfillSettings",
-    ),
-    "OfficialWebHistoricalInventoryResult": (
-        "campus_ingestion_worker.official_web_historical_backfill",
-        "OfficialWebHistoricalInventoryResult",
-    ),
     "OnlineOcrClient": ("campus_ingestion_worker.process_raw_ingestion_job", "OnlineOcrClient"),
     "OnlineOcrProviderResult": (
         "campus_ingestion_worker.process_raw_ingestion_job",
@@ -102,10 +90,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "campus_ingestion_worker.audit_official_web_regulation_quality",
         "main",
     ),
-    "backfill_historical_handoff_record": (
-        "campus_ingestion_worker.official_web_historical_backfill",
-        "backfill_historical_handoff_record",
-    ),
     "build_authenticated_notice_attachment_fetch_request_manifest_main": (
         "campus_ingestion_worker.build_authenticated_notice_attachment_fetch_request_manifest",
         "main",
@@ -134,10 +118,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "campus_ingestion_worker.official_web_projection_import",
         "import_projection_output",
     ),
-    "inventory_historical_handoff_record": (
-        "campus_ingestion_worker.official_web_historical_backfill",
-        "inventory_historical_handoff_record",
-    ),
     "load_worker_env": ("campus_ingestion_worker.env_bootstrap", "load_worker_env"),
     "migrate_student_handbook_source_faithful": (
         "campus_ingestion_worker.migrate_student_handbook_source_faithful",
@@ -157,10 +137,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "official_web_handoff_receiver_main": (
         "campus_ingestion_worker.official_web_handoff_receiver",
-        "main",
-    ),
-    "official_web_historical_backfill_main": (
-        "campus_ingestion_worker.official_web_historical_backfill",
         "main",
     ),
     "official_web_projection_import_main": (

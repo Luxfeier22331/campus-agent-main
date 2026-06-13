@@ -12,7 +12,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	"go.temporal.io/sdk/activity"
 )
 
 func (s *Server) temporalActivityRun(
@@ -104,6 +103,38 @@ func (s *Server) temporalActivityRunAllowCompletedToolFinalization(
 	return run, nil
 }
 
+func (s *Server) temporalActivityRunAllowCompletedAgentFinalization(
+	ctx context.Context,
+	runID string,
+	traceID string,
+	agentResultRef string,
+) (execution.DurableRun, error) {
+	if s == nil || s.runProjectionStore == nil {
+		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
+	}
+	run, err := s.runProjectionStore.GetRun(ctx, runID)
+	if err != nil {
+		return execution.DurableRun{}, err
+	}
+	if run.TraceID != traceID {
+		return execution.DurableRun{}, fmt.Errorf(
+			"activity trace_id %s does not match run trace_id %s",
+			traceID,
+			run.TraceID,
+		)
+	}
+	if run.Status == execution.DurableRunStatusCompleted {
+		if _, err := temporalAgentResultFromRun(run, agentResultRef); err != nil {
+			return execution.DurableRun{}, err
+		}
+		return run, nil
+	}
+	if temporalRunTerminal(run.Status) {
+		return execution.DurableRun{}, fmt.Errorf("run %s is already terminal: %s", run.RunID, run.Status)
+	}
+	return run, nil
+}
+
 func temporalRunTerminal(status execution.DurableRunStatus) bool {
 	switch status {
 	case execution.DurableRunStatusCompleted,
@@ -123,6 +154,7 @@ func (s *Server) failTemporalPlanning(
 	cause error,
 ) (temporalruntime.PlanRouteActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "plan/route"),
 		ResultKind:    "activity_failure",
@@ -144,6 +176,7 @@ func (s *Server) failRAGPlanActivity(
 	cause error,
 ) (temporalruntime.PlanRAGActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "rag/plan"),
 		ResultKind:    "activity_failure",
@@ -165,6 +198,7 @@ func (s *Server) failRetrieveIndexedLookupActivity(
 	cause error,
 ) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/indexed-lookup"),
 		ResultKind:    "activity_failure",
@@ -186,6 +220,7 @@ func (s *Server) failExpandOrRescueRetrievalActivity(
 	cause error,
 ) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue"),
 		ResultKind:    "activity_failure",
@@ -207,6 +242,7 @@ func (s *Server) failSelectEvidenceActivity(
 	cause error,
 ) (temporalruntime.SelectEvidenceActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "evidence/selection"),
 		ResultKind:    "activity_failure",
@@ -228,6 +264,7 @@ func (s *Server) failVerifyGroundingActivity(
 	cause error,
 ) (temporalruntime.VerifyGroundingActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    "knowledge",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "grounding/verify"),
 		ResultKind:    "activity_failure",
@@ -245,10 +282,12 @@ func (s *Server) failVerifyGroundingActivity(
 func (s *Server) failFinalizationActivity(
 	ctx context.Context,
 	run execution.DurableRun,
+	capability string,
 	failureKind string,
 	cause error,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+		Capability:    capability,
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "finalization/write"),
 		ResultKind:    "activity_failure",
@@ -264,8 +303,10 @@ func (s *Server) failFinalizationActivity(
 }
 
 type temporalStepFailureProjection struct {
+	Capability      string
 	FailureKind     string
 	CancelOutcome   execution.CancelOutcome
+	FailCloseReason string
 	Payload         map[string]any
 	ProjectionRef   string
 	ProviderSummary *provider.ExecutionSummary
@@ -292,8 +333,9 @@ func (s *Server) failTemporalRunStep(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:         1,
-		Capability:      "knowledge",
+		Capability:      temporalFailureCapability(projection),
 		CancelOutcome:   temporalFailureCancelOutcome(ctx, projection.CancelOutcome),
+		FailCloseReason: temporalFailureFailCloseReason(projection),
 		Run:             run,
 		Status:          "failed",
 		StepID:          projection.StepID,
@@ -312,6 +354,34 @@ func (s *Server) failTemporalRunStep(
 		return execution.DurableRun{}, err
 	}
 	return s.failTemporalRun(ctx, run, projection.FailureKind, cause)
+}
+
+func temporalFailureCapability(projection temporalStepFailureProjection) string {
+	if capability := strings.TrimSpace(projection.Capability); capability != "" {
+		return capability
+	}
+	return "knowledge"
+}
+
+func temporalFailureFailCloseReason(projection temporalStepFailureProjection) string {
+	if strings.TrimSpace(projection.FailCloseReason) != "" {
+		return strings.TrimSpace(projection.FailCloseReason)
+	}
+	if projection.Payload != nil {
+		if value := strings.TrimSpace(stringValue(projection.Payload["fail_close_reason"])); value != "" {
+			return value
+		}
+	}
+	switch strings.TrimSpace(projection.FailureKind) {
+	case "current_state_unverifiable",
+		"source_conflict",
+		"temporal_scope_ambiguous",
+		"clarification_required",
+		"not_found":
+		return strings.TrimSpace(projection.FailureKind)
+	default:
+		return ""
+	}
 }
 
 func temporalFailureCancelOutcome(
@@ -424,6 +494,20 @@ func temporalFinalizedResponseFromRun(
 	return decoded, nil
 }
 
+func temporalAgentResultFromRun(
+	run execution.DurableRun,
+	agentResultRef string,
+) (map[string]any, error) {
+	raw, ok := run.Metadata["temporal_agent"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("run metadata.temporal_agent is required")
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["agent_result_ref"])) != agentResultRef {
+		return nil, fmt.Errorf("agent result ref drift")
+	}
+	return raw, nil
+}
+
 func temporalProjectionRef(runID string, suffix string) string {
 	return "projection://runs/" + strings.TrimSpace(runID) + "/" + strings.TrimSpace(suffix)
 }
@@ -497,293 +581,4 @@ func (s *Server) replaceTemporalRAGMetadata(
 	mutate(ragMetadata)
 	metadata["temporal_rag"] = ragMetadata
 	return s.runProjectionStore.ReplaceRunMetadata(ctx, latest.RunID, metadata)
-}
-
-type temporalStepProjection struct {
-	ActivityAttempt       int
-	ActivityID            string
-	ActivityType          string
-	Attempt               int
-	Capability            string
-	CancelOutcome         execution.CancelOutcome
-	CompletedAt           time.Time
-	DurationMS            int64
-	EstimatedCostMicroUSD int64
-	InputTokens           int64
-	ModelName             string
-	ModelProvider         string
-	OutputTokens          int64
-	CachedInputTokens     int64
-	Payload               map[string]any
-	PricingVersion        string
-	ProjectionRef         string
-	ProviderRequestRef    string
-	ProviderResponseID    string
-	ProviderSummary       *provider.ExecutionSummary
-	ResultKind            string
-	Run                   execution.DurableRun
-	ScheduledAt           time.Time
-	ScheduleToStartMS     int64
-	StartedAt             time.Time
-	Status                string
-	StepID                string
-	StepKind              string
-	TaskQueue             string
-	TemporalRunID         string
-	TerminalReason        string
-	TimeoutOutcome        execution.TimeoutOutcome
-	UpdatedAt             time.Time
-	WorkerID              string
-	WorkflowID            string
-}
-
-func (s *Server) projectTemporalStep(ctx context.Context, projection temporalStepProjection) error {
-	if s == nil || s.runProjectionStore == nil {
-		return execution.ErrRunProjectionStoreNotConfigured
-	}
-	if strings.TrimSpace(projection.Status) == "completed" &&
-		strings.TrimSpace(projection.StepID) != "finalization.write" {
-		if err := s.ensureTemporalStepCompletionAllowed(ctx, projection); err != nil {
-			return err
-		}
-	}
-	if projection.ProviderSummary != nil {
-		projection = projection.withProviderSummary(*projection.ProviderSummary)
-	}
-	attempt := projection.Attempt
-	if attempt <= 0 {
-		attempt = 1
-	}
-	projection = s.withTemporalActivityEvidence(ctx, projection, attempt)
-	attempt = projection.Attempt
-	if attempt <= 0 {
-		attempt = 1
-	}
-	updatedAt := projection.UpdatedAt
-	if updatedAt.IsZero() {
-		updatedAt = time.Now().UTC()
-	}
-	if _, err := s.runProjectionStore.UpsertRunStep(ctx, execution.RunStepProjection{
-		StepID:               projection.StepID,
-		RunID:                projection.Run.RunID,
-		ConversationID:       projection.Run.ConversationID,
-		StepKind:             projection.StepKind,
-		Capability:           projection.Capability,
-		Status:               projection.Status,
-		TaskQueue:            projection.TaskQueue,
-		WorkerID:             projection.WorkerID,
-		StartedAt:            projection.StartedAt,
-		CompletedAt:          projection.CompletedAt,
-		UpdatedAt:            updatedAt,
-		PayloadSchemaVersion: "run-step-projection-v1",
-		SanitizedPayload:     projection.Payload,
-	}); err != nil {
-		return err
-	}
-	attemptID := temporalStepAttemptID(projection.Run.RunID, projection.StepID, attempt)
-	if _, err := s.runProjectionStore.UpsertStepAttempt(ctx, execution.StepAttemptProjection{
-		AttemptID:             attemptID,
-		StepID:                projection.StepID,
-		RunID:                 projection.Run.RunID,
-		Attempt:               attempt,
-		Status:                projection.Status,
-		TaskQueue:             projection.TaskQueue,
-		WorkerID:              projection.WorkerID,
-		WorkflowID:            projection.WorkflowID,
-		TemporalRunID:         projection.TemporalRunID,
-		ActivityID:            projection.ActivityID,
-		ActivityType:          projection.ActivityType,
-		ActivityAttempt:       projection.ActivityAttempt,
-		ScheduledAt:           projection.ScheduledAt,
-		StartedAt:             projection.StartedAt,
-		CompletedAt:           projection.CompletedAt,
-		ScheduleToStartMS:     projection.ScheduleToStartMS,
-		DurationMS:            projection.DurationMS,
-		ProviderRequestRef:    projection.ProviderRequestRef,
-		ProviderResponseID:    projection.ProviderResponseID,
-		ModelProvider:         projection.ModelProvider,
-		ModelName:             projection.ModelName,
-		InputTokens:           projection.InputTokens,
-		OutputTokens:          projection.OutputTokens,
-		CachedInputTokens:     projection.CachedInputTokens,
-		EstimatedCostMicroUSD: projection.EstimatedCostMicroUSD,
-		PricingVersion:        projection.PricingVersion,
-		CancelOutcome:         projection.CancelOutcome,
-		TimeoutOutcome:        projection.TimeoutOutcome,
-		TerminalReason:        projection.TerminalReason,
-		UpdatedAt:             updatedAt,
-		PayloadSchemaVersion:  "step-attempt-projection-v1",
-		SanitizedPayload:      projection.Payload,
-	}); err != nil {
-		return err
-	}
-	if strings.TrimSpace(projection.ResultKind) == "" {
-		return nil
-	}
-	if _, err := s.runProjectionStore.UpsertStepResult(ctx, execution.StepResultProjection{
-		ResultID:             temporalStepResultID(projection.Run.RunID, projection.StepID, attempt),
-		StepID:               projection.StepID,
-		RunID:                projection.Run.RunID,
-		AttemptID:            attemptID,
-		Status:               projection.Status,
-		ResultKind:           projection.ResultKind,
-		ProjectionRef:        projection.ProjectionRef,
-		CreatedAt:            updatedAt,
-		PayloadSchemaVersion: "step-result-projection-v1",
-		SanitizedPayload:     projection.Payload,
-	}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Server) ensureTemporalStepCompletionAllowed(
-	ctx context.Context,
-	projection temporalStepProjection,
-) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, projection.Run.RunID)
-	if err != nil {
-		return err
-	}
-	if !temporalRunTerminal(latest.Status) {
-		return nil
-	}
-	return fmt.Errorf(
-		"run %s is already terminal before %s completion projection: %s",
-		latest.RunID,
-		projection.StepID,
-		latest.Status,
-	)
-}
-
-func (projection temporalStepProjection) withProviderSummary(
-	summary provider.ExecutionSummary,
-) temporalStepProjection {
-	projection.ProviderRequestRef = defaultString(projection.ProviderRequestRef, summary.ProviderRequestRef)
-	projection.ProviderResponseID = defaultString(projection.ProviderResponseID, summary.ProviderResponseID)
-	projection.ModelProvider = defaultString(projection.ModelProvider, summary.ModelProvider)
-	projection.ModelName = defaultString(projection.ModelName, summary.ModelName)
-	if projection.InputTokens == 0 {
-		projection.InputTokens = summary.InputTokens
-	}
-	if projection.OutputTokens == 0 {
-		projection.OutputTokens = summary.OutputTokens
-	}
-	if projection.CachedInputTokens == 0 {
-		projection.CachedInputTokens = summary.CachedInputTokens
-	}
-	if projection.EstimatedCostMicroUSD == 0 {
-		projection.EstimatedCostMicroUSD = summary.EstimatedCostMicroUSD
-	}
-	projection.PricingVersion = defaultString(projection.PricingVersion, summary.PricingVersion)
-	if projection.CancelOutcome == "" {
-		projection.CancelOutcome = execution.CancelOutcome(summary.CancelOutcome)
-	}
-	if projection.TimeoutOutcome == "" {
-		projection.TimeoutOutcome = execution.TimeoutOutcome(summary.TimeoutOutcome)
-	}
-	return projection
-}
-
-func (s *Server) withTemporalActivityEvidence(
-	ctx context.Context,
-	projection temporalStepProjection,
-	attempt int,
-) temporalStepProjection {
-	if projection.CancelOutcome == "" {
-		projection.CancelOutcome = execution.CancelOutcomeNotRequested
-	}
-	if projection.TimeoutOutcome == "" {
-		projection.TimeoutOutcome = execution.TimeoutOutcomeNotTimedOut
-	}
-	if activity.IsActivity(ctx) {
-		info := activity.GetInfo(ctx)
-		if projection.WorkflowID == "" {
-			projection.WorkflowID = info.WorkflowExecution.ID
-		}
-		if projection.TemporalRunID == "" {
-			projection.TemporalRunID = info.WorkflowExecution.RunID
-		}
-		if projection.ActivityID == "" {
-			projection.ActivityID = info.ActivityID
-		}
-		if projection.ActivityType == "" {
-			projection.ActivityType = info.ActivityType.Name
-		}
-		if projection.ActivityAttempt <= 0 {
-			projection.ActivityAttempt = int(info.Attempt)
-		}
-		if info.Attempt > 0 {
-			projection.Attempt = int(info.Attempt)
-		}
-		if projection.ScheduledAt.IsZero() {
-			projection.ScheduledAt = info.ScheduledTime
-		}
-		if projection.StartedAt.IsZero() {
-			projection.StartedAt = info.StartedTime
-		}
-		if projection.TaskQueue == "" {
-			projection.TaskQueue = info.TaskQueue
-		}
-	}
-	if projection.WorkflowID == "" {
-		projection.WorkflowID = "campus-agent.chat." + projection.Run.RunID
-	}
-	if projection.ActivityAttempt <= 0 {
-		projection.ActivityAttempt = attempt
-	}
-	if projection.Attempt <= 0 {
-		projection.Attempt = projection.ActivityAttempt
-	}
-	if projection.ActivityType == "" {
-		projection.ActivityType = temporalActivityTypeForStep(projection.StepID)
-	}
-	if projection.ScheduleToStartMS <= 0 &&
-		!projection.ScheduledAt.IsZero() &&
-		!projection.StartedAt.IsZero() &&
-		!projection.StartedAt.Before(projection.ScheduledAt) {
-		projection.ScheduleToStartMS = projection.StartedAt.Sub(projection.ScheduledAt).Milliseconds()
-	}
-	if projection.DurationMS <= 0 &&
-		!projection.StartedAt.IsZero() &&
-		!projection.CompletedAt.IsZero() &&
-		!projection.CompletedAt.Before(projection.StartedAt) {
-		projection.DurationMS = projection.CompletedAt.Sub(projection.StartedAt).Milliseconds()
-	}
-	return projection
-}
-
-func temporalActivityTypeForStep(stepID string) string {
-	switch strings.TrimSpace(stepID) {
-	case "memory.recall":
-		return temporalruntime.MemoryRecallActivityName
-	case "plan.route":
-		return temporalruntime.PlanRouteActivityName
-	case "rag.plan":
-		return temporalruntime.PlanRAGActivityName
-	case "retrieval.indexed_lookup":
-		return temporalruntime.RetrieveIndexedLookupActivityName
-	case "retrieval.expand_or_rescue":
-		return temporalruntime.ExpandOrRescueRetrievalActivityName
-	case "evidence.selection":
-		return temporalruntime.SelectEvidenceActivityName
-	case "synthesis":
-		return temporalruntime.SynthesizeRAGAnswerActivityName
-	case "grounding.verify":
-		return temporalruntime.VerifyGroundingActivityName
-	case "typed_tool.execute":
-		return temporalruntime.ExecuteTypedToolActivityName
-	case "finalization.write":
-		return temporalruntime.WriteFinalizationActivityName
-	default:
-		return ""
-	}
-}
-
-func temporalStepAttemptID(runID string, stepID string, attempt int) string {
-	return strings.TrimSpace(runID) + ":" + strings.TrimSpace(stepID) + ":attempt-" + fmt.Sprint(attempt)
-}
-
-func temporalStepResultID(runID string, stepID string, attempt int) string {
-	return strings.TrimSpace(runID) + ":" + strings.TrimSpace(stepID) + ":result-" + fmt.Sprint(attempt)
 }

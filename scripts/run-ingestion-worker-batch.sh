@@ -69,7 +69,8 @@ fi
 if [[ -n "${python_bin}" ]]; then
   "${python_bin}" -m campus_ingestion_worker.deployment_preflight "${preflight_args[@]}"
 else
-  uv run --package campus-ingestion-worker campus-ingestion-preflight "${preflight_args[@]}"
+  uv run --package campus-ingestion-worker python -m \
+    campus_ingestion_worker.deployment_preflight "${preflight_args[@]}"
 fi
 
 if [[ -n "${python_bin}" ]]; then
@@ -124,7 +125,8 @@ if [[ -n "${python_bin}" ]]; then
     --max-count "${retention_max_count}" \
     "${retention_keep_failed_flag}" >/dev/null || true
 else
-  uv run --package campus-ingestion-worker campus-ingestion-prune-reports \
+  uv run --package campus-ingestion-worker python -m \
+    campus_ingestion_worker.report_retention \
     --report-dir "${report_dir}" \
     --max-age-days "${retention_max_age_days}" \
     --max-count "${retention_max_count}" \

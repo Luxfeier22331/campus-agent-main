@@ -3,7 +3,10 @@ import type { ResolvedAppPrincipal } from "../auth";
 import type {
 	ExecutionControlRun,
 	ExecutionControlRunEvent,
+	ExecutionControlRunStep,
 	ExecutionControlRunStepTrajectory,
+	ExecutionControlStepAttempt,
+	ExecutionControlStepResult,
 } from "../integration";
 import { runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 import {
@@ -172,6 +175,7 @@ function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) 
 			const results = trajectory.results.filter((result) => result.stepId === step.stepId);
 			const latestResult = results.at(-1);
 			const latestAttempt = attempts.at(-1);
+			const agentSummary = agentStepSummary(latestResult?.sanitizedPayload);
 			const totalInputTokens = attempts.reduce(
 				(total, attempt) => total + numberOrZero(attempt.inputTokens),
 				0,
@@ -186,17 +190,21 @@ function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) 
 			);
 			return {
 				attemptCount: attempts.length,
+				...agentSummary,
 				capability: step.capability,
 				cancelOutcome: latestAttempt?.cancelOutcome || null,
 				durationMs: positiveNumberOrNull(latestAttempt?.durationMs),
 				estimatedCostMicrousd: totalEstimatedCostMicrousd,
+				failCloseReason: latestAttempt?.failCloseReason || null,
 				inputTokens: totalInputTokens,
+				lateCompletionOutcome: latestAttempt?.lateCompletionOutcome || null,
 				latestResultRef: latestResult?.projectionRef ?? null,
 				modelName: latestAttempt?.modelName || null,
 				modelProvider: latestAttempt?.modelProvider || null,
 				outputTokens: totalOutputTokens,
 				providerRequestRef: latestAttempt?.providerRequestRef || null,
 				queueWaitMs: positiveNumberOrNull(latestAttempt?.scheduleToStartMs),
+				replanReason: latestAttempt?.replanReason || null,
 				resultCount: results.length,
 				status: step.status,
 				stepId: step.stepId,
@@ -207,6 +215,162 @@ function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) 
 			};
 		}),
 	};
+}
+
+function materializeOperatorStepTrajectory(
+	run: ExecutionControlRun,
+	trajectory: ExecutionControlRunStepTrajectory,
+): OperatorRuntimeRunSummary["operatorStepTrajectory"] {
+	return {
+		conversationId: run.conversationId,
+		requestId: run.requestId,
+		runId: run.runId,
+		schemaVersion: "operator_step_trajectory.v1",
+		steps: trajectory.steps.map((step) => {
+			const attempts = trajectory.attempts.filter((attempt) => attempt.stepId === step.stepId);
+			const results = trajectory.results.filter((result) => result.stepId === step.stepId);
+			const latestAttempt = attempts.at(-1);
+			const latestResult = results.at(-1);
+			const agentSummary = agentStepSummary(latestResult?.sanitizedPayload);
+			return {
+				attemptCount: attempts.length,
+				...agentSummary,
+				capability: step.capability,
+				cancelOutcome: nullableAttemptString(latestAttempt, "cancelOutcome"),
+				durationMs: positiveNumberOrNull(latestAttempt?.durationMs),
+				estimatedCostMicrousd: attempts.reduce(
+					(total, attempt) => total + numberOrZero(attempt.estimatedCostMicrousd),
+					0,
+				),
+				failCloseReason: nullableAttemptString(latestAttempt, "failCloseReason"),
+				inputTokens: attempts.reduce(
+					(total, attempt) => total + numberOrZero(attempt.inputTokens),
+					0,
+				),
+				lateCompletionOutcome: nullableAttemptString(latestAttempt, "lateCompletionOutcome"),
+				latestResultRef: latestResult?.projectionRef ?? null,
+				modelName: latestAttempt?.modelName || null,
+				modelProvider: latestAttempt?.modelProvider || null,
+				outputTokens: attempts.reduce(
+					(total, attempt) => total + numberOrZero(attempt.outputTokens),
+					0,
+				),
+				projectionRefs: projectionRefs(results),
+				providerRequestRef: latestAttempt?.providerRequestRef || null,
+				queueWaitMs: positiveNumberOrNull(latestAttempt?.scheduleToStartMs),
+				replanReason: nullableAttemptString(latestAttempt, "replanReason"),
+				resultCount: results.length,
+				status: step.status,
+				stepId: step.stepId,
+				stepKind: step.stepKind,
+				taskQueue: step.taskQueue,
+				terminalReason: nullableAttemptString(latestAttempt, "terminalReason"),
+				timeoutOutcome: nullableAttemptString(latestAttempt, "timeoutOutcome"),
+				toolName: toolNameForStep(step, latestResult),
+				toolStatus: toolStatusForStep(step, latestResult),
+				workerId: step.workerId,
+			};
+		}),
+		traceId: run.traceId,
+	};
+}
+
+function projectionRefs(results: ExecutionControlStepResult[]): string[] {
+	return results
+		.map((result) => result.projectionRef)
+		.filter((ref): ref is string => typeof ref === "string" && ref.length > 0);
+}
+
+function nullableAttemptString(
+	attempt: ExecutionControlStepAttempt | undefined,
+	field: keyof Pick<
+		ExecutionControlStepAttempt,
+		| "cancelOutcome"
+		| "failCloseReason"
+		| "lateCompletionOutcome"
+		| "replanReason"
+		| "terminalReason"
+		| "timeoutOutcome"
+	>,
+): string | null {
+	if (!attempt) {
+		return null;
+	}
+	const value = attempt[field];
+	return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function toolNameForStep(
+	step: ExecutionControlRunStep,
+	latestResult: ExecutionControlStepResult | undefined,
+): string | null {
+	const resultTool = stringOrNull(latestResult?.sanitizedPayload.selected_tool);
+	if (resultTool) {
+		return resultTool;
+	}
+	const stepTool = stringOrNull(step.sanitizedPayload.selected_tool);
+	return stepTool ?? null;
+}
+
+function toolStatusForStep(
+	step: ExecutionControlRunStep,
+	latestResult: ExecutionControlStepResult | undefined,
+): string | null {
+	const resultStatus = stringOrNull(latestResult?.sanitizedPayload.tool_status);
+	if (resultStatus) {
+		return resultStatus;
+	}
+	const stepStatus = stringOrNull(step.sanitizedPayload.tool_status);
+	return stepStatus ?? null;
+}
+
+function agentStepSummary(payload: Record<string, unknown> | undefined) {
+	if (!payload) {
+		return {};
+	}
+	const selectedTools = stringArrayValue(payload.selected_tools);
+	const toolResultRefs = toolResultRefsFromPayload(payload.tool_results);
+	const sdkTraceRef = stringOrNull(payload.sdk_trace_ref);
+	const terminalReason = stringOrNull(payload.terminal_reason);
+	if (
+		selectedTools.length === 0 &&
+		toolResultRefs.length === 0 &&
+		sdkTraceRef === null &&
+		terminalReason === null
+	) {
+		return {};
+	}
+	return {
+		agentSdkTraceRef: sdkTraceRef,
+		agentSelectedTools: selectedTools,
+		agentTerminalReason: terminalReason,
+		agentToolResultRefs: toolResultRefs,
+	};
+}
+
+function toolResultRefsFromPayload(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value
+		.map((item) => {
+			if (!item || typeof item !== "object" || Array.isArray(item)) {
+				return "";
+			}
+			return stringOrNull((item as Record<string, unknown>).result_ref) ?? "";
+		})
+		.filter((item) => item.length > 0);
+}
+
+function stringArrayValue(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function stringOrNull(value: unknown): string | null {
+	return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 function numberOrZero(value: number | undefined): number {
@@ -288,6 +452,7 @@ async function loadRuntimeRunSummary(
 			terminalReason: run.terminalReason || null,
 			traceId: run.traceId,
 		},
+		operatorStepTrajectory: materializeOperatorStepTrajectory(run, stepTrajectory),
 		stepTrajectory: summarizeStepTrajectory(stepTrajectory),
 	};
 }

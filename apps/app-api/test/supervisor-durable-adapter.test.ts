@@ -43,6 +43,72 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 	};
 }
 
+function durableRunStepsPayload(
+	attemptOverrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		attempts: [
+			{
+				activity_attempt: 1,
+				activity_id: "activity-planning-1",
+				activity_type: "PlanRouteActivity",
+				attempt: 1,
+				attempt_id: "plan.route:attempt:1",
+				cached_input_tokens: 10,
+				cancel_outcome: "not_requested",
+				completed_at: "2026-06-04T01:02:04.100Z",
+				duration_ms: 100,
+				estimated_cost_microusd: 321,
+				fail_close_reason: "current_state_unverifiable",
+				input_tokens: 120,
+				late_completion_outcome: "ignored_after_timeout",
+				model_name: "gpt-5-mini",
+				model_provider: "openai",
+				output_tokens: 42,
+				payload_schema_version: "step-attempt-projection-v1",
+				pricing_version: "provider-pricing-v1",
+				provider_request_ref: "provider://requests/req_001",
+				provider_response_id: "resp_001",
+				replan_reason: "bounded_replan_after_provider_timeout",
+				run_id: "run_durable_001",
+				sanitized_payload: {},
+				schedule_to_start_ms: 25,
+				scheduled_at: "2026-06-04T01:02:03.975Z",
+				started_at: "2026-06-04T01:02:04.000Z",
+				status: "completed",
+				step_id: "plan.route",
+				task_queue: "campus-agent.activity.context",
+				temporal_run_id: "temporal-run-001",
+				terminal_reason: "answer_completed",
+				timeout_outcome: "not_timed_out",
+				updated_at: "2026-06-04T01:02:04.100Z",
+				worker_id: "staging:context:worker-1",
+				workflow_id: "campus-agent.chat.run_durable_001",
+				...attemptOverrides,
+			},
+		],
+		results: [],
+		steps: [
+			{
+				capability: "knowledge",
+				completed_at: "2026-06-04T01:02:04.100Z",
+				conversation_id: "conv_durable_001",
+				parent_step_id: "",
+				payload_schema_version: "run-step-projection-v1",
+				run_id: "run_durable_001",
+				sanitized_payload: {},
+				started_at: "2026-06-04T01:02:04.000Z",
+				status: "completed",
+				step_id: "plan.route",
+				step_kind: "planning",
+				task_queue: "campus-agent.activity.context",
+				updated_at: "2026-06-04T01:02:04.100Z",
+				worker_id: "staging:context:worker-1",
+			},
+		],
+	};
+}
+
 describe("execution control runtime adapter", () => {
 	it("reports execution control configured only when new base URL and shared secret are present", () => {
 		expect(
@@ -274,6 +340,63 @@ describe("execution control runtime adapter", () => {
 				method: "GET",
 			}),
 		);
+	});
+
+	it("parses durable run step attempt diagnostic spine fields", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify(durableRunStepsPayload()), {
+				status: 200,
+			}),
+		);
+		const client = createExecutionControlRuntimeClient(
+			{
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		const trajectory = await client.listRunSteps({
+			runId: "run_durable_001",
+			traceId: "trace_query_001",
+		});
+
+		expect(trajectory.attempts[0]).toEqual(
+			expect.objectContaining({
+				failCloseReason: "current_state_unverifiable",
+				lateCompletionOutcome: "ignored_after_timeout",
+				replanReason: "bounded_replan_after_provider_timeout",
+			}),
+		);
+	});
+
+	it("rejects durable run step attempts missing diagnostic spine fields", async () => {
+		const attemptWithoutLateOutcome = durableRunStepsPayload();
+		delete (attemptWithoutLateOutcome.attempts as Record<string, unknown>[])[0]
+			.late_completion_outcome;
+		const fetchImplementation = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify(attemptWithoutLateOutcome), {
+				status: 200,
+			}),
+		);
+		const client = createExecutionControlRuntimeClient(
+			{
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		await expect(
+			client.listRunSteps({
+				runId: "run_durable_001",
+				traceId: "trace_query_001",
+			}),
+		).rejects.toMatchObject({
+			code: "execution_control_invalid_response",
+			retryable: true,
+			status: 502,
+		});
 	});
 
 	it("cancels durable runs through an explicit cancel command", async () => {

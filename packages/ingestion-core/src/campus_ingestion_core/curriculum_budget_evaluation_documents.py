@@ -21,6 +21,9 @@ from campus_ingestion_core.raw_ingestion import (
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
 )
+from campus_ingestion_core.raw_ingestion_split_manifest_curriculum import (
+    CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
+)
 from campus_ingestion_core.split_manifest import load_split_manifest
 
 
@@ -79,6 +82,7 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             default_visibility_scope=None,
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
         entitlement_groups = tuple(document_input.metadata.get("entitlement_groups") or ())
         visibility_scope = (

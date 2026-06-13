@@ -570,7 +570,7 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 - additional MinerU lane：
   - `OCR_MINERU_PROVIDER_MODE=mineru_api`
   - 当前用于 `process_raw_ingestion_job` 的 `source_truth_only` 条件式 typed-PDF
-    路由、`generic_image` 双跑判型，以及 `campus-ingestion-compare-online-ocr`
+    路由、`generic_image` 双跑判型，以及内部 OCR 对比诊断模块
   - 它是 lane-specific 补充配置，不再代表 repo 级 “second provider canonical truth”
 
 相关内部文档：

@@ -4,6 +4,9 @@ import {
 	type EvalDiagnosticBadcasePayloadItem,
 	type EvalDiagnosticBadcasesProjection,
 	type EvalDiagnosticFailureStage,
+	type EvalDiagnosticTrajectoryAttribution,
+	type EvalDiagnosticTrajectoryAttributionStatus,
+	type EvalDiagnosticTrajectoryOutcome,
 } from "./types";
 
 const ALLOWED_FAILURE_STAGES = new Set([
@@ -17,7 +20,16 @@ const ALLOWED_FAILURE_STAGES = new Set([
 	"synthesis",
 	"grounding",
 	"finalization",
+	"replan",
+	"clarification",
+	"rejected",
+	"no_answer",
 	"diagnostic",
+]);
+const ALLOWED_TRAJECTORY_ATTRIBUTION_STATUSES = new Set([
+	"attributed",
+	"attribution_missing",
+	"trajectory_missing",
 ]);
 const FORBIDDEN_KEY_TOKENS = new Set([
 	"artifactpath",
@@ -94,6 +106,13 @@ function optionalString(value: unknown, field: string): string | null {
 	return value.trim() || null;
 }
 
+function requiredNullableString(value: unknown, field: string): string | null {
+	if (value === null) {
+		return null;
+	}
+	return requiredString(value, field);
+}
+
 function requiredArray(value: unknown, field: string): unknown[] {
 	if (!Array.isArray(value)) {
 		throw validationError(field, `${field} must be an array.`);
@@ -131,6 +150,52 @@ function normalizeFailureStage(value: unknown, field: string): EvalDiagnosticFai
 	return normalized as EvalDiagnosticFailureStage;
 }
 
+function normalizeTrajectoryAttributionStatus(
+	value: unknown,
+	field: string,
+): EvalDiagnosticTrajectoryAttributionStatus {
+	const normalized = requiredString(value, field);
+	if (!ALLOWED_TRAJECTORY_ATTRIBUTION_STATUSES.has(normalized)) {
+		throw validationError(field, `${field} is unsupported.`);
+	}
+	return normalized as EvalDiagnosticTrajectoryAttributionStatus;
+}
+
+function normalizeTrajectoryOutcome(
+	value: unknown,
+	field: string,
+): EvalDiagnosticTrajectoryOutcome {
+	const outcome = ensureObject(value, field);
+	return {
+		cancelOutcome: requiredNullableString(outcome.cancelOutcome, `${field}.cancelOutcome`),
+		failCloseReason: requiredNullableString(outcome.failCloseReason, `${field}.failCloseReason`),
+		lateCompletionOutcome: requiredNullableString(
+			outcome.lateCompletionOutcome,
+			`${field}.lateCompletionOutcome`,
+		),
+		replanReason: requiredNullableString(outcome.replanReason, `${field}.replanReason`),
+		terminalReason: requiredNullableString(outcome.terminalReason, `${field}.terminalReason`),
+		timeoutOutcome: requiredNullableString(outcome.timeoutOutcome, `${field}.timeoutOutcome`),
+	};
+}
+
+function normalizeTrajectoryAttribution(
+	value: unknown,
+	field: string,
+): EvalDiagnosticTrajectoryAttribution {
+	const attribution = ensureObject(value, field);
+	return {
+		capability: requiredNullableString(attribution.capability, `${field}.capability`),
+		outcome: normalizeTrajectoryOutcome(attribution.outcome, `${field}.outcome`),
+		projectionRefs: requiredStringArray(attribution.projectionRefs, `${field}.projectionRefs`),
+		status: normalizeTrajectoryAttributionStatus(attribution.status, `${field}.status`),
+		stepId: requiredNullableString(attribution.stepId, `${field}.stepId`),
+		stepKind: requiredNullableString(attribution.stepKind, `${field}.stepKind`),
+		stepStatus: requiredNullableString(attribution.stepStatus, `${field}.stepStatus`),
+		toolName: requiredNullableString(attribution.toolName, `${field}.toolName`),
+	};
+}
+
 function normalizeBadcase(value: unknown, field: string): EvalDiagnosticBadcasePayloadItem {
 	const item = ensureObject(value, field);
 	return {
@@ -154,6 +219,10 @@ function normalizeBadcase(value: unknown, field: string): EvalDiagnosticBadcaseP
 		supportingDocIds: requiredStringArray(item.supportingDocIds, `${field}.supportingDocIds`),
 		surfaceKey: requiredString(item.surfaceKey, `${field}.surfaceKey`),
 		threshold: requiredScore(item.threshold, `${field}.threshold`),
+		trajectoryAttribution: normalizeTrajectoryAttribution(
+			item.trajectoryAttribution,
+			`${field}.trajectoryAttribution`,
+		),
 	};
 }
 

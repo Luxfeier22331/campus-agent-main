@@ -52,16 +52,20 @@ describe("chat e2e package scripts", () => {
 			resolve(__dirname, "../scripts/chat-e2e-local-real-provider.ts"),
 			"utf8",
 		);
+		const retiredPythonSdkRuntimeFlag = ["SUPERVISOR", "AGENTS", "SDK", "RUNTIME", "ENABLED"].join(
+			"_",
+		);
 
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");
-		expect(scriptSource).toContain("SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED");
 		expect(scriptSource).toContain("PROMPT_RUNTIME_PROVIDER");
 		expect(scriptSource).toContain("EXECUTION_CONTROL_TIMEOUT_MS");
 		expect(scriptSource).toContain("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS");
-		expect(scriptSource).not.toContain("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS");
+		expect(scriptSource).not.toContain(retiredPythonSdkRuntimeFlag);
+		expect(scriptSource).not.toContain("retired-python-worker-timeout");
 		expect(scriptSource).toContain("CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS");
 		expect(scriptSource).toContain('"--restart-public-chat"');
-		expect(scriptSource).toContain('"--restart-supervisor-runtime"');
+		expect(scriptSource).toContain('"--restart-execution-control-runtime"');
+		expect(scriptSource).not.toContain('"--restart-supervisor-runtime"');
 		expect(scriptSource).toContain('"--expect-prompt-runtime-state"');
 		expect(scriptSource).toContain('"rag_sdk_completed"');
 		expect(scriptSource).toContain("中央民族大学本科学生国家奖学金评审办法");

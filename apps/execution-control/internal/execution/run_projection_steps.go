@@ -188,6 +188,9 @@ func validateStepAttemptProjection(attempt StepAttemptProjection) error {
 	if err := validateTimeoutOutcome(attempt.TimeoutOutcome); err != nil {
 		return err
 	}
+	if err := validateLateCompletionOutcome(attempt.LateCompletionOutcome); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -219,6 +222,20 @@ func validateTimeoutOutcome(value TimeoutOutcome) error {
 		return nil
 	default:
 		return fmt.Errorf("%w: unsupported timeout_outcome %q", ErrInvalidStepAttempt, value)
+	}
+}
+
+func validateLateCompletionOutcome(value LateCompletionOutcome) error {
+	switch value {
+	case "",
+		LateCompletionOutcomeNotLate,
+		LateCompletionOutcomeIgnoredAfterCancel,
+		LateCompletionOutcomeIgnoredAfterTimeout,
+		LateCompletionOutcomeIgnoredAfterTerminalProjection,
+		LateCompletionOutcomeAcceptedBeforeTerminalProjection:
+		return nil
+	default:
+		return fmt.Errorf("%w: unsupported late_completion_outcome %q", ErrInvalidStepAttempt, value)
 	}
 }
 

@@ -50,8 +50,8 @@ updated: 2026-06-01
 先生成 bucket-wide retention inventory：
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-audit-qdrant-backup-retention \
+uv run --all-packages python -m \
+  campus_ingestion_worker.audit_qdrant_backup_retention \
   --corpus regulations \
   --collection student_rules \
   --output-dir var/qdrant-backup-retention/regulations-student-rules
@@ -60,8 +60,8 @@ uv run --all-packages \
 如需保护迁移基线：
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-audit-qdrant-backup-retention \
+uv run --all-packages python -m \
+  campus_ingestion_worker.audit_qdrant_backup_retention \
   --corpus curriculum \
   --collection curriculum_plan \
   --protected-physical-collection-name <physical_collection_name> \
@@ -81,8 +81,8 @@ inventory role：
 - `archive_candidate`：可进入 GC eligibility 判断的历史 release。
 - `orphan_backup_manifest`：有 backup manifest 但找不到 release manifest；不得直接删除，需要先确认是否为迁移/恢复证据。
 
-删除 physical collection 仍必须走 `campus-ingestion-qdrant-gc-check` /
-`campus-ingestion-qdrant-gc-delete`，并显式传入当前 qdrant-native backup root，例如
+删除 physical collection 仍必须走 `campus_ingestion_worker.qdrant_gc_check` /
+`campus_ingestion_worker.qdrant_gc_delete`，并显式传入当前 qdrant-native backup root，例如
 `--backup-root /srv/backups/campus-agent/qdrant-snapshots`。不能直接根据本 audit 删除对象存储
 backup。
 
@@ -654,7 +654,8 @@ derived bucket lost the corresponding `index-release.json`.
 Command:
 
 ```bash
-uv run --all-packages campus-ingestion-reconstruct-rag-release-manifests \
+uv run --all-packages python -m \
+  campus_ingestion_worker.reconstruct_rag_release_manifests \
   --backup-root /srv/backups/campus-agent/qdrant-snapshots \
   --report-path var/staging-evidence/rag-release-manifest-reconstruction.json
 ```

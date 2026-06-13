@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 # App API HTTP Contract
 
@@ -952,6 +952,11 @@ capability allowlist，不是长期产品入口原则；前向 routing 语义见
 - `prompt` 必填，服务端会 trim 并做最小长度校验
 - `requestedCapability` 可选；当前 public chat 只接受 `knowledge`。这是 current surface
   posture，不表示长期产品入口必须 `knowledge-only` 或 `RAG-first`
+- `requestedCapability` 缺失不应在目标态被 app-api 伪造成 `knowledge`。app-api
+  只投影 surface/session/account context 与 caller hint；first Execution Agent
+  decision 由 primary agent runtime 在 execution-control 裁剪后的 visible tool
+  set 内完成。当前 execution-control 仍存在缺失 capability 默认 `knowledge` 的
+  implementation gap，应在后续代码收口中删除
 - `requestedScope` 可选；它只属于 knowledge-family path。未提供时 `app-api` 不得伪造默认 serving
   surface，最终 scope 由 downstream agent 解析，并在 finalized projection /
   observability 中回填 `resolvedScope`
@@ -1064,6 +1069,9 @@ terminal event 额外携带：
   execution durable run create 均成功后发送；其 data 必须包含 `runId`
 - terminal event 在 finalization commit 后发送；因此 terminal `answer` 是
   app-owned DB/projection truth 的产物
+- terminal answer 可以来自 first Execution Agent decision 的 direct/no-tool branch；
+  这类结果不要求 `selectedCapability` 非空，但必须携带 request/run correlation、
+  trace/runtime provenance 与 terminal intent summary
 - submit stream 的浏览器连接不拥有 finalization；app-api 必须通过 request
   `waitUntil` 持有同一个 durable finalization closeout，浏览器断开只停止事件消费，
   不能停止 finalization commit

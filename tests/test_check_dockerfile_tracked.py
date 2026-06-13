@@ -109,6 +109,21 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
+    def test_dockerignore_keeps_agent_runtime_build_inputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertTrue(
+            {
+                "!package.json",
+                "!pnpm-lock.yaml",
+                "!pnpm-workspace.yaml",
+                "!apps/agent-runtime/",
+                "!apps/agent-runtime/**",
+                "!configs/runtime/tool-catalog.v1.json",
+            }.issubset(patterns)
+        )
+
     def test_dockerignore_keeps_execution_control_contract_fixture_inputs(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         patterns = _dockerignore_patterns(repo_root)
@@ -157,6 +172,21 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
 
         self.assertIn(copy_statement, dockerfile)
         self.assertLess(dockerfile.index(copy_statement), dockerfile.index("RUN go test ./..."))
+
+    def test_execution_control_dockerfile_builds_primary_agent_activity_worker(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        dockerfile = (repo_root / "apps/execution-control/Dockerfile").read_text(encoding="utf-8")
+
+        build_statement = (
+            'CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-agent '
+            "./cmd/activity-worker-agent"
+        )
+        copy_statement = (
+            "COPY --from=build /out/activity-worker-agent /usr/local/bin/activity-worker-agent"
+        )
+
+        self.assertIn(build_statement, dockerfile)
+        self.assertIn(copy_statement, dockerfile)
 
     @patch("scripts.check_dockerfile_tracked.shutil.which")
     @patch("scripts.check_dockerfile_tracked.subprocess.run")

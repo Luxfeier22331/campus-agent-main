@@ -27,7 +27,10 @@ from campus_notice_capability.query_service import (
     NoticeGetQuery,
 )
 from campus_notice_capability.sdk_tool_executor import execute_notice_sdk_tool
-from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
+
+from tests.agent.tool_invocation_support import ToolInvocation
+
+OpenAIAgentsToolInvocation = ToolInvocation
 
 
 class _FakeNoticeQueryService:

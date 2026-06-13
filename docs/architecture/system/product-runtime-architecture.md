@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-09
+updated: 2026-06-12
 ---
 # Product Runtime Architecture
 
@@ -32,8 +32,9 @@ workflow-worker / activity-worker-context / activity-worker-knowledge /
 capability workers / activity-worker-finalization -> sanitized projection`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-knowledge /
-capability workers / activity-worker-finalization -> sanitized projection`
+workflow-worker / activity-worker-context / activity-worker-agent /
+activity-worker-knowledge / capability workers / activity-worker-finalization ->
+sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
@@ -75,8 +76,9 @@ model`
 
 - 当前 `public chat` 的 knowledge-only posture 只表示该 surface 当前开放的 capability set
 - 它不等于整个产品的长期入口语义
-- capability-neutral routing 与 surface capability policy 统一由 shared
-  product/runtime + Execution Agent Layer supporting architecture 表达
+- ordinary chat 的目标态 first decision 由 primary agent 在 admitted visible
+  tool set 内完成；surface capability policy 仍由 shared `app-api` 表达，
+  durable admission / projection 仍由 Execution Agent Layer 表达
 
 ## Accepted Surface Shape
 
@@ -227,9 +229,12 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 固定规则：
 
 - 不把某个 surface 当前开放的 capability 直接写成整个 repo 的长期入口原则
-- surface policy 先于 execution routing
-- `app-api` 负责把 surface policy、identity / authz projection 与 request truth 组装为最小
+- surface policy 先于 primary agent tool decision
+- `app-api` 负责把 surface policy、account / session projection 与 request truth 组装为最小
   execution input
+- `app-api` 不选择 product persona、surface prompt profile 或 agent instructions；
+  first Execution Agent decision 由 primary agent runtime 在 `execution-control`
+  裁剪后的 visible tool set 内完成
 
 ### `apps/execution-control`
 
@@ -278,8 +283,8 @@ runtime`
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
     canonical execution truth 在 Temporal workflow / task queue 中；旧 PG lease store
     只保留为 historical migration artifact
-- Python `apps/supervisor-agent-worker`
-  - offline / eval / tooling / historical bridge reference
+- Retired Python semantic bridge code
+  - 已从 active workspace 删除，只可通过 git history 追溯
   - 不参与 online answer serving、staging readiness 或 active product runtime
   - 不拥有 public execution ingress、caller auth、transport admission、provider hot path
     或 RAG step projection truth
@@ -388,9 +393,9 @@ contract 或 auth family route/endpoint truth。
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
 - `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
-- execution public ingress 已 hardcut 到 Go `apps/execution-control`；Python
-  `apps/supervisor-agent-worker` 只保留 offline / eval / tooling / historical bridge
-  reference，不参与 online answer hot path
+- execution public ingress 已 hardcut 到 Go `apps/execution-control`；retired Python
+  semantic bridge code 已从 active workspace 删除，只可通过 git history 追溯，不参与
+  online answer hot path
 
 ## Forbidden Shapes
 

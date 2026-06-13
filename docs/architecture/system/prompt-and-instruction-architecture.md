@@ -22,7 +22,7 @@ updated: 2026-04-25
 - 某个 vendor SDK 的具体调用方式
 - 某个模型版本的最终选型
 - 某次迭代的具体 prompt 文案
-- retrieval / authz / serving truth 的产品级决策
+- retrieval / serving / capability-opening truth 的产品级决策
 
 ## 当前接受的实现基线
 
@@ -45,14 +45,16 @@ code-owned runtime seam。当前接受的实现基线是：
   merged truth；但
   prompt-facing persona / family wording 应使用 `knowledge` 或中性的 knowledge-path
   wording，不再把 `knowledge` 当默认对外标签
-- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_stack.py`
-  负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence
-  packet 组装成 runtime stack
+- retired Python bridge 的 prompt stack 已从 active workspace 删除；developer
+  invariants、role prompt、trusted task packet、untrusted user/evidence packet 的
+  active owner 分别落在 `packages/prompt-runtime`、`packages/knowledge-capability`
+  与 Go-owned execution path
 - `packages/prompt-runtime` 负责 provider-facing prompt contract validation、
   provider-backed strict structured outputs、provider response normalization，并生成
   validated `PromptTrace`
-- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_executor.py`
-  只负责把 worker-local RAG prompt stack 绑定到 `packages/prompt-runtime`
+- active RAG prompt execution 不再通过 Python worker-local executor；Go-owned
+  Temporal RAG path 与 `packages/prompt-runtime` contract 承接 provider-facing
+  validation / normalization / trace
 - provider `refusal`、`incomplete` 与 request/schema failure 必须在 RAG prompt execution
   path fail-close，不得被当作 schema-valid success 放行
 - `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_
@@ -60,7 +62,8 @@ code-owned runtime seam。当前接受的实现基线是：
 - curriculum / handbook 的 deterministic-first protected paths 继续保持
   deterministic-first，不因 prompt rollout 回退成 prompt-first
 - 当前 phase 顺序、剩余 rollout 与 pending work 不在本文维护；应以
-  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md` 为准
+  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native
+  session state 为准
 - full agentic retrieval 的长期 target shape 另见
   `docs/architecture/system/agentic-retrieval-architecture.md`
 
@@ -98,7 +101,7 @@ code-owned runtime seam。当前接受的实现基线是：
 它不允许表达：
 
 - 未 admission 的 scope opening
-- authz 结论
+- account / operator access 结论
 - source-trust 提权
 - unrestricted live/web fallback
 
@@ -108,16 +111,19 @@ code-owned runtime seam。当前接受的实现基线是：
 
 - 新的 text generation app 默认走 Responses API，而不是继续围绕旧 Chat Completions 组织产品主链路
 - 应用拥有的高优先级规则放在 `instructions` / `developer` 层，用户输入与 evidence 继续留在低优先级输入区
+- 工具以结构化 `tools` / function schema 形式暴露给模型，由模型基于 prompt
+  判断是否调用工具；不能把工具选择协议写成自然语言假 schema，也不能把每个
+  产品介绍或寒暄拆成 tool / capability
 - untrusted content 不进入 developer instruction zone；节点间数据交换尽量走 strict structured
   outputs，而不是自由文本通道
 - prompt / model 变更应绑定持续 eval，而不是只靠人工感受或一次性 smoke
 
 对应官方资料：
 
-- OpenAI Prompting
-  - `<https://platform.openai.com/docs/guides/prompting`>
-- OpenAI Responses vs Chat Completions
-  - `<https://platform.openai.com/docs/guides/responses-vs-chat-completions`>
+- OpenAI Responses migration guide
+  - `<https://developers.openai.com/api/docs/guides/migrate-to-responses#responses-benefits>`
+- OpenAI tools guide
+  - `<https://developers.openai.com/api/docs/guides/tools>`
 - OpenAI Structured Outputs
   - `<https://platform.openai.com/docs/guides/structured-outputs`>
 - OpenAI Evaluation Best Practices
@@ -137,7 +143,7 @@ code-owned runtime seam。当前接受的实现基线是：
 禁止退化为：
 
 - `prompt-first orchestration`
-- 用 prompt 软约束代替 authz / serving filter
+- 用 prompt 软约束代替 serving filter、capability opening gate 或 source-trust gate
 - 把 retrieval snippets 或 external content 直接拼进 trusted instructions 区
 - 用一份 monolithic mega prompt 覆盖所有 agent、所有 mode、所有数据面
 
@@ -145,12 +151,11 @@ code-owned runtime seam。当前接受的实现基线是：
 
 以下内容长期不得依赖 prompt-only 软约束：
 
-- authz / visibility / entitlement 决策
 - current query-enabled scope
 - runtime profile / serving alias / release manifest
 - fail-close deny path
-- restricted document title / snippet 泄漏控制
-- irreversible action gate 或 approval gate
+- capability opening / readiness gate
+- source-trust / freshness gate
 
 这些 truth 继续由：
 
@@ -168,7 +173,6 @@ code-owned runtime seam。当前接受的实现基线是：
 它不能替代：
 
 - runtime profile / serving posture
-- authz / visibility enforcement
 - freshness gate
 - source-trust admission
 - candidate set 与 supporting evidence 的分层
@@ -202,16 +206,18 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 - `unsupported_by_evidence` 当前问题在范围内，但没有足够依据支持安全作答
 - `out_of_scope` 当前问题不属于当前 institution / capability / serving surface 所承接的产品范围
 - `policy_refusal` 当前问题触发平台或产品级禁止事项
-- `restricted_access_denied` 当前问题相关内容存在，但当前 actor 无权读取
-- `approval_required` 当前请求涉及不可直接执行的高风险动作
+- `capability_not_ready` 当前问题属于校园问答目标，但对应能力尚未达到主链路 opening gate
+- `source_truth_unavailable` 当前问题需要的 source truth 或 current-state truth 尚不可可靠消费
 
 补充约束：
 
 - transport / runtime status 可以在过渡期继续保持 `completed`、`needs_clarification`、`no_an
   swer`、`rejected`、`approval_required`、`error`
 - 但 observability、eval truth、prompt packet 与 operator projection 长期不得再把 `out_of_
-  scope`、`unsupported_by_evidence`、`policy_refusal`、`restricted_access_denied`
-  混成一个模糊的 `no_answer`
+  scope`、`unsupported_by_evidence`、`policy_refusal`、`capability_not_ready` 与
+  `source_truth_unavailable` 混成一个模糊的 `no_answer`
+- `capability_not_ready` 与 `source_truth_unavailable` 是 internal / operator vocabulary；
+  用户可见文案应映射为“当前无法自动查询”“暂无可靠来源确认”或等价表达，不直接暴露内部 capability 名称。
 - 如果当前 contract 尚未升级，这些语义至少也要以显式 `semantic_outcome` / `refusal_class` /
   `no_answer_reason` 投影存在
 
@@ -249,7 +255,7 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 - replan 必须显式记录原因
 - replan 次数必须受 budget 约束
 - planner 无法产出 admitted plan 时直接 fail-close
-- 不能因为第一次召回不理想，就隐式放宽 scope / authz / freshness 约束
+- 不能因为第一次召回不理想，就隐式放宽 scope / source-trust / freshness 约束
 
 ## 敏感主题处理规则
 
@@ -307,9 +313,9 @@ unsupported`
 
 - 对 freshness-sensitive 问题假装自己掌握最新状态
 
-1. `authorization hallucination`
+1. `boundary hallucination`
 
-- 用未授权或隐藏内容补答案，或泄漏 restricted title / snippet
+- 把未开放 capability、未可靠摄入的 current-state truth 或内部 source material 包装成可确认答案
 
 repo 的 hallucination control 必须分别针对这五类做 gate，而不是统一归类成“prompt 质量问题”。
 
@@ -336,7 +342,7 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 
 ### `packages/retrieval-core` ownership
 
-- 只拥有 retrieval / evidence shaping / authz filter execution
+- 只拥有 retrieval / evidence shaping / admitted source constraint execution
 - 不拥有 top-level policy refusal 或 product scope judgement
 
 ### prompt family
@@ -353,7 +359,7 @@ repo 级 instruction hierarchy 固定拆成五层：
 
 - 来自产品边界、架构边界、安全边界
 - 例如当前 `Execution Agent Layer-led orchestration`、`capability contract`、
-  `restricted deny no leak`
+  `source truth and capability opening gate`
 
 1. `role instructions`
 
@@ -387,16 +393,31 @@ repo 级 instruction hierarchy 固定拆成五层：
 当前实现边界：
 
 - `apps/execution-control`
-  - owns prompt config admission summary and deterministic terminal envelopes
-- `apps/supervisor-agent-worker`
-  - owns RAG prompt runtime assembly and provider client binding
+  - owns execution admission, first decision activity scheduling, prompt config
+    admission summary, deterministic terminal envelopes and sanitized
+    finalization/projection
+- `apps/agent-runtime`
+  - owns primary agent SDK instructions, model-visible strict tool schemas,
+    tool-call loop, direct/no-tool final output and SDK trace normalization
 - `packages/prompt-runtime`
-  - owns prompt contract validation, provider structured output execution,
-    provider response normalization and prompt trace construction
+  - owns provider-facing prompt contract validation, structured output execution,
+    provider response normalization and prompt trace construction for
+    knowledge/RAG synthesis and other explicit provider activities
 - `packages/knowledge-capability`
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
 - `apps/app-api`
   - 只消费 observability-safe prompt metadata，不参与 prompt assembly
+
+补充约束：
+
+- `apps/app-api` 不选择 `product persona` 或 `surface prompt profile`；它只投影
+  surface/session/account context 与 allowed capability/tool set
+- `system prompt` 在产品语义上必须影响第一模型决策；当前实现 owner 是
+  `apps/agent-runtime` primary agent instructions，而不是 browser surface 或
+  app-api route handler
+- `assistant_intro` / `product_meta` 不作为 prompt family 或 capability；产品身份、
+  能力边界、普通寒暄由 first Execution Agent decision 的 direct/no-tool
+  terminal branch 处理
 
 禁止事项：
 
@@ -422,9 +443,9 @@ typed packet。
 推荐的 repo-global system block 只包含以下语义：
 
 - 你属于一个 `institution-scoped campus assistant`
-- 你不得改写 policy / authz / serving-surface / scope truth
+- 你不得改写 policy / serving-surface / capability-opening / scope truth
 - 你不得用开放域世界知识补齐 institution-specific 缺口
-- 如果请求是 `unsupported`、`ambiguous`、`unauthorized` 或 `not grounded by evidence`，必须
+- 如果请求是 `unsupported`、`ambiguous`、`not opened` 或 `not grounded by evidence`，必须
   abstain 或要求澄清
 - 输出必须满足 typed schema，并接受 code-side finalization
 
@@ -432,10 +453,10 @@ typed packet。
 
 ```text
 You are an institution-scoped campus assistant.
-Never override policy, authorization, serving-surface, or scope truth supplied
+Never override policy, capability-opening, serving-surface, or scope truth supplied
 by code and typed packets.
 Never use open-world knowledge to fill institution-specific gaps.
-If the request is ambiguous, unauthorized, unsupported, or not grounded by
+If the request is ambiguous, not opened, unsupported, or not grounded by
 evidence, abstain or ask for clarification.
 Return only schema-compliant output. Code-side finalization is authoritative.
 ```
@@ -449,7 +470,7 @@ Return only schema-compliant output. Code-side finalization is authoritative.
 它不负责：
 
 - routing
-- authz
+- capability opening
 - query-enabled surface 判定
 - retrieval planning
 - answer finalization
@@ -483,7 +504,7 @@ structured output + code-side finalization`
 因此，repo 最终不追求：
 
 - 一份更长的总 system prompt
-- 把 routing / authz / serving truth 写成 prompt 文案
+- 把 routing / capability-opening / serving truth 写成 prompt 文案
 - 把 prompt 当作 agent graph 的唯一真相源
 
 repo 最终追求的是：
@@ -546,7 +567,7 @@ repo 当前推荐的 system / role 设计固定为：
 ### Execution Runtime Prompt Boundary
 
 - 不拥有长期 prompt 文案
-- 只负责 execution admission、transport、request packaging
+- 只负责 execution admission、transport、request packaging 与 first decision frame
 - owns deterministic execution terminal wording
 - owns runtime policy / routing frame / handoff projection
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
@@ -556,7 +577,7 @@ repo 当前推荐的 system / role 设计固定为：
 - owns knowledge-path / `knowledge` role instructions
 - owns answer / clarify / no-answer / unsupported prompt families
 - owns evidence-to-answer prompt packet assembly
-- 不拥有 authz truth、serving truth、product identity truth
+- 不拥有 account truth、operator access truth、serving truth 或 capability-opening truth
 
 ### `packages/retrieval-core`
 
@@ -567,11 +588,15 @@ repo 当前推荐的 system / role 设计固定为：
 
 每个 agent 不维护一份“大 prompt”，而维护 `prompt family + mode`。
 
-当前 production execution terminal path 不再维护 prompt family；clarify /
-approval-required / out-of-scope / reject 的 deterministic terminal wording 由 Go
-`execution-control` 的 direct terminal path 承接。若后续重新引入 LLM-assisted execution
-wording，必须作为新的显式 workstream 重新定义 prompt family、eval gate 与 code
-finalization，不得复用已删除的旧 execution prompt assets。
+当前 production execution terminal path 不维护独立 synthetic prompt family。
+`apps/agent-runtime` primary agent 可以产生 direct/no-tool terminal answer、
+`clarification_required`、`out_of_scope` 与 `unsupported_by_evidence` 等 terminal
+reason；Go `execution-control` 负责把它们 finalization 为 product-safe response 和
+sanitized projection。该路径必须复用 repo-global invariants、execution role
+instructions、typed task packet 与 strict tool/output contract，不得新增
+`assistant_intro` 或 product-persona prompt family。若后续重新引入更复杂的
+LLM-assisted execution wording，必须作为新的显式 workstream 重新定义 prompt family、
+eval gate 与 code finalization，不得复用已删除的旧 execution prompt assets。
 
 ### Knowledge Path (`packages/knowledge-capability`)
 
@@ -734,7 +759,7 @@ prompt 只能消费已经过 code 过滤的 personalization inputs。
 一致：
 
 - personalization 可以影响 wording、clarification、preference
-- 不能扩大 visibility / entitlement truth
+- 不能扩大 capability opening、source trust、account/session 或 operator access truth
 
 ## Observability And Storage
 
@@ -781,8 +806,9 @@ prompt 变更不是纯文案改动，而是 release-relevant change。
 
 1. `policy gate`
 
-- clarify / no-answer / deny-path / approval-required 是否正确
-- `policy_refusal`、`out_of_scope`、`restricted_access_denied` 的区分是否正确
+- clarify / no-answer / deny-path 是否正确
+- `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`capability_not_ready`
+  与 `source_truth_unavailable` 的区分是否正确
 
 1. `quality gate`
 
@@ -797,7 +823,7 @@ prompt 变更不是纯文案改动，而是 release-relevant change。
 - `student_rules` live accept
 - `curriculum_plan` live accept
 - alias / family ambiguity regression
-- restricted deny / fail-close regression
+- capability-not-open / source-unavailable / fail-close regression
 - out-of-scope / policy-refusal / unsupported-by-evidence regression
 
 prompt version bump 必须与 eval artifact 一起进入变更记录。
@@ -821,9 +847,10 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - 回答中的关键对象名、条件、时间、数量和制度名，必须能在 evidence packet 找到支持
 - 如果关键 claim 找不到支持，应 fail closed 为 `unsupported_by_evidence`
 
-1. `deny-path gate`
+1. `boundary gate`
 
-- restricted / hidden / unauthorized 内容不得通过 wording 绕出站
+- 未开放 capability、未可靠摄入的 current-state truth 或内部 source material 不得通过 wording
+  包装成可确认答案
 
 1. `freshness gate`
 
@@ -856,7 +883,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - Execution Agent Layer routing
 - deterministic execution terminal wording
-- authz / visibility gate
+- capability opening gate
 - serving-surface filter
 - retrieval planning
 - canonical entity / alias resolution
@@ -872,7 +899,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - curriculum 课程表 / 学期课表高结构答案
 - handbook procedure / materials / time 的高精度 deterministic path
-- restricted deny path final safety semantics
+- unavailable / not-open final safety semantics
 
 原因：
 
@@ -901,15 +928,15 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - `apps/execution-control` 已承担 prompt config admission summary；online RAG
   synthesis 由 Go provider adapter 创建 provider request、抽取 usage/cost、
   记录 cancel/timeout outcome，并将 sanitized provider summary 写入 step
-  projection。Python `apps/supervisor-agent-worker` 不再拥有 online provider
-  hot path，只保留 offline / eval / tooling / historical bridge reference
+  projection。Python `apps/supervisor-agent-worker` 已从 active workspace 删除，
+  不再拥有 online provider hot path
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture
 - Execution Agent Layer 的 `policy gate + scope gate` 与 knowledge-path grounding
   validator 共同承担 prompt-side hallucination control，而不是把控制责任退回
   “更长的 system prompt”
 - `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与
-  restricted deny final semantics 继续保持 deterministic-first protected path
+  not-open / unavailable final semantics 继续保持 deterministic-first protected path
 
 仍属当前 follow-up 但不在本文维护执行顺序的工作：
 
@@ -918,17 +945,17 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - prompt-family live gate artifact 的持续更新
 
 这些工作属于当前项目级 active lane，执行顺序与完成状态以
-`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、对应 workstream `STATE.md` 与对应
-active plan 为准。
+`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native
+session state 为准。
 
 ## 外部参考
 
 以下外部资料用于 informing best practice，不替代 repo 内 source of truth：
 
-- OpenAI Prompting
-  - `<https://platform.openai.com/docs/guides/prompting`>
-- OpenAI Responses vs Chat Completions
-  - `<https://platform.openai.com/docs/guides/responses-vs-chat-completions`>
+- OpenAI Responses migration guide
+  - `<https://developers.openai.com/api/docs/guides/migrate-to-responses#responses-benefits>`
+- OpenAI tools guide
+  - `<https://developers.openai.com/api/docs/guides/tools>`
 - OpenAI Structured Outputs
   - `<https://platform.openai.com/docs/guides/structured-outputs`>
 - OpenAI Evaluation Best Practices

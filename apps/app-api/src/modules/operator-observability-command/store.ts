@@ -200,6 +200,7 @@ export function createPgOperatorObservabilityCommandStore(
 						supportingDocIdsJson: badcase.supportingDocIds,
 						surfaceKey: badcase.surfaceKey,
 						thresholdMilli: badcase.thresholdMilli,
+						trajectoryAttributionJson: badcase.trajectoryAttribution,
 					});
 				}
 			});

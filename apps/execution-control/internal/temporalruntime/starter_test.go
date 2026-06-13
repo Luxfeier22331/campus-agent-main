@@ -13,6 +13,7 @@ func TestNormalizeActivityTaskQueuesIncludesOpenedCapabilityQueues(t *testing.T)
 
 	want := []string{
 		ActivityTaskQueueContext,
+		ActivityTaskQueueAgent,
 		ActivityTaskQueueKnowledge,
 		ActivityTaskQueueFinalization,
 		ActivityTaskQueueCampusService,

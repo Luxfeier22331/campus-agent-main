@@ -65,7 +65,8 @@ Accepted on 2026-04-23.
   execution service` 作为 accepted truth
 - runbook 必须把当前 execution runtime truth 写成：
   `execution-control + Temporal + workflow-worker + activity-worker-context +
-  activity-worker-knowledge + activity-worker-campus-services +
+  agent-runtime + activity-worker-agent + activity-worker-knowledge +
+  activity-worker-campus-services +
   activity-worker-notice + activity-worker-navigation +
   activity-worker-finalization + worker-autoscaler`
 - dev-backed staging 兼容路径已退出 active runbook / script surface

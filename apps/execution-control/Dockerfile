@@ -25,6 +25,7 @@ RUN go test ./... \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/workflow-worker ./cmd/workflow-worker \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-context ./cmd/activity-worker-context \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-agent ./cmd/activity-worker-agent \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-knowledge ./cmd/activity-worker-knowledge \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-campus-services ./cmd/activity-worker-campus-services \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-notice ./cmd/activity-worker-notice \
@@ -42,6 +43,7 @@ RUN apt-get update \
 COPY --from=build /out/execution-control /usr/local/bin/execution-control
 COPY --from=build /out/workflow-worker /usr/local/bin/workflow-worker
 COPY --from=build /out/activity-worker-context /usr/local/bin/activity-worker-context
+COPY --from=build /out/activity-worker-agent /usr/local/bin/activity-worker-agent
 COPY --from=build /out/activity-worker-knowledge /usr/local/bin/activity-worker-knowledge
 COPY --from=build /out/activity-worker-campus-services /usr/local/bin/activity-worker-campus-services
 COPY --from=build /out/activity-worker-notice /usr/local/bin/activity-worker-notice

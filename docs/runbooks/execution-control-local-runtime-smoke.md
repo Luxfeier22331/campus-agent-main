@@ -10,7 +10,8 @@ updated: 2026-04-24
 
 这份 runbook 覆盖本地 `execution-control` Temporal runtime smoke。面向本地开发时优先使用
 Docker compose runtime，因为当前 online answer path 需要 Temporal、run projection store、
-workflow worker、RAG activity worker 与 finalization activity worker 同时存在。
+workflow worker、primary agent runtime/worker、RAG activity worker 与 finalization
+activity worker 同时存在。
 
 它回答的是：
 
@@ -39,6 +40,8 @@ workflow worker、RAG activity worker 与 finalization activity worker 同时存
   - `POST /internal/execution/runs/:runId/cancel`
 - `workflow-worker`
 - `activity-worker-context`
+- `agent-runtime`
+- `activity-worker-agent`
 - `activity-worker-knowledge`
 - `activity-worker-campus-services`
 - `activity-worker-notice`
@@ -64,13 +67,6 @@ export EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE=true
 export EXECUTION_CONTROL_TEMPORAL_ADDRESS=127.0.0.1:7233
 export EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
 export EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=local:execution-control:001
-export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=local:workflow-worker:001
-export EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=local:activity-context:001
-export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=local:activity-knowledge:001
-export EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=local:activity-campus-services:001
-export EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=local:activity-notice:001
-export EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=local:activity-navigation:001
-export EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=local:activity-finalization:001
 export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=local-workflow-salt
 ```
 
@@ -80,7 +76,14 @@ export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=local-workflow-salt
 export EXECUTION_CONTROL_DOCKER_GOPROXY=https://goproxy.cn,direct
 export EXECUTION_CONTROL_DOCKER_GOSUMDB=sum.golang.org
 export API_AUTH_MODE=trusted-worker
-export AGENT_RUNTIME_PROVIDER=mock-runtime
+export EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://127.0.0.1:27062
+export EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret
+export EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=structured-query-secret
+export AGENT_RUNTIME_PORT=27062
+export AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret
+export AGENT_RUNTIME_TOOL_CATALOG_PATH=configs/runtime/tool-catalog.v1.json
+export AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL=http://127.0.0.1:27051
+export AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET=structured-query-secret
 export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
 export EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS=8
 export EXECUTION_CONTROL_QUEUE_CAPACITY=24
@@ -97,8 +100,9 @@ export EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000
 
 说明：
 
-- 本地 smoke 必须配置 Temporal、projection store、Qdrant、embedding provider 与 prompt
-  provider；缺任一时 `/readyz` 应 fail closed
+- 本地 smoke 必须配置 Temporal、projection store、agent-runtime、Qdrant、
+  embedding provider 与 prompt provider；缺任一时 `/readyz` 或对应 activity
+  应 fail closed
 - `EXECUTION_CONTROL_DOCKER_GOPROXY` 是 Go module proxy，不是 Docker registry mirror；本地默认可用
   `goproxy.cn` 缓解 `proxy.golang.org` TLS handshake timeout
 - 不要把 `EXECUTION_CONTROL_DOCKER_GOSUMDB` 设为 `off`；保持 `sum.golang.org` 继续校验

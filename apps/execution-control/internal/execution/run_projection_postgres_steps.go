@@ -103,6 +103,9 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 		attempt.PricingVersion,
 		string(attempt.CancelOutcome),
 		string(attempt.TimeoutOutcome),
+		string(attempt.LateCompletionOutcome),
+		attempt.FailCloseReason,
+		attempt.ReplanReason,
 		attempt.TerminalReason,
 		attempt.UpdatedAt,
 		attempt.PayloadSchemaVersion,
@@ -120,16 +123,17 @@ const runProjectionPostgresStepAttemptUpsertSQL = `insert into runtime.agent_ste
 	scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 	provider_request_ref, provider_response_id, model_provider, model_name,
 	input_tokens, output_tokens, cached_input_tokens, estimated_cost_microusd,
-	pricing_version, cancel_outcome, timeout_outcome, terminal_reason,
-	updated_at, payload_schema_version, sanitized_payload_json
+	pricing_version, cancel_outcome, timeout_outcome, late_completion_outcome,
+	fail_close_reason, replan_reason, terminal_reason, updated_at,
+	payload_schema_version, sanitized_payload_json
 ) values (
 	$1, $2, $3, $4, $5, $6, $7,
 	$8, $9, $10, $11, $12,
 	$13, $14, $15, $16, $17,
 	$18, $19, $20, $21,
 	$22, $23, $24, $25,
-	$26, $27, $28, $29,
-	$30, $31, $32
+	$26, $27, $28, $29, $30, $31, $32,
+	$33, $34, $35
 )
 on conflict (attempt_id) do update set
 	step_id = excluded.step_id,
@@ -159,6 +163,9 @@ on conflict (attempt_id) do update set
 	pricing_version = excluded.pricing_version,
 	cancel_outcome = excluded.cancel_outcome,
 	timeout_outcome = excluded.timeout_outcome,
+	late_completion_outcome = excluded.late_completion_outcome,
+	fail_close_reason = excluded.fail_close_reason,
+	replan_reason = excluded.replan_reason,
 	terminal_reason = excluded.terminal_reason,
 	updated_at = excluded.updated_at,
 	payload_schema_version = excluded.payload_schema_version,
@@ -256,8 +263,9 @@ func (s *PostgresRunProjectionStore) ListStepAttempts(
 			scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 			provider_request_ref, provider_response_id, model_provider, model_name,
 			input_tokens, output_tokens, cached_input_tokens, estimated_cost_microusd,
-			pricing_version, cancel_outcome, timeout_outcome, terminal_reason,
-			updated_at, payload_schema_version, sanitized_payload_json
+			pricing_version, cancel_outcome, timeout_outcome, late_completion_outcome,
+			fail_close_reason, replan_reason, terminal_reason, updated_at,
+			payload_schema_version, sanitized_payload_json
 		from runtime.agent_step_attempts
 		where run_id = $1
 		order by started_at nulls last, attempt_id`,
@@ -370,6 +378,7 @@ func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 	var completedAt *time.Time
 	var cancelOutcome string
 	var timeoutOutcome string
+	var lateCompletionOutcome string
 	if err := row.Scan(
 		&attempt.AttemptID,
 		&attempt.StepID,
@@ -399,6 +408,9 @@ func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 		&attempt.PricingVersion,
 		&cancelOutcome,
 		&timeoutOutcome,
+		&lateCompletionOutcome,
+		&attempt.FailCloseReason,
+		&attempt.ReplanReason,
 		&attempt.TerminalReason,
 		&attempt.UpdatedAt,
 		&attempt.PayloadSchemaVersion,
@@ -417,6 +429,7 @@ func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 	}
 	attempt.CancelOutcome = CancelOutcome(cancelOutcome)
 	attempt.TimeoutOutcome = TimeoutOutcome(timeoutOutcome)
+	attempt.LateCompletionOutcome = LateCompletionOutcome(lateCompletionOutcome)
 	payload, err := scanJSONMap(payloadRaw)
 	if err != nil {
 		return StepAttemptProjection{}, err

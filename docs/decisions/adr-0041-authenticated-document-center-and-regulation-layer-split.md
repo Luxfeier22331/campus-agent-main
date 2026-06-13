@@ -1,17 +1,37 @@
 ---
 doc_type: decision
 decision_id: ADR-0041
-status: accepted
+status: superseded
 created: 2026-04-14
-updated: 2026-04-15
+updated: 2026-06-12
 ---
 # ADR-0041 Authenticated Document Center And Regulation Layer Split
 
 ## 状态
 
-Accepted on 2026-04-14.
+Superseded on 2026-06-12.
 
-## 背景
+本文不再是当前 Campus Assistant 主问答产品的目标态决策。它曾把 authenticated document
+center / restricted attachment library 作为受限产品面进行设计；当前产品边界不包含受限文档中心、内部文件库、
+身份差异化下载面或 approval-style 文档访问。
+
+仍有效的部分只限于 semantic collection 边界：
+
+- `regulations/*` 只能承接 semantic-owner canonical text。
+- notice wrapper、原始附件目录、模板、表格、操作手册、FAQ 与 released original
+  不得仅因“有价值”就进入 regulation collection。
+- source provenance、original asset 与 semantic-owner promoted document 必须分层。
+
+不再有效的部分包括：
+
+- authenticated document center 作为 planned product surface。
+- restricted metadata search / restricted original download。
+- per-resource authorization projection 作为当前主问答目标。
+- 学生 / 教职工 / 部门差异化文档站权限。
+
+如果未来重新提出文档中心产品，必须按新的产品边界、source truth 与后台编辑需求另起 ADR；不能把本文当成已接受的前向目标。
+
+## 历史背景
 
 `authenticated_notice_portal` 这条 source channel 目前已经冻结了几条关键边界：
 
@@ -48,7 +68,7 @@ Accepted on 2026-04-14.
 - 让 document download/access truth 倒挂到 retrieval corpus
 - 把“已认证用户可下载”偷换成“应该进入 regulation/RAG 语义层”
 
-## 决策
+## 历史决策
 
 ### 决策 1：`regulations/*` 继续只承接 semantic-owner canonical text
 
@@ -190,7 +210,7 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 
 而不是 regulation collection。
 
-## 结果
+## 历史结果
 
 直接结果如下：
 
@@ -202,7 +222,7 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 - 后续扩大 authenticated notice / file release 采集时，不再需要把“是否对用户有价值”错误改写成“是否应进入
   regulation”
 
-## Supporting Rationale
+## Historical Supporting Rationale
 
 - OWASP Authorization Cheat Sheet 明确要求 deny-by-default、least
   privilege，并把授权校验视为每个资源访问的硬要求：
@@ -222,7 +242,7 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 - 而是“document center 持有 originals 与 access truth，semantic collections 持有
   canonical text 与 retrieval truth”
 
-## Related Docs
+## Historical Related Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`

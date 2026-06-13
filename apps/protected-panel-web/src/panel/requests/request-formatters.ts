@@ -9,6 +9,8 @@ import type {
 	RequestRuntimeRunSummary,
 } from "../types";
 
+export { buildRequestStepTrajectoryEntries } from "./request-step-trajectory-formatters";
+
 export const CURRENT_RUNTIME_TARGET_OPTIONS = [
 	{ label: "检索专家", value: "knowledge" },
 	{ label: "导航能力", value: "navigation" },
@@ -26,20 +28,6 @@ export function formatDuration(durationMs: number | null) {
 	}
 
 	return `${(durationMs / 1000).toFixed(2)} s`;
-}
-
-function formatTokenCostSummary(input: {
-	estimatedCostMicrousd: number;
-	inputTokens: number;
-	outputTokens: number;
-}) {
-	const inputTokens = Number.isFinite(input.inputTokens) ? input.inputTokens : 0;
-	const outputTokens = Number.isFinite(input.outputTokens) ? input.outputTokens : 0;
-	const estimatedCostMicrousd = Number.isFinite(input.estimatedCostMicrousd)
-		? input.estimatedCostMicrousd
-		: 0;
-	const cost = estimatedCostMicrousd > 0 ? `${estimatedCostMicrousd} microUSD` : "cost=0";
-	return `tokens=${inputTokens}/${outputTokens} · ${cost}`;
 }
 
 export function formatScope(scope: Record<string, unknown> | null) {
@@ -397,6 +385,32 @@ function formatRuntimeRunEventSummary(event: RequestRuntimeRunEventSummary | nul
 	)}`;
 }
 
+export type RequestStepTrajectoryEntry =
+	| {
+			kind: "summary";
+			metrics: string;
+	  }
+	| {
+			attempts: string;
+			capability: string;
+			diagnosticGroups: Array<{
+				items: string[];
+				kind: "agent" | "provider" | "replan" | "runtime" | "terminal";
+			}>;
+			diagnostics: string[];
+			duration: string;
+			kind: "step";
+			latestResultRef: string;
+			model: string;
+			providerRequestRef: string;
+			status: string;
+			stepId: string;
+			stepKind: string;
+			taskQueue: string;
+			tokenCost: string;
+			workerId: string;
+	  };
+
 export function buildRequestRuntimeRunEntries(run: RequestRuntimeRunSummary | null | undefined) {
 	if (!run) {
 		return [];
@@ -440,40 +454,6 @@ export function buildRequestRuntimeRunEntries(run: RequestRuntimeRunSummary | nu
 				`eval=${run.eventSummary.visibilityCounts.eval}`,
 			].join(" · "),
 		},
-	];
-}
-
-export function buildRequestStepTrajectoryEntries(
-	trajectory: RequestRuntimeRunSummary["stepTrajectory"] | null | undefined,
-) {
-	if (!trajectory) {
-		return [];
-	}
-
-	return [
-		{
-			label: "Step 总数",
-			value: `${trajectory.steps.length} · attempts=${trajectory.attemptCount} · results=${trajectory.resultCount}`,
-		},
-		...trajectory.steps.map((step) => ({
-			label: step.stepKind || step.stepId,
-			value: [
-				step.status || PANEL_COPY.unknown,
-				step.taskQueue || PANEL_COPY.unknown,
-				step.workerId || PANEL_COPY.unknown,
-				`attempts=${step.attemptCount}`,
-				`results=${step.resultCount}`,
-				`queue=${formatDuration(step.queueWaitMs)}`,
-				`duration=${formatDuration(step.durationMs)}`,
-				step.modelProvider && step.modelName
-					? `${step.modelProvider}/${step.modelName}`
-					: PANEL_COPY.notAvailable,
-				formatTokenCostSummary(step),
-				`cancel=${step.cancelOutcome || PANEL_COPY.none}`,
-				`timeout=${step.timeoutOutcome || PANEL_COPY.none}`,
-				step.latestResultRef || PANEL_COPY.none,
-			].join(" · "),
-		})),
 	];
 }
 

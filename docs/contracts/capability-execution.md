@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-06-04
+updated: 2026-06-11
 ---
 # App API Capability Execution Contract
 
@@ -44,15 +44,15 @@ durable runtime contract 为当前 canonical source。`capability-execution.open
 - `docs/contracts/schemas/capability-execution.openapi.yaml`：OpenAPI 3.1.1 +
   JSON Schema 2020-12，冻结 capability execution request / response、runtime
   decisions summary 与 workflow trace summary 的 wire shape
-- `scripts/generate_capability_execution_contracts.py`：从上述 schema 生成三种 runtime
+- `scripts/generate_capability_execution_contracts.py`：从上述 schema 生成 active runtime
   artifact
 - `apps/app-api/src/modules/integration/generated/capability-execution-contract.ts`：Worker
   adapter 消费的 TS wire enum / interface
 - `apps/execution-control/internal/contracts/capability_execution_contract.go`：Go
   execution runtime 消费的 execution contract version、response contract 与 wire DTO
-- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/capability_execution_contract.py`：
-  offline eval / historical bridge tooling 可消费的 Pydantic DTO；不得重新接入
-  online serving path
+- Python bridge Pydantic DTO 已随 retired worker 从 active workspace 删除；如需
+  offline historical comparison，应从 git history 恢复到隔离环境，不能作为 active
+  generated artifact 或 serving seam
 
 生成物必须通过以下命令保持同步：
 
@@ -111,7 +111,8 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - `runtime_decision_summary_schema_version`：operator / eval 消费的 runtime decision
   summary shape 变化时必须 bump
 - `workflow_trace_summary_version`：sanitized workflow trace summary 的 operator-visible
-  shape 变化时必须 bump
+  compatibility summary shape 变化时必须 bump；它不是 canonical diagnostic
+  projection，不能替代 step / attempt / result projection
 
 修改这些字段或对应 shape 时，必须同步：
 
@@ -120,26 +121,46 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - 更新共享 fixture matrix 中的 canonical valid / invalid 样本
 - 更新 `multi-agent-runtime-contract` gate 或对应 targeted tests
 
-`plan.route` 是 current durable planning contract。它从 capability-neutral
-`execution_payload` 生成 resolved branch steps，并把 selected capability、typed tool、
-payload kind、worker role 与 branch mode 写入 sanitized projection。当前 online path 不再把
-真实 delegate payload 送入 Python bridge，也不把旧 `runtime_decisions` 作为规划输入。
-selected notice context + knowledge follow-through 会被 resolver 编译为 typed tool
-step + knowledge step。typed tool 输出会被 `execution-control` 投影成 canonical
-`StepOutputProjection`，再以 bounded result ref 输入后续 RAG step。operator / eval
-可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
-`projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
-notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace
-至少包含两个 ordered capability steps。semantic retry/replan 与 resumable resume
-仍不是当前 public contract 承诺；它们需要由 `WorkflowPlan` policy、
-Temporal activity graph 与 sanitized projection 一起落地，不能只声明字段。
+`agent.primary` 是 current durable first-decision contract。它在
+`context.memory_recall` 之后执行，由 `activity-worker-agent` 调用
+`apps/agent-runtime`，后者使用 OpenAI Agents SDK 暴露 repo-owned
+`tool-catalog.v1` 中的 model-visible read-only tools。`agent.primary` 可以返回
+direct/no-tool terminal outcome，不产生 capability handoff；也可以选择
+`knowledge_query` workflow-signal tool 进入 Go-owned RAG Temporal graph，或选择
+campus-services / notice typed read-only tool。所有 SDK selected tools、bounded tool
+result refs、SDK trace ref、usage summary 与 terminal reason 都必须写入 sanitized
+step / attempt / result projection，再由 `app-api` operator read model、panel 与 eval
+消费。model-visible tool schema 以 canonical `tool_function_schemas.v1` fixture 为准；
+agent-runtime 必须把实际 tool call arguments 作为 `arguments_json` 返回给
+execution-control，execution-control 必须在投影 typed tool result 前按 canonical schema
+验证，schema drift 作为 `schema_contract_drift` fail-close step 处理。
+
+`requested_capability` 在 forward contract 中只是 explicit caller hint /
+compatibility field。普通 chat 缺失该字段时，不得由 `app-api` 或
+`execution-control` 伪造成 `knowledge`；first decision 应由 `agent.primary` 在
+surface / workflow 已裁剪的 visible tool set 内完成。当前 Go `execution-control`
+已按该 contract 保持 ordinary chat capability-neutral；neutral memory recall 使用
+`any` capability filter，direct/no-tool finalization 归因到 `primary_agent`。
+
+`plan.route -> capability branch` 仍是 retained deterministic support path，而不是当前
+online first decision owner。`retrieval.query` 保持 knowledge capability 内部 closed
+tool；primary agent 不接收 corpus、collection、top-k 或 raw retrieval query slot。
+selected notice context + knowledge follow-through 仍可在 support path 内被 resolver
+编译为 typed tool step + knowledge step。typed tool 输出会被 `execution-control` 投影成
+canonical `StepOutputProjection`，再以 bounded result ref 输入后续 RAG step。
+operator / eval 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized compatibility
+summary：`projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与
+`safety`，不包含 notice 正文 payload。semantic retry/replan 与 resumable resume
+仍不是当前 public contract 承诺；它们需要由 `WorkflowPlan` policy、Temporal activity
+graph 与 sanitized projection 一起落地，不能只声明字段。
 
 ## 设计原则
 
 长期执行链路固定为：
 
 `public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow/activity workers -> sanitized projection -> app-api response / stream`
+workflow/activity workers -> sanitized run event + step/attempt/result projection
+-> app-api response / stream / operator read model`
 
 这里的关键规则只有三条：
 
@@ -148,6 +169,8 @@ workflow/activity workers -> sanitized projection -> app-api response / stream`
   `execution-control`
 - `execution-control` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层
   auth/session/conversation
+- panel、eval、badcase 与 release evidence 只能消费 app-api materialized projection；
+  `workflow_trace_summary` 只作为兼容摘要，主诊断事实源是 step trajectory
 - `execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service；这不改变本文冻结的 request/response 语义
 
@@ -299,14 +322,17 @@ product/control-plane endpoint。
 - `campus_notice_discover` 与 internal selected notice resolve
   (`payload_kind=campus_notice_get`) 已具备 Go-owned PG read-model 与
   S3-compatible source-backed bounded context query runtime；notice 请求使用
-  `payload + access_context` envelope 以在 Go 内执行 restricted notice fail-close
-  authorization
+  `payload + access_context` envelope 以在 Go 内执行 source-family、read-model 与
+  fail-close constraints
 - Python orchestration 仅在 execution runtime harness 注入
   `EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL` 与 `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
   时消费该 internal query seam
 - 这不打开 `campus_services` 或 `notice` 产品 serving surface；产品主路由 opening gate 仍需
   release-gate regression / eval evidence
   与 app-owned observability 证据
+- structured capability production readiness 不只看 query kernel 是否可执行；
+  normal、fail-close、cancel、timeout、late completion 与 replan outcome 必须能进入
+  sanitized step trajectory，并能被 app-api operator read model 消费
 
 ## Execution Audit Backflow
 
@@ -369,19 +395,15 @@ payload 或 provider raw response。
     "actor": {
       "user_id": "user_01HQ...",
       "principal_id": "principal_01HQ...",
-      "roles": ["student"],
-      "departments": []
+      "roles": ["user"]
     },
-    "authorization": {
-      "principal_id": "principal_01HQ...",
-      "entitlement_groups": ["students"],
-      "visibility_scope": "main",
-      "retrieval_filter": {
-        "entitlement_groups": ["students"],
-        "visibility_level": "public",
-        "visibility_scope": "main",
-        "policy_projection_version": "phase1-authorization-projection-v1"
-      }
+    "surface": {
+      "surface_id": "public-chat-web",
+      "caller_class": "chat_user",
+      "allowed_capabilities": ["knowledge"]
+    },
+    "quota": {
+      "policy_ref": "chat-default-v1"
     },
     "session": {
       "confirmed_slots": [],
@@ -400,8 +422,9 @@ payload 或 provider raw response。
 - `conversation_id` 来自 chat domain truth
 - `user_goal` 来自产品层 prompt
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
-  `actor`、`authorization.retrieval_filter`、`session.confirmed_slots`、可选的
-  `session.selected_notice_ref`，以及 turn count 摘要
+  `actor`、surface / quota summary、`session.confirmed_slots`、可选的
+  `session.selected_notice_ref`，以及 turn count 摘要。主问答 path 不要求学生 /
+  教职工 / 院系 entitlement envelope。
 - online personal memory 不再由 `app-api` 读取 PG `profile.memory_items` 后全量注入
   `context.profile_memory.items`。`app-api` 只提供 actor/session/request context；
   `execution-control` 在 `CapabilityExecutionWorkflow` 的 `context.memory_recall`
@@ -413,6 +436,9 @@ payload 或 provider raw response。
   `campus_services`、`notice`。这只是 internal execution
   capability label，不等于对应 browser surface 已开放；当前公开 chat surface
   仍由 `app-api` surface capability policy 决定允许子集
+- `requested_capability` 缺失的目标态语义是“未给 explicit caller hint”，不是
+  “默认 knowledge”。普通 chat 应交给 `agent.primary` 基于 admitted tool catalog
+  选择 direct/no-tool、notice、campus_services 或 `knowledge_query`
 - `requested_scope` 可选；当前 wire truth 仍保留这个顶层字段，但它只应被解释为 knowledge-family path 的
   scope hint。如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许
   agent 自主解析最终 serving surface，而不是由 `app-api` 或 `execution-control` 伪造默认
@@ -511,6 +537,9 @@ payload 或 provider raw response。
 - `approval_required`
 - `rejected`
 - `cancelled`
+
+`approval_required` 保留为 historical / non-chat runtime vocabulary；当前主问答用户路径不把
+approval / HITL 或 state-changing tool 作为产品目标。
 
 `app-api` 依赖的最小字段只有：
 
@@ -616,23 +645,30 @@ payload 或 provider raw response。
   dependency 不健康，`app-api` 应按 retryable runtime unavailability 处理，而不是生成新的
   request identity 绕过 run projection
 - `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection
-  的最终状态，即使 browser chat surface 折叠为 `error`
+  的 historical / non-chat 最终状态，即使 browser chat surface 折叠为 `error`
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
 
 ## Terminal State Semantics
 
 terminal response 的跨语言语义固定如下：
 
-- `completed`：必须有 canonical `selected_capability` 与 response-level confidence
+- `completed`：capability / tool execution path 必须有 canonical
+  `selected_capability` 与 response-level confidence；first decision 的 direct/no-tool
+  terminal path 允许 `selected_capability=null` 或 operator-normalized `none`，但必须
+  记录 first decision provenance、terminal intent 与 prompt/runtime versions
 - `needs_clarification` / `no_answer`：仍是 typed execution outcome，不等价于
   transport failure
 - `error`：必须携带 safe `{ code, message, retryable }`，并在
   `workflow_trace_summary.fail_close_reason` 中保留 deterministic failure class
 - `cancelled`：允许 `selected_capability=null`，表示 execution lifecycle 已终止，
-  不要求 agent handoff 已发生
+  不要求 capability handoff 已发生
 - timeout / execution-control unavailable / provider circuit open 不能伪装成
   completed answer；它们必须通过 typed `error` / HTTP status / workflow trace
   summary 保留 fail-close provenance
+- `capability_not_ready`、`source_truth_unavailable`、`unsupported_by_evidence` 等属于
+  internal terminal reason / operator projection vocabulary。browser-facing wording
+  必须映射为“当前无法自动查询”“暂无可靠来源确认”或等价用户可理解表达，不直接暴露内部
+  capability 名称。
 
 Go finalizer 必须保证 delegate branch 与 `handoff.capability_request.capability`、
 `selected_capability`、runtime version provenance 一致；否则 fail-closed，而不是返回半结构化成功 body。
@@ -643,22 +679,28 @@ Go finalizer 必须保证 delegate branch 与 `handoff.capability_request.capabi
 shared product path 已收口为：
 
 - internal caller admission 由 Go `execution-control` 验证 runtime header
-- `context` 由 `app-api` 显式提供，并携带最终 `actor` 与 `authorization`
+- `context` 由 `app-api` 显式提供，并携带最终 `actor`、surface / quota 与 session summary
 - Go `execution-control` 的 `trusted-worker` 不依赖 Cloudflare Access JWT 或 edge
   identity header 来恢复最终业务 actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
-- Python `apps/supervisor-agent-worker` 只保留 offline / eval / tooling / historical
-  bridge reference，不再暴露 public compatibility ingress，也不参与 online serving
+- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 bridge code
+  只可通过 git history 追溯，不再暴露 public compatibility ingress，也不参与
+  online serving
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 
 ## Forward Evolution
 
-- 当前 internal execution wire truth 仍是 `requested_capability + knowledge-only optional
-  requested_scope`
-- 在明确引入新版本 contract 之前，`app-api` 与 `execution-control` 继续按这组字段互操作，不把
-  capability-neutral routing 误写成“当前 wire 已经 capability-family-native”
+- 当前 internal execution wire truth 仍保留 `requested_capability + knowledge-only optional
+  requested_scope` 作为 app-api -> execution-control admission hint；它不等同于 primary
+  agent 的 model-visible tool catalog，也不能作为 ordinary chat 的默认
+  semantic route。
+- first Execution Agent decision 已由 `agent.primary` 承接：
+  `answer_completed` / `clarification_required` / `out_of_scope` /
+  `unsupported_by_evidence` 不编码成 synthetic capability，也不要求 executable handoff。
+- `app-api` 与 `execution-control` 继续按现有 request fields 互操作，但 durable execution
+  projection 的 canonical first-decision truth 是 `agent.primary` step/result projection。
 - `requested_scope` 的长期语义应收窄为 knowledge-family-specific field；它不能代替 capability
   routing，也不应要求非 knowledge path 伪造等价字段
 - `selected_capability` 的语义不变：它继续序列化 current execution path 实际选中的 admitted runtime

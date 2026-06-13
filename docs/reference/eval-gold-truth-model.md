@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-31
-updated: 2026-04-29
+updated: 2026-06-12
 ---
 # Eval Gold Truth Model
 
@@ -119,17 +119,18 @@ denominator expectation、sanitized observation shape 与 deterministic verdict�
 - `tool_family_denominators`
   - truth 来源是 opened tool denominator：tool name、split、expected result status 与必要
     argument summary
-  - failure class 只表达 routing error、read-model gap、authorization fail-close 或 missing
-    observation，不替代 service / notice read-model owner
+  - failure class 只表达 routing error、read-model gap、capability-not-open /
+    source-truth fail-close 或 missing observation，不替代 service / notice read-model
+    owner
 - `document_quality_cases`
   - truth 来源是 OCR/MinerU/document-quality expectation：required spans、table headers、
     confidence、allowed projection target 与 forbidden claims
   - visual/OCR output 不得被 author 成 regulation-ready owner text
-- `authz_privacy_cases`
-  - truth 来源是 restricted surface fail-close expectation：terminal outcome、fail-close
-    reason 与 sanitized authorization summary
-  - eval artifact 不得携带 JWT、cookies、auth envelope、raw auth material、restricted document
-    payload 或 raw restricted payload
+- `privacy_boundary_cases`
+  - truth 来源是 account / session / memory boundary expectation：terminal outcome、
+    fail-close reason、sanitized caller summary 与 memory influence summary
+  - eval artifact 不得携带 JWT、cookies、auth envelope、raw auth material、raw memory
+    payload、raw transcript、raw prompt 或 provider raw response
 - `agentic_retrieval_plan_cases`
   - truth 来源是 retrieval planning expectation：decomposition、step plan、freshness branch、
     live branch outcome、supporting evidence ids 与 final answer status
@@ -190,10 +191,11 @@ denominator expectation、sanitized observation shape 与 deterministic verdict�
 
 - `基地班`、`实验班`、`创新班`、`民族班` 这类 generic family alias 默认不应写成单目标 `expected_sources`
 - 不允许用 `profile memory` 或 `recent_goal` 作为 canonical single-doc truth 的唯一依据
-- 若 case 使用 `verified identity` 参与 disambiguation，必须同时满足：
+- 若 case 使用 account-bound session context 或 typed memory 参与 disambiguation，必须同时满足：
   - query 本身带有 deictic/actor-grounded 语义
   - active candidates 被安全收敛到唯一当前有效 doc
-- 否则正确归宿仍是 clarification case 或 preflight error，而不是 retrieval qrels
+- 这种 context 只能解释用户指代或偏好，不能成为 institutional source truth。
+- 否则正确归宿仍是 clarification case 或 preflight error，而不是 retrieval qrels。
 
 对更长期的 institution-scoped entity alias / course-family truth，进一步冻结如下：
 

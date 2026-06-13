@@ -38,8 +38,8 @@ Run a read-only audit:
 
 ```bash
 out="var/source-bucket-cleanup/authenticated-notice-attachments-$(date +%Y%m%dT%H%M%S%z)"
-uv run --all-packages \
-  campus-ingestion-audit-authenticated-notice-source-attachment-keys \
+uv run --all-packages python -m \
+  campus_ingestion_worker.audit_authenticated_notice_source_attachment_keys \
   --output-dir "$out" \
   --now "$(date -Iseconds)"
 ```
@@ -59,8 +59,8 @@ The audit is non-destructive.
 Dry-run unreferenced object cleanup:
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-cleanup-authenticated-notice-source-attachment-keys \
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_authenticated_notice_source_attachment_keys \
   --canonical-unreferenced-inventory-path \
   "$out/canonical-attachment-unreferenced-candidates.jsonl" \
   --output-dir "$out/dry-run-unreferenced" \
@@ -80,8 +80,8 @@ directory and candidate inventory.
 After approval:
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-cleanup-authenticated-notice-source-attachment-keys \
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_authenticated_notice_source_attachment_keys \
   --canonical-unreferenced-inventory-path \
   "$out/canonical-attachment-unreferenced-candidates.jsonl" \
   --output-dir "$out/delete-unreferenced" \
@@ -100,8 +100,8 @@ Expired quarantine deletion must use the media-closeout-gated quarantine cleanup
 path:
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-cleanup-authenticated-notice-source-attachment-keys \
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_authenticated_notice_source_attachment_keys \
   --quarantine-attachment-refs-path <attachment-refs.jsonl> \
   --media-extraction-candidate-inventory-path \
   <media-extraction-candidate-inventory.json> \
@@ -123,8 +123,8 @@ Run a read-only source run audit:
 
 ```bash
 out="var/source-bucket-cleanup/authenticated-notice-source-runs-$(date +%Y%m%dT%H%M%S%z)"
-uv run --all-packages \
-  campus-ingestion-audit-authenticated-notice-source-run-retention \
+uv run --all-packages python -m \
+  campus_ingestion_worker.audit_authenticated_notice_source_run_retention \
   --output-dir "$out"
 ```
 
@@ -153,8 +153,8 @@ This command is non-destructive. A later cleanup command must consume the exact
 Dry-run source run cleanup:
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-cleanup-authenticated-notice-source-runs \
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_authenticated_notice_source_runs \
   --candidate-objects-path "$out/delete-candidate-objects.jsonl" \
   --output-dir "$out/dry-run-source-runs" \
   --dry-run
@@ -173,8 +173,8 @@ directory and candidate inventory.
 After approval:
 
 ```bash
-uv run --all-packages \
-  campus-ingestion-cleanup-authenticated-notice-source-runs \
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_authenticated_notice_source_runs \
   --candidate-objects-path "$out/delete-candidate-objects.jsonl" \
   --output-dir "$out/delete-source-runs" \
   --yes

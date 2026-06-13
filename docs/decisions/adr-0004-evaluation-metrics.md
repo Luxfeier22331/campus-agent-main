@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0004
 status: accepted
 created: 2026-03-22
-updated: 2026-03-28
+updated: 2026-06-12
 ---
 # ADR-0004 评测指标体系
 
@@ -87,8 +87,8 @@ workflow，长期至少保留以下指标族：
   policy 等关键缺失信息
 - `clarification accuracy` 是否在应澄清时澄清，不应澄清时不误触发
 - `no-answer accuracy` 是否在证据不足或范围不符时正确拒答
-- `personalization correctness` 是否正确使用 verified identity / typed memory 做
-  personalization，且没有错误过拟合到未验证个人背景
+- `memory-context correctness` 是否正确使用 typed memory 做 follow-up、消歧、query
+  framing 与措辞，且没有把 memory 当成 source truth 或 capability-opening truth
 - `delegation / handoff accuracy` 是否发生了正确的 capability delegation / handoff，且没有越级绕过
   execution policy
 - `trace path correctness` 是否发生了正确的 retrieval 调用、fail-closed 行为与其他关键中间路径
@@ -104,14 +104,15 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 
 长期至少单独保留以下安全与门禁指标：
 
-- ACL fail-closed rate
-- forbidden-source retrieval rate
-- memory privilege-escalation rate
-- identity / memory projection correctness
+- capability readiness fail-closed rate
+- source-truth / evidence fail-closed rate
+- forbidden-source or unopened-surface retrieval rate
+- memory boundary violation rate
+- account / memory projection correctness
 - forbidden-personal-data disclosure rate
 - citation/source-locator completeness
 - error-path correctness
-- approval-path correctness（当系统存在 approval-required capability 时）
+- cancel / timeout / late-completion projection correctness
 
 这些指标优先以确定性规则或程序化断言实现，不依赖 LLM scorer。
 
@@ -122,7 +123,7 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 - `smoke` 优先关注 `Hit@K`、status accuracy、最小 source locator 完整性
 - `regression_locked` 必须覆盖 retrieval、answer、workflow 三层正式指标
 - `release_gate` 必须覆盖 retrieval、answer、workflow 与 safety/gate 指标；当本轮变化涉及新
-  agent、routing、handoff、approval path 或 personalization / memory projection
+  agent、routing、handoff、typed tool 或 personalization / memory projection
   时，必须显式覆盖对应维度
 - `exploratory` 允许试验新指标，但试验指标不自动升级为正式门禁
 
@@ -143,7 +144,7 @@ split 和指标族的对应关系在长期上固定，但每个 split 的具体�
 - `ragas` 可以提供 `faithfulness`、context precision/recall 等实现，但不决定仓库的指标体系
 - OpenAI grader 可以提供 factual correctness、rubric scoring 或 trace
   grading，但不决定仓库的指标分组与 gate 结构
-- OpenAI trace grading 可以作为 routing、delegation / handoff、approval-path
+- OpenAI trace grading 可以作为 routing、delegation / handoff、tool-path
   评估实现，但不决定仓库 workflow / safety 指标语义
 - 如果多个框架都能计算同一指标族，应以仓库自己的 truth 协议为准，而不是以某个框架的默认列名或输入形状为准
 

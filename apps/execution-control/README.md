@@ -18,12 +18,15 @@ Current status:
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Starts Temporal `CapabilityExecutionWorkflow` and executes the current
-  capability-neutral graph through Go worker roles:
-  `context.memory_recall -> plan.route -> capability branch ->
-  finalization.write`. The `knowledge` branch runs `rag.plan ->
-  retrieval.indexed_lookup -> retrieval.expand_or_rescue -> evidence.selection
-  -> synthesis -> grounding.verify`.
+- Starts Temporal `CapabilityExecutionWorkflow` and executes the current primary
+  agent graph through worker roles:
+  `context.memory_recall -> agent.primary -> finalization.write`.
+  `agent.primary` is polled by `activity-worker-agent` and calls
+  `apps/agent-runtime`, which uses OpenAI Agents SDK for the model-facing tool
+  loop and direct/no-tool final output. The retained deterministic support path
+  still contains `plan.route -> capability branch`; the `knowledge` branch runs
+  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
+  evidence.selection -> synthesis -> grounding.verify`.
 - Reports Go-owned `/readyz` runtime health for Temporal, run projection store,
   RAG lookup/synthesis, prompt pricing gate, capability gates and worker pollers.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
@@ -55,6 +58,17 @@ Current status:
 - Owns Temporal workflow command admission and sanitized run projection writes.
   Terminal answer delivery is read from product projection through `app-api`,
   not from a synchronous execution-control answer endpoint.
+- Owns the primary agent activity bridge configuration:
+  `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL`,
+  `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET`, and
+  `EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS`. Missing agent runtime config
+  fails closed when `agent.primary` executes.
+- The paired `apps/agent-runtime` process uses
+  `AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL` and
+  `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET` to execute model-visible
+  read-only typed tools through execution-control `/internal/query/...`
+  endpoints. Missing internal-query config fails closed at the selected tool,
+  not by fabricating an answer.
 - Owns the structured tool policy summary. Python only validates that the
   preplanned payload kind matches the Go-provided `allowed_tools`.
 - Hosts the gate-closed structured query runtime foundation for campus services
@@ -80,9 +94,9 @@ Current status:
 - Repo-local `Phase 8-12` implementation is in place: the structured query runtime
   foundation and transport schedule query kernel are landed without opening
   `campus_services` product serving.
-- Python `apps/supervisor-agent-worker` is not part of online answer serving,
-  readiness aggregation or worker topology. It is retained only for offline /
-  eval / tooling / historical bridge reference.
+- Python `apps/supervisor-agent-worker` has been removed from the active
+  workspace. Historical bridge code is recoverable only through git history and
+  is not part of readiness aggregation or worker topology.
 - Repo-local lifecycle streaming is owned by `app-api` over projection/event
   reads. `execution-control` does not expose the retired lifecycle answer SSE
   endpoint.
@@ -102,9 +116,9 @@ Current admission boundary:
   `default`; unset lane budgets inherit the global budget.
 - `active_answers == max_concurrent_answers` does not by itself make `/readyz`
   degraded if the queue can still accept short bursts.
-- Retired `EXECUTION_CONTROL_BRIDGE_*` and `SUPERVISOR_AGENT_WORKER_*` settings
-  fail closed in online execution-control config. Do not use them as local or
-  staging runtime inputs.
+- Retired bridge settings and retired Python worker settings fail closed in
+  online execution-control config. Do not use them as local or staging runtime
+  inputs.
 - `EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH` points at the Go-owned
   query-serving scope allowlist. When unset, local repo runs discover
   `configs/runtime/query-serving-scopes.v1.json` from the repo root; if no
@@ -314,6 +328,16 @@ go run ./cmd/worker-autoscaler \
   --evidence-path /path/to/worker-autoscaler-evidence.json
 ```
 
+Worker autoscaler apply-mode evidence-only proof:
+
+```bash
+go run ./cmd/worker-autoscaler \
+  --mode apply \
+  --input-path /path/to/autoscaler-input.json \
+  --evidence-path /path/to/worker-autoscaler-decision.json \
+  --actuator-evidence-path /path/to/worker-autoscaler-actuation.json
+```
+
 This command belongs to the Execution Operations Plane. It reads task queue /
 budget observations and writes desired-replica evidence only; it does not write
 Temporal workflow state, run projection, step projection, event projection, or
@@ -413,6 +437,10 @@ JSON
 ) \
   http://127.0.0.1:27051/internal/execution/runs
 ```
+
+The `retrieval.query` sample above is the retained deterministic support-path
+handoff shape. The primary model-facing SDK path exposes `knowledge_query` as the
+workflow-signal tool; `retrieval.query` remains knowledge-internal / closed.
 
 Detailed local smoke / cutover / runback steps:
 

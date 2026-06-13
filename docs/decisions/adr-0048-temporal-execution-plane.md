@@ -209,10 +209,14 @@ agent-as-tool。
 2026-06-08 补充评估：
 
 - 当前 online chat path 已经进入 Temporal-backed `CapabilityExecutionWorkflow`。
-- 当前 knowledge branch trajectory 已硬切为 Temporal-visible memory + route + RAG graph：
-  `context.memory_recall -> plan.route -> rag.plan -> retrieval.indexed_lookup ->
+- 当前主问答 trajectory 已接入 Temporal-visible primary agent graph：
+  `context.memory_recall -> agent.primary -> finalization.write`，或由
+  `agent.primary` 选择 `knowledge_query` workflow signal 后进入 Go-owned RAG
+  graph：`rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`。
+- `plan.route` 只保留为 retained deterministic support path / historical
+  planning artifact；它不再是 ordinary chat 的第一模型决策入口。
 - Go `activity-worker-knowledge` 拥有 online RAG lookup 与 synthesis provider execution，
   并通过 repo-owned DTO、`provider_execution_summary_v1` 与 step attempt evidence
   记录 lookup latency、provider request ref、latency、token、estimated cost、

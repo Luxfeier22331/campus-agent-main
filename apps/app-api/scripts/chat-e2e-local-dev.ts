@@ -8,7 +8,10 @@ const appApiDir = resolve(scriptDir, "..");
 const repoRoot = resolve(appApiDir, "../..");
 const publicChatDir = resolve(repoRoot, "apps/public-chat-web");
 const publicChatViteBin = resolve(publicChatDir, "node_modules/vite/bin/vite.js");
-const supervisorStartScript = resolve(repoRoot, "infra/local/start-execution-control-runtime.sh");
+const executionControlStartScript = resolve(
+	repoRoot,
+	"infra/local/start-execution-control-runtime.sh",
+);
 const defaultEmail = "help_bot@outlook.com";
 const defaultName = "Campus Agent Smoke";
 const defaultPrompt = "中央民族大学本科学生国家奖学金评审办法";
@@ -34,7 +37,7 @@ interface LocalDevChatE2eArgs {
 	name: string;
 	prompt: string;
 	restartPublicChat: boolean;
-	restartSupervisorRuntime: boolean;
+	restartExecutionControlRuntime: boolean;
 	startupTimeoutMs: number;
 }
 
@@ -71,8 +74,8 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): LocalD
 		expectResultKind: readArgValue(argv, "--expect-result-kind") ?? "answer",
 		name: readArgValue(argv, "--name") ?? defaultName,
 		prompt: readArgValue(argv, "--prompt") ?? defaultPrompt,
+		restartExecutionControlRuntime: argv.includes("--restart-execution-control-runtime"),
 		restartPublicChat: argv.includes("--restart-public-chat"),
-		restartSupervisorRuntime: argv.includes("--restart-supervisor-runtime"),
 		startupTimeoutMs: readPositiveInteger(
 			readArgValue(argv, "--startup-timeout-ms") ??
 				readOptionalValue(env.CHAT_E2E_LOCAL_DEV_STARTUP_TIMEOUT_MS),
@@ -96,12 +99,12 @@ function runChecked(command: string, args: string[], cwd: string, env = process.
 	}
 }
 
-function startSupervisorRuntime(args: LocalDevChatE2eArgs): void {
+function startExecutionControlRuntime(args: LocalDevChatE2eArgs): void {
 	runChecked(
 		"bash",
-		args.restartSupervisorRuntime
-			? [supervisorStartScript, "up", "-d", "--force-recreate", "--no-build"]
-			: [supervisorStartScript],
+		args.restartExecutionControlRuntime
+			? [executionControlStartScript, "up", "-d", "--force-recreate", "--no-build"]
+			: [executionControlStartScript],
 		repoRoot,
 	);
 }
@@ -276,8 +279,8 @@ async function main(argv: string[]): Promise<void> {
 		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required for local dev public/chat E2E.");
 	}
 
-	if (args.restartSupervisorRuntime || !(await isReadyzReady(args.execReadyzUrl))) {
-		startSupervisorRuntime(args);
+	if (args.restartExecutionControlRuntime || !(await isReadyzReady(args.execReadyzUrl))) {
+		startExecutionControlRuntime(args);
 	}
 	await waitForReadyz(args.execReadyzUrl, args.startupTimeoutMs);
 	runChecked("pnpm", ["--dir", appApiDir, "db:bootstrap"], repoRoot);

@@ -12,32 +12,18 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     load_metadata_from_bytes,
 )
 from campus_ingestion_core.collection_config import CollectionTruthConfig
+from campus_ingestion_core.collection_ingestion_strategy import (
+    ReplayDocumentBuildContext,
+    resolve_collection_ingestion_strategy,
+)
 from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.curriculum_course_facts_projection import (
-    build_curriculum_course_facts_scope_refresh_documents,
-)
-from campus_ingestion_core.curriculum_program_family_facts_projection import (
-    build_curriculum_program_family_facts_scope_refresh_documents,
-)
-from campus_ingestion_core.curriculum_program_semester_facts_projection import (
-    build_curriculum_program_semester_facts_scope_refresh_documents,
-)
-from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.handbook_cleanup import (
     cleanup_handbook_document,
     serialize_handbook_document_units,
 )
-from campus_ingestion_core.handbook_provider_normalize import (
-    normalize_handbook_provider_result,
-    serialize_handbook_layout_elements,
-)
-from campus_ingestion_core.handbook_source_projections import (
-    build_handbook_projection_import_documents,
-)
 from campus_ingestion_core.local_rebuild_runtime import _resolve_collection_raw_asset_id
 from campus_ingestion_core.local_rebuild_support import (
-    _read_default_visibility_scope,
     _RebuildTraceRecorder,
     _run_traced_stage,
     _summarize_persist_stats,
@@ -51,8 +37,6 @@ from campus_ingestion_core.object_store import (
     parse_source_object_key,
 )
 from campus_ingestion_core.raw_ingestion import (
-    _build_split_manifest_document_input,
-    _load_layout_elements_rows,
     normalize_online_ocr_provider_label,
 )
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
@@ -101,23 +85,15 @@ def _load_replay_source_artifacts(
     )
     ocr_model = source_ocr_runtime.model
     ocr_provider = normalize_online_ocr_provider_label(source_ocr_runtime.provider)
-    if collection == "student_rules":
-        structured_rows = normalize_handbook_provider_result(
-            source_pdf=source_pdf,
-            provider_jsonl_bytes=provider_response_bytes,
-            ocr_provider=ocr_provider,
-            ocr_model=ocr_model,
-            source_artifact_id=raw_asset_id,
-        )
-        layout_elements_bytes = serialize_handbook_layout_elements(structured_rows)
-    else:
-        layout_elements_bytes = normalize_curriculum_provider_result(
-            provider_jsonl_bytes=provider_response_bytes,
-            source_pdf=source_pdf,
-            ocr_provider=ocr_provider,
-            ocr_model=ocr_model,
-        )
-        structured_rows = _load_layout_elements_rows(layout_elements_bytes)
+    collection_strategy = resolve_collection_ingestion_strategy(corpus, collection)
+    provider_response_normalizer = collection_strategy.require_provider_response_normalizer()
+    structured_rows, layout_elements_bytes = provider_response_normalizer(
+        source_pdf,
+        provider_response_bytes,
+        ocr_provider,
+        ocr_model,
+        raw_asset_id,
+    )
     layout_elements_key = build_source_truth_artifact_key(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
@@ -171,105 +147,26 @@ def _build_replay_documents(
     source_bucket: str | None = None,
     replay_raw_asset_record: RawAssetRecord | None = None,
 ) -> list[DocumentImportInput]:
-    if collection == "student_rules":
-        documents = [
-            _build_handbook_replay_document_input(
-                source_label=f"{provider_response_key}#{manifest_document.document_id}",
-                source_doc=source_pdf,
-                manifest_document=manifest_document,
-                structured_rows=structured_rows,
-                provider_response_key=provider_response_key,
-                layout_elements_key=layout_elements_key,
-                corpus=corpus,
-                collection=collection,
-            )
-            for manifest_document in split_manifest.documents
-        ]
-    else:
-        raw_asset_ref = RawAssetRecord(
-            raw_asset_id=raw_asset_id,
-            raw_version_id=raw_version_id,
+    collection_strategy = resolve_collection_ingestion_strategy(corpus, collection)
+    provider_replay_builder = collection_strategy.require_provider_response_replay()
+    return provider_replay_builder(
+        ReplayDocumentBuildContext(
+            source=source,
+            collection_config=collection_config,
+            split_manifest=split_manifest,
             corpus=corpus,
             collection=collection,
-            raw_source_uri=f"campusrag://source/{corpus}/{raw_asset_id}/{raw_version_id}",
-            content_hash=raw_version_id.removeprefix("sha256:") or raw_version_id,
-            source_filename=source_pdf,
-            object_key=provider_response_key,
-            ingestion_timestamp="1970-01-01T00:00:00+00:00",
-            import_source="provider_response_replay",
+            source_pdf=source_pdf,
+            raw_asset_id=raw_asset_id,
+            raw_version_id=raw_version_id,
+            provider_response_key=provider_response_key,
+            layout_elements_key=layout_elements_key,
+            structured_rows=structured_rows,
+            reader=reader,
+            source_bucket=source_bucket,
+            replay_raw_asset_record=replay_raw_asset_record,
         )
-        default_visibility_scope = _read_default_visibility_scope(source)
-        documents = [
-            _build_split_manifest_document_input(
-                raw_asset_record=raw_asset_ref,
-                manifest_version=split_manifest.manifest_version,
-                manifest_document=manifest_document,
-                structured_rows=structured_rows,
-                provider_response_key=provider_response_key,
-                layout_elements_key=layout_elements_key,
-                default_visibility_scope=default_visibility_scope,
-                corpus=corpus,
-                collection=collection,
-            )
-            for manifest_document in split_manifest.documents
-        ]
-    raw_asset_ref = RawAssetRecord(
-        raw_asset_id=raw_asset_id,
-        raw_version_id=raw_version_id,
-        corpus=corpus,
-        collection=collection,
-        raw_source_uri=f"campusrag://source/{corpus}/{raw_asset_id}/{raw_version_id}",
-        content_hash=raw_version_id.removeprefix("sha256:") or raw_version_id,
-        source_filename=source_pdf,
-        object_key=provider_response_key,
-        ingestion_timestamp="1970-01-01T00:00:00+00:00",
-        import_source="provider_response_replay",
     )
-    if collection == "student_rules":
-        documents.extend(
-            build_handbook_projection_import_documents(
-                source=source,
-                config_path=collection_config.source_projections_path,
-                raw_asset_record=raw_asset_ref,
-                hybrid_raw_asset_record=replay_raw_asset_record,
-                provider_response_key=provider_response_key,
-                layout_elements_key=layout_elements_key,
-                structured_rows=structured_rows,
-                split_manifest_documents=split_manifest.documents,
-                reader=reader,
-                source_bucket=source_bucket,
-                import_source="provider_response_replay",
-            )
-        )
-    if collection == "curriculum_plan":
-        documents.extend(
-            build_curriculum_course_facts_scope_refresh_documents(
-                raw_asset_record=raw_asset_ref,
-                source_pdf=source_pdf,
-                split_manifest_documents=split_manifest.documents,
-                structured_rows=structured_rows,
-                provider_response_key=provider_response_key,
-                layout_elements_key=layout_elements_key,
-            )
-        )
-        documents.extend(
-            build_curriculum_program_family_facts_scope_refresh_documents(
-                raw_asset_record=raw_asset_ref,
-                source_pdf=source_pdf,
-                split_manifest_documents=split_manifest.documents,
-            )
-        )
-        documents.extend(
-            build_curriculum_program_semester_facts_scope_refresh_documents(
-                raw_asset_record=raw_asset_ref,
-                source_pdf=source_pdf,
-                split_manifest_documents=split_manifest.documents,
-                structured_rows=structured_rows,
-                provider_response_key=provider_response_key,
-                layout_elements_key=layout_elements_key,
-            )
-        )
-    return documents
 
 
 def _collect_projection_aware_import_stats(

@@ -1,0 +1,24 @@
+{
+	"schema_version": "ingestion_task_registry.v1",
+	"source_family": "curriculum",
+	"corpus": "curriculum",
+	"collection": "curriculum_plan",
+	"tasks": [
+		{
+			"task_kind": "chunk_prepare",
+			"executor_kind": "rust_kernel",
+			"kernel_id": "chunk-document-units",
+			"input_contract": "canonical_document_units.v1",
+			"output_contract": "ingestion_chunk_set.v1",
+			"can_publish_alias": false
+		},
+		{
+			"task_kind": "alias_publish",
+			"executor_kind": "python_adapter",
+			"adapter_id": "qdrant_alias_publish_adapter",
+			"input_contract": "ingestion_release_manifest.v1",
+			"output_contract": "ingestion_alias_publish_closeout.v1",
+			"can_publish_alias": true
+		}
+	]
+}

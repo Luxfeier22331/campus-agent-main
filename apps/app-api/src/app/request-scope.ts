@@ -34,6 +34,7 @@ import {
 import {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
+	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
 import {
@@ -127,6 +128,7 @@ export function createRequestScopeFactory(input: {
 			let diningOperationsService = input.dependencies.diningOperationsService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
 			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
+			let ingestionTaskProjectionClient = input.dependencies.ingestionTaskProjectionClient ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
 			let officialWebReleaseTaskProcessingCommandService =
@@ -347,6 +349,17 @@ export function createRequestScopeFactory(input: {
 				return identityPlatformService;
 			}
 
+			function resolveIngestionTaskProjectionClient() {
+				if (ingestionTaskProjectionClient) {
+					return ingestionTaskProjectionClient;
+				}
+
+				ingestionTaskProjectionClient = createIngestionTaskProjectionClient(input.env, {
+					fetchImplementation: input.dependencies.ingestionTaskProjectionFetch,
+				});
+				return ingestionTaskProjectionClient;
+			}
+
 			function resolveOfficialWebQueryService() {
 				if (officialWebQueryService) {
 					return officialWebQueryService;
@@ -462,6 +475,7 @@ export function createRequestScopeFactory(input: {
 				resolveDiningOperationsService,
 				resolveDocsService,
 				resolveIdentityPlatformService,
+				resolveIngestionTaskProjectionClient,
 				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
 				resolveOfficialWebReleaseTaskProcessingCommandService,

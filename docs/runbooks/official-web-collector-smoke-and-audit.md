@@ -205,7 +205,7 @@ pnpm --dir apps/app-api official-web:drain-projection -- --limit 50
 set -a
 source env/commands/official-web-handoff-receiver.env.example
 set +a
-uv run --all-packages campus-ingestion-official-web-handoff-dev
+uv run --all-packages python -m campus_ingestion_worker.official_web_handoff_receiver
 ```
 
 然后在另一终端临时覆盖 `app-api` handoff env 再 drain：
@@ -225,7 +225,9 @@ pnpm --dir apps/app-api official-web:drain-projection -- --limit 50
 set -a
 source env/commands/official-web-handoff-consumer.env.example
 set +a
-uv run --all-packages campus-ingestion-consume-official-web-handoffs --limit 20
+uv run --all-packages python -m \
+  campus_ingestion_worker.official_web_handoff_consumer \
+  --limit 20
 ```
 
 通过标准：
@@ -245,8 +247,10 @@ uv run --all-packages campus-ingestion-consume-official-web-handoffs --limit 20
 如需把这批数据真正写入 registry current truth，应显式执行：
 
 ```bash
-uv run --all-packages campus-ingestion-consume-official-web-handoffs --limit \
-  20 --promote
+uv run --all-packages python -m \
+  campus_ingestion_worker.official_web_handoff_consumer \
+  --limit 20 \
+  --promote
 ```
 
 此时通过标准改为：
@@ -443,12 +447,12 @@ pnpm --dir apps/official-web-collector qc-report -- \
   --json
 
 uv run --all-packages python -m \
-  campus_ingestion_worker.project_official_web_source_truth
+  campus_ingestion_worker.project_official_web_source_truth \
   --output-dir /tmp/official-web-qc-batch-a-<slug> \
   --projection-output-dir /tmp/official-web-qc-batch-a-<slug>-projection
 
 uv run --all-packages python -m \
-  campus_ingestion_worker.validate_official_web_projection
+  campus_ingestion_worker.validate_official_web_projection \
   --projection-output-dir /tmp/official-web-qc-batch-a-<slug>-projection
 ```
 

@@ -159,7 +159,7 @@ func (s *Server) workflowInputForQueuedRun(
 			"intent_policy": strings.TrimSpace(s.config.IntentPolicyPath),
 		},
 		RequestID:           run.RequestID,
-		RequestedCapability: defaultString(strings.TrimSpace(run.RequestedCapability), "knowledge"),
+		RequestedCapability: strings.TrimSpace(run.RequestedCapability),
 		RunID:               run.RunID,
 		TaskQueue:           defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
 		TraceID:             run.TraceID,
@@ -263,8 +263,85 @@ func (s *Server) handleExecutionRunCancel(
 		writeError(response, http.StatusConflict, "execution_run_cancel_failed", err.Error(), false)
 		return
 	}
+	if err := s.projectCanceledRunSteps(request.Context(), canceled, reason, canceledAt); err != nil {
+		setOutcome(response, "execution_run_cancel_step_projection_failed")
+		writeError(
+			response,
+			http.StatusInternalServerError,
+			"execution_run_cancel_step_projection_failed",
+			err.Error(),
+			true,
+		)
+		return
+	}
 	setOutcome(response, "execution_run_canceled")
 	writeJSON(response, http.StatusAccepted, durableRunResponse(canceled))
+}
+
+func (s *Server) projectCanceledRunSteps(
+	ctx context.Context,
+	run execution.DurableRun,
+	reason string,
+	canceledAt time.Time,
+) error {
+	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	for _, step := range steps {
+		if temporalStepTerminal(step.Status) {
+			continue
+		}
+		step.Status = "canceled"
+		step.CompletedAt = canceledAt
+		step.UpdatedAt = canceledAt
+		if step.SanitizedPayload == nil {
+			step.SanitizedPayload = map[string]any{}
+		}
+		step.SanitizedPayload["cancel_outcome"] = string(execution.CancelOutcomeActivityContextCanceled)
+		if step.StartedAt.IsZero() {
+			step.SanitizedPayload["cancel_outcome"] = string(execution.CancelOutcomeRequestedBeforeStart)
+		}
+		step.SanitizedPayload["terminal_reason"] = string(execution.DurableTerminalReasonUserCanceled)
+		step.SanitizedPayload["cancel_reason"] = reason
+		if _, err := s.runProjectionStore.UpsertRunStep(ctx, step); err != nil {
+			return err
+		}
+	}
+	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	for _, attempt := range attempts {
+		if temporalStepTerminal(attempt.Status) {
+			continue
+		}
+		attempt.Status = "canceled"
+		attempt.CompletedAt = canceledAt
+		attempt.UpdatedAt = canceledAt
+		attempt.TerminalReason = string(execution.DurableTerminalReasonUserCanceled)
+		if attempt.StartedAt.IsZero() {
+			attempt.CancelOutcome = execution.CancelOutcomeRequestedBeforeStart
+		} else {
+			attempt.CancelOutcome = execution.CancelOutcomeActivityContextCanceled
+		}
+		if attempt.TimeoutOutcome == "" {
+			attempt.TimeoutOutcome = execution.TimeoutOutcomeNotTimedOut
+		}
+		if attempt.LateCompletionOutcome == "" {
+			attempt.LateCompletionOutcome = execution.LateCompletionOutcomeNotLate
+		}
+		if attempt.SanitizedPayload == nil {
+			attempt.SanitizedPayload = map[string]any{}
+		}
+		attempt.SanitizedPayload["cancel_outcome"] = string(attempt.CancelOutcome)
+		attempt.SanitizedPayload["terminal_reason"] = attempt.TerminalReason
+		attempt.SanitizedPayload["cancel_reason"] = reason
+		if _, err := s.runProjectionStore.UpsertStepAttempt(ctx, attempt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func executionRunIDFromPath(path string, suffix string) (string, bool) {

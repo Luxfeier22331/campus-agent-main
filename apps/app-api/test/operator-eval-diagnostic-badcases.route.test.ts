@@ -36,6 +36,23 @@ const diagnosticPayload = {
 			supportingChunkIds: ["chunk:wrong"],
 			answerShape: "eligibility_judgment",
 			presentationKind: "condition_table",
+			trajectoryAttribution: {
+				status: "attributed",
+				stepId: "evidence.selection",
+				stepKind: "selection",
+				capability: "knowledge",
+				toolName: null,
+				stepStatus: "completed",
+				outcome: {
+					failCloseReason: null,
+					terminalReason: null,
+					replanReason: null,
+					cancelOutcome: "not_requested",
+					timeoutOutcome: "not_timed_out",
+					lateCompletionOutcome: "not_late",
+				},
+				projectionRefs: ["projection://runs/run_01HQ/evidence-selection"],
+			},
 		},
 	],
 };

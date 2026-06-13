@@ -1,15 +1,32 @@
 ---
 doc_type: reference
-status: active
+status: historical
 created: 2026-04-15
-updated: 2026-04-20
+updated: 2026-06-12
 ---
 # Restricted Document Center Artifact Contract
 
+## Historical Scope
+
+本文不再是 active target contract。它记录的是曾经围绕 restricted document center /
+attachment library 的 artifact 分层设计；当前 Campus Assistant 主问答产品不包含受限文档中心、内部文件下载站、
+学生 / 教职工差异化文档权限或 approval-style 文档访问。
+
+当前仍可复用的内容只限于 artifact 分层教训：
+
+- `original`、`normalized_readable`、`semantic_document` 不能混成同一资源层。
+- source-native original、readable projection 与 semantic-owner collection
+  promotion 必须保留 provenance 与 identity 分离。
+- `regulations/*` 不能被当作附件库、下载站或任意清洗文本的默认 query corpus。
+
+本文不得再用于证明 restricted document center 是当前 planned product surface，也不得用于要求主问答链路实现
+visibility / entitlement / owner_scope 文档权限投影。若未来重新提出文档中心，应另起 active
+contract。
+
 ## 文档边界
 
-本文冻结“采集并清洗还原的受限文档，可同时服务附件库 / 文档站与 semantic collection”这件事的 repo-tracked artifact
-contract。
+本文仅历史记录“采集并清洗还原的受限文档，可同时服务附件库 / 文档站与 semantic
+collection”这一旧设计。它不再冻结 active repo-tracked artifact contract。
 
 它回答的是：
 
@@ -27,25 +44,28 @@ contract。
 
 ## Contract 姿态
 
-这份 contract 记录的是 approved target，而不是“当前 merged truth 已全部实现”的状态板。
+这份 contract 记录的是 historical target，而不是当前 approved target，也不是“当前 merged
+truth 已全部实现”的状态板。
 
-它的作用固定为：
+它的历史作用是：
 
-- 先冻结 `original / normalized_readable / semantic_document` 的正式边界
-- 避免后续把现有清洗结果临时拼接成没有 owner 分层的附件库
-- 为后续 restricted rollout / document center productization 提供稳定 contract
+- 记录 `original / normalized_readable / semantic_document` 的分层边界
+- 说明为什么不能把清洗结果临时拼接成没有 owner 分层的附件库
+- 为未来如重新提出 document center 时提供历史参考，而不是直接提供 active target
 
 如果需要判断当前实现进度，应转到：
 
 - `../architecture/current-architecture.md`
-- `../domains/identity-authz-memory.md`
-- `../plans/restricted-document-rollout-and-verification.md`
+- `../architecture/product-positioning.md`
+- `../architecture/system/identity-and-authorization-architecture.md`
+- `../architecture/system/memory-plane-architecture.md`
 - `../../.planning/PROJECT.md`
 - `../../.planning/WORKSTREAMS.md`
 
-## 核心结论
+## 历史核心结论
 
-对 restricted institutional document sources，长期正确的 fan-out 形态固定为三类 artifact：
+对曾经设计过的 restricted institutional document sources，历史 fan-out 形态拆为三类
+artifact：
 
 1. `original`
 1. `normalized_readable`
@@ -53,12 +73,12 @@ contract。
 
 三者可以共享 provenance，但不能混成同一资源层。
 
-repo 级 canonical chain 继续表达为：
+该旧设计中的 canonical chain 表达为：
 
 `raw asset -> provider output -> source truth -> declared projections ->
 canonical document artifacts -> document-units -> chunks -> index`
 
-在 document center 语境下，正确解释固定为：
+在旧 document center 语境下，解释为：
 
 - `original` 属于 raw/source/provenance/download layer
 - `normalized_readable` 属于 document-center readable projection
@@ -349,9 +369,11 @@ ck>/<year>/`
 - `original_resource_id`
 - `normalized_readable_resource_id`
 
-## 当前阶段最小权限模型
+## 历史最小权限模型
 
-当前产品姿态固定为：
+以下内容是历史 document-center 设计的一部分，不再是当前 Campus Assistant 主问答产品目标。
+
+该旧设计中的产品姿态曾固定为：
 
 - institution-scoped
 
@@ -427,7 +449,8 @@ ck>/<year>/`
 - 若进入跨机构或 federation
   - 再补 `tenant_scope`
 
-在这些需求出现之前，当前 approved target 固定保持最小模型。
+在这些需求出现之前，该旧 target 固定保持最小模型。当前主问答产品不继承这个
+document-center permission model。
 
 ## 与现有链路的关系
 

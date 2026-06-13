@@ -34,6 +34,8 @@ execution origin 为准。
   - `execution-control`
   - `workflow-worker`
   - `activity-worker-context`
+  - `agent-runtime`
+  - `activity-worker-agent`
   - `activity-worker-knowledge`
   - `activity-worker-campus-services`
   - `activity-worker-notice`

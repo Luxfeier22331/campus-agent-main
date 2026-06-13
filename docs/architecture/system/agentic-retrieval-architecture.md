@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-20
-updated: 2026-06-08
+updated: 2026-06-12
 ---
 # Agentic Retrieval Architecture
 
@@ -60,7 +60,8 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 - 用户问题会跨条款、跨培养方案层级、跨说明页与近期信息
 - `current / historical / as_of / compare / freshness-sensitive` 问题不适合继续压成一次检索
-- campus assistant 需要更强的 query planning，但不能牺牲 authz、source-trust 与 fail-close
+- campus assistant 需要更强的 query planning，但不能牺牲 query-enabled surface、
+  source-trust 与 fail-close
 
 因此本仓库的 agentic retrieval 目标始终是：
 
@@ -117,7 +118,7 @@ supporting evidence -> grounding validation -> execution finalization`
 允许进入 `knowledge` 的 upstream context 必须是 bounded projection，例如
 `CanonicalNoticeContext`、`NoticeChangeSet`、`ServiceGuideFacts`、`ScheduleBaseline`
 或 `PlaceContext`。这些 projection 只能作为 retrieval framing / evidence comparison
-input，不得绕过 query-enabled surface、authz filter、freshness gate 或 source-trust gate。
+input，不得绕过 query-enabled surface、freshness gate 或 source-trust gate。
 
 ## Ownership Model
 
@@ -134,7 +135,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 
 不负责：
 
-- canonical authz truth
+- product account / session truth
 - runtime profile 的最终 owner 决策
 - retrieval backend vendor freeze
 
@@ -157,7 +158,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 ### runtime truth owners
 
 - `apps/app-api`
-  - authz projection、identity projection、operator-facing read model
+  - account / session projection、operator-facing read model
 - runtime profile / registry / release truth
   - collection posture、visibility、serving alias、version mode
 - `execution-control` / current `apps/execution-control`
@@ -192,7 +193,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 
 - plan 只能引用 admitted step types
 - plan 不能扩大 query-enabled surface
-- plan 不能绕过 authz / visibility filter
+- plan 不能绕过 query-enabled surface、source gate 或 runtime profile
 
 ## RetrievalStep
 
@@ -204,7 +205,7 @@ input，不得绕过 query-enabled surface、authz filter、freshness gate 或 s
 - `step_type`
 - target scope
 - normalized query
-- metadata / authz / version filter
+- metadata / version / source filter
 - freshness requirement
 - expected output class
 - step budget
@@ -261,7 +262,7 @@ admitted retrieval/domain tool step types 固定优先包括：
 plan lifecycle 固定为：
 
 1. query framing
-1. policy / scope / authz admission
+1. policy / scope / source admission
 1. query mode resolution
 1. plan emission
 1. step execution
@@ -290,12 +291,12 @@ planner / executor 必须显式拥有 budget truth。
 - 未授权 live branch
 - 隐式放宽 top-k 或 scope
 
-## Surface, Authz, Freshness, Source-Trust Gates
+## Surface, Freshness, Source-Trust Gates
 
 agentic RAG 不是对当前 gate 的替代，而是必须显式经过这些 gate：
 
 - serving-surface gate
-- authz / visibility gate
+- query-enabled surface gate
 - version-mode gate
 - freshness gate
 - source-trust gate
@@ -456,7 +457,7 @@ guardrail ergonomics，不拥有 retrieval truth。
 - SDK runner 输入只能是 repo-owned `RagSdkRunRequest`、query intent、
   admitted query slot ids 与 bounded evidence anchors
 - SDK function tool 不能执行新的 backend retrieval、不能改写 selector、不能扩大 scope /
-  authz / version / serving surface；默认只能选择已 admitted query slot
+  version / serving surface；默认只能选择已 admitted query slot
 - bounded semantic replan 若后续打开，必须有显式 budget、reason、trace 和 no-widening gate
 - output guardrail 必须拒绝 forged source id、missing claim support、source-id-only support、
   uncited list item 与 malformed structured output
@@ -471,10 +472,11 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 - Python SDK suite 只覆盖 offline/eval/historical bridge behavior，不作为 online RAG
   serving acceptance
 - public/chat product-path E2E 必须证明
-  `execution-control -> Temporal context memory + knowledge RAG graph -> Go
-  activity-worker-context / activity-worker-knowledge /
-  activity-worker-finalization -> sanitized projection -> app-api` 返回 canonical
-  product response
+  `execution-control -> Temporal context memory -> activity-worker-agent /
+  agent-runtime primary agent -> knowledge_query workflow signal ->
+  admitted knowledge RAG graph ->
+  activity-worker-knowledge -> activity-worker-finalization -> sanitized
+  projection -> app-api` 返回 canonical product response
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker
 - SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；

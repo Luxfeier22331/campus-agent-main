@@ -21,6 +21,7 @@ type Role string
 const (
 	RoleWorkflow       Role = "workflow"
 	RoleContext        Role = "activity-context"
+	RoleAgent          Role = "activity-agent"
 	RoleKnowledge      Role = "activity-knowledge"
 	RoleCampusServices Role = "activity-campus-services"
 	RoleNotice         Role = "activity-notice"
@@ -76,6 +77,13 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 			temporalClient,
 			temporalruntime.ActivityTaskQueueContext,
 			server.TemporalContextActivities(),
+		), nil
+	case RoleAgent:
+		server := newActivityServer(cfg)
+		return temporalruntime.NewAgentActivityWorker(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueAgent,
+			server.TemporalAgentActivities(),
 		), nil
 	case RoleKnowledge:
 		server := newActivityServer(cfg)

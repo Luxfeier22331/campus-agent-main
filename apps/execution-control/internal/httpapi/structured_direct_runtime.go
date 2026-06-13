@@ -18,6 +18,7 @@ func isStructuredPayloadKind(payloadKind string) bool {
 		structuredquery.ToolContactDirectoryLookup,
 		structuredquery.ToolAcademicCalendarLookup,
 		structuredquery.ToolCampusNoticeDiscover,
+		structuredquery.ToolCampusNoticeChangeSet,
 		structuredquery.ToolCampusNoticeGet:
 		return true
 	default:
@@ -95,6 +96,8 @@ func (s *Server) executeStructuredRuntime(
 		return s.structuredQuery.LookupAcademicCalendar(ctx, rawPayload)
 	case structuredquery.ToolCampusNoticeDiscover:
 		return s.structuredQuery.LookupCampusNoticeDiscover(ctx, rawPayload)
+	case structuredquery.ToolCampusNoticeChangeSet:
+		return s.structuredQuery.LookupCampusNoticeChangeSet(ctx, rawPayload)
 	case structuredquery.ToolCampusNoticeGet:
 		return s.structuredQuery.LookupCampusNoticeGet(ctx, rawPayload)
 	default:

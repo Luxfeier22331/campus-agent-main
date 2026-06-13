@@ -29,6 +29,7 @@ def _execution_control_required_env() -> list[str]:
         "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001",
         "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001",
         "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:001",
+        "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:001",
         "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001",
         "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:001",
         "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:001",
@@ -36,6 +37,8 @@ def _execution_control_required_env() -> list[str]:
         "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001",
         "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
         "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
+        "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://agent-runtime:27062",
+        "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret",
     ]
 
 

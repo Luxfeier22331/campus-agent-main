@@ -179,10 +179,10 @@ def build_serving_closed_assertion(*, generated_at: str | None = None) -> dict[s
         "index_release_opened": False,
         "alias_publish_opened": False,
         "disallowed_operations": [
-            "campus-ingestion-enqueue-regulation-rag-release-candidates",
-            "campus-ingestion-process-regulation-rag-release-candidates",
-            "campus-ingestion-release-registry-scope",
-            "campus-ingestion-scope-alias",
+            "campus_ingestion_worker.enqueue_regulation_rag_release_candidates",
+            "campus_ingestion_worker.process_regulation_rag_release_candidates",
+            "campus_ingestion_worker.release_registry_scope",
+            "campus_ingestion_worker.scope_alias",
         ],
     }
 
@@ -228,11 +228,9 @@ def build_chunk_only_execution_plan_markdown(
         return "\n".join(lines) + "\n"
     lines.extend(
         [
-            "```bash",
-            "uv run --all-packages \\",
-            "  campus-ingestion-prepare-historical-regulation-chunk-backfill \\",
-            f"  --preparation-run-id-prefix {preparation_run_id_prefix}",
-            "```",
+            "No active Python worker command is retained for this historical",
+            "backfill. Rebuild this as an admitted ingestion-control task if",
+            "the recovery need returns.",
             "",
             "## Admitted Collections",
             "",

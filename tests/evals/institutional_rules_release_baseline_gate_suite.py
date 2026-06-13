@@ -85,7 +85,7 @@ class InstitutionalRulesReleaseBaselineGateSuite(unittest.TestCase):
                         ensure_ascii=False,
                     ),
                 )
-            if "supervisor_runtime_process_smoke" in command_text:
+            if "execution_control_process_smoke" in command_text:
                 return CommandResult(
                     returncode=0,
                     stdout=json.dumps(

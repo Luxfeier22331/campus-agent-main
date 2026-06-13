@@ -491,10 +491,22 @@ func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *te
 	if err != nil {
 		t.Fatalf("list attempts: %v", err)
 	}
+	var lateSynthesisAttempt *execution.StepAttemptProjection
 	for _, attempt := range attempts {
 		if attempt.StepID == "synthesis" && attempt.Status == "completed" {
 			t.Fatalf("late synthesis completed attempt after cancel: %#v", attempt)
 		}
+		if attempt.StepID == "synthesis" {
+			copied := attempt
+			lateSynthesisAttempt = &copied
+		}
+	}
+	if lateSynthesisAttempt == nil {
+		t.Fatal("late synthesis attempt evidence missing")
+	}
+	if lateSynthesisAttempt.LateCompletionOutcome != execution.LateCompletionOutcomeIgnoredAfterCancel ||
+		lateSynthesisAttempt.TerminalReason != "late_completion_ignored" {
+		t.Fatalf("late synthesis attempt = %#v, want ignored after cancel evidence", lateSynthesisAttempt)
 	}
 	results, err := store.ListStepResults(context.Background(), "run-rag-late-cancel")
 	if err != nil {

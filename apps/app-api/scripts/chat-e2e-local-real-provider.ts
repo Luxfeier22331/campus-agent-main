@@ -19,20 +19,22 @@ const args = [
 	"--expect-prompt-runtime-state",
 	"rag_sdk_completed",
 	"--restart-public-chat",
-	"--restart-supervisor-runtime",
+	"--restart-execution-control-runtime",
 ];
 
 const child = spawn("pnpm", args, {
 	cwd: new URL("..", import.meta.url),
 	env: {
 		...process.env,
-		AGENT_RUNTIME_PROVIDER:
-			process.env.AGENT_RUNTIME_PROVIDER ||
-			process.env.PROMPT_RUNTIME_PROVIDER ||
-			"openai-responses",
+		EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:
+			process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET ||
+			process.env.AGENT_RUNTIME_SHARED_SECRET ||
+			"agent-runtime-local-placeholder",
+		AGENT_RUNTIME_SHARED_SECRET:
+			process.env.AGENT_RUNTIME_SHARED_SECRET ||
+			process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET ||
+			"agent-runtime-local-placeholder",
 		PROMPT_RUNTIME_PROVIDER: process.env.PROMPT_RUNTIME_PROVIDER || "openai-responses",
-		SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED:
-			process.env.SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED || "true",
 		EXECUTION_CONTROL_TIMEOUT_MS:
 			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
 		EXECUTION_CONTROL_REQUEST_TIMEOUT_MS:

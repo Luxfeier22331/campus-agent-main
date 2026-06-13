@@ -50,6 +50,7 @@ function toCandidate(row: EvalDiagnosticBadcaseRow): EvalDiagnosticCandidate {
 			score,
 			supportingDocIds: row.supportingDocIdsJson,
 			threshold,
+			trajectoryAttribution: row.trajectoryAttributionJson,
 		},
 		grade: {
 			graderVersion: row.sourceReportSchema,

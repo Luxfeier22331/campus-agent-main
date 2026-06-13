@@ -286,17 +286,22 @@ func ParseAnswerRequestWithIntentPolicy(
 			}
 		}
 	}
-	capabilityResolution := runtimepolicy.ResolveCapability(
-		runtimepolicy.CapabilityResolutionRequest{
-			RequestedCapability: requestedCapability,
-			UserGoal:            userGoal,
-			HasRequestedScope:   hasRequestedScope,
-			VersionQueryMode:    versionQuery.Mode,
-		},
-		intentPolicy,
-	)
-	effectiveRequestedCapability := capabilityResolution.EffectiveCapability
-	capabilitySource := capabilityResolution.Source
+	effectiveRequestedCapability := ""
+	capabilitySource := "primary_agent"
+	if shouldPreResolveCapability(requestedCapability, hasRequestedScope, versionQuery) {
+		capabilityResolution := runtimepolicy.ResolveCapability(
+			runtimepolicy.CapabilityResolutionRequest{
+				RequestedCapability: requestedCapability,
+				UserGoal:            userGoal,
+				HasRequestedScope:   hasRequestedScope,
+				VersionQueryMode:    versionQuery.Mode,
+			},
+			intentPolicy,
+		)
+		effectiveRequestedCapability = capabilityResolution.EffectiveCapability
+		capabilitySource = capabilityResolution.Source
+	}
+	lane := laneForCapability(effectiveRequestedCapability)
 
 	traceID := strings.TrimSpace(headers["x-trace-id"])
 	if traceID == "" {
@@ -306,7 +311,7 @@ func ParseAnswerRequestWithIntentPolicy(
 	runtimeDecisionPayload, runtimeDecisionSummary, structuredHandoff, terminalEnvelope := runtimeDecisions(
 		effectiveRequestedCapability,
 		capabilitySource,
-		laneForCapability(effectiveRequestedCapability),
+		lane,
 		userGoal,
 		conversationID,
 		requestID,
@@ -329,8 +334,7 @@ func ParseAnswerRequestWithIntentPolicy(
 		"conversation_id":            conversationID,
 		"request_id":                 requestID,
 		"effective_capability":       effectiveRequestedCapability,
-		"lane":                       laneForCapability(effectiveRequestedCapability),
-		"requested_capability":       effectiveRequestedCapability,
+		"lane":                       lane,
 		"trace": map[string]any{
 			"trace_id": traceID,
 		},
@@ -346,6 +350,9 @@ func ParseAnswerRequestWithIntentPolicy(
 	}
 	if safetyIdentifier != "" {
 		bridgePayload["safety_identifier"] = safetyIdentifier
+	}
+	if effectiveRequestedCapability != "" {
+		bridgePayload["requested_capability"] = effectiveRequestedCapability
 	}
 	if hasRequestedScope {
 		bridgePayload["requested_scope"] = map[string]any{
@@ -369,7 +376,7 @@ func ParseAnswerRequestWithIntentPolicy(
 		RequestID:           requestID,
 		TraceID:             traceID,
 		RequestedCapability: effectiveRequestedCapability,
-		Lane:                laneForCapability(effectiveRequestedCapability),
+		Lane:                lane,
 		RuntimeDecisions:    runtimeDecisionSummary,
 		StructuredHandoff:   structuredHandoff,
 		WorkflowMode:        runtimeDecisionSummary.WorkflowMode,
@@ -380,10 +387,23 @@ func ParseAnswerRequestWithIntentPolicy(
 	}, nil
 }
 
+func shouldPreResolveCapability(
+	requestedCapability string,
+	hasRequestedScope bool,
+	versionQuery versionQuery,
+) bool {
+	if strings.TrimSpace(requestedCapability) != "" {
+		return true
+	}
+	return hasRequestedScope || (versionQuery.Mode != "" && versionQuery.Mode != "current")
+}
+
 func laneForCapability(requestedCapability string) string {
 	switch requestedCapability {
-	case "", "knowledge":
+	case "knowledge":
 		return "rag"
+	case "":
+		return "default"
 	case "place_lookup":
 		return "navigation"
 	case "campus_services":

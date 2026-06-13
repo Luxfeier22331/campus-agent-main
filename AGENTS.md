@@ -28,8 +28,8 @@
   已硬切为 `context.memory_recall -> plan.route -> capability branch ->
   finalization.write`，knowledge 分支由 Go-owned RAG Temporal graph 执行，
   worker plane / autoscaler 仍按对应架构文档继续收口
-- Python `apps/supervisor-agent-worker` 已退出 online answer path；它只保留
-  offline / eval / tooling / historical bridge reference，不得重新接入 serving
+- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧实现只可通过
+  git history 追溯，不得重新接入 serving
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
 
 ### Branch Model
@@ -421,9 +421,6 @@ pnpm web:build:affected
   execution admission、capability / policy gate、Temporal command/query/cancel、
   memory recall、RAG activity execution、provider usage/cost projection、Go
   finalization 与 runtime observability
-- `apps/supervisor-agent-worker`: Python private semantic worker historical/offline
-  artifact；不参与 online answer serving，不拥有 execution truth、provider hot path 或
-  retrieval canonical boundary
 - `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排
 - `packages/knowledge-capability`: knowledge-family / RAG capability 的
   semantic specialist package；负责 retrieval planning、evidence verification、

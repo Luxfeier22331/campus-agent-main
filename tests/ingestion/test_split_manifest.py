@@ -10,6 +10,9 @@ from campus_ingestion_core.raw_ingestion_split_manifest import (
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
 )
+from campus_ingestion_core.raw_ingestion_split_manifest_curriculum import (
+    CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
+)
 from campus_ingestion_core.split_manifest import load_split_manifest
 
 from tests.ingestion.split_manifest_document_input_suite import *
@@ -235,6 +238,7 @@ class SplitManifestTest(unittest.TestCase):
             default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
         second_input = _build_split_manifest_document_input(
             raw_asset_record=raw_asset_record,
@@ -248,6 +252,7 @@ class SplitManifestTest(unittest.TestCase):
             default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
+            row_policy=CURRICULUM_SPLIT_MANIFEST_ROW_POLICY,
         )
 
         first_rows = [

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-07
+updated: 2026-06-12
 ---
 # Operator Observability Architecture
 
@@ -55,12 +55,12 @@ debugging / analysis / grading`
 - `Overview`
   - 全局 SLO、告警摘要、最近异常、sink health
 - `Requests`
-  - request list/detail、最小执行摘要、trace correlation、projection-friendly diagnostics
+  - request list/detail、step timeline、trace correlation、projection-friendly diagnostics
 - `Quality`
   - retrieval quality、citation coverage、refusal distribution、badcase sampling
-- `Safety/Authz`
-  - ACL decision summary、deny / fail-close posture、projection anomaly、restricted
-    access diagnostics
+- `Safety/Boundary`
+  - capability readiness、source / evidence fail-close posture、projection anomaly
+    与 memory boundary diagnostics
 - `Cost`
   - token usage、estimated cost、model / target / surface 分布
 - `Audit`
@@ -69,6 +69,74 @@ debugging / analysis / grading`
   - `official_web` control plane；它仍是独立 operator domain，不退化成通用 infra console
 
 这些域都属于 operator-facing read model，不等于 raw sink explorer。
+
+## Execution Projection Spine
+
+Operator observability 的目标诊断主线固定为 repo-owned execution projection
+spine：
+
+`Run -> RunEvent -> RunStep -> StepAttempt -> StepResult -> Finalization`
+
+固定规则：
+
+- panel `Requests` detail、quality badcase、eval candidate 与 release evidence
+  必须以 step trajectory 作为共同诊断口径。
+- `workflow_trace_summary` 只保留为 operator-safe compatibility summary，用于展示
+  bounded workflow mode、artifact refs 与历史摘要字段；它不是 canonical diagnostic
+  projection。
+- Temporal history、Sentry、Axiom、OpenAI trace / eval tooling 与 provider raw trace
+  只能作为 debugging、analysis、grading 或 backlink 输入，不得成为 panel query truth。
+- `protected-panel-web` 可以把 step trajectory 渲染成 timeline，但 truth synthesis
+  仍归 `apps/app-api` operator read model；panel 不从 runtime-internal package、sink
+  query 或 execution-control response 拼装诊断事实。
+
+## Operator-Safe Trajectory Diagnostics Contract
+
+eval、badcase 与后续 release evidence 不再各自解释 `workflow_trace_summary` 或
+runtime-specific payload。它们共同消费 app-api 物化后的 operator-safe trajectory
+diagnostics contract：
+
+`app-api operator request detail / export -> operator_step_trajectory.v1 ->
+eval attribution / badcase projection / release-evidence-shaped local fixture`
+
+第一版契约目标：
+
+- 保持非 staging：只冻结离线 / fixture / local export 的消费口径，不要求真实
+  staging run、真实 Temporal metrics 或真实 release closeout。
+- 保持 app-api ownership：输入只能来自 app-api operator read model 或与其同形的
+  sanitized export fixture，不得读取 Temporal history、execution-control internal
+  endpoint、raw provider trace、raw prompt、raw answer、raw transcript 或 local object
+  path。
+- 保持共同归因：每个 eval failure、badcase 或 future release evidence item 必须能关联
+  到 step trajectory 中的阶段、capability、tool、attempt outcome 与 projection refs；无法关联时
+  必须显式标记 `trajectory_missing` / `attribution_missing`，不得从 raw artifact 猜测。
+- 保持兼容摘要降级：`workflow_trace_summary` 可以继续为 panel / eval 提供 bounded
+  display summary，但不得作为 canonical diagnostic source，也不得反向覆盖 step
+  trajectory。
+
+`operator_step_trajectory.v1` 的最小诊断字段族固定为：
+
+- run identity：`request_id`、`run_id`、`trace_id`、`conversation_id`
+- step identity：`step_id`、`step_kind`、`capability`、`tool_name`、`status`
+- execution metadata：task queue / worker metadata、attempt count、queue wait、duration
+- outcome metadata：fail-close reason、terminal reason、replan reason、cancel outcome、
+  timeout outcome、late-completion outcome
+- model / cost metadata：provider、model、input / output / cached tokens、estimated
+  cost
+- projection refs：result refs、answer artifact refs、evidence / retrieval / grounding
+  projection refs where available
+- primary-agent metadata：`agent.primary` step 的 `selected_tools`、
+  `terminal_reason`、`sdk_trace_ref` 与 bounded `tool_result_refs`；SDK raw trace 只能作为
+  backlink/debug sink，不能替代 sanitized step result projection
+
+消费者职责：
+
+- eval normalizer 负责把 app-api export 转成 stable diagnostic observation，不拥有
+  runtime truth。
+- badcase projection 负责把低分、失败或人工复核项绑定到 sanitized step attribution，不读取
+  raw artifact。
+- release evidence 在链路成熟前只能生成 release-evidence-shaped local fixture，用来锁定未来
+  evidence schema 与安全红线；真实 staging evidence 必须后置。
 
 ## Ownership Model
 
@@ -85,7 +153,7 @@ debugging / analysis / grading`
 - operator request projection
 - operator audit projection
 - operator quality / safety / cost aggregate read surfaces
-- operator-facing authz interpretation
+- operator-facing access / boundary interpretation
 - request identity、trace correlation、projection materialization 与 aggregate
   publication
 
@@ -194,7 +262,7 @@ runtime-internal package import 拼装它们。
   可见的 safe summary seam，用于证明最终答复依赖了哪些 repo-owned projection，而不是暴露
   raw artifact payload
 
-当前尚未全部落成 merged truth 的，是更完整的 `Safety/Authz`、`Cost`、`Audit` operator
+当前尚未全部落成 merged truth 的，是更完整的 `Safety/Boundary`、`Cost`、`Audit` operator
 product surface；这属于 rollout 进度问题，不是 ownership 未定。
 
 长期如果推进 full agentic retrieval，operator observability 还必须继续收口 planner / executor
@@ -219,10 +287,10 @@ truth 已开放。
   - 只对发生 retrieval attempt 的请求计数
 - citation miss rate
   - 只对 citation-expected grounded answer 计数
-- refusal rate
-  - 必须拆分 `no_answer`、`needs_clarification`、`approval_required`、`rejected`
-- ACL anomaly rate
-  - projection 缺失、冲突、fail-open suspicion、unauthorized evidence risk
+- refusal / fail-close rate
+  - 必须拆分 `no_answer`、`needs_clarification`、`rejected`、`error`
+- boundary anomaly rate
+  - projection 缺失、冲突、fail-open suspicion、unopened source / capability risk
 - token usage / token cost
   - input / output / cache hit usage
   - near-real-time estimated cost
@@ -308,6 +376,10 @@ dump 或 raw vendor payload 直接暴露给 panel。
 
 长期 multi-capability / agent-as-tool workflow 至少还要补以下 operator-facing summary truth：
 
+- `first_decision_summary`
+  - terminal intent、direct/no-tool vs capability-required branch、decision
+    version、prompt/instruction version、selected capability/tool if any、fail-close
+    reason 与 no-tool answer provenance
 - `workflow_plan_summary`
   - workflow mode、planner version、selected step sequence、allowed capabilities /
     allowed tools、admitted agent-as-tool steps、budget posture 与 terminal policy
@@ -329,7 +401,8 @@ dump 或 raw vendor payload 直接暴露给 panel。
 
 - operator surface 可以展示 agent sequence 与 projection summary，但不得展示 raw provider
   response、完整上游 prompt、raw source HTML、raw OCR dump 或 unrestricted evidence payload
-- repo-owned `workflow_trace_summary` 仍是 canonical projection；OpenAI Agents SDK
+- repo-owned step trajectory 是 canonical diagnostic projection；
+  `workflow_trace_summary` 只是兼容的 operator-safe summary；OpenAI Agents SDK
   tracing 或其他外部 trace 只能作为 debug / grader input
 - Python worker SDK-native readiness 必须使用稳定 fail-close reasons，例如
   `dependency_missing`、`provider_config_missing`、`provider_key_missing`、`model_missing`、
@@ -381,7 +454,7 @@ dump 或 raw vendor payload 直接暴露给 panel。
 - empty recall
 - citation coverage
 - refusal distribution
-- ACL anomaly
+- boundary anomaly
 - token / cost
 
 要求：
@@ -427,7 +500,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 - 返回的是 current answer、historical reference、canonical body，还是 deterministic
   fail-close / unavailable
 - 显式历史参考或 fail-close 的原因是什么
-- notice 结果来自 public `official_web` 还是 restricted `internal_notice` source
+- notice 结果来自 public `official_web` 还是 authenticated-source `internal_notice` source
   family
 
 固定约束：
@@ -460,23 +533,22 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 
 它至少回答：
 
-- 这次 request 以什么 principal / entitlement snapshot 进入系统
+- 这次 request 以什么 account / session / surface projection 进入系统
 - 进入了哪个 target / capability / surface
-- 是否发生 retrieval、fail-close、approval gate、restricted deny
+- 是否发生 retrieval、fail-close、source gate 或 capability gate
 - 最终为什么
-  `completed`、`needs_clarification`、`no_answer`、`approval_required`、`rejected` 或
-  `error`
+  `completed`、`needs_clarification`、`no_answer`、`rejected` 或 `error`
 - 有没有 operator action 或治理异常需要追踪
 
 长期 audit 允许展示：
 
 - `request_id`
 - `trace_id`
-- principal class / entitlement snapshot id / policy projection version
+- caller projection version / policy projection version
 - selected capability / selected tool
 - status / reason code
 - source doc id summary
-- fail-close / deny / approval markers
+- fail-close / deny markers
 - safe summary diagnostics
 
 长期 audit 不允许展示：
@@ -523,7 +595,7 @@ safe deep link 投影进 panel backlink。该模板只用 app-owned `requestId` 
 长期职责：
 
 - high-volume structured runtime events
-- retrieval / citation / ACL / serving / ingestion analysis
+- retrieval / citation / serving / ingestion analysis
 - long-window trend、slice、cohort comparison
 - badcase slicing 与 rollup input
 
@@ -532,7 +604,7 @@ safe deep link 投影进 panel backlink。该模板只用 app-owned `requestId` 
 - retrieval summary events
 - no-answer / clarification / refusal reason summary
 - citation coverage summary
-- ACL decision summary
+- source / capability gate summary
 - token / cost attribution
 - official-web / ingestion / rebuild runtime events
 
@@ -630,7 +702,7 @@ ownership matrix 固定在
 - 不让 raw audit log 直接成为 operator query data plane
 - 不让 `apps/execution-control` 承担 observability query backend
 - 不把 production aggregate、sampled grades、release-gate eval truth 混成一张表
-- 不把 token / cost / ACL / citation 口径硬编码在前端
+- 不把 token / cost / source / citation 口径硬编码在前端
 - 不让 vendor-specific event schema 反向定义 `packages/contracts`
 
 ## 相关稳定文档
@@ -647,8 +719,6 @@ ownership matrix 固定在
   md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
   pation.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
-  .md`
 
 ## 外部参考
 

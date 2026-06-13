@@ -2,13 +2,13 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-06-03
+updated: 2026-06-12
 ---
 # Authenticated Notice Source Architecture
 
 ## 文档边界
 
-本文冻结 notice-oriented restricted/authenticated source channel 的 repo-level supporting
+本文冻结 notice-oriented authenticated source channel 的 repo-level supporting
 architecture。当前主语义 owner 是 `authenticated_notice_portal`，并补充记录同族的
 `wechat_official_account` source-channel truth 应如何进入整体叙事。
 
@@ -18,8 +18,8 @@ architecture。当前主语义 owner 是 `authenticated_notice_portal`，并补�
   ingestion/data plane 如何分层
 - `apps/app-api` 在 authenticated notice processing 中已经拥有哪一层
   control-plane / operator-safe projection truth
-- `authenticated_notice_portal`、`internal_notice`、`file_release_source`、
-  restricted document / regulation downstream 分别是什么关系
+- `authenticated_notice_portal`、`internal_notice`、`file_release_source` 与
+  regulation downstream 分别是什么关系
 - `wechat_official_account` 应以什么力度进入当前架构叙事
 
 它不负责：
@@ -54,7 +54,7 @@ projection ingest -> protected-panel-web list/detail query`
   - `app-api` 拥有的 authenticated notice processing operator-safe ingest 与
     list/detail query
 - `runtime / serving seam`
-  - notice discover/get runtime、restricted document downstream、regulation
+  - notice discover/get runtime、regulation
     downstream、future serving rollout
 
 这四层不得混写成一层“通知系统”。
@@ -198,7 +198,7 @@ projection domain。
 read/control-plane seam，不能被描述成 source-truth owner、对象存储
 owner 或 ingestion runtime owner。
 
-## Internal Notice, Restricted Document, Regulation Split
+## Internal Notice And Regulation Split
 
 `authenticated_notice_portal` source channel 与下游 collection 之间继续保持
 显式 admission split。
@@ -222,13 +222,12 @@ notice-consumption projection family。
 ### `authenticated_documents/file_release_source`
 
 它承接 object-backed released original、inventory / raw-asset truth 与
-document holding rows，用于后续 authenticated document center 或
-owner-specific downstream admission。
+document holding rows，用于 owner-specific downstream admission。Authenticated
+document center 旧设想已退役，不属于当前主问答产品目标。
 
-### restricted document / regulation downstream
+### regulation downstream
 
-- restricted document downstream 与 regulation downstream 都必须通过显式
-  downstream admission 打开
+- regulation downstream 必须通过显式 downstream admission 打开
 - 它们消费 source/data-plane truth，但不反向改写 source-channel truth
 - 不得把 wrapper notices、capture evidence 或 source holding
   直接冒充成 regulation canonical surface
@@ -271,7 +270,7 @@ owner-specific downstream admission。
 - shared file asset loader：
   `docs/architecture/system/file-asset-loader-architecture.md`
 - shared data-plane invariants：`docs/architecture/system/data-plane-architecture.md`
-- restricted document authorization：
+- account / operator access / memory binding：
   `docs/architecture/system/identity-and-authorization-architecture.md`
 
 ## Writing Rules

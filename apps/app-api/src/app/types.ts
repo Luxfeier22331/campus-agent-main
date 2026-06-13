@@ -13,6 +13,8 @@ import type { IdentityPlatformService } from "../modules/identity-platform";
 import type {
 	ExecutionControlCampusServicesProductPathPreflight,
 	ExecutionControlRuntimePreflight,
+	IngestionTaskProjectionClient,
+	IngestionTaskProjectionFetch,
 } from "../modules/integration";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
@@ -56,6 +58,8 @@ export interface AppDependencies {
 		input?: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
 	identityPlatformService?: IdentityPlatformService;
+	ingestionTaskProjectionClient?: IngestionTaskProjectionClient;
+	ingestionTaskProjectionFetch?: IngestionTaskProjectionFetch;
 	officialWebCommandService?: OfficialWebCommandService;
 	officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
 	officialWebPlannerService?: OfficialWebPlannerService;
@@ -122,6 +126,7 @@ export interface AppRequestScope {
 	resolveDiningOperationsService(): DiningOperationsService;
 	resolveDocsService(): DocsService;
 	resolveIdentityPlatformService(): IdentityPlatformService;
+	resolveIngestionTaskProjectionClient(): IngestionTaskProjectionClient;
 	resolveOfficialWebCommandService(): OfficialWebCommandService;
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
 	resolveOfficialWebReleaseTaskProcessingCommandService(): OfficialWebReleaseTaskProcessingCommandService;

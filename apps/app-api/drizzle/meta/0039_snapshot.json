@@ -1,6 +1,6 @@
 {
-  "id": "e20d6d4c-7205-47dd-a267-3ade39de8dff",
-  "prevId": "18d52a6e-ed72-46ac-bcb1-0406b47bf1c7",
+  "id": "6706aae5-5945-0d95-6604-bab57aa29d22",
+  "prevId": "7c88d17b-1a28-406e-7ee1-bdaa0b8be87c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -859,615 +859,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "campus_services_ops.audit_events": {
-      "name": "audit_events",
-      "schema": "campus_services_ops",
-      "columns": {
-        "audit_event_id": {
-          "name": "audit_event_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "object_type": {
-          "name": "object_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "object_id": {
-          "name": "object_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary": {
-          "name": "summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "before_json": {
-          "name": "before_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "after_json": {
-          "name": "after_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "actor_json": {
-          "name": "actor_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "campus_services_ops_audit_action_occurred_idx": {
-          "name": "campus_services_ops_audit_action_occurred_idx",
-          "columns": [
-            {
-              "expression": "action",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "occurred_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campus_services_ops_audit_object_occurred_idx": {
-          "name": "campus_services_ops_audit_object_occurred_idx",
-          "columns": [
-            {
-              "expression": "object_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "object_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "occurred_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "campus_services_ops.releases": {
-      "name": "releases",
-      "schema": "campus_services_ops",
-      "columns": {
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "item_count": {
-          "name": "item_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "current_effective_json": {
-          "name": "current_effective_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_json": {
-          "name": "created_by_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "published_at": {
-          "name": "published_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "published_by_json": {
-          "name": "published_by_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "campus_services_ops_releases_published_at_idx": {
-          "name": "campus_services_ops_releases_published_at_idx",
-          "columns": [
-            {
-              "expression": "published_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "campus_services_ops.source_attestations": {
-      "name": "source_attestations",
-      "schema": "campus_services_ops",
-      "columns": {
-        "attestation_id": {
-          "name": "attestation_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "source_type": {
-          "name": "source_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary": {
-          "name": "summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operator_notes": {
-          "name": "operator_notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confirmed_at": {
-          "name": "confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_json": {
-          "name": "created_by_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "campus_services_ops_attestations_confirmed_at_idx": {
-          "name": "campus_services_ops_attestations_confirmed_at_idx",
-          "columns": [
-            {
-              "expression": "confirmed_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campus_services_ops_attestations_source_confirmed_idx": {
-          "name": "campus_services_ops_attestations_source_confirmed_idx",
-          "columns": [
-            {
-              "expression": "source_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "confirmed_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "campus_services_ops.status_overrides": {
-      "name": "status_overrides",
-      "schema": "campus_services_ops",
-      "columns": {
-        "override_id": {
-          "name": "override_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "service_id": {
-          "name": "service_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "display_name": {
-          "name": "display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_until": {
-          "name": "effective_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_attestation_ids_json": {
-          "name": "source_attestation_ids_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "review_state": {
-          "name": "review_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_json": {
-          "name": "created_by_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_by_json": {
-          "name": "updated_by_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "campus_services_ops_status_effective_window_idx": {
-          "name": "campus_services_ops_status_effective_window_idx",
-          "columns": [
-            {
-              "expression": "effective_from",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "effective_until",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campus_services_ops_status_review_updated_idx": {
-          "name": "campus_services_ops_status_review_updated_idx",
-          "columns": [
-            {
-              "expression": "review_state",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campus_services_ops_status_service_updated_idx": {
-          "name": "campus_services_ops_status_service_updated_idx",
-          "columns": [
-            {
-              "expression": "service_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "campus_services_ops.transport_overrides": {
-      "name": "transport_overrides",
-      "schema": "campus_services_ops",
-      "columns": {
-        "override_id": {
-          "name": "override_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "route_id": {
-          "name": "route_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "display_name": {
-          "name": "display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "service_status": {
-          "name": "service_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_until": {
-          "name": "effective_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_attestation_ids_json": {
-          "name": "source_attestation_ids_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "review_state": {
-          "name": "review_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_json": {
-          "name": "created_by_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_by_json": {
-          "name": "updated_by_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "campus_services_ops_transport_effective_window_idx": {
-          "name": "campus_services_ops_transport_effective_window_idx",
-          "columns": [
-            {
-              "expression": "effective_from",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "effective_until",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campus_services_ops_transport_review_updated_idx": {
-          "name": "campus_services_ops_transport_review_updated_idx",
-          "columns": [
-            {
-              "expression": "review_state",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campus_services_ops_transport_route_updated_idx": {
-          "name": "campus_services_ops_transport_route_updated_idx",
-          "columns": [
-            {
-              "expression": "route_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "official_web.crawl_runs": {
       "name": "crawl_runs",
       "schema": "official_web",
@@ -1872,203 +1263,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dining.draft_versions": {
-      "name": "draft_versions",
-      "schema": "dining",
-      "columns": {
-        "draft_version_id": {
-          "name": "draft_version_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "version_number": {
-          "name": "version_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary_json": {
-          "name": "summary_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_draft_versions_version_idx": {
-          "name": "dining_draft_versions_version_idx",
-          "columns": [
-            {
-              "expression": "version_number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.floorplan_assets": {
-      "name": "floorplan_assets",
-      "schema": "dining",
-      "columns": {
-        "floorplan_asset_id": {
-          "name": "floorplan_asset_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "hall_id": {
-          "name": "hall_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "floor_id": {
-          "name": "floor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bucket": {
-          "name": "bucket",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'campus-rag-derived'"
-        },
-        "content_type": {
-          "name": "content_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'image/svg+xml'"
-        },
-        "byte_size": {
-          "name": "byte_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "object_key": {
-          "name": "object_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sha256": {
-          "name": "sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sanitized_svg_markup": {
-          "name": "sanitized_svg_markup",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "anchor_inventory_json": {
-          "name": "anchor_inventory_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "source_filename": {
-          "name": "source_filename",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_floorplan_assets_floor_idx": {
-          "name": "dining_floorplan_assets_floor_idx",
-          "columns": [
-            {
-              "expression": "hall_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "floor_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_floorplan_assets_status_idx": {
-          "name": "dining_floorplan_assets_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "dining.floors": {
       "name": "floors",
       "schema": "dining",
@@ -2087,12 +1281,6 @@
         },
         "label": {
           "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "draft_floorplan_asset_id": {
-          "name": "draft_floorplan_asset_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -2370,353 +1558,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dining.release_candidate_validation_reports": {
-      "name": "release_candidate_validation_reports",
-      "schema": "dining",
-      "columns": {
-        "validation_report_id": {
-          "name": "validation_report_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "blockers_json": {
-          "name": "blockers_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "warnings_json": {
-          "name": "warnings_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary_json": {
-          "name": "summary_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_release_candidate_reports_candidate_idx": {
-          "name": "dining_release_candidate_reports_candidate_idx",
-          "columns": [
-            {
-              "expression": "candidate_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.release_candidates": {
-      "name": "release_candidates",
-      "schema": "dining",
-      "columns": {
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "base_draft_version_id": {
-          "name": "base_draft_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "publish_mode": {
-          "name": "publish_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scheduled_at": {
-          "name": "scheduled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "expected_predecessor_release_id": {
-          "name": "expected_predecessor_release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "snapshot_hash": {
-          "name": "snapshot_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "floorplan_refs_json": {
-          "name": "floorplan_refs_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "snapshot_payload_json": {
-          "name": "snapshot_payload_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "approved_at": {
-          "name": "approved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approved_by": {
-          "name": "approved_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cancelled_at": {
-          "name": "cancelled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cancelled_by": {
-          "name": "cancelled_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "published_release_id": {
-          "name": "published_release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "dining_release_candidates_status_created_idx": {
-          "name": "dining_release_candidates_status_created_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.release_latest_pointer": {
-      "name": "release_latest_pointer",
-      "schema": "dining",
-      "columns": {
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "snapshot_id": {
-          "name": "snapshot_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.release_schedule_jobs": {
-      "name": "release_schedule_jobs",
-      "schema": "dining",
-      "columns": {
-        "schedule_job_id": {
-          "name": "schedule_job_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scheduled_at": {
-          "name": "scheduled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "attempt_count": {
-          "name": "attempt_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_error_code": {
-          "name": "last_error_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_error_message": {
-          "name": "last_error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "executed_at": {
-          "name": "executed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "dining_release_schedule_jobs_status_scheduled_idx": {
-          "name": "dining_release_schedule_jobs_status_scheduled_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "scheduled_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "dining.release_snapshots": {
       "name": "release_snapshots",
       "schema": "dining",
@@ -2736,19 +1577,6 @@
         "payload_json": {
           "name": "payload_json",
           "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "svg_object_refs_json": {
-          "name": "svg_object_refs_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "snapshot_hash": {
-          "name": "snapshot_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -2793,12 +1621,6 @@
           "primaryKey": true,
           "notNull": true
         },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "notes": {
           "name": "notes",
           "type": "text",
@@ -2829,18 +1651,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "predecessor_release_id": {
-          "name": "predecessor_release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "snapshot_hash": {
-          "name": "snapshot_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -3221,12 +2031,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "svg_anchor_id": {
-          "name": "svg_anchor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "geometry_json": {
           "name": "geometry_json",
@@ -4072,6 +2876,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "trajectory_attribution_json": {
+          "name": "trajectory_attribution_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -4771,12 +3581,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "selected_capability": {
-          "name": "selected_capability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "requested_capability": {
           "name": "requested_capability",
           "type": "text",
@@ -4812,6 +3616,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "selected_capability": {
+          "name": "selected_capability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -5298,143 +4108,6 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "official_web.run_admission_decisions": {
-      "name": "run_admission_decisions",
-      "schema": "official_web",
-      "columns": {
-        "decision_id": {
-          "name": "decision_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "site_id": {
-          "name": "site_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "decision": {
-          "name": "decision",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason_code": {
-          "name": "reason_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "decided_by": {
-          "name": "decided_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "decided_at": {
-          "name": "decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence_json": {
-          "name": "evidence_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "official_web_run_admission_decisions_run_idx": {
-          "name": "official_web_run_admission_decisions_run_idx",
-          "columns": [
-            {
-              "expression": "run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "official_web_run_admission_decisions_site_decision_idx": {
-          "name": "official_web_run_admission_decisions_site_decision_idx",
-          "columns": [
-            {
-              "expression": "site_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "decision",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "decided_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "run_admission_decisions_run_id_crawl_runs_run_id_fk": {
-          "name": "run_admission_decisions_run_id_crawl_runs_run_id_fk",
-          "tableFrom": "run_admission_decisions",
-          "tableTo": "crawl_runs",
-          "schemaTo": "official_web",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "run_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -7453,12 +6126,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "selected_capability": {
-          "name": "selected_capability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -7500,6 +6167,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "selected_capability": {
+          "name": "selected_capability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -7629,12 +6302,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "selected_capability": {
-          "name": "selected_capability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "requested_capability": {
           "name": "requested_capability",
           "type": "text",
@@ -7706,6 +6373,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "selected_capability": {
+          "name": "selected_capability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -7865,12 +6538,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "selected_capability": {
-          "name": "selected_capability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -7900,6 +6567,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "selected_capability": {
+          "name": "selected_capability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -8144,12 +6817,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "selected_capability": {
-          "name": "selected_capability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -8215,6 +6882,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "selected_capability": {
+          "name": "selected_capability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -8421,12 +7094,6 @@
         },
         "collection": {
           "name": "collection",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "selected_capability": {
-          "name": "selected_capability",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8799,6 +7466,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "selected_capability": {
+          "name": "selected_capability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -8843,27 +7516,6 @@
           "columns": [
             {
               "expression": "surface",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "runtime_request_observability_selected_capability_started_at_idx": {
-          "name": "runtime_request_observability_selected_capability_started_at_idx",
-          "columns": [
-            {
-              "expression": "selected_capability",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -8948,6 +7600,27 @@
           "columns": [
             {
               "expression": "safety_identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "runtime_request_observability_selected_capability_started_at_idx": {
+          "name": "runtime_request_observability_selected_capability_started_at_idx",
+          "columns": [
+            {
+              "expression": "selected_capability",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -9067,12 +7740,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "selected_capability": {
-          "name": "selected_capability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -9132,6 +7799,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "selected_capability": {
+          "name": "selected_capability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -9179,6 +7852,143 @@
         }
       },
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "official_web.run_admission_decisions": {
+      "name": "run_admission_decisions",
+      "schema": "official_web",
+      "columns": {
+        "decision_id": {
+          "name": "decision_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision": {
+          "name": "decision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_json": {
+          "name": "evidence_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "official_web_run_admission_decisions_run_idx": {
+          "name": "official_web_run_admission_decisions_run_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "official_web_run_admission_decisions_site_decision_idx": {
+          "name": "official_web_run_admission_decisions_site_decision_idx",
+          "columns": [
+            {
+              "expression": "site_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "decision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "decided_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "run_admission_decisions_run_id_crawl_runs_run_id_fk": {
+          "name": "run_admission_decisions_run_id_crawl_runs_run_id_fk",
+          "tableFrom": "run_admission_decisions",
+          "tableTo": "crawl_runs",
+          "schemaTo": "official_web",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "run_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -10056,6 +8866,615 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "campus_services_ops.audit_events": {
+      "name": "audit_events",
+      "schema": "campus_services_ops",
+      "columns": {
+        "audit_event_id": {
+          "name": "audit_event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_type": {
+          "name": "object_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_id": {
+          "name": "object_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before_json": {
+          "name": "before_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after_json": {
+          "name": "after_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_json": {
+          "name": "actor_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "campus_services_ops_audit_action_occurred_idx": {
+          "name": "campus_services_ops_audit_action_occurred_idx",
+          "columns": [
+            {
+              "expression": "action",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campus_services_ops_audit_object_occurred_idx": {
+          "name": "campus_services_ops_audit_object_occurred_idx",
+          "columns": [
+            {
+              "expression": "object_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "object_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "campus_services_ops.releases": {
+      "name": "releases",
+      "schema": "campus_services_ops",
+      "columns": {
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_count": {
+          "name": "item_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_effective_json": {
+          "name": "current_effective_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_json": {
+          "name": "created_by_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_by_json": {
+          "name": "published_by_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "campus_services_ops_releases_published_at_idx": {
+          "name": "campus_services_ops_releases_published_at_idx",
+          "columns": [
+            {
+              "expression": "published_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "campus_services_ops.source_attestations": {
+      "name": "source_attestations",
+      "schema": "campus_services_ops",
+      "columns": {
+        "attestation_id": {
+          "name": "attestation_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_notes": {
+          "name": "operator_notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_json": {
+          "name": "created_by_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "campus_services_ops_attestations_confirmed_at_idx": {
+          "name": "campus_services_ops_attestations_confirmed_at_idx",
+          "columns": [
+            {
+              "expression": "confirmed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campus_services_ops_attestations_source_confirmed_idx": {
+          "name": "campus_services_ops_attestations_source_confirmed_idx",
+          "columns": [
+            {
+              "expression": "source_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "confirmed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "campus_services_ops.status_overrides": {
+      "name": "status_overrides",
+      "schema": "campus_services_ops",
+      "columns": {
+        "override_id": {
+          "name": "override_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "service_id": {
+          "name": "service_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_until": {
+          "name": "effective_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_attestation_ids_json": {
+          "name": "source_attestation_ids_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "review_state": {
+          "name": "review_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_json": {
+          "name": "created_by_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by_json": {
+          "name": "updated_by_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "campus_services_ops_status_effective_window_idx": {
+          "name": "campus_services_ops_status_effective_window_idx",
+          "columns": [
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_until",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campus_services_ops_status_review_updated_idx": {
+          "name": "campus_services_ops_status_review_updated_idx",
+          "columns": [
+            {
+              "expression": "review_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campus_services_ops_status_service_updated_idx": {
+          "name": "campus_services_ops_status_service_updated_idx",
+          "columns": [
+            {
+              "expression": "service_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "campus_services_ops.transport_overrides": {
+      "name": "transport_overrides",
+      "schema": "campus_services_ops",
+      "columns": {
+        "override_id": {
+          "name": "override_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "route_id": {
+          "name": "route_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_status": {
+          "name": "service_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_until": {
+          "name": "effective_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_attestation_ids_json": {
+          "name": "source_attestation_ids_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "review_state": {
+          "name": "review_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_json": {
+          "name": "created_by_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by_json": {
+          "name": "updated_by_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "campus_services_ops_transport_effective_window_idx": {
+          "name": "campus_services_ops_transport_effective_window_idx",
+          "columns": [
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_until",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campus_services_ops_transport_review_updated_idx": {
+          "name": "campus_services_ops_transport_review_updated_idx",
+          "columns": [
+            {
+              "expression": "review_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campus_services_ops_transport_route_updated_idx": {
+          "name": "campus_services_ops_transport_route_updated_idx",
+          "columns": [
+            {
+              "expression": "route_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

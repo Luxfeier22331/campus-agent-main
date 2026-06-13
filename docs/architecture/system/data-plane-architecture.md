@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-10
+updated: 2026-06-12
 ---
 # Data Plane Architecture
 
@@ -122,6 +122,51 @@ unit，只要不破坏这条 shared chain。
   `docs/data/authenticated-notice-source-truth-schema.md`
 
 这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Accepted Data-Plane Scope` 为准。
+
+## Target Runtime Ownership And Language Boundaries
+
+长期 ingestion/data-plane runtime 采用控制面、执行壳、deterministic kernel 与 provider /
+domain adapter 分层，而不是把当前 Python ingestion scripts 扩成目标 runtime。
+
+目标任务生命周期固定为：
+
+```text
+admit
+-> register
+-> claim / lease
+-> execute
+-> materialize
+-> validate
+-> publish
+-> closeout or dead-letter
+```
+
+固定 owner：
+
+- `apps/app-api` 只拥有 product/operator ingress、operator-safe projection read model
+  与 release gate command；不拥有 ingestion task admission、executor state mutation、
+  executor callback、source truth write、document/index materialization 或 Qdrant alias
+  publish。
+- ingestion control plane 拥有 task registry、claim / lease / retry / dead-letter、
+  run shard batch state、telemetry closeout 与 redacted operator projection snapshot。
+- `apps/ingestion-worker` 是 durable executor shell；它消费已 admission 的 task，
+  按 source family 调用 ingestion contracts、deterministic kernels 与 provider/domain
+  adapters，并把 terminal outcome 暴露为可诊断 closeout。
+- `packages/ingestion-core` 继续拥有 canonical source-truth、materialization、release
+  task、shared file asset loader、collection strategy 与 operator-safe projection
+  snapshot builder。
+- Rust 只承接 profiling 已证明值得下沉的 deterministic batch kernels，例如 JSONL
+  streaming、document-units validation、chunk packing、hash / dedup / diff、release
+  manifest validation 与 embedding batch input preparation；Rust kernel 不拥有
+  source-channel semantics、operator workflow 或 provider adapter contract。
+- Python 只承接 MinerU / OCR / ML / domain extraction adapters、offline eval 与
+  historical tooling；Python adapter 产物必须回到 canonical source truth /
+  document artifact / projection contract 后才能被下游消费。
+
+`provider_response_replay` 只能作为 historical bootstrap、local rebuild、audit 或
+diagnostic input。长期 rebuild / replay 的主路径必须从 canonical source truth、
+canonical document artifacts 或 `document-units` 继续，不得把 provider response
+或 raw asset replay 提升为 canonical rebuild owner。
 
 ## Shared File-Asset Loader Boundary
 
@@ -248,7 +293,7 @@ artifacts 派生一条 product-delivery 子链：
 - published reader assets 属于 derived artifact，不改变 canonical chain
 - 长期真相继续落在对象存储，而不是 repo tracked `assets/` 目录
 - public docs deploy 只把公开子集同步到 Worker static assets
-- restricted / gated reader asset 不得因为采用同一 payload format 就自动进入匿名 public bundle
+- gated reader asset 如果未来另行接受，不得因为采用同一 payload format 就自动进入匿名 public bundle
 
 reader asset package / object key / deploy sync 细节统一看
 `docs/contracts/document-reader-publish-contract.md`。
@@ -277,8 +322,8 @@ retrieval acceptance -> serving alias publish`
 - 对 regulation scope，worker 必须校验 canonical cleaning provenance；缺失当前
   `normalizer_version`、runtime `cleaning_policy_version` 或 `normalization_quality=passed`
   时 fail closed，不进入 index / alias publish
-- incremental update 必须基于 document identity、version/hash、visibility/authz carrier
-  与 runtime profile identity 判定 unchanged / changed / withdrawn / deleted
+- incremental update 必须基于 document identity、version/hash、source/version
+  carrier 与 runtime profile identity 判定 unchanged / changed / withdrawn / deleted
 - changed candidate 生成新 release 或新 point set；withdrawn / deleted candidate 必须产生
   cleanup tombstone 或 explicit delete plan，不允许让 stale chunks 继续被 current alias 命中
 - no-longer-current historical / search-only candidate 如果不是 withdrawn / deleted，不得

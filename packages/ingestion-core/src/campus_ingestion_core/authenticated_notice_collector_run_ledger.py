@@ -23,6 +23,46 @@ AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL_ENV_KEY = (
     "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL"
 )
 
+AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_COLUMNS = (
+    "run_id",
+    "site_id",
+    "source_surface",
+    "collection_mode",
+    "source_home_url",
+    "notice_type_ids",
+    "selected_notice_ids",
+    "bundle_path",
+    "manifest_path",
+    "bundle_object_key",
+    "manifest_object_key",
+    "notices_collected",
+    "pages_fetched",
+    "detail_fetched",
+    "items_seen",
+    "attachment_refs_seen",
+    "attachment_uploaded",
+    "attachment_terminal_unavailable",
+    "attachment_transient_failed",
+    "attachment_reference_only",
+    "status",
+    "error_count",
+    "started_at",
+    "finished_at",
+    "record",
+    "source_bucket",
+    "bundle_content_sha256",
+    "bundle_byte_size",
+    "manifest_content_sha256",
+    "manifest_byte_size",
+    "verification_status",
+    "required_source_object_count",
+    "verified_source_object_count",
+    "missing_source_object_count",
+    "checksum_mismatch_count",
+    "size_mismatch_count",
+    "failure_reason",
+)
+
 _COLLECTOR_RUN_REF_COLUMNS = (
     "run_id",
     "source_surface",
@@ -85,6 +125,18 @@ def resolve_authenticated_notice_collector_run_refs(
         dict(zip(_COLLECTOR_RUN_REF_COLUMNS, row, strict=True)),
         expected_source_surface=expected_source_surface,
     )
+
+
+def collector_run_ledger_database_url_from_env(env: dict[str, str]) -> str:
+    database_url = _collector_run_ledger_database_url(env)
+    if database_url is None:
+        raise ValueError(
+            f"{AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL_ENV_KEY} or "
+            f"{AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL_ENV_KEY} or "
+            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} "
+            "is required"
+        )
+    return database_url
 
 
 def collector_run_refs_from_row(
@@ -180,10 +232,12 @@ def _required_non_negative_int(value: object, label: str) -> int:
 
 
 __all__ = [
+    "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_COLUMNS",
     "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL_ENV_KEY",
     "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL_ENV_KEY",
     "DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE",
     "AuthenticatedNoticeCollectorRunObjectRefs",
+    "collector_run_ledger_database_url_from_env",
     "collector_run_refs_from_row",
     "resolve_authenticated_notice_collector_run_refs",
 ]

@@ -81,6 +81,21 @@ func (a TemporalContextActivities) PlanReplanActivity(
 	return a.server.PlanReplanActivity(ctx, input)
 }
 
+type TemporalAgentActivities struct {
+	server *Server
+}
+
+func (s *Server) TemporalAgentActivities() TemporalAgentActivities {
+	return TemporalAgentActivities{server: s}
+}
+
+func (a TemporalAgentActivities) ExecutePrimaryAgentActivity(
+	ctx context.Context,
+	input temporalruntime.ExecutePrimaryAgentActivityInput,
+) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	return a.server.ExecutePrimaryAgentActivity(ctx, input)
+}
+
 type TemporalKnowledgeActivities struct {
 	server *Server
 }

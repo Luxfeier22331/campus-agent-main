@@ -40,6 +40,11 @@ export {
 	probeExecutionControlReady,
 } from "./execution-control";
 export {
+	createIngestionTaskProjectionClient,
+	type IngestionTaskProjectionClient,
+	type IngestionTaskProjectionFetch,
+} from "./ingestion-control";
+export {
 	createOfficialWebHandoffPublisher,
 	OfficialWebHandoffTransportError,
 } from "./official-web-handoff";

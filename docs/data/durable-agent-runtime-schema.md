@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-06-04
-updated: 2026-06-08
+updated: 2026-06-11
 ---
 # Durable Agent Runtime Schema
 
@@ -214,6 +214,24 @@ retired baseline 消费规则：
 
 - step-level product / eval projection truth
 
+## Step Trajectory Projection Spine
+
+`runtime.agent_run_steps`、`runtime.agent_step_attempts` 与
+`runtime.agent_step_results` 共同组成 operator / eval / badcase 的 step trajectory
+projection spine。
+
+固定语义：
+
+- `agent_run_steps` 表达 workflow plan admitted 的 typed execution unit。
+- `agent_step_attempts` 表达 Temporal activity attempt / worker execution evidence。
+- `agent_step_results` 表达 bounded sanitized output projection。
+- panel、eval、badcase 与 release evidence 只能读取这些 projection 或由 app-api
+  materialize 的 read model，不读取 Temporal raw history、runtime event string 或
+  provider trace。
+- cancel、timeout、fail-close、late completion、bounded replan、provider abort
+  proven / unproven 与 provider usage missing 必须有 step / attempt / result 级归因；
+  不能只写在 run-level terminal reason、workflow trace summary 或 sink event 中。
+
 最小列：
 
 - `step_id`
@@ -313,6 +331,12 @@ retired baseline 消费规则：
 - `updated_at`
 - `metadata_json`
 
+forward-required projection fields：
+
+- `late_completion_outcome`
+- `fail_close_reason`
+- `replan_reason`
+
 最小索引：
 
 - primary key `(attempt_id)`
@@ -351,6 +375,14 @@ retired baseline 消费规则：
 - `provider_timeout`
 - `workflow_timeout`
 
+`late_completion_outcome` enum：
+
+- `not_late`
+- `ignored_after_cancel`
+- `ignored_after_timeout`
+- `ignored_after_terminal_projection`
+- `accepted_before_terminal_projection`
+
 规则：
 
 - attempt 必须来自 Temporal activity task 或明确标记为本地 unit-test projection；active
@@ -368,6 +400,11 @@ retired baseline 消费规则：
   readiness / config failure，不是免费模型或 zero-cost fallback。
 - cancel / timeout 只以 `cancel_outcome` / `timeout_outcome` 记录已证明的下游结果；
   无法证明 provider hard-abort 时必须写 `abort_unproven`。
+- late completion 只能以 `late_completion_outcome` 记录 projection policy outcome；
+  已 terminal run / step 不得被 late success 覆盖。
+- `fail_close_reason` 表达 deterministic semantic / policy failure class；
+  `replan_reason` 表达 bounded replan 的 admitted reason。二者都必须是 sanitized code，
+  不保存 raw planner prompt 或 provider trace。
 - metadata 不保存 raw prompt、raw provider response、raw source body、auth
   material 或 object store credential
 

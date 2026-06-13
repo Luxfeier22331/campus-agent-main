@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-05-01
+updated: 2026-06-12
 ---
 # Navigation And Wayfinding Architecture
 
@@ -170,7 +170,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 固定边界：
 
 - `spatial truth` 不属于 profile memory 或 session memory
-- `current location` 不属于 verified identity 或 authorization truth
+- `current location` 不属于 account / session、operator access 或 source truth
 - `current location` 不得被静默提升成长期 memory truth
 - preference 可以影响 route ranking / wording，但不能替代 origin / destination truth
 - transport schedule、service status 与 notice effective window 不是 route-graph
@@ -272,13 +272,12 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - `no_answer`
 - `error`
 - `rejected`
-- `approval_required` 仅在后续引入高风险 external action 时保留
 
 直接含义：
 
 - 无法安全解析地点时，应 `needs_clarification`
 - 缺少可信 route truth 时，应 `no_answer` 或 `error`
-- 未授权访问 restricted spatial truth 时，应 fail-closed
+- spatial truth 尚未开放、来源不足或地点不可安全解析时，应 fail-closed
 - 不得在导航域为了“更像地图 app”而绕开 execution 终态合同
 
 ## Non-Goals

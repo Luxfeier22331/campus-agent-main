@@ -257,6 +257,9 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	if _, err := LoadFromEnvForRole("activity-context"); err == nil {
 		t.Fatal("context worker must require query-side personal memory config")
 	}
+	if _, err := LoadFromEnvForRole("activity-agent"); err != nil {
+		t.Fatalf("agent worker must not require personal memory config: %v", err)
+	}
 	if _, err := LoadFromEnvForRole("activity-knowledge"); err == nil {
 		t.Fatal("knowledge worker must require query-side personal memory config")
 	}

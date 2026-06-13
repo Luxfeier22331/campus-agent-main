@@ -90,13 +90,10 @@ uv run --all-packages python -m \
   campus_ingestion_worker.migrate_curriculum_course_map_docs_surfaces
 ```
 
-如需 backfill 缺失的 canonical markdown，先执行显式 backfill。该步骤只修复缺失的
-canonical artifact，不在 reader publish 阶段临时合成正文：
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.backfill_missing_canonical_markdown_from_document_units
-```
+如果 registry 当前指向的 `regulations/institutional_rules` 记录缺少
+`canonical.md`，不要在 reader publish 阶段临时合成正文。旧的 Python
+canonical markdown backfill 执行入口已经从 active worker surface 删除；需要恢复时应按
+ingestion-control task / Rust kernel 目标形态重新建模。
 
 发布 reader assets 与 docs read-model manifest：
 
@@ -289,6 +286,77 @@ pnpm --dir apps/app-api docs:gated:smoke:staging
 - Q&A source card、docs search result 和直接阅读都生成 reader permalink：
   `/docs/:corpus/:collection/:docSlug?hl=<rootUnitId>#<anchor>`。
 - active deploy/smoke 不再要求部署独立 docs staging hostname。
+- docs read-model manifest 中的 `collections` 与 `documents` 不包含
+  `campus_notices/internal_notice`。
+- `/api/docs/*` response 不包含 object storage key、raw provider locator 或 `chunkId`。
+- gated reader asset response 必须设置 `Cache-Control: no-store` 与
+  `Vary: Cookie, Authorization`。
+- 缺失 source object、重复 target object、unsafe target path 或 hash/size 不一致时，
+  manifest check / sync 必须失败。
+
+## Serving Seed Manifest
+
+长期 handoff 不把对象存储大内容提交进 Git。Git 只保存脚本、runbook、manifest
+schema 与 checksum 证据；实际 reader assets 继续留在 S3-compatible object storage。
+
+导出 serving seed manifest：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.export_serving_seed \
+  --output-path var/serving-seed-manifest.json
+```
+
+该命令默认读取 current reader manifest：
+
+```text
+public_docs/releases/reader_assets/current/public-docs-reader-assets.json
+```
+
+它会把 docs reader manifest 与其中所有 `sourceObjects` 写入
+`campus_serving_seed_manifest_v1`，每个对象包含：
+
+- bucket
+- key
+- role
+- sizeBytes
+- sha256
+- contentType
+
+校验 seed manifest：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.verify_serving_seed \
+  --manifest-path var/serving-seed-manifest.json
+```
+
+恢复 seed manifest 中声明的对象：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.restore_serving_seed \
+  --manifest-path var/serving-seed-manifest.json
+```
+
+`verify` 与 `restore` 都按 manifest 的 size / sha256 fail closed；缺对象、大小不一致或
+hash 不一致都不得继续。
+
+迁移完成后，旧 derived bucket root
+`manifests/public-docs-reader-assets.json` 不再是合法发布目标。清理它必须先重新发布并校验
+`public_docs/releases/reader_assets/current/public-docs-reader-assets.json`，再用
+derived bucket hygiene audit 产出的 `unexpected-keys.jsonl` 执行：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_derived_bucket_unexpected_keys \
+  --candidate-inventory-path <audit-output>/unexpected-keys.jsonl \
+  --output-dir <cleanup-output> \
+  --yes
+```
+
+该 cleanup 命令不接受缺 bucket / reason / object_key 的旧 inventory；需要重新跑 audit
+取得完整删除凭证。
 
 ## 回滚
 

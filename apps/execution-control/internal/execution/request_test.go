@@ -359,54 +359,34 @@ func TestParseAnswerRequestRejectsRetiredAcademicCalendarCapability(t *testing.T
 	}
 }
 
-func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t *testing.T) {
+func TestParseAnswerRequestKeepsOrdinaryChatCapabilityNeutralBeforePrimaryAgent(t *testing.T) {
 	tests := []struct {
-		name           string
-		userGoal       string
-		wantCapability string
-		wantLane       string
+		name     string
+		userGoal string
 	}{
 		{
-			name:           "place lookup",
-			userGoal:       "图书馆在哪里",
-			wantCapability: "place_lookup",
-			wantLane:       "navigation",
+			name:     "place lookup is not pre-routed",
+			userGoal: "图书馆在哪里",
 		},
 		{
-			name:           "transport schedule",
-			userGoal:       "我明天早上要去丰台上课，最早的班车是几点",
-			wantCapability: "campus_services",
-			wantLane:       "campus_services",
+			name:     "transport schedule is not pre-routed",
+			userGoal: "我明天早上要去丰台上课，最早的班车是几点",
 		},
 		{
-			name:           "public medical service guide",
-			userGoal:       "公费医疗报销需要什么材料",
-			wantCapability: "campus_services",
-			wantLane:       "campus_services",
+			name:     "public medical service guide is not pre-routed",
+			userGoal: "公费医疗报销需要什么材料",
 		},
 		{
-			name:           "public medical contact service guide",
-			userGoal:       "公费医疗报销联系电话是多少",
-			wantCapability: "campus_services",
-			wantLane:       "campus_services",
+			name:     "academic calendar is not pre-routed",
+			userGoal: "今天第几教学周",
 		},
 		{
-			name:           "academic calendar teaching week",
-			userGoal:       "今天第几教学周",
-			wantCapability: "campus_services",
-			wantLane:       "campus_services",
+			name:     "notice discovery is not pre-routed",
+			userGoal: "找一下春假通知",
 		},
 		{
-			name:           "notice discovery",
-			userGoal:       "找一下春假通知",
-			wantCapability: "notice",
-			wantLane:       "notice",
-		},
-		{
-			name:           "non spatial where action",
-			userGoal:       "奖学金在哪里申请",
-			wantCapability: "knowledge",
-			wantLane:       "rag",
+			name:     "knowledge-like question is not defaulted",
+			userGoal: "奖学金在哪里申请",
 		},
 	}
 
@@ -434,15 +414,18 @@ func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t
 			if httpErr != nil {
 				t.Fatalf("unexpected http error: %#v", httpErr)
 			}
-			if request.RequestedCapability != tt.wantCapability {
-				t.Fatalf("requested capability = %q, want %q", request.RequestedCapability, tt.wantCapability)
+			if request.RequestedCapability != "" {
+				t.Fatalf("requested capability = %q, want empty before primary agent", request.RequestedCapability)
 			}
-			if request.Lane != tt.wantLane {
-				t.Fatalf("lane = %q, want %q", request.Lane, tt.wantLane)
+			if request.Lane != "default" {
+				t.Fatalf("lane = %q, want default before primary agent", request.Lane)
 			}
 			payload := decodeExecutionPayload(t, request.Payload)
-			if payload["requested_capability"] != tt.wantCapability {
-				t.Fatalf("projected requested_capability = %v, want %q", payload["requested_capability"], tt.wantCapability)
+			if _, ok := payload["requested_capability"]; ok {
+				t.Fatalf("ordinary chat must not project requested_capability before primary agent: %#v", payload)
+			}
+			if payload["effective_capability"] != "" {
+				t.Fatalf("effective_capability = %v, want empty before primary agent", payload["effective_capability"])
 			}
 		})
 	}

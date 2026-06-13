@@ -354,7 +354,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             report_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": "supervisor_runtime_process_smoke.v1",
+                        "schema_version": "execution_control_process_smoke.v1",
                         "profile": "transport_schedule_sdk_opened",
                         "passed": True,
                         "answer": {

@@ -14,7 +14,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from scripts.supervisor_runtime_process_smoke_http import wait_for_status
+from scripts.execution_control_process_smoke_http import wait_for_status
 
 SMOKE_SCHEMA_VERSION = "service_guide_selected_write_runtime_smoke.v1"
 DEFAULT_REPORT_NAME = "service-guide-selected-write-runtime-smoke.json"

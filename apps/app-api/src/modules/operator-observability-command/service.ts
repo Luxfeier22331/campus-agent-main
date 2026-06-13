@@ -421,6 +421,7 @@ export function buildOperatorObservabilityCommandService(
 					supportingDocIds: badcase.supportingDocIds,
 					surfaceKey: badcase.surfaceKey,
 					thresholdMilli: Math.round(badcase.threshold * 1000),
+					trajectoryAttribution: badcase.trajectoryAttribution,
 				}),
 			);
 			await dependencies.store.upsertEvalDiagnosticBadcases({

@@ -46,6 +46,25 @@ type autoscalerEvidence struct {
 	Decisions            []autoscalerQueueDecision `json:"decisions"`
 }
 
+type autoscalerActuationEvidence struct {
+	EvidenceContract     string                         `json:"evidence_contract"`
+	Mode                 string                         `json:"mode"`
+	Environment          string                         `json:"environment"`
+	GeneratedAt          string                         `json:"generated_at"`
+	ObservedAt           string                         `json:"observed_at"`
+	WritesExecutionState bool                           `json:"writes_execution_state"`
+	Operations           []autoscalerActuationOperation `json:"operations"`
+}
+
+type autoscalerActuationOperation struct {
+	TaskQueue       string `json:"task_queue"`
+	Role            string `json:"role"`
+	CurrentReplicas int    `json:"current_replicas"`
+	DesiredReplicas int    `json:"desired_replicas"`
+	Action          string `json:"action"`
+	Reason          string `json:"reason"`
+}
+
 type autoscalerDecisionInputs struct {
 	QueueCount int `json:"queue_count"`
 }
@@ -81,26 +100,54 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	evidence, err := buildEvidence(input, time.Now().UTC())
+	evidence, err := buildEvidence(input, time.Now().UTC(), options.mode)
 	if err != nil {
 		return err
 	}
-	return writeEvidence(options.evidencePath, evidence)
+	if err := writeEvidence(options.evidencePath, evidence); err != nil {
+		return err
+	}
+	if options.mode == "apply" {
+		return writeEvidence(
+			options.actuatorEvidencePath,
+			buildActuationEvidence(input, evidence),
+		)
+	}
+	return nil
 }
 
 type commandOptions struct {
-	inputPath    string
-	evidencePath string
+	actuatorEvidencePath string
+	evidencePath         string
+	inputPath            string
+	mode                 string
 }
 
 func parseOptions(args []string) (commandOptions, error) {
-	var options commandOptions
+	options := commandOptions{mode: "dry-run"}
 	flags := flag.NewFlagSet("worker-autoscaler", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.mode, "mode", options.mode, "autoscaler mode: dry-run or apply")
 	flags.StringVar(&options.inputPath, "input-path", "", "path to autoscaler observation input JSON")
-	flags.StringVar(&options.evidencePath, "evidence-path", "", "path to dry-run decision evidence JSON")
+	flags.StringVar(&options.evidencePath, "evidence-path", "", "path to autoscaler decision evidence JSON")
+	flags.StringVar(
+		&options.actuatorEvidencePath,
+		"actuator-evidence-path",
+		"",
+		"path to apply-mode ops-plane actuation evidence JSON",
+	)
 	if err := flags.Parse(args); err != nil {
 		return commandOptions{}, err
+	}
+	options.mode = strings.TrimSpace(options.mode)
+	if options.mode == "" {
+		options.mode = "dry-run"
+	}
+	if options.mode == "dry_run" {
+		options.mode = "dry-run"
+	}
+	if options.mode != "dry-run" && options.mode != "apply" {
+		return commandOptions{}, fmt.Errorf("mode must be dry-run or apply")
 	}
 	missing := []string{}
 	if strings.TrimSpace(options.inputPath) == "" {
@@ -109,8 +156,11 @@ func parseOptions(args []string) (commandOptions, error) {
 	if strings.TrimSpace(options.evidencePath) == "" {
 		missing = append(missing, "evidence-path")
 	}
+	if options.mode == "apply" && strings.TrimSpace(options.actuatorEvidencePath) == "" {
+		missing = append(missing, "actuator-evidence-path")
+	}
 	if len(missing) > 0 {
-		return commandOptions{}, fmt.Errorf("%s required", strings.Join(missing, " and "))
+		return commandOptions{}, fmt.Errorf("%s required", strings.Join(missing, ", "))
 	}
 	return options, nil
 }
@@ -155,17 +205,17 @@ func validateInput(input autoscalerInput) error {
 	return nil
 }
 
-func buildEvidence(input autoscalerInput, now time.Time) (autoscalerEvidence, error) {
+func buildEvidence(input autoscalerInput, now time.Time, mode string) (autoscalerEvidence, error) {
 	decisions := make([]autoscalerQueueDecision, 0, len(input.Queues))
 	for _, queue := range input.Queues {
-		decision, err := decideQueue(input.DownstreamBudgets, queue)
+		decision, err := decideQueue(input.DownstreamBudgets, queue, mode)
 		if err != nil {
 			return autoscalerEvidence{}, err
 		}
 		decisions = append(decisions, decision)
 	}
 	return autoscalerEvidence{
-		Mode:                 "dry_run",
+		Mode:                 evidenceModeForMode(mode),
 		Environment:          input.Environment,
 		GeneratedAt:          input.GeneratedAt,
 		ObservedAt:           now.Format(time.RFC3339Nano),
@@ -180,6 +230,7 @@ func buildEvidence(input autoscalerInput, now time.Time) (autoscalerEvidence, er
 func decideQueue(
 	budgets map[string]downstreamBudget,
 	queue queueObservation,
+	mode string,
 ) (autoscalerQueueDecision, error) {
 	desired := queue.CurrentReplicas
 	reason := "within_target"
@@ -219,8 +270,52 @@ func decideQueue(
 		ScheduleToStart:  queue.ScheduleToStartMS,
 		DownstreamMax:    downstreamMax,
 		Reason:           reason,
-		EvidenceContract: "worker-autoscaler-dry-run-v1",
+		EvidenceContract: evidenceContractForMode(mode),
 	}, nil
+}
+
+func buildActuationEvidence(
+	input autoscalerInput,
+	decision autoscalerEvidence,
+) autoscalerActuationEvidence {
+	operations := make([]autoscalerActuationOperation, 0, len(decision.Decisions))
+	for _, item := range decision.Decisions {
+		action := "none"
+		if item.CurrentReplicas != item.DesiredReplicas {
+			action = "scale"
+		}
+		operations = append(operations, autoscalerActuationOperation{
+			TaskQueue:       item.TaskQueue,
+			Role:            item.Role,
+			CurrentReplicas: item.CurrentReplicas,
+			DesiredReplicas: item.DesiredReplicas,
+			Action:          action,
+			Reason:          item.Reason,
+		})
+	}
+	return autoscalerActuationEvidence{
+		EvidenceContract:     "worker-autoscaler-actuation-evidence-v1",
+		Mode:                 "apply",
+		Environment:          input.Environment,
+		GeneratedAt:          input.GeneratedAt,
+		ObservedAt:           decision.ObservedAt,
+		WritesExecutionState: false,
+		Operations:           operations,
+	}
+}
+
+func evidenceContractForMode(mode string) string {
+	if mode == "apply" {
+		return "worker-autoscaler-actuation-decision-v1"
+	}
+	return "worker-autoscaler-dry-run-v1"
+}
+
+func evidenceModeForMode(mode string) string {
+	if mode == "apply" {
+		return "apply"
+	}
+	return "dry_run"
 }
 
 func exceedsLatencyTarget(queue queueObservation) bool {
@@ -228,7 +323,7 @@ func exceedsLatencyTarget(queue queueObservation) bool {
 		queue.ScheduleToStartMS > queue.TargetScheduleToStartMS
 }
 
-func writeEvidence(path string, evidence autoscalerEvidence) error {
+func writeEvidence(path string, evidence any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

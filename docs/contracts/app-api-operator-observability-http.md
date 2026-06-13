@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-03
-updated: 2026-04-25
+updated: 2026-06-11
 ---
 # App API Operator Observability HTTP Contract
 
@@ -542,6 +542,65 @@ list endpoints 额外支持：
     "projectionLagMs": 420,
     "measuredAt": "2026-04-03T00:00:01.300Z"
   },
+  "runtimeRun": {
+    "run": {
+      "runId": "run_01HQ",
+      "requestId": "req_01HQ",
+      "conversationId": "conv_01HQ",
+      "traceId": "trace_01HQ",
+      "status": "completed",
+      "phase": "completed",
+      "terminalReason": "completed"
+    },
+    "eventSummary": {
+      "eventCount": 9,
+      "latestEvent": {
+        "sequence": 9,
+        "eventType": "finalization.completed",
+        "visibility": "browser",
+        "occurredAt": "2026-04-03T00:00:00.842Z"
+      },
+      "terminalEvent": {
+        "sequence": 9,
+        "eventType": "finalization.completed",
+        "visibility": "browser",
+        "occurredAt": "2026-04-03T00:00:00.842Z"
+      },
+      "visibilityCounts": {
+        "browser": 3,
+        "panel": 2,
+        "eval": 1,
+        "internal": 3
+      }
+    },
+    "stepTrajectory": {
+      "attemptCount": 3,
+      "resultCount": 3,
+      "steps": [
+        {
+          "stepId": "context.memory_recall",
+          "stepKind": "memory.recall",
+          "capability": "context",
+          "status": "succeeded",
+          "taskQueue": "activity-context",
+          "workerId": "staging:context:01",
+          "attemptCount": 1,
+          "resultCount": 1,
+          "queueWaitMs": 12,
+          "durationMs": 24,
+          "modelProvider": null,
+          "modelName": null,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "estimatedCostMicrousd": 0,
+          "providerRequestRef": null,
+          "cancelOutcome": null,
+          "timeoutOutcome": null,
+          "latestResultRef": "projection://runs/run_01HQ/steps/context.memory_recall/result"
+        }
+      ]
+    }
+  },
   "links": {
     "traceLink": "https://sentry.example/organizations/campus/traces/trace_01HQ",
     "issueLink": null,
@@ -647,6 +706,20 @@ list endpoints 额外支持：
 - `retrievalPlan` 的来源固定为 request projection 中的
   `diagnosticsJson.retrievalPlanSummary`；它是 operator-safe typed projection，不是
   raw planner trace 或 provider debug payload
+- `runtimeRun.operatorStepTrajectory` 是 request detail 的 canonical execution
+  diagnostic export；它由 app-api 从 execution-control
+  `/internal/execution/runs/:runId/steps` 和 app-owned projection materialize，不由
+  panel 从 Temporal history、sink query 或 raw runtime event 反推
+- `runtimeRun.stepTrajectory` 只保留 bounded compatibility display summary；panel、
+  eval、badcase 与 release-evidence-shaped fixture 必须优先消费
+  `operator_step_trajectory.v1`，不得把 `stepTrajectory` 当第二套 truth
+- `operatorStepTrajectory.steps[*]` 至少表达 step identity、capability、status、task
+  queue、worker id、attempt/result count、queue wait、duration、provider/model、
+  token/cost、cancel/timeout/late-completion outcome、fail-close reason、terminal
+  reason、replan reason 与 bounded projection refs；当前实现未 materialize 的字段不得由
+  panel 猜测补齐
+- 缺 required run / step / attempt / result projection state 时，app-api 必须返回 typed
+  route error 或缺口诊断；不得静默合成成功 trajectory
 - `claimSupportSummary` 只返回 compact 的 claim-level 聚合：总 claim 数、unsupported claim
   type、unsupported field；不返回 raw `claim_supports`、support snippet 或
   provider-native citation/support blob
@@ -1504,7 +1577,24 @@ list endpoints 额外支持：
       "supportingDocIds": ["doc:wrong"],
       "supportingChunkIds": ["chunk:wrong"],
       "answerShape": "eligibility_judgment",
-      "presentationKind": "condition_table"
+      "presentationKind": "condition_table",
+      "trajectoryAttribution": {
+        "status": "attributed",
+        "stepId": "evidence.selection",
+        "stepKind": "selection",
+        "capability": "knowledge",
+        "toolName": null,
+        "stepStatus": "completed",
+        "outcome": {
+          "failCloseReason": null,
+          "terminalReason": null,
+          "replanReason": null,
+          "cancelOutcome": "not_requested",
+          "timeoutOutcome": "not_timed_out",
+          "lateCompletionOutcome": "not_late"
+        },
+        "projectionRefs": ["projection://runs/run_01HQ/evidence-selection"]
+      }
     }
   ]
 }
@@ -1514,8 +1604,12 @@ list endpoints 额外支持：
 
 - payload schema 固定为 `eval_diagnostic_badcases.v1`，source report schema 固定来自
   `ragas-diagnostic-combined-report.v1`
-- `failureStage` 只允许 `retrieval`、`rerank`、`selection`、
-  `evidence_selection`、`synthesis`、`grounding` 与 `diagnostic`
+- `failureStage` 只允许 `routing`、`primary_agent`、`agent`、`tool`、
+  `typed_tool`、`retrieval`、`rerank`、`selection`、`evidence_selection`、
+  `synthesis`、`grounding`、`finalization`、`replan` 与 `diagnostic`
+- `trajectoryAttribution` 必须来自 `operator_step_trajectory.v1` 的 operator-safe projection；
+  缺少 trajectory 时显式写入 `trajectory_missing`，阶段无法归因时显式写入
+  `attribution_missing`，不得从 workflow summary 或 request link 推断
 - ingest 只写 `operator.eval_diagnostic_badcase_projection`；query path 会把这些行并入
   `GET /api/operator/quality/eval-candidates`
 - 这些 candidate 没有 runtime `requestId` / `traceId`，app-api 不为它们生成或猜测
