@@ -4,7 +4,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { type FieldErrors, useFieldArray, useForm } from "react-hook-form";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import {
 	type DiningSvgAnchor,
