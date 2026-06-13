@@ -68,11 +68,9 @@ describe("campus-web published reader sync", () => {
 			join(docsRoot, "docs/regulations/student_rules/student-attendance/v/2026-current.mdx"),
 			"utf8",
 		);
-		expect(currentMdx).toContain("data-pagefind-body");
-		expect(currentMdx).toContain("docs-pagefind-page-meta");
-		expect(currentMdx).toContain('data-pagefind-meta="title:学生考勤管理规定"');
-		expect(currentMdx).toContain("data-pagefind-filter=");
-		expect(currentMdx).toContain('data-pagefind-ignore="all"');
+		expect(currentMdx).toContain('docsSearchVisibility: "public_current"');
+		expect(currentMdx).not.toContain("data-pagefind-body");
+		expect(currentMdx).not.toContain("docs-pagefind-page-meta");
 		expect(currentMdx).toContain('data-root-unit-id="attendance-root"');
 		expect(currentMdx).toContain('<span id="general"></span>');
 		expect(currentMdx).toContain("学生应按时参加教学活动。");
@@ -81,18 +79,18 @@ describe("campus-web published reader sync", () => {
 		expect(currentMdx).not.toContain("doc_id");
 		expect(currentMdx).not.toContain("version_id");
 		expect(versionMdx).toContain('data-docs-version-slug="2026-current"');
-		expect(versionMdx).not.toContain("data-pagefind-body");
+		expect(versionMdx).toContain('docsSearchVisibility: "noindex"');
 		expect(gatedMdx).toContain("GatedReaderBootstrap");
-		expect(gatedMdx).not.toContain("data-pagefind-body");
+		expect(gatedMdx).toContain('docsSearchVisibility: "gated_bootstrap"');
 		expect(gatedMdx).toContain(
 			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
 		);
 		expect(gatedVersionMdx).toContain(
 			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
 		);
-		expect(gatedVersionMdx).not.toContain("data-pagefind-body");
+		expect(gatedVersionMdx).toContain('docsSearchVisibility: "gated_bootstrap"');
 		expect(collectionIndex).toContain("学生考勤管理规定");
-		expect(collectionIndex).not.toContain("data-pagefind-body");
+		expect(collectionIndex).toContain('docsSearchVisibility: "noindex"');
 		expect(collectionIndex).not.toContain("restricted-policy");
 		expect(collectionIndex).not.toContain("受限制度");
 	});
@@ -130,38 +128,50 @@ describe("campus-web published reader sync", () => {
 				"utf8",
 			),
 		).toContain("restricted-root");
-		const searchUnits = JSON.parse(
-			readFileSync(join(targetRoot, "pagefind/campus-docs-search-units.json"), "utf8"),
+		const protectedSearchIndex = JSON.parse(
+			readFileSync(
+				join(
+					targetRoot,
+					"_gated-docs-search/regulations/student_rules/restricted-policy/2026-current/index.json",
+				),
+				"utf8",
+			),
 		) as {
-			units: Array<{
+			schemaVersion: string;
+			visibilityMode: string;
+			entries: Array<{
 				anchor: string;
 				canonicalUrl: string;
+				collectionLabel: string;
 				documentSlug: string;
 				highlightRootUnitIds: string[];
-				title: string;
+				searchText: string;
+				sectionTitle: string;
 				versionSlug: string;
 			}>;
 		};
-		expect(searchUnits.units).toEqual([
+		expect(protectedSearchIndex.schemaVersion).toBe("campus_docs_protected_search_index_v1");
+		expect(protectedSearchIndex.visibilityMode).toBe("principal_protected_static");
+		expect(protectedSearchIndex.entries).toEqual([
 			{
-				anchor: "general",
-				canonicalUrl: "/docs/regulations/student_rules/student-attendance",
+				anchor: "restricted",
+				canonicalUrl: "/docs/regulations/student_rules/restricted-policy",
 				collection: "student_rules",
+				collectionLabel: "学生手册",
 				corpus: "regulations",
-				docId: "doc_public",
-				documentSlug: "student-attendance",
-				documentTitle: "学生考勤管理规定",
-				highlightRootUnitIds: ["attendance-root"],
-				searchUnitId: "search_public_current_general",
-				snippet: "学生应按时参加教学活动。",
-				title: "总则",
-				versionId: "version_public",
+				documentSlug: "restricted-policy",
+				documentTitle: "受限制度",
+				highlightRootUnitIds: ["restricted-root"],
+				searchText: "受限制度 受限章节 这是一条受限正文。",
+				searchUnitId: "search_gated_current_restricted",
+				sectionTitle: "受限章节",
+				snippet: "这是一条受限正文。",
 				versionSlug: "2026-current",
 			},
 		]);
 	});
 
-	it("fails closed when the published reader manifest omits Pagefind search units", async () => {
+	it("fails closed when the published reader manifest omits protected search units", async () => {
 		const { client, manifestPath, root } = createPublishedReaderFixture({
 			includeSearchUnits: false,
 		});
@@ -172,11 +182,27 @@ describe("campus-web published reader sync", () => {
 				manifestFilePath: manifestPath,
 				targetRoot: join(root, "public"),
 			}),
-		).rejects.toThrow("campus docs reader manifest must contain searchUnits[]");
+		).rejects.toThrow("campus docs reader release manifest must contain searchUnits[]");
+	});
+
+	it("fails closed when the reader release manifest has an unsupported surface", async () => {
+		const { client, manifestPath, root } = createPublishedReaderFixture({
+			surface: "legacy_public_docs",
+		});
+
+		await expect(
+			syncCampusPublishedReaderAssets({
+				client,
+				manifestFilePath: manifestPath,
+				targetRoot: join(root, "public"),
+			}),
+		).rejects.toThrow("unsupported docs reader release manifest surface");
 	});
 });
 
-function createPublishedReaderFixture(input: { includeSearchUnits?: boolean } = {}): {
+function createPublishedReaderFixture(
+	input: { includeSearchUnits?: boolean; surface?: string } = {},
+): {
 	client: ObjectStoreClient;
 	manifestPath: string;
 	root: string;
@@ -379,7 +405,7 @@ function createPublishedReaderFixture(input: { includeSearchUnits?: boolean } = 
 			},
 		],
 		...(input.includeSearchUnits === false ? {} : { searchUnits }),
-		surface: "public_docs",
+		surface: input.surface ?? "public_docs",
 	};
 	const manifestPath = join(root, "manifest.json");
 	writeFileSync(manifestPath, JSON.stringify(manifest), "utf8");

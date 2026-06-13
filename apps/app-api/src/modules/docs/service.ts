@@ -4,7 +4,6 @@ import type {
 	DocsDocumentSummaryResponse,
 	DocsNavigationResponse,
 	DocsResolveResponse,
-	DocsSearchResponse,
 	DocsService,
 	DocsVersionsResponse,
 	ReaderAssetDeliveryMode,
@@ -47,21 +46,6 @@ export interface DocsReaderAssetRecord extends DocsDocumentVersionRecord {
 	sourceObjects?: Record<string, string>;
 }
 
-export interface DocsSearchUnitRecord extends DocsVersionAccessRecord {
-	anchor: string;
-	canonicalUrl: string;
-	collection: string;
-	corpus: string;
-	docId: string;
-	documentSlug: string;
-	documentTitle: string;
-	highlightRootUnitIds: string[];
-	snippet: string;
-	title: string;
-	versionId: string;
-	versionSlug: string;
-}
-
 export interface DocsReadModelStore {
 	getCollection(input: {
 		collection: string;
@@ -88,12 +72,6 @@ export interface DocsReadModelStore {
 		corpus: string;
 		documentSlug: string;
 	}): Promise<DocsDocumentVersionRecord[]>;
-	searchCurrentPublic(input: {
-		collection: string;
-		corpus: string;
-		limit: number;
-		query: string;
-	}): Promise<DocsSearchUnitRecord[]>;
 }
 
 export function buildDocsService(input: { store: DocsReadModelStore }): DocsService {
@@ -242,31 +220,6 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 			});
 			assertReadableDocument(readerAsset, request.principal);
 		},
-
-		async search(request) {
-			const limit = clampSearchLimit(request.limit);
-			const rows = (
-				await store.searchCurrentPublic({
-					collection: request.collection,
-					corpus: request.corpus,
-					limit,
-					query: request.query,
-				})
-			).filter((row) => isPublicStaticVersion(row));
-
-			return {
-				query: request.query,
-				results: rows.slice(0, limit).map((row) => ({
-					anchor: row.anchor,
-					canonicalUrl: buildSearchCanonicalUrl(row),
-					documentTitle: row.documentTitle,
-					highlightRootUnitIds: row.highlightRootUnitIds,
-					kind: "section_hit" as const,
-					snippet: row.snippet,
-					title: row.title,
-				})),
-			} satisfies DocsSearchResponse;
-		},
 	};
 }
 
@@ -302,22 +255,6 @@ function isPublicStaticVersion(record: DocsVersionAccessRecord): boolean {
 		record.deliveryMode === "public_static_asset" &&
 		record.entitlementGroups.length === 0
 	);
-}
-
-function clampSearchLimit(value: number | null): number {
-	if (value === null) {
-		return 10;
-	}
-	return Math.min(Math.max(value, 1), 50);
-}
-
-function buildSearchCanonicalUrl(row: DocsSearchUnitRecord): string {
-	const highlight =
-		row.highlightRootUnitIds.length > 0
-			? `?hl=${row.highlightRootUnitIds.map(encodeURIComponent).join(",")}`
-			: "";
-	const documentUrl = row.canonicalUrl.split("#", 1)[0].split("?", 1)[0];
-	return `${documentUrl}${highlight}#${encodeURIComponent(row.anchor)}`;
 }
 
 function buildVersionCanonicalUrl(record: DocsDocumentVersionRecord): string {

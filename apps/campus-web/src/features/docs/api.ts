@@ -1,5 +1,5 @@
 import { requestJson } from "@/platform/api/client";
-import type { DocsNavigationResponse, DocsResolveResponse, DocsSearchResponse } from "./model";
+import type { DocsNavigationResponse, DocsResolveResponse } from "./model";
 
 export async function getDocsNavigation(input: {
 	collection: string;
@@ -35,18 +35,5 @@ export async function resolveDocument(input: {
 		path: `/api/docs/collections/${encodeURIComponent(input.corpus)}/${encodeURIComponent(
 			input.collection,
 		)}/documents/${encodeURIComponent(input.documentSlug)}/resolve${query}`,
-	});
-}
-
-export async function searchDocs(input: {
-	collection: string;
-	corpus: string;
-	query: string;
-}): Promise<DocsSearchResponse> {
-	const params = new URLSearchParams({ q: input.query });
-	return requestJson<DocsSearchResponse>({
-		path: `/api/docs/collections/${encodeURIComponent(input.corpus)}/${encodeURIComponent(
-			input.collection,
-		)}/search?${params.toString()}`,
 	});
 }

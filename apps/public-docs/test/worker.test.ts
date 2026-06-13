@@ -151,7 +151,7 @@ describe("public docs worker shell", () => {
 
 		const response = await worker.fetch(
 			new Request(
-				"https://docs.example.com/api/docs/collections/curriculum/curriculum_plan/search?q=%E8%AF%BE%E7%A8%8B",
+				"https://docs.example.com/api/docs/collections/curriculum/curriculum_plan/navigation",
 				{
 					headers: {
 						accept: "application/json",
@@ -172,8 +172,12 @@ describe("public docs worker shell", () => {
 
 						return new Response(
 							JSON.stringify({
-								query: "课程",
-								results: [],
+								collection: {
+									collection: "curriculum_plan",
+									corpus: "curriculum",
+									displayName: "培养方案",
+								},
+								nodes: [],
 							}),
 							{
 								headers: {
@@ -196,11 +200,15 @@ describe("public docs worker shell", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		await expect(response.json()).resolves.toEqual({
-			query: "课程",
-			results: [],
+			collection: {
+				collection: "curriculum_plan",
+				corpus: "curriculum",
+				displayName: "培养方案",
+			},
+			nodes: [],
 		});
 		expect(forwardedUrl).toBe(
-			"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/search?q=%E8%AF%BE%E7%A8%8B",
+			"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/navigation",
 		);
 		expect(forwardedAccept).toBe("application/json");
 		expect(forwardedCookie).toBe("better-auth.session_token=test");

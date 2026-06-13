@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { PageIndexInfo } from "@rspress/core";
 import { describe, expect, it } from "vitest";
+
+import { campusDocsSearchIndexPlugin } from "../scripts/rspress-search-index-plugin";
 
 const appDir = join(__dirname, "..");
 
@@ -14,7 +17,7 @@ describe("campus docs Rspress build boundary", () => {
 		const configSource = readFileSync(join(appDir, "rspress.config.ts"), "utf8");
 
 		expect(packageJson.dependencies["@rspress/core"]).toBeTruthy();
-		expect(packageJson.devDependencies.pagefind).toBeTruthy();
+		expect(packageJson.devDependencies.pagefind).toBeUndefined();
 		expect(packageJson.scripts["docs:build:scaffold"]).toContain("docs:scaffold");
 		expect(packageJson.scripts["docs:build:published-reader"]).toContain(
 			"docs:sync:published-reader",
@@ -22,11 +25,9 @@ describe("campus docs Rspress build boundary", () => {
 		expect(packageJson.scripts["docs:build:published-reader:staging"]).toContain(
 			"docs:sync:published-reader:staging",
 		);
-		expect(packageJson.scripts["docs:pagefind:index"]).toContain("pagefind");
-		expect(packageJson.scripts["docs:pagefind:index"]).toContain("--site public");
-		expect(packageJson.scripts["docs:pagefind:index"]).toContain("--output-subdir pagefind");
-		expect(packageJson.scripts["docs:build:published-reader"]).toContain("docs:pagefind:index");
-		expect(packageJson.scripts["docs:build:published-reader:staging"]).toContain(
+		expect(packageJson.scripts["docs:pagefind:index"]).toBeUndefined();
+		expect(packageJson.scripts["docs:build:published-reader"]).not.toContain("docs:pagefind:index");
+		expect(packageJson.scripts["docs:build:published-reader:staging"]).not.toContain(
 			"docs:pagefind:index",
 		);
 		expect(packageJson.scripts["docs:sync:published-reader"]).toContain("run-with-local-env.mjs");
@@ -50,14 +51,18 @@ describe("campus docs Rspress build boundary", () => {
 		expect(packageJson.scripts.build).not.toContain("docs:scaffold");
 		expect(packageJson.scripts["build:staging"]).not.toContain("docs:scaffold");
 		expect(configSource).toContain('logoText: "中央民族大学校园问答"');
-		expect(configSource).not.toContain('mode: "local"');
-		expect(configSource).not.toContain("search:");
-		expect(configSource).not.toContain("docs-search-hook");
+		expect(configSource).toContain("locales:");
+		expect(configSource).toContain('lang: "zh"');
+		expect(configSource).toContain('label: "中文"');
+		expect(configSource).toContain("search:");
+		expect(configSource).toContain('mode: "local"');
+		expect(configSource).toContain("rspress-search-hooks");
+		expect(configSource).toContain("campusDocsSearchIndexPlugin");
 		expect(configSource).toContain("buildRspressSidebarConfig");
 		expect(configSource).toContain("reader-state-enhancer");
 		expect(configSource).toContain("docs-content-enhancer");
 		expect(configSource).toContain("mobile-sidebar-guard");
-		expect(configSource).toContain("pagefind-search");
+		expect(configSource).not.toContain("pagefind-search");
 		expect(configSource).not.toContain("search-keyboard-guard");
 	});
 
@@ -108,7 +113,8 @@ describe("campus docs Rspress build boundary", () => {
 		expect(gitignore).toContain(".generated/");
 		expect(gitignore).toContain("public/_docs/");
 		expect(gitignore).toContain("public/_gated-docs/");
-		expect(gitignore).toContain("public/pagefind/");
+		expect(gitignore).toContain("public/_gated-docs-search/");
+		expect(gitignore).not.toContain("public/pagefind/");
 	});
 
 	it("uses campus docs theme styles for reader metadata, versions, and source highlights", () => {
@@ -123,5 +129,58 @@ describe("campus docs Rspress build boundary", () => {
 		expect(cssSource).toContain("var(--sys-brand-interactive,");
 		expect(cssSource).toContain("var(--docs-identity,");
 		expect(cssSource).not.toContain("公开文档");
+		expect(cssSource).not.toContain(".docs-pagefind-");
+	});
+
+	it("keeps Rspress page data while stripping non-public-current search fields", () => {
+		const pages = [
+			createPageIndexInfo({
+				content: "公开正文",
+				routePath: "/docs/public",
+				title: "公开标题",
+				visibility: "public_current",
+			}),
+			createPageIndexInfo({
+				content: "受限正文",
+				routePath: "/docs/restricted",
+				title: "受限标题",
+				visibility: "gated_bootstrap",
+			}),
+		];
+
+		campusDocsSearchIndexPlugin().modifySearchIndexData?.(pages, true);
+
+		expect(pages).toHaveLength(2);
+		expect(pages[0]).toMatchObject({
+			content: "公开正文",
+			routePath: "/docs/public",
+			title: "公开标题",
+		});
+		expect(pages[1]).toMatchObject({
+			content: "",
+			routePath: "/docs/restricted",
+			title: "",
+			toc: [],
+		});
 	});
 });
+
+function createPageIndexInfo(input: {
+	content: string;
+	routePath: string;
+	title: string;
+	visibility: string;
+}): PageIndexInfo {
+	return {
+		_filepath: `/tmp${input.routePath}.mdx`,
+		_flattenContent: input.content,
+		_relativePath: `${input.routePath}.mdx`,
+		content: input.content,
+		frontmatter: { docsSearchVisibility: input.visibility },
+		lang: "zh",
+		routePath: input.routePath,
+		title: input.title,
+		toc: [{ charIndex: 0, depth: 2, id: "section", text: "章节" }],
+		version: "",
+	} as PageIndexInfo;
+}

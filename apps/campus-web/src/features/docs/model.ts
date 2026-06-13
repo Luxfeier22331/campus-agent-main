@@ -43,16 +43,3 @@ export interface DocsResolveResponse {
 		versionSlug: string;
 	};
 }
-
-export interface DocsSearchResponse {
-	query: string;
-	results: Array<{
-		anchor: string;
-		canonicalUrl: string;
-		documentTitle: string;
-		highlightRootUnitIds: string[];
-		kind: "section_hit";
-		snippet: string;
-		title: string;
-	}>;
-}

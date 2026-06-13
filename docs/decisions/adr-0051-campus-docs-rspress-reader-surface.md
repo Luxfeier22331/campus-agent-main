@@ -20,8 +20,8 @@ product surface 决定目标拓扑。
 ## Decision
 
 - `campus-web /docs/*` 是最终文档产品入口。
-- Rspress 是 `campus-web` 文档阅读面的 reader/render engine；Pagefind 是公开文档静态搜索
-  engine。
+- Rspress 是 `campus-web` 文档阅读面的 reader/render/search integration shell；公开
+  current 文档搜索使用 Rspress native local search。
 - `app-api` 继续拥有 canonical document truth、publish manifest、restricted / gated
   navigation/search/resolve/versions/admission 与 source-card permalink shaping。
 - published reader assets 继续是正文发布产物；Rspress build 消费这些 reader projection /
@@ -29,10 +29,16 @@ product surface 决定目标拓扑。
 - Q&A source card、docs search result 与直接阅读必须共用 reader permalink：
   `/docs/:corpus/:collection/:docSlug`、`/v/:versionSlug`、`?hl=rootUnitId`、
   `#anchor`。
-- public published docs search 默认使用 Pagefind static index；只有需要
-  principal-specific visibility 裁剪的 restricted / gated search 进入 `/api/docs/*`。
-- 当前 `/api/docs/*` search 实现仍是 public current only，不作为公开文档站热路径；真正开放
-  restricted / gated search 时必须先演进为 principal-aware visible search。
+- anonymous-visible current docs search 默认使用 Rspress native local search，只索引
+  `docsSearchVisibility=public_current` 的 published reader pages。
+- restricted / gated search 默认使用受同源 Worker admission 保护的
+  `/_gated-docs-search/*` static index，并在 browser 本地执行字面查询；查询词不发送到
+  app-api。
+- `/api/docs/collections/:corpus/:collection/search` 从 browser-facing docs HTTP
+  contract 退役；campus-web Worker 不再 allowlist 该 endpoint，public-docs 也不得保留旧
+  search hook。
+- docs site search 只做精确 / 字面命中；同义词、别名、意图扩展与语义检索属于 RAG/chat
+  能力，不进入文档站本地搜索。
 - 旧 `apps/public-docs` 退出 forward product topology，仅作为可迁移 reference
   implementation。
 
@@ -41,14 +47,15 @@ product surface 决定目标拓扑。
 - 不继续扩展 `campus-web` 自研完整 docs reader。
 - 不复活独立 `public-docs` browser surface 作为长期文档入口。
 - `campus-web` build / deploy gate 必须覆盖 Rspress docs build。
-- Reader state enhancer、MDX generator、Pagefind sidecar / docs search mapping 可以从旧
+- Reader state enhancer、MDX generator 与 docs search mapping 可以从旧
   `apps/public-docs` 迁移，但必须改挂到 campus product shell 与同源 route。
 - 更换 reader engine 必须更新本 ADR、document-site architecture、contract tests 与 build
   checks。
 
 ## Non-Goals
 
-- 不修改 `/api/docs/*` HTTP endpoint path。
+- 不修改 reader resolve / versions / navigation / admission 的 `/api/docs/*`
+  endpoint path。
 - 不修改 reader permalink 语义。
 - 不把 docs search 做成 chat answer API。
 - 不把 reader asset resolve 改成每次返回整篇正文的 API。

@@ -74,7 +74,7 @@ policy、reference、runbook，以及已归档的历史 plan。
   `architecture/system/identity-platform-architecture.md`、
   `architecture/system/identity-browser-experience-architecture.md` 与
   `architecture/system/federation-and-mucwiki-login-architecture.md`
-- 需要回答“campus-web 文档阅读、Rspress reader、canonical reader asset 与 Q&A source card
+- 需要回答“campus-web 文档阅读、Rspress reader、published reader asset 与 Q&A source card
   跳转如何分层”，读
   `architecture/system/document-site-architecture.md`、
   `contracts/app-api-document-reader-http.md` 与

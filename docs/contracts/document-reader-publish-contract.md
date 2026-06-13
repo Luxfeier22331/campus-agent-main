@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-21
-updated: 2026-06-10
+updated: 2026-06-12
 ---
 
 # Document Reader Publish Contract
@@ -96,9 +96,9 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 - `outline.json`
   - outline / section tree
 - `meta.json`
-  - 文档标题、来源摘要、页码范围、版本标签、更新时间、canonical URL 语义
+  - 文档标题、来源摘要、页码范围、版本标签、更新时间、reader permalink 语义
 - `asset-manifest.json`
-  - package 内文件清单、hash、content type、size、reader target 元数据
+  - package 内文件清单、hash、content type、size、reader permalink 元数据
 
 按产品需要可以追加 supplement asset，但必须满足：
 
@@ -116,6 +116,8 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
   object storage bucket/key 或 chunk id
 - `docId` / `versionId` 是 control-plane identity，不是学生侧阅读 UI 字段；Rspress
   reader 默认不得把它们渲染到正文、来源详情或版本控件里
+- browser-facing route target 统一称为 reader permalink；既有 payload 中的
+  `canonicalUrl` 字段名只表示兼容字段，不表示 SEO canonical URL。
 
 ## Deploy-Time Sync Contract
 

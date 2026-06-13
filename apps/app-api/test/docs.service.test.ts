@@ -193,30 +193,6 @@ function createStore(): DocsReadModelStore {
 				},
 			];
 		},
-		async searchCurrentPublic() {
-			return [
-				{
-					...publicDoc,
-					anchor: "semester-4",
-					canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
-					chunkId: "chunk-private-001",
-					documentTitle: publicDoc.title,
-					highlightRootUnitIds: ["semester-4-course-list"],
-					rawSourceLocator: "s3://campus-rag-derived/private/chunk.jsonl",
-					snippet: "第四学期开设法理学、宪法学。",
-					title: "第四学期",
-				},
-				{
-					...restrictedDoc,
-					anchor: "restricted",
-					canonicalUrl: restrictedDoc.canonicalUrl,
-					documentTitle: restrictedDoc.title,
-					highlightRootUnitIds: ["restricted-root"],
-					snippet: "受限内容",
-					title: "受限章节",
-				},
-			];
-		},
 	};
 }
 
@@ -491,34 +467,9 @@ describe("docs service", () => {
 		} satisfies Partial<AppApiRouteError>);
 	});
 
-	it("returns source-card search targets without chunk or raw locator leakage", async () => {
+	it("does not expose docs search through the app-api docs service", () => {
 		const service = buildDocsService({ store: createStore() });
 
-		const response = await service.search({
-			collection: "curriculum_plan",
-			corpus: "curriculum",
-			limit: 5,
-			principal: null,
-			query: "第四学期",
-			versionMode: "current",
-		});
-
-		expect(response).toEqual({
-			query: "第四学期",
-			results: [
-				{
-					anchor: "semester-4",
-					canonicalUrl:
-						"/docs/curriculum/curriculum_plan/law-ethnic-class-program?hl=semester-4-course-list#semester-4",
-					documentTitle: "法学（民族班）培养方案",
-					highlightRootUnitIds: ["semester-4-course-list"],
-					kind: "section_hit",
-					snippet: "第四学期开设法理学、宪法学。",
-					title: "第四学期",
-				},
-			],
-		});
-		expect(JSON.stringify(response)).not.toContain("chunk-private-001");
-		expect(JSON.stringify(response)).not.toContain("rawSourceLocator");
+		expect("search" in service).toBe(false);
 	});
 });

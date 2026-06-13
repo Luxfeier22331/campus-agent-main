@@ -22,7 +22,6 @@ export default defineConfig({
 	plugins: [publicDocsSearchIndexBudgetPlugin()],
 	search: {
 		mode: "local",
-		searchHooks: path.join(__dirname, "src/search/docs-search-hook.ts"),
 	},
 	themeConfig: {
 		darkMode: false,

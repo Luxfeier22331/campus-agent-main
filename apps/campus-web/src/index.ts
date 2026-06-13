@@ -26,7 +26,7 @@ export interface Env {
 
 const SECURITY_HEADERS = {
 	"content-security-policy":
-		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io; worker-src 'self' blob:",
+		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://cdn.platform.openai.com; frame-src https://challenges.cloudflare.com https://cdn.platform.openai.com; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io; worker-src 'self' blob:",
 	"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 	"referrer-policy": "strict-origin-when-cross-origin",
 	"x-content-type-options": "nosniff",
@@ -49,8 +49,8 @@ const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authoriz
 const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
 const PUBLIC_READER_ASSET_PREFIX = "/_docs/";
 const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
+const PROTECTED_READER_SEARCH_PREFIX = "/_gated-docs-search/";
 const PUBLIC_MAP_ASSET_PREFIX = "/map-assets/";
-const PUBLIC_PAGEFIND_ASSET_PREFIX = "/pagefind/";
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -117,6 +117,18 @@ const worker = {
 			return proxyToAppApi(request, env);
 		}
 
+		if (url.pathname.startsWith(PROTECTED_READER_SEARCH_PREFIX)) {
+			if (request.method !== "GET" && request.method !== "HEAD") {
+				return jsonResponse(404, {
+					error: {
+						code: "not_found",
+						message: "Route not found.",
+					},
+				});
+			}
+			return serveProtectedReaderSearchIndex(request, env);
+		}
+
 		if (url.pathname.startsWith(GATED_READER_ASSET_PREFIX)) {
 			if (request.method !== "GET" && request.method !== "HEAD") {
 				return jsonResponse(404, {
@@ -144,10 +156,6 @@ const worker = {
 			}
 
 			if (url.pathname.startsWith(PUBLIC_MAP_ASSET_PREFIX)) {
-				return serveStaticAsset(request, env);
-			}
-
-			if (url.pathname.startsWith(PUBLIC_PAGEFIND_ASSET_PREFIX)) {
 				return serveStaticAsset(request, env);
 			}
 
@@ -197,7 +205,21 @@ function getMissingRuntimeConfig(env: Env): string[] {
 }
 
 async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
-	if (!(env.APP_API && env.APP_API_BASE_URL)) {
+	const appApiBaseUrl = env.APP_API_BASE_URL?.trim();
+	if (!appApiBaseUrl) {
+		return jsonResponse(503, {
+			error: {
+				code: "dependency_not_ready",
+				message: "服务暂不可用，请稍后再试。",
+			},
+		});
+	}
+	let appApiFetch: (request: Request) => Promise<Response> | Response;
+	if (isLoopbackAppApiBaseUrl(appApiBaseUrl)) {
+		appApiFetch = fetch;
+	} else if (env.APP_API) {
+		appApiFetch = env.APP_API.fetch.bind(env.APP_API);
+	} else {
 		return jsonResponse(503, {
 			error: {
 				code: "dependency_not_ready",
@@ -207,7 +229,7 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 	}
 
 	const inboundUrl = new URL(request.url);
-	const appApiUrl = new URL(inboundUrl.pathname + inboundUrl.search, env.APP_API_BASE_URL);
+	const appApiUrl = new URL(inboundUrl.pathname + inboundUrl.search, appApiBaseUrl);
 	const headers = new Headers();
 	for (const headerName of getForwardedHeaders(inboundUrl.pathname)) {
 		const value = request.headers.get(headerName);
@@ -222,7 +244,7 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 				? undefined
 				: await request.arrayBuffer();
 		return withNoStore(
-			await env.APP_API.fetch(
+			await appApiFetch(
 				new Request(appApiUrl.toString(), {
 					body,
 					headers,
@@ -238,6 +260,18 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 				message: "服务暂不可用，请稍后再试。",
 			},
 		});
+	}
+}
+
+function isLoopbackAppApiBaseUrl(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return (
+			url.protocol === "http:" &&
+			(url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1")
+		);
+	} catch {
+		return false;
 	}
 }
 
@@ -286,7 +320,24 @@ async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {
 }
 
 async function serveGatedReaderAsset(request: Request, env: Env): Promise<Response> {
-	const target = parseGatedReaderTarget(new URL(request.url).pathname);
+	const target = parseProtectedReaderTarget(new URL(request.url).pathname, "_gated-docs");
+	if (!target) {
+		return withVaryAuth(
+			jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
+		);
+	}
+
+	const admissionResponse = await checkGatedReaderAdmission({ env, request, target });
+	if (admissionResponse) {
+		return admissionResponse;
+	}
+
+	const response = await fetchStaticAsset(request, env);
+	return withVaryAuth(responseWithSecurityHeaders(response));
+}
+
+async function serveProtectedReaderSearchIndex(request: Request, env: Env): Promise<Response> {
+	const target = parseProtectedReaderTarget(new URL(request.url).pathname, "_gated-docs-search");
 	if (!target) {
 		return withVaryAuth(
 			jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
@@ -361,14 +412,17 @@ async function checkGatedReaderAdmission(input: {
 	);
 }
 
-function parseGatedReaderTarget(pathname: string): {
+function parseProtectedReaderTarget(
+	pathname: string,
+	prefix: "_gated-docs" | "_gated-docs-search",
+): {
 	collection: string;
 	corpus: string;
 	documentSlug: string;
 	versionSlug: string;
 } | null {
 	const segments = pathname.split("/").filter(Boolean);
-	if (segments.length < 6 || segments[0] !== "_gated-docs") {
+	if (segments.length < 6 || segments[0] !== prefix) {
 		return null;
 	}
 	const [, corpus, collection, documentSlug, versionSlug] = segments;

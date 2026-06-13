@@ -2,6 +2,6 @@
 doc_build/
 public/_docs/
 public/_gated-docs/
+public/_gated-docs-search/
 public/docs/
-public/pagefind/
 public/static/

@@ -3,7 +3,6 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createS3ObjectStore } from "./published-reader-object-store.mjs";
-import { writePagefindSearchUnits } from "./published-reader-pagefind-units.mjs";
 import {
 	escapeAttribute,
 	escapeHtml,
@@ -74,7 +73,7 @@ export async function syncCampusPublishedReaderAssets(input) {
 	let copiedAssetCount = 0;
 	rmSync(resolve(targetRoot, "_docs"), { force: true, recursive: true });
 	rmSync(resolve(targetRoot, "_gated-docs"), { force: true, recursive: true });
-	rmSync(resolve(targetRoot, "pagefind", "campus-docs-search-units.json"), { force: true });
+	rmSync(resolve(targetRoot, "_gated-docs-search"), { force: true, recursive: true });
 	for (const entry of entries) {
 		const copies = [];
 		for (const [targetLabel, targetObject] of Object.entries(entry.targetObjects)) {
@@ -100,7 +99,7 @@ export async function syncCampusPublishedReaderAssets(input) {
 			copiedAssetCount += 1;
 		}
 	}
-	writePagefindSearchUnits({ entries, manifest, targetRoot });
+	writeProtectedSearchIndexes({ entries, manifest, targetRoot });
 	return {
 		copiedAssetCount,
 		copiedDocumentCount: entries.length,
@@ -181,13 +180,9 @@ function writeGatedReaderPage(input) {
 		entry: input.entry,
 		importPath: "@/components/docs/gated-reader-bootstrap",
 	});
-	const currentMdx = buildGatedReaderMdx({
-		entry: input.entry,
-		importPath: "@/components/docs/gated-reader-bootstrap",
-	});
 	writeText(versionPath, versionMdx);
 	if (input.entry.isCurrent) {
-		writeText(currentPath, currentMdx);
+		writeText(currentPath, versionMdx);
 	}
 }
 
@@ -196,6 +191,7 @@ function buildGatedReaderMdx(input) {
 		"---",
 		`title: ${JSON.stringify(input.entry.title)}`,
 		"footer: false",
+		'docsSearchVisibility: "gated_bootstrap"',
 		`documentKind: ${JSON.stringify(resolveDocumentKind(input.entry))}`,
 		'readerLayout: "reference"',
 		'readerMeasure: "standard"',
@@ -216,11 +212,14 @@ async function loadManifest(input) {
 				key: requireValue(input.manifestObjectKey, "manifestObjectKey"),
 			});
 	const parsed = JSON.parse(raw);
+	if (parsed.surface !== "public_docs") {
+		throw new Error(`unsupported docs reader release manifest surface: ${parsed.surface}`);
+	}
 	if (!Array.isArray(parsed.entries)) {
-		throw new Error("campus docs reader manifest must contain entries[]");
+		throw new Error("campus docs reader release manifest must contain entries[]");
 	}
 	if (!Array.isArray(parsed.searchUnits)) {
-		throw new Error("campus docs reader manifest must contain searchUnits[]");
+		throw new Error("campus docs reader release manifest must contain searchUnits[]");
 	}
 	return {
 		entries: parsed.entries.map(normalizeEntry),
@@ -272,6 +271,7 @@ function writeBootstrapPages(docsRoot) {
 			"---",
 			'title: "文档阅读"',
 			"footer: false",
+			'docsSearchVisibility: "noindex"',
 			'readerLayout: "reference"',
 			'readerMeasure: "standard"',
 			"---",
@@ -288,6 +288,7 @@ function writeBootstrapPages(docsRoot) {
 			"---",
 			'title: "文档目录"',
 			"footer: false",
+			'docsSearchVisibility: "noindex"',
 			'readerLayout: "reference"',
 			'readerMeasure: "standard"',
 			"outline: false",
@@ -307,21 +308,16 @@ function buildReaderMdx(input) {
 		"---",
 		`title: ${JSON.stringify(title)}`,
 		"footer: false",
+		`docsSearchVisibility: ${JSON.stringify(input.searchable ? "public_current" : "noindex")}`,
 		`documentKind: ${JSON.stringify(resolveDocumentKind(input.entry))}`,
 		`readerLayout: ${JSON.stringify(resolveReaderLayout(input.entry))}`,
 		`readerMeasure: ${JSON.stringify(resolveReaderMeasure(input.entry))}`,
 		'readerOutline: "document"',
 		"---",
 		"",
-		...(input.searchable
-			? [buildPagefindMetadata({ entry: input.entry, searchable: input.searchable, title })]
-			: []),
 		buildMetaPanel({ entry: input.entry, meta: input.meta, versions: input.versions }),
 		"",
 	];
-	if (input.searchable) {
-		lines.push('<main data-pagefind-body className="docs-pagefind-body">', "");
-	}
 	for (const section of input.reader.sections ?? []) {
 		const anchor = String(section.anchor ?? "").trim();
 		if (anchor) {
@@ -347,24 +343,7 @@ function buildReaderMdx(input) {
 			);
 		}
 	}
-	if (input.searchable) {
-		lines.push("</main>", "");
-	}
 	return `${lines.join("\n").trimEnd()}\n`;
-}
-
-function buildPagefindMetadata(input) {
-	if (!input.searchable) {
-		return "";
-	}
-	const filters = [
-		`corpus:${input.entry.corpus}`,
-		`collection:${input.entry.collection}`,
-		`documentSlug:${input.entry.documentSlug}`,
-		`versionSlug:${input.entry.versionSlug}`,
-		`documentKind:${resolveDocumentKind(input.entry)}`,
-	].join(", ");
-	return `<span className="docs-pagefind-page-meta" data-pagefind-ignore data-pagefind-meta="title:${escapeAttribute(input.title)}" data-pagefind-filter="${escapeAttribute(filters)}"></span>`;
 }
 
 function buildMetaPanel(input) {
@@ -384,7 +363,7 @@ function buildMetaPanel(input) {
 		})),
 	});
 	return [
-		`<section className="document-meta-panel" aria-label="文档来源与版本" data-pagefind-ignore="all" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
+		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
 		'\t<p className="document-meta-summary">',
 		`\t\t<span>${escapeHtml(versionLabel)}</span>`,
 		`\t\t<span>来源：${escapeHtml(sourceLabel)}</span>`,
@@ -543,6 +522,7 @@ function buildCollectionIndex(corpus, collection, entries) {
 		"---",
 		`title: ${JSON.stringify(label)}`,
 		"footer: false",
+		'docsSearchVisibility: "noindex"',
 		"outline: false",
 		"---",
 		"",
@@ -553,6 +533,133 @@ function buildCollectionIndex(corpus, collection, entries) {
 		),
 		"",
 	].join("\n");
+}
+
+function writeProtectedSearchIndexes(input) {
+	const searchUnitsByVersionId = buildSearchUnitsByVersionId(input.manifest.searchUnits);
+	for (const entry of input.entries) {
+		if (entry.deliveryMode !== "gated_asset" || !entry.isCurrent) {
+			continue;
+		}
+		if (!entry.versionId) {
+			throw new Error(`protected search index requires versionId: ${entry.documentSlug}`);
+		}
+		const searchUnits = searchUnitsByVersionId.get(entry.versionId);
+		if (!searchUnits) {
+			throw new Error(`missing protected search units for version: ${entry.versionId}`);
+		}
+		const targetPath = resolve(
+			input.targetRoot,
+			"_gated-docs-search",
+			entry.corpus,
+			entry.collection,
+			entry.documentSlug,
+			entry.versionSlug,
+			"index.json",
+		);
+		writeText(
+			targetPath,
+			formatJson({
+				entries: searchUnits.map((unit) => buildProtectedSearchEntry({ entry, unit })),
+				generatedAt: input.manifest.generatedAt ?? null,
+				schemaVersion: "campus_docs_protected_search_index_v1",
+				visibilityMode: "principal_protected_static",
+			}),
+		);
+	}
+}
+
+function buildSearchUnitsByVersionId(searchUnits) {
+	const byVersionId = new Map();
+	for (const rawUnit of searchUnits) {
+		const unit = normalizeSearchUnit(rawUnit);
+		byVersionId.set(unit.versionId, [...(byVersionId.get(unit.versionId) ?? []), unit]);
+	}
+	for (const [versionId, units] of byVersionId) {
+		byVersionId.set(versionId, units.sort(compareSearchUnit));
+	}
+	return byVersionId;
+}
+
+function normalizeSearchUnit(value) {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("campus docs reader search unit must be an object");
+	}
+	return {
+		anchor: requireString(value.anchor, "searchUnits.anchor"),
+		canonicalUrl: requireString(value.canonicalUrl, "searchUnits.canonicalUrl"),
+		collection: requireString(value.collection, "searchUnits.collection"),
+		corpus: requireString(value.corpus, "searchUnits.corpus"),
+		docId: optionalString(value.docId),
+		documentSlug: requireString(value.documentSlug, "searchUnits.documentSlug"),
+		documentTitle: requireString(value.documentTitle, "searchUnits.documentTitle"),
+		highlightRootUnitIds: requireStringArray(
+			value.highlightRootUnitIds,
+			"searchUnits.highlightRootUnitIds",
+		),
+		searchUnitId: requireString(value.searchUnitId, "searchUnits.searchUnitId"),
+		snippet: requireString(value.snippet, "searchUnits.snippet"),
+		title: requireString(value.title, "searchUnits.title"),
+		versionId: requireString(value.versionId, "searchUnits.versionId"),
+		versionSlug: requireString(value.versionSlug, "searchUnits.versionSlug"),
+	};
+}
+
+function buildProtectedSearchEntry(input) {
+	assertSearchUnitMatchesEntry({ entry: input.entry, unit: input.unit });
+	const sectionTitle = input.unit.title;
+	const canonicalUrl = normalizeReaderCanonicalUrl(input.unit.canonicalUrl);
+	return {
+		anchor: input.unit.anchor,
+		canonicalUrl,
+		collection: input.entry.collection,
+		collectionLabel: resolveCollectionLabel(input.entry),
+		corpus: input.entry.corpus,
+		documentSlug: input.entry.documentSlug,
+		documentTitle: input.unit.documentTitle,
+		highlightRootUnitIds: input.unit.highlightRootUnitIds,
+		searchText: [input.unit.documentTitle, sectionTitle, input.unit.snippet].join(" "),
+		searchUnitId: input.unit.searchUnitId,
+		sectionTitle,
+		snippet: input.unit.snippet,
+		versionSlug: input.entry.versionSlug,
+	};
+}
+
+function assertSearchUnitMatchesEntry(input) {
+	const pairs = [
+		["corpus", input.unit.corpus, input.entry.corpus],
+		["collection", input.unit.collection, input.entry.collection],
+		["documentSlug", input.unit.documentSlug, input.entry.documentSlug],
+		["versionSlug", input.unit.versionSlug, input.entry.versionSlug],
+	];
+	for (const [label, actual, expected] of pairs) {
+		if (actual !== expected) {
+			throw new Error(`protected search unit ${label} does not match release entry`);
+		}
+	}
+}
+
+function normalizeReaderCanonicalUrl(value) {
+	const raw = value.trim();
+	let pathname = raw;
+	try {
+		const url = new URL(raw, "https://campus.muc.wiki");
+		pathname = url.pathname;
+	} catch {
+		pathname = raw.split(/[?#]/u, 1)[0] ?? raw;
+	}
+	const withoutTrailingSlash = pathname.length > 1 ? pathname.replace(/\/+$/u, "") : pathname;
+	return withoutTrailingSlash || "/";
+}
+
+function compareSearchUnit(left, right) {
+	return (
+		left.documentSlug.localeCompare(right.documentSlug) ||
+		left.versionSlug.localeCompare(right.versionSlug) ||
+		left.anchor.localeCompare(right.anchor) ||
+		left.searchUnitId.localeCompare(right.searchUnitId)
+	);
 }
 
 function resolveSourceObjectKey(entry, targetLabel) {
@@ -756,6 +863,13 @@ function requireStringRecord(value, name) {
 		throw new Error(`campus docs reader manifest entry requires ${name}`);
 	}
 	return value;
+}
+
+function requireStringArray(value, name) {
+	if (!Array.isArray(value)) {
+		throw new Error(`campus docs reader manifest entry requires ${name}`);
+	}
+	return value.map((item) => requireString(item, name));
 }
 
 function assertSafePathSegment(value, label) {

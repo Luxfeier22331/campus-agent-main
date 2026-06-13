@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 
+import { buildAccountLoginUrlForCurrentRoute } from "@/platform/runtime/config";
+
 interface DocsResolveResponse {
 	document: {
+		collection: string;
+		corpus: string;
+		documentSlug: string;
 		title: string;
 	};
 	readerAsset: {
@@ -15,6 +20,7 @@ interface DocsResolveResponse {
 	};
 	resolvedVersion: {
 		label: string;
+		versionSlug: string;
 	};
 }
 
@@ -45,6 +51,8 @@ interface ReaderRouteTarget {
 type ReaderState =
 	| { status: "loading" }
 	| { status: "not_found" }
+	| { status: "unauthorized" }
+	| { status: "unavailable" }
 	| { reader: ReaderPayload; resolve: DocsResolveResponse; status: "ready" };
 
 export default function GatedReaderBootstrap() {
@@ -66,7 +74,7 @@ export default function GatedReaderBootstrap() {
 					headers: { accept: "application/json" },
 				});
 				if (!resolveResponse.ok) {
-					setState({ status: "not_found" });
+					setState(resolveFailureState(resolveResponse.status));
 					return;
 				}
 
@@ -76,7 +84,7 @@ export default function GatedReaderBootstrap() {
 					headers: { accept: "application/json" },
 				});
 				if (!readerResponse.ok) {
-					setState({ status: "not_found" });
+					setState(resolveFailureState(readerResponse.status));
 					return;
 				}
 
@@ -86,7 +94,7 @@ export default function GatedReaderBootstrap() {
 				}
 			} catch {
 				if (!cancelled) {
-					setState({ status: "not_found" });
+					setState({ status: "unavailable" });
 				}
 			}
 		}
@@ -108,11 +116,35 @@ export default function GatedReaderBootstrap() {
 			</div>
 		);
 	}
+	if (state.status === "unauthorized") {
+		return (
+			<div className="reader-bootstrap-status">
+				<h1>请先登录</h1>
+				<p>登录后继续打开这份文档。</p>
+				<a href={resolveLoginHref()}>登录后继续</a>
+			</div>
+		);
+	}
+	if (state.status === "unavailable") {
+		return (
+			<div className="reader-bootstrap-status">
+				<h1>文档暂不可用</h1>
+				<p>请稍后重试。</p>
+			</div>
+		);
+	}
 
 	const title = state.reader.document?.title || state.resolve.document.title;
 	return (
 		<article className="reader-bootstrap-article">
-			<header className="document-meta-panel">
+			<header
+				className="document-meta-panel"
+				data-docs-collection={state.resolve.document.collection}
+				data-docs-corpus={state.resolve.document.corpus}
+				data-docs-document-slug={state.resolve.document.documentSlug}
+				data-docs-reader-meta="true"
+				data-docs-version-slug={state.resolve.resolvedVersion.versionSlug}
+			>
 				<p className="document-meta-summary">
 					<span>{state.resolve.resolvedVersion.label}</span>
 					<span>
@@ -140,6 +172,24 @@ export default function GatedReaderBootstrap() {
 			)}
 		</article>
 	);
+}
+
+function resolveFailureState(status: number): ReaderState {
+	if (status === 401) {
+		return { status: "unauthorized" };
+	}
+	if (status >= 500) {
+		return { status: "unavailable" };
+	}
+	return { status: "not_found" };
+}
+
+function resolveLoginHref(): string {
+	try {
+		return buildAccountLoginUrlForCurrentRoute();
+	} catch {
+		return "/account/login";
+	}
 }
 
 function parseReaderRoute(location: Location): ReaderRouteTarget | null {

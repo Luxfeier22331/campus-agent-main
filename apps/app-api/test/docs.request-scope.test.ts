@@ -46,9 +46,6 @@ const docsModuleMock = vi.hoisted(() => {
 		async listDocumentVersions() {
 			return [];
 		},
-		async searchCurrentPublic() {
-			return [];
-		},
 	} as DocsReadModelStore;
 	return {
 		createPgDocsReadModelStore: vi.fn(() => store),

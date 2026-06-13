@@ -1,5 +1,6 @@
 import path from "node:path";
 import { defineConfig } from "@rspress/core";
+import { campusDocsSearchIndexPlugin } from "./scripts/rspress-search-index-plugin";
 import { buildRspressSidebarConfig } from "./scripts/rspress-sidebar";
 
 const docsRoot = path.resolve(
@@ -20,12 +21,31 @@ export default defineConfig({
 		path.join(__dirname, "src/components/docs/mobile-sidebar-guard.tsx"),
 		path.join(__dirname, "src/components/docs/docs-content-enhancer.tsx"),
 		path.join(__dirname, "src/components/docs/reader-state-enhancer.tsx"),
-		path.join(__dirname, "src/components/docs/pagefind-search.tsx"),
 	],
+	i18nSource: {
+		searchNoResultsText: {
+			en: "No matching results",
+			zh: "未找到匹配结果",
+		},
+		searchPanelCancelText: {
+			en: "Cancel",
+			zh: "取消",
+		},
+		searchPlaceholderText: {
+			en: "Search",
+			zh: "搜索文档",
+		},
+	},
 	lang: "zh",
+	locales: [{ lang: "zh", label: "中文" }],
 	logoHref: "/",
 	logoText: "中央民族大学校园问答",
+	plugins: [campusDocsSearchIndexPlugin()],
 	root: docsRoot,
+	search: {
+		mode: "local",
+		searchHooks: path.join(__dirname, "src/docs/search/rspress-search-hooks.tsx"),
+	},
 	themeConfig: {
 		darkMode: false,
 		enableContentAnimation: false,

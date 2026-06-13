@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-06-01
+updated: 2026-06-12
 ---
 # Runtime Serving And Index Terms
 
@@ -24,6 +24,36 @@ updated: 2026-06-01
 - 早期 `phase-1` 文档只作为历史背景或约束来源，不再单独承担当前 phase truth
 
 ## 术语
+
+### Reader Permalink / Fragment / Highlight Query
+
+定义：
+
+- `reader permalink`
+  - 学生侧可直接打开的文档阅读稳定链接，例如
+    `/docs/:corpus/:collection/:docSlug`
+- `published reader permalink`
+  - 面向公开静态文档的 reader permalink；由发布/构建流程从 reader projection
+    materialize 到 Rspress/static output
+- `admitted reader permalink`
+  - 面向 restricted / gated 文档的 reader permalink；链接形态仍在 `/docs/*`，但正文读取必须先通过
+    admission
+- `fragment identifier`
+  - URL 中 `#<anchor>` 部分，表示浏览器内的章节/段落导航位置
+- `highlight query parameter`
+  - URL 中 `?hl=<rootUnitId1>,<rootUnitId2>` 部分，表示一次性正文块高亮意图
+
+说明：
+
+- 旧文档中出现的 `canonical reader target` / `canonical reader URL`
+  容易被误读成运行时必须请求 `app-api` 解析的目标；新文档默认改用
+  `reader permalink`。
+- `canonicalUrl` 作为既有 HTTP JSON 字段名可暂时保留，但其语义应理解为 reader
+  permalink，不应理解为 SEO 语境里的 canonical URL，也不应要求公开文档站运行时依赖
+  `app-api`。
+- `fragment identifier` 是 URL 标准术语；`highlight query parameter` 是本项目自定义
+  URL search parameter。
+- `chunkId`、`sourceUnitKey`、object-storage key 不进入 reader permalink。
 
 ### Corpus / Collection Scope
 
@@ -98,9 +128,9 @@ updated: 2026-06-01
 - 当前 query-enabled scope 是 `regulations/student_rules`、
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
   `official_web/stable_reference`
-- `regulations/scoped_rules` 当前只作为院级/专项 regulation canonical/chunk-only
-  non-serving holding collection；不属于默认 query-enabled scope，也不得进入当前
-  document-site read-model 或 RAG release candidate
+- `regulations/scoped_rules` 当前仍不属于默认 query-enabled scope，也不得进入默认
+  RAG release candidate；它可以作为 `gated_asset` 进入 document-site read-model /
+  docs reader release，由 `app-api` 做 reader admission
 - `campus_services/service_status`、`campus_services/service_guide`、
   `campus_services/contact_directory`、`campus_services/transport_schedule` 与
   `calendar/academic_calendar` 当前是 `structured_query_serving`：它们只允许通过

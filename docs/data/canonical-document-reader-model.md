@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-06-12
 ---
 # Canonical Document Reader Model
 
@@ -32,7 +32,7 @@ citation jump 提供统一的 reader-facing model。
 
 - canonical doc 是唯一用户阅读真相
 - public published reader content 优先以静态资产交付
-- reader 与 chat citation jump 共享同一定位单位
+- reader 与 chat citation jump 共享同一 reader permalink 定位单位
 - version / visibility 从第一天起进入 model，而不是后补
 
 ## Position In Canonical Chain
@@ -64,8 +64,8 @@ document-units -> chunks -> index`
 
 固定规则：
 
-- `anchor` 负责路由定位、目录跳转、面包屑和版本内深链接
-- `rootUnitId` 负责段落命中高亮和 citation jump
+- `anchor` 负责 URL fragment identifier、目录跳转、面包屑和版本内深链接
+- `rootUnitId` 负责 highlight query parameter、段落命中高亮和 citation jump
 - `chunkId`、`sourceUnitKey`、object-storage key 不进入用户态 model
 
 ## Logical Objects
@@ -139,18 +139,20 @@ document-units -> chunks -> index`
 - `rootUnitId` 是 citation jump / docs search jump 的稳定高亮单位
 - `kind` 只表达阅读表现，如 `heading`、`paragraph`、`list`、`table`
 
-### Reader Target
+### Reader Permalink
 
 - `docId`
 - `versionId`
-- `canonicalUrl`
+- `permalink`
 - `anchor`
 - `highlightRootUnitIds[]`
 
 语义：
 
-- `ReaderTarget` 是所有跳转类功能的统一目标对象
+- `ReaderPermalink` 是所有跳转类功能的统一目标对象
 - docs search result 与 chat source card 都应回收成这个形态
+- 既有 HTTP payload 中的 `canonicalUrl` 字段名暂时保留为 wire compatibility；语义上应读作
+  reader permalink，不是 SEO 语境的 canonical URL
 
 ### Reader Asset Descriptor
 
@@ -161,7 +163,7 @@ document-units -> chunks -> index`
 
 语义：
 
-- `ReaderAssetDescriptor` 表示某个 resolved reader target 的交付方式
+- `ReaderAssetDescriptor` 表示某个 resolved reader permalink 的交付方式
 - `deliveryMode` 至少允许：
   - `public_static_asset`
   - `gated_asset`
@@ -200,7 +202,7 @@ reader model 与现有 canonical truth 的衔接固定如下：
 
 - 不能因为后续 chunking 改版而改变用户态跳转目标
 - 不能因为 docs UI donor 切换而改变 `docId / versionId / anchor / rootUnitId`
-- 不能因为静态发布策略变化而改变 canonical reader target 语义
+- 不能因为静态发布策略变化而改变 reader permalink 语义
 
 ## Visibility And Authorization Fields
 
@@ -228,7 +230,7 @@ docs search 与 chat 共享的最小公共子集固定为：
 - `documentTitle`
 - `sectionTitle`
 - `snippet`
-- `canonicalUrl`
+- `permalink` / 既有 wire 字段 `canonicalUrl`
 - `anchor`
 - `highlightRootUnitIds`
 - `versionLabel`
@@ -236,7 +238,7 @@ docs search 与 chat 共享的最小公共子集固定为：
 这意味着：
 
 - docs search 可以直接生成 source-card-compatible result
-- chat 可以把 supporting evidence 映射成 reader target，而不回退成 raw trace dump
+- chat 可以把 supporting evidence 映射成 reader permalink，而不回退成 raw trace dump
 - 两者都不需要内嵌整篇 reader payload
 
 ## Non-Goals

@@ -83,7 +83,6 @@ control-plane HTTP contract。
 
 - `GET /api/docs/readyz`
 - `GET /api/docs/collections/:corpus/:collection/navigation`
-- `GET /api/docs/collections/:corpus/:collection/search`
 - `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug`
 - `GET
   /api/docs/collections/:corpus/:collection/documents/:documentSlug/versions`
@@ -286,35 +285,43 @@ control-plane HTTP contract。
 - 授权失败、对象不存在或 projection 不可安全判定时 fail-close
 - `campus-web` 必须在 Worker 内先调用 admission，再尝试读取 `/_gated-docs/*` 静态资产
 
-## Restricted / Gated Docs Search Contract
+## Restricted / Gated Docs Search Delivery Contract
 
-### `GET /api/docs/collections/:corpus/:collection/search`
+browser-facing docs site 不再调用，app-api 也不再注册
+`GET /api/docs/collections/:corpus/:collection/search`。公开 current 文档搜索由 Rspress
+native local search 处理；受限文档搜索由 campus-web 交付 admission 保护的静态 index：
 
-该 endpoint 只负责需要 principal-specific visibility 裁剪的 restricted / gated docs search。
-public published docs search 默认由 campus-web build 阶段生成的 Pagefind static index 承担。
+- `GET /_gated-docs-search/:corpus/:collection/:documentSlug/:versionSlug/index.json`
 
-查询参数：
+固定规则：
 
-- `q`
-  - 必填；用户查询
-- `limit`
-  - 可选；默认受服务端上限控制
-- `versionMode`
-  - 可选；当前只允许 `current`
+- campus-web Worker 必须先调用同一文档版本的 app-api admission endpoint。
+- admission 失败、对象不存在或 projection 不可安全判定时 fail closed。
+- response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`。
+- browser 本地执行字面查询；用户查询词不发送到 app-api。
+- index 只包含当前 principal 已被 admission 允许读取的同一文档版本 search entries。
 
-返回：
+静态 index payload：
 
 ```json
 {
-  "query": "大二下 课程",
-  "results": [
+  "schemaVersion": "campus_docs_protected_search_index_v1",
+  "visibilityMode": "principal_protected_static",
+  "generatedAt": "2026-06-13T00:00:00.000Z",
+  "entries": [
     {
-      "kind": "section_hit",
-      "title": "第四学期",
+      "searchUnitId": "semester-4-course-list",
       "documentTitle": "法学（民族班）培养方案",
-      "canonicalUrl": "/docs/curriculum/curriculum_plan/law-ethnic-class-program?hl=semester-4-course-list#semester-4",
+      "sectionTitle": "第四学期",
+      "canonicalUrl": "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
       "anchor": "semester-4",
       "highlightRootUnitIds": ["semester-4-course-list"],
+      "corpus": "curriculum",
+      "collection": "curriculum_plan",
+      "collectionLabel": "培养方案",
+      "documentSlug": "law-ethnic-class-program",
+      "versionSlug": "2026-current",
+      "searchText": "法学（民族班）培养方案 第四学期 第四学期开设课程包括……",
       "snippet": "第四学期开设课程包括……"
     }
   ]
@@ -327,6 +334,8 @@ public published docs search 默认由 campus-web build 阶段生成的 Pagefind
 - docs search 不返回 synthesis answer
 - docs search 不返回 operator-only compact source trace
 - docs search 只返回 reader permalink，不返回正文资产本身
+- `/api/docs/collections/:corpus/:collection/search` 不属于 app-api
+  document reader HTTP contract，也不得被 campus-web Worker allowlist。
 
 ## Source Card Shared Payload
 

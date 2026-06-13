@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { buildAccountLoginUrlForCurrentRoute } from "@/platform/runtime/config";
+
 interface DocsNavigationResponse {
 	collection: {
 		collection: string;
@@ -24,6 +26,8 @@ interface CollectionRouteTarget {
 type CollectionState =
 	| { status: "loading" }
 	| { status: "not_found" }
+	| { status: "unauthorized" }
+	| { status: "unavailable" }
 	| { navigation: DocsNavigationResponse; status: "ready" };
 
 export default function GatedCollectionBootstrap() {
@@ -45,7 +49,7 @@ export default function GatedCollectionBootstrap() {
 					headers: { accept: "application/json" },
 				});
 				if (!response.ok) {
-					setState({ status: "not_found" });
+					setState(resolveFailureState(response.status));
 					return;
 				}
 
@@ -55,7 +59,7 @@ export default function GatedCollectionBootstrap() {
 				}
 			} catch {
 				if (!cancelled) {
-					setState({ status: "not_found" });
+					setState({ status: "unavailable" });
 				}
 			}
 		}
@@ -74,6 +78,23 @@ export default function GatedCollectionBootstrap() {
 			<div className="reader-bootstrap-status">
 				<h1>无法打开文档目录</h1>
 				<p>请确认当前账号可以访问这个目录。</p>
+			</div>
+		);
+	}
+	if (state.status === "unauthorized") {
+		return (
+			<div className="reader-bootstrap-status">
+				<h1>请先登录</h1>
+				<p>登录后继续打开这个文档目录。</p>
+				<a href={resolveLoginHref()}>登录后继续</a>
+			</div>
+		);
+	}
+	if (state.status === "unavailable") {
+		return (
+			<div className="reader-bootstrap-status">
+				<h1>文档目录暂不可用</h1>
+				<p>请稍后重试。</p>
 			</div>
 		);
 	}
@@ -125,4 +146,22 @@ export function buildCollectionNavigationUrl(input: CollectionRouteTarget): stri
 	return `/api/docs/collections/${encodeURIComponent(input.corpus)}/${encodeURIComponent(
 		input.collection,
 	)}/navigation`;
+}
+
+function resolveFailureState(status: number): CollectionState {
+	if (status === 401) {
+		return { status: "unauthorized" };
+	}
+	if (status >= 500) {
+		return { status: "unavailable" };
+	}
+	return { status: "not_found" };
+}
+
+function resolveLoginHref(): string {
+	try {
+		return buildAccountLoginUrlForCurrentRoute();
+	} catch {
+		return "/account/login";
+	}
 }

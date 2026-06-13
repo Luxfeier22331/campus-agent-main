@@ -426,7 +426,7 @@ identity product schemas when materialized.
 用途：
 
 - source-card compatible docs search read model
-- 只保存 reader target 需要的 section hit 信息
+- 只保存 reader permalink 需要的 section hit 信息
 
 最小列：
 
@@ -448,7 +448,7 @@ identity product schemas when materialized.
 
 规则：
 
-- `search_units` 不保存 `chunk_id`；docs search 返回的是 reader target，不是 retrieval
+- `search_units` 不保存 `chunk_id`；docs search 返回的是 reader permalink，不是 retrieval
   trace
 - snippet 来自 canonical reader units / blocks，不得把 raw chunk payload 直出到 browser
   contract

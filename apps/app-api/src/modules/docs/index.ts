@@ -7,12 +7,10 @@ export {
 	type DocsDocumentVersionRecord,
 	type DocsReaderAssetRecord,
 	type DocsReadModelStore,
-	type DocsSearchUnitRecord,
 	type DocsVersionAccessRecord,
 } from "./service";
 export { createPgDocsReadModelStore } from "./store";
 
-export type DocsVersionMode = "current";
 export type ReaderAssetDeliveryMode = "public_static_asset" | "gated_asset";
 
 export interface DocsNavigationResponse {
@@ -90,19 +88,6 @@ export interface DocsResolveResponse {
 	};
 }
 
-export interface DocsSearchResponse {
-	query: string;
-	results: Array<{
-		anchor: string;
-		canonicalUrl: string;
-		documentTitle: string;
-		highlightRootUnitIds: string[];
-		kind: "section_hit";
-		snippet: string;
-		title: string;
-	}>;
-}
-
 export interface DocsService {
 	getDocumentSummary(input: {
 		collection: string;
@@ -137,14 +122,6 @@ export interface DocsService {
 		principal: ResolvedAppPrincipal | null;
 		version: string | null;
 	}): Promise<void>;
-	search(input: {
-		collection: string;
-		corpus: string;
-		limit: number | null;
-		principal: ResolvedAppPrincipal | null;
-		query: string;
-		versionMode: DocsVersionMode;
-	}): Promise<DocsSearchResponse>;
 }
 
 export function buildUnavailableDocsService(): DocsService {
@@ -163,6 +140,5 @@ export function buildUnavailableDocsService(): DocsService {
 		getVersions: unavailable,
 		resolveReader: unavailable,
 		checkReaderAdmission: unavailable,
-		search: unavailable,
 	};
 }

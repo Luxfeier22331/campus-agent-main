@@ -40,8 +40,9 @@ campus-web Rspress docs source/build output`
 这意味着：
 
 - `campus-web` 是学生侧产品入口、账号壳、导航与 `/docs/*` browser route owner
-- Rspress 是 docs reader/render engine；Pagefind 是 public static docs search
-  engine；二者都不拥有 canonical document truth
+- Rspress 是 docs reader/render/search integration shell；公开文档搜索使用 Rspress
+  native local search，受限文档搜索使用 admission 保护的静态 index；二者都不拥有
+  canonical document truth
 - `app-api` 继续拥有 docs publish manifest、restricted/gated navigation/search/resolve/version/
   admission truth
 - published reader assets 是正文发布产物，不是新的 truth layer
@@ -76,26 +77,32 @@ campus-web Rspress docs source/build output`
 - docs-native TOC / outline / page shell
 - stable anchor DOM 与 `data-root-unit-id` highlight DOM
 - version switcher / reader enhancer 这类 reader interaction
+- 搜索入口挂载、自定义 result path 与 reader permalink 集成
 
 固定约束：
 
 - Rspress 只能消费 canonical reader projection 或由它生成的 MDX
 - Rspress frontmatter、route file 或 search index 不成为 document/version truth
+- Rspress 原生 local search 是公开文档站搜索默认引擎；搜索索引只包含
+  `docsSearchVisibility=public_current` 的 published reader pages
 - 更换 reader engine 必须更新 ADR、contract tests 与 build gate
 
-### Pagefind Public Search Engine
+### Rspress Public Search Engine
 
 长期负责：
 
-- build-time public current docs static index
-- public docs search UI 与 browser-side search execution
-- public result 到 reader permalink 的回链映射
+- build-time anonymous-visible current docs local search index
+- anonymous-visible docs browser-side exact / literal search execution
+- Rspress search result 到 reader permalink 的候选映射
 
 固定约束：
 
-- Pagefind 只索引 anonymous public current reader pages
-- gated / restricted、bootstrap、collection index 与 historical `/v/*` 页面不得进入匿名索引
-- Pagefind sidecar 只能消费 app-api docs sync manifest 中的 public current search units
+- Rspress local search 只索引 anonymous-visible current reader pages
+- gated / restricted、bootstrap、collection index 与 historical `/v/*` 页面不得进入公开索引
+- 公开搜索只做字面命中，不做同义词、别名、语义扩展或 RAG-style query rewrite
+- principal-specific 可见文档搜索不得混入公开 Rspress index；当前采用受 admission 保护的
+  per-document static index，并在 browser 本地执行查询
+- browser-facing docs site 不调用 `/api/docs/collections/:corpus/:collection/search`
 
 ### `apps/app-api`
 
@@ -105,7 +112,7 @@ campus-web Rspress docs source/build output`
 - canonical visibility / authz resolution
 - current-vs-historical version resolution
 - published reader asset resolution
-- restricted / gated docs search runtime APIs
+- restricted / gated docs search data truth 与 admission
 - citation/source-card reader permalink shaping
 
 长期不负责：
@@ -233,12 +240,12 @@ docs search 与 chat 继续是两条不同能力：
 
 固定约束：
 
-- public published docs search 默认使用 Pagefind static index；需要 principal / entitlement
-  裁剪的 restricted / gated docs search 才进入 `/api/docs/*`
-- 当前已实现的 `/api/docs/*` search 仍是 public current only，不作为公开文档站热路径；
-  真正开放 restricted / gated search 前必须补 principal-aware visible search 与 entitlement
-  裁剪测试
-- docs search 结果必须直接回链 reader permalink
+- anonymous-visible current docs search 默认使用 Rspress native local search
+- restricted / gated docs search 默认使用 `/_gated-docs-search/*` 受保护静态索引，
+  由 campus-web Worker 先调用 app-api admission，再交付 index；查询词不发送到 API
+- `/api/docs/collections/:corpus/:collection/search` 已从 docs browser-facing HTTP
+  contract 退役；不得作为 campus-web、public-docs 或 browser search hook 的查询路径
+- docs search 结果必须直接回链 reader permalink：`canonicalUrl?hl=rootUnitId#anchor`
 - docs search 不返回 raw retrieval trace
 - docs search 不负责返回整篇正文
 - chat 不能替代 docs 站导航、目录、版本入口与系统性阅读

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDbGetter, type RuntimeDbGetter } from "../../db/runtime";
@@ -7,14 +7,12 @@ import {
 	docsDocuments,
 	docsDocumentVersions,
 	docsReaderAssets,
-	docsSearchUnits,
 } from "../../db/schema";
 import type {
 	DocsCollectionRecord,
 	DocsDocumentVersionRecord,
 	DocsReaderAssetRecord,
 	DocsReadModelStore,
-	DocsSearchUnitRecord,
 } from "./service";
 
 export function createPgDocsReadModelStore(
@@ -133,52 +131,6 @@ export function createPgDocsReadModelStore(
 				.orderBy(desc(docsDocumentVersions.isCurrent), asc(docsDocumentVersions.versionSlug));
 			return rows.map(toDocumentVersionRecord);
 		},
-
-		async searchCurrentPublic(input) {
-			const db = await getDb();
-			const pattern = `%${input.query}%`;
-			const rows = await db
-				.select({
-					anchor: docsSearchUnits.anchor,
-					canonicalUrl: docsSearchUnits.canonicalUrl,
-					collection: docsDocuments.collection,
-					corpus: docsDocuments.corpus,
-					deliveryMode: docsDocumentVersions.deliveryMode,
-					docId: docsDocuments.docId,
-					documentSlug: docsDocuments.documentSlug,
-					documentTitle: docsDocuments.title,
-					entitlementGroups: docsDocumentVersions.entitlementGroupsJson,
-					highlightRootUnitIds: docsSearchUnits.highlightRootUnitIdsJson,
-					isCurrent: docsDocumentVersions.isCurrent,
-					snippet: docsSearchUnits.snippet,
-					title: docsSearchUnits.title,
-					versionId: docsDocumentVersions.versionId,
-					versionSlug: docsDocumentVersions.versionSlug,
-					visibilityLevel: docsDocumentVersions.visibilityLevel,
-				})
-				.from(docsSearchUnits)
-				.innerJoin(docsDocuments, eq(docsDocuments.docId, docsSearchUnits.docId))
-				.innerJoin(
-					docsDocumentVersions,
-					and(
-						eq(docsDocumentVersions.versionId, docsSearchUnits.versionId),
-						eq(docsDocumentVersions.versionId, docsDocuments.currentVersionId),
-					),
-				)
-				.where(
-					and(
-						eq(docsDocuments.corpus, input.corpus),
-						eq(docsDocuments.collection, input.collection),
-						eq(docsDocumentVersions.deliveryMode, "public_static_asset"),
-						eq(docsDocumentVersions.visibilityLevel, "public"),
-						sql`jsonb_array_length(${docsDocumentVersions.entitlementGroupsJson}) = 0`,
-						or(ilike(docsSearchUnits.searchText, pattern), ilike(docsSearchUnits.title, pattern)),
-					),
-				)
-				.orderBy(asc(docsSearchUnits.unitOrder))
-				.limit(input.limit);
-			return rows.map(toSearchUnitRecord);
-		},
 	};
 }
 
@@ -267,43 +219,5 @@ function toReaderAssetRecord(
 		manifestUrl: row.manifestUrl,
 		outlineUrl: row.outlineUrl,
 		sourceObjects: row.sourceObjects,
-	};
-}
-
-function toSearchUnitRecord(row: {
-	anchor: string;
-	canonicalUrl: string;
-	collection: string;
-	corpus: string;
-	deliveryMode: "public_static_asset" | "gated_asset";
-	docId: string;
-	documentSlug: string;
-	documentTitle: string;
-	entitlementGroups: string[];
-	highlightRootUnitIds: string[];
-	isCurrent: boolean;
-	snippet: string;
-	title: string;
-	versionId: string;
-	versionSlug: string;
-	visibilityLevel: string;
-}): DocsSearchUnitRecord {
-	return {
-		anchor: row.anchor,
-		canonicalUrl: row.canonicalUrl,
-		collection: row.collection,
-		corpus: row.corpus,
-		deliveryMode: row.deliveryMode,
-		docId: row.docId,
-		documentSlug: row.documentSlug,
-		documentTitle: row.documentTitle,
-		entitlementGroups: row.entitlementGroups,
-		highlightRootUnitIds: row.highlightRootUnitIds,
-		isCurrent: row.isCurrent,
-		snippet: row.snippet,
-		title: row.title,
-		versionId: row.versionId,
-		versionSlug: row.versionSlug,
-		visibilityLevel: row.visibilityLevel,
 	};
 }

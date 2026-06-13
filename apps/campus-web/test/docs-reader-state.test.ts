@@ -6,7 +6,7 @@ import {
 } from "../src/features/docs/reader-state";
 
 describe("campus docs reader target state", () => {
-	it("parses highlight query and anchor from canonical reader urls", () => {
+	it("parses highlight query and anchor from reader permalinks", () => {
 		expect(
 			parseReaderLocationState(
 				"https://campus.muc.wiki/docs/curriculum/curriculum_plan/law?hl=root-a,root%20b#semester-4",

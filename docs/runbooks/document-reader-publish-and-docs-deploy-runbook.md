@@ -68,7 +68,7 @@ surface 名称，后续对象 key 迁移应单独冻结。
 禁止把以下内容当作 seed handoff：
 
 - `apps/campus-web/docs/docs/`、`apps/campus-web/public/_docs/`、
-  `apps/campus-web/public/_gated-docs/`、`apps/campus-web/public/pagefind/`、
+  `apps/campus-web/public/_gated-docs/`、`apps/campus-web/public/_gated-docs-search/`、
   `apps/campus-web/doc_build/` 或 repo-root `var/` 中的本地生成产物提交进 git。
 - 缺少对象存储 reader assets 的单独 manifest。
 - 需要接手者重新采集源站才能得到正文的说明。
@@ -197,16 +197,21 @@ pnpm --filter campus-web docs:sync:published-reader
 固定规则：
 
 - `docs:sync:published-reader` 只按 manifest 写入 generated Rspress source 与
-  `public/_docs` / `public/_gated-docs` / `public/pagefind/campus-docs-search-units.json`。
+  `public/_docs` / `public/_gated-docs` / `public/_gated-docs-search`。
 - published reader Rspress source 固定写入 `apps/campus-web/.generated/docs`；tracked
   `apps/campus-web/docs` 只保留 scaffold，不得承载发布生成物。
-- `public_static_asset` current version 生成带 `data-pagefind-body` 的 Rspress MDX reader
-  page，并进入 Pagefind static index；historical `/v/*` 不进入匿名搜索索引。
+- `public_static_asset` current version 生成
+  `docsSearchVisibility=public_current` 的 Rspress MDX reader page，并进入 Rspress
+  native local search index；historical `/v/*` 不进入公开搜索索引。
+- Rspress search index plugin 必须只保留 `docsSearchVisibility=public_current` 页面。
 - `gated_asset` 同步 gated reader static assets，并生成无正文 Rspress bootstrap
   reader page；该 page 只能通过 same-origin `/api/docs/*` resolve/admission 后读取正文，
-  不得把 gated 文档标题或 slug 放进匿名 collection index 或 Pagefind index。
+  不得把 gated 文档标题或 slug 放进匿名 collection index 或公开 Rspress index。
+- `gated_asset` current version 必须生成
+  `public/_gated-docs-search/:corpus/:collection/:documentSlug/:versionSlug/index.json`，
+  由 campus-web Worker admission 后交付，并在浏览器本地执行字面查询。
 - sync 后必须运行 `pnpm --filter campus-web docs:build`，由 Rspress 生成 `/docs/*`
-  reader output，并由 Pagefind 生成 `/pagefind/*` static search bundle。
+  reader output 与公开 current 文档 native local search index。
 
 ### 5. 构建并部署 campus-web
 
@@ -232,9 +237,9 @@ pnpm --filter campus-web deploy:staging
 文档验收。
 
 随后 build 继续运行 Vite build 与 bundle budget check。
-`wrangler.toml` 必须允许 `/docs/*`、`/static/*`、`/vendor/*`、`/pagefind/*` 由 static
-assets delivery 处理，同时 Worker 继续显式代理 `/api/docs/*`，不得开放 generic
-`/api/*`。
+`wrangler.toml` 必须允许 `/docs/*`、`/static/*`、`/vendor/*` 由 static assets delivery
+处理；`/_gated-docs/*` 与 `/_gated-docs-search/*` 必须走 Worker-first admission。
+Worker 继续显式代理允许的 `/api/docs/*`，不得开放 generic `/api/*`。
 
 ## 验证
 
@@ -274,10 +279,12 @@ pnpm --dir apps/app-api docs:gated:smoke:staging
 - `/docs/*` 在 campus-web origin 下返回 Rspress reader 页面。
 - `/api/docs/*` 仍由 campus-web Worker 显式代理到 `app-api`。
 - unknown `/api/*`、`/api/ops/*` 继续 fail closed。
-- public docs search 消费 Pagefind static index；公开文档站 UI 不再调用
+- anonymous-visible docs search 消费 Rspress native local search；公开文档站 UI 不再调用
   `/api/docs/*/search`。
-- Pagefind index 只包含 public current reader pages，不包含 gated/restricted、bootstrap、
-  collection index 或 historical `/v/*` 页面。
+- Rspress public search index 只包含 anonymous-visible current reader pages，不包含
+  gated/restricted、bootstrap、collection index 或 historical `/v/*` 页面。
+- gated/restricted docs search 消费 `/_gated-docs-search/*` 受保护静态 index；查询词不发送到
+  app-api，不复用公开索引。
 - reader asset URL 不包含 `localhost`、`127.0.0.1` 或对象存储 endpoint。
 - Q&A source card、docs search result 和直接阅读都生成 reader permalink：
   `/docs/:corpus/:collection/:docSlug?hl=<rootUnitId>#<anchor>`。
