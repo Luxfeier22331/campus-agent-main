@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { createAgentRuntimeHandler } from "./http-server.ts";
+import { nodeClientDisconnectSignal } from "./node-http.ts";
 import { createPrimaryAgentRuntime } from "./primary-agent.ts";
 import { createOpenAIAgentsRunner } from "./sdk-runner.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
@@ -36,6 +37,7 @@ const server = createServer(async (request, response) => {
 		method: request.method,
 		headers: request.headers as HeadersInit,
 		body: chunks.length > 0 ? Buffer.concat(chunks) : undefined,
+		signal: nodeClientDisconnectSignal(request, response),
 	});
 	const webResponse = await handler(webRequest);
 	response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers.entries()));

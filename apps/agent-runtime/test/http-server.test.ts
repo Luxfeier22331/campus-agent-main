@@ -66,6 +66,47 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.selected_tools).toEqual([]);
 	});
 
+	it("passes the worker request cancellation signal into the primary agent runtime", async () => {
+		const controller = new AbortController();
+		let observedSignal: AbortSignal | undefined;
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run(input) {
+					observedSignal = input.signal;
+					return {
+						status: "completed",
+						runId: input.runId,
+						finalOutput: "ok",
+						providerResponseId: "resp_signal",
+						sdkTraceRef: "trace_signal",
+						selectedTools: [],
+						toolResults: [],
+						terminalReason: "answer_completed",
+						usage: { inputTokens: 1, outputTokens: 1 },
+					};
+				},
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify(validRunBody()),
+				signal: controller.signal,
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(observedSignal).toBeDefined();
+		expect(observedSignal?.aborted).toBe(false);
+
+		controller.abort();
+
+		expect(observedSignal?.aborted).toBe(true);
+	});
+
 	it("returns a failed runtime result when a selected tool fails closed", async () => {
 		const runner: AgentRunner = async ({ tools }) => ({
 			finalOutput: "工具失败。",
@@ -120,6 +161,32 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.terminal_reason).toBe("agent_runtime_failed");
 		expect(body.tool_results?.[0]?.fail_close_reason).toBe("source_truth_unavailable");
 		expect(body.tool_results?.[0]?.arguments_json).toEqual({ query_text: "校车" });
+	});
+
+	it("fails closed with a diagnostic response when the primary agent runtime throws", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run() {
+					throw new Error("provider request aborted");
+				},
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify(validRunBody()),
+			}),
+		);
+
+		expect(response.status).toBe(500);
+		const body = (await response.json()) as {
+			error?: { code?: string; message?: string };
+		};
+		expect(body.error?.code).toBe("agent_runtime_failed");
+		expect(body.error?.message).toBe("provider request aborted");
 	});
 });
 

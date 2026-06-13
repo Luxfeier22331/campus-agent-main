@@ -221,4 +221,59 @@ describe("primary agent runtime", () => {
 			intent: "next_departure",
 		});
 	});
+
+	it("propagates the run cancellation signal to the runner and selected tool executor", async () => {
+		const controller = new AbortController();
+		let runnerSignal: AbortSignal | undefined;
+		let executorSignal: AbortSignal | undefined;
+		const runner: AgentRunner = async ({ signal, tools }) => {
+			runnerSignal = signal;
+			const toolResult = await tools[0]?.execute({
+				query_text: "校车今天几点",
+			});
+			return {
+				finalOutput: "校车查询完成。",
+				providerResponseId: "resp_signal",
+				toolCalls: [
+					{
+						name: "transport_schedule_lookup",
+						argumentsSummary: { query_text: "校车今天几点" },
+						result: toolResult,
+					},
+				],
+				traceRef: "trace_signal",
+				usage: { inputTokens: 20, outputTokens: 10 },
+			};
+		};
+		const runtime = createPrimaryAgentRuntime({
+			catalog,
+			runner,
+			toolExecutor: async ({ signal, tool, argumentsJson }) => {
+				executorSignal = signal;
+				return {
+					status: "completed",
+					toolName: tool.name,
+					capability: tool.capability,
+					payloadKind: tool.name,
+					argumentsJson,
+					result: { outcome: "resolved_current" },
+					resultRef: "agent-runtime://run-tool/tools/transport_schedule_lookup",
+				};
+			},
+		});
+
+		const result = await runtime.run({
+			runId: "run-signal",
+			conversationId: "conversation-1",
+			turnId: "turn-signal",
+			traceId: "trace-signal",
+			input: "校车今天几点",
+			visibleCapabilities: ["campus_services"],
+			signal: controller.signal,
+		});
+
+		expect(result.status).toBe("completed");
+		expect(runnerSignal).toBe(controller.signal);
+		expect(executorSignal).toBe(controller.signal);
+	});
 });

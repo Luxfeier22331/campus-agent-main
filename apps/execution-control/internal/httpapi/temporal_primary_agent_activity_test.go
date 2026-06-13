@@ -134,6 +134,58 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testi
 	}
 }
 
+func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 10, 40, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-runtime-diagnostic",
+		"conv-primary-agent-runtime-diagnostic",
+		now,
+		ragHandoffForDurableWorkerTest("hi"),
+	)
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		writeJSON(response, http.StatusInternalServerError, map[string]any{
+			"error": map[string]any{
+				"code":    "agent_runtime_failed",
+				"message": "provider request aborted",
+			},
+		})
+	}))
+	defer agentRuntime.Close()
+	server := NewServer(config.Config{
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-secret",
+		AgentRuntimeTimeoutMS:    1000,
+		TemporalWorkerIdentity:   "test:agent:diagnostic",
+	})
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+		RunID:               "run-primary-agent-runtime-diagnostic",
+		TraceID:             "trace-executor-001",
+		VisibleCapabilities: []string{"campus_services"},
+	})
+	if err == nil {
+		t.Fatal("expected agent runtime diagnostic failure")
+	}
+	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-runtime-diagnostic")
+	if listErr != nil {
+		t.Fatalf("list run steps: %v", listErr)
+	}
+	if len(steps) != 1 || steps[0].StepID != "agent.primary" || steps[0].Status != "failed" {
+		t.Fatalf("projected steps = %#v", steps)
+	}
+	if steps[0].SanitizedPayload["failure_kind"] != "agent_runtime_request_failed" {
+		t.Fatalf("agent failure payload = %#v", steps[0].SanitizedPayload)
+	}
+	if steps[0].SanitizedPayload["agent_runtime_error_code"] != "agent_runtime_failed" ||
+		steps[0].SanitizedPayload["message"] != "provider request aborted" {
+		t.Fatalf("agent failure payload missing runtime diagnostic: %#v", steps[0].SanitizedPayload)
+	}
+}
+
 func TestExecutePrimaryAgentActivityAllowsKnowledgeSignalWithoutFinalOutput(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 45, 0, 0, time.UTC)
