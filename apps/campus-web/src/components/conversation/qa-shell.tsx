@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { History, Menu, MessageSquarePlus, Search, X } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { Menu, MessageSquarePlus, Search, X } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { AccountLoginDialog } from "@/app/routes/account-action-page";
 import { type AccountEntryState, QAAccountEntry } from "@/components/conversation/qa-account-entry";
@@ -31,7 +31,28 @@ export function QAShell({
 	const navigate = useNavigate();
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [loginOpen, setLoginOpen] = useState(false);
+	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
 	const openLoginDialog = () => setLoginOpen(true);
+
+	const refreshAccountEntry = useCallback(async () => {
+		setAccountEntry({ status: "loading" });
+		try {
+			const session = await getSessionPrincipal();
+			setAccountEntry({
+				displayName: session.principal.displayName,
+				email: session.principal.email,
+				status: session.session ? "authenticated" : "unauthenticated",
+			});
+		} catch (reason: unknown) {
+			setAccountEntry({
+				status: reason instanceof UnauthorizedError ? "unauthenticated" : "unavailable",
+			});
+		}
+	}, []);
+
+	useEffect(() => {
+		void refreshAccountEntry();
+	}, [refreshAccountEntry]);
 
 	useEffect(() => {
 		if (loginRequested) {
@@ -62,10 +83,14 @@ export function QAShell({
 	return (
 		<div className="min-h-dvh bg-[var(--sys-bg-canvas)] text-[var(--sys-text-default)]">
 			<div className="grid min-h-dvh lg:grid-cols-[var(--layout-chat-sidebar-width)_minmax(0,1fr)]">
-				<ChatKitProductRail className="hidden lg:flex" onLoginRequest={openLoginDialog} />
+				<ChatKitProductRail
+					accountEntry={accountEntry}
+					className="hidden lg:flex"
+					onLoginRequest={openLoginDialog}
+				/>
 				<div className="flex min-h-dvh min-w-0 flex-col">
-					<header className="bg-[var(--sys-bg-canvas)] px-4 lg:px-6">
-						<div className="flex min-h-14 items-center justify-between gap-4">
+					<header className="border-b border-[var(--sys-border-subtle)] bg-[var(--sys-surface-default)] px-4 lg:px-5">
+						<div className="flex min-h-[60px] items-center justify-between gap-4">
 							<div className="flex min-w-0 items-center gap-3">
 								<button
 									aria-label="打开校园问答菜单"
@@ -75,13 +100,12 @@ export function QAShell({
 								>
 									<Menu aria-hidden="true" className="size-5" />
 								</button>
-								<h1 className="truncate text-sm font-medium tracking-normal text-[var(--sys-text-muted)]">
+								<h1 className="truncate text-sm font-medium tracking-normal text-[var(--sys-text-strong)]">
 									{topTitle}
 								</h1>
 							</div>
 							<SupportNavigation className="hidden md:flex" />
 						</div>
-						<SupportNavigation className="flex overflow-x-auto border-t border-[var(--sys-border-subtle)] py-1 md:hidden" />
 					</header>
 					<main className="relative flex min-h-0 flex-1 flex-col">
 						{typeof children === "function" ? children({ openLoginDialog }) : children}
@@ -102,66 +126,52 @@ export function QAShell({
 							</button>
 						</div>
 						<ChatKitProductRail
+							accountEntry={accountEntry}
 							className="flex min-h-0 flex-1 border-r-0 pt-2"
+							showSupportNavigation
 							onLoginRequest={openLoginDialog}
 						/>
 					</div>
 				</div>
 			) : null}
-			{loginOpen ? <AccountLoginDialog onClose={() => setLoginOpen(false)} /> : null}
+			{loginOpen ? (
+				<AccountLoginDialog
+					onAuthenticated={async () => {
+						await refreshAccountEntry();
+						setLoginOpen(false);
+					}}
+					onClose={() => setLoginOpen(false)}
+				/>
+			) : null}
 		</div>
 	);
 }
 
 function ChatKitProductRail({
+	accountEntry,
 	className,
 	onLoginRequest,
+	showSupportNavigation,
 }: {
+	accountEntry: AccountEntryState;
 	className?: string;
 	onLoginRequest?: () => void;
+	showSupportNavigation?: boolean;
 }) {
-	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
-
-	useEffect(() => {
-		let cancelled = false;
-		getSessionPrincipal()
-			.then((session) => {
-				if (cancelled) {
-					return;
-				}
-				setAccountEntry({
-					displayName: session.principal.displayName,
-					email: session.principal.email,
-					status: "authenticated",
-				});
-			})
-			.catch((reason: unknown) => {
-				if (cancelled) {
-					return;
-				}
-				setAccountEntry({
-					status: reason instanceof UnauthorizedError ? "unauthenticated" : "unavailable",
-				});
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
 	return (
 		<aside
 			className={cn(
-				"w-[var(--layout-chat-sidebar-width)] shrink-0 flex-col border-r border-[var(--chat-sidebar-border)] bg-[var(--chat-sidebar-bg)] px-3 py-3",
+				"w-[var(--layout-chat-sidebar-width)] shrink-0 flex-col border-r border-[var(--chat-sidebar-border)] bg-[var(--chat-sidebar-bg)] px-2.5 py-2.5",
 				className,
 			)}
 		>
-			<div className="min-w-0 px-2 py-2">
-				<p className="truncate text-sm font-semibold text-[var(--sys-text-strong)]">
+			<div className="min-w-0 px-2 py-1.5">
+				<p className="truncate text-[13px] font-semibold text-[var(--sys-text-strong)]">
 					中央民族大学校园问答
 				</p>
 				<p className="mt-0.5 text-xs text-[var(--sys-text-subtle)]">MUC Campus Q&A</p>
 			</div>
-			<div className="mt-3 space-y-1">
+			<div className="mt-2 space-y-1">
 				<Link
 					className="inline-flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
 					to="/"
@@ -192,12 +202,9 @@ function ChatKitProductRail({
 					</span>
 				</button>
 			</div>
-			<div className="mt-4 rounded-xl border border-[var(--chat-sidebar-border)] bg-white/60 p-3 text-xs text-[var(--sys-text-subtle)]">
-				<div className="flex items-center gap-2 text-[var(--sys-text-muted)]">
-					<History aria-hidden="true" className="size-4" />
-					<span className="font-medium">聊天记录</span>
-				</div>
-			</div>
+			{showSupportNavigation ? (
+				<SupportNavigation className="mt-5 flex flex-col items-stretch gap-1 border-t border-[var(--chat-sidebar-border)] pt-4" />
+			) : null}
 			<QAAccountEntry onLoginRequest={onLoginRequest} state={accountEntry} />
 		</aside>
 	);
@@ -216,7 +223,7 @@ export function SupportNavigation({
 	return (
 		<nav
 			aria-label="支撑页面导航"
-			className={cn("items-center gap-5", className ?? "hidden md:flex")}
+			className={cn("items-center gap-3", className ?? "hidden md:flex")}
 		>
 			{visibleItems.map((item) => {
 				const active =
@@ -225,10 +232,11 @@ export function SupportNavigation({
 				return (
 					<Link
 						className={cn(
-							"inline-flex min-h-9 items-center border-b border-transparent text-sm font-medium text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]",
+							"inline-flex min-h-8 items-center border-b border-transparent text-xs font-medium text-[var(--sys-text-subtle)] hover:text-[var(--sys-text-strong)]",
 							active && "border-[var(--sys-text-strong)] text-[var(--sys-text-strong)]",
 							"emphasis" in item &&
 								item.emphasis &&
+								active &&
 								"text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]",
 						)}
 						key={item.label}

@@ -93,7 +93,15 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 	);
 }
 
-export function AccountLoginDialog({ onClose }: { onClose: () => void }) {
+export function AccountLoginDialog({
+	onAuthenticated,
+	onClose,
+}: {
+	onAuthenticated?: () => Promise<void> | void;
+	onClose: () => void;
+}) {
+	const [postLoginError, setPostLoginError] = useState<string | null>(null);
+
 	useEffect(() => {
 		function handleKeyDown(event: KeyboardEvent) {
 			if (event.key === "Escape") {
@@ -137,10 +145,26 @@ export function AccountLoginDialog({ onClose }: { onClose: () => void }) {
 				</div>
 				<AccountEmailPasswordForm
 					mode="login"
+					onSuccess={async () => {
+						setPostLoginError(null);
+						try {
+							if (onAuthenticated) {
+								await onAuthenticated();
+								return;
+							}
+							onClose();
+						} catch {
+							setPostLoginError("登录状态刷新失败，请稍后再试。");
+						}
+					}}
 					oauthContext={null}
-					onSuccess={onClose}
 					submitLabel="继续"
 				/>
+				{postLoginError ? (
+					<p className="mt-3 rounded-lg border border-[var(--sys-status-danger)]/20 bg-[var(--sys-status-danger)]/5 px-3 py-2 text-sm text-[var(--sys-status-danger)]">
+						{postLoginError}
+					</p>
+				) : null}
 				<div className="mt-5 flex items-center justify-center gap-3 text-sm">
 					<Link
 						className="inline-flex min-h-10 items-center font-medium text-primary hover:text-primary/80"

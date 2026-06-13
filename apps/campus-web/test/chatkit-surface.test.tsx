@@ -69,6 +69,9 @@ describe("ChatKitConversationSurface", () => {
 		render(<ChatKitConversationSurface initialThread="conv_01" />);
 
 		expect(screen.getByTestId("chatkit")).toHaveClass("h-full");
+		expect(screen.getByTestId("chatkit")).toHaveClass("mx-auto");
+		expect(screen.getByTestId("chatkit")).toHaveClass("max-w-[880px]");
+		expect(screen.getByTestId("chatkit").parentElement).toHaveClass("items-stretch");
 		expect(useChatKitMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				api: expect.objectContaining({
@@ -87,11 +90,32 @@ describe("ChatKitConversationSurface", () => {
 			}),
 		);
 		const options = getLastChatKitOptions();
-		expect(options.startScreen?.prompts).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ prompt: "中慧楼在哪里？" }),
-				expect.objectContaining({ prompt: "清真窗口在哪？" }),
-			]),
+		expect(options.theme).toBeUndefined();
+		expect(options.disclaimer).toBeUndefined();
+		expect(options.startScreen).toEqual({
+			greeting: expect.stringMatching(
+				/今天想查什么校园信息？|需要了解哪件校园事？|想问什么校园问题？|有什么校园问题想确认？/,
+			),
+			prompts: [],
+		});
+		expect(options.composer).toEqual({
+			attachments: { enabled: false },
+			placeholder: expect.stringMatching(
+				/问政策、地点、食堂或校园服务|例如：校园卡丢了怎么办？|例如：中慧楼在哪里？|例如：丰台食堂有哪些？/,
+			),
+		});
+	});
+
+	it("lets ChatKit own the new thread home without an outer prompt or clipped iframe", () => {
+		render(<ChatKitConversationSurface initialThread={null} />);
+
+		expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
+		expect(screen.getByTestId("chatkit")).toHaveClass("max-w-[var(--layout-chat-content-width)]");
+		expect(screen.getByTestId("chatkit")).toHaveClass("h-full");
+		expect(screen.getByTestId("chatkit")).not.toHaveClass("h-[clamp(112px,18dvh,160px)]");
+		expect(screen.getByTestId("chatkit").parentElement).toHaveClass("items-stretch");
+		expect(screen.getByTestId("chatkit").parentElement).not.toHaveClass(
+			"pt-[clamp(88px,18dvh,150px)]",
 		);
 	});
 

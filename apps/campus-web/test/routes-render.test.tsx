@@ -174,11 +174,12 @@ describe("campus routes", () => {
 		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "新对话" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
+		expect(screen.queryByText("聊天记录")).toBeNull();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
-		expect(screen.getAllByRole("link", { name: "文档" }).length).toBeGreaterThan(0);
-		expect(screen.getAllByRole("link", { name: "校园地图" }).length).toBeGreaterThan(0);
-		expect(screen.getAllByRole("link", { name: "饭堂分布图" }).length).toBeGreaterThan(0);
-		expect(screen.getAllByRole("link", { name: "反馈" }).length).toBeGreaterThan(0);
+		expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "校园地图" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "饭堂分布图" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
 		expect(screen.getByTestId("chatkit")).toBeInTheDocument();
 		expect(useChatKitMock).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -200,12 +201,16 @@ describe("campus routes", () => {
 		expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("menuitem", { name: "账号设置" }));
 		expect(await screen.findByRole("dialog", { name: "账号设置" })).toBeInTheDocument();
-		expect(getLastChatKitOptions().startScreen?.prompts).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ prompt: "中慧楼在哪里？" }),
-				expect.objectContaining({ prompt: "清真窗口在哪？" }),
-			]),
-		);
+		expect(getLastChatKitOptions().startScreen).toEqual({
+			greeting: expect.stringMatching(
+				/今天想查什么校园信息？|需要了解哪件校园事？|想问什么校园问题？|有什么校园问题想确认？/,
+			),
+			prompts: [],
+		});
+		expect(getLastChatKitOptions().disclaimer).toBeUndefined();
+		expect(screen.queryByText("校园卡")).toBeNull();
+		expect(screen.queryByText("食堂")).toBeNull();
+		expect(screen.queryByText("找地点")).toBeNull();
 		expect(
 			screen.queryByText(
 				"历史会话只用于找回之前的问题；文档、校园地图和饭堂分布图保留在顶部导航中。",
