@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: ops
+owner_boundary: docs/policies
 status: active
 created: 2026-04-12
 updated: 2026-04-12
 ---
-
 # Policies
 
 `policies/` 保存治理规则、质量门禁与 collection-specific 运行约束。

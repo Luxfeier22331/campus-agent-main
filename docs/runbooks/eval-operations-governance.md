@@ -1,10 +1,11 @@
 ---
 doc_type: runbook
+truth_scope: eval
+owner_boundary: packages/evals
 status: active
 created: 2026-04-29
 updated: 2026-04-30
 ---
-
 # Eval Operations Governance
 
 This runbook freezes the operating rules for repo-owned eval profiles. It is

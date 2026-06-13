@@ -1,5 +1,7 @@
 ---
 doc_type: index
+truth_scope: ops
+owner_boundary: docs/runbooks/templates
 status: active
 created: 2026-04-20
 updated: 2026-04-20

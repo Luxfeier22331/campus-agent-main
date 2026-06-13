@@ -1,5 +1,7 @@
 ---
 doc_type: architecture
+truth_scope: capability
+owner_boundary: domains/navigation
 status: active
 created: 2026-04-05
 updated: 2026-06-12

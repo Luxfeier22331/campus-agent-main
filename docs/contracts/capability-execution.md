@@ -1,5 +1,7 @@
 ---
 doc_type: contract
+truth_scope: execution
+owner_boundary: apps/execution-control
 status: active
 created: 2026-03-28
 updated: 2026-06-11
@@ -283,56 +285,10 @@ token cost 已停止。
 
 ## Structured Query Internal Runtime
 
-Go `apps/execution-control` 当前承载 gate-closed structured query runtime foundation：
-
-- `POST /internal/query/campus-services/service-status`
-- `POST /internal/query/campus-services/service-guide`
-- `POST /internal/query/campus-services/transport-schedule`
-- `POST /internal/query/campus-services/contact-directory`
-- `POST /internal/query/calendar/academic-calendar`
-- `POST /internal/query/notices/discover`
-- `POST /internal/query/notices/get`
-
-这组 endpoint 是 `domain capability -> thin adapter -> internal query
-service` 的 Docker-local seam，不是 browser-facing API，也不是 `app-api`
-product/control-plane endpoint。
-
-调用规则：
-
-- 仅允许 repo-owned trusted internal runtime caller 使用
-- 当前实现请求头使用 `x-execution-query-auth`，语义为 execution-control owned internal
-  query authorization；不接受旧 supervisor header alias。
-- JSON 命名保持 `snake_case`
-- response body 对齐对应 tool result contract 的 safe typed summary
-- runtime 只读 configured projection / normalized truth；不得 query-time 回扫 raw
-  source bundle、notice HTML 或 generic retrieval chunk
-
-当前状态：
-
-- `service_status_lookup` 已迁移到 PostgreSQL release current pointer + typed read
-  model，用于 deterministic runtime tests 与后续打开 gate 的一致 serving 路径
-- `service_guide_lookup`、`contact_directory_lookup` 与 `academic_calendar_lookup`
-  已使用 PostgreSQL release current pointer + typed read model；其中
-  `academic_calendar_lookup` 只消费 `calendar/academic_calendar`
-  projection-backed 校历事实
-- `transport_schedule_lookup` 已具备 projection-backed deterministic query
-  kernel，可解析 current snapshot metadata、route clarification、first / next /
-  last departure、departure list、service window、timetable 与 temporary
-  suspension summary
-- `campus_notice_discover` 与 internal selected notice resolve
-  (`payload_kind=campus_notice_get`) 已具备 Go-owned PG read-model 与
-  S3-compatible source-backed bounded context query runtime；notice 请求使用
-  `payload + access_context` envelope 以在 Go 内执行 source-family、read-model 与
-  fail-close constraints
-- Python orchestration 仅在 execution runtime harness 注入
-  `EXECUTION_CONTROL_INTERNAL_QUERY_BASE_URL` 与 `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
-  时消费该 internal query seam
-- 这不打开 `campus_services` 或 `notice` 产品 serving surface；产品主路由 opening gate 仍需
-  release-gate regression / eval evidence
-  与 app-owned observability 证据
-- structured capability production readiness 不只看 query kernel 是否可执行；
-  normal、fail-close、cancel、timeout、late completion 与 replan outcome 必须能进入
-  sanitized step trajectory，并能被 app-api operator read model 消费
+The execution-control-owned internal query service contract for typed structured
+capabilities lives in `structured-query-internal-runtime.md`. This parent
+contract owns the `app-api -> execution-control` run command/query seam; it does
+not redefine every capability-local internal query endpoint.
 
 ## Execution Audit Backflow
 

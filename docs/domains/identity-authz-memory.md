@@ -1,5 +1,7 @@
 ---
 doc_type: index
+truth_scope: product
+owner_boundary: apps/app-api
 status: active
 created: 2026-04-12
 updated: 2026-06-12

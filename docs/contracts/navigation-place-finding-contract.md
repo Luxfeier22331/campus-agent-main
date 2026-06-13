@@ -1,5 +1,7 @@
 ---
 doc_type: contract
+truth_scope: capability
+owner_boundary: packages/navigation-capability
 status: active
 created: 2026-04-11
 updated: 2026-04-26

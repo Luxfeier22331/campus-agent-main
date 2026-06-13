@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: repository
+owner_boundary: docs/decisions
 status: active
 created: 2026-06-04
 updated: 2026-06-04
 ---
-
 # ADR Governance Audit
 
 ## Scope

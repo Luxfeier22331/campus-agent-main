@@ -1,11 +1,12 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0039
 status: accepted
 created: 2026-04-12
 updated: 2026-04-12
 ---
-
 # ADR-0039 Reference And Runbook Historical Lifecycle
 
 ## 状态

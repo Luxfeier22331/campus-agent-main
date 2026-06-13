@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/reference/archive/authenticated-notice
 status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Authenticated Notice Historical Archive
 
 ## Archive Status

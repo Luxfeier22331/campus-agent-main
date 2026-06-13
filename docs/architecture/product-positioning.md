@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: product
+owner_boundary: docs
 status: active
 created: 2026-04-05
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Product Positioning
 
@@ -14,7 +16,7 @@ updated: 2026-06-12
 
 - `campus-agent` 服务谁
 - 它要解决什么问题
-- 当前首先应被理解成什么产品
+- 首先应被理解成什么产品
 - 长期会扩展成什么产品
 - 哪些形态明确不属于它的产品定位
 
@@ -75,48 +77,33 @@ ingestion / release 工作不进入用户 agent tool surface。
 - shared entry-set experience 长期允许多个并列 browser surface 共同承接产品能力；`AI
   助手`、`文档站`、`服务状态`、`校园地图` 等入口可以独立存在，但它们必须共享同一产品边界、控制面与 institution truth
 
-## 当前产品定位
+## 产品定位
 
-在当前阶段，`campus-agent` 首先应被理解为：
+`campus-agent` 首先应被理解为：
 
 - 一个受控的校园知识问答产品
-- 一个以 shared `app-api`、public chat surface、public docs surface 和 protected
-  operator surface 组成的前向产品雏形
-- 一个正在从 handbook / curriculum 问答扩展到 campus service discovery 与 place finding
-  的校园助理
+- 一个持续扩展到 campus service discovery、notice discovery、place finding 与
+  wayfinding 的校园助理
+- 一个由 shared control plane 约束多入口体验、capability readiness 与 institution
+  truth 的 campus assistant product
 
-当前公开能力重心仍然是 institution knowledge question answering。
+产品初始重心是 institution knowledge question answering，但长期入口不应被理解成
+`RAG-first` 或 `knowledge-only`。
 
-这表示当前 rollout 的公开重心仍在 knowledge path，而不是长期入口必须始终 `RAG-first`。
-
-当前已进入公开查询面的重点固定为：
-
-- `regulations/student_rules`
-- `regulations/institutional_rules`
-- `curriculum/curriculum_plan`
-- `official_web/stable_reference`
-
-同时，当前公开能力重心仍然是 institution knowledge question answering，而不是把所有尚未成熟的能力面都提前开放给终端用户。
-
-已冻结的前向扩展方向是：
+产品能力扩展方向是：
 
 - 先补 `place_lookup` / `place_finding`
 - 后做 `route_planning` / `wayfinding`
 
-因此，当前不应把 `campus-agent`
-描述成“已经上线的校园导航产品”；更准确的说法是，它是一个已经具备校园问答主路径、并明确把地点寻找与导航纳入产品边界的校园助理产品。
+因此，不应把 `campus-agent` 描述成单一校园导航产品；更准确的说法是，它是一个以校园问答为起点，
+并明确把地点寻找与导航纳入产品边界的校园助理产品。
 
 补充约束：
 
-- 当前 merged truth 仍是“chat 为最成熟公开入口、docs 为已独立落地 surface、其他入口尚未 rollout”
-- 这不等于长期产品必须维持“chat 作为唯一总入口”的 IA 真相
-- docs shell 自己的首页、collection 入口或局部导航，不自动上升为整个产品的顶层入口架构
-- `hub.muc.wiki/[slug]` 是新的 app-set product entry surface；它提供平面入口、
-  账号壳与跨 surface 导航，但不改变 query-serving truth 或 capability opening truth
-- 既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营；hub 只提供外部链接卡片，
-  不替代、代理、镜像或迁移 MediaWiki 页面内容、上传媒体或账号
-- `authenticated_notice_portal`、`wechat_official_account` 与 structured runtime source/data
-  lane 是长期能力输入与 control-plane truth 的一部分；除非显式开放，它们不自动上升为当前公开产品承诺
+- 当前 merged truth、已开放 serving surface 与具体 browser surface 拓扑由
+  `current-architecture.md` 维护。
+- 单个 surface 的内部信息架构不自动上升为整个产品的顶层入口架构。
+- source/data lane 只有在显式开放后才上升为公开产品承诺。
 
 ## 长期产品形态
 
@@ -174,10 +161,10 @@ workflow signal 并进入对应 capability workflow。
 
 长期上的产品扩展，默认仍然指校园能力面的扩展，而不是静默转向开放域聊天产品。
 
-当前固定结论是：
+产品边界固定为：
 
 - 主产品路径继续保持 `institution-scoped`
-- 不把“开放域 generalist / web 回答能力”视为当前已接受的产品组成部分
+- 不把“开放域 generalist / web 回答能力”视为默认产品组成部分
 - 不允许在 campus path 内用临时 web fallback 替代 `out_of_scope`
 
 如果未来产品明确接受开放域能力，它也必须作为单独 capability boundary 进入，而不是反向改写当前 campus assistant
@@ -207,11 +194,10 @@ workflow signal 并进入对应 capability workflow。
   architecture：`docs/architecture/system/product-runtime-architecture.md`
 - 导航 / wayfinding
   长期能力边界：`docs/architecture/domains/navigation/architecture.md`
-- 当前 pending work 与执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`
-  与 GSD SDK / Codex native session state
+- 文档 truth class 与冲突裁决：`docs/documentation-architecture.md`
 
 因此：
 
 - 当问题是“`campus-agent` 到底是什么产品、服务谁、不是谁”时，优先看本文
-- 当问题是“当前已经做到哪、当前开放了什么”时，优先看 `current-architecture.md` 和 `.planning/`
+- 当问题是“实现状态和开放范围是什么”时，优先看 `current-architecture.md`
 - 当问题是“长期架构边界怎样冻结”时，优先看 `target-architecture.md` 与对应 ADR

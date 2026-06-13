@@ -1,8 +1,10 @@
 ---
 doc_type: index
+truth_scope: data
+owner_boundary: docs/data
 status: active
 created: 2026-04-12
-updated: 2026-06-04
+updated: 2026-06-13
 ---
 # Data
 
@@ -12,6 +14,9 @@ canonical truth”“哪些只是 projection carrier”。
 ## Runtime / App Schema
 
 - `app-api-schema.md`
+  - `app-api-schema/auth-chat-docs-profile.md`
+  - `app-api-schema/runtime.md`
+  - `app-api-schema/operator.md`
 - `app-api-official-web-schema.md`
 - `durable-agent-runtime-schema.md`
 - `canonical-document-reader-model.md`

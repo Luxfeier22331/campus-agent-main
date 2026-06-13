@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: execution
+owner_boundary: execution-control
 status: active
 created: 2026-06-09
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Memory Plane Architecture
 

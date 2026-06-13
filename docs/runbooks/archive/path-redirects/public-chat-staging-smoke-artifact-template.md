@@ -1,10 +1,11 @@
 ---
 doc_type: runbook
+truth_scope: ops
+owner_boundary: docs/runbooks/archive
 status: historical
 created: 2026-04-10
 updated: 2026-04-20
 ---
-
 # Public Chat Staging Smoke Artifact Template
 
 ## Historical Status

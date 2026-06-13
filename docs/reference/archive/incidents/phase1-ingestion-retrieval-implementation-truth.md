@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: ops
+owner_boundary: docs/reference/archive/incidents
 status: historical
 created: 2026-03-27
 updated: 2026-04-12
 ---
-
 # Phase-1 Ingestion / Retrieval Snapshot (Historical)
 
 ## 文档边界

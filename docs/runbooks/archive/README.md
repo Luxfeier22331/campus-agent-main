@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: ops
+owner_boundary: docs/runbooks/archive
 status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Runbooks Archive
 
 `runbooks/archive/` 保存已退出默认执行面的 legacy runbook 与历史路径 redirect note。

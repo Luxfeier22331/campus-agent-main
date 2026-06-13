@@ -1,5 +1,7 @@
 ---
 doc_type: data
+truth_scope: data
+owner_boundary: domains/official-web
 status: active
 created: 2026-03-28
 updated: 2026-05-01

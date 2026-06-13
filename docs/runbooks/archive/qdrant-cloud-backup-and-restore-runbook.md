@@ -1,10 +1,12 @@
 ---
 doc_type: runbook
+truth_scope: ops
+owner_boundary: docs/runbooks/archive
 status: historical
 created: 2026-03-31
 updated: 2026-06-01
 ---
-# Qdrant Cloud Backup And Restore Runbook
+## Qdrant Cloud Backup And Restore Runbook
 
 ## Historical Status
 

@@ -1,5 +1,7 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 status: accepted
 created: 2026-04-02
 updated: 2026-04-02

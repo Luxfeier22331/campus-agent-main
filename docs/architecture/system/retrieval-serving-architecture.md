@@ -1,5 +1,7 @@
 ---
 doc_type: architecture
+truth_scope: capability
+owner_boundary: packages/retrieval-core
 status: active
 created: 2026-04-02
 updated: 2026-06-05

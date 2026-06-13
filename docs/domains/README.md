@@ -1,5 +1,7 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/domains
 status: active
 created: 2026-04-12
 updated: 2026-04-23

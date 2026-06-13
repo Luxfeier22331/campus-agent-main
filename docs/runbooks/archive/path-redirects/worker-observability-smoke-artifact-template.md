@@ -1,10 +1,11 @@
 ---
 doc_type: runbook
+truth_scope: ops
+owner_boundary: docs/runbooks/archive
 status: historical
 created: 2026-04-02
 updated: 2026-04-20
 ---
-
 # Worker Observability Smoke Artifact Template
 
 ## Historical Status

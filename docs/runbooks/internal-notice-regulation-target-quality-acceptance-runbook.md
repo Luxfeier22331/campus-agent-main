@@ -1,5 +1,7 @@
 ---
 doc_type: runbook
+truth_scope: ops
+owner_boundary: docs/runbooks
 status: active
 created: 2026-04-19
 updated: 2026-04-28

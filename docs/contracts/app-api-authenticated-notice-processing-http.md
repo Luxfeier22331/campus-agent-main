@@ -1,5 +1,7 @@
 ---
 doc_type: contract
+truth_scope: ops
+owner_boundary: apps/app-api
 status: active
 created: 2026-05-01
 updated: 2026-05-01

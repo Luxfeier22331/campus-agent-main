@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: product
+owner_boundary: domains/official-web
 status: active
 created: 2026-04-14
 updated: 2026-04-20
 ---
-
 # Official Web News Surface Opening Checklist
 
 ## 文档边界

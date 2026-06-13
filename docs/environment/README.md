@@ -1,8 +1,10 @@
 ---
 doc_type: index
+truth_scope: ops
+owner_boundary: docs/environment
 status: active
 created: 2026-03-29
-updated: 2026-04-21
+updated: 2026-06-13
 ---
 # Environment
 
@@ -12,6 +14,9 @@ updated: 2026-04-21
 
 - `provider-and-secret-inventory.md`
   - 当前需要哪些 provider / control plane、各自需要哪些 env keys、值应放在哪里、以及新环境如何获取这些值
+  - `provider-and-secret-inventory/core-providers.md`
+  - `provider-and-secret-inventory/app-and-edge-providers.md`
+  - `provider-and-secret-inventory/environment-combinations.md`
 - `env-ownership-and-overrides.md`
   - repo root / app-local / command-scoped env 的 ownership、override 规则与本地
     runtime 边界

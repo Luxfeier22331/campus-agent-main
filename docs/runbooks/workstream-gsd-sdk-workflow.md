@@ -1,10 +1,11 @@
 ---
 doc_type: runbook
+truth_scope: repository
+owner_boundary: docs/runbooks
 status: active
 created: 2026-06-04
 updated: 2026-06-08
 ---
-
 # GSD SDK And Codex Native Workflow
 
 ## Purpose

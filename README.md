@@ -42,13 +42,12 @@ browser -> protected-panel-web -> app-api
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
 - 当前 online answer path 已硬切为 Go/Temporal durable envelope +
-  OpenAI Agents SDK primary agent loop；目标态 ordinary chat 由 primary
-  agent 在 admitted tool catalog 内决定 direct/no-tool、notice、
-  campus_services 或 `knowledge_query`；knowledge 请求由 primary agent 选择
-  `knowledge_query` workflow signal 后进入 Go-owned RAG graph；当前代码仍有
-  缺失 `requested_capability` 默认 `knowledge` 的 implementation gap；Python
-  `apps/supervisor-agent-worker`
-  已从 active workspace 删除，旧实现只可通过 git history 追溯
+  OpenAI Agents SDK primary agent loop；ordinary chat 由 primary agent 在
+  admitted tool catalog 内决定 direct/no-tool、notice、campus_services 或
+  `knowledge_query`；knowledge 请求由 primary agent 选择 `knowledge_query`
+  workflow signal 后进入 Go-owned RAG graph；Python
+  `apps/supervisor-agent-worker` 已从 active workspace 删除，旧实现只可通过
+  git history 追溯
 - online query path 与 offline data plane 持续分层
 - `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
   第二产品后端或 MediaWiki 替代物
@@ -57,7 +56,7 @@ browser -> protected-panel-web -> app-api
 
 当前项目处于验收收口与上线前硬化阶段。
 
-项目级当前真相与 pending work 见：
+项目级当前工作地图与 pending work signals 见：
 
 - [.planning/PROJECT.md](./.planning/PROJECT.md)
 - [.planning/WORKSTREAMS.md](./.planning/WORKSTREAMS.md)
@@ -103,6 +102,7 @@ browser -> protected-panel-web -> app-api
 
 默认文档入口：
 
+- [docs/documentation-architecture.md](./docs/documentation-architecture.md)
 - [docs/README.md](./docs/README.md)
 - [docs/architecture/README.md](./docs/architecture/README.md)
 - [docs/architecture/system/README.md](./docs/architecture/system/README.md)
@@ -113,13 +113,15 @@ browser -> protected-panel-web -> app-api
 文档与 planning 的分工：
 
 - `docs/`
-  - 长期有效、应被反复引用的共享真相
+  - 长期有效、应被反复引用的 source-of-truth 文档
+- `docs/documentation-architecture.md`
+  - 文档 truth class、冲突裁决顺序与入口路由规则
 - `docs/architecture/current-architecture.md`
   - 当前 accepted merged truth
 - `.planning/PROJECT.md`
-  - 当前项目级范围、关键决策与 merged/worktree truth
+  - compact project work map；不覆盖 architecture / contract / data truth
 - `.planning/WORKSTREAMS.md`
-  - compact active work map、owner areas、backlog triggers 与恢复规则
+  - compact active work map、owner areas、backlog signals 与恢复规则
 - git history
   - 已退出 live truth 的 historical / superseded / completed planning snapshots
 

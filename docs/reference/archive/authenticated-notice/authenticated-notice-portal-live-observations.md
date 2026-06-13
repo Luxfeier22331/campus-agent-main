@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: data
+owner_boundary: domains/authenticated-notice
 status: historical
 created: 2026-04-09
 updated: 2026-04-12
 ---
-
 # Authenticated Notice Portal Live Observation Snapshot
 
 ## 文档边界

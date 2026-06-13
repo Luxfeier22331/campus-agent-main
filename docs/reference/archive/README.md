@@ -1,10 +1,11 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs/reference/archive
 status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Reference Archive
 
 `reference/archive/` 保存已退出默认入口的 historical baseline、reading guide、incident snapshot 与 evidence pack。

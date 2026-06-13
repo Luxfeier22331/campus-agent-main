@@ -1,5 +1,7 @@
 ---
 doc_type: data
+truth_scope: data
+owner_boundary: apps/execution-control
 status: active
 created: 2026-06-04
 updated: 2026-06-11

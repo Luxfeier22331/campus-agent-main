@@ -1,5 +1,7 @@
 ---
 doc_type: contract
+truth_scope: capability
+owner_boundary: packages/knowledge-capability
 status: active
 created: 2026-04-21
 updated: 2026-06-05

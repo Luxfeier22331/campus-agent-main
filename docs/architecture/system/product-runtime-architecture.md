@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: product
+owner_boundary: app-api
 status: active
 created: 2026-04-02
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Product Runtime Architecture
 

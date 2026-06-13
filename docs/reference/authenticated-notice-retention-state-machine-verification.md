@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: ops
+owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-30
 updated: 2026-04-30
 ---
-
 # Authenticated Notice Retention State Machine Verification Set
 
 本文记录 notice-first source retention state machine 的首批人工/脚本验证样例。

@@ -1,11 +1,12 @@
 ---
 doc_type: decision
+truth_scope: repository
+owner_boundary: docs/decisions
 decision_id: ADR-0046
 status: accepted
 created: 2026-06-04
 updated: 2026-06-08
 ---
-
 # ADR-0046 GSD SDK And Codex Native Workflow
 
 ## 状态

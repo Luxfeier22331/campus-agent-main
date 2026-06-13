@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: repository
+owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # 当前架构
 
@@ -15,12 +17,13 @@ updated: 2026-06-12
 - 当前前向产品拓扑是什么
 - 当前哪些 serving surface 已开放
 - 当前 `apps/*` 与 `packages/*` 的责任边界是什么
-- 当前哪些文档负责目标架构、supporting architecture 与执行状态
+- 当前哪些文档负责目标架构与 supporting architecture
 
 它不负责：
 
 - 历史 phase 叙事
 - 未合入分支实现进度
+- backlog、ops closeout、release acceptance 或 planning work map
 - collection-specific cleanup / eval / rebuild 细节
 - 长期产品顶层入口 IA 的前向规划
 
@@ -113,12 +116,7 @@ document/index release`
   lookup/provider adapter、user cancel projection closeout 和 sanitized step attempt
   projection 承接；repo-local projection path 已能记录
   `activity_context_canceled`、`requested_before_start`、
-  `provider_connection_aborted`、provider timeout 与 late completion ignored。后续
-  staging 仍需要真实 provider call 与 Temporal metrics evidence。
-- 当前仍未完成的是 worker autoscaler production actuation、Temporal poller proof 的
-  staging closeout 与 notice / navigation / campus-services typed activity worker
-  全量拆分。目标 durable runtime 见
-  `docs/architecture/system/durable-agent-runtime-architecture.md`
+  `provider_connection_aborted`、provider timeout 与 late completion ignored。
 - Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 bridge/server
   code 只可通过 git history 追溯，不得作为 staging readiness、online fallback 或
   active workflow branch 恢复。
@@ -274,14 +272,10 @@ document/index release`
 - 当前 public durable chat path 已具备 capability-neutral metadata、primary agent
   direct/no-tool terminal branch 与 agent-result finalization。`campus_services`
   与 `notice` 已有 model-visible read-only tool catalog 与 typed/internal-query
-  bridge 基底；产品级完整验收仍取决于对应 worker poller、structured read model、
-  projection fixture 与 opening evidence。`navigation` 仍默认 closed，必须 fail
-  closed。
+  bridge 基底。`navigation` 仍默认 closed，必须 fail closed。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
-  解释为全局 scheduler。当前缺口是 staging 真实 provider cancel evidence、
-  worker autoscaler actuation、notice / navigation / campus-services typed branch
-  产品验收，以及 RAG retrieval quality/profiling 的持续优化。
+  解释为全局 scheduler。
 - 仍拥有 deterministic structured planner；当前实现位于
   `apps/execution-control/internal/structuredplanning`。`PlanRouteActivity` 从
   capability-neutral `execution_payload` 读取 user goal、requested capability、
@@ -382,8 +376,8 @@ document/index release`
 - 目标架构：`docs/architecture/target-architecture.md`
 - 产品/runtime supporting
   architecture：`docs/architecture/system/product-runtime-architecture.md`
-- execution/agent supporting
-  architecture：`docs/architecture/system/execution-and-agents-architecture.md`
+- Execution Agent Layer supporting
+  architecture：`docs/architecture/system/execution-agent-layer-architecture.md`
 - prompt/instruction supporting
   architecture：`docs/architecture/system/prompt-and-instruction-architecture.md`
 - account / operator access / memory binding supporting
@@ -402,15 +396,16 @@ document/index release`
   architecture：`docs/architecture/domains/authenticated-notice/architecture.md`
 - operator observability supporting
   architecture：`docs/architecture/system/operator-observability-architecture.md`
-- 当前 pending work：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK /
-  Codex native session state
+- 当前 work map 与 backlog signals：`.planning/PROJECT.md`、
+  `.planning/WORKSTREAMS.md`
 
 ## 不在本文维护的真相
 
 以下内容不在本文维护：
 
-- 最新 benchmark artifact、release gate 结果、current focus
+- 最新 benchmark artifact、release gate 结果、当前工作焦点
 - 历史 phase 排期与执行叙事
 - collection-specific normalization / rebuild / eval 证据
+- backlog、ops closeout、release acceptance 与 planning work map
 
 这些分别以 `.planning/`、`docs/runbooks/`、`docs/reference/` 为准。

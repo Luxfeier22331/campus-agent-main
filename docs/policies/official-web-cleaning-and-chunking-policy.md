@@ -1,5 +1,7 @@
 ---
 doc_type: policy
+truth_scope: ops
+owner_boundary: domains/official-web
 status: active
 created: 2026-04-03
 updated: 2026-04-04

@@ -1,10 +1,11 @@
 ---
 doc_type: runbook
+truth_scope: ops
+owner_boundary: docs/runbooks
 status: active
 created: 2026-05-01
 updated: 2026-05-01
 ---
-
 # Authenticated Notice Processing Operator Panel Runbook
 
 <!-- markdownlint-disable MD013 -->

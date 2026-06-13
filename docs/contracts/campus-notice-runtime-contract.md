@@ -1,10 +1,11 @@
 ---
 doc_type: contract
+truth_scope: capability
+owner_boundary: apps/execution-control
 status: active
 created: 2026-04-23
 updated: 2026-05-01
 ---
-
 # Campus Notice Runtime Contract
 
 ## Boundary

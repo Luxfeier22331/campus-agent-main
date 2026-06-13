@@ -1,10 +1,11 @@
 ---
 doc_type: reference
+truth_scope: data
+owner_boundary: domains/authenticated-notice
 status: historical
 created: 2026-04-06
 updated: 2026-04-20
 ---
-
 # Internal Notice Offline Preparation Quality Snapshot
 
 ## Historical Note

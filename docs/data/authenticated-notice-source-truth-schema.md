@@ -1,5 +1,7 @@
 ---
 doc_type: data
+truth_scope: data
+owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
 updated: 2026-04-30

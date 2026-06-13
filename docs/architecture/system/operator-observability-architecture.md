@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: ops
+owner_boundary: app-api
 status: active
 created: 2026-04-02
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Operator Observability Architecture
 
@@ -79,7 +81,7 @@ spine：
 
 固定规则：
 
-- panel `Requests` detail、quality badcase、eval candidate 与 release evidence
+- panel `Requests` detail、quality badcase、eval candidate 与 release_evidence
   必须以 step trajectory 作为共同诊断口径。
 - `workflow_trace_summary` 只保留为 operator-safe compatibility summary，用于展示
   bounded workflow mode、artifact refs 与历史摘要字段；它不是 canonical diagnostic
@@ -92,22 +94,22 @@ spine：
 
 ## Operator-Safe Trajectory Diagnostics Contract
 
-eval、badcase 与后续 release evidence 不再各自解释 `workflow_trace_summary` 或
+eval、badcase 与后续 release_evidence 不再各自解释 `workflow_trace_summary` 或
 runtime-specific payload。它们共同消费 app-api 物化后的 operator-safe trajectory
 diagnostics contract：
 
 `app-api operator request detail / export -> operator_step_trajectory.v1 ->
-eval attribution / badcase projection / release-evidence-shaped local fixture`
+eval attribution / badcase projection / release_evidence fixture`
 
 第一版契约目标：
 
-- 保持非 staging：只冻结离线 / fixture / local export 的消费口径，不要求真实
-  staging run、真实 Temporal metrics 或真实 release closeout。
+- 保持 operator ownership：本文只冻结 operator_diagnostic_evidence 的消费口径，不要求真实
+  ops run、真实 Temporal metrics 或真实 release closeout。
 - 保持 app-api ownership：输入只能来自 app-api operator read model 或与其同形的
   sanitized export fixture，不得读取 Temporal history、execution-control internal
   endpoint、raw provider trace、raw prompt、raw answer、raw transcript 或 local object
   path。
-- 保持共同归因：每个 eval failure、badcase 或 future release evidence item 必须能关联
+- 保持共同归因：每个 eval failure、badcase 或 future release_evidence item 必须能关联
   到 step trajectory 中的阶段、capability、tool、attempt outcome 与 projection refs；无法关联时
   必须显式标记 `trajectory_missing` / `attribution_missing`，不得从 raw artifact 猜测。
 - 保持兼容摘要降级：`workflow_trace_summary` 可以继续为 panel / eval 提供 bounded
@@ -135,8 +137,8 @@ eval attribution / badcase projection / release-evidence-shaped local fixture`
   runtime truth。
 - badcase projection 负责把低分、失败或人工复核项绑定到 sanitized step attribution，不读取
   raw artifact。
-- release evidence 在链路成熟前只能生成 release-evidence-shaped local fixture，用来锁定未来
-  evidence schema 与安全红线；真实 staging evidence 必须后置。
+- release_evidence 消费必须通过同一个 operator-safe trajectory export。本文不定义
+  ops closeout 是否充分，也不把 release_evidence 反写成 main-chain completion 条件。
 
 ## Ownership Model
 
@@ -171,7 +173,7 @@ eval attribution / badcase projection / release-evidence-shaped local fixture`
 
 ### Telemetry / Evaluation Sinks
 
-- 负责 debugging、high-volume analysis、sampled grading、release evidence
+- 负责 debugging、high-volume analysis、sampled grading、release_evidence 输入
 - 不承担 panel canonical read model
 
 ## Execution Audit Backflow
@@ -237,37 +239,17 @@ events 只能按以下路径进入 panel：
 这些 family 都必须由 `app-api` 或其继任 shared app boundary 拥有；panel 不得通过 raw sink、数据库直连或
 runtime-internal package import 拼装它们。
 
-## Current Accepted Baseline
+## Current-State Ownership
 
-当前 merged truth 已经接受以下 observability baseline：
+This document owns operator observability supporting architecture, not current
+rollout status. Current accepted operator surfaces and runtime facts belong in
+`../current-architecture.md`; active work signals belong in `.planning/`;
+operational proof and closeout belong in runbooks.
 
-- panel `Requests` 继续只读 `app-api` projection / observability APIs
-- `Sentry` 与 `Axiom` 只作为 sink、deep link 与分析面参与，不成为 panel canonical truth
-- request-scoped observability fact 已经是 app-owned runtime fact family，而不是 sink
-  query 的别名
-- prompt identity 与 typed runtime branch 现已进入 observability-safe summary seam，但
-  raw prompt 仍禁止出现在 panel/read-model
-- overview health 已经从 `runtime.projection_outbox` 派生 projection failure、
-  pending、retry 与 stale outbox summary，不再把 projection failure 暂置为固定值
-- intent governance 已经进入 operator-facing read model：request detail 保留 typed intent
-  summary，`app-api` 另提供 intent summary / timeseries 聚合，用于 classifier、schema 与
-  context-resolution drift 监控
-- answer quality feedback 已进入 `Quality` read model：`chat.message_feedback` 通过
-  `request_id` join `runtime.request_observability_fact`，生成 feedback coverage、
-  helpful / unhelpful rate、no-answer unhelpful overlap，以及 `negative_feedback`
-  eval candidate intake；它不是 panel-owned truth，也不反向改变 runtime routing
-- admitted `multi_step` 的 workflow trace summary 现已保留 bounded final answer artifact
-  usage 摘要：
-  `answer_artifact_projection_ids` 与 `answer_artifact_kinds` 进入 operator / eval
-  可见的 safe summary seam，用于证明最终答复依赖了哪些 repo-owned projection，而不是暴露
-  raw artifact payload
-
-当前尚未全部落成 merged truth 的，是更完整的 `Safety/Boundary`、`Cost`、`Audit` operator
-product surface；这属于 rollout 进度问题，不是 ownership 未定。
-
-长期如果推进 full agentic retrieval，operator observability 还必须继续收口 planner / executor
-/ query activity truth；这属于 target-state observability expansion，不应被误读成当前 merged
-truth 已开放。
+Do not add rollout-progress lists here. New durable observability facts should
+be promoted to the owning class: architecture boundary here, HTTP contract in
+`docs/contracts/`, schema/read-model truth in `docs/data/`, ADR reasoning in
+`docs/decisions/`, and operational procedure in `docs/runbooks/`.
 
 ## Monitoring Taxonomy
 
@@ -653,23 +635,11 @@ ownership matrix 固定在
 `ingestion-core` 与 `contracts` 保持 vendor-neutral，不直接依赖 Sentry、Axiom、Collector
 或 OpenTelemetry SDK。
 
-当前 runtime bridge 已收口为：
-
-- `apps/execution-control` 是 online trace owner，负责 request admission、bridge
-  attempt、Temporal workflow/activity attempt 与 finalization 的 sanitized OTLP
-  trace signal
-- `apps/execution-control` 在启用 OTel 后对 configured product answer paths 采用
-  fail-close 语义；telemetry 交付失败返回 `telemetry_delivery_failed`，sampling 丢弃仍只作为
-  显式采样计数
-- online knowledge / RAG observation 由 Go `activity-worker-knowledge` /
-  `execution-control` runtime adapter 把 `retrieval.runtime_observation` 映射成
-  sanitized runtime event sink；
-  Python bridge 只可保留 offline / eval / historical sink
-- `apps/ingestion-worker` 负责 offline run-level started/completed/failed telemetry
-- `infra/otel/` 提供 repo-owned local debug Collector config 与 staging Sentry/Axiom
-  fan-out template
-- `docs/runbooks/runtime-otel-collector-pipeline.md` 提供 local debug、staging env、
-  closeout smoke 与 drop diagnosis 操作口径
+Runtime bridge implementation state belongs in `../current-architecture.md`.
+This document only keeps the long-term seam: runtime boundaries emit sanitized
+OTel-compatible trace/metric signals, collector/adapter policy handles
+redaction and sink fan-out, and app-api-owned projection remains the operator
+read model.
 
 ## Cost Model
 

@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: execution
+owner_boundary: execution-control
 status: active
 created: 2026-06-04
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # Durable Agent Runtime Architecture
 
@@ -63,42 +65,12 @@ model -> browser surface / panel / eval / badcase`
   outcome 都能写入 sanitized step / attempt / result projection，并能被
   app-api operator read model 消费时，才算 production-open。
 
-Current implementation baseline:
+Current merged execution facts belong in `../current-architecture.md`; they
+must not be duplicated in this supporting architecture.
 
-- online chat path already enters the Temporal-backed
-  `CapabilityExecutionWorkflow`.
-- chat trajectory projection now uses the Temporal-visible primary agent graph:
-  `context.memory_recall -> agent.primary -> finalization.write`. `agent.primary`
-  calls `apps/agent-runtime`, which uses OpenAI Agents SDK for the model-facing
-  tool loop and direct/no-tool final output. Go `execution-control` keeps
-  durable workflow ownership, visible capability filtering, timeout/cancel,
-  sanitized step projection and finalization. The retained deterministic branch
-  support path still contains `plan.route -> capability branch`; the `knowledge`
-  branch runs `rag.plan -> retrieval.indexed_lookup ->
-  retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
-  grounding.verify`.
-- first-class step attempt evidence fields exist in the projection store,
-  execution-control `/steps` API, app-api operator summary and panel trajectory:
-  Temporal workflow/activity metadata, queue wait, duration, provider/model,
-  token/cost and cancel/timeout outcome.
-- `provider_execution_summary_v1` and provider pricing readiness are
-  repo-owned contracts. Activity context cancellation, timeout outcomes and Go
-  provider connection abort are projected as first-class attempt outcomes.
-- online RAG lookup and synthesis are owned by Go `activity-worker-knowledge`:
-  retrieval uses the Qdrant native adapter against the authenticated private
-  data-plane, synthesis executes the provider call, records usage / estimated
-  cost / cancel outcome and stores sanitized finalization input.
-- online primary agent execution is owned by `activity-worker-agent` +
-  `apps/agent-runtime`: SDK selected tools, tool result refs, usage summary and
-  SDK trace refs are normalized into repo-owned sanitized projection before
-  app-api / panel / eval consumption. Model-selected read-only
-  campus-services / notice tool calls are projected as
-  `sdk_tool.execute.<tool>.<index>` tool steps with `typed_tool_result` or
-  `activity_failure` step results; `knowledge_query` remains a workflow signal
-  into the Go-owned RAG graph instead of a bounded JSON typed tool result.
-- Python `apps/supervisor-agent-worker` has been removed from the active
-  workspace. Historical bridge code is recoverable only through git history and
-  must not be restored as a serving fallback or readiness dependency.
+The retired Python semantic bridge remains outside online serving. Historical
+bridge code is recoverable only through git history and must not be restored as
+a serving fallback or readiness dependency.
 
 ## Temporal Execution Plane
 
@@ -339,9 +311,9 @@ context.memory_recall when needed
 - `finalization.write` 只消费 admitted step results，写 sanitized finalization
   projection 与 user-facing answer event。
 
-### Current Knowledge/RAG Implementation Graph
+### Knowledge/RAG Step Graph
 
-当前 online RAG durable graph 已硬切为：
+Knowledge-family durable execution must remain a typed step graph:
 
 1. `memory.recall`
 1. `planning`
@@ -685,176 +657,42 @@ worker autoscaler 边界固定为：
 - 禁止：写 workflow state、product run projection、step projection、event projection、直接标记
   terminal state、基于 raw prompt 或 raw provider trace 做扩缩容。
 
-## Current Implementation State
+## Current-State Ownership
 
-当前实现已经具备：
+This document owns durable runtime semantics, not merged implementation status,
+active backlog or release closeout evidence. Current-state facts must stay in
+these owner classes:
 
-- Go `execution-control` execution ingress
-- in-process lifecycle registry
-- global / per-lane admission
-- bounded in-memory queue
-- timeout / cancel / drain
-- retired bridge circuit breaker code still exists only behind historical /
-  retired bridge paths; it is not an online serving dependency
-- metrics / OTel / execution audit seam
-- `WorkflowRunStore` foundation for gated multi-step path
-- isolated historical run projection store kernel in `apps/execution-control/internal/execution`
-  for `DurableRun`、`RunEvent`、`ExecutionLease`、`LaneBudget` 与
-  `WorkerHeartbeat`
-- Postgres-backed run projection store with explicit
-  `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL` configuration
-- retained PG lease coordinator / worker loop / recovery loop code exists as a
-  migration artifact, but the online serving path is Temporal-backed. Staging and
-  production env must reject `EXECUTION_CONTROL_DURABLE_WORKER_LOOP_*` and
-  `EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_*` rather than re-enable PG lease
-  execution.
-- Temporal owns queued workflow/activity execution, retry, timeout, and worker
-  poller semantics. PG runtime tables are the sanitized product projection store,
-  not the scheduler truth.
-- cancel command is Temporal-owned first: execution-control cancels the current
-  answer workflow implementation and then writes sanitized cancel projection;
-  lease release semantics are not part of the online cancel path.
-- app-api execution runtime adapter and product request cutover foundation:
-  accepted chat requests create execution-control runs, persist `run_id`
-  backlinks in `runtime.request_execution`, and execution-configured blocking /
-  stream chat paths poll browser-visible run events by `after_sequence` cursor
-  and finalize from `finalization.completed` run event payloads; stream submit
-  registers an app-api-owned `waitUntil` finalization closeout before emitting
-  `request.accepted`, so browser disconnect no longer owns finalization
-- app-api product run command-query endpoints:
-  `/api/chat/runs/:runId`, `/api/chat/runs/:runId/events`,
-  `/api/chat/runs/:runId/events/stream`, and
-  `/api/chat/runs/:runId/cancel` verify local request ownership before proxying
-  execution-control run status, browser-visible events, browser resume stream,
-  and cancel commands
-- split execution worker binaries exist:
-  `cmd/workflow-worker`, `cmd/activity-worker-context`,
-  `cmd/activity-worker-agent`, `cmd/activity-worker-knowledge`,
-  `cmd/activity-worker-campus-services`, `cmd/activity-worker-notice`,
-  `cmd/activity-worker-navigation`, and `cmd/activity-worker-finalization`;
-  Docker Compose runs them as separate services with explicit
-  `<env>:<role>:<instance>` worker identity.
-- step projection writeback exists for the current capability execution
-  trajectory: `agent.primary`、branch steps and `finalization.write` write
-  sanitized step / attempt / result projection rows; retained deterministic
-  support paths can still project `plan.route` where explicitly used.
-  Attempt rows include Temporal activity metadata, queue wait, duration,
-  provider/model, token/cost, cancel/timeout/late-completion outcome,
-  fail-close reason and replan reason fields. Online RAG lookup and synthesis
-  run inside Go `activity-worker-knowledge`, so lookup latency, provider usage /
-  cost and `provider_connection_aborted` evidence can be filled from activity
-  execution. User cancel projection now marks incomplete step/attempt rows with
-  `requested_before_start` or `activity_context_canceled` while preserving
-  completed step evidence.
-- repo-owned staging durable reconnect harness:
-  `pnpm --dir apps/app-api chat:durable:e2e:staging` proves the product stream can
-  be disconnected after `request.accepted` and resumed from the existing durable
-  run event stream by `run_id + after_sequence`
-- retired repo-owned Postgres run projection proof command:
-  `apps/execution-control/cmd/durable-runtime-proof` is only available with the
-  `retired_pg_lease` build tag for migration audits. It is not part of the
-  default build, staging closeout, or online serving proof.
-- repo-owned deployed execution-control Temporal HTTP proof command:
-  `apps/execution-control/cmd/temporal-runtime-http-proof` records deployed
-  execution-control `/readyz` evidence and fails closed unless projection store,
-  and Temporal runtime are reported ready
-- repo-owned worker autoscaler dry-run proof command:
-  `apps/execution-control/cmd/worker-autoscaler` reads task queue / downstream
-  budget observations and writes desired-replica evidence without writing
-  workflow state, run projection, step projection, event projection, or terminal
-  state
-- public-chat pending-run product baseline: accepted durable run identity is
-  persisted in tab-scoped storage, browser resume reads the existing run event
-  stream by `run_id + after_sequence`, terminal events load canonical
-  conversation truth before clearing pending state, and draft `/chat` routes are
-  replaced with the canonical conversation route after recovery
-- product run phase projection: app-api maps execution durable run status into
-  a typed product phase, `request.accepted` emits the created durable run phase,
-  public-chat persists that phase in pending-run state, and protected panel
-  request detail displays the same phase instead of deriving queue state locally
+- merged topology and implemented execution path:
+  `../current-architecture.md`
+- durable execution work signals and backlog pointers:
+  `../../../.planning/PROJECT.md` and `../../../.planning/WORKSTREAMS.md`
+- operational proof, staging closeout and recovery commands:
+  `../../runbooks/`
 
-当前缺口：
+Do not add implementation-progress lists to this supporting architecture. If a
+new runtime fact needs to persist, promote it to `current-architecture.md`, the
+matching contract/schema, an ADR or a runbook.
 
-- Temporal poller proof 已进入 execution-control readyz：readyz 会检查
-  workflow、RAG activity、finalization activity 与已打开 capability 对应 activity
-  task queue 的 recent poller。schedule-to-start latency 仍需要来自 Temporal metrics
-  的真实采样进入 release evidence。
-- failure-mode staging proof 仍需闭环：repo-local projection 已能用同一
-  `operator_step_trajectory.v1` 口径解释 cancel、timeout、late completion ignored、
-  semantic fail-close 与 bounded replan；真实 staging run、Temporal metrics sampling
-  与 release evidence 仍后置。
-- execution-control 概念已完成代码/部署命名收口到 `apps/execution-control`，历史
-  PG lease proof command 已退出默认 build；`run_projection*.go` 仍有 projection store 与
-  historical schema artifact 混合命名，需要后续纯命名整理，但不得重新接回 serving。
-- step-level projection 已进入 current chat trajectory；app-api operator query 与
-  protected panel 消费 `agent_run_steps`、`agent_step_attempts`、
-  `agent_step_results` 作为诊断主线。app-api request observability detail 已从
-  execution-control sanitized step projection materialize
-  `operator_step_trajectory.v1`；panel formatter diagnostic groups、eval/badcase
-  stage attribution 与 release-evidence-shaped local fixture 已统一消费该 export。
-  当前阶段不做真实 staging evidence closeout。
-- worker autoscaler 已有 dry-run proof 与 apply-mode evidence-only 边界：可以基于
-  task queue observation、poller health 与 downstream budget projection 计算 desired
-  replicas；`apply` 没有显式 actuation evidence path 时 fail closed，提供路径时只写
-  ops-plane actuation evidence 与 desired replica operations，仍不写
-  workflow/run/step/event truth。真实基础设施扩缩容接入仍未启用。
-- RAG durable typed step graph 已进入 current online path：`rag.plan`、
-  `retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、`evidence.selection`、
-  `synthesis`、`grounding.verify` 与 `finalization.write` 均写 sanitized step
-  trajectory。primary-agent path 已具备 bounded semantic retry：失败的 SDK
-  typed tool result 只有在 typed outcome 属于
-  `provider_timeout`、`tool_handler_failed`、`provider_connection_aborted`、
-  `tool_executor_not_configured` 或 `transient_internal_query_failed` 时，才能在同一
-  visible capability/tool set 内最多重试一次；确定性 semantic / policy /
-  contract / admission failure 和未知原因不触发 replan，并通过 step attempt
-  `replan_reason` 投影。
-- primary model-facing SDK loop 已进入 current worktree：`agent.primary` 通过 strict
-  `tool-catalog.v1` 暴露 model-visible read-only tools，`knowledge_query` 作为 workflow
-  signal 进入 Go-owned RAG graph，campus-services / notice tools 通过
-  execution-control internal query executor 读取 bounded projection/read model，并把
-  success / fail-close tool result 投影成
-  `sdk_tool.execute.<tool>.<index>` normalized tool step。ordinary chat 缺失
-  `requested_capability` 时已不再默认 `knowledge`，而是保持 capability-neutral
-  进入 `agent.primary`。`clarification_required`、`out_of_scope` 与
-  `unsupported_by_evidence` 已分别投影为 `needs_clarification`、`rejected` 与
-  `no_answer` finalization outcome。canonical `tool_function_schemas.v1` 已覆盖
-  model-visible strict function schema，agent-runtime 返回 `arguments_json`，并由
-  execution-control 在 SDK typed tool projection 前验证；schema drift 作为
-  `schema_contract_drift` fail-close step 投影。剩余缺口不再是“是否接入
-  provider-native tool loop”或“是否硬化 strict argument schema”，而是真实
-  runtime/staging proof。
-- panel / eval / observability 已统一到 step-level trajectory 的第一版 consumer
-  contract：routing、primary agent、typed tool、retrieval、rerank、selection、
-  synthesis、grounding、finalization、replan 与 terminal outcome
-  (`clarification` / `rejected` / `no_answer`) 都可作为诊断阶段进入
-  eval/badcase attribution，panel formatter 以 grouped diagnostics 展示 runtime /
-  terminal / replan / agent outcome。release evidence 当前只能生成
-  release-evidence-shaped local fixture，不接真实 Temporal metrics 或 staging
-  closeout。
+Durable runtime work must not be marked complete by simple multi-instance HTTP
+load balancing, Redis queue usage or K8s HPA alone. The canonical proof remains
+Temporal workflow history plus repo-owned sanitized run / event / step /
+attempt / result projection.
 
-这些 gap 不得通过简单多开实例、HTTP load balancing、Redis queue 或 K8s HPA 标记为已解决。
-
-当前落盘产物：
+Stable artifacts for this architecture:
 
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
-  - 当前实现差距矩阵
 - `docs/contracts/durable-agent-runtime-contract.md`
-  - conversation / run / event / lease / lane 的概念 contract
 - `docs/data/durable-agent-runtime-schema.md`
-  - run projection logical schema
-- `apps/execution-control/internal/execution/run_projection*.go`
-  - isolated durable store kernel、lease coordinator、in-memory contract substrate
-    与 Postgres store foundation
-- `apps/execution-control/cmd/durable-runtime-proof`
-  - retired Postgres-backed PG lease proof command, compiled only with
-    `retired_pg_lease`
 
 ## Related Documents
 
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/agent-framework-boundary-architecture.md`
+- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/system/operator-observability-architecture.md`
 - `docs/contracts/durable-agent-runtime-contract.md`

@@ -1,99 +1,94 @@
 ---
 doc_type: index
+truth_scope: repository
+owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-06-09
+updated: 2026-06-13
 ---
+
 # Docs
 
-`docs/` 是 `campus-agent` 的长期文档入口，承载可持续引用的 architecture、ADR、contract、data、
-policy、reference、runbook，以及已归档的历史 plan。
+`docs/` is the long-lived documentation surface for `campus-agent`.
 
-## Canonical Entry Points
+The repository uses a Source-of-Truth documentation architecture. Read
+`documentation-architecture.md` first when a question depends on which document
+class owns a fact.
 
-- [architecture/product-positioning.md](./architecture/product-positioning.md)
-  - 产品定位、目标用户与产品边界
-- [architecture/current-architecture.md](./architecture/current-architecture.md)
-  - 当前 accepted merged truth
-- [architecture/target-architecture.md](./architecture/target-architecture.md)
-  - 长期目标架构与不可退回约束
-- [architecture/system/capability-routing-and-admission-architecture.md](./architecture/system/capability-routing-and-admission-architecture.md)
-  - primary agent first decision、surface admission、visible tool set 与
-    structured/runtime opening owner
-- [architecture/system/execution-and-agents-architecture.md](./architecture/system/execution-and-agents-architecture.md)
-  - execution runtime、capability / agent-as-tool、handoff 与 workflow ownership
-- [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
-  - retrieval-side agentic planning、evidence contract 与 retrieval/runtime split
-- [architecture/system/memory-plane-architecture.md](./architecture/system/memory-plane-architecture.md)
-  - Qdrant-native Personal Memory Index、Temporal `memory.recall` 与 bounded
-    memory context
-- [../.planning/PROJECT.md](../.planning/PROJECT.md)
-  - 当前项目级 active lane 与 pending work
-- [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
-  - 当前 active / deferred / backlog workstreams 与 native planning 目录索引
+## Question Routing
+
+- Product boundary, users and non-promises:
+  - [architecture/product-positioning.md](./architecture/product-positioning.md)
+- Current accepted merged truth:
+  - [architecture/current-architecture.md](./architecture/current-architecture.md)
+- Long-term architecture invariants:
+  - [architecture/target-architecture.md](./architecture/target-architecture.md)
+- Documentation truth classes and conflict resolution:
+  - [documentation-architecture.md](./documentation-architecture.md)
+- Main question-answer chain semantics:
+  - [architecture/system/execution-agent-layer-architecture.md](./architecture/system/execution-agent-layer-architecture.md)
+  - [architecture/system/capability-routing-and-admission-architecture.md](./architecture/system/capability-routing-and-admission-architecture.md)
+  - [architecture/current-architecture.md](./architecture/current-architecture.md)
+- Durable execution, Temporal, run/event/step projection, resume and cancel:
+  - [architecture/system/durable-agent-runtime-architecture.md](./architecture/system/durable-agent-runtime-architecture.md)
+- Tool or capability readiness:
+  - [architecture/domains/README.md](./architecture/domains/README.md)
+  - [contracts/README.md](./contracts/README.md)
+- Data source truth, source-channel schema and read-model ownership:
+  - [data/README.md](./data/README.md)
+- HTTP/runtime wire contracts, DTOs and tool contracts:
+  - [contracts/README.md](./contracts/README.md)
+- ADR reasoning and supersession:
+  - [decisions/README.md](./decisions/README.md)
+- Deployment, staging, release, recovery or smoke procedure:
+  - [runbooks/README.md](./runbooks/README.md)
+  - [environment/README.md](./environment/README.md)
+  - [policies/README.md](./policies/README.md)
+- Current work map and backlog signals:
+  - [../.planning/PROJECT.md](../.planning/PROJECT.md)
+  - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
 
 ## Documentation Areas
 
 - [architecture/README.md](./architecture/README.md)
-  - repo-entry truth 与 supporting architecture 总入口
+  - product, current, target and supporting architecture entry
 - [architecture/system/README.md](./architecture/system/README.md)
-  - 跨域 supporting architecture
+  - cross-domain runtime, execution, retrieval, data and observability boundaries
 - [architecture/domains/README.md](./architecture/domains/README.md)
-  - 领域 supporting architecture
-- [decisions/README.md](./decisions/README.md)
-  - ADR、接受原因与 supersession lifecycle
-- [contracts/README.md](./contracts/README.md)
-  - HTTP 与 runtime seam
-- [data/README.md](./data/README.md)
-  - schema、ownership 与 canonical data boundary
-- [reference/README.md](./reference/README.md)
-  - 术语、指标、清单与已落盘事实
-- [runbooks/README.md](./runbooks/README.md)
-  - 可重复执行的操作步骤与验收手册
-- [policies/README.md](./policies/README.md)
-  - 治理规则、阈值与 collection-specific 约束
+  - domain/capability architecture boundaries
 - [domains/README.md](./domains/README.md)
-  - 跨文档类型的领域导航
+  - cross-document domain hub
+- [contracts/README.md](./contracts/README.md)
+  - contract truth for HTTP, runtime and capability seams
+- [data/README.md](./data/README.md)
+  - data truth, source truth schemas and read-model ownership
+- [decisions/README.md](./decisions/README.md)
+  - ADR lifecycle and accepted decision reasoning
+- [reference/README.md](./reference/README.md)
+  - glossary, inventory, matrices, baselines and reference material
+- [runbooks/README.md](./runbooks/README.md)
+  - operational procedure and release/staging/smoke runbooks
 - [environment/README.md](./environment/README.md)
-  - 环境变量 ownership、配置分层与 provider / secret inventory 入口
-- [plans/README.md](./plans/README.md)
-  - 已归档 plan 的索引入口；当前前向工作流改看 `.planning/WORKSTREAMS.md`
+  - env ownership, provider and secret inventory
+- [policies/README.md](./policies/README.md)
+  - governance rules, thresholds and collection-specific policies
 
-## Reading Model
+## Non-Ownership Rules
 
-- 需要回答“产品是什么、当前系统真相是什么、长期要收口到哪里”，先读 `architecture/`
-- 需要回答“顶层 capability routing、surface allowlist 与 admission/routing 分层如何设计”，读
-  `architecture/system/capability-routing-and-admission-architecture.md`
-- 需要回答“普通 chat 为什么不应默认伪造成 knowledge、primary agent 如何选择 no-tool /
-  notice / campus_services / knowledge tool”，读
-  `architecture/system/capability-routing-and-admission-architecture.md`
-- 需要回答“Execution Agent Layer、structured runtime、capability handoff 与
-  SDK-native execution 如何分层”，读
-  `architecture/system/execution-and-agents-architecture.md`
-- 需要回答“retrieval planner、bounded evidence、RAG side agent runtime 如何分层”，读
-  `architecture/system/agentic-retrieval-architecture.md`
-- 需要回答“personal memory 如何用 Qdrant recall、在哪里写入和消费、Temporal 如何参与 memory 生命周期”，读
-  `architecture/system/memory-plane-architecture.md`
-- 需要回答“为什么接受这条边界”，读 `decisions/`
-- 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
-- 需要回答“source-channel 的 canonical data truth 是什么”，优先从 `data/` 进入，例如
-  `data/official-web-source-truth-schema.md`、
-  `data/authenticated-notice-source-truth-schema.md`、
-  `data/wechat-official-account-source-truth-schema.md`
-- 需要回答“如何部署、恢复、验收或操作”，读 `runbooks/`、`environment/`、`policies/`
-- 需要按领域聚合同一主题下的多类材料，读 `domains/`
-- 需要查看历史方案、completed closeout 或 supersession 关系，通过 git history 恢复对应
-  planning/archive 片段；不要把旧 archive 当作当前 truth
+- `.planning/` is a compact work map. It does not override architecture,
+  contract, data or ADR truth.
+- `runbooks/` define operational procedures and release evidence. They do not
+  define whether the main answer chain is architecturally complete.
+- Capability/domain docs define capability-local readiness. They do not
+  redefine main-chain completion.
+- `current-architecture.md` describes accepted merged truth. It does not carry
+  feature-branch progress or release closeout.
+- `target-architecture.md` describes long-term invariants. It does not carry
+  P0/P1/P2 status or current implementation progress.
 
-## Docs And Planning
+## Historical Material
 
-- `docs/` 保存长期可引用的 repo truth，不承担 worktree-local 执行状态
-- `architecture/current-architecture.md` 只描述当前 accepted merged truth，不描述 feature
-  branch 进度
-- `.planning/WORKSTREAMS.md` 是 compact active work map；GSD SDK / Codex
-  native session 承接 live workstream 状态
-- tracked `docs/plans/` archive namespace 已删除；历史方案通过 git history 恢复具体片段
-- `reference/`、`runbooks/` 的非默认入口材料应优先收进各自 `archive/`
-  子目录，而不是继续堆在根层命名空间
-- `.planning/PROJECT.md` 负责 repo 级当前真相；`.planning/WORKSTREAMS.md` 负责 repo 级
-  active work map；不要恢复 tracked phase tree 作为 execution truth
+Tracked planning archive trees have been removed from branch tip. Historical
+planning material is recovered through git history. If a historical decision,
+requirement or evidence reference is still needed, promote that specific fact
+into the correct active document class instead of restoring the archive tree.

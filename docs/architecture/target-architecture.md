@@ -1,8 +1,10 @@
 ---
 doc_type: architecture
+truth_scope: repository
+owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 # 目标架构
 
@@ -49,8 +51,8 @@ updated: 2026-06-12
 - cross-step context 通过 typed artifact / projection 传递，而不是通过 prompt
   自由文本或 provider raw trace 传递
 - repo-owned execution projection spine：`Run -> RunEvent -> RunStep ->
-  StepAttempt -> StepResult -> Finalization` 是 panel、eval、badcase 与 release
-  evidence 的共同诊断主线
+  StepAttempt -> StepResult -> Finalization` 是 panel、eval、badcase 与
+  operator_diagnostic_evidence 的共同诊断主线
 
 长期主链路固定为：
 
@@ -264,7 +266,7 @@ collector/source admission
 - 普通 chat entry 缺失 `requested_capability` 时，目标态必须进入 primary
   agent decision，而不是由 `app-api` 或 `execution-control` 默认改写成
   `knowledge`
-- 当前 target architecture 不默认接纳开放域 generalist / web capability 进入主 campus path
+- target architecture 不默认接纳开放域 generalist / web capability 进入主 campus path
 - `requested_scope` 只属于 knowledge-family path，不再作为所有 capability 共用的顶层默认字段
 - retrieval plan 必须是 typed / observable artifact，而不是 prompt 内隐式黑盒
 - planner 不能绕过 runtime profile、source-trust、freshness gate 或 capability
@@ -294,7 +296,7 @@ collector/source admission
   下游 materialization 或 bounded summary/fact extraction 输入，不得作为默认全文输出。
 - 主问答产品不按学生 / 教职工 / 院系身份拆分普通 capability。account / session、
   rate / quota、operator surface access 与 user-scoped memory binding 是产品层边界，不是普通校园问答能力差异来源。
-- restricted documents、内部受限材料、approval / HITL、预约 / 提交 / 支付 / 工单等状态变更能力不属于当前主问答产品目标；
+- restricted documents、内部受限材料、approval / HITL、预约 / 提交 / 支付 / 工单等状态变更能力不属于主问答产品目标；
   不得把这些非目标反写成 capability opening gate 的默认复杂度。
 
 ## 长期产品/runtime 形态
@@ -305,9 +307,9 @@ collector/source admission
 - shared `apps/app-api` 长期同时拥有 surface capability policy 与最小 typed context
   projection
 - `execution-control` 持续只是 internal execution ingress，不是 product backend
-- `apps/app-api` 已冻结为 Worker
-- 当前 `apps/execution-control` 是 existing implementation label；长期概念名是
-  `execution-control`
+- `apps/app-api` 长期以 Worker product ingress 承接产品层 runtime boundary
+- `execution-control` 是长期 internal execution ingress 概念名；具体 app /
+  deployment label 的当前状态以 `current-architecture.md` 为准
 - execution-control / worker 的部署 substrate 不反推 browser-facing exposure model
 - `apps/app-api` 长期拥有 conversation 与 run creation / stream proxy 的 product
   surface；`execution-control` 负责 workflow start / signal / cancel / query，
@@ -335,20 +337,14 @@ collector/source admission
   - invariant role name
   - current-truth runtime / package / contract label
   - forward family label
-- 当前 merged truth 已完成首轮 current-truth runtime/package label 收口：
-  - `knowledge`
-  - `navigation`
-- 当前同样已经进入 repo truth、但在 opening posture / runtime path / tool admission 上
-  采用不同约束的 semantic specialist family 包括：
-  - `campus_services`
-  - `notice`
+- current-truth runtime / package / contract label 的实际状态只由
+  `current-architecture.md` 维护，本文只定义长期命名分层。
+- long-term forward family label 必须表达稳定 semantic specialist family，不得用
+  transient worker、prompt delegate 或 source-channel implementation label 替代。
 - 当新增稳定 domain capability 时，默认先冻结 typed tool / internal query service；只有需要
   semantic specialist 时，才新增 explicit agent-as-tool family，不得把 deterministic tool
   命名成 `*-agent`
-- `availability-agent` 占位 capability 已退休；当前不再保留 `availability-agent`
-  之类前向 alias
-- 对已完成收口的 capability family，不再维护与 current-truth label 脱节的 synthetic
-  alias；后续也不得继续无规则地新增混合命名
+- 不维护与 current-truth label 脱节的 synthetic alias；不得继续无规则地新增混合命名
 - Execution Agent Layer 负责 admission / guardrails、visible tool/capability 裁剪、
   workflow command/query/cancel、step admission、handoff shaping 与 response
   finalization
@@ -407,10 +403,9 @@ collector/source admission
   campus-services / RAG / regulation 等下游提供
   source-linked bounded notice context 时作为 agent-as-tool。它不是默认正文阅读器，不负责把官方通知全文复制到用户面。
 - `navigation` 长期可消费 transport point refs / service point refs，但不拥有
-  timetable truth 或 service-status truth；当前 runtime package 为
-  `packages/navigation-capability`
+  timetable truth 或 service-status truth。
 - `knowledge` 长期拆成 scope resolution、retrieval planning、answer
-  synthesis、grounding validation 等内部角色；当前 runtime package 为 `packages/knowledge-capability`
+  synthesis、grounding validation 等内部角色。
 - `context.memory_recall` 是 capability-neutral bounded context step，不属于
   RAG worker 的私有前置逻辑；`plan.route` 只能作为 retained deterministic
   support path / historical planning artifact，不再是普通 chat 的 first
@@ -541,9 +536,9 @@ tool 与 deterministic query function 的边界必须保持清晰：
   input/output projection、allowed tools、context filter、opening gate、
   timeout/budget、trace projection 与 eval denominator
 - `ToolSpec` / `tool-catalog.v1` 定义 capability / agent-as-tool / primary agent
-  内部可调用的 read-only capability 或受控 function surface；current model-facing
-  SDK catalog 由 `configs/runtime/tool-catalog.v1.json` 承接，legacy Go ToolSpec v3
-  仍服务 deterministic structured planner / typed branch support path
+  内部可调用的 read-only capability 或受控 function surface；model-facing SDK
+  catalog、deterministic structured planner 与 typed branch support path 必须由
+  repo-owned artifacts 生成或校验
 - Go `WorkflowPlan` 只能选择已注册且 gate-ready 的 capabilities / tools /
   admitted agent-as-tool steps；primary agent SDK loop 只能接收 workflow 已裁剪的
   visible capability set
@@ -850,8 +845,8 @@ merged truth 只看 `docs/architecture/current-architecture.md`，不由本文�
 - operator observability / audit control plane
 - deploy-side observability hardening
 
-这些能力的实现状态以对应 supporting architecture、ADR、current architecture 与 active plans
-为准。
+这些能力的实现状态以 `current-architecture.md`、对应 supporting architecture 与
+`.planning/` work map 为准。
 
 与 capability-neutral routing、surface capability policy 与 clarification 分层相关的长期
 supporting truth，统一看

@@ -1,5 +1,7 @@
 ---
 doc_type: index
+truth_scope: capability
+owner_boundary: domains/navigation
 status: active
 created: 2026-04-12
 updated: 2026-04-20
