@@ -76,6 +76,7 @@ func TestParseAnswerRequestRejectsMissingRequestID(t *testing.T) {
 
 	if httpErr == nil {
 		t.Fatal("expected missing request_id to fail")
+		return
 	}
 	if httpErr.Status != 400 || httpErr.Code != "missing_request_id" {
 		t.Fatalf("unexpected error = %#v", httpErr)
@@ -95,6 +96,7 @@ func TestParseAnswerRequestRejectsMissingBearerToken(t *testing.T) {
 
 	if httpErr == nil {
 		t.Fatal("expected missing bearer token to fail")
+		return
 	}
 	if httpErr.Status != 401 || httpErr.Code != "unauthorized" {
 		t.Fatalf("unexpected error = %#v", httpErr)
@@ -115,6 +117,7 @@ func TestParseAnswerRequestRejectsUnconfiguredBearerAuth(t *testing.T) {
 
 	if httpErr == nil {
 		t.Fatal("expected unconfigured bearer auth to fail closed")
+		return
 	}
 	if httpErr.Status != 500 || httpErr.Code != "auth_not_configured" {
 		t.Fatalf("unexpected error = %#v", httpErr)
@@ -150,6 +153,7 @@ func TestParseAnswerRequestRejectsUnsupportedActorFieldsInTrustedWorkerContext(t
 
 	if httpErr == nil {
 		t.Fatal("expected unsupported actor fields to fail")
+		return
 	}
 	if httpErr.Code != "invalid_request" {
 		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
@@ -173,6 +177,7 @@ func TestParseAnswerRequestRejectsTrustedWorkerRequestsWithoutContext(t *testing
 
 	if httpErr == nil {
 		t.Fatal("expected trusted-worker request without context to fail")
+		return
 	}
 	if httpErr.Code != "invalid_request" {
 		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
@@ -265,6 +270,7 @@ func TestParseAnswerRequestRejectsLegacyProfileMemoryContext(t *testing.T) {
 
 	if httpErr == nil {
 		t.Fatal("expected legacy context.profile_memory to be rejected")
+		return
 	}
 	if httpErr.Code != "invalid_request" {
 		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
@@ -286,6 +292,7 @@ func TestParseAnswerRequestRejectsInvalidSafetyIdentifier(t *testing.T) {
 
 	if httpErr == nil {
 		t.Fatal("expected invalid safety identifier to fail")
+		return
 	}
 	if httpErr.Code != "invalid_request" {
 		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
@@ -353,6 +360,7 @@ func TestParseAnswerRequestRejectsRetiredAcademicCalendarCapability(t *testing.T
 
 	if httpErr == nil {
 		t.Fatal("expected retired academic_calendar capability to fail closed")
+		return
 	}
 	if httpErr.Code != "invalid_request" {
 		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)

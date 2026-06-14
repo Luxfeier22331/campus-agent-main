@@ -193,7 +193,9 @@ def _parse_case(payload: object) -> PublicChatProductPathCase:
         user_goal=_required_string(item.get("user_goal"), "user_goal"),
         split=_required_string(item.get("split"), "split"),
         expected=PublicChatProductPathExpected(
-            selected_capability=_required_string(expected.get("selected_capability"), "selected_capability"),
+            selected_capability=_required_string(
+                expected.get("selected_capability"), "selected_capability"
+            ),
             terminal_outcome=_required_string(
                 expected.get("terminal_outcome"),
                 "terminal_outcome",

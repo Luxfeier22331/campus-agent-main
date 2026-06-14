@@ -305,7 +305,9 @@ class KnowledgeCapabilityCurriculumPlanningTest(unittest.TestCase):
         )
         self.assertEqual(plan.retrieval_intent.kind, "curriculum_document_lookup")
 
-    def test_delegate_to_knowledge_capability_fail_closes_course_map_queries_without_retrieval(self) -> None:
+    def test_delegate_to_knowledge_capability_fail_closes_course_map_queries_without_retrieval(
+        self,
+    ) -> None:
         retriever_called = False
 
         def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:

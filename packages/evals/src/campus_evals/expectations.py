@@ -205,11 +205,11 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
     ):
         return DimensionResult(False, f"retrieval_called={observed.retrieval_called}")
     actual_capability_value = (
-        response.selected_capability if isinstance(response, ExecutionResponse) else response.capability
+        response.selected_capability
+        if isinstance(response, ExecutionResponse)
+        else response.capability
     )
-    actual_capability = (
-        "none" if actual_capability_value in (None, "") else actual_capability_value
-    )
+    actual_capability = "none" if actual_capability_value in (None, "") else actual_capability_value
     if (
         expected.expected_capability is not None
         and actual_capability != expected.expected_capability

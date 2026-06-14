@@ -31,6 +31,7 @@ func TestPlanWithPolicyAttachesInternalCapabilityPlanForSelectedNoticeFollowthro
 
 	if plan == nil {
 		t.Fatal("expected workflow plan")
+		return
 	}
 	if plan.WorkflowMode != WorkflowModeMultiStep {
 		t.Fatalf("workflow mode = %q, want multi_step capability preplan", plan.WorkflowMode)
@@ -38,6 +39,7 @@ func TestPlanWithPolicyAttachesInternalCapabilityPlanForSelectedNoticeFollowthro
 	capabilityPlan := plan.CapabilityPlan()
 	if capabilityPlan == nil {
 		t.Fatal("expected internal capability plan")
+		return
 	}
 	if handoff := plan.SelectedHandoff(); handoff != nil {
 		t.Fatalf("capability-only selected notice preplan must not bake selected handoff: %#v", handoff)
@@ -192,6 +194,7 @@ func TestPlanWithPolicyDoesNotAttachCapabilityPlanForIneligibleSelectedNotice(t 
 
 	if plan == nil {
 		t.Fatal("expected generated workflow plan")
+		return
 	}
 	if plan.WorkflowMode != WorkflowModeSingleStep {
 		t.Fatalf("workflow mode = %q, want single_step", plan.WorkflowMode)

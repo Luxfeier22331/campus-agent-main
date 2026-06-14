@@ -14,9 +14,13 @@ RAG_SERVICE_RETRIEVAL = KNOWLEDGE_CAPABILITY_PACKAGE / "service_retrieval.py"
 RAG_SERVICE_SYNTHESIS = KNOWLEDGE_CAPABILITY_PACKAGE / "service_answer_synthesis.py"
 RAG_SERVICE_DIAGNOSTICS = KNOWLEDGE_CAPABILITY_PACKAGE / "service_diagnostics.py"
 RAG_SERVICE_DIAGNOSTICS_ADEQUACY = KNOWLEDGE_CAPABILITY_PACKAGE / "service_diagnostics_adequacy.py"
-RAG_SERVICE_DIAGNOSTICS_CURRICULUM = KNOWLEDGE_CAPABILITY_PACKAGE / "service_diagnostics_curriculum.py"
+RAG_SERVICE_DIAGNOSTICS_CURRICULUM = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "service_diagnostics_curriculum.py"
+)
 RAG_SERVICE_DIAGNOSTICS_PAYLOAD = KNOWLEDGE_CAPABILITY_PACKAGE / "service_diagnostics_payload.py"
-RAG_SERVICE_DIAGNOSTICS_RETRIEVAL = KNOWLEDGE_CAPABILITY_PACKAGE / "service_diagnostics_retrieval.py"
+RAG_SERVICE_DIAGNOSTICS_RETRIEVAL = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "service_diagnostics_retrieval.py"
+)
 RAG_SERVICE_VERSIONING = KNOWLEDGE_CAPABILITY_PACKAGE / "service_versioning.py"
 RAG_SERVICE_VERSIONING_CONTEXT = KNOWLEDGE_CAPABILITY_PACKAGE / "service_versioning_context.py"
 RAG_SERVICE_VERSIONING_EVIDENCE = KNOWLEDGE_CAPABILITY_PACKAGE / "service_versioning_evidence.py"
@@ -40,13 +44,19 @@ KNOWLEDGE_CAPABILITY_CURRICULUM_TITLES = KNOWLEDGE_CAPABILITY_PACKAGE / "curricu
 KNOWLEDGE_CAPABILITY_SELECTION = KNOWLEDGE_CAPABILITY_PACKAGE / "answer_selection.py"
 KNOWLEDGE_CAPABILITY_SELECTION_QUERY = KNOWLEDGE_CAPABILITY_PACKAGE / "answer_selection_query.py"
 KNOWLEDGE_CAPABILITY_SELECTION_ROWS = KNOWLEDGE_CAPABILITY_PACKAGE / "answer_selection_rows.py"
-KNOWLEDGE_CAPABILITY_SELECTION_STATEMENTS = KNOWLEDGE_CAPABILITY_PACKAGE / "answer_selection_statements.py"
+KNOWLEDGE_CAPABILITY_SELECTION_STATEMENTS = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "answer_selection_statements.py"
+)
 RAG_OFFICIAL_WEB = KNOWLEDGE_CAPABILITY_PACKAGE / "official_web.py"
 RAG_OFFICIAL_WEB_ANSWERING = KNOWLEDGE_CAPABILITY_PACKAGE / "official_web_answering.py"
 RAG_OFFICIAL_WEB_REFERENCE = KNOWLEDGE_CAPABILITY_PACKAGE / "official_web_reference.py"
 RAG_OFFICIAL_WEB_REFERENCE_NEWS = KNOWLEDGE_CAPABILITY_PACKAGE / "official_web_reference_news.py"
-RAG_OFFICIAL_WEB_REFERENCE_PEOPLE = KNOWLEDGE_CAPABILITY_PACKAGE / "official_web_reference_people.py"
-RAG_OFFICIAL_WEB_REFERENCE_SCHOOL = KNOWLEDGE_CAPABILITY_PACKAGE / "official_web_reference_school.py"
+RAG_OFFICIAL_WEB_REFERENCE_PEOPLE = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "official_web_reference_people.py"
+)
+RAG_OFFICIAL_WEB_REFERENCE_SCHOOL = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "official_web_reference_school.py"
+)
 RAG_OFFICIAL_WEB_REFERENCE_SENTENCES = (
     KNOWLEDGE_CAPABILITY_PACKAGE / "official_web_reference_sentences.py"
 )
@@ -57,16 +67,26 @@ RAG_GROUNDING_CLAIM_MODELS = KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validatio
 RAG_GROUNDING_CLAIM_NORMALIZATION = (
     KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_claim_normalization.py"
 )
-RAG_GROUNDING_CLAIM_PATTERNS = KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_claim_patterns.py"
-RAG_GROUNDING_CLAIM_REQUIREMENTS = KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_claim_requirements.py"
-RAG_GROUNDING_CLAIM_SENSITIVE = KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_claim_sensitive.py"
+RAG_GROUNDING_CLAIM_PATTERNS = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_claim_patterns.py"
+)
+RAG_GROUNDING_CLAIM_REQUIREMENTS = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_claim_requirements.py"
+)
+RAG_GROUNDING_CLAIM_SENSITIVE = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_claim_sensitive.py"
+)
 RAG_GROUNDING_VALIDATION = KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation.py"
 RAG_GROUNDING_VALIDATION_RESULT = KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_result.py"
-RAG_GROUNDING_VALIDATION_SOURCE_TRUST = KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_source_trust.py"
+RAG_GROUNDING_VALIDATION_SOURCE_TRUST = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_source_trust.py"
+)
 RAG_GROUNDING_VALIDATION_SUPPORT_POLICY = (
     KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_support_policy.py"
 )
-RAG_GROUNDING_VALIDATION_TRUST_POLICY = KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_trust_policy.py"
+RAG_GROUNDING_VALIDATION_TRUST_POLICY = (
+    KNOWLEDGE_CAPABILITY_PACKAGE / "grounding_validation_trust_policy.py"
+)
 RAG_CURRICULUM_QUERY_PLANNING = KNOWLEDGE_CAPABILITY_PACKAGE / "curriculum_query_planning.py"
 RAG_CURRICULUM_QUERY_CONFIG = KNOWLEDGE_CAPABILITY_PACKAGE / "curriculum_query_config.py"
 RAG_CURRICULUM_QUERY_COURSES = KNOWLEDGE_CAPABILITY_PACKAGE / "curriculum_query_courses.py"
@@ -128,7 +148,9 @@ class KnowledgeCapabilityServiceStructureTest(unittest.TestCase):
 
     def test_preflight_response_composition_is_split_from_branch_decisions(self) -> None:
         preflight_source = RAG_SERVICE_PREFLIGHT_RESPONSES.read_text(encoding="utf-8")
-        branch_source = (KNOWLEDGE_CAPABILITY_PACKAGE / "service_preflight.py").read_text(encoding="utf-8")
+        branch_source = (KNOWLEDGE_CAPABILITY_PACKAGE / "service_preflight.py").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("def build_pre_retrieval_clarification_response", preflight_source)
         self.assertIn("def build_pre_retrieval_no_answer_response", preflight_source)

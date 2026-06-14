@@ -438,10 +438,7 @@ def _check_qdrant_endpoint(*, settings: RetrievalSettings, path: str) -> dict[st
     headers = {"api-key": settings.qdrant_api_key} if settings.qdrant_api_key else {}
     request = Request(endpoint, headers=headers)
     urlopen_kwargs: dict[str, object] = {"timeout": settings.qdrant_timeout_seconds}
-    if (
-        urlparse(settings.qdrant_url).scheme == "https"
-        and settings.qdrant_tls_ca_cert_path
-    ):
+    if urlparse(settings.qdrant_url).scheme == "https" and settings.qdrant_tls_ca_cert_path:
         urlopen_kwargs["context"] = ssl.create_default_context(
             cafile=settings.qdrant_tls_ca_cert_path
         )

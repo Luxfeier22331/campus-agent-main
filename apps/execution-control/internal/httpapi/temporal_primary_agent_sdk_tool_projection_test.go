@@ -96,8 +96,13 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 			secondToolStep = &steps[index]
 		}
 	}
-	if firstToolStep == nil || secondToolStep == nil {
-		t.Fatalf("sdk typed tool step missing: %#v", steps)
+	if firstToolStep == nil {
+		t.Fatalf("first sdk typed tool step missing: %#v", steps)
+		return
+	}
+	if secondToolStep == nil {
+		t.Fatalf("second sdk typed tool step missing: %#v", steps)
+		return
 	}
 	if firstToolStep.Capability != "campus_services" ||
 		firstToolStep.StepKind != "tool" ||
@@ -119,8 +124,13 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 			secondToolResult = &results[index]
 		}
 	}
-	if firstToolResult == nil || secondToolResult == nil {
-		t.Fatalf("sdk typed tool result missing: %#v", results)
+	if firstToolResult == nil {
+		t.Fatalf("first sdk typed tool result missing: %#v", results)
+		return
+	}
+	if secondToolResult == nil {
+		t.Fatalf("second sdk typed tool result missing: %#v", results)
+		return
 	}
 	if firstToolResult.ResultKind != "typed_tool_result" ||
 		firstToolResult.ProjectionRef != "projection://runs/run-primary-agent-sdk-tool/sdk-tools/transport_schedule_lookup/1" ||
@@ -203,8 +213,13 @@ func TestExecutePrimaryAgentActivityProjectsBoundedReplanAttempt(t *testing.T) {
 			toolAttempt = &attempts[index]
 		}
 	}
-	if agentAttempt == nil || toolAttempt == nil {
-		t.Fatalf("attempts missing: %#v", attempts)
+	if agentAttempt == nil {
+		t.Fatalf("agent attempt missing: %#v", attempts)
+		return
+	}
+	if toolAttempt == nil {
+		t.Fatalf("tool attempt missing: %#v", attempts)
+		return
 	}
 	if agentAttempt.Attempt != 2 ||
 		agentAttempt.ReplanReason != "bounded_replan_after_tool_handler_failed" {
@@ -286,6 +301,7 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 	}
 	if toolStep == nil {
 		t.Fatalf("failed sdk typed tool step missing: %#v", steps)
+		return
 	}
 	if toolStep.Status != "failed" ||
 		toolStep.Capability != "notice" ||
@@ -304,6 +320,7 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 	}
 	if toolResult == nil {
 		t.Fatalf("failed sdk typed tool result missing: %#v", results)
+		return
 	}
 	if toolResult.ResultKind != "activity_failure" ||
 		toolResult.SanitizedPayload["selected_tool"] != "campus_notice_discover" {
@@ -378,6 +395,7 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 	}
 	if toolAttempt == nil {
 		t.Fatalf("sdk tool failure attempt missing: %#v", attempts)
+		return
 	}
 	if toolAttempt.Status != "failed" ||
 		toolAttempt.FailCloseReason != "schema_contract_drift" {

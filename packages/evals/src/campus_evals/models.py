@@ -33,9 +33,7 @@ ALLOWED_SOURCE_TYPES = (
     "synthetic_expansion",
 )
 ExpectedCapability = CapabilityID | Literal["none"]
-CapabilityFamilyLabel = Literal[
-    "none", "knowledge", "navigation", "campus_services", "notice"
-]
+CapabilityFamilyLabel = Literal["none", "knowledge", "navigation", "campus_services", "notice"]
 ALLOWED_EXPECTED_CAPABILITIES = ("none", *ALLOWED_CAPABILITY_IDS)
 ALLOWED_CAPABILITY_FAMILY_LABELS = (
     "none",
@@ -177,9 +175,7 @@ class TraceExpectation:
                 f"unsupported expected_capability_family: {self.expected_capability_family}"
             )
         if self.expected_capability is not None and self.expected_capability_family is not None:
-            capability = (
-                None if self.expected_capability == "none" else self.expected_capability
-            )
+            capability = None if self.expected_capability == "none" else self.expected_capability
             expected_family = capability_family_for_capability(capability)
             if expected_family != self.expected_capability_family:
                 raise ValueError(

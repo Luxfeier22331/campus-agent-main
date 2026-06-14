@@ -252,7 +252,9 @@ def accept_live_benchmark_profile(
     resolved_repair_dir: Path | None = None
     if selected_capability_count > 0:
         if verbose:
-            print(f"[accept] stage=repair status=started selected_capabilities={selected_capability_count}")
+            print(
+                f"[accept] stage=repair status=started selected_capabilities={selected_capability_count}"
+            )
         final_source_summary = repair_live_benchmark_profile(
             profile=profile,
             benchmark_dir=initial_run_dir,

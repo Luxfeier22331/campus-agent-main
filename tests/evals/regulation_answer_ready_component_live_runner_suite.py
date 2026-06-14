@@ -90,7 +90,9 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
             ) as default_retriever,
         ):
 
-            def _delegate_side_effect(request_arg: CapabilityRequest, *, retriever, **kwargs: object):
+            def _delegate_side_effect(
+                request_arg: CapabilityRequest, *, retriever, **kwargs: object
+            ):
                 self.assertEqual(request_arg, request)
                 self.assertEqual(retriever("处分怎么消"), evidence)
                 default_retriever.assert_called_once_with("处分怎么消")
@@ -249,7 +251,9 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
             )
         }
 
-        def delegate(request: CapabilityRequest, *, retrieval_observation_sink=None, **kwargs: object):
+        def delegate(
+            request: CapabilityRequest, *, retrieval_observation_sink=None, **kwargs: object
+        ):
             self.assertIsInstance(request.payload, RagRequestPayload)
             self.assertEqual(request.payload.scope, KnowledgeScope("regulations", "student_rules"))
             if retrieval_observation_sink is not None:

@@ -263,7 +263,9 @@ class WorkflowTraceGateFixtureTestPart01(unittest.TestCase):
         results = evaluate_workflow_trace_case(_workflow_case(), summary)
 
         self.assertFalse(results.trace_projection_completeness.passed)
-        self.assertIn("capability_invocations.parent_edge", results.trace_projection_completeness.reason)
+        self.assertIn(
+            "capability_invocations.parent_edge", results.trace_projection_completeness.reason
+        )
 
     def test_multistep_trace_projection_requires_consumed_projection_ref(self) -> None:
         summary = _trace_summary(

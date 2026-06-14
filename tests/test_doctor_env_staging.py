@@ -58,14 +58,14 @@ class DoctorEnvStagingTest(unittest.TestCase):
                 status["settings"]["required"]["staging_execution_control_base_url"]["present"]
             )
             self.assertTrue(
-                status["settings"]["required"][
-                    "staging_execution_control_access_client_id"
-                ]["present"]
+                status["settings"]["required"]["staging_execution_control_access_client_id"][
+                    "present"
+                ]
             )
             self.assertTrue(
-                status["settings"]["required"][
-                    "staging_execution_control_access_client_secret"
-                ]["present"]
+                status["settings"]["required"]["staging_execution_control_access_client_secret"][
+                    "present"
+                ]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
@@ -103,9 +103,7 @@ class DoctorEnvStagingTest(unittest.TestCase):
 
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
-                status["settings"]["required"]["staging_campus_auth_turnstile_site_key"][
-                    "present"
-                ]
+                status["settings"]["required"]["staging_campus_auth_turnstile_site_key"]["present"]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 

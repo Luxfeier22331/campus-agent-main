@@ -456,7 +456,9 @@ class KnowledgeCapabilityShortAnswerContractSuite(unittest.TestCase):
             ),
         )
 
-        draft = KnowledgeCapability().build_answer(evidence, answer_shape=AnswerShape.GENERAL_SUMMARY)
+        draft = KnowledgeCapability().build_answer(
+            evidence, answer_shape=AnswerShape.GENERAL_SUMMARY
+        )
 
         self.assertIn("图书馆提供借阅服务", draft.answer_text)
         self.assertNotIn("线上访问", draft.answer_text)

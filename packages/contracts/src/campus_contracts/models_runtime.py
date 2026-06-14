@@ -223,7 +223,9 @@ class WorkflowCapabilityContext:
 
     def __post_init__(self) -> None:
         if self.schema_version != "workflow-capability-context-v1":
-            raise ValueError("workflow_context.schema_version must be workflow-capability-context-v1")
+            raise ValueError(
+                "workflow_context.schema_version must be workflow-capability-context-v1"
+            )
         if self.visibility != "capability_private":
             raise ValueError("workflow_context.visibility must be capability_private")
         workflow_used = bool(

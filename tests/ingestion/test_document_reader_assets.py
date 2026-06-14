@@ -276,8 +276,7 @@ class DocumentReaderAssetsTest(unittest.TestCase):
             "<tr><td>全国大学生运动会</td><td>20分</td><td>15分</td></tr></table>"
         )
         pipe_table = (
-            "比赛项目 | 评分标准 / 第一名 | 评分标准 / 第二名\n"
-            "全国大学生运动会 | 20分 | 15分"
+            "比赛项目 | 评分标准 / 第一名 | 评分标准 / 第二名\n全国大学生运动会 | 20分 | 15分"
         )
         document_units_bytes = (
             "\n".join(

@@ -34,7 +34,9 @@ def _load_public_chat_observations(
             case_id=_required_string(item.get("case_id"), "case_id"),
             request_id=_required_string(item.get("request_id"), "request_id"),
             trace_id=_required_string(item.get("trace_id"), "trace_id"),
-            selected_capability=_required_string(item.get("selected_capability"), "selected_capability"),
+            selected_capability=_required_string(
+                item.get("selected_capability"), "selected_capability"
+            ),
             terminal_outcome=_required_string(item.get("terminal_outcome"), "terminal_outcome"),
             fail_close_reason=str(item.get("fail_close_reason") or ""),
             response_contract=_mapping(item.get("response_contract") or {}, "response_contract"),

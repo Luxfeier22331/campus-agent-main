@@ -367,7 +367,7 @@ func (s *Server) callAgentRuntime(
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	var decoded agentRuntimeResponse
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("decode agent runtime response: %w", err)

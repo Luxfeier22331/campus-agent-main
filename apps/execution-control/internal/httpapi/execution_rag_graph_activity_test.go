@@ -290,6 +290,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	}
 	if finalizationResult == nil {
 		t.Fatal("finalization.write result missing")
+		return
 	}
 	projectedResponse, ok := finalizationResult.SanitizedPayload["finalized_response"].(map[string]any)
 	if !ok {
@@ -351,6 +352,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	}
 	if synthesisAttempt == nil {
 		t.Fatal("synthesis attempt missing")
+		return
 	}
 	if synthesisAttempt.ProviderRequestRef != "provider://requests/run-rag-graph/synthesis" ||
 		synthesisAttempt.InputTokens != 400 ||
@@ -503,6 +505,7 @@ func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *te
 	}
 	if lateSynthesisAttempt == nil {
 		t.Fatal("late synthesis attempt evidence missing")
+		return
 	}
 	if lateSynthesisAttempt.LateCompletionOutcome != execution.LateCompletionOutcomeIgnoredAfterCancel ||
 		lateSynthesisAttempt.TerminalReason != "late_completion_ignored" {

@@ -156,7 +156,9 @@ class KnowledgeCapabilityAgenticDepthRuntimeTestPart01(unittest.TestCase):
             )
         )
 
-    def test_delegate_to_knowledge_capability_uses_bounded_semantic_replan_for_empty_support(self) -> None:
+    def test_delegate_to_knowledge_capability_uses_bounded_semantic_replan_for_empty_support(
+        self,
+    ) -> None:
         calls: list[str] = []
 
         def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:

@@ -56,9 +56,7 @@ WORKER_STAGING_SURFACE_SPECS = {
             "staging_campus_auth_turnstile_appearance": (
                 "STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE",
             ),
-            "staging_campus_auth_turnstile_execution": (
-                "STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION",
-            ),
+            "staging_campus_auth_turnstile_execution": ("STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION",),
             "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
         },
         "files": {},

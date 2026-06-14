@@ -271,7 +271,9 @@ class KnowledgeCapabilitySdkServiceTest(unittest.TestCase):
         self.assertIsNotNone(captured)
         self.assertIsNotNone(response.capability_observability)
         assert response.capability_observability is not None
-        trace_projection = response.capability_observability.safe_details["rag_sdk_trace_projection"]
+        trace_projection = response.capability_observability.safe_details[
+            "rag_sdk_trace_projection"
+        ]
         self.assertEqual(trace_projection["schema_version"], "rag-sdk-trace-projection-v1")
         self.assertNotIn("raw_prompt", str(response.capability_observability.safe_details))
 
