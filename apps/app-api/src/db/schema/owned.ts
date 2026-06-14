@@ -8,7 +8,6 @@ export {
 export {
 	diningAuditEvents,
 	diningDraftVersions,
-	diningFloorplanAssets,
 	diningFloors,
 	diningHalls,
 	diningMenuItems,
@@ -90,7 +89,6 @@ import {
 import {
 	diningAuditEvents,
 	diningDraftVersions,
-	diningFloorplanAssets,
 	diningFloors,
 	diningHalls,
 	diningMenuItems,
@@ -187,7 +185,6 @@ export const appApiOwnedSchema = {
 	docsSearchUnits,
 	diningHalls,
 	diningFloors,
-	diningFloorplanAssets,
 	diningWindows,
 	diningWindowAssignments,
 	diningStallProfiles,

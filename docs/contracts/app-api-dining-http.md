@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-08
-updated: 2026-06-12
+updated: 2026-06-14
 ---
 # App API Dining HTTP Contract
 
@@ -38,8 +38,8 @@ GET /api/dining/halls/:hallId/floors/:floorId
 
 - 没有 published release 时，`GET /api/dining/halls` 返回 `{"halls":[]}`。
 - 没有 published release 或 floor 不存在时，floor route 返回 typed `404`。
-- published snapshot 缺少 sanitized SVG floorplan、SVG anchor binding、stall
-  profile 或 menu item 时，route fail closed，不合成默认平面图、窗口、菜品名、价格或 tag。
+- published snapshot 缺少 floorplan manifest ref、SVG anchor binding、stall profile
+  或 menu item 时，route fail closed，不合成默认平面图、窗口、菜品名、价格或 tag。
 - 响应不包含 draft、release candidate、audit event、operator principal、source
   observation、raw DB row、service secret、auth row、cookie 或 token。
 - `removed` offering 不出现在学生端响应中。
@@ -93,23 +93,22 @@ GET /api/dining/halls/:hallId/floors/:floorId
     "hallId": "haidian-canteen-1",
     "floorId": "haidian-canteen-1-1f",
     "label": "海淀一食堂一层",
-    "floorplanAsset": {
-      "anchorInventory": [
-        {
-          "anchorId": "window-01",
-          "role": "window"
-        }
-      ],
-      "bucket": "campus-rag-derived",
-      "byteSize": 2048,
-      "contentType": "image/svg+xml",
-      "floorplanAssetId": "dining_floorplan_asset:...",
-      "objectKey": "dining/releases/dining_release:.../floorplans/haidian-canteen-1/haidian-canteen-1-1f/sha256-....svg",
-      "sha256": "sha256:..."
-    },
-    "svgAssetUrl": "/assets/dining/haidian-canteen-1-1f.svg",
-    "svgMarkup": "<svg ...>...</svg>"
-  },
+        "floorplan": {
+          "anchorInventory": [
+            {
+              "anchorId": "window-01",
+              "label": "一号窗口",
+              "role": "window"
+            }
+          ],
+          "floorId": "haidian-canteen-1-1f",
+          "floorplanId": "floorplan:haidian-canteen-1:haidian-canteen-1-1f",
+          "hallId": "haidian-canteen-1",
+          "sha256": "sha256:...",
+          "svgAssetUrl": "/assets/dining/haidian-canteen-1-haidian-canteen-1-1f.svg"
+        },
+        "svgAssetUrl": "/assets/dining/haidian-canteen-1-haidian-canteen-1-1f.svg"
+      },
   "source": {
     "label": "校园食堂平面图整理",
     "updatedAt": "2026-06-08T00:00:00.000Z",
@@ -153,10 +152,11 @@ GET /api/dining/halls/:hallId/floors/:floorId
 
 字段规则：
 
-- `floor.svgMarkup` 是 app-api 返回的 sanitized inline SVG；如响应只返回
-  `svgAssetUrl`，该 asset 也必须是已 sanitize 的发布资产。
-- `floor.floorplanAsset` 是发布快照冻结的 SVG object metadata；`objectKey`
-  必须指向 release-owned key，不是 browser 直接下载 URL。
+- `floor.floorplan` 是发布快照冻结的 floorplan manifest metadata；响应不暴露
+  SVG markup、object storage bucket/key 或 operator-only asset 字段。
+- `campus-web` 通过 repo 内 `dining-floorplans` package 用
+  `hallId/floorId/floorplanId/sha256` 解析同一份 sanitized inline SVG；如果 HTTP
+  metadata 与 repo manifest 不一致，前端必须 fail closed。
 - `windows[].svgAnchorId` 对应 SVG 中的 `data-dining-anchor-id`。
 - `svgAnchorId` 是 dining floorplan selection anchor，不是 campus navigation
   route graph。
@@ -170,7 +170,8 @@ GET /api/dining/halls/:hallId/floors/:floorId
 `campus-web` 可以：
 
 - 按校区、食堂、楼层、tag 和搜索词筛选已返回 projection。
-- inline 渲染 sanitized SVG，并用 `svgAnchorId` 高亮/跳转到对应 SVG 区块。
+- 从 repo-versioned floorplan manifest inline 渲染 sanitized SVG，并用
+  `svgAnchorId` 高亮/跳转到对应 SVG 区块。
 - 展示 `paused` 和 `seasonal` 状态。
 
 `campus-web` 不可以：

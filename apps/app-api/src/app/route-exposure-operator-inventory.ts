@@ -21,12 +21,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
-		path: "/api/ops/dining/floorplan-assets",
-		callerClass: "operator-via-panel",
-		admission: "operator principal required for dining floorplan asset upload",
-	},
-	{
-		method: "POST",
 		path: "/api/ops/dining/window-assignments",
 		callerClass: "operator-via-panel",
 		admission: "operator principal required for dining window assignment edit",

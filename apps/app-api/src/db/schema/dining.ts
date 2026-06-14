@@ -17,7 +17,8 @@ export const diningFloors = dining.table(
 		floorId: text("floor_id").primaryKey(),
 		hallId: text("hall_id").notNull(),
 		label: text("label").notNull(),
-		draftFloorplanAssetId: text("draft_floorplan_asset_id").notNull(),
+		floorplanId: text("floorplan_id").notNull(),
+		floorplanSha256: text("floorplan_sha256").notNull(),
 		svgAssetUrl: text("svg_asset_url").notNull(),
 		sortKey: text("sort_key").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -25,33 +26,6 @@ export const diningFloors = dining.table(
 	},
 	(table) => ({
 		hallIndex: index("dining_floors_hall_idx").on(table.hallId),
-	}),
-);
-
-export const diningFloorplanAssets = dining.table(
-	"floorplan_assets",
-	{
-		floorplanAssetId: text("floorplan_asset_id").primaryKey(),
-		hallId: text("hall_id").notNull(),
-		floorId: text("floor_id").notNull(),
-		bucket: text("bucket").notNull().default("campus-rag-derived"),
-		contentType: text("content_type").notNull().default("image/svg+xml"),
-		byteSize: integer("byte_size").notNull().default(0),
-		objectKey: text("object_key").notNull(),
-		sha256: text("sha256").notNull(),
-		sanitizedSvgMarkup: text("sanitized_svg_markup").notNull(),
-		anchorInventoryJson: jsonb("anchor_inventory_json")
-			.$type<Array<{ anchorId: string; role: string }>>()
-			.notNull()
-			.default([]),
-		sourceFilename: text("source_filename").notNull(),
-		status: text("status").notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-		createdBy: text("created_by").notNull(),
-	},
-	(table) => ({
-		floorIndex: index("dining_floorplan_assets_floor_idx").on(table.hallId, table.floorId),
-		statusIndex: index("dining_floorplan_assets_status_idx").on(table.status),
 	}),
 );
 

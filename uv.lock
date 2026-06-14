@@ -20,6 +20,7 @@ members = [
     "campus-authenticated-notice-collector",
     "campus-chatkit-adapter",
     "campus-contracts",
+    "campus-dining-floorplans",
     "campus-evals",
     "campus-ingestion-contracts",
     "campus-ingestion-core",
@@ -324,6 +325,11 @@ dev = [{ name = "pytest-asyncio", specifier = ">=1.3.0" }]
 name = "campus-contracts"
 version = "0.1.0"
 source = { editable = "packages/contracts" }
+
+[[package]]
+name = "campus-dining-floorplans"
+version = "0.1.0"
+source = { virtual = "packages/dining-floorplans" }
 
 [[package]]
 name = "campus-evals"

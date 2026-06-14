@@ -1,5 +1,4 @@
-import { AppApiRouteError } from "../../http";
-import { createSeedFloorplanAsset } from "./floorplan-assets";
+import { resolveDiningFloorplanManifestRef } from "./floorplan-manifest";
 import { sha256Tag, stableJson } from "./hash";
 import {
 	DINING_SOURCE,
@@ -20,16 +19,22 @@ import type {
 
 export function createInitialDiningOperationsState(
 	seeds: InitialDiningHallSeed[] = INITIAL_DINING_HALL_SEEDS,
-	input: { floorplanBucket?: string } = {},
 ): DiningOperationsState {
 	const halls = seeds.map((hall) => ({
 		campus: hall.campus,
-		floors: hall.floors.map((floor) => ({
-			draftFloorplanAssetId: `dining_floorplan_asset:${hall.hallId}:${floor.floorId}:initial`,
-			floorId: floor.floorId,
-			label: floor.label,
-			svgAssetUrl: floor.svgAssetUrl ?? `/assets/dining/${hall.hallId}-${floor.floorId}.svg`,
-		})),
+		floors: hall.floors.map((floor) => {
+			const floorplan = resolveDiningFloorplanManifestRef({
+				floorId: floor.floorId,
+				hallId: hall.hallId,
+			});
+			return {
+				floorId: floor.floorId,
+				floorplanId: floorplan.floorplanId,
+				floorplanSha256: floorplan.sha256,
+				label: floor.label,
+				svgAssetUrl: floor.svgAssetUrl ?? floorplan.svgAssetUrl,
+			};
+		}),
 		hallId: hall.hallId,
 		name: hall.name,
 		status: "active" as const,
@@ -101,24 +106,6 @@ export function createInitialDiningOperationsState(
 			}
 		}
 	}
-	const floorplanAssets = seeds.flatMap((hall) =>
-		hall.floors.map((floor) =>
-			createSeedFloorplanAsset({
-				actorId: "system:initial-dining-seed",
-				bucket: input.floorplanBucket,
-				floorId: floor.floorId,
-				hallId: hall.hallId,
-				label: `${hall.name}${floor.label}`,
-				svgAssetUrl: floor.svgAssetUrl ?? `/assets/dining/${hall.hallId}-${floor.floorId}.svg`,
-				svgMarkup: floor.svgMarkup,
-				windowAnchors: requiredWindowAnchors(
-					windows.filter(
-						(window) => window.hallId === hall.hallId && window.floorId === floor.floorId,
-					),
-				),
-			}),
-		),
-	);
 	const currentDraftVersion = createInitialDraftVersion();
 
 	const draft: DiningOperationsState = {
@@ -127,7 +114,6 @@ export function createInitialDiningOperationsState(
 		candidateSnapshots: {},
 		currentDraftVersion,
 		draftVersions: [currentDraftVersion],
-		floorplanAssets,
 		halls,
 		menuItems,
 		menuOfferings,
@@ -171,26 +157,6 @@ export function createInitialDiningOperationsState(
 		},
 		releases: [release],
 	};
-}
-
-function requiredWindowAnchors(
-	windows: Array<{ label: string; svgAnchorId: string | null }>,
-): Array<{ label: string; svgAnchorId: string }> {
-	return windows.map((window) => {
-		if (!window.svgAnchorId) {
-			throw new AppApiRouteError({
-				code: "dining_operations_state_invalid",
-				details: { label: window.label, reason: "missing_seed_svg_anchor" },
-				message: "Initial dining seed window is missing SVG anchor id.",
-				retryable: false,
-				status: 500,
-			});
-		}
-		return {
-			label: window.label,
-			svgAnchorId: window.svgAnchorId,
-		};
-	});
 }
 
 function windowGeometry(index: number): DiningWindow["geometry"] {

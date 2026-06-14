@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-08
-updated: 2026-06-12
+updated: 2026-06-14
 ---
 # App API Dining Ops HTTP Contract
 
@@ -27,7 +27,6 @@ apply/reject 语义只保留为边界说明，不进入当前计划开发周期�
 ```http
 GET    /api/ops/dining/halls
 GET    /api/ops/dining/halls/:hallId/floors/:floorId
-POST   /api/ops/dining/floorplan-assets
 PATCH  /api/ops/dining/windows/:windowId
 POST   /api/ops/dining/window-assignments
 PATCH  /api/ops/dining/window-assignments/:assignmentId
@@ -53,15 +52,16 @@ GET    /api/ops/dining/audit-events
 
 ## SVG Floorplan Technology
 
-Dining floorplans are SVG assets with stable semantic anchors. `app-api` owns
-upload-time SVG validation, allowlist sanitization and anchor extraction. The
-frontend renders only sanitized inline SVG returned by `app-api` or published as
-a trusted asset.
+Dining floorplans are repo-owned versioned SVG assets with stable semantic
+anchors. Build-time validation owns SVG parsing, allowlist sanitization and
+anchor extraction before a floorplan enters the generated manifest. `app-api`
+serves and validates manifest references; ordinary ops routes do not upload or
+replace floor SVG.
 
 Selected libraries:
 
-- `fast-xml-parser` for backend SVG validate/parse/build and anchor extraction
-- dining-owned allowlist sanitizer for the backend security boundary
+- `fast-xml-parser` for build-time SVG validate/parse/build and anchor extraction
+- dining-owned allowlist sanitizer for the build-time security boundary
 - optional `svgo` for optimization only, with `id` and `data-dining-*`
   attributes preserved
 - `react-zoom-pan-pinch` for student and ops inline SVG viewport controls
@@ -83,11 +83,10 @@ Allowed anchor shape:
 `data-dining-anchor-id` is the SVG visual anchor. `windowId` remains the dining
 business object id. The binding lives in API data as `window.svgAnchorId`.
 
-Release candidates and published snapshots freeze `objectKey`, `sha256`,
-`anchorInventory` and `windowId <-> svgAnchorId` bindings. Publish promotes or
-copies each frozen SVG object into a release-owned immutable key before snapshot
-creation. Missing source objects fail closed and must not be synthesized during
-publish.
+Release candidates and published snapshots freeze `floorplanId`, static asset
+path, `sha256`, `anchorInventory` and `windowId <-> svgAnchorId` bindings.
+Publish does not copy SVG objects and must not synthesize SVG markup. Missing
+manifest entries or checksum mismatches fail closed.
 
 ### Hall
 
@@ -98,6 +97,7 @@ publish.
     {
       "floorId": "haidian-canteen-1-1f",
       "label": "一层",
+      "floorplanId": "floorplan:haidian-canteen-1:1f",
       "svgAssetUrl": "/assets/dining/haidian-canteen-1-1f.svg"
     }
   ],
@@ -196,24 +196,22 @@ navigation route graph truth.
     "hallId": "haidian-canteen-1",
     "label": "海淀一食堂一层",
     "draftVersionId": "dining_draft_version:42",
-    "floorplanAsset": {
-      "anchorInventory": [
-        {
-          "anchorId": "window-01",
-          "role": "window"
-        }
-      ],
-      "bucket": "campus-rag-derived",
-      "byteSize": 1024,
-      "contentType": "image/svg+xml",
-      "floorplanAssetId": "dining_floorplan_asset:...",
-      "objectKey": "dining/floorplans/assets/haidian-canteen-1/haidian-canteen-1-1f/sha256-....svg",
-      "sha256": "sha256:..."
-    },
-    "floorplanAssetId": "dining_floorplan_asset:...",
-    "svgMarkup": "<svg ...>...</svg>",
-    "svgAssetUrl": "/assets/dining/haidian-canteen-1-1f.svg"
-  },
+        "floorplan": {
+          "anchorInventory": [
+            {
+              "anchorId": "window-01",
+              "label": "一号窗口",
+              "role": "window"
+            }
+          ],
+          "floorId": "haidian-canteen-1-1f",
+          "floorplanId": "floorplan:haidian-canteen-1:haidian-canteen-1-1f",
+          "hallId": "haidian-canteen-1",
+          "sha256": "sha256:...",
+          "svgAssetUrl": "/assets/dining/haidian-canteen-1-haidian-canteen-1-1f.svg"
+        },
+        "svgAssetUrl": "/assets/dining/haidian-canteen-1-haidian-canteen-1-1f.svg"
+      },
   "menuItems": [],
   "menuOfferings": [],
   "stallProfiles": [],
@@ -225,61 +223,11 @@ navigation route graph truth.
 
 - 这是 draft read，不是 student published projection
 - student-facing `/api/dining/*` 不能读取本 route
-
-## Floorplan Asset Routes
-
-### `POST /api/ops/dining/floorplan-assets`
-
-上传或替换某个 floor 的 SVG。`app-api` 必须 parse、sanitize、extract anchors，并返回
-draft asset metadata。该 route 不发布学生端 projection。
-
-请求：
-
-```json
-{
-  "floorId": "haidian-canteen-1-1f",
-  "sourceFilename": "haidian-canteen-1-1f.svg",
-  "svgMarkup": "<svg ...>...</svg>"
-}
-```
-
-返回 `201`：
-
-```json
-{
-  "asset": {
-    "anchorInventory": [
-      {
-        "anchorId": "window-01",
-        "role": "window"
-      },
-      {
-        "anchorId": "window-02",
-        "role": "window"
-      }
-    ],
-    "bucket": "campus-rag-derived",
-    "byteSize": 2048,
-    "contentType": "image/svg+xml",
-    "floorId": "haidian-canteen-1-1f",
-    "floorplanAssetId": "dining_floorplan_asset:...",
-    "hallId": "haidian-canteen-1",
-    "objectKey": "dining/floorplans/assets/haidian-canteen-1/haidian-canteen-1-1f/sha256-....svg",
-    "sha256": "sha256:...",
-    "status": "draft_ready"
-  }
-}
-```
-
-规则：
-
-- raw SVG 不得进入 release snapshot
-- sanitizer allowlist 是 backend security boundary
-- returned `objectKey` is a sanitized draft asset key under
-  `dining/floorplans/assets/{hallId}/{floorId}/sha256-{digest}.svg`
-- anchor extraction only reads sanitized SVG
-- object store must be configured; missing or partial object store config fails
-  closed with `dining_floorplan_object_store_unavailable`
+- ops response 只返回 repo floorplan manifest metadata，不返回 SVG markup、
+  object storage bucket/key 或上传资产字段；`campus-ops-web` 通过
+  `dining-floorplans` package 渲染同一份 sanitized inline SVG
+- floor SVG replacement is an application release that updates the repo
+  floorplan manifest, not an ops HTTP command
 
 ## Write Routes
 
@@ -480,7 +428,7 @@ publish mutable current draft directly.
 
 ### `GET /api/ops/dining/release-candidates/:candidateId`
 
-返回 candidate detail、validation report、frozen floorplan refs、diff summary。
+返回 candidate detail、validation report、frozen floorplan manifest refs、diff summary。
 
 ### `POST /api/ops/dining/release-candidates/:candidateId/validate`
 
@@ -504,8 +452,8 @@ publish mutable current draft directly.
 
 Blocker examples:
 
-- `missing_floorplan_asset`
-- `floorplan_asset_checksum_mismatch`
+- `missing_floorplan_manifest`
+- `floorplan_manifest_checksum_mismatch`
 - `missing_svg_anchor`
 - `duplicate_svg_anchor_binding`
 - `unbound_required_window`
@@ -568,12 +516,9 @@ Blocker examples:
 - publish is all-or-nothing
 - validation blockers fail closed
 - stale candidate fails closed
-- publish copies candidate floorplan objects into
-  `dining/releases/{releaseId}/floorplans/{hallId}/{floorId}/sha256-{digest}.svg`
-- publish writes `dining/releases/{releaseId}/snapshot.json`
-- publish writes `dining/releases/{releaseId}/validation-report.json`
-- missing floorplan source object fails closed
-- floorplan object checksum mismatch fails closed
+- publish freezes the candidate floorplan manifest refs into the snapshot
+- missing floorplan manifest entry fails closed
+- floorplan manifest checksum mismatch fails closed
 - failure must not update latest published pointer
 
 ### `POST /api/ops/dining/release-candidates/:candidateId/cancel`
@@ -594,7 +539,7 @@ Blocker examples:
 
 ### `GET /api/ops/dining/releases/:releaseId`
 
-返回 published release metadata、immutable snapshot summary 和 floorplan refs。
+返回 published release metadata、immutable snapshot summary 和 floorplan manifest refs。
 
 ### `POST /api/ops/dining/releases/:releaseId/rollback`
 

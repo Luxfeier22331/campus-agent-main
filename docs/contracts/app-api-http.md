@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-28
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 
 # App API HTTP Contract
@@ -221,7 +221,6 @@ in `docs/contracts/app-api-dining-ops-http.md`.
 - `PATCH /api/ops/dining/menu-items/:menuItemId`
 - `POST /api/ops/dining/menu-offerings`
 - `PATCH /api/ops/dining/menu-offerings/:offeringId`
-- `POST /api/ops/dining/floorplan-assets`
 - `GET /api/ops/dining/release-candidates`
 - `POST /api/ops/dining/release-candidates`
 - `GET /api/ops/dining/release-candidates/:candidateId`

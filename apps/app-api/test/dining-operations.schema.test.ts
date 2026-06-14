@@ -12,7 +12,6 @@ const DINING_TABLE_EXPORTS = [
 	"diningAuditEvents",
 	"diningDraftVersions",
 	"diningFloors",
-	"diningFloorplanAssets",
 	"diningHalls",
 	"diningMenuItems",
 	"diningMenuOfferings",
@@ -46,8 +45,8 @@ describe("dining operations schema", () => {
 		const sql = readAppFile("db/shared-product-migrations/0007_dining_operations.sql");
 
 		for (const requiredFragment of [
-			'"draft_floorplan_asset_id" text',
-			'CREATE TABLE IF NOT EXISTS "dining"."floorplan_assets"',
+			'"floorplan_id" text',
+			'"floorplan_sha256" text',
 			'CREATE TABLE IF NOT EXISTS "dining"."draft_versions"',
 			'CREATE TABLE IF NOT EXISTS "dining"."release_candidates"',
 			'"snapshot_payload_json" jsonb NOT NULL',
@@ -62,26 +61,16 @@ describe("dining operations schema", () => {
 		}
 	});
 
-	it("keeps the candidate-first dining migration safe for pre-existing dining rows", () => {
-		const sql = readAppFile("drizzle/0040_condemned_wong.sql");
+	it("keeps the manifest-ref dining migration safe for pre-existing dining rows", () => {
+		const sql = readAppFile("drizzle/0041_dining_floorplan_manifest_refs.sql");
 
 		expect(sql).not.toContain(
-			'ALTER TABLE "dining"."floors" ADD COLUMN "draft_floorplan_asset_id" text NOT NULL;',
+			'ALTER TABLE "dining"."floors" ADD COLUMN "floorplan_id" text NOT NULL;',
 		);
-		expect(sql).not.toContain(
-			'ALTER TABLE "dining"."release_snapshots" ADD COLUMN "snapshot_hash" text NOT NULL;',
-		);
-		expect(sql).not.toContain(
-			'ALTER TABLE "dining"."releases" ADD COLUMN "snapshot_hash" text NOT NULL;',
-		);
+		expect(sql).toContain('ALTER TABLE "dining"."floors" ADD COLUMN "floorplan_id" text DEFAULT');
 		expect(sql).toContain(
-			'ALTER TABLE "dining"."floors" ADD COLUMN "draft_floorplan_asset_id" text DEFAULT',
+			'ALTER TABLE "dining"."floors" ADD COLUMN "floorplan_sha256" text DEFAULT',
 		);
-		expect(sql).toContain(
-			'ALTER TABLE "dining"."release_snapshots" ADD COLUMN "snapshot_hash" text DEFAULT',
-		);
-		expect(sql).toContain(
-			'ALTER TABLE "dining"."releases" ADD COLUMN "snapshot_hash" text DEFAULT',
-		);
+		expect(sql).toContain('DROP TABLE "dining"."floorplan_assets"');
 	});
 });

@@ -9,7 +9,6 @@ import {
 import {
 	diningAuditEvents,
 	diningDraftVersions,
-	diningFloorplanAssets,
 	diningFloors,
 	diningHalls,
 	diningMenuItems,
@@ -25,12 +24,10 @@ import {
 	diningWindows,
 } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
-import type { DiningFloorplanObjectStore } from "./floorplan-object-store";
 import { DINING_SOURCE } from "./initial-data";
 import { createInitialDiningOperationsState } from "./initial-state";
 import type {
 	DiningDraftVersion,
-	DiningFloorplanAsset,
 	DiningFloorplanRef,
 	DiningReleaseCandidate,
 	DiningReleaseCandidateStatus,
@@ -77,7 +74,6 @@ export function createPgDiningOperationsStore(
 
 export async function ensureInitialDiningOperationsRelease(input: {
 	db: RuntimeDatabase;
-	floorplanObjectStore: DiningFloorplanObjectStore;
 }): Promise<boolean> {
 	const releaseRows = await input.db
 		.select({ releaseId: diningReleases.releaseId })
@@ -87,36 +83,9 @@ export async function ensureInitialDiningOperationsRelease(input: {
 	if (releaseRows[0]) {
 		return false;
 	}
-	const state = createInitialDiningOperationsState(undefined, {
-		floorplanBucket: input.floorplanObjectStore.bucket,
-	});
-	await materializeInitialDiningFloorplanAssets({
-		floorplanObjectStore: input.floorplanObjectStore,
-		state,
-	});
+	const state = createInitialDiningOperationsState();
 	await saveDiningOperationsState(input.db, state);
 	return true;
-}
-
-export async function materializeInitialDiningFloorplanAssets(input: {
-	floorplanObjectStore: DiningFloorplanObjectStore;
-	state?: DiningOperationsState;
-}): Promise<{ materialized: number }> {
-	const state =
-		input.state ??
-		createInitialDiningOperationsState(undefined, {
-			floorplanBucket: input.floorplanObjectStore.bucket,
-		});
-	let materialized = 0;
-	for (const asset of state.floorplanAssets) {
-		await input.floorplanObjectStore.putSvg({
-			objectKey: asset.objectKey,
-			sha256: asset.sha256,
-			svgMarkup: asset.sanitizedSvgMarkup,
-		});
-		materialized += 1;
-	}
-	return { materialized };
 }
 
 async function loadDiningOperationsState(db: RuntimeDatabase): Promise<DiningOperationsState> {
@@ -128,7 +97,6 @@ async function loadDiningOperationsState(db: RuntimeDatabase): Promise<DiningOpe
 		assignmentRows,
 		menuItemRows,
 		menuOfferingRows,
-		floorplanAssetRows,
 		draftVersionRows,
 		candidateRows,
 		validationReportRows,
@@ -145,7 +113,6 @@ async function loadDiningOperationsState(db: RuntimeDatabase): Promise<DiningOpe
 		db.select().from(diningWindowAssignments),
 		db.select().from(diningMenuItems),
 		db.select().from(diningMenuOfferings),
-		db.select().from(diningFloorplanAssets),
 		db.select().from(diningDraftVersions).orderBy(desc(diningDraftVersions.versionNumber)),
 		db.select().from(diningReleaseCandidates).orderBy(desc(diningReleaseCandidates.createdAt)),
 		db.select().from(diningReleaseCandidateValidationReports),
@@ -205,15 +172,15 @@ async function loadDiningOperationsState(db: RuntimeDatabase): Promise<DiningOpe
 		candidateSnapshots,
 		currentDraftVersion,
 		draftVersions,
-		floorplanAssets: floorplanAssetRows.map(toFloorplanAsset),
 		halls: hallRows.map(
 			(row): DiningOpsHall => ({
 				campus: row.campus,
 				floors: [...(floorsByHall.get(row.hallId) ?? [])]
 					.sort((left, right) => left.sortKey.localeCompare(right.sortKey))
 					.map((floor) => ({
-						draftFloorplanAssetId: floor.draftFloorplanAssetId,
 						floorId: floor.floorId,
+						floorplanId: floor.floorplanId,
+						floorplanSha256: floor.floorplanSha256,
 						label: floor.label,
 						svgAssetUrl: floor.svgAssetUrl,
 					})),
@@ -257,7 +224,6 @@ async function saveDiningOperationsState(
 		await tx.delete(diningWindowAssignments);
 		await tx.delete(diningStallProfiles);
 		await tx.delete(diningWindows);
-		await tx.delete(diningFloorplanAssets);
 		await tx.delete(diningFloors);
 		await tx.delete(diningHalls);
 
@@ -277,8 +243,9 @@ async function saveDiningOperationsState(
 		const floorRows = state.halls.flatMap((hall) =>
 			hall.floors.map((floor, index) => ({
 				createdAt: now,
-				draftFloorplanAssetId: floor.draftFloorplanAssetId,
 				floorId: floor.floorId,
+				floorplanId: floor.floorplanId,
+				floorplanSha256: floor.floorplanSha256,
 				hallId: hall.hallId,
 				label: floor.label,
 				sortKey: String(index).padStart(4, "0"),
@@ -361,27 +328,6 @@ async function saveDiningOperationsState(
 					saleStatus: offering.saleStatus,
 					specLabel: offering.specLabel,
 					updatedAt: now,
-				})),
-			);
-		}
-
-		if (state.floorplanAssets.length > 0) {
-			await tx.insert(diningFloorplanAssets).values(
-				state.floorplanAssets.map((asset) => ({
-					anchorInventoryJson: asset.anchorInventory,
-					bucket: asset.bucket,
-					byteSize: asset.byteSize,
-					contentType: asset.contentType,
-					createdAt: new Date(asset.createdAt),
-					createdBy: asset.createdBy,
-					floorId: asset.floorId,
-					floorplanAssetId: asset.floorplanAssetId,
-					hallId: asset.hallId,
-					objectKey: asset.objectKey,
-					sanitizedSvgMarkup: asset.sanitizedSvgMarkup,
-					sha256: asset.sha256,
-					sourceFilename: asset.sourceFilename,
-					status: asset.status,
 				})),
 			);
 		}
@@ -558,25 +504,6 @@ function toWindow(row: typeof diningWindows.$inferSelect): DiningWindow {
 		svgAnchorId: row.svgAnchorId,
 		tags: row.tagsJson,
 		windowId: row.windowId,
-	};
-}
-
-function toFloorplanAsset(row: typeof diningFloorplanAssets.$inferSelect): DiningFloorplanAsset {
-	return {
-		anchorInventory: row.anchorInventoryJson,
-		bucket: row.bucket,
-		byteSize: row.byteSize,
-		contentType: row.contentType,
-		createdAt: toIsoString(row.createdAt),
-		createdBy: row.createdBy,
-		floorId: row.floorId,
-		floorplanAssetId: row.floorplanAssetId,
-		hallId: row.hallId,
-		objectKey: row.objectKey,
-		sanitizedSvgMarkup: row.sanitizedSvgMarkup,
-		sha256: row.sha256,
-		sourceFilename: row.sourceFilename,
-		status: row.status as DiningFloorplanAsset["status"],
 	};
 }
 

@@ -47,9 +47,6 @@ importers:
 
   apps/app-api:
     dependencies:
-      '@aws-sdk/client-s3':
-        specifier: ^3.1022.0
-        version: 3.1022.0
       '@better-auth/oauth-provider':
         specifier: 1.5.6
         version: 1.5.6(a2b1b4516ed5a4553f684ff5c3b17055)
@@ -62,6 +59,9 @@ importers:
       better-auth:
         specifier: ^1.5.6
         version: 1.5.6(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.167.42(@rsbuild/core@2.0.0-rc.1(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vite@8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@24.12.0)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0))(pg@8.20.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@4.1.2(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@24.12.0)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
+      dining-floorplans:
+        specifier: workspace:*
+        version: link:../../packages/dining-floorplans
       drizzle-orm:
         specifier: ^0.44.5
         version: 0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0)
@@ -169,6 +169,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      dining-floorplans:
+        specifier: workspace:*
+        version: link:../../packages/dining-floorplans
       lucide-react:
         specifier: ^1.7.0
         version: 1.7.0(react@19.2.4)
@@ -272,6 +275,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      dining-floorplans:
+        specifier: workspace:*
+        version: link:../../packages/dining-floorplans
       lucide-react:
         specifier: ^1.7.0
         version: 1.7.0(react@19.2.4)
@@ -694,6 +700,22 @@ importers:
       wechat-official-account-core:
         specifier: workspace:*
         version: link:../../packages/wechat-official-account-core
+    devDependencies:
+      '@types/node':
+        specifier: ^24.12.0
+        version: 24.12.0
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.2(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@24.12.0)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/dining-floorplans:
+    dependencies:
+      fast-xml-parser:
+        specifier: ^5.5.8
+        version: 5.5.8
     devDependencies:
       '@types/node':
         specifier: ^24.12.0

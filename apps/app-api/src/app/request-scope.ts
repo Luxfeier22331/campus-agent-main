@@ -21,11 +21,7 @@ import {
 	createPgCampusServicesOpsStore,
 } from "../modules/campus-services-ops";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
-import {
-	buildDiningOperationsService,
-	createDiningFloorplanObjectStoreFromEnv,
-	createPgDiningOperationsStore,
-} from "../modules/dining-ops";
+import { buildDiningOperationsService, createPgDiningOperationsStore } from "../modules/dining-ops";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
 	buildIdentityPlatformService,
@@ -264,7 +260,6 @@ export function createRequestScopeFactory(input: {
 				}
 
 				diningOperationsService = buildDiningOperationsService({
-					floorplanObjectStore: createDiningFloorplanObjectStoreFromEnv(input.env),
 					store: createPgDiningOperationsStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return diningOperationsService;

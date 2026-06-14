@@ -26,18 +26,20 @@ export interface DiningFloorResponse {
 			width: number;
 		};
 		floorId: string;
-		floorplanAsset?: {
-			anchorInventory: Array<{ anchorId: string; role: string }>;
-			bucket: string;
-			byteSize: number;
-			contentType: string;
-			floorplanAssetId: string;
-			objectKey: string;
+		floorplan: {
+			anchorInventory: Array<{
+				anchorId: string;
+				label?: string;
+				role: string;
+			}>;
+			floorId: string;
+			floorplanId: string;
+			hallId: string;
 			sha256: string;
+			svgAssetUrl: string;
 		};
 		hallId: string;
 		label: string;
-		svgMarkup: string;
 		svgAssetUrl: string;
 	};
 	source: {

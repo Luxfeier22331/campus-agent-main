@@ -19,7 +19,10 @@ const ReleasesPage = lazy(() =>
 const AssetsPage = lazy(() =>
 	import("./routes/placeholder-page").then((module) => ({
 		default: () => (
-			<module.PlaceholderPage description="食堂 SVG 资产和锚点绑定入口" title="食堂资产" />
+			<module.PlaceholderPage
+				description="食堂 SVG 底图随应用发版；区块绑定在楼层工作台维护。"
+				title="食堂底图"
+			/>
 		),
 	})),
 );

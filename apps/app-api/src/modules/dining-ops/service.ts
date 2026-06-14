@@ -1,11 +1,5 @@
 import { AppApiRouteError } from "../../http";
 import {
-	buildDraftFloorplanObjectKey,
-	createFloorplanAsset,
-	sanitizeFloorplanSvgForStorage,
-} from "./floorplan-assets";
-import type { DiningFloorplanObjectStore } from "./floorplan-object-store";
-import {
 	definedFields,
 	requireAssignment,
 	requireMenuItem,
@@ -26,12 +20,10 @@ import {
 	scheduleCandidate,
 	validateCandidate,
 } from "./release-lifecycle";
-import { promoteReleaseFloorplans } from "./release-object-promotion";
 import {
 	advanceStateDraftVersion,
 	cloneState,
 	createAuditEvent,
-	findFloorRef,
 	requireCandidateSnapshot,
 	requireReleaseSnapshot,
 	stableId,
@@ -48,11 +40,6 @@ import type {
 	DiningWindowAssignment,
 } from "./types";
 
-export type { DiningFloorplanObjectStore } from "./floorplan-object-store";
-export {
-	createDiningFloorplanObjectStore,
-	createDiningFloorplanObjectStoreFromEnv,
-} from "./floorplan-object-store";
 export { DINING_CANVAS, DINING_SOURCE, INITIAL_DINING_HALL_SEEDS } from "./initial-data";
 export { createInitialDiningOperationsState } from "./initial-state";
 export type {
@@ -100,7 +87,6 @@ export function createProcessDiningOperationsStore(): DiningOperationsStore {
 }
 
 export function buildDiningOperationsService(input: {
-	floorplanObjectStore?: DiningFloorplanObjectStore | null;
 	store: DiningOperationsStore;
 }): DiningOperationsService {
 	return {
@@ -255,65 +241,6 @@ export function buildDiningOperationsService(input: {
 			const state = await input.store.getState();
 			return { releases: [...state.releases].reverse() };
 		},
-		async createFloorplanAsset({ actor, input: assetInput }) {
-			const state = await input.store.getState();
-			if (!input.floorplanObjectStore) {
-				throw new AppApiRouteError({
-					code: "dining_floorplan_object_store_unavailable",
-					message: "Dining floorplan object store is not configured.",
-					retryable: false,
-					status: 503,
-				});
-			}
-			const prepared = sanitizeFloorplanSvgForStorage(assetInput.svgMarkup);
-			const floorRef = findFloorRef(state, assetInput.floorId);
-			const objectKey = buildDraftFloorplanObjectKey({
-				digest: prepared.digest,
-				floorId: floorRef.floorId,
-				hallId: floorRef.hallId,
-			});
-			const stored = await input.floorplanObjectStore.putSvg({
-				objectKey,
-				sha256: prepared.sha256,
-				svgMarkup: prepared.sanitizedSvgMarkup,
-			});
-			const asset = createFloorplanAsset({
-				actor,
-				bucket: stored.bucket,
-				byteSize: stored.byteSize,
-				contentType: stored.contentType,
-				floorId: assetInput.floorId,
-				objectKey,
-				sourceFilename: assetInput.sourceFilename,
-				state,
-				svgMarkup: prepared.sanitizedSvgMarkup,
-			});
-			state.floorplanAssets = upsertById(state.floorplanAssets, "floorplanAssetId", asset);
-			state.halls = state.halls.map((hall) => ({
-				...hall,
-				floors: hall.floors.map((floor) =>
-					floor.floorId === asset.floorId && hall.hallId === asset.hallId
-						? { ...floor, draftFloorplanAssetId: asset.floorplanAssetId }
-						: floor,
-				),
-			}));
-			state.auditEvents.push(
-				createAuditEvent({
-					action: "floorplan_asset.created",
-					actor,
-					after: toJsonRecord(asset),
-					before: null,
-					objectId: asset.floorplanAssetId,
-					objectKind: "dining.floorplan_asset",
-				}),
-			);
-			advanceStateDraftVersion(state, actor, {
-				action: "floorplan_asset.created",
-				floorplanAssetId: asset.floorplanAssetId,
-			});
-			await input.store.saveState(state);
-			return { asset };
-		},
 		async createReleaseCandidate({ actor, input: candidateInput }) {
 			const state = await input.store.getState();
 			const envelope = createCandidateFromDraft({
@@ -452,40 +379,35 @@ export function buildDiningOperationsService(input: {
 				report,
 				state,
 			});
-			const promoted = await promoteReleaseFloorplans({
-				objectStore: input.floorplanObjectStore,
-				published,
-				report,
-			});
 			state.releaseCandidates = upsertById(
 				state.releaseCandidates,
 				"candidateId",
-				promoted.candidate,
+				published.candidate,
 			);
 			state.releaseCandidateValidationReports = upsertById(
 				state.releaseCandidateValidationReports,
 				"candidateId",
 				report,
 			);
-			state.releases.push(promoted.release);
-			state.releaseSnapshots[promoted.release.releaseId] = promoted.snapshot;
-			state.releaseLatestPointer = promoted.latestPointer;
-			state.publishedRelease = promoted.release;
-			state.publishedSnapshot = promoted.snapshot;
+			state.releases.push(published.release);
+			state.releaseSnapshots[published.release.releaseId] = published.snapshot;
+			state.releaseLatestPointer = published.latestPointer;
+			state.publishedRelease = published.release;
+			state.publishedSnapshot = published.snapshot;
 			state.auditEvents.push(
 				createAuditEvent({
 					action: "release.published",
 					actor,
-					after: toJsonRecord(promoted.release),
+					after: toJsonRecord(published.release),
 					before: null,
-					objectId: promoted.release.releaseId,
+					objectId: published.release.releaseId,
 					objectKind: "dining.release",
 				}),
 			);
 			await input.store.saveState(state);
 			return {
-				release: promoted.release,
-				snapshot: promoted.snapshot,
+				release: published.release,
+				snapshot: published.snapshot,
 			};
 		},
 		async cancelReleaseCandidate({ actor, candidateId }) {

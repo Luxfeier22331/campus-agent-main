@@ -1,6 +1,6 @@
 import type {
 	DiningDraftVersion,
-	DiningFloorplanAsset,
+	DiningFloorplanManifestRef,
 	DiningReleaseCandidate,
 	DiningReleaseCandidateEnvelope,
 	DiningReleaseCandidateValidationReport,
@@ -94,8 +94,9 @@ export interface DiningRelease {
 export interface DiningOpsHall {
 	campus: string;
 	floors: Array<{
-		draftFloorplanAssetId: string;
 		floorId: string;
+		floorplanId: string;
+		floorplanSha256: string;
 		label: string;
 		svgAssetUrl: string;
 	}>;
@@ -110,20 +111,10 @@ export interface DiningOpsFloorResponse {
 		canvas?: { height: number; width: number };
 		draftVersionId?: string;
 		floorId: string;
-		floorplanAsset?: {
-			anchorInventory: Array<{ anchorId: string; role: string }>;
-			bucket: string;
-			byteSize: number;
-			contentType: string;
-			floorplanAssetId: string;
-			objectKey: string;
-			sha256: string;
-		};
-		floorplanAssetId?: string;
+		floorplan: Omit<DiningFloorplanManifestRef, "sanitizedSvgMarkup">;
 		hallId: string;
 		label: string;
 		svgAssetUrl: string;
-		svgMarkup?: string;
 	};
 	menuItems: DiningMenuItem[];
 	menuOfferings: DiningMenuOffering[];
@@ -147,7 +138,6 @@ export interface DiningOperationsState {
 	candidateSnapshots: Record<string, DiningPublishedSnapshot>;
 	currentDraftVersion: DiningDraftVersion;
 	draftVersions: DiningDraftVersion[];
-	floorplanAssets: DiningFloorplanAsset[];
 	halls: DiningOpsHall[];
 	menuItems: DiningMenuItem[];
 	menuOfferings: DiningMenuOffering[];
@@ -202,19 +192,10 @@ export interface DiningOperationsService {
 		floor: {
 			canvas: { height: number; width: number };
 			floorId: string;
+			floorplan: Omit<DiningFloorplanManifestRef, "sanitizedSvgMarkup">;
 			hallId: string;
 			label: string;
 			svgAssetUrl: string;
-			svgMarkup: string;
-			floorplanAsset?: {
-				anchorInventory: Array<{ anchorId: string; role: string }>;
-				bucket: string;
-				byteSize: number;
-				contentType: string;
-				floorplanAssetId: string;
-				objectKey: string;
-				sha256: string;
-			};
 		};
 		source: { label: string; releaseId: string; updatedAt: string };
 		windows: Array<{
@@ -261,10 +242,6 @@ export interface DiningOperationsService {
 	listHalls(): Promise<{ halls: DiningOpsHall[] }>;
 	listReleaseCandidates(): Promise<{ candidates: DiningReleaseCandidate[] }>;
 	listReleases(): Promise<{ releases: DiningRelease[] }>;
-	createFloorplanAsset(input: {
-		actor: DiningOpsActor;
-		input: { floorId: string; sourceFilename: string; svgMarkup: string };
-	}): Promise<{ asset: DiningFloorplanAsset }>;
 	createReleaseCandidate(input: {
 		actor: DiningOpsActor;
 		input: { notes: string };

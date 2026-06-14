@@ -1,10 +1,11 @@
 import { AppApiRouteError } from "../../http";
-import { verifyFloorplanAssetChecksum } from "./floorplan-assets";
+import { resolveDiningFloorplanManifestRef } from "./floorplan-manifest";
 import { sha256Tag, stableJson } from "./hash";
 import { DINING_SOURCE } from "./initial-data";
 import { buildPublishedSnapshot, floorKey } from "./projection";
 import type {
 	DiningDraftVersion,
+	DiningFloorplanManifestRef,
 	DiningFloorplanRef,
 	DiningReleaseCandidate,
 	DiningReleaseCandidateEnvelope,
@@ -57,7 +58,7 @@ export function validateCandidate(input: {
 	const blockers: DiningReleaseValidationIssue[] = [];
 	const snapshot = input.state.candidateSnapshots[input.candidate.candidateId];
 	if (!snapshot) {
-		blockers.push(issue("missing_floorplan_asset", "Candidate snapshot is missing.", {}));
+		blockers.push(issue("missing_floorplan_manifest", "Candidate snapshot is missing.", {}));
 	}
 	if (input.state.currentDraftVersion.draftVersionId !== input.candidate.baseDraftVersionId) {
 		blockers.push(
@@ -317,22 +318,20 @@ export function reportForCandidate(
 function buildFloorplanRefs(state: DiningOperationsState): DiningFloorplanRef[] {
 	return state.halls.flatMap((hall) =>
 		hall.floors.map((floor) => {
-			const asset = state.floorplanAssets.find(
-				(item) => item.floorplanAssetId === floor.draftFloorplanAssetId,
-			);
+			const manifest = resolveDiningFloorplanManifestRef({
+				floorId: floor.floorId,
+				hallId: hall.hallId,
+			});
 			const windows = state.windows.filter(
 				(window) => window.hallId === hall.hallId && window.floorId === floor.floorId,
 			);
 			return {
-				anchorInventory: asset?.anchorInventory ?? [],
-				bucket: asset?.bucket ?? "",
-				byteSize: asset?.byteSize ?? 0,
-				contentType: asset?.contentType ?? "",
+				anchorInventory: manifest.anchorInventory,
 				floorId: floor.floorId,
-				floorplanAssetId: asset?.floorplanAssetId ?? "",
+				floorplanId: floor.floorplanId,
 				hallId: hall.hallId,
-				objectKey: asset?.objectKey ?? "",
-				sha256: asset?.sha256 ?? "",
+				sha256: floor.floorplanSha256,
+				svgAssetUrl: floor.svgAssetUrl,
 				windowBindings: windows.map((window) => ({
 					svgAnchorId: window.svgAnchorId,
 					windowId: window.windowId,
@@ -348,27 +347,41 @@ function validateFloorplanRef(input: {
 	snapshot: DiningPublishedSnapshot | undefined;
 	state: DiningOperationsState;
 }) {
-	const asset = input.state.floorplanAssets.find(
-		(item) => item.floorplanAssetId === input.ref.floorplanAssetId,
-	);
-	if (!asset) {
+	let manifest: DiningFloorplanManifestRef;
+	try {
+		manifest = resolveDiningFloorplanManifestRef(input.ref);
+	} catch {
 		input.blockers.push(
-			issue("missing_floorplan_asset", "Dining floor is missing floorplan asset.", {
+			issue("missing_floorplan_manifest", "Dining floor is missing floorplan manifest.", {
 				floorId: input.ref.floorId,
 				hallId: input.ref.hallId,
 			}),
 		);
 		return;
 	}
-	if (asset.sha256 !== input.ref.sha256 || !verifyFloorplanAssetChecksum(asset)) {
+	if (
+		manifest.floorplanId !== input.ref.floorplanId ||
+		manifest.sha256 !== input.ref.sha256 ||
+		manifest.svgAssetUrl !== input.ref.svgAssetUrl
+	) {
 		input.blockers.push(
-			issue("floorplan_asset_checksum_mismatch", "Floorplan asset checksum mismatch.", {
+			issue("floorplan_manifest_checksum_mismatch", "Floorplan manifest checksum mismatch.", {
 				floorId: input.ref.floorId,
-				floorplanAssetId: input.ref.floorplanAssetId,
+				floorplanId: input.ref.floorplanId,
 			}),
 		);
 	}
-	const anchors = new Set(input.ref.anchorInventory.map((anchor) => anchor.anchorId));
+	const manifestAnchorIds = manifest.anchorInventory.map((anchor) => anchor.anchorId);
+	const refAnchorIds = input.ref.anchorInventory.map((anchor) => anchor.anchorId);
+	if (manifestAnchorIds.join("\u0000") !== refAnchorIds.join("\u0000")) {
+		input.blockers.push(
+			issue("floorplan_manifest_checksum_mismatch", "Floorplan manifest anchors mismatch.", {
+				floorId: input.ref.floorId,
+				floorplanId: input.ref.floorplanId,
+			}),
+		);
+	}
+	const anchors = new Set(manifestAnchorIds);
 	const bindings = input.ref.windowBindings.filter((binding) => binding.svgAnchorId);
 	const duplicateBindings = findDuplicates(bindings.map((binding) => binding.svgAnchorId ?? ""));
 	for (const svgAnchorId of duplicateBindings) {
@@ -390,7 +403,7 @@ function validateFloorplanRef(input: {
 		}
 		if (!anchors.has(binding.svgAnchorId)) {
 			input.blockers.push(
-				issue("missing_svg_anchor", "Bound SVG anchor is missing from floorplan asset.", {
+				issue("missing_svg_anchor", "Bound SVG anchor is missing from floorplan manifest.", {
 					svgAnchorId: binding.svgAnchorId,
 					windowId: binding.windowId,
 				}),
@@ -398,11 +411,11 @@ function validateFloorplanRef(input: {
 		}
 	}
 	const floor = input.snapshot?.floors[floorKey(input.ref)];
-	if (floor?.floor.floorplanAsset?.sha256 !== input.ref.sha256) {
+	if (floor?.floor.floorplan.sha256 !== input.ref.sha256) {
 		input.blockers.push(
-			issue("floorplan_asset_checksum_mismatch", "Snapshot floorplan ref is stale.", {
+			issue("floorplan_manifest_checksum_mismatch", "Snapshot floorplan ref is stale.", {
 				floorId: input.ref.floorId,
-				floorplanAssetId: input.ref.floorplanAssetId,
+				floorplanId: input.ref.floorplanId,
 			}),
 		);
 	}

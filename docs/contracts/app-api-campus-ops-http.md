@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-08
-updated: 2026-06-11
+updated: 2026-06-14
 ---
 # App API Campus Ops HTTP Contract
 
@@ -71,8 +71,8 @@ service principal、未登录请求和非 operator principal 对 `/api/ops/*` �
 - `dining_release_candidate_not_found`
 - `dining_release_candidate_stale`
 - `dining_release_blocked`
-- `dining_floorplan_asset_not_found`
-- `dining_floorplan_asset_mismatch`
+- `dining_floorplan_manifest_not_found`
+- `dining_floorplan_manifest_mismatch`
 - `dining_release_not_published`
 
 ## Release Candidate Envelope
@@ -105,7 +105,7 @@ Ops release candidate command 返回：
 规则：
 
 - release candidate 从一个明确 draft version 创建
-- release candidate 冻结 floorplan object refs、checksums、anchors 与 window binding
+- release candidate 冻结 floorplan manifest refs、checksums、anchors 与 window binding
 - mutable draft 不能直接发布
 - approved candidate 可以立即发布或定时发布
 - scheduled job 只能发布 approved candidate，不能发布当前 draft

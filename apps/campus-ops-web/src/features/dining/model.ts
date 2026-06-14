@@ -1,8 +1,9 @@
 export interface DiningOpsHall {
 	campus: string;
 	floors: Array<{
-		draftFloorplanAssetId?: string;
 		floorId: string;
+		floorplanId: string;
+		floorplanSha256: string;
 		label: string;
 		svgAssetUrl: string;
 	}>;
@@ -59,16 +60,13 @@ export interface DiningMenuOffering {
 	specLabel: string | null;
 }
 
-export interface DiningFloorplanAsset {
-	anchorInventory: Array<{ anchorId: string; role: string }>;
-	bucket: string;
-	byteSize: number;
-	contentType: string;
+export interface DiningFloorplanRef {
+	anchorInventory: Array<{ anchorId: string; label?: string; role: string }>;
 	floorId: string;
-	floorplanAssetId: string;
+	floorplanId: string;
 	hallId: string;
-	objectKey: string;
 	sha256: string;
+	svgAssetUrl: string;
 }
 
 export interface DiningOpsFloorResponse {
@@ -76,11 +74,9 @@ export interface DiningOpsFloorResponse {
 	floor: {
 		draftVersionId?: string;
 		floorId: string;
-		floorplanAsset?: DiningFloorplanAsset;
-		floorplanAssetId?: string;
+		floorplan: DiningFloorplanRef;
 		hallId: string;
 		label: string;
-		svgMarkup?: string;
 		svgAssetUrl: string;
 	};
 	menuItems: DiningMenuItem[];

@@ -57,7 +57,6 @@ describe("campus ops worker boundary", () => {
 				method: "PATCH",
 				path: "/api/ops/dining/menu-offerings/offering:assignment:haidian-canteen-1:1f:haidian-canteen-1:1f:window-01:menu:fanqie-niunanfan:1",
 			},
-			{ method: "POST", path: "/api/ops/dining/floorplan-assets" },
 			{ method: "GET", path: "/api/ops/dining/release-candidates" },
 			{ method: "POST", path: "/api/ops/dining/release-candidates" },
 			{ method: "GET", path: "/api/ops/dining/release-candidates/dining_release_candidate:1" },

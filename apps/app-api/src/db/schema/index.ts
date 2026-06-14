@@ -21,7 +21,6 @@ export { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 export {
 	diningAuditEvents,
 	diningDraftVersions,
-	diningFloorplanAssets,
 	diningFloors,
 	diningHalls,
 	diningMenuItems,
@@ -115,7 +114,6 @@ import { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 import {
 	diningAuditEvents,
 	diningDraftVersions,
-	diningFloorplanAssets,
 	diningFloors,
 	diningHalls,
 	diningMenuItems,
@@ -213,7 +211,6 @@ export const appApiSchema = {
 	docsSearchUnits,
 	diningHalls,
 	diningFloors,
-	diningFloorplanAssets,
 	diningWindows,
 	diningWindowAssignments,
 	diningStallProfiles,

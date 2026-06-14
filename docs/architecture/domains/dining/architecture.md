@@ -4,7 +4,7 @@ truth_scope: capability
 owner_boundary: domains/dining
 status: active
 created: 2026-06-08
-updated: 2026-06-12
+updated: 2026-06-14
 ---
 # Dining Domain Architecture
 
@@ -76,21 +76,21 @@ interaction. The SVG is not the dining business truth source.
 The intended technology shape is:
 
 ```text
-app-api upload path -> fast-xml-parser validate/parse/build
-  -> dining-owned allowlist SVG sanitizer
-  -> anchor extraction / diff
-  -> S3-compatible derived bucket draft floor SVG asset
-  -> release candidate frozen asset reference
-  -> release-owned SVG object + release snapshot
+repo SVG asset -> build-time SVG validation/sanitization
+  -> generated floorplan manifest with sha256 and anchor inventory
+  -> app-api/campus-web/campus-ops-web consume the same manifest package
+  -> release candidate frozen floorplan manifest reference
+  -> release snapshot
 campus-web / campus-ops-web -> sanitized inline SVG renderer
 ```
 
 Library choices:
 
-- `fast-xml-parser` is the server-side SVG XML parser/builder for anchor
-  extraction and safe SVG reconstruction.
-- The sanitizer is dining-owned allowlist logic. Generic SVG optimizers or
-  browser DOM sanitizers do not define the backend security boundary.
+- `fast-xml-parser` is the build-time SVG XML parser/builder for validation,
+  safe SVG reconstruction and anchor extraction.
+- The sanitizer is dining-owned allowlist logic executed before a static
+  floorplan enters the manifest. Generic SVG optimizers or browser DOM
+  sanitizers do not define the security boundary.
 - `svgo` is optional optimization only. It must preserve `id` and
   `data-dining-*` attributes if introduced.
 - `react-zoom-pan-pinch` is the React viewport interaction library for
@@ -122,27 +122,33 @@ The SVG may contain visual structure, labels, entrances, seating areas and
 semantic roles. It must not contain menu, price, curated sale status, release
 status or operator-only data.
 
-SVG assets used by release candidates and release snapshots are immutable
-references. Draft upload writes sanitized SVG bytes under
-`dining/floorplans/assets/{hallId}/{floorId}/sha256-{digest}.svg` in the
-configured S3-compatible derived bucket. A candidate freezes the sanitized SVG
-bucket, object key, content type, byte size, checksum and extracted anchor
-inventory. Publish promotes/copies each candidate floorplan object into
-`dining/releases/{releaseId}/floorplans/{hallId}/{floorId}/sha256-{digest}.svg`
-before snapshot creation, then writes `snapshot.json` and
-`validation-report.json` under the same `dining/releases/{releaseId}/` prefix.
-Missing floorplan source objects fail closed; publish must not synthesize seed
-or draft SVG bytes.
+SVG floorplans are repo-owned versioned static assets. A floorplan replacement
+is an application release, not an operator draft edit. Each accepted SVG has a
+generated manifest entry containing:
+
+- `floorplanId`
+- `hallId`
+- `floorId`
+- static asset path
+- sanitized inline SVG markup or generated inline payload reference
+- `sha256`
+- extracted anchor inventory
+
+`dining.*` does not own floorplan bytes and does not upload floorplan SVG to
+object storage. A release candidate freezes the manifest reference, checksum,
+anchor inventory and `windowId <-> svgAnchorId` bindings used by the candidate.
+Publish writes the immutable dining snapshot and latest pointer; it does not
+copy SVG objects or synthesize seed SVG bytes.
 
 `campus-web` and `campus-ops-web` render the sanitized SVG inline so they can
 select, highlight and center a specific anchor. Rendering SVG through `<img>` is
 insufficient for anchor-level interaction because the page cannot access the SVG
 DOM.
 
-`campus-ops-web` is a floorplan asset and binding workspace:
+`campus-ops-web` is a floorplan-backed dining data workspace:
 
-- upload or replace a floor SVG
-- parse and list SVG anchors
+- render the repo-versioned floor SVG as read-only structure
+- list manifest anchors
 - preview sanitized inline SVG
 - select an anchor by clicking the SVG
 - bind the anchor to a dining window
@@ -173,19 +179,17 @@ draft edit
 Release candidate creation freezes:
 
 - `baseDraftVersion`
-- sanitized floorplan SVG object refs and checksums
-- extracted SVG anchor inventory
+- floorplan manifest refs, checksums and extracted SVG anchor inventory
 - `windowId <-> svgAnchorId` bindings
 - candidate snapshot hash
 
 Validation must fail closed for:
 
-- missing required floor SVG
+- missing required floorplan manifest entry
 - missing, duplicate or unbound required SVG anchors
 - stale candidate when draft version no longer matches `baseDraftVersion`
 - missing stall profile, assignment, menu item or offering projection fields
-- SVG object checksum mismatch
-- missing frozen SVG object in object storage
+- floorplan manifest checksum mismatch
 
 Scheduled publish is a release candidate execution mode, not a cron publish of
 the mutable current draft. A scheduler may publish only an approved candidate
@@ -210,7 +214,7 @@ They return published hall summaries and floor projections suitable for
 
 - hall summary includes campus, floors, stall count, offering count, tags and
   price range label
-- floor projection includes sanitized SVG asset/markup, SVG anchors, windows,
+- floor projection includes versioned floorplan metadata/markup, SVG anchors, windows,
   assignment, stall profile, offerings and API-provided filter tags
 - window `svgAnchorId` is rendered as student-facing floorplan selection, not
   as navigation spatial truth

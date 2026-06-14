@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	diningAuditEvents,
 	diningDraftVersions,
-	diningFloorplanAssets,
 	diningFloors,
 	diningHalls,
 	diningMenuItems,
@@ -26,7 +25,6 @@ import {
 	createInitialDiningOperationsState,
 	createInMemoryDiningOperationsStore,
 	createPgDiningOperationsStore,
-	type DiningFloorplanObjectStore,
 	ensureInitialDiningOperationsRelease,
 } from "../src/modules/dining-ops";
 
@@ -39,7 +37,6 @@ const DINING_TABLES = [
 	diningAuditEvents,
 	diningDraftVersions,
 	diningFloors,
-	diningFloorplanAssets,
 	diningHalls,
 	diningMenuItems,
 	diningMenuOfferings,
@@ -72,7 +69,7 @@ function createSelectableRows(rows: unknown[]) {
 }
 
 function createFakeDiningDb(rows: Map<object, unknown[]> = new Map()) {
-	const insertValues = vi.fn(() => Promise.resolve());
+	const insertValues = vi.fn(async (_payload: unknown) => undefined);
 	const tx = {
 		delete: vi.fn(() => Promise.resolve()),
 		insert: vi.fn(() => ({ values: insertValues })),
@@ -155,67 +152,17 @@ describe("dining operations store", () => {
 		expect(transaction).not.toHaveBeenCalled();
 	});
 
-	it("materializes initial dining floorplan SVG objects before saving the initial release", async () => {
-		const { db } = createFakeDiningDb(emptyDiningRows());
-		const objectStore = createFakeFloorplanObjectStore();
+	it("seeds the initial dining release without materializing SVG objects", async () => {
+		const { db, insertValues } = createFakeDiningDb(emptyDiningRows());
 
 		const seeded = await ensureInitialDiningOperationsRelease({
 			db: db as never,
-			floorplanObjectStore: objectStore,
 		});
 
 		expect(seeded).toBe(true);
-		expect(objectStore.puts.length).toBeGreaterThan(0);
-		expect(objectStore.puts[0]).toMatchObject({
-			contentType: "image/svg+xml",
-			objectKey: expect.stringMatching(/^dining\/floorplans\/assets\//),
-		});
+		const insertedPayloads = insertValues.mock.calls.map(([payload]) => payload);
+		expect(JSON.stringify(insertedPayloads)).toContain("floorplan:");
+		expect(JSON.stringify(insertedPayloads)).not.toContain("floorplan_asset_id");
+		expect(JSON.stringify(insertedPayloads)).not.toContain("sanitized_svg_markup");
 	});
 });
-
-function createFakeFloorplanObjectStore(): DiningFloorplanObjectStore & {
-	puts: Array<{ contentType: string; objectKey: string }>;
-} {
-	const puts: Array<{ contentType: string; objectKey: string }> = [];
-	return {
-		bucket: "campus-rag-derived-test",
-		async copyObject(input) {
-			return {
-				bucket: "campus-rag-derived-test",
-				byteSize: 1,
-				contentType: "image/svg+xml",
-				objectKey: input.targetObjectKey,
-				sha256: input.sha256,
-			};
-		},
-		async headObject(input) {
-			return {
-				bucket: "campus-rag-derived-test",
-				byteSize: 1,
-				contentType: input.objectKey.endsWith(".json") ? "application/json" : "image/svg+xml",
-				objectKey: input.objectKey,
-				sha256: "",
-			};
-		},
-		async putJson(input) {
-			return {
-				bucket: "campus-rag-derived-test",
-				byteSize: JSON.stringify(input.value).length,
-				contentType: "application/json",
-				objectKey: input.objectKey,
-				sha256: "",
-			};
-		},
-		async putSvg(input) {
-			puts.push({ contentType: "image/svg+xml", objectKey: input.objectKey });
-			return {
-				bucket: "campus-rag-derived-test",
-				byteSize: input.svgMarkup.length,
-				contentType: "image/svg+xml",
-				objectKey: input.objectKey,
-				sha256: input.sha256,
-			};
-		},
-		puts,
-	};
-}

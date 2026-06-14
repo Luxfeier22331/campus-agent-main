@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0049
 status: accepted
 created: 2026-06-08
-updated: 2026-06-12
+updated: 2026-06-14
 ---
 # ADR-0049 Campus Ops Control Plane
 
@@ -53,6 +53,7 @@ operator browser
 - operator workspace shell
 - dining hall / floor tree
 - indoor floor window selection
+- read-only repo-versioned floorplan SVG preview and anchor inventory
 - window, assignment, menu item, menu offering forms
 - release candidate validation, approval, scheduling and publish surfaces
 - published release list and rollback surface
@@ -63,6 +64,7 @@ operator browser
 - auth/session truth
 - student-facing published projection truth
 - app-api schema ownership
+- SVG upload/replace for ordinary operators
 - source observation direct application without review
 - account browser / OAuth responsibilities
 
@@ -106,23 +108,21 @@ draft edit
 Release candidates freeze:
 
 - `base_draft_version`
-- floorplan SVG bucket, object key, content type, byte size, checksum and anchor
-  inventory
+- repo floorplan manifest id, static asset path, checksum and anchor inventory
 - `window_id <-> svg_anchor_id` bindings
 - validation blockers and warnings
 - publish mode, schedule and approval metadata
 
-Publish copies each frozen SVG object into a release-owned object key before
-snapshot creation, then writes the release `snapshot.json` and
-`validation-report.json` artifacts. Initial dining seed bootstrap must
-materialize seed SVG objects into the configured S3-compatible derived bucket so
-later candidate publishes do not depend on in-memory seed bytes.
+Publish writes the immutable dining snapshot and latest pointer using frozen
+floorplan manifest refs. It does not copy SVG objects into object storage and
+does not synthesize SVG bytes. Initial dining seed bootstrap must validate the
+repo floorplan manifest before publishing `dining_release:initial`.
 
 Scheduled publish is allowed only for approved release candidates. A cron or
 workflow job must never publish the mutable current draft. If the candidate is
-stale, validation blockers exist, an SVG object checksum mismatches, or the
-expected predecessor release no longer matches, publish fails closed and latest
-published remains unchanged.
+stale, validation blockers exist, a floorplan manifest checksum mismatches, or
+the expected predecessor release no longer matches, publish fails closed and
+latest published remains unchanged.
 
 Rollback does not rewrite draft. It either moves the latest pointer to a
 previous published release or creates a new candidate from a historical snapshot,

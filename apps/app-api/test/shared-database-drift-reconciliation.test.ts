@@ -25,7 +25,6 @@ const DINING_TABLES = [
 	"dining.audit_events",
 	"dining.draft_versions",
 	"dining.floors",
-	"dining.floorplan_assets",
 	"dining.halls",
 	"dining.menu_items",
 	"dining.menu_offerings",

@@ -49,21 +49,6 @@ export function registerDiningOpsRoutes(input: {
 		);
 	});
 
-	input.app.post("/api/ops/dining/floorplan-assets", async (c) => {
-		const authorized = await requireDiningOperator(c.req.raw, input);
-		if (authorized.response) {
-			return authorized.response;
-		}
-		const body = parseFloorplanAssetBody(await readJsonRequestBody(c.req.raw));
-		return jsonResponse(
-			await authorized.scope.resolveDiningOperationsService().createFloorplanAsset({
-				actor: authorized.actor,
-				input: body,
-			}),
-			{ status: 201 },
-		);
-	});
-
 	input.app.post("/api/ops/dining/window-assignments", async (c) => {
 		const authorized = await requireDiningOperator(c.req.raw, input);
 		if (authorized.response) {
@@ -358,15 +343,6 @@ function parseWindowPatchBody(body: unknown) {
 		tags: "tags" in record ? requireStringArray(record.tags, "tags") : undefined,
 	};
 	return requireNonEmptyPatch(parsed);
-}
-
-function parseFloorplanAssetBody(body: unknown) {
-	const record = requireRecord(body);
-	return {
-		floorId: requireString(record.floorId, "floorId"),
-		sourceFilename: requireString(record.sourceFilename, "sourceFilename"),
-		svgMarkup: requireString(record.svgMarkup, "svgMarkup"),
-	};
 }
 
 function parseWindowAssignmentPatchBody(body: unknown) {

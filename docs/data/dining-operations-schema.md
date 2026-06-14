@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-08
-updated: 2026-06-12
+updated: 2026-06-14
 ---
 # Dining Operations Schema
 
@@ -40,7 +40,6 @@ Accepted target logical tables:
 
 - `dining.halls`
 - `dining.floors`
-- `dining.floorplan_assets`
 - `dining.windows`
 - `dining.window_assignments`
 - `dining.stall_profiles`
@@ -73,56 +72,28 @@ Canonical fields:
 
 ### `dining.floors`
 
-Hall floor identity and floorplan asset relation.
+Hall floor identity and repo floorplan manifest relation.
 
 Canonical fields:
 
 - `floor_id`
 - `hall_id`
 - `label`
-- `draft_floorplan_asset_id`
+- `floorplan_id`
+- `floorplan_sha256`
 - `sort_key`
 - `created_at`
 - `updated_at`
 
 Rules:
 
-- floor rows point to the current draft floorplan asset
-- published floorplan data is read from release snapshots, not from this mutable
-  draft relation
-
-### `dining.floorplan_assets`
-
-Sanitized SVG asset metadata and extracted anchor inventory.
-
-Canonical fields:
-
-- `floorplan_asset_id`
-- `hall_id`
-- `floor_id`
-- `bucket`
-- `content_type`
-- `byte_size`
-- `object_key`
-- `sha256`
-- `sanitized_svg_markup`
-- `anchor_inventory_json`
-- `source_filename`
-- `status`
-- `created_at`
-- `created_by`
-
-Rules:
-
-- `object_key` must reference an immutable sanitized SVG object before it enters
-  a release candidate
-- `bucket`, `content_type` and `byte_size` are object-store metadata for the
-  sanitized SVG bytes and are frozen into candidate/release floorplan refs
-- draft-only temporary object keys must be promoted/copied before publish if
-  they are subject to cleanup
-- `anchor_inventory_json` is derived from sanitized SVG and stores
-  `data-dining-anchor-id` values and optional semantic role metadata
-- asset rows do not store menu, price, assignment or release status truth
+- `floorplan_id` references a repo-owned generated floorplan manifest entry
+- `floorplan_sha256` records the manifest checksum currently expected by dining
+  draft/release validation
+- floor rows do not store SVG bytes, object-store keys, menu, price, assignment
+  or release status truth
+- changing the SVG floorplan is an application release that updates the
+  floorplan manifest; ordinary ops draft edits do not replace SVG assets
 
 ### `dining.windows`
 
@@ -144,7 +115,7 @@ Canonical fields:
 
 Rules:
 
-- `svg_anchor_id` binds the window to a sanitized floor SVG
+- `svg_anchor_id` binds the window to a versioned floor SVG manifest
   `data-dining-anchor-id`
 - `geometry_json` is legacy/editor geometry only and does not define the
   student floorplan interaction model
@@ -277,7 +248,7 @@ Canonical fields:
 - `scheduled_at`
 - `expected_predecessor_release_id`
 - `snapshot_hash`
-- `floorplan_refs_json`
+- `floorplan_manifest_refs_json`
 - `snapshot_payload_json`
 - `created_at`
 - `created_by`
@@ -300,7 +271,7 @@ Allowed status values:
 
 Rules:
 
-- candidate creation freezes the draft version, floorplan object refs/checksums,
+- candidate creation freezes the draft version, floorplan manifest refs/checksums,
   extracted anchors, window-anchor bindings and candidate snapshot hash
 - a candidate can be published immediately or scheduled after approval
 - publish commands operate on candidates, not mutable draft
@@ -324,9 +295,9 @@ Canonical fields:
 Rules:
 
 - blocker-free validation is required before approval and publish
-- blockers include missing floor SVG, missing/duplicate required anchors,
-  missing floorplan object, checksum mismatch, stale candidate and missing
-  student projection fields
+- blockers include missing floorplan manifest entry, missing/duplicate required
+  anchors, checksum mismatch, stale candidate and missing student projection
+  fields
 - warnings may inform operators but do not replace explicit blockers
 
 ### `dining.release_schedule_jobs`
@@ -387,7 +358,7 @@ Canonical fields:
 - `snapshot_id`
 - `release_id`
 - `payload_json`
-- `svg_object_refs_json`
+- `floorplan_manifest_refs_json`
 - `snapshot_hash`
 - `created_at`
 
@@ -399,10 +370,9 @@ Rules:
   seed data
 - student projection uses window -> assignment -> stall profile -> menu offering
   -> menu item relations captured inside the snapshot
-- snapshot payload must include sanitized SVG floorplan data and SVG anchor
-  bindings for any student-visible floor
-- snapshot payload must include floorplan object bucket, key, content type,
-  byte size, checksum and anchor inventory for any student-visible floor
+- snapshot payload must include floorplan manifest id, static asset path,
+  checksum, anchor inventory and SVG anchor bindings for any student-visible
+  floor
 - missing floorplan, stall profile or menu item projection data is a data
   integrity error; readers must fail closed rather than synthesize placeholder
   SVG anchors, food names, prices or tags
@@ -450,8 +420,8 @@ Rules:
 ## Initial Release
 
 The initial release materializes existing dining seed projection into
-`dining.*`, writes seed SVG objects into the configured S3-compatible derived
-bucket and publishes `dining_release:initial`.
+`dining.*`, validates repo-owned floorplan manifest entries and publishes
+`dining_release:initial`.
 
 Initial scope:
 
@@ -461,10 +431,10 @@ Initial scope:
 - 每个窗口至少 1 个 offering；部分窗口包含 2-3 个 offering
 
 After materialization, production student-facing routes must read the DB-backed
-published snapshot, not in-memory seed data. The seed SVG objects must exist in
-object storage before later candidates can copy their floorplan refs into
-release-owned keys. Publish must fail closed when a candidate references a
-missing SVG object; it must not recreate seed SVG bytes during publish.
+published snapshot, not in-memory seed data. The repo floorplan manifest must be
+available to app-api and browser apps before candidates can freeze floorplan
+refs. Publish must fail closed when a candidate references a missing manifest
+entry or checksum mismatch; it must not synthesize SVG markup during publish.
 
 Initial seed ownership belongs to `apps/app-api/src/modules/dining-ops`, not
 `campus-experience`. `campus-experience` remains responsible for map and

@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/campus-ops-web
 status: active
 created: 2026-06-08
-updated: 2026-06-12
+updated: 2026-06-14
 ---
 # Campus Ops Web Architecture
 
@@ -93,26 +93,27 @@ architecture and must not be reintroduced.
 Accepted dining workspace contains:
 
 - left hall/floor tree
-- central sanitized inline SVG floorplan preview
+- central read-only sanitized inline SVG floorplan preview from the repo
+  floorplan manifest
 - SVG anchor selection and binding
 - right detail editor for stall assignment and menu price
-- floorplan asset upload/replace, anchor extraction and anchor diff surfaces
+- floorplan manifest metadata, anchor inventory and anchor binding validation
 - release candidate creation, validation report, approval and scheduling
 - published release list, release detail and rollback surface
 - audit list
 
 Current implemented dining workspace support includes hall/floor browsing,
-sanitized inline SVG preview, SVG upload through
-`POST /api/ops/dining/floorplan-assets`, draft window/assignment/menu/offering
-edits, release candidate creation/validation/approval/scheduling/publish,
-release list/detail/rollback and audit list routes. Future UI refinement may
-improve density or navigation, but it must stay on these route and data
-boundaries.
+sanitized inline SVG preview, draft window/assignment/menu/offering edits,
+release candidate creation/validation/approval/scheduling/publish, release
+list/detail/rollback and audit list routes. Future UI refinement may improve
+density or navigation, but it must stay on these route and data boundaries.
 
-Dining floorplans use SVG upload/replace plus anchor binding. The workspace
-does not use Konva/react-konva as the primary floorplan technology and does not
-include freeform floorplan shape editing. MapLibre is reserved for outdoor map
-operations if map ops is later accepted.
+Dining floorplans are repo-owned versioned static SVG assets. The workspace
+does not upload/replace SVG, does not use Konva/react-konva as the primary
+floorplan technology and does not include freeform floorplan shape editing.
+MapLibre is reserved for outdoor map operations if map ops is later accepted.
+If a floor SVG changes, the change ships through an application release and the
+generated floorplan manifest, not through an operator upload control.
 
 Current dining UI library choices are:
 

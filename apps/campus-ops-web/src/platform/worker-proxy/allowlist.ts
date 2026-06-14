@@ -1,5 +1,4 @@
 const STATIC_ALLOWED_ROUTES = new Set([
-	"POST /api/ops/dining/floorplan-assets",
 	"GET /api/ops/dining/halls",
 	"POST /api/ops/dining/window-assignments",
 	"POST /api/ops/dining/menu-items",

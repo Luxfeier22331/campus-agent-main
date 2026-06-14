@@ -26,10 +26,10 @@ const MODULES = [
 	},
 	{
 		area: "食堂",
-		description: "上传或替换食堂 SVG，维护区块锚点与餐饮点绑定。",
+		description: "查看随应用发版的食堂 SVG 底图，维护区块锚点与餐饮点绑定。",
 		href: "/dining/assets",
 		icon: MapIcon,
-		label: "食堂资产",
+		label: "食堂底图",
 		owner: "dining ops",
 		status: "已接入",
 	},
@@ -114,7 +114,7 @@ const STATUS_SUMMARY = [
 ] as const;
 
 const DELIVERY_STEPS = [
-	"食堂草稿编辑、SVG 资产、候选发布和审计已在当前工作面接入。",
+	"食堂草稿编辑、版本化 SVG 底图、候选发布和审计已在当前工作面接入。",
 	"非 dining 模块先保留路由，不开放写 API，不承诺编辑器已经完成。",
 	"后续模块接入前必须先冻结对应 contract、权限和审计边界。",
 ] as const;

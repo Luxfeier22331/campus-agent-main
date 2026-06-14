@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
+import { getDiningFloorplanByFloor } from "dining-floorplans";
 import { Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { type FieldErrors, useFieldArray, useForm } from "react-hook-form";
@@ -12,7 +13,6 @@ import {
 } from "../../components/dining/svg-floorplan-workspace";
 import {
 	assignDiningWindow,
-	createDiningFloorplanAsset,
 	createDiningMenuItem,
 	createDiningMenuOffering,
 	getDiningOpsFloor,
@@ -70,16 +70,6 @@ export function DiningWorkspacePage() {
 	});
 	const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
 	const [selectedAnchor, setSelectedAnchor] = useState<DiningSvgAnchor | null>(null);
-	const queryClient = useQueryClient();
-	const floorplanUploadMutation = useMutation({
-		mutationFn: createDiningFloorplanAsset,
-		onSuccess: () => {
-			void queryClient.invalidateQueries({
-				queryKey: ["dining-ops", "floor", activeHallId, activeFloorId],
-			});
-			void queryClient.invalidateQueries({ queryKey: ["dining-ops", "halls"] });
-		},
-	});
 
 	useEffect(() => {
 		if (!(selectedAnchor || selectedWindowId) && floorQuery.data?.windows[0]) {
@@ -90,6 +80,7 @@ export function DiningWorkspacePage() {
 	const selectedWindow =
 		floorQuery.data?.windows.find((window) => window.windowId === selectedWindowId) ?? null;
 	const selectedAnchorId = selectedAnchor?.anchorId ?? selectedWindow?.svgAnchorId ?? null;
+	const floorplan = floorQuery.data ? resolveRepoFloorplan(floorQuery.data) : null;
 
 	return (
 		<section className="grid gap-6 xl:grid-cols-[260px_1fr_340px]">
@@ -131,34 +122,20 @@ export function DiningWorkspacePage() {
 				{floorQuery.data ? (
 					<SvgFloorplanWorkspace
 						floorId={floorQuery.data.floor.floorId}
-						floorplanAsset={floorQuery.data.floor.floorplanAsset}
+						floorplan={floorQuery.data.floor.floorplan}
 						onSelectAnchor={(anchor) => {
 							setSelectedAnchor(anchor);
 							if (!anchor.windowId) {
 								setSelectedWindowId(null);
 							}
 						}}
-						onUploadSvg={(upload) => floorplanUploadMutation.mutateAsync(upload)}
 						onSelectWindow={(windowId) => {
 							setSelectedAnchor(null);
 							setSelectedWindowId(windowId);
 						}}
 						selectedAnchorId={selectedAnchorId}
 						selectedWindowId={selectedWindowId}
-						uploadError={
-							floorplanUploadMutation.error
-								? formatDiningWorkspaceError(floorplanUploadMutation.error, "SVG 上传失败")
-								: null
-						}
-						uploadState={
-							floorplanUploadMutation.isPending
-								? "uploading"
-								: floorplanUploadMutation.isSuccess
-									? "success"
-									: "idle"
-						}
-						svgAssetUrl={floorQuery.data.floor.svgAssetUrl}
-						svgMarkup={floorQuery.data.floor.svgMarkup}
+						svgMarkup={floorplan?.svgMarkup ?? ""}
 						windows={floorQuery.data.windows}
 					/>
 				) : (
@@ -178,6 +155,22 @@ export function DiningWorkspacePage() {
 			/>
 		</section>
 	);
+}
+
+function resolveRepoFloorplan(floor: DiningOpsFloorResponse) {
+	const floorplan = getDiningFloorplanByFloor({
+		floorId: floor.floor.floorId,
+		hallId: floor.floor.hallId,
+	});
+	if (
+		floorplan.floorplanId !== floor.floor.floorplan.floorplanId ||
+		floorplan.sha256 !== floor.floor.floorplan.sha256
+	) {
+		throw new Error(
+			`Dining floorplan manifest mismatch: ${floor.floor.hallId}/${floor.floor.floorId}`,
+		);
+	}
+	return floorplan;
 }
 
 function WindowEditor(input: {
@@ -518,11 +511,4 @@ function findErrorMessage(value: unknown): string | null {
 		}
 	}
 	return null;
-}
-
-function formatDiningWorkspaceError(error: unknown, fallback: string): string {
-	if (error instanceof Error && error.message.trim()) {
-		return error.message;
-	}
-	return fallback;
 }

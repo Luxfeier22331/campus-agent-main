@@ -478,7 +478,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `contract_truth`
   - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
   - Owner boundary: `apps/app-api`
-  - Ledger: `area=contracts`, `cluster=app-api`, `state=tracked`, `lines=299`
+  - Ledger: `area=contracts`, `cluster=app-api`, `state=tracked`, `lines=407`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-http/chat.md`
@@ -2329,7 +2329,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `domain_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=capability`, `status=active`
   - Owner boundary: `domains/dining`
-  - Ledger: `area=architecture`, `cluster=dining`, `state=tracked`, `lines=315`
+  - Ledger: `area=architecture`, `cluster=dining`, `state=tracked`, `lines=319`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/architecture/system/campus-ops-web-architecture.md`
@@ -2337,7 +2337,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
   - Owner boundary: `apps/campus-ops-web`
-  - Ledger: `area=architecture`, `cluster=campus-ops`, `state=tracked`, `lines=159`
+  - Ledger: `area=architecture`, `cluster=campus-ops`, `state=tracked`, `lines=160`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
@@ -2385,7 +2385,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `contract_truth`
   - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
   - Owner boundary: `apps/app-api`
-  - Ledger: `area=contracts`, `cluster=dining`, `state=tracked`, `lines=181`
+  - Ledger: `area=contracts`, `cluster=dining`, `state=tracked`, `lines=179`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-dining-ops-http.md`
@@ -2393,7 +2393,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `contract_truth`
   - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
   - Owner boundary: `apps/app-api`
-  - Ledger: `area=contracts`, `cluster=dining`, `state=tracked`, `lines=635`
+  - Ledger: `area=contracts`, `cluster=dining`, `state=tracked`, `lines=576`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-federation-http.md`
@@ -2425,7 +2425,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `data_truth`
   - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
   - Owner boundary: `apps/app-api`
-  - Ledger: `area=data`, `cluster=dining`, `state=tracked`, `lines=471`
+  - Ledger: `area=data`, `cluster=dining`, `state=tracked`, `lines=441`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/data/identity-platform-schema.md`

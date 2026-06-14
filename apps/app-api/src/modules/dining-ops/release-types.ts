@@ -14,24 +14,18 @@ export type DiningReleaseValidationStatus = "fail" | "pass";
 
 export interface DiningSvgAnchor {
 	anchorId: string;
+	label?: string;
 	role: string;
 }
 
-export interface DiningFloorplanAsset {
+export interface DiningFloorplanManifestRef {
 	anchorInventory: DiningSvgAnchor[];
-	bucket: string;
-	byteSize: number;
-	contentType: string;
-	createdAt: string;
-	createdBy: string;
 	floorId: string;
-	floorplanAssetId: string;
+	floorplanId: string;
 	hallId: string;
-	objectKey: string;
 	sanitizedSvgMarkup: string;
 	sha256: string;
-	sourceFilename: string;
-	status: "draft_ready" | "release_ready";
+	svgAssetUrl: string;
 }
 
 export interface DiningDraftVersion {
@@ -44,14 +38,11 @@ export interface DiningDraftVersion {
 
 export interface DiningFloorplanRef {
 	anchorInventory: DiningSvgAnchor[];
-	bucket: string;
-	byteSize: number;
-	contentType: string;
 	floorId: string;
-	floorplanAssetId: string;
+	floorplanId: string;
 	hallId: string;
-	objectKey: string;
 	sha256: string;
+	svgAssetUrl: string;
 	windowBindings: Array<{ svgAnchorId: string | null; windowId: string }>;
 }
 
@@ -77,8 +68,8 @@ export interface DiningReleaseCandidate {
 export interface DiningReleaseValidationIssue {
 	code:
 		| "duplicate_svg_anchor_binding"
-		| "floorplan_asset_checksum_mismatch"
-		| "missing_floorplan_asset"
+		| "floorplan_manifest_checksum_mismatch"
+		| "missing_floorplan_manifest"
 		| "missing_menu_item_projection"
 		| "missing_stall_profile_projection"
 		| "missing_svg_anchor"

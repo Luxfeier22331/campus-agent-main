@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS "dining"."floors" (
 	"floor_id" text PRIMARY KEY NOT NULL,
 	"hall_id" text NOT NULL,
 	"label" text NOT NULL,
-	"draft_floorplan_asset_id" text NOT NULL,
+	"floorplan_id" text NOT NULL,
+	"floorplan_sha256" text NOT NULL,
 	"svg_asset_url" text NOT NULL,
 	"sort_key" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
@@ -21,26 +22,6 @@ CREATE TABLE IF NOT EXISTS "dining"."floors" (
 );
 
 CREATE INDEX IF NOT EXISTS "dining_floors_hall_idx" ON "dining"."floors" USING btree ("hall_id");
-
-CREATE TABLE IF NOT EXISTS "dining"."floorplan_assets" (
-	"floorplan_asset_id" text PRIMARY KEY NOT NULL,
-	"hall_id" text NOT NULL,
-	"floor_id" text NOT NULL,
-	"bucket" text DEFAULT 'campus-rag-derived' NOT NULL,
-	"content_type" text DEFAULT 'image/svg+xml' NOT NULL,
-	"byte_size" integer DEFAULT 0 NOT NULL,
-	"object_key" text NOT NULL,
-	"sha256" text NOT NULL,
-	"sanitized_svg_markup" text NOT NULL,
-	"anchor_inventory_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"source_filename" text NOT NULL,
-	"status" text NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	"created_by" text NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS "dining_floorplan_assets_floor_idx" ON "dining"."floorplan_assets" USING btree ("hall_id","floor_id");
-CREATE INDEX IF NOT EXISTS "dining_floorplan_assets_status_idx" ON "dining"."floorplan_assets" USING btree ("status");
 
 CREATE TABLE IF NOT EXISTS "dining"."windows" (
 	"window_id" text PRIMARY KEY NOT NULL,

@@ -1,7 +1,6 @@
-export type { DiningFloorplanObjectStore } from "./floorplan-object-store";
 export type {
 	DiningDraftVersion,
-	DiningFloorplanAsset,
+	DiningFloorplanManifestRef,
 	DiningFloorplanRef,
 	DiningReleaseCandidate,
 	DiningReleaseCandidateEnvelope,
@@ -15,8 +14,6 @@ export type {
 } from "./release-types";
 export {
 	buildDiningOperationsService,
-	createDiningFloorplanObjectStore,
-	createDiningFloorplanObjectStoreFromEnv,
 	createInitialDiningOperationsState,
 	createInMemoryDiningOperationsStore,
 	createProcessDiningOperationsStore,
@@ -27,7 +24,6 @@ export {
 export {
 	createPgDiningOperationsStore,
 	ensureInitialDiningOperationsRelease,
-	materializeInitialDiningFloorplanAssets,
 } from "./store";
 export type {
 	DiningAuditEvent,

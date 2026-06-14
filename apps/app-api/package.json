@@ -55,12 +55,12 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.1022.0",
 		"@better-auth/oauth-provider": "1.5.6",
 		"@hono/zod-openapi": "^0.19.10",
 		"@sentry/cloudflare": "^10.46.0",
 		"better-auth": "^1.5.6",
 		"drizzle-orm": "^0.44.5",
+		"dining-floorplans": "workspace:*",
 		"fast-xml-parser": "^5.5.8",
 		"hono": "^4.9.8",
 		"official-web-core": "file:../../packages/official-web-core",

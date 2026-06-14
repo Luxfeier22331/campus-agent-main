@@ -402,7 +402,8 @@ describe("campus routes", () => {
 	});
 
 	it("keeps dining floor rendering driven by the floor projection contract", () => {
-		expect(diningExperienceSource).toContain("floor.floor.svgMarkup");
+		expect(diningExperienceSource).toContain("getDiningFloorplanByFloor");
+		expect(diningExperienceSource).toContain("floor.floor.floorplan.floorplanId");
 		expect(diningExperienceSource).toContain("dangerouslySetInnerHTML");
 		expect(diningExperienceSource).toContain("[data-dining-anchor-id]");
 		expect(diningExperienceSource).not.toContain("<img");
@@ -422,7 +423,7 @@ describe("campus routes", () => {
 			halls: [
 				{
 					campus: "海淀校区",
-					floors: [{ floorId: "1f", label: "一层" }],
+					floors: [{ floorId: "haidian-canteen-1-1f", label: "一层" }],
 					hallId: "haidian-canteen-1",
 					name: "海淀一食堂",
 					offeringCount: 2,
@@ -433,8 +434,8 @@ describe("campus routes", () => {
 				{
 					campus: "丰台校区",
 					floors: [
-						{ floorId: "1f", label: "一层" },
-						{ floorId: "2f", label: "二层" },
+						{ floorId: "fengtai-huixian-canteen-1f", label: "一层" },
+						{ floorId: "fengtai-huixian-canteen-2f", label: "二层" },
 					],
 					hallId: "fengtai-huixian-canteen",
 					name: "荟贤食堂",
@@ -448,9 +449,9 @@ describe("campus routes", () => {
 		diningApiMock.getDiningFloor.mockImplementation(
 			({ floorId, hallId }: { floorId: string; hallId: string }) => {
 				const projections = {
-					"fengtai-huixian-canteen:1f": "荟贤食堂一层",
-					"fengtai-huixian-canteen:2f": "荟贤食堂二层",
-					"haidian-canteen-1:1f": "海淀一食堂一层",
+					"fengtai-huixian-canteen:fengtai-huixian-canteen-1f": "荟贤食堂一层",
+					"fengtai-huixian-canteen:fengtai-huixian-canteen-2f": "荟贤食堂二层",
+					"haidian-canteen-1:haidian-canteen-1-1f": "海淀一食堂一层",
 				} as const;
 				const label = projections[`${hallId}:${floorId}` as keyof typeof projections];
 				if (!label) {
@@ -486,17 +487,17 @@ describe("campus routes", () => {
 		fireEvent.click(screen.getByRole("button", { name: "热餐" }));
 		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
 
-		expect(await screen.findByText("海淀一食堂一层")).toBeInTheDocument();
+		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
 		fireEvent.click(screen.getByText("丰台校区"));
 
-		expect(await screen.findByText("荟贤食堂一层")).toBeInTheDocument();
+		expect((await screen.findAllByText("荟贤食堂一层")).length).toBeGreaterThan(0);
 		fireEvent.click(screen.getByText("二层"));
-		expect(await screen.findByText("荟贤食堂二层")).toBeInTheDocument();
+		expect((await screen.findAllByText("荟贤食堂二层")).length).toBeGreaterThan(0);
 		fireEvent.click(screen.getByText("海淀校区"));
 
-		expect(await screen.findByText("海淀一食堂一层")).toBeInTheDocument();
+		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalledWith({
-			floorId: "2f",
+			floorId: "fengtai-huixian-canteen-2f",
 			hallId: "haidian-canteen-1",
 		});
 	});
@@ -539,10 +540,9 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 		floor: {
 			canvas: { height: 420, width: 720 },
 			floorId: input.floorId,
+			floorplan: toDiningFloorplanRef(input),
 			hallId: input.hallId,
 			label: input.label,
-			svgMarkup:
-				'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420"><g data-dining-role="window" data-dining-anchor-id="window-01"><rect x="64" y="72" width="150" height="72" /><text x="80" y="110">盖饭窗口</text></g></svg>',
 			svgAssetUrl: `/assets/dining/${input.hallId}-${input.floorId}.svg`,
 		},
 		source: {
@@ -590,5 +590,34 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 				windowId: `${input.hallId}:${input.floorId}:window-01`,
 			},
 		],
+	};
+}
+
+function toDiningFloorplanRef(input: { floorId: string; hallId: string }) {
+	const shaByFloor = {
+		"fengtai-huixian-canteen-1f":
+			"sha256:1f02bf778c9c11ec7c9ce0426fa63bfff0ba1ec6dc9dc0be20b26a9a6a5b710a",
+		"fengtai-huixian-canteen-2f":
+			"sha256:2641cf62e78b00690f4a03d265d161613fd475bef5c86ecb3bd139728ec3c3e2",
+		"haidian-canteen-1-1f":
+			"sha256:c55f08aa63157e174970361c07811678f54727179b317901c20b1b2f25df6929",
+	} as const;
+	const sha256 = shaByFloor[input.floorId as keyof typeof shaByFloor];
+	if (!sha256) {
+		throw new Error(`missing dining floorplan test fixture: ${input.hallId}/${input.floorId}`);
+	}
+	return {
+		anchorInventory: [
+			{ anchorId: "window-01", label: "一号窗口", role: "window" },
+			{ anchorId: "window-02", label: "二号窗口", role: "window" },
+			{ anchorId: "window-03", label: "三号窗口", role: "window" },
+			{ anchorId: "window-04", label: "四号窗口", role: "window" },
+			{ anchorId: "window-05", label: "五号窗口", role: "window" },
+		],
+		floorId: input.floorId,
+		floorplanId: `floorplan:${input.hallId}:${input.floorId}`,
+		hallId: input.hallId,
+		sha256,
+		svgAssetUrl: `/assets/dining/${input.hallId}-${input.floorId}.svg`,
 	};
 }

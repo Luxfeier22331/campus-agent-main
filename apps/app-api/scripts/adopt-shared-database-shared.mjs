@@ -22,6 +22,7 @@ export const ALTER_TABLE_ADD_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+COLUMN "([^"]+)"/i;
 export const ALTER_TABLE_DROP_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+DROP\s+COLUMN(?: IF EXISTS)? "([^"]+)"/i;
+export const DROP_TABLE_RE = /^DROP TABLE(?: IF EXISTS)? "([^"]+)"\."([^"]+)";?$/i;
 export const ALTER_TABLE_RENAME_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+RENAME\s+COLUMN "([^"]+)" TO "([^"]+)";?$/i;
 export const ALTER_TABLE_CONSTRAINT_RE =

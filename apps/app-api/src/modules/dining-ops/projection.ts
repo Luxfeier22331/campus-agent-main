@@ -1,4 +1,5 @@
 import { AppApiRouteError } from "../../http";
+import { publicDiningFloorplanRef, resolveDiningFloorplanManifestRef } from "./floorplan-manifest";
 import { DINING_CANVAS } from "./initial-data";
 import type {
 	DiningMenuOffering,
@@ -56,9 +57,26 @@ export function buildFloorResponse(
 	const windows = state.windows.filter(
 		(window) => window.hallId === input.hallId && window.floorId === input.floorId,
 	);
-	const floorplanAsset = state.floorplanAssets.find(
-		(asset) => asset.floorplanAssetId === floor.draftFloorplanAssetId,
-	);
+	const floorplan = resolveDiningFloorplanManifestRef({
+		floorId: floor.floorId,
+		hallId: hall.hallId,
+	});
+	if (floor.floorplanId !== floorplan.floorplanId || floor.floorplanSha256 !== floorplan.sha256) {
+		throw new AppApiRouteError({
+			code: "dining_floorplan_manifest_mismatch",
+			details: {
+				floorId: floor.floorId,
+				floorplanId: floor.floorplanId,
+				hallId: hall.hallId,
+				manifestFloorplanId: floorplan.floorplanId,
+				manifestSha256: floorplan.sha256,
+				sha256: floor.floorplanSha256,
+			},
+			message: "Dining floorplan manifest reference does not match checked-in manifest.",
+			retryable: false,
+			status: 500,
+		});
+	}
 	const windowIds = new Set(windows.map((window) => window.windowId));
 	const assignments = state.assignments.filter((assignment) => windowIds.has(assignment.windowId));
 	const assignmentIds = new Set(assignments.map((assignment) => assignment.assignmentId));
@@ -73,22 +91,10 @@ export function buildFloorResponse(
 			canvas: DINING_CANVAS,
 			draftVersionId: state.currentDraftVersion.draftVersionId,
 			floorId: floor.floorId,
-			floorplanAsset: floorplanAsset
-				? {
-						anchorInventory: floorplanAsset.anchorInventory,
-						bucket: floorplanAsset.bucket,
-						byteSize: floorplanAsset.byteSize,
-						contentType: floorplanAsset.contentType,
-						floorplanAssetId: floorplanAsset.floorplanAssetId,
-						objectKey: floorplanAsset.objectKey,
-						sha256: floorplanAsset.sha256,
-					}
-				: undefined,
-			floorplanAssetId: floorplanAsset?.floorplanAssetId,
+			floorplan: publicDiningFloorplanRef(floorplan),
 			hallId: hall.hallId,
 			label: `${hall.name}${floor.label}`,
 			svgAssetUrl: floor.svgAssetUrl,
-			svgMarkup: floorplanAsset?.sanitizedSvgMarkup,
 		},
 		menuItems: state.menuItems.filter((item) => menuItemIds.has(item.menuItemId)),
 		menuOfferings,
@@ -109,8 +115,8 @@ export function toPublicFloor(
 	if (!floor.floor.svgAssetUrl.trim()) {
 		throwInvalidProjection("Dining floor projection is missing SVG asset URL.");
 	}
-	if (!floor.floor.svgMarkup?.trim()) {
-		throwInvalidProjection("Dining floor projection is missing SVG markup.");
+	if (!floor.floor.floorplan.sha256.trim()) {
+		throwInvalidProjection("Dining floor projection is missing floorplan manifest checksum.");
 	}
 	const windows = floor.windows.map((window) => {
 		const assignment = floor.assignments.find((item) => item.windowId === window.windowId);
@@ -175,11 +181,10 @@ export function toPublicFloor(
 		floor: {
 			canvas: floor.floor.canvas,
 			floorId: floor.floor.floorId,
-			floorplanAsset: floor.floor.floorplanAsset,
+			floorplan: floor.floor.floorplan,
 			hallId: floor.floor.hallId,
 			label: floor.floor.label,
 			svgAssetUrl: floor.floor.svgAssetUrl,
-			svgMarkup: floor.floor.svgMarkup,
 		},
 		source,
 		windows,
@@ -194,7 +199,7 @@ export function toPublicHallSummary(hall: DiningOpsHall, snapshot: DiningPublish
 		if (!floor) {
 			throwInvalidProjection("Dining hall summary is missing a floor projection.");
 		}
-		if (!(floor.floor.canvas && floor.floor.svgAssetUrl.trim() && floor.floor.svgMarkup?.trim())) {
+		if (!(floor.floor.canvas && floor.floor.svgAssetUrl.trim() && floor.floor.floorplan.sha256)) {
 			throwInvalidProjection("Dining hall summary is missing floorplan projection fields.");
 		}
 	}

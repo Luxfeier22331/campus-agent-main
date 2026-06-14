@@ -1,3 +1,4 @@
+import { getDiningFloorplanByFloor } from "dining-floorplans";
 import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect } from "react";
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
@@ -104,8 +105,20 @@ export function InteractiveFloorplan({
 	windows: DiningWindowProjection[];
 }) {
 	const selectedWindow = windows.find((window) => window.windowId === selectedWindowId) ?? null;
+	const manifestFloorplan = getDiningFloorplanByFloor({
+		floorId: floor.floor.floorId,
+		hallId: floor.floor.hallId,
+	});
+	if (
+		manifestFloorplan.floorplanId !== floor.floor.floorplan.floorplanId ||
+		manifestFloorplan.sha256 !== floor.floor.floorplan.sha256
+	) {
+		throw new Error(
+			`Dining floorplan manifest mismatch: ${floor.floor.hallId}/${floor.floor.floorId}`,
+		);
+	}
 	const normalizedFloorplan = markDiningFloorplanAnchors(
-		floor.floor.svgMarkup,
+		manifestFloorplan.svgMarkup,
 		windows,
 		selectedWindow?.svgAnchorId ?? null,
 	);

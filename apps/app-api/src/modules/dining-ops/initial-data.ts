@@ -23,7 +23,6 @@ export interface InitialDiningFloorSeed {
 	label: string;
 	stalls: InitialDiningStallSeed[];
 	svgAssetUrl?: string;
-	svgMarkup?: string;
 }
 
 export interface InitialDiningHallSeed {

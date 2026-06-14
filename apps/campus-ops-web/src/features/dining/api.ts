@@ -1,7 +1,6 @@
 import { appApiJson } from "@/platform/app-api/client";
 import type {
 	DiningAuditEvent,
-	DiningFloorplanAsset,
 	DiningMenuItem,
 	DiningMenuOffering,
 	DiningOpsFloorResponse,
@@ -24,18 +23,6 @@ export function getDiningOpsFloor(input: { floorId: string; hallId: string }) {
 		path: `/api/ops/dining/halls/${encodeURIComponent(input.hallId)}/floors/${encodeURIComponent(
 			input.floorId,
 		)}`,
-	});
-}
-
-export function createDiningFloorplanAsset(input: {
-	floorId: string;
-	sourceFilename: string;
-	svgMarkup: string;
-}) {
-	return appApiJson<{ asset: DiningFloorplanAsset }>({
-		body: input,
-		method: "POST",
-		path: "/api/ops/dining/floorplan-assets",
 	});
 }
 
