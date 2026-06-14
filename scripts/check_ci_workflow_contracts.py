@@ -28,6 +28,9 @@ REQUIRED_WORKFLOW_SCRIPT_CALLS = {
         "pnpm ci:go",
     ),
 }
+REQUIRED_GOLANGCI_LINT_INSTALL = (
+    "go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +72,7 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
         issues.extend(_audit_package_manager_versions(base, root_pnpm_version))
         issues.extend(_audit_workflow_pnpm_versions(base, root_pnpm_version))
     issues.extend(_audit_workflow_script_calls(base))
+    issues.extend(_audit_go_lane_tooling(base))
     return tuple(issues)
 
 
@@ -149,6 +153,45 @@ def _audit_workflow_script_calls(root: Path) -> tuple[CiWorkflowContractIssue, .
                     )
                 )
     return tuple(issues)
+
+
+def _audit_go_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_relpath = ".github/workflows/lint.yml"
+    workflow_path = root / workflow_relpath
+    if not workflow_path.exists():
+        return ()
+    workflow = _read_yaml(workflow_path)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    job = jobs.get("execution-control-go")
+    if not isinstance(job, dict):
+        return ()
+    raw_steps = job.get("steps")
+    if not isinstance(raw_steps, list):
+        return ()
+    install_step_index = _first_step_index_containing(raw_steps, REQUIRED_GOLANGCI_LINT_INSTALL)
+    ci_go_step_index = _first_step_index_containing(raw_steps, "pnpm ci:go")
+    if ci_go_step_index is None:
+        return ()
+    if install_step_index is None or install_step_index >= ci_go_step_index:
+        return (
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="execution-control-go must install golangci-lint v2.11.4 before pnpm ci:go",
+            ),
+        )
+    return ()
+
+
+def _first_step_index_containing(steps: list[Any], text: str) -> int | None:
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        run = str(step.get("run") or "")
+        if text in run:
+            return index
+    return None
 
 
 def _workflow_steps(workflow: dict[str, Any]) -> tuple[dict[str, Any], ...]:

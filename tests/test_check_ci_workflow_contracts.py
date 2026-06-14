@@ -90,6 +90,36 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_requires_golangci_lint_setup_before_go_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(
+                root,
+                pnpm_version="10.26.1",
+                lint_run="pnpm ci:repo-static && pnpm ci:intent && pnpm ci:go",
+                install_golangci_lint=False,
+            )
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/lint.yml",
+                message="execution-control-go must install golangci-lint v2.11.4 before pnpm ci:go",
+            ),
+            issues,
+        )
+
 
 def _required_scripts() -> dict[str, str]:
     return {
@@ -110,7 +140,16 @@ def _write_minimal_workflows(
     *,
     pnpm_version: str,
     lint_run: str = "pnpm ci:repo-static && pnpm ci:intent && pnpm ci:go",
+    install_golangci_lint: bool = True,
 ) -> None:
+    go_lint_install_steps = (
+        (
+            "      - name: Install golangci-lint",
+            "        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4",
+        )
+        if install_golangci_lint
+        else ()
+    )
     (root / ".github/workflows/lint.yml").write_text(
         "\n".join(
             (
@@ -122,6 +161,19 @@ def _write_minimal_workflows(
                 "        with:",
                 f"          version: {pnpm_version}",
                 f"      - run: {lint_run}",
+                "  intent-release-gate:",
+                "    steps:",
+                "      - uses: pnpm/action-setup@v4",
+                "        with:",
+                f"          version: {pnpm_version}",
+                "      - run: pnpm ci:intent",
+                "  execution-control-go:",
+                "    steps:",
+                "      - uses: pnpm/action-setup@v4",
+                "        with:",
+                f"          version: {pnpm_version}",
+                *go_lint_install_steps,
+                "      - run: pnpm ci:go",
                 "",
             )
         ),
