@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from campus_contracts import (
     ContextProjection,
-    ProfileMemoryItem,
-    ProfileMemorySummary,
     SelectedNoticeRef,
     SessionSlot,
     SessionSummary,
@@ -166,6 +164,7 @@ def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
                 expected_scope_class="in_scope",
                 expected_scope_reason="structured_runtime_candidate_signal",
                 expected_allowed_tools=("academic_calendar_lookup",),
+                expected_target="campus_services",
             ),
         ),
         ("习近平新时代中国特色社会主义思想概论有哪些专业要上", None),
@@ -191,6 +190,7 @@ def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
+            expected_target="knowledge",
         )
         for index, (goal, explicit_case) in enumerate(goals, start=1)
     )
@@ -274,6 +274,7 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
             case_id=f"intent-service-candidate-{index:03d}",
             user_goal=goal,
             requested_capability="knowledge",
+            expected_target="campus_services",
             expected_capability="campus_services",
             expected_task_kind="campus_services_lookup",
             expected_launch_state="open",
@@ -307,6 +308,7 @@ def _notice_candidate_cases() -> tuple[IntentCase, ...]:
             case_id=f"intent-notice-candidate-{index:03d}",
             user_goal=goal,
             requested_capability="knowledge",
+            expected_target="notice",
             expected_capability="notice",
             expected_task_kind="notice_lookup",
             expected_launch_state="open",
@@ -357,6 +359,7 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
             case_id=f"intent-explicit-campus-services-{index:03d}",
             user_goal=goal,
             requested_capability="campus_services",
+            expected_target="campus_services",
             expected_capability="campus_services",
             expected_task_kind="campus_services_lookup",
             expected_launch_state="open",
@@ -372,6 +375,7 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
             case_id=f"intent-explicit-notice-{index:03d}",
             user_goal=goal,
             requested_capability="notice",
+            expected_target="notice",
             expected_capability="notice",
             expected_task_kind="notice_lookup",
             expected_launch_state="open",
@@ -506,19 +510,8 @@ def _contextual_follow_up_cases() -> tuple[IntentCase, ...]:
     campus_context = ContextProjection(
         session=SessionSummary(confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金"),))
     )
-    internal_memory_context = ContextProjection(
-        profile_memory=ProfileMemorySummary(
-            items=(
-                ProfileMemoryItem(
-                    item_id="memory-001",
-                    key="recent_goal",
-                    value="处分申诉",
-                    source_type="system_inferred",
-                    confidence="high",
-                    visibility="internal_only",
-                ),
-            )
-        )
+    previous_goal_context = ContextProjection(
+        session=SessionSummary(confirmed_slots=(SessionSlot(name="recent_goal", value="处分申诉"),))
     )
     return (
         IntentCase(
@@ -532,18 +525,20 @@ def _contextual_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="campus_context_signal",
+            expected_target="knowledge",
         ),
         IntentCase(
             case_id="intent-followup-internal-context-001",
             user_goal="这个流程怎么办",
             requested_capability="knowledge",
-            context=internal_memory_context,
+            context=previous_goal_context,
             expected_capability="knowledge",
             expected_task_kind="knowledge_lookup",
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="campus_context_signal",
+            expected_target="knowledge",
         ),
         *(
             IntentCase(
@@ -617,6 +612,7 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
             expected_allowed_tools=(),
+            expected_target="notice",
             expected_context_resolution_state="resolved",
             expected_context_reference_type="selected_notice",
             critical=True,
@@ -656,6 +652,7 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="campus_scope_signal",
+            expected_target="knowledge",
             expected_context_resolution_state="resolved",
             expected_context_reference_type="curriculum_slot",
             critical=True,
@@ -666,17 +663,8 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             user_goal="这个流程怎么办",
             requested_capability="knowledge",
             context=ContextProjection(
-                profile_memory=ProfileMemorySummary(
-                    items=(
-                        ProfileMemoryItem(
-                            item_id="memory-previous-goal-001",
-                            key="recent_goal",
-                            value="处分申诉",
-                            source_type="system_inferred",
-                            confidence="high",
-                            visibility="user_visible",
-                        ),
-                    )
+                session=SessionSummary(
+                    confirmed_slots=(SessionSlot(name="recent_goal", value="处分申诉"),)
                 )
             ),
             expected_capability="knowledge",
@@ -685,6 +673,7 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="campus_context_signal",
+            expected_target="knowledge",
             expected_context_resolution_state="resolved",
             expected_context_reference_type="previous_goal",
             critical=True,
@@ -729,6 +718,7 @@ def intent_version_compat_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
+            expected_target="knowledge",
             tags=("version_compat",),
         ),
     )

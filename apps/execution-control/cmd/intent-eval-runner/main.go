@@ -136,14 +136,17 @@ func rawJSONValue(raw json.RawMessage, fieldName string) (any, error) {
 
 func normalizedContext(input map[string]any) map[string]any {
 	context := map[string]any{}
-	for key, value := range input {
-		context[key] = value
+	if actor, ok := input["actor"]; ok {
+		context["actor"] = actor
+	}
+	if authorization, ok := input["authorization"]; ok {
+		context["authorization"] = authorization
+	}
+	if session, ok := input["session"]; ok {
+		context["session"] = normalizedSession(session)
 	}
 	context["actor"] = normalizedActor(context["actor"])
 	context["authorization"] = normalizedAuthorization(context["authorization"])
-	if _, ok := context["profile_memory"]; !ok {
-		context["profile_memory"] = map[string]any{"items": []any{}}
-	}
 	if _, ok := context["session"]; !ok {
 		context["session"] = map[string]any{"confirmed_slots": []any{}, "turn_count": 0}
 	}
@@ -192,6 +195,17 @@ func normalizedAuthorization(input any) map[string]any {
 		filter["policy_projection_version"] = "phase1-authorization-projection-v1"
 	}
 	result["retrieval_filter"] = filter
+	return result
+}
+
+func normalizedSession(input any) map[string]any {
+	session, _ := input.(map[string]any)
+	result := map[string]any{}
+	for _, key := range []string{"confirmed_slots", "selected_notice_ref", "turn_count"} {
+		if value, ok := session[key]; ok {
+			result[key] = value
+		}
+	}
 	return result
 }
 
