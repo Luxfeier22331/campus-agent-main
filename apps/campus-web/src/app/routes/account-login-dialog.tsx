@@ -18,8 +18,7 @@ import {
 	parseTurnstileRuntimeConfigSource,
 } from "@/platform/auth/turnstile-runtime-config";
 
-const dialogControlClass =
-	"h-[52px] min-h-[52px] rounded-xl px-4 text-[15px] leading-5";
+const dialogControlClass = "h-[52px] min-h-[52px] rounded-xl px-4 text-[15px] leading-5";
 const dialogPrimaryButtonClass =
 	"h-[52px] min-h-[52px] rounded-full bg-[var(--sys-text-strong)] text-[15px] text-white hover:bg-[var(--sys-text-default)]";
 
@@ -65,9 +64,12 @@ export function AccountLoginDialog({
 				return;
 			}
 			const firstElement = focusableElements[0];
-			const lastElement = focusableElements[focusableElements.length - 1];
+			const lastElement = focusableElements.at(-1);
+			if (!(firstElement && lastElement)) {
+				return;
+			}
 			const activeElement = getActiveHtmlElement();
-			if (!activeElement || !dialog.contains(activeElement)) {
+			if (!(activeElement && dialog.contains(activeElement))) {
 				event.preventDefault();
 				firstElement.focus();
 				return;
@@ -234,10 +236,7 @@ export function AccountLoginDialog({
 					) : (
 						<p className="text-sm text-[var(--sys-text-muted)]">正在准备安全验证。</p>
 					)}
-					<AccountDialogAuthStatus
-						invalidDataMessage="请检查邮箱和密码格式。"
-						status={status}
-					/>
+					<AccountDialogAuthStatus invalidDataMessage="请检查邮箱和密码格式。" status={status} />
 					<Button
 						className={dialogPrimaryButtonClass}
 						disabled={isSubmitting || !isTurnstileConfigured}
@@ -297,7 +296,9 @@ function AccountDialogAuthStatus({
 			aria-live="polite"
 			className={cn(
 				"text-sm",
-				status === "success" ? "text-[var(--sys-brand-interactive)]" : "text-[var(--sys-status-danger)]",
+				status === "success"
+					? "text-[var(--sys-brand-interactive)]"
+					: "text-[var(--sys-status-danger)]",
 			)}
 		>
 			{message}

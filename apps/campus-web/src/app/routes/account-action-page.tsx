@@ -211,11 +211,7 @@ function AccountEmailPasswordForm(props: {
 	onSuccess?: () => Promise<void> | void;
 	oauthContext: CampusOAuthContext | null;
 }) {
-	const {
-		mode,
-		oauthContext,
-		onSuccess,
-	} = props;
+	const { mode, oauthContext, onSuccess } = props;
 	const [status, setStatus] = useState<AccountAuthActionState>("idle");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isTurnstileConfigured, setIsTurnstileConfigured] = useState(false);
