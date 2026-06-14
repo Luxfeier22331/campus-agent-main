@@ -142,23 +142,16 @@ pnpm install
 常用验证入口：
 
 ```bash
+pnpm repo:guard
+pnpm repo:static
 pnpm lint
-pnpm web:lint
-pnpm docs:lint
-pnpm editorconfig:lint
-pnpm env:lint
-pnpm yaml:lint
-pnpm toml:lint
-pnpm shell:lint
-pnpm docker:lint
 uv run --all-packages python -m unittest discover -s tests -t .
-uv run --all-packages ruff check .
-uv run --all-packages ruff format . --check
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
 pnpm web:test:integration
 pnpm web:build
+pnpm ci:web-graph:affected
 ```
 
 ## Seed Data Handoff
@@ -184,12 +177,12 @@ canonical artifacts / reader assets in object storage
 不要提交 repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
 或 `apps/campus-web/public/static/` 中的本地生成产物。
 
-其中 `pnpm lint` 是仓库级 live-surface lint gate：默认覆盖 tracked 的源码、tests、repo-owned
+其中 `pnpm repo:static` 是仓库级 live-surface static gate：默认覆盖 tracked 的源码、tests、repo-owned
 config、active docs、prompt markdown、repo dotfile config（`.editorconfig`、tracked
 `.gitignore` / `.gitattributes`）、tracked `.env.example`、tracked
-YAML/TOML、tracked shell scripts，不进入 `.planning/`、archive/historical
-文档、vendor、generated、未跟踪草稿与本地 runtime 产物。`pnpm docker:lint` 是独立 Dockerfile
-lane，默认不并入 `pnpm lint`。
+YAML/TOML、tracked shell scripts、Dockerfile surface，不进入 `.planning/`、archive/historical
+文档、vendor、generated、未跟踪草稿与本地 runtime 产物。`pnpm docker:lint` 已通过
+`pnpm repo:static` 并入默认 `pnpm lint`。
 
 更细的验证 lane 与 smoke 路径见：
 

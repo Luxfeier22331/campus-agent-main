@@ -19,34 +19,32 @@ updated: 2026-04-26
 
 ## 仓库级 lane
 
+### Repo Guard Lane
+
+命令：
+
+```bash
+pnpm repo:guard
+```
+
+语义：
+
+- 这是 repo collaboration / docs structure / workspace layout 的快速 guard
+- CI 中通过 `pnpm ci:repo-guard` 调用同一入口
+- 它不替代静态 lint、typecheck、test 或 build
+
 ### Repo Lint Lane
 
 命令：
 
 ```bash
-pnpm web:lint
-pnpm docs:lint
-pnpm --filter campus-web docs:build
-pnpm coverage:lint
-pnpm java:lint
-pnpm editorconfig:lint
-pnpm env:lint
-pnpm html:lint
-pnpm yaml:lint
-pnpm toml:lint
-pnpm shell:lint
-pnpm xml:lint
-pnpm jsonl:lint
-pnpm sql:lint
-pnpm docker:lint
-pnpm lock:lint
-uv run --all-packages ruff check .
-uv run --all-packages ruff format . --check
+pnpm repo:static
 ```
 
 语义：
 
 - 这是仓库级静态规范检查入口，不替代 typecheck、test 或 build
+- CI 中通过 `pnpm ci:repo-static` 调用同一入口
 - JS/TS 与 JSON/JSONC config 侧使用 Biome，默认检查当前 worktree live
   files：`apps/`、`packages/`、`configs/`、`scripts/`、`tests/` 下的 tracked +
   untracked 文件，以及 repo-owned root JSON/JSONC config（如
@@ -58,7 +56,7 @@ uv run --all-packages ruff format . --check
   historical plan 文档、vendor、`node_modules` 与 scratch markdown
 - campus-web docs reader 侧通过 `pnpm --filter campus-web docs:build` 覆盖当前
   Rspress-powered `/docs/*` reader build。
-- `coverage:lint` 继续是 tracked repo baseline 审计，用于确保 repo-owned text-like surface
+- `pnpm coverage:lint` 继续是 tracked repo baseline 审计，用于确保 repo-owned text-like surface
   都被某个 lint lane 接管；它不扩到未跟踪文件
 - Java 侧当前仅覆盖 `apps/legacy-office-conversion-service/src/**/*.java`，通过
   repo-owned Python wrapper 调用 Docker `lint` target，并在容器内执行 `mvn
@@ -69,7 +67,7 @@ uv run --all-packages ruff format . --check
 - env example 侧使用 repo-owned Python checker，覆盖当前 worktree 的 `*.env.example` 与
   `*.dev.vars.example`，默认排除 `.planning/` 与 `vendor/`；当前要求 `KEY=VALUE` 结构、key
   命名合法且不重复，并禁止 comment / value 尾随空白或 value 前后空白；仍不做跨文件一致性治理
-- HTML 侧使用 repo-owned Python checker，对当前 worktree 的 `*.html` 做 `html5lib`
+- `pnpm html:lint` 使用 repo-owned Python checker，对当前 worktree 的 `*.html` 做 `html5lib`
   解析与最小文档结构校验；当前要求存在 `<!doctype html>`、单一 `html/head/body`，以及非空 `<title>`；默认排除
   `.planning/`、临时目录、vendor 与 `node_modules`
 - YAML 侧通过 repo-owned runner 调用 `pre-commit` 的 `check-yaml` hook，检查当前 worktree
@@ -89,11 +87,16 @@ uv run --all-packages ruff format . --check
 - lock integrity 侧通过 repo-owned checker 校验所有 repo-owned lockfile 真相：
   - `pnpm-lock:lint` 校验 root workspace `pnpm-lock.yaml`，并对当前 worktree app-local
     `pnpm-lock.yaml` 执行隔离 `frozen-lockfile` 校验
+  - app-local `pnpm-lock.yaml` 不允许 `workspace:` dependency specifier；如果 app-local
+    runtime 需要 repo-owned package，必须使用可被隔离 lockfile 解析的 `file:../../packages/...`
+    specifier，或移除 app-local lockfile 作为 truth
   - `uv-lock:lint` 通过 `uv lock --check --offline` 校验 repo root `uv.lock` 是否仍与当前
     Python dependency truth 同步
 - app-local `pnpm-lock.yaml` 当前视为 repo-owned truth；若对应 app 的 `package.json`
   变化，lockfile 必须同步刷新
 - Python 侧使用 Ruff，同时承担 import 排序与格式检查；当前 repo 默认门禁包含 `W` 与 `B904`
+- CI workflow contract 侧通过 `pnpm ci:config:lint` 校验 root packageManager、app/package
+  packageManager、GitHub Actions pnpm 版本与 workflow 调用的 `ci:*` lane 是否一致
 - 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
 
 ### Python Baseline
@@ -117,11 +120,17 @@ uv run --all-packages python -m unittest discover -s tests -t .
 pnpm web:typecheck
 pnpm web:test
 pnpm web:build
+pnpm ci:web-graph:affected
+pnpm ci:web-graph:full
 ```
 
 语义：
 
 - 这是仓库级 JS/TS 默认稳定门禁
+- `pnpm ci:web-graph:affected` 是面向 CI / PR 的 affected graph 入口，等价于基于
+  `origin/develop` 的 `typecheck + test + build --affected --concurrency=2`
+- `pnpm ci:web-graph:full` 是完整 JS/TS graph 入口，等价于 `pnpm web:check`；该入口同样使用
+  Turbo `--concurrency=2`
 - `pnpm web:test` 表示各 app 的默认稳定测试 lane，不等于“所有可能的 JS/TS 测试”
 - 当前它包含：
   - `apps/app-api` 的 `test:node`
