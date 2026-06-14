@@ -12,11 +12,13 @@ try:
         build_root_pnpm_lock_check_command,
         main,
         tracked_pnpm_lock_files,
+        validate_app_manifest_has_no_workspace_dependencies,
     )
 except ModuleNotFoundError:  # pragma: no cover - red phase for TDD
     app_package_manifest_for_lockfile = None
     build_app_pnpm_lock_check_command = None
     build_root_pnpm_lock_check_command = None
+    validate_app_manifest_has_no_workspace_dependencies = None
     main = None
     tracked_pnpm_lock_files = None
 
@@ -92,6 +94,20 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
         with self.assertRaisesRegex(FileNotFoundError, "package.json"):
             app_package_manifest_for_lockfile(
                 repo_root / "tmp/missing/pnpm-lock.yaml", root=repo_root
+            )
+
+    def test_app_local_lockfile_rejects_workspace_protocol_dependencies(self) -> None:
+        self.assertIsNotNone(validate_app_manifest_has_no_workspace_dependencies)
+        repo_root = Path(__file__).resolve().parents[1]
+        with self.assertRaisesRegex(ValueError, "workspace protocol"):
+            validate_app_manifest_has_no_workspace_dependencies(
+                {
+                    "dependencies": {
+                        "dining-floorplans": "workspace:*",
+                    }
+                },
+                repo_root / "apps/app-api/package.json",
+                root=repo_root,
             )
 
     @patch("scripts.check_pnpm_lock_tracked.subprocess.run")
