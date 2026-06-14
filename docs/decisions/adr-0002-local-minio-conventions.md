@@ -42,7 +42,7 @@ source-truth / document artifact、小型 index release manifest 与 operations 
 chunking 后的全文 chunk dump 当作长期对象存储真相。
 
 历史 `Free` tier 过渡期曾在 derived bucket 保存
-`{corpus}/backups/{collection}/...` Qdrant snapshot bundle。ADR-0045 接受后，当前默认备份
+`{corpus}/backups/{collection}/...` Qdrant snapshot bundle。ADR-0052 接受后，当前默认备份
 路径改为 self-hosted Qdrant native snapshots，归档到
 `/srv/backups/campus-agent/qdrant-snapshots/` 并复制到 off-host archive；staging R2 /
 serving seed bucket 不保存 Qdrant `.snapshot`。

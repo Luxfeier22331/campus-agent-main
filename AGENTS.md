@@ -82,7 +82,7 @@
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
-- `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`
+- `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`

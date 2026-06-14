@@ -1,7 +1,8 @@
 ---
-doc_type: adr
+doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
+decision_id: ADR-0051
 status: accepted
 created: 2026-06-10
 updated: 2026-06-12

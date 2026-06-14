@@ -1199,8 +1199,8 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=150`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
-  - Title: ADR-0045 Self-Hosted Single-Node Qdrant And Native Backups
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
+  - Title: ADR-0052 Self-Hosted Single-Node Qdrant And Native Backups
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
@@ -1231,16 +1231,16 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=temporal`, `state=tracked`, `lines=339`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`
-  - Title: ADR-0049 Qdrant-Native Personal Memory Index
+- `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
+  - Title: ADR-0053 Qdrant-Native Personal Memory Index
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
   - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=104`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0050-ingestion-control-plane-and-kernel-boundary.md`
-  - Title: ADR-0050 Ingestion Control Plane And Kernel Boundary
+- `docs/decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md`
+  - Title: ADR-0054 Ingestion Control Plane And Kernel Boundary
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`

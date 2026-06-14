@@ -2,13 +2,13 @@
 doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
-decision_id: ADR-0050
+decision_id: ADR-0054
 status: accepted
 created: 2026-06-11
 updated: 2026-06-11
 supersedes: []
 ---
-# ADR-0050 Ingestion Control Plane And Kernel Boundary
+# ADR-0054 Ingestion Control Plane And Kernel Boundary
 
 ## 状态
 

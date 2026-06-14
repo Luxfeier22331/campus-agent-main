@@ -20,7 +20,7 @@ updated: 2026-06-12
 - 不重复旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical
   -collection-retention-and-expiration.md`
 - 不重复 self-hosted Qdrant native backup 策略：
-  `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+  `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 - 不承担当前执行状态真相：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
   `STATE.md`
 - 早期 `phase-1` 文档只作为历史背景或约束来源，不再单独承担当前 phase truth

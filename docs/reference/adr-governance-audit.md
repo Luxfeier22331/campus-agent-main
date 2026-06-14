@@ -50,8 +50,8 @@ updated: 2026-06-04
 - `decision_id` 与文件名：全部匹配。
 - status vocabulary：全部在 `accepted` / `superseded` 等允许集合内。
 - supersession：
-  - `ADR-0045` supersedes `ADR-0020`。
-  - `ADR-0020` 已标记 `superseded`，并回链 `ADR-0045`。
+  - `ADR-0052` supersedes `ADR-0020`。
+  - `ADR-0020` 已标记 `superseded`，并回链 `ADR-0052`。
 
 本轮已修复的机械问题：
 
@@ -78,7 +78,7 @@ updated: 2026-06-04
   `ADR-0012`、`ADR-0013`、
   `ADR-0043` 与 current architecture。
 - Qdrant backup 默认主路径已从 Cloud / object-store bundle 切到 self-hosted
-  native snapshot，见 `ADR-0045`；`ADR-0020` 已 superseded。
+  native snapshot，见 `ADR-0052`；`ADR-0020` 已 superseded。
 - authorization truth 由 `app-api` 拥有，retrieval 只消费 filter projection，
   见 `ADR-0022`、`ADR-0034` 与 identity architecture。
 - `Sentry` / `Axiom` 是 observability sinks，不是 panel canonical read model，
@@ -118,7 +118,7 @@ updated: 2026-06-04
 
 - `ADR-0002` 的主职责是本地 MinIO / S3-compatible object-store convention。
 - 它也保留了 historical Qdrant backup bundle object key schema。
-- `ADR-0045` 已把当前 backup 主路径切到 qdrant-native filesystem snapshots。
+- `ADR-0052` 已把当前 backup 主路径切到 qdrant-native filesystem snapshots。
 
 判断：
 
@@ -251,7 +251,7 @@ updated: 2026-06-04
   - `ADR-0020`
   - `ADR-0029`
   - `ADR-0044`
-  - `ADR-0045`
+  - `ADR-0052`
 - Identity / authorization:
   - `ADR-0034`
 - Official web / authenticated notice / internal notice:

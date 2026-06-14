@@ -2,13 +2,13 @@
 doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
-decision_id: ADR-0045
+decision_id: ADR-0052
 status: accepted
 created: 2026-06-01
 updated: 2026-06-01
 supersedes: ADR-0020
 ---
-# ADR-0045 Self-Hosted Single-Node Qdrant And Native Backups
+# ADR-0052 Self-Hosted Single-Node Qdrant And Native Backups
 
 ## Context
 

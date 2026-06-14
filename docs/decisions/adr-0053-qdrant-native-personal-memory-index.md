@@ -2,14 +2,14 @@
 doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
-decision_id: ADR-0049
+decision_id: ADR-0053
 status: accepted
 created: 2026-06-10
 updated: 2026-06-10
 supersedes:
   - ADR-0015 memory ownership / confirmation / non-authz clauses
 ---
-# ADR-0049 Qdrant-Native Personal Memory Index
+# ADR-0053 Qdrant-Native Personal Memory Index
 
 ## 状态
 

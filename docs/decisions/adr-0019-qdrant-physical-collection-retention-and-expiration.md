@@ -114,7 +114,7 @@ updated: 2026-06-01
 
 - `docs/reference/runtime-serving-and-index-terms.md` 需要补充 retention role 定义
 - `docs/runbooks/index-release-runbook.md` 需要补充旧 collection 清理门禁与操作流程
-- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
   冻结当前 self-hosted native snapshot 恢复覆盖策略
 - 后续如果实现自动 GC / cleanup worker，必须严格遵守本 ADR 的角色与门禁，而不是重新发明 time-only policy
 
@@ -131,5 +131,5 @@ updated: 2026-06-01
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/runbooks/index-release-runbook.md`
-- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`

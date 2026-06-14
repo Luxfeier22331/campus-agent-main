@@ -6,18 +6,18 @@ decision_id: ADR-0020
 status: superseded
 created: 2026-03-31
 updated: 2026-06-01
-superseded_by: ADR-0045
+superseded_by: ADR-0052
 ---
 # ADR-0020 Qdrant Cloud Backup Restore And Object-Store Transition
 
 ## Superseded
 
-ADR-0045 supersedes this decision.
+ADR-0052 supersedes this decision.
 
 Current staging and early production do not use Qdrant Cloud or the old
 snapshot-to-object-storage backup path. The active decision is:
 
-- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 
 The active runbook is:
 

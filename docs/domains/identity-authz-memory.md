@@ -30,7 +30,7 @@ updated: 2026-06-12
 - `../architecture/system/identity-browser-experience-architecture.md`
 - `../architecture/system/federation-and-mucwiki-login-architecture.md`
 - `../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `../decisions/adr-0049-qdrant-native-personal-memory-index.md`
+- `../decisions/adr-0053-qdrant-native-personal-memory-index.md`
 - `../decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 
 ## Contract 与 Data

@@ -58,7 +58,7 @@ updated: 2026-06-12
 
 - `adr-0015-user-identity-memory-and-personalization-boundaries.md`
   - memory ownership / online recall 部分由
-    `adr-0049-qdrant-native-personal-memory-index.md` supersede；account / session、
+    `adr-0053-qdrant-native-personal-memory-index.md` supersede；account / session、
     raw state 与 memory boundary 继续生效。
 - `adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `adr-0023-operator-observability-control-plane-and-sink-participation.md`
@@ -77,15 +77,15 @@ Historical / superseded：
 - `adr-0007-phase1-retrieval-baseline-update.md`
 - `adr-0014-versioned-document-serving-and-history-query.md`
 - `adr-0019-qdrant-physical-collection-retention-and-expiration.md`
-- `adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
-- `adr-0049-qdrant-native-personal-memory-index.md`
+- `adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
+- `adr-0053-qdrant-native-personal-memory-index.md`
 - `adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `adr-0044-structured-projection-release-catalog-and-read-model.md`
 
 历史替代关系：
 
 - `adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md` 已被
-  `adr-0045-self-hosted-single-node-qdrant-and-native-backups.md` supersede。
+  `adr-0052-self-hosted-single-node-qdrant-and-native-backups.md` supersede。
 
 ## Navigation 与 institution semantics
 
