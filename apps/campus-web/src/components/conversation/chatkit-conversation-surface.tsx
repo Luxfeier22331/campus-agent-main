@@ -13,30 +13,14 @@ const ACTIVE_CHATKIT_REQUEST_TYPES = new Set([
 ]);
 
 const CHATKIT_READY_TIMEOUT_MS = 8_000;
+const CHATKIT_SURFACE_CLASS = "mx-auto h-full min-h-0 w-full max-w-[880px]";
 
-const HOME_COPY_VARIANTS = [
-	{
-		greeting: "今天想查什么校园信息？",
-		placeholder: "问政策、地点、食堂或校园服务",
-	},
-	{
-		greeting: "需要了解哪件校园事？",
-		placeholder: "例如：校园卡丢了怎么办？",
-	},
-	{
-		greeting: "想问什么校园问题？",
-		placeholder: "例如：中慧楼在哪里？",
-	},
-	{
-		greeting: "有什么校园问题想确认？",
-		placeholder: "例如：丰台食堂有哪些？",
-	},
-] as const;
-
-type HomeCopyVariant = (typeof HOME_COPY_VARIANTS)[number];
+const HOME_COPY = {
+	greeting: "今天想了解什么校园信息？",
+	placeholder: "问政策、地点、食堂或校园服务",
+} as const;
 
 type ChatKitSurfaceStatus = "ready" | "runtime_unavailable" | "service_unavailable";
-type ChatKitSurfaceMode = "home" | "thread";
 
 function getChatKitRequestType(init?: RequestInit): string | null {
 	if (typeof init?.body !== "string") {
@@ -55,13 +39,6 @@ function isActiveChatKitRequest(init?: RequestInit): boolean {
 	return requestType ? ACTIVE_CHATKIT_REQUEST_TYPES.has(requestType) : false;
 }
 
-function pickHomeCopyVariant(): HomeCopyVariant {
-	return (
-		HOME_COPY_VARIANTS[Math.floor(Math.random() * HOME_COPY_VARIANTS.length)] ??
-		HOME_COPY_VARIANTS[0]
-	);
-}
-
 export function ChatKitConversationSurface({
 	initialThread,
 	onLoginRequired,
@@ -72,8 +49,6 @@ export function ChatKitConversationSurface({
 	const navigate = useNavigate();
 	const [ready, setReady] = useState(false);
 	const [status, setStatus] = useState<ChatKitSurfaceStatus>("ready");
-	const surfaceMode: ChatKitSurfaceMode = initialThread ? "thread" : "home";
-	const [homeCopy] = useState<HomeCopyVariant>(() => pickHomeCopyVariant());
 	const chatKitFetch = useCallback(
 		async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
 			const response = await fetch(input, {
@@ -100,7 +75,7 @@ export function ChatKitConversationSurface({
 			attachments: {
 				enabled: false,
 			},
-			placeholder: homeCopy.placeholder,
+			placeholder: HOME_COPY.placeholder,
 		},
 		frameTitle: "MUC Campus Q&A",
 		header: {
@@ -129,7 +104,7 @@ export function ChatKitConversationSurface({
 			);
 		},
 		startScreen: {
-			greeting: homeCopy.greeting,
+			greeting: HOME_COPY.greeting,
 			prompts: [],
 		},
 		thread: {
@@ -173,13 +148,7 @@ export function ChatKitConversationSurface({
 
 	return (
 		<div className="relative flex min-h-0 flex-1 items-stretch justify-center px-4 md:px-6">
-			<ChatKit
-				className={cn(
-					"mx-auto h-full min-h-0 w-full",
-					surfaceMode === "home" ? "max-w-[var(--layout-chat-content-width)]" : "max-w-[880px]",
-				)}
-				control={chatkit.control}
-			/>
+			<ChatKit className={cn(CHATKIT_SURFACE_CLASS)} control={chatkit.control} />
 			{status === "service_unavailable" ? (
 				<div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex justify-center">
 					<div className="rounded-full border border-[var(--sys-border-subtle)] bg-white px-4 py-2 text-sm text-[var(--sys-text-muted)] shadow-[var(--shadow-sm)]">

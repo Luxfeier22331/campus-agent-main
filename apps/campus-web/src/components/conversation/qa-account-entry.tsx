@@ -15,6 +15,13 @@ import type { AccountSettingsSectionId } from "@/app/routes/account-settings-con
 import { cn } from "@/lib/utils";
 import { signOutAccount } from "@/platform/auth/client";
 
+const accountEntryButtonClass =
+	"group flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium leading-5 text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]";
+const accountMenuItemClass =
+	"flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium leading-5 text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]";
+const accountMenuIconClass =
+	"grid size-5 shrink-0 place-items-center text-[var(--sys-text-muted)] [&_svg]:size-4";
+
 export type AccountEntryState =
 	| {
 			status: "authenticated";
@@ -96,16 +103,16 @@ export function QAAccountEntry({
 				aria-expanded={open}
 				aria-haspopup="menu"
 				aria-label={detail ? `${label} ${detail}` : label}
-				className="group flex min-h-12 w-full items-center gap-3 rounded-xl px-2 text-left text-sm text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
+				className={accountEntryButtonClass}
 				onClick={() => setOpen(true)}
 				ref={buttonRef}
 				type="button"
 			>
 				<span
 					aria-hidden="true"
-					className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--sys-bg-muted)] text-xs font-semibold text-[var(--sys-text-muted)] group-hover:bg-white group-hover:text-[var(--sys-text-strong)]"
+					className="grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--sys-bg-muted)] text-xs font-semibold text-[var(--sys-text-muted)] group-hover:bg-white group-hover:text-[var(--sys-text-strong)] [&_svg]:size-4"
 				>
-					{initial ? initial : <UserRound aria-hidden="true" className="size-4" />}
+					{initial ? initial : <UserRound aria-hidden="true" />}
 				</span>
 				<span className="min-w-0 flex-1">
 					<span className="block truncate font-medium text-[var(--sys-text-strong)]">{label}</span>
@@ -219,14 +226,8 @@ function AccountMenu({
 
 function AccountMenuLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
 	return (
-		<a
-			className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
-			href={href}
-			role="menuitem"
-		>
-			<span className="grid size-5 place-items-center text-[var(--sys-text-muted)] [&_svg]:size-4">
-				{icon}
-			</span>
+		<a className={accountMenuItemClass} href={href} role="menuitem">
+			<span className={accountMenuIconClass}>{icon}</span>
 			<span className="truncate">{label}</span>
 		</a>
 	);
@@ -248,7 +249,8 @@ function AccountMenuButton({
 	return (
 		<button
 			className={cn(
-				"flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)] disabled:cursor-not-allowed disabled:opacity-60",
+				accountMenuItemClass,
+				"disabled:cursor-not-allowed disabled:opacity-60",
 				destructive && "text-[var(--sys-status-danger)]",
 			)}
 			disabled={disabled}
@@ -256,7 +258,7 @@ function AccountMenuButton({
 			role="menuitem"
 			type="button"
 		>
-			<span className="grid size-5 place-items-center text-current [&_svg]:size-4">{icon}</span>
+			<span className={cn(accountMenuIconClass, destructive && "text-current")}>{icon}</span>
 			<span className="truncate">{label}</span>
 		</button>
 	);

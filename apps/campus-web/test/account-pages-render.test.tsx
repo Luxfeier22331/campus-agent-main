@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	AccountActionPage,
+	AccountLoginDialog,
 	FederationConsentPage,
 	FederationErrorPage,
 } from "../src/app/routes/account-action-page";
@@ -149,6 +150,28 @@ describe("campus account pages", () => {
 		expect(screen.getByText("创建账号后继续使用校园问答与账号服务。")).toBeInTheDocument();
 		expect(screen.getByLabelText("确认密码")).toBeInTheDocument();
 		expect(screen.queryByText("使用统一账号访问校园应用")).toBeNull();
+	});
+
+	it("renders the Q&A login dialog as an inline identity confirmation", () => {
+		const closeDialog = vi.fn();
+		render(<AccountLoginDialog onClose={closeDialog} />);
+
+		expect(screen.getByRole("dialog", { name: "登录或创建账号" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "登录或创建账号" })).toBeInTheDocument();
+		expect(screen.getByText("登录后可以继续提问，并保留聊天记录。")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "登录并继续" })).toBeInTheDocument();
+		expect(screen.queryByText("登录后继续提问。")).toBeNull();
+		expect(screen.getByText("正在准备安全验证。")).toBeInTheDocument();
+		expect(screen.getByLabelText("邮箱地址")).toHaveFocus();
+		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
+			"href",
+			"/account/register",
+		);
+		expect(screen.getByRole("link", { name: "忘记密码" })).toHaveAttribute(
+			"href",
+			"/account/forgot-password",
+		);
+		expect(screen.queryByRole("link", { name: "忘记密码？" })).toBeNull();
 	});
 
 	it("renders federation consent and error pages with neutral campus account copy", () => {

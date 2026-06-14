@@ -14,32 +14,34 @@
 	--color-ring: var(--sys-border-focus);
 }
 
-* {
-	box-sizing: border-box;
-}
+@layer base {
+	* {
+		box-sizing: border-box;
+	}
 
-html {
-	background: var(--sys-bg-canvas);
-	color: var(--sys-text-default);
-	font-family: var(--font-sans);
-}
+	html {
+		background: var(--sys-bg-canvas);
+		color: var(--sys-text-default);
+		font-family: var(--font-sans);
+	}
 
-body {
-	margin: 0;
-	min-width: 320px;
-	min-height: 100dvh;
-	background: var(--sys-bg-canvas);
-}
+	body {
+		margin: 0;
+		min-width: 320px;
+		min-height: 100dvh;
+		background: var(--sys-bg-canvas);
+	}
 
-a {
-	text-decoration: none;
-}
+	a {
+		text-decoration: none;
+	}
 
-button,
-input,
-select,
-textarea {
-	font: inherit;
+	button,
+	input,
+	select,
+	textarea {
+		font: inherit;
+	}
 }
 
 .campus-map-marker {

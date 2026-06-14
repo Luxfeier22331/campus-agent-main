@@ -36,7 +36,7 @@ vi.mock("@/app/routes/account-action-page", () => ({
 		onAuthenticated?: () => Promise<void> | void;
 		onClose: () => void;
 	}) => (
-		<div aria-label="登录" role="dialog">
+		<div aria-label="登录或创建账号" role="dialog">
 			<button onClick={onClose} type="button">
 				关闭登录
 			</button>
@@ -199,10 +199,10 @@ describe("Q&A product interactions", () => {
 			body: JSON.stringify({ params: { input: "hello" }, type: "threads.create" }),
 			method: "POST",
 		});
-		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "登录或创建账号" })).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "关闭登录" }));
-		expect(screen.queryByRole("dialog", { name: "登录" })).toBeNull();
+		expect(screen.queryByRole("dialog", { name: "登录或创建账号" })).toBeNull();
 
 		await chatKitFetch("http://127.0.0.1/api/chatkit", {
 			body: JSON.stringify({ params: { input: "hello again" }, type: "threads.create" }),

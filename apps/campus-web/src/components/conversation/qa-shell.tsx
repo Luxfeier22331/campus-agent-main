@@ -19,6 +19,12 @@ const supportNavItems = [
 	{ emphasis: true, label: "反馈", to: "/feedback" },
 ] as const;
 
+const railActionClass =
+	"inline-flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium leading-5 hover:bg-[var(--sys-bg-muted)]";
+const railActionIconClass = "size-4 shrink-0 text-[var(--sys-text-muted)]";
+const railActionShortcutClass =
+	"ml-auto text-xs font-normal leading-4 text-[var(--sys-text-subtle)]";
+
 export function QAShell({
 	children,
 	loginRequested,
@@ -172,32 +178,26 @@ function ChatKitProductRail({
 				<p className="mt-0.5 text-xs text-[var(--sys-text-subtle)]">MUC Campus Q&A</p>
 			</div>
 			<div className="mt-2 space-y-1">
-				<Link
-					className="inline-flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
-					to="/"
-				>
-					<MessageSquarePlus aria-hidden="true" className="size-4 text-[var(--sys-text-muted)]" />
+				<Link className={cn(railActionClass, "text-[var(--sys-text-strong)]")} to="/">
+					<MessageSquarePlus aria-hidden="true" className={railActionIconClass} />
 					新对话
-					<span
-						aria-hidden="true"
-						className="ml-auto text-xs font-normal text-[var(--sys-text-subtle)]"
-					>
+					<span aria-hidden="true" className={railActionShortcutClass}>
 						⌘⇧O
 					</span>
 				</Link>
 				<button
-					className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
+					className={cn(
+						railActionClass,
+						"text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]",
+					)}
 					onClick={() =>
 						document.dispatchEvent(new CustomEvent("campus-chatkit-open-history-search"))
 					}
 					type="button"
 				>
-					<Search aria-hidden="true" className="size-4 shrink-0" />
+					<Search aria-hidden="true" className={railActionIconClass} />
 					搜索聊天
-					<span
-						aria-hidden="true"
-						className="ml-auto text-xs font-normal text-[var(--sys-text-subtle)]"
-					>
+					<span aria-hidden="true" className={railActionShortcutClass}>
 						⌘K
 					</span>
 				</button>

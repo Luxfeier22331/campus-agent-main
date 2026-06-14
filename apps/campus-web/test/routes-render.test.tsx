@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { UseChatKitOptions } from "@openai/chatkit-react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +15,8 @@ import qaAccountEntrySource from "../src/components/conversation/qa-account-entr
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import { UnauthorizedError } from "../src/platform/api/client";
+
+const stylesSource = readFileSync("src/styles.css", "utf8");
 
 const diningApiMock = vi.hoisted(() => ({
 	getDiningFloor: vi.fn(),
@@ -202,12 +205,11 @@ describe("campus routes", () => {
 		fireEvent.click(screen.getByRole("menuitem", { name: "账号设置" }));
 		expect(await screen.findByRole("dialog", { name: "账号设置" })).toBeInTheDocument();
 		expect(getLastChatKitOptions().startScreen).toEqual({
-			greeting: expect.stringMatching(
-				/今天想查什么校园信息？|需要了解哪件校园事？|想问什么校园问题？|有什么校园问题想确认？/,
-			),
+			greeting: "今天想了解什么校园信息？",
 			prompts: [],
 		});
 		expect(getLastChatKitOptions().disclaimer).toBeUndefined();
+		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
 		expect(screen.queryByText("校园卡")).toBeNull();
 		expect(screen.queryByText("食堂")).toBeNull();
 		expect(screen.queryByText("找地点")).toBeNull();
@@ -240,10 +242,19 @@ describe("campus routes", () => {
 		expect(qaAccountEntrySource).toContain('role="menu"');
 		expect(qaAccountEntrySource).toContain("ChevronUp");
 		expect(qaAccountEntrySource).not.toContain("关闭账号面板");
+		expect(qaAccountEntrySource).toContain("const accountEntryButtonClass");
+		expect(qaAccountEntrySource).toContain("const accountMenuItemClass");
+		expect(qaAccountEntrySource).toContain("className={accountMenuItemClass}");
+		expect(qaAccountEntrySource).toContain("accountMenuItemClass,");
 		expect(qaShellSource).toContain("饭堂分布图");
+		expect(qaShellSource).toContain("const railActionClass");
+		expect(qaShellSource).toContain("const railActionIconClass");
+		expect(qaShellSource).toContain("const railActionShortcutClass");
 		expect(qaShellSource).not.toContain("ChatKit 管理");
 		expect(qaShellSource).not.toContain("ConversationSidebar");
 		expect(qaShellSource).not.toContain("rounded-lg px-3 text-sm font-medium");
+		expect(stylesSource).toContain("@layer base");
+		expect(stylesSource).toContain("font: inherit");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
 	});
 
@@ -285,10 +296,18 @@ describe("campus routes", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "登录" }));
 		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
 
-		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "登录或创建账号" })).toBeInTheDocument();
+		expect(screen.getByText("登录后可以继续提问，并保留聊天记录。")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "登录并继续" })).toBeInTheDocument();
+		expect(screen.queryByText("登录后继续提问。")).toBeNull();
+		expect(screen.getByText("正在准备安全验证。")).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
 			"href",
 			"/account/register",
+		);
+		expect(screen.getByRole("link", { name: "忘记密码" })).toHaveAttribute(
+			"href",
+			"/account/forgot-password",
 		);
 	});
 
