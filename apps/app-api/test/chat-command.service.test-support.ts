@@ -339,6 +339,7 @@ function internalContextFromWire(
 		authorizationWire.retrieval_filter,
 		"execution context retrieval filter",
 	);
+	const memoryWire = getRecord(wire.memory);
 	const sessionWire = getRecordOrThrow(wire.session, "execution context session");
 	const selectedNoticeWire = getRecord(sessionWire.selected_notice_ref);
 	return {
@@ -359,6 +360,9 @@ function internalContextFromWire(
 			},
 			visibilityScope: getString(authorizationWire.visibility_scope) ?? "",
 		},
+		...(typeof memoryWire?.enabled === "boolean"
+			? { memory: { enabled: memoryWire.enabled } }
+			: {}),
 		session: {
 			confirmedSlots: getRecordArray(sessionWire.confirmed_slots).map((slot) => ({
 				confirmed: slot.confirmed === true,

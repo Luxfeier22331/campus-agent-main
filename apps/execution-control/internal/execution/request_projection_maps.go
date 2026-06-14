@@ -123,6 +123,9 @@ func (c contextProjection) toMap() map[string]any {
 		"authorization": c.Authorization.toMap(),
 		"session":       session,
 	}
+	if c.MemoryEnabled != nil {
+		result["memory"] = map[string]any{"enabled": *c.MemoryEnabled}
+	}
 	return result
 }
 

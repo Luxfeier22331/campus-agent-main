@@ -235,6 +235,9 @@ export function createRequestScopeFactory(input: {
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
 					executionRuntime,
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
+					profileMemoryStore: createPgProfileMemoryStore(input.env, {
+						getDb: runtime.getFreshDb,
+					}),
 					requireExecutionRuntime,
 					telemetry: input.telemetry,
 					traceBacklinkRecorder: buildOperatorTraceBacklinkRecorder({

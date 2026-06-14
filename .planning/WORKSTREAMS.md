@@ -124,9 +124,10 @@ Current non-gaps after the doc audit:
 
 - Main answer chain completion is judged by the generic execution skeleton, not
   by every capability's content maturity or product opening.
-- Explicit personal memory upsert / disable / owner-disable is implemented
-  through `app-api -> execution-control -> Qdrant`; inferred memory update
-  workflow remains future target, not a current v1 gap.
+- Explicit personal memory upsert / disable / owner-disable and post-finalization
+  inferred memory update are implemented through
+  `app-api -> execution-control -> Qdrant`; candidate confirmation UI / strong
+  governance remains later product work, not a current main-chain gap.
 - Opened campus-services read-only tools are implemented as model-visible typed
   tools plus Go internal structured query endpoints; only
   `service_process_lookup` remains later-wave.

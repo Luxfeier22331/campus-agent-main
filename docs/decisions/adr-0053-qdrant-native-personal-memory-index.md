@@ -91,6 +91,9 @@ ADR-0015 仍保留 identity / authorization / raw-state minimization 决策。
 - Qdrant data-plane TLS / read-only query key posture 同时适用于 personal memory recall；
   explicit memory upsert / disable 由 execution-control internal command 使用
   `QDRANT_WRITE_API_KEY` 写入 personal memory index。
+- inferred memory update 作为 finalization 后置 activity / workflow 执行；首版自动生效为
+  `status=active`、`source=inferred`，但必须受 `context.memory.enabled` gate、
+  high-confidence extraction 与 compact payload validation 约束。
 - 外部 memory SDK 只作为参考，不作为 default runtime。
 - Strong user governance、panel/eval influence tracing、full audit graph 与
   graph memory 不属于 v1 acceptance。

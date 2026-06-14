@@ -67,6 +67,20 @@ func (a TemporalContextActivities) MemoryRecallActivity(
 	return a.server.MemoryRecallActivity(ctx, input)
 }
 
+func (a TemporalContextActivities) ExtractMemoryCandidatesActivity(
+	ctx context.Context,
+	input temporalruntime.ExtractMemoryCandidatesActivityInput,
+) (temporalruntime.ExtractMemoryCandidatesActivityOutput, error) {
+	return a.server.ExtractMemoryCandidatesActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) UpsertInferredMemoryActivity(
+	ctx context.Context,
+	input temporalruntime.UpsertInferredMemoryActivityInput,
+) (temporalruntime.UpsertInferredMemoryActivityOutput, error) {
+	return a.server.UpsertInferredMemoryActivity(ctx, input)
+}
+
 func (a TemporalContextActivities) PlanRouteActivity(
 	ctx context.Context,
 	input temporalruntime.PlanRouteActivityInput,

@@ -141,6 +141,7 @@ type selectedNoticeRef struct {
 type contextProjection struct {
 	Actor             actorContext
 	Authorization     authorizationProjection
+	MemoryEnabled     *bool
 	SessionSlots      []sessionSlot
 	SelectedNoticeRef selectedNoticeRef
 	TurnCount         int

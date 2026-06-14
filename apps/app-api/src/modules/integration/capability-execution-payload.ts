@@ -37,6 +37,7 @@ export function toCapabilityExecutionContext(context: CapabilityExecutionContext
 				visibility_scope: context.authorization.retrievalFilter.visibilityScope,
 			},
 		},
+		...(context.memory ? { memory: { enabled: context.memory.enabled } } : {}),
 		session: {
 			confirmed_slots: context.session.confirmedSlots.map((slot) => ({
 				confirmed: slot.confirmed,

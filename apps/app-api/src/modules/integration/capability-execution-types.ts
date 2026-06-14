@@ -38,9 +38,14 @@ export interface CapabilityExecutionSessionSummary {
 	turnCount: number;
 }
 
+export interface CapabilityExecutionMemorySummary {
+	enabled: boolean;
+}
+
 export interface CapabilityExecutionContextProjection {
 	actor: ExecutionActorContext;
 	authorization: ExecutionAuthorizationContext;
+	memory?: CapabilityExecutionMemorySummary;
 	session: CapabilityExecutionSessionSummary;
 }
 

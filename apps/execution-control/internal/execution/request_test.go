@@ -208,6 +208,7 @@ func TestParseAnswerRequestProjectsTrustedWorkerContext(t *testing.T) {
 						"policy_projection_version":"phase1-authorization-projection-v1"
 					}
 				},
+				"memory":{"enabled":false},
 				"session":{
 					"confirmed_slots":[
 						{"name":"policy_topic","value":"推免资格","confirmed":true}
@@ -240,6 +241,10 @@ func TestParseAnswerRequestProjectsTrustedWorkerContext(t *testing.T) {
 	contextRecord := expectExecutionRecord(t, payload["context"], "context")
 	if _, ok := contextRecord["profile_memory"]; ok {
 		t.Fatal("context.profile_memory must not be projected; memory recall is Temporal-owned")
+	}
+	memory := expectExecutionRecord(t, contextRecord["memory"], "context.memory")
+	if memory["enabled"] != false {
+		t.Fatalf("context.memory.enabled = %v, want false", memory["enabled"])
 	}
 	session := expectExecutionRecord(t, contextRecord["session"], "context.session")
 	if session["turn_count"] != float64(2) {

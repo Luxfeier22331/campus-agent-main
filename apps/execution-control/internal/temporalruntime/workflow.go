@@ -59,6 +59,7 @@ func CapabilityExecutionWorkflow(
 		if err != nil {
 			return CapabilityExecutionWorkflowResult{}, err
 		}
+		executeMemoryUpdate(ctx, activityOptions, input, requestedCapability)
 		return workflowResultFromFinalization(finalization), nil
 	}
 	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
@@ -69,7 +70,48 @@ func CapabilityExecutionWorkflow(
 	if err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
+	executeMemoryUpdate(ctx, activityOptions, input, requestedCapability)
 	return workflowResultFromFinalization(finalization), nil
+}
+
+func executeMemoryUpdate(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input CapabilityExecutionWorkflowInput,
+	requestedCapability string,
+) {
+	contextOptions := activityOptions
+	contextOptions.TaskQueue = ActivityTaskQueueContext
+	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
+	extractInput := ExtractMemoryCandidatesActivityInput{
+		RequestID:           input.RequestID,
+		RequestedCapability: requestedCapability,
+		RunID:               input.RunID,
+		TraceID:             input.TraceID,
+	}
+	var extract ExtractMemoryCandidatesActivityOutput
+	if err := workflow.ExecuteActivity(
+		contextCtx,
+		ExtractMemoryCandidatesActivityName,
+		extractInput,
+	).Get(ctx, &extract); err != nil {
+		return
+	}
+	if len(extract.Candidates) == 0 {
+		return
+	}
+	var upsert UpsertInferredMemoryActivityOutput
+	_ = workflow.ExecuteActivity(
+		contextCtx,
+		UpsertInferredMemoryActivityName,
+		UpsertInferredMemoryActivityInput{
+			Candidates:          extract.Candidates,
+			RequestID:           input.RequestID,
+			RequestedCapability: requestedCapability,
+			RunID:               input.RunID,
+			TraceID:             input.TraceID,
+		},
+	).Get(ctx, &upsert)
 }
 
 func executePrimaryAgentWithBoundedReplan(

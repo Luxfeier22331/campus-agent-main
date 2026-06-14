@@ -36,12 +36,14 @@ export function buildConversationTitle(currentTitle: string, prompt: string): st
 export function buildCapabilityExecutionContextProjection(input: {
 	actor: ResolvedAppPrincipal["actor"];
 	authorization: ResolvedAppPrincipal["authorization"];
+	memory?: { enabled: boolean } | null;
 	sessionSlots: ChatConversation["sessionSlots"];
 	turnCount: number;
 }) {
 	return {
 		actor: input.actor,
 		authorization: input.authorization ?? buildExecutionAuthorizationContext(input.actor),
+		...(input.memory ? { memory: { enabled: input.memory.enabled } } : {}),
 		session: buildExecutionSessionProjection({
 			sessionSlots: input.sessionSlots,
 			turnCount: input.turnCount,

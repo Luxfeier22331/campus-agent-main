@@ -2,6 +2,8 @@ package temporalruntime
 
 const (
 	MemoryRecallActivityName            = "MemoryRecallActivity"
+	ExtractMemoryCandidatesActivityName = "ExtractMemoryCandidatesActivity"
+	UpsertInferredMemoryActivityName    = "UpsertInferredMemoryActivity"
 	ExecutePrimaryAgentActivityName     = "ExecutePrimaryAgentActivity"
 	PlanRouteActivityName               = "PlanRouteActivity"
 	PlanReplanActivityName              = "PlanReplanActivity"

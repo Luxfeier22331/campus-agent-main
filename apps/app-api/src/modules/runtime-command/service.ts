@@ -317,10 +317,23 @@ export function buildChatCommandService(
 	async function buildExecutionInput(
 		context: AcceptedChatCommandContext,
 	): Promise<CapabilityExecutionInput> {
+		const profileMemorySummary = dependencies.profileMemoryStore
+			? await dependencies.profileMemoryStore
+					.loadSummary({ ownerUserId: context.input.principal.actor.userId })
+					.catch((error) => {
+						telemetry?.captureException(error, {
+							route: "/api/chat/requests",
+							surface: context.surface,
+							traceId: context.traceId,
+						});
+						return null;
+					})
+			: null;
 		return {
 			context: buildCapabilityExecutionContextProjection({
 				actor: context.input.principal.actor,
 				authorization: context.input.principal.authorization,
+				memory: profileMemorySummary ? { enabled: profileMemorySummary.enabled } : null,
 				sessionSlots: context.conversation.sessionSlots,
 				turnCount: context.conversation.messages.length,
 			}),

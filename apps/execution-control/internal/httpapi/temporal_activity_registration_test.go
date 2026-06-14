@@ -33,8 +33,10 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 
 	contextType := reflect.TypeOf(server.TemporalContextActivities())
 	for _, method := range []string{
-		"PlanRouteActivity",
+		"ExtractMemoryCandidatesActivity",
 		"MemoryRecallActivity",
+		"PlanRouteActivity",
+		"UpsertInferredMemoryActivity",
 	} {
 		if _, ok := contextType.MethodByName(method); !ok {
 			t.Fatalf("context activities missing %s", method)

@@ -153,8 +153,22 @@ run completed
 -> Qdrant personal_memory_v1 upsert
 ```
 
-用户 accept / reject / edit 不是 v1 必需项。若未来产品需要强治理，可以在 app-api product
-surface 上加，但不得把它重新变成 online recall 的前置硬条件。
+当前落地策略：
+
+- inferred memory 首版自动生效，写入 `status=active`、`source=inferred`。
+- 自动提取只消费 completed run 的 sanitized execution payload /
+  projection summary；不得消费 raw transcript、raw provider response、
+  tool raw payload 或 institutional source text。
+- 抽取只接受用户当轮明确表达的长期偏好、近期目标、常用地点 / 服务上下文或稳定称呼；一次性问题、临时安排、制度 /
+  通知事实、身份权限与不确定推断必须跳过。
+- memory update 是 finalization 后的后置 workflow / activity；失败只写可诊断 step projection，不回滚已经完成的主回答。
+- `context.memory.enabled` 是自动写入 gate。gate 缺失或为 false 时必须跳过自动写入；不得通过
+  PG profile memory item 全量注入来推断 gate。
+- memory update projection 只记录 count、hash、skip reason 与 memory id 摘要，不记录
+  `compact_text` 原文。
+
+用户 accept / reject / edit 不是当前自动生效策略的前置条件。若未来产品需要强治理，可以在 app-api product
+surface 上增加候选确认或用户可见 inferred item projection，但不得把它重新变成 online recall 的前置硬条件。
 
 ## Data-Plane Boundary
 

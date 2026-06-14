@@ -235,6 +235,14 @@ type WorkerOptions struct {
 
 type ContextActivities interface {
 	MemoryRecallActivity(context.Context, MemoryRecallActivityInput) (MemoryRecallActivityOutput, error)
+	ExtractMemoryCandidatesActivity(
+		context.Context,
+		ExtractMemoryCandidatesActivityInput,
+	) (ExtractMemoryCandidatesActivityOutput, error)
+	UpsertInferredMemoryActivity(
+		context.Context,
+		UpsertInferredMemoryActivityInput,
+	) (UpsertInferredMemoryActivityOutput, error)
 	PlanRouteActivity(context.Context, PlanRouteActivityInput) (PlanRouteActivityOutput, error)
 	PlanReplanActivity(context.Context, PlanReplanActivityInput) (PlanReplanActivityOutput, error)
 }
@@ -382,6 +390,14 @@ func NewContextActivityWorker(temporalClient client.Client, queue string, activi
 	contextWorker.RegisterActivityWithOptions(
 		activities.MemoryRecallActivity,
 		activityRegisterOptions(MemoryRecallActivityName),
+	)
+	contextWorker.RegisterActivityWithOptions(
+		activities.ExtractMemoryCandidatesActivity,
+		activityRegisterOptions(ExtractMemoryCandidatesActivityName),
+	)
+	contextWorker.RegisterActivityWithOptions(
+		activities.UpsertInferredMemoryActivity,
+		activityRegisterOptions(UpsertInferredMemoryActivityName),
 	)
 	contextWorker.RegisterActivityWithOptions(
 		activities.PlanRouteActivity,

@@ -32,6 +32,7 @@ func parseContextProjection(raw json.RawMessage, authMode string) (contextProjec
 		[]string{
 			"actor",
 			"authorization",
+			"memory",
 			"session",
 		},
 		"context",
@@ -56,14 +57,46 @@ func parseContextProjection(raw json.RawMessage, authMode string) (contextProjec
 	if err != nil {
 		return contextProjection{}, false, err
 	}
+	memoryEnabled, err := parseMemoryEnabled(rawContext["memory"])
+	if err != nil {
+		return contextProjection{}, false, err
+	}
 
 	return contextProjection{
 		Actor:             projectedActor,
 		Authorization:     authorization,
+		MemoryEnabled:     memoryEnabled,
 		SessionSlots:      sessionSlots,
 		SelectedNoticeRef: selectedNoticeRef,
 		TurnCount:         turnCount,
 	}, true, nil
+}
+
+func parseMemoryEnabled(raw json.RawMessage) (*bool, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	rawMemory, err := parseObject(raw, "context.memory")
+	if err != nil {
+		return nil, fmt.Errorf("context.memory must be an object")
+	}
+	if err := assertSupportedFields(
+		rawMemory,
+		[]string{"enabled"},
+		"context.memory",
+		"unsupported memory context fields are not allowed: %s",
+	); err != nil {
+		return nil, err
+	}
+	rawEnabled, ok := rawMemory["enabled"]
+	if !ok {
+		return nil, fmt.Errorf("context.memory.enabled is required")
+	}
+	var enabled bool
+	if err := json.Unmarshal(rawEnabled, &enabled); err != nil {
+		return nil, fmt.Errorf("context.memory.enabled must be a boolean")
+	}
+	return &enabled, nil
 }
 
 func parseActorContext(raw json.RawMessage, fieldPrefix string) (actorContext, error) {

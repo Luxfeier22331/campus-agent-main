@@ -60,7 +60,9 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	var completionErr error
 	if strings.TrimSpace(projection.Status) == "completed" &&
 		strings.TrimSpace(projection.StepID) != "finalization.write" {
-		completionErr = s.ensureTemporalStepCompletionAllowed(ctx, &projection)
+		if !temporalPostFinalizationStepAllowed(projection.StepID) {
+			completionErr = s.ensureTemporalStepCompletionAllowed(ctx, &projection)
+		}
 	}
 	if projection.ProviderSummary != nil {
 		projection = projection.withProviderSummary(*projection.ProviderSummary)
@@ -156,6 +158,10 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		return err
 	}
 	return nil
+}
+
+func temporalPostFinalizationStepAllowed(stepID string) bool {
+	return strings.HasPrefix(strings.TrimSpace(stepID), "memory.update.")
 }
 
 func (s *Server) ensureTemporalStepCompletionAllowed(
