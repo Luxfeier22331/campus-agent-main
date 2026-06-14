@@ -37,8 +37,15 @@ export function QAShell({
 	const navigate = useNavigate();
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [loginOpen, setLoginOpen] = useState(false);
+	const [loginReturnFocusElement, setLoginReturnFocusElement] = useState<HTMLElement | null>(null);
 	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
-	const openLoginDialog = () => setLoginOpen(true);
+	const openLoginDialog = () => {
+		setLoginReturnFocusElement(
+			document.activeElement instanceof HTMLElement ? document.activeElement : null,
+		);
+		setMobileMenuOpen(false);
+		setLoginOpen(true);
+	};
 
 	const refreshAccountEntry = useCallback(async () => {
 		setAccountEntry({ status: "loading" });
@@ -146,7 +153,10 @@ export function QAShell({
 						await refreshAccountEntry();
 						setLoginOpen(false);
 					}}
-					onClose={() => setLoginOpen(false)}
+					onClose={() => {
+						setLoginOpen(false);
+					}}
+					returnFocusElement={loginReturnFocusElement}
 				/>
 			) : null}
 		</div>

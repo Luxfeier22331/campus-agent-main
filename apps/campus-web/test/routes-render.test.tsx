@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { UseChatKitOptions } from "@openai/chatkit-react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundPage, RootLayout } from "../src/app/root-layout";
 import rootLayoutSource from "../src/app/root-layout.tsx?raw";
@@ -296,19 +296,48 @@ describe("campus routes", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "登录" }));
 		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
 
-		expect(await screen.findByRole("dialog", { name: "登录或创建账号" })).toBeInTheDocument();
-		expect(screen.getByText("登录后可以继续提问，并保留聊天记录。")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "登录并继续" })).toBeInTheDocument();
-		expect(screen.queryByText("登录后继续提问。")).toBeNull();
-		expect(screen.getByText("正在准备安全验证。")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
-			"href",
-			"/account/register",
-		);
+		const dialog = await screen.findByRole("dialog", { name: "登录" });
+		expect(dialog).toBeInTheDocument();
+		expect(screen.getByText("登录后可继续提问，并保留聊天记录。")).toBeInTheDocument();
+		expect(screen.getByLabelText("邮箱地址")).toBeInTheDocument();
+		expect(screen.getByLabelText("密码")).toBeInTheDocument();
+		expect(within(dialog).getByRole("button", { name: "登录" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "忘记密码" })).toHaveAttribute(
 			"href",
 			"/account/forgot-password",
 		);
+		expect(screen.getByText("没有账号？")).toBeInTheDocument();
+		expect(screen.getByText("正在准备安全验证。")).toBeInTheDocument();
+		expect(screen.queryByText("登录后可以继续提问，并保留聊天记录。")).toBeNull();
+		expect(within(dialog).queryByRole("button", { name: "继续" })).toBeNull();
+		expect(within(dialog).queryByRole("button", { name: "登录并继续" })).toBeNull();
+		expect(screen.queryByText("登录后继续提问。")).toBeNull();
+		expect(screen.queryByText("登录或创建账号")).toBeNull();
+		expect(screen.queryByText("输入密码")).toBeNull();
+		expect(screen.queryByRole("button", { name: "更换邮箱" })).toBeNull();
+		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
+			"href",
+			"/account/register",
+		);
+	});
+
+	it("closes the mobile rail before opening the inline login dialog", async () => {
+		conversationApiMock.getSessionPrincipal.mockRejectedValue(new UnauthorizedError());
+		render(<HomePage />);
+
+		fireEvent.click(screen.getByRole("button", { name: "打开校园问答菜单" }));
+		const closeMobileMenuButton = screen.getByRole("button", { name: "关闭校园问答菜单" });
+		expect(closeMobileMenuButton).toBeInTheDocument();
+		const mobileMenu = closeMobileMenuButton.closest(".fixed");
+		if (!mobileMenu) {
+			throw new Error("mobile menu container was not rendered");
+		}
+
+		fireEvent.click(await within(mobileMenu as HTMLElement).findByRole("button", { name: "登录" }));
+		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
+
+		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "关闭校园问答菜单" })).toBeNull();
 	});
 
 	it("does not wrap the map route in the generic support page header", () => {

@@ -7,9 +7,8 @@ import {
 	LockKeyhole,
 	ShieldCheck,
 	TriangleAlert,
-	X,
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +31,8 @@ import {
 import { resolveAccountAuthReturnTarget } from "../../platform/auth/return-target";
 import { type AuthTurnstileController, AuthTurnstileField } from "../../platform/auth/turnstile";
 import { ShellSection } from "../root-layout";
+
+export { AccountLoginDialog } from "./account-login-dialog";
 
 type AccountActionKind = "forgot-password" | "login" | "register" | "reset-password";
 
@@ -90,106 +91,6 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 			{form}
 			<AuthAuxiliaryLinks kind={kind} oauthContext={oauthContext} />
 		</AuthPageShell>
-	);
-}
-
-export function AccountLoginDialog({
-	onAuthenticated,
-	onClose,
-}: {
-	onAuthenticated?: () => Promise<void> | void;
-	onClose: () => void;
-}) {
-	const [postLoginError, setPostLoginError] = useState<string | null>(null);
-
-	useEffect(() => {
-		function handleKeyDown(event: KeyboardEvent) {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		}
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [onClose]);
-
-	return (
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
-			onPointerDown={(event) => {
-				if (event.target === event.currentTarget) {
-					onClose();
-				}
-			}}
-		>
-			<div
-				aria-hidden="true"
-				className="absolute inset-0 bg-white/70 backdrop-blur-[2px]"
-				onPointerDown={onClose}
-			/>
-			<section
-				aria-label="登录或创建账号"
-				aria-modal="true"
-				className="relative w-full max-w-[400px] rounded-2xl border border-[var(--sys-border-subtle)] bg-white p-6 shadow-[0_18px_60px_rgba(16,24,40,0.14)]"
-				onPointerDown={(event) => event.stopPropagation()}
-				role="dialog"
-			>
-				<div className="mb-6 flex items-start justify-between gap-4">
-					<div>
-						<h2 className="text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-							登录或创建账号
-						</h2>
-						<p className="mt-1 text-sm leading-6 text-[var(--sys-text-muted)]">
-							登录后可以继续提问，并保留聊天记录。
-						</p>
-					</div>
-					<button
-						aria-label="关闭登录"
-						className="grid size-10 shrink-0 place-items-center rounded-lg text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
-						onClick={onClose}
-						type="button"
-					>
-						<X aria-hidden="true" className="size-5" />
-					</button>
-				</div>
-				<AccountEmailPasswordForm
-					mode="login"
-					onSuccess={async () => {
-						setPostLoginError(null);
-						try {
-							if (onAuthenticated) {
-								await onAuthenticated();
-								return;
-							}
-							onClose();
-						} catch {
-							setPostLoginError("登录状态刷新失败，请稍后再试。");
-						}
-					}}
-					oauthContext={null}
-					submitLabel="登录并继续"
-					surface="dialog"
-				/>
-				{postLoginError ? (
-					<p className="mt-3 rounded-lg border border-[var(--sys-status-danger)]/20 bg-[var(--sys-status-danger)]/5 px-3 py-2 text-sm text-[var(--sys-status-danger)]">
-						{postLoginError}
-					</p>
-				) : null}
-				<div className="mt-5 grid grid-cols-2 gap-2 text-sm">
-					<Link
-						className="inline-flex min-h-10 items-center justify-center rounded-lg font-medium text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
-						to="/account/register"
-					>
-						创建账号
-					</Link>
-					<Link
-						className="inline-flex min-h-10 items-center justify-center rounded-lg font-medium text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
-						to="/account/forgot-password"
-					>
-						忘记密码
-					</Link>
-				</div>
-			</section>
-		</div>
 	);
 }
 
@@ -309,10 +210,12 @@ function AccountEmailPasswordForm(props: {
 	mode: "login" | "register";
 	onSuccess?: () => Promise<void> | void;
 	oauthContext: CampusOAuthContext | null;
-	submitLabel?: string;
-	surface?: "dialog" | "page";
 }) {
-	const { mode, oauthContext, onSuccess, submitLabel, surface = "page" } = props;
+	const {
+		mode,
+		oauthContext,
+		onSuccess,
+	} = props;
 	const [status, setStatus] = useState<AccountAuthActionState>("idle");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isTurnstileConfigured, setIsTurnstileConfigured] = useState(false);
@@ -365,19 +268,20 @@ function AccountEmailPasswordForm(props: {
 		}
 	}
 
-	const dialogSurface = surface === "dialog";
+	const submitText = isSubmitting
+		? "提交中"
+		: mode === "login"
+			? oauthContext
+				? `继续访问 ${oauthContext.client.displayName}`
+				: "登录"
+			: "注册";
 
 	return (
-		<form
-			className={cn("flex w-full flex-col", dialogSurface ? "gap-3.5" : "gap-4")}
-			noValidate
-			onSubmit={handleSubmit}
-		>
+		<form className="flex w-full flex-col gap-4" noValidate onSubmit={handleSubmit}>
 			<FormField>
 				<Label htmlFor="email">邮箱地址</Label>
 				<Input
 					autoComplete="email"
-					autoFocus={dialogSurface}
 					id="email"
 					name="email"
 					placeholder="name@muc.edu.cn"
@@ -413,19 +317,8 @@ function AccountEmailPasswordForm(props: {
 				}
 				status={status}
 			/>
-			{dialogSurface && !isTurnstileConfigured ? (
-				<p className="-mt-1 text-sm text-[var(--sys-text-muted)]">正在准备安全验证。</p>
-			) : null}
 			<Button disabled={isSubmitting || !isTurnstileConfigured} type="submit">
-				{isSubmitting
-					? "提交中"
-					: submitLabel
-						? submitLabel
-						: mode === "login"
-							? oauthContext
-								? `继续访问 ${oauthContext.client.displayName}`
-								: "登录"
-							: "注册"}
+				{submitText}
 				<ArrowRight aria-hidden="true" />
 			</Button>
 		</form>

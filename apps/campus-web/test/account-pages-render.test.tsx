@@ -9,6 +9,7 @@ import {
 import accountActionPageSource from "../src/app/routes/account-action-page.tsx?raw";
 import { AccountPage } from "../src/app/routes/account-page";
 import accountPageSource from "../src/app/routes/account-page.tsx?raw";
+import { AUTH_RUNTIME_CONFIG_SCRIPT_ID } from "../src/platform/auth/turnstile-runtime-config";
 
 const accountSessionMock = vi.hoisted(() => ({
 	deleteAccountAuthorizedApp: vi.fn(),
@@ -25,6 +26,13 @@ const conversationApiMock = vi.hoisted(() => ({
 	deleteConversation: vi.fn(),
 	listConversations: vi.fn(),
 	unarchiveConversation: vi.fn(),
+}));
+const authClientMock = vi.hoisted(() => ({
+	requestAccountPasswordReset: vi.fn(),
+	resetAccountPassword: vi.fn(),
+	signInWithEmail: vi.fn(),
+	signOutAccount: vi.fn(),
+	signUpWithEmail: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", async () => {
@@ -61,11 +69,11 @@ vi.mock("../src/platform/auth/client", () => ({
 			this.code = code;
 		}
 	},
-	requestAccountPasswordReset: vi.fn(),
-	resetAccountPassword: vi.fn(),
-	signInWithEmail: vi.fn(),
-	signOutAccount: vi.fn(),
-	signUpWithEmail: vi.fn(),
+	requestAccountPasswordReset: authClientMock.requestAccountPasswordReset,
+	resetAccountPassword: authClientMock.resetAccountPassword,
+	signInWithEmail: authClientMock.signInWithEmail,
+	signOutAccount: authClientMock.signOutAccount,
+	signUpWithEmail: authClientMock.signUpWithEmail,
 }));
 
 describe("campus account pages", () => {
@@ -77,6 +85,11 @@ describe("campus account pages", () => {
 		for (const mock of Object.values(conversationApiMock)) {
 			mock.mockReset();
 		}
+		for (const mock of Object.values(authClientMock)) {
+			mock.mockReset();
+		}
+		document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID)?.remove();
+		window.turnstile = undefined;
 		accountSessionMock.loadAccountOverview.mockResolvedValue({
 			overview: null,
 			state: "unauthenticated",
@@ -152,26 +165,102 @@ describe("campus account pages", () => {
 		expect(screen.queryByText("使用统一账号访问校园应用")).toBeNull();
 	});
 
-	it("renders the Q&A login dialog as an inline identity confirmation", () => {
+	it("renders the Q&A login dialog as a single-step sign-in gate", () => {
 		const closeDialog = vi.fn();
 		render(<AccountLoginDialog onClose={closeDialog} />);
 
-		expect(screen.getByRole("dialog", { name: "登录或创建账号" })).toBeInTheDocument();
-		expect(screen.getByRole("heading", { name: "登录或创建账号" })).toBeInTheDocument();
-		expect(screen.getByText("登录后可以继续提问，并保留聊天记录。")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "登录并继续" })).toBeInTheDocument();
-		expect(screen.queryByText("登录后继续提问。")).toBeNull();
-		expect(screen.getByText("正在准备安全验证。")).toBeInTheDocument();
+		expect(screen.getByRole("dialog", { name: "登录" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "登录" })).toBeInTheDocument();
+		expect(screen.getByText("登录后可继续提问，并保留聊天记录。")).toBeInTheDocument();
 		expect(screen.getByLabelText("邮箱地址")).toHaveFocus();
-		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
-			"href",
-			"/account/register",
-		);
+		expect(screen.getByLabelText("密码")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+		expect(screen.getByText("正在准备安全验证。")).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "忘记密码" })).toHaveAttribute(
 			"href",
 			"/account/forgot-password",
 		);
-		expect(screen.queryByRole("link", { name: "忘记密码？" })).toBeNull();
+		expect(screen.getByText("没有账号？")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
+			"href",
+			"/account/register",
+		);
+
+		expect(screen.queryByText("登录或创建账号")).toBeNull();
+		expect(screen.queryByRole("button", { name: "继续" })).toBeNull();
+		expect(screen.queryByText("输入密码")).toBeNull();
+		expect(screen.queryByRole("button", { name: "更换邮箱" })).toBeNull();
+		expect(screen.queryByText("登录后继续提问")).toBeNull();
+		expect(screen.queryByText("登录后可以继续提问，并保留聊天记录。")).toBeNull();
+		expect(screen.queryByRole("button", { name: "登录并继续" })).toBeNull();
+	});
+
+	it("keeps invalid Q&A login submissions in the same single-step dialog", () => {
+		const closeDialog = vi.fn();
+		document.body.insertAdjacentHTML(
+			"beforeend",
+			`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
+		);
+		render(<AccountLoginDialog onClose={closeDialog} />);
+
+		fireEvent.change(screen.getByLabelText("邮箱地址"), {
+			target: { value: "not-an-email" },
+		});
+		fireEvent.change(screen.getByLabelText("密码"), {
+			target: { value: "short" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "登录" }));
+
+		expect(screen.getByRole("dialog", { name: "登录" })).toBeInTheDocument();
+		expect(screen.getByText("请检查邮箱和密码格式。")).toBeInTheDocument();
+		expect(screen.getByLabelText("邮箱地址")).toHaveValue("not-an-email");
+		expect(screen.getByLabelText("密码")).toBeInTheDocument();
+		expect(screen.queryByText("输入密码")).toBeNull();
+	});
+
+	it("submits Q&A login dialog through the existing email login contract", async () => {
+		const closeDialog = vi.fn();
+		const onAuthenticated = vi.fn();
+		authClientMock.signInWithEmail.mockResolvedValue({ redirectedByProvider: false });
+		document.body.insertAdjacentHTML(
+			"beforeend",
+			`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
+		);
+		window.turnstile = {
+			render(container, options) {
+				const target =
+					typeof container === "string" ? document.getElementById(container) : container;
+				if (target) {
+					target.innerHTML = "<div>安全验证</div>";
+				}
+				const callback = options.callback;
+				if (typeof callback === "function") {
+					setTimeout(() => callback("captcha-token"), 0);
+				}
+				return "widget-01";
+			},
+			reset: vi.fn(),
+		};
+		render(<AccountLoginDialog onAuthenticated={onAuthenticated} onClose={closeDialog} />);
+
+		fireEvent.change(screen.getByLabelText("邮箱地址"), {
+			target: { value: "student@muc.edu.cn" },
+		});
+		fireEvent.change(screen.getByLabelText("密码"), {
+			target: { value: "password1234" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "登录" }));
+
+		await waitFor(() => {
+			expect(authClientMock.signInWithEmail).toHaveBeenCalledWith({
+				captchaToken: "captcha-token",
+				email: "student@muc.edu.cn",
+				password: "password1234",
+				returnTo: "/account",
+			});
+		});
+		expect(onAuthenticated).toHaveBeenCalledTimes(1);
+		expect(closeDialog).not.toHaveBeenCalled();
 	});
 
 	it("renders federation consent and error pages with neutral campus account copy", () => {
