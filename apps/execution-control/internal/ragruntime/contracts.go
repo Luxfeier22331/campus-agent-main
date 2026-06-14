@@ -109,6 +109,7 @@ type GroundingVerificationResult struct {
 	SourceRefs        []string `json:"source_refs"`
 	UnsupportedFields []string `json:"unsupported_fields"`
 	Verdict           string   `json:"verdict"`
+	VerificationKind  string   `json:"verification_kind"`
 }
 
 type FinalizationPacket struct {

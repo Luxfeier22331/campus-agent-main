@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: supervisor-agent-worker
 status: active
 created: 2026-04-26
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 # Python Capability Boundaries
 
@@ -31,10 +31,10 @@ Python 不再拥有 deterministic execution runtime truth。
 
 ## Agent Boundary
 
-`packages/knowledge-capability 当前保留 knowledge-family semantic agent 能力：
+`packages/knowledge-capability` 当前保留 offline/eval/historical bridge 语义能力：
 
 - query framing、scope-specific semantic planning、bounded synthesis packet assembly、
-  grounding validation
+  claim-level grounding validation reference
 - online RAG provider-backed synthesis 已迁入 Go `SynthesizeRAGAnswerActivity`；
   Python `OpenAIAgentsRagRuntime` 仅保留 non-serving / test artifact，不是默认 online
   runtime
@@ -44,6 +44,8 @@ Python 不再拥有 deterministic execution runtime truth。
 不可观测的 Python bridge 黑盒。当前 RAG online path step graph 包括 `rag.plan`、
 `retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、`evidence.selection`、
 `synthesis`、`grounding.verify` 与 `finalization.write`。
+其中 online `grounding.verify` 当前语义是 evidence-integrity verification，不消费
+Python claim-level validator。
 
 内部拆分规则：
 

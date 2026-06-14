@@ -225,6 +225,7 @@ func (s *Server) VerifyGroundingActivity(
 			"grounding_ref":       groundingRef,
 			"source_ref_count":    len(result.SourceRefs),
 			"verdict":             result.Verdict,
+			"verification_kind":   result.VerificationKind,
 		},
 	}); err != nil {
 		return temporalruntime.VerifyGroundingActivityOutput{}, err

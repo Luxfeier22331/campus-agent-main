@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,7 @@ type fakeRAGSynthesisExecutor struct {
 	answerText string
 	calls      int
 	err        error
+	grounding  string
 	onExecute  func(context.Context)
 	seenPacket ragSynthesisPacket
 	summary    provider.ExecutionSummary
@@ -69,9 +71,9 @@ func (f *fakeRAGSynthesisExecutor) ExecuteRAGSynthesis(
 	return ragSynthesisResult{
 		AnswerText:       answerText,
 		Confidence:       "high",
-		GroundingVerdict: "supported",
+		GroundingVerdict: strings.TrimSpace(f.grounding),
 		ProviderSummary:  f.summary,
-		SemanticOutcome:  "grounded_answer",
+		SemanticOutcome:  "answer_from_selected_evidence",
 	}, nil
 }
 
@@ -317,6 +319,14 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	if synthesis.seenPacket.OutputSchemaID != "rag_answer_v2" {
 		t.Fatalf("synthesis schema = %q, want rag_answer_v2", synthesis.seenPacket.OutputSchemaID)
 	}
+	diagnostics, _ := nestedMapValue(projectedResponse, "result", "diagnostics")
+	diagnosticRecord, _ := diagnostics.(map[string]any)
+	if diagnosticRecord["grounding_verdict"] == "grounded" {
+		t.Fatalf("Go RAG diagnostics must not default to semantic grounded: %#v", diagnosticRecord)
+	}
+	if diagnosticRecord["verification_kind"] != "evidence_integrity" {
+		t.Fatalf("diagnostic verification kind = %v, want evidence_integrity", diagnosticRecord["verification_kind"])
+	}
 
 	steps, err := store.ListRunSteps(context.Background(), "run-rag-graph")
 	if err != nil {
@@ -357,6 +367,18 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 		synthesisAttempt.OutputTokens != 100 ||
 		synthesisAttempt.EstimatedCostMicroUSD != 320 {
 		t.Fatalf("synthesis provider evidence = %#v", synthesisAttempt)
+	}
+	var groundingResult *execution.StepResultProjection
+	for index := range results {
+		if results[index].StepID == "grounding.verify" {
+			groundingResult = &results[index]
+		}
+	}
+	if groundingResult == nil {
+		t.Fatal("grounding.verify result missing")
+	}
+	if groundingResult.SanitizedPayload["verification_kind"] != "evidence_integrity" {
+		t.Fatalf("grounding result verification kind = %v, want evidence_integrity: %#v", groundingResult.SanitizedPayload["verification_kind"], groundingResult.SanitizedPayload)
 	}
 }
 

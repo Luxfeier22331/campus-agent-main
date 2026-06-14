@@ -38,7 +38,7 @@ durable store、run events、execution leases、lane budgets、worker heartbeat�
 lease coordinator、worker loop、recovery loop、cancel / timeout / recovery 与
 app-api durable chat cutover。
 
-当前仍暴露出 production agent runtime 的核心缺口：
+该历史 baseline 当时暴露出的 production agent runtime 差距包括：
 
 - run-level durable baseline 还没有扩展成 step-level durable ledger
 - supervisor code domain 还没有拆成 control / scheduler / recovery / lane
@@ -213,8 +213,8 @@ agent-as-tool 参与 typed step。
 - 新增 `docs/architecture/system/durable-agent-runtime-architecture.md`
 - `target-architecture.md` 必须把 run + step-centric run projection 写为
   production execution shape
-- `current-architecture.md` 必须明确当前已具备 run-level durable baseline，同时列出 step-level
-  ledger、role split、lane worker pool 与 autoscaler 缺口
+- `current-architecture.md` 当时需要明确已具备 run-level durable baseline，同时列出
+  step-level ledger、role split、lane worker pool 与 autoscaler 差距
 - `durable-agent-runtime-architecture.md` 必须区分 durable run / step store、scheduler、
   lease coordinator、worker roles 与 process-local limiter
 - `tool-and-capability-runtime-architecture.md` 必须区分 tools-first domain capability

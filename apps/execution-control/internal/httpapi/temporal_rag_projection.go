@@ -339,6 +339,7 @@ func temporalGroundingVerificationForRun(
 		SourceRefs:        sourceRefs,
 		UnsupportedFields: []string{},
 		Verdict:           "supported",
+		VerificationKind:  "evidence_integrity",
 	}, nil
 }
 

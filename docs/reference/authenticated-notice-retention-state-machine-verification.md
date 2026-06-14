@@ -544,7 +544,7 @@ source。因此它们固定走 document owner path。
   必须先由 `notice_capture_route` 判定，再按 target-required fact gap 或 admitted
   owner 决定 bytes。
 
-## 当前实现状态与剩余缺口
+## 当前实现状态与后续信号
 
 Phase 8 已落地第一版 source retention 决策模型：
 
@@ -575,7 +575,7 @@ Phase 9 已把 retention 决策接入 live collector fetch admission：
   `fetch_required_for_source_truth` / `fetch_required_for_admitted_owner` 计入 required
   objects；`fetch_to_quarantine` 不计入 required source object。
 
-仍未完成的部分：
+后续 collector/live cleanup 信号：
 
 当前 repo 已具备部分粗粒度状态：
 
@@ -585,7 +585,7 @@ Phase 9 已把 retention 决策接入 live collector fetch admission：
 - attachment provenance：`reference_only` / `collected_internal`
 - routing sample：`metadata_only` / `process`
 
-但它还没有完整表达或执行：
+当前仍只作为后续 cleanup / lifecycle hardening 信号的是：
 
 - quarantine byte fetch lifecycle / expiry / cleanup。
 - `fetch_required_for_admitted_owner` 的 promotion owner 与 promotion decision id

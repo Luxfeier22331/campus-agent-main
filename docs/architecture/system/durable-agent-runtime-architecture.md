@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-04
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 # Durable Agent Runtime Architecture
 
@@ -301,7 +301,9 @@ context.memory_recall when needed
 - `plan.route` 只能作为 retained deterministic support path / historical
   planning artifact，不读取 PG profile memory full dump，也不把普通 chat
   缺失 capability 的请求默认压成 knowledge/RAG。
-- `knowledge` branch 承接 RAG retrieval、evidence、synthesis 与 grounding。
+- `knowledge` branch 承接 RAG retrieval、evidence、synthesis 与
+  `grounding.verify` evidence-integrity verification；该 step 不适用于
+  direct/no-tool terminal、campus-services typed tool 或 notice typed tool。
 - `campus_services` branch 承接 service guide/status/schedule/contact/calendar typed
   tools 或明确 semantic specialist step。
 - `notice` branch 承接 notice discovery、selected notice ref resolution、source card
@@ -341,8 +343,11 @@ Knowledge-family durable execution must remain a typed step graph:
   trace 当作 supporting evidence。
 - `synthesis` 只能消费 supporting evidence projection，必须记录 provider request ref、
   latency、token、estimated cost 与 cancel / timeout outcome。
-- `grounding.verify` 必须检查 claim / list item support、source span、coverage
-  与 unsupported branch，不通过时进入 clarification 或 fail-closed terminal path。
+- `grounding.verify` 当前在线语义是 evidence-integrity verification：检查
+  synthesis/evidence ref 一致性、`answer_text` presence 与 selected evidence
+  `source_ref` presence；不通过时 fail closed。claim / list item semantic
+  grounding 属于后续 badcase/eval-driven Go RAG hardening，不得由旧 Python
+  validator depth 冒充当前 serving truth。
 - `finalization.write` 只写 sanitized finalization projection 与 user-facing
   answer event。
 

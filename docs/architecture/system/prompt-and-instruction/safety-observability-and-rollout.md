@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: prompt-runtime
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 
 # Prompt And Instruction Safety Observability And Rollout
@@ -233,15 +233,20 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - freshness-sensitive 问答不得越过 runtime opening policy 自行作答
 
-## Current Gap To Best Practice
+## Current Boundary To Best Practice
 
-当前 repo 方向已经基本正确，但与长期最佳实践相比仍有一个明确缺口：
+当前 repo 方向已经基本正确，但必须区分 online serving truth 与
+offline/eval hardening：
 
-1. claim-level grounding validator 已落地，但仍是最小可用强度
+1. Go online RAG 当前只承诺 evidence-integrity verification
 
-- 当前已对 prompt-generated completed answer 执行 answer-to-evidence 校验，并对 title /
-  time / requirement claim 做最小提取
-- 但还没有覆盖更广的 claim 类型，也还不是完整的 cross-provider grounded generation runtime
+- `apps/execution-control` 的 `grounding.verify` 检查 synthesis/evidence ref 一致性、
+  `answer_text` presence 与 selected evidence `source_ref` presence
+- projected diagnostics 使用 `verification_kind=evidence_integrity`
+- 当前 online path 不得把空 `grounding_verdict` 默认补成 semantic `grounded`
+
+1. Python claim-level grounding validator 只保留为 offline/eval/historical bridge
+   hardening
 
 补充说明：
 
@@ -250,7 +255,10 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
   runtime surface
 - `refusal` / `incomplete` / `content-filter` 现在会以 observability-safe typed
   product state 留痕，而不是只作为 fallback reason
-- 当前剩余 gap 主要集中在 grounding validator 深化
+- `packages/knowledge-capability` 中的 claim validator 不作为 online serving gate；
+  不继续把 Python validator depth 当作主链路实现缺口
+- claim-level semantic grounding 只有在 badcase / eval 证明 evidence-integrity 不足时，
+  才作为 Go RAG hardening 进入实施
 
 ## First-Rollout Strategy
 
@@ -309,19 +317,20 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
   不再拥有 online provider hot path
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture
-- Execution Agent Layer 的 `policy gate + scope gate` 与 knowledge-path grounding
-  validator 共同承担 prompt-side hallucination control，而不是把控制责任退回
-  “更长的 system prompt”
+- Execution Agent Layer 的 `policy gate + scope gate` 与 Go knowledge-path
+  evidence-integrity verification 共同承担当前 online prompt-side hallucination
+  control；Python claim-level validator 只保留为 offline/eval/historical bridge
+  hardening，不作为 online serving gate
 - `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与
   not-open / unavailable final semantics 继续保持 deterministic-first protected path
 
 仍属当前 follow-up 但不在本文维护执行顺序的工作：
 
-- 更强的 provider-agnostic grounded-generation runtime
-- 更广的 claim taxonomy 与 agent-side unsupported diagnostics
+- badcase/eval-driven Go RAG semantic verification
+- 仅在新 surface 或真实 unsupported-answer badcase 触发时扩展 claim taxonomy
 - prompt-family live gate artifact 的持续更新
 
-这些工作属于当前项目级 active lane，执行顺序与完成状态以
+这些工作属于 badcase/eval-driven hardening lane，执行顺序与完成状态以
 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native
 session state 为准。
 

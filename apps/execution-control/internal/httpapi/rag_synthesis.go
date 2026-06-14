@@ -57,12 +57,11 @@ func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 		return ragSynthesisResult{ProviderSummary: result.Summary, ProviderBody: result.Body}, err
 	}
 	return ragSynthesisResult{
-		AnswerText:       answerText,
-		Confidence:       "medium",
-		GroundingVerdict: "grounded",
-		ProviderSummary:  result.Summary,
-		ProviderBody:     result.Body,
-		SemanticOutcome:  "grounded_answer",
+		AnswerText:      answerText,
+		Confidence:      "medium",
+		ProviderSummary: result.Summary,
+		ProviderBody:    result.Body,
+		SemanticOutcome: "answer_from_selected_evidence",
 	}, nil
 }
 
@@ -231,12 +230,9 @@ func ragSynthesisFinalizedResponse(
 	}
 	semanticOutcome := strings.TrimSpace(result.SemanticOutcome)
 	if semanticOutcome == "" {
-		semanticOutcome = "grounded_answer"
+		semanticOutcome = "answer_from_selected_evidence"
 	}
 	groundingVerdict := strings.TrimSpace(result.GroundingVerdict)
-	if groundingVerdict == "" {
-		groundingVerdict = "grounded"
-	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
 		SelectedCapability: "knowledge",
 		Status:             "completed",
@@ -252,6 +248,7 @@ func ragSynthesisFinalizedResponse(
 			"diagnostics": map[string]any{
 				"semantic_outcome":       semanticOutcome,
 				"grounding_verdict":      groundingVerdict,
+				"verification_kind":      "evidence_integrity",
 				"prompt_runtime_state":   "go_provider_synthesis_completed",
 				"prompt_runtime_detail":  result.ProviderSummary.SchemaVersion,
 				"answer_artifact_ref":    providerRequestRefForPacket(packet),

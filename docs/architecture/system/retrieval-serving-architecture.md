@@ -351,12 +351,13 @@ opening truth。
 - live evidence 标注 `retrieval_mode=live_assisted`、`as_of` 与
   `canonical_index_truth=false`，runtime observation 同步记录 query/retrieval mode
 
-当前尚未完成：
+当前 deferred opening signals：
 
 - product-facing freshness/live tool opening
 - real live source executor 与 production observation storage rollout
 
-这些属于目标架构的一部分，而不是当前默认 surface；当前 active/deferred execution 仍以
+这些属于未来 product opening / downstream consumer 信号，而不是当前 active
+implementation gap 或默认 surface；当前 active/deferred execution 仍以
 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与 GSD SDK / Codex native
 session state 为准。
 

@@ -328,8 +328,8 @@ Phase 6 snapshot（2026-04-27）：
 
 - `public/chat` E2E 与 opening verdict 已完成，`contact_directory_lookup`
   当前 tool-level verdict 为 `open`。
-- 长尾 alias 覆盖、历史语义与 denominator 扩展继续回写到
-  `campus-services-runtime-tool-gap-closeout`。
+- 长尾 alias 覆盖、历史语义与 denominator 扩展只作为 deferred quality
+  signal，不作为 active implementation gap。
 
 首批 golden prompts：
 

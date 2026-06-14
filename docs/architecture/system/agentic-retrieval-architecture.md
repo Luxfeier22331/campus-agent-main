@@ -4,7 +4,7 @@ truth_scope: capability
 owner_boundary: packages/knowledge-capability
 status: active
 created: 2026-04-20
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 # Agentic Retrieval Architecture
 
@@ -93,7 +93,7 @@ Execution Agent Layer typed step admission
 -> evidence verifier
 -> supporting evidence selection
 -> knowledge synthesis
--> grounding validation
+-> evidence integrity verification
 -> execution finalization
 ```
 
@@ -109,13 +109,13 @@ Execution Agent Layer typed step admission
   `rag.plan`、`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、
   `evidence.selection`、`synthesis`、`grounding.verify`、`finalization.write` 等
   durable steps；后续优化重点是让每个 step 的 evidence、latency、token/cost、
-  cancel/timeout 与 grounding verdict 更可证明，而不是恢复 coarse activity
+  cancel/timeout 与 evidence-integrity verdict 更可证明，而不是恢复 coarse activity
 
 当 retrieval 处于 multi-capability / agent-as-tool workflow 中时，长期片段固定为：
 
 `upstream typed tool / agent-as-tool StepOutputProjection -> knowledge context
 framing -> typed retrieval plan -> retrieval/domain tools -> evidence verifier ->
-supporting evidence -> grounding validation -> execution finalization`
+supporting evidence -> evidence integrity verification -> execution finalization`
 
 允许进入 `knowledge` 的 upstream context 必须是 bounded projection，例如
 `CanonicalNoticeContext`、`NoticeChangeSet`、`ServiceGuideFacts`、`ScheduleBaseline`
@@ -273,7 +273,7 @@ plan lifecycle 固定为：
 1. supporting evidence selection
 1. evidence coverage verify
 1. synthesis
-1. grounding validation
+1. evidence-integrity verification
 
 ## Budget Model
 
@@ -374,7 +374,9 @@ agentic RAG 固定 fail-close 于以下分支：
 - insufficient freshness
 - insufficient answer-bearing evidence
 - evidence coverage verification failed
-- grounding validation failed
+- evidence-integrity verification failed
+- semantic grounding validation failed, only when a badcase/eval-driven hardening
+  lane explicitly opens claim-level verification
 - planner / executor budget exhausted
 - live branch unavailable
 
@@ -422,13 +424,17 @@ RAG 目标不是只返回一个看起来合理的 answer，而是为每个关键
 - retrieval step 必须投影 admitted query、filters、candidate summary 与 bounded query activity。
 - selection step 必须投影 supporting evidence id、span、coverage summary 与 reject reason。
 - synthesis step 必须投影 provider request ref、latency、token、estimated cost 与
-  claim support summary；不得把 raw provider response 作为 canonical truth。
-- grounding step 必须投影 claim / list item coverage verdict、missing support 与 fail-close
-  reason。
-- finalization 只能消费已通过 grounding 的 supporting evidence projection。
+  synthesis contract；不得把 raw provider response 作为 canonical truth。
+- `grounding.verify` 当前在线语义是 evidence-integrity verification：必须投影
+  `verification_kind=evidence_integrity`、synthesis/evidence ref 一致性、answer text
+  presence、source ref count 与 fail-close reason。
+- claim / list item semantic grounding 是后续 hardening lane；只有 badcase / eval
+  证明当前 evidence-integrity 不足时，才提升为 Go RAG semantic verification 工作。
+- finalization 只能消费已通过 evidence-integrity verification 的 supporting evidence
+  projection。
 
-如果缺少 retrieval result、supporting evidence、usage/cost accounting、grounding
-verdict 或 cancel outcome，run 不能被标记为“可证明地答”；只能作为诊断缺口或
+如果缺少 retrieval result、supporting evidence、usage/cost accounting、
+evidence-integrity verdict 或 cancel outcome，run 不能被标记为“可证明地答”；只能作为诊断缺口或
 fail-close 分支进入 projection。
 
 ## LlamaIndex Boundary

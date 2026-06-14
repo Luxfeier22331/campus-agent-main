@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: prompt-runtime
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 
 # Prompt And Instruction Current Runtime Baseline
@@ -67,8 +67,9 @@ code-owned runtime seam。当前接受的实现基线是：
   - 只负责在既有 gate 语义下生成用户可见表达
 - `synthesis prompt`
   - 只负责基于 supporting evidence 生成回答
-- `grounding validation prompt`
-  - 只负责检查 synthesis 输出是否仍被 evidence 支持
+- `semantic verification prompt`
+  - 只在 badcase/eval-driven hardening lane 打开时，检查 synthesis 输出是否仍被
+    evidence 支持；当前 Go online RAG 默认只承诺 evidence-integrity verification
 
 固定规则：
 

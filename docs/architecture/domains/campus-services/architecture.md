@@ -276,12 +276,12 @@ uv run --all-packages python -m scripts.eval_gate accept \
   - `app-api/public-chat /readyz`：`preflight.campusServicesProductPath.status=ready`
 - 若上述 preflight blocker 任一项退化，必须立即回滚 capability flag
 
-## Runtime Tool Readiness Residual Backlog
+## Runtime Tool Deferred Signals
 
-Phase 6 后，这条线的产品路径缺口不再放在本架构文档分散维护；统一回写到
-`campus-services-runtime-tool-gap-closeout`。
+Phase 6 后，这条线没有 active implementation gap 留在本架构文档分散维护；后续只保留
+deferred rollout signals。
 
-当前 residual backlog 只保留以下三类：
+当前 deferred signals 只保留以下三类：
 
 - staging opening evidence（真实部署、真实依赖、real traffic smoke）
 - alias/clarification denominator 扩展（长尾口语、跨部门别称、边界提示词）

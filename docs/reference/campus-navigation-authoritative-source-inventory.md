@@ -217,7 +217,7 @@ inventory 和 admission posture。
 - ambiguity family truth
 - 第一批 official-label-backed seed admission
 
-当前仍未完成的是：
+后续只有在地图/navigation 产品路径恢复时才重新进入执行的工作：
 
 - 剩余 parked candidate 的后续 admission
 - 地图实际上线后的真实 staging smoke / 人工验收证据
