@@ -9,13 +9,11 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
 
 loadRepoEnvFile(import.meta.url, "../../..");
-for (const path of [resolve(appDir, ".env"), resolve(appDir, ".dev.vars")]) {
-	try {
-		process.loadEnvFile(path);
-	} catch (error) {
-		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
-			throw error;
-		}
+try {
+	process.loadEnvFile(resolve(appDir, ".env"));
+} catch (error) {
+	if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
+		throw error;
 	}
 }
 

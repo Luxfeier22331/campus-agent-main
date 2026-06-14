@@ -162,10 +162,11 @@ app-api docs read model
 
 ## Deploy Sync Manifest Shape
 
-当前 `app-api` 导出脚本仍沿用历史命名
-`docs:export-public-sync-manifest` 与 `PUBLIC_DOCS_SYNC_MANIFEST_PATH`。这些名称只表示
-“面向浏览器文档阅读面的发布 manifest”，不表示已删除的 `apps/public-docs` 仍是
-forward surface。
+当前 `app-api` 导出脚本仍沿用历史命名 `docs:export-public-sync-manifest`；命令兼容入口
+`PUBLIC_DOCS_SYNC_MANIFEST_PATH` 只表示“面向浏览器文档阅读面的发布 manifest”，不表示已删除的
+`apps/public-docs` 仍是 forward surface。`campus-web` 同步发布 reader 时必须通过
+`--manifest-path` 或 `--manifest-key` 显式选择 manifest，不再消费
+`CAMPUS_DOCS_SYNC_MANIFEST_*` runtime env。
 
 deploy sync manifest 的最小逻辑形态固定为：
 
@@ -249,6 +250,7 @@ deploy 期间允许在 repo 内生成临时目录，例如：
 
 - `apps/campus-web/docs/docs/...`
 - `apps/campus-web/public/_docs/...`
+- `apps/campus-web/public/_docs-static/...`
 - `apps/campus-web/public/_gated-docs/...`
 - `apps/campus-web/doc_build/...`
 
@@ -268,6 +270,8 @@ deploy sync 前必须至少验证：
 - 当前发布子集满足 campus-web static assets 平台限制
 - `gated_asset` / `withheld` 没有误入 anonymous static bundle
 - Rspress build 能生成 `/docs/*` reader pages
+- Rspress runtime JS / CSS / public local search index 只交付在
+  `/_docs-static/*`，不占用 `/static/*`
 - campus-web Worker 只显式代理 `/api/docs/*`，不开放 generic `/api/*`
 
 ## Forbidden Shapes

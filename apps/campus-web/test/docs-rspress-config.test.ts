@@ -1,8 +1,10 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PageIndexInfo } from "@rspress/core";
 import { describe, expect, it } from "vitest";
 
+import { assertRspressDocsStaticNamespace } from "../scripts/copy-rspress-docs-build.mjs";
 import { campusDocsSearchIndexPlugin } from "../scripts/rspress-search-index-plugin";
 
 const appDir = join(__dirname, "..");
@@ -34,6 +36,10 @@ describe("campus docs Rspress build boundary", () => {
 		expect(packageJson.scripts["docs:sync:published-reader"]).toContain(
 			"docs:sync:published-reader:raw",
 		);
+		expect(packageJson.scripts["docs:sync:published-reader"]).toContain("--manifest-path");
+		expect(packageJson.scripts["docs:sync:published-reader"]).toContain(
+			"../../var/public-docs-sync-manifest.json",
+		);
 		expect(packageJson.scripts["docs:sync:published-reader:raw"]).not.toContain(
 			"run-with-local-env.mjs",
 		);
@@ -42,6 +48,10 @@ describe("campus docs Rspress build boundary", () => {
 		);
 		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toContain(
 			"docs:sync:published-reader:raw",
+		);
+		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toContain("--manifest-path");
+		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toContain(
+			"../../var/public-docs-sync-manifest.staging.json",
 		);
 		expect(packageJson.scripts["docs:build:published-reader"]).toContain("rspress build");
 		expect(packageJson.scripts["docs:build:published-reader"]).toContain(
@@ -75,17 +85,57 @@ describe("campus docs Rspress build boundary", () => {
 	it("copies only docs route assets into campus-web static delivery", () => {
 		const copyScript = readFileSync(join(appDir, "scripts", "copy-rspress-docs-build.mjs"), "utf8");
 
-		expect(copyScript).toContain('for (const routeRoot of ["docs", "static"])');
+		expect(copyScript).toContain('DOCS_STATIC_ROUTE_ROOT = "_docs-static"');
+		expect(copyScript).toContain('for (const routeRoot of ["docs"])');
+		expect(copyScript).toContain("RSPRESS_RUNTIME_ROUTE_ROOTS");
+		expect(copyScript).not.toContain('["docs", "static"]');
 		expect(copyScript).not.toContain('"index.html"');
 		expect(copyScript).not.toContain("__campus_docs");
 	});
 
-	it("loads local repo and app env before published reader sync", () => {
+	it("keeps Rspress runtime assets in the docs-owned static namespace", () => {
+		const configSource = readFileSync(join(appDir, "rspress.config.ts"), "utf8");
+		const gitignore = readFileSync(join(appDir, ".gitignore"), "utf8");
+
+		expect(configSource).toContain('assetPrefix: "/_docs-static/"');
+		expect(configSource).toContain('js: "js"');
+		expect(configSource).toContain('jsAsync: "js/async"');
+		expect(configSource).toContain('css: "css"');
+		expect(configSource).toContain('assets: "assets"');
+		expect(configSource).not.toContain('root: "_docs-static"');
+		expect(configSource).not.toContain('"_docs-static/_docs-static"');
+		expect(gitignore).toContain("public/_docs-static/");
+		expect(gitignore).not.toContain("public/static/");
+	});
+
+	it("rejects Rspress docs builds that still reference the generic static namespace", () => {
+		const tempDir = mkdtempSync(join(tmpdir(), "campus-docs-static-"));
+		try {
+			mkdirSync(join(tempDir, "docs"), { recursive: true });
+			mkdirSync(join(tempDir, "js"), { recursive: true });
+			writeFileSync(
+				join(tempDir, "docs", "index.html"),
+				'<script defer src="/static/js/index.bad.js"></script>',
+				"utf8",
+			);
+			writeFileSync(
+				join(tempDir, "js", "index.good.js"),
+				'__webpack_public_path__="/static/";',
+				"utf8",
+			);
+
+			expect(() => assertRspressDocsStaticNamespace(tempDir)).toThrow(/generic \/static/);
+		} finally {
+			rmSync(tempDir, { force: true, recursive: true });
+		}
+	});
+
+	it("loads local object-store env without importing Worker runtime vars before published reader sync", () => {
 		const localEnvScript = readFileSync(join(appDir, "scripts", "run-with-local-env.mjs"), "utf8");
 
 		expect(localEnvScript).toContain('loadRepoEnvFile(import.meta.url, "../../..")');
 		expect(localEnvScript).toContain('resolve(appDir, ".env")');
-		expect(localEnvScript).toContain('resolve(appDir, ".dev.vars")');
+		expect(localEnvScript).not.toContain('resolve(appDir, ".dev.vars")');
 		expect(localEnvScript).not.toContain("minioadmin");
 		expect(localEnvScript).not.toContain("OBJECT_STORE_ENDPOINT=");
 	});
@@ -97,6 +147,10 @@ describe("campus docs Rspress build boundary", () => {
 		const configSource = readFileSync(join(appDir, "rspress.config.ts"), "utf8");
 		const syncSource = readFileSync(
 			join(appDir, "scripts", "sync-campus-published-reader.mjs"),
+			"utf8",
+		);
+		const bootstrapSource = readFileSync(
+			join(appDir, "scripts", "published-reader-bootstrap-pages.mjs"),
 			"utf8",
 		);
 		const gitignore = readFileSync(join(appDir, ".gitignore"), "utf8");
@@ -114,8 +168,11 @@ describe("campus docs Rspress build boundary", () => {
 		expect(configSource).toContain("builderConfig");
 		expect(configSource).toContain('"@": path.resolve(__dirname, "src")');
 		expect(syncSource).toContain('".generated/docs"');
-		expect(syncSource).toContain("@/components/docs/gated-reader-bootstrap");
-		expect(syncSource).toContain("@/components/docs/gated-collection-bootstrap");
+		expect(syncSource).toContain("./published-reader-bootstrap-pages.mjs");
+		expect(bootstrapSource).toContain("@/components/docs/gated-reader-bootstrap");
+		expect(bootstrapSource).toContain("@/components/docs/gated-collection-bootstrap");
+		expect(syncSource).not.toContain("CAMPUS_DOCS_SYNC_MANIFEST_PATH");
+		expect(syncSource).not.toContain("CAMPUS_DOCS_SYNC_MANIFEST_KEY");
 		expect(gitignore).toContain(".generated/");
 		expect(gitignore).toContain("public/_docs/");
 		expect(gitignore).toContain("public/_gated-docs/");

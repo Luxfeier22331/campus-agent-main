@@ -38,7 +38,8 @@ theme 设计和文档内容采集不在本 runbook 内。
 当前脚本命名说明：
 
 - `app-api` 的导出命令仍叫 `docs:export-public-sync-manifest`。
-- staging smoke 仍读取 `PUBLIC_DOCS_SYNC_MANIFEST_PATH`。
+- staging smoke 默认读取 repo-root `var/public-docs-sync-manifest.staging.json`；
+  `PUBLIC_DOCS_SYNC_MANIFEST_PATH` 只保留为命令兼容 override。
 - 这些历史命名只表示“面向浏览器文档阅读面的发布 manifest”，不表示已删除的
   `apps/public-docs` 仍是产品入口。
 
@@ -158,12 +159,11 @@ navigation 期望状态。
 本地或 staging build 前先同步 published reader：
 
 ```bash
-CAMPUS_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
-  pnpm --filter campus-web docs:sync:published-reader
+pnpm --filter campus-web docs:sync:published-reader
 ```
 
 本地 `docs:sync:published-reader` 会先加载当前 worktree 的 repo-root `.env`
-以及 `apps/campus-web/.env` / `.dev.vars`。`infra/local/docker-compose.minio.yml`
+以及 `apps/campus-web/.env`，不会加载 `apps/campus-web/.dev.vars`。`infra/local/docker-compose.minio.yml`
 只负责启动本机 MinIO；Docker compose 里的 `${OBJECT_STORE_*:-minioadmin}` 默认值不会自动进入
 Node / pnpm build 进程。每个 worktree 需要自己具备 `.env`，至少包含：
 
@@ -177,20 +177,19 @@ OBJECT_STORE_SECRET_KEY=minioadmin
 staging manifest：
 
 ```bash
-export CAMPUS_DOCS_SYNC_MANIFEST_PATH="../../var/public-docs-sync-manifest.staging.json"
-pnpm --filter campus-web docs:sync:published-reader
+pnpm --filter campus-web docs:sync:published-reader:staging
 ```
 
 若 docs sync manifest 来自对象存储而不是本地文件，使用一只包含 `entries[]` 的
 sync manifest object：
 
 ```bash
-export CAMPUS_DOCS_SYNC_MANIFEST_KEY="<docs-sync-manifest-object-key>"
 export OBJECT_STORE_ENDPOINT=<endpoint>
 export OBJECT_STORE_BUCKET_DERIVED=<bucket>
 export OBJECT_STORE_ACCESS_KEY=<access-key>
 export OBJECT_STORE_SECRET_KEY=<secret-key>
-pnpm --filter campus-web docs:sync:published-reader
+pnpm --filter campus-web docs:sync:published-reader:raw -- \
+  --manifest-key "<docs-sync-manifest-object-key>"
 ```
 
 固定规则：
@@ -251,8 +250,8 @@ pnpm --filter campus-web test:node -- test/docs-reader-state.test.ts
 pnpm --filter campus-web test:worker -- test/campus-worker.test.ts
 ```
 
-`docs:build:scaffold` 只验证 Rspress/theme/global UI 可以编译。发布验收必须在设置
-`CAMPUS_DOCS_SYNC_MANIFEST_PATH` 或 `CAMPUS_DOCS_SYNC_MANIFEST_KEY` 后运行
+`docs:build:scaffold` 只验证 Rspress/theme/global UI 可以编译。发布验收必须通过
+`--manifest-path` 或 `--manifest-key` 显式选择 sync manifest 后运行
 `pnpm --filter campus-web docs:build` / `build:staging`，否则应 fail closed。
 
 收口验证：

@@ -290,7 +290,7 @@ class defined by `docs/documentation-architecture.md`.
   - Title: Document Site Architecture
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
-  - Owner boundary: `apps/public-docs`
+  - Owner boundary: `apps/campus-web`
   - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=364`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`

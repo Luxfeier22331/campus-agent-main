@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const PUBLIC_CURRENT_SEARCH_VISIBILITY = "public_current";
 const SEARCH_INDEX_FILE_PREFIX = "search_index";
+export const RSPRESS_LOCAL_SEARCH_STATIC_DIR = "static";
 
 export function filterRspressSearchIndexFile(filePath) {
 	const pages = JSON.parse(readFileSync(filePath, "utf8"));
@@ -24,7 +25,7 @@ export function filterRspressSearchIndexFile(filePath) {
 }
 
 export function filterRspressSearchIndexes(buildRoot) {
-	const staticDir = resolve(buildRoot, "static");
+	const staticDir = resolve(buildRoot, RSPRESS_LOCAL_SEARCH_STATIC_DIR);
 	const searchIndexFiles = readdirSync(staticDir)
 		.filter((name) => name.startsWith(SEARCH_INDEX_FILE_PREFIX) && name.endsWith(".json"))
 		.sort();

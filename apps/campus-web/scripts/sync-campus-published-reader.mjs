@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { renderReaderBlockText } from "./published-reader-blocks.mjs";
+import { writeBootstrapPages, writeGatedReaderPage } from "./published-reader-bootstrap-pages.mjs";
+import { loadPublishedReaderManifest, normalizeSearchUnit } from "./published-reader-manifest.mjs";
 import { createS3ObjectStore } from "./published-reader-object-store.mjs";
+import { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.mjs";
 import {
 	escapeAttribute,
 	escapeHtml,
@@ -12,6 +16,7 @@ import {
 } from "./published-reader-text.mjs";
 
 export { resolvePublishedReaderObjectStoreBucket } from "./published-reader-object-store.mjs";
+export { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.mjs";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_DOCS_ROOT = resolve(APP_ROOT, ".generated/docs");
@@ -34,7 +39,7 @@ export async function syncCampusPublishedReaderDocs(input) {
 	const docsRoot = resolve(
 		input.docsRoot ?? process.env.CAMPUS_WEB_RSPRESS_DOCS_ROOT?.trim() ?? DEFAULT_DOCS_ROOT,
 	);
-	const manifest = await loadManifest(input);
+	const manifest = await loadPublishedReaderManifest(input);
 	const readerEntries = manifest.entries
 		.filter(
 			(entry) =>
@@ -64,7 +69,7 @@ export async function syncCampusPublishedReaderDocs(input) {
 }
 
 export async function syncCampusPublishedReaderAssets(input) {
-	const manifest = await loadManifest(input);
+	const manifest = await loadPublishedReaderManifest(input);
 	const entries = manifest.entries.filter(
 		(entry) => entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset",
 	);
@@ -157,149 +162,6 @@ async function writeReaderPage(input) {
 			}),
 		);
 	}
-}
-
-function writeGatedReaderPage(input) {
-	const versionPath = resolve(
-		input.docsRoot,
-		"docs",
-		input.entry.corpus,
-		input.entry.collection,
-		input.entry.documentSlug,
-		"v",
-		`${input.entry.versionSlug}.mdx`,
-	);
-	const currentPath = resolve(
-		input.docsRoot,
-		"docs",
-		input.entry.corpus,
-		input.entry.collection,
-		`${input.entry.documentSlug}.mdx`,
-	);
-	const versionMdx = buildGatedReaderMdx({
-		entry: input.entry,
-		importPath: "@/components/docs/gated-reader-bootstrap",
-	});
-	writeText(versionPath, versionMdx);
-	if (input.entry.isCurrent) {
-		writeText(currentPath, versionMdx);
-	}
-}
-
-function buildGatedReaderMdx(input) {
-	return [
-		"---",
-		`title: ${JSON.stringify(input.entry.title)}`,
-		"footer: false",
-		'docsSearchVisibility: "gated_bootstrap"',
-		`documentKind: ${JSON.stringify(resolveDocumentKind(input.entry))}`,
-		'readerLayout: "reference"',
-		'readerMeasure: "standard"',
-		'readerOutline: "document"',
-		"---",
-		"",
-		`import GatedReaderBootstrap from "${input.importPath}";`,
-		"",
-		"<GatedReaderBootstrap />",
-		"",
-	].join("\n");
-}
-
-async function loadManifest(input) {
-	const raw = input.manifestFilePath
-		? readFileSync(input.manifestFilePath, "utf8")
-		: await input.client.readTextObject({
-				key: requireValue(input.manifestObjectKey, "manifestObjectKey"),
-			});
-	const parsed = JSON.parse(raw);
-	if (parsed.surface !== "public_docs") {
-		throw new Error(`unsupported docs reader release manifest surface: ${parsed.surface}`);
-	}
-	if (!Array.isArray(parsed.entries)) {
-		throw new Error("campus docs reader release manifest must contain entries[]");
-	}
-	if (!Array.isArray(parsed.searchUnits)) {
-		throw new Error("campus docs reader release manifest must contain searchUnits[]");
-	}
-	return {
-		entries: parsed.entries.map(normalizeEntry),
-		generatedAt: parsed.generatedAt,
-		searchUnits: parsed.searchUnits,
-	};
-}
-
-function normalizeEntry(value) {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw new Error("campus docs reader manifest entry must be an object");
-	}
-	const deliveryMode = requireString(value.deliveryMode, "deliveryMode");
-	if (
-		deliveryMode !== "public_static_asset" &&
-		deliveryMode !== "gated_asset" &&
-		deliveryMode !== "withheld"
-	) {
-		throw new Error(`unsupported reader delivery mode: ${deliveryMode}`);
-	}
-	const entry = {
-		collection: requireString(value.collection, "collection"),
-		corpus: requireString(value.corpus, "corpus"),
-		deliveryMode,
-		docId: optionalString(value.docId),
-		documentSlug: requireString(value.documentSlug, "documentSlug"),
-		isCurrent: value.isCurrent !== false,
-		sourceObjects: requireStringRecord(value.sourceObjects, "sourceObjects"),
-		targetObjects: requireStringRecord(value.targetObjects, "targetObjects"),
-		title: requireString(value.title, "title"),
-		versionId: optionalString(value.versionId),
-		versionLabel: optionalString(value.versionLabel),
-		versionSlug: requireString(value.versionSlug, "versionSlug"),
-	};
-	for (const [label, segment] of [
-		["corpus", entry.corpus],
-		["collection", entry.collection],
-		["documentSlug", entry.documentSlug],
-		["versionSlug", entry.versionSlug],
-	]) {
-		assertSafePathSegment(segment, label);
-	}
-	return entry;
-}
-function writeBootstrapPages(docsRoot) {
-	writeText(
-		resolve(docsRoot, "reader-bootstrap.mdx"),
-		[
-			"---",
-			'title: "文档阅读"',
-			"footer: false",
-			'docsSearchVisibility: "noindex"',
-			'readerLayout: "reference"',
-			'readerMeasure: "standard"',
-			"---",
-			"",
-			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
-			"",
-			"<GatedReaderBootstrap />",
-			"",
-		].join("\n"),
-	);
-	writeText(
-		resolve(docsRoot, "collection-bootstrap.mdx"),
-		[
-			"---",
-			'title: "文档目录"',
-			"footer: false",
-			'docsSearchVisibility: "noindex"',
-			'readerLayout: "reference"',
-			'readerMeasure: "standard"',
-			"outline: false",
-			"---",
-			"",
-			'import GatedCollectionBootstrap from "@/components/docs/gated-collection-bootstrap";',
-			"",
-			"<GatedCollectionBootstrap />",
-			"",
-		].join("\n"),
-	);
 }
 
 function buildReaderMdx(input) {
@@ -541,7 +403,10 @@ function buildCollectionIndex(corpus, collection, entries) {
 }
 
 function resolveDocumentDisplayTitle(title) {
-	const trimmed = requireString(title, "title");
+	const trimmed = typeof title === "string" ? title.trim() : "";
+	if (!trimmed) {
+		throw new Error("campus docs reader manifest entry requires title");
+	}
 	const displayTitle = trimmed.replace(/^中央民族大学/u, "").trim();
 	return displayTitle || trimmed;
 }
@@ -590,30 +455,6 @@ function buildSearchUnitsByVersionId(searchUnits) {
 		byVersionId.set(versionId, units.sort(compareSearchUnit));
 	}
 	return byVersionId;
-}
-
-function normalizeSearchUnit(value) {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw new Error("campus docs reader search unit must be an object");
-	}
-	return {
-		anchor: requireString(value.anchor, "searchUnits.anchor"),
-		canonicalUrl: requireString(value.canonicalUrl, "searchUnits.canonicalUrl"),
-		collection: requireString(value.collection, "searchUnits.collection"),
-		corpus: requireString(value.corpus, "searchUnits.corpus"),
-		docId: optionalString(value.docId),
-		documentSlug: requireString(value.documentSlug, "searchUnits.documentSlug"),
-		documentTitle: requireString(value.documentTitle, "searchUnits.documentTitle"),
-		highlightRootUnitIds: requireStringArray(
-			value.highlightRootUnitIds,
-			"searchUnits.highlightRootUnitIds",
-		),
-		searchUnitId: requireString(value.searchUnitId, "searchUnits.searchUnitId"),
-		snippet: requireString(value.snippet, "searchUnits.snippet"),
-		title: requireString(value.title, "searchUnits.title"),
-		versionId: requireString(value.versionId, "searchUnits.versionId"),
-		versionSlug: requireString(value.versionSlug, "searchUnits.versionSlug"),
-	};
 }
 
 function buildProtectedSearchEntry(input) {
@@ -845,165 +686,35 @@ function resolveCollectionLabel(entry) {
 	return entry.collection;
 }
 
-function requireValue(value, name) {
-	const normalized = value?.trim();
-	if (!normalized) {
-		throw new Error(`${name} is required`);
-	}
-	return normalized;
-}
-
-function requireString(value, name) {
-	if (typeof value !== "string" || !value.trim()) {
-		throw new Error(`campus docs reader manifest entry requires ${name}`);
-	}
-	return value.trim();
-}
-
-function optionalString(value) {
-	return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function requireStringRecord(value, name) {
-	if (
-		!value ||
-		typeof value !== "object" ||
-		Array.isArray(value) ||
-		!Object.values(value).every((item) => typeof item === "string" && item.trim())
-	) {
-		throw new Error(`campus docs reader manifest entry requires ${name}`);
-	}
-	return value;
-}
-
-function requireStringArray(value, name) {
-	if (!Array.isArray(value)) {
-		throw new Error(`campus docs reader manifest entry requires ${name}`);
-	}
-	return value.map((item) => requireString(item, name));
-}
-
-function assertSafePathSegment(value, label) {
-	if (!value || value.includes("/") || value.includes("\\") || value === "." || value === "..") {
-		throw new Error(`campus docs reader manifest entry has unsafe ${label}`);
-	}
-}
-
 function normalizeText(value) {
 	return String(value ?? "").trim();
 }
 
-function renderReaderBlockText(text) {
-	const tableHtml = normalizeSafeTableHtml(text);
-	if (!tableHtml) {
-		return escapeHtml(text);
-	}
-	return `<div className="docs-table-scroll" data-docs-scrollable="true">\n${tableHtml}\n</div>`;
-}
-
-function normalizeSafeTableHtml(value) {
-	const text = normalizeText(value);
-	if (!/^<table(?:\s[^>]*)?>[\s\S]*<\/table>$/iu.test(text)) {
-		return;
-	}
-	if (text.replace(/<\/?[a-z][^>]*>/giu, "").includes("<")) {
-		return;
-	}
-
-	const allowedTags = new Set(["table", "thead", "tbody", "tr", "th", "td"]);
-	const tagPattern = /<\/?([a-z][a-z0-9-]*)([^>]*)>/giu;
-	let normalized = "";
-	let cursor = 0;
-	let sawTable = false;
-	for (const match of text.matchAll(tagPattern)) {
-		const [rawTag, rawTagName, rawAttributes = ""] = match;
-		const index = match.index ?? 0;
-		const tagName = rawTagName.toLowerCase();
-		if (!allowedTags.has(tagName)) {
-			return;
-		}
-		normalized += renderJsxTextNode(text.slice(cursor, index));
-		cursor = index + rawTag.length;
-		if (rawTag.startsWith("</")) {
-			normalized += `</${tagName}>`;
-			continue;
-		}
-		if (tagName === "table") {
-			if (sawTable) {
-				return;
-			}
-			sawTable = true;
-		}
-		const attributes = normalizeSafeTableAttributes(rawAttributes);
-		if (attributes === undefined) {
-			return;
-		}
-		normalized += `<${tagName}${attributes}>`;
-	}
-	normalized += renderJsxTextNode(text.slice(cursor));
-	return sawTable ? normalized : undefined;
-}
-
-function renderJsxTextNode(value) {
-	if (!value) {
-		return "";
-	}
-	return `{${JSON.stringify(value)}}`;
-}
-
-function normalizeSafeTableAttributes(rawAttributes) {
-	const source = rawAttributes.trim();
-	if (!source) {
-		return "";
-	}
-	const attributes = [];
-	let unsupported = false;
-	const consumed = source.replace(
-		/([a-zA-Z][a-zA-Z0-9:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gu,
-		(_match, rawName, doubleQuoted, singleQuoted, unquoted) => {
-			const name = String(rawName).toLowerCase();
-			const value = String(doubleQuoted ?? singleQuoted ?? unquoted ?? "");
-			if (name === "rowspan" || name === "colspan") {
-				if (!/^[1-9][0-9]{0,2}$/u.test(value)) {
-					throw new Error("unsafe table span attribute");
-				}
-				attributes.push(
-					`${name === "rowspan" ? "rowSpan" : "colSpan"}="${escapeAttribute(value)}"`,
-				);
-				return "";
-			}
-			unsupported = true;
-			return "";
-		},
-	);
-	if (unsupported || consumed.trim()) {
-		return;
-	}
-	return attributes.length > 0 ? ` ${attributes.join(" ")}` : "";
-}
-
 async function main() {
-	const command = process.argv[2];
+	const options = parsePublishedReaderSyncArgs(process.argv.slice(2));
 	const client = createS3ObjectStore();
-	const manifestFilePath = process.env.CAMPUS_DOCS_SYNC_MANIFEST_PATH?.trim();
-	const manifestObjectKey = process.env.CAMPUS_DOCS_SYNC_MANIFEST_KEY?.trim();
-	if (command === "docs") {
+	if (options.command === "all" || options.command === "docs") {
 		console.log(
 			JSON.stringify(
-				await syncCampusPublishedReaderDocs({ client, manifestFilePath, manifestObjectKey }),
+				await syncCampusPublishedReaderDocs({
+					client,
+					manifestFilePath: options.manifestFilePath,
+					manifestObjectKey: options.manifestObjectKey,
+				}),
 			),
 		);
-		return;
 	}
-	if (command === "assets") {
+	if (options.command === "all" || options.command === "assets") {
 		console.log(
 			JSON.stringify(
-				await syncCampusPublishedReaderAssets({ client, manifestFilePath, manifestObjectKey }),
+				await syncCampusPublishedReaderAssets({
+					client,
+					manifestFilePath: options.manifestFilePath,
+					manifestObjectKey: options.manifestObjectKey,
+				}),
 			),
 		);
-		return;
 	}
-	throw new Error("usage: node scripts/sync-campus-published-reader.mjs docs|assets");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

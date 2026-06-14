@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: product
-owner_boundary: apps/public-docs
+owner_boundary: apps/campus-web
 status: active
 created: 2026-04-21
 updated: 2026-06-12
@@ -172,9 +172,9 @@ canonical doc 正文交付长期采用：
 固定拆分：
 
 - Rspress/static reader assets
-  - reader content
-  - outline / section tree
-  - public current / admitted historical 版本的 published reader payload
+  - `/docs/*` reader HTML
+  - `/_docs-static/*` Rspress runtime JS / CSS / native local search index
+  - `/_docs/*` public current / admitted historical 版本的 published reader payload
   - gated reader bootstrap route 与 controlled static asset package；正文读取仍必须经过
     same-origin app-api resolve/admission
 - `/api/docs/*`
@@ -199,7 +199,8 @@ canonical doc 正文交付长期采用：
 - `campus-web` static assets 只是 deploy-time sync 复制品
 - repo tracked `assets/` 目录不承担长期 reader publish truth
 - browser/runtime 不直连对象存储；docs shell 运行时只消费 same-origin `/api/docs/*` 与
-  `campus-web` 自己交付的 `/_docs/...` / `/_gated-docs/...` 静态路径
+  `campus-web` 自己交付的 `/_docs-static/...` / `/_docs/...` /
+  `/_gated-docs/...` 静态路径
 
 Cloudflare Workers 当前官方 static assets 路由模型允许：
 
@@ -269,6 +270,8 @@ docs search 与 chat 继续是两条不同能力：
 固定约束：
 
 - anonymous-visible current docs search 默认使用 Rspress native local search
+  - public local search index 随 Rspress runtime assets 交付在
+    `/_docs-static/static/search_index*.json`
 - restricted / gated docs search 默认使用 `/_gated-docs-search/*` 受保护静态索引，
   由 campus-web Worker 先调用 app-api admission，再交付 index；查询词不发送到 API
 - `/api/docs/collections/:corpus/:collection/search` 已从 docs browser-facing HTTP

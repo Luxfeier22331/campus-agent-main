@@ -11,6 +11,12 @@ export interface ReaderSyncInput {
 	targetRoot?: string;
 }
 
+export function parsePublishedReaderSyncArgs(argv: string[]): {
+	command: "all" | "docs" | "assets";
+	manifestFilePath?: string;
+	manifestObjectKey?: string;
+};
+
 export function resolvePublishedReaderObjectStoreBucket(env: {
 	OBJECT_STORE_BUCKET_DERIVED?: string;
 }): string;

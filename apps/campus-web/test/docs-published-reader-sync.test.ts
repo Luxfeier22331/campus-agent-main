@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+	parsePublishedReaderSyncArgs,
 	resolvePublishedReaderObjectStoreBucket,
 	syncCampusPublishedReaderAssets,
 	syncCampusPublishedReaderDocs,
@@ -31,6 +32,48 @@ describe("campus-web published reader sync", () => {
 				OBJECT_STORE_BUCKET_DERIVED: "campus-rag-derived-local",
 			}),
 		).toBe("campus-rag-derived-local");
+	});
+
+	it("resolves docs sync manifest selection from CLI args only", () => {
+		expect(
+			parsePublishedReaderSyncArgs([
+				"all",
+				"--manifest-path",
+				"../../var/public-docs-sync-manifest.json",
+			]),
+		).toEqual({
+			command: "all",
+			manifestFilePath: "../../var/public-docs-sync-manifest.json",
+			manifestObjectKey: undefined,
+		});
+		expect(
+			parsePublishedReaderSyncArgs(["docs", "--manifest-key", "published/docs/manifest.json"]),
+		).toEqual({
+			command: "docs",
+			manifestFilePath: undefined,
+			manifestObjectKey: "published/docs/manifest.json",
+		});
+	});
+
+	it("rejects ambiguous or env-owned docs sync manifest selection", () => {
+		expect(() =>
+			parsePublishedReaderSyncArgs([
+				"docs",
+				"--manifest-path",
+				"manifest.json",
+				"--manifest-key",
+				"k",
+			]),
+		).toThrow("expected exactly one of --manifest-path or --manifest-key");
+		expect(() => parsePublishedReaderSyncArgs(["docs"])).toThrow(
+			"expected exactly one of --manifest-path or --manifest-key",
+		);
+		expect(() =>
+			parsePublishedReaderSyncArgs(["docs", "--manifest-path", "manifest.json", "--extra"]),
+		).toThrow("unknown docs sync argument");
+		expect(() => parsePublishedReaderSyncArgs(["docs", "--manifest-path"])).toThrow(
+			"--manifest-path requires a value",
+		);
 	});
 
 	it("generates Rspress MDX reader pages with stable rootUnitId anchors", async () => {

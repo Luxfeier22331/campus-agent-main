@@ -10,6 +10,21 @@ const docsRoot = path.resolve(
 
 export default defineConfig({
 	builderConfig: {
+		output: {
+			assetPrefix: "/_docs-static/",
+			distPath: {
+				assets: "assets",
+				css: "css",
+				cssAsync: "css/async",
+				font: "font",
+				image: "image",
+				js: "js",
+				jsAsync: "js/async",
+				media: "media",
+				svg: "svg",
+				wasm: "wasm",
+			},
+		},
 		source: {
 			alias: {
 				"@": path.resolve(__dirname, "src"),

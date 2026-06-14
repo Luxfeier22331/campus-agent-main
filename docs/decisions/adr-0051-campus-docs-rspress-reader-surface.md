@@ -33,6 +33,8 @@ docs search mapping 的技术路线可行，但该独立 app 已删除，后续�
   `#anchor`。
 - anonymous-visible current docs search 默认使用 Rspress native local search，只索引
   `docsSearchVisibility=public_current` 的 published reader pages。
+- Rspress runtime JS / CSS / public local search index 统一交付在
+  `/_docs-static/*`，不得占用 campus shell 的通用 `/static/*` namespace。
 - restricted / gated search 默认使用受同源 Worker admission 保护的
   `/_gated-docs-search/*` static index，并在 browser 本地执行字面查询；查询词不发送到
   app-api。
