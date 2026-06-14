@@ -638,6 +638,9 @@ func TestPlanRAGActivitySelectsStudentRuleScopeWithoutExplicitRequestedScope(t *
 		plan.CollectionAlias != "student_rules" {
 		t.Fatalf("selected scope = %#v, want regulations/student_rules", plan)
 	}
+	if plan.PlanID != "rag:regulations:student_rules:current" {
+		t.Fatalf("plan id = %q, want stable retrieval plan id", plan.PlanID)
+	}
 }
 
 func TestPlanRAGActivityFailsClosedWhenScopeCannotBeSelected(t *testing.T) {

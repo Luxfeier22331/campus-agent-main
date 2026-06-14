@@ -107,6 +107,46 @@ def execute_index_backed_step(
     )
 
 
+def execute_live_source_lookup_step(
+    step: RetrievalStep,
+    *,
+    authorized_filter,
+    personalization_hint,
+    live_source_lookup_step,
+):
+    if live_source_lookup_step is None:
+        return build_blocked_step_result(
+            step,
+            failure_kind="executor_error",
+            message="live source lookup executor is unavailable for this runtime path",
+        )
+    started_at = time.perf_counter()
+    request = build_retrieval_request_from_step(
+        step,
+        authorized_filter=authorized_filter,
+        personalization_hint=personalization_hint,
+    )
+    evidence = live_source_lookup_step(request)
+    bounded_evidence = bound_live_source_evidence(evidence, top_k=step.budget.top_k)
+    latency_ms = max(0, round((time.perf_counter() - started_at) * 1000))
+    return build_succeeded_step_result(
+        step,
+        evidence=bounded_evidence,
+        latency_ms=latency_ms,
+    )
+
+
+def bound_live_source_evidence(evidence: EvidenceBundle, *, top_k: int) -> EvidenceBundle:
+    if top_k <= 0 or len(evidence.sources) <= top_k:
+        return evidence
+    return EvidenceBundle(
+        query_text=evidence.query_text,
+        corpus=evidence.corpus,
+        collection=evidence.collection,
+        sources=evidence.sources[:top_k],
+    )
+
+
 def validate_index_backed_step(step: RetrievalStep) -> str | None:
     if step.step_type == "historical_version_lookup" and not step.selector.target_version_ids:
         return "historical_version_lookup requires target_version_ids"
@@ -271,11 +311,13 @@ def execute_freshness_gate_step(
 
 __all__ = [
     "apply_profile_gated_reranker",
+    "bound_live_source_evidence",
     "bounded_rerank_candidate_bundle",
     "build_compare_pair_requests",
     "classify_retrieval_exception_failure_kind",
     "execute_freshness_gate_step",
     "execute_index_backed_step",
+    "execute_live_source_lookup_step",
     "merge_evidence_chunks",
     "validate_index_backed_step",
 ]

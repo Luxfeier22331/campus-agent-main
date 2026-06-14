@@ -236,6 +236,10 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	plan ragruntime.PlanProjection,
 	embedding []float64,
 ) ([]qdrantPoint, error) {
+	mustConditions, err := qdrantRAGLookupFilterConditions(plan)
+	if err != nil {
+		return nil, err
+	}
 	body, err := json.Marshal(map[string]any{
 		"limit":        plan.TopK,
 		"with_payload": true,
@@ -243,13 +247,7 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 		"using":        "dense",
 		"query":        embedding,
 		"filter": map[string]any{
-			"must": []map[string]any{
-				qdrantMatchCondition("corpus", plan.Corpus),
-				qdrantMatchCondition("collection", plan.Collection),
-				qdrantMatchCondition("status", "active"),
-				qdrantMatchCondition("is_current", true),
-				qdrantMatchCondition("visibility_level", "public"),
-			},
+			"must": mustConditions,
 		},
 	})
 	if err != nil {
@@ -285,10 +283,68 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	return payload.Result.Points, nil
 }
 
+func qdrantRAGLookupFilterConditions(plan ragruntime.PlanProjection) ([]map[string]any, error) {
+	must := []map[string]any{
+		qdrantMatchCondition("corpus", plan.Corpus),
+		qdrantMatchCondition("collection", plan.Collection),
+		qdrantMatchCondition("status", "active"),
+	}
+	versionConditions, err := qdrantVersionFilterConditions(plan)
+	if err != nil {
+		return nil, err
+	}
+	must = append(must, versionConditions...)
+	must = append(must, qdrantMatchCondition("visibility_level", "public"))
+	return must, nil
+}
+
+func qdrantVersionFilterConditions(plan ragruntime.PlanProjection) ([]map[string]any, error) {
+	mode := strings.TrimSpace(plan.QueryMode)
+	switch mode {
+	case "", "current", "freshness_sensitive":
+		return []map[string]any{qdrantMatchCondition("is_current", true)}, nil
+	case "historical":
+		if plan.VersionQuery == nil || strings.TrimSpace(plan.VersionQuery.VersionID) == "" {
+			return nil, errors.New("historical qdrant lookup requires version_query.version_id")
+		}
+		return []map[string]any{
+			qdrantMatchAnyCondition("version_id", []string{strings.TrimSpace(plan.VersionQuery.VersionID)}),
+		}, nil
+	case "compare":
+		if plan.VersionQuery == nil ||
+			strings.TrimSpace(plan.VersionQuery.VersionID) == "" ||
+			strings.TrimSpace(plan.VersionQuery.CompareToVersionID) == "" {
+			return nil, errors.New("compare qdrant lookup requires version_query.version_id and compare_to_version_id")
+		}
+		return []map[string]any{
+			qdrantMatchAnyCondition(
+				"version_id",
+				[]string{
+					strings.TrimSpace(plan.VersionQuery.VersionID),
+					strings.TrimSpace(plan.VersionQuery.CompareToVersionID),
+				},
+			),
+		}, nil
+	case "as_of":
+		return nil, errors.New("as_of qdrant lookup requires pre-resolved version_id before indexed lookup")
+	case "live_assisted":
+		return nil, errors.New("live_assisted query_mode requires live source lookup branch, not indexed qdrant lookup")
+	default:
+		return nil, fmt.Errorf("unsupported qdrant lookup query_mode %q", mode)
+	}
+}
+
 func qdrantMatchCondition(key string, value any) map[string]any {
 	return map[string]any{
 		"key":   key,
 		"match": map[string]any{"value": value},
+	}
+}
+
+func qdrantMatchAnyCondition(key string, values []string) map[string]any {
+	return map[string]any{
+		"key":   key,
+		"match": map[string]any{"any": values},
 	}
 }
 

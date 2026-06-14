@@ -5,6 +5,7 @@ _CURRICULUM_T0_CLAIM_TYPES = frozenset(
         "semester_or_grade_or_term_placement",
         "audience_or_major_or_program_or_class_family",
         "offering_unit_or_owning_school",
+        "degree_or_credential",
     }
 )
 _POLICY_OR_CURRICULUM_CLAIM_TYPES = frozenset(

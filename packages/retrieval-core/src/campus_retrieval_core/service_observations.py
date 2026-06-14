@@ -92,7 +92,7 @@ def build_retrieval_observation(
         "need_ids": activity.need_ids,
         "latency_ms": activity.latency_ms,
     }
-    observation["canonical_index_truth"] = True
+    observation["canonical_index_truth"] = activity.step_type != "live_source_lookup"
     source_timestamps = tuple(
         str(source.anchor.get("source_timestamp") or "")
         for source in result.references
@@ -125,6 +125,8 @@ def observation_retrieval_mode(
     query_mode: str,
     step_type: str,
 ) -> str:
+    if step_type == "live_source_lookup":
+        return "live_assisted"
     return query_mode
 
 

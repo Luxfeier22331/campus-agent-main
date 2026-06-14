@@ -65,6 +65,9 @@ product data and sanitized run/event/step projection, not the execution queue.
 
 - There is no tracked active workstream directory in this repository.
 - `.planning/WORKSTREAMS.md` is a compact active work map, not a phase ledger.
+- The repo-level implementation gap ledger lives in
+  `.planning/WORKSTREAMS.md#implementation-gap-ledger`; do not duplicate that
+  table in current/target architecture docs.
 - Workstream/session state is handled by GSD SDK and Codex native sessions. Do
   not recreate tracked phase trees, terminal-result artifacts, heartbeat files,
   hook state, or repo-owned harness state.

@@ -23,28 +23,44 @@ import (
 )
 
 type Event struct {
-	BridgeDuration        time.Duration
-	BridgeCancelStatus    string
-	ContextPreflightState string
-	Name                  string
-	RequestID             string
-	TraceID               string
-	Lane                  string
-	RequestedCapability   string
-	Outcome               string
-	Decision              string
-	FailureCode           string
-	StatusCode            int
-	Duration              time.Duration
-	QueueWait             time.Duration
-	ScopeGateDecision     string
-	PolicyGateDecision    string
-	RoutingNextAction     string
-	PlanningOutcome       string
-	SelectedCapability    string
-	SelectedTool          string
-	TerminalOutcome       string
-	FailCloseReason       string
+	BridgeDuration         time.Duration
+	BridgeCancelStatus     string
+	CanonicalIndexTruth    string
+	CandidateCount         int
+	Collection             string
+	ContextPreflightState  string
+	Corpus                 string
+	Name                   string
+	RequestID              string
+	TraceID                string
+	Lane                   string
+	RequestedCapability    string
+	Outcome                string
+	Decision               string
+	FailureCode            string
+	FailureKind            string
+	PlanID                 string
+	StatusCode             int
+	Duration               time.Duration
+	QueueWait              time.Duration
+	ScopeGateDecision      string
+	PolicyGateDecision     string
+	RoutingNextAction      string
+	PlanningOutcome        string
+	QuerySHA256            string
+	QueryMode              string
+	ReferenceCount         int
+	RetrievalMode          string
+	RunID                  string
+	SelectedCapability     string
+	SelectedTool           string
+	StepID                 string
+	TerminalOutcome        string
+	TerminalState          string
+	FailCloseReason        string
+	TargetDocumentIDsCount int
+	TargetVersionIDsCount  int
+	Latency                time.Duration
 }
 
 type Status struct {
@@ -200,25 +216,41 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("telemetry.allowed_attributes_version", e.allowedVersion),
 		attribute.Int64("bridge_duration_ms", event.BridgeDuration.Milliseconds()),
 		attribute.String("bridge_cancel_status", event.BridgeCancelStatus),
+		attribute.String("canonical_index_truth", event.CanonicalIndexTruth),
+		attribute.Int("candidate_count", event.CandidateCount),
 		attribute.String("context_preflight_state", event.ContextPreflightState),
 		attribute.String("request_id", event.RequestID),
 		attribute.String("trace_id", event.TraceID),
 		attribute.String("lane", event.Lane),
 		attribute.String("requested_capability", event.RequestedCapability),
 		attribute.String("outcome", event.Outcome),
+		attribute.String("plan_id", event.PlanID),
 		attribute.String("planning_outcome", event.PlanningOutcome),
+		attribute.String("query_sha256", event.QuerySHA256),
+		attribute.String("query_mode", event.QueryMode),
+		attribute.Int("reference_count", event.ReferenceCount),
+		attribute.String("retrieval_mode", event.RetrievalMode),
+		attribute.String("run_id", event.RunID),
+		attribute.String("scope.collection", event.Collection),
+		attribute.String("scope.corpus", event.Corpus),
 		attribute.String("policy_gate_decision", event.PolicyGateDecision),
 		attribute.String("decision", event.Decision),
 		attribute.String("failure_code", event.FailureCode),
+		attribute.String("failure_kind", event.FailureKind),
 		attribute.Int64("queue_wait_ms", event.QueueWait.Milliseconds()),
 		attribute.String("routing_next_action", event.RoutingNextAction),
 		attribute.String("selected_capability", event.SelectedCapability),
 		attribute.String("selected_tool", event.SelectedTool),
 		attribute.String("scope_gate_decision", event.ScopeGateDecision),
+		attribute.String("step_id", event.StepID),
 		attribute.String("terminal_outcome", event.TerminalOutcome),
+		attribute.String("terminal_state", event.TerminalState),
 		attribute.String("fail_close_reason", event.FailCloseReason),
 		attribute.Int("status_code", event.StatusCode),
 		attribute.Int64("duration_ms", event.Duration.Milliseconds()),
+		attribute.Int64("latency_ms", event.Latency.Milliseconds()),
+		attribute.Int("target_document_ids_count", event.TargetDocumentIDsCount),
+		attribute.Int("target_version_ids_count", event.TargetVersionIDsCount),
 	}
 	name := strings.TrimSpace(event.Name)
 	if name == "" {

@@ -14,21 +14,30 @@ var ErrInvalidProjection = errors.New("invalid rag runtime projection")
 const maxEvidenceExcerptBytes = 1200
 
 type PlanProjection struct {
-	SchemaVersion            string         `json:"schema_version"`
-	RunID                    string         `json:"run_id"`
-	StepID                   string         `json:"step_id"`
-	RequestID                string         `json:"request_id"`
-	QueryText                string         `json:"query_text"`
-	QueryMode                string         `json:"query_mode"`
-	Corpus                   string         `json:"corpus"`
-	Collection               string         `json:"collection"`
-	CollectionAlias          string         `json:"collection_alias"`
-	TopK                     int            `json:"top_k"`
-	NoWideningPolicy         bool           `json:"no_widening_policy"`
-	RequiredEvidenceContract string         `json:"required_evidence_contract"`
-	MemoryRef                string         `json:"memory_ref,omitempty"`
-	PayloadSHA256            string         `json:"payload_sha256"`
-	UnsafeDebug              map[string]any `json:"-"`
+	SchemaVersion            string                  `json:"schema_version"`
+	RunID                    string                  `json:"run_id"`
+	StepID                   string                  `json:"step_id"`
+	RequestID                string                  `json:"request_id"`
+	QueryText                string                  `json:"query_text"`
+	QueryMode                string                  `json:"query_mode"`
+	VersionQuery             *VersionQueryProjection `json:"version_query,omitempty"`
+	Corpus                   string                  `json:"corpus"`
+	Collection               string                  `json:"collection"`
+	CollectionAlias          string                  `json:"collection_alias"`
+	TopK                     int                     `json:"top_k"`
+	NoWideningPolicy         bool                    `json:"no_widening_policy"`
+	RequiredEvidenceContract string                  `json:"required_evidence_contract"`
+	MemoryRef                string                  `json:"memory_ref,omitempty"`
+	PlanID                   string                  `json:"plan_id"`
+	PayloadSHA256            string                  `json:"payload_sha256"`
+	UnsafeDebug              map[string]any          `json:"-"`
+}
+
+type VersionQueryProjection struct {
+	Mode               string `json:"mode"`
+	AsOf               string `json:"as_of,omitempty"`
+	VersionID          string `json:"version_id,omitempty"`
+	CompareToVersionID string `json:"compare_to_version_id,omitempty"`
 }
 
 type RetrievalLookupRequest struct {
@@ -131,6 +140,7 @@ func ValidatePlanProjection(plan PlanProjection) error {
 		"corpus":           plan.Corpus,
 		"collection":       plan.Collection,
 		"collection_alias": plan.CollectionAlias,
+		"plan_id":          plan.PlanID,
 		"payload_sha256":   plan.PayloadSHA256,
 	}); err != nil {
 		return err
@@ -138,10 +148,64 @@ func ValidatePlanProjection(plan PlanProjection) error {
 	if plan.TopK <= 0 {
 		return fmt.Errorf("%w: top_k must be positive", ErrInvalidProjection)
 	}
+	if err := validateQueryMode(plan.QueryMode, plan.VersionQuery); err != nil {
+		return err
+	}
 	if !isSHA256Hex(plan.PayloadSHA256) {
 		return fmt.Errorf("%w: payload_sha256 must be lowercase sha256 hex", ErrInvalidProjection)
 	}
 	return rejectUnsafeDebug(plan.UnsafeDebug)
+}
+
+func validateQueryMode(queryMode string, versionQuery *VersionQueryProjection) error {
+	switch queryMode {
+	case "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted":
+	default:
+		return fmt.Errorf("%w: unsupported query_mode %q", ErrInvalidProjection, queryMode)
+	}
+	if versionQuery == nil {
+		if queryMode == "historical" || queryMode == "as_of" || queryMode == "compare" {
+			return fmt.Errorf("%w: version_query is required for %s query_mode", ErrInvalidProjection, queryMode)
+		}
+		return nil
+	}
+	mode := strings.TrimSpace(versionQuery.Mode)
+	if mode == "" {
+		return fmt.Errorf("%w: version_query.mode is required", ErrInvalidProjection)
+	}
+	if mode != queryMode {
+		return fmt.Errorf("%w: version_query.mode must match query_mode", ErrInvalidProjection)
+	}
+	switch mode {
+	case "current", "freshness_sensitive", "live_assisted":
+		if versionQuery.AsOf != "" || versionQuery.VersionID != "" || versionQuery.CompareToVersionID != "" {
+			return fmt.Errorf("%w: version_query fields are not allowed for %s query_mode", ErrInvalidProjection, mode)
+		}
+	case "historical":
+		if strings.TrimSpace(versionQuery.VersionID) == "" {
+			return fmt.Errorf("%w: version_query.version_id is required for historical query_mode", ErrInvalidProjection)
+		}
+		if versionQuery.AsOf != "" || versionQuery.CompareToVersionID != "" {
+			return fmt.Errorf("%w: unsupported version_query fields for historical query_mode", ErrInvalidProjection)
+		}
+	case "as_of":
+		if strings.TrimSpace(versionQuery.AsOf) == "" {
+			return fmt.Errorf("%w: version_query.as_of is required for as_of query_mode", ErrInvalidProjection)
+		}
+		if versionQuery.VersionID != "" || versionQuery.CompareToVersionID != "" {
+			return fmt.Errorf("%w: unsupported version_query fields for as_of query_mode", ErrInvalidProjection)
+		}
+	case "compare":
+		if strings.TrimSpace(versionQuery.VersionID) == "" || strings.TrimSpace(versionQuery.CompareToVersionID) == "" {
+			return fmt.Errorf("%w: version_query.version_id and compare_to_version_id are required for compare query_mode", ErrInvalidProjection)
+		}
+		if versionQuery.AsOf != "" {
+			return fmt.Errorf("%w: version_query.as_of is not allowed for compare query_mode", ErrInvalidProjection)
+		}
+	default:
+		return fmt.Errorf("%w: unsupported version_query.mode %q", ErrInvalidProjection, mode)
+	}
+	return nil
 }
 
 func ValidateEvidenceSelection(result EvidenceSelectionResult) error {

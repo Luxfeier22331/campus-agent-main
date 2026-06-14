@@ -22,9 +22,11 @@ from campus_retrieval_core.service_step_executor import (
     classify_retrieval_exception_failure_kind,
     execute_freshness_gate_step,
     execute_index_backed_step,
+    execute_live_source_lookup_step,
 )
 
 ExecutableRetrievalRequestFn = Callable[[RetrievalRequest], EvidenceBundle]
+ExecutableLiveSourceLookupFn = Callable[[RetrievalRequest], EvidenceBundle]
 ExecutableRerankFn = Callable[[RetrievalRequest, EvidenceBundle], EvidenceBundle]
 ReplanStepCallback = Callable[
     [RetrievalPlan, tuple[RetrievalStepResult, ...], RetrievalStepResult], Sequence[RetrievalStep]
@@ -46,6 +48,7 @@ def execute_retrieval_plan(
     personalization_hint: PersonalizationHint | None = None,
     backend=None,
     retrieve_step: ExecutableRetrievalRequestFn | None = None,
+    live_source_lookup_step: ExecutableLiveSourceLookupFn | None = None,
     rerank_step: ExecutableRerankFn | None = None,
     replan_callback: ReplanStepCallback | None = None,
     observation_sink=None,
@@ -92,6 +95,13 @@ def execute_retrieval_plan(
                 plan=plan,
                 step=step,
                 load_runtime_profile_fn=load_runtime_profile_fn,
+            )
+        elif step.step_type == "live_source_lookup":
+            result = execute_live_source_lookup_step(
+                step,
+                authorized_filter=authorized_filter,
+                personalization_hint=personalization_hint,
+                live_source_lookup_step=live_source_lookup_step,
             )
         elif step.step_type not in _INDEX_BACKED_RETRIEVAL_STEP_TYPES:
             result = build_blocked_step_result(
@@ -242,6 +252,7 @@ def build_execution_result(
 
 
 __all__ = [
+    "ExecutableLiveSourceLookupFn",
     "ExecutableRerankFn",
     "ExecutableRetrievalRequestFn",
     "ReplanStepCallback",

@@ -14,13 +14,16 @@ from campus_contracts import (
 )
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
-RetrievalQueryMode = Literal["current", "historical", "as_of", "compare", "freshness_sensitive"]
+RetrievalQueryMode = Literal[
+    "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted"
+]
 RetrievalStepType = Literal[
     "indexed_lookup",
     "entity_resolution",
     "historical_version_lookup",
     "compare_pair_lookup",
     "freshness_gate",
+    "live_source_lookup",
     "scope_follow_up",
 ]
 RetrievalExpectedOutput = Literal[
@@ -76,6 +79,7 @@ ALLOWED_RETRIEVAL_QUERY_MODES = (
     "as_of",
     "compare",
     "freshness_sensitive",
+    "live_assisted",
 )
 ALLOWED_RETRIEVAL_STEP_TYPES = (
     "indexed_lookup",
@@ -83,6 +87,7 @@ ALLOWED_RETRIEVAL_STEP_TYPES = (
     "historical_version_lookup",
     "compare_pair_lookup",
     "freshness_gate",
+    "live_source_lookup",
     "scope_follow_up",
 )
 ALLOWED_RETRIEVAL_EXPECTED_OUTPUTS = (

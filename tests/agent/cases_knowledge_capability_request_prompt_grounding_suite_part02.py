@@ -301,6 +301,45 @@ class RagCapabilityRequestPromptGroundingTestPart02(unittest.TestCase):
         )
         self.assertTrue(quantity_claim.supported)
 
+    def test_validate_prompt_answer_grounding_rejects_unsupported_degree_table_fact(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科人才培养方案授予什么学位？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:民族学本科人才培养方案",
+                    chunk_id="curriculum:民族学本科人才培养方案:chunk-0008",
+                    source_title="民族学本科人才培养方案",
+                    snippet=("三、学制、总学分和学位授予 学制:4年 总学分:159学分。"),
+                    score=0.93,
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        result = validate_prompt_answer_grounding(
+            answer_text="《民族学本科人才培养方案》授予法学学士学位。",
+            evidence=evidence,
+        )
+
+        self.assertEqual(result.verdict, "unsupported")
+        self.assertIn("table_fact_claims", result.unsupported_fields)
+        self.assertIn(
+            ClaimSupport(
+                claim_type="degree_or_credential",
+                claim_text="法学学士学位",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+
     def test_prompt_answer_with_unsupported_offering_unit_and_audience_downgrades_to_no_answer(
         self,
     ) -> None:

@@ -143,6 +143,56 @@ class RetrievalServiceReplanExecutionTestPart01(unittest.TestCase):
         )
         self.assertEqual(len(result.merged_evidence.sources), 1)
 
+    def test_execute_retrieval_plan_rejects_replan_from_indexed_lookup_to_live_lookup(self) -> None:
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:reject-live-replan",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="国奖",
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",),
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                RetrievalStep(
+                    step_id="live-replanned",
+                    step_type="live_source_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="国家奖学金 最新",
+                    depends_on_step_ids=(last_result.step_id,),
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",),
+                    ),
+                    budget=RetrievalStepBudget(top_k=1),
+                ),
+            ),
+        )
+
+        self.assertEqual(tuple(step.status for step in result.step_results), ("empty", "failed"))
+        self.assertEqual(result.step_results[1].step_id, "live-replanned:failure")
+        self.assertIn("cannot switch to live branch", result.step_results[1].failure.message)
+        self.assertEqual(result.replan_count, 0)
+
     def test_execute_retrieval_plan_replans_low_quality_grounding_without_dropping_references(
         self,
     ) -> None:

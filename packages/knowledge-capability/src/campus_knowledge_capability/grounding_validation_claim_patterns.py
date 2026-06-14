@@ -14,6 +14,10 @@ _SEMESTER_OR_TERM_RE = re.compile(
     r"((?:第(?:\d+|[一二三四五六七八九十两零〇]+)学期|第(?:\d+|[一二三四五六七八九十两零〇]+)学年|"
     r"(?:大一|大二|大三|大四|研一|研二|研三)(?:上|下)?|(?:春季|秋季|夏季|冬季)学期))"
 )
+_DEGREE_OR_CREDENTIAL_RE = re.compile(
+    r"(?:授予|获得|取得|颁发)"
+    r"([\u4e00-\u9fffA-Za-z0-9（）()]{2,24}(?:学士学位|硕士学位|博士学位|学位|证书|资格))"
+)
 _MATERIAL_DIRECT_RE = re.compile(
     r"(身份证原件|身份证复印件|学生证原件|学生证复印件|书面申请|申请表|证明材料|申请材料|相关材料|证明|原件|复印件)"
 )
@@ -107,6 +111,7 @@ __all__ = [
     "_AUDIENCE_SPLIT_RE",
     "_AUTHORIZATION_SENSITIVE_CLAIM_PATTERNS",
     "_CLAUSE_SPLIT_RE",
+    "_DEGREE_OR_CREDENTIAL_RE",
     "_ELIGIBILITY_CLAIM_PATTERNS",
     "_FRESHNESS_SENSITIVE_STATUS_PATTERNS",
     "_LOW_SIGNAL_REQUIREMENT_PHRASES",

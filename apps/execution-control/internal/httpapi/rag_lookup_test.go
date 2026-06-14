@@ -69,6 +69,74 @@ func TestQdrantRAGLookupQueryUsesDenseNamedVector(t *testing.T) {
 	}
 }
 
+func TestQdrantRAGLookupHistoricalVersionFilterDoesNotFallbackToCurrent(t *testing.T) {
+	var captured map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
+			t.Fatalf("decode qdrant query body: %v", err)
+		}
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{"result":{"points":[]},"status":"ok"}`))
+	}))
+	defer server.Close()
+	executor := qdrantRAGLookupExecutor{
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "test-qdrant-key",
+		qdrantURL:         server.URL,
+		timeout:           time.Second,
+	}
+
+	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
+		Collection:      "student_rules",
+		CollectionAlias: "student_rules",
+		Corpus:          "regulations",
+		QueryMode:       "historical",
+		QueryText:       "旧版国奖评审办法",
+		RunID:           "run-qdrant-historical-query",
+		TopK:            3,
+		VersionQuery: &ragruntime.VersionQueryProjection{
+			Mode:      "historical",
+			VersionID: "v1:national-scholarship",
+		},
+	}, []float64{0.1, 0.2, 0.3})
+	if err != nil {
+		t.Fatalf("query points: %v", err)
+	}
+	must := qdrantMustConditionsForTest(t, captured)
+	if _, ok := must["is_current"]; ok {
+		t.Fatalf("historical version query must not include is_current fallback: %#v", must)
+	}
+	rawMust := qdrantMustConditionPayloadsForTest(t, captured)
+	versionMatch, ok := rawMust["version_id"]["match"].(map[string]any)
+	if !ok {
+		t.Fatalf("version_id filter missing match payload: %#v", rawMust["version_id"])
+	}
+	versionIDs, ok := versionMatch["any"].([]any)
+	if !ok || len(versionIDs) != 1 || versionIDs[0] != "v1:national-scholarship" {
+		t.Fatalf("version_id any = %#v, want v1:national-scholarship", versionMatch["any"])
+	}
+}
+
+func TestQdrantRAGLookupHistoricalModeRequiresExplicitVersionQuery(t *testing.T) {
+	executor := qdrantRAGLookupExecutor{}
+
+	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
+		Collection:      "student_rules",
+		CollectionAlias: "student_rules",
+		Corpus:          "regulations",
+		QueryMode:       "historical",
+		QueryText:       "旧版国奖评审办法",
+		RunID:           "run-qdrant-historical-missing-version",
+		TopK:            3,
+	}, []float64{0.1, 0.2, 0.3})
+	if err == nil {
+		t.Fatal("historical lookup without version query must fail closed")
+	}
+	if !strings.Contains(err.Error(), "version_id") {
+		t.Fatalf("error = %v, want version_id diagnostic", err)
+	}
+}
+
 func TestQdrantRAGLookupEmbeddingRequestUsesConfiguredDimensions(t *testing.T) {
 	var captured map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -257,6 +325,28 @@ func qdrantMustConditionsForTest(t *testing.T, captured map[string]any) map[stri
 		key, _ := condition["key"].(string)
 		match, _ := condition["match"].(map[string]any)
 		must[key] = match["value"]
+	}
+	return must
+}
+
+func qdrantMustConditionPayloadsForTest(t *testing.T, captured map[string]any) map[string]map[string]any {
+	t.Helper()
+	filter, ok := captured["filter"].(map[string]any)
+	if !ok {
+		t.Fatalf("filter = %#v, want object", captured["filter"])
+	}
+	rawMust, ok := filter["must"].([]any)
+	if !ok {
+		t.Fatalf("filter.must = %#v, want array", filter["must"])
+	}
+	must := map[string]map[string]any{}
+	for _, rawCondition := range rawMust {
+		condition, ok := rawCondition.(map[string]any)
+		if !ok {
+			t.Fatalf("condition = %#v, want object", rawCondition)
+		}
+		key, _ := condition["key"].(string)
+		must[key] = condition
 	}
 	return must
 }

@@ -92,3 +92,41 @@ status as current project truth.
 - Ops signal: remote deploy worktrees must remain clean pinned deploy checkouts;
   secrets and runtime env belong to ops/Docker-managed config, not repo checkout
   state.
+
+## Implementation Gap Ledger
+
+This ledger records work that is already designed in active docs / contracts but
+is not yet closed by the current merged code truth. It is the repo-level place
+for implementation gaps; architecture, contract, data and runbook documents
+should not carry duplicate progress boards.
+
+Scope rules:
+
+- Include only gaps where an active doc or contract defines a target behavior and
+  current code does not yet close that behavior.
+- Exclude staging proof, release evidence, content-quality maturity, product
+  opening decisions, and capability families intentionally kept closed unless
+  they require code to become available.
+- Exclude old-document contradictions once the owning doc has been corrected.
+
+| ID | Area | Gap | Evidence | Current code fact | Closeout posture |
+| --- | --- | --- | --- | --- | --- |
+| `retrieval-freshness-live-execution` | Retrieval / knowledge | Generic `live_assisted` / `live_source_lookup` backend seam is now implemented in `retrieval-core`, including missing-executor fail-close and top-k bounding. Remaining gap is a real admitted live source executor / source selection policy and product opening for concrete live surfaces. | `docs/architecture/system/retrieval-serving-architecture.md`, `docs/architecture/system/agentic-retrieval-architecture.md`, `docs/contracts/knowledge-retrieval-plan-contract.md`, `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md` define freshness / live vocabulary and fail-close rules. | `packages/retrieval-core/src/campus_retrieval_core/models.py` accepts `live_assisted` and `live_source_lookup`; `service_plan_execution.py` executes the branch only with an injected live executor; Go RAG projection propagates `version_query` instead of forcing `current`; Qdrant indexed lookup fail-closes for `live_assisted` and unresolved `as_of`. | Partially closed backend seam. Keep this as a deferred concrete-runtime gap until a repo-admitted live source executor and surface-specific opening policy exist. |
+| `retrieval-runtime-observation-contract` | Retrieval observability | Go online RAG indexed lookup emits the minimum sanitized `retrieval.runtime_observation` event contract for eval / backlog consumption. Production sink, panel consumption and release evidence remain deferred consumers, not current main-chain blockers. | `docs/architecture/system/retrieval-serving-architecture.md`, `docs/reference/runtime-otel-telemetry-taxonomy.md`, and `docs/runbooks/index-release-runbook.md` define `retrieval.runtime_observation` and the adapter-owned OTel/log/export boundary. | `packages/retrieval-core/src/campus_retrieval_core/service_observations.py` exposes the sink/event shape; `apps/execution-control/internal/httpapi/temporal_retrieval_observation.go` maps Go RAG indexed lookup into sanitized observations with `request_id`, `run_id`, `plan_id`, `step_id`, scope, query/retrieval mode, terminal state, counts, latency and `query_sha256`. | Event contract closed for online indexed lookup. Track any production storage, panel consumer or release-evidence consumer as a separate downstream implementation item when that consumer becomes active. |
+| `official-web-fresh-news-runtime` | Official web / retrieval | `fresh_news` / `news_archive` have source profiles and opening contracts, but no active runtime/tool path for freshness-sensitive news answers. | `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`, `docs/reference/official-web-news-surface-opening-checklist.md`, and `docs/reference/official-web-fresh-news-eval-baseline.md` keep news surfaces offline/default-closed and require article detail evidence, freshness gate and bounded live assist or fail-close before opening. | Runtime profiles exist under `configs/ingestion/official_web/*`, while current query-enabled surface remains `official_web/stable_reference`; no model-visible or typed runtime branch opens `fresh_news` / `news_archive`. | Deferred capability implementation gap. Do not treat as a main-chain blocker; close only after the generic freshness/live backend path and news-specific routing/evidence contracts are executable. |
+| `navigation-route-map-runtime` | Navigation | Long-term navigation design includes route planning, waypoints, distance/duration, accessibility, entrance selection and request-scoped current-location projection, but current product path keeps navigation closed. | `docs/architecture/domains/navigation/architecture.md` defines the target navigation family; `docs/contracts/navigation-place-finding-contract.md` explicitly defers route/map/current-location contracts. | `apps/execution-control/internal/config/config_test.go` and `apps/execution-control/internal/runtimepolicy/policy_test.go` enforce `place_lookup` fail-close before map rollout; browser/app-api shapes retain `place_card` normalization but do not open product consumption. | Deferred product/capability implementation gap. Not a main-chain blocker. Close when map/navigation rollout starts, with spatial truth and route graph ownership intact. |
+| `campus-services-service-process` | Campus services | `service_process_lookup` is designed as a later service capability but remains `keep_closed` and has no active tool admission/runtime contract. | `docs/architecture/domains/campus-services/architecture.md` lists `service_process_lookup` as `keep_closed`; `docs/contracts/service-status-lookup-contract.md` treats it as later expansion. | `apps/agent-runtime/src/tool-catalog.ts`, `apps/execution-control/internal/runtimepolicy/tool_registry_test.go`, and structured query endpoints cover `service_status_lookup`, `service_guide_lookup`, `transport_schedule_lookup`, `contact_directory_lookup`, and `academic_calendar_lookup`, not `service_process_lookup`. | Deferred capability implementation gap. Existing campus-services tools are not blocked by this item. |
+| `prompt-grounding-validator-depth` | Prompt / knowledge safety | Claim-level grounding validation exists but remains narrower than the full target grounded-generation contract. The first added depth covers degree / credential table-fact claims. | `docs/architecture/system/prompt-and-instruction/safety-observability-and-rollout.md` names grounding validator depth as the remaining gap. | `packages/knowledge-capability` validates generated answers against evidence and records unsupported / downgraded grounding; `grounding_validation_claim_basic.py` now extracts degree / credential claims and requires T0 support. | Partially closed hardening gap. Continue expanding claim extraction/support policy and cross-provider grounded output handling without weakening fail-close behavior. |
+
+Current non-gaps after the doc audit:
+
+- Main answer chain completion is judged by the generic execution skeleton, not
+  by every capability's content maturity or product opening.
+- Explicit personal memory upsert / disable / owner-disable is implemented
+  through `app-api -> execution-control -> Qdrant`; inferred memory update
+  workflow remains future target, not a current v1 gap.
+- Opened campus-services read-only tools are implemented as model-visible typed
+  tools plus Go internal structured query endpoints; only
+  `service_process_lookup` remains later-wave.
+- Notice content maturity and manual校对 work are data / quality work, not a
+  generic main-chain implementation gap.

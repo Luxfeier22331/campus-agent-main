@@ -61,12 +61,14 @@ func ragPlanProjectionForRun(
 	if topK <= 0 {
 		topK = 8
 	}
+	queryMode, versionQuery := ragVersionQueryForRun(payload)
 	plan := ragruntime.PlanProjection{
 		Collection:               scope.Collection,
 		CollectionAlias:          scope.Collection,
 		Corpus:                   scope.Corpus,
 		NoWideningPolicy:         true,
-		QueryMode:                "current",
+		PlanID:                   ragPlanID(scope, queryMode),
+		QueryMode:                queryMode,
 		QueryText:                queryText,
 		RequestID:                run.RequestID,
 		RequiredEvidenceContract: "answer_bearing_evidence",
@@ -74,6 +76,7 @@ func ragPlanProjectionForRun(
 		SchemaVersion:            "rag_plan_projection_v1",
 		StepID:                   "rag.plan",
 		TopK:                     topK,
+		VersionQuery:             versionQuery,
 	}
 	if _, memoryRef := memoryContextForRAG(run); memoryRef != "" {
 		plan.MemoryRef = memoryRef
@@ -87,6 +90,41 @@ func ragPlanProjectionForRun(
 		return ragruntime.PlanProjection{}, err
 	}
 	return plan, nil
+}
+
+func ragPlanID(scope runtimepolicy.Scope, queryMode string) string {
+	return "rag:" + scope.Corpus + ":" + scope.Collection + ":" + queryMode
+}
+
+func ragVersionQueryForRun(payload map[string]any) (string, *ragruntime.VersionQueryProjection) {
+	rawVersion := cloneAnyMapFromMetadata(payload["version_query"])
+	mode := firstNonEmptyText(rawVersion["mode"], "current")
+	switch mode {
+	case "historical", "as_of", "compare", "freshness_sensitive", "live_assisted":
+		return mode, &ragruntime.VersionQueryProjection{
+			Mode:               mode,
+			AsOf:               firstNonEmptyText(rawVersion["as_of"]),
+			VersionID:          firstNonEmptyText(rawVersion["version_id"]),
+			CompareToVersionID: firstNonEmptyText(rawVersion["compare_to_version_id"]),
+		}
+	case "current":
+		if len(rawVersion) == 0 {
+			return "current", nil
+		}
+		return "current", &ragruntime.VersionQueryProjection{
+			Mode:               "current",
+			AsOf:               firstNonEmptyText(rawVersion["as_of"]),
+			VersionID:          firstNonEmptyText(rawVersion["version_id"]),
+			CompareToVersionID: firstNonEmptyText(rawVersion["compare_to_version_id"]),
+		}
+	default:
+		return mode, &ragruntime.VersionQueryProjection{
+			Mode:               mode,
+			AsOf:               firstNonEmptyText(rawVersion["as_of"]),
+			VersionID:          firstNonEmptyText(rawVersion["version_id"]),
+			CompareToVersionID: firstNonEmptyText(rawVersion["compare_to_version_id"]),
+		}
+	}
 }
 
 func ragScopeForRun(

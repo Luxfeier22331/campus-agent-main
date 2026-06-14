@@ -10,6 +10,7 @@ from .grounding_validation_claim_patterns import (
     _AUDIENCE_MAJOR_GROUP_RE,
     _AUDIENCE_POPULATION_RE,
     _CLAUSE_SPLIT_RE,
+    _DEGREE_OR_CREDENTIAL_RE,
     _OFFERING_UNIT_NAME_RE,
     _OFFERING_UNIT_PREFIX_CUES,
     _OFFERING_UNIT_SUFFIX_CUES,
@@ -39,6 +40,7 @@ def _extract_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
         _extract_time_claims,
         _extract_quantity_claims,
         _extract_semester_or_term_claims,
+        _extract_degree_or_credential_claims,
         _extract_offering_unit_claims,
         _extract_audience_claims,
         _extract_requirement_claims,
@@ -123,6 +125,19 @@ def _extract_semester_or_term_claims(answer_text: str) -> tuple[ExtractedClaim, 
     )
 
 
+def _extract_degree_or_credential_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
+    sanitized = _sanitize_answer_text(answer_text)
+    return tuple(
+        ExtractedClaim(
+            claim_type="degree_or_credential",
+            claim_text=match.group(1).strip(),
+            unsupported_summary_field="table_fact_claims",
+        )
+        for match in _DEGREE_OR_CREDENTIAL_RE.finditer(sanitized)
+        if match.group(1).strip()
+    )
+
+
 def _extract_offering_unit_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
     claims: list[ExtractedClaim] = []
     sanitized = _sanitize_answer_text(answer_text)
@@ -191,6 +206,7 @@ def _extract_audience_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
 __all__ = [
     "_extract_audience_claims",
     "_extract_claims",
+    "_extract_degree_or_credential_claims",
     "_extract_offering_unit_claims",
     "_extract_quantity_claims",
     "_extract_semester_or_term_claims",

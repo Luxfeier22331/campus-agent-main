@@ -174,6 +174,8 @@ def _compose_direct_answer(
             fragments=(generic_answer,),
         ),
     )
+
+
 __all__ = [
     "_compose_direct_answer",
     "_render_supporting_contexts",

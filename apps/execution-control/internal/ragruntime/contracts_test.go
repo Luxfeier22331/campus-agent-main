@@ -12,6 +12,15 @@ func TestValidatePlanProjectionRejectsUnsafeRawPayload(t *testing.T) {
 	}
 }
 
+func TestValidatePlanProjectionRequiresPlanID(t *testing.T) {
+	plan := validPlanProjection()
+	plan.PlanID = ""
+
+	if err := ValidatePlanProjection(plan); err == nil {
+		t.Fatal("plan projection without plan_id must fail closed")
+	}
+}
+
 func TestValidateEvidenceSelectionRequiresBoundedEvidence(t *testing.T) {
 	selection := EvidenceSelectionResult{
 		CandidateCount: 1,
@@ -78,6 +87,7 @@ func validPlanProjection() PlanProjection {
 		Corpus:                   "regulations",
 		NoWideningPolicy:         true,
 		PayloadSHA256:            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		PlanID:                   "rag:regulations:student_rules:current",
 		QueryMode:                "current",
 		QueryText:                "学生请假手续",
 		RequestID:                "req-1",
