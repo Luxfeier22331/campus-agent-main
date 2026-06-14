@@ -18,6 +18,11 @@ export interface ProfileMemoryList {
 	items: ProfileMemoryItem[];
 }
 
+export interface ProfileMemorySummary {
+	enabled: boolean;
+	itemCount: number;
+}
+
 export interface ProfileMemoryProjectionItem {
 	confidence: ProfileMemoryConfidence;
 	itemId: string;

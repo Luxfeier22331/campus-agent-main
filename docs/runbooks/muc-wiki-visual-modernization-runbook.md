@@ -164,7 +164,7 @@ Browser smoke must inspect desktop and mobile rendering for:
 - ordinary article page
 - article history and diff pages
 - file page and file history table
-- login page with `MUC Wiki Hub` visible
+- login page with campus identity OIDC entry visible
 - search page
 - recent changes page
 - watchlist and user contributions pages
@@ -266,7 +266,7 @@ Additional closeout evidence:
   desktop and mobile
 - article history rows computed to CSS grid rows on desktop and mobile
 - mobile action rails computed to `flex-wrap: nowrap`
-- login page exposed the `MUC Wiki Hub` OIDC entry
+- login page exposed the campus identity OIDC entry
 - Playwright viewport screenshots were captured for:
 - `mucwiki-home-mobile-audit.png`
 - `mucwiki-edit-mobile-audit.png`

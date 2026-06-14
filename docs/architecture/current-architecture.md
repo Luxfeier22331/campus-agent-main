@@ -31,9 +31,16 @@ updated: 2026-06-13
 
 当前接受的主拓扑固定为：
 
-`browser -> hub-web -> app launcher / account shell`
+`browser -> campus-web -> student campus experience / account shell`
 
-`hub-web same-site allowlisted /api/* -> app-api`
+`campus-web same-origin allowlisted /api/* -> app-api`
+
+`browser -> campus-web Q&A -> app-api /api/chatkit -> chatkit-adapter ->
+app-api chat conversation/run routes -> execution-control -> Temporal ->
+workflow-worker / activity-worker-context / activity-worker-knowledge /
+capability workers / activity-worker-finalization -> memory recall / typed
+capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
+models -> sanitized projection`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-agent /
@@ -42,9 +49,8 @@ memory recall / OpenAI Agents SDK primary agent loop / typed capability branch /
 Go RAG DTO/runtime -> Qdrant / provider / structured read models -> sanitized
 projection`
 
-`browser -> public-docs static reader assets`
-
-`browser -> public-docs same-site /api/docs/* -> app-api docs control plane`
+`browser -> campus-web /docs/* -> Rspress-powered canonical reader /
+current React docs shell`
 
 `browser -> protected-panel-web -> app-api -> request projection / operator read
 model`
@@ -57,12 +63,20 @@ document/index release`
 关键约束：
 
 - browser 不直打 `apps/execution-control`
-- hub 是 product entry surface，不是第二个 product backend、generic app-api proxy
-  或 MediaWiki proxy
+- `campus-web` 是当前学生侧 product entry surface 与 account browser shell，不是第二个
+  product backend、generic app-api proxy 或 MediaWiki proxy
+- `campus-web` Q&A 使用 OpenAI ChatKit 官方 CDN web component runtime；该外部 frontend
+  runtime 是当前 accepted dependency，CSP 必须显式允许其 script/frame 资源
 - panel 不绕过 `apps/app-api`
-- hub / public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走 `APP_API`
-  Service Binding；`https://app-api.internal` 是内部 Request construction origin
+- campus / legacy public chat / panel 到 `apps/app-api` 的
+  Worker-to-Worker 调用走 `APP_API` Service Binding；
+  `https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
+- `apps/chatkit-adapter` 是 internal ChatKit protocol adapter；它不拥有产品后端、
+  conversation truth、execution truth、provider call 或 direct DB writes
+- `apps/app-api` 当前是 neutral Identity Platform 的 canonical product owner；
+  Better Auth 是 auth runtime adapter，不是产品账号、校园身份、access entitlement 或
+  federation policy schema owner
 - `api-staging.mucwiki-edge.link` 如存在，只表示 app-api staging machine / ops
   ingress，不是 browser surface upstream
 - `apps/execution-control` 是 Go-owned internal execution engine，不是产品后端
@@ -130,7 +144,8 @@ document/index release`
 - `wechat_official_account` 已进入 admitted source/data/control-plane truth：当前已有
   source-truth schema、collector principal、run ledger 与 offline projection handoff
   shape，但它不是默认 query-enabled surface，也不是近期已开放的 product runtime
-- 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
+- 当前 public product endpoint 固定为 `https://campus.muc.wiki`；staging browser endpoint
+  固定为 `https://campus-staging.mucwiki-edge.link`。
 
 ## 当前 Serving Surface
 
@@ -171,49 +186,53 @@ document/index release`
 
 ## 当前 App 边界
 
-### `apps/hub-web`
+### `apps/campus-web`
 
-- public-facing Worker web surface for `hub.muc.wiki`
-- 拥有 `/` app launcher shell、launcher route registry 与 `/account` account shell
-- 通过 allowlisted same-site seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
-  的 `/api/me` 与必要 auth endpoints
-- sibling app entries 只能表现为 registry 中的 `app_link` / `planned` / `external`
-  target，不创建 `/chat`、`/docs`、`/panel`、`/map`、`/services` 或 `/notices`
-  这类 fake internal browser route shell
+- public-facing Worker web surface for `campus.muc.wiki`
+- 拥有学生侧主体验、校园应用入口、conversation/map/dining/feedback shell 与
+  `/account/*` account browser shell
+- 拥有 `/docs/*` docs browser route；当前 feature branch 已引入 Rspress-powered
+  canonical reader build boundary，同时 React docs shell 仍保留为未 materialize reader route
+  的临时错误/empty path
+- 通过 allowlisted same-origin seam 与 Worker `APP_API` Service Binding 调用
+  `apps/app-api` 的 `/api/me/*`、必要 `/api/auth/*`、implemented `/api/federation/*`、
+  docs/chat/map/dining/feedback endpoints；Q&A 主线程通过 `/api/chatkit` 接入
+  ChatKit custom server integration
+- Q&A 主线程 UI、history/search、rename/delete、retry、stop 与 feedback 控件交给
+  ChatKit；`campus-web` 只保留产品壳、账号 modal、支撑导航、错误边界和文案治理
 - 不开放 generic `/api/*` proxy；未知 browser path fail-closed
-- `muc-wiki` 只是指向 `https://muc.wiki` 的 MUC Wiki 主站 external card；`/wiki`
-  不是 internal hub slug
 - 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
-- 不拥有 auth/session/principal truth；canonical identity 仍属于 `apps/app-api`
+- 不拥有 auth/session/principal/identity/federation truth；canonical identity 仍属于
+  `apps/app-api`
 
 ### `apps/public-chat-web`
 
 - public-facing Worker web surface
 - 当前保留 `/login`、`/register`、`/forgot-password`、`/reset-password`
-  作为 bounded compatibility redirects/shims 到 hub account routes
+  作为 bounded compatibility redirects/shims 到 campus account routes
 - 只负责 browser route shell 与 chat UI
 - 不再拥有 public auth/account shell、captcha widget 或 password-reset form runtime
 - browser auth handoff 固定为
-  `public-chat-web compat route -> hub-web /account/* -> same-site /api/auth/*`
+  `public-chat-web compat route -> campus-web /account/* -> same-origin /api/auth/*`
   -> `app-api`
-- 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
+- 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用
+  `apps/app-api`
 
-### `apps/public-docs`
+### `apps/chatkit-adapter`
 
-- public-facing Worker docs surface
-- 当前正式拥有公开文档站 shell 与公开文档阅读入口
-- 当前以 `Rspress` 壳提供导航与阅读面，并通过 Worker `APP_API` Service Binding 将
-  same-site `/api/docs/*` 转发到 `apps/app-api`
-- 非 `/api/docs/*` 的 `/api/*` 不开放为通用 app-api proxy；文档站只拥有 docs control-plane
-  consumption seam
-- public reader 静态资产由 Worker `ASSETS` binding 交付，HTML shell 默认 `no-store`
-- 不拥有 auth/session/principal truth，也不自行成为 docs visibility / version 的长期 owner
+- internal FastAPI service that implements ChatKit custom server integration for
+  `campus-web` Q&A
+- 只做 ChatKit thread/item/action/event protocol adapter
+- 通过 `apps/app-api` 的显式 conversation / run / feedback routes 读写产品真相
+- 不生成 answer、不直连 `apps/execution-control`、不写 DB、不拥有 conversation truth
+- 通过 `x-app-internal-auth` 与 signed campus principal headers 调用 `apps/app-api`
 
 ### `apps/protected-panel-web`
 
 - protected Worker web surface
 - 只负责 operator-facing panel UI
-- 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query surfaces
+- 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query
+  surfaces
 - 当前已接入 `Requests`、`Official Web` 与 authenticated notice processing 的 app-owned
   operator-safe read-only surfaces
 
@@ -222,14 +241,19 @@ document/index release`
 - shared Worker-native application/control-plane backend
 - 拥有 auth、session、principal mapping、conversation truth、request ledger /
   projection input 与 selected operator surfaces
-- 拥有 public-docs same-site `/api/docs/*` 背后的 document reader control-plane truth
+- 拥有 campus-web same-origin `/api/docs/*` 背后的 document reader control-plane truth
 - 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission
   hardening
+- 拥有 Identity Platform 的 product-layer account / identity / access /
+  preferences / federation policy boundary；当前 `/api/me/overview`、
+  `/api/me/identity`、`/api/me/access`、`/api/me/preferences` 与
+  `PATCH /api/me/preferences` 是 account center product projection surface
 - 承接 `official_web` control plane
 - 对 `official_web`，只拥有 collector command ingress、crawl-run ledger、operator
   projection/query 与 stable-reference release gate approve/reject ledger；不拥有
   selected-write admission/task truth 或 release executor callback surface
-- 承接 authenticated notice processing 的 operator-safe projection ingest 与 list/detail
+- 承接 authenticated notice processing 的 operator-safe projection ingest 与
+  list/detail
   query；不暴露 raw notice content、OCR payload、附件字节、对象存储路径或 queue mutation
   action
 - 承接 `wechat_official_account` source channel 的 command ingress、collector principal
@@ -318,7 +342,8 @@ document/index release`
 - 拥有 official-web release task runtime；从 ingestion-owned task payload 推进
   selected-write / stable-reference release，不通过 app-api executor route 回写状态
 - 拥有 ingestion run-level telemetry adapter，输出 canonicalize / chunk / embedding /
-  index release / publish / audit 的 sanitized started/completed/failed run event；
+  index release / publish / audit 的 sanitized started/completed/failed run
+  event；
   export failure 不让 ingestion job 失败
 
 ### `apps/official-web-collector`
@@ -382,6 +407,12 @@ document/index release`
   architecture：`docs/architecture/system/prompt-and-instruction-architecture.md`
 - account / operator access / memory binding supporting
   architecture：`docs/architecture/system/identity-and-authorization-architecture.md`
+- identity platform supporting
+  architecture：`docs/architecture/system/identity-platform-architecture.md`
+- identity browser experience supporting
+  architecture：`docs/architecture/system/identity-browser-experience-architecture.md`
+- future muc.wiki federation supporting
+  architecture：`docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - retrieval / serving supporting
   architecture：`docs/architecture/system/retrieval-serving-architecture.md`
 - data plane supporting

@@ -19,34 +19,32 @@ updated: 2026-04-26
 
 ## 仓库级 lane
 
+### Repo Guard Lane
+
+命令：
+
+```bash
+pnpm repo:guard
+```
+
+语义：
+
+- 这是 repo collaboration / docs structure / workspace layout 的快速 guard
+- CI 中通过 `pnpm ci:repo-guard` 调用同一入口
+- 它不替代静态 lint、typecheck、test 或 build
+
 ### Repo Lint Lane
 
 命令：
 
 ```bash
-pnpm web:lint
-pnpm docs:lint
-pnpm public-docs:lint
-pnpm coverage:lint
-pnpm java:lint
-pnpm editorconfig:lint
-pnpm env:lint
-pnpm html:lint
-pnpm yaml:lint
-pnpm toml:lint
-pnpm shell:lint
-pnpm xml:lint
-pnpm jsonl:lint
-pnpm sql:lint
-pnpm docker:lint
-pnpm lock:lint
-uv run --all-packages ruff check .
-uv run --all-packages ruff format . --check
+pnpm repo:static
 ```
 
 语义：
 
 - 这是仓库级静态规范检查入口，不替代 typecheck、test 或 build
+- CI 中通过 `pnpm ci:repo-static` 调用同一入口
 - JS/TS 与 JSON/JSONC config 侧使用 Biome，默认检查当前 worktree live
   files：`apps/`、`packages/`、`configs/`、`scripts/`、`tests/` 下的 tracked +
   untracked 文件，以及 repo-owned root JSON/JSONC config（如
@@ -55,14 +53,10 @@ uv run --all-packages ruff format . --check
 - Markdown 侧通过 repo-owned runner 调用 `markdownlint-cli2`，覆盖当前 worktree 中的 root
   live docs、`.github/pull_request_template.md`、长期 `docs/**` source-of-truth
   文档，以及 `apps/` / `packages/` / `configs/` 的手写 live markdown；默认排除 archive /
-  historical plan 文档、vendor、`node_modules`、scratch markdown，以及
-  `apps/public-docs/docs/**` 生成文档
-- public-docs generated 侧通过 repo-owned checker 覆盖
-  `apps/public-docs/docs/**/*.md` 与 `apps/public-docs/docs/**/*.mdx`；该 lane 面向
-  canonical / reader projection 产物，允许为表格保真使用 HTML table 与长行，但 fail-close
-  检查空文档、frontmatter 结构、Git conflict marker、restricted collection marker 与内部
-  locator 泄漏
-- `coverage:lint` 继续是 tracked repo baseline 审计，用于确保 repo-owned text-like surface
+  historical plan 文档、vendor、`node_modules` 与 scratch markdown
+- campus-web docs reader 侧通过 `pnpm --filter campus-web docs:build` 覆盖当前
+  Rspress-powered `/docs/*` reader build。
+- `pnpm coverage:lint` 继续是 tracked repo baseline 审计，用于确保 repo-owned text-like surface
   都被某个 lint lane 接管；它不扩到未跟踪文件
 - Java 侧当前仅覆盖 `apps/legacy-office-conversion-service/src/**/*.java`，通过
   repo-owned Python wrapper 调用 Docker `lint` target，并在容器内执行 `mvn
@@ -73,7 +67,7 @@ uv run --all-packages ruff format . --check
 - env example 侧使用 repo-owned Python checker，覆盖当前 worktree 的 `*.env.example` 与
   `*.dev.vars.example`，默认排除 `.planning/` 与 `vendor/`；当前要求 `KEY=VALUE` 结构、key
   命名合法且不重复，并禁止 comment / value 尾随空白或 value 前后空白；仍不做跨文件一致性治理
-- HTML 侧使用 repo-owned Python checker，对当前 worktree 的 `*.html` 做 `html5lib`
+- `pnpm html:lint` 使用 repo-owned Python checker，对当前 worktree 的 `*.html` 做 `html5lib`
   解析与最小文档结构校验；当前要求存在 `<!doctype html>`、单一 `html/head/body`，以及非空 `<title>`；默认排除
   `.planning/`、临时目录、vendor 与 `node_modules`
 - YAML 侧通过 repo-owned runner 调用 `pre-commit` 的 `check-yaml` hook，检查当前 worktree
@@ -93,11 +87,16 @@ uv run --all-packages ruff format . --check
 - lock integrity 侧通过 repo-owned checker 校验所有 repo-owned lockfile 真相：
   - `pnpm-lock:lint` 校验 root workspace `pnpm-lock.yaml`，并对当前 worktree app-local
     `pnpm-lock.yaml` 执行隔离 `frozen-lockfile` 校验
+  - app-local `pnpm-lock.yaml` 不允许 `workspace:` dependency specifier；如果 app-local
+    runtime 需要 repo-owned package，必须使用可被隔离 lockfile 解析的 `file:../../packages/...`
+    specifier，或移除 app-local lockfile 作为 truth
   - `uv-lock:lint` 通过 `uv lock --check --offline` 校验 repo root `uv.lock` 是否仍与当前
     Python dependency truth 同步
 - app-local `pnpm-lock.yaml` 当前视为 repo-owned truth；若对应 app 的 `package.json`
   变化，lockfile 必须同步刷新
 - Python 侧使用 Ruff，同时承担 import 排序与格式检查；当前 repo 默认门禁包含 `W` 与 `B904`
+- CI workflow contract 侧通过 `pnpm ci:config:lint` 校验 root packageManager、app/package
+  packageManager、GitHub Actions pnpm 版本与 workflow 调用的 `ci:*` lane 是否一致
 - 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
 
 ### Python Baseline
@@ -121,11 +120,17 @@ uv run --all-packages python -m unittest discover -s tests -t .
 pnpm web:typecheck
 pnpm web:test
 pnpm web:build
+pnpm ci:web-graph:affected
+pnpm ci:web-graph:full
 ```
 
 语义：
 
 - 这是仓库级 JS/TS 默认稳定门禁
+- `pnpm ci:web-graph:affected` 是面向 CI / PR 的 affected graph 入口，等价于基于
+  `origin/develop` 的 `typecheck + test + build --affected --concurrency=2`
+- `pnpm ci:web-graph:full` 是完整 JS/TS graph 入口，等价于 `pnpm web:check`；该入口同样使用
+  Turbo `--concurrency=2`
 - `pnpm web:test` 表示各 app 的默认稳定测试 lane，不等于“所有可能的 JS/TS 测试”
 - 当前它包含：
   - `apps/app-api` 的 `test:node`
@@ -164,6 +169,8 @@ pnpm web:test:integration
 - 它不属于默认 `pnpm web:test` 门禁
 - 该 lane 会显式检查 shared DB bootstrap / adoption 是否仍与 repo-owned snapshot 收敛；如果连接到的
   shared DB 已漂移，会 fail-close
+- 该 lane 不验证 `official_web` collector lifecycle，也不要求
+  `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
 - 当前 repo 的 repair 入口是 `pnpm --dir apps/app-api db:reconcile-shared-drift --
   --json`
 
@@ -180,7 +187,7 @@ docs/runbooks/e2e-qa-release-runbook.md
 - 这是上线前真实 staging 验收 lane，不替代 unit、typecheck、build、lint 或 integration lane
 - 它只在真实 staging deployment、真实 auth/session、真实 browser surface、真实 data plane 与真实
   observability sink 均存在时执行
-- 当前默认目标环境是 `mucwiki-edge.link` staging；`hub.muc.wiki` production custom-hostname
+- 当前默认目标环境是 `mucwiki-edge.link` staging；`campus.muc.wiki` production custom-hostname
   path 不属于当前 gate
 - 它串联 repo preflight、execution runtime readiness、public surface health、chat E2E、
   docs gated smoke、protected panel Access smoke、browser QA、Sentry/Axiom sink verification
@@ -208,6 +215,10 @@ docs/runbooks/e2e-qa-release-runbook.md
   - 显式 Worker runtime lane
 - `pnpm --dir apps/app-api test:shared-db-integration`
   - 显式 shared Postgres / Better Auth integration lane
+- `pnpm --dir apps/app-api test:official-web-shared-db-integration`
+  - 显式 `official_web` collector lifecycle shared DB lane；只有在
+    official-web collector control plane 进入本次 rollout / smoke 范围时运行
+  - 该 lane 需要 `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
 
 对应配置文件：
 
@@ -219,6 +230,8 @@ docs/runbooks/e2e-qa-release-runbook.md
   - Worker runtime lane
 - `apps/app-api/vitest.shared-db.config.mts`
   - shared DB integration lane
+- `apps/app-api/vitest.official-web-shared-db.config.mts`
+  - `official_web` collector lifecycle shared DB lane
 
 ## 单一 Worker app 语义
 

@@ -63,6 +63,13 @@ updated: 2026-06-13
   - current donor parity review gate; per-run evidence still belongs in smoke /
     release artifacts, not in this reference
 
+## Frontend Design Inputs
+
+- `muc-campus-qa-frontend-design/`
+  - MUC Campus Q&A frontend design package: static prototype, screenshots,
+    design map, notes, tokens, and Tailwind mapping. This is accepted design
+    input for implementation, not runtime topology or deployment truth.
+
 ## 其他实现参考
 
 - `student-handbook-normalization-strategy.md`

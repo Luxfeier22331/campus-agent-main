@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from scripts.worktree_file_discovery import worktree_paths
 
@@ -43,6 +44,43 @@ def app_package_manifest_for_lockfile(lockfile: Path, *, root: Path | None = Non
     return manifest
 
 
+def validate_app_manifest_has_no_workspace_dependencies(
+    manifest: dict[str, Any],
+    manifest_path: Path,
+    *,
+    root: Path | None = None,
+) -> None:
+    base = root or repo_root()
+    offenders: list[str] = []
+    for section in (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+    ):
+        dependencies = manifest.get(section)
+        if not isinstance(dependencies, dict):
+            continue
+        for name, specifier in dependencies.items():
+            if str(specifier).strip().startswith("workspace:"):
+                offenders.append(f"{section}.{name}")
+    if offenders:
+        raise ValueError(
+            f"{manifest_path.relative_to(base)} cannot use workspace protocol dependencies "
+            f"with an app-local pnpm-lock.yaml: {', '.join(sorted(offenders))}"
+        )
+
+
+def validate_app_manifest_for_lockfile(lockfile: Path, *, root: Path | None = None) -> None:
+    manifest_path = app_package_manifest_for_lockfile(lockfile, root=root)
+    import json
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError(f"{manifest_path.relative_to(root or repo_root())} must be an object")
+    validate_app_manifest_has_no_workspace_dependencies(manifest, manifest_path, root=root)
+
+
 def build_app_pnpm_lock_check_command(lockfile: Path, *, root: Path | None = None) -> list[str]:
     base = root or repo_root()
     app_dir = str(lockfile.parent.relative_to(base))
@@ -65,7 +103,7 @@ def validate_pnpm_lockfile(path: Path, *, root: Path | None = None) -> None:
     if path.parent == base:
         command = build_root_pnpm_lock_check_command()
     else:
-        app_package_manifest_for_lockfile(path, root=base)
+        validate_app_manifest_for_lockfile(path, root=base)
         command = build_app_pnpm_lock_check_command(path, root=base)
     subprocess.run(
         command,

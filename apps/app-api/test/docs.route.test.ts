@@ -11,7 +11,7 @@ const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
@@ -134,7 +134,6 @@ describe("docs routes", () => {
 			getVersions: vi.fn(),
 			checkReaderAdmission: vi.fn(),
 			resolveReader: vi.fn(),
-			search: vi.fn(),
 		};
 		const app = createApp(env, {
 			docsService: service,
@@ -172,7 +171,7 @@ describe("docs routes", () => {
 		});
 	});
 
-	it("returns summary, versions, resolve, and search using the docs service contract", async () => {
+	it("returns summary, versions, and resolve using the docs service contract", async () => {
 		const service: DocsService = {
 			getDocumentSummary: vi.fn().mockResolvedValue({
 				document: {
@@ -235,21 +234,6 @@ describe("docs routes", () => {
 					versionId: "ver_2026_01",
 					versionSlug: "2026-current",
 				},
-			}),
-			search: vi.fn().mockResolvedValue({
-				query: "大二下课程",
-				results: [
-					{
-						anchor: "semester-4",
-						canonicalUrl:
-							"/docs/curriculum/curriculum_plan/law-ethnic-class-program#semester-4?hl=semester-4-course-list",
-						documentTitle: "法学（民族班）培养方案",
-						highlightRootUnitIds: ["semester-4-course-list"],
-						kind: "section_hit",
-						snippet: "第四学期开设课程包括……",
-						title: "第四学期",
-					},
-				],
 			}),
 		};
 		const app = createApp(env, {
@@ -346,36 +330,28 @@ describe("docs routes", () => {
 			principal: null,
 			version: "2026-current",
 		});
+	});
+
+	it("does not expose a docs collection search route", async () => {
+		const service: DocsService = {
+			getDocumentSummary: vi.fn(),
+			getNavigation: vi.fn(),
+			getVersions: vi.fn(),
+			resolveReader: vi.fn(),
+			checkReaderAdmission: vi.fn(),
+		};
+		const app = createApp(env, {
+			docsService: service,
+			getPrincipal: vi.fn().mockResolvedValue(null),
+		});
 
 		const searchResponse = await app.fetch(
 			new Request(
 				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/search?q=%E5%A4%A7%E4%BA%8C%E4%B8%8B%E8%AF%BE%E7%A8%8B&limit=5&versionMode=current",
 			),
 		);
-		expect(searchResponse.status).toBe(200);
-		await expect(searchResponse.json()).resolves.toEqual({
-			query: "大二下课程",
-			results: [
-				{
-					anchor: "semester-4",
-					canonicalUrl:
-						"/docs/curriculum/curriculum_plan/law-ethnic-class-program#semester-4?hl=semester-4-course-list",
-					documentTitle: "法学（民族班）培养方案",
-					highlightRootUnitIds: ["semester-4-course-list"],
-					kind: "section_hit",
-					snippet: "第四学期开设课程包括……",
-					title: "第四学期",
-				},
-			],
-		});
-		expect(service.search).toHaveBeenCalledWith({
-			collection: "curriculum_plan",
-			corpus: "curriculum",
-			limit: 5,
-			principal: null,
-			query: "大二下课程",
-			versionMode: "current",
-		});
+
+		expect(searchResponse.status).toBe(404);
 	});
 
 	it("returns no-store admission response for gated static assets", async () => {
@@ -386,7 +362,6 @@ describe("docs routes", () => {
 			getVersions: vi.fn(),
 			resolveReader: vi.fn(),
 			checkReaderAdmission: vi.fn().mockResolvedValue(undefined),
-			search: vi.fn(),
 		};
 		const app = createApp(env, {
 			docsService: service,
@@ -426,7 +401,6 @@ describe("docs routes", () => {
 					status: 404,
 				}),
 			),
-			search: vi.fn(),
 		};
 		const app = createApp(env, {
 			docsService: service,

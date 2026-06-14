@@ -392,6 +392,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	}
 	if finalizationResult == nil {
 		t.Fatal("finalization.write result missing")
+		return
 	}
 	projectedResponse, ok := finalizationResult.SanitizedPayload["finalized_response"].(map[string]any)
 	if !ok {
@@ -714,6 +715,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 	}
 	if finalizationStep == nil {
 		t.Fatalf("finalization step missing: %#v", steps)
+		return
 	}
 	response, ok := finalizationStep.SanitizedPayload["finalized_response"].(map[string]any)
 	if !ok || response["status"] != "rejected" {

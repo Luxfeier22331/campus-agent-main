@@ -30,7 +30,7 @@ function readTomlBlock(source: string, startMarker: string, endMarker: string): 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -147,7 +147,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).toContain(
-			'AUTH_SHELL_ORIGIN = "https://hub-staging.mucwiki-edge.link"',
+			'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 		);
 		expect(stagingVarsBlock).toContain(
 			'PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"',
@@ -159,6 +159,9 @@ describe("app-api worker foundation", () => {
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
 		expect(stagingVarsBlock).toContain('EXECUTION_CONTROL_TIMEOUT_MS = "95000"');
+		expect(stagingVarsBlock).toContain(
+			'CHATKIT_ADAPTER_BASE_URL = "https://chatkit-adapter-staging.mucwiki-edge.link"',
+		);
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
@@ -209,7 +212,7 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingSmokeEnvSource).toContain("loadRepoStagingEnvFile");
 		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
-		expect(runWithStagingDbEnvSource).toContain("https://hub-staging.mucwiki-edge.link");
+		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");
 		expect(runWithStagingDbEnvSource).toContain("https://chat-staging.mucwiki-edge.link");
 		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_BASE_URL");
 		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
@@ -231,6 +234,7 @@ describe("app-api worker foundation", () => {
 	});
 
 	it("declares non-inheritable required secrets for local and staging worker environments", () => {
+		const localVarsBlock = readTomlBlock(wranglerConfig, "[env.local.vars]", "[env.local.secrets]");
 		const localSecretsBlock = readTomlBlock(
 			wranglerConfig,
 			"[env.local.secrets]",
@@ -242,6 +246,7 @@ describe("app-api worker foundation", () => {
 			"[[env.staging.hyperdrive]]",
 		);
 		expect(wranglerConfig).toContain("[env.local.secrets]");
+		expect(localVarsBlock).toContain('AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"');
 		expect(wranglerConfig).toContain('"RESEND_API_KEY"');
 		expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
@@ -270,6 +275,9 @@ describe("app-api worker foundation", () => {
 	it("points the local smoke execution upstream at the docker-first execution-control port", () => {
 		expect(localSmokeWranglerConfig).toContain(
 			'EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"',
+		);
+		expect(localSmokeWranglerConfig).toContain(
+			'CHATKIT_ADAPTER_BASE_URL = "http://127.0.0.1:8765"',
 		);
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});

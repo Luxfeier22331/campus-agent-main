@@ -193,7 +193,9 @@ def transport_schedule_response(result: TransportScheduleLookupResult) -> Capabi
                 ),
                 confidence="high",
                 result=result,
-                capability_observability=_capability_observability("transport_schedule_lookup", result),
+                capability_observability=_capability_observability(
+                    "transport_schedule_lookup", result
+                ),
             )
         if result.schedule_snapshot is not None and result.intent == "schedule_snapshot_metadata":
             return CapabilityResponse(
@@ -205,7 +207,9 @@ def transport_schedule_response(result: TransportScheduleLookupResult) -> Capabi
                 ),
                 confidence="high",
                 result=result,
-                capability_observability=_capability_observability("transport_schedule_lookup", result),
+                capability_observability=_capability_observability(
+                    "transport_schedule_lookup", result
+                ),
             )
         if result.departure_options:
             departures = "、".join(departure.departure_at for departure in result.departure_options)
@@ -219,7 +223,9 @@ def transport_schedule_response(result: TransportScheduleLookupResult) -> Capabi
                 ),
                 confidence="high",
                 result=result,
-                capability_observability=_capability_observability("transport_schedule_lookup", result),
+                capability_observability=_capability_observability(
+                    "transport_schedule_lookup", result
+                ),
             )
         if result.service_window is not None:
             return CapabilityResponse(
@@ -236,7 +242,9 @@ def transport_schedule_response(result: TransportScheduleLookupResult) -> Capabi
                 ),
                 confidence="high",
                 result=result,
-                capability_observability=_capability_observability("transport_schedule_lookup", result),
+                capability_observability=_capability_observability(
+                    "transport_schedule_lookup", result
+                ),
             )
         if result.timetable_entries:
             entries = "、".join(departure.departure_at for departure in result.timetable_entries)
@@ -250,7 +258,9 @@ def transport_schedule_response(result: TransportScheduleLookupResult) -> Capabi
                 ),
                 confidence="high",
                 result=result,
-                capability_observability=_capability_observability("transport_schedule_lookup", result),
+                capability_observability=_capability_observability(
+                    "transport_schedule_lookup", result
+                ),
             )
         return CapabilityResponse(
             capability="campus_services",

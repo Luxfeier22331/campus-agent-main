@@ -18,7 +18,9 @@ class KnowledgeCapabilitySdkBoundaryTest(unittest.TestCase):
         self.assertFalse(retrieval_query["function_schema"]["available"])
 
     def test_knowledge_capability_does_not_admit_capability_facing_tools(self) -> None:
-        capabilities = json.loads(Path("configs/runtime/capabilities.v1.json").read_text(encoding="utf-8"))
+        capabilities = json.loads(
+            Path("configs/runtime/capabilities.v1.json").read_text(encoding="utf-8")
+        )
         capability_by_id = {
             capability["id"]: capability for capability in capabilities["capabilities"]
         }

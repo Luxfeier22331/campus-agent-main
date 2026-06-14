@@ -48,14 +48,14 @@ synthesis 提供统一数据面。
 
 `RunStep(planning) -> RetrievalPlan -> RunStep(retrieval/tool/rerank/selection)
 -> StepResult[] -> candidate set merge -> supporting evidence selection ->
-RunStep(synthesis) -> RunStep(grounding) -> source card / reader target`
+RunStep(synthesis) -> RunStep(grounding) -> source card / reader permalink`
 
 因此：
 
 - `StepResult` 是 retrieval execution 的直接产物
 - merged candidate set 仍属于 execution truth
 - supporting evidence 是回答层可消费的最小证据真相
-- source card / reader target 是浏览器安全投影，不回退成 raw candidate trace
+- source card / reader permalink 是浏览器安全投影，不回退成 raw candidate trace
 - synthesis 只能消费 supporting evidence 与 typed tool results；不能补齐缺失 retrieval result
 
 ## Core Conclusion
@@ -354,7 +354,7 @@ FailureRecord
 - browser-safe projection
   - `SupportingEvidence`
   - `CanonicalReference`
-  - source card / reader target
+  - source card / reader permalink
 
 固定约束：
 

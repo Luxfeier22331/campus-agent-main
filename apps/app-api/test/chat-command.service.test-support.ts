@@ -28,6 +28,7 @@ export interface CapabilityExecutionClient {
 	execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
 	executeStream?(input: CapabilityExecutionInput): Promise<Response>;
 }
+export type SupervisorExecutionClient = CapabilityExecutionClient;
 export type {
 	ChatCommandStore,
 	ChatConversationStore,
@@ -138,6 +139,11 @@ export function createConversationStore(input?: {
 		getConversationDetailByOwner: vi.fn(),
 		listConversationSummariesPageByOwner: vi.fn(),
 		listConversationSummariesByOwner: vi.fn(),
+		markConversationArchivedByOwner: vi.fn(),
+		markConversationDeletedByOwner: vi.fn(),
+		markConversationPinnedByOwner: vi.fn(),
+		renameConversationByOwner: vi.fn(),
+		searchConversationSummariesByOwner: vi.fn(),
 		upsertMessageFeedbackByOwner: vi.fn(),
 	};
 
@@ -214,6 +220,7 @@ export function createTelemetryMock(): AppTelemetry {
 		}),
 		markHttpResponseStatus: vi.fn(),
 		recordExecutionAuditEvent: vi.fn(),
+		recordIdentityEndpoint: vi.fn(),
 		recordProjectionDrain: vi.fn(),
 		recordProjectionEnqueued: vi.fn(),
 		recordQualitySampledGrade: vi.fn(),

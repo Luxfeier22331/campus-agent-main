@@ -1,0 +1,4 @@
+[
+	{ "type": "file", "name": "index", "label": "文档" },
+	{ "type": "dir", "name": "docs", "label": "文档库", "collapsed": false }
+]

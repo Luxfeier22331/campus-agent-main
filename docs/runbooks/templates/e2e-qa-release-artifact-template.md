@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks/templates
 status: active
 created: 2026-06-03
-updated: 2026-06-03
+updated: 2026-06-09
 ---
 # E2E QA Release Evidence
 
@@ -25,12 +25,11 @@ updated: 2026-06-03
 
 - Included surfaces:
   - `api-staging.mucwiki-edge.link`
-  - `hub-staging.mucwiki-edge.link`
+  - `campus-staging.mucwiki-edge.link`
   - `chat-staging.mucwiki-edge.link`
-  - `docs-staging.mucwiki-edge.link`
   - `panel-staging.mucwiki-edge.link`
 - Explicitly excluded:
-  - `hub.muc.wiki` production custom-hostname path
+  - `campus.muc.wiki` production custom-hostname path
   - `execution-control-staging.mucwiki-edge.link` as a public surface; it is only
     the trusted machine ingress used by `app-api`
 
@@ -58,12 +57,12 @@ updated: 2026-06-03
   - URL: `https://api-staging.mucwiki-edge.link/readyz`
   - Result:
   - Evidence file:
-- hub health
-  - URL: `https://hub-staging.mucwiki-edge.link/healthz`
+- campus health
+  - URL: `https://campus-staging.mucwiki-edge.link/healthz`
   - Result:
   - Evidence file:
-- hub ready
-  - URL: `https://hub-staging.mucwiki-edge.link/readyz`
+- campus ready
+  - URL: `https://campus-staging.mucwiki-edge.link/readyz`
   - Result:
   - Evidence file:
 - chat health
@@ -74,8 +73,8 @@ updated: 2026-06-03
   - URL: `https://chat-staging.mucwiki-edge.link/readyz`
   - Result:
   - Evidence file:
-- docs ready
-  - URL: `https://docs-staging.mucwiki-edge.link/readyz`
+- campus docs
+  - URL: `https://campus-staging.mucwiki-edge.link/docs/`
   - Result:
   - Evidence file:
 - execution-control machine ingress
@@ -135,8 +134,8 @@ updated: 2026-06-03
 
 ## Browser QA
 
-- Hub
-  - URL: `https://hub-staging.mucwiki-edge.link`
+- Campus
+  - URL: `https://campus-staging.mucwiki-edge.link`
   - Screenshot / evidence:
   - Console / network issues:
   - Verdict:
@@ -146,7 +145,7 @@ updated: 2026-06-03
   - Console / network issues:
   - Verdict:
 - Docs
-  - URL: `https://docs-staging.mucwiki-edge.link`
+  - URL: `https://campus-staging.mucwiki-edge.link/docs/`
   - Screenshot / evidence:
   - Console / network issues:
   - Verdict:

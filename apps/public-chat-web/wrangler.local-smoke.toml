@@ -15,7 +15,7 @@ service = "app-api"
 [vars]
 APP_API_BASE_URL = "https://app-api.internal"
 PUBLIC_CHAT_HOSTNAME = "127.0.0.1:27011"
-HUB_WEB_BASE_URL = "http://127.0.0.1:27012"
+AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"
 
 [assets]
 directory = "./dist"

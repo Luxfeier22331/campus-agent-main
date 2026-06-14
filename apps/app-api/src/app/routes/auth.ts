@@ -1,10 +1,33 @@
 import type { Hono } from "hono";
 
 import type { Env } from "../../config";
-import { jsonResponse, withNoStore } from "../../http";
+import { AppApiRouteError, jsonResponse, routeErrorResponse, withNoStore } from "../../http";
 import { requireSessionPrincipal } from "../principal";
 import { dependencyNotReadyResponse } from "../responses";
 import type { AppRequestScope } from "../types";
+
+const END_USER_PRINCIPAL_TYPES = new Set(["campus_member", "student", "staff", "faculty"]);
+const APP_AUTH_ROUTE_PREFIX = "/api/auth";
+
+function isEndUserSessionPrincipal(
+	principal: import("../../modules/auth").ResolvedAppPrincipal,
+): boolean {
+	return (
+		END_USER_PRINCIPAL_TYPES.has(principal.principal.type) &&
+		Boolean(principal.principal.email?.trim()) &&
+		principal.session !== null
+	);
+}
+
+function rewriteApiAuthRequest(request: Request): Request {
+	const url = new URL(request.url);
+	if (!url.pathname.startsWith(APP_AUTH_ROUTE_PREFIX)) {
+		return request;
+	}
+
+	url.pathname = url.pathname.slice(APP_AUTH_ROUTE_PREFIX.length) || "/";
+	return new Request(url, request);
+}
 
 export function registerAuthRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
@@ -26,7 +49,7 @@ export function registerAuthRoutes(input: {
 
 		try {
 			return withNoStore(
-				await input.authHandler(c.req.raw, input.env, {
+				await input.authHandler(rewriteApiAuthRequest(c.req.raw), input.env, {
 					getAppAuth: scope.getAppAuth,
 				}),
 			);
@@ -45,6 +68,19 @@ export function registerAuthRoutes(input: {
 		});
 		if (resolved.response) {
 			return resolved.response;
+		}
+
+		if (isEndUserSessionPrincipal(resolved.principal)) {
+			try {
+				await scope.resolveIdentityPlatformService().materializeSessionProjection({
+					principal: resolved.principal,
+				});
+			} catch (error) {
+				if (error instanceof AppApiRouteError) {
+					return routeErrorResponse(error);
+				}
+				return dependencyNotReadyResponse();
+			}
 		}
 
 		return jsonResponse({

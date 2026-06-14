@@ -35,20 +35,20 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 268
+- Current-worktree docs Markdown files: 290
 - Git tracked docs Markdown files: 268
 - Untracked docs Markdown files included: 0
 - Generated on: 2026-06-14
 
 ### By Directory Area
 
-- `reference`: 57
+- `reference`: 60
 - `runbooks`: 55
-- `decisions`: 48
-- `contracts`: 35
-- `architecture`: 34
-- `data`: 19
-- `domains`: 7
+- `decisions`: 52
+- `contracts`: 42
+- `architecture`: 38
+- `data`: 21
+- `domains`: 8
 - `environment`: 7
 - `policies`: 5
 - `README.md`: 1
@@ -290,7 +290,7 @@ class defined by `docs/documentation-architecture.md`.
   - Title: Document Site Architecture
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
-  - Owner boundary: `apps/public-docs`
+  - Owner boundary: `apps/campus-web`
   - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=364`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
@@ -478,7 +478,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `contract_truth`
   - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
   - Owner boundary: `apps/app-api`
-  - Ledger: `area=contracts`, `cluster=app-api`, `state=tracked`, `lines=299`
+  - Ledger: `area=contracts`, `cluster=app-api`, `state=tracked`, `lines=407`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-http/chat.md`
@@ -1199,8 +1199,8 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=150`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
-  - Title: ADR-0045 Self-Hosted Single-Node Qdrant And Native Backups
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
+  - Title: ADR-0052 Self-Hosted Single-Node Qdrant And Native Backups
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
@@ -1231,16 +1231,16 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=temporal`, `state=tracked`, `lines=339`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`
-  - Title: ADR-0049 Qdrant-Native Personal Memory Index
+- `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
+  - Title: ADR-0053 Qdrant-Native Personal Memory Index
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
   - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=104`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0050-ingestion-control-plane-and-kernel-boundary.md`
-  - Title: ADR-0050 Ingestion Control Plane And Kernel Boundary
+- `docs/decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md`
+  - Title: ADR-0054 Ingestion Control Plane And Kernel Boundary
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
@@ -2320,4 +2320,183 @@ class defined by `docs/documentation-architecture.md`.
   - Owner boundary: `docs/runbooks`
   - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=100`
   - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+
+### `merge-added-current-worktree-docs`
+
+- `docs/architecture/domains/dining/architecture.md`
+  - Title: Dining Domain Architecture
+  - Owner class: `domain_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=capability`, `status=active`
+  - Owner boundary: `domains/dining`
+  - Ledger: `area=architecture`, `cluster=dining`, `state=tracked`, `lines=319`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/campus-ops-web-architecture.md`
+  - Title: Campus Ops Web Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-ops-web`
+  - Ledger: `area=architecture`, `cluster=campus-ops`, `state=tracked`, `lines=160`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
+  - Title: Federation And MUC Wiki Login Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=architecture`, `cluster=identity`, `state=tracked`, `lines=189`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
+  - Title: Identity Browser Experience Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=architecture`, `cluster=identity`, `state=tracked`, `lines=136`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/identity-platform-architecture.md`
+  - Title: Identity Platform Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=architecture`, `cluster=identity`, `state=tracked`, `lines=285`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-campus-ops-http.md`
+  - Title: App API Campus Ops HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=campus-ops`, `state=tracked`, `lines=174`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-chat-conversation-http.md`
+  - Title: App API Chat Conversation HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=chat`, `state=tracked`, `lines=255`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-dining-http.md`
+  - Title: App API Dining HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=dining`, `state=tracked`, `lines=179`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-dining-ops-http.md`
+  - Title: App API Dining Ops HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=dining`, `state=tracked`, `lines=576`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-federation-http.md`
+  - Title: App API Federation HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=identity`, `state=tracked`, `lines=240`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-identity-platform-http.md`
+  - Title: App API Identity Platform HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=identity`, `state=tracked`, `lines=405`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/campus-web-chatkit-adapter.md`
+  - Title: Campus Web ChatKit Adapter Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/chatkit-adapter`
+  - Ledger: `area=contracts`, `cluster=chat`, `state=tracked`, `lines=186`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/dining-operations-schema.md`
+  - Title: Dining Operations Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=dining`, `state=tracked`, `lines=441`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/identity-platform-schema.md`
+  - Title: Identity Platform Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=identity`, `state=tracked`, `lines=307`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
+  - Title: ADR-0045 Identity Platform And Auth Runtime Boundary
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=identity`, `state=tracked`, `lines=179`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0049-campus-ops-control-plane.md`
+  - Title: ADR-0049 Campus Ops Control Plane
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=campus-ops`, `state=tracked`, `lines=171`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0050-campus-web-product-entry-and-hub-retirement.md`
+  - Title: ADR-0050 Campus Web Product Entry And Hub Retirement
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=product`, `state=tracked`, `lines=125`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0051-campus-docs-rspress-reader-surface.md`
+  - Title: ADR-0051 Campus Docs Rspress Reader Surface
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=adr`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=document-reader`, `state=tracked`, `lines=62`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/domains/dining.md`
+  - Title: Dining Domain Hub
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=capability`, `status=active`
+  - Owner boundary: `domains/dining`
+  - Ledger: `area=domains`, `cluster=dining`, `state=tracked`, `lines=37`
+  - Governance action: `keep_thin_domain_hub`
+  - Drift signal: `hub_must_not_own_status`
+- `docs/reference/muc-campus-qa-frontend-design/README.md`
+  - Title: MUC Campus Q&A Frontend Design
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=reference`, `cluster=frontend-design`, `state=tracked`, `lines=70`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/muc-campus-qa-frontend-design/design-notes/muc_campus_qa_design_notes_v1_3.md`
+  - Title: v1.3 MUC Campus Q&A 前端设计说明
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=reference`, `cluster=frontend-design`, `state=tracked`, `lines=42`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/muc-campus-qa-frontend-design/tokens/muc_campus_qa_design_tokens_v1_3_1.md`
+  - Title: MUC Campus Q&A Design Tokens v1.3.1
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=reference`, `cluster=frontend-design`, `state=tracked`, `lines=116`
+  - Governance action: `keep_reference_truth`
   - Drift signal: `ok`

@@ -46,9 +46,6 @@ const docsModuleMock = vi.hoisted(() => {
 		async listDocumentVersions() {
 			return [];
 		},
-		async searchCurrentPublic() {
-			return [];
-		},
 	} as DocsReadModelStore;
 	return {
 		createPgDocsReadModelStore: vi.fn(() => store),
@@ -79,6 +76,7 @@ function createTelemetry(): AppTelemetry {
 		getTraceHeaders: vi.fn(() => ({})),
 		markHttpResponseStatus: vi.fn(),
 		recordExecutionAuditEvent: vi.fn(async () => undefined),
+		recordIdentityEndpoint: vi.fn(async () => undefined),
 		recordProjectionDrain: vi.fn(async () => undefined),
 		recordProjectionEnqueued: vi.fn(async () => undefined),
 		recordQualitySampledGrade: vi.fn(async () => undefined),
@@ -111,6 +109,7 @@ describe("docs request scope", () => {
 			{
 				canonicalUrl: "/docs/regulations/student_rules/student-attendance-management",
 				documentSlug: "student-attendance-management",
+				displayTitle: "学生考勤管理办法",
 				isCurrent: true,
 				kind: "document",
 				title: "中央民族大学学生考勤管理办法",

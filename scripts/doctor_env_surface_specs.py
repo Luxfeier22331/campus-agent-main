@@ -212,7 +212,7 @@ SURFACE_SPECS = {
                 ),
             },
             "apps/public-chat-web/.dev.vars": {
-                "required_keys": ("APP_API_BASE_URL", "PUBLIC_CHAT_HOSTNAME", "HUB_WEB_BASE_URL"),
+                "required_keys": ("APP_API_BASE_URL", "PUBLIC_CHAT_HOSTNAME", "AUTH_SHELL_ORIGIN"),
                 "optional_keys": ("SENTRY_DSN",),
             },
         },

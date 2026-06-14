@@ -77,7 +77,7 @@ owns this section group; the original path remains the stable index.
 - [../../.env.example](../../.env.example)
 - [../../apps/app-api/.env.example](../../apps/app-api/.env.example)
 - [../../apps/app-api/.dev.vars.example](../../apps/app-api/.dev.vars.example)
-- [../../apps/hub-web/.dev.vars.example](../../apps/hub-web/.dev.vars.example)
+- [../../apps/campus-web/.dev.vars.example](../../apps/campus-web/.dev.vars.example)
 - [../../apps/public-chat-web/.dev.vars.example](../../apps/public-chat-web/.dev
   .vars.example)
 - [../../apps/protected-panel-web/.dev.vars.example](../../apps/protected-panel-

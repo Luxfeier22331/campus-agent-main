@@ -153,7 +153,9 @@ func probeReadyz(ctx context.Context, options proofOptions) (readyzReport, error
 	if err != nil {
 		return readyzReport{}, err
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	if response.StatusCode != http.StatusOK {
 		return readyzReport{}, fmt.Errorf("%w: execution-control readyz returned HTTP %d", errTemporalReadyzBlocked, response.StatusCode)
 	}

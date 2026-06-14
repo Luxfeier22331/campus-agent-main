@@ -10,8 +10,8 @@ updated: 2026-04-25
 
 ## 文档边界
 
-本文冻结 public chat、protected panel、shared `app-api` 三个 Worker surface 的长期 delivery
-/ release hardening supporting architecture。
+本文冻结 campus-web、public chat、protected panel、shared `app-api` 这组 Worker surface 的长期
+delivery / release hardening supporting architecture。
 
 它回答的是：
 
@@ -41,11 +41,13 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 固定约束：
 
-- `apps/public-chat-web`、`apps/protected-panel-web`、`apps/app-api` 必须共享一套
+- `apps/campus-web`、`apps/public-chat-web`、`apps/protected-panel-web`、
+  `apps/app-api` 必须共享一套
   release hardening discipline，但仍保持独立 deploy unit
-- staging browser baseline 当前固定为 `chat-staging.mucwiki-edge.link`、
-  `docs-staging.mucwiki-edge.link`、`panel-staging.mucwiki-edge.link`；web surfaces
-  通过 Worker `APP_API` Service Binding 调用 `app-api-staging`
+- staging browser baseline 当前固定为 `campus-staging.mucwiki-edge.link`、
+  `chat-staging.mucwiki-edge.link`、`panel-staging.mucwiki-edge.link`；docs 作为
+  `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过 Worker
+  `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
@@ -69,9 +71,10 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `apps/app-api` -> Worker `app-api-staging`，由 web surfaces 通过 `APP_API` Service
   Binding 调用
 - `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
+- `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>
 - `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
-- `apps/public-docs` -> `<https://docs-staging.mucwiki-edge.link`>
 - `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
+- `apps/public-docs` -> removed; docs staging surface is `apps/campus-web /docs/*`
 
 长期规则：
 

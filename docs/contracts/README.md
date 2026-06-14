@@ -16,12 +16,19 @@ updated: 2026-06-13
   - `app-api-http/system-auth-profile-memory.md`
   - `app-api-http/chat.md`
   - `app-api-http/operator.md`
+- `app-api-chat-conversation-http.md`
+- `campus-web-chatkit-adapter.md`
 - `app-api-eval-benchmark-http.md`
 - `app-api-document-reader-http.md`
 - `document-reader-publish-contract.md`
 - `app-api-error-model.md`
 - `app-api-request-lifecycle.md`
 - `capability-execution.md`
+- `app-api-identity-platform-http.md`
+- `app-api-federation-http.md`
+- `app-api-campus-ops-http.md`
+- `app-api-dining-http.md`
+- `app-api-dining-ops-http.md`
 - `structured-query-internal-runtime.md`
 - `durable-agent-runtime-contract.md`
 

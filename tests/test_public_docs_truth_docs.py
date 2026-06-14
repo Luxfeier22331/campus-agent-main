@@ -20,7 +20,7 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
             self.assertNotIn("当前 `public-docs` app 还不存在", text)
             self.assertNotIn("当前 docs site 还不存在", text)
 
-    def test_repo_current_truth_promotes_public_docs_as_formal_surface(self) -> None:
+    def test_repo_current_truth_uses_campus_web_docs_surface(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         project = (REPO_ROOT / ".planning" / "PROJECT.md").read_text(encoding="utf-8")
         workstreams = (REPO_ROOT / ".planning" / "WORKSTREAMS.md").read_text(encoding="utf-8")
@@ -31,22 +31,22 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
             REPO_ROOT / "docs" / "architecture" / "system" / "product-runtime-architecture.md"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("apps/public-docs", readme)
-        self.assertIn("public-docs", project)
-        self.assertIn("public-docs", workstreams)
+        self.assertNotIn("apps/public-docs", readme)
+        self.assertIn("campus-web /docs/*", readme)
+        self.assertIn("campus-web /docs/*", project)
+        self.assertIn("campus-web", workstreams)
         self.assertNotIn("document-site-and-canonical-reader", workstreams)
-        self.assertIn("public-docs", workstreams)
-        self.assertIn("browser -> public-docs", current_architecture)
-        self.assertIn("apps/public-docs", current_architecture)
-        self.assertIn("public-docs", product_runtime)
+        self.assertNotIn("browser -> public-docs", current_architecture)
+        self.assertNotIn("apps/public-docs", current_architecture)
+        self.assertIn("browser -> campus-web /docs/*", current_architecture)
+        self.assertNotIn("retired/reference package", product_runtime)
+        self.assertNotIn("during deletion window", product_runtime)
+        self.assertIn("campus-web /docs/*", product_runtime)
 
-    def test_public_docs_copy_does_not_present_local_object_store_paths_as_product_truth(
+    def test_campus_web_docs_copy_does_not_present_local_object_store_paths_as_product_truth(
         self,
     ) -> None:
-        public_docs_readme = (REPO_ROOT / "apps" / "public-docs" / "README.md").read_text(
-            encoding="utf-8"
-        )
-        docs_root = REPO_ROOT / "apps" / "public-docs" / "docs"
+        docs_root = REPO_ROOT / "apps" / "campus-web" / "docs"
         checked_in_docs = tuple(
             path.read_text(encoding="utf-8")
             for path in sorted(docs_root.rglob("*"))
@@ -55,7 +55,7 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
 
         self.assertNotEqual(checked_in_docs, ())
 
-        for text in (public_docs_readme, *checked_in_docs):
+        for text in checked_in_docs:
             self.assertNotIn("campus-rag-derived", text)
             self.assertNotIn("canonical.md", text)
             self.assertNotIn("document-units.jsonl", text)

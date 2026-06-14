@@ -354,4 +354,79 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 		expect(browserFacingPayload).not.toContain("internal_notice_id");
 		expect(browserFacingPayload).not.toContain("portal_url");
 	});
+
+	it("normalizes source cards to reader permalinks without preserving raw locator fragments", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			conversationStore,
+			store,
+			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+				execute: vi.fn().mockResolvedValue({
+					answerText: "转专业申请需要按规定提交材料并完成审核。",
+					error: null,
+					followUpQuestion: "",
+					result: {
+						evidence: {
+							sources: [
+								{
+									anchor: {
+										reader_anchor: "transfer-major",
+										root_unit_id: "transfer-major-root",
+										section_path: ["转专业申请"],
+									},
+									canonical_source_title: "学生学籍管理规定",
+									canonical_url:
+										"/docs/regulations/student_rules/student-status?chunk=raw#legacy-fragment",
+									collection: "student_rules",
+									s3_key: "regulations/private/chunk.json",
+									snippet: "学生申请转专业应在规定时间内提交材料。",
+									source_title: "学生学籍管理规定",
+								},
+							],
+						},
+					},
+					selectedCapability: "knowledge",
+					status: "completed",
+					traceId: "trace_0003",
+				}),
+			}),
+		});
+
+		await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "转专业怎么申请？",
+			},
+			principal: createPrincipal(),
+			surface: "public_chat_web",
+		});
+
+		expect(finalWrites[0]).toMatchObject({
+			assistantMessage: {
+				structuredParts: [
+					{
+						sourceItems: [
+							{
+								collectionLabel: "学生手册",
+								primaryAction: {
+									href: "/docs/regulations/student_rules/student-status?hl=transfer-major-root#transfer-major",
+									label: "查看文档",
+								},
+								sectionTitle: "转专业申请",
+								title: "学生学籍管理规定",
+							},
+						],
+						type: "source_items",
+					},
+				],
+			},
+		});
+		const payload = JSON.stringify(finalWrites[0]);
+		expect(payload).not.toContain("chunk=raw");
+		expect(payload).not.toContain("legacy-fragment");
+		expect(payload).not.toContain("regulations/private/chunk.json");
+	});
 }

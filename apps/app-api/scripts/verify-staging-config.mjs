@@ -33,7 +33,7 @@ expectContains(
 );
 expectContains(
 	source,
-	'AUTH_SHELL_ORIGIN = "https://hub-staging.mucwiki-edge.link"',
+	'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 	"Missing staging auth shell origin.",
 );
 expectContains(source, 'APP_API_ENVIRONMENT = "staging"', "Missing APP_API_ENVIRONMENT=staging.");

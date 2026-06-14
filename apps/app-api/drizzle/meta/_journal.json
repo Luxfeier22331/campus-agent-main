@@ -267,6 +267,34 @@
       "when": 1781193665476,
       "tag": "0037_fat_red_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1780637623167,
+      "tag": "0038_numerous_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1781001301690,
+      "tag": "0039_known_joshua_kane",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1781192720039,
+      "tag": "0040_condemned_wong",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1781510400000,
+      "tag": "0041_dining_floorplan_manifest_refs",
+      "breakpoints": true
     }
   ]
 }

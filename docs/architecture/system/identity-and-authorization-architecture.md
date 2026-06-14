@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-04-02
-updated: 2026-05-02
+updated: 2026-06-09
 ---
 # Account, Operator Access, And Memory Binding Architecture
 
@@ -46,8 +46,8 @@ Campus Assistant 主链路。
 account / operator / memory supporting architecture 当前已经明确：
 
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
-- `apps/hub-web` 只拥有 account browser shell；它不拥有 auth database、session
-  storage、principal mapping、operator access 或 quota truth
+- `apps/campus-web` 只拥有 account browser shell；它不拥有 auth database、session
+  storage、principal mapping 或 authorization truth
 - execution path 只消费 typed actor/context projection
 - retrieval path 只消费 admitted source / runtime profile / evidence policy，不拥有
   account、operator access 或 memory binding truth
@@ -175,4 +175,4 @@ extension 进入新的 workstream；不得把本地 MediaWiki session 复用当�
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/system/memory-plane-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`
+- `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`

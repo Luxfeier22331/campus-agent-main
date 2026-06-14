@@ -94,7 +94,9 @@ def _observed_from_payload(payload: dict[str, Any]) -> ObservedIntent:
         scope_class=_optional_string(payload.get("scope_class")),
         policy_reason=_optional_string(payload.get("policy_reason")),
         scope_reason=_optional_string(payload.get("scope_reason")),
-        target=_optional_string(payload.get("target")) or "none",
+        target=_optional_string(payload.get("selected_capability"))
+        or _optional_string(payload.get("target"))
+        or "none",
         allowed_tools=_string_tuple(payload.get("allowed_tools")),
         classifier_version=_optional_string(payload.get("classifier_version")),
         schema_version=_optional_string(payload.get("schema_version")),
@@ -111,7 +113,7 @@ def _json_ready(value: object) -> object:
     if is_dataclass(value):
         return _json_ready(asdict(value))
     if isinstance(value, dict):
-        return {str(key): _json_ready(item) for key, item in value.items()}
+        return {str(key): _json_ready(item) for key, item in value.items() if item is not None}
     if isinstance(value, list | tuple):
         return [_json_ready(item) for item in value]
     return value

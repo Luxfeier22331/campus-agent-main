@@ -127,12 +127,12 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                 payload["apps"]["apps/public-chat-web"]["required_secrets"], ["SENTRY_DSN"]
             )
 
-    def test_default_worker_secret_audit_includes_hub_web(self) -> None:
+    def test_default_worker_secret_audit_includes_campus_web(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             for app_path in (
                 "apps/app-api",
-                "apps/hub-web",
+                "apps/campus-web",
                 "apps/public-chat-web",
                 "apps/protected-panel-web",
             ):
@@ -168,7 +168,7 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                 sorted(status["apps"].keys()),
                 [
                     "apps/app-api",
-                    "apps/hub-web",
+                    "apps/campus-web",
                     "apps/protected-panel-web",
                     "apps/public-chat-web",
                 ],

@@ -1,0 +1,124 @@
+import type { AppApiRouteExposure } from "./route-exposure-types";
+
+export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
+	{
+		method: "GET",
+		path: "/healthz",
+		callerClass: "system",
+		admission: "liveness probe",
+	},
+	{
+		method: "GET",
+		path: "/readyz",
+		callerClass: "system",
+		admission: "readiness probe",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/evals/chat/requests",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth plus eval principal headers",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/execution/audit-events",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/authenticated-notices/processing-snapshots",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/authenticated-notices/run-processing-snapshots",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/official-web/release-task-snapshots",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/evals/coverage-snapshots",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/evals/diagnostic-badcases",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/official-web/runs/:runId/ingestion-execution",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/quality/grades",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/trace-backlinks",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/staging-smoke/auth/session",
+		callerClass: "machine-internal",
+		admission: "staging environment plus x-app-staging-smoke-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/official-web/plans:resolve",
+		callerClass: "collector-machine",
+		admission: "official-web collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/official-web/runs",
+		callerClass: "collector-machine",
+		admission: "official-web collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/official-web/runs/:runId/finalize",
+		callerClass: "collector-machine",
+		admission: "official-web collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/official-web/runs/:runId/heartbeats",
+		callerClass: "collector-machine",
+		admission: "official-web collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/wechat-official-account/runs",
+		callerClass: "collector-machine",
+		admission: "wechat official-account collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/wechat-official-account/runs/:runId/finalize",
+		callerClass: "collector-machine",
+		admission: "wechat official-account collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/wechat-official-account/runs/:runId/heartbeats",
+		callerClass: "collector-machine",
+		admission: "wechat official-account collector bearer token",
+	},
+] as const satisfies readonly AppApiRouteExposure[];

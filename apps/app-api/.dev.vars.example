@@ -10,7 +10,7 @@ AUTH_RESET_EMAIL_REPLY_TO=
 # Generate a different high-entropy secret for anonymous safety identifier derivation.
 APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
 # Browser account shell origin. This is required.
-AUTH_SHELL_ORIGIN=https://hub.example.com
+AUTH_SHELL_ORIGIN=https://campus.example.com
 # Must match the deployed origin of `apps/public-chat-web` for chat browser
 # origin and bounded chat-to-account redirects/shims.
 PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com
@@ -23,6 +23,7 @@ EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 EXECUTION_CONTROL_SHARED_SECRET=replace-with-execution-control-shared-secret
 EXECUTION_CONTROL_TIMEOUT_MS=8000
 EXECUTION_CONTROL_EVAL_TIMEOUT_MS=30000
+CHATKIT_ADAPTER_BASE_URL=http://127.0.0.1:8765
 # Optional. Required only when EXECUTION_CONTROL_BASE_URL is protected by
 # Cloudflare Access service-token authentication.
 EXECUTION_CONTROL_ACCESS_CLIENT_ID=

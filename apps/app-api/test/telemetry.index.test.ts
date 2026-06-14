@@ -156,4 +156,49 @@ describe("app telemetry", () => {
 			}),
 		);
 	});
+
+	it("emits identity endpoint telemetry without auth-sensitive fields", async () => {
+		const axiomSink = { emit: vi.fn().mockResolvedValue(undefined) };
+		const telemetry = createAppTelemetry(
+			{
+				APP_API_ENVIRONMENT: "staging",
+				SENTRY_RELEASE: "app-api@2026.06.02",
+			},
+			{
+				axiomSink,
+				now: () => new Date("2026-06-02T12:30:00.000Z"),
+			},
+		);
+
+		await telemetry.recordIdentityEndpoint({
+			correlationId: "corr_01HQ",
+			endpoint: "/api/me/identity",
+			errorCode: null,
+			principalType: "student",
+			status: 200,
+			surface: "campus_web",
+		});
+
+		expect(axiomSink.emit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				correlation_id: "corr_01HQ",
+				endpoint: "/api/me/identity",
+				environment: "staging",
+				error_code: null,
+				event_type: "identity.endpoint",
+				occurred_at: "2026-06-02T12:30:00.000Z",
+				principal_type: "student",
+				release: "app-api@2026.06.02",
+				status: "200",
+				surface: "campus_web",
+			}),
+		);
+		expect(axiomSink.emit).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				cookie: expect.anything(),
+				email: expect.anything(),
+				token: expect.anything(),
+			}),
+		);
+	});
 });

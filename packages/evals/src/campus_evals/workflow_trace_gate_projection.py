@@ -208,9 +208,13 @@ def _agent_invocation_graph_gaps(summary: WorkflowTraceSummary) -> list[str]:
 def _expected_invocation_targets(summary: WorkflowTraceSummary) -> tuple[str, ...]:
     if summary.handoff_chain:
         return tuple(
-            str(item.get("target") or item.get("capability_id") or item.get("agentId") or "").strip()
+            str(
+                item.get("target") or item.get("capability_id") or item.get("agentId") or ""
+            ).strip()
             for item in summary.handoff_chain
-            if str(item.get("target") or item.get("capability_id") or item.get("agentId") or "").strip()
+            if str(
+                item.get("target") or item.get("capability_id") or item.get("agentId") or ""
+            ).strip()
         )
     if summary.selected_capability and summary.selected_capability != "none":
         return (summary.selected_capability,)

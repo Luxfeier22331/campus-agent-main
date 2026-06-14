@@ -57,8 +57,9 @@ def build_document_reader_asset_package(
         document_slug=document_slug,
     )
 
-    sections = _build_reader_sections(units)
-    outline_nodes = _build_outline_nodes(units)
+    reader_units = tuple(unit for unit in units if _is_reader_visible_unit(unit))
+    sections = _build_reader_sections(reader_units)
+    outline_nodes = _build_outline_nodes(reader_units)
     supplements: list[dict[str, str]] = []
     assets: dict[str, bytes] = {}
 
@@ -215,6 +216,10 @@ def _build_reader_sections(units: tuple[StructuredUnit, ...]) -> list[dict[str, 
         )
 
     return [sections_by_key[key] for key in ordered_keys]
+
+
+def _is_reader_visible_unit(unit: StructuredUnit) -> bool:
+    return unit.unit_type != "table_unit"
 
 
 def _build_outline_nodes(units: tuple[StructuredUnit, ...]) -> list[dict[str, object]]:

@@ -25,7 +25,9 @@ def load_tests(
     suite = unittest.TestSuite()
     for module_name in CASE_MODULES:
         if module_name == __name__:
-            suite.addTests(loader.loadTestsFromTestCase(KnowledgeCapabilityConditionOverviewSynthesisTest))
+            suite.addTests(
+                loader.loadTestsFromTestCase(KnowledgeCapabilityConditionOverviewSynthesisTest)
+            )
             continue
         suite.addTests(loader.loadTestsFromModule(importlib.import_module(module_name)))
     return suite

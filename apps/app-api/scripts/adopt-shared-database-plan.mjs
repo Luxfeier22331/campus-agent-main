@@ -15,6 +15,7 @@ import {
 	CREATE_TABLE_RE,
 	compareIndexSpec,
 	DROP_INDEX_RE,
+	DROP_TABLE_RE,
 	normalizePostgresIdentifier,
 	qualifyTable,
 } from "./adopt-shared-database-shared.mjs";
@@ -57,6 +58,16 @@ export function parseMigrationStatement(statement) {
 			column: match[3],
 			existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}`,
 			kind: "drop_column",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(DROP_TABLE_RE);
+	if (match) {
+		return {
+			existsKey: qualifyTable(match[1], match[2]),
+			kind: "drop_table",
 			schema: match[1],
 			statement: trimmed,
 			table: match[2],
@@ -180,6 +191,9 @@ function targetExists(inventory, target) {
 	const table = inventory.tables.get(qualifiedName);
 	if (target.kind === "table") {
 		return table !== undefined;
+	}
+	if (target.kind === "drop_table") {
+		return table === undefined;
 	}
 	if (!table) {
 		return false;
@@ -306,6 +320,11 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 		}
 		inventory.schemas.add(target.schema);
 		inventory.tables.set(qualifiedName, buildSimulatedTable(expectedTable));
+		return;
+	}
+
+	if (target.kind === "drop_table") {
+		inventory.tables.delete(qualifiedName);
 		return;
 	}
 

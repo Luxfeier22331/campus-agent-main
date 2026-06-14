@@ -86,7 +86,7 @@ func TestQdrantPersonalMemoryRecallFiltersByActorStatusAndCapability(t *testing.
 		t.Fatalf("filter.should = %#v, want capability or any", filter["should"])
 	}
 	serialized, _ := json.Marshal(should)
-	if !(strings.Contains(string(serialized), "knowledge") && strings.Contains(string(serialized), "any")) {
+	if !strings.Contains(string(serialized), "knowledge") || !strings.Contains(string(serialized), "any") {
 		t.Fatalf("filter.should = %s, want requested capability and any", serialized)
 	}
 }
@@ -295,7 +295,8 @@ func TestPersonalMemoryUpsertEndpointRequiresInternalAuth(t *testing.T) {
 	server.personalMemoryExecutor = &fakePersonalMemoryExecutor{}
 	server.personalMemoryErr = nil
 
-	request := httptest.NewRequest(
+	request := httptest.NewRequestWithContext(
+		context.Background(),
 		http.MethodPost,
 		"/internal/memory/personal/items:upsert",
 		bytes.NewReader([]byte(`{"memory_id":"mem_01HQ","user_id":"user_01HQ","memory_type":"profile","capability":"any","status":"active","source":"explicit","compact_text":"answer_style: 先给结论","updated_at":"2026-06-10T08:00:00Z"}`)),
@@ -315,7 +316,8 @@ func TestPersonalMemoryUpsertEndpointIndexesViaExecutor(t *testing.T) {
 	server.personalMemoryExecutor = executor
 	server.personalMemoryErr = nil
 
-	request := httptest.NewRequest(
+	request := httptest.NewRequestWithContext(
+		context.Background(),
 		http.MethodPost,
 		"/internal/memory/personal/items:upsert",
 		bytes.NewReader([]byte(`{"memory_id":"mem_01HQ","user_id":"user_01HQ","memory_type":"profile","capability":"any","status":"active","source":"explicit","compact_text":"answer_style: 先给结论","updated_at":"2026-06-10T08:00:00Z"}`)),
@@ -349,7 +351,8 @@ func TestPersonalMemoryDisableEndpointDisablesViaExecutor(t *testing.T) {
 	server.personalMemoryExecutor = executor
 	server.personalMemoryErr = nil
 
-	request := httptest.NewRequest(
+	request := httptest.NewRequestWithContext(
+		context.Background(),
 		http.MethodPost,
 		"/internal/memory/personal/items:disable",
 		bytes.NewReader([]byte(`{"memory_id":"mem_01HQ","user_id":"user_01HQ","updated_at":"2026-06-10T09:00:00Z"}`)),
@@ -374,7 +377,8 @@ func TestPersonalMemoryOwnerDisableEndpointDisablesViaExecutor(t *testing.T) {
 	server.personalMemoryExecutor = executor
 	server.personalMemoryErr = nil
 
-	request := httptest.NewRequest(
+	request := httptest.NewRequestWithContext(
+		context.Background(),
 		http.MethodPost,
 		"/internal/memory/personal/owner:disable",
 		bytes.NewReader([]byte(`{"user_id":"user_01HQ","tenant_id":"tenant-muc","updated_at":"2026-06-10T10:00:00Z"}`)),

@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-28
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 
 # App API HTTP Contract
@@ -25,13 +25,29 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
   - Chat: conversation, request, stream and event endpoints
 - `app-api-http/operator.md`
   - Operator: operator request list and detail endpoints
+- `app-api-chat-conversation-http.md`
+  - Chat conversation product contract details not repeated in this index
+- `app-api-identity-platform-http.md`
+  - Account center and identity product projection endpoints
+- `app-api-federation-http.md`
+  - Federation provider surface
+- `app-api-campus-ops-http.md`
+  - Campus ops cross-cutting operator contract
+- `app-api-dining-http.md`
+  - Student dining public projection endpoints
+- `app-api-dining-ops-http.md`
+  - Dining operations draft, release candidate, release and audit endpoints
+- `app-api-document-reader-http.md`
+  - Document reader published asset and read-model contract
+- `campus-web-chatkit-adapter.md`
+  - campus-web ChatKit protocol adapter
 
 ## Index-Owned Baseline
 
 ## 文档边界
 
-这份文档冻结 shared `apps/app-api` 对 `public-chat-web` 与 `protected-panel-web` 暴露的
-browser-facing HTTP contract。
+这份文档冻结 shared `apps/app-api` 对 `campus-web`、legacy `public-chat-web` 与
+`protected-panel-web` 暴露的 browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
@@ -48,11 +64,21 @@ browser-facing HTTP contract。
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
+- identity platform product projection：`docs/contracts/app-api-identity-platform-http.md`
+- future federation provider surface：`docs/contracts/app-api-federation-http.md`
+- campus ops cross-cutting contract：`docs/contracts/app-api-campus-ops-http.md`
+- student dining public contract：`docs/contracts/app-api-dining-http.md`
+- dining ops HTTP contract：`docs/contracts/app-api-dining-ops-http.md`
+- chat conversation product contract：`docs/contracts/app-api-chat-conversation-http.md`
+- campus-web ChatKit protocol adapter：
+  `docs/contracts/campus-web-chatkit-adapter.md`
 
 这份文档不冻结：
 
 - browser 直接可见的 hostname、route mounting 方式或 Worker BFF 实现
 - Better Auth 的 provider 细节
+- Identity Platform forward product projection shape
+- future OIDC/OAuth provider endpoint shape
 - panel UI layout
 - token streaming 或异步后台回答产品形态
 - `official_web` collector command endpoints
@@ -63,6 +89,7 @@ browser-facing HTTP contract。
 
 长期调用形态固定为：
 
+- `browser -> campus-web same-origin /api/* -> app-api`
 - `browser -> public-chat-web same-site /api/* -> app-api`
 - `browser -> protected-panel-web same-site /api/* -> app-api`
 
@@ -83,7 +110,7 @@ browser-facing HTTP contract。
 `apps/app-api/src/app/route-exposure.ts` 是当前 route exposure inventory 的代码侧
 contract test carrier。新增 route 必须声明：
 
-- `browser-surface`：由 public chat / docs same-site proxy 调用
+- `browser-surface`：由 campus-web / legacy public chat same-origin proxy 调用
 - `operator-via-panel`：由 protected panel internal bridge 调用
 - `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
   caller 调用
@@ -111,6 +138,18 @@ contract test carrier。新增 route 必须声明：
 
 - `ALL /api/auth/*`
 - `GET /api/me`
+- `GET /api/me/overview`
+- `GET /api/me/identity`
+- `GET /api/me/access`
+- `GET /api/me/preferences`
+- `PATCH /api/me/preferences`
+- `GET /api/me/security/sessions`
+- `DELETE /api/me/security/sessions/:sessionId`
+- `GET /api/me/authorized-apps`
+- `DELETE /api/me/authorized-apps/:clientId`
+
+Identity Platform detailed object families are frozen separately in
+`docs/contracts/app-api-identity-platform-http.md`.
 
 ### Profile Memory
 
@@ -122,13 +161,82 @@ contract test carrier。新增 route 必须声明：
 ### Chat
 
 - `GET /api/chat/conversations`
+- `GET /api/chat/conversations/search`
 - `POST /api/chat/conversations`
 - `GET /api/chat/conversations/:conversationId`
+- `PATCH /api/chat/conversations/:conversationId`
+- `DELETE /api/chat/conversations/:conversationId`
+- `POST /api/chat/conversations/:conversationId/archive`
+- `DELETE /api/chat/conversations/:conversationId/archive`
+- `POST /api/chat/conversations/:conversationId/pin`
+- `DELETE /api/chat/conversations/:conversationId/pin`
 - `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 - `POST /api/chat/requests`
 - `POST /api/chat/requests/stream`
+- `GET /api/chat/runs/:runId`
+- `GET /api/chat/runs/:runId/events`
+- `GET /api/chat/runs/:runId/events/stream`
+- `POST /api/chat/runs/:runId/cancel`
+
+### Campus Experience
+
+- `GET /api/campus-map/places`
+- `GET /api/campus-map/places/:placeId`
+- `GET /api/dining/halls`
+- `GET /api/dining/halls/:hallId/floors/:floorId`
+- `POST /api/feedback`
+
+These routes serve `campus-web` product projections. Map payloads return
+campus metadata and place records. Each place keeps a point GeoJSON feature as
+its interaction center; places backed by campus base-map geometry can also
+return `mapFeatureRefs[]` with explicit `{ sourceId, layer, fid }` bindings so
+the browser can highlight the matching MapLibre feature instead of inventing a
+point marker. `mapFeatureRefs[]` are the only binding contract between a product
+place and rendered campus map objects; browser interaction must not infer a
+place from base-map `name`, label text, `sourceRefs`, or nearest-geometry
+matching. Dining payloads read latest published release snapshots and return
+hall summaries plus window/assignment/offering floor projections; detailed field
+shape is frozen in `docs/contracts/app-api-dining-http.md`.
+Feedback accepts a global `category`, `routeContext`, `body`, and optional
+`contact`; it does not create per-page local feedback widgets.
+
+Student-facing dining routes read the latest published dining release snapshot.
+Dining draft, release candidate, published release and audit routes are frozen
+separately in `docs/contracts/app-api-dining-ops-http.md`.
+
+### Campus Ops
+
+Dining ops routes below describe the accepted target contract. Current
+implementation gaps, including legacy direct-draft publish routes, are tracked
+in `docs/contracts/app-api-dining-ops-http.md`.
+
+- `GET /api/ops/dining/halls`
+- `GET /api/ops/dining/halls/:hallId/floors/:floorId`
+- `PATCH /api/ops/dining/windows/:windowId`
+- `POST /api/ops/dining/window-assignments`
+- `PATCH /api/ops/dining/window-assignments/:assignmentId`
+- `POST /api/ops/dining/menu-items`
+- `PATCH /api/ops/dining/menu-items/:menuItemId`
+- `POST /api/ops/dining/menu-offerings`
+- `PATCH /api/ops/dining/menu-offerings/:offeringId`
+- `GET /api/ops/dining/release-candidates`
+- `POST /api/ops/dining/release-candidates`
+- `GET /api/ops/dining/release-candidates/:candidateId`
+- `POST /api/ops/dining/release-candidates/:candidateId/validate`
+- `POST /api/ops/dining/release-candidates/:candidateId/approve`
+- `POST /api/ops/dining/release-candidates/:candidateId/schedule`
+- `POST /api/ops/dining/release-candidates/:candidateId/publish`
+- `POST /api/ops/dining/release-candidates/:candidateId/cancel`
+- `GET /api/ops/dining/releases`
+- `GET /api/ops/dining/releases/:releaseId`
+- `POST /api/ops/dining/releases/:releaseId/rollback`
+- `GET /api/ops/dining/audit-events`
+
+These routes are `operator-via-panel` caller class routes consumed by
+`campus-ops-web`, not `campus-web`. Source observation apply/reject routes are
+not implemented in the current inventory.
 
 ### Operator
 

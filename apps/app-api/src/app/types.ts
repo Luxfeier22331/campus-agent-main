@@ -4,9 +4,12 @@ import type { AuthenticatedNoticeProcessingCommandService } from "../modules/aut
 import type { AuthenticatedNoticeProcessingQueryService } from "../modules/authenticated-notice-processing-query";
 import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/authenticated-notice-run-processing-command";
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
+import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusServicesOpsService } from "../modules/campus-services-ops";
 import type { ChatConversationService } from "../modules/chat";
+import type { DiningOperationsService } from "../modules/dining-ops";
 import type { DocsService } from "../modules/docs";
+import type { IdentityPlatformService } from "../modules/identity-platform";
 import type {
 	ExecutionControlCampusServicesProductPathPreflight,
 	ExecutionControlRuntimePreflight,
@@ -40,9 +43,12 @@ export interface AppDependencies {
 	authenticatedNoticeProcessingQueryService?: AuthenticatedNoticeProcessingQueryService;
 	authenticatedNoticeRunProcessingCommandService?: AuthenticatedNoticeRunProcessingCommandService;
 	authenticatedNoticeRunProcessingQueryService?: AuthenticatedNoticeRunProcessingQueryService;
+	campusExperienceService?: CampusExperienceService;
 	campusServicesOpsService?: CampusServicesOpsService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
+	fetchChatKitAdapter?: (request: Request) => Promise<Response> | Response;
+	diningOperationsService?: DiningOperationsService;
 	docsService?: DocsService;
 	docsReadinessProbe?: () => Promise<AppDocsReadinessResult>;
 	getAppAuth?: AppAuthGetter;
@@ -51,6 +57,7 @@ export interface AppDependencies {
 		env: Env,
 		input?: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
+	identityPlatformService?: IdentityPlatformService;
 	ingestionTaskProjectionClient?: IngestionTaskProjectionClient;
 	ingestionTaskProjectionFetch?: IngestionTaskProjectionFetch;
 	officialWebCommandService?: OfficialWebCommandService;
@@ -112,10 +119,13 @@ export interface AppRequestScope {
 	resolveAuthenticatedNoticeProcessingQueryService(): AuthenticatedNoticeProcessingQueryService;
 	resolveAuthenticatedNoticeRunProcessingCommandService(): AuthenticatedNoticeRunProcessingCommandService;
 	resolveAuthenticatedNoticeRunProcessingQueryService(): AuthenticatedNoticeRunProcessingQueryService;
+	resolveCampusExperienceService(): CampusExperienceService;
 	resolveCampusServicesOpsService(): CampusServicesOpsService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
+	resolveDiningOperationsService(): DiningOperationsService;
 	resolveDocsService(): DocsService;
+	resolveIdentityPlatformService(): IdentityPlatformService;
 	resolveIngestionTaskProjectionClient(): IngestionTaskProjectionClient;
 	resolveOfficialWebCommandService(): OfficialWebCommandService;
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
@@ -129,4 +139,5 @@ export interface AppRequestScope {
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveRuntimeRunService(): RuntimeRunService;
 	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
+	telemetry: AppTelemetry;
 }

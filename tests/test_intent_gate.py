@@ -48,7 +48,7 @@ class IntentGateScriptTest(unittest.TestCase):
         job = workflow["jobs"]["intent-release-gate"]
         run_steps = "\n".join(step.get("run", "") for step in job["steps"])
 
-        self.assertIn("uv run --all-packages python -m scripts.intent_gate", run_steps)
+        self.assertIn("pnpm ci:intent", run_steps)
         self.assertNotIn("scripts.eval_gate", run_steps)
 
     def test_default_output_is_repo_local_tmp_artifact(self) -> None:

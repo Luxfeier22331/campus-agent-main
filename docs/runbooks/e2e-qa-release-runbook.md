@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-06-03
-updated: 2026-06-03
+updated: 2026-06-09
 ---
 # E2E QA Release Runbook
 
@@ -20,7 +20,8 @@ runbook，不重复维护每个子流程的全部细节。
 - `docs/runbooks/execution-control-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 
-当前默认目标环境是 `mucwiki-edge.link` staging。`hub.muc.wiki` 不属于本文的当前 gate。
+当前默认目标环境是 `mucwiki-edge.link` staging。`campus.muc.wiki` 是 production
+product endpoint；本文当前 gate 使用 `campus-staging.mucwiki-edge.link`。
 
 ## Evidence Directory
 
@@ -80,11 +81,10 @@ ssh nc-arm-6c \
 for url in \
   https://api-staging.mucwiki-edge.link/healthz \
   https://api-staging.mucwiki-edge.link/readyz \
-  https://hub-staging.mucwiki-edge.link/healthz \
-  https://hub-staging.mucwiki-edge.link/readyz \
+  https://campus-staging.mucwiki-edge.link/healthz \
+  https://campus-staging.mucwiki-edge.link/readyz \
   https://chat-staging.mucwiki-edge.link/healthz \
-  https://chat-staging.mucwiki-edge.link/readyz \
-  https://docs-staging.mucwiki-edge.link/readyz
+  https://chat-staging.mucwiki-edge.link/readyz
 do
   echo "## $url"
   curl --noproxy '*' -sS -i "$url"
@@ -93,7 +93,9 @@ done | tee "$E2E_QA_EVIDENCE_DIR/surface-health.txt"
 
 通过标准：
 
-- API、hub、chat、docs health / ready endpoints 返回预期 `200`
+- API、campus、chat health / ready endpoints 返回预期 `200`
+- docs 作为 campus 内部支撑面，由 campus ready、`/docs/*` browser check 与
+  `docs:gated:smoke:staging` 共同证明
 - endpoint list 只包含 user/product surfaces，不包含 execution-control machine ingress
 - execution-control readiness 由
   `infra/local/staging/status-execution-control-staging.sh --check` 与
@@ -163,18 +165,19 @@ pnpm --dir apps/app-api docs:gated:smoke:staging \
 再抽样 docs surface：
 
 ```bash
-curl --noproxy '*' -sS -i https://docs-staging.mucwiki-edge.link \
+curl --noproxy '*' -sS -i https://campus-staging.mucwiki-edge.link/docs/ \
   | tee "$E2E_QA_EVIDENCE_DIR/docs-root.txt"
-curl --noproxy '*' -sS -i https://docs-staging.mucwiki-edge.link/readyz \
-  | tee "$E2E_QA_EVIDENCE_DIR/docs-readyz.txt"
+curl --noproxy '*' -sS -i \
+  https://campus-staging.mucwiki-edge.link/docs/regulations/student_rules/ \
+  | tee "$E2E_QA_EVIDENCE_DIR/docs-student-rules.txt"
 ```
 
 通过标准：
 
 - gated reader 匿名访问被拒绝
 - 使用 staging smoke session 后 gated reader 可访问
-- docs root 返回可渲染 HTML
-- `/readyz` 返回 `200`
+- campus docs root 返回可渲染 HTML
+- reader route 返回可渲染 HTML
 - reader asset URL 不包含 `localhost`、`127.0.0.1` 或本地 MinIO endpoint
 
 ## 6. Protected Panel And Access
@@ -198,15 +201,15 @@ pnpm --dir apps/protected-panel-web access:smoke:staging \
 
 人工或浏览器自动化至少检查：
 
-- `https://hub-staging.mucwiki-edge.link`
-  - launcher 可见
-  - Chat / Docs / Panel 入口指向 staging host
+- `https://campus-staging.mucwiki-edge.link`
+  - campus shell 可见
+  - account / dining / map / docs / feedback 入口可打开
   - 不出现 `ayafeed.com`、`localhost`、`127.0.0.1`
 - `https://chat-staging.mucwiki-edge.link`
   - 使用 staging smoke identity 后 chat UI 可打开
   - conversations 列表能看到本轮 E2E 创建的新会话
   - 人工发送一条问题能返回 answer
-- `https://docs-staging.mucwiki-edge.link`
+- `https://campus-staging.mucwiki-edge.link/docs/`
   - 首页、分类、reader 页面可打开
   - gated 文档未授权不可读，授权后可读
 - `https://panel-staging.mucwiki-edge.link`

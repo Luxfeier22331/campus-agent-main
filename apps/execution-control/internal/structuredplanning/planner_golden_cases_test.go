@@ -30,6 +30,7 @@ func TestPlanGoldenCases(t *testing.T) {
 			plan := PlanWithPolicy(tt.request, policy)
 			if plan == nil {
 				t.Fatal("expected preplanned workflow plan")
+				return
 			}
 			if plan.WorkflowMode != WorkflowModeSingleStep {
 				t.Fatalf("workflow mode = %q, want single_step", plan.WorkflowMode)
@@ -37,6 +38,7 @@ func TestPlanGoldenCases(t *testing.T) {
 			handoff := plan.SelectedHandoff()
 			if handoff == nil {
 				t.Fatal("expected preplanned handoff")
+				return
 			}
 			if handoff.Capability != tt.wantCapability || handoff.PayloadKind != tt.wantKind {
 				t.Fatalf("handoff = %#v", handoff)

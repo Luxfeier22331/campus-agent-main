@@ -104,9 +104,7 @@ LEGACY_ANSWER_ROUTE_ALLOWED_PATH_PARTS = (
     "/tests/infra/test_execution_control_architecture_residue.py",
 )
 
-READYZ_FORBIDDEN_PATTERNS = (
-    "workflow_run_runtime",
-)
+READYZ_FORBIDDEN_PATTERNS = ("workflow_run_runtime",)
 
 READYZ_ALLOWED_PATH_PARTS = (
     "/tests/infra/test_execution_control_architecture_residue.py",
@@ -117,11 +115,11 @@ ONLINE_PYTHON_BRIDGE_FORBIDDEN_PATTERNS = (
     'env:"SUPERVISOR_AGENT_WORKER_',
     'env:"EXECUTION_CONTROL_BRIDGE_',
     'resolved.set("SUPERVISOR_AGENT_WORKER_',
-    'export SUPERVISOR_AGENT_WORKER_',
+    "export SUPERVISOR_AGENT_WORKER_",
     "SUPERVISOR_AGENT_WORKER_SHARED_SECRET is missing",
     "supervisor-agent-worker:27052",
     "execution_control_staging_bridge_shared_secret",
-    'exec -T supervisor-agent-worker',
+    "exec -T supervisor-agent-worker",
     "logs --no-color supervisor-agent-worker",
     "bridge_runtime",
 )
@@ -506,7 +504,9 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
 
         for path in tracked_files():
             relative = normalized_relative(path)
-            if not any(relative.startswith(prefix) for prefix in KNOWLEDGE_CAPABILITY_SOURCE_PREFIX):
+            if not any(
+                relative.startswith(prefix) for prefix in KNOWLEDGE_CAPABILITY_SOURCE_PREFIX
+            ):
                 continue
             if any(
                 path.name == prefix or path.name.startswith(prefix)

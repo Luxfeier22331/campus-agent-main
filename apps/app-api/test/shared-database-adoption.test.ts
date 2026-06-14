@@ -175,6 +175,10 @@ ON "official_web"."crawl_runs" USING btree (
 			existsKey: "runtime.request_execution:actor_groups_json",
 			kind: "drop_column",
 		});
+		expect(parseMigrationStatement('DROP TABLE "dining"."floorplan_assets";')).toMatchObject({
+			existsKey: "dining.floorplan_assets",
+			kind: "drop_table",
+		});
 		expect(
 			parseMigrationStatement(`ALTER TABLE "runtime"."request_execution"
 DROP COLUMN "actor_groups_json";`),

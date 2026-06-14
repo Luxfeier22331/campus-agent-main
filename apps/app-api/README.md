@@ -11,13 +11,15 @@ This directory currently contains two aligned artifacts:
 
 This app is the shared product backend behind:
 
-- `apps/hub-web`
+- `apps/campus-web`
 - `apps/public-chat-web`
 - `apps/protected-panel-web`
 
 It owns:
 
 - auth and session handling
+- the neutral Identity Platform product boundary for account, identity, access,
+  preferences and federation policy
 - product-layer principal mapping
 - chat request ingress
 - conversation and message persistence
@@ -44,6 +46,14 @@ Current runtime scope:
   - includes email/password sign-up, sign-in, request-password-reset, and
     reset-password
 - `GET /api/me`
+  - compact current session principal projection
+- `GET /.well-known/openid-configuration`
+- `GET /.well-known/oauth-authorization-server`
+- `GET /api/federation/authorize`
+- `POST /api/federation/token`
+- `GET /api/federation/userinfo`
+- `GET /api/federation/jwks`
+- `GET /api/federation/logout`
 - `POST /api/official-web/runs`
 - `POST /api/official-web/runs/:runId/heartbeats`
 - `POST /api/official-web/runs/:runId/finalize`
@@ -126,13 +136,16 @@ Observability data policy:
 Canonical references:
 
 - `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/domains/official-web/architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
-  d`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
-  md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
+- `docs/architecture/system/identity-platform-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
+- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
+- `docs/contracts/app-api-identity-platform-http.md`
+- `docs/contracts/app-api-federation-http.md`
+- `docs/data/identity-platform-schema.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/contracts/app-api-http.md`
@@ -204,8 +217,18 @@ Environment:
 - `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
 - `APP_API_INTERNAL_SHARED_SECRET`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET`
+- `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET`
+- `APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI`
+- `APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI`
 - `APP_API_OPERATOR_DATABASE_URL`
 - `APP_API_DATABASE_SSLMODE`
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_REGION`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `OBJECT_STORE_DERIVED_ACCESS_KEY`
+- `OBJECT_STORE_DERIVED_SECRET_KEY`
+- `OBJECT_STORE_BUCKET_DERIVED`
 - `SENTRY_DSN`
 - `SENTRY_ENVIRONMENT`
 - `SENTRY_RELEASE`
@@ -234,6 +257,10 @@ Local development:
 - if current staging only targets `app-api + public-chat-web +
   protected-panel-web`, and does not yet enable official-web live control-plane,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` is optional for that rollout
+- dining floorplan upload and `dining:seed-initial-release` use the configured
+  S3-compatible derived bucket. Local dev normally points `OBJECT_STORE_*` at
+  MinIO; staging/prod can point the same env shape at R2/S3-compatible storage.
+  Missing object-store config fails closed for dining SVG upload and seed.
 
 Deployment minimum gate:
 
@@ -242,7 +269,7 @@ Deployment minimum gate:
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled
   Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths
   stay fresh
-- `AUTH_SHELL_ORIGIN` must point at the deployed `hub-web` account browser
+- `AUTH_SHELL_ORIGIN` must point at the deployed `campus-web` account browser
   shell
 - `PUBLIC_CHAT_WEB_ORIGIN` remains the deployed public-chat origin and trusted
   Better Auth origin while chat-local auth URLs are kept as bounded
@@ -266,6 +293,12 @@ Deployment minimum gate:
   `POST /api/internal/staging-smoke/auth/session`, must be distinct from the
   public auth and internal service secrets, and may be provided through ignored
   repo-root `.env.staging.local`
+- `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET`,
+  `APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI` and
+  `APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI` are required only when
+  provisioning the controlled `muc-wiki` OAuth/OIDC client. The client secret
+  is command-scoped secret material; it is not a Worker runtime variable and
+  must not be committed.
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails
   expected to use the protected panel bridge
 - `EXECUTION_CONTROL_BASE_URL` and `EXECUTION_CONTROL_SHARED_SECRET` must be present
@@ -289,6 +322,12 @@ pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- \
   --email help_bot@outlook.com --name "Help Bot"
+APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
+APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:PluggableAuthLogin' \
+APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:UserLogout' \
+pnpm federation:provision-muc-wiki
 pnpm chat:e2e:dev -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm chat:e2e:local-real-provider
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
@@ -299,12 +338,14 @@ pnpm collection-rename:apply -- --write-report .tmp/collection-rename-apply.json
 pnpm collection-rename:replay -- --report .tmp/collection-rename-apply.json
 pnpm docs:import-read-model ../../var/docs-read-model-manifest.json
 pnpm docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json
+pnpm dining:seed-initial-release
 pnpm projection:drain
 pnpm test
 pnpm test:all
 pnpm test:node
 pnpm test:worker
 pnpm test:shared-db-integration
+pnpm test:official-web-shared-db-integration
 pnpm typecheck
 pnpm db:generate
 pnpm db:migrate
@@ -318,10 +359,19 @@ STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
   docs:import-read-model:staging ../../var/docs-read-model-manifest.json
 STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
   docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.staging.json
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
+  dining:seed-initial-release:staging
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
   pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
   "Help Bot"
+APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
+APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:PluggableAuthLogin' \
+APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
+'Special:UserLogout' \
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+pnpm federation:provision-muc-wiki:staging
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm docs:gated:smoke:staging
 pnpm dev
@@ -342,6 +392,13 @@ Deploy note:
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 - `db:bootstrap:staging` 负责补齐 `app_auth.*` / `chat.*` shared-product 面；现有
   staging 若只跑 `db:migrate:staging`，不会自动得到 `chat.messages.structured_parts_json`
+- `dining:seed-initial-release*` writes the initial dining DB release and
+  materializes seed SVG objects into `OBJECT_STORE_BUCKET_DERIVED`; run it only
+  with the intended dev/staging/prod DB and object-store env.
+- `federation:provision-muc-wiki:staging` 负责把 controlled `muc-wiki` client
+  同步到 `identity.federation_*` product policy 与 Better Auth
+  `app_auth.oauthClient` runtime table。它必须在 staging DB bootstrap/migrate/drift
+  之后、MediaWiki OIDC smoke 之前执行。
 - `chat:e2e:staging` and `docs:gated:smoke:staging` do not require local
   staging DB credentials; they reset the fixed smoke identity through the
   deployed staging internal smoke endpoint protected by
@@ -359,10 +416,15 @@ Testing lanes:
 - `pnpm test:worker` is the explicit Worker-runtime lane for the shared
   `app-api` shell and readiness contract.
 - `pnpm test:shared-db-integration` is the explicit shared Postgres / Better
-  Auth integration lane and is not part of the default `pnpm test` gate.
+  Auth integration lane and is not part of the default `pnpm test` gate. It
+  does not require `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`.
 - `pnpm test:shared-db-integration` also fails closed when the connected shared
   DB no longer converges with the repo-owned `official_web/runtime/operator`
   snapshot.
+- `pnpm test:official-web-shared-db-integration` is the explicit
+  `official_web` collector lifecycle lane. It requires
+  `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` and is only part of rollout/smoke when
+  the official-web collector control plane is in scope.
 - When shared DB drift is detected, inspect it with `pnpm
   db:reconcile-shared-drift -- --json` before applying cleanup with backup and
   `--apply`.

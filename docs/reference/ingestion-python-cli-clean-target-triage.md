@@ -20,7 +20,7 @@ Reviewed surface:
 
 - `apps/ingestion-worker/pyproject.toml` `[project.scripts]`
 - 110 public `campus-ingestion-*` entrypoints
-- current target boundary from ADR-0050 and the data-plane architecture
+- current target boundary from ADR-0054 and the data-plane architecture
 - current on-demand runner, wrapper scripts, systemd examples, runbooks and
   operator command references
 

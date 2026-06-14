@@ -19,6 +19,7 @@ class IntentGoRunnerTest(unittest.TestCase):
                     expected_launch_state="open",
                     expected_next_action="delegate",
                     expected_scope_class="in_scope",
+                    expected_target="knowledge",
                 ),
                 IntentCase(
                     case_id="intent-go-place-closed-001",

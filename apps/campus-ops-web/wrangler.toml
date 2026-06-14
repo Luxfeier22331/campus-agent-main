@@ -1,0 +1,33 @@
+name = "campus-ops-web"
+main = "./src/index.ts"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+APP_API_BASE_URL = "https://api.muc.wiki"
+CAMPUS_OPS_WEB_HOSTNAME = "ops.mucwiki-edge.link"
+SENTRY_ENVIRONMENT = "production"
+
+[[services]]
+binding = "APP_API"
+service = "app-api"
+
+[env.staging]
+name = "campus-ops-web-staging"
+routes = [
+	{ pattern = "ops-staging.mucwiki-edge.link", custom_domain = true }
+]
+
+[env.staging.vars]
+APP_API_BASE_URL = "https://api-staging.mucwiki-edge.link"
+CAMPUS_OPS_WEB_HOSTNAME = "ops-staging.mucwiki-edge.link"
+SENTRY_ENVIRONMENT = "staging"
+
+[[env.staging.services]]
+binding = "APP_API"
+service = "app-api-staging"

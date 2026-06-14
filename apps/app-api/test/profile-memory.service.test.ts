@@ -50,6 +50,7 @@ function createStore(): ProfileMemoryStore {
 		findItemIdByKey: vi.fn(async () => null),
 		listByOwner: vi.fn(async () => ({ enabled: true, items: [] })),
 		listProjectionItems: vi.fn(async () => []),
+		loadSummary: vi.fn(async () => ({ enabled: true, itemCount: 0 })),
 		setEnabled: vi.fn(async (input) => input.enabled),
 		upsertUserDeclared: vi.fn(async (input) => ({
 			confidence: "low" as const,

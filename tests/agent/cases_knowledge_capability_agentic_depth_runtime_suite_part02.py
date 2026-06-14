@@ -142,7 +142,10 @@ class KnowledgeCapabilityAgenticDepthRuntimeTestPart02(unittest.TestCase):
                     supporting_sources=evidence.sources,
                 )
 
-        with patch("tests.agent.knowledge_capability_test_support.KnowledgeCapability", UnsupportedClaimAgent):
+        with patch(
+            "tests.agent.knowledge_capability_test_support.KnowledgeCapability",
+            UnsupportedClaimAgent,
+        ):
             response = delegate_to_knowledge_capability(
                 CapabilityRequest(
                     capability="knowledge",

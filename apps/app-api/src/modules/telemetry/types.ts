@@ -56,6 +56,14 @@ export interface AppTelemetry {
 		surface: string;
 		traceId: string;
 	}): Promise<void>;
+	recordIdentityEndpoint(input: {
+		correlationId: string;
+		endpoint: string;
+		errorCode: string | null;
+		principalType: string | null;
+		status: number;
+		surface: string;
+	}): Promise<void>;
 	recordProjectionDrain(input: {
 		abandoned?: number;
 		failed: number;

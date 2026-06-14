@@ -100,10 +100,19 @@ ingestion / release 工作不进入用户 agent tool surface。
 
 补充约束：
 
+- 当前 merged truth 已从 chat-only / launcher model 转向 `campus-web` 学生侧主体验；
+  chat 仍是核心能力，但不再单独定义产品总入口
 - 当前 merged truth、已开放 serving surface 与具体 browser surface 拓扑由
-  `current-architecture.md` 维护。
-- 单个 surface 的内部信息架构不自动上升为整个产品的顶层入口架构。
-- source/data lane 只有在显式开放后才上升为公开产品承诺。
+  `current-architecture.md` 维护
+- docs shell 自己的首页、collection 入口或局部导航，不自动上升为整个产品的顶层入口架构
+- `campus.muc.wiki` 是学生侧 product entry surface；它提供校园应用入口、账号壳与
+  same-origin browser seams，但不改变 query-serving truth 或 capability opening truth
+- 既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营；campus-web 可以提供外部链接入口，
+  不替代、代理、镜像或迁移 MediaWiki 页面内容、上传媒体或账号
+- `authenticated_notice_portal`、`wechat_official_account` 与 structured runtime source/data
+  lane 是长期能力输入与 control-plane truth 的一部分；除非显式开放，它们不自动上升为当前公开产品承诺
+- 单个 surface 的内部信息架构不自动上升为整个产品的顶层入口架构
+- source/data lane 只有在显式开放后才上升为公开产品承诺
 
 ## 长期产品形态
 

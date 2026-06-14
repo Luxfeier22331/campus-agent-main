@@ -186,7 +186,9 @@ export function hasTrustedInternalRequest(
 }
 
 function parseHeaderList(request: Request, headerName: string): string[] {
-	return parseCsvList(request.headers.get(headerName) ?? undefined);
+	return parseCsvList(request.headers.get(headerName) ?? undefined)
+		.map((value) => decodeOptionalHeaderValue(value))
+		.filter((value): value is string => Boolean(value));
 }
 
 function normalizeStringList(values: readonly string[] | undefined): string[] {
@@ -569,6 +571,64 @@ type OperatorHeadersAdmission =
 	| { kind: "not_admitted" }
 	| { kind: "admitted"; principal: ResolvedAppPrincipal };
 
+function mapInternalCampusPrincipalHeaders(
+	request: Request,
+	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
+): ResolvedAppPrincipal | null {
+	if (!hasMatchingInternalSecret(request, env)) {
+		return null;
+	}
+
+	const principalId = normalizeHeaderValue(request.headers.get("x-app-campus-principal-id"));
+	const principalType = normalizeHeaderValue(request.headers.get("x-app-campus-principal-type"));
+	if (!(principalId && principalType && isCampusEndUserPrincipalType(principalType))) {
+		return null;
+	}
+
+	const displayName =
+		normalizeHeaderValue(request.headers.get("x-app-campus-display-name")) ?? principalId;
+	const email = normalizeHeaderValue(request.headers.get("x-app-campus-email"));
+	const roles = parseHeaderList(request, "x-app-campus-actor-roles");
+	const departments = parseHeaderList(request, "x-app-campus-departments");
+	const actor: ExecutionActorContext = {
+		userId: principalId,
+		principalId,
+		principalType,
+		roles: roles.length > 0 ? roles : buildDefaultEndUserRoles(principalType),
+		departments,
+		cohort: decodeOptionalHeaderValue(request.headers.get("x-app-campus-cohort")) ?? undefined,
+		major: decodeOptionalHeaderValue(request.headers.get("x-app-campus-major")) ?? undefined,
+		program: decodeOptionalHeaderValue(request.headers.get("x-app-campus-program")) ?? undefined,
+	};
+	const campusIdentity = parseCampusIdentityClaims(request, env);
+
+	return {
+		principal: {
+			type: principalType,
+			principalId,
+			displayName,
+			email,
+		},
+		session: null,
+		permissions: {
+			chat: true,
+			operator: false,
+		},
+		actor,
+		authorization: campusIdentity
+			? buildCampusAuthorizationContext({
+					actor,
+					applicabilityScope: campusIdentity.applicabilityScope,
+					entitlementGroups: campusIdentity.entitlementGroups ?? [],
+					entitlementSnapshotId: campusIdentity.entitlementSnapshotId ?? "",
+					ownershipScopes: campusIdentity.ownershipScopes ?? [],
+					visibilityLevel: campusIdentity.visibilityLevel ?? "public",
+					visibilityScope: campusIdentity.visibilityScope ?? null,
+				})
+			: buildExecutionAuthorizationContext(actor),
+	};
+}
+
 function isOperatorRouteRequest(request: Request): boolean {
 	const pathname = new URL(request.url).pathname;
 	return pathname.startsWith("/api/operator/");
@@ -675,6 +735,11 @@ export async function resolveRequestPrincipal(
 	env: Env,
 	input: AppAuthResolutionInput = {},
 ): Promise<ResolvedAppPrincipal | null> {
+	const internalCampusPrincipal = mapInternalCampusPrincipalHeaders(request, env);
+	if (internalCampusPrincipal) {
+		return internalCampusPrincipal;
+	}
+
 	const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
 	if (operatorHeadersAdmission.kind === "admitted") {
 		return operatorHeadersAdmission.principal;

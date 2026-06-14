@@ -46,9 +46,7 @@ class KnowledgeCapabilityWorkflowProjectionGroundingTest(unittest.TestCase):
                     projection_refs=(
                         {
                             "projection_id": "projection:schedule_baseline:test",
-                            "source_step_id": (
-                                "handoff:campus_services:transport_schedule_lookup"
-                            ),
+                            "source_step_id": ("handoff:campus_services:transport_schedule_lookup"),
                             "projection_kind": "schedule_baseline",
                             "content_hash": "b" * 64,
                             "safety": {
@@ -60,9 +58,7 @@ class KnowledgeCapabilityWorkflowProjectionGroundingTest(unittest.TestCase):
                         },
                         {
                             "projection_id": "projection:notice_change_set:test",
-                            "source_step_id": (
-                                "handoff:notice:campus_notice_change_set_lookup"
-                            ),
+                            "source_step_id": ("handoff:notice:campus_notice_change_set_lookup"),
                             "projection_kind": "notice_change_set",
                             "content_hash": "c" * 64,
                             "safety": {

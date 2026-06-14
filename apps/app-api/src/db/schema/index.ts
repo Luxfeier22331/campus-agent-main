@@ -1,4 +1,15 @@
-export { account, appAuthSchema, session, user, verification } from "./auth";
+export {
+	account,
+	appAuthSchema,
+	jwks,
+	oauthAccessToken,
+	oauthClient,
+	oauthConsent,
+	oauthRefreshToken,
+	session,
+	user,
+	verification,
+} from "./auth";
 export {
 	campusServicesOpsAuditEvents,
 	campusServicesOpsReleases,
@@ -8,12 +19,39 @@ export {
 } from "./campus-services-ops";
 export { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 export {
+	diningAuditEvents,
+	diningDraftVersions,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseLatestPointer,
+	diningReleaseScheduleJobs,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningSourceObservations,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
+export {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
 	docsReaderAssets,
 	docsSearchUnits,
 } from "./docs";
+export {
+	identityAccessSnapshots,
+	identityAccounts,
+	identityFederationClaimsPolicies,
+	identityFederationClients,
+	identityFederationUserGrants,
+	identityPreferenceSettings,
+	identityProfiles,
+} from "./identity";
 export {
 	crawlRuns,
 	officialWebRunAdmissionDecisions,
@@ -54,7 +92,17 @@ export {
 	wechatOfficialAccountRunHeartbeats,
 } from "./wechat-official-account";
 
-import { account, session, user, verification } from "./auth";
+import {
+	account,
+	jwks,
+	oauthAccessToken,
+	oauthClient,
+	oauthConsent,
+	oauthRefreshToken,
+	session,
+	user,
+	verification,
+} from "./auth";
 import {
 	campusServicesOpsAuditEvents,
 	campusServicesOpsReleases,
@@ -64,12 +112,39 @@ import {
 } from "./campus-services-ops";
 import { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 import {
+	diningAuditEvents,
+	diningDraftVersions,
+	diningFloors,
+	diningHalls,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseLatestPointer,
+	diningReleaseScheduleJobs,
+	diningReleaseSnapshots,
+	diningReleases,
+	diningSourceObservations,
+	diningStallProfiles,
+	diningWindowAssignments,
+	diningWindows,
+} from "./dining";
+import {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
 	docsReaderAssets,
 	docsSearchUnits,
 } from "./docs";
+import {
+	identityAccessSnapshots,
+	identityAccounts,
+	identityFederationClaimsPolicies,
+	identityFederationClients,
+	identityFederationUserGrants,
+	identityPreferenceSettings,
+	identityProfiles,
+} from "./identity";
 import {
 	crawlRuns,
 	officialWebRunAdmissionDecisions,
@@ -115,6 +190,11 @@ export const appApiSchema = {
 	session,
 	account,
 	verification,
+	oauthClient,
+	oauthRefreshToken,
+	oauthAccessToken,
+	oauthConsent,
+	jwks,
 	campusServicesOpsSourceAttestations,
 	campusServicesOpsStatusOverrides,
 	campusServicesOpsTransportOverrides,
@@ -129,6 +209,29 @@ export const appApiSchema = {
 	docsDocumentVersions,
 	docsReaderAssets,
 	docsSearchUnits,
+	diningHalls,
+	diningFloors,
+	diningWindows,
+	diningWindowAssignments,
+	diningStallProfiles,
+	diningMenuItems,
+	diningMenuOfferings,
+	diningSourceObservations,
+	diningDraftVersions,
+	diningReleaseCandidates,
+	diningReleaseCandidateValidationReports,
+	diningReleaseScheduleJobs,
+	diningReleases,
+	diningReleaseSnapshots,
+	diningReleaseLatestPointer,
+	diningAuditEvents,
+	identityAccounts,
+	identityProfiles,
+	identityAccessSnapshots,
+	identityPreferenceSettings,
+	identityFederationClients,
+	identityFederationClaimsPolicies,
+	identityFederationUserGrants,
 	crawlRuns,
 	officialWebTargetJobs,
 	officialWebTargetJobCandidates,

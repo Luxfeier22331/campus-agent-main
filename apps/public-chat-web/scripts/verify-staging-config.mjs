@@ -43,9 +43,9 @@ expectEqual(
 	"Built staging config must keep PUBLIC_CHAT_HOSTNAME fixed.",
 );
 expectEqual(
-	vars.HUB_WEB_BASE_URL,
-	"https://hub-staging.mucwiki-edge.link",
-	"Built staging config must keep HUB_WEB_BASE_URL fixed.",
+	vars.AUTH_SHELL_ORIGIN,
+	"https://campus-staging.mucwiki-edge.link",
+	"Built staging config must keep AUTH_SHELL_ORIGIN fixed.",
 );
 expectEqual(
 	vars.SENTRY_ENVIRONMENT,

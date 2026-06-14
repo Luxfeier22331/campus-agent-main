@@ -57,6 +57,9 @@
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/code-organization-and-decomposition-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/identity-platform-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
+- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/architecture/system/memory-plane-architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/domains/navigation/architecture.md`
@@ -66,7 +69,10 @@
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/data/wechat-official-account-source-truth-schema.md`
+- `docs/data/identity-platform-schema.md`
 - `docs/contracts/campus-notice-runtime-contract.md`
+- `docs/contracts/app-api-identity-platform-http.md`
+- `docs/contracts/app-api-federation-http.md`
 - `docs/reference/authenticated-notice-file-release-export-contract.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
@@ -76,11 +82,12 @@
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
-- `docs/decisions/adr-0049-qdrant-native-personal-memory-index.md`
+- `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
+- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 - `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
@@ -391,8 +398,10 @@ pnpm web:build:affected
 - JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Markdown lint 通过 `pnpm
   docs:lint` 执行；YAML 结构检查通过 `pnpm yaml:lint` 执行；Python lint/format 默认通过 `uv run
   --all-packages ruff ...` 执行
-- repo-wide handwritten code/test 分解 gate 默认通过 `pnpm decomposition:lint` 执行；新增或修改
-  tracked handwritten `py/ts/tsx/js/jsx/mjs/cjs/go` code/test 文件时，不得超过 `800` 行，也不得通过
+- repo-wide handwritten code/test 分解 gate 默认通过 `pnpm decomposition:lint`
+  执行；新增或修改
+  tracked handwritten `py/ts/tsx/js/jsx/mjs/cjs/go` code/test 文件时，不得超过 `800`
+  行，也不得通过
   `configs/lint/decomposition-baseline.json` 新增 admission 回流
 - `pnpm web:test` 是 JS/TS 默认稳定 gate；不要把它表述成自动覆盖所有 worker / integration lane
 - `pnpm web:test:worker` 是显式 Worker runtime lane；`pnpm web:test:integration`

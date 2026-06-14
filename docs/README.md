@@ -47,6 +47,26 @@ class owns a fact.
 - Current work map and backlog signals:
   - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
+- Account center, identity product projection and federation boundary:
+  - [architecture/system/identity-platform-architecture.md](./architecture/system/identity-platform-architecture.md)
+  - [architecture/system/identity-browser-experience-architecture.md](./architecture/system/identity-browser-experience-architecture.md)
+  - [architecture/system/federation-and-mucwiki-login-architecture.md](./architecture/system/federation-and-mucwiki-login-architecture.md)
+  - [contracts/app-api-identity-platform-http.md](./contracts/app-api-identity-platform-http.md)
+  - [contracts/app-api-federation-http.md](./contracts/app-api-federation-http.md)
+  - [data/identity-platform-schema.md](./data/identity-platform-schema.md)
+- campus-web docs reader, Rspress delivery and Q&A source-card jumps:
+  - [architecture/system/document-site-architecture.md](./architecture/system/document-site-architecture.md)
+  - [contracts/app-api-document-reader-http.md](./contracts/app-api-document-reader-http.md)
+  - [decisions/adr-0051-campus-docs-rspress-reader-surface.md](./decisions/adr-0051-campus-docs-rspress-reader-surface.md)
+- Campus Ops and dining map/menu/release operations:
+  - [architecture/system/campus-ops-web-architecture.md](./architecture/system/campus-ops-web-architecture.md)
+  - [architecture/domains/dining/architecture.md](./architecture/domains/dining/architecture.md)
+  - [contracts/app-api-campus-ops-http.md](./contracts/app-api-campus-ops-http.md)
+  - [contracts/app-api-dining-http.md](./contracts/app-api-dining-http.md)
+  - [contracts/app-api-dining-ops-http.md](./contracts/app-api-dining-ops-http.md)
+  - [data/dining-operations-schema.md](./data/dining-operations-schema.md)
+- MUC Campus Q&A frontend design reference:
+  - [reference/muc-campus-qa-frontend-design/](./reference/muc-campus-qa-frontend-design/)
 
 ## Documentation Areas
 
@@ -85,6 +105,10 @@ class owns a fact.
   feature-branch progress or release closeout.
 - `target-architecture.md` describes long-term invariants. It does not carry
   P0/P1/P2 status or current implementation progress.
+- Reference material can support a discussion, but contracts, data schemas and
+  architecture docs own current product/runtime/data truth.
+- Historical planning material must be promoted into the correct active
+  document class before it can be cited as current truth.
 
 ## Historical Material
 

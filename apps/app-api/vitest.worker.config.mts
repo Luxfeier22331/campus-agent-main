@@ -12,6 +12,6 @@ export default defineProject({
 	],
 	test: {
 		name: "app-api-worker",
-		include: ["test/worker.test.ts"],
+		include: ["test/federation-runtime-readiness.test.ts", "test/worker.test.ts"],
 	},
 });

@@ -337,7 +337,7 @@ StepResult
 browser / execution layer 允许消费的只是：
 
 - supporting evidence
-- source card / canonical reader jump target
+- source card / reader permalink
 - operator-safe execution summary
 - sanitized step trajectory summary
 

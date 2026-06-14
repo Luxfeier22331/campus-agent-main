@@ -19,6 +19,7 @@ func TestPlanNoticeOriginalSpringBreakStaysNoticeLookup(t *testing.T) {
 
 	if plan == nil {
 		t.Fatal("expected workflow plan")
+		return
 	}
 	if plan.WorkflowMode != WorkflowModeSingleStep {
 		t.Fatalf("workflow mode = %q, want single_step", plan.WorkflowMode)
@@ -26,6 +27,7 @@ func TestPlanNoticeOriginalSpringBreakStaysNoticeLookup(t *testing.T) {
 	handoff := plan.SelectedHandoff()
 	if handoff == nil {
 		t.Fatal("expected selected handoff")
+		return
 	}
 	if handoff.Capability != "notice" {
 		t.Fatalf("target = %q, want notice", handoff.Capability)

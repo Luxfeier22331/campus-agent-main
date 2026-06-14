@@ -1,19 +1,43 @@
 {
 	"name": "campus-agent-web-workspace",
 	"private": true,
-	"packageManager": "pnpm@10.17.1",
+	"packageManager": "pnpm@10.26.1",
+	"pnpm": {
+		"packageExtensions": {
+			"@hookform/resolvers@*": {
+				"peerDependencies": {
+					"zod": "^3.25 || ^4.0"
+				},
+				"peerDependenciesMeta": {
+					"zod": {
+						"optional": true
+					}
+				}
+			}
+		}
+	},
 	"engines": {
 		"node": ">=24 <25"
 	},
 	"scripts": {
 		"official-web:live-seam:no-promotion": "uv run --all-packages python -m scripts.official_web_live_seam_no_promotion",
+		"repo:guard": "uv run --all-packages python -m unittest tests.test_docs_structure tests.test_workspace_layout tests.test_repo_collaboration -q",
+		"repo:static": "pnpm web:lint && pnpm docs:lint && pnpm coverage:lint && pnpm decomposition:lint && pnpm java:lint && pnpm editorconfig:lint && pnpm env:lint && pnpm html:lint && pnpm yaml:lint && pnpm toml:lint && pnpm shell:lint && pnpm xml:lint && pnpm jsonl:lint && pnpm sql:lint && pnpm docker:lint && pnpm lock:lint && pnpm py:lint && pnpm py:format:check && pnpm ci:config:lint",
+		"ci:repo-guard": "pnpm repo:guard",
+		"ci:repo-static": "pnpm repo:static",
+		"ci:intent": "pnpm eval:intent",
+		"ci:go": "pnpm go:check",
+		"ci:web-graph:affected": "pnpm web:check:affected",
+		"ci:web-graph:full": "pnpm web:check",
+		"ci:config:lint": "uv run --all-packages python -m scripts.check_ci_workflow_contracts",
 		"web:build:affected": "TURBO_SCM_BASE=origin/develop turbo run build --affected",
 		"web:build": "turbo run build",
-		"web:check:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected",
-		"web:check": "turbo run typecheck test build",
+		"bundle:lint": "node scripts/check_web_client_bundle_budget.mjs",
+		"web:check:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concurrency=2",
+		"web:check": "turbo run typecheck test build --concurrency=2",
 		"web:dev": "turbo run dev",
 		"web:dev:chat": "turbo run dev --filter=public-chat-web",
-		"web:dev:docs": "turbo run dev --filter=public-docs",
+		"web:dev:docs": "pnpm --dir apps/campus-web docs:build && turbo run dev --filter=campus-web",
 		"web:lint": "uv run --all-packages python -m scripts.check_biome_tracked",
 		"web:lint:fix": "pnpm exec biome check --write .",
 		"web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected",
@@ -29,7 +53,6 @@
 		"eval:intent:release": "uv run --all-packages python -m scripts.intent_release_gate",
 		"eval:service-guide:release": "uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup --json",
 		"docs:lint": "uv run --all-packages python -m scripts.check_markdown_tracked && uv run --all-packages python -m scripts.check_docs_frontmatter_tracked && uv run --all-packages python -m scripts.check_docs_reference_graph_tracked && uv run --all-packages python -m scripts.check_docs_inventory_tracked",
-		"public-docs:lint": "pnpm --filter public-docs lint:generated",
 		"coverage:lint": "uv run --all-packages python -m scripts.check_lint_coverage_tracked",
 		"decomposition:lint": "uv run --all-packages python -m scripts.check_decomposition_tracked",
 		"java:lint": "uv run --all-packages python -m scripts.check_java_tracked",
@@ -59,7 +82,7 @@
 		"rust:fmt:check": "cargo fmt --check",
 		"rust:test": "cargo test --workspace",
 		"rust:check": "pnpm rust:fmt:check && pnpm rust:test",
-		"lint": "pnpm web:lint && pnpm docs:lint && pnpm public-docs:lint && pnpm coverage:lint && pnpm decomposition:lint && pnpm java:lint && pnpm editorconfig:lint && pnpm env:lint && pnpm html:lint && pnpm yaml:lint && pnpm toml:lint && pnpm shell:lint && pnpm xml:lint && pnpm jsonl:lint && pnpm sql:lint && pnpm docker:lint && pnpm lock:lint && pnpm go:static:check && pnpm py:lint && pnpm py:format:check",
+		"lint": "pnpm repo:static && pnpm go:static:check",
 		"lint:fix": "pnpm web:lint:fix && pnpm py:lint:fix && pnpm py:format"
 	},
 	"devDependencies": {

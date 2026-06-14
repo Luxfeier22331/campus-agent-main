@@ -20,7 +20,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
 
         self.assertIn("package.json", candidates)
         self.assertIn("apps/public-chat-web/index.html", candidates)
-        self.assertIn("apps/public-docs/docs/index.md", candidates)
+        self.assertIn("apps/campus-web/docs/index.md", candidates)
         self.assertIn(
             "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java",
             candidates,
@@ -40,14 +40,9 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("html:lint",),
         )
         self.assertEqual(
-            lint_families_for_path("apps/public-docs/docs/index.md"),
-            ("public-docs:lint",),
+            lint_families_for_path("apps/campus-web/docs/index.md"),
+            ("docs:lint",),
         )
-        self.assertEqual(
-            lint_families_for_path("apps/public-docs/docs/student-handbook/index.md"),
-            ("public-docs:lint",),
-        )
-        self.assertEqual(lint_families_for_path("apps/public-docs/README.md"), ("docs:lint",))
         self.assertEqual(
             lint_families_for_path("tests/test_check_xml_tracked.py"),
             ("py:lint", "py:format:check"),
@@ -81,13 +76,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             lint_exclusion_reason("apps/public-chat-web/vendor/vercel-ai-chatbot/package.json"),
             "vendor_snapshot",
         )
-        self.assertEqual(
-            lint_exclusion_reason(
-                "apps/public-docs/docs/.generated/course-maps/law-ethnic-experimental-program.data.ts"
-            ),
-            "generated_public_docs_course_map_data",
-        )
-        self.assertIsNone(lint_exclusion_reason("apps/public-docs/docs/index.md"))
+        self.assertIsNone(lint_exclusion_reason("apps/campus-web/docs/index.md"))
         self.assertIsNone(
             lint_exclusion_reason(
                 "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java"
@@ -95,7 +84,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
         )
         self.assertEqual(
             lint_exclusion_reason(
-                "apps/public-docs/docs/public/course-maps/law-ethnic-experimental-program/map-01.png"
+                "apps/campus-web/docs/public/course-maps/law-ethnic-experimental-program/map-01.png"
             ),
             "binary_asset",
         )
@@ -104,6 +93,12 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
                 "docs/runbooks/muc-wiki-visual-modernization-assets/MUCWikiSkin/skin.json"
             ),
             "runbook_visual_asset_snapshot",
+        )
+        self.assertEqual(
+            lint_exclusion_reason(
+                "docs/reference/muc-campus-qa-frontend-design/tokens/muc_campus_qa_design_tokens_v1_3_1.css"
+            ),
+            "design_reference_asset_snapshot",
         )
 
     def test_repo_inventory_has_no_uncovered_tracked_lint_candidates(self) -> None:
@@ -117,7 +112,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             run_mock.return_value = unittest.mock.Mock(
                 stdout=(
                     b"package.json\0"
-                    b"apps/public-docs/docs/.missing/computer-science-ethnic-experimental-program.mdx\0"
+                    b"apps/campus-web/docs/.missing/computer-science-ethnic-experimental-program.mdx\0"
                 )
             )
 

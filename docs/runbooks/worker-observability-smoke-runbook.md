@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-03-31
-updated: 2026-04-14
+updated: 2026-06-09
 ---
 # Worker Observability Smoke Runbook
 
@@ -13,9 +13,9 @@ updated: 2026-04-14
 这份 runbook 只记录当前 forward Worker surfaces 的 observability preflight 与 smoke 闭环：
 
 - `apps/app-api`
+- `apps/campus-web`
 - `apps/public-chat-web`
 - `apps/protected-panel-web`
-- `apps/hub-web`
 
 它回答的是：
 
@@ -60,8 +60,9 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - `overall_ready = true`
 - `apps/app-api/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE
   `、`AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN`
-- `apps/public-chat-web/.dev.vars`、`apps/protected-panel-web/.dev.vars` 与
-  `apps/hub-web/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE`
+- `apps/campus-web/.dev.vars`、`apps/public-chat-web/.dev.vars` 与
+  `apps/protected-panel-web/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、
+  `SENTRY_RELEASE`
 - root `.env` 使用共享 `SENTRY_DSN`，不是 per-surface `SENTRY_DSN_*`
 
 如果未通过，可先执行：
@@ -79,12 +80,12 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 
 ```bash
 pnpm --dir apps/app-api test:worker -- --reporter=verbose
+pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
   "smokes a chat request through public-chat-web into app-api"
 pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t \
   "smokes request queries through protected-panel-web into app-api with \
   internal caller admission"
-pnpm --dir apps/hub-web test:worker -- --reporter=verbose
 ```
 
 这一步只证明 Worker shell、proxy seam、internal bridge 和 `no-store` 行为正常；它不证明第三方 sink

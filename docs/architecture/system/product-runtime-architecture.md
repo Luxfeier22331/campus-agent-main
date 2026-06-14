@@ -10,8 +10,8 @@ updated: 2026-06-13
 
 ## 文档边界
 
-本文冻结 public chat、protected panel、shared `app-api` 与 delivery/runtime seam 的
-supporting architecture。
+本文冻结 `campus-web`、legacy public chat、protected panel、shared `app-api` 与
+delivery/runtime seam 的 supporting architecture。
 
 它回答的是：
 
@@ -24,33 +24,48 @@ supporting architecture。
 
 产品/runtime 主链路固定为：
 
-`browser -> hub-web -> app launcher / account shell`
+`browser -> campus-web -> student campus experience / account shell`
 
-`hub-web same-site allowlisted /api/* -> app-api`
+`campus-web same-origin allowlisted /api/* -> app-api`
+
+`browser -> campus-web Q&A -> app-api /api/chatkit -> chatkit-adapter ->
+app-api chat conversation/run routes -> execution-control -> Temporal ->
+workflow-worker / activity-worker-context / activity-worker-knowledge /
+capability workers / activity-worker-finalization -> sanitized projection`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-agent /
 activity-worker-knowledge / capability workers / activity-worker-finalization ->
 sanitized projection`
 
-`browser -> public-docs static reader assets`
-
-`browser -> public-docs same-site /api/docs/* -> app-api`
+`browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
 `browser -> protected-panel-web -> app-api -> request projection / operator read
 model`
 
 这意味着：
 
-- 当前已落地的 public/protected/docs surface 是 shared `app-api` 前面的并列 browser surface
-- Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service Binding；
-  `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的 origin
-- `apps/hub-web` 是 app-set product entry surface；它拥有平面入口、launcher registry 与 account
-  browser shell，但不拥有 backend truth
-- `apps/public-chat-web` 与 `apps/public-docs` 都是 public-facing surface，但它们的内部 IA
-  不自动升级成整个产品的顶层 IA
-- `apps/public-docs` 是独立 docs-first browser surface
+- 当前已落地的 campus/legacy public/protected surface 是 shared `app-api` 前面的 browser
+  surface；docs 已收口为 `campus-web /docs/*` 内部支撑面
+- Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service
+  Binding；
+  `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的
+  origin
+- `apps/campus-web` 是学生侧 product entry surface、account browser shell 与 docs
+  browser route owner；它拥有 campus experience routes、账号浏览器页面、Rspress-powered
+  `/docs/*` reader delivery、Q&A ChatKit browser surface 与 same-origin proxy seam，但不拥有
+  backend truth
+- `campus-web` Q&A 使用 OpenAI ChatKit 官方 CDN web component runtime；CSP 显式允许
+  `https://cdn.platform.openai.com` 的 script/frame 资源
+- `apps/chatkit-adapter` 是 internal ChatKit protocol adapter；它不拥有 product backend、
+  conversation truth 或 execution engine 责任
+- `apps/public-chat-web` 是 legacy chat surface；它不再定义当前产品入口、账号入口或
+  auth return target
+- `apps/public-docs` 已删除；当前 docs browser surface 只由 `campus-web /docs/*`
+  承担
 - `apps/app-api` 是 shared product/control-plane backend
+- `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
+  runtime adapter role
 - `apps/execution-control` 是 Docker-first internal execution engine
 - 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
   应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
@@ -71,21 +86,32 @@ model`
 
 产品/runtime supporting architecture 当前已经冻结到以下粒度：
 
-- `public-chat-web`
-  - 当前是最成熟的公开助理入口，不再以旧 `public-consumer-chat` 为 forward truth
-- `hub-web`
-  - 当前是 `hub.muc.wiki` app-set entry surface
+- `campus-web`
+  - 当前是 `campus.muc.wiki` student-facing product entry surface
   - 使用 Cloudflare Worker + Vite React SPA + TanStack Router
-  - 只为 `/` 与 `/account/*` 这类 hub-owned shell path 交付 SPA shell
-  - sibling app 入口通过 launcher registry 的 `app_link` / `planned` / `external`
-    target 表达，不在 hub 内创建 fake browser route shell
-  - 只通过 allowlisted same-site app-api seams 消费 `/api/me` 与必要 auth endpoints
-  - legacy Wiki 只作为 external-link card 指向 `https://muc.wiki`
-- `public-docs`
-  - 已是正式公开文档站 app；当前 docs shell 已落地，并通过 Worker `APP_API` Service
-    Binding 消费 shared app-api 的 same-site `/api/docs/*` control-plane
-  - 只代理 docs control-plane endpoints，不作为 public chat、operator 或 generic
-    app-api BFF
+  - 为 `/`、`/c/:conversationId`、`/map`、`/dining`、`/feedback` 与
+    `/account/*` 交付 SPA shell，并为 `/docs/*` 交付 Rspress-powered canonical reader
+  - Q&A 主体验使用 ChatKit custom server integration，经由 `/api/chatkit` 进入
+    app-api/session gate 与 internal `chatkit-adapter`
+  - Q&A 主线程 UI、history、history search、rename/delete、retry、stop 与 feedback 控件由
+    ChatKit runtime 承担；`campus-web` 不保留第二套自建聊天搜索、历史或消息操作 UI
+  - 只通过 allowlisted same-origin app-api seams 消费 `/api/me/*`、必要 auth
+    endpoints、implemented federation endpoints、`/api/chatkit`、`/api/docs/*` 与
+    campus experience endpoints
+  - account browser shape 消费 Identity Platform product projection，不消费 Better Auth
+    raw records
+  - public production endpoint 固定为 `https://campus.muc.wiki`，staging endpoint 固定为
+    `https://campus-staging.mucwiki-edge.link`
+- `public-chat-web`
+  - legacy public chat surface；保留旧 `/login`、`/register`、`/forgot-password`、
+    `/reset-password` route 作为 bounded redirect 到 campus account shell
+  - 不拥有 account shell、captcha widget runtime 或 password-reset form runtime
+- `chatkit-adapter`
+  - internal protocol adapter for ChatKit custom server integration
+  - maps ChatKit thread/item/action/event protocol to app-api conversation, message,
+    run, feedback, cancel, and stream contracts
+  - does not generate answers, own conversation truth, write DB rows, or call
+    `apps/execution-control` directly
 - `protected-panel-web`
   - 当前只承接 app-owned operator domains；`Requests`、`Official Web` 与
     `Authenticated Notice Processing` 已是 accepted shape
@@ -116,42 +142,37 @@ model`
 
 ## Surface Responsibilities
 
+### `apps/campus-web`
+
+- student-facing campus UI and app grid
+- conversation/map/dining/feedback browser shells
+- ChatKit browser runtime CSP admission for Q&A
+- Rspress-powered `/docs/*` canonical reader delivery
+- `/account/*` account browser shell, auth forms, password reset pages, federation
+  consent/error pages
+- same-origin allowlisted `/api/*` seam into `apps/app-api`
+- no generic app-api proxy
+- no auth/session/identity/federation backend ownership
+
 ### `apps/public-chat-web`
 
-- public chat UI
+- legacy public chat UI
 - same-site `/api/*` seam into `apps/app-api`
 - chat-local auth browser routes are bounded compatibility redirects/shims to
-  hub account routes with explicit `return_to`
+  campus account routes
 - does not own account-shell UI, captcha widget runtime, or password-reset form
 - browser auth handoff is
-  `public-chat-web compat route -> hub-web /account/* -> /api/auth/* -> app-api`
+  `public-chat-web compat route -> campus-web /account/* -> /api/auth/* -> app-api`
 - 不拥有 auth/session/conversation truth
 
-### `apps/hub-web`
+### `apps/chatkit-adapter`
 
-- flat app launcher for `hub.muc.wiki`
-- single launcher registry with `internal` / `app_link` / `planned` / `external`
-  target kinds
-- account shell routes:
-  - `/account`
-  - `/account/login`
-  - `/account/register`
-  - `/account/forgot-password`
-  - `/account/reset-password`
-- same-site allowlisted auth and `/api/me` seams into `apps/app-api` via Worker
-  Service Binding
-- fail-closed unknown browser path handling, including sibling app slugs that are
-  not hub-owned shell paths
-- no generic app-api proxy
-- no MediaWiki page/content/upload proxy
-- no auth/session/principal backend ownership
-
-### `apps/public-docs`
-
-- public docs reader UI
-- static reader asset delivery via Worker `ASSETS`
-- same-site `/api/docs/*` seam into `apps/app-api` via Worker Service Binding
-- 不拥有 auth/session/principal truth、docs source/version truth 或 generic app-api proxy
+- internal ChatKit custom server integration adapter for `campus-web` Q&A
+- consumes signed app-api principal headers and calls app-api explicit chat routes
+- maps ChatKit history, item, feedback, retry, cancel, and stream semantics to app-api
+  contracts
+- does not own account/session, conversation truth, execution truth, database writes,
+  provider calls, or direct execution-control transport
 
 ### `apps/protected-panel-web`
 
@@ -163,6 +184,8 @@ model`
 ### `apps/app-api`
 
 - auth / session / principal mapping
+- Identity Platform account / identity / access / preferences / federation
+  policy boundary
 - surface capability policy
 - conversation 与 chat ingress
 - durable run creation / status / cancel / stream proxy 的 product-layer
@@ -171,9 +194,11 @@ model`
 - `runtime.projection_outbox`
 - `operator.request_projection`
 - selected operator control-plane domains，例如 `official_web`
-- selected operator-safe processing projections，例如 `authenticated_notice_processing`
+- selected operator-safe processing projections，例如
+  `authenticated_notice_processing`
 - `official_web` 中只拥有 collector command ingress、operator-safe projection/query 与
-  stable-reference approve/reject ledger；不拥有 selected-write admission/task truth、
+  stable-reference approve/reject ledger；不拥有 selected-write admission/task
+  truth、
   executor read route 或 executor callback route
 - route exposure inventory 必须显式区分 `browser-surface`、`operator-via-panel`、
   `machine-internal`、`collector-machine` 与 `system`；新增 route 时必须同步 caller
@@ -188,7 +213,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 直接含义：
 
 - `public-chat-web` 当前只开放 `knowledge`，是 current surface posture
-- `public-docs` 是非执行 surface，不自动进入 capability routing
+- `campus-web /docs/*` 是非执行 reader surface，不自动进入 capability routing
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
 - `apps/execution-control` 不拥有 browser-facing capability allowlist truth
 
@@ -219,12 +244,14 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 产品 runtime 与 offline data plane 的分界固定为：
 
-`app-api operator/collector control plane -> ingestion-worker release task runtime`
+`app-api operator/collector control plane -> ingestion-worker release task
+runtime`
 
 固定规则：
 
 - `apps/app-api` 可以接收 collector lifecycle command、维护 crawl-run ledger、物化
-  operator-safe projections，并记录 stable-reference release gate approve/reject ledger
+  operator-safe projections，并记录 stable-reference release gate approve/reject
+  ledger
 - `apps/app-api` 不提供 official-web release executor read/callback routes
 - `apps/app-api` 不保存 contact/service selected-write admission 或 task truth
 - `packages/ingestion-core` 定义 release task contract 与状态推进
@@ -288,7 +315,8 @@ panel `Requests` 的 canonical read path 固定为：
 future operator-facing observability 域也遵循同一 ownership rule：
 
 - audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
-- authenticated notice processing 这类 ingestion/downstream visibility surface 也必须经
+- authenticated notice processing 这类 ingestion/downstream visibility surface
+  也必须经
   `apps/app-api` 的 operator-safe projection 暴露，不能让 panel 回读 queue、object-store、
   operations 目录或 raw logs
 - panel 只能读取 runtime-owned projection / aggregate APIs
@@ -316,13 +344,13 @@ minimal operator context -> runtime APIs`
 
 public auth family 的 runtime/product posture 固定为：
 
-- `hub-web` 拥有 `/account/login`、`/account/register`、`/account/forgot-password`、
+- `campus-web` 拥有 `/account/login`、`/account/register`、`/account/forgot-password`、
   `/account/reset-password` 这组 public account browser shell
 - `public-chat-web` 的 `/login`、`/register`、`/forgot-password`、`/reset-password`
   只保留为 bounded compatibility redirects/shims，不再定义 account shell ownership
 - `app-api` 通过现有 auth provider / plugin 拥有最终 auth admission 与 server-side
   verification
-- auth family 的 human verification transport 固定走 same-site `hub-web ->
+- auth family 的 human verification transport 固定走 same-origin `campus-web ->
   /api/auth/* -> app-api`
 - `public-chat-web` 不再注入 Turnstile runtime config，也不再持有 auth-page
   staging/live-smoke posture
@@ -380,6 +408,10 @@ contract 或 auth family route/endpoint truth。
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
   md`
+- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
+- `docs/architecture/system/identity-platform-architecture.md`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
+- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici

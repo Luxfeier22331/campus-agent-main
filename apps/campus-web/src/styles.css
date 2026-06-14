@@ -1,0 +1,103 @@
+@import "tailwindcss";
+@import "./design/tokens.css";
+
+@theme inline {
+	--color-background: var(--sys-bg-canvas);
+	--color-foreground: var(--sys-text-default);
+	--color-card: var(--card-bg);
+	--color-muted: var(--sys-bg-muted);
+	--color-muted-foreground: var(--sys-text-muted);
+	--color-primary: var(--sys-brand-interactive);
+	--color-primary-foreground: var(--sys-text-inverse);
+	--color-border: var(--sys-border-subtle);
+	--color-input: var(--input-border);
+	--color-ring: var(--sys-border-focus);
+}
+
+@layer base {
+	* {
+		box-sizing: border-box;
+	}
+
+	html {
+		background: var(--sys-bg-canvas);
+		color: var(--sys-text-default);
+		font-family: var(--font-sans);
+	}
+
+	body {
+		margin: 0;
+		min-width: 320px;
+		min-height: 100dvh;
+		background: var(--sys-bg-canvas);
+	}
+
+	a {
+		text-decoration: none;
+	}
+
+	button,
+	input,
+	select,
+	textarea {
+		font: inherit;
+	}
+}
+
+.campus-map-marker {
+	display: grid;
+	width: 32px;
+	height: 32px;
+	place-items: center;
+	border: 2px solid var(--neutral-0);
+	border-radius: 999px;
+	background: var(--map-marker);
+	box-shadow: var(--shadow-sm);
+	color: var(--neutral-0);
+	cursor: pointer;
+	padding: 0;
+}
+
+.campus-map-marker > span {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	background: currentColor;
+}
+
+.campus-map-marker[data-variant="building"] {
+	background: var(--map-marker-building);
+}
+
+.campus-map-marker[data-variant="dining"] {
+	background: var(--map-marker-dining);
+}
+
+.campus-map-marker[data-variant="gate"] {
+	background: var(--map-marker-gate);
+}
+
+.campus-map-marker[data-variant="landmark"] {
+	background: var(--map-marker-landmark);
+}
+
+.campus-map-marker[data-variant="service"] {
+	background: var(--map-marker-service);
+}
+
+.campus-map-marker[data-variant="transport"] {
+	background: var(--map-marker-transport);
+}
+
+.campus-map-marker[data-selected="true"] {
+	background: var(--map-marker-selected);
+	transform: scale(1.16);
+	z-index: 1;
+}
+
+.campus-map-marker:hover,
+.campus-map-marker:focus-visible {
+	background: var(--map-marker-selected);
+	outline: 3px solid var(--sys-border-focus);
+	outline-offset: 2px;
+}

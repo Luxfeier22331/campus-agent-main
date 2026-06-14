@@ -10,22 +10,37 @@ updated: 2026-06-12
 
 ## 先看什么
 
-- 架构总边界：`../architecture/system/identity-and-authorization-architecture.md`
-- 产品/runtime owner split：`../architecture/system/product-runtime-architecture.md`
+- identity/authz/retrieval projection
+  总边界：`../architecture/system/identity-and-authorization-architecture.md`
+- 用户系统 product
+  boundary：`../architecture/system/identity-platform-architecture.md`
+- identity/account browser
+  experience：`../architecture/system/identity-browser-experience-architecture.md`
+- future muc.wiki login
+  federation：`../architecture/system/federation-and-mucwiki-login-architecture.md`
+- 产品/runtime owner
+  split：`../architecture/system/product-runtime-architecture.md`
 - 当前 merged truth：`../architecture/current-architecture.md`
 - 通用执行态入口：`README.md`
 
 ## 长期边界与决策
 
 - `../architecture/system/identity-and-authorization-architecture.md`
+- `../architecture/system/identity-platform-architecture.md`
+- `../architecture/system/identity-browser-experience-architecture.md`
+- `../architecture/system/federation-and-mucwiki-login-architecture.md`
 - `../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `../decisions/adr-0049-qdrant-native-personal-memory-index.md`
+- `../decisions/adr-0053-qdrant-native-personal-memory-index.md`
+- `../decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 
 ## Contract 与 Data
 
 - `../contracts/app-api-http.md`
+- `../contracts/app-api-identity-platform-http.md`
+- `../contracts/app-api-federation-http.md`
 - `../contracts/capability-execution.md`
 - `../data/app-api-schema.md`
+- `../data/identity-platform-schema.md`
 
 ## 执行路由
 

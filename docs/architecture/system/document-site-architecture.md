@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: product
-owner_boundary: apps/public-docs
+owner_boundary: apps/campus-web
 status: active
 created: 2026-04-21
 updated: 2026-06-12
@@ -10,109 +10,113 @@ updated: 2026-06-12
 
 ## 文档边界
 
-本文冻结 `campus-agent` 文档站与 canonical document reader 的前向 supporting architecture。
+本文冻结 `campus-web /docs/*` 与 canonical document reader 的前向 supporting
+architecture。
 
 它回答的是：
 
-- 文档站在长期产品里属于什么 browser surface
-- `public-docs`、`app-api`、published reader assets、canonical document model
-  各自负责什么
-- 为什么 canonical doc 正文应优先以静态 reader assets 交付，而不是每次都走 API 取正文
-- chat 来源展示为什么必须跳回 canonical reader，而不是直接暴露 chunk / source-truth
-- public document reader 如何保持 canonical reader contract
+- 文档阅读在 `campus.muc.wiki` 统一产品入口内属于谁
+- `campus-web`、Rspress、`app-api`、published reader assets 与 canonical document
+  model 各自负责什么
+- 为什么 canonical doc 正文优先以 published reader assets / Rspress-built reader
+  pages 交付，而不是每次经 API 返回整篇正文
+- chat 来源、docs search 与直接阅读为什么必须共享同一个 reader permalink
+- docs control plane 与 reader content delivery 为什么必须分层
 
 它不负责：
 
-- 当前 merged truth 是否已经存在 `public-docs`
-- donor shell 的具体像素实现
 - 某个 collection 的 split / cleanup / OCR / chunking 细节
-- docs search 的底层检索算法选型
-
-补充约束：
-
-- 当前 accepted merged truth 仍以 `docs/architecture/current-architecture.md`
-  为准；本文描述的是已接受的前向设计，不是当前已上线 surface
-- canonical data-plane chain 仍以 `docs/architecture/system/data-plane-architecture.md`
-  为准
-- default current-serving / explicit historical query 规则仍以
-  `docs/architecture/system/retrieval-serving-architecture.md` 与
-  `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md` 为准
+- Rspress 主题的像素级实现
+- RAG query-serving alias 切换策略
 
 ## Core Conclusion
 
-长期上，文档站应被建模为：
+长期上，文档阅读面固定为：
 
-- docs-first browser surface
-- canonical document reader
-- published reader assets
-- chat 来源跳转目标
+`browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
-而不是：
+`campus-web same-origin /api/docs/* -> app-api docs control plane`
 
-- PDF 阅读器
-- raw chunk viewer
-- source-truth browser
-- 第二套 product backend
-
-长期主链路固定为：
-
-`browser -> public-docs static reader assets`
-
-`browser -> public-docs same-site /api/docs/* -> app-api`
-
-`browser -> public-chat-web -> app-api -> execution-control`
+`canonical document artifacts -> reader projection -> published reader assets ->
+campus-web Rspress docs source/build output`
 
 这意味着：
 
-- 文档站与 chat 是两条独立 browser surface
-- `public-docs` 既是 docs shell，也是静态 reader asset 的交付面
-- `app-api` 继续是 shared product account / session 与 docs control-plane owner
-- chat 回答与 docs 阅读都只能消费 canonical reader truth，不能各自拼一套来源语义
+- `campus-web` 是学生侧产品入口、账号壳、导航与 `/docs/*` browser route owner
+- Rspress 是 docs reader/render/search integration shell；公开文档搜索使用 Rspress
+  native local search，受限文档搜索使用 admission 保护的静态 index；二者都不拥有
+  canonical document truth
+- `app-api` 继续拥有 docs publish manifest、restricted/gated navigation/search/resolve/version/
+  admission truth
+- published reader assets 是正文发布产物，不是新的 truth layer
 - docs control plane 与 reader content delivery 必须分层
+- Q&A source card、docs search result 与直接阅读必须落到同一 reader permalink
+- 旧 `apps/public-docs` 不再是 forward product surface，且已从 active workspace 删除；
+  历史 Rspress/MDX/anchor/highlight/search 管线只能通过 git history 追溯
 
-当前 Worker delivery truth：
+## Ownership
 
-- `apps/public-docs` 通过 Wrangler `[[services]] APP_API -> app-api` 调用 shared
-  `apps/app-api`
-- staging 通过 `APP_API -> app-api-staging` 与
-  `APP_API_BASE_URL=https://app-api.internal` 形成同一 Service Binding request
-  construction contract
-- Worker 只代理 `/api/docs/*`；其他 `/api/*` fail-close，不把 public-docs 变成通用
-  product backend
-- `APP_API_BASE_URL` 只用于构造传给 Service Binding 的 `Request` URL；browser 仍不直接调用
-  app-api public docs endpoint 或 app-api custom domain
-
-补充约束：
-
-- 文档站是产品中的一个独立入口集合，不是整个产品的默认总入口
-- docs shell 的首页、collection landing 与 reader 导航，只表达 docs surface 自己的 IA
-- repo 级顶层入口架构必须在更高一层产品文档中表达，不能反向由 docs shell 局部结构定义
-
-## Browser Surface Model
-
-### `apps/public-docs`
+### `apps/campus-web`
 
 长期负责：
 
-- docs landing / collection navigation
-- canonical document reader shell
-- published reader assets delivery
-- docs search UI
-- version switcher
-- source-card jump target presentation
+- `/docs/*` 同源产品入口与支撑页导航
+- Rspress-built reader assets 的 browser delivery
+- same-origin `/api/docs/*` allowlisted proxy seam
+- 与 Q&A source card、account shell、map/dining/feedback 的视觉与路由一致性
 
 长期不负责：
 
-- canonical account/session ownership
-- retrieval source / version 判定
-- raw chunk/source-truth 解释
-- search / citation 的最终真相解析
+- canonical document registry
+- visibility / entitlement truth
+- public static search ranking truth 或 restricted / gated docs search ranking truth
+- reader asset manifest truth
+- raw chunk、source-truth 或 provider artifact 解释
 
-固定 delivery posture：
+### Rspress Reader Engine
 
-- public、已发布、已 admission 的 reader content，优先以 Worker static assets 直接交付
-- docs shell 继续通过 same-site `/api/docs/*` 读取 control-plane truth
+长期负责：
+
+- MDX reader rendering
+- docs-native TOC / outline / page shell
+- stable anchor DOM 与 `data-root-unit-id` highlight DOM
+- version switcher / reader enhancer 这类 reader interaction
+- 搜索入口挂载、自定义 result path 与 reader permalink 集成
+
+固定约束：
+
+- Rspress 只能消费 canonical reader projection 或由它生成的 MDX
+- Rspress frontmatter、route file 或 search index 不成为 document/version truth
+- Rspress 原生 local search 是公开文档站搜索默认引擎；搜索索引只包含
+  `docsSearchVisibility=public_current` 的 published reader pages
+- 更换 reader engine 必须更新 ADR、contract tests 与 build gate
+
+### Rspress Public Search Engine
+
+长期负责：
+
+- build-time anonymous-visible current docs local search index
+- anonymous-visible docs browser-side exact / literal search execution
+- Rspress search result 到 reader permalink 的候选映射
+
+固定约束：
+
+- Rspress local search 只索引 anonymous-visible current reader pages
+- gated / restricted、bootstrap、collection index 与 historical `/v/*` 页面不得进入公开索引
+- 公开搜索只做字面命中，不做同义词、别名、语义扩展或 RAG-style query rewrite
+- principal-specific 可见文档搜索不得混入公开 Rspress index；当前采用受 admission 保护的
+  per-document static index，并在 browser 本地执行查询
+- browser-facing docs site 不调用 `/api/docs/collections/:corpus/:collection/search`
+
+### Static Asset Delivery Constraints
+
+固定约束：
+
+- public、已发布、已 admission 的 reader content，优先以 campus-web Worker static assets
+  直接交付
+- docs shell 继续通过 same-origin `/api/docs/*` 读取 control-plane truth
 - 未 admission 的 reader content，不得因为“已经静态化”就绕过 origin-side gate
+- browser/runtime 不直连对象存储；对象存储只属于 publish/deploy pipeline 输入
 
 ### `apps/app-api`
 
@@ -122,13 +126,14 @@ updated: 2026-06-12
 - reader source / version resolution
 - current-vs-historical version resolution
 - published reader asset resolution
-- docs search runtime APIs
-- citation target resolution
-- chat source-card payload shaping
+- restricted / gated docs search data truth 与 admission
+- citation/source-card reader permalink shaping
 
 长期不负责：
 
-- docs shell layout 细节
+- docs shell layout
+- Rspress theme
+- 每次 reader request 返回整篇正文
 - raw provider/source-truth 可视化
 
 ## Canonical Reader Model
@@ -143,66 +148,59 @@ projection -> published reader assets`
 `source truth -> declared projections -> canonical document artifacts ->
 document-units -> chunks -> index`
 
-这里的硬约束是：
+用户态稳定定位单位固定拆成两层：
 
-- reader projection 与 retrieval index 可以共用 canonical document truth，但不能互相冒充
-- published reader assets 来自 canonical reader projection，而不是来自 chunk payload
-- public docs 正文不应在每次请求时经 `app-api` 重新返回
-- reader 不直接读取 Qdrant / chunk payload
-- reader 也不直接读取 source-truth/page manifest/provider artifact
-- 用户可见定位固定依赖 canonical `anchor` 与 `root_unit_id`，而不是 `chunk_id`
-
-## Reader Source And Version Metadata
-
-来源与版本展示是 canonical reader shell 的正式能力。
+- `anchor`
+  - 稳定导航位置，进入 URL fragment identifier：`#anchor`
+- `rootUnitId`
+  - 稳定高亮单位，进入 highlight query parameter：`?hl=rootUnitId`
 
 固定规则：
 
-- 每篇 reader detail page 必须在标题下、正文前展示用户可读的文档信息
-- 用户可见字段只表达文档集合、来源文件或来源标题、原文页码、版本标签与当前展示状态
-- `doc_id` / `version_id` 等技术身份只允许放入折叠技术详情或 operator trace
-- browser-facing reader 不暴露对象存储 bucket/key、provider artifact path、raw
-  source-truth locator 或 chunk id
-- 课程地图、流程图等 reader supplement 继承同一文档级来源与版本语义，只补充局部页码来源
-- 当前 Rspress 静态站可以在 deploy-time sync 阶段把 metadata 注入页面；长期同一语义应来自
-  `reader-assets/meta.json`
+- `chunkId`、`sourceUnitKey`、object-store key 不进入用户态 route
+- reader projection 与 retrieval index 可以共用 canonical document truth，但不能互相冒充
+- published reader assets 来自 canonical reader projection，而不是来自 chunk payload
+- reader 不直接读取 Qdrant、chunk payload、source-truth/page manifest 或 provider artifact
 
-## Static Asset Delivery Model
+## Delivery Model
 
-canonical doc 的正文交付长期采用：
+canonical doc 正文交付长期采用：
 
-- published static reader assets
-- control-plane API
+- Rspress-built reader pages / static reader assets
+- restricted / gated `/api/docs/*` control-plane API
 
-固定拆分如下：
+固定拆分：
 
-- static reader assets
-  - reader content
-  - outline / section tree
-  - public current / admitted historical 版本的 published reader payload
-- control-plane API
-  - current version pointer
-  - version list
-  - docs search
-  - citation/source-card target resolve
+- Rspress/static reader assets
+  - `/docs/*` reader HTML
+  - `/_docs-static/*` Rspress runtime JS / CSS / native local search index
+  - `/_docs/*` public current / admitted historical 版本的 published reader payload
+  - gated reader bootstrap route 与 controlled static asset package；正文读取仍必须经过
+    same-origin app-api resolve/admission
+- `/api/docs/*`
+  - restricted / gated current version pointer
+  - restricted / gated version list
+  - restricted / gated docs search index admission 与 manifest resolution
+  - restricted / gated citation/source-card permalink resolve
+  - restricted admission
   - future `historical / as_of / compare` capability routing
 
-固定来源规则：
+当前 campus-web implementation posture：
 
+- `apps/campus-web` 通过 Rspress build 生成 docs route assets
+- Vite/Worker 仍是 campus-web product shell 与 API proxy owner
+- `/docs/*` 优先交付 Rspress-built reader HTML；未 materialize 的 docs route 才回到
+  React docs shell 的 explicit error/empty path
+- React `DocsPage` 不再承担自研 reader/search；它只处理未命中 static reader route 时的
+  restricted / gated resolve handoff 或明确错误
+- `/api/docs/*` 继续经 campus-web Worker Service Binding 进入 `app-api`
+- unknown `/api/*`、operator APIs 与 generic app-api proxy 继续 fail closed
 - published reader assets 的长期真相源在对象存储
-- `public-docs` static assets 只是 deploy-time sync 复制品
+- `campus-web` static assets 只是 deploy-time sync 复制品
 - repo tracked `assets/` 目录不承担长期 reader publish truth
-- browser/runtime 不直连对象存储；docs shell 运行时只消费 same-site `/api/docs/*` 与
-  `public-docs` 自己交付的 `/_docs/...` 静态路径
-- 对象存储只属于 publish/deploy pipeline 输入，不属于 browser-facing dependency
-
-当前 `apps/public-docs` 的 deploy-time 资产目录为 `doc_build/`，Worker `ASSETS`
-binding 负责交付静态 reader shell / assets；动态 docs control-plane 请求通过 same-site
-`/api/docs/*` 进入 `app-api`，且 response 默认 `no-store`。
-
-gated / restricted reader 不属于当前主问答产品目标，也不是当前 docs-first
-reader contract 的 active opening requirement。若未来重新提出 gated reader，必须另起
-product decision 与 delivery contract，不能把当前 public reader 静态交付链路直接扩成受限文档面。
+- browser/runtime 不直连对象存储；docs shell 运行时只消费 same-origin `/api/docs/*` 与
+  `campus-web` 自己交付的 `/_docs-static/...` / `/_docs/...` /
+  `/_gated-docs/...` 静态路径
 
 Cloudflare Workers 当前官方 static assets 路由模型允许：
 
@@ -215,29 +213,9 @@ Cloudflare Workers 当前官方 static assets 路由模型允许：
 reader asset package 与 deploy-time sync 的正式 contract 统一看
 `docs/contracts/document-reader-publish-contract.md`。
 
-当前 Phase 2 的 deploy-time 收口链路固定为：
-
-- `canonical artifacts -> ingestion reader publisher`
-  `-> reader-assets/* + docs read-model manifest`
-
-- `docs read-model manifest -> app-api docs.* read model`
-  `-> public docs sync manifest`
-
-- `public docs sync manifest + object storage reader-assets/*`
-  `-> public-docs Rspress source + /_docs static assets`
-
-说明：
-
-- `public-docs` 不扫描对象存储决定公开子集
-- `public-docs` 的 source page generation 是 build-time consumption，不是新的
-  canonical truth
-- `app-api` 的 docs read model 是 public subset、delivery mode、version 与 search
-  target 的 browser-facing control-plane owner
-- `sync-real-docs` 只保留为过渡/手动工具，不是默认 deploy path
-
 ## Route And URL Model
 
-长期 canonical route 语义固定为：
+长期 reader permalink 语义固定为：
 
 - 当前版：
   - `/docs/:corpus/:collection/:docSlug`
@@ -254,14 +232,14 @@ reader asset package 与 deploy-time sync 的正式 contract 统一看
 - 历史版本必须显式进入 `/v/:versionSlug`
 - `anchor` 表示稳定导航位置
 - `hl` 只表示一次跳转的高亮意图，不承担版本选择或权限表达
-- public current / admitted historical URL 应尽量落到可缓存的静态 reader asset
+- source card 与 docs search result 必须直接生成 reader permalink
 
 ## Source Card And Citation Jump Model
 
 chat 的来源展示长期必须采用：
 
 - browser-safe structured source cards
-- canonical reader jump target
+- reader permalink jump target
 
 而不是：
 
@@ -274,9 +252,9 @@ chat 的来源展示长期必须采用：
 
 - assistant 正文继续只承载用户可读答案
 - source card 显式展示 canonical 文档名、章节名、命中摘要、版本语义与跳转目标
-- 跳转目标固定落到 canonical docs URL + anchor + highlight
-- operator trace 继续保留 compact raw retrieval/source-unit identity，但这不进入
-  browser-facing contract
+- 跳转目标固定落到 `/docs/*` + `?hl=` + `#anchor`
+- operator trace 可以保留 compact raw retrieval/source-unit identity，但不进入 browser
+  contract
 
 ## Search Model
 
@@ -291,7 +269,14 @@ docs search 与 chat 继续是两条不同能力：
 
 固定约束：
 
-- docs search 结果必须直接回链 canonical reader
+- anonymous-visible current docs search 默认使用 Rspress native local search
+  - public local search index 随 Rspress runtime assets 交付在
+    `/_docs-static/static/search_index*.json`
+- restricted / gated docs search 默认使用 `/_gated-docs-search/*` 受保护静态索引，
+  由 campus-web Worker 先调用 app-api admission，再交付 index；查询词不发送到 API
+- `/api/docs/collections/:corpus/:collection/search` 已从 docs browser-facing HTTP
+  contract 退役；不得作为 campus-web 或 browser search hook 的查询路径
+- docs search 结果必须直接回链 reader permalink：`canonicalUrl?hl=rootUnitId#anchor`
 - docs search 不返回 raw retrieval trace
 - docs search 不负责返回整篇正文
 - chat 不能替代 docs 站导航、目录、版本入口与系统性阅读
@@ -310,29 +295,40 @@ docs search 与 chat 继续是两条不同能力：
 - source card target 从第一天起就必须携带版本语义
 - 未来 compare / as_of 可以扩展为独立 view，但不能回退成 query-only 暗箱逻辑
 
-## Source And Version Admission
+## Visibility And Authorization
 
 当前长期 reader model 只冻结 public docs / current reader 的 source、version 与
 admission truth。
 
 固定规则：
 
-- reader 与 chat retrieval 必须消费同一 current / historical version truth。
-- 未 admission 的 collection 或 version 只能 fail-close，不得用前端隐藏代替 origin-side
-  enforcement。
-- public docs reader 不承诺受限文档、内部文件库或身份差异化文档访问。
-- gated / restricted reader 若未来进入产品目标，必须新增 ADR、delivery contract 与
-  operator/runbook；不能从本文推导为已接受目标态。
+- canonical authz truth 仍在 `app-api`
+- reader 与 chat retrieval 必须消费同一 visibility / version truth
+- 不允许出现 “reader 不可见但 chat 可答” 的泄露面
+- restricted collection 未 admission 时只能 fail closed，不得用前端隐藏代替 origin-side
+  enforcement
+- restricted reader 可以与 public reader 共用同一 reader asset format，但 delivery mode
+  不得伪装成匿名 public static path
+- 受限文档阅读只承诺当前已冻结的 gated reader/static index delivery；不得从本文推导出
+  学生 / 教职工差异化 capability 权限、内部文件库或 legacy ACL rollout
 
-## Donor Posture
+## Retired Surface Posture
 
-donor shell 的借鉴方向固定为：
+历史 `apps/public-docs` Rspress 实现中的以下资产已经迁移到 `campus-web /docs/*`，
+后续只可通过 git history 追溯来源：
 
-- 信息架构与产品形态借鉴成熟 docs-first 产品
-- 视觉与交互可借鉴成熟 docs shell
+- published reader asset -> MDX generator
+- `data-root-unit-id` DOM projection
+- reader state enhancer
+- docs search result -> reader permalink suggestion mapping
+- Rspress theme ideas
 
-但 repo 继续保持以下 ownership：
+已删除的 `apps/public-docs` 不再承担：
 
+- forward product entry
+- docs browser surface ownership
+- staging/product acceptance target
+- OAuth/account/browser navigation owner
 - canonical document truth
 - reader contract
 - source / version / admission
@@ -346,8 +342,9 @@ donor shell 的借鉴方向固定为：
 
 ## Forbidden Shapes
 
-- 不把文档站并入 `public-chat-web` 作为一个页面模式
-- 不把 docs site 做成直连数据库或直连 index 的第二后端
+- 不把文档站恢复为独立 `public-docs` product surface
+- 不把 `campus-web` React 页面扩成完整自研 docs reader
+- 不把 docs reader 做成直连数据库或直连 index 的第二后端
 - 不把 raw chunk / source-truth / provider artifact 暴露给用户阅读面
 - 不把 citation URL 绑定到当前 chunk 切分策略
 - 不把 docs search 与 chat answer 混成同一 API / 同一 UI 真相
@@ -360,5 +357,6 @@ donor shell 的借鉴方向固定为：
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/contracts/app-api-document-reader-http.md`
 - `docs/contracts/app-api-http.md`
-- `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
+- `docs/decisions/adr-0051-campus-docs-rspress-reader-surface.md`

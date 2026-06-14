@@ -107,9 +107,8 @@ workflow 保持 workflow / policy / budget / finalization ownership，typed tool
 ```mermaid
 flowchart LR
   subgraph Client["Browser Surfaces"]
-    Hub["hub-web"]
-    Chat["public-chat-web"]
-    Docs["public-docs"]
+    Campus["campus-web"]
+    Chat["public-chat-web legacy"]
     Panel["protected-panel-web"]
   end
 
@@ -154,9 +153,8 @@ flowchart LR
     Axiom["Axiom\nruntime events"]
   end
 
-  Hub --> AppAPI
+  Campus --> AppAPI
   Chat --> AppAPI
-  Docs --> AppAPI
   Panel --> AppAPI
 
   AppAPI --> Gateway
@@ -304,6 +302,9 @@ collector/source admission
 - public 与 protected browser surface 可以是独立 Worker web surface
 - shared `apps/app-api` 持续承接产品层 auth/session/principal、conversation、chat
   ingress、request projection 与 operator read surfaces
+- `campus-web` 是长期学生侧统一入口，承载 Q&A、account、docs、map、dining 与
+  feedback；`/docs/*` 使用 Rspress-powered canonical reader，而不是独立
+  `public-docs` product surface
 - shared `apps/app-api` 长期同时拥有 surface capability policy 与最小 typed context
   projection
 - `execution-control` 持续只是 internal execution ingress，不是 product backend

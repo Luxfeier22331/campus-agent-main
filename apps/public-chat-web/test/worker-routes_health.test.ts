@@ -7,7 +7,7 @@ import {
 } from "./worker-shell-fixtures";
 
 describe("public chat web worker routes and readiness", () => {
-	it("redirects chat-local auth browser routes to hub account routes with explicit return_to", async () => {
+	it("redirects chat-local auth browser routes to the campus account shell", async () => {
 		const response = await worker.fetch(
 			new Request("https://chat.example.com/login?return_to=%2Fchat%2Fconv_01HQ"),
 			{
@@ -15,19 +15,17 @@ describe("public chat web worker routes and readiness", () => {
 				ASSETS: {
 					fetch: async () => new Response("ok", { status: 200 }),
 				},
-				HUB_WEB_BASE_URL: "https://hub.muc.wiki",
+				AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 				PUBLIC_CHAT_HOSTNAME: "chat.example.com",
 			},
 		);
 
 		expect(response.status).toBe(302);
-		expect(response.headers.get("location")).toBe(
-			"https://hub.muc.wiki/account/login?return_app=chat&return_to=https%3A%2F%2Fchat.example.com%2Fchat%2Fconv_01HQ",
-		);
+		expect(response.headers.get("location")).toBe("https://campus.muc.wiki/account/login");
 		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 	});
 
-	it("preserves reset-password token when redirecting chat-local auth routes to hub", async () => {
+	it("preserves reset-password token when redirecting chat-local auth routes to the campus account shell", async () => {
 		const response = await worker.fetch(
 			new Request("https://chat.example.com/reset-password?token=reset_token_01HQ"),
 			{
@@ -35,14 +33,14 @@ describe("public chat web worker routes and readiness", () => {
 				ASSETS: {
 					fetch: async () => new Response("ok", { status: 200 }),
 				},
-				HUB_WEB_BASE_URL: "https://hub.muc.wiki",
+				AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 				PUBLIC_CHAT_HOSTNAME: "chat.example.com",
 			},
 		);
 
 		expect(response.status).toBe(302);
 		expect(response.headers.get("location")).toBe(
-			"https://hub.muc.wiki/account/reset-password?token=reset_token_01HQ",
+			"https://campus.muc.wiki/account/reset-password?token=reset_token_01HQ",
 		);
 		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 	});
@@ -91,7 +89,7 @@ describe("public chat web worker routes and readiness", () => {
 					),
 			},
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_BASE_URL: "https://hub.example.com",
+			AUTH_SHELL_ORIGIN: "https://campus.example.com",
 			ASSETS: {
 				fetch: async () => new Response("ok", { status: 200 }),
 			},
@@ -141,7 +139,7 @@ describe("public chat web worker routes and readiness", () => {
 					),
 			},
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_BASE_URL: "https://hub.example.com",
+			AUTH_SHELL_ORIGIN: "https://campus.example.com",
 			ASSETS: {
 				fetch: async () => new Response("ok", { status: 200 }),
 			},
@@ -209,7 +207,7 @@ describe("public chat web worker routes and readiness", () => {
 						"ASSETS binding",
 						"APP_API_BASE_URL",
 						"PUBLIC_CHAT_HOSTNAME",
-						"HUB_WEB_BASE_URL",
+						"AUTH_SHELL_ORIGIN",
 					],
 				},
 				message: "Runtime configuration is incomplete.",
@@ -217,7 +215,7 @@ describe("public chat web worker routes and readiness", () => {
 		});
 	});
 
-	it("fails auth compatibility routes closed when hub base url is missing", async () => {
+	it("fails auth compatibility routes closed when account shell origin is missing", async () => {
 		const response = await worker.fetch(new Request("https://chat.example.com/login"), {
 			APP_API_BASE_URL: "https://app-api.internal",
 			ASSETS: {
@@ -231,7 +229,7 @@ describe("public chat web worker routes and readiness", () => {
 			error: {
 				code: "dependency_not_ready",
 				details: {
-					missing: ["HUB_WEB_BASE_URL"],
+					missing: ["AUTH_SHELL_ORIGIN"],
 				},
 				message: "Runtime configuration is incomplete.",
 			},
@@ -258,7 +256,7 @@ describe("public chat web worker routes and readiness", () => {
 					),
 			},
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_BASE_URL: "https://hub.example.com",
+			AUTH_SHELL_ORIGIN: "https://campus.example.com",
 			ASSETS: {
 				fetch: async () => new Response("ok", { status: 200 }),
 			},
@@ -323,7 +321,7 @@ describe("public chat web worker routes and readiness", () => {
 					),
 			},
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_BASE_URL: "https://hub.example.com",
+			AUTH_SHELL_ORIGIN: "https://campus.example.com",
 			ASSETS: {
 				fetch: async () => new Response("ok", { status: 200 }),
 			},

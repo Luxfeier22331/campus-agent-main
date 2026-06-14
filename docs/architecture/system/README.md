@@ -51,6 +51,11 @@ capability-local readiness.
   - `file-asset-loader-architecture.md`
 - Identity, authorization and account boundary:
   - `identity-and-authorization-architecture.md`
+  - `identity-platform-architecture.md`
+  - `identity-browser-experience-architecture.md`
+  - `federation-and-mucwiki-login-architecture.md`
+- Campus Ops browser surface and operator workspace boundary:
+  - `campus-ops-web-architecture.md`
 - Retired or offline Python capability boundary:
   - `python-capability-boundaries.md`
 

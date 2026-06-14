@@ -53,6 +53,7 @@ func TestParseAnswerRequestRejectsScopedRulesQueryScopeByDefault(t *testing.T) {
 
 	if httpErr == nil {
 		t.Fatal("expected scoped_rules requested_scope to be rejected by default")
+		return
 	}
 	if httpErr.Code != "disallowed_knowledge_scope" {
 		t.Fatalf("error code = %q, want disallowed_knowledge_scope", httpErr.Code)
@@ -284,6 +285,7 @@ func TestParseAnswerRequestRejectsDisabledKnowledgeScopeInGo(t *testing.T) {
 
 	if httpErr == nil {
 		t.Fatal("expected disabled query scope to fail in Go")
+		return
 	}
 	if httpErr.Status != 403 || httpErr.Code != "disallowed_knowledge_scope" {
 		t.Fatalf("unexpected error = %#v, want 403 disallowed_knowledge_scope", httpErr)
@@ -342,6 +344,7 @@ func TestParseAnswerRequestRejectsNonQueryableScopeForCampusServicesMixedEnvelop
 
 	if httpErr == nil {
 		t.Fatal("expected non-queryable requested_scope to fail for campus_services")
+		return
 	}
 	if httpErr.Code != "disallowed_knowledge_scope" {
 		t.Fatalf("error code = %q, want disallowed_knowledge_scope", httpErr.Code)
@@ -436,6 +439,7 @@ func TestParseAnswerRequestRejectsVersionQueryForForwardCapabilities(t *testing.
 
 	if httpErr == nil {
 		t.Fatal("expected version_query to fail for notice")
+		return
 	}
 	if httpErr.Code != "invalid_request" {
 		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
@@ -462,6 +466,7 @@ func TestParseAnswerRequestRejectsVersionQueryForPlaceLookup(t *testing.T) {
 
 	if httpErr == nil {
 		t.Fatal("expected version_query to fail for place_lookup")
+		return
 	}
 	if httpErr.Code != "invalid_request" {
 		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)

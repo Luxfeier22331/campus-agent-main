@@ -50,6 +50,12 @@ planning status.
 - "What must the system converge to?" -> `target-architecture.md`
 - "How does a cross-domain runtime or owner boundary work?" -> `system/`
 - "How does one capability/domain work?" -> `domains/`
+- "Where is official-web source truth?" ->
+  `../data/official-web-source-truth-schema.md`
+- "Where is authenticated notice source truth?" ->
+  `../data/authenticated-notice-source-truth-schema.md`
+- "Where is dining operations data truth?" ->
+  `../data/dining-operations-schema.md`
 
 ## Use Rules
 

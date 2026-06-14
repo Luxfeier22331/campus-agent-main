@@ -67,12 +67,12 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                 + "\n",
             )
             _write(
-                repo_root / "apps/hub-web/.dev.vars",
+                repo_root / "apps/campus-web/.dev.vars",
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.example",
                         "SENTRY_ENVIRONMENT=development",
-                        "SENTRY_RELEASE=hub-web@dev-local",
+                        "SENTRY_RELEASE=campus-web@dev-local",
                     ]
                 )
                 + "\n",
@@ -86,7 +86,7 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
             self.assertTrue(status["targets"]["apps/app-api/.dev.vars"]["ready"])
             self.assertTrue(status["targets"]["apps/public-chat-web/.dev.vars"]["ready"])
             self.assertTrue(status["targets"]["apps/protected-panel-web/.dev.vars"]["ready"])
-            self.assertTrue(status["targets"]["apps/hub-web/.dev.vars"]["ready"])
+            self.assertTrue(status["targets"]["apps/campus-web/.dev.vars"]["ready"])
 
     def test_collect_worker_observability_status_reports_source_missing_keys(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -101,7 +101,7 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
             self.assertFalse(status["overall_ready"])
             self.assertFalse(status["source_ready"])
             self.assertIn("AXIOM_ENDPOINT", status["source_missing_keys"])
-            self.assertFalse(status["targets"]["apps/hub-web/.dev.vars"]["exists"])
+            self.assertFalse(status["targets"]["apps/campus-web/.dev.vars"]["exists"])
 
     def test_collect_worker_observability_status_reports_target_mismatch(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -155,12 +155,12 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                 + "\n",
             )
             _write(
-                repo_root / "apps/hub-web/.dev.vars",
+                repo_root / "apps/campus-web/.dev.vars",
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.example",
                         "SENTRY_ENVIRONMENT=development",
-                        "SENTRY_RELEASE=hub-web@dev-local",
+                        "SENTRY_RELEASE=campus-web@dev-local",
                     ]
                 )
                 + "\n",

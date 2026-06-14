@@ -147,7 +147,9 @@ def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
         or "",
         handoff=_optional_record(record.get("handoff")) or {},
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
-        selected_capability=_optional_string(_record_value(record, "selected_capability", "selectedCapability"))
+        selected_capability=_optional_string(
+            _record_value(record, "selected_capability", "selectedCapability")
+        )
         or "",
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(

@@ -44,6 +44,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 		authHandler,
 		createRequestScope: scopedServices.createRequestScope,
 		env,
+		fetchChatKitAdapter: dependencies.fetchChatKitAdapter,
 		getPrincipal,
 		docsReadinessProbe,
 		officialWebExecutionStatusService: scopedServices.officialWebExecutionStatusService,

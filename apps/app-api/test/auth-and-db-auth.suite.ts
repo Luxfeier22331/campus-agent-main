@@ -40,7 +40,7 @@ export function registerAppApiAuthConfigSuite() {
 
 			expect(config.baseURL).toBe("https://chat.example.com");
 			expect(config.trustedOrigins).toEqual(["https://chat.example.com"]);
-			expect(config.basePath).toBe("/api/auth");
+			expect(config.basePath).toBe("/");
 			expect(config.emailAndPassword).toMatchObject({
 				autoSignIn: true,
 				enabled: true,
@@ -67,15 +67,53 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.plugins).toEqual(
 				expect.arrayContaining([expect.objectContaining({ id: "captcha" })]),
 			);
+			expect(config.disabledPaths).toContain("/token");
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ id: "jwt" }),
+					expect.objectContaining({ id: "oauth-provider" }),
+				]),
+			);
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: "jwt",
+						options: expect.objectContaining({
+							disableSettingJwtHeader: true,
+							jwks: expect.objectContaining({
+								keyPairConfig: {
+									alg: "RS256",
+									modulusLength: 2048,
+								},
+							}),
+						}),
+					}),
+				]),
+			);
+			expect(config.plugins).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: "oauth-provider",
+						options: expect.objectContaining({
+							allowDynamicClientRegistration: false,
+							cachedTrustedClients: new Set(["muc-wiki"]),
+							customIdTokenClaims: expect.any(Function),
+							customUserInfoClaims: expect.any(Function),
+							loginPage: "/account/login",
+							scopes: ["openid", "profile", "email"],
+						}),
+					}),
+				]),
+			);
 			expect(config.hooks?.before).toBeDefined();
 			expect(config.emailAndPassword.sendResetPassword).toEqual(expect.any(Function));
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
 		});
 
-		it("can move the browser auth shell origin to hub while retaining public-chat as an explicit trusted origin", () => {
+		it("uses the campus browser auth shell origin while retaining public-chat as an explicit trusted origin", () => {
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://hub.muc.wiki",
+				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				publicChatOrigin: "https://chat.example.com",
@@ -87,8 +125,41 @@ export function registerAppApiAuthConfigSuite() {
 				database: {} as never,
 			} as never);
 
-			expect(config.baseURL).toBe("https://hub.muc.wiki");
-			expect(config.trustedOrigins).toEqual(["https://hub.muc.wiki", "https://chat.example.com"]);
+			expect(config.baseURL).toBe("https://campus.muc.wiki");
+			expect(config.trustedOrigins).toEqual([
+				"https://campus.muc.wiki",
+				"https://chat.example.com",
+			]);
+		});
+
+		it("materializes identity product state through better-auth user creation hooks", async () => {
+			const onIdentityUserCreated = vi.fn().mockResolvedValue(undefined);
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				publicChatOrigin: "https://chat.example.com",
+				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				resendApiKey: "resend_test_key",
+				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailAllowlist: ["help_bot@outlook.com"],
+				database: {} as never,
+				onIdentityUserCreated,
+			} as never);
+
+			await config.databaseHooks?.user?.create?.after?.({
+				email: "jane@muc.edu.cn",
+				id: "user_01HQ",
+				name: "Jane Doe",
+			});
+
+			expect(onIdentityUserCreated).toHaveBeenCalledWith({
+				displayName: "Jane Doe",
+				email: "jane@muc.edu.cn",
+				userId: "user_01HQ",
+			});
 		});
 
 		it("sends password reset and password-changed mail through Resend without exposing a repo-owned parallel auth path", async () => {
@@ -102,7 +173,7 @@ export function registerAppApiAuthConfigSuite() {
 			);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://hub.muc.wiki",
+				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				publicChatOrigin: "https://chat.example.com",
@@ -157,10 +228,10 @@ export function registerAppApiAuthConfigSuite() {
 				to: ["jane@muc.edu.cn"],
 			});
 			expect(firstPayload.html).toContain(
-				"https://chat.example.com/api/auth/reset-password/reset_token_01HQ",
+				"https://campus.muc.wiki/api/auth/reset-password/reset_token_01HQ",
 			);
 			expect(firstPayload.html).toContain(
-				"callbackURL=https%3A%2F%2Fhub.muc.wiki%2Faccount%2Freset-password",
+				"callbackURL=https%3A%2F%2Fcampus.muc.wiki%2Faccount%2Freset-password",
 			);
 			expect(firstPayload.text).toContain("Campus Agent");
 
@@ -177,28 +248,28 @@ export function registerAppApiAuthConfigSuite() {
 		it("freezes reset redirect targets to /account/reset-password on the auth shell origin", () => {
 			expect(
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
+					authShellOrigin: "https://campus.muc.wiki",
 					redirectTo: "/account/reset-password",
 				}),
-			).toBe("https://hub.muc.wiki/account/reset-password");
+			).toBe("https://campus.muc.wiki/account/reset-password");
 
 			expect(
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
-					redirectTo: "https://hub.muc.wiki/account/reset-password",
+					authShellOrigin: "https://campus.muc.wiki",
+					redirectTo: "https://campus.muc.wiki/account/reset-password",
 				}),
-			).toBe("https://hub.muc.wiki/account/reset-password");
+			).toBe("https://campus.muc.wiki/account/reset-password");
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
-					redirectTo: "https://hub.muc.wiki/chat",
+					authShellOrigin: "https://campus.muc.wiki",
+					redirectTo: "https://campus.muc.wiki/chat",
 				}),
 			).toThrowError(/reset-password/i);
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
-					authShellOrigin: "https://hub.muc.wiki",
+					authShellOrigin: "https://campus.muc.wiki",
 					redirectTo: "https://evil.example.com/account/reset-password",
 				}),
 			).toThrowError(/reset-password/i);
@@ -241,6 +312,18 @@ export function registerAppApiAuthConfigSuite() {
 					"session",
 					"account",
 					"verification",
+					"oauthClient",
+					"oauthRefreshToken",
+					"oauthAccessToken",
+					"oauthConsent",
+					"jwks",
+					"identityAccounts",
+					"identityProfiles",
+					"identityAccessSnapshots",
+					"identityPreferenceSettings",
+					"identityFederationClients",
+					"identityFederationClaimsPolicies",
+					"identityFederationUserGrants",
 					"conversations",
 					"messageFeedback",
 					"messages",

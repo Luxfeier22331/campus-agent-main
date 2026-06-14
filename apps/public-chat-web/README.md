@@ -2,14 +2,15 @@
 
 Cloudflare Worker-hosted public chat web surface for campus-agent v2.
 
-This app is the forward canonical public browser surface in front of shared
-`apps/app-api`.
+This app is a legacy public chat browser surface in front of shared
+`apps/app-api`. The current student-facing campus and account browser shell is
+`apps/campus-web`.
 
 Current runtime composition:
 
 - chat route ownership lives in `src/routes/`
 - `/login`, `/register`, `/forgot-password`, and `/reset-password` are bounded
-  compatibility redirects/shims to `apps/hub-web` account routes
+  compatibility redirects/shims to the `apps/campus-web` account shell
 - `/chat` and `/chat/:conversationId` render the vendored chat runtime through
   `src/platform/chat/app-shell.tsx`
 - vendored UI/runtime source-of-truth lives in `vendor/vercel-ai-chatbot/`
@@ -26,7 +27,8 @@ It owns:
 
 - public chat UI
 - browser-side chat routes
-- compatibility redirects from legacy chat-local auth URLs to hub account routes
+- compatibility redirects from legacy chat-local auth URLs to campus account
+  shell routes
 - same-site `/api/*` proxy seam into `apps/app-api`
 - minimal health/readiness contract
 
@@ -64,7 +66,7 @@ Current chat contract assumptions:
 UI behavior:
 
 - `/login`, `/register`, `/forgot-password`, and `/reset-password` redirect to
-  hub account routes and preserve a sanitized `return_to`
+  campus account routes; reset-password preserves the reset token
 - `/chat` is the first-turn chat surface and conversation history view
 - `/chat/:conversationId` continues an existing owned conversation
 - the left rail uses paginated history from `GET /api/history`
@@ -89,14 +91,14 @@ Environment:
 - `PUBLIC_CHAT_APP_NAME`
 - `PUBLIC_CHAT_HOSTNAME`
 - `APP_API_BASE_URL`
-- `HUB_WEB_BASE_URL`
+- `AUTH_SHELL_ORIGIN`
 
 The Worker also requires an internal `APP_API` service binding at runtime.
 
 Readiness expectations:
 
 - `GET /readyz` stays `503` until `APP_API`, `ASSETS`, `APP_API_BASE_URL`,
-  `PUBLIC_CHAT_HOSTNAME`, and `HUB_WEB_BASE_URL` are all configured
+  `PUBLIC_CHAT_HOSTNAME`, and `AUTH_SHELL_ORIGIN` are all configured
 - `GET /readyz` forwards the app-api `preflight.campusServicesProductPath`
   diagnostic block when it is present, so public/chat campus-services opening
   checks can distinguish capability-gate, projection, and read-model blockers
@@ -106,8 +108,8 @@ Readiness expectations:
 - `pnpm deploy` now fails before publish if the generated Worker deploy config
   loses the required `APP_API` service binding
 - proxied same-site `/api/*` responses are forced to `Cache-Control: no-store`
-- auth challenge runtime config is no longer owned by public-chat; hub owns the
-  account shell and Turnstile widget posture
+- auth challenge runtime config is no longer owned by public-chat; campus-web
+  owns the account shell and Turnstile widget posture
 
 Observability:
 
@@ -158,4 +160,5 @@ Local dev notes:
   covered by `db:reconcile-shared-drift`; if they lag, `POST /api/chat/requests`
   can fail even when the chat shell itself is healthy.
 - legacy chat-local auth UI smoke exists only for compatibility regression
-  tests; hub owns current account-shell smoke and staging Turnstile posture
+  tests; campus-web owns current account-shell smoke and staging Turnstile
+  posture

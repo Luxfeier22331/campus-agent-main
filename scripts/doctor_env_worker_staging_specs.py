@@ -47,14 +47,16 @@ WORKER_STAGING_SURFACE_SPECS = {
         },
         "files": {},
     },
-    "worker-staging-hub-web": {
+    "worker-staging-campus-web": {
         "providers": {},
         "required_settings": {
-            "staging_hub_auth_turnstile_site_key": ("STAGING_HUB_AUTH_TURNSTILE_SITE_KEY",),
+            "staging_campus_auth_turnstile_site_key": ("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY",),
         },
         "optional_settings": {
-            "staging_hub_auth_turnstile_appearance": ("STAGING_HUB_AUTH_TURNSTILE_APPEARANCE",),
-            "staging_hub_auth_turnstile_execution": ("STAGING_HUB_AUTH_TURNSTILE_EXECUTION",),
+            "staging_campus_auth_turnstile_appearance": (
+                "STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE",
+            ),
+            "staging_campus_auth_turnstile_execution": ("STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION",),
             "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
         },
         "files": {},

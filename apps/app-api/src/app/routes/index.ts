@@ -8,9 +8,14 @@ import type {
 	AppRuntimeReadinessResult,
 } from "../types";
 import { registerAuthRoutes } from "./auth";
+import { registerCampusExperienceRoutes } from "./campus-experience";
 import { registerCampusServicesOpsRoutes } from "./campus-services-ops";
 import { registerChatRoutes } from "./chat";
+import { registerChatKitRoutes } from "./chatkit";
+import { registerDiningOpsRoutes } from "./dining-ops";
 import { registerDocsRoutes } from "./docs";
+import { registerFederationRoutes } from "./federation";
+import { registerIdentityPlatformRoutes } from "./identity-platform";
 import { registerInternalRoutes } from "./internal";
 import { registerOfficialWebRoutes } from "./official-web";
 import { registerOperatorRoutes } from "./operator";
@@ -29,6 +34,7 @@ export function registerAppRoutes(input: {
 	>;
 	officialWebPlannerService: NonNullable<AppDependencies["officialWebPlannerService"]>;
 	docsReadinessProbe: () => Promise<AppDocsReadinessResult>;
+	fetchChatKitAdapter?: AppDependencies["fetchChatKitAdapter"];
 	runtimeReadinessProbe: () => Promise<AppRuntimeReadinessResult>;
 	scheduleRequestProjectionDrain?: AppDependencies["scheduleRequestProjectionDrain"];
 }) {
@@ -44,12 +50,42 @@ export function registerAppRoutes(input: {
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 	});
+	registerFederationRoutes({
+		app: input.app,
+		authHandler: input.authHandler,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+	});
+	registerIdentityPlatformRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
 	registerChatRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
+	});
+	registerChatKitRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		fetchChatKitAdapter: input.fetchChatKitAdapter,
+		getPrincipal: input.getPrincipal,
+	});
+	registerCampusExperienceRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+	});
+	registerDiningOpsRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
 	});
 	registerDocsRoutes({
 		app: input.app,

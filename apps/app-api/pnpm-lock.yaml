@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@better-auth/oauth-provider':
+        specifier: 1.5.6
+        version: 1.5.6(@better-auth/core@1.5.6(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.14)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-auth@1.5.6(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0))(pg@8.20.0)(vitest@4.1.2(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(vite@8.0.3(@types/node@24.12.0)(esbuild@0.27.3)(tsx@4.21.0)(yaml@2.8.3))))(better-call@1.3.2(zod@4.3.6))
       '@hono/zod-openapi':
         specifier: ^0.19.10
         version: 0.19.10(hono@4.12.9)(zod@4.3.6)
@@ -17,9 +20,15 @@ importers:
       better-auth:
         specifier: ^1.5.6
         version: 1.5.6(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0))(pg@8.20.0)(vitest@4.1.2(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(vite@8.0.3(@types/node@24.12.0)(esbuild@0.27.3)(tsx@4.21.0)(yaml@2.8.3)))
+      dining-floorplans:
+        specifier: file:../../packages/dining-floorplans
+        version: file:../../packages/dining-floorplans
       drizzle-orm:
         specifier: ^0.44.5
         version: 0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0)
+      fast-xml-parser:
+        specifier: ^5.5.8
+        version: 5.8.0
       hono:
         specifier: ^4.9.8
         version: 4.12.9
@@ -121,6 +130,15 @@ packages:
     peerDependenciesMeta:
       mongodb:
         optional: true
+
+  '@better-auth/oauth-provider@1.5.6':
+    resolution: {integrity: sha512-DSkdC4GLwUiDwwd4hxQZa+aqzFoMXQV0Im3k4igzGIW6VB2S0p0CIR+YCOxJP7lAP+1eepxvjTfG07sTXzu2Bw==}
+    peerDependencies:
+      '@better-auth/core': 1.5.6
+      '@better-auth/utils': 0.3.1
+      '@better-fetch/fetch': 1.1.21
+      better-auth: 1.5.6
+      better-call: 1.3.2
 
   '@better-auth/prisma-adapter@1.5.6':
     resolution: {integrity: sha512-UxY9vQJs1Tt+O+T2YQnseDMlWmUSQvFZSBb5YiFRg7zcm+TEzujh4iX2/csA0YiZptLheovIuVWTP9nriewEBA==}
@@ -838,6 +856,9 @@ packages:
     resolution: {integrity: sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw==}
     engines: {node: '>= 20.19.0'}
 
+  '@nodable/entities@2.2.0':
+    resolution: {integrity: sha512-9uGyhaQavEUMC8AIddIjau4NsnsXhou+j5sBAGojCM1oxmQpVKTWR/9JxABD6UAv12vpIms55fPZKFQEhG6uBg==}
+
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
     engines: {node: '>=8.0.0'}
@@ -1020,6 +1041,9 @@ packages:
   '@vitest/utils@4.1.2':
     resolution: {integrity: sha512-xw2/TiX82lQHA06cgbqRKFb5lCAy3axQ4H4SoUFhUsg+wztiet+co86IAMDtF6Vm1hc7J6j09oh/rgDn+JdKIQ==}
 
+  anynum@1.0.0:
+    resolution: {integrity: sha512-xjR9/zBVnUOP6ztMIIgShjsxui80nQUQH+5xJnvrYLs+90bF25/KJqaAi8mk+B4RDtX1Nspi6fmp4YTEts8SfA==}
+
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
@@ -1120,6 +1144,9 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  dining-floorplans@file:../../packages/dining-floorplans:
+    resolution: {directory: ../../packages/dining-floorplans, type: directory}
 
   drizzle-kit@0.31.10:
     resolution: {integrity: sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==}
@@ -1244,6 +1271,13 @@ packages:
   expect-type@1.3.0:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
     engines: {node: '>=12.0.0'}
+
+  fast-xml-builder@1.2.0:
+    resolution: {integrity: sha512-00aAWieqff+ZJhsXA4g1g7M8k+7AYoMUUHF+/zFb5U6Uv/P0Vl4QZo84/IcufzYalLuEj9928bXN9PbbFzMF0Q==}
+
+  fast-xml-parser@5.8.0:
+    resolution: {integrity: sha512-6bIM7fsJxeo3uXv7OncQYsBAMPJ7V16Slahl/6M98C/i2q+vB1+4a0MtrvYwDFEUrwDSbAmeLDRXsOBwrL7yAg==}
+    hasBin: true
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -1373,6 +1407,10 @@ packages:
   openapi3-ts@4.5.0:
     resolution: {integrity: sha512-jaL+HgTq2Gj5jRcfdutgRGLosCy/hT8sQf6VOy+P+g36cZOjI1iukdPnijC+4CmeRzg/jEllJUboEic2FhxhtQ==}
 
+  path-expression-matcher@1.5.0:
+    resolution: {integrity: sha512-cbrerZV+6rvdQrrD+iGMcZFEiiSrbv9Tfdkvnusy6y0x0GKBXREFg/Y65GhIfm0tnLntThhzCnfKwp1WRjeCyQ==}
+    engines: {node: '>=14.0.0'}
+
   path-to-regexp@6.3.0:
     resolution: {integrity: sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ==}
 
@@ -1486,6 +1524,9 @@ packages:
 
   std-env@4.0.0:
     resolution: {integrity: sha512-zUMPtQ/HBY3/50VbpkupYHbRroTRZJPRLvreamgErJVys0ceuzMkD44J/QjqhHjOzK42GQ3QZIeFG1OYfOtKqQ==}
+
+  strnum@2.4.0:
+    resolution: {integrity: sha512-sHrVyWWdq28RbhjuJdZsA1SnGRJV6NiXbk6AXBxDOsgAcA+lmpUZCYjOdLBxkXMwis6RRe7dlZt4VlIWFVzkmg==}
 
   supports-color@10.2.2:
     resolution: {integrity: sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g==}
@@ -1639,6 +1680,10 @@ packages:
       utf-8-validate:
         optional: true
 
+  xml-naming@0.1.0:
+    resolution: {integrity: sha512-k8KO9hrMyNk6tUWqUfkTEZbezRRpONVOzUTnc97VnCvyj6Tf9lyUR9EDAIeiVLv56jsMcoXEwjW8Kv5yPY52lw==}
+    engines: {node: '>=16.0.0'}
+
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
@@ -1705,6 +1750,16 @@ snapshots:
     dependencies:
       '@better-auth/core': 1.5.6(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.14)(nanostores@1.2.0)
       '@better-auth/utils': 0.3.1
+
+  '@better-auth/oauth-provider@1.5.6(@better-auth/core@1.5.6(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.14)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-auth@1.5.6(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0))(pg@8.20.0)(vitest@4.1.2(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(vite@8.0.3(@types/node@24.12.0)(esbuild@0.27.3)(tsx@4.21.0)(yaml@2.8.3))))(better-call@1.3.2(zod@4.3.6))':
+    dependencies:
+      '@better-auth/core': 1.5.6(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.14)(nanostores@1.2.0)
+      '@better-auth/utils': 0.3.1
+      '@better-fetch/fetch': 1.1.21
+      better-auth: 1.5.6(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0))(pg@8.20.0)(vitest@4.1.2(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(vite@8.0.3(@types/node@24.12.0)(esbuild@0.27.3)(tsx@4.21.0)(yaml@2.8.3)))
+      better-call: 1.3.2(zod@4.3.6)
+      jose: 6.2.2
+      zod: 4.3.6
 
   '@better-auth/prisma-adapter@1.5.6(@better-auth/core@1.5.6(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.14)(nanostores@1.2.0))(@better-auth/utils@0.3.1)':
     dependencies:
@@ -2144,6 +2199,8 @@ snapshots:
 
   '@noble/hashes@2.0.1': {}
 
+  '@nodable/entities@2.2.0': {}
+
   '@opentelemetry/api@1.9.1': {}
 
   '@opentelemetry/semantic-conventions@1.40.0': {}
@@ -2291,6 +2348,8 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
+  anynum@1.0.0: {}
+
   assertion-error@2.0.1: {}
 
   better-auth@1.5.6(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0))(pg@8.20.0)(vitest@4.1.2(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(vite@8.0.3(@types/node@24.12.0)(esbuild@0.27.3)(tsx@4.21.0)(yaml@2.8.3))):
@@ -2345,6 +2404,10 @@ snapshots:
   defu@6.1.4: {}
 
   detect-libc@2.1.2: {}
+
+  dining-floorplans@file:../../packages/dining-floorplans:
+    dependencies:
+      fast-xml-parser: 5.8.0
 
   drizzle-kit@0.31.10:
     dependencies:
@@ -2454,6 +2517,19 @@ snapshots:
 
   expect-type@1.3.0: {}
 
+  fast-xml-builder@1.2.0:
+    dependencies:
+      path-expression-matcher: 1.5.0
+      xml-naming: 0.1.0
+
+  fast-xml-parser@5.8.0:
+    dependencies:
+      '@nodable/entities': 2.2.0
+      fast-xml-builder: 1.2.0
+      path-expression-matcher: 1.5.0
+      strnum: 2.4.0
+      xml-naming: 0.1.0
+
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
@@ -2549,6 +2625,8 @@ snapshots:
   openapi3-ts@4.5.0:
     dependencies:
       yaml: 2.8.3
+
+  path-expression-matcher@1.5.0: {}
 
   path-to-regexp@6.3.0: {}
 
@@ -2686,6 +2764,10 @@ snapshots:
 
   std-env@4.0.0: {}
 
+  strnum@2.4.0:
+    dependencies:
+      anynum: 1.0.0
+
   supports-color@10.2.2: {}
 
   tinybench@2.9.0: {}
@@ -2792,6 +2874,8 @@ snapshots:
       - utf-8-validate
 
   ws@8.18.0: {}
+
+  xml-naming@0.1.0: {}
 
   xtend@4.0.2: {}
 

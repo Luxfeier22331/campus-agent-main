@@ -4,16 +4,17 @@
 
 ## Overview
 
-当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、
-Execution Agent Layer-led 的校园助理系统：`hub-web` 入口面、公开聊天面、公开文档站、受保护运营面、共享 `app-api`、内部
-`execution-control`，以及按能力边界拆分的 agent / retrieval / ingestion packages。
+当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`campus-web first`、
+Execution Agent Layer-led 的校园助理系统：`campus-web` 学生侧主体验、账号浏览器 shell 与文档阅读面、
+受保护运营面、共享 `app-api`、内部 `execution-control`，以及按能力边界拆分的 capability /
+retrieval / ingestion packages。
 
 当前 merged truth 的主路径为：
 
 ```text
-browser -> hub-web -> app launcher / account shell
+browser -> campus-web -> student experience / account shell
 
-hub-web same-site allowlisted /api/* -> app-api
+campus-web same-origin allowlisted /api/* -> app-api
 
 browser -> public-chat-web -> app-api -> execution-control
 -> Temporal -> workflow-worker / activity-worker-context /
@@ -23,16 +24,14 @@ activity-worker-finalization
 branch / Go RAG DTO/runtime
 -> Qdrant / provider / structured read models -> sanitized projection
 
-browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
+browser -> campus-web /docs/* -> Rspress-powered canonical reader
 
 browser -> protected-panel-web -> app-api
 -> request projection / operator read model
 ```
 
-当前正式 docs surface 为：
-
-`browser -> public-docs static reader assets` 与
-`browser -> public-docs same-site /api/docs/* -> app-api`
+当前正式 docs surface 为 `campus-web /docs/*`；`/api/docs/*` 通过
+campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 
 该仓库当前的核心约束包括：
 
@@ -49,8 +48,9 @@ browser -> protected-panel-web -> app-api
   `apps/supervisor-agent-worker` 已从 active workspace 删除，旧实现只可通过
   git history 追溯
 - online query path 与 offline data plane 持续分层
-- `apps/hub-web` 是当前 app-set product entry surface，不是 generic app-api proxy、
-  第二产品后端或 MediaWiki 替代物
+- `apps/campus-web` 是当前学生侧 product entry surface、账号浏览器
+  shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`
+  仍是 auth/session/identity/federation truth owner
 
 ## Status
 
@@ -72,7 +72,7 @@ browser -> protected-panel-web -> app-api
 仓库按 runtime boundary 与 capability boundary 组织：
 
 - [`apps/`](./apps/)
-  - runtime shell 与 transport boundary，例如 `hub-web`、`public-chat-web`、`public-docs`、
+  - runtime shell 与 transport boundary，例如 `campus-web`、`public-chat-web`、
     `protected-panel-web`、`app-api`、`execution-control`、`ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
@@ -89,9 +89,8 @@ browser -> protected-panel-web -> app-api
 
 主链路相关目录：
 
-- [`apps/hub-web`](./apps/hub-web/)
+- [`apps/campus-web`](./apps/campus-web/)
 - [`apps/app-api`](./apps/app-api/)
-- [`apps/public-docs`](./apps/public-docs/)
 - [`apps/execution-control`](./apps/execution-control/)
 - [`apps/agent-runtime`](./apps/agent-runtime/)
 - [`packages/knowledge-capability`](./packages/knowledge-capability/)
@@ -143,23 +142,16 @@ pnpm install
 常用验证入口：
 
 ```bash
+pnpm repo:guard
+pnpm repo:static
 pnpm lint
-pnpm web:lint
-pnpm docs:lint
-pnpm editorconfig:lint
-pnpm env:lint
-pnpm yaml:lint
-pnpm toml:lint
-pnpm shell:lint
-pnpm docker:lint
 uv run --all-packages python -m unittest discover -s tests -t .
-uv run --all-packages ruff check .
-uv run --all-packages ruff format . --check
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
 pnpm web:test:integration
 pnpm web:build
+pnpm ci:web-graph:affected
 ```
 
 ## Seed Data Handoff
@@ -170,28 +162,27 @@ pnpm web:build
 canonical artifacts / reader assets in object storage
 -> docs-read-model manifest
 -> app-api docs read model
--> public-docs sync manifest
--> public-docs build
+-> campus-web Rspress docs source/build
+-> campus-web /docs/* delivery
 ```
 
 接手者需要拿到：
 
 - `var/docs-read-model-manifest.json`
-- `var/public-docs-sync-manifest.json` 或对应环境后缀文件
 - sync manifest 指向的对象存储 reader assets
 - 对应环境的 app-api operator database 与对象存储读取配置
 
 完整发布、导入、构建和验收步骤见
 [document-reader-publish-and-docs-deploy-runbook](./docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md)。
-不要提交 repo-root `var/`、`apps/public-docs/docs/docs/` 或
-`apps/public-docs/doc_build/` 中的本地生成产物。
+不要提交 repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
+或 `apps/campus-web/public/static/` 中的本地生成产物。
 
-其中 `pnpm lint` 是仓库级 live-surface lint gate：默认覆盖 tracked 的源码、tests、repo-owned
+其中 `pnpm repo:static` 是仓库级 live-surface static gate：默认覆盖 tracked 的源码、tests、repo-owned
 config、active docs、prompt markdown、repo dotfile config（`.editorconfig`、tracked
 `.gitignore` / `.gitattributes`）、tracked `.env.example`、tracked
-YAML/TOML、tracked shell scripts，不进入 `.planning/`、archive/historical
-文档、vendor、generated、未跟踪草稿与本地 runtime 产物。`pnpm docker:lint` 是独立 Dockerfile
-lane，默认不并入 `pnpm lint`。
+YAML/TOML、tracked shell scripts、Dockerfile surface，不进入 `.planning/`、archive/historical
+文档、vendor、generated、未跟踪草稿与本地 runtime 产物。`pnpm docker:lint` 已通过
+`pnpm repo:static` 并入默认 `pnpm lint`。
 
 更细的验证 lane 与 smoke 路径见：
 

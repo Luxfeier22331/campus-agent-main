@@ -19,7 +19,9 @@ describe("public chat web staging config", () => {
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "chat-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(wranglerConfig).toContain('HUB_WEB_BASE_URL = "https://hub-staging.mucwiki-edge.link"');
+		expect(wranglerConfig).toContain(
+			'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
+		);
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");

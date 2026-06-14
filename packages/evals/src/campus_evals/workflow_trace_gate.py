@@ -106,7 +106,9 @@ def evaluate_workflow_trace_case(
             _equals("workflow_mode", summary.workflow_mode, expectation.workflow_mode)
             if expectation.workflow_mode
             else DimensionResult(True, "not_applicable"),
-            _equals("selected_capability", summary.selected_capability, expectation.selected_capability),
+            _equals(
+                "selected_capability", summary.selected_capability, expectation.selected_capability
+            ),
             _mapping_contains("handoff", summary.handoff, expectation.handoff),
             _handoff_chain_contains(summary.handoff_chain, expectation.handoff_chain),
         ),
@@ -328,7 +330,9 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
         workflow_mode=_string_value(record, "workflow_mode", "workflowMode"),
         handoff=_dict_value(record, "handoff"),
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
-        capability_invocations=tuple(dict(item) for item in capability_invocations if isinstance(item, dict)),
+        capability_invocations=tuple(
+            dict(item) for item in capability_invocations if isinstance(item, dict)
+        ),
         selected_capability=_string_value(record, "selected_capability", "selectedCapability"),
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(

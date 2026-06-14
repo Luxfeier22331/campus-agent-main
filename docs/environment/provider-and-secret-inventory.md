@@ -146,10 +146,10 @@ combinations live in split environment references.
   主要 env keys: `AUTH_TURNSTILE_SECRET_KEY` `AUTH_TURNSTILE_SITE_KEY`
   `AUTH_TURNSTILE_APPEARANCE` `AUTH_TURNSTILE_EXECUTION`
   放置位置: `apps/app-api/.dev.vars` / deploy secret
-  store；`apps/public-chat-web/.dev.vars` / Worker vars
+  store；`apps/campus-web/.dev.vars` / Worker vars
   何时必需: public auth family (`sign-in` / `sign-up` / `request-password-reset`) 必需
   获取方式: 在 Cloudflare Turnstile 创建 widget；server secret 放 `app-api`，public
-  sitekey 放 `public-chat-web`；runtime posture 由 `public-chat-web` 注入
+  sitekey 放 `campus-web`；runtime posture 由 `campus-web` 注入
 
 - Provider / system: Resend transactional auth mail
   作用: `app-api` password reset / password-changed mail
@@ -187,7 +187,8 @@ combinations live in split environment references.
   query URL 模板，panel 不直接查询 Axiom API
 
 - Provider / system: Cloudflare Workers / Wrangler
-  作用: `app-api`、`public-chat-web`、`protected-panel-web` deploy 与 secret store
+  作用: `app-api`、`campus-web`、legacy `public-chat-web`、`protected-panel-web` 与
+  `campus-ops-web` deploy 与 secret store
   主要 env keys: shell env / secret store，不固定 repo key 名
   放置位置: local shell、CI secret store、Cloudflare dashboard
   何时必需: 只有 Worker dev/deploy 需要

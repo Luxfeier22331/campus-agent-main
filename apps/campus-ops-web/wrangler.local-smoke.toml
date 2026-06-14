@@ -1,0 +1,8 @@
+name = "campus-ops-web-local-smoke"
+main = "./src/index.ts"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+APP_API_BASE_URL = "https://app-api.internal"
+CAMPUS_OPS_WEB_HOSTNAME = "127.0.0.1"

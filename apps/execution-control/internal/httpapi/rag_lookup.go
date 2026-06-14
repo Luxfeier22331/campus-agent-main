@@ -168,7 +168,7 @@ func (e qdrantRAGLookupExecutor) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("qdrant readyz status %d", response.StatusCode)
 	}
@@ -202,7 +202,7 @@ func (e qdrantRAGLookupExecutor) embedQuery(ctx context.Context, queryText strin
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
@@ -264,7 +264,7 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err

@@ -120,7 +120,9 @@ func (e qdrantPersonalMemoryExecutor) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("qdrant readyz status %d", response.StatusCode)
 	}
@@ -306,7 +308,7 @@ func (e qdrantPersonalMemoryExecutor) embedMemoryText(ctx context.Context, text 
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
@@ -352,7 +354,7 @@ func (e qdrantPersonalMemoryExecutor) writeQdrant(
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("qdrant personal memory write status %d", response.StatusCode)
 	}
@@ -403,7 +405,7 @@ func (e qdrantPersonalMemoryExecutor) queryMemoryPoints(
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err

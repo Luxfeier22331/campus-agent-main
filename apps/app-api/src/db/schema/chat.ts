@@ -10,8 +10,27 @@ export const conversations = chat.table(
 		title: text("title").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		archivedAt: timestamp("archived_at", { withTimezone: true }),
+		pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+		deletedAt: timestamp("deleted_at", { withTimezone: true }),
+		titleUpdatedAt: timestamp("title_updated_at", { withTimezone: true }),
 	},
 	(table) => ({
+		ownerArchivedUpdatedAtIndex: index("chat_conversations_owner_archived_updated_at_idx").on(
+			table.ownerUserId,
+			table.archivedAt,
+			table.updatedAt,
+		),
+		ownerDeletedUpdatedAtIndex: index("chat_conversations_owner_deleted_updated_at_idx").on(
+			table.ownerUserId,
+			table.deletedAt,
+			table.updatedAt,
+		),
+		ownerPinnedUpdatedAtIndex: index("chat_conversations_owner_pinned_updated_at_idx").on(
+			table.ownerUserId,
+			table.pinnedAt,
+			table.updatedAt,
+		),
 		ownerUpdatedAtIndex: index("chat_conversations_owner_updated_at_idx").on(
 			table.ownerUserId,
 			table.updatedAt,

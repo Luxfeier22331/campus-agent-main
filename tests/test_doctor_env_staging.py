@@ -58,14 +58,14 @@ class DoctorEnvStagingTest(unittest.TestCase):
                 status["settings"]["required"]["staging_execution_control_base_url"]["present"]
             )
             self.assertTrue(
-                status["settings"]["required"][
-                    "staging_execution_control_access_client_id"
-                ]["present"]
+                status["settings"]["required"]["staging_execution_control_access_client_id"][
+                    "present"
+                ]
             )
             self.assertTrue(
-                status["settings"]["required"][
-                    "staging_execution_control_access_client_secret"
-                ]["present"]
+                status["settings"]["required"]["staging_execution_control_access_client_secret"][
+                    "present"
+                ]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
@@ -85,7 +85,7 @@ class DoctorEnvStagingTest(unittest.TestCase):
             self.assertEqual(status["settings"]["required"], {})
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
-    def test_collect_env_doctor_status_reports_hub_worker_staging_requirements(self) -> None:
+    def test_collect_env_doctor_status_reports_campus_web_worker_staging_requirements(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             repo_root.mkdir(parents=True)
@@ -93,17 +93,17 @@ class DoctorEnvStagingTest(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "STAGING_HUB_AUTH_TURNSTILE_SITE_KEY": "0x4AAAAAAAstagingWidget",
+                    "STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY": "0x4AAAAAAAstagingWidget",
                 },
                 clear=True,
             ):
                 status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-hub-web"
+                    repo_root=repo_root, surface="worker-staging-campus-web"
                 )
 
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
-                status["settings"]["required"]["staging_hub_auth_turnstile_site_key"]["present"]
+                status["settings"]["required"]["staging_campus_auth_turnstile_site_key"]["present"]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 

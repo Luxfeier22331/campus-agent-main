@@ -302,7 +302,7 @@ Only real restore drills prove the backup is usable.
 
 ## References
 
-- ADR: `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+- ADR: `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 - Qdrant snapshots: <https://qdrant.tech/documentation/operations/snapshots/>
 - Qdrant security: <https://qdrant.tech/documentation/operations/security/>
 

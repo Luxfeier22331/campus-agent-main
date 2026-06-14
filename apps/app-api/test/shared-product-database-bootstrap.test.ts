@@ -14,14 +14,24 @@ describe("app-api shared product database bootstrap", () => {
 	it("freezes app_auth/chat as fixed shared product schemas", () => {
 		expect(APP_AUTH_SCHEMA).toBe("app_auth");
 		expect(APP_CHAT_SCHEMA).toBe("chat");
-		expect(BETTER_AUTH_TABLES).toEqual(["user", "session", "account", "verification"]);
+		expect(BETTER_AUTH_TABLES).toEqual([
+			"user",
+			"session",
+			"account",
+			"verification",
+			"oauthClient",
+			"oauthRefreshToken",
+			"oauthAccessToken",
+			"oauthConsent",
+			"jwks",
+		]);
 	});
 
 	it("reads bootstrap env from the app-api operator connection only", () => {
 		const env = readSharedProductBootstrapEnv({
 			APP_API_DATABASE_SSLMODE: "require",
 			APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
-			AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
+			AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 			BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 			PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 		} as NodeJS.ProcessEnv);
@@ -51,5 +61,15 @@ describe("app-api shared product database bootstrap", () => {
 				publicSchemaTables: ["session", "account", "verification"],
 			}),
 		).toThrow("Conflicting Better Auth table placement detected");
+	});
+
+	it("admits additive Better Auth plugin table migrations inside app_auth", () => {
+		expect(
+			classifyBetterAuthTableOwnership({
+				authSchema: "app_auth",
+				authSchemaTables: ["user", "session", "account", "verification"],
+				publicSchemaTables: [],
+			}),
+		).toBe("target_schema_needs_migration");
 	});
 });

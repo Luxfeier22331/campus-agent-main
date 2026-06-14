@@ -14,7 +14,7 @@ from typing import Any
 
 DEFAULT_APP_PATHS = (
     "apps/app-api",
-    "apps/hub-web",
+    "apps/campus-web",
     "apps/public-chat-web",
     "apps/protected-panel-web",
 )

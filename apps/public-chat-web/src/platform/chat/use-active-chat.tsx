@@ -1,5 +1,5 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
-import { buildPublicChatAuthCompatPath } from "@platform/auth/hub-redirect";
+import { buildPublicChatAuthCompatPath } from "@platform/auth/account-shell-redirect";
 import { useAppRouter, useConversationRouteId } from "@platform/router";
 import {
 	createContext,

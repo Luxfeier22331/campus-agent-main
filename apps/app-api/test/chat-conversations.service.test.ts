@@ -58,6 +58,11 @@ function createStore(): ChatConversationStore {
 		getConversationDetailByOwner: vi.fn(),
 		listConversationSummariesPageByOwner: vi.fn(),
 		listConversationSummariesByOwner: vi.fn(),
+		markConversationArchivedByOwner: vi.fn(),
+		markConversationDeletedByOwner: vi.fn(),
+		markConversationPinnedByOwner: vi.fn(),
+		renameConversationByOwner: vi.fn(),
+		searchConversationSummariesByOwner: vi.fn(),
 		upsertMessageFeedbackByOwner: vi.fn(async () => null),
 	};
 }
@@ -69,6 +74,8 @@ describe("chat conversation service", () => {
 			{
 				createdAt: "2026-03-28T08:00:00.000Z",
 				id: "conv_01HQ",
+				archivedAt: null,
+				pinnedAt: null,
 				title: "图书馆开放时间",
 				updatedAt: "2026-03-28T08:01:00.000Z",
 			},
@@ -99,14 +106,178 @@ describe("chat conversation service", () => {
 		await expect(service.list({ principal: createPrincipal() })).resolves.toEqual({
 			conversations: [
 				{
+					archivedAt: null,
 					createdAt: "2026-03-28T08:00:00.000Z",
 					id: "conv_01HQ",
+					pinnedAt: null,
 					title: "图书馆开放时间",
 					updatedAt: "2026-03-28T08:01:00.000Z",
 				},
 			],
 		});
-		expect(store.listConversationSummariesByOwner).toHaveBeenCalledWith("user_01HQ");
+		expect(store.listConversationSummariesByOwner).toHaveBeenCalledWith({
+			limit: 50,
+			ownerUserId: "user_01HQ",
+			view: "active",
+		});
+	});
+
+	it("searches conversation summaries with bounded query and view inputs", async () => {
+		const store = createStore();
+		vi.mocked(store.searchConversationSummariesByOwner).mockResolvedValue([
+			{
+				archivedAt: null,
+				createdAt: "2026-03-28T08:00:00.000Z",
+				id: "conv_01HQ",
+				pinnedAt: "2026-03-28T08:02:00.000Z",
+				title: "图书馆开放时间",
+				updatedAt: "2026-03-28T08:01:00.000Z",
+			},
+		]);
+		const service = buildChatConversationService({ store });
+
+		await expect(
+			service.search({
+				limit: 10,
+				principal: createPrincipal(),
+				query: " 图书馆 ",
+				view: "active",
+			}),
+		).resolves.toEqual({
+			query: "图书馆",
+			conversations: [
+				{
+					archivedAt: null,
+					createdAt: "2026-03-28T08:00:00.000Z",
+					id: "conv_01HQ",
+					pinnedAt: "2026-03-28T08:02:00.000Z",
+					title: "图书馆开放时间",
+					updatedAt: "2026-03-28T08:01:00.000Z",
+				},
+			],
+		});
+		expect(store.searchConversationSummariesByOwner).toHaveBeenCalledWith({
+			limit: 10,
+			ownerUserId: "user_01HQ",
+			query: "图书馆",
+			view: "active",
+		});
+	});
+
+	it("renames conversations with explicit non-empty product titles", async () => {
+		const store = createStore();
+		vi.mocked(store.renameConversationByOwner).mockResolvedValue({
+			archivedAt: null,
+			createdAt: "2026-03-28T08:00:00.000Z",
+			id: "conv_01HQ",
+			pinnedAt: null,
+			title: "新的会话标题",
+			updatedAt: "2026-03-28T08:05:00.000Z",
+		});
+		const service = buildChatConversationService({
+			now: () => new Date("2026-03-28T08:05:00.000Z"),
+			store,
+		});
+
+		await expect(
+			service.rename({
+				conversationId: "conv_01HQ",
+				principal: createPrincipal(),
+				title: " 新的会话标题 ",
+			}),
+		).resolves.toEqual({
+			conversation: {
+				archivedAt: null,
+				createdAt: "2026-03-28T08:00:00.000Z",
+				id: "conv_01HQ",
+				pinnedAt: null,
+				title: "新的会话标题",
+				updatedAt: "2026-03-28T08:05:00.000Z",
+			},
+		});
+		expect(store.renameConversationByOwner).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			ownerUserId: "user_01HQ",
+			title: "新的会话标题",
+			updatedAt: "2026-03-28T08:05:00.000Z",
+		});
+
+		await expect(
+			service.rename({
+				conversationId: "conv_01HQ",
+				principal: createPrincipal(),
+				title: " ",
+			}),
+		).rejects.toMatchObject({
+			code: "invalid_conversation_title",
+			status: 400,
+		});
+	});
+
+	it("archives, unarchives, pins, unpins, and soft deletes owned conversations", async () => {
+		const store = createStore();
+		const conversation = {
+			archivedAt: null,
+			createdAt: "2026-03-28T08:00:00.000Z",
+			id: "conv_01HQ",
+			pinnedAt: "2026-03-28T08:05:00.000Z",
+			title: "图书馆开放时间",
+			updatedAt: "2026-03-28T08:05:00.000Z",
+		};
+		vi.mocked(store.markConversationArchivedByOwner).mockResolvedValue(conversation);
+		vi.mocked(store.markConversationPinnedByOwner).mockResolvedValue(conversation);
+		vi.mocked(store.markConversationDeletedByOwner).mockResolvedValue(true);
+		const service = buildChatConversationService({
+			now: () => new Date("2026-03-28T08:05:00.000Z"),
+			store,
+		});
+
+		await expect(
+			service.archive({ conversationId: "conv_01HQ", principal: createPrincipal() }),
+		).resolves.toEqual({ conversation });
+		await expect(
+			service.unarchive({ conversationId: "conv_01HQ", principal: createPrincipal() }),
+		).resolves.toEqual({ conversation });
+		await expect(
+			service.pin({ conversationId: "conv_01HQ", principal: createPrincipal() }),
+		).resolves.toEqual({ conversation });
+		await expect(
+			service.unpin({ conversationId: "conv_01HQ", principal: createPrincipal() }),
+		).resolves.toEqual({ conversation });
+		await expect(
+			service.deleteById({ conversationId: "conv_01HQ", principal: createPrincipal() }),
+		).resolves.toEqual({ deleted: true });
+
+		expect(store.markConversationArchivedByOwner).toHaveBeenCalledWith({
+			archivedAt: "2026-03-28T08:05:00.000Z",
+			conversationId: "conv_01HQ",
+			ownerUserId: "user_01HQ",
+			updatedAt: "2026-03-28T08:05:00.000Z",
+		});
+		expect(store.markConversationArchivedByOwner).toHaveBeenCalledWith({
+			archivedAt: null,
+			conversationId: "conv_01HQ",
+			ownerUserId: "user_01HQ",
+			updatedAt: "2026-03-28T08:05:00.000Z",
+		});
+		expect(store.markConversationPinnedByOwner).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			ownerUserId: "user_01HQ",
+			pinnedAt: "2026-03-28T08:05:00.000Z",
+			updatedAt: "2026-03-28T08:05:00.000Z",
+		});
+		expect(store.markConversationPinnedByOwner).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			ownerUserId: "user_01HQ",
+			pinnedAt: null,
+			updatedAt: "2026-03-28T08:05:00.000Z",
+		});
+		expect(store.markConversationDeletedByOwner).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			deletedAt: "2026-03-28T08:05:00.000Z",
+			ownerUserId: "user_01HQ",
+			updatedAt: "2026-03-28T08:05:00.000Z",
+		});
 	});
 
 	it("creates draft conversations with the canonical default title", async () => {

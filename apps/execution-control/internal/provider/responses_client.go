@@ -84,7 +84,9 @@ func (c *ResponsesClient) Execute(ctx context.Context, request ResponsesRequest)
 		}
 		return ResponsesClientResult{Err: err}
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	responseBody, readErr := io.ReadAll(response.Body)
 	if readErr != nil {
 		if ctx.Err() != nil {

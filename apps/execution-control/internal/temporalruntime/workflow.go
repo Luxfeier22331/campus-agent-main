@@ -483,12 +483,7 @@ func executeFinalization(
 }
 
 func workflowResultFromFinalization(finalization WriteFinalizationActivityOutput) CapabilityExecutionWorkflowResult {
-	return CapabilityExecutionWorkflowResult{
-		CompletedAt:   finalization.CompletedAt,
-		ProjectionRef: finalization.ProjectionRef,
-		RunID:         finalization.RunID,
-		Status:        finalization.Status,
-	}
+	return CapabilityExecutionWorkflowResult(finalization)
 }
 
 func ActivityTaskQueueForCapability(capability string) string {

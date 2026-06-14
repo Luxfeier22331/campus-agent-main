@@ -128,6 +128,7 @@ func TestSynthesisProviderCancellationProjectsAbortOutcome(t *testing.T) {
 	}
 	if synthesisAttempt == nil {
 		t.Fatal("synthesis attempt missing")
+		return
 	}
 	if synthesisAttempt.Status != "failed" ||
 		synthesisAttempt.CancelOutcome != execution.CancelOutcomeProviderConnectionAborted ||
@@ -271,6 +272,7 @@ func TestSynthesisProviderTimeoutProjectsTimeoutOutcome(t *testing.T) {
 	}
 	if synthesisAttempt == nil {
 		t.Fatal("synthesis attempt missing")
+		return
 	}
 	if synthesisAttempt.Status != "failed" ||
 		synthesisAttempt.CancelOutcome != execution.CancelOutcomeNotRequested ||

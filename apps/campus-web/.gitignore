@@ -1,0 +1,7 @@
+.generated/
+doc_build/
+public/_docs/
+public/_docs-static/
+public/_gated-docs/
+public/_gated-docs-search/
+public/docs/

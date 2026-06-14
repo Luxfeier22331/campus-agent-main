@@ -25,6 +25,10 @@ details live in split data documents.
   - Runtime: request execution and runtime projection tables
 - `app-api-schema/operator.md`
   - Operator: operator projection, audit, metric and quality tables
+- `identity-platform-schema.md`
+  - App-owned identity product schema; separate from Better Auth runtime tables
+- `dining-operations-schema.md`
+  - Dining draft, floorplan, menu, release candidate, release and audit schema
 
 ## Index-Owned Baseline
 
@@ -40,6 +44,8 @@ details live in split data documents.
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - `official_web` control-plane schema：`docs/data/app-api-official-web-schema.md`
+- identity platform logical schema：`docs/data/identity-platform-schema.md`
+- dining operations logical schema：`docs/data/dining-operations-schema.md`
 - authenticated notice processing operator
   contract：`docs/contracts/app-api-authenticated-notice-processing-http.md`
 
@@ -72,6 +78,17 @@ details live in split data documents.
 - `official_web.*`
 - `docs.*`
 - `profile.*`
+- `identity.*`
+- `dining.*`
+
+已冻结并 materialized 的 app-owned product schema：
+
+- `identity.*` product schema is governed by
+  `docs/data/identity-platform-schema.md`; current `app_auth.*` Better Auth
+  runtime tables must not be treated as the product account model.
+- `dining.*` product/ops schema is governed by
+  `docs/data/dining-operations-schema.md`; published dining student projection
+  reads release snapshots, not mutable draft rows.
 
 补充说明：
 
@@ -103,12 +120,20 @@ details live in split data documents.
 - `official_web.*`
 - `docs.*`
 - `profile.*`
+- `identity.*`
+- `dining.*`
 
 `official_web` control-plane 落地时，可以在保持同一 migration pipeline 的前提下新增
 `official_web.*`；具体规则另见 `docs/data/app-api-official-web-schema.md`。
 
 `campus_services_ops.*` 的表级 shape 另见
 `docs/data/campus-services-ops-source-truth-schema.md`。
+
+`identity.*` 的表级 shape 另见
+`docs/data/identity-platform-schema.md`。
+
+`dining.*` 的表级 shape 另见
+`docs/data/dining-operations-schema.md`。
 
 它们共享：
 
@@ -118,7 +143,7 @@ details live in split data documents.
 但 migration ownership 已显式拆分为：
 
 - `apps/app-api` 的 `drizzle.app_api_migrations` 拥有 `runtime.*` / `operator.*` /
-  `official_web.*` / `docs.*` / `profile.*`
+  `official_web.*` / `docs.*` / `profile.*` / `identity.*` / `dining.*`
 - `apps/app-api` shared-product bootstrap 负责 `app_auth.*` / `chat.*` 的 bootstrap
   / adoption，不与 `drizzle.app_api_migrations` 混用同一 ownership 语义
 

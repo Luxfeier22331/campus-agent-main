@@ -15,12 +15,18 @@ import {
 	buildAuthenticatedNoticeRunProcessingQueryService,
 	createPgAuthenticatedNoticeRunProcessingQueryStore,
 } from "../modules/authenticated-notice-run-processing-query";
+import { buildCampusExperienceService } from "../modules/campus-experience";
 import {
 	buildCampusServicesOpsService,
 	createPgCampusServicesOpsStore,
 } from "../modules/campus-services-ops";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
+import { buildDiningOperationsService, createPgDiningOperationsStore } from "../modules/dining-ops";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
+import {
+	buildIdentityPlatformService,
+	createPgIdentityPlatformStore,
+} from "../modules/identity-platform";
 import {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
@@ -111,10 +117,13 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.authenticatedNoticeRunProcessingCommandService ?? null;
 			let authenticatedNoticeRunProcessingQueryService =
 				input.dependencies.authenticatedNoticeRunProcessingQueryService ?? null;
+			let campusExperienceService = input.dependencies.campusExperienceService ?? null;
 			let campusServicesOpsService = input.dependencies.campusServicesOpsService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
+			let diningOperationsService = input.dependencies.diningOperationsService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
+			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
 			let ingestionTaskProjectionClient = input.dependencies.ingestionTaskProjectionClient ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
@@ -236,6 +245,26 @@ export function createRequestScopeFactory(input: {
 				return chatCommandService;
 			}
 
+			function resolveCampusExperienceService() {
+				if (campusExperienceService) {
+					return campusExperienceService;
+				}
+
+				campusExperienceService = buildCampusExperienceService();
+				return campusExperienceService;
+			}
+
+			function resolveDiningOperationsService() {
+				if (diningOperationsService) {
+					return diningOperationsService;
+				}
+
+				diningOperationsService = buildDiningOperationsService({
+					store: createPgDiningOperationsStore(input.env, { getDb: runtime.getFreshDb }),
+				});
+				return diningOperationsService;
+			}
+
 			function resolveOfficialWebCommandService() {
 				if (officialWebCommandService) {
 					return officialWebCommandService;
@@ -297,6 +326,22 @@ export function createRequestScopeFactory(input: {
 					store: createPgDocsReadModelStore(input.env, { getDb: runtime.getDb }),
 				});
 				return docsService;
+			}
+
+			function resolveIdentityPlatformService() {
+				if (identityPlatformService) {
+					return identityPlatformService;
+				}
+
+				identityPlatformService = buildIdentityPlatformService({
+					identityStore: createPgIdentityPlatformStore(input.env, {
+						getDb: runtime.getFreshDb,
+					}),
+					profileMemoryStore: createPgProfileMemoryStore(input.env, {
+						getDb: runtime.getFreshDb,
+					}),
+				});
+				return identityPlatformService;
 			}
 
 			function resolveIngestionTaskProjectionClient() {
@@ -418,10 +463,13 @@ export function createRequestScopeFactory(input: {
 				resolveAuthenticatedNoticeProcessingQueryService,
 				resolveAuthenticatedNoticeRunProcessingCommandService,
 				resolveAuthenticatedNoticeRunProcessingQueryService,
+				resolveCampusExperienceService,
 				resolveCampusServicesOpsService,
 				resolveChatCommandService,
 				resolveChatConversationService,
+				resolveDiningOperationsService,
 				resolveDocsService,
+				resolveIdentityPlatformService,
 				resolveIngestionTaskProjectionClient,
 				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
@@ -435,6 +483,7 @@ export function createRequestScopeFactory(input: {
 				resolveProfileMemoryService,
 				resolveRuntimeRunService,
 				resolveWeChatOfficialAccountCommandService,
+				telemetry: input.telemetry,
 			};
 		},
 		officialWebExecutionStatusService,

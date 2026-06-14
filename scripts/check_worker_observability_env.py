@@ -50,7 +50,7 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "SENTRY_DSN": "SENTRY_DSN",
         },
     },
-    "apps/hub-web/.dev.vars": {
+    "apps/campus-web/.dev.vars": {
         "required_keys": (
             "SENTRY_DSN",
             "SENTRY_ENVIRONMENT",

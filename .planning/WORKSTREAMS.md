@@ -30,7 +30,7 @@ operator truth or release acceptance criteria.
 
 | Area | Scope | Reopen Trigger |
 | --- | --- | --- |
-| Product Plane | `hub-web`, `public-chat-web`, `public-docs`, `protected-panel-web`, shared `app-api` | Product surface, auth/session, request projection, or browser contract changes |
+| Product Plane | `campus-web` including `/docs/*`, legacy `public-chat-web`, `protected-panel-web`, shared `app-api` | Product surface, auth/session, request projection, or browser contract changes |
 | Execution Plane | `execution-control`, Temporal workflows, run/step projection, readiness | Workflow topology, projection schema, execution ingress, cancel semantics, or worker readiness changes |
 | Capability Plane | RAG, navigation, notice, campus services, semantic worker | New typed tool/activity, agent-as-tool boundary, routing/admission, or capability evidence changes |
 | Data Plane | ingestion, object storage, Qdrant, source truth, read models | Source family admission, ingestion release, query-enabled surface, ACL, or data-plane transport changes |
@@ -82,6 +82,13 @@ status as current project truth.
   published current-effective release snapshots. Remaining staging/runtime proof
   and capability-opening work belong to capability/ops tracking, not main-chain
   completion.
+- Document reader appendix / form downloads are deferred backlog, not part of
+  the current docs hardening closeout. Current reader delivery renders appendix
+  tables as reader sections/blocks. Future work should expose "download original
+  appendix" only when source truth contains a real original file asset, delivered
+  as a reader supplement under the same document version package; generated
+  table exports may be added separately but must not be labeled as original
+  source files.
 - Execution-plane signal: bounded semantic retry / replan is now implemented as
   an explicit typed
   outcome allow-list: `provider_timeout`, `tool_handler_failed`,

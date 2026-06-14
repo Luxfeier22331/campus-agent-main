@@ -54,6 +54,7 @@ func TestPlanWithPolicyProjectsCanonicalWorkflowPlan(t *testing.T) {
 
 	if plan == nil {
 		t.Fatal("expected workflow plan")
+		return
 	}
 	if plan.SchemaVersion != WorkflowPlanSchemaVersion {
 		t.Fatalf("schema version = %q, want %q", plan.SchemaVersion, WorkflowPlanSchemaVersion)
@@ -115,6 +116,7 @@ func TestPlanWithPolicyBuildsCapabilityOnlyNoticeKnowledgeFollowthroughPreplan(t
 
 	if plan == nil {
 		t.Fatal("expected workflow plan")
+		return
 	}
 	if plan.WorkflowMode != WorkflowModeMultiStep {
 		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
@@ -169,6 +171,7 @@ func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing
 
 	if plan == nil {
 		t.Fatal("expected planner to emit capability preplan")
+		return
 	}
 	if plan.WorkflowMode != WorkflowModeMultiStep {
 		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
@@ -182,6 +185,7 @@ func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing
 	capabilityPlan := plan.CapabilityPlan()
 	if capabilityPlan == nil {
 		t.Fatal("expected internal capability plan")
+		return
 	}
 	if !sameCapabilityArtifacts(
 		capabilityPlan.RequiredArtifacts,
@@ -263,6 +267,7 @@ func TestPlanWithPolicyUsesIntentPolicyArtifactSignals(t *testing.T) {
 	handoff := plan.SelectedHandoff()
 	if handoff == nil {
 		t.Fatal("expected policy-backed transport signal to produce handoff")
+		return
 	}
 	if handoff.PayloadKind != "transport_schedule_lookup" {
 		t.Fatalf("payload kind = %q, want transport_schedule_lookup", handoff.PayloadKind)

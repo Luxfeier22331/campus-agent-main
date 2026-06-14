@@ -25,7 +25,7 @@ updated: 2026-06-01
 - 旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-co
   llection-retention-and-expiration.md`
 - 当前 self-hosted Qdrant native backup 策略：
-  `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
+  `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 - 当前 self-hosted Qdrant native backup 操作：
   `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md`
 - 当前优先级和执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream

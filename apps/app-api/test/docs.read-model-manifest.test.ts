@@ -54,53 +54,112 @@ describe("docs read model manifest", () => {
 		).toThrow("unsupported docs read model scope: campus_notices/internal_notice");
 	});
 
-	it("rejects scoped rules because they are not in the current docs consumption surface", () => {
-		expect(() =>
-			buildDocsReadModelImportPlan({
-				collections: [
-					{
-						collection: "scoped_rules",
-						corpus: "regulations",
-						description: "Scoped rules are a non-serving holding collection.",
-						displayName: "专项规章",
-						updatedAt: "2026-05-18T08:00:00.000Z",
+	it("allows scoped rules as gated reader documents without making them public static assets", () => {
+		const plan = buildDocsReadModelImportPlan({
+			collections: [
+				{
+					collection: "scoped_rules",
+					corpus: "regulations",
+					description: "Scoped rules are gated reader documents.",
+					displayName: "专项规章",
+					updatedAt: "2026-05-18T08:00:00.000Z",
+				},
+			],
+			documentVersions: [
+				{
+					deliveryMode: "gated_asset",
+					docId: "regulation:scoped:college-rule",
+					entitlementGroups: ["campus_members"],
+					isCurrent: true,
+					label: "现行版",
+					updatedAt: "2026-05-18T08:00:00.000Z",
+					versionId: "sha256:scoped-rule",
+					versionSlug: "2026-current",
+					visibilityLevel: "restricted",
+				},
+			],
+			documents: [
+				{
+					canonicalUrl: "/docs/regulations/scoped_rules/college-rule",
+					collection: "scoped_rules",
+					corpus: "regulations",
+					currentVersionId: "sha256:scoped-rule",
+					currentVersionSlug: "2026-current",
+					docId: "regulation:scoped:college-rule",
+					documentSlug: "college-rule",
+					title: "某学院专项实施细则",
+					updatedAt: "2026-05-18T08:00:00.000Z",
+				},
+			],
+			generatedAt: "2026-05-18T08:00:00.000Z",
+			readerAssets: [
+				{
+					contentUrl: "/_gated-docs/regulations/scoped_rules/college-rule/2026-current/reader.json",
+					outlineUrl:
+						"/_gated-docs/regulations/scoped_rules/college-rule/2026-current/outline.json",
+					sourceObjects: { reader: "reader-assets/scoped-rule/reader.json" },
+					staticPrefix: "/_gated-docs/regulations/scoped_rules/college-rule/2026-current",
+					targetObjects: {
+						reader: "_gated-docs/regulations/scoped_rules/college-rule/2026-current/reader.json",
 					},
-				],
-				documentVersions: [
-					{
-						deliveryMode: "gated_asset",
-						docId: "regulation:scoped:college-rule",
-						entitlementGroups: ["campus_members"],
-						isCurrent: true,
-						label: "现行版",
-						updatedAt: "2026-05-18T08:00:00.000Z",
-						versionId: "sha256:scoped-rule",
-						versionSlug: "2026-current",
-						visibilityLevel: "restricted",
-					},
-				],
-				documents: [
-					{
-						canonicalUrl: "/docs/regulations/scoped_rules/college-rule",
-						collection: "scoped_rules",
-						corpus: "regulations",
-						currentVersionId: "sha256:scoped-rule",
-						currentVersionSlug: "2026-current",
-						docId: "regulation:scoped:college-rule",
-						documentSlug: "college-rule",
-						title: "某学院专项实施细则",
-						updatedAt: "2026-05-18T08:00:00.000Z",
-					},
-				],
-				generatedAt: "2026-05-18T08:00:00.000Z",
-				readerAssets: [],
-				schemaVersion: "document_reader_publish_manifest_v1",
-				searchUnits: [],
-			}),
-		).toThrow("unsupported docs read model scope: regulations/scoped_rules");
+					updatedAt: "2026-05-18T08:00:00.000Z",
+					versionId: "sha256:scoped-rule",
+				},
+			],
+			schemaVersion: "document_reader_publish_manifest_v1",
+			searchUnits: [
+				{
+					anchor: "overview",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/law",
+					docId: "curriculum:law",
+					highlightRootUnitIds: ["law-root"],
+					searchText: "法学 培养目标",
+					searchUnitId: "search_public_current",
+					snippet: "法学专业培养目标。",
+					title: "培养目标",
+					unitOrder: 1,
+					versionId: "ver_law",
+				},
+				{
+					anchor: "history",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/law/v/2025-history#history",
+					docId: "curriculum:law",
+					highlightRootUnitIds: ["history-root"],
+					searchText: "历史版本",
+					searchUnitId: "search_public_history",
+					snippet: "历史版本正文。",
+					title: "历史版本",
+					unitOrder: 1,
+					versionId: "ver_law_2025",
+				},
+				{
+					anchor: "restricted",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/restricted#restricted",
+					docId: "curriculum:restricted",
+					highlightRootUnitIds: ["restricted-root"],
+					searchText: "受限正文",
+					searchUnitId: "search_restricted",
+					snippet: "受限正文。",
+					title: "受限章节",
+					unitOrder: 1,
+					versionId: "ver_restricted",
+				},
+			],
+		});
+
+		expect(plan.scopes).toEqual([{ collection: "scoped_rules", corpus: "regulations" }]);
+		const syncManifest = buildPublicDocsSyncManifestFromReadModel(plan, "2026-05-18T08:10:00.000Z");
+		expect(syncManifest.entries[0]).toMatchObject({
+			collection: "scoped_rules",
+			corpus: "regulations",
+			deliveryMode: "gated_asset",
+			targetObjects: {
+				reader: "_gated-docs/regulations/scoped_rules/college-rule/2026-current/reader.json",
+			},
+		});
 	});
 
-	it("builds a deterministic import plan and exports only public static assets", () => {
+	it("builds a deterministic import plan and exports current public and gated search units", () => {
 		const plan = buildDocsReadModelImportPlan({
 			collections: [
 				{
@@ -211,7 +270,44 @@ describe("docs read model manifest", () => {
 				},
 			],
 			schemaVersion: "document_reader_publish_manifest_v1",
-			searchUnits: [],
+			searchUnits: [
+				{
+					anchor: "overview",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/law",
+					docId: "curriculum:law",
+					highlightRootUnitIds: ["law-root"],
+					searchText: "法学 培养目标",
+					searchUnitId: "search_public_current",
+					snippet: "法学专业培养目标。",
+					title: "培养目标",
+					unitOrder: 1,
+					versionId: "ver_law",
+				},
+				{
+					anchor: "history",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/law/v/2025-history#history",
+					docId: "curriculum:law",
+					highlightRootUnitIds: ["history-root"],
+					searchText: "历史版本",
+					searchUnitId: "search_public_history",
+					snippet: "历史版本正文。",
+					title: "历史版本",
+					unitOrder: 1,
+					versionId: "ver_law_2025",
+				},
+				{
+					anchor: "restricted",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/restricted#restricted",
+					docId: "curriculum:restricted",
+					highlightRootUnitIds: ["restricted-root"],
+					searchText: "受限正文",
+					searchUnitId: "search_restricted",
+					snippet: "受限正文。",
+					title: "受限章节",
+					unitOrder: 1,
+					versionId: "ver_restricted",
+				},
+			],
 		});
 
 		expect(plan.scopes).toEqual([{ collection: "curriculum_plan", corpus: "curriculum" }]);
@@ -273,6 +369,38 @@ describe("docs read model manifest", () => {
 				},
 			],
 			generatedAt: "2026-04-27T08:10:00.000Z",
+			searchUnits: [
+				{
+					anchor: "overview",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/law",
+					collection: "curriculum_plan",
+					corpus: "curriculum",
+					docId: "curriculum:law",
+					documentSlug: "law",
+					documentTitle: "法学本科人才培养方案",
+					highlightRootUnitIds: ["law-root"],
+					searchUnitId: "search_public_current",
+					snippet: "法学专业培养目标。",
+					title: "培养目标",
+					versionId: "ver_law",
+					versionSlug: "2026-current",
+				},
+				{
+					anchor: "restricted",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/restricted",
+					collection: "curriculum_plan",
+					corpus: "curriculum",
+					docId: "curriculum:restricted",
+					documentSlug: "restricted",
+					documentTitle: "受限培养方案",
+					highlightRootUnitIds: ["restricted-root"],
+					searchUnitId: "search_restricted",
+					snippet: "受限正文。",
+					title: "受限章节",
+					versionId: "ver_restricted",
+					versionSlug: "2026-current",
+				},
+			],
 			surface: "public_docs",
 		});
 	});

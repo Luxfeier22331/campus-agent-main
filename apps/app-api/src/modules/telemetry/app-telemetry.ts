@@ -132,6 +132,24 @@ export function createAppTelemetry(
 			});
 		},
 
+		async recordIdentityEndpoint(input) {
+			await axiomSink.emit({
+				correlation_id: input.correlationId,
+				endpoint: input.endpoint,
+				...buildAxiomEnvelope(
+					{
+						errorCode: input.errorCode,
+						eventType: "identity.endpoint",
+						principalType: input.principalType,
+						status: String(input.status),
+						surface: input.surface,
+						traceId: input.correlationId,
+					},
+					telemetryMetadata,
+				),
+			});
+		},
+
 		async recordProjectionDrain(input) {
 			await axiomSink.emit({
 				abandoned_count: input.abandoned ?? 0,

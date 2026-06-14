@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 520" role="img" aria-label="海淀一食堂一层示意图">
+  <rect x="40" y="36" width="560" height="448" rx="24" fill="#fff" stroke="#d0d5dd" />
+  <rect x="58" y="74" width="148" height="88" rx="14" fill="#fff" stroke="#d0d5dd" />
+  <text x="132" y="124" text-anchor="middle" font-size="17" font-weight="600" fill="#101828">盖饭</text>
+  <rect x="246" y="74" width="148" height="88" rx="14" fill="#fff" stroke="#d0d5dd" />
+  <text x="320" y="124" text-anchor="middle" font-size="17" font-weight="600" fill="#101828">面食</text>
+  <rect x="434" y="74" width="148" height="88" rx="14" fill="#fff" stroke="#d0d5dd" />
+  <text x="508" y="124" text-anchor="middle" font-size="17" font-weight="600" fill="#101828">早餐</text>
+  <rect x="90" y="326" width="148" height="88" rx="14" fill="#fff" stroke="#d0d5dd" />
+  <text x="164" y="376" text-anchor="middle" font-size="17" font-weight="600" fill="#101828">汤粥</text>
+  <rect x="402" y="326" width="148" height="88" rx="14" fill="#fff" stroke="#d0d5dd" />
+  <text x="476" y="376" text-anchor="middle" font-size="17" font-weight="600" fill="#101828">饮品</text>
+  <rect x="112" y="214" width="416" height="76" rx="18" fill="#eef0f3" />
+  <text x="320" y="258" text-anchor="middle" font-size="16" fill="#667085">就餐区</text>
+</svg>
