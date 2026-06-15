@@ -7,7 +7,11 @@ import (
 )
 
 func EnsurePersonalMemorySchema(ctx context.Context, cfg config.Config) error {
-	executor, err := newPersonalMemoryExecutor(cfg)
+	resolver, err := newStaticEmbeddingProviderConfigResolver(cfg, providerConfigRolePersonalMemoryEmbedding)
+	if err != nil {
+		return err
+	}
+	executor, err := newPersonalMemoryExecutor(cfg, resolver)
 	if err != nil {
 		return err
 	}
@@ -15,7 +19,11 @@ func EnsurePersonalMemorySchema(ctx context.Context, cfg config.Config) error {
 }
 
 func CheckPersonalMemorySchema(ctx context.Context, cfg config.Config) error {
-	executor, err := newPersonalMemoryExecutor(cfg)
+	resolver, err := newStaticEmbeddingProviderConfigResolver(cfg, providerConfigRolePersonalMemoryEmbedding)
+	if err != nil {
+		return err
+	}
+	executor, err := newPersonalMemoryExecutor(cfg, resolver)
 	if err != nil {
 		return err
 	}

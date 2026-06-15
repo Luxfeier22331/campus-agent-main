@@ -69,6 +69,7 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -184,6 +185,7 @@ func TestExecutePrimaryAgentActivityProjectsBoundedReplanAttempt(t *testing.T) {
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-replan",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -276,6 +278,7 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-failed",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -366,6 +369,7 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-bad-args",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -449,6 +453,7 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T)
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-unadmitted",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -513,6 +518,7 @@ func TestExecutePrimaryAgentActivityRejectsSdkToolOutsideVisibleCapabilities(t *
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:sdk-tool-hidden-capability",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{

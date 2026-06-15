@@ -57,14 +57,16 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 		t.Fatalf("load pricing catalog: %v", err)
 	}
 	executor := providerBackedRAGSynthesisExecutor{
-		client: provider.NewResponsesClient(provider.ResponsesClientConfig{
-			APIKey:        "test-key",
-			BaseURL:       server.URL,
-			HTTPClient:    server.Client(),
-			ModelName:     "gpt-5-mini",
-			ModelProvider: "openai",
-			Pricing:       catalog,
-		}),
+		clientFactory: func(providerConfigSnapshot) *provider.ResponsesClient {
+			return provider.NewResponsesClient(provider.ResponsesClientConfig{
+				APIKey:        "test-key",
+				BaseURL:       server.URL,
+				HTTPClient:    server.Client(),
+				ModelName:     "gpt-5-mini",
+				ModelProvider: "openai",
+				Pricing:       catalog,
+			})
+		},
 	}
 
 	result, err := executor.ExecuteRAGSynthesis(context.Background(), ragSynthesisPacket{

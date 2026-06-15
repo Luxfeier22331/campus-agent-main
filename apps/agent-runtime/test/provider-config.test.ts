@@ -4,9 +4,75 @@ import type { AgentRunner } from "../src/primary-agent.ts";
 import {
 	createOpenAIAgentsRunnerFromEnv,
 	openAIAgentsRunnerOptionsFromEnv,
+	openAIAgentsRunnerOptionsFromProviderConfig,
 } from "../src/provider-config.ts";
 
 describe("agent runtime provider config", () => {
+	it("creates SDK runner options from request scoped provider config", () => {
+		const provider: ModelProvider = {
+			async getModel() {
+				throw new Error("provider should not be resolved by config tests");
+			},
+		};
+		const providerConfigs: unknown[] = [];
+
+		const options = openAIAgentsRunnerOptionsFromProviderConfig(
+			{
+				apiKey: "request-provider-key",
+				baseUrl: "https://request-provider.example/v1",
+				model: "gpt-request",
+				provider: "openai",
+				transport: "responses",
+			},
+			{
+				createProvider(config) {
+					providerConfigs.push(config);
+					return provider;
+				},
+			},
+		);
+
+		expect(options.model).toBe("gpt-request");
+		expect(options.modelProvider).toBe(provider);
+		expect(providerConfigs).toEqual([
+			{
+				apiKey: "request-provider-key",
+				baseURL: "https://request-provider.example/v1",
+				useResponses: true,
+			},
+		]);
+	});
+
+	it("rejects incomplete request scoped provider config", () => {
+		expect(() =>
+			openAIAgentsRunnerOptionsFromProviderConfig({
+				apiKey: "",
+				baseUrl: "https://provider.example/v1",
+				model: "gpt-agent",
+				provider: "openai",
+				transport: "responses",
+			}),
+		).toThrow("provider api key is required");
+		expect(() =>
+			openAIAgentsRunnerOptionsFromProviderConfig({
+				apiKey: "provider-key",
+				baseUrl: "https://provider.example/v1",
+				model: "",
+				provider: "openai",
+				transport: "responses",
+			}),
+		).toThrow("provider model is required");
+		expect(() =>
+			openAIAgentsRunnerOptionsFromProviderConfig({
+				apiKey: "provider-key",
+				baseUrl: "https://provider.example/v1",
+				model: "gpt-agent",
+				provider: "openai",
+				transport: "chat_completions",
+			}),
+		).toThrow("provider transport must be responses");
+	});
+
 	it("creates SDK runner options from prompt runtime env", () => {
 		const provider: ModelProvider = {
 			async getModel() {

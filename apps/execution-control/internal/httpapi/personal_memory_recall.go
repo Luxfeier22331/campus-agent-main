@@ -29,11 +29,9 @@ type qdrantPersonalMemoryExecutor struct {
 	collection          string
 	defaultMaxChars     int
 	defaultTopK         int
-	embeddingAPIKey     string
-	embeddingBaseURL    string
-	embeddingDimensions int
 	embeddingHTTPClient *http.Client
-	embeddingModel      string
+	embeddingRole       providerConfigRole
+	configResolver      providerConfigResolver
 	httpClient          *http.Client
 	qdrantQueryAPIKey   string
 	qdrantURL           string
@@ -42,7 +40,10 @@ type qdrantPersonalMemoryExecutor struct {
 	timeout             time.Duration
 }
 
-func newQdrantPersonalMemoryExecutor(cfg config.Config) (personalMemoryExecutor, error) {
+func newQdrantPersonalMemoryExecutor(
+	cfg config.Config,
+	configResolver providerConfigResolver,
+) (personalMemoryExecutor, error) {
 	qdrantURL := strings.TrimRight(strings.TrimSpace(cfg.QdrantURL), "/")
 	if qdrantURL == "" {
 		return nil, errors.New("QDRANT_URL is required for personal memory recall")
@@ -56,22 +57,6 @@ func newQdrantPersonalMemoryExecutor(cfg config.Config) (personalMemoryExecutor,
 	}
 	if strings.TrimSpace(cfg.QdrantQueryAPIKey) == "" {
 		return nil, errors.New("QDRANT_QUERY_API_KEY is required for personal memory recall")
-	}
-	embeddingBaseURL := strings.TrimRight(strings.TrimSpace(cfg.EmbeddingBaseURL), "/")
-	if embeddingBaseURL == "" {
-		embeddingBaseURL = strings.TrimRight(strings.TrimSpace(cfg.PromptRuntimeBaseURL), "/")
-	}
-	if embeddingBaseURL == "" {
-		return nil, errors.New("EMBEDDING_BASE_URL or PROMPT_RUNTIME_BASE_URL is required")
-	}
-	if strings.TrimSpace(cfg.EmbeddingAPIKey) == "" {
-		return nil, errors.New("EMBEDDING_API_KEY is required for personal memory recall")
-	}
-	if strings.TrimSpace(cfg.EmbeddingModel) == "" {
-		return nil, errors.New("EMBEDDING_MODEL is required for personal memory recall")
-	}
-	if cfg.EmbeddingDimensions <= 0 {
-		return nil, errors.New("EMBEDDING_DIMENSIONS is required for personal memory recall")
 	}
 	collection := strings.TrimSpace(cfg.PersonalMemoryCollection)
 	if collection == "" {
@@ -97,11 +82,9 @@ func newQdrantPersonalMemoryExecutor(cfg config.Config) (personalMemoryExecutor,
 		collection:          collection,
 		defaultMaxChars:     maxChars,
 		defaultTopK:         topK,
-		embeddingAPIKey:     strings.TrimSpace(cfg.EmbeddingAPIKey),
-		embeddingBaseURL:    embeddingBaseURL,
-		embeddingDimensions: cfg.EmbeddingDimensions,
 		embeddingHTTPClient: &http.Client{Timeout: timeout},
-		embeddingModel:      strings.TrimSpace(cfg.EmbeddingModel),
+		embeddingRole:       providerConfigRolePersonalMemoryEmbedding,
+		configResolver:      configResolver,
 		httpClient:          httpClient,
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
 		qdrantURL:           qdrantURL,
@@ -116,6 +99,26 @@ func (e qdrantPersonalMemoryExecutor) HealthCheck(ctx context.Context) error {
 		return err
 	}
 	return e.checkCollection(ctx)
+}
+
+func (e qdrantPersonalMemoryExecutor) CheckEmbeddingCompatibility(
+	ctx context.Context,
+	snapshot providerConfigSnapshot,
+) error {
+	if snapshot.Dimensions <= 0 {
+		return errors.New("embedding provider config snapshot dimensions is required")
+	}
+	if err := e.checkQdrantReady(ctx); err != nil {
+		return err
+	}
+	dimensions, err := e.collectionDenseVectorDimensions(ctx)
+	if err != nil {
+		return err
+	}
+	if dimensions != snapshot.Dimensions {
+		return fmt.Errorf("qdrant personal memory dense vector size = %d, want %d", dimensions, snapshot.Dimensions)
+	}
+	return nil
 }
 
 func (e qdrantPersonalMemoryExecutor) EnsureSchema(ctx context.Context) error {
@@ -152,6 +155,29 @@ func (e qdrantPersonalMemoryExecutor) checkQdrantReady(ctx context.Context) erro
 }
 
 func (e qdrantPersonalMemoryExecutor) checkCollection(ctx context.Context) error {
+	dimensions, distance, err := e.collectionVectorSchema(ctx)
+	if err != nil {
+		return err
+	}
+	embeddingDimensions, err := e.embeddingDimensionsForSchema(ctx)
+	if err != nil {
+		return err
+	}
+	if dimensions != embeddingDimensions {
+		return fmt.Errorf("qdrant personal memory dense vector size = %d, want %d", dimensions, embeddingDimensions)
+	}
+	if !strings.EqualFold(strings.TrimSpace(distance), "cosine") {
+		return fmt.Errorf("qdrant personal memory dense vector distance = %q, want Cosine", distance)
+	}
+	return nil
+}
+
+func (e qdrantPersonalMemoryExecutor) collectionDenseVectorDimensions(ctx context.Context) (int, error) {
+	dimensions, _, err := e.collectionVectorSchema(ctx)
+	return dimensions, err
+}
+
+func (e qdrantPersonalMemoryExecutor) collectionVectorSchema(ctx context.Context) (int, string, error) {
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -159,19 +185,19 @@ func (e qdrantPersonalMemoryExecutor) checkCollection(ctx context.Context) error
 		nil,
 	)
 	if err != nil {
-		return err
+		return 0, "", err
 	}
 	request.Header.Set("api-key", e.qdrantQueryAPIKey)
 	response, err := e.httpClient.Do(request)
 	if err != nil {
-		return err
+		return 0, "", err
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode == http.StatusNotFound {
-		return errPersonalMemoryCollectionMissing
+		return 0, "", errPersonalMemoryCollectionMissing
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("qdrant personal memory collection status %d", response.StatusCode)
+		return 0, "", fmt.Errorf("qdrant personal memory collection status %d", response.StatusCode)
 	}
 	var payload struct {
 		Result struct {
@@ -186,26 +212,24 @@ func (e qdrantPersonalMemoryExecutor) checkCollection(ctx context.Context) error
 		} `json:"result"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		return fmt.Errorf("parse qdrant personal memory collection: %w", err)
+		return 0, "", fmt.Errorf("parse qdrant personal memory collection: %w", err)
 	}
 	dense, ok := payload.Result.Config.Params.Vectors["dense"]
 	if !ok {
-		return errors.New("qdrant personal memory collection missing dense vector")
+		return 0, "", errors.New("qdrant personal memory collection missing dense vector")
 	}
-	if dense.Size != e.embeddingDimensions {
-		return fmt.Errorf("qdrant personal memory dense vector size = %d, want %d", dense.Size, e.embeddingDimensions)
-	}
-	if !strings.EqualFold(strings.TrimSpace(dense.Distance), "cosine") {
-		return fmt.Errorf("qdrant personal memory dense vector distance = %q, want Cosine", dense.Distance)
-	}
-	return nil
+	return dense.Size, dense.Distance, nil
 }
 
 func (e qdrantPersonalMemoryExecutor) createCollection(ctx context.Context) error {
+	embeddingDimensions, err := e.embeddingDimensionsForSchema(ctx)
+	if err != nil {
+		return err
+	}
 	body := map[string]any{
 		"vectors": map[string]any{
 			"dense": map[string]any{
-				"size":     e.embeddingDimensions,
+				"size":     embeddingDimensions,
 				"distance": "Cosine",
 			},
 		},
@@ -392,10 +416,14 @@ func (e qdrantPersonalMemoryExecutor) embedMemoryQuery(
 }
 
 func (e qdrantPersonalMemoryExecutor) embedMemoryText(ctx context.Context, text string) ([]float64, error) {
+	embeddingConfig, err := e.resolveEmbeddingProviderConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
 	body, err := json.Marshal(map[string]any{
-		"model":      e.embeddingModel,
+		"model":      embeddingConfig.Model,
 		"input":      strings.TrimSpace(text),
-		"dimensions": e.embeddingDimensions,
+		"dimensions": embeddingConfig.Dimensions,
 	})
 	if err != nil {
 		return nil, err
@@ -403,13 +431,13 @@ func (e qdrantPersonalMemoryExecutor) embedMemoryText(ctx context.Context, text 
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		e.embeddingBaseURL+"/embeddings",
+		strings.TrimRight(embeddingConfig.BaseURL, "/")+"/embeddings",
 		bytes.NewReader(body),
 	)
 	if err != nil {
 		return nil, err
 	}
-	httpRequest.Header.Set("authorization", "Bearer "+e.embeddingAPIKey)
+	httpRequest.Header.Set("authorization", "Bearer "+embeddingConfig.APIKey)
 	httpRequest.Header.Set("content-type", "application/json")
 	response, err := e.embeddingHTTPClient.Do(httpRequest)
 	if err != nil {
@@ -434,10 +462,31 @@ func (e qdrantPersonalMemoryExecutor) embedMemoryText(ctx context.Context, text 
 	if len(payload.Data) == 0 || len(payload.Data[0].Embedding) == 0 {
 		return nil, errors.New("embedding response did not contain embedding")
 	}
-	if e.embeddingDimensions > 0 && len(payload.Data[0].Embedding) != e.embeddingDimensions {
-		return nil, fmt.Errorf("embedding dimension = %d, want %d", len(payload.Data[0].Embedding), e.embeddingDimensions)
+	if embeddingConfig.Dimensions > 0 && len(payload.Data[0].Embedding) != embeddingConfig.Dimensions {
+		return nil, fmt.Errorf("embedding dimension = %d, want %d", len(payload.Data[0].Embedding), embeddingConfig.Dimensions)
 	}
 	return payload.Data[0].Embedding, nil
+}
+
+func (e qdrantPersonalMemoryExecutor) resolveEmbeddingProviderConfig(
+	ctx context.Context,
+) (providerConfigSnapshot, error) {
+	role := e.embeddingRole
+	if role == "" {
+		role = providerConfigRolePersonalMemoryEmbedding
+	}
+	if e.configResolver != nil {
+		return e.configResolver.ResolveActiveProviderConfig(ctx, role)
+	}
+	return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
+}
+
+func (e qdrantPersonalMemoryExecutor) embeddingDimensionsForSchema(ctx context.Context) (int, error) {
+	snapshot, err := e.resolveEmbeddingProviderConfig(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return snapshot.Dimensions, nil
 }
 
 func (e qdrantPersonalMemoryExecutor) writeQdrant(

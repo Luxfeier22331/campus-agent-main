@@ -128,7 +128,7 @@ func ValidateUpsertRequest(request UpsertRequest) error {
 	if len([]byte(strings.TrimSpace(request.CompactText))) > MaxCompactTextBytes {
 		return fmt.Errorf("%w: compact_text exceeds limit", ErrInvalidMemoryProjection)
 	}
-	if containsForbiddenMemoryPayloadKey(request.CompactText) {
+	if ContainsForbiddenMemoryPayload(request.CompactText) {
 		return fmt.Errorf("%w: compact_text contains forbidden raw payload marker", ErrInvalidMemoryProjection)
 	}
 	return nil
@@ -222,7 +222,7 @@ func allowedValue(value string, allowed ...string) bool {
 	return false
 }
 
-func containsForbiddenMemoryPayloadKey(value string) bool {
+func ContainsForbiddenMemoryPayload(value string) bool {
 	normalized := strings.ToLower(value)
 	for _, marker := range []string{
 		"api_key",
@@ -232,7 +232,10 @@ func containsForbiddenMemoryPayloadKey(value string) bool {
 		"raw_prompt",
 		"raw_source",
 		"secret",
+		"token",
 		"transcript:",
+		"密钥",
+		"权限",
 	} {
 		if strings.Contains(normalized, marker) {
 			return true

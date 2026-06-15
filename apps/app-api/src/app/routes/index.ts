@@ -20,6 +20,7 @@ import { registerInternalRoutes } from "./internal";
 import { registerOfficialWebRoutes } from "./official-web";
 import { registerOperatorRoutes } from "./operator";
 import { registerProfileMemoryRoutes } from "./profile-memory";
+import { registerProviderConfigRoutes } from "./provider-config";
 import { registerRuntimeRoutes } from "./runtime";
 import { registerWeChatOfficialAccountRoutes } from "./wechat-official-account";
 
@@ -121,6 +122,12 @@ export function registerAppRoutes(input: {
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 	registerOperatorRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerProviderConfigRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

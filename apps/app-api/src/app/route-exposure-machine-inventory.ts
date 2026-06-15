@@ -26,6 +26,12 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "x-app-internal-auth",
 	},
 	{
+		method: "GET",
+		path: "/api/internal/provider-config/active",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth; returns active provider runtime snapshot",
+	},
+	{
 		method: "POST",
 		path: "/api/internal/operator/authenticated-notices/processing-snapshots",
 		callerClass: "machine-internal",

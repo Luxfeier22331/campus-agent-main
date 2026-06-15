@@ -102,6 +102,8 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 				Confidence:  0.95,
 				MemoryID:    "inf_goal_001",
 				MemoryType:  "goal",
+				ReasonCode:  "explicit_long_term_goal",
+				SourceHash:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			}},
 			RunID:         "run-workflow-001",
 			SchemaVersion: "memory_update_extract_result_v1",

@@ -3,6 +3,14 @@ import type { AgentRunner } from "../src/primary-agent.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
 
+const providerConfig = {
+	apiKey: "test-provider-key",
+	baseUrl: "https://provider.example/v1",
+	model: "gpt-test",
+	provider: "openai",
+	transport: "responses",
+};
+
 const catalog: ToolCatalog = {
 	schemaVersion: "tool-catalog.v1",
 	catalogVersion: "test",
@@ -58,6 +66,7 @@ describe("primary agent runtime", () => {
 			turnId: "turn-1",
 			traceId: "trace-1",
 			input: "hi 你是谁",
+			providerConfig,
 			visibleCapabilities: ["campus_services"],
 		});
 
@@ -108,6 +117,7 @@ describe("primary agent runtime", () => {
 			turnId: "turn-2",
 			traceId: "trace-2",
 			input: "校车今天几点",
+			providerConfig,
 			visibleCapabilities: ["campus_services"],
 		});
 
@@ -147,6 +157,7 @@ describe("primary agent runtime", () => {
 			turnId: "turn-4",
 			traceId: "trace-4",
 			input: "学籍管理规定是什么",
+			providerConfig,
 			visibleCapabilities: ["knowledge"],
 		});
 
@@ -209,6 +220,7 @@ describe("primary agent runtime", () => {
 			turnId: "turn-3",
 			traceId: "trace-3",
 			input: "校车今天几点",
+			providerConfig,
 			visibleCapabilities: ["campus_services"],
 		});
 
@@ -268,6 +280,7 @@ describe("primary agent runtime", () => {
 			turnId: "turn-signal",
 			traceId: "trace-signal",
 			input: "校车今天几点",
+			providerConfig,
 			visibleCapabilities: ["campus_services"],
 			signal: controller.signal,
 		});

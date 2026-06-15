@@ -85,6 +85,7 @@ export {
 	traceBacklinkProjection,
 } from "./operator";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
+export { providerConfigProfiles } from "./provider-config";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 export {
 	wechatOfficialAccountCaptureRuns,
@@ -178,6 +179,7 @@ import {
 	traceBacklinkProjection,
 } from "./operator";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
+import { providerConfigProfiles } from "./provider-config";
 import { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 import {
 	wechatOfficialAccountCaptureRuns,
@@ -246,6 +248,7 @@ export const appApiSchema = {
 	runOutbox,
 	profileMemorySettings,
 	profileMemoryItems,
+	providerConfigProfiles,
 	requestExecution,
 	projectionOutbox,
 	requestObservabilityFact,

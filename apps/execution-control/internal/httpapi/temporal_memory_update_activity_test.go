@@ -2,6 +2,10 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +25,10 @@ func TestExtractMemoryCandidatesActivityRequiresMemoryEnabledGate(t *testing.T) 
 		nil,
 		now,
 	)
-	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-update"})
+	server := NewServer(config.Config{
+		ProviderPricingPath:    memoryExtractionPricingCatalogForTest(t),
+		TemporalWorkerIdentity: "test:memory-update",
+	})
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	output, err := server.ExtractMemoryCandidatesActivity(
@@ -44,6 +51,43 @@ func TestExtractMemoryCandidatesActivityRequiresMemoryEnabledGate(t *testing.T) 
 }
 
 func TestExtractMemoryCandidatesActivityExtractsExplicitUserGoal(t *testing.T) {
+	extractor := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/responses" {
+			t.Fatalf("provider path = %q, want /responses", request.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("decode extraction request: %v", err)
+		}
+		encoded, err := json.Marshal(map[string]any{
+			"memory_candidates": []map[string]any{{
+				"capability":   "any",
+				"compact_text": "近期目标: 关注保研材料",
+				"confidence":   0.95,
+				"memory_type":  "goal",
+				"reason_code":  "explicit_long_term_goal",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("marshal extraction payload: %v", err)
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"id":    "resp_memory_extract_001",
+			"model": "gpt-test",
+			"output": []map[string]any{{
+				"content": []map[string]any{{"text": string(encoded)}},
+			}},
+			"usage": map[string]any{
+				"input_tokens":             10,
+				"output_tokens":            12,
+				"input_tokens_details":     map[string]any{"cached_tokens": 0},
+				"output_tokens_details":    map[string]any{},
+				"total_tokens":             22,
+				"cached_input_token_count": 0,
+			},
+		})
+	}))
+	defer extractor.Close()
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 15, 12, 5, 0, 0, time.UTC)
 	createMemoryUpdateRunForTest(
@@ -54,7 +98,14 @@ func TestExtractMemoryCandidatesActivityExtractsExplicitUserGoal(t *testing.T) {
 		ptrBool(true),
 		now,
 	)
-	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-update"})
+	server := NewServer(config.Config{
+		ProviderPricingPath:    memoryExtractionPricingCatalogForTest(t),
+		TemporalWorkerIdentity: "test:memory-update",
+	})
+	server.providerConfigResolver = staticProviderConfigResolver{
+		"personal_memory_extraction": personalMemoryExtractionProviderConfigSnapshotForTest(extractor.URL),
+	}
+	server.providerConfigErr = nil
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	output, err := server.ExtractMemoryCandidatesActivity(
@@ -75,8 +126,76 @@ func TestExtractMemoryCandidatesActivityExtractsExplicitUserGoal(t *testing.T) {
 	if candidate.MemoryType != "goal" ||
 		candidate.Capability != "any" ||
 		candidate.CompactText != "近期目标: 关注保研材料" ||
-		candidate.Confidence < 0.9 {
+		candidate.Confidence < 0.9 ||
+		candidate.ReasonCode != "explicit_long_term_goal" ||
+		candidate.SourceHash == "" {
 		t.Fatalf("candidate = %#v", candidate)
+	}
+}
+
+func TestExtractMemoryCandidatesActivitySkipsInstitutionalFact(t *testing.T) {
+	extractor := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		encoded, err := json.Marshal(map[string]any{
+			"memory_candidates": []map[string]any{{
+				"capability":   "knowledge",
+				"compact_text": "制度事实: 国家奖学金每年评审一次",
+				"confidence":   0.98,
+				"memory_type":  "profile",
+				"reason_code":  "institutional_fact",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("marshal extraction payload: %v", err)
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"id":     "resp_memory_extract_fact",
+			"model":  "gpt-test",
+			"output": []map[string]any{{"content": []map[string]any{{"text": string(encoded)}}}},
+			"usage": map[string]any{
+				"input_tokens":          10,
+				"output_tokens":         12,
+				"input_tokens_details":  map[string]any{"cached_tokens": 0},
+				"output_tokens_details": map[string]any{},
+			},
+		})
+	}))
+	defer extractor.Close()
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 15, 12, 5, 0, 0, time.UTC)
+	createMemoryUpdateRunForTest(
+		t,
+		store,
+		"run-memory-update-fact",
+		"国家奖学金每年评审一次",
+		ptrBool(true),
+		now,
+	)
+	server := NewServer(config.Config{
+		ProviderPricingPath:    memoryExtractionPricingCatalogForTest(t),
+		TemporalWorkerIdentity: "test:memory-update",
+	})
+	server.providerConfigResolver = staticProviderConfigResolver{
+		"personal_memory_extraction": personalMemoryExtractionProviderConfigSnapshotForTest(extractor.URL),
+	}
+	server.providerConfigErr = nil
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	output, err := server.ExtractMemoryCandidatesActivity(
+		context.Background(),
+		temporalruntime.ExtractMemoryCandidatesActivityInput{
+			RequestID: "req-memory-update-fact",
+			RunID:     "run-memory-update-fact",
+			TraceID:   memoryUpdateTraceID("run-memory-update-fact"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("extract memory candidates: %v", err)
+	}
+	if output.Status != "skipped" || output.SkippedCount != 1 {
+		t.Fatalf("extract output = %#v, want skipped", output)
+	}
+	if len(output.SkipReasons) != 1 || output.SkipReasons[0] != "institutional_fact" {
+		t.Fatalf("skip reasons = %#v", output.SkipReasons)
 	}
 }
 
@@ -91,7 +210,10 @@ func TestExtractMemoryCandidatesActivityRejectsTraceMismatchForTerminalRun(t *te
 		ptrBool(true),
 		now,
 	)
-	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-update"})
+	server := NewServer(config.Config{
+		ProviderPricingPath:    memoryExtractionPricingCatalogForTest(t),
+		TemporalWorkerIdentity: "test:memory-update",
+	})
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExtractMemoryCandidatesActivity(
@@ -136,6 +258,8 @@ func TestUpsertInferredMemoryActivityWritesActiveInferredProjectionWithoutText(t
 				Confidence:  0.95,
 				MemoryID:    "inf_goal_materials",
 				MemoryType:  "goal",
+				ReasonCode:  "explicit_long_term_goal",
+				SourceHash:  strings.Repeat("a", 64),
 			}},
 			RequestID: "req-memory-upsert-enabled",
 			RunID:     "run-memory-upsert-enabled",
@@ -167,6 +291,102 @@ func TestUpsertInferredMemoryActivityWritesActiveInferredProjectionWithoutText(t
 	}
 	if payload["upserted_count"] != 1.0 && payload["upserted_count"] != 1 {
 		t.Fatalf("projection payload = %#v", payload)
+	}
+}
+
+func TestUpsertInferredMemoryActivitySkipsLowConfidenceCandidate(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 15, 12, 12, 0, 0, time.UTC)
+	createMemoryUpdateRunForTest(
+		t,
+		store,
+		"run-memory-upsert-low-confidence",
+		"我可能之后看看保研材料",
+		ptrBool(true),
+		now,
+	)
+	executor := &fakePersonalMemoryExecutor{}
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-update"})
+	server.personalMemoryExecutor = executor
+	server.personalMemoryErr = nil
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	output, err := server.UpsertInferredMemoryActivity(
+		context.Background(),
+		temporalruntime.UpsertInferredMemoryActivityInput{
+			Candidates: []temporalruntime.MemoryCandidate{{
+				Capability:  "any",
+				CompactText: "近期目标: 关注保研材料",
+				Confidence:  0.7,
+				MemoryID:    "inf_low_confidence",
+				MemoryType:  "goal",
+				ReasonCode:  "explicit_long_term_goal",
+				SourceHash:  strings.Repeat("b", 64),
+			}},
+			RequestID: "req-memory-upsert-low-confidence",
+			RunID:     "run-memory-upsert-low-confidence",
+			TraceID:   memoryUpdateTraceID("run-memory-upsert-low-confidence"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("upsert inferred memory: %v", err)
+	}
+	if output.Status != "skipped" || output.UpsertedCount != 0 || output.SkippedCount != 1 {
+		t.Fatalf("upsert output = %#v, want skipped low confidence", output)
+	}
+	if len(output.SkipReasons) != 1 || output.SkipReasons[0] != "low_confidence" {
+		t.Fatalf("skip reasons = %#v", output.SkipReasons)
+	}
+	if executor.seenUpsert.MemoryID != "" {
+		t.Fatalf("low confidence candidate must not upsert: %#v", executor.seenUpsert)
+	}
+}
+
+func TestUpsertInferredMemoryActivitySkipsForbiddenCandidate(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 15, 12, 14, 0, 0, time.UTC)
+	createMemoryUpdateRunForTest(
+		t,
+		store,
+		"run-memory-upsert-forbidden",
+		"我的 token 是 abc",
+		ptrBool(true),
+		now,
+	)
+	executor := &fakePersonalMemoryExecutor{}
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-update"})
+	server.personalMemoryExecutor = executor
+	server.personalMemoryErr = nil
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	output, err := server.UpsertInferredMemoryActivity(
+		context.Background(),
+		temporalruntime.UpsertInferredMemoryActivityInput{
+			Candidates: []temporalruntime.MemoryCandidate{{
+				Capability:  "any",
+				CompactText: "token: abc",
+				Confidence:  0.99,
+				MemoryID:    "inf_forbidden",
+				MemoryType:  "profile",
+				ReasonCode:  "stable_profile",
+				SourceHash:  strings.Repeat("c", 64),
+			}},
+			RequestID: "req-memory-upsert-forbidden",
+			RunID:     "run-memory-upsert-forbidden",
+			TraceID:   memoryUpdateTraceID("run-memory-upsert-forbidden"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("upsert inferred memory: %v", err)
+	}
+	if output.Status != "skipped" || output.SkippedCount != 1 {
+		t.Fatalf("upsert output = %#v, want skipped forbidden payload", output)
+	}
+	if len(output.SkipReasons) != 1 || output.SkipReasons[0] != "forbidden_payload" {
+		t.Fatalf("skip reasons = %#v", output.SkipReasons)
+	}
+	if executor.seenUpsert.MemoryID != "" {
+		t.Fatalf("forbidden candidate must not upsert: %#v", executor.seenUpsert)
 	}
 }
 
@@ -219,4 +439,19 @@ func ptrBool(value bool) *bool {
 
 func memoryUpdateTraceID(runID string) string {
 	return "trace-" + runID
+}
+
+func memoryExtractionPricingCatalogForTest(t *testing.T) string {
+	t.Helper()
+	return writeRAGPricingCatalogForTest(t, `{
+		"schema_version":"provider-pricing-v1",
+		"currency":"USD",
+		"models":[{
+			"provider":"openai",
+			"model":"gpt-test",
+			"input_microusd_per_1k_tokens":100,
+			"cached_input_microusd_per_1k_tokens":10,
+			"output_microusd_per_1k_tokens":200
+		}]
+	}`)
 }

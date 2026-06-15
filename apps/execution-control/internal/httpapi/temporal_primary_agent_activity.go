@@ -37,6 +37,10 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime base URL and shared secret are required"),
 		)
 	}
+	providerConfig, err := s.resolveProviderConfigSnapshot(ctx, providerConfigRolePrimaryAgent)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "provider_profile_missing", err)
+	}
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := primaryAgentAttempt(input.Attempt)
 	replanReason := strings.TrimSpace(input.ReplanReason)
@@ -62,7 +66,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	output, err := s.callAgentRuntime(ctx, run, input)
+	output, err := s.callAgentRuntime(ctx, run, input, providerConfig)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_request_failed", err)
 	}
@@ -409,6 +413,7 @@ func (s *Server) callAgentRuntime(
 	ctx context.Context,
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
+	providerConfig providerConfigSnapshot,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	timeout := time.Duration(s.config.AgentRuntimeTimeoutMS) * time.Millisecond
 	if timeout <= 0 {
@@ -424,6 +429,7 @@ func (s *Server) callAgentRuntime(
 		"input":                  primaryAgentInputText(run),
 		"visible_capabilities":   append([]string{}, input.VisibleCapabilities...),
 		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
+		"provider_config":        providerConfig,
 	})
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("encode agent runtime request: %w", err)

@@ -72,6 +72,8 @@ func (Activities) ExtractMemoryCandidatesActivity(
 			Confidence:  0.95,
 			MemoryID:    "inf_test_goal",
 			MemoryType:  "goal",
+			ReasonCode:  "explicit_long_term_goal",
+			SourceHash:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		}},
 		RunID:         input.RunID,
 		SchemaVersion: "memory_update_extract_result_v1",

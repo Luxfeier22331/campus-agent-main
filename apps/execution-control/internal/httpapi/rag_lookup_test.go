@@ -35,13 +35,11 @@ func TestQdrantRAGLookupQueryUsesHybridPrefetchFromRuntimeProfile(t *testing.T) 
 	}))
 	defer server.Close()
 	executor := qdrantRAGLookupExecutor{
-		httpClient:          server.Client(),
-		embeddingDimensions: 2560,
-		embeddingModel:      "Qwen3-Embedding-4B",
-		embeddingProvider:   "openai-compatible",
-		qdrantQueryAPIKey:   "test-qdrant-key",
-		qdrantURL:           server.URL,
-		timeout:             time.Second,
+		configResolver:    defaultRAGEmbeddingResolverForTest(),
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "test-qdrant-key",
+		qdrantURL:         server.URL,
+		timeout:           time.Second,
 	}
 
 	points, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
@@ -115,13 +113,11 @@ func TestQdrantRAGLookupHistoricalVersionFilterDoesNotFallbackToCurrent(t *testi
 	}))
 	defer server.Close()
 	executor := qdrantRAGLookupExecutor{
-		httpClient:          server.Client(),
-		embeddingDimensions: 2560,
-		embeddingModel:      "Qwen3-Embedding-4B",
-		embeddingProvider:   "openai-compatible",
-		qdrantQueryAPIKey:   "test-qdrant-key",
-		qdrantURL:           server.URL,
-		timeout:             time.Second,
+		configResolver:    defaultRAGEmbeddingResolverForTest(),
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "test-qdrant-key",
+		qdrantURL:         server.URL,
+		timeout:           time.Second,
 	}
 
 	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
@@ -178,13 +174,11 @@ func TestQdrantRAGLookupAsOfUsesResolvedVersionFilter(t *testing.T) {
 	}))
 	defer server.Close()
 	executor := qdrantRAGLookupExecutor{
-		httpClient:          server.Client(),
-		embeddingDimensions: 2560,
-		embeddingModel:      "Qwen3-Embedding-4B",
-		embeddingProvider:   "openai-compatible",
-		qdrantQueryAPIKey:   "test-qdrant-key",
-		qdrantURL:           server.URL,
-		timeout:             time.Second,
+		configResolver:    defaultRAGEmbeddingResolverForTest(),
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "test-qdrant-key",
+		qdrantURL:         server.URL,
+		timeout:           time.Second,
 	}
 
 	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
@@ -299,13 +293,11 @@ func TestQdrantRAGLookupFailsClosedBeforeQueryWhenReleaseMetadataMissing(t *test
 	}))
 	defer server.Close()
 	executor := qdrantRAGLookupExecutor{
-		embeddingDimensions: 2560,
-		embeddingModel:      "Qwen3-Embedding-4B",
-		embeddingProvider:   "openai-compatible",
-		httpClient:          server.Client(),
-		qdrantQueryAPIKey:   "test-qdrant-key",
-		qdrantURL:           server.URL,
-		timeout:             time.Second,
+		configResolver:    defaultRAGEmbeddingResolverForTest(),
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "test-qdrant-key",
+		qdrantURL:         server.URL,
+		timeout:           time.Second,
 	}
 
 	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
@@ -352,13 +344,11 @@ func TestQdrantRAGLookupUsesPointPayloadReleaseMetadataWhenCollectionMetadataMis
 	}))
 	defer server.Close()
 	executor := qdrantRAGLookupExecutor{
-		embeddingDimensions: 2560,
-		embeddingModel:      "Qwen3-Embedding-4B",
-		embeddingProvider:   "openai-compatible",
-		httpClient:          server.Client(),
-		qdrantQueryAPIKey:   "test-qdrant-key",
-		qdrantURL:           server.URL,
-		timeout:             time.Second,
+		configResolver:    defaultRAGEmbeddingResolverForTest(),
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "test-qdrant-key",
+		qdrantURL:         server.URL,
+		timeout:           time.Second,
 	}
 
 	_, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
@@ -401,11 +391,15 @@ func TestQdrantRAGLookupEmbeddingRequestUsesConfiguredDimensions(t *testing.T) {
 	}))
 	defer server.Close()
 	executor := qdrantRAGLookupExecutor{
-		embeddingAPIKey:     "test-embedding-key",
-		embeddingBaseURL:    server.URL,
-		embeddingDimensions: 2560,
+		configResolver: staticProviderConfigResolver{
+			"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
+				providerConfigRoleRAGQueryEmbedding,
+				server.URL,
+				"Qwen3-Embedding-4B",
+				2560,
+			),
+		},
 		embeddingHTTPClient: server.Client(),
-		embeddingModel:      "Qwen3-Embedding-4B",
 	}
 
 	embedding, err := executor.embedQuery(context.Background(), "学生请假手续")
@@ -430,11 +424,15 @@ func TestQdrantRAGLookupEmbeddingFailsClosedOnDimensionMismatch(t *testing.T) {
 	}))
 	defer server.Close()
 	executor := qdrantRAGLookupExecutor{
-		embeddingAPIKey:     "test-embedding-key",
-		embeddingBaseURL:    server.URL,
-		embeddingDimensions: 2560,
+		configResolver: staticProviderConfigResolver{
+			"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
+				providerConfigRoleRAGQueryEmbedding,
+				server.URL,
+				"Qwen3-Embedding-4B",
+				2560,
+			),
+		},
 		embeddingHTTPClient: server.Client(),
-		embeddingModel:      "Qwen3-Embedding-4B",
 	}
 
 	_, err := executor.embedQuery(context.Background(), "学生请假手续")
@@ -456,7 +454,7 @@ func TestNewQdrantRAGLookupExecutorRejectsHTTPDataPlaneWithAPIKey(t *testing.T) 
 		QdrantTLSCACertPath:  "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            "http://qdrant:6333",
-	})
+	}, nil)
 	if err == nil {
 		t.Fatal("authenticated Qdrant data-plane must reject http:// URLs")
 	}
@@ -484,7 +482,7 @@ func TestNewQdrantRAGLookupExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 		QdrantTLSCACertPath:  caPath,
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            qdrant.URL,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
 	}
@@ -509,7 +507,7 @@ func TestNewQdrantRAGLookupExecutorSeparatesQdrantTLSClientFromEmbeddingClient(t
 		QdrantTLSCACertPath:  caPath,
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            qdrant.URL,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
 	}
@@ -534,7 +532,7 @@ func TestNewQdrantRAGLookupExecutorFailsClosedWithoutTLSCA(t *testing.T) {
 		QdrantQueryAPIKey:    "readonly-key",
 		QdrantTimeoutSeconds: 10,
 		QdrantURL:            "https://qdrant:6333",
-	})
+	}, nil)
 	if err == nil {
 		t.Fatal("QDRANT_TLS_CA_CERT_PATH must be required for HTTPS Qdrant")
 	}
@@ -554,6 +552,17 @@ func writeTestCACert(t *testing.T, server *httptest.Server) string {
 		t.Fatalf("write test ca: %v", err)
 	}
 	return path
+}
+
+func defaultRAGEmbeddingResolverForTest() providerConfigResolver {
+	return staticProviderConfigResolver{
+		"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
+			providerConfigRoleRAGQueryEmbedding,
+			"https://provider.example/v1",
+			"Qwen3-Embedding-4B",
+			2560,
+		),
+	}
 }
 
 func qdrantMustConditionsForTest(t *testing.T, captured map[string]any) map[string]any {
@@ -637,11 +646,25 @@ func embeddingResponseForTest(dimensions int) string {
 
 func qdrantCollectionMetadataResponseForTest(t *testing.T, corpus string, collection string) string {
 	t.Helper()
+	return qdrantCollectionMetadataResponseForEmbeddingTest(t, corpus, collection, providerConfigSnapshot{
+		Dimensions: 2560,
+		Model:      "Qwen3-Embedding-4B",
+		Provider:   "openai-compatible",
+	})
+}
+
+func qdrantCollectionMetadataResponseForEmbeddingTest(
+	t *testing.T,
+	corpus string,
+	collection string,
+	embedding providerConfigSnapshot,
+) string {
+	t.Helper()
 	profile, err := retrievalRuntimeProfileForTest(corpus, collection)
 	if err != nil {
 		t.Fatalf("load runtime profile for metadata fixture: %v", err)
 	}
-	metadata := releaseMetadataFixtureForHTTPTest(profile, collection)
+	metadata := releaseMetadataFixtureForEmbeddingHTTPTest(profile, collection, embedding)
 	body, err := json.Marshal(map[string]any{
 		"result": map[string]any{
 			"payload": metadata,
@@ -658,6 +681,21 @@ func releaseMetadataFixtureForHTTPTest(
 	profile retrievalruntime.RuntimeProfile,
 	collection string,
 ) map[string]any {
+	return releaseMetadataFixtureForEmbeddingHTTPTest(profile, collection, providerConfigSnapshot{
+		Dimensions: 2560,
+		Model:      "Qwen3-Embedding-4B",
+		Provider:   "openai-compatible",
+	})
+}
+
+func releaseMetadataFixtureForEmbeddingHTTPTest(
+	profile retrievalruntime.RuntimeProfile,
+	collection string,
+	embedding providerConfigSnapshot,
+) map[string]any {
+	embeddingProvider := strings.TrimSpace(embedding.Provider)
+	embeddingModel := strings.TrimSpace(embedding.Model)
+	embeddingDimensions := embedding.Dimensions
 	return map[string]any{
 		"chunk_policy_version":                profile.ChunkPolicyVersion,
 		"chunk_quality_status":                "passed",
@@ -665,13 +703,13 @@ func releaseMetadataFixtureForHTTPTest(
 		"component_eval_status":               "passed",
 		"dense_prefetch_limit":                profile.DensePrefetchLimit,
 		"dense_vector_name":                   profile.DenseVectorName,
-		"embedding_dimensions":                2560,
-		"embedding_model":                     "Qwen3-Embedding-4B",
-		"embedding_provider":                  "openai-compatible",
+		"embedding_dimensions":                embeddingDimensions,
+		"embedding_model":                     embeddingModel,
+		"embedding_provider":                  embeddingProvider,
 		"embedding_query_instruction_hash":    retrievalruntime.HashText(profile.EmbeddingQueryInstruction),
 		"index_release_id":                    "r20260615_" + collection,
 		"index_validation_status":             "passed",
-		"profile_identity_hash":               retrievalruntime.ProfileIdentityHash(profile, "openai-compatible", "Qwen3-Embedding-4B", 2560),
+		"profile_identity_hash":               retrievalruntime.ProfileIdentityHash(profile, embeddingProvider, embeddingModel, embeddingDimensions),
 		"qrels_coverage_status":               "passed",
 		"quality_gate_status":                 "passed",
 		"release_admission_status":            "passed",
@@ -694,7 +732,11 @@ func qdrantReleaseMetadataScrollResponseForTest(t *testing.T, corpus string, col
 	if err != nil {
 		t.Fatalf("load runtime profile for metadata fixture: %v", err)
 	}
-	metadata := releaseMetadataFixtureForHTTPTest(profile, collection)
+	metadata := releaseMetadataFixtureForEmbeddingHTTPTest(profile, collection, providerConfigSnapshot{
+		Dimensions: 2560,
+		Model:      "Qwen3-Embedding-4B",
+		Provider:   "openai-compatible",
+	})
 	body, err := json.Marshal(map[string]any{
 		"result": map[string]any{
 			"points": []map[string]any{

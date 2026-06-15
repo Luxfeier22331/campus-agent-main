@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { ToolExecutionResult } from "../src/primary-agent.ts";
 import { createOpenAIAgentsRunner } from "../src/sdk-runner.ts";
 
+const providerConfig = {
+	apiKey: "test-provider-key",
+	baseUrl: "https://provider.example/v1",
+	model: "gpt-test",
+	provider: "openai",
+	transport: "responses",
+};
+
 describe("OpenAI Agents SDK runner adapter", () => {
 	it("passes configured model and provider to the SDK runner", async () => {
 		const modelProvider = {
@@ -31,6 +39,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			tools: [],
 			runId: "run-sdk-provider",
 			traceId: "trace-run-sdk-provider",
+			providerConfig,
 		});
 
 		expect(observedModel).toBe("gpt-agent");
@@ -86,6 +95,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			],
 			runId: "run-sdk",
 			traceId: "trace-run-sdk",
+			providerConfig,
 		});
 
 		expect(result.finalOutput).toBe("final:校车今天几点");
@@ -167,6 +177,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			tools: [],
 			runId: "run-sdk",
 			traceId: "trace-run-sdk",
+			providerConfig,
 		});
 
 		expect(result.toolCalls.map((call) => call.result?.resultRef)).toEqual([
@@ -219,6 +230,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			],
 			runId: "run-sdk",
 			traceId: "trace-run-sdk",
+			providerConfig,
 		});
 
 		expect(toolParameterSchema).toMatchObject({
@@ -248,6 +260,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			tools: [],
 			runId: "run-sdk-signal",
 			traceId: "trace-run-sdk-signal",
+			providerConfig,
 			signal: controller.signal,
 		});
 

@@ -20,13 +20,25 @@ owns this section group; the original path remains the stable index.
 
 - 一个可达的 `base_url`
 - 一把 API key
-- 至少两个可用模型名：
-  - `EXECUTION_PROMPT_MODEL`
-  - `AGENT_PROMPT_MODEL`
+- 各 online prompt role 对应的可用模型名：
+  - `primary_agent`
+  - `rag_synthesis`
+  - `personal_memory_extraction`
 
-默认放置位置：
+online serving owner：
 
-- root `.env`
+- `apps/app-api` provider-config profile
+- Operator Console `/operations/provider-config`
+- `execution-control` 通过
+  `/api/internal/provider-config/active?role=primary_agent` 和
+  `/api/internal/provider-config/active?role=rag_synthesis` 以及
+  `/api/internal/provider-config/active?role=personal_memory_extraction`
+  读取 active runtime snapshot
+
+默认 env 放置位置：
+
+- root `.env` 只用于 local seed / eval / command-scoped override，不再是 online
+  serving truth
 
 相关键：
 
@@ -41,7 +53,9 @@ owns this section group; the original path remains the stable index.
 
 1. 先决定是否复用当前 shared provider，还是给 eval 单独拆 provider。
 1. 在所选供应商控制台创建项目级或环境级 API key。
-1. 记录 API base URL 和允许使用的模型名。
+1. 通过 Operator Console 创建 prompt profile，选择 role、base URL、model 与 API key。
+1. 先 validate，再 activate；active profile 会以内部 runtime snapshot 形式被
+   execution-control 消费。
 1. staging / prod 必须分环境单独发 key，不要复用本地开发 key。
 
 如果直接使用 OpenAI，可参考：
@@ -58,6 +72,8 @@ owns this section group; the original path remains the stable index.
 - 上述 “OpenAI 项目级 key” 是官方推荐路径；如果改用其他 OpenAI-compatible vendor，则点击路径以供应商控制台当前 UI
   为准
 - eval override 不是默认必需项。只有预算、限流或模型隔离需要时才单独配置
+- active profile list 只返回 masked secret metadata；raw key 只通过 app-api internal
+  runtime snapshot 给 execution-control，不返回浏览器
 
 ## 2. Embedding provider
 
@@ -74,9 +90,19 @@ owns this section group; the original path remains the stable index.
 - [../../policies/student-handbook-chunking-and-validation-policy.md](../../policies/s
   tudent-handbook-chunking-and-validation-policy.md)
 
-默认放置位置：
+online serving owner：
 
-- root `.env`
+- `apps/app-api` provider-config profile
+- Operator Console `/operations/provider-config`
+- `execution-control` 通过
+  `/api/internal/provider-config/active?role=rag_query_embedding` 和
+  `/api/internal/provider-config/active?role=personal_memory_embedding`
+  读取 active runtime snapshot
+
+默认 env 放置位置：
+
+- ingestion / local seed / eval / command-scoped override 仍可用 root `.env`
+- online retrieval / personal memory recall 不再以 root `.env` 为 truth
 
 相关键：
 
@@ -92,8 +118,12 @@ owns this section group; the original path remains the stable index.
 
 1. 如果保持当前 baseline，不要擅自更换模型维度或 vendor。
 1. 在当前 embedding vendor 控制台开通 embeddings 服务，记录 `base_url`、API token 与模型名。
-1. 把 shared runtime 值放到 root `.env`。
-1. 只有 eval 需要独立 provider 时，才额外填写 `EVAL_EMBEDDING_*`。
+1. 通过 Operator Console 创建 embedding profile，选择 role、base URL、model、API key 与
+   dimensions。
+1. validate profile；activate 前 app-api 必须检查 active retrieval / memory vector dimensions
+   兼容性。
+1. 只有 ingestion、eval 或 local command 需要独立 provider 时，才额外填写 env
+   `EMBEDDING_*` 或 `EVAL_EMBEDDING_*`。
 
 外部参考：
 
@@ -103,6 +133,10 @@ owns this section group; the original path remains the stable index.
 
 - 上面这条链接只证明当前 vendor 存在官方 API 服务入口；具体 token 生成页面以供应商控制台当前 UI 为准
 - 如果要更换 retrieval baseline，不是只改 env；还要同步 ADR / policy / eval 基线
+- `personal_memory_extraction` 是 prompt role，服务 completed run 后置 inferred
+  memory structured extraction；它只产出候选，不能绕过 deterministic admission
+- `index_embedding` 面向 offline indexing；online query path 消费
+  `rag_query_embedding` 与 `personal_memory_embedding`
 
 ## 3. Qdrant
 

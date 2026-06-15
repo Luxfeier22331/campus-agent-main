@@ -147,8 +147,8 @@ online recall 行为。
 ```text
 run completed
 -> Temporal MemoryUpdateWorkflow
--> extract compact memory
--> dedupe / classify / budget
+-> provider-backed structured extraction from sanitized execution packet
+-> deterministic admission / classify / budget
 -> embedding
 -> Qdrant personal_memory_v1 upsert
 ```
@@ -161,6 +161,13 @@ run completed
   tool raw payload 或 institutional source text。
 - 抽取只接受用户当轮明确表达的长期偏好、近期目标、常用地点 / 服务上下文或稳定称呼；一次性问题、临时安排、制度 /
   通知事实、身份权限与不确定推断必须跳过。
+- 自动抽取消费 app-api active provider-config role
+  `personal_memory_extraction`。execution-control 不从 `PROMPT_RUNTIME_*` env
+  读取 online memory extraction API key / model；缺 active profile 或 provider
+  response contract 不完整时 fail closed，并留下可诊断 activity failure。
+- provider 只产出候选；写入准入仍由 execution-control deterministic gate
+  决定。gate 要求 `confidence >= 0.9`、合法 `memory_type` /
+  `capability`、合法 `reason_code`、非空 `source_hash` 与 compact payload 校验通过。
 - memory update 是 finalization 后的后置 workflow / activity；失败只写可诊断 step projection，不回滚已经完成的主回答。
 - `context.memory.enabled` 是自动写入 gate。gate 缺失或为 false 时必须跳过自动写入；不得通过
   PG profile memory item 全量注入来推断 gate。
@@ -183,6 +190,13 @@ Qdrant posture 继承 `data-plane-architecture.md`：
   admin key
 - authenticated HTTPS data-plane 必须配置 `QDRANT_TLS_CA_CERT_PATH`
 - `PERSONAL_MEMORY_COLLECTION=personal_memory_v1`
+- online memory recall / upsert embedding provider config comes from the active
+  app-api provider-config role `personal_memory_embedding`; online memory
+  extraction prompt provider config comes from `personal_memory_extraction`;
+  `EMBEDDING_*` / `PROMPT_RUNTIME_*` env is local/ingestion/eval seed, not online
+  serving truth
+- personal memory collection dense vector schema must match the active
+  `personal_memory_embedding.dimensions`; mismatch fails closed
 
 personal memory collection 与 institutional RAG collection 只在 substrate 层共享 Qdrant，不共享
 collection、payload contract、release alias 或 ingestion truth。

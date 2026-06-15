@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -35,6 +34,8 @@ type Server struct {
 	workflowRunsErr        error
 	runProjectionStore     execution.RunProjectionStore
 	runProjectionStoreErr  error
+	memoryExtraction       memoryExtractionExecutor
+	memoryExtractionErr    error
 	personalMemoryExecutor personalMemoryExecutor
 	personalMemoryErr      error
 	ragLookupExecutor      ragLookupExecutor
@@ -42,6 +43,8 @@ type Server struct {
 	ragSynthesisExecutor   ragSynthesisExecutor
 	ragSynthesisErr        error
 	ragVersionResolver     ragVersionResolver
+	providerConfigResolver providerConfigResolver
+	providerConfigErr      error
 	temporalStarter        temporalruntime.ChatWorkflowStarter
 	temporalStarterErr     error
 	temporalWorkersStarted bool
@@ -262,9 +265,11 @@ func NewServerWithDependencies(
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
-	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg)
-	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg)
-	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg)
+	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
+	memoryExtraction, memoryExtractionErr := newMemoryExtractionExecutor(cfg, providerConfigResolver)
+	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
+	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg, providerConfigResolver)
+	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg, providerConfigResolver)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
@@ -280,6 +285,8 @@ func NewServerWithDependencies(
 		workflowRunsErr:        workflowRunsErr,
 		runProjectionStore:     runProjectionStore,
 		runProjectionStoreErr:  runProjectionStoreErr,
+		memoryExtraction:       memoryExtraction,
+		memoryExtractionErr:    memoryExtractionErr,
 		personalMemoryExecutor: personalMemoryExecutor,
 		personalMemoryErr:      personalMemoryErr,
 		ragLookupExecutor:      ragLookupExecutor,
@@ -287,6 +294,8 @@ func NewServerWithDependencies(
 		ragSynthesisExecutor:   ragSynthesisExecutor,
 		ragSynthesisErr:        ragSynthesisErr,
 		ragVersionResolver:     newQdrantMetadataVersionResolver(cfg),
+		providerConfigResolver: providerConfigResolver,
+		providerConfigErr:      providerConfigErr,
 		temporalStarter:        temporalStarter,
 		temporalStarterErr:     temporalStarterErr,
 		intentPolicy:           intentPolicy,
@@ -295,32 +304,32 @@ func NewServerWithDependencies(
 	return server
 }
 
-func newRAGSynthesisExecutor(cfg config.Config) (ragSynthesisExecutor, error) {
-	gate := evaluatePromptConfigGate(cfg)
-	if !gate.Admitted {
-		return nil, errors.New(gate.Reason)
-	}
+func newRAGSynthesisExecutor(
+	cfg config.Config,
+	configResolver providerConfigResolver,
+) (ragSynthesisExecutor, error) {
 	catalog, err := provider.LoadPricingCatalog(cfg.ProviderPricingPath)
 	if err != nil {
 		return nil, err
 	}
 	return providerBackedRAGSynthesisExecutor{
-		client: provider.NewResponsesClient(provider.ResponsesClientConfig{
-			APIKey:        cfg.PromptRuntimeAPIKey,
-			BaseURL:       cfg.PromptRuntimeBaseURL,
-			ModelName:     cfg.AgentPromptModel,
-			ModelProvider: cfg.PromptRuntimeProvider,
-			Pricing:       catalog,
-		}),
+		configResolver: configResolver,
+		pricing:        catalog,
 	}, nil
 }
 
-func newRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
-	return newQdrantRAGLookupExecutor(cfg)
+func newRAGLookupExecutor(
+	cfg config.Config,
+	configResolver providerConfigResolver,
+) (ragLookupExecutor, error) {
+	return newQdrantRAGLookupExecutor(cfg, configResolver)
 }
 
-func newPersonalMemoryExecutor(cfg config.Config) (personalMemoryExecutor, error) {
-	return newQdrantPersonalMemoryExecutor(cfg)
+func newPersonalMemoryExecutor(
+	cfg config.Config,
+	configResolver providerConfigResolver,
+) (personalMemoryExecutor, error) {
+	return newQdrantPersonalMemoryExecutor(cfg, configResolver)
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
@@ -472,6 +481,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handlePersonalMemoryDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":
 		s.handlePersonalMemoryOwnerDisable(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/provider-config/embedding:check-compatibility":
+		s.handleProviderConfigCompatibility(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-guide":

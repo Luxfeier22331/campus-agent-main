@@ -29,6 +29,7 @@ import {
 } from "../modules/identity-platform";
 import {
 	createExecutionControlPersonalMemoryClient,
+	createExecutionControlProviderConfigClient,
 	createExecutionControlRuntimeClient,
 	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
@@ -75,6 +76,10 @@ import {
 } from "../modules/operator-observability-command";
 import { buildOperatorQueryService, createPgOperatorQueryStore } from "../modules/operator-query";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
+import {
+	buildProviderConfigService,
+	createPgProviderConfigStore,
+} from "../modules/provider-config";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
 import {
@@ -140,6 +145,7 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
+			let providerConfigService = input.dependencies.providerConfigService ?? null;
 			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
 			let weChatOfficialAccountCommandService =
 				input.dependencies.wechatOfficialAccountCommandService ?? null;
@@ -435,6 +441,30 @@ export function createRequestScopeFactory(input: {
 				return profileMemoryService;
 			}
 
+			function resolveProviderConfigService() {
+				if (providerConfigService) {
+					return providerConfigService;
+				}
+
+				providerConfigService = buildProviderConfigService({
+					encryptionKey: input.env.APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY,
+					store: createPgProviderConfigStore(input.env, { getDb: runtime.getFreshDb }),
+					validators: {
+						checkEmbeddingCompatibility: async ({ profile }) =>
+							createExecutionControlProviderConfigClient(input.env).checkEmbeddingCompatibility({
+								baseUrl: profile.baseUrl,
+								dimensions: profile.dimensions ?? 0,
+								model: profile.model,
+								provider: profile.provider,
+								role: profile.role,
+								timeoutMs: profile.timeoutMs,
+								transport: profile.transport,
+							}),
+					},
+				});
+				return providerConfigService;
+			}
+
 			function resolveRuntimeRunService() {
 				if (runtimeRunService) {
 					return runtimeRunService;
@@ -484,6 +514,7 @@ export function createRequestScopeFactory(input: {
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,
+				resolveProviderConfigService,
 				resolveRuntimeRunService,
 				resolveWeChatOfficialAccountCommandService,
 				telemetry: input.telemetry,

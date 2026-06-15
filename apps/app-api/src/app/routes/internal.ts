@@ -141,6 +141,26 @@ export function registerInternalRoutes(input: {
 		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 	}) => void;
 }) {
+	input.app.get("/api/internal/provider-config/active", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		try {
+			return jsonResponse(
+				await scope.resolveProviderConfigService().getActiveRuntimeSnapshot({
+					role: c.req.query("role") ?? "",
+				}),
+			);
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
+	});
+
 	input.app.post("/api/internal/operator/quality/grades", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {

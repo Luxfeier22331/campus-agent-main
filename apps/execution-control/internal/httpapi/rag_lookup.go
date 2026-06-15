@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,12 +28,10 @@ type ragLookupExecutor interface {
 }
 
 type qdrantRAGLookupExecutor struct {
-	embeddingAPIKey     string
-	embeddingBaseURL    string
-	embeddingDimensions int
 	embeddingHTTPClient *http.Client
-	embeddingModel      string
 	embeddingProvider   string
+	embeddingRole       providerConfigRole
+	configResolver      providerConfigResolver
 	httpClient          *http.Client
 	qdrantQueryAPIKey   string
 	qdrantURL           string
@@ -40,7 +39,10 @@ type qdrantRAGLookupExecutor struct {
 	timeout             time.Duration
 }
 
-func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
+func newQdrantRAGLookupExecutor(
+	cfg config.Config,
+	configResolver providerConfigResolver,
+) (ragLookupExecutor, error) {
 	qdrantURL := strings.TrimRight(strings.TrimSpace(cfg.QdrantURL), "/")
 	if qdrantURL == "" {
 		return nil, errors.New("QDRANT_URL is required for Go RAG lookup")
@@ -55,22 +57,6 @@ func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
 	if strings.TrimSpace(cfg.QdrantQueryAPIKey) == "" {
 		return nil, errors.New("QDRANT_QUERY_API_KEY is required for online Qdrant lookup")
 	}
-	embeddingBaseURL := strings.TrimRight(strings.TrimSpace(cfg.EmbeddingBaseURL), "/")
-	if embeddingBaseURL == "" {
-		embeddingBaseURL = strings.TrimRight(strings.TrimSpace(cfg.PromptRuntimeBaseURL), "/")
-	}
-	if embeddingBaseURL == "" {
-		return nil, errors.New("EMBEDDING_BASE_URL or PROMPT_RUNTIME_BASE_URL is required")
-	}
-	if strings.TrimSpace(cfg.EmbeddingAPIKey) == "" {
-		return nil, errors.New("EMBEDDING_API_KEY is required for Go RAG lookup")
-	}
-	if strings.TrimSpace(cfg.EmbeddingModel) == "" {
-		return nil, errors.New("EMBEDDING_MODEL is required for Go RAG lookup")
-	}
-	if cfg.EmbeddingDimensions <= 0 {
-		return nil, errors.New("EMBEDDING_DIMENSIONS is required for Go RAG lookup")
-	}
 	timeout := time.Duration(cfg.QdrantTimeoutSeconds * float64(time.Second))
 	if timeout <= 0 {
 		timeout = 10 * time.Second
@@ -80,12 +66,10 @@ func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
 		return nil, err
 	}
 	return qdrantRAGLookupExecutor{
-		embeddingAPIKey:     strings.TrimSpace(cfg.EmbeddingAPIKey),
-		embeddingBaseURL:    embeddingBaseURL,
-		embeddingDimensions: cfg.EmbeddingDimensions,
 		embeddingHTTPClient: &http.Client{Timeout: timeout},
-		embeddingModel:      strings.TrimSpace(cfg.EmbeddingModel),
+		embeddingRole:       providerConfigRoleRAGQueryEmbedding,
 		embeddingProvider:   strings.TrimSpace(cfg.EmbeddingProvider),
+		configResolver:      configResolver,
 		httpClient:          httpClient,
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
 		qdrantURL:           qdrantURL,
@@ -130,11 +114,19 @@ func (e qdrantRAGLookupExecutor) Lookup(
 	if err != nil {
 		return ragruntime.RetrievalLookupResult{}, err
 	}
-	embedding, err := e.embedQuery(ctx, retrievalruntime.BuildDenseQueryText(plan.QueryText, profile.EmbeddingQueryInstruction))
+	embeddingConfig, err := e.resolveEmbeddingProviderConfig(ctx)
 	if err != nil {
 		return ragruntime.RetrievalLookupResult{}, err
 	}
-	points, err := e.queryPoints(ctx, plan, embedding)
+	embedding, err := e.embedQueryWithProviderConfig(
+		ctx,
+		embeddingConfig,
+		retrievalruntime.BuildDenseQueryText(plan.QueryText, profile.EmbeddingQueryInstruction),
+	)
+	if err != nil {
+		return ragruntime.RetrievalLookupResult{}, err
+	}
+	points, err := e.queryPointsWithProviderConfig(ctx, plan, embedding, embeddingConfig)
 	if err != nil {
 		return ragruntime.RetrievalLookupResult{}, err
 	}
@@ -184,14 +176,84 @@ func (e qdrantRAGLookupExecutor) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+func (e qdrantRAGLookupExecutor) CheckEmbeddingCompatibility(
+	ctx context.Context,
+	snapshot providerConfigSnapshot,
+) error {
+	profiles, err := e.queryServingRuntimeProfiles()
+	if err != nil {
+		return err
+	}
+	if len(profiles) == 0 {
+		return errors.New("no query-serving runtime profiles are available for RAG compatibility check")
+	}
+	for _, profile := range profiles {
+		if err := e.validateAliasReleaseMetadata(ctx, profile, snapshot); err != nil {
+			return fmt.Errorf("%s/%s: %w", profile.Corpus, profile.Collection, err)
+		}
+	}
+	return nil
+}
+
+func (e qdrantRAGLookupExecutor) queryServingRuntimeProfiles() ([]retrievalruntime.RuntimeProfile, error) {
+	root := runtimeProfileScanRoot(e.runtimeProfileRoot)
+	matches, err := filepath.Glob(filepath.Join(root, "*", "*", "runtime-profile.json"))
+	if err != nil {
+		return nil, fmt.Errorf("list runtime profiles: %w", err)
+	}
+	profiles := make([]retrievalruntime.RuntimeProfile, 0, len(matches))
+	for _, path := range matches {
+		collectionDir := filepath.Dir(path)
+		corpusDir := filepath.Dir(collectionDir)
+		corpus := filepath.Base(corpusDir)
+		collection := filepath.Base(collectionDir)
+		profile, err := retrievalruntime.LoadRuntimeProfile(root, corpus, collection)
+		if err != nil {
+			continue
+		}
+		profiles = append(profiles, profile)
+	}
+	return profiles, nil
+}
+
+func runtimeProfileScanRoot(configRoot string) string {
+	root := strings.TrimSpace(configRoot)
+	if root != "" {
+		return root
+	}
+	for _, candidate := range []string{
+		filepath.Join("configs", "ingestion"),
+		filepath.Join("..", "..", "configs", "ingestion"),
+		filepath.Join("..", "..", "..", "configs", "ingestion"),
+		filepath.Join("..", "..", "..", "..", "configs", "ingestion"),
+	} {
+		if stat, err := os.Stat(candidate); err == nil && stat.IsDir() {
+			return candidate
+		}
+	}
+	return filepath.Join("configs", "ingestion")
+}
+
 func (e qdrantRAGLookupExecutor) embedQuery(ctx context.Context, queryText string) ([]float64, error) {
+	embeddingConfig, err := e.resolveEmbeddingProviderConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return e.embedQueryWithProviderConfig(ctx, embeddingConfig, queryText)
+}
+
+func (e qdrantRAGLookupExecutor) embedQueryWithProviderConfig(
+	ctx context.Context,
+	embeddingConfig providerConfigSnapshot,
+	queryText string,
+) ([]float64, error) {
 	if e.embeddingHTTPClient == nil {
 		return nil, errors.New("embedding HTTP client is not configured")
 	}
 	body, err := json.Marshal(map[string]any{
-		"model":      e.embeddingModel,
+		"model":      embeddingConfig.Model,
 		"input":      strings.TrimSpace(queryText),
-		"dimensions": e.embeddingDimensions,
+		"dimensions": embeddingConfig.Dimensions,
 	})
 	if err != nil {
 		return nil, err
@@ -199,13 +261,13 @@ func (e qdrantRAGLookupExecutor) embedQuery(ctx context.Context, queryText strin
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		e.embeddingBaseURL+"/embeddings",
+		strings.TrimRight(embeddingConfig.BaseURL, "/")+"/embeddings",
 		bytes.NewReader(body),
 	)
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("authorization", "Bearer "+e.embeddingAPIKey)
+	request.Header.Set("authorization", "Bearer "+embeddingConfig.APIKey)
 	request.Header.Set("content-type", "application/json")
 	response, err := e.embeddingHTTPClient.Do(request)
 	if err != nil {
@@ -230,14 +292,27 @@ func (e qdrantRAGLookupExecutor) embedQuery(ctx context.Context, queryText strin
 	if len(payload.Data) == 0 || len(payload.Data[0].Embedding) == 0 {
 		return nil, errors.New("embedding response did not contain embedding")
 	}
-	if e.embeddingDimensions > 0 && len(payload.Data[0].Embedding) != e.embeddingDimensions {
+	if embeddingConfig.Dimensions > 0 && len(payload.Data[0].Embedding) != embeddingConfig.Dimensions {
 		return nil, fmt.Errorf(
 			"embedding dimension = %d, want %d",
 			len(payload.Data[0].Embedding),
-			e.embeddingDimensions,
+			embeddingConfig.Dimensions,
 		)
 	}
 	return payload.Data[0].Embedding, nil
+}
+
+func (e qdrantRAGLookupExecutor) resolveEmbeddingProviderConfig(
+	ctx context.Context,
+) (providerConfigSnapshot, error) {
+	role := e.embeddingRole
+	if role == "" {
+		role = providerConfigRoleRAGQueryEmbedding
+	}
+	if e.configResolver != nil {
+		return e.configResolver.ResolveActiveProviderConfig(ctx, role)
+	}
+	return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
 }
 
 func (e qdrantRAGLookupExecutor) queryPoints(
@@ -249,6 +324,36 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	if err != nil {
 		return nil, err
 	}
+	if err := validateRAGLookupQueryShape(plan, profile, embedding); err != nil {
+		return nil, err
+	}
+	embeddingConfig, err := e.resolveEmbeddingProviderConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return e.queryPointsWithProfileAndProviderConfig(ctx, plan, profile, embedding, embeddingConfig)
+}
+
+func (e qdrantRAGLookupExecutor) queryPointsWithProviderConfig(
+	ctx context.Context,
+	plan ragruntime.PlanProjection,
+	embedding []float64,
+	embeddingConfig providerConfigSnapshot,
+) ([]qdrantPoint, error) {
+	profile, err := e.runtimeProfile(plan)
+	if err != nil {
+		return nil, err
+	}
+	return e.queryPointsWithProfileAndProviderConfig(ctx, plan, profile, embedding, embeddingConfig)
+}
+
+func (e qdrantRAGLookupExecutor) queryPointsWithProfileAndProviderConfig(
+	ctx context.Context,
+	plan ragruntime.PlanProjection,
+	profile retrievalruntime.RuntimeProfile,
+	embedding []float64,
+	embeddingConfig providerConfigSnapshot,
+) ([]qdrantPoint, error) {
 	bodyPayload, err := retrievalruntime.BuildHybridQueryBody(retrievalruntime.QueryRequest{
 		CompareToVersionID: resolvedQueryCompareToVersionID(plan),
 		DenseEmbedding:     embedding,
@@ -261,7 +366,7 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	if err != nil {
 		return nil, err
 	}
-	if err := e.validateAliasReleaseMetadata(ctx, profile); err != nil {
+	if err := e.validateAliasReleaseMetadata(ctx, profile, embeddingConfig); err != nil {
 		return nil, err
 	}
 	body, err := json.Marshal(bodyPayload)
@@ -298,9 +403,27 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	return payload.Result.Points, nil
 }
 
+func validateRAGLookupQueryShape(
+	plan ragruntime.PlanProjection,
+	profile retrievalruntime.RuntimeProfile,
+	embedding []float64,
+) error {
+	_, err := retrievalruntime.BuildQdrantFilter(retrievalruntime.QueryRequest{
+		CompareToVersionID: resolvedQueryCompareToVersionID(plan),
+		DenseEmbedding:     embedding,
+		Mode:               plan.QueryMode,
+		Profile:            profile,
+		QueryText:          plan.QueryText,
+		TopK:               plan.TopK,
+		VersionID:          resolvedQueryVersionID(plan),
+	})
+	return err
+}
+
 func (e qdrantRAGLookupExecutor) validateAliasReleaseMetadata(
 	ctx context.Context,
 	profile retrievalruntime.RuntimeProfile,
+	embeddingConfig providerConfigSnapshot,
 ) error {
 	metadata, err := e.readQdrantCollectionMetadata(ctx, profile.QdrantAliasName)
 	if err != nil {
@@ -308,9 +431,9 @@ func (e qdrantRAGLookupExecutor) validateAliasReleaseMetadata(
 	}
 	if len(metadata) > 0 {
 		return retrievalruntime.ValidateReleaseMetadata(retrievalruntime.ReleaseGuardRequest{
-			EmbeddingDimensions: e.embeddingDimensions,
-			EmbeddingModel:      e.embeddingModel,
-			EmbeddingProvider:   e.embeddingProvider,
+			EmbeddingDimensions: embeddingConfig.Dimensions,
+			EmbeddingModel:      embeddingConfig.Model,
+			EmbeddingProvider:   firstNonEmptyText(embeddingConfig.Provider, e.embeddingProvider),
 			Metadata:            metadata,
 			Profile:             profile,
 		})
@@ -320,9 +443,9 @@ func (e qdrantRAGLookupExecutor) validateAliasReleaseMetadata(
 		return err
 	}
 	return retrievalruntime.ValidateReleaseMetadataSamples(retrievalruntime.ReleaseGuardSamplesRequest{
-		EmbeddingDimensions: e.embeddingDimensions,
-		EmbeddingModel:      e.embeddingModel,
-		EmbeddingProvider:   e.embeddingProvider,
+		EmbeddingDimensions: embeddingConfig.Dimensions,
+		EmbeddingModel:      embeddingConfig.Model,
+		EmbeddingProvider:   firstNonEmptyText(embeddingConfig.Provider, e.embeddingProvider),
 		MetadataSamples:     samples,
 		Profile:             profile,
 	})

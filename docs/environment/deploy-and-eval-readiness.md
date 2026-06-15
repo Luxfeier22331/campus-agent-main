@@ -142,12 +142,16 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 默认规则：
 
-- eval 优先复用 shared provider：
+- eval / local command 优先复用 env-defined shared provider：
   - `LLM_*`
   - `EMBEDDING_*`
 - 只有在 eval 需要独立 provider、预算或限流时，才使用：
   - `EVAL_LLM_*`
   - `EVAL_EMBEDDING_*`
+
+online answer serving 不再以 `LLM_*` / `EMBEDDING_*` env 为 provider/model/API
+key truth；它消费 app-api provider-config active profiles。eval env contract 只描述
+eval / local automation。
 
 长期保留的 eval 链路键包括：
 

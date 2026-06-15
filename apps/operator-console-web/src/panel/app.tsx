@@ -27,6 +27,7 @@ import { OfficialWebTargetJobsListPage } from "./official-web/target-jobs-list";
 import { AuditPage as DiningAuditPage } from "./operations/dining/audit-page";
 import { DiningWorkspacePage } from "./operations/dining/dining-workspace-page";
 import { ReleasesPage as DiningReleasesPage } from "./operations/dining/releases-page";
+import { ProviderConfigPage } from "./operations/provider-config/page";
 import { AccessRequiredPage } from "./pages/access-required-page";
 import { AuditPage } from "./pages/audit-page";
 import { CostPage } from "./pages/cost-page";
@@ -137,6 +138,7 @@ export function OperatorConsoleAdminApp() {
 				<Route element={<DiningReleasesPage />} path="/operations/dining/releases" />
 				<Route element={<DiningReleasesPage />} path="/operations/dining/releases/:releaseId" />
 				<Route element={<DiningAuditPage />} path="/operations/dining/audit" />
+				<Route element={<ProviderConfigPage />} path="/operations/provider-config" />
 				<Route
 					element={
 						<DelayedDomainPage

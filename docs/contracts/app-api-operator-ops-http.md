@@ -18,6 +18,7 @@ operator HTTP contract 横切规则。
 - `/api/ops/*` 的调用方、authz、错误、pagination 与 audit 规则
 - Operator Console operations surface 与 `app-api` 的 proxy 边界
 - ops draft / release candidate / release / published projection 的通用 envelope
+- provider-config operator command 与 internal runtime snapshot 的边界
 
 它不负责：
 
@@ -39,6 +40,14 @@ operator browser -> operator console operations surface -> app-api /api/ops/*
 
 当前 `operator-console-web` Worker 只允许显式 proxy 已实现的 `/api/ops/dining/*` route。它不开放
 generic `/api/*`，也不 proxy `/api/auth/*` 或 `/api/federation/*`。
+
+同一个 Operator Console surface 还允许显式 proxy provider configuration routes：
+
+- `GET /api/operator/provider-config/profiles`
+- `POST /api/operator/provider-config/profiles`
+- `PATCH /api/operator/provider-config/profiles/:profileId`
+- `POST /api/operator/provider-config/profiles/:profileId/validate`
+- `POST /api/operator/provider-config/profiles/:profileId/activate`
 
 长期 operator namespace 优先使用 `/api/operator/*`。`/api/ops/dining/*` 是当前 accepted
 dining operations route inventory，不表示存在第二套长期 ops product backend。
@@ -78,6 +87,11 @@ service principal、未登录请求和非 operator principal 对 `/api/ops/*` �
 - `dining_floorplan_manifest_not_found`
 - `dining_floorplan_manifest_mismatch`
 - `dining_release_not_published`
+- `provider_profile_missing`
+- `provider_profile_not_found`
+- `provider_profile_not_validated`
+- `active_provider_profile_immutable`
+- `embedding_profile_incompatible`
 
 ## Release Candidate Envelope
 
@@ -176,3 +190,85 @@ Audit list 返回：
 
 当前 dining ops list routes 只返回 bounded in-memory/DB result set，不冻结 cursor
 pagination shape。新增大列表时必须先在本 contract 中冻结 `limit`、`cursor` 和排序规则。
+
+## Provider Config Envelope
+
+Profile list / command responses returned to Operator Console must not include
+raw API keys.
+
+Summary shape:
+
+```json
+{
+  "profile": {
+    "active": true,
+    "baseUrl": "https://provider.example/v1",
+    "dimensions": 2560,
+    "kind": "embedding",
+    "model": "Qwen3-Embedding-4B",
+    "profileId": "provider_profile_...",
+    "provider": "openai-compatible",
+    "revision": 3,
+    "role": "rag_query_embedding",
+    "secretConfigured": true,
+    "secretFingerprint": "sha256:...",
+    "secretLast4": "1234",
+    "status": "active",
+    "timeoutMs": 30000,
+    "transport": "embeddings",
+    "updatedAt": "2026-06-16T00:00:00.000Z",
+    "validation": {
+      "message": "embedding provider validated",
+      "observedDimensions": 2560,
+      "ok": true,
+      "status": "passed"
+    }
+  }
+}
+```
+
+Accepted roles:
+
+- prompt: `primary_agent`, `rag_synthesis`, `personal_memory_extraction`
+- embedding: `rag_query_embedding`, `personal_memory_embedding`,
+  `index_embedding`
+
+Rules:
+
+- active profiles are immutable; replace by creating a new inactive profile
+  revision, validating it and activating it
+- activation requires a passing validation result
+- embedding activation must check compatibility with active vector dimensions by
+  calling execution-control internal
+  `POST /internal/provider-config/embedding:check-compatibility`
+- raw API keys may appear only in create/update command bodies and app-api
+  encrypted persistence; they must never appear in operator list responses
+
+Internal runtime snapshot:
+
+```text
+GET /api/internal/provider-config/active?role=primary_agent
+```
+
+Requires `x-app-internal-auth`. Response includes raw `api_key` and is only for
+machine-internal consumers such as `execution-control`; it is not browser-facing.
+
+Embedding compatibility request:
+
+```text
+app-api provider-config activation
+-> execution-control /internal/provider-config/embedding:check-compatibility
+```
+
+Rules:
+
+- request uses `EXECUTION_CONTROL_SHARED_SECRET` / `x-worker-origin-auth`
+- request body includes role, provider, transport, base URL, model, dimensions
+  and timeout
+- request body must not include raw API key
+- `rag_query_embedding` / `index_embedding` compatibility is checked against
+  active query-serving RAG release metadata
+- `personal_memory_embedding` compatibility is checked against the
+  `personal_memory_v1` dense vector schema
+- incompatible or unsupported roles return `{ "ok": false, "reason": "..." }`
+  and app-api activation fails closed

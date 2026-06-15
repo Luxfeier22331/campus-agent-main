@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	createExecutionControlPersonalMemoryClient,
+	createExecutionControlProviderConfigClient,
 	createExecutionControlRuntimeClient,
 	isExecutionControlRuntimeConfigured,
 } from "../src/modules/integration/execution-control";
@@ -611,6 +612,53 @@ describe("execution control runtime adapter", () => {
 			updatedAt: "2026-06-10T10:00:00.000Z",
 			userId: "user_01HQ",
 		});
+	});
+
+	it("checks embedding provider compatibility without forwarding provider API keys", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ ok: true, reason: "" }), {
+				status: 200,
+			}),
+		);
+		const client = createExecutionControlProviderConfigClient(
+			{
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		const result = await client.checkEmbeddingCompatibility({
+			baseUrl: "https://embedding.example/v1",
+			dimensions: 2560,
+			model: "embedding-model",
+			provider: "openai",
+			role: "rag_query_embedding",
+			timeoutMs: 30000,
+			transport: "embeddings",
+		});
+
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"https://execution-control.internal/internal/provider-config/embedding:check-compatibility",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					"x-worker-origin-auth": "shared-secret",
+				}),
+				method: "POST",
+			}),
+		);
+		const body = JSON.parse(readMockRequestBody(fetchImplementation, 0));
+		expect(body).toEqual({
+			base_url: "https://embedding.example/v1",
+			dimensions: 2560,
+			model: "embedding-model",
+			provider: "openai",
+			role: "rag_query_embedding",
+			timeout_ms: 30000,
+			transport: "embeddings",
+		});
+		expect(JSON.stringify(body)).not.toContain("api_key");
+		expect(result).toEqual({ ok: true, reason: "" });
 	});
 
 	it("fails closed when durable runtime configuration is missing", async () => {

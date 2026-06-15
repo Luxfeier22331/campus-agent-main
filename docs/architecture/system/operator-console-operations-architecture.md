@@ -18,6 +18,7 @@ updated: 2026-06-15
 - 为什么 dining operations 属于统一 Operator Console，而不是第二个长期后台产品
 - Worker shell 与 `app-api` proxy allowlist 如何分层
 - dining workspace 第一批承载哪些能力
+- provider/model/API key 在线配置如何进入同一个 operator data surface
 - 非 dining 后台域在当前阶段为什么只是 reserved route shell
 
 它不负责：
@@ -56,6 +57,7 @@ operator browser
 - serve static assets
 - expose `GET /healthz`
 - proxy explicit `/api/ops/dining/*`
+- proxy explicit `/api/operator/provider-config/*`
 - reject unknown `/api/*`
 - reject `/api/federation/*`
 - does not proxy `/api/auth/*`
@@ -63,6 +65,22 @@ operator browser
 Auth/session truth stays in `app-api` / identity platform. The operations surface
 only consumes operator admission results through proxied ops routes. It does not
 own a second operator backend.
+
+Provider configuration is an operations domain in the same Operator Console
+product concept. Browser UI writes only through `app-api` operator routes:
+
+```text
+operator browser
+-> operator-console-web /operations/provider-config
+-> explicit /api/operator/provider-config/* proxy allowlist
+-> app-api encrypted provider-config profiles
+-> execution-control internal active snapshot
+-> agent-runtime / RAG synthesis / embedding calls
+```
+
+Raw provider API keys are accepted only in create/update command payloads and
+must not be returned to the browser. List responses expose only masked metadata
+such as `secretLast4` and fingerprint.
 
 ## Information Architecture
 
@@ -77,6 +95,7 @@ Accepted target routes:
 - `/dining/releases`
 - `/dining/releases/:releaseId`
 - `/dining/audit`
+- `/operations/provider-config`
 - `/map`
 - `/feedback`
 - `/knowledge`
@@ -87,9 +106,10 @@ Dining is the only complete first-batch operations workspace target. Map,
 feedback, knowledge, notices and services routes are placeholder shells to
 reserve information architecture, not implemented editors or API commitments.
 
-Current `operator-console-web` implementation exposes the reserved route shell
-and the primary dining workspace route set. `/dining/svg-demo` is not part of the
-information architecture and must not be reintroduced.
+Current `operator-console-web` implementation exposes the reserved route shell,
+the primary dining workspace route set and `/operations/provider-config`.
+`/dining/svg-demo` is not part of the information architecture and must not be
+reintroduced.
 
 ## Dining Workspace
 
@@ -136,6 +156,33 @@ without a candidate. It may hide scheduling or rollback controls until the
 underlying app-api routes are implemented, but the information architecture and
 copy must not teach operators a direct-draft-publish model.
 
+## Provider Configuration Workspace
+
+Provider configuration manages prompt and embedding runtime profiles for the
+online answer path. It is not a generic secrets vault.
+
+Accepted profile roles:
+
+- prompt: `primary_agent`, `rag_synthesis`, `personal_memory_extraction`
+- embedding: `rag_query_embedding`, `personal_memory_embedding`,
+  `index_embedding`
+
+Accepted commands:
+
+- create draft profile with provider, transport, base URL, model, timeout,
+  role and API key
+- update inactive profile
+- validate profile against provider endpoint
+- activate validated profile
+
+Embedding activation must fail closed when the configured model/dimensions are
+not compatible with active retrieval / memory vector dimensions. App-api performs
+that check by calling execution-control internal
+`/internal/provider-config/embedding:check-compatibility` with candidate metadata
+only; raw API keys stay in app-api encrypted persistence and are not sent to the
+compatibility endpoint. The UI may show validation and activation errors, but it
+must not invent fallback provider values or expose raw API keys.
+
 ## Forbidden Shapes
 
 - Do not embed operations workspace inside the account browser shell.
@@ -143,6 +190,9 @@ copy must not teach operators a direct-draft-publish model.
 - Do not expose generic `/api/*` proxy.
 - Do not surface federation or auth management inside Operator Console operations.
 - Do not treat `operator-console-web` as a second long-term operator product backend.
+- Do not return raw provider API keys to Operator Console browser code.
+- Do not let execution-control or agent-runtime bypass app-api active provider
+  profiles for online serving provider/model/API key truth.
 - Do not let source observations mutate published projections without explicit
   review and release.
 - Do not expose "publish current draft" as the target dining publish workflow.

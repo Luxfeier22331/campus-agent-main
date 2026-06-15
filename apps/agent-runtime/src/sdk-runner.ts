@@ -1,5 +1,10 @@
 import { Agent, type ModelProvider, Runner, tool } from "@openai/agents";
-import type { AgentRunner, RunnerToolCall, ToolExecutionResult } from "./primary-agent.ts";
+import type {
+	AgentRunner,
+	PromptProviderRuntimeConfig,
+	RunnerToolCall,
+	ToolExecutionResult,
+} from "./primary-agent.ts";
 
 const emptyParametersSchema = {
 	type: "object" as const,
@@ -13,6 +18,9 @@ export interface OpenAIAgentsRunnerOptions {
 	maxTurns?: number;
 	model?: string;
 	modelProvider?: ModelProvider;
+	resolveRuntimeOptions?: (
+		providerConfig: PromptProviderRuntimeConfig,
+	) => Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">;
 }
 
 export type OpenAIAgentsRunFunction = (
@@ -54,6 +62,12 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 	const runSdk = options.runSdk ?? defaultRunSdk;
 	const maxTurns = options.maxTurns ?? 4;
 	return async (input) => {
+		const requestOptions =
+			options.resolveRuntimeOptions?.(input.providerConfig) ??
+			({
+				model: options.model,
+				modelProvider: options.modelProvider,
+			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
 		const sdkTools = input.tools.map((runtimeTool) =>
 			tool({
 				name: runtimeTool.name,
@@ -68,12 +82,12 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 		const agent = new Agent({
 			name: "Campus primary assistant",
 			instructions: input.instructions,
-			model: options.model?.trim() || undefined,
+			model: requestOptions.model?.trim() || undefined,
 			tools: sdkTools,
 		});
 		const result = await runSdk(agent, input.input, {
 			maxTurns,
-			modelProvider: options.modelProvider,
+			modelProvider: requestOptions.modelProvider,
 			traceId: input.traceId,
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,

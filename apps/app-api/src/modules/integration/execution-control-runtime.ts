@@ -16,7 +16,7 @@ type ExecutionControlRuntimeEnv = Pick<
 	| "EXECUTION_CONTROL_TIMEOUT_MS"
 >;
 
-type JsonRecord = Record<string, unknown>;
+export type JsonRecord = Record<string, unknown>;
 
 export interface ExecutionControlRunCreateInput {
 	conversationId: string;
@@ -384,7 +384,7 @@ function parsePersonalMemoryOwnerDisableResult(value: JsonRecord): {
 	};
 }
 
-function createExecutionControlRequester(
+export function createExecutionControlRequester(
 	env: ExecutionControlRuntimeEnv,
 	input: {
 		fetchImplementation: typeof fetch;

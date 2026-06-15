@@ -68,14 +68,18 @@ export async function proxyToAppApi(input: {
 	}
 
 	try {
-		const response = await appApi.fetch(
-			new Request(targetUrl.toString(), {
-				body: shouldForwardBody(input.request.method) ? input.request.body : undefined,
-				headers,
-				method: input.request.method,
-				redirect: input.request.redirect,
-			}),
-		);
+		const body = shouldForwardBody(input.request.method) ? input.request.body : undefined;
+		const init: RequestInit & { duplex?: "half" } = {
+			body,
+			headers,
+			method: input.request.method,
+			redirect: input.request.redirect,
+		};
+		if (body) {
+			init.duplex = "half";
+		}
+
+		const response = await appApi.fetch(new Request(targetUrl.toString(), init));
 
 		return withNoStore(response);
 	} catch {

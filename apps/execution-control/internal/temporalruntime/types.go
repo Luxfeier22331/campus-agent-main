@@ -51,6 +51,8 @@ type MemoryCandidate struct {
 	Confidence  float64 `json:"confidence"`
 	MemoryID    string  `json:"memory_id"`
 	MemoryType  string  `json:"memory_type"`
+	ReasonCode  string  `json:"reason_code"`
+	SourceHash  string  `json:"source_hash"`
 }
 
 type ExtractMemoryCandidatesActivityOutput struct {

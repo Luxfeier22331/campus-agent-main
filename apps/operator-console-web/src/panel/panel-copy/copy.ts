@@ -38,6 +38,7 @@ export const PANEL_COPY = {
 		jobs: "任务",
 		operations: "操作",
 		diningOperations: "食堂运营",
+		providerConfig: "Provider 配置",
 		audit: "审计",
 	},
 	operatorObservabilityRouteShell: {

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -27,19 +28,38 @@ func (s *Server) ExtractMemoryCandidatesActivity(
 	if !enabled {
 		return skippedMemoryExtractOutput(run.RunID, "memory_disabled"), nil
 	}
-	userGoal := strings.TrimSpace(optionalStringFromAny(payload["user_goal"]))
-	candidates := inferredMemoryCandidatesFromUserGoal(run, userGoal)
+	if s.memoryExtractionErr != nil {
+		return temporalruntime.ExtractMemoryCandidatesActivityOutput{}, s.memoryExtractionErr
+	}
+	extractor := s.memoryExtraction
+	if providerBacked, ok := extractor.(providerBackedMemoryExtractionExecutor); ok {
+		providerBacked.configResolver = s.providerConfigResolver
+		extractor = providerBacked
+	}
+	if extractor == nil {
+		return temporalruntime.ExtractMemoryCandidatesActivityOutput{}, errors.New("memory extraction executor is not configured")
+	}
+	result, err := extractor.ExtractMemoryCandidates(ctx, run, payload)
+	if err != nil {
+		return temporalruntime.ExtractMemoryCandidatesActivityOutput{}, err
+	}
 	output := temporalruntime.ExtractMemoryCandidatesActivityOutput{
-		CandidateCount: len(candidates),
-		Candidates:     candidates,
+		CandidateCount: len(result.Candidates),
+		Candidates:     result.Candidates,
 		RunID:          run.RunID,
 		SchemaVersion:  "memory_update_extract_result_v1",
+		SkipReasons:    result.SkipReasons,
+		SkippedCount:   result.SkippedCount,
 		Status:         "completed",
 	}
-	if len(candidates) == 0 {
+	if len(result.Candidates) == 0 {
 		output.Status = "skipped"
-		output.SkippedCount = 1
-		output.SkipReasons = []string{"no_high_confidence_memory"}
+		if output.SkippedCount == 0 {
+			output.SkippedCount = 1
+		}
+		if len(output.SkipReasons) == 0 {
+			output.SkipReasons = []string{"no_high_confidence_memory"}
+		}
 	}
 	return output, nil
 }
@@ -72,6 +92,11 @@ func (s *Server) UpsertInferredMemoryActivity(
 	skipped := 0
 	reasons := []string{}
 	for _, candidate := range input.Candidates {
+		if reason := memoryCandidateUpsertSkipReason(candidate); reason != "" {
+			skipped++
+			reasons = appendUniqueMemoryUpdateReason(reasons, reason)
+			continue
+		}
 		request := memoryruntime.UpsertRequest{
 			Capability:  strings.TrimSpace(candidate.Capability),
 			CompactText: strings.TrimSpace(candidate.CompactText),
@@ -172,52 +197,20 @@ func skippedMemoryUpsertOutput(runID string, reason string) temporalruntime.Upse
 	}
 }
 
-func inferredMemoryCandidatesFromUserGoal(
-	run execution.DurableRun,
-	userGoal string,
-) []temporalruntime.MemoryCandidate {
-	normalized := strings.TrimSpace(userGoal)
-	if normalized == "" || containsForbiddenMemoryIntent(normalized) {
-		return nil
+func memoryCandidateUpsertSkipReason(candidate temporalruntime.MemoryCandidate) string {
+	if candidate.Confidence < inferredMemoryConfidenceThreshold {
+		return "low_confidence"
 	}
-	for _, marker := range []string{"之后主要关注", "以后主要关注", "长期关注"} {
-		before, after, ok := strings.Cut(normalized, marker)
-		if !ok || strings.TrimSpace(before) != "我" {
-			continue
-		}
-		target := strings.Trim(after, " 。.，,")
-		if target == "" {
-			return nil
-		}
-		compactText := "近期目标: 关注" + target
-		return []temporalruntime.MemoryCandidate{{
-			Capability:  "any",
-			CompactText: compactText,
-			Confidence:  0.95,
-			MemoryID:    "inf_" + memoryruntime.PointID(run.OwnerUserID, compactText)[:16],
-			MemoryType:  "goal",
-		}}
+	if memoryruntime.ContainsForbiddenMemoryPayload(candidate.CompactText) {
+		return "forbidden_payload"
 	}
-	return nil
-}
-
-func containsForbiddenMemoryIntent(value string) bool {
-	normalized := strings.ToLower(value)
-	for _, marker := range []string{
-		"api_key",
-		"authorization",
-		"bearer",
-		"权限",
-		"角色",
-		"密钥",
-		"secret",
-		"token",
-	} {
-		if strings.Contains(normalized, marker) {
-			return true
-		}
+	if reason := memoryCandidateReasonSkipReason(candidate.ReasonCode); reason != "" {
+		return reason
 	}
-	return false
+	if strings.TrimSpace(candidate.SourceHash) == "" {
+		return "missing_source_hash"
+	}
+	return ""
 }
 
 func (s *Server) projectMemoryUpdateResult(

@@ -15,6 +15,7 @@ import QueryStatsOutlinedIcon from "@mui/icons-material/QueryStatsOutlined";
 import RefreshOutlinedIcon from "@mui/icons-material/RefreshOutlined";
 import RestaurantOutlinedIcon from "@mui/icons-material/RestaurantOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
+import SettingsInputComponentOutlinedIcon from "@mui/icons-material/SettingsInputComponentOutlined";
 import TravelExploreOutlinedIcon from "@mui/icons-material/TravelExploreOutlined";
 import {
 	Box,
@@ -231,6 +232,11 @@ function OperatorConsoleMenu() {
 				leftIcon={<RestaurantOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.diningOperations}
 				to="/operations/dining"
+			/>
+			<RaMenu.Item
+				leftIcon={<SettingsInputComponentOutlinedIcon />}
+				primaryText={PANEL_COPY.menu.providerConfig}
+				to="/operations/provider-config"
 			/>
 			<RaMenu.Item
 				leftIcon={<HistoryOutlinedIcon />}

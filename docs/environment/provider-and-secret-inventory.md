@@ -55,21 +55,32 @@ combinations live in split environment references.
 ### Repo-root shared provider
 
 - Provider / system: OpenAI-compatible LLM provider
-  作用: execution-control / agentic execution 在线回答，eval 默认 judge/ragas LLM
+  作用: primary agent / RAG synthesis 在线回答 provider profile、personal memory inferred
+  extraction provider profile，eval 默认 judge/ragas LLM
+  主要 online owner: `apps/app-api` provider-config profile；Operator Console
+  `/operations/provider-config` 创建、验证、激活
   主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `EXECUTION_PROMPT_MODEL`
   `AGENT_PROMPT_MODEL`
-  放置位置: root `.env`
-  何时必需: 真实 query path、live eval
-  获取方式: 在所选供应商控制台创建项目级 API key；如果直接用 OpenAI，按 Projects / API keys 流程创建
+  放置位置: online serving 不再以 root `.env` 为真相；root `.env` 只用于 local seed /
+  eval / command-scoped override
+  何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
+  必须存在 active `rag_synthesis` profile；自动记忆抽取必须存在 active
+  `personal_memory_extraction` profile；live eval 仍可用 env override
+  获取方式: 在所选供应商控制台创建项目级 API key；通过 Operator Console 写入 profile，不把 raw key
+  写回 docs 或 repo-tracked env
 
 - Provider / system: Embedding provider
-  作用: ingestion 向量化、retrieval dense lane、eval 默认 embeddings
+  作用: ingestion 向量化、retrieval dense lane、personal memory、eval 默认 embeddings
+  主要 online owner: `apps/app-api` provider-config profile；Operator Console
+  `/operations/provider-config` 创建、验证、激活
   主要 env keys: `EMBEDDING_PROVIDER` `EMBEDDING_BASE_URL` `EMBEDDING_API_KEY`
   `EMBEDDING_MODEL` `EMBEDDING_DIMENSIONS`
-  放置位置: root `.env`
-  何时必需: indexing、retrieval、eval embeddings
+  放置位置: online retrieval / memory 不再以 root `.env` 为真相；root `.env` 只用于 ingestion
+  / local seed / eval / command-scoped override
+  何时必需: indexing、retrieval、personal memory、eval embeddings；online query path 必须存在
+  active `rag_query_embedding` 与 `personal_memory_embedding` profile
   获取方式: 当前 baseline 是 Gitee OpenAI-compatible embeddings；需在供应商控制台开通 embeddings
-  服务并拿到 token / endpoint
+  服务并拿到 token / endpoint；online profile 激活前必须通过维度兼容检查
 
 - Provider / system: Qdrant
   作用: 向量索引与 hybrid retrieval backend
@@ -212,9 +223,10 @@ combinations live in split environment references.
   `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL`
   `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`
   `EXECUTION_CONTROL_TEMPORAL_*`
+  `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`
+  `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`
   `QDRANT_API_KEY`
-  `EMBEDDING_*`
-  `PROMPT_RUNTIME_*`
+  provider/model/API key active profiles from app-api provider-config
   放置位置: `/srv/docker/campus-agent/staging/env/runtime.env` 或 Docker/ops-owned
   secret source
   何时必需: 当前 canonical staging execution runtime 需要

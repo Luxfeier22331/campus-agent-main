@@ -11,6 +11,12 @@ export type {
 	RequestedScope,
 } from "./capability-execution-types";
 export {
+	createExecutionControlProviderConfigClient,
+	type ExecutionControlEmbeddingCompatibilityInput,
+	type ExecutionControlEmbeddingCompatibilityResult,
+	type ExecutionControlProviderConfigClient,
+} from "./execution-control-provider-config";
+export {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
 	type ExecutionControlPersonalMemoryClient,

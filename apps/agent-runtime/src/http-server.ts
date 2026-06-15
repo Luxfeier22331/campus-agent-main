@@ -1,6 +1,17 @@
 import { z } from "zod";
 import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
 
+const providerConfigSchema = z.object({
+	profile_id: z.string().min(1).optional(),
+	revision: z.number().int().nonnegative().optional(),
+	provider: z.string().min(1),
+	transport: z.literal("responses"),
+	base_url: z.string().min(1).optional(),
+	model: z.string().min(1),
+	api_key: z.string().min(1),
+	timeout_ms: z.number().int().positive().optional(),
+});
+
 const runRequestSchema = z.object({
 	run_id: z.string().min(1),
 	conversation_id: z.string().min(1),
@@ -8,6 +19,7 @@ const runRequestSchema = z.object({
 	trace_id: z.string().min(1),
 	input: z.string().min(1),
 	visible_capabilities: z.array(z.string().min(1)).default([]),
+	provider_config: providerConfigSchema,
 	memory_projection_refs: z.array(z.string().min(1)).optional(),
 });
 
@@ -55,6 +67,16 @@ export function createAgentRuntimeHandler(
 					traceId: parsed.trace_id,
 					input: parsed.input,
 					visibleCapabilities: parsed.visible_capabilities,
+					providerConfig: {
+						profileId: parsed.provider_config.profile_id,
+						revision: parsed.provider_config.revision,
+						provider: parsed.provider_config.provider,
+						transport: parsed.provider_config.transport,
+						baseUrl: parsed.provider_config.base_url,
+						model: parsed.provider_config.model,
+						apiKey: parsed.provider_config.api_key,
+						timeoutMs: parsed.provider_config.timeout_ms,
+					},
 					memoryProjectionRefs: parsed.memory_projection_refs,
 					signal: request.signal,
 				});

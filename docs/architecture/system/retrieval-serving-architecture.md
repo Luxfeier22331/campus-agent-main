@@ -78,6 +78,11 @@ truth。
 - `app-api` knowledge request 现在已经显式开放 `current` / `historical` / `as_of` /
   `compare` 这四种 version query mode；`freshness_sensitive` 与 `live_assisted`
   仍未作为产品 route 默认开放
+- online RAG query embedding provider/model/API key/dimensions come from active
+  app-api provider-config role `rag_query_embedding`; root `EMBEDDING_*` env is
+  local/ingestion/eval seed, not online serving truth
+- embedding model or dimension changes must pass release/vector compatibility
+  before activation; query-time retrieval must fail closed on mismatch
 
 这里的 `agent` 默认指 knowledge-family `knowledge` specialist，而不是顶层 capability router。
 

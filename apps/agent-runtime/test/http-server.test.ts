@@ -47,6 +47,36 @@ describe("agent runtime HTTP handler", () => {
 	});
 
 	it("runs a primary agent turn with worker authorization", async () => {
+		let observedProvider: unknown;
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run(input) {
+					observedProvider = input.providerConfig;
+					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
+				},
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as { final_output?: string; selected_tools?: string[] };
+		expect(body.final_output).toBe("我是校园问答助手。");
+		expect(body.selected_tools).toEqual([]);
+		expect(observedProvider).toEqual(validRuntimePromptProviderConfig());
+	});
+
+	it("fails closed when provider config is missing from an agent run request", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
@@ -60,10 +90,10 @@ describe("agent runtime HTTP handler", () => {
 			}),
 		);
 
-		expect(response.status).toBe(200);
-		const body = (await response.json()) as { final_output?: string; selected_tools?: string[] };
-		expect(body.final_output).toBe("我是校园问答助手。");
-		expect(body.selected_tools).toEqual([]);
+		expect(response.status).toBe(400);
+		const body = (await response.json()) as { error?: { code?: string; message?: string } };
+		expect(body.error?.code).toBe("invalid_request");
+		expect(body.error?.message).toContain("provider_config");
 	});
 
 	it("passes the worker request cancellation signal into the primary agent runtime", async () => {
@@ -93,7 +123,10 @@ describe("agent runtime HTTP handler", () => {
 			new Request("http://agent-runtime/internal/agent-runs", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify(validRunBody()),
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
 				signal: controller.signal,
 			}),
 		);
@@ -142,7 +175,10 @@ describe("agent runtime HTTP handler", () => {
 			new Request("http://agent-runtime/internal/agent-runs", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify(validRunBody()),
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
 			}),
 		);
 
@@ -177,7 +213,10 @@ describe("agent runtime HTTP handler", () => {
 			new Request("http://agent-runtime/internal/agent-runs", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify(validRunBody()),
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
 			}),
 		);
 
@@ -209,7 +248,7 @@ describe("agent runtime server env contract", () => {
 			"utf8",
 		);
 
-		expect(source).toContain("createOpenAIAgentsRunnerFromEnv");
+		expect(source).not.toContain("createOpenAIAgentsRunnerFromEnv");
 		expect(source).not.toContain("OPENAI_API_KEY");
 	});
 });
@@ -230,5 +269,31 @@ function validRunBody(): Record<string, unknown> {
 		trace_id: "trace-1",
 		input: "hi 你是谁",
 		visible_capabilities: ["campus_services"],
+	};
+}
+
+function validPromptProviderConfig(): Record<string, unknown> {
+	return {
+		profile_id: "provider-profile-primary",
+		revision: 3,
+		provider: "openai",
+		transport: "responses",
+		base_url: "https://api.openai.com/v1",
+		model: "gpt-5-mini",
+		api_key: "provider-key",
+		timeout_ms: 30000,
+	};
+}
+
+function validRuntimePromptProviderConfig(): Record<string, unknown> {
+	return {
+		profileId: "provider-profile-primary",
+		revision: 3,
+		provider: "openai",
+		transport: "responses",
+		baseUrl: "https://api.openai.com/v1",
+		model: "gpt-5-mini",
+		apiKey: "provider-key",
+		timeoutMs: 30000,
 	};
 }

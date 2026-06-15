@@ -57,10 +57,15 @@ updated: 2026-06-09
   - `QDRANT_URL`
   - `QDRANT_QUERY_API_KEY`
   - `QDRANT_TLS_CA_CERT_PATH`
-  - `EMBEDDING_*`
-  - `PROMPT_RUNTIME_*`
-  - `EXECUTION_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
+  - `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`
+  - `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`
 - conditional:
+  - online prompt / embedding provider model/API key truth must already exist as
+    active app-api provider-config profiles; do not hardcode them in
+    execution-control env.
+    Required prompt roles are `primary_agent`, `rag_synthesis` and
+    `personal_memory_extraction`; required online embedding roles are
+    `rag_query_embedding` and `personal_memory_embedding`.
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`
   - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、
@@ -84,6 +89,15 @@ Deployment/start 脚本必须投影同机 internal bridge runtime env：
   `http://execution-control:8000`。
 - `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`：默认等于
   `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`，否则 typed tool executor fail closed。
+- `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`：execution-control 调用 app-api
+  internal provider-config active snapshot 的地址；compose / staging baseline 使用
+  app-api internal service URL。
+- `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`：必须等于 app-api
+  `APP_API_INTERNAL_SHARED_SECRET`，否则 provider snapshot 读取 fail closed。
+- embedding profile activation 时 app-api 会反向调用 execution-control
+  `/internal/provider-config/embedding:check-compatibility` 做 release/vector
+  compatibility check。这个请求只携带 provider/model/dimensions 等候选元数据，不携带
+  raw API key；raw provider key 只存在于 app-api encrypted provider-config profile。
 
 这些是部署投影责任，不是用户在尚未部署前需要手工配置的外部输入。非 compose / 非 canonical
 topology 才应在 server-local env file 或等价 deployment secret source 覆写地址。

@@ -18,8 +18,22 @@ const AUTHENTICATED_NOTICE_IDENTITY_MESSAGE =
 const REQUEST_IDENTITY_MESSAGE = "Protected request queries require a trusted operator identity.";
 const DINING_OPS_IDENTITY_MESSAGE =
 	"Operator Console dining operations require a trusted operator identity.";
+const PROVIDER_CONFIG_IDENTITY_MESSAGE =
+	"Operator Console provider configuration requires a trusted operator identity.";
 
 const STATIC_PROXY_ROUTES = [
+	{
+		identityMessage: PROVIDER_CONFIG_IDENTITY_MESSAGE,
+		method: "GET",
+		path: "/api/operator/provider-config/profiles",
+		targetPath: "/api/operator/provider-config/profiles",
+	},
+	{
+		identityMessage: PROVIDER_CONFIG_IDENTITY_MESSAGE,
+		method: "POST",
+		path: "/api/operator/provider-config/profiles",
+		targetPath: "/api/operator/provider-config/profiles",
+	},
 	{
 		identityMessage: DINING_OPS_IDENTITY_MESSAGE,
 		method: "GET",
@@ -269,6 +283,12 @@ const DINING_OPS_DYNAMIC_PROXY_ROUTES = [
 	/^POST \/api\/ops\/dining\/releases\/[^/]+\/rollback$/,
 ] as const;
 
+const PROVIDER_CONFIG_DYNAMIC_PROXY_ROUTES = [
+	/^PATCH \/api\/operator\/provider-config\/profiles\/[^/]+$/,
+	/^POST \/api\/operator\/provider-config\/profiles\/[^/]+\/validate$/,
+	/^POST \/api\/operator\/provider-config\/profiles\/[^/]+\/activate$/,
+] as const;
+
 function matchProxyRoute(
 	request: Request,
 	url: URL,
@@ -293,6 +313,13 @@ function matchProxyRoute(
 	if (DINING_OPS_DYNAMIC_PROXY_ROUTES.some((pattern) => pattern.test(routeKey))) {
 		return {
 			identityMessage: DINING_OPS_IDENTITY_MESSAGE,
+			targetPath: `${url.pathname}${url.search}`,
+		};
+	}
+
+	if (PROVIDER_CONFIG_DYNAMIC_PROXY_ROUTES.some((pattern) => pattern.test(routeKey))) {
+		return {
+			identityMessage: PROVIDER_CONFIG_IDENTITY_MESSAGE,
 			targetPath: `${url.pathname}${url.search}`,
 		};
 	}

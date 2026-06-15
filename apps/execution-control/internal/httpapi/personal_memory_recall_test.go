@@ -37,6 +37,7 @@ func TestQdrantPersonalMemoryRecallFiltersByActorStatusAndCapability(t *testing.
 
 	embedding := newStaticEmbeddingServer(t)
 	executor := qdrantPersonalMemoryExecutor{
+		configResolver:      memoryEmbeddingResolverForTest(embedding.URL, "embedding-model", 3),
 		httpClient:          server.Client(),
 		qdrantQueryAPIKey:   "readonly-key",
 		qdrantURL:           server.URL,
@@ -44,10 +45,6 @@ func TestQdrantPersonalMemoryRecallFiltersByActorStatusAndCapability(t *testing.
 		defaultTopK:         5,
 		defaultMaxChars:     48,
 		embeddingHTTPClient: embedding.Client(),
-		embeddingAPIKey:     "embedding-key",
-		embeddingBaseURL:    embedding.URL,
-		embeddingDimensions: 3,
-		embeddingModel:      "embedding-model",
 		timeout:             time.Second,
 	}
 
@@ -88,6 +85,69 @@ func TestQdrantPersonalMemoryRecallFiltersByActorStatusAndCapability(t *testing.
 	serialized, _ := json.Marshal(should)
 	if !strings.Contains(string(serialized), "knowledge") || !strings.Contains(string(serialized), "any") {
 		t.Fatalf("filter.should = %s, want requested capability and any", serialized)
+	}
+}
+
+func TestQdrantPersonalMemoryEmbeddingUsesActiveProviderSnapshot(t *testing.T) {
+	var captured map[string]any
+	var authorization string
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		authorization = request.Header.Get("authorization")
+		if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
+			t.Fatalf("decode embedding body: %v", err)
+		}
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3]}]}`))
+	}))
+	defer server.Close()
+	executor := qdrantPersonalMemoryExecutor{
+		configResolver: staticProviderConfigResolver{
+			"personal_memory_embedding": {
+				APIKey:     "snapshot-memory-embedding-key",
+				BaseURL:    server.URL,
+				Dimensions: 3,
+				Model:      "snapshot-memory-embedding-model",
+				ProfileID:  "provider_profile_memory_embedding",
+				Provider:   "openai-compatible",
+				Revision:   5,
+				Role:       "personal_memory_embedding",
+				TimeoutMS:  30000,
+				Transport:  "embeddings",
+			},
+		},
+		embeddingHTTPClient: server.Client(),
+		embeddingRole:       providerConfigRolePersonalMemoryEmbedding,
+		timeout:             time.Second,
+	}
+
+	embedding, err := executor.embedMemoryText(context.Background(), "用户偏好官方来源")
+	if err != nil {
+		t.Fatalf("embed memory text: %v", err)
+	}
+	if len(embedding) != 3 {
+		t.Fatalf("embedding dim = %d, want snapshot dim 3", len(embedding))
+	}
+	if authorization != "Bearer snapshot-memory-embedding-key" {
+		t.Fatalf("authorization = %q, want snapshot key", authorization)
+	}
+	if captured["model"] != "snapshot-memory-embedding-model" ||
+		captured["dimensions"] != float64(3) {
+		t.Fatalf("embedding request = %#v", captured)
+	}
+}
+
+func TestQdrantPersonalMemoryEmbeddingFailsClosedWithoutProviderResolver(t *testing.T) {
+	executor := qdrantPersonalMemoryExecutor{
+		embeddingHTTPClient: http.DefaultClient,
+		timeout:             time.Second,
+	}
+
+	_, err := executor.embedMemoryText(context.Background(), "用户偏好官方来源")
+	if err == nil {
+		t.Fatal("online personal memory embedding must require active provider config resolver")
+	}
+	if !strings.Contains(err.Error(), "provider config resolver is not configured") {
+		t.Fatalf("error = %v, want provider resolver diagnostic", err)
 	}
 }
 
@@ -152,12 +212,12 @@ func TestQdrantPersonalMemoryEnsureSchemaCreatesMissingCollection(t *testing.T) 
 	defer server.Close()
 
 	executor := qdrantPersonalMemoryExecutor{
-		collection:          "personal_memory_v1",
-		embeddingDimensions: 2560,
-		httpClient:          server.Client(),
-		qdrantQueryAPIKey:   "readonly-key",
-		qdrantURL:           server.URL,
-		qdrantWriteAPIKey:   "write-key",
+		configResolver:    memoryEmbeddingResolverForTest("https://provider.example/v1", "embedding-model", 2560),
+		collection:        "personal_memory_v1",
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "readonly-key",
+		qdrantURL:         server.URL,
+		qdrantWriteAPIKey: "write-key",
 	}
 
 	if err := executor.EnsureSchema(context.Background()); err != nil {
@@ -193,11 +253,11 @@ func TestQdrantPersonalMemoryHealthCheckRequiresDenseVectorSchema(t *testing.T) 
 	defer server.Close()
 
 	executor := qdrantPersonalMemoryExecutor{
-		collection:          "personal_memory_v1",
-		embeddingDimensions: 2560,
-		httpClient:          server.Client(),
-		qdrantQueryAPIKey:   "readonly-key",
-		qdrantURL:           server.URL,
+		configResolver:    memoryEmbeddingResolverForTest("https://provider.example/v1", "embedding-model", 2560),
+		collection:        "personal_memory_v1",
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "readonly-key",
+		qdrantURL:         server.URL,
 	}
 
 	err := executor.HealthCheck(context.Background())
@@ -234,16 +294,13 @@ func TestQdrantPersonalMemoryUpsertUsesWriteKeyAndNamedDenseVector(t *testing.T)
 
 	embedding := newStaticEmbeddingServer(t)
 	executor := qdrantPersonalMemoryExecutor{
+		configResolver:      memoryEmbeddingResolverForTest(embedding.URL, "embedding-model", 3),
 		httpClient:          server.Client(),
 		qdrantQueryAPIKey:   "readonly-key",
 		qdrantWriteAPIKey:   "write-key",
 		qdrantURL:           server.URL,
 		collection:          "personal_memory_v1",
 		embeddingHTTPClient: embedding.Client(),
-		embeddingAPIKey:     "embedding-key",
-		embeddingBaseURL:    embedding.URL,
-		embeddingDimensions: 3,
-		embeddingModel:      "embedding-model",
 		timeout:             time.Second,
 	}
 
@@ -535,4 +592,19 @@ func newStaticEmbeddingServer(t *testing.T) *httptest.Server {
 	}))
 	t.Cleanup(server.Close)
 	return server
+}
+
+func memoryEmbeddingResolverForTest(
+	baseURL string,
+	model string,
+	dimensions int,
+) providerConfigResolver {
+	return staticProviderConfigResolver{
+		"personal_memory_embedding": embeddingProviderConfigSnapshotForTest(
+			providerConfigRolePersonalMemoryEmbedding,
+			baseURL,
+			model,
+			dimensions,
+		),
+	}
 }

@@ -6,6 +6,7 @@ import appSource from "../src/panel/app.tsx?raw";
 import cursorSource from "../src/panel/data-provider/cursor.ts?raw";
 import officialWebRunsSource from "../src/panel/official-web/runs-list.tsx?raw";
 import officialWebSitesSource from "../src/panel/official-web/sites-list.tsx?raw";
+import providerConfigPageSource from "../src/panel/operations/provider-config/page.tsx?raw";
 import auditPageSource from "../src/panel/pages/audit-page.tsx?raw";
 import costPageSource from "../src/panel/pages/cost-page.tsx?raw";
 import intentPageSource from "../src/panel/pages/intent-page.tsx?raw";
@@ -140,6 +141,19 @@ describe("Operator Console shell chinese copy", () => {
 		expect(appSource).not.toContain('name="operatorSafety"');
 		expect(appSource).not.toContain('name="operatorCost"');
 		expect(appSource).not.toContain('name="operatorAudit"');
+	});
+
+	it("exposes provider configuration as an operations route without reading raw keys", () => {
+		expect(appSource).toContain('path="/operations/provider-config"');
+		expect(layoutSource).toContain("PANEL_COPY.menu.providerConfig");
+		expect(layoutSource).toContain('to="/operations/provider-config"');
+		expect(providerConfigPageSource).toContain("listProviderConfigProfiles");
+		expect(providerConfigPageSource).toContain("createProviderConfigProfile");
+		expect(providerConfigPageSource).toContain("updateProviderConfigProfile");
+		expect(providerConfigPageSource).toContain("编辑");
+		expect(providerConfigPageSource).toContain("取消编辑");
+		expect(providerConfigPageSource).toContain("secretLast4");
+		expect(providerConfigPageSource).not.toContain("profile.apiKey");
 	});
 
 	it("cuts the overview menu and page owner over to the operator overview route", () => {

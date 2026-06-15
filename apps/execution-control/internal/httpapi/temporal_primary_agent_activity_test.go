@@ -58,6 +58,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:001",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	output, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -77,6 +78,15 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	}
 	if seenBody["run_id"] != "run-primary-agent-001" {
 		t.Fatalf("agent runtime request = %#v", seenBody)
+	}
+	providerConfig, ok := seenBody["provider_config"].(map[string]any)
+	if !ok {
+		t.Fatalf("agent runtime request missing provider_config: %#v", seenBody)
+	}
+	if providerConfig["profile_id"] != "provider_profile_primary" ||
+		providerConfig["api_key"] != "sk-primary-agent" ||
+		providerConfig["model"] != "gpt-test" {
+		t.Fatalf("provider_config = %#v", providerConfig)
 	}
 	if output.AgentResultRef != "projection://runs/run-primary-agent-001/agent/primary/result" {
 		t.Fatalf("agent result ref = %q", output.AgentResultRef)
@@ -149,6 +159,53 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testi
 	}
 }
 
+func TestExecutePrimaryAgentActivityFailsClosedWhenProviderProfileMissing(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 10, 35, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-provider-missing",
+		"conv-primary-agent-provider-missing",
+		now,
+		ragHandoffForDurableWorkerTest("hi"),
+	)
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("agent runtime must not be called without active primary_agent provider profile")
+	}))
+	defer agentRuntime.Close()
+	server := NewServer(config.Config{
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-secret",
+		AgentRuntimeTimeoutMS:    1000,
+		TemporalWorkerIdentity:   "test:agent:provider-missing",
+	})
+	server.providerConfigResolver = staticProviderConfigResolver{}
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+		RunID:   "run-primary-agent-provider-missing",
+		TraceID: "trace-executor-001",
+	})
+	if err == nil {
+		t.Fatal("expected missing provider profile to fail")
+	}
+	run, getErr := store.GetRun(context.Background(), "run-primary-agent-provider-missing")
+	if getErr != nil {
+		t.Fatalf("get run: %v", getErr)
+	}
+	if run.Status != execution.DurableRunStatusFailed {
+		t.Fatalf("run status = %q, want failed", run.Status)
+	}
+	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-provider-missing")
+	if listErr != nil {
+		t.Fatalf("list steps: %v", listErr)
+	}
+	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "provider_profile_missing" {
+		t.Fatalf("steps = %#v", steps)
+	}
+}
+
 func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 40, 0, 0, time.UTC)
@@ -175,6 +232,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:diagnostic",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -244,6 +302,7 @@ func TestExecutePrimaryAgentActivityAllowsKnowledgeSignalWithoutFinalOutput(t *t
 		AgentRuntimeTimeoutMS:    1000,
 		TemporalWorkerIdentity:   "test:agent:knowledge-signal",
 	})
+	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	output, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{

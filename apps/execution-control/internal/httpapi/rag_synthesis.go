@@ -31,20 +31,23 @@ type ragSynthesisExecutor interface {
 }
 
 type providerBackedRAGSynthesisExecutor struct {
-	client *provider.ResponsesClient
+	clientFactory func(providerConfigSnapshot) *provider.ResponsesClient
+	configResolver providerConfigResolver
+	pricing        provider.PricingCatalog
 }
 
 func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 	ctx context.Context,
 	packet ragSynthesisPacket,
 ) (ragSynthesisResult, error) {
-	if e.client == nil {
-		return ragSynthesisResult{}, errors.New("rag synthesis provider client is not configured")
-	}
 	if err := validateRAGSynthesisPacket(packet); err != nil {
 		return ragSynthesisResult{}, err
 	}
-	result := e.client.Execute(ctx, provider.ResponsesRequest{
+	client, err := e.resolveClient(ctx)
+	if err != nil {
+		return ragSynthesisResult{}, err
+	}
+	result := client.Execute(ctx, provider.ResponsesRequest{
 		Input:              ragProviderInput(packet),
 		ProviderRequestRef: providerRequestRefForPacket(packet),
 		Text:               ragProviderTextSchema(packet),
@@ -66,10 +69,43 @@ func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 }
 
 func (e providerBackedRAGSynthesisExecutor) HealthCheck(context.Context) error {
-	if e.client == nil {
-		return errors.New("rag synthesis provider client is not configured")
+	if e.configResolver == nil && e.clientFactory == nil {
+		return errors.New("rag synthesis provider config resolver is not configured")
 	}
 	return nil
+}
+
+func (e providerBackedRAGSynthesisExecutor) resolveClient(
+	ctx context.Context,
+) (*provider.ResponsesClient, error) {
+	if e.clientFactory != nil && e.configResolver == nil {
+		client := e.clientFactory(providerConfigSnapshot{})
+		if client == nil {
+			return nil, errors.New("rag synthesis provider client is not configured")
+		}
+		return client, nil
+	}
+	if e.configResolver == nil {
+		return nil, errors.New("rag synthesis provider config resolver is not configured")
+	}
+	snapshot, err := e.configResolver.ResolveActiveProviderConfig(ctx, providerConfigRoleRAGSynthesis)
+	if err != nil {
+		return nil, err
+	}
+	if e.clientFactory != nil {
+		client := e.clientFactory(snapshot)
+		if client == nil {
+			return nil, errors.New("rag synthesis provider client is not configured")
+		}
+		return client, nil
+	}
+	return provider.NewResponsesClient(provider.ResponsesClientConfig{
+		APIKey:        snapshot.APIKey,
+		BaseURL:       snapshot.BaseURL,
+		ModelName:     snapshot.Model,
+		ModelProvider: snapshot.Provider,
+		Pricing:       e.pricing,
+	}), nil
 }
 
 func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
