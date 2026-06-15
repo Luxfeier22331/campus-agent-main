@@ -16,8 +16,10 @@ COPY configs/runtime/capabilities.v1.json /src/configs/runtime/capabilities.v1.j
 COPY configs/runtime/intent-policy.v1.json /src/configs/runtime/intent-policy.v1.json
 COPY configs/runtime/provider-pricing.v1.json /src/configs/runtime/provider-pricing.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /src/configs/runtime/query-serving-scopes.v1.json
+COPY configs/runtime/tool-catalog.v1.json /src/apps/configs/runtime/tool-catalog.v1.json
 COPY configs/runtime/tools.v3.json /src/configs/runtime/tools.v3.json
 COPY configs/runtime/workflow-artifacts.v2.json /src/configs/runtime/workflow-artifacts.v2.json
+COPY packages/evals/fixtures/tool_function_schemas.v1.json /src/apps/packages/evals/fixtures/tool_function_schemas.v1.json
 COPY tests/fixtures/service_guide_vpn_grouped_procedure_result.json /src/tests/fixtures/service_guide_vpn_grouped_procedure_result.json
 COPY tests/fixtures/capability_execution_contract /src/tests/fixtures/capability_execution_contract
 

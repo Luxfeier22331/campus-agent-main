@@ -192,6 +192,24 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         self.assertIn(copy_statement, dockerfile)
         self.assertLess(dockerfile.index(copy_statement), dockerfile.index("RUN go test ./..."))
 
+    def test_execution_control_dockerfile_copies_httpapi_test_fixtures_before_tests(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        dockerfile = (repo_root / "apps/execution-control/Dockerfile").read_text(encoding="utf-8")
+
+        tool_catalog_copy = (
+            "COPY configs/runtime/tool-catalog.v1.json "
+            "/src/apps/configs/runtime/tool-catalog.v1.json"
+        )
+        tool_schema_copy = (
+            "COPY packages/evals/fixtures/tool_function_schemas.v1.json "
+            "/src/apps/packages/evals/fixtures/tool_function_schemas.v1.json"
+        )
+
+        self.assertIn(tool_catalog_copy, dockerfile)
+        self.assertIn(tool_schema_copy, dockerfile)
+        self.assertLess(dockerfile.index(tool_catalog_copy), dockerfile.index("RUN go test ./..."))
+        self.assertLess(dockerfile.index(tool_schema_copy), dockerfile.index("RUN go test ./..."))
+
     def test_execution_control_dockerfile_builds_primary_agent_activity_worker(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         dockerfile = (repo_root / "apps/execution-control/Dockerfile").read_text(encoding="utf-8")
