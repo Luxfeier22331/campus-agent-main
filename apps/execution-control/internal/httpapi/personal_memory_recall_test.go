@@ -91,6 +91,124 @@ func TestQdrantPersonalMemoryRecallFiltersByActorStatusAndCapability(t *testing.
 	}
 }
 
+func TestQdrantPersonalMemoryHealthCheckRequiresCollection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/readyz":
+			_, _ = response.Write([]byte("all shards are ready"))
+		case "/collections/personal_memory_v1":
+			http.Error(response, "collection not found", http.StatusNotFound)
+		default:
+			t.Fatalf("unexpected qdrant path = %q", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	executor := qdrantPersonalMemoryExecutor{
+		collection:        "personal_memory_v1",
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "readonly-key",
+		qdrantURL:         server.URL,
+	}
+
+	err := executor.HealthCheck(context.Background())
+	if err == nil {
+		t.Fatal("health check must fail when personal memory collection is missing")
+	}
+	if !strings.Contains(err.Error(), "personal memory collection is missing") {
+		t.Fatalf("health check error = %v, want collection missing diagnostic", err)
+	}
+}
+
+func TestQdrantPersonalMemoryEnsureSchemaCreatesMissingCollection(t *testing.T) {
+	var createBody map[string]any
+	collectionExists := false
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.URL.Path == "/readyz":
+			_, _ = response.Write([]byte("all shards are ready"))
+		case request.URL.Path == "/collections/personal_memory_v1" && request.Method == http.MethodGet:
+			if request.Header.Get("api-key") != "readonly-key" {
+				t.Fatalf("query api-key = %q, want readonly-key", request.Header.Get("api-key"))
+			}
+			if !collectionExists {
+				http.Error(response, "collection not found", http.StatusNotFound)
+				return
+			}
+			_, _ = response.Write([]byte(`{"result":{"status":"green","config":{"params":{"vectors":{"dense":{"size":2560,"distance":"Cosine"}}}}},"status":"ok"}`))
+		case request.URL.Path == "/collections/personal_memory_v1" && request.Method == http.MethodPut:
+			if request.Header.Get("api-key") != "write-key" {
+				t.Fatalf("write api-key = %q, want write-key", request.Header.Get("api-key"))
+			}
+			if err := json.NewDecoder(request.Body).Decode(&createBody); err != nil {
+				t.Fatalf("decode create collection body: %v", err)
+			}
+			collectionExists = true
+			_, _ = response.Write([]byte(`{"result":true,"status":"ok"}`))
+		default:
+			t.Fatalf("unexpected qdrant request %s %s", request.Method, request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	executor := qdrantPersonalMemoryExecutor{
+		collection:          "personal_memory_v1",
+		embeddingDimensions: 2560,
+		httpClient:          server.Client(),
+		qdrantQueryAPIKey:   "readonly-key",
+		qdrantURL:           server.URL,
+		qdrantWriteAPIKey:   "write-key",
+	}
+
+	if err := executor.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+	vectors, ok := createBody["vectors"].(map[string]any)
+	if !ok {
+		t.Fatalf("vectors = %#v, want object", createBody["vectors"])
+	}
+	dense, ok := vectors["dense"].(map[string]any)
+	if !ok {
+		t.Fatalf("dense vector = %#v, want named dense vector", vectors["dense"])
+	}
+	if dense["size"] != float64(2560) || dense["distance"] != "Cosine" {
+		t.Fatalf("dense config = %#v, want size 2560 cosine", dense)
+	}
+	if err := executor.HealthCheck(context.Background()); err != nil {
+		t.Fatalf("health check after ensure: %v", err)
+	}
+}
+
+func TestQdrantPersonalMemoryHealthCheckRequiresDenseVectorSchema(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/readyz":
+			_, _ = response.Write([]byte("all shards are ready"))
+		case "/collections/personal_memory_v1":
+			_, _ = response.Write([]byte(`{"result":{"status":"green","config":{"params":{"vectors":{"dense":{"size":1536,"distance":"Cosine"}}}}},"status":"ok"}`))
+		default:
+			t.Fatalf("unexpected qdrant path = %q", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	executor := qdrantPersonalMemoryExecutor{
+		collection:          "personal_memory_v1",
+		embeddingDimensions: 2560,
+		httpClient:          server.Client(),
+		qdrantQueryAPIKey:   "readonly-key",
+		qdrantURL:           server.URL,
+	}
+
+	err := executor.HealthCheck(context.Background())
+	if err == nil {
+		t.Fatal("health check must fail when personal memory dense vector schema does not match embeddings")
+	}
+	if !strings.Contains(err.Error(), "dense vector size = 1536, want 2560") {
+		t.Fatalf("health check error = %v, want dense vector size diagnostic", err)
+	}
+}
+
 func TestQdrantPersonalMemoryUpsertUsesWriteKeyAndNamedDenseVector(t *testing.T) {
 	var captured map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

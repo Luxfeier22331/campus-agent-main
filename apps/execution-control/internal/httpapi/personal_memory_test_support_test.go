@@ -17,6 +17,10 @@ func (f *fakePersonalMemoryExecutor) HealthCheck(context.Context) error {
 	return nil
 }
 
+func (f *fakePersonalMemoryExecutor) EnsureSchema(context.Context) error {
+	return nil
+}
+
 func (f *fakePersonalMemoryExecutor) Recall(
 	_ context.Context,
 	request memoryruntime.RecallRequest,

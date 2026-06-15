@@ -159,6 +159,11 @@ staging 不应依赖 repo-root `.env.staging.local`。
   query key
 - `STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`；
   Qdrant certificate SAN 必须覆盖 `qdrant`、`localhost`、`127.0.0.1`
+- `PERSONAL_MEMORY_COLLECTION` 默认是 `personal_memory_v1`。`start-execution-control-staging.sh`
+  会在启动 execution-control 前用 write key 确保该 collection 存在，并写出
+  `personal-memory-schema-install.json` / `personal-memory-schema-check.json`
+  evidence；`status-execution-control-staging.sh --check` 会要求
+  `/readyz.personal_memory_runtime.healthy=true`。
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
   query-serving index release metadata 匹配。当前 staging baseline 固定为：
   - `STAGING_INGESTION_EMBEDDING_PROVIDER=gitee`

@@ -18,6 +18,7 @@ import (
 
 type personalMemoryExecutor interface {
 	HealthCheck(context.Context) error
+	EnsureSchema(context.Context) error
 	Recall(context.Context, memoryruntime.RecallRequest) (memoryruntime.RecallResult, error)
 	Upsert(context.Context, memoryruntime.UpsertRequest) (memoryruntime.UpsertResult, error)
 	Disable(context.Context, memoryruntime.DisableRequest) (memoryruntime.UpsertResult, error)
@@ -111,6 +112,27 @@ func newQdrantPersonalMemoryExecutor(cfg config.Config) (personalMemoryExecutor,
 }
 
 func (e qdrantPersonalMemoryExecutor) HealthCheck(ctx context.Context) error {
+	if err := e.checkQdrantReady(ctx); err != nil {
+		return err
+	}
+	return e.checkCollection(ctx)
+}
+
+func (e qdrantPersonalMemoryExecutor) EnsureSchema(ctx context.Context) error {
+	if err := e.checkQdrantReady(ctx); err != nil {
+		return err
+	}
+	if err := e.checkCollection(ctx); err == nil {
+		return nil
+	} else if !errors.Is(err, errPersonalMemoryCollectionMissing) {
+		return err
+	}
+	return e.createCollection(ctx)
+}
+
+var errPersonalMemoryCollectionMissing = errors.New("personal memory collection is missing")
+
+func (e qdrantPersonalMemoryExecutor) checkQdrantReady(ctx context.Context) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, e.qdrantURL+"/readyz", nil)
 	if err != nil {
 		return err
@@ -125,6 +147,91 @@ func (e qdrantPersonalMemoryExecutor) HealthCheck(ctx context.Context) error {
 	}()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("qdrant readyz status %d", response.StatusCode)
+	}
+	return nil
+}
+
+func (e qdrantPersonalMemoryExecutor) checkCollection(ctx context.Context) error {
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		e.qdrantURL+"/collections/"+url.PathEscape(e.collection),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("api-key", e.qdrantQueryAPIKey)
+	response, err := e.httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode == http.StatusNotFound {
+		return errPersonalMemoryCollectionMissing
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("qdrant personal memory collection status %d", response.StatusCode)
+	}
+	var payload struct {
+		Result struct {
+			Config struct {
+				Params struct {
+					Vectors map[string]struct {
+						Distance string `json:"distance"`
+						Size     int    `json:"size"`
+					} `json:"vectors"`
+				} `json:"params"`
+			} `json:"config"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		return fmt.Errorf("parse qdrant personal memory collection: %w", err)
+	}
+	dense, ok := payload.Result.Config.Params.Vectors["dense"]
+	if !ok {
+		return errors.New("qdrant personal memory collection missing dense vector")
+	}
+	if dense.Size != e.embeddingDimensions {
+		return fmt.Errorf("qdrant personal memory dense vector size = %d, want %d", dense.Size, e.embeddingDimensions)
+	}
+	if !strings.EqualFold(strings.TrimSpace(dense.Distance), "cosine") {
+		return fmt.Errorf("qdrant personal memory dense vector distance = %q, want Cosine", dense.Distance)
+	}
+	return nil
+}
+
+func (e qdrantPersonalMemoryExecutor) createCollection(ctx context.Context) error {
+	body := map[string]any{
+		"vectors": map[string]any{
+			"dense": map[string]any{
+				"size":     e.embeddingDimensions,
+				"distance": "Cosine",
+			},
+		},
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPut,
+		e.qdrantURL+"/collections/"+url.PathEscape(e.collection),
+		bytes.NewReader(encoded),
+	)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("api-key", e.qdrantWriteAPIKey)
+	request.Header.Set("content-type", "application/json")
+	response, err := e.httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("qdrant personal memory collection create status %d", response.StatusCode)
 	}
 	return nil
 }

@@ -68,6 +68,10 @@ func (readyPersonalMemoryExecutor) HealthCheck(context.Context) error {
 	return nil
 }
 
+func (readyPersonalMemoryExecutor) EnsureSchema(context.Context) error {
+	return nil
+}
+
 func (readyPersonalMemoryExecutor) Recall(
 	_ context.Context,
 	request memoryruntime.RecallRequest,
