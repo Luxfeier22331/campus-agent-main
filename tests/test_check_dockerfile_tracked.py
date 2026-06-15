@@ -198,11 +198,11 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
 
         tool_catalog_copy = (
             "COPY configs/runtime/tool-catalog.v1.json "
-            "/src/apps/configs/runtime/tool-catalog.v1.json"
+            "/src/configs/runtime/tool-catalog.v1.json"
         )
         tool_schema_copy = (
             "COPY packages/evals/fixtures/tool_function_schemas.v1.json "
-            "/src/apps/packages/evals/fixtures/tool_function_schemas.v1.json"
+            "/src/packages/evals/fixtures/tool_function_schemas.v1.json"
         )
 
         self.assertIn(tool_catalog_copy, dockerfile)
