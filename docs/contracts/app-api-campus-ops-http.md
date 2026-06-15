@@ -6,38 +6,42 @@ status: active
 created: 2026-06-08
 updated: 2026-06-14
 ---
-# App API Campus Ops HTTP Contract
+# App API Operator Operations HTTP Contract
 
 ## 文档边界
 
-本文冻结 `apps/app-api` 面向 Campus Operations Control Plane 的 browser-facing
+本文冻结 `apps/app-api` 面向 Operator Console operations domains 的 browser-facing
 operator HTTP contract 横切规则。
 
 它回答：
 
 - `/api/ops/*` 的调用方、authz、错误、pagination 与 audit 规则
-- `campus-ops-web` 与 `app-api` 的 proxy 边界
+- Operator Console operations surface 与 `app-api` 的 proxy 边界
 - ops draft / release candidate / release / published projection 的通用 envelope
 
 它不负责：
 
 - dining 领域对象字段，见 `app-api-dining-ops-http.md`
-- operator observability/panel 查询，见 `app-api-operator-observability-http.md`
+- operator observability query，见 `app-api-operator-observability-http.md`
 - student-facing campus projection，见 `app-api-http.md`
 - auth/session/OAuth provider 细节
 
 ## Caller Model
 
-`/api/ops/*` 的 browser surface owner 是 `apps/campus-ops-web`。
+`/api/ops/*` 的 browser surface owner 是 Operator Console。当前 dining operations
+implementation surface 是 `apps/campus-ops-web`。
 
 调用形态固定为：
 
 ```text
-operator browser -> campus-ops-web same-site /api/ops/* -> app-api
+operator browser -> operator console operations surface -> app-api /api/ops/*
 ```
 
-`campus-ops-web` Worker 只允许显式 proxy 已实现的 `/api/ops/dining/*` route。它不开放
+当前 `campus-ops-web` Worker 只允许显式 proxy 已实现的 `/api/ops/dining/*` route。它不开放
 generic `/api/*`，也不 proxy `/api/auth/*` 或 `/api/federation/*`。
+
+长期 operator namespace 优先使用 `/api/operator/*`。`/api/ops/dining/*` 是当前 accepted
+dining operations route inventory，不表示存在第二套长期 ops product backend。
 
 ## Authz
 

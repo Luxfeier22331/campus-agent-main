@@ -9,18 +9,22 @@ updated: 2026-06-04
 ---
 # ADR-0011 Protected Panel Worker Runtime 决策
 
-适用范围：`apps/protected-panel-web` 的正式 runtime 宿主、UI shell 方向与长期 operator control
-plane 形态
+适用范围：`apps/protected-panel-web` 的正式 runtime 宿主、UI shell 方向与受控 operator
+surface 形态。
+
+ADR-0055 已将长期产品概念统一为 Operator Console。本文继续冻结当前
+`apps/protected-panel-web` 实现边界的 Worker runtime、Access 与 UI shell 决策，不再单独定义第二套
+长期 operator product concept。
 
 ## 背景
 
-protected panel 已经被长期文档冻结为：
+protected operator surface 已经被长期文档冻结为：
 
 - 独立 protected surface
 - non-public by default / fail-closed
 - controlled operator access，而不是终端用户账户产品
 - `runtime APIs only`
-- forward product topology 已收口为 `protected-panel-web -> app-api -> operator
+- 当前第一实现 topology 已收口为 `protected-panel-web -> app-api -> operator
   query`
 
 在上述边界已经冻结后，panel 仍需正式收口两个长期问题：
@@ -37,10 +41,11 @@ protected panel 已经被长期文档冻结为：
 
 原因：
 
-- panel 的长期 exposure model 已经依赖 Cloudflare Access 作为 outer protection envelope
-- panel 面向少量 operator，属于受保护运行控制面，而不是重型在线事务后端
-- Worker runtime 更符合“受保护 UI + origin admission + panel BFF”的长期形态
-- 这条路线不要求 panel 回退到自建 Docker origin 才能成立
+- 当前 protected operator surface 的 exposure model 已经依赖 Cloudflare Access 作为
+  outer protection envelope
+- 该 surface 面向少量 operator，属于受保护运行控制面，而不是重型在线事务后端
+- Worker runtime 更符合“受保护 UI + origin admission + Operator Console BFF”的长期形态
+- 这条路线不要求 Operator Console surface 回退到自建 Docker origin 才能成立
 
 ## 决策 2：panel 不是全仓库 runtime 冻结
 
@@ -65,9 +70,9 @@ protected panel 已经被长期文档冻结为：
 
 原因：
 
-- panel 的主要目标是 operator control plane，而不是高度定制的终端产品前台
+- Operator Console 的主要目标是 operator control plane，而不是高度定制的终端产品前台
 - `react-admin` 更适合资源列表、详情、过滤、审计视图与少量受控操作
-- 这条路线可以减少重复造轮子，同时不改变 panel 的 protected runtime / API seam
+- 这条路线可以减少重复造轮子，同时不改变 protected operator surface runtime / API seam
 
 补充说明：
 
@@ -82,15 +87,15 @@ protected panel 已经被长期文档冻结为：
 
 原因：
 
-- `ContainerLayout` 更适合资源数量较少且以顶栏导航为主的场景，不符合当前 panel 的 operator console 组织方式
+- `ContainerLayout` 更适合资源数量较少且以顶栏导航为主的场景，不符合当前 Operator Console 组织方式
 - `SolarLayout` 需要更高的导航复杂度和 Enterprise 形态，现阶段过重
-- `Appsmith` / `ToolJet` 更接近通用 internal-tools builder，容易把 panel 推向数据源直连和平台化扩张
+- `Appsmith` / `ToolJet` 更接近通用 internal-tools builder，容易把 Operator Console 推向数据源直连和平台化扩张
 
-## 决策 4：panel 的长期功能域固定为 control plane，而不是通用后台
+## 决策 4：Operator Console 的长期功能域固定为 control plane，而不是通用后台
 
 结论：
 
-panel 长期功能域固定为：
+Operator Console 长期功能域固定为：
 
 - `Overview`
 - `Requests`
@@ -116,7 +121,7 @@ panel 长期功能域固定为：
 
 原因：
 
-- panel 的长期能力图谱不等于第一波交付范围
+- Operator Console 的长期能力图谱不等于第一波交付范围
 - 当前更重要的是先证明 protected Worker shell、operator admission、panel BFF 与最小 read-only
   visibility
 
@@ -127,22 +132,22 @@ panel 长期功能域固定为：
 - 不做数据库控制台
 - 不做对象存储/索引控制台
 - 不做任意 shell / SQL / 内部 API 代理
-- 不把 panel 做成 `apps/execution-control` hidden admin mode
-- 不为 panel 打开 `packages/*` 直连路径
+- 不把 Operator Console 做成 `apps/execution-control` hidden admin mode
+- 不为 Operator Console 打开 `packages/*` 直连路径
 
 ## 后果
 
 直接结果：
 
 - `apps/protected-panel-web` 后续实现应以 Worker shell 为目标
-- panel 文档、README 与 implementation handoff 应围绕 Worker origin、Access assertion
-  validation 和 panel BFF 收口
-- panel 功能规划应优先围绕五个能力域展开，而不是扩张成通用业务后台
+- Operator Console 文档、README 与 implementation handoff 应围绕 Worker origin、Access assertion
+  validation 和 BFF 收口
+- operator console 功能规划应优先围绕受控能力域展开，而不是扩张成通用业务后台
 
 明确不做：
 
 - 不因为 Worker runtime freeze 就修改其他 app boundary 的 runtime 承诺
-- 不因为选择开源 admin framework 就放弃 panel 的长期安全边界
+- 不因为选择开源 admin framework 就放弃 Operator Console 的长期安全边界
 
 ## 决策 6：Worker 侧 BFF 推荐采用 `Hono`
 
@@ -156,7 +161,7 @@ panel 长期功能域固定为：
 
 - `Hono` 与 `Cloudflare Workers` 适配直接、足够轻量
 - 更适合承载 Access assertion validation、operator admission middleware 与 panel BFF 路由
-- 不会反向改变 panel 的 `runtime APIs only` 边界
+- 不会反向改变 Operator Console 的 `runtime APIs only` 边界
 
 ## 相关文档
 

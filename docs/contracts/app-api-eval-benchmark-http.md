@@ -26,7 +26,7 @@ ingress seam。
 它不冻结：
 
 - browser-facing `/api/chat/*` contract
-- panel query contract
+- Operator Console query contract
 - live benchmark case denominator
 - provider/runtime threshold
 
@@ -236,7 +236,7 @@ Eval coverage snapshot 不是 chat request ingress。它由 `packages/evals` 在
   cookie 或 token 等字段
 - 该 publish seam 只写 operator projection，不改变 deterministic gate verdict，也不把 RAGAS
   diagnostic 升级为 release blocker
-- panel 只通过 `GET /api/operator/evals/coverage` 读取已发布 projection
+- Operator Console 只通过 `GET /api/operator/evals/coverage` 读取已发布 projection
 
 ## Eval Diagnostic Badcase Projection Publish
 
@@ -319,5 +319,5 @@ operator-safe review candidate：
   猜测 request correlation
 - 该 publish seam 只写 `operator.eval_diagnostic_badcase_projection`，不改变 deterministic
   gate verdict，不生成 benchmark artifact，不创建 fix task
-- panel 只通过 `GET /api/operator/quality/eval-candidates` 读取已发布 projection；
+- Operator Console 只通过 `GET /api/operator/quality/eval-candidates` 读取已发布 projection；
   返回的 `intake.source` 固定为 `ragas_diagnostic`

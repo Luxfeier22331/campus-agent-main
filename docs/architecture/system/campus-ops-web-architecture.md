@@ -4,17 +4,18 @@ truth_scope: product
 owner_boundary: apps/campus-ops-web
 status: active
 created: 2026-06-08
-updated: 2026-06-14
+updated: 2026-06-15
 ---
-# Campus Ops Web Architecture
+# Operator Console Operations Architecture
 
 ## 文档边界
 
-本文冻结 `apps/campus-ops-web` 的 supporting architecture。
+本文冻结 Operator Console operations domain 的 supporting architecture，并记录当前
+`apps/campus-ops-web` implementation surface。
 
 它回答：
 
-- 为什么运营工作台是独立 app
+- 为什么 dining operations 属于统一 Operator Console，而不是第二个长期后台产品
 - Worker shell 与 `app-api` proxy allowlist 如何分层
 - dining workspace 第一批承载哪些能力
 - 非 dining 后台域在当前阶段为什么只是 reserved route shell
@@ -23,24 +24,26 @@ updated: 2026-06-14
 
 - dining object schema，见 `docs/data/dining-operations-schema.md`
 - dining HTTP contract，见 `docs/contracts/app-api-dining-ops-http.md`
-- protected panel observability query，见 `operator-observability-architecture.md`
+- Operator Console observability query，见 `operator-observability-architecture.md`
 - account / OAuth browser experience，见 identity browser architecture 文档
 
 ## Core Conclusion
 
-`apps/campus-ops-web` 是 Campus Operations Control Plane 的 operator workspace。
+Operator Console 是唯一长期受控 operator product concept。Dining operations 是其中一个
+operations domain；当前实现由 `apps/campus-ops-web` 承载。
 
 它不是：
 
 - account browser shell 的隐藏扩展
-- `protected-panel-web` 的 observability tab
+- `protected-panel-web` 之外的第二个长期后台产品
 - `campus-web` 的隐藏编辑模式
+- generic internal-tools builder
 
 长期 topology：
 
 ```text
 operator browser
--> campus-ops-web Worker
+-> operator console dining workspace (current: campus-ops-web Worker)
 -> explicit /api/ops/* proxy allowlist
 -> app-api
 -> domain-owned draft/release candidate/release/audit stores
@@ -48,7 +51,7 @@ operator browser
 
 ## Runtime Boundary
 
-`campus-ops-web` 使用 Worker shell：
+当前 `campus-ops-web` implementation surface 使用 Worker shell：
 
 - serve static assets
 - expose `GET /healthz`
@@ -57,8 +60,9 @@ operator browser
 - reject `/api/federation/*`
 - does not proxy `/api/auth/*`
 
-Auth/session truth stays in `app-api` / identity platform. The ops web surface
-only consumes operator admission results through proxied ops routes.
+Auth/session truth stays in `app-api` / identity platform. The operations surface
+only consumes operator admission results through proxied ops routes. It does not
+own a second operator backend.
 
 ## Information Architecture
 
@@ -79,14 +83,13 @@ Accepted target routes:
 - `/notices`
 - `/services`
 
-Dining is the only complete first-batch workspace target. Map, feedback,
-knowledge, notices and services routes are placeholder shells to reserve the
-backend modification surface information architecture, not implemented editors
-or API commitments.
+Dining is the only complete first-batch operations workspace target. Map,
+feedback, knowledge, notices and services routes are placeholder shells to
+reserve information architecture, not implemented editors or API commitments.
 
-Current implementation exposes the reserved route shell and the primary dining
-workspace route set. `/dining/svg-demo` is not part of the information
-architecture and must not be reintroduced.
+Current `campus-ops-web` implementation exposes the reserved route shell and the
+primary dining workspace route set. `/dining/svg-demo` is not part of the
+information architecture and must not be reintroduced.
 
 ## Dining Workspace
 
@@ -135,10 +138,11 @@ copy must not teach operators a direct-draft-publish model.
 
 ## Forbidden Shapes
 
-- Do not embed ops workspace inside the account browser shell.
+- Do not embed operations workspace inside the account browser shell.
 - Do not let `campus-web` call `/api/ops/*`.
 - Do not expose generic `/api/*` proxy.
 - Do not surface federation or auth management inside campus ops.
+- Do not treat `campus-ops-web` as a second long-term operator product backend.
 - Do not let source observations mutate published projections without explicit
   review and release.
 - Do not expose "publish current draft" as the target dining publish workflow.

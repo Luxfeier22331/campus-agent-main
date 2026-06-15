@@ -58,7 +58,8 @@ class owns a fact.
   - [architecture/system/document-site-architecture.md](./architecture/system/document-site-architecture.md)
   - [contracts/app-api-document-reader-http.md](./contracts/app-api-document-reader-http.md)
   - [decisions/adr-0051-campus-docs-rspress-reader-surface.md](./decisions/adr-0051-campus-docs-rspress-reader-surface.md)
-- Campus Ops and dining map/menu/release operations:
+- Operator Console and dining map/menu/release operations:
+  - [decisions/adr-0055-unified-operator-console-surface.md](./decisions/adr-0055-unified-operator-console-surface.md)
   - [architecture/system/campus-ops-web-architecture.md](./architecture/system/campus-ops-web-architecture.md)
   - [architecture/domains/dining/architecture.md](./architecture/domains/dining/architecture.md)
   - [contracts/app-api-campus-ops-http.md](./contracts/app-api-campus-ops-http.md)

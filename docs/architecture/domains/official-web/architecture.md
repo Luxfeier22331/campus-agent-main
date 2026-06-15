@@ -35,7 +35,7 @@ updated: 2026-05-04
 `external scheduler -> official-web collector -> object storage + app-api
 official_web control plane -> app-api ledger/outbox/read model ->
 ingestion-worker -> release task state machine -> document/chunk/index /
-structured projection -> app-api operator-safe projection -> protected panel`
+structured projection -> app-api operator-safe projection -> Operator Console`
 
 关键边界：
 
@@ -44,8 +44,9 @@ structured projection -> app-api operator-safe projection -> protected panel`
   ingestion handoff；它还接收 ingestion worker 上报的 redacted release task projection
 - `apps/ingestion-worker` 是 offline executor，负责 release task claim /
   lease / retry / materialize / index / publish
-- protected panel 通过 `apps/app-api` 消费 `official_web` operator surfaces
-  与 release task projection read model
+- Operator Console 通过 `apps/app-api` 消费 `official_web` operator surfaces 与
+  release task projection read model；当前 read-only implementation surface 是
+  `protected-panel-web`
 - collector 写入 source bucket 的对象同时包含 page-level
   `capture/`、`provider/`、`source-truth/` artifacts；如后续 materialize source-side
   projection artifact，则继续写入同一 source prefix 下的
@@ -102,8 +103,8 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - selected-write preview 与 release-task operator summary 固定采用双轨语义：
   task-scope bundle / `recordCount` / `taskScopeDisplayNames` 只表示本次 admitted target
   将写入的记录；full bundle / `fullRecordCount` / `fullImpactDisplayNames` 表示 merge 进当前
-  projection 后的全量 current 影响面。这个语义由 ingestion worker 产出，app-api 与 panel 只消费
-  redacted projection，不自行重算
+  projection 后的全量 current 影响面。这个语义由 ingestion worker 产出，app-api 与
+  Operator Console 只消费 redacted projection，不自行重算
 - selected write 必须有 source refs、matched evidence、review verdict 或等价的
   deterministic extraction evidence，并且只能写显式 `selected_write_target` 对应的
   structured projection
@@ -203,14 +204,14 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 ## Operator Surface
 
-`official_web` operator domain 当前属于：
+`official_web` operator domain 当前属于 Operator Console：
 
-`protected-panel-web -> app-api official_web APIs`
+`operator console surface -> app-api official_web APIs`
 
 它不是：
 
 - 新的 crawler-intake backend
-- panel 侧自建 aggregation backend
+- Operator Console 侧自建 aggregation backend
 - 直接暴露 object storage 或 telemetry sink
 
 ## Runtime Opening Guardrail

@@ -36,8 +36,8 @@ response and ingest endpoint bodies live in the split documents below.
 
 ## 文档边界
 
-这份文档冻结 `apps/app-api` 暴露给 `protected-panel-web` 的 operator observability query
-contract。
+这份文档冻结 `apps/app-api` 暴露给 Operator Console 的 operator observability query
+contract。当前 read-only implementation surface 是 `apps/protected-panel-web`。
 
 它补充但不替代以下文档：
 
@@ -59,7 +59,7 @@ contract。
 
 这份文档不冻结：
 
-- panel UI layout、卡片排列或交互细节
+- Operator Console UI layout、卡片排列或交互细节
 - telemetry sink vendor SDK 的逐字段接入方式
 - 告警阈值、sampling ratio、retention 天数
 - operator 写操作、acknowledge / resolve / override API
@@ -69,17 +69,17 @@ contract。
 
 长期 operator observability query path 固定为：
 
-`operator browser -> protected-panel-web same-site /api/* -> app-api`
+`operator browser -> operator console protected surface -> app-api`
 
 这里冻结的都是只读 query endpoints。
 
 它们共享以下前提：
 
 - operator principal admission 继续复用 shared `app-api` operator access model
-- panel 继续只消费 runtime-owned projections / rollups
+- Operator Console 继续只消费 runtime-owned projections / rollups
 - `Sentry`、`Axiom`、sampled grading / eval tooling 继续只是 sink 或输入来源，不直接充当 query
   backend
-- grader / sink 如果要让 panel 消费结果，必须先通过 `app-api` owned internal ingest seam 写入
+- grader / sink 如果要让 Operator Console 消费结果，必须先通过 `app-api` owned internal ingest seam 写入
   projection
 
 ## Contract 与实现范围说明
@@ -99,12 +99,12 @@ contract。
   `completed`、`citation_missing`、`projection_lag_spike`
 - 所有错误响应继续使用 `docs/contracts/app-api-error-model.md` 中定义的统一 envelope
 - `requestId` 是业务级 correlation id；`traceId` 是 runtime trace correlation id
-- panel-facing sink backlink 只允许返回安全的 deep link / fingerprint，不返回 raw sink event
+- Operator Console-facing sink backlink 只允许返回安全的 deep link / fingerprint，不返回 raw sink event
   blob
 - token / model / retrieval / citation / ACL facts 必须来自 execution-side typed
-  telemetry seam 或 app-owned runtime fact family，不得由 panel query path 反推
+  telemetry seam 或 app-owned runtime fact family，不得由 Operator Console query path 反推
 - 所有 summary / timeseries / queue 都必须由 `app-api` owned projection、rollup 或 grade
-  projection 提供；panel 不得直接查询 sink
+  projection 提供；Operator Console 不得直接查询 sink
 
 ### Common Query Parameters
 
@@ -220,14 +220,14 @@ list endpoints 额外支持：
 
 规则：
 
-- `traceLink`、`issueLink`、`issueFingerprint` 都是 panel-friendly backlink
+- `traceLink`、`issueLink`、`issueFingerprint` 都是 Operator Console-friendly backlink
 - 没有关联对象时允许返回 `null`
 - 不返回 sink 原始 payload 或 query 语句
 - 当前 forward contract 接受这些字段最终由 `operator.trace_backlink_projection` 提供
 - `app-api` 可以在 request lifecycle 中按
   `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` / `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
   自动写入 trace / issue backlink；模板只渲染 deep link，不查询 sink，不改变
-  panel truth owner
+  Operator Console truth owner
 
 ### Metric Ratio
 
@@ -246,8 +246,8 @@ list endpoints 额外支持：
 
 ## Explicit Non-Goals
 
-- 不把 `Sentry`、`Axiom`、OpenAI trace / eval tooling 提升成 panel canonical query
+- 不把 `Sentry`、`Axiom`、OpenAI trace / eval tooling 提升成 Operator Console canonical query
   backend
 - 不让 `apps/execution-control` 暴露 operator observability HTTP surface
-- 不让 panel BFF 查询数据库、audit JSONL 或 sink 后再自己拼 aggregate
+- 不让 Operator Console BFF 查询数据库、audit JSONL 或 sink 后再自己拼 aggregate
 - 不把 request observability detail 退化成 raw execution / trace dump

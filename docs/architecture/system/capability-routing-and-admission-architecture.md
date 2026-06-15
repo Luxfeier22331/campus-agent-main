@@ -271,7 +271,7 @@ service 入场；只有需要 semantic specialist 时才新增 family label，�
 - routing clarification 仍发生在 workflow planning 之前；agent clarification 只能发生在已选定
   family / step 内部
 - Temporal workflow history 不替代 product projection；workflow/activity progress
-  必须写入 repo-owned sanitized projection 后才能进入 panel / eval / badcase truth
+  必须写入 repo-owned sanitized projection 后才能进入 Operator Console / eval / badcase truth
 
 ### 6. Typed Tool / Agent-As-Tool Execution
 

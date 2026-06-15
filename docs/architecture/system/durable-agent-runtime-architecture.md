@@ -39,7 +39,7 @@ supporting architecture；实现状态必须单独写在 current architecture �
 and run projection -> execution-control -> Temporal workflow -> task queues ->
 workflow / activity worker pools -> typed step results -> sanitized run event +
 step / attempt / result projection -> app-api stream / projection / operator read
-model -> browser surface / panel / eval / badcase`
+model -> browser surface / Operator Console / eval / badcase`
 
 核心规则：
 
@@ -48,7 +48,7 @@ model -> browser surface / panel / eval / badcase`
 - `conversation_id` 是上下文、account / session、memory binding 与同会话并发策略的边界。
 - `run_events` 是 streaming、trace、audit、operator projection 与 eval backlink
   的共同事实源。
-- `RunStep -> StepAttempt -> StepResult` 是 panel、eval、badcase 与 release
+- `RunStep -> StepAttempt -> StepResult` 是 Operator Console、eval、badcase 与 release
   evidence 的共同诊断主线；`workflow_trace_summary` 只能作为兼容摘要，不替代
   step-level projection truth。
 - production admission truth 不得只存在于某个 `execution-control` /
@@ -94,12 +94,12 @@ Repo owns：
 - source-truth ownership
 - final answer contract
 - sanitized step / event / result projection
-- panel / eval / badcase read model
+- Operator Console / eval / badcase read model
 - observability redaction policy
 
-Temporal history is not the product query source for panel/eval. It is execution
-history. Panel, eval and badcase consume repo-owned sanitized projection derived
-from workflow/activity progress.
+Temporal history is not the product query source for Operator Console/eval. It
+is execution history. Operator Console, eval and badcase consume repo-owned
+sanitized projection derived from workflow/activity progress.
 
 ## Canonical Objects
 
@@ -464,7 +464,8 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
   - executes typed tool / agent-as-tool activities
   - writes sanitized projection
 - `projection-worker`
-  - materializes workflow/activity progress into app-api / panel / eval read models
+  - materializes workflow/activity progress into app-api / Operator Console /
+    eval read models
   - used when direct activity writeback is not the selected implementation
 - `worker-autoscaler`
   - reads Temporal task queue metrics, worker poller health, downstream budget projection

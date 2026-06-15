@@ -47,7 +47,7 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 ## 文档边界
 
 这份文档冻结 shared `apps/app-api` 对 `campus-web`、legacy `public-chat-web` 与
-`protected-panel-web` 暴露的 browser-facing HTTP contract。
+Operator Console implementation surfaces 暴露的 browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
@@ -79,7 +79,7 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 - Better Auth 的 provider 细节
 - Identity Platform forward product projection shape
 - future OIDC/OAuth provider endpoint shape
-- panel UI layout
+- Operator Console UI layout
 - token streaming 或异步后台回答产品形态
 - `official_web` collector command endpoints
 
@@ -91,7 +91,7 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 
 - `browser -> campus-web same-origin /api/* -> app-api`
 - `browser -> public-chat-web same-site /api/* -> app-api`
-- `browser -> protected-panel-web same-site /api/* -> app-api`
+- `browser -> operator console surface same-site /api/* -> app-api`
 
 因此：
 
@@ -111,7 +111,8 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 contract test carrier。新增 route 必须声明：
 
 - `browser-surface`：由 campus-web / legacy public chat same-origin proxy 调用
-- `operator-via-panel`：由 protected panel internal bridge 调用
+- `operator-via-panel`：由 Operator Console internal bridge 调用；当前代码名保留
+  `panel`，不表示长期只存在 `protected-panel-web` 一个 product concept
 - `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
   caller 调用
 - `collector-machine`：由 official-web collector command caller 调用
@@ -207,7 +208,7 @@ Student-facing dining routes read the latest published dining release snapshot.
 Dining draft, release candidate, published release and audit routes are frozen
 separately in `docs/contracts/app-api-dining-ops-http.md`.
 
-### Campus Ops
+### Operator Console Operations
 
 Dining ops routes below describe the accepted target contract. Current
 implementation gaps, including legacy direct-draft publish routes, are tracked
@@ -235,7 +236,8 @@ in `docs/contracts/app-api-dining-ops-http.md`.
 - `POST /api/ops/dining/releases/:releaseId/rollback`
 - `GET /api/ops/dining/audit-events`
 
-These routes are `operator-via-panel` caller class routes consumed by
+These routes are `operator-via-panel` caller class routes consumed by the
+Operator Console dining workspace. The current implementation surface is
 `campus-ops-web`, not `campus-web`. Source observation apply/reject routes are
 not implemented in the current inventory.
 
@@ -397,12 +399,12 @@ assistant message 可以包含 `feedback`：
 - `selectedCapability` 始终表示 request finalized 后的 capability id。
 - 它当前只承载 raw contract truth，不承载 forward family label，也不承载 operator-facing
   localized wording。
-- 如果 browser 或 panel 需要展示友好名称，必须由 app-owned mapping / presentation layer
-  派生，而不是重载这个字段。
+- 如果 browser 或 Operator Console 需要展示友好名称，必须由 app-owned mapping /
+  presentation layer 派生，而不是重载这个字段。
 
 ## Explicit Non-Goals
 
 - 不把已退役 standalone chat app 的旧 `/api/answer` 继续提升为 forward contract
-- 不为 panel 暴露 database/admin-console 风格 API
+- 不为 Operator Console 暴露 database/admin-console 风格 API
 - 不让 operator endpoints 旁路读取 `runtime.request_execution`
 - 不把 `packages/contracts` 直接当 browser product API

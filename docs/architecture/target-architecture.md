@@ -69,7 +69,7 @@ client/channel
 -> finalization.write
 -> sanitized run event + step/attempt/result projection
 -> app-api response / stream / operator read model
--> browser surface / panel / eval / badcase
+-> browser surface / Operator Console / eval / badcase
 ```
 
 这里的 multi-capability / agent-as-tool orchestration 不是无中心 peer swarm。长期默认是
@@ -109,7 +109,7 @@ flowchart LR
   subgraph Client["Browser Surfaces"]
     Campus["campus-web"]
     Chat["public-chat-web legacy"]
-    Panel["protected-panel-web"]
+    Panel["Operator Console\n(current surfaces: protected-panel-web / campus-ops-web)"]
   end
 
   subgraph ProductIngress["Product Ingress"]
@@ -145,7 +145,7 @@ flowchart LR
 
   subgraph ExecutionProjection["Execution Projection"]
     Projection["sanitized run/event/step/attempt/result projection"]
-    PanelOps["operator panel / eval / badcase\napp-api read models"]
+    PanelOps["Operator Console / eval / badcase\napp-api read models"]
   end
 
   subgraph TelemetrySinks["Telemetry Sinks"]
@@ -415,7 +415,7 @@ collector/source admission
   `knowledge.rag.plan -> knowledge.retrieval.indexed_lookup ->
   knowledge.retrieval.expand_or_rescue -> knowledge.evidence.selection ->
   knowledge.synthesis -> knowledge.grounding.verify`。每个 step 必须产生
-  sanitized result projection，供 panel / eval / badcase 诊断消费。
+  sanitized result projection，供 Operator Console / eval / badcase 诊断消费。
 - provider adapter 是 execution cost / cancellation 的明确边界：必须记录 provider
   request ref、latency、input / output / cached token、estimated cost 与 terminal
   outcome；cancel / timeout 必须传递到 activity 与 provider adapter，并在可能时
@@ -653,8 +653,8 @@ suite family 固定为：
 -> packages/evals observed_regression -> release gate / version compat report`
 
 该链路只能回流 sanitized routing / outcome / review summary，不得把 raw prompt、raw answer、
-raw transcript、auth material 或 provider raw response 作为 panel truth 或 eval canonical
-asset。
+raw transcript、auth material 或 provider raw response 作为 Operator Console truth
+或 eval canonical asset。
 
 ## 长期 eval / quality governance 形态
 
@@ -668,8 +668,9 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
   release gate 与 golden / regression admission lifecycle
 - `apps/app-api` 拥有 internal eval ingress、request correlation、quality grade /
   trace backlink ingest 与 operator-facing projection，不拥有 golden truth
-- `protected-panel-web` 只承担 operator review / triage UX；它可以发起受控 review
-  action，但不决定 golden set truth、不生成 benchmark artifact
+- Operator Console 只承担 operator review / triage UX；它可以发起受控 review
+  action，但不决定 golden set truth、不生成 benchmark artifact。当前实现 surface 可以是
+  `protected-panel-web` 或后续统一后的 operator console package。
 - `apps/execution-control` 与 domain agent 只产出 execution / trace / outcome
   facts，不写 eval truth
 - OpenAI Evals / graders / tracing、RAGAS、Sentry、Axiom 等外部工具只能作为 grader、
@@ -696,7 +697,7 @@ operator observability rollup`
 - release-gate artifact 必须保留 request correlation、runtime versions、case-set version、
   deterministic verdict、supplemental verdict 与 publish summary
 - failed release gate 只能通过修复 runtime、修复 truth、或有审计记录的 case
-  governance decision 关闭，不能在 panel 上直接 override
+  governance decision 关闭，不能在 Operator Console 上直接 override
 
 长期 suite family 固定分层：
 

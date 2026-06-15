@@ -18,7 +18,8 @@ ingestion handoff ownership
 
 - `official_web` 已被接受为 repo 级一级 `source_channel`
 - `apps/ingestion-worker` 是离线 ingestion/data-plane executor
-- `apps/protected-panel-web` 已冻结为 `runtime APIs only` 的 protected Worker shell
+- Operator Console 的当前 read-only implementation surface 是 `apps/protected-panel-web`，并已冻结为
+  `runtime APIs only` 的 protected Worker shell
 - shared `apps/app-api` 已落地为 Worker runtime，并拥有产品层 admission、durable
   ledger/outbox 与 operator read-model 形态
 
@@ -31,7 +32,7 @@ ingestion handoff ownership
 
 - 再建一个只服务 crawler 的第二控制面后端
 - 让 collector 直接调用 `apps/ingestion-worker` 或直写下游真相
-- 让 panel 直接读对象存储、队列、日志或 Qdrant 来拼状态页
+- 让 Operator Console 直接读对象存储、队列、日志或 Qdrant 来拼状态页
 - 让 `apps/ingestion-worker` 同时承担 crawler control plane 与 data-plane executor
   两种职责
 
@@ -111,22 +112,22 @@ ingestion handoff ownership
 - 这能保持 online control plane 与 offline execution plane 分层清晰
 - 避免 ingestion worker 扩张成第二个对外 backend
 
-## 决策 5：protected panel 只扩成聚焦 `Official Web` 域，不扩成通用运维控制台
+## 决策 5：Official Web 只扩成聚焦 operator domain，不扩成通用 infra console
 
 结论：
 
-- panel 对 `official_web` 的第一波扩展固定为聚焦 operator domain：
+- Operator Console 对 `official_web` 的第一波扩展固定为聚焦 operator domain：
   - `Official Web / Sites`
   - `Official Web / Crawl Runs`
   - `Run Detail`
   - `Failures` / `Artifacts` 详情区块
 - 不默认引入对象存储控制台、队列控制台、Qdrant 控制台或 generic jobs console
-- panel 不调用 release task mutation route；selected-write / release 进度只能通过
+- Operator Console 不调用 release task mutation route；selected-write / release 进度只能通过
   `apps/app-api` 暴露的 operator-safe projection 或 ingestion 投影后的 read model 展示
 
 原因：
 
-- panel 已冻结为受控 operator control plane，而不是万能内部平台
+- Operator Console 已冻结为受控 operator control plane，而不是万能内部平台
 - `official_web` 的第一需求是让 operator 看懂 site/run/failure/artifact，而不是暴露底层基础设施
 
 ## 后果
@@ -135,13 +136,14 @@ ingestion handoff ownership
 
 - 需要新增 `app-api` 下的 `official_web` HTTP contract、run lifecycle 与 schema 文档
 - `official_web` source-channel 文档必须明确 `app-api` 是 control-plane owner
-- panel 规划必须从“generic Jobs/Operations”转向聚焦 `Official Web` domain
+- Operator Console 里的 official-web 规划必须从“generic Jobs/Operations”转向聚焦
+  `Official Web` domain
 
 明确不做：
 
 - 不新增第二个 crawler-intake backend
 - 不让 collector 直接调用 `apps/ingestion-worker`
-- 不让 panel 直读对象存储、队列、日志、Qdrant 或数据库
+- 不让 Operator Console 直读对象存储、队列、日志、Qdrant 或数据库
 - 不把 `apps/app-api` 扩成 crawl executor 或 ingestion orchestrator
 - 不把 selected-write / release task claim、retry、publish 状态放进 `apps/app-api`
 
@@ -161,7 +163,8 @@ ingestion handoff ownership
 - `packages/ingestion-core` 定义 release task contract 与状态推进
 - `apps/ingestion-worker` 执行 release task，并把结果写入 canonical projection /
   document/index release path，同时上报 operator-safe projection snapshot
-- `apps/protected-panel-web` 只消费投影，不直接干预 release task
+- Operator Console 只消费投影，不直接干预 release task；当前 read-only 实现 surface 是
+  `apps/protected-panel-web`
 
 实施说明：
 

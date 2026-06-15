@@ -57,7 +57,7 @@ updated: 2026-04-21
 
 ## 使用说明
 
-- panel 只能读 `app-api` owned projections / rollups
-- `Sentry`、`Axiom`、grader 结果只作为 sink 或输入来源，不是 panel query backend
+- Operator Console 只能读 `app-api` owned projections / rollups
+- `Sentry`、`Axiom`、grader 结果只作为 sink 或输入来源，不是 Operator Console query backend
 - 如需判断当前 pending work，优先看 `README.md` 定义的通用执行态入口与 GSD SDK / Codex
   native session，不要把历史 follow-up 文档误读成当前 active lane

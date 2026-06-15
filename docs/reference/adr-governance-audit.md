@@ -81,7 +81,7 @@ updated: 2026-06-04
   native snapshot，见 `ADR-0052`；`ADR-0020` 已 superseded。
 - authorization truth 由 `app-api` 拥有，retrieval 只消费 filter projection，
   见 `ADR-0022`、`ADR-0034` 与 identity architecture。
-- `Sentry` / `Axiom` 是 observability sinks，不是 panel canonical read model，
+- `Sentry` / `Axiom` 是 observability sinks，不是 Operator Console canonical read model，
   见 `ADR-0010`、`ADR-0023` 与 operator observability architecture。
 
 ### D1: Historical naming remains but is explicitly bounded

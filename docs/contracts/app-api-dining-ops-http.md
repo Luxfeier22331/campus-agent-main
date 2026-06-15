@@ -12,6 +12,9 @@ updated: 2026-06-14
 
 本文冻结 `apps/app-api` 的 dining operations HTTP contract。
 
+Dining operations 是 Operator Console 内的受控 operations domain。当前 route inventory
+仍使用 `/api/ops/dining/*`，当前 implementation surface 是 `apps/campus-ops-web`。
+
 它补充：
 
 - `docs/contracts/app-api-campus-ops-http.md`
@@ -224,7 +227,7 @@ navigation route graph truth.
 - 这是 draft read，不是 student published projection
 - student-facing `/api/dining/*` 不能读取本 route
 - ops response 只返回 repo floorplan manifest metadata，不返回 SVG markup、
-  object storage bucket/key 或上传资产字段；`campus-ops-web` 通过
+  object storage bucket/key 或上传资产字段；Operator Console dining workspace 通过
   `dining-floorplans` package 渲染同一份 sanitized inline SVG
 - floor SVG replacement is an application release that updates the repo
   floorplan manifest, not an ops HTTP command

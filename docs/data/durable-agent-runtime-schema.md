@@ -454,7 +454,8 @@ forward-required projection fields：
 - semantic specialist 输出 `agent_output_projection`
 - retrieval step 输出 `retrieval_query_activity` 与 supporting evidence projection
 - synthesis / finalization 只能消费 admitted result，不得补造缺失 retrieval/tool result
-- browser / panel / eval 只能读取 projection 或 read model，不读取 raw provider trace
+- browser / Operator Console / eval 只能读取 projection 或 read model，不读取 raw
+  provider trace
 
 ## Retired PG Execution Lease Table
 
@@ -637,7 +638,7 @@ operator-facing read model 不直接读取 scheduler internals。
 
 本文冻结 logical schema。当前 active serving path 使用 Temporal 作为 canonical execution
 plane；PG-backed run-level durable baseline 仅保留为 historical migration artifact。
-step-level tables 是 product / panel / eval projection truth，不能用
+step-level tables 是 product / Operator Console / eval projection truth，不能用
 Temporal raw history、runtime event 字符串或 provider trace 代替。
 
 实现必须遵守：

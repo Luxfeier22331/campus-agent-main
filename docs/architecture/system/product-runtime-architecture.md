@@ -10,7 +10,7 @@ updated: 2026-06-13
 
 ## 文档边界
 
-本文冻结 `campus-web`、legacy public chat、protected panel、shared `app-api` 与
+本文冻结 `campus-web`、legacy public chat、Operator Console、shared `app-api` 与
 delivery/runtime seam 的 supporting architecture。
 
 它回答的是：
@@ -18,7 +18,7 @@ delivery/runtime seam 的 supporting architecture。
 - public/protected surface 如何接入 shared backend
 - `apps/app-api` 的长期职责是什么
 - request projection 与 operator read surface 属于谁
-- protected panel 的 trust model 与 runtime shell 应怎样理解
+- Operator Console 的 trust model 与当前 runtime shells 应怎样理解
 
 ## 核心结论
 
@@ -42,6 +42,9 @@ sanitized projection`
 
 `browser -> protected-panel-web -> app-api -> request projection / operator read
 model`
+
+`browser -> campus-ops-web -> app-api /api/ops/dining/* -> dining operations
+draft / release candidate / release / audit model`
 
 这意味着：
 
@@ -70,7 +73,7 @@ model`
 - 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
   应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
   subscription
-- panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
+- Operator Console 不读数据库、不读 telemetry sink、不绕过 `app-api`
 - ingestion/release task state machine 不属于 product runtime；它属于 offline data
   plane
 
@@ -112,17 +115,22 @@ model`
     run, feedback, cancel, and stream contracts
   - does not generate answers, own conversation truth, write DB rows, or call
     `apps/execution-control` directly
-- `protected-panel-web`
-  - 当前只承接 app-owned operator domains；`Requests`、`Official Web` 与
-    `Authenticated Notice Processing` 已是 accepted shape
-  - `Jobs`、`Operations`、更完整 `Audit` 仍属于后续 rollout，不应被写成当前 merged truth
+- `Operator Console`
+  - 长期是唯一受控 operator product concept，承接 read-only observability domains 与受控
+    operations domains
+  - 当前 read-only implementation surface 是 `protected-panel-web`，已承接
+    `Requests`、`Official Web` 与 `Authenticated Notice Processing`
+  - 当前 dining operations implementation surface 是 `campus-ops-web`，只承接 allowlisted
+    `/api/ops/dining/*` routes
+  - 更完整 `Audit`、其他 operations domains 与 runtime settings 仍属于后续 rollout，不应被写成当前
+    merged truth
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
   - `official_web` control plane 不包括 release task claim / lease / retry /
     dead-letter / publish 状态机；这些状态属于 ingestion data plane
   - `authenticated_notice_processing` operator projection 已是 accepted app-owned
-    read-only panel domain；它只展示处理状态，不成为 collector scheduler、queue
+    Operator Console read-only domain；它只展示处理状态，不成为 collector scheduler、queue
     mutation API 或对象存储浏览器
 
 前向约束：
@@ -174,12 +182,14 @@ model`
 - does not own account/session, conversation truth, execution truth, database writes,
   provider calls, or direct execution-control transport
 
-### `apps/protected-panel-web`
+### Operator Console implementation surfaces
 
-- protected operator UI shell
-- 只消费 runtime APIs
+- `apps/protected-panel-web` 是当前 read-only operator UI shell
+- `apps/campus-ops-web` 是当前 dining operations workspace shell
+- 两者都只消费 `apps/app-api` runtime-owned APIs
 - fail-closed by default
-- 不导入 `packages/*`，不把自己做成 `apps/execution-control` 的 hidden admin mode
+- 不导入 `packages/*`，不把自己做成 `apps/execution-control` 的 hidden admin mode，
+  也不定义第二套 operator backend
 
 ### `apps/app-api`
 
@@ -257,8 +267,8 @@ runtime`
 - `packages/ingestion-core` 定义 release task contract 与状态推进
 - `apps/ingestion-worker` 执行 release task，负责 claim、lease、retry、
   dead-letter、materialize、publish 与失败状态
-- `apps/protected-panel-web` 不调用 release task mutation；它只展示 app-api/operator
-  projection 或未来 ingestion 投影后的 read model
+- Operator Console 不调用 release task mutation；它只展示 app-api/operator projection 或未来
+  ingestion 投影后的 read model
 
 ### Docker Execution Runtime Boundary
 
@@ -268,7 +278,7 @@ runtime`
   - 当前 execution ingress
   - 当前 active chat execution path 已硬切到 Temporal-backed
     `CapabilityExecutionWorkflow`；run store、events 与 step ledger 是 app-api /
-    panel / eval 消费的 sanitized projection store
+    Operator Console / eval 消费的 sanitized projection store
   - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行，不经过 Python
     bridge
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
@@ -302,40 +312,40 @@ request projection 的 canonical durable truth 固定为：
 - `runtime.request_execution`
 - `runtime.projection_outbox`
 
-panel `Requests` 的 canonical read path 固定为：
+Operator Console `Requests` 的 canonical read path 固定为：
 
-`apps/protected-panel-web -> apps/app-api -> operator.request_projection`
+`operator console surface -> apps/app-api -> operator.request_projection`
 
 明确禁止：
 
 - 直接读取 consumer chat tables 作为 request list/detail truth
 - 直接读取 audit logs 或 telemetry sink 作为 request truth
-- 让 panel 通过 `apps/execution-control` 旁路获取 operator list/detail
+- 让 Operator Console 通过 `apps/execution-control` 旁路获取 operator list/detail
 
 future operator-facing observability 域也遵循同一 ownership rule：
 
 - audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
 - authenticated notice processing 这类 ingestion/downstream visibility surface
   也必须经
-  `apps/app-api` 的 operator-safe projection 暴露，不能让 panel 回读 queue、object-store、
+  `apps/app-api` 的 operator-safe projection 暴露，不能让 Operator Console 回读 queue、object-store、
   operations 目录或 raw logs
-- panel 只能读取 runtime-owned projection / aggregate APIs
+- Operator Console 只能读取 runtime-owned projection / aggregate APIs
 - `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为
-  canonical panel read model
+  canonical Operator Console read model
 
 更完整的 operator observability supporting architecture 不在本文展开，统一看
 `docs/architecture/system/operator-observability-architecture.md`。
 
-## Protected Surface And Operator Access
+## Operator Console Access
 
-protected panel 的长期 access model 固定为：
+Operator Console 的长期 access model 固定为：
 
 `approved operator principal -> upstream protected access -> origin admission ->
 minimal operator context -> runtime APIs`
 
 关键约束：
 
-- protected panel 不需要自建 end-user 账户系统
+- Operator Console 不需要自建 end-user 账户系统
 - upstream access 不能替代 origin admission
 - dynamic shell/API responses 默认 `no-store`
 - 失去保护条件时直接 fail-closed
@@ -390,9 +400,9 @@ contract 或 auth family route/endpoint truth。
 
 ## Forbidden Shapes
 
-- 不把 `apps/app-api` 重新拆回 consumer backend + panel backend
+- 不把 `apps/app-api` 重新拆回 consumer backend + operator backend
 - 不把 `apps/execution-control` 重新长成 product backend
-- 不把 panel 做成直接连 `packages/*` 或数据库的内部控制台
+- 不把 Operator Console 做成直接连 `packages/*` 或数据库的内部控制台
 - 不把 request projection 退化成 chat transcript 或 telemetry replay 的别名
 
 ## 相关稳定文档

@@ -10,15 +10,15 @@ updated: 2026-06-13
 
 ## 文档边界
 
-本文冻结 protected panel、operator audit、quality monitoring、safety monitoring、cost
-monitoring 与 observability sink participation 的 supporting architecture。
+本文冻结 Operator Console observability domain、operator audit、quality monitoring、safety
+monitoring、cost monitoring 与 observability sink participation 的 supporting architecture。
 
 它回答的是：
 
 - operator-facing observability / audit / quality surface 应该长成什么形态
-- `protected-panel-web`、`app-api`、telemetry sinks 各自负责什么
+- Operator Console surfaces、`app-api`、telemetry sinks 各自负责什么
 - 哪些指标属于长期必须持续监控的最小集合
-- `Sentry`、`Axiom` 与 sampled grading / evals 如何参与，而不反向成为 panel truth
+- `Sentry`、`Axiom` 与 sampled grading / evals 如何参与，而不反向成为 Operator Console truth
 
 它不负责：
 
@@ -31,17 +31,18 @@ monitoring 与 observability sink participation 的 supporting architecture。
 
 长期 operator observability 形态固定为：
 
-- `protected-panel-web` 是 operator control-plane surface
+- Operator Console 是长期 operator control-plane surface；当前 read-only implementation
+  surface 是 `protected-panel-web`
 - `apps/app-api` 是 operator-facing audit / quality / safety / cost read-model
   owner
 - `Sentry`、`Axiom`、OpenAI trace / eval tooling 是 observability / debugging /
   grading sinks
-- panel 只能消费 runtime-owned APIs，不直接读取 raw audit log、telemetry sink 或
+- Operator Console 只能消费 runtime-owned APIs，不直接读取 raw audit log、telemetry sink 或
   `apps/execution-control`
 
 因此长期主链路固定为：
 
-`operator browser -> protected-panel-web -> app-api operator read surfaces`
+`operator browser -> operator console surface -> app-api operator read surfaces`
 
 与之并行的 observability chain 固定为：
 
@@ -81,15 +82,15 @@ spine：
 
 固定规则：
 
-- panel `Requests` detail、quality badcase、eval candidate 与 release_evidence
+- Operator Console `Requests` detail、quality badcase、eval candidate 与 release_evidence
   必须以 step trajectory 作为共同诊断口径。
 - `workflow_trace_summary` 只保留为 operator-safe compatibility summary，用于展示
   bounded workflow mode、artifact refs 与历史摘要字段；它不是 canonical diagnostic
   projection。
 - Temporal history、Sentry、Axiom、OpenAI trace / eval tooling 与 provider raw trace
-  只能作为 debugging、analysis、grading 或 backlink 输入，不得成为 panel query truth。
-- `protected-panel-web` 可以把 step trajectory 渲染成 timeline，但 truth synthesis
-  仍归 `apps/app-api` operator read model；panel 不从 runtime-internal package、sink
+  只能作为 debugging、analysis、grading 或 backlink 输入，不得成为 Operator Console query truth。
+- Operator Console 可以把 step trajectory 渲染成 timeline，但 truth synthesis
+  仍归 `apps/app-api` operator read model；console 不从 runtime-internal package、sink
   query 或 execution-control response 拼装诊断事实。
 
 ## Operator-Safe Trajectory Diagnostics Contract
@@ -112,7 +113,7 @@ eval attribution / badcase projection / release_evidence fixture`
 - 保持共同归因：每个 eval failure、badcase 或 future release_evidence item 必须能关联
   到 step trajectory 中的阶段、capability、tool、attempt outcome 与 projection refs；无法关联时
   必须显式标记 `trajectory_missing` / `attribution_missing`，不得从 raw artifact 猜测。
-- 保持兼容摘要降级：`workflow_trace_summary` 可以继续为 panel / eval 提供 bounded
+- 保持兼容摘要降级：`workflow_trace_summary` 可以继续为 Operator Console / eval 提供 bounded
   display summary，但不得作为 canonical diagnostic source，也不得反向覆盖 step
   trajectory。
 
@@ -142,8 +143,9 @@ eval attribution / badcase projection / release_evidence fixture`
 
 ## Ownership Model
 
-### `apps/protected-panel-web`
+### Operator Console surface
 
+- current read-only implementation surface is `apps/protected-panel-web`
 - protected operator UI shell
 - 只消费 runtime APIs
 - 只承担 BFF / route shell / operator UX，不承担 operator truth synthesis
@@ -161,7 +163,7 @@ eval attribution / badcase projection / release_evidence fixture`
 
 它不负责：
 
-- 让 panel 直接回放 raw execution payload
+- 让 Operator Console 直接回放 raw execution payload
 - 让 sink query 反向成为长期 operator API
 
 ### `apps/execution-control`
@@ -169,22 +171,22 @@ eval attribution / badcase projection / release_evidence fixture`
 - 继续只是 execution engine
 - 不承担 operator observability query backend
 - Docker-side Go `apps/execution-control` runtime 可以产生 execution audit events，但只能通过
-  `app-api` internal ingest 写入 app-owned outbox / projection，不直接服务 panel
+  `app-api` internal ingest 写入 app-owned outbox / projection，不直接服务 Operator Console
 
 ### Telemetry / Evaluation Sinks
 
 - 负责 debugging、high-volume analysis、sampled grading、release_evidence 输入
-- 不承担 panel canonical read model
+- 不承担 Operator Console canonical read model
 
 ## Execution Audit Backflow
 
 Go `apps/execution-control` runtime 负责 admission、queue/backpressure、timeout、
 cancel 与 bridge failure 等 runtime kernel 事实。它产生的 execution audit
-events 只能按以下路径进入 panel：
+events 只能按以下路径进入 Operator Console：
 
 `execution-control execution event` -> `app-api internal ingest` ->
 `runtime.projection_outbox` -> `operator.request_audit_projection` ->
-`protected-panel-web`
+`operator console surface`
 
 第一版允许进入 audit timeline 的 execution event type 固定为：
 
@@ -205,10 +207,10 @@ events 只能按以下路径进入 panel：
 - payload 禁止 raw prompt、raw answer、raw transcript、auth material、retrieval
   payload、provider raw response
 - `Sentry` 与 `Axiom` 可以接收同类 sanitized event 用于 trace / analysis / alert，
-  但 panel 不得直接查询这些 sink
+  但 Operator Console 不得直接查询这些 sink
 - `app-api` 可以按 optional deep-link template 把 request trace / issue backlink 写入
-  `operator.trace_backlink_projection`；这是 app-owned projection write，不是 panel
-  route-time sink query
+  `operator.trace_backlink_projection`；这是 app-owned projection write，不是
+  Operator Console route-time sink query
 - Go `execution-control` 的 execution audit writer 开启后必须同步发送每个 safe audit
   event；sink 不可用时 answer path fail closed。`/readyz` / `/metrics` 必须暴露
   enabled、configured、emitted、failed 与 last error，便于 operator 诊断投递状态。
@@ -233,11 +235,11 @@ events 只能按以下路径进入 panel：
 
 - `request projection`、`request audit projection`、`metric rollup`、`quality grade
   projection` 属于 operator-facing read model
-- `request-scoped observability fact` 属于 app-owned runtime fact family，不等于 panel
-  list/detail read model
+- `request-scoped observability fact` 属于 app-owned runtime fact family，不等于
+  Operator Console list/detail read model
 
-这些 family 都必须由 `app-api` 或其继任 shared app boundary 拥有；panel 不得通过 raw sink、数据库直连或
-runtime-internal package import 拼装它们。
+这些 family 都必须由 `app-api` 或其继任 shared app boundary 拥有；Operator Console 不得通过
+raw sink、数据库直连或 runtime-internal package import 拼装它们。
 
 ## Current-State Ownership
 
@@ -318,7 +320,7 @@ be promoted to the owning class: architecture boundary here, HTTP contract in
 它不直接承担：
 
 - operator-facing capability family wording
-- panel 默认展示标签
+- Operator Console 默认展示标签
 - report / summary 的 family grouping
 
 如果 operator surface 需要展示或分组，必须通过显式 projection 派生，例如：
@@ -333,8 +335,8 @@ be promoted to the owning class: architecture boundary here, HTTP contract in
 固定约束：
 
 - raw `selected_capability` 不能被 schema rename、display copy 或 report summary 静默重载
-- panel 默认展示 derived label / display label；只有 debug/filter surface 才直接暴露 raw
-  capability id
+- Operator Console 默认展示 derived label / display label；只有 debug/filter surface
+  才直接暴露 raw capability id
 - 如果未来 admission 新 capability family，也必须先补 mapping / projection，再开放 operator-facing
   wording
 
@@ -488,7 +490,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 固定约束：
 
 - 这些字段继续由 `app-api` owned request observability fact / audit projection 收口，不由
-  `protected-panel-web`、`apps/execution-control` 或 sink query 直接拥有
+  Operator Console、`apps/execution-control` 或 sink query 直接拥有
 - 它们必须保持 summary-only：不返回 raw query args、raw adapter response、raw notice/source
   bundle、raw prompt
 - 如果 runtime lane 尚未 opening 或本次请求命中 fail-close，这份 summary 也必须记录 deterministic
@@ -556,7 +558,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 
 适合承接：
 
-- `public-chat-web -> app-api` 与 `protected-panel-web -> app-api` trace
+- `public-chat-web -> app-api` 与 `operator console surface -> app-api` trace
   continuity
 - downstream HTTP / timeout / retry failure
 - Worker shell 与 app runtime exception capture
@@ -564,12 +566,12 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 
 不应承接：
 
-- panel primary query backend
+- Operator Console primary query backend
 - high-cardinality operator aggregate truth
 - raw full prompt / answer / transcript archive
 
 `app-api` 允许使用 `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` 把 Sentry trace viewer 之类的
-safe deep link 投影进 panel backlink。该模板只用 app-owned `requestId` / `traceId`
+safe deep link 投影进 Operator Console backlink。该模板只用 app-owned `requestId` / `traceId`
 等 correlation field 渲染 URL，不从 Sentry 查询 raw event。
 
 ### `Axiom`
@@ -592,13 +594,13 @@ safe deep link 投影进 panel backlink。该模板只用 app-owned `requestId` 
 
 不应承接：
 
-- panel canonical request list/detail source
+- Operator Console canonical request list/detail source
 - 唯一错误调试面
 - raw operator PII / auth material / transcript store
 
-如果需要从 panel 跳转到 Axiom 查询页，只能通过
+如果需要从 Operator Console 跳转到 Axiom 查询页，只能通过
 `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` 或 external internal producer 写入 safe deep
-link；panel 不直接向 Axiom 发查询请求。
+link；Operator Console 不直接向 Axiom 发查询请求。
 
 ### OpenAI Trace / Eval Tooling
 
@@ -615,8 +617,8 @@ link；panel 不直接向 Axiom 发查询请求。
 
 它不改变 repo truth：
 
-- panel 仍读 `app-api` owned read model
-- grader output 需要经 app-owned projection / aggregate seam 才能进入 panel
+- Operator Console 仍读 `app-api` owned read model
+- grader output 需要经 app-owned projection / aggregate seam 才能进入 Operator Console
 
 ### OTel / Collector / Adapter Seam
 
@@ -652,7 +654,7 @@ read model.
 
 因此：
 
-- panel 可以展示 request-level estimated cost 与 rollup trend
+- Operator Console 可以展示 request-level estimated cost 与 rollup trend
 - 最终账务或 budget closure 应以 provider cost reconciliation 为准
 - 不把 repo 内静态价格表当作长期 canonical truth
 
@@ -668,7 +670,7 @@ read model.
 
 ## Forbidden Shapes
 
-- 不把 panel 做成 `Sentry` 或 `Axiom` 的嵌入式 viewer
+- 不把 Operator Console 做成 `Sentry` 或 `Axiom` 的嵌入式 viewer
 - 不让 raw audit log 直接成为 operator query data plane
 - 不让 `apps/execution-control` 承担 observability query backend
 - 不把 production aggregate、sampled grades、release-gate eval truth 混成一张表

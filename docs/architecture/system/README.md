@@ -54,7 +54,7 @@ capability-local readiness.
   - `identity-platform-architecture.md`
   - `identity-browser-experience-architecture.md`
   - `federation-and-mucwiki-login-architecture.md`
-- Campus Ops browser surface and operator workspace boundary:
+- Operator Console operations domain and current campus-ops implementation boundary:
   - `campus-ops-web-architecture.md`
 - Retired or offline Python capability boundary:
   - `python-capability-boundaries.md`

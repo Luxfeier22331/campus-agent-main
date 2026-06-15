@@ -10,8 +10,8 @@ updated: 2026-04-25
 
 ## 文档边界
 
-本文冻结 campus-web、public chat、protected panel、shared `app-api` 这组 Worker surface 的长期
-delivery / release hardening supporting architecture。
+本文冻结 campus-web、public chat、Operator Console implementation surfaces、shared `app-api`
+这组 Worker surface 的长期 delivery / release hardening supporting architecture。
 
 它回答的是：
 
@@ -41,7 +41,7 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 固定约束：
 
-- `apps/campus-web`、`apps/public-chat-web`、`apps/protected-panel-web`、
+- `apps/campus-web`、`apps/public-chat-web`、Operator Console implementation surfaces、
   `apps/app-api` 必须共享一套
   release hardening discipline，但仍保持独立 deploy unit
 - staging browser baseline 当前固定为 `campus-staging.mucwiki-edge.link`、
@@ -188,7 +188,8 @@ Docker-side execution runtime 的 release gate 长期至少覆盖：
 post-deploy verification 的长期 closure 固定为：
 
 - `public-chat-web -> app-api` 至少一条真实 trace
-- `protected-panel-web -> app-api` 至少一条真实 trace
+- `Operator Console surface -> app-api` 至少一条真实 trace；当前 staging implementation
+  surface 是 `protected-panel-web`
 - `app-api` 至少一条 runtime event / scheduled drain evidence
 - 当次 release 的 evidence artifact 落盘
 

@@ -103,7 +103,7 @@ Execution Agent Layer typed step admission
 - `knowledge` 负责 plan 与 answer 语义
 - `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
 - Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
-  repo-owned projection 负责 step attempt、result、event 与 eval/panel truth
+  repo-owned projection 负责 step attempt、result、event 与 eval / Operator Console truth
 - evidence contract 驱动 replan / clarification / fail-close；synthesis 不得补洞
 - 当前实现中的 Temporal-visible RAG 已拆成
   `rag.plan`、`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、
@@ -444,8 +444,8 @@ LlamaIndex 是 ingestion / retrieval implementation dependency，不是 `campus-
 
 固定规则：
 
-- LlamaIndex 不能进入 `packages/contracts`、`apps/execution-control`、panel / eval canonical
-  truth 或架构 vocabulary。
+- LlamaIndex 不能进入 `packages/contracts`、`apps/execution-control`、
+  Operator Console / eval canonical truth 或架构 vocabulary。
 - ingestion / retrieval adapter 可以在内部使用 LlamaIndex 做 chunking、embedding helper、
   metadata helper 或 Qdrant integration glue，但跨层 contract 必须是 repo-owned DTO。
 - 长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter + sanitized

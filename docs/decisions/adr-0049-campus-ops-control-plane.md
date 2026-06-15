@@ -13,6 +13,10 @@ updated: 2026-06-14
 
 Accepted on 2026-06-08.
 
+ADR-0055 partially supersedes this ADR's separate long-term `campus-ops-web` product
+surface decision. The dining draft/candidate/release/audit lifecycle and domain
+boundaries in this ADR continue to apply.
+
 ## 背景
 
 `campus-web` 已经把学生侧校园体验面扩展到地图、食堂与反馈入口。食堂地图最初由
@@ -21,12 +25,13 @@ initial release 输入，不能继续承担长期线上运营真相。
 
 食堂窗口、档口、菜品与价格会持续变化。后续采集或人工观测也只能先进入 review/proposal，
 不能直接覆盖学生端 published projection。把这些编辑能力塞进 account browser shell 会污染账号
-边界；放进 `protected-panel-web` 会把 observability/panel 查询面扩成运营工作台。两者都不是长期正确
-owner。
+边界。ADR-0055 已将长期后台概念统一为 Operator Console；因此 dining operations 不再被解释成
+第二个长期后台产品，而是 Operator Console 内的受控 operations domain。
 
 ## 决策
 
-新增 `apps/campus-ops-web` 作为 Campus Operations Control Plane 的 operator workspace。
+Dining operations 是 Operator Console 内的受控 operations domain。当前实现由
+`apps/campus-ops-web` 承载 dining workspace 与 `/api/ops/dining/*` proxy allowlist。
 
 `apps/app-api` 拥有 dining operations 的写入、draft、release candidate、release、audit
 与学生端 published projection。`apps/campus-web` 只读取 published projection，不读取 draft
@@ -36,7 +41,7 @@ owner。
 
 ```text
 operator browser
--> campus-ops-web
+-> operator console dining workspace (current: campus-ops-web)
 -> app-api /api/ops/dining/*
 -> dining draft tables
 -> release candidate / validation / approval / schedule / publish routes
@@ -46,9 +51,9 @@ operator browser
 
 ## 决策细节
 
-### 1. `campus-ops-web` 是运营面 owner
+### 1. Dining operations 是 Operator Console domain
 
-`campus-ops-web` 负责：
+Operator Console 的 dining operations domain 负责：
 
 - operator workspace shell
 - dining hall / floor tree
@@ -59,7 +64,7 @@ operator browser
 - published release list and rollback surface
 - audit list presentation
 
-`campus-ops-web` 不负责：
+当前实现包 `apps/campus-ops-web` 不负责：
 
 - auth/session truth
 - student-facing published projection truth
@@ -147,11 +152,13 @@ graph truth。
 
 ## 结果
 
-- `apps/campus-ops-web` 成为饭堂地图运营工作台。
+- dining operations 作为 Operator Console domain 落在当前 `apps/campus-ops-web`
+  实现上。
 - `docs/contracts/app-api-campus-ops-http.md` 冻结 ops cross-cutting contract。
 - `docs/contracts/app-api-dining-ops-http.md` 冻结 dining ops HTTP contract。
 - `docs/data/dining-operations-schema.md` 冻结 dining operations logical schema。
-- `docs/architecture/system/campus-ops-web-architecture.md` 冻结 web surface boundary。
+- `docs/architecture/system/campus-ops-web-architecture.md` 冻结当前实现的 web surface
+  boundary。
 - `docs/architecture/domains/dining/architecture.md` 冻结 dining domain boundary。
 
 ## 非目标

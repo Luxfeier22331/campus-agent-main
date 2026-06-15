@@ -35,7 +35,7 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 290
+- Current-worktree docs Markdown files: 291
 - Git tracked docs Markdown files: 268
 - Untracked docs Markdown files included: 0
 - Generated on: 2026-06-14
@@ -2333,11 +2333,11 @@ class defined by `docs/documentation-architecture.md`.
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/architecture/system/campus-ops-web-architecture.md`
-  - Title: Campus Ops Web Architecture
+  - Title: Operator Console Operations Architecture
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
   - Owner boundary: `apps/campus-ops-web`
-  - Ledger: `area=architecture`, `cluster=campus-ops`, `state=tracked`, `lines=160`
+  - Ledger: `area=architecture`, `cluster=operator-console`, `state=tracked`, `lines=164`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
@@ -2365,11 +2365,11 @@ class defined by `docs/documentation-architecture.md`.
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-campus-ops-http.md`
-  - Title: App API Campus Ops HTTP Contract
+  - Title: App API Operator Operations HTTP Contract
   - Owner class: `contract_truth`
   - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
   - Owner boundary: `apps/app-api`
-  - Ledger: `area=contracts`, `cluster=campus-ops`, `state=tracked`, `lines=174`
+  - Ledger: `area=contracts`, `cluster=operator-console`, `state=tracked`, `lines=178`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-chat-conversation-http.md`
@@ -2452,6 +2452,14 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=campus-ops`, `state=tracked`, `lines=171`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0055-unified-operator-console-surface.md`
+  - Title: ADR-0055 Unified Operator Console Surface
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=operator-console`, `state=tracked`, `lines=112`
+  - Governance action: `preserve_adr`
+  - Drift signal: `ok`
 - `docs/decisions/adr-0050-campus-web-product-entry-and-hub-retirement.md`
   - Title: ADR-0050 Campus Web Product Entry And Hub Retirement
   - Owner class: `decision_record`

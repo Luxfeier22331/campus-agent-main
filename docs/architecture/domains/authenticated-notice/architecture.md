@@ -43,7 +43,7 @@ document holding -> explicit downstream admission`
 projection path：
 
 `collector / ingestion outputs -> app-api authenticated_notice_processing
-projection ingest -> protected-panel-web list/detail query`
+projection ingest -> Operator Console list/detail query`
 
 这表示当前架构存在四层清晰分工：
 
@@ -88,7 +88,7 @@ projection ingest -> protected-panel-web list/detail query`
 ## Authenticated Notice Portal Boundary
 
 `authenticated_notice_portal` 是一级 `source_channel`，不是 `official_web`
-的特殊站点，也不是 panel runtime 或 notice tool runtime 的别名。
+的特殊站点，也不是 Operator Console runtime 或 notice tool runtime 的别名。
 
 它当前承接两个 source surface：
 
@@ -169,7 +169,7 @@ collector 与 ingestion-worker 之间的主链路 handoff 固定通过：
 
 - 本地导出目录
 - 共享 volume 假设
-- 只靠 panel projection 恢复 source-truth
+- 只靠 Operator Console projection 恢复 source-truth
 
 `run_id` import 与 explicit object-ref import 都必须以
 bucket/object metadata + hash/size verification 为准。local bundle /
@@ -183,7 +183,7 @@ projection domain。
 它当前负责：
 
 - processing projection ingest
-- protected-panel-facing list/detail query
+- Operator Console-facing list/detail query
 - operator-safe status/read model exposure
 - caller class / admission rule 固定的 HTTP route exposure
 

@@ -109,11 +109,12 @@ Repo owns：
 - source-truth ownership
 - final answer contract
 - sanitized step / event / result projection
-- panel / eval / badcase read model
+- Operator Console / eval / badcase read model
 - observability redaction policy
 
-Temporal history is not the product query source for panel/eval. Panel and eval
-consume repo-owned sanitized projection derived from workflow/activity progress.
+Temporal history is not the product query source for Operator Console/eval.
+Operator Console and eval consume repo-owned sanitized projection derived from
+workflow/activity progress.
 
 ### 决策 3：Postgres remains product and projection truth
 

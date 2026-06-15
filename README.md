@@ -26,8 +26,8 @@ branch / Go RAG DTO/runtime
 
 browser -> campus-web /docs/* -> Rspress-powered canonical reader
 
-browser -> protected-panel-web -> app-api
--> request projection / operator read model
+browser -> operator console surface -> app-api
+-> request projection / operator read/write model
 ```
 
 当前正式 docs surface 为 `campus-web /docs/*`；`/api/docs/*` 通过
@@ -51,6 +51,9 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 - `apps/campus-web` 是当前学生侧 product entry surface、账号浏览器
   shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`
   仍是 auth/session/identity/federation truth owner
+- Operator Console 是长期受控运维后台概念；当前 read-only implementation
+  surface 是 `protected-panel-web`，当前 dining operations implementation surface
+  是 `campus-ops-web`
 
 ## Status
 
@@ -73,7 +76,8 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 
 - [`apps/`](./apps/)
   - runtime shell 与 transport boundary，例如 `campus-web`、`public-chat-web`、
-    `protected-panel-web`、`app-api`、`execution-control`、`ingestion-worker`
+    `protected-panel-web`、`campus-ops-web`、`app-api`、`execution-control`、
+    `ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
     `knowledge-capability`、`retrieval-core`、`ingestion-core`、`contracts`

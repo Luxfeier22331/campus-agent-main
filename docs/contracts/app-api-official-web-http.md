@@ -27,7 +27,7 @@ contract。
 
 - object storage 上传协议与签名细节
 - collector Docker 的镜像构建与部署 YAML
-- panel Worker-local BFF 的具体 route mounting
+- Operator Console Worker-local BFF 的具体 route mounting
 - ingestion worker 的消费实现细节
 - `fresh_news` / `news_archive` 的当前开放状态或单轮执行进度
 
@@ -50,8 +50,8 @@ contract。
   finalize seam
 - ingestion projection ingest endpoints 由 `apps/ingestion-worker` machine-to-machine
   上报 operator-safe read model
-- operator query endpoints `protected-panel-web` 通过 runtime APIs 消费的
-  site/run/detail seam
+- operator query endpoints 由 Operator Console 通过 runtime APIs 消费的
+  site/run/detail seam；当前 read-only implementation surface 是 `protected-panel-web`
 
 命名规则固定为：
 
@@ -73,7 +73,8 @@ contract。
 ### Operator Query Endpoints
 
 - 继续复用 shared `app-api` 的 operator principal admission
-- `protected-panel-web` 仍通过 Worker-local BFF 调用这些 endpoints
+- Operator Console 仍通过 Worker-local BFF 调用这些 endpoints；当前 read-only implementation
+  surface 是 `protected-panel-web`
 
 ## Endpoint Summary
 
@@ -139,4 +140,4 @@ the appendix for that endpoint family.
 
 - 不在本文冻结 object storage browser
 - 不在本文定义 collector artifact upload API 的签名协议
-- 不在本文把 panel 写操作一起引入第一版
+- 不在本文把 Operator Console 写操作一起引入第一版

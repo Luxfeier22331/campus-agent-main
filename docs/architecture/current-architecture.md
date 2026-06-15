@@ -55,6 +55,9 @@ current React docs shell`
 `browser -> protected-panel-web -> app-api -> request projection / operator read
 model`
 
+`browser -> campus-ops-web -> app-api /api/ops/dining/* -> dining operations
+draft / release candidate / release / audit model`
+
 `collector -> app-api official_web control plane -> ingestion-worker`
 
 `ingestion-worker -> ingestion-core release task -> source truth / projection /
@@ -67,8 +70,8 @@ document/index release`
   product backend、generic app-api proxy 或 MediaWiki proxy
 - `campus-web` Q&A 使用 OpenAI ChatKit 官方 CDN web component runtime；该外部 frontend
   runtime 是当前 accepted dependency，CSP 必须显式允许其 script/frame 资源
-- panel 不绕过 `apps/app-api`
-- campus / legacy public chat / panel 到 `apps/app-api` 的
+- Operator Console 的当前 implementation surfaces 不绕过 `apps/app-api`
+- campus / legacy public chat / Operator Console surfaces 到 `apps/app-api` 的
   Worker-to-Worker 调用走 `APP_API` Service Binding；
   `https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
@@ -89,7 +92,7 @@ document/index release`
   `/internal/execution/runs*` 调用 `apps/execution-control`，`apps/execution-control`
   启动 / 取消 `CapabilityExecutionWorkflow`，Temporal task queue 承担 execution substrate
 - PG 不再是 online execution queue truth；`runtime.agent_runs`、run events 与 step
-  tables 是 app-api / panel / eval 消费的 sanitized run projection store
+  tables 是 app-api / Operator Console / eval 消费的 sanitized run projection store
 - retired PG lease tables、lane budget、worker heartbeat、PG lease worker loop 与
   recovery loop 只允许作为 historical migration artifact / retired code path 出现，
   不参与当前 online serving
@@ -116,11 +119,11 @@ document/index release`
   `personal_memory_v1` collection；app-api chat submit 不再读取 PG
   `profile.memory_items` 并全量注入 `context.profile_memory`。
 - Step attempt evidence spine 已进入当前代码事实：`runtime.agent_step_attempts`、
-  execution-control `/steps`、app-api operator summary 与 panel trajectory 已承载
-  activity metadata、queue wait、duration、provider/model、token/cost、cancel/timeout
-  outcome 字段。`provider_execution_summary_v1` 与 provider pricing readiness
-  contract 已存在；activity timeout / context cancel 可以投影为 first-class
-  `bridge_timeout` / `activity_context_canceled` outcome。
+  execution-control `/steps`、app-api operator summary 与 Operator Console
+  trajectory 已承载 activity metadata、queue wait、duration、provider/model、
+  token/cost、cancel/timeout outcome 字段。`provider_execution_summary_v1` 与
+  provider pricing readiness contract 已存在；activity timeout / context cancel
+  可以投影为 first-class `bridge_timeout` / `activity_context_canceled` outcome。
 - 当前 online RAG lookup 由 Go Qdrant native adapter 执行，Qdrant 仍是
   self-hosted authenticated private data-plane；embedding/provider 调用使用 Go
   cancellable HTTP context，synthesis provider execution 由
@@ -230,11 +233,20 @@ document/index release`
 ### `apps/protected-panel-web`
 
 - protected Worker web surface
-- 只负责 operator-facing panel UI
+- 只负责 Operator Console 当前 read-only operator domains 的 UI
 - 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query
   surfaces
 - 当前已接入 `Requests`、`Official Web` 与 authenticated notice processing 的 app-owned
   operator-safe read-only surfaces
+
+### `apps/campus-ops-web`
+
+- protected Worker web surface for current Operator Console dining operations
+  implementation
+- 当前只 proxy allowlisted `/api/ops/dining/*` routes into `apps/app-api`
+- 承载 dining draft / release candidate / release / audit workspace；不拥有 dining truth、
+  auth/session truth 或第二套 operator backend
+- 它是当前 implementation package，不定义独立于 Operator Console 的长期产品后台概念
 
 ### `apps/app-api`
 

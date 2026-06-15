@@ -51,8 +51,9 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 - `campus_member` 需要获取制度、培养方案、服务点位、后续校园导航能力的学生和教职工
 - `operator` 需要通过受控后台、投影和可观测性能力维护产品运行面的校方运营人员
 
-`operator` 是后台 ops persona，不是主问答 agent 的终端用户能力边界。operator / eval /
-ingestion / release 工作不进入用户 agent tool surface。
+`operator` 是后台 ops persona，通过 Operator Console 消费受控运维后台能力，不是主问答
+agent 的终端用户能力边界。operator / eval / ingestion / release 工作不进入用户 agent tool
+surface。
 
 ## 要解决的问题
 

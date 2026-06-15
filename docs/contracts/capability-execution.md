@@ -293,7 +293,7 @@ not redefine every capability-local internal query endpoint.
 ## Execution Audit Backflow
 
 Go `apps/execution-control` 可以把 execution runtime kernel 事件回流给 `app-api`，但这条回流不是
-browser-facing execution response，也不是 panel query backend。
+browser-facing execution response，也不是 Operator Console query backend。
 
 回流 endpoint 固定为：
 
@@ -327,7 +327,7 @@ browser-facing execution response，也不是 panel query backend。
 names，当前 active durable path 不得用它们表达 Temporal activity、typed tool 或
 provider failure。后续 schema cleanup 应迁到 `execution.activity_failed`、
 `execution.provider_failed` 或等价 execution-owned reason code，并同步 app-api /
-panel / eval consumer；在迁移前只能作为 legacy event vocabulary 读取。
+Operator Console / eval consumer；在迁移前只能作为 legacy event vocabulary 读取。
 
 payload 只允许 safe runtime summary：lane、requested capability、decision、failure
 kind、HTTP status、retryable、duration、queue wait、execution duration。禁止 raw
@@ -669,7 +669,7 @@ shared product path 已收口为：
 
 ## Non-Goals
 
-- 不把 panel query 做进 `execution-control`
+- 不把 Operator Console query 做进 `execution-control`
 - 不让 `execution-control` 理解 Better Auth session 或 operator trusted-access provider
   细节
 - 不把 public entry Worker 的外部 ingress contract 直接复制为 shared `app-api` 的内部

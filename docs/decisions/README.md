@@ -37,6 +37,8 @@ updated: 2026-06-12
 
 - `adr-0006-agent-orchestration-and-safety.md`
 - `adr-0011-protected-panel-worker-runtime.md`
+  - Worker runtime / Access / UI shell 决策继续生效；长期产品概念由
+    `adr-0055-unified-operator-console-surface.md` 统一为 Operator Console。
 - `adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `adr-0013-app-api-worker-runtime.md`
 - `adr-0017-supervisor-internal-execution-admission.md`
@@ -62,6 +64,7 @@ updated: 2026-06-12
     raw state 与 memory boundary 继续生效。
 - `adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `adr-0023-operator-observability-control-plane-and-sink-participation.md`
+- `adr-0055-unified-operator-console-surface.md`
 
 Historical / superseded：
 
@@ -70,6 +73,9 @@ Historical / superseded：
 - `adr-0034-authorization-model-and-retrieval-filter-projection.md`
   - superseded；受限文档 authorization projection 不是当前主问答 retrieval 目标。
 - `adr-0049-campus-ops-control-plane.md`
+  - partially superseded by `adr-0055-unified-operator-console-surface.md` for the
+    separate long-term `campus-ops-web` product surface; dining release lifecycle
+    and domain boundary clauses continue to apply.
 
 ## Retrieval、data plane 与基础设施
 

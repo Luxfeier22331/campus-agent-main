@@ -47,7 +47,7 @@ updated: 2026-06-12
 - architecture 文档
 - data schema 文档
 - app-api / execution-control contract
-- panel / eval / observability consumer
+- Operator Console / eval / observability consumer
 - fixture / contract tests
 
 ## Canonical Identifiers
@@ -584,7 +584,7 @@ release-evidence-shaped fixture 的 canonical source。
 - source owner：`apps/app-api`
 - source input：app-api materialized operator request detail，或测试中与该 detail
   同形的 sanitized fixture
-- consumers：protected panel request detail、eval attribution、badcase projection、
+- consumers：Operator Console request detail、eval attribution、badcase projection、
   release-evidence-shaped local fixture builder
 - forbidden consumers：Temporal history reader、execution-control direct query from
   eval / panel、provider raw trace reader、raw prompt / raw answer / raw transcript
