@@ -56,5 +56,8 @@
 !packages/retrieval-core/**
 !packages/shared/
 !packages/shared/**
+!packages/evals/
+!packages/evals/fixtures/
+!packages/evals/fixtures/tool_function_schemas.v1.json
 !scripts/
 !scripts/**

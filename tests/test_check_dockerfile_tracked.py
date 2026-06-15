@@ -121,6 +121,9 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!apps/agent-runtime/",
                 "!apps/agent-runtime/**",
                 "!configs/runtime/tool-catalog.v1.json",
+                "!packages/evals/",
+                "!packages/evals/fixtures/",
+                "!packages/evals/fixtures/tool_function_schemas.v1.json",
             }.issubset(patterns)
         )
 
