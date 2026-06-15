@@ -30,10 +30,10 @@ EXECUTION_CONTROL_ACCESS_CLIENT_ID=
 EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=
 # Comma-separated exact operator emails allowed through the panel bridge.
 APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
-# Must match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`.
+# Must match `OPERATOR_CONSOLE_APP_API_SHARED_SECRET` in `apps/operator-console-web`.
 # 本地 Python live benchmark runner 走 internal eval ingress 时，root `.env`
 # 里的 `APP_API_INTERNAL_SHARED_SECRET` 也必须复用这个值。
-APP_API_INTERNAL_SHARED_SECRET=replace-with-panel-bridge-secret
+APP_API_INTERNAL_SHARED_SECRET=replace-with-operator-console-bridge-secret
 APP_API_DATABASE_SSLMODE=prefer
 # Required for live `official_web` control-plane smoke. This must match
 # `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`.

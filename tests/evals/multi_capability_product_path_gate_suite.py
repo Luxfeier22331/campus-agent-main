@@ -135,7 +135,7 @@ class MultiCapabilityProductPathGateTest(unittest.TestCase):
                 (
                     "pnpm",
                     "--dir",
-                    "apps/protected-panel-web",
+                    "apps/operator-console-web",
                     "exec",
                     "vitest",
                     "run",

@@ -32,7 +32,7 @@ monitoring、cost monitoring 与 observability sink participation 的 supporting
 长期 operator observability 形态固定为：
 
 - Operator Console 是长期 operator control-plane surface；当前 read-only implementation
-  surface 是 `protected-panel-web`
+  surface 是 `operator-console-web`
 - `apps/app-api` 是 operator-facing audit / quality / safety / cost read-model
   owner
 - `Sentry`、`Axiom`、OpenAI trace / eval tooling 是 observability / debugging /
@@ -145,7 +145,7 @@ eval attribution / badcase projection / release_evidence fixture`
 
 ### Operator Console surface
 
-- current read-only implementation surface is `apps/protected-panel-web`
+- current read-only implementation surface is `apps/operator-console-web`
 - protected operator UI shell
 - 只消费 runtime APIs
 - 只承担 BFF / route shell / operator UX，不承担 operator truth synthesis
@@ -687,7 +687,7 @@ read model.
 - `docs/data/app-api-schema.md`
 - `docs/domains/operator-observability.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
   pation.md`

@@ -176,7 +176,7 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `STAGING_INGESTION_SPARSE_TOKENIZER=multilingual`
   - `STAGING_INGESTION_SPARSE_LANGUAGE=none`
 - `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
-- `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
+- `STAGING_ACCESS_POLICY_AUD=<operator-console-staging Access aud>`
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN=<metrics bearer token>`
 - `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
 - `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=<run projection Postgres URL>`；

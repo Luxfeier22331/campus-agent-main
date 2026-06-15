@@ -376,7 +376,7 @@ uv run --package campus-ingestion-worker python -m \
 - cleanup manifest 必须记录
   `postgres_exact_remaining`、`object_store_exact_keys_remaining` 与
   `qdrant_residue_count`
-- app-api / protected panel 只显示 compact audit/cleanup counts 和 run ids，不暴露
+- app-api / Operator Console 只显示 compact audit/cleanup counts 和 run ids，不暴露
   bucket、object key、backup path 或 raw operations path
 
 ## Step 7: Repo-Local Materialization Snapshot Mode

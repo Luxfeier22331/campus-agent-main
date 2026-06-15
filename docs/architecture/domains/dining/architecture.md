@@ -25,7 +25,7 @@ updated: 2026-06-14
 - ops HTTP 字段，见 `docs/contracts/app-api-dining-ops-http.md`
 - logical schema 字段，见 `docs/data/dining-operations-schema.md`
 - Operator Console operations surface，当前实现见
-  `docs/architecture/system/campus-ops-web-architecture.md`
+  `docs/architecture/system/operator-console-operations-architecture.md`
 
 ## Core Conclusion
 
@@ -35,7 +35,7 @@ student dining experience.
 Primary read/write split:
 
 ```text
-Operator Console dining workspace (current: campus-ops-web)
+Operator Console dining workspace (current: operator-console-web)
   -> app-api /api/ops/dining/* -> dining draft
   -> release candidate -> published release snapshot
 campus-web -> app-api /api/dining/* -> latest published release snapshot
@@ -148,7 +148,7 @@ through `<img>` is insufficient for anchor-level interaction because the page
 cannot access the SVG DOM.
 
 Operator Console dining workspace is a floorplan-backed dining data workspace.
-The current implementation surface is `apps/campus-ops-web`:
+The current implementation surface is `apps/operator-console-web`:
 
 - render the repo-versioned floor SVG as read-only structure
 - list manifest anchors
@@ -249,7 +249,7 @@ Ops routes expose draft objects to authorized operator principals only:
 
 Ops routes are command/query surfaces for Operator Console dining workspace,
 not general browser APIs. They must remain out of `campus-web` and retired
-launcher surfaces. The current implementation surface is `apps/campus-ops-web`.
+launcher surfaces. The current implementation surface is `apps/operator-console-web`.
 
 ## Source Observation Boundary
 

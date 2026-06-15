@@ -60,9 +60,9 @@ class owns a fact.
   - [decisions/adr-0051-campus-docs-rspress-reader-surface.md](./decisions/adr-0051-campus-docs-rspress-reader-surface.md)
 - Operator Console and dining map/menu/release operations:
   - [decisions/adr-0055-unified-operator-console-surface.md](./decisions/adr-0055-unified-operator-console-surface.md)
-  - [architecture/system/campus-ops-web-architecture.md](./architecture/system/campus-ops-web-architecture.md)
+  - [architecture/system/operator-console-operations-architecture.md](./architecture/system/operator-console-operations-architecture.md)
   - [architecture/domains/dining/architecture.md](./architecture/domains/dining/architecture.md)
-  - [contracts/app-api-campus-ops-http.md](./contracts/app-api-campus-ops-http.md)
+  - [contracts/app-api-operator-ops-http.md](./contracts/app-api-operator-ops-http.md)
   - [contracts/app-api-dining-http.md](./contracts/app-api-dining-http.md)
   - [contracts/app-api-dining-ops-http.md](./contracts/app-api-dining-ops-http.md)
   - [data/dining-operations-schema.md](./data/dining-operations-schema.md)

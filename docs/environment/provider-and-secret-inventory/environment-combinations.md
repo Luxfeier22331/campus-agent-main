@@ -37,7 +37,7 @@ owns this section group; the original path remains the stable index.
   - `APP_API_INTERNAL_SHARED_SECRET`
 - `apps/public-chat-web/.dev.vars`
   - `APP_API_BASE_URL`
-- `apps/protected-panel-web/.dev.vars`
+- `apps/operator-console-web/.dev.vars`
   - 只有调 panel 时才需要
 
 不必准备：
@@ -80,7 +80,7 @@ owns this section group; the original path remains the stable index.
 - [../../apps/campus-web/.dev.vars.example](../../apps/campus-web/.dev.vars.example)
 - [../../apps/public-chat-web/.dev.vars.example](../../apps/public-chat-web/.dev
   .vars.example)
-- [../../apps/protected-panel-web/.dev.vars.example](../../apps/protected-panel-
+- [../../apps/operator-console-web/.dev.vars.example](../../apps/operator-console-
   web/.dev.vars.example)
 - [../../apps/authenticated-notice-collector/.env.example](../../apps/authenticat
   ed-notice-collector/.env.example)

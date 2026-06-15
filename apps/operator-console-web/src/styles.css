@@ -1,0 +1,644 @@
+html,
+body,
+#root {
+	margin: 0;
+	min-height: 100%;
+}
+
+body {
+	background: #f6f7f9;
+}
+
+.panel-boot-placeholder,
+.panel-route-placeholder {
+	align-items: center;
+	color: #2f3a4a;
+	display: flex;
+	font:
+		500 0.95rem / 1.4 system-ui,
+		sans-serif;
+	gap: 0.75rem;
+	justify-content: center;
+}
+
+.panel-boot-placeholder {
+	min-height: 100dvh;
+}
+
+.panel-route-placeholder {
+	min-height: 16rem;
+}
+
+.panel-boot-placeholder__spinner {
+	animation: panel-spinner 0.8s linear infinite;
+	border: 0.2rem solid rgba(47, 58, 74, 0.16);
+	border-radius: 999px;
+	border-top-color: #2f3a4a;
+	height: 1.2rem;
+	width: 1.2rem;
+}
+
+@keyframes panel-spinner {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.panel-boot-placeholder__spinner {
+		animation: none;
+	}
+}
+
+:root {
+	color-scheme: light;
+	font-family:
+		Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	background: #f4f4f5;
+	color: #09090b;
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}
+
+.ops-panel {
+	border: 1px solid #e4e4e7;
+	border-radius: 8px;
+	background: #ffffff;
+	box-shadow: 0 1px 2px rgb(24 24 27 / 0.04);
+}
+
+.ops-eyebrow {
+	color: #71717a;
+	font-size: 0.75rem;
+	font-weight: 600;
+	line-height: 1rem;
+	text-transform: uppercase;
+}
+
+.ops-title {
+	font-size: 1.5rem;
+	font-weight: 650;
+	line-height: 2rem;
+}
+
+.ops-muted {
+	color: #71717a;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+}
+
+.ops-field {
+	display: grid;
+	gap: 0.375rem;
+	font-size: 0.875rem;
+}
+
+.ops-field span {
+	color: #52525b;
+	font-size: 0.75rem;
+	font-weight: 600;
+	line-height: 1rem;
+}
+
+.ops-field input,
+.ops-field select,
+.ops-field textarea {
+	min-height: 2.75rem;
+	border: 1px solid #d4d4d8;
+	border-radius: 6px;
+	background: #ffffff;
+	padding: 0 0.75rem;
+	color: #09090b;
+	outline: none;
+}
+
+.ops-field input:focus,
+.ops-field select:focus,
+.ops-field textarea:focus {
+	border-color: #18181b;
+	box-shadow: 0 0 0 2px rgb(24 24 27 / 0.12);
+}
+
+.ops-primary-button {
+	display: inline-flex;
+	min-height: 2.75rem;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	border: 0;
+	border-radius: 6px;
+	background: #18181b;
+	padding: 0 1rem;
+	color: #ffffff;
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+
+.ops-primary-button:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+.ops-secondary-button {
+	display: inline-flex;
+	min-height: 2.5rem;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	border: 1px solid #d7dee8;
+	border-radius: 6px;
+	background: #fbfcfe;
+	padding: 0 0.875rem;
+	color: #334155;
+	font-size: 0.8125rem;
+	font-weight: 650;
+}
+
+.ops-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.875rem;
+}
+
+.ops-table th {
+	background: #fafafa;
+	color: #52525b;
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-align: left;
+	text-transform: uppercase;
+}
+
+.ops-table th,
+.ops-table td {
+	border-bottom: 1px solid #e4e4e7;
+	padding: 0.875rem 1rem;
+	vertical-align: top;
+}
+
+.dining-demo-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	border: 1px solid #e1e7ef;
+	border-radius: 8px;
+	background: #ffffff;
+	padding: 1rem 1.125rem;
+}
+
+.dining-demo-header h2 {
+	color: #263445;
+	font-size: 1.125rem;
+	font-weight: 700;
+	line-height: 1.5rem;
+}
+
+.dining-demo-status {
+	display: grid;
+	justify-items: end;
+	gap: 0.125rem;
+	font-size: 0.75rem;
+}
+
+.dining-demo-status span {
+	color: #7b8797;
+	text-transform: uppercase;
+}
+
+.dining-demo-status strong {
+	color: #334155;
+	font-weight: 700;
+}
+
+.dining-demo-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 340px;
+	gap: 1rem;
+	align-items: start;
+}
+
+.dining-workbench {
+	overflow: hidden;
+	border: 1px solid #e1e7ef;
+	border-radius: 8px;
+	background: #ffffff;
+}
+
+.dining-workbench-toolbar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 1rem;
+	align-items: center;
+	border-bottom: 1px solid #e7edf4;
+	padding: 0.875rem 1rem;
+}
+
+.dining-metrics {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(72px, auto));
+	overflow: hidden;
+	border: 1px solid #e7edf4;
+	border-radius: 6px;
+	background: #f8fafc;
+}
+
+.dining-metrics li {
+	padding: 0.5rem 0.75rem;
+	border-right: 1px solid #e7edf4;
+}
+
+.dining-metrics li:last-child {
+	border-right: 0;
+}
+
+.dining-metrics span {
+	color: #334155;
+	font-size: 1rem;
+	font-weight: 750;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.25rem;
+}
+
+.dining-metrics p {
+	margin: 0.125rem 0 0;
+	color: #7b8797;
+	font-size: 0.6875rem;
+	font-weight: 650;
+	text-transform: uppercase;
+}
+
+.dining-workbench-grid {
+	display: grid;
+	grid-template-columns: 248px minmax(0, 1fr);
+	background: #fbfcfe;
+}
+
+.dining-workbench-pane,
+.dining-floorplan-pane,
+.dining-inspector {
+	background: #ffffff;
+}
+
+.dining-workbench-pane {
+	border-right: 1px solid #e7edf4;
+}
+
+.dining-floorplan-pane {
+	min-width: 0;
+}
+
+.dining-pane-header {
+	border-bottom: 1px solid #e7edf4;
+	padding: 0.75rem 0.875rem;
+}
+
+.dining-pane-header.compact {
+	border-bottom: 0;
+	padding: 0;
+}
+
+.dining-pane-header p {
+	margin: 0;
+	color: #7b8797;
+	font-size: 0.6875rem;
+	font-weight: 700;
+	line-height: 1rem;
+	text-transform: uppercase;
+}
+
+.dining-pane-header h4 {
+	margin: 0.125rem 0 0;
+	color: #334155;
+	font-size: 0.875rem;
+	font-weight: 700;
+	line-height: 1.25rem;
+}
+
+.dining-anchor-row {
+	display: block;
+	width: 100%;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	padding: 0.375rem 0.5rem;
+	text-align: left;
+}
+
+.dining-anchor-row:hover {
+	border-color: #d7dee8;
+	background: #f7f9fc;
+}
+
+.dining-anchor-row.is-selected {
+	border-color: #b8c7dc;
+	background: #eef3f8;
+}
+
+.dining-anchor-table-wrap {
+	overflow: auto;
+	max-height: 420px;
+}
+
+.dining-anchor-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.8125rem;
+}
+
+.dining-anchor-table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: #f8fafc;
+	color: #64748b;
+	font-size: 0.6875rem;
+	font-weight: 750;
+	text-align: left;
+	text-transform: uppercase;
+}
+
+.dining-anchor-table th,
+.dining-anchor-table td {
+	border-bottom: 1px solid #e7edf4;
+	padding: 0.5rem;
+	vertical-align: middle;
+}
+
+.dining-anchor-id {
+	display: block;
+	color: #334155;
+	font-size: 0.8125rem;
+	font-weight: 700;
+	line-height: 1.125rem;
+}
+
+.dining-anchor-meta {
+	display: block;
+	color: #7b8797;
+	font-size: 0.6875rem;
+	font-weight: 650;
+	line-height: 1rem;
+	text-transform: uppercase;
+}
+
+.dining-status-bound,
+.dining-status-missing {
+	overflow: hidden;
+	max-width: 100%;
+	width: fit-content;
+	border-radius: 999px;
+	padding: 0.125rem 0.5rem;
+	font-size: 0.6875rem;
+	font-weight: 700;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dining-status-bound {
+	background: #edf7ee;
+	color: #4c7555;
+}
+
+.dining-status-missing {
+	background: #fbf1e7;
+	color: #8a6242;
+}
+
+.dining-svg-preview-shell {
+	display: grid;
+	gap: 0.5rem;
+	padding: 0.75rem;
+}
+
+.dining-svg-controls {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+
+.dining-svg-controls button {
+	display: inline-flex;
+	width: 2.25rem;
+	height: 2.25rem;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid #d7dee8;
+	border-radius: 6px;
+	background: #ffffff;
+	color: #64748b;
+}
+
+.dining-svg-controls button:hover {
+	color: #334155;
+}
+
+.dining-svg-preview {
+	overflow: visible;
+	background:
+		linear-gradient(#eef3f8 1px, transparent 1px),
+		linear-gradient(90deg, #eef3f8 1px, transparent 1px), #fbfcfe;
+	background-size: 28px 28px;
+	border: 1px solid #e7edf4;
+	border-radius: 8px;
+}
+
+.dining-svg-preview-content {
+	min-width: 100%;
+}
+
+.dining-svg-preview-button {
+	display: block;
+	width: 100%;
+	border: 0;
+	background: transparent;
+	padding: 1rem;
+	text-align: inherit;
+}
+
+.dining-svg-preview svg {
+	display: block;
+	width: 100%;
+	min-width: 0;
+	height: auto;
+	border: 1px solid #d7dee8;
+	border-radius: 8px;
+	background: #ffffff;
+	box-shadow: 0 8px 18px rgb(51 65 85 / 0.06);
+}
+
+.dining-svg-anchor {
+	cursor: pointer;
+	outline: none;
+}
+
+.dining-svg-anchor > :is(rect, path, polygon, circle, ellipse) {
+	transition:
+		fill 120ms ease,
+		stroke 120ms ease,
+		stroke-width 120ms ease;
+}
+
+.dining-svg-anchor:hover > :is(rect, path, polygon, circle, ellipse) {
+	stroke: #6f8fb3;
+	stroke-width: 2;
+}
+
+.dining-svg-anchor.is-selected > :is(rect, path, polygon, circle, ellipse) {
+	fill: #e8f0f7;
+	stroke: #6f8fb3;
+	stroke-width: 2.5;
+}
+
+.dining-svg-anchor.is-selected text,
+.dining-svg-anchor.is-selected tspan {
+	fill: #334155;
+	font-weight: 700;
+}
+
+.dining-inspector {
+	overflow: hidden;
+	border: 1px solid #e1e7ef;
+	border-radius: 8px;
+}
+
+.dining-inspector-body {
+	display: grid;
+	gap: 1rem;
+	padding: 0.875rem;
+}
+
+.dining-inspector-kicker {
+	margin: 0;
+	color: #7b8797;
+	font-size: 0.6875rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.dining-inspector h3 {
+	margin: 0.125rem 0 0;
+	color: #334155;
+	font-size: 1.25rem;
+	font-weight: 750;
+	line-height: 1.625rem;
+}
+
+.dining-inspector h3 + p {
+	margin: 0.25rem 0 0;
+	overflow-wrap: anywhere;
+	color: #7b8797;
+	font-size: 0.75rem;
+	line-height: 1.125rem;
+}
+
+.dining-binding-grid {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.dining-inspector-section {
+	display: grid;
+	gap: 0.625rem;
+	border-top: 1px solid #e7edf4;
+	padding-top: 0.875rem;
+}
+
+.dining-offering-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.25rem 0.75rem;
+	border: 1px solid #e7edf4;
+	border-radius: 6px;
+	padding: 0.625rem;
+}
+
+.dining-offering-row span {
+	overflow: hidden;
+	color: #334155;
+	font-size: 0.8125rem;
+	font-weight: 700;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dining-offering-row strong {
+	color: #5d7898;
+	font-size: 0.8125rem;
+	font-weight: 750;
+}
+
+.dining-offering-row small {
+	grid-column: 1 / -1;
+	color: #7b8797;
+	font-size: 0.6875rem;
+	font-weight: 650;
+	text-transform: uppercase;
+}
+
+.dining-check-list {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.dining-check-list div {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	gap: 0.5rem;
+	align-items: center;
+	font-size: 0.75rem;
+}
+
+.dining-check-list p {
+	margin: 0;
+	color: #4b5d73;
+}
+
+.dining-check-list strong {
+	color: #7b8797;
+	font-size: 0.6875rem;
+	text-transform: uppercase;
+}
+
+.dining-dot-ok,
+.dining-dot-warn {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 999px;
+}
+
+.dining-dot-ok {
+	background: #7aa37f;
+}
+
+.dining-dot-warn {
+	background: #d39a64;
+}
+
+@media (max-width: 1180px) {
+	.dining-demo-layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+@media (max-width: 900px) {
+	.dining-workbench-toolbar,
+	.dining-workbench-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.dining-workbench-pane {
+		border-right: 0;
+		border-bottom: 1px solid #e7edf4;
+	}
+}

@@ -46,7 +46,7 @@ structured projection -> app-api operator-safe projection -> Operator Console`
   lease / retry / materialize / index / publish
 - Operator Console 通过 `apps/app-api` 消费 `official_web` operator surfaces 与
   release task projection read model；当前 read-only implementation surface 是
-  `protected-panel-web`
+  `operator-console-web`
 - collector 写入 source bucket 的对象同时包含 page-level
   `capture/`、`provider/`、`source-truth/` artifacts；如后续 materialize source-side
   projection artifact，则继续写入同一 source prefix 下的

@@ -10,24 +10,25 @@
   activity-worker-finalization ->
   memory recall / typed capability branch / Go RAG DTO/runtime ->
   Qdrant / provider / structured read models -> sanitized projection`
-- 当前 product entry surface 已收口到 `hub-web -> app launcher / account shell`，`public-chat-web`、
-  `public-docs`、`protected-panel-web` 作为并列 browser surface 进入 shared `app-api`
+- 当前 product entry surface 已收口到 `campus-web -> student experience /
+  account shell / docs reader`；`operator-console-web` 与 legacy
+  `public-chat-web` 作为并列 browser surface 进入 shared `app-api`
 - 架构目标是 capability-neutral orchestrated execution：顶层由 Execution Agent Layer
   做 admission、routing、workflow planning 与 finalization；RAG、navigation、
   notice、services 等能力默认以 typed tool / workflow capability 进入，只有存在明确语义职责时才表现为
   agent-as-tool
 - 当前 accepted merged truth 已具备 `regulations/student_rules`、
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
-  `official_web/stable_reference` 四条默认 query-enabled surface，以及 `hub-web`、
-  `public-chat-web`、`public-docs`、`protected-panel-web`、`app-api` 等前向产品形态；
+  `official_web/stable_reference` 四条默认 query-enabled surface，以及 `campus-web`、
+  `public-chat-web`、`operator-console-web`、`app-api` 等前向产品形态；
   但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 当前事实是 `apps/app-api = Worker`，`apps/execution-control =
   Docker-first internal execution-control service`，Temporal 是 execution
   substrate，PG 只承载 sanitized run / event / step projection；online path
-  已硬切为 `context.memory_recall -> plan.route -> capability branch ->
-  finalization.write`，knowledge 分支由 Go-owned RAG Temporal graph 执行，
-  worker plane / autoscaler 仍按对应架构文档继续收口
+  已硬切为 `context.memory_recall -> agent.primary -> direct/no-tool or
+  admitted typed tool / RAG branch -> finalization.write`，knowledge 分支由
+  Go-owned RAG Temporal graph 执行，worker plane / autoscaler 仍按对应架构文档继续收口
 - Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧实现只可通过
   git history 追溯，不得重新接入 serving
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
@@ -76,10 +77,11 @@
 - `docs/reference/authenticated-notice-file-release-export-contract.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
 - `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`

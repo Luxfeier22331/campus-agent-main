@@ -19,7 +19,7 @@ updated: 2026-06-15
   `https://api-staging.mucwiki-edge.link`
 - `apps/campus-web`: `https://campus-staging.mucwiki-edge.link`
 - `apps/public-chat-web`: `https://chat-staging.mucwiki-edge.link`
-- `apps/protected-panel-web`: `https://panel-staging.mucwiki-edge.link`
+- `apps/operator-console-web`: `https://operator-console-staging.mucwiki-edge.link`
 - `apps/public-docs`: removed; docs deploy and smoke run through `apps/campus-web`
   `/docs/*`
 
@@ -62,7 +62,7 @@ updated: 2026-06-15
   可占用的 deploy truth
 - staging browser forward truth 必须统一使用 `mucwiki-edge.link` 下的项目隔离一级子域：
   `campus-staging.mucwiki-edge.link`、`chat-staging.mucwiki-edge.link`、
-  `panel-staging.mucwiki-edge.link`；docs 作为 `campus-staging.mucwiki-edge.link/docs/*`
+  `operator-console-staging.mucwiki-edge.link`；docs 作为 `campus-staging.mucwiki-edge.link/docs/*`
   的内部支撑面验收
 - `api-staging.mucwiki-edge.link` 如保留，只作为 `app-api-staging` 的 machine /
   ops ingress；web surfaces 不把它当成 upstream
@@ -135,25 +135,25 @@ updated: 2026-06-15
     注入：`AUTH_TURNSTILE_SITE_KEY` 必填，`AUTH_TURNSTILE_APPEARANCE` /
     `AUTH_TURNSTILE_EXECUTION` 可选；未显式覆写时默认 `interaction-only` / `render`
   - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
-- `apps/protected-panel-web/wrangler.toml`
-  - `env.staging` 应收敛到 `panel-staging.mucwiki-edge.link`
+- `apps/operator-console-web/wrangler.toml`
+  - `env.staging` 应收敛到 `operator-console-staging.mucwiki-edge.link`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=https://app-api.internal`
+  - `env.staging.vars.OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal`
   - `env.staging.vars` 只保留 non-secret runtime truth；`ACCESS_TEAM_DOMAIN` /
     `ACCESS_POLICY_AUD` 不再硬编码在 repo
-- `apps/protected-panel-web/package.json`
+- `apps/operator-console-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
   - staging build 会通过 repo-owned `scripts/run-worker-staging-build.mjs`
     为缺失的 runtime-only Worker secrets 注入构建期占位值；wrapper 会在 build
     后删除生成的 `dist/**/.dev.vars`，并拒绝任何占位值进入其余 build artifact
   - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env
-    worker-staging-protected-panel-web`、Cloudflare secret presence、staging build
+    worker-staging-operator-console-web`、Cloudflare secret presence、staging build
     与 built config verification
   - `pnpm deploy:staging` 通过 `scripts/deploy-staging.mjs` 发布 staging build
     artifact
   - deploy 时必须显式注入 `STAGING_ACCESS_TEAM_DOMAIN` 与 `STAGING_ACCESS_POLICY_AUD`
   - deploy 脚本会自动把当前 git commit 注入 runtime
-    `SENTRY_RELEASE=protected-panel-web@staging-<sha>`；仅在需要覆写时才显式传入
+    `SENTRY_RELEASE=operator-console-web@staging-<sha>`；仅在需要覆写时才显式传入
     `STAGING_SENTRY_RELEASE`
   - deploy 脚本会拒绝 `https://team.cloudflareaccess.com` / `panel-audience`
     这类占位值
@@ -173,14 +173,14 @@ updated: 2026-06-15
 - 创建 `campus-staging.mucwiki-edge.link` custom domain，绑定到 `campus-web-staging`
 - 创建 `chat-staging.mucwiki-edge.link` custom domain，绑定到
   `public-chat-web-staging`
-- 创建 `panel-staging.mucwiki-edge.link` custom domain，绑定到
-  `protected-panel-web-staging`
+- 创建 `operator-console-staging.mucwiki-edge.link` custom domain，绑定到
+  `operator-console-web-staging`
 
 ### 2. Internal service bindings
 
 - `public-chat-web-staging`
   - `APP_API -> app-api-staging`
-- `protected-panel-web-staging`
+- `operator-console-web-staging`
   - `APP_API -> app-api-staging`
 
 ### 3. Database
@@ -200,12 +200,12 @@ updated: 2026-06-15
 
 ### 4. Access
 
-- 为 `panel-staging.mucwiki-edge.link` 建 Cloudflare Access application
+- 为 `operator-console-staging.mucwiki-edge.link` 建 Cloudflare Access application
 - 生成并记录：
   - `ACCESS_TEAM_DOMAIN`
   - `ACCESS_POLICY_AUD`
 - 确认 staging operator principal 有可用登录路径
-- deploy `protected-panel-web` 时，把这两个值显式映射到 `STAGING_ACCESS_TEAM_DOMAIN` /
+- deploy `operator-console-web` 时，把这两个值显式映射到 `STAGING_ACCESS_TEAM_DOMAIN` /
   `STAGING_ACCESS_POLICY_AUD`
 - 判定 Access provision 完成的标准不是 `panel /readyz = 200`；真实浏览器首次访问必须先经过 Cloudflare
   Access 准入，不能停留在 worker 直接返回 `401 Missing Access JWT.`
@@ -397,20 +397,20 @@ Federation seam note:
 - Campus-web does not own federation state and does not expose a generic
   `/api/federation/*` or `/api/*` proxy
 
-### `apps/protected-panel-web`
+### `apps/operator-console-web`
 
-在 `apps/protected-panel-web` 目录执行：
+在 `apps/operator-console-web` 目录执行：
 
 ```bash
-wrangler secret put PANEL_APP_API_SHARED_SECRET --env staging
+wrangler secret put OPERATOR_CONSOLE_APP_API_SHARED_SECRET --env staging
 wrangler secret put SENTRY_DSN --env staging
 ```
 
 并补齐：
 
 - `SENTRY_ENVIRONMENT=staging`
-- `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm --dir apps/protected-panel-web
-  deploy:staging` 会在 publish 时自动注入 `protected-panel-web@staging-<sha>`，只有需要固定
+- `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm --dir apps/operator-console-web
+  deploy:staging` 会在 publish 时自动注入 `operator-console-web@staging-<sha>`，只有需要固定
   release 名时才用 `STAGING_SENTRY_RELEASE`
 
 说明：
@@ -419,7 +419,7 @@ wrangler secret put SENTRY_DSN --env staging
 - staging publish 时通过 shell env `STAGING_ACCESS_TEAM_DOMAIN` /
   `STAGING_ACCESS_POLICY_AUD` 注入当前真实 Access 配置
 - staging service-token smoke 使用 ignored shell env
-  `STAGING_PANEL_ACCESS_CLIENT_ID` / `STAGING_PANEL_ACCESS_CLIENT_SECRET`；它们只用于
+  `STAGING_OPERATOR_CONSOLE_ACCESS_CLIENT_ID` / `STAGING_OPERATOR_CONSOLE_ACCESS_CLIENT_SECRET`；它们只用于
   Cloudflare Access envelope smoke，不代表 human operator identity
 
 ## Cross-App Invariants
@@ -439,10 +439,10 @@ wrangler secret put SENTRY_DSN --env staging
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` 当前应配置为
   `muc.edu.cn`；`APP_API_END_USER_EMAIL_ALLOWLIST` 当前应配置为 `help_bot@outlook.com`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须覆盖当前真实 panel operator email；缺失时
-  `panel-staging` Overview 可能正常，但 `Requests` / `official-web` 会在
+  `operator-console-staging` Overview 可能正常，但 `Requests` / `official-web` 会在
   `/api/operator/*` 上收到 `403 operator_identity_not_admitted`
-- `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
-- `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向
+- `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `OPERATOR_CONSOLE_APP_API_SHARED_SECRET`
+- `APP_API_BASE_URL` 与 `OPERATOR_CONSOLE_APP_API_BASE_URL` 必须都指向
   `https://app-api.internal`，并通过 Worker `APP_API` Service Binding 调用
   `app-api-staging`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke
@@ -451,9 +451,9 @@ wrangler secret put SENTRY_DSN --env staging
 - `STAGING_ACCESS_TEAM_DOMAIN` / `STAGING_ACCESS_POLICY_AUD` 必须都是真实 Access
   值，不能使用 repo 占位默认值
 - `app-api /readyz` 必须先 ready，再允许 web surfaces 对外 smoke
-- `public-chat-web /readyz` 与 `protected-panel-web /readyz` 会继续探测 shared
+- `public-chat-web /readyz` 与 `operator-console-web /readyz` 会继续探测 shared
   `app-api /readyz`；如果 shared runtime 未 ready，web surfaces 不得标记 green
-- `protected-panel-web` 只有在真实浏览器入口已经被 Cloudflare Access 接管时，才能视为 staging deploy
+- `operator-console-web` 只有在真实浏览器入口已经被 Cloudflare Access 接管时，才能视为 staging deploy
   完成；worker 侧的 `Missing Access JWT.` 只代表入口仍未完成真实保护
 - `app-api` 的 shared Postgres schema 必须先与 repo 当前 Drizzle snapshot 以及
   shared-product `app_auth/chat` schema 对齐；`official_web` 或 chat surface 如果在
@@ -473,7 +473,7 @@ wrangler secret put SENTRY_DSN --env staging
 ```bash
 pnpm --dir apps/app-api exec wrangler login
 pnpm --dir apps/public-chat-web exec wrangler login
-pnpm --dir apps/protected-panel-web exec wrangler login
+pnpm --dir apps/operator-console-web exec wrangler login
 ```
 
 - CI / automation 不走交互式 OAuth，直接下发 `CLOUDFLARE_API_TOKEN`。
@@ -588,14 +588,14 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
 pnpm --dir apps/app-api test:worker -- --reporter=verbose test/worker.test.ts
 pnpm --dir apps/public-chat-web exec vitest run test/worker.test.ts \
   --reporter=verbose
-pnpm --dir apps/protected-panel-web exec vitest run test/worker.test.ts \
+pnpm --dir apps/operator-console-web exec vitest run test/worker.test.ts \
   --reporter=verbose
 ```
 
 ```bash
 pnpm --dir apps/app-api deploy:preflight:staging
 pnpm --dir apps/public-chat-web deploy:preflight:staging
-pnpm --dir apps/protected-panel-web deploy:preflight:staging
+pnpm --dir apps/operator-console-web deploy:preflight:staging
 ```
 
 可选的本地 readiness 复核：
@@ -606,8 +606,8 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 pnpm --dir apps/app-api test:worker -- --reporter=verbose
 pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
   "smokes a chat request through public-chat-web into app-api"
-pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t \
-  "smokes request queries through protected-panel-web into app-api with \
+pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
+  "smokes request queries through operator-console-web into app-api with \
   internal caller admission"
 ```
 
@@ -706,25 +706,25 @@ pnpm --dir apps/public-chat-web deploy:staging
 - `https://chat-staging.mucwiki-edge.link/healthz`
 - `https://chat-staging.mucwiki-edge.link/readyz`
 
-### 3. `apps/protected-panel-web`
+### 3. `apps/operator-console-web`
 
 ```bash
 STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain> \
 STAGING_ACCESS_POLICY_AUD=<current-access-policy-aud> \
-pnpm --dir apps/protected-panel-web deploy:staging
+pnpm --dir apps/operator-console-web deploy:staging
 ```
 
 确认：
 
-- `https://panel-staging.mucwiki-edge.link/healthz`
-- `https://panel-staging.mucwiki-edge.link/readyz`
+- `https://operator-console-staging.mucwiki-edge.link/healthz`
+- `https://operator-console-staging.mucwiki-edge.link/readyz`
 
 Access service-token envelope smoke:
 
 ```bash
-STAGING_PANEL_ACCESS_CLIENT_ID=<access-service-token-client-id> \
-STAGING_PANEL_ACCESS_CLIENT_SECRET=<access-service-token-client-secret> \
-pnpm --dir apps/protected-panel-web access:smoke:staging
+STAGING_OPERATOR_CONSOLE_ACCESS_CLIENT_ID=<access-service-token-client-id> \
+STAGING_OPERATOR_CONSOLE_ACCESS_CLIENT_SECRET=<token-client-secret> \
+pnpm --dir apps/operator-console-web access:smoke:staging
 ```
 
 该 smoke 的预期是：
@@ -733,7 +733,7 @@ pnpm --dir apps/protected-panel-web access:smoke:staging
 - 带 service token 的 `/healthz` 与 `/readyz` 返回 `200`
 - 带 service token 的 `/api/overview` 仍返回 `401 Invalid Access JWT.`
 
-最后一条是当前边界：Access service token 只证明 protected panel envelope
+最后一条是当前边界：Access service token 只证明 Operator Console envelope
 可由 automation 到达，不被投射为 human operator identity。
 
 ## Post-Deploy Verification
@@ -777,7 +777,7 @@ Smoke flow:
 部署完成后，按 `docs/runbooks/worker-observability-smoke-runbook.md` 执行：
 
 - `public-chat-web -> app-api`
-- `protected-panel-web -> app-api`
+- `operator-console-web -> app-api`
 - `app-api` controlled error
 - `app-api` scheduled / projection drain
 
@@ -791,12 +791,12 @@ Smoke flow:
 
 - Environment: `staging`
 - `public-chat-web` hostname: `chat-staging.mucwiki-edge.link`
-- `protected-panel-web` hostname: `panel-staging.mucwiki-edge.link`
+- `operator-console-web` hostname: `operator-console-staging.mucwiki-edge.link`
 - `app-api` hostname: `api-staging.mucwiki-edge.link`
 - Worker release: `<release>`
-- panel operator smoke identity
-- 如果 `panel-staging.mucwiki-edge.link` 的 `/api/operator/*` 返回 `401/403`，对应的 `error.code`
-  与判定结果
+- Operator Console smoke identity
+- 如果 `operator-console-staging.mucwiki-edge.link` 的 `/api/operator/*` 返回
+  `401/403`，记录对应的 `error.code` 与判定结果
 
 ## Exit Criteria
 

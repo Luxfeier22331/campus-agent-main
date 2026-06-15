@@ -52,10 +52,10 @@ projection`
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader /
 current React docs shell`
 
-`browser -> protected-panel-web -> app-api -> request projection / operator read
+`browser -> operator-console-web -> app-api -> request projection / operator read
 model`
 
-`browser -> campus-ops-web -> app-api /api/ops/dining/* -> dining operations
+`browser -> operator-console-web -> app-api /api/ops/dining/* -> dining operations
 draft / release candidate / release / audit model`
 
 `collector -> app-api official_web control plane -> ingestion-worker`
@@ -230,23 +230,20 @@ document/index release`
 - 不生成 answer、不直连 `apps/execution-control`、不写 DB、不拥有 conversation truth
 - 通过 `x-app-internal-auth` 与 signed campus principal headers 调用 `apps/app-api`
 
-### `apps/protected-panel-web`
+### `apps/operator-console-web`
 
 - protected Worker web surface
-- 只负责 Operator Console 当前 read-only operator domains 的 UI
+- 负责 Operator Console 当前 operator domains 的 UI，包括 read-only
+  observability / projection domains 与 dining operations workspace
 - 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query
-  surfaces
-- 当前已接入 `Requests`、`Official Web` 与 authenticated notice processing 的 app-owned
-  operator-safe read-only surfaces
-
-### `apps/campus-ops-web`
-
-- protected Worker web surface for current Operator Console dining operations
-  implementation
-- 当前只 proxy allowlisted `/api/ops/dining/*` routes into `apps/app-api`
+  surfaces 和 allowlisted operations routes
+- 当前已接入 `Requests`、`Official Web`、authenticated notice processing 与 dining
+  operations surfaces
+- 当前只 proxy allowlisted `/api/ops/dining/*` routes into `apps/app-api`，不开放
+  generic `/api/*`
 - 承载 dining draft / release candidate / release / audit workspace；不拥有 dining truth、
   auth/session truth 或第二套 operator backend
-- 它是当前 implementation package，不定义独立于 Operator Console 的长期产品后台概念
+- 它是唯一当前 Operator Console implementation package，不定义第二个长期后台产品概念
 
 ### `apps/app-api`
 

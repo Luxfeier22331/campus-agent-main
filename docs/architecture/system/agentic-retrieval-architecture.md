@@ -404,7 +404,7 @@ agentic RAG 固定 fail-close 于以下分支：
 这些 execution-side truth 用于 operator observability、quality grading 与 release
 gate， 但不应直接暴露 raw snippets 或 vendor payload。
 
-badcase、RAGAS、golden dataset 与 operator panel 的阶段归因固定落到：
+badcase、RAGAS、golden dataset 与 Operator Console 的阶段归因固定落到：
 
 - `routing`
 - `planning`
@@ -450,7 +450,7 @@ LlamaIndex 是 ingestion / retrieval implementation dependency，不是 `campus-
   metadata helper 或 Qdrant integration glue，但跨层 contract 必须是 repo-owned DTO。
 - 长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter + sanitized
   query activity projection；LlamaIndex 只能保留为可替换实现依赖。
-- eval、operator panel 与 badcase 只看 durable step/result projection，不以
+- eval、Operator Console 与 badcase 只看 durable step/result projection，不以
   LlamaIndex run object、node object 或 vendor metadata 作为 source truth。
 
 ## Internal Agents SDK Loop

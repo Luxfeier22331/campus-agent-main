@@ -128,7 +128,7 @@ Postgres continues to own：
 - sanitized run events
 - step trajectory projection
 - final answer projection
-- operator panel read model
+- Operator Console read model
 - eval / badcase / golden dataset projection
 - source truth and release catalog where already assigned
 

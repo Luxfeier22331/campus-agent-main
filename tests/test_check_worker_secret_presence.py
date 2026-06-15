@@ -134,7 +134,7 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                 "apps/app-api",
                 "apps/campus-web",
                 "apps/public-chat-web",
-                "apps/protected-panel-web",
+                "apps/operator-console-web",
             ):
                 _write(
                     repo_root / app_path / "wrangler.toml",
@@ -169,7 +169,7 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                 [
                     "apps/app-api",
                     "apps/campus-web",
-                    "apps/protected-panel-web",
+                    "apps/operator-console-web",
                     "apps/public-chat-web",
                 ],
             )

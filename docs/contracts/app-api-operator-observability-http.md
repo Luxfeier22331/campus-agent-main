@@ -37,7 +37,7 @@ response and ingest endpoint bodies live in the split documents below.
 ## 文档边界
 
 这份文档冻结 `apps/app-api` 暴露给 Operator Console 的 operator observability query
-contract。当前 read-only implementation surface 是 `apps/protected-panel-web`。
+contract。当前 read-only implementation surface 是 `apps/operator-console-web`。
 
 它补充但不替代以下文档：
 

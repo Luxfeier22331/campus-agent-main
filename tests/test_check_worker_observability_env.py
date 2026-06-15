@@ -56,12 +56,12 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                 + "\n",
             )
             _write(
-                repo_root / "apps/protected-panel-web/.dev.vars",
+                repo_root / "apps/operator-console-web/.dev.vars",
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.example",
                         "SENTRY_ENVIRONMENT=development",
-                        "SENTRY_RELEASE=protected-panel-web@dev-local",
+                        "SENTRY_RELEASE=operator-console-web@dev-local",
                     ]
                 )
                 + "\n",
@@ -85,7 +85,7 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
             self.assertEqual(status["source_missing_keys"], [])
             self.assertTrue(status["targets"]["apps/app-api/.dev.vars"]["ready"])
             self.assertTrue(status["targets"]["apps/public-chat-web/.dev.vars"]["ready"])
-            self.assertTrue(status["targets"]["apps/protected-panel-web/.dev.vars"]["ready"])
+            self.assertTrue(status["targets"]["apps/operator-console-web/.dev.vars"]["ready"])
             self.assertTrue(status["targets"]["apps/campus-web/.dev.vars"]["ready"])
 
     def test_collect_worker_observability_status_reports_source_missing_keys(self) -> None:
@@ -144,12 +144,12 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                 + "\n",
             )
             _write(
-                repo_root / "apps/protected-panel-web/.dev.vars",
+                repo_root / "apps/operator-console-web/.dev.vars",
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.example",
                         "SENTRY_ENVIRONMENT=development",
-                        "SENTRY_RELEASE=protected-panel-web@dev-local",
+                        "SENTRY_RELEASE=operator-console-web@dev-local",
                     ]
                 )
                 + "\n",

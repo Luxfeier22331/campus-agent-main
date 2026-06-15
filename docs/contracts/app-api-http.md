@@ -31,8 +31,8 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
   - Account center and identity product projection endpoints
 - `app-api-federation-http.md`
   - Federation provider surface
-- `app-api-campus-ops-http.md`
-  - Campus ops cross-cutting operator contract
+- `app-api-operator-ops-http.md`
+  - Operator ops cross-cutting contract
 - `app-api-dining-http.md`
   - Student dining public projection endpoints
 - `app-api-dining-ops-http.md`
@@ -66,7 +66,7 @@ Operator Console implementation surfaces 暴露的 browser-facing HTTP contract�
 - 数据模型：`docs/data/app-api-schema.md`
 - identity platform product projection：`docs/contracts/app-api-identity-platform-http.md`
 - future federation provider surface：`docs/contracts/app-api-federation-http.md`
-- campus ops cross-cutting contract：`docs/contracts/app-api-campus-ops-http.md`
+- operator ops cross-cutting contract：`docs/contracts/app-api-operator-ops-http.md`
 - student dining public contract：`docs/contracts/app-api-dining-http.md`
 - dining ops HTTP contract：`docs/contracts/app-api-dining-ops-http.md`
 - chat conversation product contract：`docs/contracts/app-api-chat-conversation-http.md`
@@ -112,7 +112,7 @@ contract test carrier。新增 route 必须声明：
 
 - `browser-surface`：由 campus-web / legacy public chat same-origin proxy 调用
 - `operator-via-panel`：由 Operator Console internal bridge 调用；当前代码名保留
-  `panel`，不表示长期只存在 `protected-panel-web` 一个 product concept
+  `panel`，不表示长期只存在 `operator-console-web` 一个 product concept
 - `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
   caller 调用
 - `collector-machine`：由 official-web collector command caller 调用
@@ -238,7 +238,7 @@ in `docs/contracts/app-api-dining-ops-http.md`.
 
 These routes are `operator-via-panel` caller class routes consumed by the
 Operator Console dining workspace. The current implementation surface is
-`campus-ops-web`, not `campus-web`. Source observation apply/reject routes are
+`operator-console-web`, not `campus-web`. Source observation apply/reject routes are
 not implemented in the current inventory.
 
 ### Operator

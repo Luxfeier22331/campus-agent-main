@@ -86,9 +86,9 @@ recovery 模板继续放在 `env/commands/historical/*.env.example`。
 - [`apps/public-chat-web/.dev.vars.example`](/home/reptilian/code/campus-agent/a
   pps/public-chat-web/.dev.vars.example)
   - `public-chat-web` Worker string env
-- [`apps/protected-panel-web/.dev.vars.example`](/home/reptilian/code/campus-age
-  nt/apps/protected-panel-web/.dev.vars.example)
-  - `protected-panel-web` Worker string env
+- [`apps/operator-console-web/.dev.vars.example`](/home/reptilian/code/campus-age
+  nt/apps/operator-console-web/.dev.vars.example)
+  - `operator-console-web` Worker string env
 - [`infra/otel/collector.env.example`](/home/reptilian/code/campus-agent/infra/
   otel/collector.env.example)
   - local/staging OTel collector process env

@@ -20,7 +20,7 @@ OBSERVABILITY_TARGETS = {
     "apps/public-chat-web/.dev.vars": {
         "SENTRY_DSN": "SENTRY_DSN",
     },
-    "apps/protected-panel-web/.dev.vars": {
+    "apps/operator-console-web/.dev.vars": {
         "SENTRY_DSN": "SENTRY_DSN",
     },
     "apps/campus-web/.dev.vars": {

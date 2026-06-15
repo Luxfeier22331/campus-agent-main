@@ -54,7 +54,7 @@ updated: 2026-05-01
 
 执行前确认：
 
-- `apps/official-web-collector`、`apps/app-api`、`apps/protected-panel-web` 依赖已经安装
+- `apps/official-web-collector`、`apps/app-api`、`apps/operator-console-web` 依赖已经安装
 - repo 中 `configs/sources/official_web/muc_public/` 为当前真相源
 - 当前输出目录使用本地临时路径，例如 `/tmp/official-web-smoke-<host>-<date>`
 
@@ -166,8 +166,8 @@ pnpm --dir apps/official-web-collector typecheck
 pnpm --dir apps/app-api typecheck
 pnpm --dir apps/app-api test
 pnpm --dir apps/app-api test:shared-db-integration
-pnpm --dir apps/protected-panel-web typecheck
-pnpm --dir apps/protected-panel-web test
+pnpm --dir apps/operator-console-web typecheck
+pnpm --dir apps/operator-console-web test
 ```
 
 这一步至少覆盖：

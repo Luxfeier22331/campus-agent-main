@@ -40,10 +40,10 @@ sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
-`browser -> protected-panel-web -> app-api -> request projection / operator read
+`browser -> operator-console-web -> app-api -> request projection / operator read
 model`
 
-`browser -> campus-ops-web -> app-api /api/ops/dining/* -> dining operations
+`browser -> operator-console-web -> app-api /api/ops/dining/* -> dining operations
 draft / release candidate / release / audit model`
 
 这意味着：
@@ -52,8 +52,8 @@ draft / release candidate / release / audit model`
   surface；docs 已收口为 `campus-web /docs/*` 内部支撑面
 - Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service
   Binding；
-  `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的
-  origin
+  `APP_API_BASE_URL` / `OPERATOR_CONSOLE_APP_API_BASE_URL` 只是构造内部
+  `Request` URL 的 origin
 - `apps/campus-web` 是学生侧 product entry surface、account browser shell 与 docs
   browser route owner；它拥有 campus experience routes、账号浏览器页面、Rspress-powered
   `/docs/*` reader delivery、Q&A ChatKit browser surface 与 same-origin proxy seam，但不拥有
@@ -118,10 +118,11 @@ draft / release candidate / release / audit model`
 - `Operator Console`
   - 长期是唯一受控 operator product concept，承接 read-only observability domains 与受控
     operations domains
-  - 当前 read-only implementation surface 是 `protected-panel-web`，已承接
-    `Requests`、`Official Web` 与 `Authenticated Notice Processing`
-  - 当前 dining operations implementation surface 是 `campus-ops-web`，只承接 allowlisted
-    `/api/ops/dining/*` routes
+  - 当前唯一 implementation surface 是 `operator-console-web`
+  - 当前已承接 `Requests`、`Official Web`、`Authenticated Notice Processing` 与 dining
+    operations workspace
+  - dining operations 仍只通过 allowlisted `/api/ops/dining/*` routes 消费
+    `apps/app-api`
   - 更完整 `Audit`、其他 operations domains 与 runtime settings 仍属于后续 rollout，不应被写成当前
     merged truth
 - `apps/app-api`
@@ -184,9 +185,10 @@ draft / release candidate / release / audit model`
 
 ### Operator Console implementation surfaces
 
-- `apps/protected-panel-web` 是当前 read-only operator UI shell
-- `apps/campus-ops-web` 是当前 dining operations workspace shell
-- 两者都只消费 `apps/app-api` runtime-owned APIs
+- `apps/operator-console-web` 是当前唯一 Operator Console Worker shell
+- read-only observability / projection domains 与 dining operations workspace 都在该
+  shell 内通过明确 route 和导航分区承载
+- 该 shell 只消费 `apps/app-api` runtime-owned APIs
 - fail-closed by default
 - 不导入 `packages/*`，不把自己做成 `apps/execution-control` 的 hidden admin mode，
   也不定义第二套 operator backend
@@ -413,10 +415,10 @@ contract 或 auth family route/endpoint truth。
 - `docs/contracts/capability-execution.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/data/app-api-schema.md`
-- `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 - `docs/architecture/system/identity-platform-architecture.md`

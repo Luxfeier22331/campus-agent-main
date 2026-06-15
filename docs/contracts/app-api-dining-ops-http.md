@@ -13,11 +13,11 @@ updated: 2026-06-14
 本文冻结 `apps/app-api` 的 dining operations HTTP contract。
 
 Dining operations 是 Operator Console 内的受控 operations domain。当前 route inventory
-仍使用 `/api/ops/dining/*`，当前 implementation surface 是 `apps/campus-ops-web`。
+仍使用 `/api/ops/dining/*`，当前 implementation surface 是 `apps/operator-console-web`。
 
 它补充：
 
-- `docs/contracts/app-api-campus-ops-http.md`
+- `docs/contracts/app-api-operator-ops-http.md`
 - `docs/data/dining-operations-schema.md`
 - `docs/architecture/domains/dining/architecture.md`
 

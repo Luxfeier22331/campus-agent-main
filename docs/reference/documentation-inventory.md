@@ -927,8 +927,8 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=213`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
-  - Title: ADR-0011 Protected Panel Worker Runtime 决策
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
+  - Title: ADR-0011 Operator Console Worker Runtime 决策
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
@@ -967,7 +967,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=memory`, `state=tracked`, `lines=233`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
   - Title: ADR-0016 App API Request Projection And Panel Query Ownership
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
@@ -1985,8 +1985,8 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=295`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/authenticated-notice-processing-operator-panel-runbook.md`
-  - Title: Authenticated Notice Processing Operator Panel Runbook
+- `docs/runbooks/authenticated-notice-processing-operator-console-runbook.md`
+  - Title: Authenticated Notice Processing Operator Console Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
   - Owner boundary: `docs/runbooks`
@@ -2332,11 +2332,11 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=architecture`, `cluster=dining`, `state=tracked`, `lines=319`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
-- `docs/architecture/system/campus-ops-web-architecture.md`
+- `docs/architecture/system/operator-console-operations-architecture.md`
   - Title: Operator Console Operations Architecture
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
-  - Owner boundary: `apps/campus-ops-web`
+  - Owner boundary: `apps/operator-console-web`
   - Ledger: `area=architecture`, `cluster=operator-console`, `state=tracked`, `lines=164`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
@@ -2364,7 +2364,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=architecture`, `cluster=identity`, `state=tracked`, `lines=285`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
-- `docs/contracts/app-api-campus-ops-http.md`
+- `docs/contracts/app-api-operator-ops-http.md`
   - Title: App API Operator Operations HTTP Contract
   - Owner class: `contract_truth`
   - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`

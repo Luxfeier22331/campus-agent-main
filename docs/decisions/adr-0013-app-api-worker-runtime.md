@@ -18,7 +18,7 @@ Accepted on 2026-03-28.
 `ADR-0012` 已经冻结了新的产品边界：
 
 - `apps/public-chat-web`
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 - shared `apps/app-api`
 - `apps/execution-control` execution engine
 
@@ -38,7 +38,7 @@ Accepted on 2026-03-28.
 
 1. `apps/app-api` 的 runtime 冻结为 Cloudflare Worker。
 1. `apps/app-api` 默认保持 internal-only，不作为浏览器直连 public backend 暴露。
-1. `apps/public-chat-web` 与 `apps/protected-panel-web` 通过内部 Worker runtime seam
+1. `apps/public-chat-web` 与 `apps/operator-console-web` 通过内部 Worker runtime seam
    调用 `apps/app-api`。
 1. `apps/app-api` 继续以模块化单体承接 auth/session/conversation、chat ingress、request
    ledger/projection input 与 operator query。

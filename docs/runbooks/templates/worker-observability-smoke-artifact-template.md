@@ -40,7 +40,7 @@ updated: 2026-04-20
 
 - Environment:
 - `public-chat-web` hostname:
-- `protected-panel-web` hostname:
+- `operator-console-web` hostname:
 - `app-api` hostname:
 - Worker release:
 - `SENTRY_*` deployed: `yes` | `no`
@@ -56,14 +56,14 @@ updated: 2026-04-20
 - `pnpm --dir apps/app-api test:worker -- --reporter=verbose`:
 - `pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t
   "smokes a chat request through public-chat-web into app-api"`:
-- `pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t
-  "smokes request queries through protected-panel-web into app-api with
+- `pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t
+  "smokes request queries through operator-console-web into app-api with
   internal caller admission"`:
 
 ## Post-Deploy Verification
 
 - `public-chat-web -> app-api`:
-- `protected-panel-web -> app-api`:
+- `operator-console-web -> app-api`:
 - `app-api` controlled error:
 - `app-api` scheduled / projection drain:
 
@@ -71,7 +71,7 @@ updated: 2026-04-20
 
 - Sentry notes:
 - `public-chat-web -> app-api` trace file:
-- `protected-panel-web -> app-api` trace file:
+- `operator-console-web -> app-api` trace file:
 - `app-api` runtime event file:
 - Trace IDs:
 
@@ -115,7 +115,7 @@ updated: 2026-04-20
 ## `panel-trace.md` 模板
 
 ```md
-# Protected Panel To App API Trace
+# Operator Console To App API Trace
 
 ## Run Metadata
 
@@ -131,10 +131,10 @@ updated: 2026-04-20
 
 ## Trace Evidence
 
-- `protected-panel-web` event link / screenshot:
+- `operator-console-web` event link / screenshot:
 - `app-api` event link / screenshot:
 - Shared trace observed:
-- `surface=protected-panel-web` observed:
+- `surface=operator-console-web` observed:
 - `surface=app_api` observed:
 
 ## Notes

@@ -45,9 +45,10 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   `apps/app-api` 必须共享一套
   release hardening discipline，但仍保持独立 deploy unit
 - staging browser baseline 当前固定为 `campus-staging.mucwiki-edge.link`、
-  `chat-staging.mucwiki-edge.link`、`panel-staging.mucwiki-edge.link`；docs 作为
-  `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过 Worker
-  `APP_API` Service Binding 调用 `app-api-staging`
+  `chat-staging.mucwiki-edge.link` 与
+  `operator-console-staging.mucwiki-edge.link`；docs 作为
+  `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
+  Worker `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
@@ -61,8 +62,8 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
   瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
   projection / RAG runtime unhealthy 才进入 degraded posture
-- 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
-  共同决定
+- 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与
+  post-deploy evidence 共同决定
 
 ## Staging Baseline
 
@@ -73,7 +74,7 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
 - `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>
 - `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
-- `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
+- `apps/operator-console-web` -> `<https://operator-console-staging.mucwiki-edge.link`>
 - `apps/public-docs` -> removed; docs staging surface is `apps/campus-web /docs/*`
 
 长期规则：
@@ -81,8 +82,8 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `mucwiki-edge.link` 下项目隔离一级子域是当前 repo-owned staging truth
 - `ayafeed.com` 与 `*.rag.ayafeed.com` 不再作为 campus-agent staging forward truth
 - future production hostname 应新增独立 env truth，而不是覆写 staging baseline
-- `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 在 Worker web surfaces 中固定为
-  `https://app-api.internal`，只用于 Service Binding request construction
+- `APP_API_BASE_URL` 与 `OPERATOR_CONSOLE_APP_API_BASE_URL` 在 Worker web
+  surfaces 中固定为 `https://app-api.internal`，只用于 Service Binding request construction
 - `api-staging.mucwiki-edge.link` 不得作为 browser surface upstream invariant；若保留，
   必须按 machine ingress 处理
 
@@ -119,7 +120,7 @@ release identity 的长期规则固定为：
 - internal shared secret、operator allowlist、public chat allowlist 必须按跨 app
   invariant 收口
 - `PUBLIC_CHAT_WEB_ORIGIN`、`APP_API_BASE_URL=https://app-api.internal`、
-  `PANEL_RUNTIME_API_BASE_URL=https://app-api.internal` 不能漂移
+  `OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal` 不能漂移
 
 ### Data Freshness / DB Gate
 
@@ -189,7 +190,7 @@ post-deploy verification 的长期 closure 固定为：
 
 - `public-chat-web -> app-api` 至少一条真实 trace
 - `Operator Console surface -> app-api` 至少一条真实 trace；当前 staging implementation
-  surface 是 `protected-panel-web`
+  surface 是 `operator-console-web`
 - `app-api` 至少一条 runtime event / scheduled drain evidence
 - 当次 release 的 evidence artifact 落盘
 
@@ -224,7 +225,7 @@ post-deploy verification 的长期 closure 固定为：
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 - `docs/environment/README.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`

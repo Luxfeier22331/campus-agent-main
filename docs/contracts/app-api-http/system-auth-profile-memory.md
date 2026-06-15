@@ -96,7 +96,7 @@ owns this section group; the original path remains the stable index.
 
 - 由 Better Auth handler 挂载
 - `public-chat-web` 通过 same-site route 暴露给浏览器
-- `protected-panel-web` 不在 v1 上复用这一套 end-user 登录流程
+- `operator-console-web` 不在 v1 上复用这一套 end-user 登录流程
 
 ### `GET /api/me`
 

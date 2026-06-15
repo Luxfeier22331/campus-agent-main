@@ -18,7 +18,7 @@ ingestion handoff ownership
 
 - `official_web` 已被接受为 repo 级一级 `source_channel`
 - `apps/ingestion-worker` 是离线 ingestion/data-plane executor
-- Operator Console 的当前 read-only implementation surface 是 `apps/protected-panel-web`，并已冻结为
+- Operator Console 的当前 read-only implementation surface 是 `apps/operator-console-web`，并已冻结为
   `runtime APIs only` 的 protected Worker shell
 - shared `apps/app-api` 已落地为 Worker runtime，并拥有产品层 admission、durable
   ledger/outbox 与 operator read-model 形态
@@ -164,7 +164,7 @@ ingestion handoff ownership
 - `apps/ingestion-worker` 执行 release task，并把结果写入 canonical projection /
   document/index release path，同时上报 operator-safe projection snapshot
 - Operator Console 只消费投影，不直接干预 release task；当前 read-only 实现 surface 是
-  `apps/protected-panel-web`
+  `apps/operator-console-web`
 
 实施说明：
 

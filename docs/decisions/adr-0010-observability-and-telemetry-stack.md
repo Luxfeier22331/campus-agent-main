@@ -187,7 +187,7 @@ redaction 与字段裁剪。
   topology 的主 observability owner
 - `apps/public-chat-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
   `x-trace-id`、`sentry-trace`、`baggage`
-- `apps/protected-panel-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
+- `apps/operator-console-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
   `x-trace-id`、`sentry-trace`、`baggage`
 - `Axiom` 当前只在 `apps/app-api` 落地最小结构化运行事件；实现形态允许先使用 Worker-local REST ingest
   adapter，但不改变长期 `OTel -> Collector -> sink` 方向

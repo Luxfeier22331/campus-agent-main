@@ -117,8 +117,8 @@ curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/healthz
 curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/healthz
 curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/readyz
-curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/healthz
-curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/readyz
+curl --noproxy '*' -sS -i https://operator-console-staging.mucwiki-edge.link/healthz
+curl --noproxy '*' -sS -i https://operator-console-staging.mucwiki-edge.link/readyz
 ```
 
 通过标准：

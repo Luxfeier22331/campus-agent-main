@@ -87,4 +87,4 @@ memory boundaries are owned by the architecture documents listed above.
 ## 相关领域
 
 - `operator-observability.md`
-  - operator panel 只消费 app-owned operator access、audit 与 quality projections
+  - Operator Console 只消费 app-owned operator access、audit 与 quality projections

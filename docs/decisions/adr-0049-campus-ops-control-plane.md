@@ -13,9 +13,10 @@ updated: 2026-06-14
 
 Accepted on 2026-06-08.
 
-ADR-0055 partially supersedes this ADR's separate long-term `campus-ops-web` product
-surface decision. The dining draft/candidate/release/audit lifecycle and domain
-boundaries in this ADR continue to apply.
+ADR-0055 supersedes this ADR's separate long-term `campus-ops-web` product
+surface decision. The `apps/campus-ops-web` implementation package has retired;
+dining draft/candidate/release/audit lifecycle and domain boundaries in this ADR
+continue to apply under `apps/operator-console-web`.
 
 ## 背景
 
@@ -30,8 +31,9 @@ initial release 输入，不能继续承担长期线上运营真相。
 
 ## 决策
 
-Dining operations 是 Operator Console 内的受控 operations domain。当前实现由
-`apps/campus-ops-web` 承载 dining workspace 与 `/api/ops/dining/*` proxy allowlist。
+Dining operations 是 Operator Console 内的受控 operations domain。当前 active
+implementation 由 `apps/operator-console-web` 承载 dining workspace 与
+`/api/ops/dining/*` proxy allowlist。
 
 `apps/app-api` 拥有 dining operations 的写入、draft、release candidate、release、audit
 与学生端 published projection。`apps/campus-web` 只读取 published projection，不读取 draft
@@ -41,7 +43,7 @@ Dining operations 是 Operator Console 内的受控 operations domain。当前�
 
 ```text
 operator browser
--> operator console dining workspace (current: campus-ops-web)
+-> operator console dining workspace (current: operator-console-web)
 -> app-api /api/ops/dining/*
 -> dining draft tables
 -> release candidate / validation / approval / schedule / publish routes
@@ -64,7 +66,7 @@ Operator Console 的 dining operations domain 负责：
 - published release list and rollback surface
 - audit list presentation
 
-当前实现包 `apps/campus-ops-web` 不负责：
+当前实现包 `apps/operator-console-web` 不负责：
 
 - auth/session truth
 - student-facing published projection truth
@@ -152,18 +154,18 @@ graph truth。
 
 ## 结果
 
-- dining operations 作为 Operator Console domain 落在当前 `apps/campus-ops-web`
+- dining operations 作为 Operator Console domain 落在当前 `apps/operator-console-web`
   实现上。
-- `docs/contracts/app-api-campus-ops-http.md` 冻结 ops cross-cutting contract。
+- `docs/contracts/app-api-operator-ops-http.md` 冻结 ops cross-cutting contract。
 - `docs/contracts/app-api-dining-ops-http.md` 冻结 dining ops HTTP contract。
 - `docs/data/dining-operations-schema.md` 冻结 dining operations logical schema。
-- `docs/architecture/system/campus-ops-web-architecture.md` 冻结当前实现的 web surface
-  boundary。
+- `docs/architecture/system/operator-console-operations-architecture.md` 冻结当前实现的
+  web surface boundary。
 - `docs/architecture/domains/dining/architecture.md` 冻结 dining domain boundary。
 
 ## 非目标
 
-以下不进入当前计划开发周期的 campus ops / dining 产品范围：
+以下不进入当前计划开发周期的 operator ops / dining 产品范围：
 
 - 商户自助后台
 - 实时排队、营业状态、支付或订单系统

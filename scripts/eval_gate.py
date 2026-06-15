@@ -25,7 +25,7 @@ from scripts.doctor_env import collect_env_doctor_status
 DEFAULT_WORKER_APPS = (
     "apps/app-api",
     "apps/public-chat-web",
-    "apps/protected-panel-web",
+    "apps/operator-console-web",
 )
 
 

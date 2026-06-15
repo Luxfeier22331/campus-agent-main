@@ -174,7 +174,7 @@ owns this section group; the original path remains the stable index.
       "anomalyId": "aclanom_01HQ",
       "requestId": "req_01HQ",
       "traceId": "trace_01HQ",
-      "surface": "protected_panel_web",
+      "surface": "operator_console_web",
       "principalType": "operator",
       "selectedCapability": "knowledge",
       "anomalyCode": "projection_missing",

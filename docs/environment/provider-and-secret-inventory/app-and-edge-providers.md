@@ -291,7 +291,7 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 - `apps/app-api`
 - `apps/public-chat-web`
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 
 默认放置位置：
 
@@ -326,7 +326,7 @@ root convenience keys：
 
 - `SENTRY_API_TOKEN` 不是 Worker runtime secret，不应同步到 `.dev.vars`
 - 默认用 `SENTRY_ENVIRONMENT` 区分 `staging` / `production`
-- 默认用 `surface` tag 区分 `app-api`、`public-chat-web`、`protected-panel-web`、`hub-web`
+- 默认用 `surface` tag 区分 `app-api`、`public-chat-web`、`operator-console-web`、`hub-web`
 - 只有当告警归属、事件噪声、数据策略或 issue regression 已经实质冲突时，才拆分为多个 Sentry project
 
 ## 9. Axiom
@@ -377,7 +377,7 @@ root convenience keys：
 
 - `apps/app-api`
 - `apps/public-chat-web`
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 
 获取方式：
 
@@ -414,11 +414,11 @@ root convenience keys：
 
 ## 11. Cloudflare Access
 
-这只属于 `protected-panel-web`。
+这只属于 `operator-console-web`。
 
 默认放置位置：
 
-- `apps/protected-panel-web/.dev.vars`
+- `apps/operator-console-web/.dev.vars`
 - staging deploy shell env：
   - `STAGING_ACCESS_TEAM_DOMAIN`
   - `STAGING_ACCESS_POLICY_AUD`

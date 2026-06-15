@@ -51,7 +51,7 @@ contract。
 - ingestion projection ingest endpoints 由 `apps/ingestion-worker` machine-to-machine
   上报 operator-safe read model
 - operator query endpoints 由 Operator Console 通过 runtime APIs 消费的
-  site/run/detail seam；当前 read-only implementation surface 是 `protected-panel-web`
+  site/run/detail seam；当前 read-only implementation surface 是 `operator-console-web`
 
 命名规则固定为：
 
@@ -74,7 +74,7 @@ contract。
 
 - 继续复用 shared `app-api` 的 operator principal admission
 - Operator Console 仍通过 Worker-local BFF 调用这些 endpoints；当前 read-only implementation
-  surface 是 `protected-panel-web`
+  surface 是 `operator-console-web`
 
 ## Endpoint Summary
 

@@ -187,8 +187,8 @@ combinations live in split environment references.
   query URL 模板，panel 不直接查询 Axiom API
 
 - Provider / system: Cloudflare Workers / Wrangler
-  作用: `app-api`、`campus-web`、legacy `public-chat-web`、`protected-panel-web` 与
-  `campus-ops-web` deploy 与 secret store
+  作用: `app-api`、`campus-web`、legacy `public-chat-web`、`operator-console-web` 与
+  `operator-console-web` deploy 与 secret store
   主要 env keys: shell env / secret store，不固定 repo key 名
   放置位置: local shell、CI secret store、Cloudflare dashboard
   何时必需: 只有 Worker dev/deploy 需要
@@ -196,9 +196,9 @@ combinations live in split environment references.
   `wrangler secret put`，deploy 前再用 `scripts.check_worker_secret_presence` 审计
 
 - Provider / system: Cloudflare Access
-  作用: `protected-panel-web` outer protection envelope
+  作用: `operator-console-web` outer protection envelope
   主要 env keys: `ACCESS_TEAM_DOMAIN` `ACCESS_POLICY_AUD`
-  放置位置: `apps/protected-panel-web/.dev.vars` 或 staging deploy 注入
+  放置位置: `apps/operator-console-web/.dev.vars` 或 staging deploy 注入
   何时必需: panel staging / prod 必需
   获取方式: 在 Zero Trust 创建 self-hosted Access application，复制 team domain 与
   Application Audience (AUD) Tag

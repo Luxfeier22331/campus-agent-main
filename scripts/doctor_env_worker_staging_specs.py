@@ -61,7 +61,7 @@ WORKER_STAGING_SURFACE_SPECS = {
         },
         "files": {},
     },
-    "worker-staging-protected-panel-web": {
+    "worker-staging-operator-console-web": {
         "providers": {},
         "required_settings": {
             "staging_access_policy_aud": ("STAGING_ACCESS_POLICY_AUD",),

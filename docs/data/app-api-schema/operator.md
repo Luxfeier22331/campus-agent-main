@@ -119,7 +119,7 @@ owns this section group; the original path remains the stable index.
 
 用途：
 
-- protected panel `通知处理` 的 canonical read model
+- Operator Console `通知处理` 的 canonical read model
 - authenticated notice queue / downstream materialization 的 operator-safe status
   projection
 
@@ -229,7 +229,7 @@ owns this section group; the original path remains the stable index.
 
 用途：
 
-- protected panel `通知 run 处理` 的 canonical read model
+- Operator Console `通知 run 处理` 的 canonical read model
 - authenticated notice collector run / replay batch / queue run 的 operator-safe
   status projection
 

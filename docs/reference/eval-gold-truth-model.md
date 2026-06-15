@@ -27,7 +27,7 @@ candidate review manifest，不能直接写入 golden truth。
    `campus_evals.observed_regression_review apply` 生成 reviewed manifest 与 accepted
    fixture。
 4. 接收入 fixture 后，deterministic gate 才把它计入 release / regression denominator。
-5. supplemental grader、OpenAI tracing、Sentry、Axiom 或 operator panel 只能消费
+5. supplemental grader、OpenAI tracing、Sentry、Axiom 或 Operator Console 只能消费
    artifact 或 backlink，不改写 canonical truth。
 
 当前 intent badcase 的 repo-owned 入口：

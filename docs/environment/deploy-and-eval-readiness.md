@@ -47,7 +47,7 @@ uv run --all-packages python -m scripts.doctor_env <surface> --json
 - `worker-staging`
 - `worker-staging-app-api`
 - `worker-staging-public-chat-web`
-- `worker-staging-protected-panel-web`
+- `worker-staging-operator-console-web`
 
 ### Execution Control runtime gate
 
@@ -106,7 +106,7 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 - `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>，承载 student
   Q&A、account、docs、map、dining 与 feedback
 - `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
-- `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
+- `apps/operator-console-web` -> `<https://operator-console-staging.mucwiki-edge.link`>
 - `apps/public-docs` 已删除；docs staging browser surface 由 `apps/campus-web`
   `/docs/*` 承担
 
@@ -131,10 +131,10 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 ## Staging Deploy Rules
 
 - 三个 Worker 的 canonical `pnpm deploy:staging` 都先执行 `deploy:preflight:staging`
-- `apps/public-chat-web` 与 `apps/protected-panel-web` 通过 `CLOUDFLARE_ENV=staging
+- `apps/public-chat-web` 与 `apps/operator-console-web` 通过 `CLOUDFLARE_ENV=staging
   vite build` 选择 deploy env
 - deploy-side `SENTRY_RELEASE` 属于 deploy-time concern，不写回 static vars
-- `apps/protected-panel-web` staging deploy 必须显式注入：
+- `apps/operator-console-web` staging deploy 必须显式注入：
   - `STAGING_ACCESS_TEAM_DOMAIN`
   - `STAGING_ACCESS_POLICY_AUD`
 

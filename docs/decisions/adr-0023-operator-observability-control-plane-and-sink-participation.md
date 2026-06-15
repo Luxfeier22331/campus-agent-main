@@ -16,7 +16,7 @@ updated: 2026-04-03
 
 当前仓库已经具备以下事实：
 
-- Operator Console 的当前 read-only implementation surface 是 `apps/protected-panel-web`，
+- Operator Console 的当前 read-only implementation surface 是 `apps/operator-console-web`，
   并已冻结为 `runtime APIs only` 的 protected Worker shell
 - `apps/app-api` 已拥有 `runtime.request_execution`、`runtime.projection_outbox` 与
   `operator.request_projection`
@@ -43,7 +43,7 @@ updated: 2026-04-03
 
 - operator-facing observability / audit / quality / safety / cost read model 的第一
   owner 固定为 `apps/app-api`
-- 当前 read-only implementation surface `protected-panel-web` 继续只消费这些 runtime-owned
+- 当前 read-only implementation surface `operator-console-web` 继续只消费这些 runtime-owned
   APIs
 - `apps/execution-control` 不承担 operator observability query backend
 
@@ -303,7 +303,7 @@ updated: 2026-04-03
 - `docs/architecture/system/operator-observability-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-operator-observability-http.md`

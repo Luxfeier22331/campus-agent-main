@@ -121,7 +121,7 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
             return_value=(
                 repo_root / "pnpm-lock.yaml",
                 repo_root / "apps/app-api/pnpm-lock.yaml",
-                repo_root / "apps/protected-panel-web/pnpm-lock.yaml",
+                repo_root / "apps/public-chat-web/pnpm-lock.yaml",
             ),
         ):
             run_mock.side_effect = [
@@ -144,7 +144,7 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
         self.assertEqual(
             command_calls[2],
             build_app_pnpm_lock_check_command(
-                repo_root / "apps/protected-panel-web/pnpm-lock.yaml",
+                repo_root / "apps/public-chat-web/pnpm-lock.yaml",
                 root=repo_root,
             ),
         )

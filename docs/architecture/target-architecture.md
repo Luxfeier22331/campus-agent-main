@@ -109,7 +109,7 @@ flowchart LR
   subgraph Client["Browser Surfaces"]
     Campus["campus-web"]
     Chat["public-chat-web legacy"]
-    Panel["Operator Console\n(current surfaces: protected-panel-web / campus-ops-web)"]
+    Panel["Operator Console\n(current surfaces: operator-console-web)"]
   end
 
   subgraph ProductIngress["Product Ingress"]
@@ -670,7 +670,7 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
   trace backlink ingest 与 operator-facing projection，不拥有 golden truth
 - Operator Console 只承担 operator review / triage UX；它可以发起受控 review
   action，但不决定 golden set truth、不生成 benchmark artifact。当前实现 surface 可以是
-  `protected-panel-web` 或后续统一后的 operator console package。
+  `operator-console-web` 或后续统一后的 operator console package。
 - `apps/execution-control` 与 domain agent 只产出 execution / trace / outcome
   facts，不写 eval truth
 - OpenAI Evals / graders / tracing、RAGAS、Sentry、Axiom 等外部工具只能作为 grader、

@@ -19,7 +19,7 @@ Accepted on 2026-06-15.
 
 当前文档中存在一组互相冲突的 operator surface 口径：
 
-- ADR-0011 已经把 `apps/protected-panel-web` 冻结为受控 operator control plane 的
+- ADR-0011 已经把 `apps/operator-console-web` 冻结为受控 operator control plane 的
   Worker shell。
 - ADR-0049 为 dining operations 新增了 `apps/campus-ops-web`，并把它写成 Campus
   Operations Control Plane 的长期 operator workspace。
@@ -43,14 +43,13 @@ Operator Console 承载：
 owner。Operator Console 只能通过 app-api 暴露的 runtime-owned APIs 工作，不直连数据库、对象存储、
 ingestion worker、execution-control、Temporal history、Qdrant 或 telemetry sink。
 
-当前实现可以暂时由多个 Worker surface 承载：
+当前实现已收口到一个 Worker surface：
 
-- `apps/protected-panel-web` 当前承载 observability / read-only operator domains。
-- `apps/campus-ops-web` 当前承载 dining operations workspace 与 `/api/ops/dining/*`
+- `apps/operator-console-web` 当前承载 observability / read-only operator domains。
+- `apps/operator-console-web` 同时承载 dining operations workspace 与 `/api/ops/dining/*`
   proxy allowlist。
 
-这些实现包名和部署面不再定义两个长期产品后台。后续是否合并包、重命名 route 或统一导航，是实现迁移问题，
-不改变本 ADR 的长期概念边界。
+`apps/protected-panel-web` 与 `apps/campus-ops-web` 已从 active workspace 退役。包名和部署面不再定义两个长期产品后台。
 
 ## API Namespace
 
@@ -62,7 +61,7 @@ backend，也不得引入隐式双写、fallback 或 silent route alias。
 
 ## Supersession
 
-本 ADR 局部替代 ADR-0049 中“新增 `apps/campus-ops-web` 作为长期独立 Campus Operations
+本 ADR 替代 ADR-0049 中“新增 `apps/campus-ops-web` 作为长期独立 Campus Operations
 Control Plane surface owner”的判断。
 
 ADR-0049 的以下内容继续生效：
@@ -80,13 +79,12 @@ ADR-0011 继续生效：
 - Operator Console shell 只消费 runtime APIs
 - UI shell 可以基于成熟 admin framework 承载 operator domains
 
-ADR-0018 和 ADR-0023 继续生效，但其中的 `protected panel` 表述应按 Operator Console 的
+ADR-0018 和 ADR-0023 继续生效，但其中的 `Operator Console` 表述应按 Operator Console 的
 domain 口径理解：official-web 与 observability 是 Operator Console 的 operator domains，不能扩张成
 generic infra console、sink explorer 或直接数据源浏览器。
 
 ## 非目标
 
-- 不在本 ADR 中删除或重命名 `apps/protected-panel-web` / `apps/campus-ops-web`。
 - 不迁移 `/api/ops/dining/*` route。
 - 不把 Operator Console 做成 generic internal-tools builder、SQL console、object-store
   browser 或 execution-control hidden admin mode。
@@ -95,8 +93,8 @@ generic infra console、sink explorer 或直接数据源浏览器。
 ## 结果
 
 - 文档中的长期产品概念统一为 Operator Console。
-- `protected-panel-web` 与 `campus-ops-web` 只在 current implementation、deployment、route
-  inventory 或 historical ADR context 中作为具体实现名出现。
+- 当前 active Operator Console implementation package 统一为 `apps/operator-console-web`。
+- `protected-panel-web` 与 `campus-ops-web` 只在 historical ADR context 中作为被替代实现名出现。
 - 新增 operator domain 时，应先说明它属于 Operator Console 的哪个 domain，再说明当前由哪个
   Worker package 承载。
 
@@ -104,9 +102,9 @@ generic infra console、sink explorer 或直接数据源浏览器。
 
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/operator-observability-architecture.md`
-- `docs/architecture/system/campus-ops-web-architecture.md`
+- `docs/architecture/system/operator-console-operations-architecture.md`
 - `docs/contracts/app-api-http.md`
-- `docs/contracts/app-api-campus-ops-http.md`
+- `docs/contracts/app-api-operator-ops-http.md`
 - `docs/contracts/app-api-dining-ops-http.md`
-- `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
 - `docs/decisions/adr-0049-campus-ops-control-plane.md`

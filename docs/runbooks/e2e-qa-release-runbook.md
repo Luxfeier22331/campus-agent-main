@@ -196,13 +196,13 @@ curl --noproxy '*' -sS -i \
 - reader route 返回可渲染 HTML
 - reader asset URL 不包含 `localhost`、`127.0.0.1` 或本地 MinIO endpoint
 
-## 6. Protected Panel And Access
+## 6. Operator Console And Access
 
 运行 Access service-token smoke：
 
 ```bash
-pnpm --dir apps/protected-panel-web access:smoke:staging \
-  | tee "$E2E_QA_EVIDENCE_DIR/panel-access-service-token.json"
+pnpm --dir apps/operator-console-web access:smoke:staging \
+  | tee "$E2E_QA_EVIDENCE_DIR/operator-console-access-service-token.json"
 ```
 
 通过标准：
@@ -228,7 +228,7 @@ pnpm --dir apps/protected-panel-web access:smoke:staging \
 - `https://campus-staging.mucwiki-edge.link/docs/`
   - 首页、分类、reader 页面可打开
   - gated 文档未授权不可读，授权后可读
-- `https://panel-staging.mucwiki-edge.link`
+- `https://operator-console-staging.mucwiki-edge.link`
   - 首次访问进入 Cloudflare Access
   - Access 登录后 panel shell 可加载
   - Overview、Requests、Eval Coverage 页面可打开
