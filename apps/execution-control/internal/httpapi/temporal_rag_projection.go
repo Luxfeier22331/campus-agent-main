@@ -8,6 +8,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 )
 
@@ -57,26 +58,44 @@ func ragPlanProjectionForRun(
 	if err != nil {
 		return ragruntime.PlanProjection{}, err
 	}
+	profile, err := retrievalruntime.LoadRuntimeProfile("", scope.Corpus, scope.Collection)
+	if err != nil {
+		return ragruntime.PlanProjection{}, err
+	}
 	topK := positiveIntFromAny(payload["top_k"])
 	if topK <= 0 {
-		topK = 8
+		topK = profile.RetrievalTopK
 	}
 	queryMode, versionQuery := ragVersionQueryForRun(payload)
 	plan := ragruntime.PlanProjection{
 		Collection:               scope.Collection,
-		CollectionAlias:          scope.Collection,
+		CollectionAlias:          profile.QdrantAliasName,
 		Corpus:                   scope.Corpus,
 		NoWideningPolicy:         true,
 		PlanID:                   ragPlanID(scope, queryMode),
+		QdrantAliasName:          profile.QdrantAliasName,
 		QueryMode:                queryMode,
 		QueryText:                queryText,
 		RequestID:                run.RequestID,
 		RequiredEvidenceContract: "answer_bearing_evidence",
+		RuntimeProfileID:         scope.Corpus + "/" + scope.Collection + ":" + profile.ServingStage,
 		RunID:                    run.RunID,
 		SchemaVersion:            "rag_plan_projection_v1",
-		StepID:                   "rag.plan",
-		TopK:                     topK,
-		VersionQuery:             versionQuery,
+		SourceTrustPolicy: ragruntime.SourceTrustPolicy{
+			MinimumTier: defaultSourceTrustTier(scope.Collection, queryMode),
+		},
+		StepID:       "rag.plan",
+		TopK:         topK,
+		VersionQuery: versionQuery,
+	}
+	plan.AdmittedScopes = []ragruntime.ScopeProjection{{
+		Corpus:     scope.Corpus,
+		Collection: scope.Collection,
+	}}
+	plan.Steps = retrievalPlanStepsForProjection(plan)
+	plan.Budget = ragruntime.PlanBudgetProjection{
+		MaxReplans: 0,
+		MaxSteps:   len(plan.Steps),
 	}
 	if _, memoryRef := memoryContextForRAG(run); memoryRef != "" {
 		plan.MemoryRef = memoryRef
@@ -94,6 +113,88 @@ func ragPlanProjectionForRun(
 
 func ragPlanID(scope runtimepolicy.Scope, queryMode string) string {
 	return "rag:" + scope.Corpus + ":" + scope.Collection + ":" + queryMode
+}
+
+func defaultSourceTrustTier(collection string, queryMode string) string {
+	if queryMode == "freshness_sensitive" {
+		return "T3"
+	}
+	switch strings.TrimSpace(collection) {
+	case "curriculum_plan":
+		return "T0"
+	case "student_rules", "institutional_rules":
+		return "T1"
+	case "stable_reference":
+		return "T2"
+	default:
+		return "T1"
+	}
+}
+
+func retrievalPlanStepsForProjection(plan ragruntime.PlanProjection) []ragruntime.RetrievalStepProjection {
+	scope := ragruntime.ScopeProjection{Corpus: plan.Corpus, Collection: plan.Collection}
+	base := func(stepID string, stepType string, stage string, expectedOutput string) ragruntime.RetrievalStepProjection {
+		return ragruntime.RetrievalStepProjection{
+			Budget: ragruntime.StepBudgetProjection{
+				TimeoutMS: 8000,
+				TopK:      plan.TopK,
+			},
+			ExpectedOutput: expectedOutput,
+			QueryText:      plan.QueryText,
+			RunStepID:      temporalRunStepID(stepType),
+			Scope:          scope,
+			Stage:          stage,
+			StepID:         stepID,
+			StepType:       stepType,
+		}
+	}
+	switch plan.QueryMode {
+	case "historical", "as_of":
+		step := base("historical-version-lookup", "historical_version_lookup", "retrieval", "candidate_set")
+		if plan.VersionQuery != nil && strings.TrimSpace(plan.VersionQuery.VersionID) != "" {
+			step.Selector.TargetVersionIDs = []string{strings.TrimSpace(plan.VersionQuery.VersionID)}
+		}
+		return []ragruntime.RetrievalStepProjection{step}
+	case "compare":
+		step := base("compare-pair-lookup", "compare_pair_lookup", "retrieval", "compare_inputs")
+		if plan.VersionQuery != nil {
+			for _, versionID := range []string{plan.VersionQuery.VersionID, plan.VersionQuery.CompareToVersionID} {
+				if strings.TrimSpace(versionID) != "" {
+					step.Selector.TargetVersionIDs = append(step.Selector.TargetVersionIDs, strings.TrimSpace(versionID))
+				}
+			}
+		}
+		return []ragruntime.RetrievalStepProjection{step}
+	case "freshness_sensitive":
+		freshness := base("freshness-gate", "freshness_gate", "retrieval", "freshness_decision")
+		hybrid := base("hybrid-search", "hybrid_search", "retrieval", "candidate_set")
+		hybrid.DependsOnStepIDs = []string{"freshness-gate"}
+		return []ragruntime.RetrievalStepProjection{freshness, hybrid}
+	case "live_assisted":
+		return []ragruntime.RetrievalStepProjection{
+			base("freshness-gate", "freshness_gate", "retrieval", "freshness_decision"),
+			base("live-source-lookup", "live_source_lookup", "tool", "live_candidates"),
+		}
+	default:
+		return []ragruntime.RetrievalStepProjection{
+			base("hybrid-search", "hybrid_search", "retrieval", "candidate_set"),
+			base("evidence-coverage-verify", "evidence_coverage_verify", "selection", "coverage_verdict"),
+			base("supporting-evidence-select", "supporting_evidence_select", "selection", "supporting_evidence"),
+		}
+	}
+}
+
+func temporalRunStepID(stepType string) string {
+	switch stepType {
+	case "evidence_coverage_verify", "supporting_evidence_select":
+		return "evidence.selection"
+	case "freshness_gate", "parent_context_expand":
+		return "retrieval.expand_or_rescue"
+	case "live_source_lookup":
+		return "retrieval.expand_or_rescue"
+	default:
+		return "retrieval.indexed_lookup"
+	}
 }
 
 func ragVersionQueryForRun(payload map[string]any) (string, *ragruntime.VersionQueryProjection) {
@@ -207,24 +308,21 @@ func selectRAGEvidence(
 	run execution.DurableRun,
 	lookup ragruntime.RetrievalLookupResult,
 ) (ragruntime.EvidenceSelectionResult, error) {
-	if lookup.CandidateCount <= 0 || len(lookup.Candidates) == 0 {
-		return ragruntime.EvidenceSelectionResult{}, errors.New("candidate evidence is required")
+	plan := ragruntime.PlanProjection{}
+	if raw, ok := run.Metadata["temporal_rag"].(map[string]any); ok {
+		if decoded, err := decodeRAGProjection[ragruntime.PlanProjection](raw["plan"]); err == nil {
+			plan = decoded
+		}
 	}
-	selected := lookup.Candidates
-	if len(selected) > 8 {
-		selected = selected[:8]
+	selection, err := ragruntime.SelectSupportingEvidence(ragruntime.EvidenceSelectionRequest{
+		Lookup: lookup,
+		Plan:   plan,
+		RunID:  run.RunID,
+	})
+	if err != nil {
+		return ragruntime.EvidenceSelectionResult{}, err
 	}
-	selection := ragruntime.EvidenceSelectionResult{
-		CandidateCount:          len(lookup.Candidates),
-		CoverageStatus:          "supported",
-		EvidenceRef:             temporalProjectionRef(run.RunID, "evidence/selection"),
-		PayloadSHA256:           "",
-		RejectionReasons:        []string{},
-		RunID:                   run.RunID,
-		SchemaVersion:           "evidence_selection_result_v1",
-		SelectedEvidence:        selected,
-		SupportingEvidenceCount: len(selected),
-	}
+	selection.EvidenceRef = temporalProjectionRef(run.RunID, "evidence/selection")
 	hash, err := ragruntime.HashProjection(selection)
 	if err != nil {
 		return ragruntime.EvidenceSelectionResult{}, err
@@ -234,6 +332,46 @@ func selectRAGEvidence(
 		return ragruntime.EvidenceSelectionResult{}, err
 	}
 	return selection, nil
+}
+
+func answerBearingEvidence(candidates []ragruntime.EvidenceRef) []ragruntime.EvidenceRef {
+	selected := make([]ragruntime.EvidenceRef, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.IsAnswerBearing {
+			selected = append(selected, candidate)
+		}
+	}
+	return selected
+}
+
+func retrievalRescueDecision(
+	plan ragruntime.PlanProjection,
+	lookup ragruntime.RetrievalLookupResult,
+) (bool, string, error) {
+	switch strings.TrimSpace(plan.QueryMode) {
+	case "live_assisted":
+		return false, "", errors.New("live_assisted retrieval requires admitted live source lookup; indexed rescue is not implemented")
+	case "as_of":
+		if plan.ResolvedVersionQuery == nil || strings.TrimSpace(plan.ResolvedVersionQuery.VersionID) == "" {
+			return false, "", errors.New("as_of retrieval requires pre-resolved version_id before indexed rescue")
+		}
+	}
+	if len(answerBearingEvidence(lookup.Candidates)) > 0 {
+		return false, "answer_bearing_evidence_present", nil
+	}
+	if hasRetrievalStepType(plan, "parent_context_expand") {
+		return false, "", errors.New("parent_context_expand is admitted but no Go document-section reader is configured")
+	}
+	return false, "answer_bearing_evidence_missing", nil
+}
+
+func hasRetrievalStepType(plan ragruntime.PlanProjection, stepType string) bool {
+	for _, step := range plan.Steps {
+		if strings.TrimSpace(step.StepType) == stepType {
+			return true
+		}
+	}
+	return false
 }
 
 func temporalRAGSynthesisPacketForRun(

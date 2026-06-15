@@ -362,6 +362,14 @@ query mode 固定显式化：
 
 - query mode 在 retrieval 之前确定
 - historical / compare 不是回答层事后解释
+- 当前 Go Temporal indexed RAG 对 `current` / `historical` / `as_of` / `compare`
+  的成熟口径是：planner projection 先生成 `version_query`，version resolver 产出
+  `resolved_version_query`，lookup executor 只消费 resolved projection；缺 version
+  registry、缺 explicit version id、`as_of` 多义或 `compare` 两侧缺失均 fail closed
+- `current` 不绑定单个 collection-level version id；它由 query-serving alias、
+  runtime profile 与 `is_current=true` filter 承接
+- `historical` / `as_of` supporting evidence 必须覆盖解析出的版本；
+  `compare` supporting evidence 必须覆盖比较两侧版本
 - recent / latest / today 一类问法不得在 freshness gate 缺失时继续假装可答
 
 ## Failure Semantics
@@ -373,6 +381,8 @@ agentic RAG 固定 fail-close 于以下分支：
 - unsupported query mode
 - insufficient freshness
 - insufficient answer-bearing evidence
+- missing canonical reference for supporting evidence
+- version evidence coverage failed
 - evidence coverage verification failed
 - evidence-integrity verification failed
 - semantic grounding validation failed, only when a badcase/eval-driven hardening

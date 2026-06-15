@@ -41,6 +41,7 @@ type Server struct {
 	ragLookupErr           error
 	ragSynthesisExecutor   ragSynthesisExecutor
 	ragSynthesisErr        error
+	ragVersionResolver     ragVersionResolver
 	temporalStarter        temporalruntime.ChatWorkflowStarter
 	temporalStarterErr     error
 	temporalWorkersStarted bool
@@ -285,6 +286,7 @@ func NewServerWithDependencies(
 		ragLookupErr:           ragLookupErr,
 		ragSynthesisExecutor:   ragSynthesisExecutor,
 		ragSynthesisErr:        ragSynthesisErr,
+		ragVersionResolver:     newQdrantMetadataVersionResolver(cfg),
 		temporalStarter:        temporalStarter,
 		temporalStarterErr:     temporalStarterErr,
 		intentPolicy:           intentPolicy,

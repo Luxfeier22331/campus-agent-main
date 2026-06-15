@@ -14,23 +14,70 @@ var ErrInvalidProjection = errors.New("invalid rag runtime projection")
 const maxEvidenceExcerptBytes = 1200
 
 type PlanProjection struct {
-	SchemaVersion            string                  `json:"schema_version"`
-	RunID                    string                  `json:"run_id"`
-	StepID                   string                  `json:"step_id"`
-	RequestID                string                  `json:"request_id"`
-	QueryText                string                  `json:"query_text"`
-	QueryMode                string                  `json:"query_mode"`
-	VersionQuery             *VersionQueryProjection `json:"version_query,omitempty"`
-	Corpus                   string                  `json:"corpus"`
-	Collection               string                  `json:"collection"`
-	CollectionAlias          string                  `json:"collection_alias"`
-	TopK                     int                     `json:"top_k"`
-	NoWideningPolicy         bool                    `json:"no_widening_policy"`
-	RequiredEvidenceContract string                  `json:"required_evidence_contract"`
-	MemoryRef                string                  `json:"memory_ref,omitempty"`
-	PlanID                   string                  `json:"plan_id"`
-	PayloadSHA256            string                  `json:"payload_sha256"`
-	UnsafeDebug              map[string]any          `json:"-"`
+	SchemaVersion            string                          `json:"schema_version"`
+	RunID                    string                          `json:"run_id"`
+	StepID                   string                          `json:"step_id"`
+	RequestID                string                          `json:"request_id"`
+	QueryText                string                          `json:"query_text"`
+	QueryMode                string                          `json:"query_mode"`
+	VersionQuery             *VersionQueryProjection         `json:"version_query,omitempty"`
+	Corpus                   string                          `json:"corpus"`
+	Collection               string                          `json:"collection"`
+	CollectionAlias          string                          `json:"collection_alias"`
+	TopK                     int                             `json:"top_k"`
+	NoWideningPolicy         bool                            `json:"no_widening_policy"`
+	RequiredEvidenceContract string                          `json:"required_evidence_contract"`
+	ResolvedVersionQuery     *ResolvedVersionQueryProjection `json:"resolved_version_query,omitempty"`
+	MemoryRef                string                          `json:"memory_ref,omitempty"`
+	PlanID                   string                          `json:"plan_id"`
+	PayloadSHA256            string                          `json:"payload_sha256"`
+	RuntimeProfileID         string                          `json:"runtime_profile_id,omitempty"`
+	QdrantAliasName          string                          `json:"qdrant_alias_name,omitempty"`
+	AdmittedScopes           []ScopeProjection               `json:"admitted_scopes,omitempty"`
+	SourceTrustPolicy        SourceTrustPolicy               `json:"source_trust_policy,omitempty"`
+	Budget                   PlanBudgetProjection            `json:"budget,omitempty"`
+	Steps                    []RetrievalStepProjection       `json:"steps,omitempty"`
+	UnsafeDebug              map[string]any                  `json:"-"`
+}
+
+type ScopeProjection struct {
+	Corpus     string `json:"corpus"`
+	Collection string `json:"collection"`
+}
+
+type SourceTrustPolicy struct {
+	MinimumTier string `json:"minimum_tier"`
+}
+
+type PlanBudgetProjection struct {
+	MaxReplans int `json:"max_replans"`
+	MaxSteps   int `json:"max_steps"`
+}
+
+type RetrievalStepProjection struct {
+	Budget           StepBudgetProjection   `json:"budget"`
+	DependsOnStepIDs []string               `json:"depends_on_step_ids,omitempty"`
+	ExpectedOutput   string                 `json:"expected_output"`
+	QueryText        string                 `json:"query_text"`
+	RunStepID        string                 `json:"run_step_id"`
+	Scope            ScopeProjection        `json:"scope"`
+	Selector         StepSelectorProjection `json:"selector,omitempty"`
+	Stage            string                 `json:"stage"`
+	StepID           string                 `json:"step_id"`
+	StepType         string                 `json:"step_type"`
+}
+
+type StepBudgetProjection struct {
+	TimeoutMS int `json:"timeout_ms,omitempty"`
+	TopK      int `json:"top_k"`
+}
+
+type StepSelectorProjection struct {
+	TargetDocumentIDs    []string `json:"target_document_ids,omitempty"`
+	TargetVersionIDs     []string `json:"target_version_ids,omitempty"`
+	TargetRevisionTrack  string   `json:"target_revision_track,omitempty"`
+	PreferredDocumentIDs []string `json:"preferred_document_ids,omitempty"`
+	EntityKeys           []string `json:"entity_keys,omitempty"`
 }
 
 type VersionQueryProjection struct {
@@ -122,13 +169,25 @@ type FinalizationPacket struct {
 }
 
 type EvidenceRef struct {
-	ChunkID   string  `json:"chunk_id"`
-	Excerpt   string  `json:"excerpt"`
-	Score     float64 `json:"score"`
-	SourceID  string  `json:"source_id"`
-	SourceRef string  `json:"source_ref"`
-	SpanRef   string  `json:"span_ref"`
-	Title     string  `json:"title"`
+	Anchor          string  `json:"anchor,omitempty"`
+	CanonicalURL    string  `json:"canonical_url,omitempty"`
+	ChunkID         string  `json:"chunk_id"`
+	DocumentID      string  `json:"document_id,omitempty"`
+	Excerpt         string  `json:"excerpt"`
+	IsAnswerBearing bool    `json:"is_answer_bearing,omitempty"`
+	IsCurrent       bool    `json:"is_current,omitempty"`
+	LatestURL       string  `json:"latest_url,omitempty"`
+	RevisionTrack   string  `json:"revision_track,omitempty"`
+	RootUnitID      string  `json:"root_unit_id,omitempty"`
+	Score           float64 `json:"score"`
+	SourceChannel   string  `json:"source_channel,omitempty"`
+	SourceID        string  `json:"source_id"`
+	SourceRef       string  `json:"source_ref"`
+	SourceUnitKey   string  `json:"source_unit_key,omitempty"`
+	SourceUnitKind  string  `json:"source_unit_kind,omitempty"`
+	SpanRef         string  `json:"span_ref"`
+	Title           string  `json:"title"`
+	VersionID       string  `json:"version_id,omitempty"`
 }
 
 func ValidatePlanProjection(plan PlanProjection) error {
@@ -149,6 +208,11 @@ func ValidatePlanProjection(plan PlanProjection) error {
 	if plan.TopK <= 0 {
 		return fmt.Errorf("%w: top_k must be positive", ErrInvalidProjection)
 	}
+	for index, step := range plan.Steps {
+		if err := validateRetrievalStepProjection(index, step); err != nil {
+			return err
+		}
+	}
 	if err := validateQueryMode(plan.QueryMode, plan.VersionQuery); err != nil {
 		return err
 	}
@@ -156,6 +220,25 @@ func ValidatePlanProjection(plan PlanProjection) error {
 		return fmt.Errorf("%w: payload_sha256 must be lowercase sha256 hex", ErrInvalidProjection)
 	}
 	return rejectUnsafeDebug(plan.UnsafeDebug)
+}
+
+func validateRetrievalStepProjection(index int, step RetrievalStepProjection) error {
+	if err := requireFields(map[string]string{
+		fmt.Sprintf("steps[%d].step_id", index):          step.StepID,
+		fmt.Sprintf("steps[%d].run_step_id", index):      step.RunStepID,
+		fmt.Sprintf("steps[%d].step_type", index):        step.StepType,
+		fmt.Sprintf("steps[%d].stage", index):            step.Stage,
+		fmt.Sprintf("steps[%d].query_text", index):       step.QueryText,
+		fmt.Sprintf("steps[%d].scope.corpus", index):     step.Scope.Corpus,
+		fmt.Sprintf("steps[%d].scope.collection", index): step.Scope.Collection,
+		fmt.Sprintf("steps[%d].expected_output", index):  step.ExpectedOutput,
+	}); err != nil {
+		return err
+	}
+	if step.Budget.TopK <= 0 {
+		return fmt.Errorf("%w: steps[%d].budget.top_k must be positive", ErrInvalidProjection, index)
+	}
+	return nil
 }
 
 func validateQueryMode(queryMode string, versionQuery *VersionQueryProjection) error {

@@ -269,6 +269,10 @@ func (s *Server) PlanRAGActivity(
 	if err != nil {
 		return s.failRAGPlanActivity(ctx, run, "rag_plan_invalid", err)
 	}
+	plan, err = resolvePlanVersionQuery(ctx, s.ragVersionResolver, plan)
+	if err != nil {
+		return s.failRAGPlanActivity(ctx, run, "rag_version_resolution_failed", err)
+	}
 	planRef := temporalProjectionRef(run.RunID, "rag/plan")
 	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
 		metadata["workflow_plan_ref"] = input.WorkflowPlanRef
@@ -618,15 +622,24 @@ func (s *Server) ExpandOrRescueRetrievalActivity(
 	if err != nil {
 		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
 	}
-	if _, err := temporalRAGLookupResultFromRun(run, input.LookupRef); err != nil {
+	plan, err := temporalRAGPlanProjectionFromRun(run, input.RAGPlanRef)
+	if err != nil {
+		return s.failExpandOrRescueRetrievalActivity(ctx, run, "rag_plan_projection_missing", err)
+	}
+	lookup, err := temporalRAGLookupResultFromRun(run, input.LookupRef)
+	if err != nil {
 		return s.failExpandOrRescueRetrievalActivity(ctx, run, "retrieval_lookup_projection_missing", err)
 	}
 	startedAt := time.Now().UTC()
 	rescueRef := temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue")
+	rescueApplied, rescueReason, err := retrievalRescueDecision(plan, lookup)
+	if err != nil {
+		return s.failExpandOrRescueRetrievalActivity(ctx, run, "retrieval_rescue_failed", err)
+	}
 	result := ragruntime.RetrievalRescueResult{
 		LookupRef:     input.LookupRef,
-		RescueApplied: false,
-		RescueReason:  "not_admitted_or_not_required",
+		RescueApplied: rescueApplied,
+		RescueReason:  rescueReason,
 		RescueRef:     rescueRef,
 		RunID:         run.RunID,
 		SchemaVersion: "retrieval_rescue_result_v1",

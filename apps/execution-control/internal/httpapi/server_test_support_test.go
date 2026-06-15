@@ -200,6 +200,11 @@ func markRAGRuntimeReadyForTest(server *Server) {
 	server.ragLookupErr = nil
 	server.ragSynthesisExecutor = readyRAGSynthesisExecutor{}
 	server.ragSynthesisErr = nil
+	server.ragVersionResolver = fakeRAGVersionResolver{}
+}
+
+func attachReadyRAGVersionResolverForTest(server *Server) {
+	server.ragVersionResolver = fakeRAGVersionResolver{}
 }
 
 func providerPricingCatalogForTest(t *testing.T) string {

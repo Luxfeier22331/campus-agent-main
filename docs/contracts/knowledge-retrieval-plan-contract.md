@@ -219,6 +219,15 @@ RetrievalStep
   plan-level query mode，不是 step type
 - `historical / as_of` 通过 `version_query` 与 `historical_version_lookup` step 收口
 - `compare` 通过 `compare_pair_lookup` 与后续 merge / evidence selection 收口
+- `version_query` 是用户请求形态；执行前必须产生 internal
+  `resolved_version_query` projection。`retrieval-core` executor 不得从 raw
+  `version_query` 猜测 `as_of` 或 compare target。
+- `resolved_version_query` 当前只作为 execution-control internal projection 保存到
+  sanitized run metadata，不进入 `packages/contracts`。它至少表达：
+  `mode`、`version_id`、`compare_to_version_id`、`as_of` 与
+  `target_version_ids[]`。
+- `current` 的 `resolved_version_query` 不绑定单个 collection-level version id；
+  current-only 语义由 runtime profile 与 `is_current=true` filter 强制执行。
 - `freshness_sensitive` 先走 `freshness_gate`，不能跳过 freshness admission
 - `live_assisted` 只表示“允许在 admitted 条件下进入 bounded live branch”，不表示 `knowledge`
   可以自动挑选 live target

@@ -18,6 +18,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 )
 
 type ragLookupExecutor interface {
@@ -31,9 +32,11 @@ type qdrantRAGLookupExecutor struct {
 	embeddingDimensions int
 	embeddingHTTPClient *http.Client
 	embeddingModel      string
+	embeddingProvider   string
 	httpClient          *http.Client
 	qdrantQueryAPIKey   string
 	qdrantURL           string
+	runtimeProfileRoot  string
 	timeout             time.Duration
 }
 
@@ -82,9 +85,11 @@ func newQdrantRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
 		embeddingDimensions: cfg.EmbeddingDimensions,
 		embeddingHTTPClient: &http.Client{Timeout: timeout},
 		embeddingModel:      strings.TrimSpace(cfg.EmbeddingModel),
+		embeddingProvider:   strings.TrimSpace(cfg.EmbeddingProvider),
 		httpClient:          httpClient,
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
 		qdrantURL:           qdrantURL,
+		runtimeProfileRoot:  retrievalRuntimeProfileRoot(),
 		timeout:             timeout,
 	}, nil
 }
@@ -121,7 +126,11 @@ func (e qdrantRAGLookupExecutor) Lookup(
 		return ragruntime.RetrievalLookupResult{}, err
 	}
 	started := time.Now()
-	embedding, err := e.embedQuery(ctx, plan.QueryText)
+	profile, err := e.runtimeProfile(plan)
+	if err != nil {
+		return ragruntime.RetrievalLookupResult{}, err
+	}
+	embedding, err := e.embedQuery(ctx, retrievalruntime.BuildDenseQueryText(plan.QueryText, profile.EmbeddingQueryInstruction))
 	if err != nil {
 		return ragruntime.RetrievalLookupResult{}, err
 	}
@@ -236,24 +245,30 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	plan ragruntime.PlanProjection,
 	embedding []float64,
 ) ([]qdrantPoint, error) {
-	mustConditions, err := qdrantRAGLookupFilterConditions(plan)
+	profile, err := e.runtimeProfile(plan)
 	if err != nil {
 		return nil, err
 	}
-	body, err := json.Marshal(map[string]any{
-		"limit":        plan.TopK,
-		"with_payload": true,
-		"with_vector":  false,
-		"using":        "dense",
-		"query":        embedding,
-		"filter": map[string]any{
-			"must": mustConditions,
-		},
+	bodyPayload, err := retrievalruntime.BuildHybridQueryBody(retrievalruntime.QueryRequest{
+		CompareToVersionID: resolvedQueryCompareToVersionID(plan),
+		DenseEmbedding:     embedding,
+		Mode:               plan.QueryMode,
+		Profile:            profile,
+		QueryText:          plan.QueryText,
+		TopK:               plan.TopK,
+		VersionID:          resolvedQueryVersionID(plan),
 	})
 	if err != nil {
 		return nil, err
 	}
-	endpoint := e.qdrantURL + "/collections/" + url.PathEscape(plan.CollectionAlias) + "/points/query"
+	if err := e.validateAliasReleaseMetadata(ctx, profile); err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(bodyPayload)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := e.qdrantURL + "/collections/" + url.PathEscape(profile.QdrantAliasName) + "/points/query"
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -283,69 +298,119 @@ func (e qdrantRAGLookupExecutor) queryPoints(
 	return payload.Result.Points, nil
 }
 
-func qdrantRAGLookupFilterConditions(plan ragruntime.PlanProjection) ([]map[string]any, error) {
-	must := []map[string]any{
-		qdrantMatchCondition("corpus", plan.Corpus),
-		qdrantMatchCondition("collection", plan.Collection),
-		qdrantMatchCondition("status", "active"),
+func (e qdrantRAGLookupExecutor) validateAliasReleaseMetadata(
+	ctx context.Context,
+	profile retrievalruntime.RuntimeProfile,
+) error {
+	metadata, err := e.readQdrantCollectionMetadata(ctx, profile.QdrantAliasName)
+	if err != nil {
+		return err
 	}
-	versionConditions, err := qdrantVersionFilterConditions(plan)
+	if len(metadata) > 0 {
+		return retrievalruntime.ValidateReleaseMetadata(retrievalruntime.ReleaseGuardRequest{
+			EmbeddingDimensions: e.embeddingDimensions,
+			EmbeddingModel:      e.embeddingModel,
+			EmbeddingProvider:   e.embeddingProvider,
+			Metadata:            metadata,
+			Profile:             profile,
+		})
+	}
+	samples, err := e.readQdrantReleaseMetadataSamples(ctx, profile.QdrantAliasName)
+	if err != nil {
+		return err
+	}
+	return retrievalruntime.ValidateReleaseMetadataSamples(retrievalruntime.ReleaseGuardSamplesRequest{
+		EmbeddingDimensions: e.embeddingDimensions,
+		EmbeddingModel:      e.embeddingModel,
+		EmbeddingProvider:   e.embeddingProvider,
+		MetadataSamples:     samples,
+		Profile:             profile,
+	})
+}
+
+func (e qdrantRAGLookupExecutor) readQdrantCollectionMetadata(
+	ctx context.Context,
+	collectionName string,
+) (map[string]any, error) {
+	endpoint := e.qdrantURL + "/collections/" + url.PathEscape(collectionName)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	must = append(must, versionConditions...)
-	must = append(must, qdrantMatchCondition("visibility_level", "public"))
-	return must, nil
+	request.Header.Set("api-key", e.qdrantQueryAPIKey)
+	response, err := e.httpClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("qdrant collection metadata status %d", response.StatusCode)
+	}
+	var payload struct {
+		Result struct {
+			Metadata map[string]any `json:"metadata"`
+			Payload  map[string]any `json:"payload"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(responseBody, &payload); err != nil {
+		return nil, fmt.Errorf("parse qdrant collection metadata response: %w", err)
+	}
+	if len(payload.Result.Metadata) > 0 {
+		return payload.Result.Metadata, nil
+	}
+	return payload.Result.Payload, nil
 }
 
-func qdrantVersionFilterConditions(plan ragruntime.PlanProjection) ([]map[string]any, error) {
-	mode := strings.TrimSpace(plan.QueryMode)
-	switch mode {
-	case "", "current", "freshness_sensitive":
-		return []map[string]any{qdrantMatchCondition("is_current", true)}, nil
-	case "historical":
-		if plan.VersionQuery == nil || strings.TrimSpace(plan.VersionQuery.VersionID) == "" {
-			return nil, errors.New("historical qdrant lookup requires version_query.version_id")
+func (e qdrantRAGLookupExecutor) readQdrantReleaseMetadataSamples(
+	ctx context.Context,
+	collectionName string,
+) ([]map[string]any, error) {
+	body, err := json.Marshal(map[string]any{
+		"limit":        16,
+		"with_payload": true,
+		"with_vector":  false,
+	})
+	if err != nil {
+		return nil, err
+	}
+	endpoint := e.qdrantURL + "/collections/" + url.PathEscape(collectionName) + "/points/scroll"
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("api-key", e.qdrantQueryAPIKey)
+	request.Header.Set("content-type", "application/json")
+	response, err := e.httpClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("qdrant release metadata scroll status %d", response.StatusCode)
+	}
+	var payload struct {
+		Result struct {
+			Points []qdrantPoint `json:"points"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(responseBody, &payload); err != nil {
+		return nil, fmt.Errorf("parse qdrant release metadata scroll response: %w", err)
+	}
+	samples := make([]map[string]any, 0, len(payload.Result.Points))
+	for _, point := range payload.Result.Points {
+		if len(point.Payload) > 0 {
+			samples = append(samples, point.Payload)
 		}
-		return []map[string]any{
-			qdrantMatchAnyCondition("version_id", []string{strings.TrimSpace(plan.VersionQuery.VersionID)}),
-		}, nil
-	case "compare":
-		if plan.VersionQuery == nil ||
-			strings.TrimSpace(plan.VersionQuery.VersionID) == "" ||
-			strings.TrimSpace(plan.VersionQuery.CompareToVersionID) == "" {
-			return nil, errors.New("compare qdrant lookup requires version_query.version_id and compare_to_version_id")
-		}
-		return []map[string]any{
-			qdrantMatchAnyCondition(
-				"version_id",
-				[]string{
-					strings.TrimSpace(plan.VersionQuery.VersionID),
-					strings.TrimSpace(plan.VersionQuery.CompareToVersionID),
-				},
-			),
-		}, nil
-	case "as_of":
-		return nil, errors.New("as_of qdrant lookup requires pre-resolved version_id before indexed lookup")
-	case "live_assisted":
-		return nil, errors.New("live_assisted query_mode requires live source lookup branch, not indexed qdrant lookup")
-	default:
-		return nil, fmt.Errorf("unsupported qdrant lookup query_mode %q", mode)
 	}
-}
-
-func qdrantMatchCondition(key string, value any) map[string]any {
-	return map[string]any{
-		"key":   key,
-		"match": map[string]any{"value": value},
-	}
-}
-
-func qdrantMatchAnyCondition(key string, values []string) map[string]any {
-	return map[string]any{
-		"key":   key,
-		"match": map[string]any{"any": values},
-	}
+	return samples, nil
 }
 
 type qdrantPoint struct {
@@ -398,6 +463,7 @@ func evidenceRefFromQdrantPoint(point qdrantPoint) (ragruntime.EvidenceRef, bool
 		metadata["document_id"],
 		point.ID,
 	)
+	documentID := firstNonEmptyText(metadata["document_id"], metadata["source_doc_id"], metadata["canonical_source_id"])
 	chunkID := firstNonEmptyText(metadata["chunk_id"], point.ID)
 	spanRef := firstNonEmptyText(metadata["span_ref"], metadata["structural_ref"])
 	if spanRef == "" {
@@ -408,18 +474,30 @@ func evidenceRefFromQdrantPoint(point qdrantPoint) (ragruntime.EvidenceRef, bool
 		sourceRef = "source://" + sourceID
 	}
 	return ragruntime.EvidenceRef{
-		ChunkID:   chunkID,
-		Excerpt:   excerpt,
-		Score:     point.Score,
-		SourceID:  sourceID,
-		SourceRef: sourceRef,
-		SpanRef:   spanRef,
+		Anchor:          firstNonEmptyText(metadata["anchor"], metadata["section_anchor"]),
+		CanonicalURL:    firstNonEmptyText(metadata["canonical_url"], metadata["source_uri"]),
+		ChunkID:         chunkID,
+		DocumentID:      documentID,
+		Excerpt:         excerpt,
+		IsAnswerBearing: optionalBoolFromAny(metadata["is_answer_bearing"], metadata["answer_bearing"]),
+		IsCurrent:       optionalBoolFromAny(metadata["is_current"]),
+		LatestURL:       firstNonEmptyText(metadata["latest_url"], metadata["canonical_url"], metadata["source_uri"]),
+		RevisionTrack:   firstNonEmptyText(metadata["revision_track"]),
+		RootUnitID:      firstNonEmptyText(metadata["root_unit_id"], metadata["parent_unit_id"]),
+		Score:           point.Score,
+		SourceChannel:   firstNonEmptyText(metadata["source_channel"]),
+		SourceID:        sourceID,
+		SourceRef:       sourceRef,
+		SourceUnitKey:   firstNonEmptyText(metadata["source_unit_key"]),
+		SourceUnitKind:  firstNonEmptyText(metadata["source_unit_kind"]),
+		SpanRef:         spanRef,
 		Title: firstNonEmptyText(
 			metadata["source_title"],
 			metadata["title"],
 			metadata["document_title"],
 			metadata["canonical_source_title"],
 		),
+		VersionID: firstNonEmptyText(metadata["version_id"]),
 	}, sourceID != "" && chunkID != ""
 }
 
@@ -447,6 +525,28 @@ func (s *Server) ragIndexedLookup(
 	return result, nil
 }
 
+func (e qdrantRAGLookupExecutor) runtimeProfile(plan ragruntime.PlanProjection) (retrievalruntime.RuntimeProfile, error) {
+	return retrievalruntime.LoadRuntimeProfile(e.runtimeProfileRoot, plan.Corpus, plan.Collection)
+}
+
+func retrievalRuntimeProfileRoot() string {
+	return ""
+}
+
+func resolvedQueryVersionID(plan ragruntime.PlanProjection) string {
+	if plan.ResolvedVersionQuery == nil {
+		return ""
+	}
+	return strings.TrimSpace(plan.ResolvedVersionQuery.VersionID)
+}
+
+func resolvedQueryCompareToVersionID(plan ragruntime.PlanProjection) string {
+	if plan.ResolvedVersionQuery == nil {
+		return ""
+	}
+	return strings.TrimSpace(plan.ResolvedVersionQuery.CompareToVersionID)
+}
+
 func firstNonEmptyText(values ...any) string {
 	for _, value := range values {
 		text := strings.TrimSpace(optionalStringFromAny(value))
@@ -468,6 +568,24 @@ func optionalStringFromAny(value any) string {
 	default:
 		return fmt.Sprint(typed)
 	}
+}
+
+func optionalBoolFromAny(values ...any) bool {
+	for _, value := range values {
+		switch typed := value.(type) {
+		case bool:
+			return typed
+		case string:
+			normalized := strings.TrimSpace(strings.ToLower(typed))
+			if normalized == "true" || normalized == "1" || normalized == "yes" {
+				return true
+			}
+			if normalized == "false" || normalized == "0" || normalized == "no" {
+				return false
+			}
+		}
+	}
+	return false
 }
 
 func minInt(left int, right int) int {

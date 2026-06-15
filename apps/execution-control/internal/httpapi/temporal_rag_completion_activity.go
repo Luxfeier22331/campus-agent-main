@@ -274,6 +274,9 @@ func (s *Server) WriteFinalizationActivity(
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "knowledge", "finalization_packet_missing", err)
 	}
+	if err := requireSupportedGroundingForFinalization(run, input.GroundingRef, input.SynthesisRef); err != nil {
+		return s.failFinalizationActivity(ctx, run, "knowledge", "grounding_verification_failed", err)
+	}
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
@@ -368,4 +371,33 @@ func (s *Server) WriteFinalizationActivity(
 		RunID:         completedRun.RunID,
 		Status:        string(completedRun.Status),
 	}, nil
+}
+
+func requireSupportedGroundingForFinalization(
+	run execution.DurableRun,
+	groundingRef string,
+	synthesisRef string,
+) error {
+	raw, ok := run.Metadata["temporal_rag"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("run metadata.temporal_rag is required")
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["synthesis_ref"])) != strings.TrimSpace(synthesisRef) {
+		return fmt.Errorf("rag synthesis ref drift")
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["grounding_ref"])) != strings.TrimSpace(groundingRef) {
+		return fmt.Errorf("rag grounding ref drift")
+	}
+	verification, err := decodeRAGProjection[map[string]any](raw["grounding_verification"])
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(stringValue(verification["verdict"])) != "supported" {
+		return fmt.Errorf("rag grounding verification verdict must be supported")
+	}
+	sourceRefs, ok := verification["source_refs"].([]any)
+	if !ok || len(sourceRefs) == 0 {
+		return fmt.Errorf("rag grounding verification requires source_refs")
+	}
+	return nil
 }

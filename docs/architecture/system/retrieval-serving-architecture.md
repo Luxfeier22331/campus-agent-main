@@ -341,10 +341,19 @@ opening truth。
 
 当前已经具备：
 
-- 默认只服务当前有效版本
-- explicit `current` / `historical` / `as_of` / `compare` query mode
+- 默认只服务当前有效版本；`current` 仍通过 query-time `is_current=true` 与 runtime
+  profile filter 执行，不把整条 collection 误收敛为单个 current version id
+- explicit `current` / `historical` / `as_of` / `compare` query mode；Go
+  Temporal RAG 在 `rag.plan` 阶段解析 version query，`retrieval.indexed_lookup`
+  只消费 resolved version projection，缺失或歧义时 fail closed
+- `historical` / `as_of` / `compare` 的 indexed lookup 会在 Qdrant filter 层使用 resolved
+  version id；`compare` 必须同时覆盖两侧版本证据，`as_of` 必须覆盖解析出的版本证据
 - 多来源等价内容归并
 - planner-first agentic retrieval
+- supporting evidence selection 只允许 answer-bearing canonical reference 进入 synthesis；
+  缺 `document_id`、`version_id`、`anchor`、root unit 或 `source_ref` 时 fail closed
+- `grounding.verify` 的 evidence-integrity verdict 是 RAG finalization 硬门禁；
+  `finalization.write` 不接受未投影、ref 漂移或非 `supported` 的 grounding result
 - service-level `freshness_sensitive` / `live_assisted` admission seam；live
   lookup 必须通过 explicit query mode、source-trust policy、runtime profile 与
   live lookup budget
@@ -355,6 +364,7 @@ opening truth。
 
 - product-facing freshness/live tool opening
 - real live source executor 与 production observation storage rollout
+- Go reranker executor；当前 profile 开启 reranker 时仍 fail closed，不允许静默退化成未声明排序
 
 这些属于未来 product opening / downstream consumer 信号，而不是当前 active
 implementation gap 或默认 surface；当前 active/deferred execution 仍以
