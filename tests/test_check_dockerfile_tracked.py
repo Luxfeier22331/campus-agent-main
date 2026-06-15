@@ -197,8 +197,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         dockerfile = (repo_root / "apps/execution-control/Dockerfile").read_text(encoding="utf-8")
 
         tool_catalog_copy = (
-            "COPY configs/runtime/tool-catalog.v1.json "
-            "/src/configs/runtime/tool-catalog.v1.json"
+            "COPY configs/runtime/tool-catalog.v1.json /src/configs/runtime/tool-catalog.v1.json"
         )
         tool_schema_copy = (
             "COPY packages/evals/fixtures/tool_function_schemas.v1.json "
