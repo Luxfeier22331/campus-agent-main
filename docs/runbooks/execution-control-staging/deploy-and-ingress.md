@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-15
 ---
 
 # Execution Control Staging Deploy And Ingress
@@ -121,6 +121,11 @@ staging 不应依赖 repo-root `.env.staging.local`。
   = `<Cloudflare Access service token client id>`
 - `STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
   = `<Cloudflare Access service token client secret>`
+- `APP_API_STAGING_SMOKE_AUTH_SECRET` 或 `STAGING_APP_API_SMOKE_AUTH_SECRET`；供
+  `pnpm --dir apps/app-api chat:e2e:staging` 等 staging smoke wrapper 在 canonical
+  deploy checkout 内铸造受控 smoke session。wrapper 默认读取本文件，只有该
+  ops-owned file 缺失时才回退到 repo-local staging env，canonical
+  `nc-arm-6c` 不允许使用该回退。
 - `STAGING_INGESTION_SHARED_POSTGRES_URL=<staging shared Postgres URL>`；
   如果使用 Supabase，必须是 session pooler `:5432` DSN，并包含 `sslmode=require`
 - `STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=<registry Postgres URL>`；

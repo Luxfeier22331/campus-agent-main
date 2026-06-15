@@ -342,6 +342,49 @@ describe("execution control runtime adapter", () => {
 		);
 	});
 
+	it("passes bounded wait budget to supervisor events query", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ events: [] }), {
+				status: 200,
+			}),
+		);
+		const client = createExecutionControlRuntimeClient(
+			{
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		await client.listRunEvents({
+			afterSequence: 7,
+			runId: "run_durable_001",
+			traceId: "trace_query_001",
+			waitMs: 25_000,
+		});
+
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"https://execution-control.internal/internal/execution/runs/run_durable_001/events?after_sequence=7&wait_ms=25000",
+			expect.objectContaining({
+				method: "GET",
+			}),
+		);
+	});
+
+	it("rejects invalid durable run event wait budgets", async () => {
+		const client = createExecutionControlRuntimeClient({
+			EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+			EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+		});
+
+		await expect(
+			client.listRunEvents({
+				runId: "run_durable_001",
+				waitMs: -1,
+			}),
+		).rejects.toThrow("waitMs must be a non-negative integer.");
+	});
+
 	it("parses durable run step attempt diagnostic spine fields", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify(durableRunStepsPayload()), {

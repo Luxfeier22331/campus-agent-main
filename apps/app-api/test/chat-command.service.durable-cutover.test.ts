@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
 import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
+import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
 import {
 	answerResponsePayload,
 	durableEvent,
@@ -352,6 +353,7 @@ describe("chat command durable runtime cutover", () => {
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 			},
 			traceId: "trace_0001",
+			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(response).toMatchObject({
 			answer: {
@@ -584,6 +586,7 @@ describe("chat command durable runtime cutover", () => {
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 			},
 			traceId: "trace_0001",
+			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(listRunEvents).toHaveBeenNthCalledWith(2, {
 			afterSequence: 1,
@@ -593,6 +596,7 @@ describe("chat command durable runtime cutover", () => {
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 			},
 			traceId: "trace_0001",
+			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {

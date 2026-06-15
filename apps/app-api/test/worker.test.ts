@@ -210,7 +210,7 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingSmokeEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(runWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
 		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");
 		expect(runWithStagingDbEnvSource).toContain("https://chat-staging.mucwiki-edge.link");

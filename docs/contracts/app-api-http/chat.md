@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-15
 ---
 
 # App API HTTP Chat
@@ -339,6 +339,10 @@ terminal event 额外携带：
 - submit stream 的浏览器连接不拥有 finalization；app-api 必须通过 request
   `waitUntil` 持有同一个 durable finalization closeout，浏览器断开只停止事件消费，
   不能停止 finalization commit
+- app-api durable finalization closeout 可以对 execution-control 的 internal
+  run-events query 传递 bounded wait budget，以减少单次 Worker invocation 内的
+  subrequest 次数；这个参数不是 browser-facing contract，browser 仍只消费本节定义的
+  product SSE event
 - finalization commit 只允许从 `runtime.request_execution.status=accepted`
   转为 terminal status；重复 closeout 或状态漂移必须 fail closed，不能重复插入
   assistant message / outbox / observability fact

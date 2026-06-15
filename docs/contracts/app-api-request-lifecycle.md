@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-28
-updated: 2026-06-04
+updated: 2026-06-15
 ---
 # App API Request Lifecycle
 
@@ -315,6 +315,10 @@ operator.request_projection`
 - durable chat stream 还额外使用 request `waitUntil` 持有 app-api
   finalization closeout；该 closeout 与浏览器 stream 消费共享同一个
   finalization promise，不允许 stream consumer 与 background closeout 双写
+- 该 closeout 允许通过 execution-control internal run-events query 使用 bounded
+  wait budget；等待发生在 execution-control 内部 projection store 查询循环中，用于减少
+  app-api Worker subrequest 消耗，不改变 app-api 的 finalization ownership，也不把
+  `wait_ms` 暴露为 browser contract
 - queue 只可以在 outbox commit 之后作为 fan-out / 加速手段引入
 - 不接受 queue-first 再反补数据库 truth 的形态
 - 但它必须仍属于 `app-api` boundary

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import loadRepoEnvSource from "../../../scripts/load-repo-env.mjs?raw";
 import rootRunWithStagingSmokeEnvSource from "../../../scripts/run-with-staging-smoke-env.mjs?raw";
 import runWithStagingSmokeEnvSource from "../scripts/run-with-staging-smoke-env.mjs?raw";
 
@@ -14,12 +15,21 @@ describe("staging smoke env runner", () => {
 	});
 
 	it("provides the repo-level runner used by cross-app staging smoke scripts", () => {
-		expect(rootRunWithStagingSmokeEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(rootRunWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
 		expect(rootRunWithStagingSmokeEnvSource).toContain("--cwd");
 		expect(rootRunWithStagingSmokeEnvSource).toContain("STAGING_SMOKE_LOCK_PATH");
 		expect(rootRunWithStagingSmokeEnvSource).toContain(".tmp/staging-smoke.lock");
 		expect(rootRunWithStagingSmokeEnvSource).toContain("openSync");
 		expect(rootRunWithStagingSmokeEnvSource).toContain('"wx"');
 		expect(rootRunWithStagingSmokeEnvSource).toContain("releaseStagingSmokeLock");
+	});
+
+	it("loads the ops-owned staging runtime env before repo-local staging env for smoke scripts", () => {
+		expect(loadRepoEnvSource).toContain("/srv/docker/campus-agent/staging/env/runtime.env");
+		for (const source of [runWithStagingSmokeEnvSource, rootRunWithStagingSmokeEnvSource]) {
+			expect(source).toContain("loadStagingSmokeEnvFile");
+			expect(source).not.toContain("loadRepoStagingEnvFile");
+			expect(source).not.toContain("process.loadEnvFile");
+		}
 	});
 });

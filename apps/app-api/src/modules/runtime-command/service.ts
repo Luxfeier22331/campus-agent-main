@@ -594,12 +594,13 @@ export function buildChatCommandService(
 		try {
 			return await waitForDurableFinalizationResponse({
 				context: input.context,
-				listRunEvents: (afterSequence) =>
+				listRunEvents: (afterSequence, waitMs) =>
 					input.executionRuntime.listRunEvents({
 						afterSequence,
 						runId: input.context.runId ?? "",
 						traceHeaders: telemetry?.getTraceHeaders(),
 						traceId: input.context.traceId,
+						waitMs,
 					}),
 				polling: dependencies.durableEventPolling,
 			});
@@ -709,12 +710,13 @@ export function buildChatCommandService(
 				const closeout = startDurableFinalizationCloseout({
 					context,
 					finalizeAcceptedCommand,
-					listRunEvents: (afterSequence) =>
+					listRunEvents: (afterSequence, waitMs) =>
 						executionRuntime.listRunEvents({
 							afterSequence,
 							runId: context.runId ?? "",
 							traceHeaders: telemetry?.getTraceHeaders(),
 							traceId: context.traceId,
+							waitMs,
 						}),
 					now,
 					polling: dependencies.durableEventPolling,

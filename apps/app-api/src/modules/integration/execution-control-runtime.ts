@@ -45,6 +45,7 @@ export interface ExecutionControlRunEventQuery {
 	runId: string;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
+	waitMs?: number;
 }
 
 export interface ExecutionControlRunCancelInput {
@@ -505,21 +506,36 @@ function createExecutionControlRequester(
 
 function durableRunEventsPath(query: ExecutionControlRunEventQuery): string {
 	const path = `/internal/execution/runs/${query.runId}/events`;
-	if (query.afterSequence === undefined) {
+	const params = new URLSearchParams();
+	if (query.afterSequence !== undefined) {
+		if (
+			!(Number.isInteger(query.afterSequence) && Number.isFinite(query.afterSequence)) ||
+			query.afterSequence < 0
+		) {
+			throw new ExecutionControlTransportError({
+				code: "invalid_request",
+				message: "afterSequence must be a non-negative integer.",
+				retryable: false,
+				status: 400,
+			});
+		}
+		params.set("after_sequence", String(query.afterSequence));
+	}
+	if (query.waitMs !== undefined) {
+		if (!(Number.isInteger(query.waitMs) && Number.isFinite(query.waitMs)) || query.waitMs < 0) {
+			throw new ExecutionControlTransportError({
+				code: "invalid_request",
+				message: "waitMs must be a non-negative integer.",
+				retryable: false,
+				status: 400,
+			});
+		}
+		params.set("wait_ms", String(query.waitMs));
+	}
+	if (params.size === 0) {
 		return path;
 	}
-	if (
-		!(Number.isInteger(query.afterSequence) && Number.isFinite(query.afterSequence)) ||
-		query.afterSequence < 0
-	) {
-		throw new ExecutionControlTransportError({
-			code: "invalid_request",
-			message: "afterSequence must be a non-negative integer.",
-			retryable: false,
-			status: 400,
-		});
-	}
-	return `${path}?after_sequence=${query.afterSequence}`;
+	return `${path}?${params.toString()}`;
 }
 
 function toDurableRunCreateBody(input: ExecutionControlRunCreateInput): JsonRecord {

@@ -4,6 +4,8 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
+export const DEFAULT_STAGING_RUNTIME_ENV_FILE = "/srv/docker/campus-agent/staging/env/runtime.env";
+
 export function loadRepoEnvFile(importMetaUrl, repoRootRelativePath = ".") {
 	const scriptDir = dirname(fileURLToPath(importMetaUrl));
 	const repoRoot = resolve(scriptDir, repoRootRelativePath);
@@ -44,4 +46,46 @@ export function loadRepoStagingEnvFile(importMetaUrl, repoRootRelativePath = "."
 	}
 
 	return { repoEnvPath: resolve(repoRoot, ".env"), stagingEnvPath };
+}
+
+export function loadStagingSmokeEnvFile(importMetaUrl, repoRootRelativePath = ".") {
+	const explicitEnvPath =
+		process.env.STAGING_RUNTIME_ENV_FILE?.trim() ||
+		process.env.EXECUTION_CONTROL_STAGING_ENV_FILE?.trim() ||
+		"";
+	if (explicitEnvPath) {
+		loadEnvFileWithoutOverridingExisting(explicitEnvPath);
+		return {
+			runtimeEnvPath: explicitEnvPath,
+			source: "ops-runtime",
+		};
+	}
+
+	try {
+		loadEnvFileWithoutOverridingExisting(DEFAULT_STAGING_RUNTIME_ENV_FILE);
+		return {
+			runtimeEnvPath: DEFAULT_STAGING_RUNTIME_ENV_FILE,
+			source: "ops-runtime",
+		};
+	} catch (error) {
+		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
+			throw error;
+		}
+	}
+
+	return {
+		...loadRepoStagingEnvFile(importMetaUrl, repoRootRelativePath),
+		runtimeEnvPath: DEFAULT_STAGING_RUNTIME_ENV_FILE,
+		source: "repo-local",
+	};
+}
+
+function loadEnvFileWithoutOverridingExisting(envPath) {
+	const originalEnvKeys = new Set(Object.keys(process.env));
+	const parsedEnv = parseEnv(readFileSync(envPath, "utf8"));
+	for (const [key, value] of Object.entries(parsedEnv)) {
+		if (!originalEnvKeys.has(key)) {
+			process.env[key] = value;
+		}
+	}
 }

@@ -234,6 +234,73 @@ func TestExecutionRunCreateFailsClosedWhenTemporalStartFails(t *testing.T) {
 	}
 }
 
+func TestExecutionRunEventsWaitsForNewEventsWithinBoundedBudget(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 15, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(t, store, "run-events-wait", "conv-events-wait", now, nil)
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodGet,
+		"/internal/execution/runs/run-events-wait/events?after_sequence=0&wait_ms=100",
+		nil,
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		_, _ = store.AppendRunEvent(context.Background(), execution.DurableRunEvent{
+			EventID:              "event-final",
+			RunID:                "run-events-wait",
+			ConversationID:       "conv-events-wait",
+			EventType:            execution.DurableRunEventTypeFinalizationCompleted,
+			OccurredAt:           now.Add(2 * time.Second),
+			Visibility:           execution.DurableRunEventVisibilityBrowser,
+			Payload:              map[string]any{"request_id": "req-executor-001", "trace_id": "trace-executor-001"},
+			PayloadSchemaVersion: "run-event-v1",
+		})
+	}()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	events, ok := body["events"].([]any)
+	if !ok || len(events) != 1 {
+		t.Fatalf("events = %#v, want one event", body["events"])
+	}
+	event, ok := events[0].(map[string]any)
+	if !ok {
+		t.Fatalf("event = %#v, want object", events[0])
+	}
+	if event["event_type"] != "finalization.completed" {
+		t.Fatalf("event_type = %#v, want finalization.completed", event["event_type"])
+	}
+}
+
+func TestExecutionRunEventsRejectsInvalidWaitBudget(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	createHTTPAPIQueuedDurableRunForTest(t, store, "run-events-invalid-wait", "conv-events-invalid-wait", time.Now(), nil)
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodGet,
+		"/internal/execution/runs/run-events-invalid-wait/events?wait_ms=60000",
+		nil,
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadRequest, "invalid_request")
+}
+
 func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}

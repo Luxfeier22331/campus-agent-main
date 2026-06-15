@@ -7,6 +7,7 @@ import type {
 	ExecutionControlRunEvent,
 	ExecutionControlRuntimeClient,
 } from "../src/modules/integration/execution-control";
+import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
 import {
 	buildChatCommandService,
 	type CapabilityExecutionClient,
@@ -91,6 +92,11 @@ function durableEvent(
 }
 
 describe("chat command durable stream closeout", () => {
+	it("keeps the default closeout polling budget below the Worker subrequest ceiling", () => {
+		expect(DEFAULT_DURABLE_EVENT_POLLING_POLICY.maxAttempts).toBeLessThanOrEqual(20);
+		expect(DEFAULT_DURABLE_EVENT_POLLING_POLICY.pollIntervalMs).toBeGreaterThanOrEqual(1000);
+	});
+
 	it("continues durable finalization through waitUntil when the submit stream consumer disconnects after accept", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
@@ -179,6 +185,7 @@ describe("chat command durable stream closeout", () => {
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 			},
 			traceId: "trace_0001",
+			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(finalWrites).toHaveLength(1);
 		expect(finalWrites[0]).toMatchObject({

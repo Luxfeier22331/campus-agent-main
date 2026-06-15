@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
 import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
 import type { ChatCommandStreamEvent } from "../src/modules/runtime-command";
+import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
 import {
 	answerResponsePayload,
 	durableEvent,
@@ -373,6 +374,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 			},
 			traceId: "trace_0001",
+			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 2,
@@ -382,6 +384,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 			},
 			traceId: "trace_0001",
+			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(events).toEqual([
 			{

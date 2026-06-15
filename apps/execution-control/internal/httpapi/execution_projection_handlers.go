@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -76,10 +77,17 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	events, err := s.runProjectionStore.ListRunEventsAfter(
+	waitBudget, err := readRunEventsWaitBudget(request)
+	if err != nil {
+		setOutcome(response, "invalid_request")
+		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
+		return
+	}
+	events, err := s.listRunEventsAfterWithOptionalWait(
 		request.Context(),
 		strings.TrimSpace(runID),
 		afterSequence,
+		waitBudget,
 	)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
@@ -103,6 +111,32 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 	}
 	setOutcome(response, "durable_run_events")
 	writeJSON(response, http.StatusOK, map[string]any{"events": body})
+}
+
+func (s *Server) listRunEventsAfterWithOptionalWait(
+	ctx context.Context,
+	runID string,
+	afterSequence int64,
+	waitBudget time.Duration,
+) ([]execution.DurableRunEvent, error) {
+	deadline := time.Now().Add(waitBudget)
+	for {
+		events, err := s.runProjectionStore.ListRunEventsAfter(ctx, runID, afterSequence)
+		if err != nil {
+			return nil, err
+		}
+		if len(events) > 0 || waitBudget <= 0 || !time.Now().Before(deadline) {
+			return events, nil
+		}
+
+		timer := time.NewTimer(200 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *http.Request, runID string) {
@@ -181,6 +215,21 @@ func readAfterSequenceQuery(request *http.Request) (int64, error) {
 		return 0, errors.New("after_sequence must be a non-negative integer")
 	}
 	return value, nil
+}
+
+func readRunEventsWaitBudget(request *http.Request) (time.Duration, error) {
+	raw := strings.TrimSpace(request.URL.Query().Get("wait_ms"))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value < 0 {
+		return 0, errors.New("wait_ms must be a non-negative integer")
+	}
+	if value > 30_000 {
+		return 0, errors.New("wait_ms must be less than or equal to 30000")
+	}
+	return time.Duration(value) * time.Millisecond, nil
 }
 
 func durableRunFromCreateBody(body json.RawMessage, now time.Time) (execution.DurableRun, error) {

@@ -12,12 +12,12 @@ import { dirname, resolve, sep } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { loadRepoStagingEnvFile } from "./load-repo-env.mjs";
+import { loadStagingSmokeEnvFile } from "./load-repo-env.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
 
-loadRepoStagingEnvFile(import.meta.url, "..");
+loadStagingSmokeEnvFile(import.meta.url, "..");
 
 const parsed = parseInvocation(process.argv.slice(2));
 if (!parsed.command) {

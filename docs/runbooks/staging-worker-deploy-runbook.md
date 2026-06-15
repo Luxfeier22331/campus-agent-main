@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-04
-updated: 2026-06-09
+updated: 2026-06-15
 ---
 # Staging Worker Deploy Runbook
 
@@ -525,6 +525,11 @@ pnpm --dir apps/campus-web account:smoke:staging
 - 它们要求当前 shell 有 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
   `STAGING_APP_API_SMOKE_AUTH_SECRET`；repo-owned wrapper 会自动加载 ignored
   `/srv/docker/campus-agent/staging/env/runtime.env`
+- canonical `nc-arm-6c` deploy checkout 不得依赖 repo-local `.env` /
+  `.env.staging.local`。chat staging smoke wrapper 优先读取显式
+  `STAGING_RUNTIME_ENV_FILE` / `EXECUTION_CONTROL_STAGING_ENV_FILE`，否则读取
+  `/srv/docker/campus-agent/staging/env/runtime.env`；只有该 ops-owned file 不存在时，
+  才允许回退到 repo-local staging env 以支持非 canonical local/dev smoke。
 - 它不要求本机 staging DB URL，不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，
   也不要求 agent 通过真实 Turnstile challenge
 - `account:smoke:staging` 是 campus 身份功能链路的 canonical browser
@@ -547,7 +552,8 @@ pnpm --dir apps/campus-web account:smoke:staging
 - `federation:smoke:staging` 要求当前 shell 有
   `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET`，并继续要求
   `APP_API_STAGING_SMOKE_AUTH_SECRET` 或 `STAGING_APP_API_SMOKE_AUTH_SECRET`；
-  repo-owned wrapper 会自动加载 ignored `.env.staging.local`。
+  canonical staging host 应从 ops-owned runtime env 或同等 deployment secret source
+  注入这些值，不从 deploy checkout 内的 repo-local env file 读取。
 - `federation:smoke:staging` 的结果会写入
   `.tmp/identity-acceptance/<timestamp>-federation-smoke.md`；artifact
   会记录 redacted authorization redirect，不记录 token、authorization code

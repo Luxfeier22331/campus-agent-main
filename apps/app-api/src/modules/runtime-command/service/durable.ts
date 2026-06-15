@@ -9,8 +9,9 @@ import { executionFinalizationErrorResponse, toTerminalChatStreamEvent } from ".
 import type { ChatCommandResponse, ChatCommandStreamEvent } from "./types";
 
 export const DEFAULT_DURABLE_EVENT_POLLING_POLICY = {
-	maxAttempts: 160,
-	pollIntervalMs: 500,
+	maxAttempts: 4,
+	pollIntervalMs: 1000,
+	waitMs: 25_000,
 } as const;
 
 interface DurableRunEventContext {
@@ -23,6 +24,7 @@ export interface DurableEventPollingPolicy {
 	maxAttempts: number;
 	pollIntervalMs: number;
 	sleep?: (durationMs: number) => Promise<void>;
+	waitMs?: number;
 }
 
 function asJsonRecord(value: unknown): Record<string, unknown> | null {
@@ -160,12 +162,22 @@ function validatePollingPolicy(
 			status: 500,
 		});
 	}
+	const waitMs = policy?.waitMs ?? DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs;
+	if (!Number.isInteger(waitMs) || waitMs < 0) {
+		throw new ExecutionControlTransportError({
+			code: "runtime_invariant_failed",
+			message: "Durable event polling waitMs must be a non-negative integer.",
+			retryable: false,
+			status: 500,
+		});
+	}
 	return {
 		maxAttempts,
 		pollIntervalMs,
 		sleep:
 			policy?.sleep ??
 			((durationMs) => new Promise<void>((resolve) => setTimeout(resolve, durationMs))),
+		waitMs,
 	};
 }
 
@@ -205,7 +217,7 @@ export async function waitForDurableFinalizationResponse<
 	Context extends DurableRunEventContext,
 >(input: {
 	context: Context;
-	listRunEvents(afterSequence: number): Promise<ExecutionControlRunEvent[]>;
+	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEvent[]>;
 	polling?: DurableEventPollingPolicy;
 }): Promise<{
 	response: CapabilityExecutionResponse;
@@ -215,7 +227,7 @@ export async function waitForDurableFinalizationResponse<
 	let lastSequence = 0;
 
 	for (let attempt = 0; attempt < polling.maxAttempts; attempt += 1) {
-		const runEvents = await input.listRunEvents(lastSequence);
+		const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
 		for (const runEvent of runEvents) {
 			lastSequence = updateLastSequence(input.context, lastSequence, runEvent);
 			const finalizationResponse = finalizationResponseFromDurableRunEvent(input.context, runEvent);
@@ -249,7 +261,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 		executionResponse: CapabilityExecutionResponse;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
-	listRunEvents(afterSequence: number): Promise<ExecutionControlRunEvent[]>;
+	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEvent[]>;
 	now: () => Date;
 	polling?: DurableEventPollingPolicy;
 }): AsyncIterable<ChatCommandStreamEvent> {
@@ -258,7 +270,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 	let lastSequence = 0;
 	try {
 		for (let attempt = 0; attempt < polling.maxAttempts; attempt += 1) {
-			const runEvents = await input.listRunEvents(lastSequence);
+			const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
 			for (const runEvent of runEvents) {
 				lastSequence = updateLastSequence(context, lastSequence, runEvent);
 				const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
@@ -361,7 +373,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		executionResponse: CapabilityExecutionResponse;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
-	listRunEvents(afterSequence: number): Promise<ExecutionControlRunEvent[]>;
+	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEvent[]>;
 	now: () => Date;
 	polling?: DurableEventPollingPolicy;
 }): {
@@ -376,7 +388,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		let lastSequence = 0;
 		try {
 			for (let attempt = 0; attempt < polling.maxAttempts; attempt += 1) {
-				const runEvents = await input.listRunEvents(lastSequence);
+				const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
 				for (const runEvent of runEvents) {
 					lastSequence = updateLastSequence(context, lastSequence, runEvent);
 					const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
