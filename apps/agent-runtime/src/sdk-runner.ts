@@ -1,4 +1,4 @@
-import { Agent, Runner, tool } from "@openai/agents";
+import { Agent, type ModelProvider, Runner, tool } from "@openai/agents";
 import type { AgentRunner, RunnerToolCall, ToolExecutionResult } from "./primary-agent.ts";
 
 const emptyParametersSchema = {
@@ -11,6 +11,8 @@ const emptyParametersSchema = {
 export interface OpenAIAgentsRunnerOptions {
 	runSdk?: OpenAIAgentsRunFunction;
 	maxTurns?: number;
+	model?: string;
+	modelProvider?: ModelProvider;
 }
 
 export type OpenAIAgentsRunFunction = (
@@ -18,6 +20,7 @@ export type OpenAIAgentsRunFunction = (
 	input: string,
 	options: {
 		maxTurns: number;
+		modelProvider?: ModelProvider;
 		traceId: string;
 		workflowName: string;
 		traceIncludeSensitiveData: boolean;
@@ -65,10 +68,12 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 		const agent = new Agent({
 			name: "Campus primary assistant",
 			instructions: input.instructions,
+			model: options.model?.trim() || undefined,
 			tools: sdkTools,
 		});
 		const result = await runSdk(agent, input.input, {
 			maxTurns,
+			modelProvider: options.modelProvider,
 			traceId: input.traceId,
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,
@@ -91,6 +96,7 @@ function recordFromToolArguments(value: unknown): Record<string, unknown> {
 
 const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => {
 	const runner = new Runner({
+		modelProvider: options.modelProvider,
 		traceId: options.traceId,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,

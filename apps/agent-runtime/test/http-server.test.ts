@@ -202,6 +202,16 @@ describe("agent runtime server env contract", () => {
 		expect(source).not.toContain("process.env.EXECUTION_CONTROL_BASE_URL");
 		expect(source).not.toContain("process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
 	});
+
+	it("projects prompt runtime env into the OpenAI Agents SDK provider", () => {
+		const source = readFileSync(
+			fileURLToPath(new URL("../src/server.ts", import.meta.url)),
+			"utf8",
+		);
+
+		expect(source).toContain("createOpenAIAgentsRunnerFromEnv");
+		expect(source).not.toContain("OPENAI_API_KEY");
+	});
 });
 
 const noToolRunner: AgentRunner = async () => ({

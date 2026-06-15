@@ -20,11 +20,12 @@ execution_control_staging_ensure_run_projection_store_schema
 execution_control_staging_ensure_personal_memory_schema
 
 if execution_control_staging_compose_project_running; then
-  echo "execution-control staging runtime already running (${execution_control_staging_compose_project_name})"
+  echo "execution-control staging runtime running; reconciling images and containers (${execution_control_staging_compose_project_name})"
 else
-  "${script_dir}/preflight-execution-control-staging.sh"
-  execution_control_staging_compose up -d --build
+  echo "execution-control staging runtime not running; starting (${execution_control_staging_compose_project_name})"
 fi
+"${script_dir}/preflight-execution-control-staging.sh"
+execution_control_staging_compose up -d --build --remove-orphans
 
 execution_control_staging_temporal_namespace_setup
 execution_control_staging_wait_for_http_ok "${execution_control_staging_local_healthz_url}" 45 2

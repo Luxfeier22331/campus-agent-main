@@ -3,6 +3,40 @@ import type { ToolExecutionResult } from "../src/primary-agent.ts";
 import { createOpenAIAgentsRunner } from "../src/sdk-runner.ts";
 
 describe("OpenAI Agents SDK runner adapter", () => {
+	it("passes configured model and provider to the SDK runner", async () => {
+		const modelProvider = {
+			async getModel() {
+				throw new Error("model provider should be consumed by the SDK runner, not this test");
+			},
+		};
+		let observedModel: unknown;
+		let observedModelProvider: unknown;
+		const runner = createOpenAIAgentsRunner({
+			model: "gpt-agent",
+			modelProvider,
+			runSdk: async (agent, _input, options) => {
+				observedModel = agent.model;
+				observedModelProvider = options.modelProvider;
+				return {
+					finalOutput: "done",
+					lastResponseId: "resp-sdk-provider",
+					newItems: [],
+				};
+			},
+		});
+
+		await runner({
+			input: "hi",
+			instructions: "Answer directly.",
+			tools: [],
+			runId: "run-sdk-provider",
+			traceId: "trace-run-sdk-provider",
+		});
+
+		expect(observedModel).toBe("gpt-agent");
+		expect(observedModelProvider).toBe(modelProvider);
+	});
+
 	it("projects tool calls, trace refs, provider response IDs, and usage from SDK run results", async () => {
 		const toolResult: ToolExecutionResult = {
 			status: "completed",

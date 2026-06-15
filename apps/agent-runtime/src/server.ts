@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { createAgentRuntimeHandler } from "./http-server.ts";
 import { nodeClientDisconnectSignal } from "./node-http.ts";
 import { createPrimaryAgentRuntime } from "./primary-agent.ts";
-import { createOpenAIAgentsRunner } from "./sdk-runner.ts";
+import { createOpenAIAgentsRunnerFromEnv } from "./provider-config.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 
@@ -19,7 +19,7 @@ const executionControlSharedSecret =
 const catalog = loadToolCatalog(catalogPath);
 const runtime = createPrimaryAgentRuntime({
 	catalog,
-	runner: createOpenAIAgentsRunner(),
+	runner: createOpenAIAgentsRunnerFromEnv(),
 	toolExecutor: createExecutionControlToolExecutor({
 		baseUrl: executionControlBaseUrl,
 		sharedSecret: executionControlSharedSecret,
