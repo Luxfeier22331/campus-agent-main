@@ -168,7 +168,9 @@ export function validateInventoryAgainstExpectedTables(
 			}
 		}
 		for (const [indexName, expectedIndex] of expectedTable.indexes.entries()) {
-			const actualIndex = actualTable.indexes.get(indexName);
+			const actualIndex =
+				actualTable.indexes.get(indexName) ??
+				actualTable.indexes.get(normalizePostgresIdentifier(indexName));
 			if (!actualIndex) {
 				if (!hasPlannedTarget(plannedTargetKeys, `${qualifiedName}@${indexName}`, qualifiedName)) {
 					mismatches.push(`${qualifiedName} missing index ${indexName}`);

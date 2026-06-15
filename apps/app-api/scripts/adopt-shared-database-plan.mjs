@@ -134,7 +134,7 @@ export function parseMigrationStatement(statement) {
 function findInventoryIndex(inventory, target) {
 	if (target.kind === "index") {
 		const table = inventory.tables.get(qualifyTable(target.schema, target.table));
-		const index = table?.indexes.get(target.index);
+		const index = table ? readTableIndex(table, target.index) : null;
 		return table && index ? { index, table } : null;
 	}
 
@@ -142,13 +142,21 @@ function findInventoryIndex(inventory, target) {
 		if (table.schema !== target.schema) {
 			continue;
 		}
-		const index = table.indexes.get(target.index);
+		const index = readTableIndex(table, target.index);
 		if (index) {
 			return { index, table };
 		}
 	}
 
 	return null;
+}
+
+function readTableIndex(table, indexName) {
+	return (
+		table.indexes.get(indexName) ??
+		table.indexes.get(normalizePostgresIdentifier(indexName)) ??
+		null
+	);
 }
 
 function findExpectedIndex(expectedTablesForMigration, target) {
@@ -179,12 +187,12 @@ function targetExists(inventory, target) {
 	}
 	if (target.kind === "drop_index") {
 		return [...inventory.tables.values()].some(
-			(table) => table.schema === target.schema && table.indexes.has(target.index),
+			(table) => table.schema === target.schema && readTableIndex(table, target.index),
 		);
 	}
 	if (target.kind === "rename_index") {
 		return [...inventory.tables.values()].some(
-			(table) => table.schema === target.schema && table.indexes.has(target.index),
+			(table) => table.schema === target.schema && readTableIndex(table, target.index),
 		);
 	}
 	const qualifiedName = qualifyTable(target.schema, target.table);
@@ -212,9 +220,27 @@ function targetExists(inventory, target) {
 		return table.constraints.has(target.constraint) || table.constraints.has(normalizedConstraint);
 	}
 	if (target.kind === "index") {
-		return table.indexes.has(target.index);
+		return Boolean(readTableIndex(table, target.index));
 	}
 	return false;
+}
+
+function latestSnapshotKeepsTable(expectedLatestTables, target) {
+	if (target.kind !== "table") {
+		return true;
+	}
+	return expectedLatestTables.has(qualifyTable(target.schema, target.table));
+}
+
+function latestSnapshotKeepsColumn(expectedLatestTables, target) {
+	if (target.kind !== "column") {
+		return true;
+	}
+	return (
+		expectedLatestTables
+			.get(qualifyTable(target.schema, target.table))
+			?.columns.has(target.column) ?? false
+	);
 }
 
 function latestSnapshotKeepsIndex(expectedLatestTables, target) {
@@ -258,6 +284,12 @@ function shouldApplyStatement(
 		}
 		return !targetExists(inventory, target);
 	}
+	if (target.kind === "table" && !latestSnapshotKeepsTable(expectedLatestTables, target)) {
+		return false;
+	}
+	if (target.kind === "column" && !latestSnapshotKeepsColumn(expectedLatestTables, target)) {
+		return false;
+	}
 	return !targetExists(inventory, target);
 }
 
@@ -290,7 +322,8 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 
 	if (target.kind === "rename_index") {
 		for (const table of inventory.tables.values()) {
-			if (table.schema !== target.schema || !table.indexes.has(target.fromIndex)) {
+			const sourceIndex = readTableIndex(table, target.fromIndex);
+			if (table.schema !== target.schema || !sourceIndex) {
 				continue;
 			}
 			const tableName = qualifyTable(table.schema, table.table);
@@ -300,7 +333,7 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 					`Missing expected renamed index ${tableName}@${target.index} during adoption planning`,
 				);
 			}
-			table.indexes.delete(target.fromIndex);
+			table.indexes.delete(sourceIndex.name);
 			table.indexes.set(target.index, {
 				...expectedIndex,
 				columns: [...expectedIndex.columns],

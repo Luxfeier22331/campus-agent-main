@@ -530,6 +530,14 @@ DROP COLUMN "actor_groups_json";`),
 		expect(
 			plan.statements.some((item) => item.statement.includes('DROP COLUMN "actor_campus_scope"')),
 		).toBe(false);
+		expect(
+			plan.statements.some((item) => item.target.existsKey === "dining.floorplan_assets"),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "dining.floors:draft_floorplan_asset_id",
+			),
+		).toBe(false);
 	});
 
 	it("recognizes Postgres-truncated long constraint names as existing constraints", () => {
@@ -571,6 +579,45 @@ DROP COLUMN "actor_groups_json";`),
 		).toBe(false);
 		expect(plan.mismatches).not.toContain(
 			"official_web.target_release_gates missing constraint target_release_gates_summary_id_target_artifact_verification_summaries_summary_id_fk",
+		);
+	});
+
+	it("recognizes Postgres-truncated long index names as existing indexes", () => {
+		const inventory = makeInventory({
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: [...latestSpecs.keys()].map((qualifiedName) => {
+				const table = buildTableFromExpected(qualifiedName);
+				if (qualifiedName !== "runtime.request_observability_fact") {
+					return table;
+				}
+				return {
+					...table,
+					indexes: table.indexes.map((index) =>
+						index.name === "runtime_request_observability_selected_capability_started_at_idx"
+							? {
+									...index,
+									name: "runtime_request_observability_selected_capability_started_at_id",
+								}
+							: index,
+					),
+				};
+			}),
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"runtime.request_observability_fact@runtime_request_observability_selected_capability_started_at_idx",
+			),
+		).toBe(false);
+		expect(plan.mismatches).not.toContain(
+			"runtime.request_observability_fact missing index runtime_request_observability_selected_capability_started_at_idx",
 		);
 	});
 });
