@@ -490,6 +490,7 @@ pnpm --dir apps/protected-panel-web exec wrangler login
 
 ```bash
 pnpm --dir apps/app-api chat:e2e:staging
+pnpm --dir apps/app-api chat:memory:e2e:staging
 pnpm --dir apps/app-api docs:gated:smoke:staging
 pnpm --dir apps/app-api federation:smoke:staging
 pnpm --dir apps/campus-web account:smoke:staging
@@ -506,6 +507,12 @@ pnpm --dir apps/campus-web account:smoke:staging
   `POST /api/internal/staging-smoke/auth/session` 重置 smoke identity 并铸造真实
   staging session cookie，然后真实请求 `chat-staging.mucwiki-edge.link`、
   `campus-staging.mucwiki-edge.link`
+- `chat:e2e:staging` 默认走 `/api/chat/requests/stream` lifecycle stream；
+  旧同步 `/api/chat/requests` 只保留为显式 `--transport sync` 诊断，不作为
+  release / staging closeout gate。
+- `chat:memory:e2e:staging` 验证 profile memory 写入、stream chat durable run 与
+  `/api/chat/runs/:runId/steps` 中的 `memory.recall` sanitized trajectory。它只检查
+  `memory.recall` completed、`memory_ref` 与 `selected_memory_count > 0`，不检查自然语言回答文本。
 - 如果 `chat:e2e:staging` 返回 `retrieval_failed` 且 supervisor trace 显示
   `qdrant retrieval failed`，不要在 retrieval/read path 增加 collection alias 或兜底查询；
   先在 `nc-arm-6c:/srv/apps/campus-agent` 执行
@@ -561,9 +568,9 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
   路由重建 canonical Better Auth 账号，并清掉脚本执行过程中创建的 session
 - browser smoke 只使用这个固定 identity 登录；不要在 staging 页面继续创建 ad-hoc end-user 账号
 - 如果未来 staging admit 了专用 `public-chat smoke` 邮箱，应直接复用同一脚本切换到新邮箱，不再改回浏览器临时注册
-- 只有在明确做 transport-only 调试时，才允许临时执行
-  `pnpm --dir apps/app-api chat:e2e:staging -- --expect-result-kind any`；
-  该模式不作为 release / staging closeout gate
+- 只有在明确做同步 transport 调试时，才允许临时执行
+  `pnpm --dir apps/app-api chat:e2e:staging -- --transport sync`；同步 transport
+  与 `--expect-result-kind any` 都不作为 release / staging closeout gate
 - 对真实 admitted Turnstile widget 的最终 staging smoke，必须使用真实浏览器 session；不要把
   Playwright / Selenium / Cypress 的 live-widget 结果当作 closeout gate。Cloudflare 官方
   testing 文档明确说明这些 automation suites 会被 Turnstile 识别为 bot，自动化只适用于 testing

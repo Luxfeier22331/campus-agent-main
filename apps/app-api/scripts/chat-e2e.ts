@@ -37,6 +37,11 @@ export interface ChatE2eDependencies {
 		email: string;
 		password: string;
 	}) => Promise<string>;
+	openSubmitStream?: (input: {
+		body: unknown;
+		cookieHeader: string;
+		url: string;
+	}) => Promise<Response>;
 }
 
 interface ChatE2eReadyzSummary {
@@ -55,6 +60,7 @@ interface ChatE2eSuccessSummary {
 	requestId: string;
 	resultKind: string;
 	traceId: string;
+	transport: ChatE2eArgs["transport"];
 }
 
 export interface ChatE2eResult {
@@ -121,6 +127,39 @@ async function fetchJsonWithCookie<T>(input: {
 	};
 }
 
+async function openSubmitStream(input: {
+	body: unknown;
+	cookieHeader: string;
+	url: string;
+}): Promise<Response> {
+	const response = await fetch(input.url, {
+		body: JSON.stringify(input.body),
+		headers: {
+			accept: "text/event-stream",
+			"content-type": "application/json",
+			cookie: input.cookieHeader,
+			"idempotency-key": `chat-e2e-stream-${Date.now()}`,
+		},
+		method: "POST",
+		signal: AbortSignal.timeout(180_000),
+	});
+	await expectEventStreamResponse(response, "chat e2e submit stream");
+	return response;
+}
+
+async function expectEventStreamResponse(response: Response, label: string): Promise<void> {
+	if (response.ok) {
+		const contentType = response.headers.get("content-type") ?? "";
+		if (!contentType.toLowerCase().includes("text/event-stream")) {
+			throw new Error(`${label} returned non-SSE content-type: ${contentType || "missing"}.`);
+		}
+		return;
+	}
+
+	const payload = await readJsonResponse(response);
+	throw new Error(`${label} failed (${response.status}): ${JSON.stringify(payload)}`);
+}
+
 async function defaultReadPromptRuntimeState(requestId: string): Promise<string | null> {
 	const client = new Client(buildOperatorDatabaseConfig(process.env) as ClientConfig);
 
@@ -184,6 +223,164 @@ function emptyResult(args: ChatE2eArgs): ChatE2eResult {
 		session_mint_attempted: false,
 		sign_in_attempted: false,
 	};
+}
+
+interface ProductStreamEvent {
+	data: Record<string, unknown>;
+	event: string;
+}
+
+interface StreamTerminalIdentity {
+	conversationId: string;
+	requestId: string;
+	resultKind: string;
+	traceId: string;
+}
+
+function parseSseBlock(block: string): ProductStreamEvent | null {
+	let event = "";
+	const dataLines: string[] = [];
+
+	for (const line of block.split(/\r?\n/)) {
+		if (line.startsWith("event:")) {
+			event = line.slice("event:".length).trim();
+			continue;
+		}
+		if (line.startsWith("data:")) {
+			dataLines.push(line.slice("data:".length).trimStart());
+		}
+	}
+
+	if (!event || dataLines.length === 0) {
+		return null;
+	}
+
+	return {
+		data: JSON.parse(dataLines.join("\n")) as Record<string, unknown>,
+		event,
+	};
+}
+
+async function* parseSse(response: Response): AsyncIterable<ProductStreamEvent> {
+	if (!response.body) {
+		throw new Error("SSE response body is empty.");
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = "";
+
+	try {
+		while (true) {
+			const chunk = await reader.read();
+			if (chunk.done) {
+				break;
+			}
+
+			buffer += decoder.decode(chunk.value, { stream: true });
+			let boundary = buffer.search(/\r?\n\r?\n/);
+			while (boundary >= 0) {
+				const block = buffer.slice(0, boundary);
+				const match = buffer.slice(boundary).match(/^\r?\n\r?\n/);
+				buffer = buffer.slice(boundary + (match?.[0].length ?? 2));
+				const parsed = parseSseBlock(block);
+				if (parsed) {
+					yield parsed;
+				}
+				boundary = buffer.search(/\r?\n\r?\n/);
+			}
+		}
+
+		buffer += decoder.decode();
+		const parsed = parseSseBlock(buffer.trim());
+		if (parsed) {
+			yield parsed;
+		}
+	} finally {
+		reader.releaseLock();
+	}
+}
+
+function requireStringField(value: Record<string, unknown>, field: string): string {
+	const raw = value[field];
+	if (typeof raw !== "string" || !raw.trim()) {
+		throw new Error(`${field} is required.`);
+	}
+	return raw;
+}
+
+function optionalStringField(value: Record<string, unknown>, field: string): string | null {
+	const raw = value[field];
+	return typeof raw === "string" && raw.trim() ? raw : null;
+}
+
+function readStreamTerminalIdentity(event: ProductStreamEvent): StreamTerminalIdentity {
+	if (event.event === "request.failed" || event.event === "request.cancelled") {
+		const error = event.data.error;
+		throw new Error(
+			`Stream chat request reached ${event.event}: ${
+				error && typeof error === "object" ? JSON.stringify(error) : JSON.stringify(event.data)
+			}`,
+		);
+	}
+	if (event.event !== "request.completed") {
+		throw new Error(`Expected request.completed terminal event, got ${event.event}.`);
+	}
+	const answer = event.data.answer;
+	if (!answer || typeof answer !== "object" || Array.isArray(answer)) {
+		throw new Error("request.completed must include answer payload.");
+	}
+	const answerRecord = answer as Record<string, unknown>;
+	const conversation = answerRecord.conversation;
+	if (!conversation || typeof conversation !== "object" || Array.isArray(conversation)) {
+		throw new Error("request.completed answer must include conversation.");
+	}
+	const result = answerRecord.result;
+	if (!result || typeof result !== "object" || Array.isArray(result)) {
+		throw new Error("request.completed answer must include result.");
+	}
+	const resultRecord = result as Record<string, unknown>;
+	return {
+		conversationId: requireStringField(conversation as Record<string, unknown>, "id"),
+		requestId:
+			optionalStringField(resultRecord, "requestId") ?? requireStringField(event.data, "requestId"),
+		resultKind: requireStringField(resultRecord, "kind"),
+		traceId:
+			optionalStringField(resultRecord, "traceId") ?? requireStringField(event.data, "traceId"),
+	};
+}
+
+async function submitStreamAndReadTerminal(input: {
+	body: unknown;
+	cookieHeader: string;
+	openSubmitStream: NonNullable<ChatE2eDependencies["openSubmitStream"]>;
+	url: string;
+}): Promise<StreamTerminalIdentity> {
+	const response = await input.openSubmitStream({
+		body: input.body,
+		cookieHeader: input.cookieHeader,
+		url: input.url,
+	});
+	let accepted = false;
+	for await (const event of parseSse(response)) {
+		if (event.event === "request.accepted") {
+			requireStringField(event.data, "requestId");
+			requireStringField(event.data, "traceId");
+			accepted = true;
+			continue;
+		}
+		if (
+			event.event === "request.completed" ||
+			event.event === "request.failed" ||
+			event.event === "request.cancelled"
+		) {
+			if (!accepted) {
+				throw new Error("Stream chat request reached terminal event before request.accepted.");
+			}
+			return readStreamTerminalIdentity(event);
+		}
+	}
+	throw new Error("Submit stream ended before a terminal request event.");
 }
 
 async function defaultSignInSmokeIdentity(input: {
@@ -305,6 +502,7 @@ export async function runChatE2e(
 		fetchJsonWithCookie: deps.fetchJsonWithCookie ?? fetchJsonWithCookie,
 		fetchReadyz: deps.fetchReadyz ?? defaultFetchReadyz,
 		mintSmokeSession: deps.mintSmokeSession ?? mintStagingSmokeSession,
+		openSubmitStream: deps.openSubmitStream ?? openSubmitStream,
 		readPromptRuntimeState: deps.readPromptRuntimeState ?? defaultReadPromptRuntimeState,
 		signInSmokeIdentity: deps.signInSmokeIdentity ?? defaultSignInSmokeIdentity,
 	};
@@ -344,34 +542,25 @@ export async function runChatE2e(
 		url: new URL("/api/chat/conversations", args.chatBaseUrl).toString(),
 	});
 	result.chat_request_attempted = true;
-	const requestResult = await resolvedDeps.fetchJsonWithCookie<{
-		answer: {
-			conversation: {
-				id: string;
-			};
-			result: {
-				kind: string;
-				requestId: string;
-				traceId: string;
-			};
-		};
-	}>({
-		body: {
-			prompt: args.prompt,
-		},
-		cookieHeader,
-		expectedStatus: 200,
-		idempotencyKey: `chat-e2e-${args.profile}-${Date.now()}`,
-		method: "POST",
-		url: new URL("/api/chat/requests", args.chatBaseUrl).toString(),
-	});
-	const conversationId = requestResult.payload.answer.conversation.id;
-	const resultKind = requestResult.payload.answer.result.kind;
-	const requestId =
-		requestResult.response.headers.get("x-request-id") ??
-		requestResult.payload.answer.result.requestId;
-	const traceId =
-		requestResult.response.headers.get("x-trace-id") ?? requestResult.payload.answer.result.traceId;
+	const requestIdentity =
+		args.transport === "stream"
+			? await submitStreamAndReadTerminal({
+					body: {
+						prompt: args.prompt,
+					},
+					cookieHeader,
+					openSubmitStream: resolvedDeps.openSubmitStream,
+					url: new URL("/api/chat/requests/stream", args.chatBaseUrl).toString(),
+				})
+			: await submitSync({
+					args,
+					cookieHeader,
+					fetchJsonWithCookie: resolvedDeps.fetchJsonWithCookie,
+				});
+	const conversationId = requestIdentity.conversationId;
+	const resultKind = requestIdentity.resultKind;
+	const requestId = requestIdentity.requestId;
+	const traceId = requestIdentity.traceId;
 	assertExpectedChatE2eResultKind({
 		actual: resultKind,
 		expected: args.expectResultKind,
@@ -403,6 +592,42 @@ export async function runChatE2e(
 			`Conversation ${conversationId} was not present in /api/chat/conversations after the live request.`,
 		);
 	}
+	if (args.transport === "stream") {
+		const conversationDetail = await resolvedDeps.fetchJsonWithCookie<{
+			conversation: {
+				id: string;
+				messages: Array<{
+					kind: string | null;
+					requestId: string | null;
+					role: string;
+					text: string;
+				}>;
+			};
+		}>({
+			cookieHeader,
+			expectedStatus: 200,
+			method: "GET",
+			url: new URL(
+				`/api/chat/conversations/${encodeURIComponent(conversationId)}`,
+				args.chatBaseUrl,
+			).toString(),
+		});
+		if (conversationDetail.payload.conversation.id !== conversationId) {
+			throw new Error("Conversation detail id does not match stream terminal conversation id.");
+		}
+		const hasAssistantMessage = conversationDetail.payload.conversation.messages.some(
+			(message) =>
+				message.role === "assistant" &&
+				message.kind === "answer" &&
+				message.requestId === requestId &&
+				message.text.trim().length > 0,
+		);
+		if (!hasAssistantMessage) {
+			throw new Error(
+				"Conversation is missing an assistant answer message for the stream request.",
+			);
+		}
+	}
 
 	result.passed = true;
 	result.principal = meResult.payload.principal;
@@ -416,9 +641,48 @@ export async function runChatE2e(
 		requestId,
 		resultKind,
 		traceId,
+		transport: args.transport,
 	};
 	result.session = meResult.payload.session;
 	return result;
+}
+
+async function submitSync(input: {
+	args: ChatE2eArgs;
+	cookieHeader: string;
+	fetchJsonWithCookie: NonNullable<ChatE2eDependencies["fetchJsonWithCookie"]>;
+}): Promise<StreamTerminalIdentity> {
+	const requestResult = await input.fetchJsonWithCookie<{
+		answer: {
+			conversation: {
+				id: string;
+			};
+			result: {
+				kind: string;
+				requestId: string;
+				traceId: string;
+			};
+		};
+	}>({
+		body: {
+			prompt: input.args.prompt,
+		},
+		cookieHeader: input.cookieHeader,
+		expectedStatus: 200,
+		idempotencyKey: `chat-e2e-${input.args.profile}-${Date.now()}`,
+		method: "POST",
+		url: new URL("/api/chat/requests", input.args.chatBaseUrl).toString(),
+	});
+	return {
+		conversationId: requestResult.payload.answer.conversation.id,
+		requestId:
+			requestResult.response.headers.get("x-request-id") ??
+			requestResult.payload.answer.result.requestId,
+		resultKind: requestResult.payload.answer.result.kind,
+		traceId:
+			requestResult.response.headers.get("x-trace-id") ??
+			requestResult.payload.answer.result.traceId,
+	};
 }
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {

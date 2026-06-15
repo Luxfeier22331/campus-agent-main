@@ -58,6 +58,8 @@ Current runtime scope:
 - `POST /api/official-web/runs/:runId/heartbeats`
 - `POST /api/official-web/runs/:runId/finalize`
 - `POST /api/chat/requests`
+- `POST /api/chat/requests/stream`
+- `GET /api/chat/runs/:runId/steps`
 - `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `GET /api/operator/requests`
@@ -331,6 +333,7 @@ pnpm federation:provision-muc-wiki
 pnpm chat:e2e:dev -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm chat:e2e:local-real-provider
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:memory:e2e:staging
 pnpm docs:gated:smoke:staging
 pnpm official-web:drain-projection -- --limit 50
 pnpm collection-rename:audit
@@ -399,10 +402,15 @@ Deploy note:
   同步到 `identity.federation_*` product policy 与 Better Auth
   `app_auth.oauthClient` runtime table。它必须在 staging DB bootstrap/migrate/drift
   之后、MediaWiki OIDC smoke 之前执行。
-- `chat:e2e:staging` and `docs:gated:smoke:staging` do not require local
-  staging DB credentials; they reset the fixed smoke identity through the
-  deployed staging internal smoke endpoint protected by
-  `APP_API_STAGING_SMOKE_AUTH_SECRET`
+- `chat:e2e:staging`, `chat:memory:e2e:staging`, and
+  `docs:gated:smoke:staging` do not require local staging DB credentials; they
+  reset the fixed smoke identity through the deployed staging internal smoke
+  endpoint protected by `APP_API_STAGING_SMOKE_AUTH_SECRET`
+- `chat:e2e:staging` defaults to the durable lifecycle stream
+  `/api/chat/requests/stream`; `--transport sync` is only a diagnostic mode.
+- `chat:memory:e2e:staging` writes an explicit profile-memory item, submits a
+  stream chat request, reads `/api/chat/runs/:runId/steps`, and verifies the
+  sanitized `memory.recall` projection before deleting the temporary memory.
 - `chat:e2e:dev` is the local public/chat wrapper. It starts local supervisor
   runtime, runs `db:bootstrap`, provisions the smoke identity, starts or reuses
   `public-chat-web dev:live-smoke`, and then runs `chat:e2e -- --profile dev`.

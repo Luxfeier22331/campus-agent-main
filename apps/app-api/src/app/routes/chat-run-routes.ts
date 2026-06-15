@@ -312,6 +312,34 @@ export function registerChatRunRoutes(input: {
 		}
 	});
 
+	input.app.get("/api/chat/runs/:runId/steps", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const response = await scope.resolveRuntimeRunService().listSteps({
+				principal: resolved.principal,
+				runId: c.req.param("runId"),
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = input.routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
 	input.app.post("/api/chat/runs/:runId/cancel", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({

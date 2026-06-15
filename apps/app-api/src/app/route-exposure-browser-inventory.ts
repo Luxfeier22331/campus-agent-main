@@ -105,6 +105,12 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/chat/runs/:runId/steps",
+		callerClass: "browser-surface",
+		admission: "session principal plus run ownership required; sanitized step trajectory only",
+	},
+	{
+		method: "GET",
 		path: "/api/campus-map/places",
 		callerClass: "browser-surface",
 		admission: "public campus map projection read",

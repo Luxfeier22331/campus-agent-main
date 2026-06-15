@@ -153,7 +153,7 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 1. 通过部署态 `app-api-staging`
    `POST /api/internal/staging-smoke/auth/session` 铸造真实 staging session cookie
 1. 带着拿到的 session cookie 真实请求
-   `https://chat-staging.mucwiki-edge.link/api/chat/requests`
+   `https://chat-staging.mucwiki-edge.link/api/chat/requests/stream`
 1. 再检查 `api/me` 与 `api/chat/conversations`，确认会话有效且新会话进入 history
 1. 默认要求 `request.resultKind = "answer"`；如果 supervisor 返回 typed
    error outcome，脚本会退出非零并在错误里带上 `requestId` 与 `traceId`
@@ -179,12 +179,28 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 
 - `chat:e2e:staging` 返回 `0`
 - 它输出的 `request.resultKind` 是 `answer`
-- `POST /api/chat/requests` 返回 `200`
+- 它输出的 `request.transport` 是 `stream`
+- `POST /api/chat/requests/stream` 返回 SSE lifecycle，并到达
+  `request.completed`
 - `api/chat/conversations` 在请求后包含新 `conversationId`
 - 不能出现 transport error、Worker proxy error、upstream unreachable
 
-只有在明确做 transport-only 调试时，才允许临时追加
-`-- --expect-result-kind any`，该模式不作为 staging closeout gate。
+只有在明确做同步 transport 诊断时，才允许临时追加 `-- --transport sync`。
+同步 transport 不作为 staging closeout gate；不要用
+`--expect-result-kind any` 替代真实通过标准。
+
+profile memory 与 online memory recall 专项 smoke：
+
+```bash
+pnpm --dir apps/app-api chat:memory:e2e:staging
+```
+
+这条命令会通过同一个 fixed smoke identity 写入一条显式 profile memory，
+再通过 stream chat 创建 durable run，并读取
+`/api/chat/runs/:runId/steps` 的 sanitized trajectory。通过标准是
+`passed=true`、`memory.deleted=true`、`recall.stepId=memory.recall`、
+`recall.status=completed` 且 `recall.selectedMemoryCount > 0`。它不以自然语言
+回答是否提到记忆作为验收依据。
 
 ## Step 5. 记录链路证据
 

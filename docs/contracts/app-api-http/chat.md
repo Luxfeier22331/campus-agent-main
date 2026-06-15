@@ -55,7 +55,7 @@ owns this section group; the original path remains the stable index.
 规则：
 
 - 第一版不要求请求 body 或客户端先提交 title
-- 如果客户端只想直接发送首轮消息，可以跳过这个接口，直接调用 `POST /api/chat/requests`
+- 如果客户端只想直接发送首轮消息，可以跳过这个接口，直接调用 `POST /api/chat/requests/stream`
 - title 可以在首轮问答后由服务端回填
 
 ### `GET /api/chat/conversations/:conversationId`
@@ -168,12 +168,14 @@ rollback 规则：
 - `messageId` 必须属于该 conversation
 - 服务端删除范围是 `createdAt >= 目标 message.createdAt`
 - 这个接口只负责截断现有对话尾部，不负责写入编辑后的新 user message
-- 编辑后的新 user message 仍由后续 `POST /api/chat/requests` 在 canonical command path
+- 编辑后的新 user message 仍由后续 `POST /api/chat/requests/stream` 在 canonical command path
   中生成新 answer
 
 ### `POST /api/chat/requests`
 
-这是 public chat 的同步命令入口。
+这是 public chat 的同步兼容 / 诊断命令入口。产品默认入口与 release gate 是
+`POST /api/chat/requests/stream`；同步入口会等待 durable finalization，不应用作
+Cloudflare Worker 上的 RAG / memory staging closeout 标准。
 
 当前 `public-chat-web` 只 admission `knowledge` capability。这里描述的是该 surface 当前开放的
 capability allowlist，不是长期产品入口原则；前向 routing 语义见
@@ -268,8 +270,9 @@ icy.md`。
 
 ### `POST /api/chat/requests/stream`
 
-这是 public chat 的 lifecycle streaming 命令入口。它不提供 token delta，不暴露
-`execution-control` raw event；browser 只消费 `app-api` 产品级 SSE contract。
+这是 public chat 的产品默认 lifecycle streaming 命令入口。它不提供 token delta，
+不暴露 `execution-control` raw event；browser 只消费 `app-api` 产品级 SSE
+contract。release / staging chat smoke 默认使用该入口。
 
 请求 headers 与 body 复用 `POST /api/chat/requests`。
 
@@ -391,3 +394,17 @@ browser-visible run event projection：
 - 空 stream 是合法响应；它表示订阅预算内没有新的可见事件，不表示 run terminal
 - reconnect / resume 只能读取 run event stream，不得重新执行同一个 run；retry /
   repair 必须创建新的显式 run
+
+### `GET /api/chat/runs/:runId/steps`
+
+返回当前用户拥有的 durable run sanitized step trajectory。
+
+规则：
+
+- admission 必须经过 session principal 与 local
+  `runtime.request_execution.run_id` ownership gate
+- 响应包含 execution-control 已脱敏的 `steps`、`attempts`、`results` 与
+  app-api product `run` summary
+- 该 route 不暴露 raw provider payload、raw memory text 或 machine-only event
+- staging memory recall smoke 使用该 route 验证 `memory.recall` 是否完成，以及
+  sanitized `memory_ref` / `selected_memory_count` 是否存在

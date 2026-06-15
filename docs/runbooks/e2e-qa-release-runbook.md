@@ -122,6 +122,10 @@ pnpm --dir apps/app-api chat:e2e:staging -- \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-student-rule.json"
 ```
 
+`chat:e2e:staging` 默认使用 `POST /api/chat/requests/stream`，不是同步
+`POST /api/chat/requests` polling path。同步入口只允许作为显式
+`--transport sync` 诊断，不作为 release gate。
+
 运行 run projection 断线 / 恢复专项 smoke：
 
 ```bash
@@ -129,10 +133,18 @@ pnpm --dir apps/app-api chat:durable:e2e:staging \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json"
 ```
 
+运行 profile memory 写入 + Temporal memory recall projection 专项 smoke：
+
+```bash
+pnpm --dir apps/app-api chat:memory:e2e:staging \
+  | tee "$E2E_QA_EVIDENCE_DIR/chat-memory-recall.json"
+```
+
 通过标准：
 
 - 每条命令 exit code 为 `0`
 - `request.resultKind=answer`
+- `request.transport=stream`
 - 输出包含 `requestId`、`traceId`、`conversationId`
 - `historyHasConversation=true`
 - durable reconnect 输出 `passed=true`
@@ -142,6 +154,10 @@ pnpm --dir apps/app-api chat:durable:e2e:staging \
 - durable reconnect 的 `resume.terminalEvent.eventType=finalization.completed`
 - durable reconnect 的 conversation summary
   `hasAssistantMessageForRequest=true`
+- memory recall 输出 `passed=true`
+- memory recall 输出 `memory.deleted=true`
+- memory recall 输出 `recall.stepId=memory.recall`、`recall.status=completed`
+  与 `recall.selectedMemoryCount > 0`
 
 不接受：
 
@@ -236,7 +252,7 @@ uv run --all-packages python -m scripts.query_sentry_spans \
   --project 4511351503454208 \
   --environment staging \
   --stats-period 3h \
-  --query 'span.description:"POST /api/chat/requests"' \
+  --query 'span.description:"POST /api/chat/requests/stream"' \
   --markdown-output "$E2E_QA_EVIDENCE_DIR/sentry-chat-spans.md" \
   | tee "$E2E_QA_EVIDENCE_DIR/sentry-chat-spans.txt"
 ```

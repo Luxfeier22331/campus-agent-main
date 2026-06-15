@@ -9,6 +9,7 @@ import {
 	createExecutionControlRuntimeClient,
 	type ExecutionControlRun,
 	type ExecutionControlRunEvent,
+	type ExecutionControlRunStepTrajectory,
 	type ExecutionControlRuntimeClient,
 	ExecutionControlTransportError,
 } from "../integration";
@@ -90,6 +91,10 @@ export interface RuntimeRunEventProjection {
 	visibility: string;
 }
 
+export interface RuntimeRunStepTrajectory extends ExecutionControlRunStepTrajectory {
+	run: RuntimeRunSummary;
+}
+
 export interface RuntimeRunEventSubscriptionPolicy {
 	maxAttempts: number;
 	pollIntervalMs: number;
@@ -111,6 +116,10 @@ export interface RuntimeRunService {
 		principal: ResolvedAppPrincipal;
 		runId: string;
 	}): Promise<{ events: RuntimeRunEventProjection[]; run: RuntimeRunSummary }>;
+	listSteps(input: {
+		principal: ResolvedAppPrincipal;
+		runId: string;
+	}): Promise<RuntimeRunStepTrajectory>;
 	subscribeEvents(input: {
 		afterSequence?: number;
 		polling?: RuntimeRunEventSubscriptionPolicy;
@@ -367,6 +376,22 @@ export function buildRuntimeRunService(input: {
 			return { run: toRunSummary(run) };
 		},
 		listEvents,
+		async listSteps(stepsInput) {
+			const owned = await requireOwnedRun(stepsInput.principal, stepsInput.runId);
+			const run = await input.executionRuntime.getRun({
+				runId: owned.runId,
+				traceId: owned.traceId,
+			});
+			assertRunMatchesOwnership(owned, run);
+			const trajectory = await input.executionRuntime.listRunSteps({
+				runId: owned.runId,
+				traceId: owned.traceId,
+			});
+			return {
+				...trajectory,
+				run: toRunSummary(run),
+			};
+		},
 		async *subscribeEvents(eventsInput) {
 			const polling = validateSubscriptionPolicy(eventsInput.polling);
 			let lastSequence = eventsInput.afterSequence ?? 0;

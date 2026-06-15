@@ -14,13 +14,130 @@ function jsonResult<T>(
 	};
 }
 
+function sseResponse(blocks: string[]): Response {
+	return new Response(blocks.join(""), {
+		headers: { "content-type": "text/event-stream" },
+		status: 200,
+	});
+}
+
 describe("chat e2e runner", () => {
-	it("skips direct supervisor exec readiness for staging unless explicitly requested", async () => {
+	it("uses the durable stream chat request path by default", async () => {
+		const jsonCalls: Array<{ method?: string; url: string }> = [];
+		const streamCalls: Array<{ body: unknown; url: string }> = [];
+		const result = await runChatE2e(
+			[
+				"--profile",
+				"staging",
+				"--chat-base-url",
+				"https://chat.example.com",
+				"--app-api-readyz-url",
+				"https://api.example.com/readyz",
+			],
+			{
+				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
+			} as NodeJS.ProcessEnv,
+			{
+				async fetchReadyz() {
+					return {
+						payload: { ok: true },
+						status: 200,
+					};
+				},
+				async fetchJsonWithCookie<T>(
+					input: Parameters<NonNullable<ChatE2eDependencies["fetchJsonWithCookie"]>>[0],
+				): Promise<{ payload: T; response: Response }> {
+					jsonCalls.push({ method: input.method, url: input.url });
+					if (input.url.endsWith("/api/me")) {
+						return jsonResult({
+							permissions: {
+								chat: true,
+								operator: false,
+							},
+							principal: {
+								email: "help_bot@outlook.com",
+								principalId: "user_staging",
+								type: "user",
+							},
+							session: {
+								expiresAt: "2099-01-01T00:00:00Z",
+								sessionId: "session_staging",
+							},
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/conversations")) {
+						return jsonResult({
+							conversations: [{ id: "conv_01HQ", title: "Smoke" }],
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/conversations/conv_01HQ")) {
+						return jsonResult({
+							conversation: {
+								id: "conv_01HQ",
+								messages: [
+									{
+										kind: "answer",
+										requestId: "req_01HQ",
+										role: "assistant",
+										text: "国家奖学金每学年评审一次。",
+									},
+								],
+							},
+						} as T);
+					}
+					throw new Error(`unexpected json request: ${input.url}`);
+				},
+				async mintSmokeSession() {
+					return "session=staging";
+				},
+				async openSubmitStream(input) {
+					streamCalls.push({ body: input.body, url: input.url });
+					return sseResponse([
+						'event: request.accepted\ndata: {"occurredAt":"2026-06-04T00:00:00.000Z","requestId":"req_01HQ","runId":"run_01HQ","status":"accepted","traceId":"trace_01HQ"}\n\n',
+						'event: request.completed\ndata: {"occurredAt":"2026-06-04T00:00:02.000Z","requestId":"req_01HQ","status":"completed","traceId":"trace_01HQ","answer":{"conversation":{"id":"conv_01HQ"},"result":{"kind":"answer","requestId":"req_01HQ","traceId":"trace_01HQ"}}}\n\n',
+					]);
+				},
+			},
+		);
+
+		expect(result.passed).toBe(true);
+		expect(result.request).toMatchObject({
+			conversationId: "conv_01HQ",
+			requestId: "req_01HQ",
+			resultKind: "answer",
+			traceId: "trace_01HQ",
+			transport: "stream",
+		});
+		expect(streamCalls).toEqual([
+			{
+				body: {
+					prompt: "中央民族大学本科学生国家奖学金评审办法",
+				},
+				url: "https://chat.example.com/api/chat/requests/stream",
+			},
+		]);
+		expect(jsonCalls).not.toContainEqual(
+			expect.objectContaining({
+				method: "POST",
+				url: "https://chat.example.com/api/chat/requests",
+			}),
+		);
+		expect(jsonCalls).toEqual(
+			expect.arrayContaining([
+				{ method: undefined, url: "https://chat.example.com/api/chat/conversations" },
+				{ method: "GET", url: "https://chat.example.com/api/chat/conversations/conv_01HQ" },
+			]),
+		);
+	});
+
+	it("keeps the sync chat request path as an explicit diagnostic transport", async () => {
 		const readyzUrls: string[] = [];
 		const result = await runChatE2e(
 			[
 				"--profile",
 				"staging",
+				"--transport",
+				"sync",
 				"--chat-base-url",
 				"https://chat.example.com",
 				"--app-api-readyz-url",
@@ -93,6 +210,7 @@ describe("chat e2e runner", () => {
 		);
 
 		expect(result.passed).toBe(true);
+		expect(result.request?.transport).toBe("sync");
 		expect(result.readyz.exec).toBe(null);
 		expect(readyzUrls).toEqual([
 			"https://api.example.com/readyz",
@@ -160,6 +278,8 @@ describe("chat e2e runner", () => {
 			[
 				"--profile",
 				"dev",
+				"--transport",
+				"sync",
 				"--chat-base-url",
 				"http://127.0.0.1:27011",
 				"--exec-readyz-url",
@@ -253,6 +373,8 @@ describe("chat e2e runner", () => {
 			[
 				"--profile",
 				"dev",
+				"--transport",
+				"sync",
 				"--chat-base-url",
 				"http://127.0.0.1:27011",
 				"--exec-readyz-url",
@@ -341,6 +463,8 @@ describe("chat e2e runner", () => {
 				[
 					"--profile",
 					"dev",
+					"--transport",
+					"sync",
 					"--chat-base-url",
 					"http://127.0.0.1:27011",
 					"--exec-readyz-url",

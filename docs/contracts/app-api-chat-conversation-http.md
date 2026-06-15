@@ -236,6 +236,28 @@ Rules:
 - Terminal runs return a typed non-retryable error.
 - A successful cancel request does not synthesize an answer.
 
+### `GET /api/chat/runs/:runId`
+
+Returns the current user's durable run summary.
+
+Rules:
+
+- Only the owner can read the run.
+- The response is a product runtime summary, not raw execution-control storage.
+
+### `GET /api/chat/runs/:runId/events`
+
+Returns browser-visible durable run events for an owned run.
+
+Query:
+
+- `after_sequence`: optional non-negative integer cursor
+
+Rules:
+
+- This route returns browser-visible events only.
+- This route does not create a new request or re-run execution.
+
 ### `GET /api/chat/runs/:runId/events/stream`
 
 Resumes browser-visible run events for an owned run.
@@ -253,3 +275,16 @@ Rules:
   `request.completed` events notify completion only; the browser must refresh
   `GET /api/chat/conversations/:conversationId` to render the app-owned answer
   projection.
+
+### `GET /api/chat/runs/:runId/steps`
+
+Returns the current user's sanitized durable run step trajectory.
+
+Rules:
+
+- Only the owner can read the run step trajectory.
+- The response contains sanitized `steps`, `attempts`, `results`, and the
+  product `run` summary.
+- The response is not a raw execution-control `/steps` browser passthrough.
+- Browser and smoke consumers can use it to verify step-level projection such
+  as `memory.recall` completion without relying on answer text.

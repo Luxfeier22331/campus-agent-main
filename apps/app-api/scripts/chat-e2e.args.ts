@@ -6,6 +6,8 @@ import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./seed-request-smoke.ar
 
 export const CHAT_E2E_PROFILES = ["dev", "local-real-provider", "staging"] as const;
 export type ChatE2eProfile = (typeof CHAT_E2E_PROFILES)[number];
+export const CHAT_E2E_TRANSPORTS = ["stream", "sync"] as const;
+export type ChatE2eTransport = (typeof CHAT_E2E_TRANSPORTS)[number];
 
 export const DEFAULT_CHAT_E2E_PROMPT = "中央民族大学本科学生国家奖学金评审办法";
 export const DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL = "https://chat-staging.mucwiki-edge.link";
@@ -34,6 +36,7 @@ export interface ChatE2eArgs {
 	profile: ChatE2eProfile;
 	prompt: string;
 	smokeAuthSecret: string;
+	transport: ChatE2eTransport;
 }
 
 function normalizeOptionalValue(value: string | undefined): string | null {
@@ -53,6 +56,14 @@ function parseChatE2eProfile(value: string): ChatE2eProfile {
 	throw new Error(`--profile must be one of: ${CHAT_E2E_PROFILES.join(", ")}.`);
 }
 
+function parseChatE2eTransport(value: string): ChatE2eTransport {
+	if ((CHAT_E2E_TRANSPORTS as readonly string[]).includes(value)) {
+		return value as ChatE2eTransport;
+	}
+
+	throw new Error(`--transport must be one of: ${CHAT_E2E_TRANSPORTS.join(", ")}.`);
+}
+
 export function parseChatE2eArgs(
 	argv: string[],
 	env: NodeJS.ProcessEnv = process.env,
@@ -66,6 +77,7 @@ export function parseChatE2eArgs(
 	let expectPromptRuntimeState: string | null = null;
 	let expectResultKind: ChatE2eExpectedResultKind = "answer";
 	let profile: ChatE2eProfile = "staging";
+	let transport: ChatE2eTransport = "stream";
 	let password =
 		normalizeOptionalValue(env.APP_API_SMOKE_IDENTITY_PASSWORD) ??
 		normalizeOptionalValue(env.CHAT_E2E_SMOKE_IDENTITY_PASSWORD) ??
@@ -171,6 +183,15 @@ export function parseChatE2eArgs(
 			index += 1;
 			continue;
 		}
+		if (token === "--transport") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--transport requires a non-empty value.");
+			}
+			transport = parseChatE2eTransport(value);
+			index += 1;
+			continue;
+		}
 		if (token === "--smoke-auth-secret") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -259,5 +280,6 @@ export function parseChatE2eArgs(
 		profile,
 		prompt,
 		smokeAuthSecret,
+		transport,
 	};
 }

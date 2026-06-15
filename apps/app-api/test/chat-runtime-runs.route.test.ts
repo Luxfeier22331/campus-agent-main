@@ -74,6 +74,7 @@ describe("chat durable run routes", () => {
 					traceId: "trace_01HQ",
 				},
 			}),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn(),
 		};
 		const app = createApp(env, {
@@ -139,6 +140,7 @@ describe("chat durable run routes", () => {
 				},
 			}),
 			listEvents: vi.fn(),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(
 				(async function* () {
 					yield {
@@ -220,6 +222,7 @@ describe("chat durable run routes", () => {
 			}),
 			getStatus: vi.fn(),
 			listEvents: vi.fn(),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn(),
 		};
 		const app = createApp(env, {
@@ -269,6 +272,7 @@ describe("chat durable run routes", () => {
 				}),
 			),
 			listEvents: vi.fn(),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn(),
 		};
 		const app = createApp(env, {
@@ -305,6 +309,7 @@ describe("chat durable run routes", () => {
 				}),
 			),
 			listEvents: vi.fn(),
+			listSteps: vi.fn(),
 			subscribeEvents: vi.fn(),
 		};
 		const app = createApp(env, {
@@ -329,6 +334,131 @@ describe("chat durable run routes", () => {
 					"Execution durable runtime response violates the contract: status must be a string.",
 				retryable: true,
 			},
+		});
+	});
+
+	it("returns sanitized run step trajectory for the current principal owned run", async () => {
+		const runtimeRunService = {
+			cancel: vi.fn(),
+			getStatus: vi.fn(),
+			listEvents: vi.fn(),
+			listSteps: vi.fn().mockResolvedValue({
+				attempts: [],
+				results: [
+					{
+						attemptId: "attempt-memory",
+						createdAt: "2026-06-04T01:02:05.000Z",
+						payloadSchemaVersion: "step-result-projection-v1",
+						projectionRef: "projection://runs/run_01HQ/memory/recall",
+						resultId: "result-memory",
+						resultKind: "memory_recall_result",
+						runId: "run_01HQ",
+						sanitizedPayload: {
+							memory_ref: "projection://runs/run_01HQ/memory/recall",
+							selected_memory_count: 1,
+						},
+						status: "completed",
+						stepId: "memory.recall",
+					},
+				],
+				run: {
+					conversationId: "conv_01HQ",
+					phase: "completed",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					status: "completed",
+					traceId: "trace_01HQ",
+				},
+				steps: [
+					{
+						capability: "any",
+						completedAt: "2026-06-04T01:02:05.000Z",
+						conversationId: "conv_01HQ",
+						parentStepId: "",
+						payloadSchemaVersion: "run-step-projection-v1",
+						runId: "run_01HQ",
+						sanitizedPayload: {
+							memory_ref: "projection://runs/run_01HQ/memory/recall",
+							selected_memory_count: 1,
+						},
+						startedAt: "2026-06-04T01:02:04.000Z",
+						status: "completed",
+						stepId: "memory.recall",
+						stepKind: "memory",
+						taskQueue: "context",
+						updatedAt: "2026-06-04T01:02:05.000Z",
+						workerId: "test-worker",
+					},
+				],
+			}),
+			subscribeEvents: vi.fn(),
+		};
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			runtimeRunService,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/runs/run_01HQ/steps", {
+				method: "GET",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			attempts: [],
+			results: [
+				{
+					attemptId: "attempt-memory",
+					createdAt: "2026-06-04T01:02:05.000Z",
+					payloadSchemaVersion: "step-result-projection-v1",
+					projectionRef: "projection://runs/run_01HQ/memory/recall",
+					resultId: "result-memory",
+					resultKind: "memory_recall_result",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						selected_memory_count: 1,
+					},
+					status: "completed",
+					stepId: "memory.recall",
+				},
+			],
+			run: {
+				conversationId: "conv_01HQ",
+				phase: "completed",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				status: "completed",
+				traceId: "trace_01HQ",
+			},
+			steps: [
+				{
+					capability: "any",
+					completedAt: "2026-06-04T01:02:05.000Z",
+					conversationId: "conv_01HQ",
+					parentStepId: "",
+					payloadSchemaVersion: "run-step-projection-v1",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						selected_memory_count: 1,
+					},
+					startedAt: "2026-06-04T01:02:04.000Z",
+					status: "completed",
+					stepId: "memory.recall",
+					stepKind: "memory",
+					taskQueue: "context",
+					updatedAt: "2026-06-04T01:02:05.000Z",
+					workerId: "test-worker",
+				},
+			],
+		});
+		expect(runtimeRunService.listSteps).toHaveBeenCalledWith({
+			principal: expect.objectContaining({
+				actor: expect.objectContaining({ userId: "user_01HQ" }),
+			}),
+			runId: "run_01HQ",
 		});
 	});
 });

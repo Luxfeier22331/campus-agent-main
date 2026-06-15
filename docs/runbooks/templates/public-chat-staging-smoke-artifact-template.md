@@ -50,7 +50,7 @@ staging 浏览器验收产物。
 - `conversationId`:
 - `requestId`:
 - `traceId`:
-- `POST /api/chat/requests`:
+- `POST /api/chat/requests/stream`:
 - Typed outcome:
 - Sidebar updated without reload: yes | no
 - Reload preserved history: yes | no

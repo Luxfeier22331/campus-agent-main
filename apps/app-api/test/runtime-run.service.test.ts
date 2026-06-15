@@ -256,4 +256,125 @@ describe("runtime run service", () => {
 			},
 		]);
 	});
+
+	it("lists sanitized durable step trajectory for an owned run", async () => {
+		const listRunSteps = vi.fn().mockResolvedValue({
+			attempts: [],
+			results: [
+				{
+					attemptId: "attempt-memory",
+					createdAt: "2026-06-04T01:02:05.000Z",
+					payloadSchemaVersion: "step-result-projection-v1",
+					projectionRef: "projection://runs/run_01HQ/memory/recall",
+					resultId: "result-memory",
+					resultKind: "memory_recall_result",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						selected_memory_count: 1,
+					},
+					status: "completed",
+					stepId: "memory.recall",
+				},
+			],
+			steps: [
+				{
+					capability: "any",
+					completedAt: "2026-06-04T01:02:05.000Z",
+					conversationId: "conv_01HQ",
+					parentStepId: "",
+					payloadSchemaVersion: "run-step-projection-v1",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						selected_memory_count: 1,
+					},
+					startedAt: "2026-06-04T01:02:04.000Z",
+					status: "completed",
+					stepId: "memory.recall",
+					stepKind: "memory",
+					taskQueue: "context",
+					updatedAt: "2026-06-04T01:02:05.000Z",
+					workerId: "test-worker",
+				},
+			],
+		});
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(durableRun({ status: "completed" })),
+			listRunEvents: vi.fn().mockResolvedValue([]),
+			listRunSteps,
+		};
+		const service = buildRuntimeRunService({
+			executionRuntime,
+			store: {
+				getOwnedRun: vi.fn().mockResolvedValue({
+					conversationId: "conv_01HQ",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					traceId: "trace_01HQ",
+				}),
+			},
+		});
+
+		await expect(
+			service.listSteps({
+				principal: createPrincipal(),
+				runId: "run_01HQ",
+			}),
+		).resolves.toEqual({
+			attempts: [],
+			results: [
+				{
+					attemptId: "attempt-memory",
+					createdAt: "2026-06-04T01:02:05.000Z",
+					payloadSchemaVersion: "step-result-projection-v1",
+					projectionRef: "projection://runs/run_01HQ/memory/recall",
+					resultId: "result-memory",
+					resultKind: "memory_recall_result",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						selected_memory_count: 1,
+					},
+					status: "completed",
+					stepId: "memory.recall",
+				},
+			],
+			run: {
+				conversationId: "conv_01HQ",
+				phase: "completed",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				status: "completed",
+				traceId: "trace_01HQ",
+			},
+			steps: [
+				{
+					capability: "any",
+					completedAt: "2026-06-04T01:02:05.000Z",
+					conversationId: "conv_01HQ",
+					parentStepId: "",
+					payloadSchemaVersion: "run-step-projection-v1",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						selected_memory_count: 1,
+					},
+					startedAt: "2026-06-04T01:02:04.000Z",
+					status: "completed",
+					stepId: "memory.recall",
+					stepKind: "memory",
+					taskQueue: "context",
+					updatedAt: "2026-06-04T01:02:05.000Z",
+					workerId: "test-worker",
+				},
+			],
+		});
+		expect(listRunSteps).toHaveBeenCalledWith({
+			runId: "run_01HQ",
+			traceId: "trace_01HQ",
+		});
+	});
 });

@@ -55,8 +55,8 @@ owns this section group; the original path remains the stable index.
 规则：
 
 - 只承载 public chat user 的 conversation ownership
-- conversation 可以通过显式 draft create 创建，也可以在首轮 `POST /api/chat/requests` 中 lazy
-  create
+- conversation 可以通过显式 draft create 创建，也可以在首轮
+  `POST /api/chat/requests/stream` 中 lazy create
 - 不承载 operator request projection
 
 ## `chat.messages`

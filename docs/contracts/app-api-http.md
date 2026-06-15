@@ -178,6 +178,7 @@ Identity Platform detailed object families are frozen separately in
 - `GET /api/chat/runs/:runId`
 - `GET /api/chat/runs/:runId/events`
 - `GET /api/chat/runs/:runId/events/stream`
+- `GET /api/chat/runs/:runId/steps`
 - `POST /api/chat/runs/:runId/cancel`
 
 ### Campus Experience

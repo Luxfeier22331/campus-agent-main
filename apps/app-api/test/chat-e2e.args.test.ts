@@ -31,6 +31,7 @@ describe("chat e2e args", () => {
 			profile: "staging",
 			prompt: DEFAULT_CHAT_E2E_PROMPT,
 			smokeAuthSecret: "smoke-secret",
+			transport: "stream",
 		});
 	});
 
@@ -47,6 +48,7 @@ describe("chat e2e args", () => {
 			execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
 			expectPromptRuntimeState: null,
 			profile: "local-real-provider",
+			transport: "stream",
 		});
 	});
 
@@ -63,6 +65,7 @@ describe("chat e2e args", () => {
 			captchaToken: "XXXX.DUMMY.TOKEN.XXXX",
 			expectPromptRuntimeState: null,
 			profile: "dev",
+			transport: "stream",
 		});
 	});
 
@@ -88,6 +91,8 @@ describe("chat e2e args", () => {
 					"any",
 					"--expect-prompt-runtime-state",
 					"rag_sdk_completed",
+					"--transport",
+					"sync",
 					"--password",
 					"dev-smoke-password",
 					"--captcha-token",
@@ -108,7 +113,16 @@ describe("chat e2e args", () => {
 			profile: "dev",
 			prompt: "民族学本科人才培养方案总学分要求是多少？",
 			smokeAuthSecret: "",
+			transport: "sync",
 		});
+	});
+
+	it("rejects unsupported transports", () => {
+		expect(() =>
+			parseChatE2eArgs(["--profile", "staging", "--transport", "poll"], {
+				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
+			} as NodeJS.ProcessEnv),
+		).toThrow("--transport must be one of: stream, sync.");
 	});
 
 	it("rejects unsupported profiles", () => {
