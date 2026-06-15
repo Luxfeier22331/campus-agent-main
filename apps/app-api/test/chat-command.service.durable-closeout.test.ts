@@ -257,4 +257,94 @@ describe("chat command durable stream closeout", () => {
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
 	});
+
+	it("does not consume the empty-poll budget while durable progress events keep advancing", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const supervisor: CapabilityExecutionClient = {
+			execute: vi.fn(),
+			executeStream: vi.fn(),
+		};
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue(durableRun()),
+			getRun: vi.fn(),
+			listRunEvents: vi
+				.fn()
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventType: "workflow.started",
+						sequence: 1,
+						visibility: "internal",
+					}),
+				])
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventType: "agent.completed",
+						sequence: 2,
+						visibility: "internal",
+					}),
+				])
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventType: "activity.completed",
+						sequence: 3,
+						visibility: "internal",
+					}),
+				])
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventId: "event-final",
+						eventType: "finalization.completed",
+						occurredAt: "2026-06-04T01:02:06.000Z",
+						payload: {
+							request_id: "req_0001",
+							response: answerResponsePayload(),
+							trace_id: "trace_0001",
+						},
+						sequence: 4,
+					}),
+				]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			durableEventPolling: {
+				maxAttempts: 2,
+				pollIntervalMs: 0,
+				sleep: vi.fn(async () => undefined),
+			},
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const events: string[] = [];
+		for await (const event of service.submitStream?.({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				requestedCapability: "knowledge",
+			},
+			principal: createPrincipal(),
+			surface: "public_chat_web",
+		}) ?? []) {
+			events.push(event.event);
+		}
+
+		expect(events).toEqual(["request.accepted", "request.completed"]);
+		expect(finalWrites[0]).toMatchObject({
+			requestExecution: {
+				errorCode: null,
+				requestId: "req_0001",
+				runId: "run_0001",
+				status: "completed",
+			},
+		});
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(4);
+		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(supervisor.executeStream).not.toHaveBeenCalled();
+	});
 });

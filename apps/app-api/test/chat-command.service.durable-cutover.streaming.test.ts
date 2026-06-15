@@ -195,21 +195,24 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				workflowPlanRef: "",
 			}),
 			getRun: vi.fn(),
-			listRunEvents: vi.fn().mockResolvedValue([
-				{
-					conversationId: "conv_01HQ",
-					eventId: "event-queued",
-					eventType: "run.queued",
-					occurredAt: "2026-06-04T01:02:04.000Z",
-					payload: {
-						status: "queued",
+			listRunEvents: vi
+				.fn()
+				.mockResolvedValueOnce([
+					{
+						conversationId: "conv_01HQ",
+						eventId: "event-queued",
+						eventType: "run.queued",
+						occurredAt: "2026-06-04T01:02:04.000Z",
+						payload: {
+							status: "queued",
+						},
+						payloadSchemaVersion: "run-event-v1",
+						runId: "run_0001",
+						sequence: 1,
+						visibility: "internal",
 					},
-					payloadSchemaVersion: "run-event-v1",
-					runId: "run_0001",
-					sequence: 1,
-					visibility: "internal",
-				},
-			]),
+				])
+				.mockResolvedValueOnce([]),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({

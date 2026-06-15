@@ -225,9 +225,15 @@ export async function waitForDurableFinalizationResponse<
 }> {
 	const polling = validatePollingPolicy(input.polling);
 	let lastSequence = 0;
+	let emptyPollAttempts = 0;
 
-	for (let attempt = 0; attempt < polling.maxAttempts; attempt += 1) {
+	while (emptyPollAttempts < polling.maxAttempts) {
 		const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
+		if (runEvents.length === 0) {
+			emptyPollAttempts += 1;
+		} else {
+			emptyPollAttempts = 0;
+		}
 		for (const runEvent of runEvents) {
 			lastSequence = updateLastSequence(input.context, lastSequence, runEvent);
 			const finalizationResponse = finalizationResponseFromDurableRunEvent(input.context, runEvent);
@@ -238,7 +244,7 @@ export async function waitForDurableFinalizationResponse<
 				};
 			}
 		}
-		if (attempt + 1 < polling.maxAttempts && polling.pollIntervalMs > 0) {
+		if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
 			await polling.sleep(polling.pollIntervalMs);
 		}
 	}
@@ -268,9 +274,15 @@ export async function* streamDurableRunEventsUntilTerminal<
 	const { context, now } = input;
 	const polling = validatePollingPolicy(input.polling);
 	let lastSequence = 0;
+	let emptyPollAttempts = 0;
 	try {
-		for (let attempt = 0; attempt < polling.maxAttempts; attempt += 1) {
+		while (emptyPollAttempts < polling.maxAttempts) {
 			const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
+			if (runEvents.length === 0) {
+				emptyPollAttempts += 1;
+			} else {
+				emptyPollAttempts = 0;
+			}
 			for (const runEvent of runEvents) {
 				lastSequence = updateLastSequence(context, lastSequence, runEvent);
 				const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
@@ -293,7 +305,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 				});
 				return;
 			}
-			if (attempt + 1 < polling.maxAttempts && polling.pollIntervalMs > 0) {
+			if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
 				await polling.sleep(polling.pollIntervalMs);
 			}
 		}
@@ -386,9 +398,15 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 
 	const completion = (async () => {
 		let lastSequence = 0;
+		let emptyPollAttempts = 0;
 		try {
-			for (let attempt = 0; attempt < polling.maxAttempts; attempt += 1) {
+			while (emptyPollAttempts < polling.maxAttempts) {
 				const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
+				if (runEvents.length === 0) {
+					emptyPollAttempts += 1;
+				} else {
+					emptyPollAttempts = 0;
+				}
 				for (const runEvent of runEvents) {
 					lastSequence = updateLastSequence(context, lastSequence, runEvent);
 					const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
@@ -415,7 +433,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 					queue.push({ kind: "done" });
 					return finalized;
 				}
-				if (attempt + 1 < polling.maxAttempts && polling.pollIntervalMs > 0) {
+				if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
 					await polling.sleep(polling.pollIntervalMs);
 				}
 			}
