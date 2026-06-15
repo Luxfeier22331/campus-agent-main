@@ -423,6 +423,20 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 	}
 }
 
+function inventoryHasSchemaIndex(inventory, schema, indexName) {
+	return [...inventory.tables.values()].some(
+		(table) => table.schema === schema && readTableIndex(table, indexName),
+	);
+}
+
+function renameTargetExistsForSourceIndex(inventory, target, targetIndexBySourceKey) {
+	if (target.kind !== "index") {
+		return false;
+	}
+	const targetIndex = targetIndexBySourceKey.get(`${target.schema}@${target.index}`);
+	return Boolean(targetIndex && inventoryHasSchemaIndex(inventory, target.schema, targetIndex));
+}
+
 export function buildAdoptionPlan({ inventory, migrationContext }) {
 	const snapshot0000 = migrationContext.snapshots.get(migrationContext.journal.entries[0].tag);
 	if (!snapshot0000) {
@@ -446,11 +460,14 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 		}),
 	);
 	const renameIndexSourceKeys = new Set();
+	const renameIndexTargetBySourceKey = new Map();
 	for (const migration of migrationContext.migrations) {
 		for (const statement of migration.statements) {
 			const target = parseMigrationStatement(statement);
 			if (target.kind === "rename_index") {
-				renameIndexSourceKeys.add(`${target.schema}@${target.fromIndex}`);
+				const sourceKey = `${target.schema}@${target.fromIndex}`;
+				renameIndexSourceKeys.add(sourceKey);
+				renameIndexTargetBySourceKey.set(sourceKey, target.index);
 			}
 		}
 	}
@@ -461,13 +478,18 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 		}
 		for (const statement of migration.statements) {
 			const target = parseMigrationStatement(statement);
+			const renameTargetAlreadyExists = renameTargetExistsForSourceIndex(
+				plannedInventory,
+				target,
+				renameIndexTargetBySourceKey,
+			);
 			if (
 				shouldApplyStatement(
 					plannedInventory,
 					target,
 					expectedTablesForMigration,
 					expectedLatestTables,
-					renameIndexSourceKeys,
+					renameTargetAlreadyExists ? new Set() : renameIndexSourceKeys,
 				)
 			) {
 				statements.push({

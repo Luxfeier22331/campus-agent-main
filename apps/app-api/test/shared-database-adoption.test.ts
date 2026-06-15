@@ -620,4 +620,47 @@ DROP COLUMN "actor_groups_json";`),
 			"runtime.request_observability_fact missing index runtime_request_observability_selected_capability_started_at_idx",
 		);
 	});
+
+	it("does not replay legacy rename source indexes after the renamed target index already exists", () => {
+		const inventory = makeInventory({
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: [...latestSpecs.keys()].map((qualifiedName) => {
+				const table = buildTableFromExpected(qualifiedName);
+				if (qualifiedName === "runtime.request_observability_fact") {
+					return {
+						...table,
+						indexes: table.indexes.map((index) =>
+							index.name === "runtime_request_observability_selected_capability_started_at_idx"
+								? {
+										...index,
+										name: "runtime_request_observability_selected_capability_started_at_id",
+									}
+								: index,
+						),
+					};
+				}
+				return table;
+			}),
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"runtime.request_observability_fact@runtime_request_observability_selected_target_started_at_idx",
+			),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"operator.metric_rollup@operator_metric_rollup_domain_target_bucket_idx",
+			),
+		).toBe(false);
+	});
 });
