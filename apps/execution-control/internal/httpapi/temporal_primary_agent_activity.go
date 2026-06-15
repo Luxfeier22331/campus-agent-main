@@ -23,6 +23,11 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
+	startedAt := time.Now().UTC()
+	run, err = s.beginPrimaryAgentRun(ctx, run, startedAt)
+	if err != nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+	}
 	if strings.TrimSpace(s.config.AgentRuntimeBaseURL) == "" ||
 		strings.TrimSpace(s.config.AgentRuntimeSharedSecret) == "" {
 		return s.failPrimaryAgentActivity(
@@ -32,7 +37,6 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime base URL and shared secret are required"),
 		)
 	}
-	startedAt := time.Now().UTC()
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := primaryAgentAttempt(input.Attempt)
 	replanReason := strings.TrimSpace(input.ReplanReason)
@@ -160,6 +164,74 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	return output, nil
+}
+
+func (s *Server) beginPrimaryAgentRun(
+	ctx context.Context,
+	run execution.DurableRun,
+	startedAt time.Time,
+) (execution.DurableRun, error) {
+	switch run.Status {
+	case execution.DurableRunStatusQueued:
+		admitted, err := s.runProjectionStore.TransitionRun(
+			ctx,
+			run.RunID,
+			execution.DurableRunStatusAdmitted,
+			"",
+			startedAt,
+		)
+		if err != nil {
+			return execution.DurableRun{}, err
+		}
+		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
+			EventID:              run.RunID + ":run-admitted",
+			RunID:                run.RunID,
+			ConversationID:       run.ConversationID,
+			EventType:            execution.DurableRunEventTypeRunAdmitted,
+			OccurredAt:           startedAt,
+			Visibility:           execution.DurableRunEventVisibilityInternal,
+			PayloadSchemaVersion: "run-event-v1",
+			Payload:              map[string]any{"status": string(execution.DurableRunStatusAdmitted)},
+		}); err != nil {
+			return execution.DurableRun{}, err
+		}
+		run = admitted
+	case execution.DurableRunStatusAdmitted,
+		execution.DurableRunStatusRunning,
+		execution.DurableRunStatusStreaming:
+	default:
+		return execution.DurableRun{}, fmt.Errorf(
+			"run %s status %s cannot execute primary agent",
+			run.RunID,
+			run.Status,
+		)
+	}
+	if run.Status == execution.DurableRunStatusAdmitted {
+		running, err := s.runProjectionStore.TransitionRun(
+			ctx,
+			run.RunID,
+			execution.DurableRunStatusRunning,
+			"",
+			startedAt,
+		)
+		if err != nil {
+			return execution.DurableRun{}, err
+		}
+		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
+			EventID:              run.RunID + ":run-started",
+			RunID:                run.RunID,
+			ConversationID:       run.ConversationID,
+			EventType:            execution.DurableRunEventTypeRunStarted,
+			OccurredAt:           startedAt,
+			Visibility:           execution.DurableRunEventVisibilityBrowser,
+			PayloadSchemaVersion: "run-event-v1",
+			Payload:              map[string]any{"status": string(execution.DurableRunStatusRunning)},
+		}); err != nil {
+			return execution.DurableRun{}, err
+		}
+		run = running
+	}
+	return run, nil
 }
 
 func (s *Server) projectPrimaryAgentToolResults(

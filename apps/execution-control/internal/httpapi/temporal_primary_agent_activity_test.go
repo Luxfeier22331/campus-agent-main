@@ -88,6 +88,12 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
+	if run.Status != execution.DurableRunStatusRunning {
+		t.Fatalf("run status = %q, want running", run.Status)
+	}
+	if run.AdmittedAt.IsZero() || run.StartedAt.IsZero() {
+		t.Fatalf("run admission timestamps were not projected: %#v", run)
+	}
 	agentMetadata, ok := run.Metadata["temporal_agent"].(map[string]any)
 	if !ok {
 		t.Fatalf("temporal_agent metadata = %#v", run.Metadata["temporal_agent"])
@@ -102,6 +108,15 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if len(steps) != 1 || steps[0].StepID != "agent.primary" || steps[0].Status != "completed" {
 		t.Fatalf("projected steps = %#v", steps)
 	}
+	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-001")
+	if err != nil {
+		t.Fatalf("list run events: %v", err)
+	}
+	assertHTTPAPIDurableEventTypes(t, events, []execution.DurableRunEventType{
+		execution.DurableRunEventTypeRunAdmitted,
+		execution.DurableRunEventTypeRunStarted,
+		execution.DurableRunEventTypeAgentCompleted,
+	})
 }
 
 func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testing.T) {
