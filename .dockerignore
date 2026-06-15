@@ -13,6 +13,8 @@
 !apps/supervisor-agent-worker/**
 !apps/ingestion-worker/
 !apps/ingestion-worker/**
+!apps/ingestion-control/
+!apps/ingestion-control/**
 !apps/legacy-office-conversion-service/
 !apps/legacy-office-conversion-service/**
 !configs/ingestion/
@@ -36,6 +38,8 @@
 !packages/campus-services-capability/**
 !packages/contracts/
 !packages/contracts/**
+!packages/ingestion-contracts/
+!packages/ingestion-contracts/**
 !packages/ingestion-core/
 !packages/ingestion-core/**
 !packages/navigation-capability/

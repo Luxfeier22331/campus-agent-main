@@ -124,6 +124,22 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
+    def test_dockerignore_keeps_ingestion_control_build_inputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertTrue(
+            {
+                "!package.json",
+                "!pnpm-lock.yaml",
+                "!pnpm-workspace.yaml",
+                "!apps/ingestion-control/",
+                "!apps/ingestion-control/**",
+                "!packages/ingestion-contracts/",
+                "!packages/ingestion-contracts/**",
+            }.issubset(patterns)
+        )
+
     def test_dockerignore_keeps_execution_control_contract_fixture_inputs(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         patterns = _dockerignore_patterns(repo_root)
