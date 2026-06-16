@@ -564,7 +564,7 @@ function finalizationEventFromResponse(
 		payload: {
 			request_id: input.requestId,
 			response: responseWireFromCapabilityResponse(response),
-			trace_id: response.traceId,
+			trace_id: input.traceId ?? "",
 		},
 		sequence,
 	});

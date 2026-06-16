@@ -139,7 +139,6 @@ const keys = [
   "OBJECT_STORE_BUCKET_DERIVED",
   "QDRANT_URL",
   "QDRANT_QUERY_API_KEY",
-  "QDRANT_WRITE_API_KEY",
   "QDRANT_TLS_CA_CERT_PATH",
   "QDRANT_TLS_DIR",
   "QDRANT_TIMEOUT_SECONDS",
@@ -286,10 +285,6 @@ execution_control_runtime_require_runtime_env() {
   fi
   if [[ -z "${QDRANT_QUERY_API_KEY:-}" ]]; then
     echo "QDRANT_QUERY_API_KEY is required for online Qdrant query access." >&2
-    return 1
-  fi
-  if [[ -z "${QDRANT_WRITE_API_KEY:-}" ]]; then
-    echo "QDRANT_WRITE_API_KEY is required for personal memory indexing." >&2
     return 1
   fi
   if [[ -z "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then

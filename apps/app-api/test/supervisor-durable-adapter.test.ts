@@ -486,11 +486,13 @@ describe("execution control runtime adapter", () => {
 			.mockResolvedValueOnce(
 				new Response(
 					JSON.stringify({
+						episode_uuid: "episode_01HQ",
 						memory_id: "mem_01HQ",
-						point_id: "point_01HQ",
-						schema_version: "personal_memory_upsert_result_v1",
+						payload_sha256: "hash-upsert",
+						schema_version: "memory_profile_item_result_v1",
 						status: "active",
 						updated_at: "2026-06-10T08:00:00.000Z",
+						user_id: "user_01HQ",
 					}),
 					{ status: 202 },
 				),
@@ -498,11 +500,13 @@ describe("execution control runtime adapter", () => {
 			.mockResolvedValueOnce(
 				new Response(
 					JSON.stringify({
+						episode_uuid: "episode_01HQ",
 						memory_id: "mem_01HQ",
-						point_id: "point_01HQ",
-						schema_version: "personal_memory_upsert_result_v1",
+						payload_sha256: "hash-disable",
+						schema_version: "memory_profile_item_result_v1",
 						status: "disabled",
 						updated_at: "2026-06-10T09:00:00.000Z",
+						user_id: "user_01HQ",
 					}),
 					{ status: 202 },
 				),
@@ -534,6 +538,7 @@ describe("execution control runtime adapter", () => {
 			userId: "user_01HQ",
 		});
 		const disabled = await client.disableExplicitMemory({
+			episodeUUID: "episode_01HQ",
 			memoryId: "mem_01HQ",
 			traceId: "trace_memory_002",
 			updatedAt: "2026-06-10T09:00:00.000Z",
@@ -557,18 +562,9 @@ describe("execution control runtime adapter", () => {
 			}),
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
-			capability: "any",
-			canonical_key: "profile:any:answer_style",
 			canonical_subject: "answer_style",
 			compact_text: "answer_style: 先给结论",
-			first_seen_at: "2026-06-10T08:00:00.000Z",
-			last_seen_at: "2026-06-10T08:00:00.000Z",
 			memory_id: "mem_01HQ",
-			memory_type: "profile",
-			reason_code: "explicit_preference",
-			source: "explicit",
-			source_hashes: ["manual:mem_01HQ"],
-			status: "active",
 			tenant_id: "",
 			updated_at: "2026-06-10T08:00:00.000Z",
 			user_id: "user_01HQ",
@@ -585,8 +581,8 @@ describe("execution control runtime adapter", () => {
 			}),
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 1))).toEqual({
+			episode_uuid: "episode_01HQ",
 			memory_id: "mem_01HQ",
-			tenant_id: "",
 			updated_at: "2026-06-10T09:00:00.000Z",
 			user_id: "user_01HQ",
 		});
@@ -607,9 +603,9 @@ describe("execution control runtime adapter", () => {
 			user_id: "user_01HQ",
 		});
 		expect(upsert).toEqual({
+			episodeUUID: "episode_01HQ",
 			memoryId: "mem_01HQ",
-			pointId: "point_01HQ",
-			schemaVersion: "personal_memory_upsert_result_v1",
+			schemaVersion: "memory_profile_item_result_v1",
 			status: "active",
 			updatedAt: "2026-06-10T08:00:00.000Z",
 		});

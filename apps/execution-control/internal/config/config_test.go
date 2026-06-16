@@ -5,15 +5,11 @@ import (
 	"testing"
 )
 
-func setStagingPersonalMemoryEnv(t *testing.T) {
+func setStagingZepMemoryEnv(t *testing.T) {
 	t.Helper()
-	t.Setenv("QDRANT_URL", "https://qdrant:6333")
-	t.Setenv("QDRANT_QUERY_API_KEY", "readonly-key")
-	t.Setenv("QDRANT_WRITE_API_KEY", "write-key")
-	t.Setenv("QDRANT_TLS_CA_CERT_PATH", "/srv/docker/campus-agent/staging/qdrant/tls/ca.pem")
-	t.Setenv("EMBEDDING_API_KEY", "embedding-key")
-	t.Setenv("EMBEDDING_MODEL", "text-embedding-3-large")
-	t.Setenv("EMBEDDING_DIMENSIONS", "3072")
+	t.Setenv("ZEP_BASE_URL", "https://zep.example")
+	t.Setenv("ZEP_API_KEY", "zep-key")
+	t.Setenv("ZEP_PROJECT_SALT", "staging-zep-salt")
 }
 
 func TestFromEnvUsesExecutionDefaults(t *testing.T) {
@@ -181,11 +177,14 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		!cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
 	}
-	if cfg.PersonalMemoryCollection != "personal_memory_v1" ||
-		cfg.PersonalMemoryTopK != 5 ||
-		cfg.PersonalMemoryMaxChars != 1200 ||
+	if cfg.ZepBaseURL != "https://api.getzep.com" ||
+		cfg.ZepAPIKey != "" ||
+		cfg.ZepTimeoutSeconds != 10 ||
+		cfg.ZepRecallMaxChars != 2500 ||
+		cfg.ZepAssistantName != "校园助理" ||
+		cfg.ZepUserName != "学生" ||
 		cfg.EmbeddingDimensions != 0 {
-		t.Fatalf("unexpected local personal memory defaults: %#v", cfg)
+		t.Fatalf("unexpected local Zep memory defaults: %#v", cfg)
 	}
 }
 
@@ -211,7 +210,7 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "7000")
-	setStagingPersonalMemoryEnv(t)
+	setStagingZepMemoryEnv(t)
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -227,7 +226,7 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
+func TestLoadFromEnvRequiresDeployedZepMemorySettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
@@ -236,11 +235,11 @@ func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
 
 	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected deployed personal memory settings to be required")
+		t.Fatal("expected deployed Zep memory settings to be required")
 	}
 }
 
-func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
+func TestLoadFromEnvForRoleScopesZepMemoryRequirements(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
@@ -255,13 +254,13 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 		t.Fatalf("finalization worker must not require personal memory config: %v", err)
 	}
 	if _, err := LoadFromEnvForRole("activity-context"); err == nil {
-		t.Fatal("context worker must require query-side personal memory config")
+		t.Fatal("context worker must require Zep memory config")
 	}
 	if _, err := LoadFromEnvForRole("activity-agent"); err != nil {
 		t.Fatalf("agent worker must not require personal memory config: %v", err)
 	}
-	if _, err := LoadFromEnvForRole("activity-knowledge"); err == nil {
-		t.Fatal("knowledge worker must require query-side personal memory config")
+	if _, err := LoadFromEnvForRole("activity-knowledge"); err != nil {
+		t.Fatalf("knowledge worker must not require Zep memory config: %v", err)
 	}
 	if _, err := LoadFromEnvForRole("activity-campus-services"); err != nil {
 		t.Fatalf("campus services worker must not require personal memory config: %v", err)
@@ -272,35 +271,52 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	if _, err := LoadFromEnvForRole("activity-navigation"); err != nil {
 		t.Fatalf("navigation worker must not require personal memory config: %v", err)
 	}
-	setStagingPersonalMemoryEnv(t)
-	t.Setenv("QDRANT_WRITE_API_KEY", "")
+	setStagingZepMemoryEnv(t)
 	if _, err := LoadFromEnvForRole("activity-context"); err != nil {
-		t.Fatalf("context worker recall must not require QDRANT_WRITE_API_KEY: %v", err)
+		t.Fatalf("context worker must accept Zep memory config: %v", err)
 	}
-	if _, err := LoadFromEnvForRole("activity-knowledge"); err != nil {
-		t.Fatalf("knowledge worker recall must not require QDRANT_WRITE_API_KEY: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("execution-control"); err == nil {
-		t.Fatal("execution-control memory write API must require QDRANT_WRITE_API_KEY")
+	if _, err := LoadFromEnvForRole("execution-control"); err != nil {
+		t.Fatalf("execution-control must accept Zep memory config: %v", err)
 	}
 }
 
-func TestLoadFromEnvRejectsHTTPQdrantForDeployedPersonalMemory(t *testing.T) {
+func TestLoadFromEnvRejectsHTTPZepForDeployedPersonalMemory(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
-	setStagingPersonalMemoryEnv(t)
-	t.Setenv("QDRANT_URL", "http://qdrant:6333")
+	setStagingZepMemoryEnv(t)
+	t.Setenv("ZEP_BASE_URL", "http://zep:8000")
 
 	_, err := LoadFromEnv()
 	if err == nil {
-		t.Fatal("expected deployed personal memory to reject http Qdrant URL")
+		t.Fatal("expected deployed personal memory to reject http Zep URL")
 	}
-	if !strings.Contains(err.Error(), "QDRANT_URL must use https") {
+	if !strings.Contains(err.Error(), "ZEP_BASE_URL must use https") {
 		t.Fatalf("error = %v, want https diagnostic", err)
+	}
+}
+
+func TestLoadFromEnvRejectsRetiredQdrantPersonalMemoryEnv(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{"PERSONAL_MEMORY_COLLECTION", "personal_memory_v1"},
+		{"PERSONAL_MEMORY_TOP_K", "5"},
+		{"PERSONAL_MEMORY_MAX_CHARS", "1200"},
+		{"PERSONAL_MEMORY_SCORE_THRESHOLD", "0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(tc.name, tc.value)
+			if _, err := LoadFromEnv(); err == nil {
+				t.Fatalf("expected retired personal memory env %s to be rejected", tc.name)
+			} else if !strings.Contains(err.Error(), "is retired") {
+				t.Fatalf("error = %q, want retired env diagnostic", err.Error())
+			}
+		})
 	}
 }
 
@@ -423,7 +439,7 @@ func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
-	setStagingPersonalMemoryEnv(t)
+	setStagingZepMemoryEnv(t)
 
 	cfg, err := LoadFromEnv()
 	if err != nil {

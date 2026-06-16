@@ -353,9 +353,9 @@ assistant message 可以包含 `feedback`：
 - `value` 是用户声明的短文本偏好或目标，不能作为 ACL、serving surface 或 approval 权限来源
 - profile memory API 是 product/manual management surface；online chat hot path 不再由
   `app-api` 读取 PG memory rows 并全量注入 `ContextProjection.profile_memory.items`
-- 开启 profile memory 后，manual write path 必须同步到 execution-control / Qdrant
-  `personal_memory_v1` index，后续 online recall 由 `context.memory_recall` activity
-  按 top-k / char budget 选择 bounded memory context
+- 开启 profile memory 后，manual write path 必须同步到 execution-control internal Zep
+  memory command，后续 online recall 由 `context.memory_recall` activity 通过 Zep user
+  graph 选择 bounded memory context
 - 关闭 memory projection 后，后续 `memory.recall` 不得返回该用户的 active personal
   memory item；legacy `ContextProjection.profile_memory.items` 如仍存在于 DTO，只能为空或被
   execution side 忽略

@@ -11,6 +11,7 @@ export const APP_API_KNOWN_SCHEMAS = [
 	"official_web",
 	"operator",
 	"profile",
+	"provider_config",
 	"runtime",
 	"wechat_official_account",
 ];
@@ -22,6 +23,8 @@ export const ALTER_TABLE_ADD_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+COLUMN "([^"]+)"/i;
 export const ALTER_TABLE_DROP_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+DROP\s+COLUMN(?: IF EXISTS)? "([^"]+)"/i;
+export const ALTER_TABLE_DROP_COLUMN_DEFAULT_RE =
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ALTER\s+COLUMN "([^"]+)"\s+DROP\s+DEFAULT;?$/i;
 export const DROP_TABLE_RE = /^DROP TABLE(?: IF EXISTS)? "([^"]+)"\."([^"]+)";?$/i;
 export const ALTER_TABLE_RENAME_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+RENAME\s+COLUMN "([^"]+)" TO "([^"]+)";?$/i;
@@ -64,6 +67,7 @@ export function normalizePostgresIdentifier(identifier) {
 
 export function normalizeColumnSpec(columnSpec) {
 	return {
+		defaultValue: "default" in columnSpec ? columnSpec.default : null,
 		name: columnSpec.name,
 		notNull: Boolean(columnSpec.notNull),
 		primaryKey: Boolean(columnSpec.primaryKey),

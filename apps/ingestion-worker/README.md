@@ -430,6 +430,10 @@ lifecycle owner. If this recovery capability returns, rebuild it as an
 explicitly admitted ingestion-control recovery task with object-store inventory
 proof instead of restoring the Python CLI.
 
+Historical command override example:
+
+- `env/commands/historical/official-web-history-backfill.env.example`
+
 ### `campus_ingestion_worker.audit_collection_runtime_state`
 
 Read-only runtime audit shell for collection rename closeout.

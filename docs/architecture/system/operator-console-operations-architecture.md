@@ -163,9 +163,8 @@ online answer path. It is not a generic secrets vault.
 
 Accepted profile roles:
 
-- prompt: `primary_agent`, `rag_synthesis`, `personal_memory_extraction`
-- embedding: `rag_query_embedding`, `personal_memory_embedding`,
-  `index_embedding`
+- prompt: `primary_agent`, `rag_synthesis`
+- embedding: `rag_query_embedding`, `index_embedding`
 
 Accepted commands:
 
@@ -176,8 +175,8 @@ Accepted commands:
 - activate validated profile
 
 Embedding activation must fail closed when the configured model/dimensions are
-not compatible with active retrieval / memory vector dimensions. App-api performs
-that check by calling execution-control internal
+not compatible with active retrieval vector dimensions. App-api performs that
+check by calling execution-control internal
 `/internal/provider-config/embedding:check-compatibility` with candidate metadata
 only; raw API keys stay in app-api encrypted persistence and are not sent to the
 compatibility endpoint. The UI may show validation and activation errors, but it

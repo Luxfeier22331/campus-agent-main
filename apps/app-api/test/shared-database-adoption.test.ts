@@ -93,6 +93,14 @@ ADD COLUMN "run_intent" text NOT NULL DEFAULT 'baseline';`),
 		});
 		expect(
 			parseMigrationStatement(
+				'ALTER TABLE "profile"."memory_items" ALTER COLUMN "runtime_episode_uuid" DROP DEFAULT;',
+			),
+		).toMatchObject({
+			existsKey: "profile.memory_items:runtime_episode_uuid:default_dropped",
+			kind: "drop_column_default",
+		});
+		expect(
+			parseMigrationStatement(
 				'ALTER TABLE "runtime"."request_execution" RENAME COLUMN "old_capability" TO "selected_capability";',
 			),
 		).toMatchObject({

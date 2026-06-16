@@ -229,9 +229,8 @@ Summary shape:
 
 Accepted roles:
 
-- prompt: `primary_agent`, `rag_synthesis`, `personal_memory_extraction`
-- embedding: `rag_query_embedding`, `personal_memory_embedding`,
-  `index_embedding`
+- prompt: `primary_agent`, `rag_synthesis`
+- embedding: `rag_query_embedding`, `index_embedding`
 
 Rules:
 
@@ -268,7 +267,7 @@ Rules:
 - request body must not include raw API key
 - `rag_query_embedding` / `index_embedding` compatibility is checked against
   active query-serving RAG release metadata
-- `personal_memory_embedding` compatibility is checked against the
-  `personal_memory_v1` dense vector schema
+- personal memory has no embedding provider-config role; it is served by Zep
+  user graph runtime
 - incompatible or unsupported roles return `{ "ok": false, "reason": "..." }`
   and app-api activation fails closed

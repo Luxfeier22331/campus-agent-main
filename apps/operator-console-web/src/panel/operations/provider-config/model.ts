@@ -2,8 +2,6 @@ export type ProviderConfigKind = "embedding" | "prompt";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
 export type ProviderConfigRole =
 	| "index_embedding"
-	| "personal_memory_embedding"
-	| "personal_memory_extraction"
 	| "primary_agent"
 	| "rag_query_embedding"
 	| "rag_synthesis";

@@ -23,6 +23,7 @@ on:
           - authz-privacy
           - agentic-retrieval-plan
           - answer-quality-contract
+          - zep-memory-product-path
           - eval-operations-governance
           - quality-calibration
       reruns:

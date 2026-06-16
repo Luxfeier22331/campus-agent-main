@@ -84,11 +84,6 @@ func (s *Server) checkProviderConfigCompatibility(
 			return providerConfigCompatibilityResult{ok: false, reason: err.Error()}
 		}
 		return providerConfigCompatibilityResult{ok: true}
-	case providerConfigRolePersonalMemoryEmbedding:
-		if err := s.checkPersonalMemoryEmbeddingCompatibility(ctx, snapshot); err != nil {
-			return providerConfigCompatibilityResult{ok: false, reason: err.Error()}
-		}
-		return providerConfigCompatibilityResult{ok: true}
 	default:
 		return providerConfigCompatibilityResult{
 			ok:     false,
@@ -109,22 +104,6 @@ func (s *Server) checkRAGEmbeddingCompatibility(
 	})
 	if !ok {
 		return fmt.Errorf("rag lookup executor does not support provider compatibility checks")
-	}
-	return executor.CheckEmbeddingCompatibility(ctx, snapshot)
-}
-
-func (s *Server) checkPersonalMemoryEmbeddingCompatibility(
-	ctx context.Context,
-	snapshot providerConfigSnapshot,
-) error {
-	if s.personalMemoryErr != nil {
-		return s.personalMemoryErr
-	}
-	executor, ok := s.personalMemoryExecutor.(interface {
-		CheckEmbeddingCompatibility(context.Context, providerConfigSnapshot) error
-	})
-	if !ok {
-		return fmt.Errorf("personal memory executor does not support provider compatibility checks")
 	}
 	return executor.CheckEmbeddingCompatibility(ctx, snapshot)
 }

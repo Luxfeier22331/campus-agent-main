@@ -115,9 +115,9 @@ document/index release`
   RAG graph 仍为 `rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify`。
-- 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 self-hosted Qdrant
-  `personal_memory_v1` collection；app-api chat submit 不再读取 PG
-  `profile.memory_items` 并全量注入 `context.profile_memory`。
+- 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 Zep user graph；
+  app-api chat submit 不再读取 PG `profile.memory_items` 并全量注入
+  `context.profile_memory`。Qdrant 只承载 institutional RAG。
 - Step attempt evidence spine 已进入当前代码事实：`runtime.agent_step_attempts`、
   execution-control `/steps`、app-api operator summary 与 Operator Console
   trajectory 已承载 activity metadata、queue wait、duration、provider/model、

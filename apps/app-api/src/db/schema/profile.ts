@@ -14,6 +14,7 @@ export const profileMemoryItems = profile.table(
 		itemId: text("item_id").primaryKey(),
 		ownerUserId: text("owner_user_id").notNull(),
 		key: text("key").notNull(),
+		runtimeEpisodeUUID: text("runtime_episode_uuid").notNull(),
 		value: text("value").notNull(),
 		sourceType: text("source_type").notNull().default("user_declared"),
 		confidence: text("confidence").notNull().default("low"),

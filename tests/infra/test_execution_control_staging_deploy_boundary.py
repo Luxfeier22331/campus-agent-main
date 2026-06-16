@@ -181,9 +181,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
                 self.assertIn("execution_control_staging_require_deploy_checkout_clean", script)
 
     def test_start_reconciles_images_even_when_compose_project_is_running(self) -> None:
-        script = (STAGING_DIR / "start-execution-control-staging.sh").read_text(
-            encoding="utf-8"
-        )
+        script = (STAGING_DIR / "start-execution-control-staging.sh").read_text(encoding="utf-8")
 
         self.assertIn("reconciling images and containers", script)
         self.assertIn("execution_control_staging_compose up -d --build --remove-orphans", script)

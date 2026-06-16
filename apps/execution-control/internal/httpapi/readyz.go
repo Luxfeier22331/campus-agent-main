@@ -165,15 +165,17 @@ func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
 
 func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any {
 	status := map[string]any{
-		"collection":          defaultString(strings.TrimSpace(s.config.PersonalMemoryCollection), "personal_memory_v1"),
-		"configured":          s.personalMemoryExecutor != nil,
-		"data_plane":          "qdrant_native",
-		"healthy":             false,
-		"last_error":          "",
-		"online_recall_owner": "execution-control",
-		"query_key_role":      "read_only",
-		"top_k":               s.config.PersonalMemoryTopK,
-		"total_char_budget":   s.config.PersonalMemoryMaxChars,
+		"configured":              s.personalMemoryExecutor != nil,
+		"context_char_budget":     s.config.ZepRecallMaxChars,
+		"data_plane":              "zep_user_graph",
+		"healthy":                 false,
+		"last_error":              "",
+		"online_recall_owner":     "execution-control",
+		"project_salt_configured": zepProjectSaltConfigured(s.config),
+		"thread_owner":            "execution-control",
+		"raw_transcript_gate":     "sanitized_turn_append_only",
+		"zep_base_url_configured": strings.TrimSpace(s.config.ZepBaseURL) != "",
+		"zep_secret_configured":   strings.TrimSpace(s.config.ZepAPIKey) != "",
 	}
 	if s.personalMemoryErr != nil {
 		status["last_error"] = "personal memory executor could not be initialized"

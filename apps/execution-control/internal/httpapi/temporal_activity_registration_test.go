@@ -33,14 +33,16 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 
 	contextType := reflect.TypeOf(server.TemporalContextActivities())
 	for _, method := range []string{
-		"ExtractMemoryCandidatesActivity",
+		"AppendConversationMemoryActivity",
 		"MemoryRecallActivity",
 		"PlanRouteActivity",
-		"UpsertInferredMemoryActivity",
 	} {
 		if _, ok := contextType.MethodByName(method); !ok {
 			t.Fatalf("context activities missing %s", method)
 		}
+	}
+	if _, ok := contextType.MethodByName("UpdateInferredMemoryActivity"); ok {
+		t.Fatal("context activities still expose retired UpdateInferredMemoryActivity")
 	}
 	if _, ok := contextType.MethodByName("PlanRAGActivity"); ok {
 		t.Fatal("context activities expose knowledge method")

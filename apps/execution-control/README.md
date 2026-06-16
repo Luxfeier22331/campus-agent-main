@@ -275,7 +275,6 @@ export EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=local:activity-navi
 export EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=local:activity-finalization:001
 export QDRANT_URL=https://127.0.0.1:6333
 export QDRANT_QUERY_API_KEY=qdrant-local-readonly-secret
-export QDRANT_WRITE_API_KEY=qdrant-local-write-secret
 export QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
 export EMBEDDING_BASE_URL=https://api.openai.com/v1
 export EMBEDDING_API_KEY=

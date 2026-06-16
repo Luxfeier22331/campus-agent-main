@@ -16,12 +16,8 @@ type workflowTestActivityRegistrar interface {
 func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activities *Activities) {
 	env.RegisterActivityWithOptions(activities.MemoryRecallActivity, activity.RegisterOptions{Name: MemoryRecallActivityName})
 	env.RegisterActivityWithOptions(
-		activities.ExtractMemoryCandidatesActivity,
-		activity.RegisterOptions{Name: ExtractMemoryCandidatesActivityName},
-	)
-	env.RegisterActivityWithOptions(
-		activities.UpsertInferredMemoryActivity,
-		activity.RegisterOptions{Name: UpsertInferredMemoryActivityName},
+		activities.AppendConversationMemoryActivity,
+		activity.RegisterOptions{Name: AppendConversationMemoryActivityName},
 	)
 	env.RegisterActivityWithOptions(
 		activities.ExecutePrimaryAgentActivity,
@@ -61,36 +57,16 @@ func (Activities) MemoryRecallActivity(
 	}, nil
 }
 
-func (Activities) ExtractMemoryCandidatesActivity(
+func (Activities) AppendConversationMemoryActivity(
 	_ context.Context,
-	input ExtractMemoryCandidatesActivityInput,
-) (ExtractMemoryCandidatesActivityOutput, error) {
-	return ExtractMemoryCandidatesActivityOutput{
-		Candidates: []MemoryCandidate{{
-			Capability:  "any",
-			CompactText: "近期目标: 关注保研材料",
-			Confidence:  0.95,
-			MemoryID:    "inf_test_goal",
-			MemoryType:  "goal",
-			ReasonCode:  "explicit_long_term_goal",
-			SourceHash:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		}},
-		RunID:         input.RunID,
-		SchemaVersion: "memory_update_extract_result_v1",
-		Status:        "completed",
-	}, nil
-}
-
-func (Activities) UpsertInferredMemoryActivity(
-	_ context.Context,
-	input UpsertInferredMemoryActivityInput,
-) (UpsertInferredMemoryActivityOutput, error) {
-	return UpsertInferredMemoryActivityOutput{
-		PayloadSHA256: "memory-update-hash",
-		RunID:         input.RunID,
-		SchemaVersion: "memory_update_result_v1",
-		Status:        "completed",
-		UpsertedCount: len(input.Candidates),
+	input AppendConversationMemoryActivityInput,
+) (AppendConversationMemoryActivityOutput, error) {
+	return AppendConversationMemoryActivityOutput{
+		AppendedMessageCount: 2,
+		PayloadSHA256:        "memory-append-hash",
+		RunID:                input.RunID,
+		SchemaVersion:        "memory_conversation_append_result_v1",
+		Status:               "completed",
 	}, nil
 }
 

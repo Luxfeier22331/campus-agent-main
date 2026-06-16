@@ -27,20 +27,6 @@ func primaryAgentProviderConfigSnapshotForTest() providerConfigSnapshot {
 	}
 }
 
-func personalMemoryExtractionProviderConfigSnapshotForTest(baseURL string) providerConfigSnapshot {
-	return providerConfigSnapshot{
-		APIKey:    "sk-personal-memory-extraction",
-		BaseURL:   baseURL,
-		Model:     "gpt-test",
-		ProfileID: "provider_profile_personal_memory_extraction",
-		Provider:  "openai",
-		Revision:  3,
-		Role:      "personal_memory_extraction",
-		TimeoutMS: 30000,
-		Transport: "responses",
-	}
-}
-
 func embeddingProviderConfigSnapshotForTest(
 	role providerConfigRole,
 	baseURL string,

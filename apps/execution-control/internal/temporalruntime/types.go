@@ -38,55 +38,22 @@ type MemoryRecallActivityOutput struct {
 	Status              string `json:"status"`
 }
 
-type ExtractMemoryCandidatesActivityInput struct {
+type AppendConversationMemoryActivityInput struct {
 	RequestID           string `json:"request_id"`
 	RequestedCapability string `json:"requested_capability"`
 	RunID               string `json:"run_id"`
 	TraceID             string `json:"trace_id"`
 }
 
-type MemoryCandidate struct {
-	Capability       string  `json:"capability"`
-	CanonicalKey     string  `json:"canonical_key"`
-	CanonicalSubject string  `json:"canonical_subject"`
-	CompactText      string  `json:"compact_text"`
-	Confidence       float64 `json:"confidence"`
-	MemoryID         string  `json:"memory_id"`
-	MemoryType       string  `json:"memory_type"`
-	ReasonCode       string  `json:"reason_code"`
-	SourceHash       string  `json:"source_hash"`
-}
-
-type ExtractMemoryCandidatesActivityOutput struct {
-	Candidates     []MemoryCandidate `json:"candidates"`
-	RunID          string            `json:"run_id"`
-	SchemaVersion  string            `json:"schema_version"`
-	SkipReasons    []string          `json:"skip_reasons"`
-	SkippedCount   int               `json:"skipped_count"`
-	Status         string            `json:"status"`
-	CandidateCount int               `json:"candidate_count"`
-}
-
-type UpsertInferredMemoryActivityInput struct {
-	Candidates          []MemoryCandidate `json:"candidates"`
-	RequestID           string            `json:"request_id"`
-	RequestedCapability string            `json:"requested_capability"`
-	RunID               string            `json:"run_id"`
-	TraceID             string            `json:"trace_id"`
-}
-
-type UpsertInferredMemoryActivityOutput struct {
-	CreatedCount    int      `json:"created_count"`
-	MergedCount     int      `json:"merged_count"`
-	PayloadSHA256   string   `json:"payload_sha256"`
-	RefreshedCount  int      `json:"refreshed_count"`
-	RunID           string   `json:"run_id"`
-	SchemaVersion   string   `json:"schema_version"`
-	SkipReasons     []string `json:"skip_reasons"`
-	SkippedCount    int      `json:"skipped_count"`
-	Status          string   `json:"status"`
-	SupersededCount int      `json:"superseded_count"`
-	UpsertedCount   int      `json:"upserted_count"`
+type AppendConversationMemoryActivityOutput struct {
+	AppendedMessageCount int      `json:"appended_message_count"`
+	PayloadSHA256        string   `json:"payload_sha256"`
+	RunID                string   `json:"run_id"`
+	SchemaVersion        string   `json:"schema_version"`
+	SkipReasons          []string `json:"skip_reasons"`
+	SkippedCount         int      `json:"skipped_count"`
+	Status               string   `json:"status"`
+	ThreadID             string   `json:"thread_id,omitempty"`
 }
 
 type ExecutePrimaryAgentActivityInput struct {

@@ -221,8 +221,8 @@ Upsert 一个用户声明的 profile memory item。
 
 - 所有接口都要求 resolved session principal
 - memory item `key` 使用小写 typed key，并拒绝 authorization / permission / ACL 类 key
-- `profileMemory.enabled=false` 不删除已有 item，但 execution-control / Qdrant personal
+- `profileMemory.enabled=false` 不删除已有 item，但 execution-control / Zep personal
   memory recall 必须停止返回 active memory context
-- 删除 item 后，该 item 必须被同步 disable / remove from `personal_memory_v1` recall path；
-  不得再被 `context.memory_recall` 返回
+- 删除 item 后，该 item 必须被同步 delete from Zep episode / recall path；不得再被
+  `context.memory_recall` 返回
 - profile memory 不进入 authorization filter、serving surface、approval 或 tool permission

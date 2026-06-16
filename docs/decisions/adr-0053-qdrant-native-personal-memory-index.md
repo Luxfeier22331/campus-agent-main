@@ -3,17 +3,20 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0053
-status: accepted
+status: superseded
 created: 2026-06-10
 updated: 2026-06-16
 supersedes:
   - ADR-0015 memory ownership / confirmation / non-authz clauses
+superseded_by:
+  - ADR-0056 Zep-Native Personal Memory Plane
 ---
 # ADR-0053 Qdrant-Native Personal Memory Index
 
 ## 状态
 
-Accepted on 2026-06-10.
+Accepted on 2026-06-10. Superseded on 2026-06-16 by
+ADR-0056 Zep-Native Personal Memory Plane.
 
 ## 背景
 

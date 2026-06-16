@@ -55,8 +55,7 @@ combinations live in split environment references.
 ### Repo-root shared provider
 
 - Provider / system: OpenAI-compatible LLM provider
-  作用: primary agent / RAG synthesis 在线回答 provider profile、personal memory inferred
-  extraction provider profile，eval 默认 judge/ragas LLM
+  作用: primary agent / RAG synthesis 在线回答 provider profile、eval 默认 judge/ragas LLM
   主要 online owner: `apps/app-api` provider-config profile；Operator Console
   `/operations/provider-config` 创建、验证、激活
   主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `EXECUTION_PROMPT_MODEL`
@@ -64,21 +63,20 @@ combinations live in split environment references.
   放置位置: online serving 不再以 root `.env` 为真相；root `.env` 只用于 local seed /
   eval / command-scoped override
   何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
-  必须存在 active `rag_synthesis` profile；自动记忆抽取必须存在 active
-  `personal_memory_extraction` profile；live eval 仍可用 env override
+  必须存在 active `rag_synthesis` profile；live eval 仍可用 env override
   获取方式: 在所选供应商控制台创建项目级 API key；通过 Operator Console 写入 profile，不把 raw key
   写回 docs 或 repo-tracked env
 
 - Provider / system: Embedding provider
-  作用: ingestion 向量化、retrieval dense lane、personal memory、eval 默认 embeddings
+  作用: ingestion 向量化、retrieval dense lane、eval 默认 embeddings
   主要 online owner: `apps/app-api` provider-config profile；Operator Console
   `/operations/provider-config` 创建、验证、激活
   主要 env keys: `EMBEDDING_PROVIDER` `EMBEDDING_BASE_URL` `EMBEDDING_API_KEY`
   `EMBEDDING_MODEL` `EMBEDDING_DIMENSIONS`
-  放置位置: online retrieval / memory 不再以 root `.env` 为真相；root `.env` 只用于 ingestion
+  放置位置: online retrieval 不再以 root `.env` 为真相；root `.env` 只用于 ingestion
   / local seed / eval / command-scoped override
-  何时必需: indexing、retrieval、personal memory、eval embeddings；online query path 必须存在
-  active `rag_query_embedding` 与 `personal_memory_embedding` profile
+  何时必需: indexing、retrieval、eval embeddings；online query path 必须存在 active
+  `rag_query_embedding` profile
   获取方式: 当前 baseline 是 Gitee OpenAI-compatible embeddings；需在供应商控制台开通 embeddings
   服务并拿到 token / endpoint；online profile 激活前必须通过维度兼容检查
 
@@ -129,10 +127,14 @@ combinations live in split environment references.
 - Provider / system: Eval-only provider override
   作用: eval 独立预算 / 独立限流
   主要 env keys: `EVAL_LLM_*` `EVAL_EMBEDDING_*` `EVAL_LLM_TRANSPORT`
-  `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`
+  `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`；personal memory extraction live compare
+  额外通过 provider profiles manifest 的 `credential_ref=llm_provider` 指向 shared /
+  eval LLM provider credential
   放置位置: root `.env`
   何时必需: 只有 eval 不想复用 shared provider 时
-  获取方式: 在对应供应商控制台单独申请；默认不需要
+  获取方式: 在对应供应商控制台单独申请；默认不需要。manifest 只记录 credential role、
+  model、base URL 与 `required` gate 标记，不记录 raw API key，也不改变 online
+  serving active provider profile
 
 - Provider / system: FeedWe public WeChat article acquisition
   作用: `wechat_official_account` source channel 的公开公众号文章 acquisition

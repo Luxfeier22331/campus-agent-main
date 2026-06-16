@@ -176,6 +176,7 @@ class EvalGateTest(unittest.TestCase):
             "agentic-retrieval-plan",
             "public-chat-entry-e2e",
             "answer-quality-contract",
+            "zep-memory-product-path",
             "eval-operations-governance",
             "quality-calibration",
         )
@@ -193,6 +194,13 @@ class EvalGateTest(unittest.TestCase):
             run_eval_acceptance(
                 profile="multi-agent-product-path",
                 output_dir=Path("/tmp/multi-agent-product-path"),
+            )
+
+    def test_personal_memory_extraction_profile_is_retired(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+            run_eval_acceptance(
+                profile="personal-memory-extraction",
+                output_dir=Path("/tmp/personal-memory-extraction"),
             )
 
     def test_main_publish_defaults_to_dry_run_json_output(self) -> None:

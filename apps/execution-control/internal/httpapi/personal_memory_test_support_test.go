@@ -7,19 +7,14 @@ import (
 )
 
 type fakePersonalMemoryExecutor struct {
-	seenDisable      memoryruntime.DisableRequest
-	seenDisableOwner memoryruntime.DisableOwnerRequest
-	seenResolve      memoryruntime.ResolveCandidateRequest
-	seenRequest      memoryruntime.RecallRequest
-	seenUpsert       memoryruntime.UpsertRequest
-	resolveResult    memoryruntime.ResolveCandidateResult
+	seenAppend         memoryruntime.AppendConversationTurnRequest
+	seenOwnerDisable   memoryruntime.DisableProfileMemoryOwnerRequest
+	seenProfileDisable memoryruntime.DisableProfileMemoryItemRequest
+	seenProfileUpsert  memoryruntime.UpsertProfileMemoryItemRequest
+	seenRequest        memoryruntime.RecallRequest
 }
 
 func (f *fakePersonalMemoryExecutor) HealthCheck(context.Context) error {
-	return nil
-}
-
-func (f *fakePersonalMemoryExecutor) EnsureSchema(context.Context) error {
 	return nil
 }
 
@@ -45,48 +40,60 @@ func (f *fakePersonalMemoryExecutor) Recall(
 	}, nil
 }
 
-func (f *fakePersonalMemoryExecutor) Upsert(
+func (f *fakePersonalMemoryExecutor) AppendConversationTurn(
 	_ context.Context,
-	request memoryruntime.UpsertRequest,
-) (memoryruntime.UpsertResult, error) {
-	f.seenUpsert = request
-	return memoryruntime.NormalizeUpsertResult(request), nil
+	request memoryruntime.AppendConversationTurnRequest,
+) (memoryruntime.AppendConversationTurnResult, error) {
+	f.seenAppend = request
+	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
+		AppendedMessageCount: 2,
+		RunID:                request.RunID,
+		SchemaVersion:        "memory_conversation_append_result_v1",
+		Status:               "completed",
+		ThreadID:             request.ThreadID,
+		UserID:               request.UserID,
+	})
 }
 
-func (f *fakePersonalMemoryExecutor) ResolveCandidate(
+func (f *fakePersonalMemoryExecutor) UpsertProfileMemoryItem(
 	_ context.Context,
-	request memoryruntime.ResolveCandidateRequest,
-) (memoryruntime.ResolveCandidateResult, error) {
-	f.seenResolve = request
-	if f.resolveResult.Action != "" {
-		return f.resolveResult, nil
-	}
-	return memoryruntime.ResolveCandidateResult{Action: "create"}, nil
-}
-
-func (f *fakePersonalMemoryExecutor) Disable(
-	_ context.Context,
-	request memoryruntime.DisableRequest,
-) (memoryruntime.UpsertResult, error) {
-	f.seenDisable = request
-	return memoryruntime.UpsertResult{
+	request memoryruntime.UpsertProfileMemoryItemRequest,
+) (memoryruntime.ProfileMemoryItemResult, error) {
+	f.seenProfileUpsert = request
+	return memoryruntime.FinalizeProfileMemoryItemResult(memoryruntime.ProfileMemoryItemResult{
+		EpisodeUUID:   "episode-" + request.MemoryID,
 		MemoryID:      request.MemoryID,
-		PointID:       memoryruntime.PointID(request.UserID, request.MemoryID),
-		SchemaVersion: "personal_memory_upsert_result_v1",
-		Status:        "disabled",
+		SchemaVersion: "memory_profile_item_result_v1",
+		Status:        "active",
 		UpdatedAt:     request.UpdatedAt,
-	}, nil
+		UserID:        request.UserID,
+	})
 }
 
-func (f *fakePersonalMemoryExecutor) DisableOwner(
+func (f *fakePersonalMemoryExecutor) DeleteProfileMemoryItem(
 	_ context.Context,
-	request memoryruntime.DisableOwnerRequest,
-) (memoryruntime.DisableOwnerResult, error) {
-	f.seenDisableOwner = request
-	return memoryruntime.DisableOwnerResult{
-		SchemaVersion: "personal_memory_owner_disable_result_v1",
+	request memoryruntime.DisableProfileMemoryItemRequest,
+) (memoryruntime.ProfileMemoryItemResult, error) {
+	f.seenProfileDisable = request
+	return memoryruntime.FinalizeProfileMemoryItemResult(memoryruntime.ProfileMemoryItemResult{
+		EpisodeUUID:   request.EpisodeUUID,
+		MemoryID:      request.MemoryID,
+		SchemaVersion: "memory_profile_item_result_v1",
 		Status:        "disabled",
 		UpdatedAt:     request.UpdatedAt,
 		UserID:        request.UserID,
-	}, nil
+	})
+}
+
+func (f *fakePersonalMemoryExecutor) DeleteProfileMemoryOwner(
+	_ context.Context,
+	request memoryruntime.DisableProfileMemoryOwnerRequest,
+) (memoryruntime.ProfileMemoryOwnerDisableResult, error) {
+	f.seenOwnerDisable = request
+	return memoryruntime.FinalizeProfileMemoryOwnerDisableResult(memoryruntime.ProfileMemoryOwnerDisableResult{
+		SchemaVersion: "memory_profile_owner_disable_result_v1",
+		Status:        "disabled",
+		UpdatedAt:     request.UpdatedAt,
+		UserID:        request.UserID,
+	})
 }

@@ -90,13 +90,15 @@ type Config struct {
 	NoticeBodyObjectStoreBodyLimitBytes int64
 	QdrantURL                           string
 	QdrantQueryAPIKey                   string
-	QdrantWriteAPIKey                   string
 	QdrantTLSCACertPath                 string
 	QdrantTimeoutSeconds                float64
-	PersonalMemoryCollection            string
-	PersonalMemoryTopK                  int
-	PersonalMemoryMaxChars              int
-	PersonalMemoryScoreThreshold        float64
+	ZepBaseURL                          string
+	ZepAPIKey                           string
+	ZepProjectSalt                      string
+	ZepTimeoutSeconds                   float64
+	ZepRecallMaxChars                   int
+	ZepAssistantName                    string
+	ZepUserName                         string
 	EmbeddingProvider                   string
 	EmbeddingBaseURL                    string
 	EmbeddingAPIKey                     string
@@ -169,13 +171,15 @@ type envValues struct {
 	NoticeBodyObjectStoreBodyLimitBytes int64   `env:"EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
 	QdrantURL                           string  `env:"QDRANT_URL"`
 	QdrantQueryAPIKey                   string  `env:"QDRANT_QUERY_API_KEY"`
-	QdrantWriteAPIKey                   string  `env:"QDRANT_WRITE_API_KEY"`
 	QdrantTLSCACertPath                 string  `env:"QDRANT_TLS_CA_CERT_PATH"`
 	QdrantTimeoutSeconds                float64 `env:"QDRANT_TIMEOUT_SECONDS" envDefault:"10"`
-	PersonalMemoryCollection            string  `env:"PERSONAL_MEMORY_COLLECTION" envDefault:"personal_memory_v1"`
-	PersonalMemoryTopK                  int     `env:"PERSONAL_MEMORY_TOP_K" envDefault:"5"`
-	PersonalMemoryMaxChars              int     `env:"PERSONAL_MEMORY_MAX_CHARS" envDefault:"1200"`
-	PersonalMemoryScoreThreshold        float64 `env:"PERSONAL_MEMORY_SCORE_THRESHOLD" envDefault:"0"`
+	ZepBaseURL                          string  `env:"ZEP_BASE_URL" envDefault:"https://api.getzep.com"`
+	ZepAPIKey                           string  `env:"ZEP_API_KEY"`
+	ZepProjectSalt                      string  `env:"ZEP_PROJECT_SALT"`
+	ZepTimeoutSeconds                   float64 `env:"ZEP_TIMEOUT_SECONDS" envDefault:"10"`
+	ZepRecallMaxChars                   int     `env:"ZEP_RECALL_MAX_CHARS" envDefault:"2500"`
+	ZepAssistantName                    string  `env:"ZEP_ASSISTANT_NAME" envDefault:"校园助理"`
+	ZepUserName                         string  `env:"ZEP_USER_NAME" envDefault:"学生"`
 	EmbeddingProvider                   string  `env:"EMBEDDING_PROVIDER"`
 	EmbeddingBaseURL                    string  `env:"EMBEDDING_BASE_URL"`
 	EmbeddingAPIKey                     string  `env:"EMBEDDING_API_KEY"`
@@ -248,14 +252,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	personalMemoryTopK, err := readPositiveIntStrict("PERSONAL_MEMORY_TOP_K", values.PersonalMemoryTopK)
-	if err != nil {
-		return Config{}, err
-	}
-	personalMemoryMaxChars, err := readPositiveIntStrict(
-		"PERSONAL_MEMORY_MAX_CHARS",
-		values.PersonalMemoryMaxChars,
-	)
+	zepRecallMaxChars, err := readPositiveIntStrict("ZEP_RECALL_MAX_CHARS", values.ZepRecallMaxChars)
 	if err != nil {
 		return Config{}, err
 	}
@@ -271,15 +268,13 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err := rejectRetiredSupervisorSettings(); err != nil {
 		return Config{}, err
 	}
+	if err := rejectRetiredPersonalMemoryQdrantSettings(); err != nil {
+		return Config{}, err
+	}
 	if err := validateTemporalSettings(values, runtimeProfile); err != nil {
 		return Config{}, err
 	}
-	if err := validatePersonalMemorySettings(
-		values,
-		runtimeProfile,
-		embeddingDimensions,
-		runtimeRole,
-	); err != nil {
+	if err := validateZepMemorySettings(values, runtimeProfile, runtimeRole); err != nil {
 		return Config{}, err
 	}
 
@@ -357,13 +352,15 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		NoticeBodyObjectStoreBodyLimitBytes: values.NoticeBodyObjectStoreBodyLimitBytes,
 		QdrantURL:                           strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantQueryAPIKey:                   strings.TrimSpace(values.QdrantQueryAPIKey),
-		QdrantWriteAPIKey:                   strings.TrimSpace(values.QdrantWriteAPIKey),
 		QdrantTLSCACertPath:                 strings.TrimSpace(values.QdrantTLSCACertPath),
 		QdrantTimeoutSeconds:                values.QdrantTimeoutSeconds,
-		PersonalMemoryCollection:            defaultString(strings.TrimSpace(values.PersonalMemoryCollection), "personal_memory_v1"),
-		PersonalMemoryTopK:                  personalMemoryTopK,
-		PersonalMemoryMaxChars:              personalMemoryMaxChars,
-		PersonalMemoryScoreThreshold:        values.PersonalMemoryScoreThreshold,
+		ZepBaseURL:                          strings.TrimRight(strings.TrimSpace(values.ZepBaseURL), "/"),
+		ZepAPIKey:                           strings.TrimSpace(values.ZepAPIKey),
+		ZepProjectSalt:                      strings.TrimSpace(values.ZepProjectSalt),
+		ZepTimeoutSeconds:                   values.ZepTimeoutSeconds,
+		ZepRecallMaxChars:                   zepRecallMaxChars,
+		ZepAssistantName:                    strings.TrimSpace(values.ZepAssistantName),
+		ZepUserName:                         strings.TrimSpace(values.ZepUserName),
 		EmbeddingProvider:                   strings.TrimSpace(values.EmbeddingProvider),
 		EmbeddingBaseURL:                    strings.TrimRight(strings.TrimSpace(values.EmbeddingBaseURL), "/"),
 		EmbeddingAPIKey:                     strings.TrimSpace(values.EmbeddingAPIKey),
@@ -415,6 +412,9 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 	if values.QdrantTimeoutSeconds <= 0 {
 		return fmt.Errorf("QDRANT_TIMEOUT_SECONDS must be greater than zero")
 	}
+	if values.ZepTimeoutSeconds <= 0 {
+		return fmt.Errorf("ZEP_TIMEOUT_SECONDS must be greater than zero")
+	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("EXECUTION_CONTROL_OTEL_SAMPLE_RATIO must be a number between 0 and 1")
 	}
@@ -453,10 +453,9 @@ func validateTemporalSettings(values envValues, runtimeProfile string) error {
 	return nil
 }
 
-func validatePersonalMemorySettings(
+func validateZepMemorySettings(
 	values envValues,
 	runtimeProfile string,
-	embeddingDimensions int,
 	runtimeRole string,
 ) error {
 	if runtimeProfile == "local" {
@@ -464,35 +463,23 @@ func validatePersonalMemorySettings(
 	}
 	role := normalizeRuntimeRole(runtimeRole)
 	switch role {
-	case "workflow", "activity-agent", "activity-finalization", "activity-campus-services", "activity-notice", "activity-navigation":
+	case "workflow", "activity-agent", "activity-knowledge", "activity-finalization", "activity-campus-services", "activity-notice", "activity-navigation":
 		return nil
 	}
 	required := []struct {
 		name  string
 		value string
 	}{
-		{"QDRANT_URL", values.QdrantURL},
-		{"QDRANT_QUERY_API_KEY", values.QdrantQueryAPIKey},
-		{"QDRANT_TLS_CA_CERT_PATH", values.QdrantTLSCACertPath},
-		{"EMBEDDING_API_KEY", values.EmbeddingAPIKey},
-		{"EMBEDDING_MODEL", values.EmbeddingModel},
-	}
-	if role == "" || role == "execution-control" {
-		required = append(required, struct {
-			name  string
-			value string
-		}{"QDRANT_WRITE_API_KEY", values.QdrantWriteAPIKey})
+		{"ZEP_API_KEY", values.ZepAPIKey},
+		{"ZEP_BASE_URL", values.ZepBaseURL},
 	}
 	for _, item := range required {
 		if strings.TrimSpace(item.value) == "" {
-			return fmt.Errorf("%s is required for deployed personal memory recall", item.name)
+			return fmt.Errorf("%s is required for deployed Zep memory runtime", item.name)
 		}
 	}
-	if !strings.HasPrefix(strings.TrimSpace(values.QdrantURL), "https://") {
-		return fmt.Errorf("QDRANT_URL must use https for deployed personal memory recall")
-	}
-	if embeddingDimensions <= 0 {
-		return fmt.Errorf("EMBEDDING_DIMENSIONS must be a positive integer for deployed personal memory recall")
+	if !strings.HasPrefix(strings.TrimSpace(values.ZepBaseURL), "https://") {
+		return fmt.Errorf("ZEP_BASE_URL must use https for deployed Zep memory runtime")
 	}
 	return nil
 }
@@ -756,6 +743,21 @@ func rejectRetiredSupervisorSettings() error {
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
 			return fmt.Errorf("%s is retired; use EXECUTION_PROMPT_MODEL", name)
+		}
+	}
+	return nil
+}
+
+func rejectRetiredPersonalMemoryQdrantSettings() error {
+	retired := []string{
+		"PERSONAL_MEMORY_COLLECTION",
+		"PERSONAL_MEMORY_TOP_K",
+		"PERSONAL_MEMORY_MAX_CHARS",
+		"PERSONAL_MEMORY_SCORE_THRESHOLD",
+	}
+	for _, name := range retired {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return fmt.Errorf("%s is retired; personal memory uses Zep", name)
 		}
 	}
 	return nil

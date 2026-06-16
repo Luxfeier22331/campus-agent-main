@@ -58,6 +58,7 @@ export function makeInventory(input = {}) {
 				(table.columns ?? []).map((column) => [
 					column.name,
 					{
+						defaultValue: "defaultValue" in column ? column.defaultValue : null,
 						name: column.name,
 						notNull: Boolean(column.notNull),
 						primaryKey: Boolean(column.primaryKey),
@@ -199,7 +200,7 @@ export async function readDatabaseInventory(client) {
 		[APP_API_KNOWN_SCHEMAS],
 	);
 	const { rows: columnRows } = await client.query(
-		"select table_schema, table_name, column_name, data_type, is_nullable from information_schema.columns where table_schema = any($1::text[])",
+		"select table_schema, table_name, column_name, data_type, is_nullable, column_default from information_schema.columns where table_schema = any($1::text[])",
 		[APP_API_KNOWN_SCHEMAS],
 	);
 	const { rows: indexRows } = await client.query(
@@ -230,6 +231,7 @@ export async function readDatabaseInventory(client) {
 			continue;
 		}
 		table.columns.set(columnRow.column_name, {
+			defaultValue: columnRow.column_default ?? null,
 			name: columnRow.column_name,
 			notNull: columnRow.is_nullable === "NO",
 			primaryKey: false,

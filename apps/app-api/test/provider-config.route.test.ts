@@ -231,32 +231,21 @@ describe("operator provider config routes", () => {
 		});
 	});
 
-	it("exposes personal memory extraction as an active prompt provider role", async () => {
+	it("rejects retired personal memory provider roles", async () => {
 		const service = buildTestProviderConfigService();
 		const app = createApp(env, {
 			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
 			providerConfigService: service,
 		} as Parameters<typeof createApp>[1]);
-		const createResponse = await createProfile(
-			app,
-			promptProfilePayload({ role: "personal_memory_extraction" }),
-		);
-		const profileId = profileIdFromCreateResponse(await readJsonObject(createResponse));
-		await app.fetch(
-			new Request(
-				`https://app-api.internal/api/operator/provider-config/profiles/${profileId}/validate`,
-				{
-					method: "POST",
-				},
-			),
-		);
-		const activateResponse = await app.fetch(
-			new Request(
-				`https://app-api.internal/api/operator/provider-config/profiles/${profileId}/activate`,
-				{
-					method: "POST",
-				},
-			),
+		const createResponse = await app.fetch(
+			new Request("https://app-api.internal/api/operator/provider-config/profiles", {
+				body: JSON.stringify({
+					...promptProfilePayload({ role: "primary_agent" }),
+					role: "personal_memory_extraction",
+				}),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
 		);
 		const activeResponse = await app.fetch(
 			new Request(
@@ -267,16 +256,8 @@ describe("operator provider config routes", () => {
 			),
 		);
 
-		expect(activateResponse.status).toBe(200);
-		expect(activeResponse.status).toBe(200);
-		await expect(activeResponse.json()).resolves.toMatchObject({
-			profile: {
-				model: "gpt-test",
-				profile_id: profileId,
-				role: "personal_memory_extraction",
-				transport: "responses",
-			},
-		});
+		expect(createResponse.status).toBe(422);
+		expect(activeResponse.status).toBe(422);
 	});
 });
 

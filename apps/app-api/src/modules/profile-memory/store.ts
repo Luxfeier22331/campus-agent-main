@@ -16,6 +16,10 @@ type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 export interface ProfileMemoryStore {
 	deleteItem(input: { itemId: string; ownerUserId: string }): Promise<boolean>;
 	findItemIdByKey(input: { key: string; ownerUserId: string }): Promise<string | null>;
+	getItemRuntimeRef(input: {
+		itemId: string;
+		ownerUserId: string;
+	}): Promise<{ itemId: string; runtimeEpisodeUUID: string } | null>;
 	listByOwner(ownerUserId: string): Promise<ProfileMemoryList>;
 	listProjectionItems(input: { ownerUserId: string }): Promise<ProfileMemoryProjectionItem[]>;
 	loadSummary(input: { ownerUserId: string }): Promise<ProfileMemorySummary>;
@@ -24,6 +28,7 @@ export interface ProfileMemoryStore {
 		itemId: string;
 		key: string;
 		ownerUserId: string;
+		runtimeEpisodeUUID: string;
 		updatedAt: string;
 		value: string;
 	}): Promise<ProfileMemoryItem>;
@@ -102,6 +107,24 @@ export function createPgProfileMemoryStore(
 				)
 				.limit(1);
 			return rows[0]?.itemId ?? null;
+		},
+
+		async getItemRuntimeRef(input) {
+			const db = await getDb();
+			const rows = await db
+				.select({
+					itemId: profileMemoryItems.itemId,
+					runtimeEpisodeUUID: profileMemoryItems.runtimeEpisodeUUID,
+				})
+				.from(profileMemoryItems)
+				.where(
+					and(
+						eq(profileMemoryItems.ownerUserId, input.ownerUserId),
+						eq(profileMemoryItems.itemId, input.itemId),
+					),
+				)
+				.limit(1);
+			return rows[0] ?? null;
 		},
 
 		async listByOwner(ownerUserId) {
@@ -188,6 +211,7 @@ export function createPgProfileMemoryStore(
 				key: input.key,
 				lastVerifiedAt: new Date(input.updatedAt),
 				ownerUserId: input.ownerUserId,
+				runtimeEpisodeUUID: input.runtimeEpisodeUUID,
 				sourceType: "user_declared",
 				updatedAt: new Date(input.updatedAt),
 				value: input.value,
@@ -200,6 +224,7 @@ export function createPgProfileMemoryStore(
 					set: {
 						confidence: values.confidence,
 						lastVerifiedAt: values.lastVerifiedAt,
+						runtimeEpisodeUUID: values.runtimeEpisodeUUID,
 						sourceType: values.sourceType,
 						updatedAt: values.updatedAt,
 						value: values.value,

@@ -16,12 +16,10 @@ import (
 type providerConfigRole string
 
 const (
-	providerConfigRoleIndexEmbedding           providerConfigRole = "index_embedding"
-	providerConfigRolePrimaryAgent             providerConfigRole = "primary_agent"
-	providerConfigRolePersonalMemoryExtraction providerConfigRole = "personal_memory_extraction"
-	providerConfigRoleRAGSynthesis             providerConfigRole = "rag_synthesis"
-	providerConfigRoleRAGQueryEmbedding        providerConfigRole = "rag_query_embedding"
-	providerConfigRolePersonalMemoryEmbedding  providerConfigRole = "personal_memory_embedding"
+	providerConfigRoleIndexEmbedding    providerConfigRole = "index_embedding"
+	providerConfigRolePrimaryAgent      providerConfigRole = "primary_agent"
+	providerConfigRoleRAGSynthesis      providerConfigRole = "rag_synthesis"
+	providerConfigRoleRAGQueryEmbedding providerConfigRole = "rag_query_embedding"
 )
 
 type providerConfigSnapshot struct {
@@ -217,7 +215,7 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role provid
 
 func isEmbeddingProviderConfigRole(role providerConfigRole) bool {
 	switch role {
-	case providerConfigRoleIndexEmbedding, providerConfigRoleRAGQueryEmbedding, providerConfigRolePersonalMemoryEmbedding:
+	case providerConfigRoleIndexEmbedding, providerConfigRoleRAGQueryEmbedding:
 		return true
 	default:
 		return false

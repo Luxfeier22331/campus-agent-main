@@ -35,16 +35,16 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 291
-- Git tracked docs Markdown files: 268
-- Untracked docs Markdown files included: 0
-- Generated on: 2026-06-14
+- Current-worktree docs Markdown files: 292
+- Git tracked docs Markdown files: 291
+- Untracked docs Markdown files included: 1
+- Generated on: 2026-06-16
 
 ### By Directory Area
 
 - `reference`: 60
 - `runbooks`: 55
-- `decisions`: 52
+- `decisions`: 53
 - `contracts`: 42
 - `architecture`: 38
 - `data`: 21
@@ -58,7 +58,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 53
 - `runbook`: 48
-- `decision`: 47
+- `decision`: 48
 - `contract`: 34
 - `index`: 32
 - `architecture`: 31
@@ -70,7 +70,7 @@ class defined by `docs/documentation-architecture.md`.
 ### By `truth_scope`
 
 - `ops`: 87
-- `repository`: 68
+- `repository`: 69
 - `data`: 50
 - `product`: 21
 - `capability`: 15
@@ -81,7 +81,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 57
 - `operational_truth`: 49
-- `decision_record`: 47
+- `decision_record`: 48
 - `contract_truth`: 34
 - `reference_index`: 32
 - `supporting_architecture`: 22
@@ -96,7 +96,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `keep_executable_truth`: 51
 - `keep_ops_procedure`: 48
-- `preserve_adr`: 47
+- `preserve_adr`: 48
 - `keep_owner_truth`: 29
 - `keep_reference_truth`: 28
 - `keep_archive_historical`: 28
@@ -119,7 +119,7 @@ class defined by `docs/documentation-architecture.md`.
 - `public-chat-web`: 7
 - `qdrant`: 6
 - `student-handbook`: 5
-- `memory`: 4
+- `memory`: 5
 - `document-reader`: 4
 - `prompt`: 3
 - `temporal`: 2
@@ -1234,9 +1234,9 @@ class defined by `docs/documentation-architecture.md`.
 - `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
   - Title: ADR-0053 Qdrant-Native Personal Memory Index
   - Owner class: `decision_record`
-  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
   - Owner boundary: `docs/decisions`
-  - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=104`
+  - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=138`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 - `docs/decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md`
@@ -1245,6 +1245,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
   - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=75`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0056-zep-native-personal-memory-plane.md`
+  - Title: ADR-0056 Zep-Native Personal Memory Plane
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=memory`, `state=untracked`, `lines=79`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 

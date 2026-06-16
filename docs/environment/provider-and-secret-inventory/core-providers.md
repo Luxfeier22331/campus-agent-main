@@ -23,7 +23,6 @@ owns this section group; the original path remains the stable index.
 - 各 online prompt role 对应的可用模型名：
   - `primary_agent`
   - `rag_synthesis`
-  - `personal_memory_extraction`
 
 online serving owner：
 
@@ -31,9 +30,7 @@ online serving owner：
 - Operator Console `/operations/provider-config`
 - `execution-control` 通过
   `/api/internal/provider-config/active?role=primary_agent` 和
-  `/api/internal/provider-config/active?role=rag_synthesis` 以及
-  `/api/internal/provider-config/active?role=personal_memory_extraction`
-  读取 active runtime snapshot
+  `/api/internal/provider-config/active?role=rag_synthesis` 读取 active runtime snapshot
 
 默认 env 放置位置：
 
@@ -95,14 +92,12 @@ online serving owner：
 - `apps/app-api` provider-config profile
 - Operator Console `/operations/provider-config`
 - `execution-control` 通过
-  `/api/internal/provider-config/active?role=rag_query_embedding` 和
-  `/api/internal/provider-config/active?role=personal_memory_embedding`
-  读取 active runtime snapshot
+  `/api/internal/provider-config/active?role=rag_query_embedding` 读取 active runtime snapshot
 
 默认 env 放置位置：
 
 - ingestion / local seed / eval / command-scoped override 仍可用 root `.env`
-- online retrieval / personal memory recall 不再以 root `.env` 为 truth
+- online retrieval 不再以 root `.env` 为 truth
 
 相关键：
 
@@ -120,8 +115,7 @@ online serving owner：
 1. 在当前 embedding vendor 控制台开通 embeddings 服务，记录 `base_url`、API token 与模型名。
 1. 通过 Operator Console 创建 embedding profile，选择 role、base URL、model、API key 与
    dimensions。
-1. validate profile；activate 前 app-api 必须检查 active retrieval / memory vector dimensions
-   兼容性。
+1. validate profile；activate 前 app-api 必须检查 active retrieval vector dimensions 兼容性。
 1. 只有 ingestion、eval 或 local command 需要独立 provider 时，才额外填写 env
    `EMBEDDING_*` 或 `EVAL_EMBEDDING_*`。
 
@@ -133,10 +127,7 @@ online serving owner：
 
 - 上面这条链接只证明当前 vendor 存在官方 API 服务入口；具体 token 生成页面以供应商控制台当前 UI 为准
 - 如果要更换 retrieval baseline，不是只改 env；还要同步 ADR / policy / eval 基线
-- `personal_memory_extraction` 是 prompt role，服务 completed run 后置 inferred
-  memory structured extraction；它只产出候选，不能绕过 deterministic admission
-- `index_embedding` 面向 offline indexing；online query path 消费
-  `rag_query_embedding` 与 `personal_memory_embedding`
+- `index_embedding` 面向 offline indexing；online query path 消费 `rag_query_embedding`
 
 ## 3. Qdrant
 
@@ -163,8 +154,6 @@ online serving owner：
    例如 `https://127.0.0.1:6333`。
 1. online execution runtime 使用 read-only key 投影出的 `QDRANT_QUERY_API_KEY`，不得用
    admin `QDRANT_API_KEY` 查询。
-1. execution-control personal memory write path 使用 `QDRANT_WRITE_API_KEY`；staging
-   可暂时由 `STAGING_INGESTION_QDRANT_API_KEY` 投影，长期应拆为单独 write-capable key。
 1. 配置 `QDRANT_TLS_CA_CERT_PATH` 指向 ops-owned CA bundle，例如
    `/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`。
 1. 不把 `6333` / `6334` 直接暴露到公网。
@@ -181,7 +170,41 @@ online serving owner：
 - 当前不采用 Qdrant Cloud 作为 staging / early-production 默认方案；Cloud 相关旧方案已由
   ADR-0045 supersede
 
-## 4. Shared Postgres
+## 4. Zep
+
+Zep 是 personal memory 的唯一 runtime substrate，负责 per-user graph、memory extraction、
+dedupe / merge 与 graph search。Qdrant 不再承载 personal memory。
+
+相关键：
+
+- `ZEP_BASE_URL`
+- `ZEP_API_KEY`
+- `ZEP_PROJECT_SALT`
+- `ZEP_TIMEOUT_SECONDS`
+- `ZEP_RECALL_MAX_CHARS`
+- `ZEP_ASSISTANT_NAME`
+- `ZEP_USER_NAME`
+
+放置位置：
+
+- root `.env` / command env 仅用于 local dev 与 staging process injection
+- staging / production secret store 必须注入 `execution-control` 与 `activity-context`
+
+获取方式：
+
+1. 在 Zep 控制台或自托管 Zep 管理面创建项目与 API key。
+1. staging / production 配置 HTTPS `ZEP_BASE_URL`。
+1. 为每个环境配置稳定 `ZEP_PROJECT_SALT`，用于派生 scoped user id。
+1. 不把 Zep API key 写入 repo-tracked env、fixture、eval artifact 或 docs。
+
+说明：
+
+- `activity-knowledge` 不需要 Zep secret；它只消费 `context.memory_recall` 输出的 bounded
+  memory context。
+- `zep-memory-product-path` eval profile 验证 append、recall、explicit profile memory
+  upsert / disable、owner disable 与 user isolation。
+
+## 5. Shared Postgres
 
 当前 repo 同时存在两个姿态：
 

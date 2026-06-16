@@ -62,10 +62,10 @@ updated: 2026-06-09
 - conditional:
   - online prompt / embedding provider model/API key truth must already exist as
     active app-api provider-config profiles; do not hardcode them in
-    execution-control env.
-    Required prompt roles are `primary_agent`, `rag_synthesis` and
-    `personal_memory_extraction`; required online embedding roles are
-    `rag_query_embedding` and `personal_memory_embedding`.
+    execution-control env. Required prompt roles are `primary_agent` and
+    `rag_synthesis`; required online embedding role is `rag_query_embedding`.
+  - personal memory runtime requires `ZEP_BASE_URL`, `ZEP_API_KEY` and
+    `ZEP_PROJECT_SALT` for `execution-control` and `activity-context`.
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`
   - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、

@@ -87,47 +87,20 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 		nil,
 	)
 	env.OnActivity(
-		ExtractMemoryCandidatesActivityName,
+		AppendConversationMemoryActivityName,
 		mock.Anything,
-		mock.MatchedBy(func(input ExtractMemoryCandidatesActivityInput) bool {
+		mock.MatchedBy(func(input AppendConversationMemoryActivityInput) bool {
 			return input.RunID == "run-workflow-001" &&
 				input.TraceID == "trace-workflow-001" &&
 				input.RequestID == "req-workflow-001"
 		}),
 	).Return(
-		ExtractMemoryCandidatesActivityOutput{
-			Candidates: []MemoryCandidate{{
-				Capability:  "any",
-				CompactText: "近期目标: 关注保研材料",
-				Confidence:  0.95,
-				MemoryID:    "inf_goal_001",
-				MemoryType:  "goal",
-				ReasonCode:  "explicit_long_term_goal",
-				SourceHash:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			}},
-			RunID:         "run-workflow-001",
-			SchemaVersion: "memory_update_extract_result_v1",
-			Status:        "completed",
-		},
-		nil,
-	)
-	env.OnActivity(
-		UpsertInferredMemoryActivityName,
-		mock.Anything,
-		mock.MatchedBy(func(input UpsertInferredMemoryActivityInput) bool {
-			return input.RunID == "run-workflow-001" &&
-				input.TraceID == "trace-workflow-001" &&
-				input.RequestID == "req-workflow-001" &&
-				len(input.Candidates) == 1 &&
-				input.Candidates[0].MemoryID == "inf_goal_001"
-		}),
-	).Return(
-		UpsertInferredMemoryActivityOutput{
-			PayloadSHA256: "memory-update-hash",
-			RunID:         "run-workflow-001",
-			SchemaVersion: "memory_update_result_v1",
-			Status:        "completed",
-			UpsertedCount: 1,
+		AppendConversationMemoryActivityOutput{
+			AppendedMessageCount: 2,
+			PayloadSHA256:        "memory-append-hash",
+			RunID:                "run-workflow-001",
+			SchemaVersion:        "memory_conversation_append_result_v1",
+			Status:               "completed",
 		},
 		nil,
 	)

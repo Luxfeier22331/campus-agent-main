@@ -67,8 +67,8 @@ export interface ExecutionControlPersonalMemoryUpsertInput {
 }
 
 export interface ExecutionControlPersonalMemoryDisableInput {
+	episodeUUID: string;
 	memoryId: string;
-	tenantId?: string | null;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 	updatedAt: string;
@@ -84,8 +84,8 @@ export interface ExecutionControlPersonalMemoryDisableOwnerInput {
 }
 
 export interface ExecutionControlPersonalMemoryResult {
+	episodeUUID: string;
 	memoryId: string;
-	pointId: string;
 	schemaVersion: string;
 	status: string;
 	updatedAt: string;
@@ -336,8 +336,8 @@ export function createExecutionControlPersonalMemoryClient(
 		): Promise<ExecutionControlPersonalMemoryResult> {
 			const parsed = await requestExecutionControl("/internal/memory/personal/items:disable", {
 				body: {
+					episode_uuid: memoryInput.episodeUUID,
 					memory_id: memoryInput.memoryId,
-					tenant_id: memoryInput.tenantId ?? "",
 					updated_at: memoryInput.updatedAt,
 					user_id: memoryInput.userId,
 				},
@@ -353,18 +353,9 @@ export function createExecutionControlPersonalMemoryClient(
 		): Promise<ExecutionControlPersonalMemoryResult> {
 			const parsed = await requestExecutionControl("/internal/memory/personal/items:upsert", {
 				body: {
-					capability: "any",
-					canonical_key: buildPersonalMemoryCanonicalKey(memoryInput.canonicalSubject),
 					canonical_subject: memoryInput.canonicalSubject.trim(),
 					compact_text: memoryInput.compactText,
-					first_seen_at: memoryInput.updatedAt,
-					last_seen_at: memoryInput.updatedAt,
 					memory_id: memoryInput.memoryId,
-					memory_type: "profile",
-					reason_code: "explicit_preference",
-					source: "explicit",
-					source_hashes: [`manual:${memoryInput.memoryId}`],
-					status: "active",
 					tenant_id: memoryInput.tenantId ?? "",
 					updated_at: memoryInput.updatedAt,
 					user_id: memoryInput.userId,
@@ -377,10 +368,6 @@ export function createExecutionControlPersonalMemoryClient(
 			return parsePersonalMemoryResult(parsed);
 		},
 	};
-}
-
-function buildPersonalMemoryCanonicalKey(canonicalSubject: string): string {
-	return `profile:any:${canonicalSubject.trim().replace(/\s+/g, " ")}`;
 }
 
 function parsePersonalMemoryOwnerDisableResult(value: JsonRecord): {
@@ -629,8 +616,8 @@ function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTra
 
 function parsePersonalMemoryResult(payload: JsonRecord): ExecutionControlPersonalMemoryResult {
 	return {
+		episodeUUID: readRequiredString(payload, "episode_uuid"),
 		memoryId: readRequiredString(payload, "memory_id"),
-		pointId: readRequiredString(payload, "point_id"),
 		schemaVersion: readRequiredString(payload, "schema_version"),
 		status: readRequiredString(payload, "status"),
 		updatedAt: readRequiredString(payload, "updated_at"),

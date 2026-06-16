@@ -48,6 +48,10 @@ function createStore(): ProfileMemoryStore {
 	return {
 		deleteItem: vi.fn(async () => true),
 		findItemIdByKey: vi.fn(async () => null),
+		getItemRuntimeRef: vi.fn(async () => ({
+			itemId: "mem_01HQ",
+			runtimeEpisodeUUID: "episode_mem_01HQ",
+		})),
 		listByOwner: vi.fn(async () => ({ enabled: true, items: [] })),
 		listProjectionItems: vi.fn(async () => []),
 		loadSummary: vi.fn(async () => ({ enabled: true, itemCount: 0 })),
@@ -72,10 +76,12 @@ function createIndexer(): OwnerAwareProfileMemoryIndexer {
 			userId: "user_01HQ",
 		})),
 		disableExplicitMemory: vi.fn(async () => ({
+			episodeUUID: "episode_mem_01HQ",
 			memoryId: "mem_01HQ",
 			status: "disabled",
 		})),
 		upsertExplicitMemory: vi.fn(async () => ({
+			episodeUUID: "episode_mem_01HQ",
 			memoryId: "mem_01HQ",
 			status: "active",
 		})),
@@ -83,7 +89,7 @@ function createIndexer(): OwnerAwareProfileMemoryIndexer {
 }
 
 describe("profile memory service", () => {
-	it("normalizes and indexes user-declared memory before PG projection upsert", async () => {
+	it("normalizes and writes user-declared memory to Zep before PG projection upsert", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
@@ -110,6 +116,7 @@ describe("profile memory service", () => {
 			itemId: "mem_01HQ",
 			key: "answer_style",
 			ownerUserId: "user_01HQ",
+			runtimeEpisodeUUID: "episode_mem_01HQ",
 			updatedAt: "2026-04-27T08:00:00.000Z",
 			value: "先给 结论",
 		});
@@ -122,10 +129,10 @@ describe("profile memory service", () => {
 		});
 	});
 
-	it("does not write PG projection when Qdrant explicit memory indexing fails", async () => {
+	it("does not write PG projection when Zep explicit memory indexing fails", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
-		vi.mocked(indexer.upsertExplicitMemory).mockRejectedValueOnce(new Error("qdrant unavailable"));
+		vi.mocked(indexer.upsertExplicitMemory).mockRejectedValueOnce(new Error("zep unavailable"));
 		const service = buildProfileMemoryService({
 			generateId: () => "mem_01HQ",
 			memoryIndexer: indexer,
@@ -138,12 +145,12 @@ describe("profile memory service", () => {
 				principal: createPrincipal(),
 				value: "先给结论",
 			}),
-		).rejects.toThrow("qdrant unavailable");
+		).rejects.toThrow("zep unavailable");
 
 		expect(store.upsertUserDeclared).not.toHaveBeenCalled();
 	});
 
-	it("reuses the existing PG memory id for repeated key upsert before indexing Qdrant", async () => {
+	it("reuses the existing PG memory id for repeated key upsert before indexing Zep", async () => {
 		const store = createStore();
 		vi.mocked(store.findItemIdByKey).mockResolvedValueOnce("mem_existing");
 		const indexer = createIndexer();
@@ -168,12 +175,12 @@ describe("profile memory service", () => {
 			userId: "user_01HQ",
 		});
 		expect(store.upsertUserDeclared).toHaveBeenCalledWith(
-			expect.objectContaining({ itemId: "mem_existing" }),
+			expect.objectContaining({ itemId: "mem_existing", runtimeEpisodeUUID: "episode_mem_01HQ" }),
 		);
 		expect(result.item.itemId).toBe("mem_existing");
 	});
 
-	it("disables Qdrant memory before deleting PG projection", async () => {
+	it("deletes Zep episode before deleting PG projection", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
@@ -188,6 +195,7 @@ describe("profile memory service", () => {
 		});
 
 		expect(indexer.disableExplicitMemory).toHaveBeenCalledWith({
+			episodeUUID: "episode_mem_01HQ",
 			memoryId: "mem_01HQ",
 			updatedAt: "2026-04-27T09:00:00.000Z",
 			userId: "user_01HQ",
@@ -199,7 +207,7 @@ describe("profile memory service", () => {
 		expect(result).toEqual({ deleted: true });
 	});
 
-	it("does not delete PG projection when Qdrant memory disable fails", async () => {
+	it("does not delete PG projection when Zep memory disable fails", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		vi.mocked(indexer.disableExplicitMemory).mockRejectedValueOnce(new Error("disable failed"));
@@ -215,7 +223,7 @@ describe("profile memory service", () => {
 		expect(store.deleteItem).not.toHaveBeenCalled();
 	});
 
-	it("disables owner memory in Qdrant before disabling PG memory setting", async () => {
+	it("deletes Zep user graph before disabling PG memory setting", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
@@ -257,7 +265,7 @@ describe("profile memory service", () => {
 		expect(store.setEnabled).not.toHaveBeenCalled();
 	});
 
-	it("does not call Qdrant owner disable when enabling memory setting", async () => {
+	it("does not call Zep owner disable when enabling memory setting", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });

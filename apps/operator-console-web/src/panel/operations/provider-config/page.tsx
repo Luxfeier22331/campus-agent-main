@@ -24,8 +24,6 @@ const KIND_LABEL: Record<ProviderConfigKind, string> = {
 
 const ROLE_LABEL: Record<ProviderConfigRole, string> = {
 	index_embedding: "索引向量化",
-	personal_memory_extraction: "个人记忆抽取",
-	personal_memory_embedding: "个人记忆召回",
 	primary_agent: "主 Agent",
 	rag_query_embedding: "RAG 查询向量化",
 	rag_synthesis: "RAG 合成",
@@ -41,9 +39,7 @@ const STATUS_LABEL = {
 const ROLE_OPTIONS: Array<{ kind: ProviderConfigKind; role: ProviderConfigRole }> = [
 	{ kind: "prompt", role: "primary_agent" },
 	{ kind: "prompt", role: "rag_synthesis" },
-	{ kind: "prompt", role: "personal_memory_extraction" },
 	{ kind: "embedding", role: "rag_query_embedding" },
-	{ kind: "embedding", role: "personal_memory_embedding" },
 	{ kind: "embedding", role: "index_embedding" },
 ];
 

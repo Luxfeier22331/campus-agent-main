@@ -34,8 +34,6 @@ type Server struct {
 	workflowRunsErr        error
 	runProjectionStore     execution.RunProjectionStore
 	runProjectionStoreErr  error
-	memoryExtraction       memoryExtractionExecutor
-	memoryExtractionErr    error
 	personalMemoryExecutor personalMemoryExecutor
 	personalMemoryErr      error
 	ragLookupExecutor      ragLookupExecutor
@@ -71,18 +69,11 @@ func (a TemporalContextActivities) MemoryRecallActivity(
 	return a.server.MemoryRecallActivity(ctx, input)
 }
 
-func (a TemporalContextActivities) ExtractMemoryCandidatesActivity(
+func (a TemporalContextActivities) AppendConversationMemoryActivity(
 	ctx context.Context,
-	input temporalruntime.ExtractMemoryCandidatesActivityInput,
-) (temporalruntime.ExtractMemoryCandidatesActivityOutput, error) {
-	return a.server.ExtractMemoryCandidatesActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) UpsertInferredMemoryActivity(
-	ctx context.Context,
-	input temporalruntime.UpsertInferredMemoryActivityInput,
-) (temporalruntime.UpsertInferredMemoryActivityOutput, error) {
-	return a.server.UpsertInferredMemoryActivity(ctx, input)
+	input temporalruntime.AppendConversationMemoryActivityInput,
+) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+	return a.server.AppendConversationMemoryActivity(ctx, input)
 }
 
 func (a TemporalContextActivities) PlanRouteActivity(
@@ -266,7 +257,6 @@ func NewServerWithDependencies(
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
-	memoryExtraction, memoryExtractionErr := newMemoryExtractionExecutor(cfg, providerConfigResolver)
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
 	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg, providerConfigResolver)
 	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg, providerConfigResolver)
@@ -285,8 +275,6 @@ func NewServerWithDependencies(
 		workflowRunsErr:        workflowRunsErr,
 		runProjectionStore:     runProjectionStore,
 		runProjectionStoreErr:  runProjectionStoreErr,
-		memoryExtraction:       memoryExtraction,
-		memoryExtractionErr:    memoryExtractionErr,
 		personalMemoryExecutor: personalMemoryExecutor,
 		personalMemoryErr:      personalMemoryErr,
 		ragLookupExecutor:      ragLookupExecutor,
@@ -327,9 +315,9 @@ func newRAGLookupExecutor(
 
 func newPersonalMemoryExecutor(
 	cfg config.Config,
-	configResolver providerConfigResolver,
+	_ providerConfigResolver,
 ) (personalMemoryExecutor, error) {
-	return newQdrantPersonalMemoryExecutor(cfg, configResolver)
+	return newZepMemoryExecutor(cfg)
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
@@ -475,14 +463,18 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 			setOutcome(writer, "not_found")
 			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:upsert":
-		s.handlePersonalMemoryUpsert(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
-		s.handlePersonalMemoryDisable(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":
-		s.handlePersonalMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/provider-config/embedding:check-compatibility":
 		s.handleProviderConfigCompatibility(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:upsert":
+		s.handleProfileMemoryUpsert(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/turns:append":
+		s.handleProfileMemoryAppend(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:recall":
+		s.handleProfileMemoryRecall(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
+		s.handleProfileMemoryItemDisable(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":
+		s.handleProfileMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-guide":

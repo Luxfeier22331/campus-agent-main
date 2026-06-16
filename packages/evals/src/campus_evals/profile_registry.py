@@ -166,6 +166,15 @@ _PROFILE_DEFINITIONS = (
         "profile_report",
     ),
     EvalProfileDefinition(
+        "zep-memory-product-path",
+        "profile_gate",
+        1,
+        "zep-memory-product-path-gate-accept",
+        "profile_report",
+        supports_collect_runtime=True,
+        operations_profile_id="zep_memory_product_path",
+    ),
+    EvalProfileDefinition(
         "institutional-rules-release-baseline",
         "composite_gate",
         1,

@@ -60,8 +60,8 @@ eval / local command 默认共享 provider 真相来自：
 
 online serving 的 active provider truth 来自 app-api provider-config profile：
 
-- prompt roles: `primary_agent`、`rag_synthesis`、`personal_memory_extraction`
-- embedding roles: `rag_query_embedding`、`personal_memory_embedding`
+- prompt roles: `primary_agent`、`rag_synthesis`
+- embedding roles: `rag_query_embedding`
 - `index_embedding` 只服务 offline indexing / rebuild 语义
 
 只有当 eval 需要独立预算、独立限流或独立 provider 时，才单独下发：

@@ -19,9 +19,23 @@
 		{
 			"provider": "openai",
 			"model": "gpt-5.4",
-			"input_microusd_per_1k_tokens": 1250,
-			"cached_input_microusd_per_1k_tokens": 125,
-			"output_microusd_per_1k_tokens": 10000
+			"input_microusd_per_1k_tokens": 2500,
+			"cached_input_microusd_per_1k_tokens": 250,
+			"output_microusd_per_1k_tokens": 15000
+		},
+		{
+			"provider": "openai",
+			"model": "gpt-5.4-mini",
+			"input_microusd_per_1k_tokens": 750,
+			"cached_input_microusd_per_1k_tokens": 75,
+			"output_microusd_per_1k_tokens": 4500
+		},
+		{
+			"provider": "openai",
+			"model": "gpt-5.5",
+			"input_microusd_per_1k_tokens": 5000,
+			"cached_input_microusd_per_1k_tokens": 500,
+			"output_microusd_per_1k_tokens": 30000
 		}
 	]
 }
