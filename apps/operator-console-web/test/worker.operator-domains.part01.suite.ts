@@ -59,6 +59,52 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 								);
 							}
 
+							if (pathname === "/api/operator/runtime/health") {
+								return new Response(
+									JSON.stringify({
+										asOf: "2026-06-16T08:00:00.000Z",
+										executionRuntime: {
+											blockers: {},
+											checks: {
+												runProjectionStore: "ready",
+												temporalRuntime: "ready",
+											},
+											status: "ready",
+										},
+										runProjectionStore: {
+											configured: true,
+											healthy: true,
+											lastError: null,
+										},
+										status: "ready",
+										temporalRuntime: {
+											configured: true,
+											healthy: true,
+											lastError: null,
+											namespace: "campus-agent-staging",
+											requiredTaskQueues: ["campus-agent.workflow"],
+											taskQueueGate: "pollers_required",
+											taskQueuePollers: [
+												{
+													healthy: true,
+													name: "campus-agent.workflow",
+													pollers: 1,
+													type: "workflow",
+												},
+											],
+											workerId: "staging:workflow:01",
+											workflowTaskQueue: "campus-agent.workflow",
+										},
+									}),
+									{
+										headers: {
+											"content-type": "application/json; charset=utf-8",
+										},
+										status: 200,
+									},
+								);
+							}
+
 							if (pathname === "/api/operator/cost/timeseries") {
 								return new Response(
 									JSON.stringify({
@@ -266,6 +312,28 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 					},
 				});
 
+				const runtimeHealthResponse = await worker.fetch(
+					new Request("https://operator-console.example.com/api/operator/runtime/health", {
+						headers: {
+							"cf-access-jwt-assertion": token,
+						},
+					}),
+					workerEnv,
+				);
+				expect(runtimeHealthResponse.status).toBe(200);
+				await expect(runtimeHealthResponse.json()).resolves.toMatchObject({
+					executionRuntime: {
+						checks: {
+							temporalRuntime: "ready",
+						},
+						status: "ready",
+					},
+					temporalRuntime: {
+						namespace: "campus-agent-staging",
+						workflowTaskQueue: "campus-agent.workflow",
+					},
+				});
+
 				const costTimeseriesResponse = await worker.fetch(
 					new Request(
 						"https://operator-console.example.com/api/operator/cost/timeseries?window=24h&granularity=1h",
@@ -381,6 +449,7 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 
 				expect(forwardedUrls).toEqual([
 					"https://app-api.internal/api/operator/quality/summary?window=24h&surface=public_chat_web",
+					"https://app-api.internal/api/operator/runtime/health",
 					"https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h",
 					"https://app-api.internal/api/operator/audit?limit=10&requestId=req_01HQ&eventType=request.completed",
 					"https://app-api.internal/api/operator/quality/eval-candidates?status=open&causeClass=intent_classifier_mismatch",
@@ -389,6 +458,7 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 					"https://app-api.internal/api/operator/audit/aevt_01HQ",
 				]);
 				expect(forwardedOperatorEmails).toEqual([
+					"ops@example.com",
 					"ops@example.com",
 					"ops@example.com",
 					"ops@example.com",

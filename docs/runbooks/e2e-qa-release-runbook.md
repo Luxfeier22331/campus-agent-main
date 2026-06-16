@@ -209,9 +209,26 @@ pnpm --dir apps/operator-console-web access:smoke:staging \
 
 - 未认证 `/readyz` 返回 Cloudflare Access redirect
 - service token 访问 `/healthz` 与 `/readyz` 返回 `200`
-- service token 访问 `/api/overview` 返回 `401 Invalid Access JWT.`
+- service token 访问 Worker-local `/api/overview` 返回 `401 Invalid Access JWT.`
 
-该 smoke 只证明 Access envelope 可由 automation 到达，不代表 human operator identity。
+该 smoke 只证明 Access envelope 可由 automation 到达，不代表 human operator
+identity，也不证明当前 Operator Console domains 可用。
+
+使用 admitted human operator 登录后，至少检查当前 domain matrix：
+
+- Shell：panel shell loads after Cloudflare Access login
+- Overview：`/observability/overview` loads and calls `/api/operator/overview`
+- Runtime Health：overview runtime card calls `/api/operator/runtime/health`
+- Requests：`/requests` loads and calls `/api/requests`
+- Provider Config：`/operations/provider-config` loads and calls
+  `/api/operator/provider-config/profiles`
+- Official Web：`/officialWebSites` loads and calls `/api/official-web/sites`
+- Authenticated Notices：`/authenticatedNoticeProcessing` loads and calls
+  `/api/authenticated-notices/processing`
+- Dining Operations：`/operations/dining` loads and calls `/api/ops/dining/halls`
+
+以上证据可以是 browser automation report、network capture 摘要或截图加对应
+HTTP status 记录；不能用 service-token smoke 代替。
 
 ## 7. Browser QA
 
@@ -231,7 +248,8 @@ pnpm --dir apps/operator-console-web access:smoke:staging \
 - `https://operator-console-staging.mucwiki-edge.link`
   - 首次访问进入 Cloudflare Access
   - Access 登录后 panel shell 可加载
-  - Overview、Requests、Eval Coverage 页面可打开
+  - Overview、Runtime Health、Requests、Provider Config、Official Web、
+    Authenticated Notices 与 Dining Operations 当前域矩阵完成检查
 
 每个 surface 至少保存一份 screenshot 或可审计文字证据。console / network 明显错误必须记录。
 

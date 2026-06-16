@@ -80,13 +80,16 @@ debugging / analysis / grading`
 
 `Runtime Health` 的固定路径是：
 
-`operator browser -> operator console surface -> app-api /api/operator/runtime/health
--> execution-control /readyz projection`
+`operator browser -> operator console surface explicit proxy
+-> app-api /api/operator/runtime/health -> execution-control /readyz projection`
 
 规则：
 
 - Operator Console 不直接访问 `apps/execution-control`、Temporal service、
   Prometheus、Sentry、Axiom 或 PG。
+- Operator Console Worker 必须显式 allowlist proxy
+  `GET /api/operator/runtime/health`；不得通过 generic `/api/*` proxy 或浏览器直连
+  app-api 替代。
 - `app-api` 可以把 `execution-control /readyz` 的 200/503 structured payload 转成
   operator-safe runtime health projection；503 只表示执行平面明确报告 degraded，不表示前端可以绕过
   app-api 直接查基础设施。

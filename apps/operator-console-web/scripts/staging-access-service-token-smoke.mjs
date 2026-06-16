@@ -136,7 +136,7 @@ async function main() {
 			{
 				baseUrl: baseUrl.toString(),
 				checks: {
-					serviceTokenDoesNotGrantOperatorIdentity: {
+					serviceTokenDoesNotGrantLocalOperatorAdmission: {
 						status: operatorApi.status,
 					},
 					serviceTokenHealthz: {

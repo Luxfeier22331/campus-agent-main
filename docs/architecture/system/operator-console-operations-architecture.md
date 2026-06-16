@@ -56,8 +56,8 @@ operator browser
 
 - serve static assets
 - expose `GET /healthz`
-- proxy explicit `/api/ops/dining/*`
-- proxy explicit `/api/operator/provider-config/*`
+- proxy explicit `/api/ops/dining/*` operations routes
+- proxy explicit `/api/operator/provider-config/*` operations routes
 - reject unknown `/api/*`
 - reject `/api/federation/*`
 - does not proxy `/api/auth/*`
@@ -102,9 +102,10 @@ Accepted target routes:
 - `/notices`
 - `/services`
 
-Dining is the only complete first-batch operations workspace target. Map,
-feedback, knowledge, notices and services routes are placeholder shells to
-reserve information architecture, not implemented editors or API commitments.
+Dining and provider configuration are the current implemented operations
+workspace targets. Map, feedback, knowledge, notices and services routes are
+placeholder shells to reserve information architecture, not implemented editors
+or API commitments.
 
 Current `operator-console-web` implementation exposes the reserved route shell,
 the primary dining workspace route set and `/operations/provider-config`.
@@ -211,3 +212,11 @@ Staging acceptance for dining requires:
 - operator can publish an approved candidate and see the published release
 - `campus-web` reads updated published `/api/dining/*`
 - audit list shows editor/publisher action
+
+Staging acceptance for provider configuration requires:
+
+- unauthorized user cannot access provider configuration API
+- operator can list profiles without seeing raw provider API keys
+- operator can create or update a prompt/model provider profile
+- operator can validate a profile through `app-api`
+- operator can activate a validated profile

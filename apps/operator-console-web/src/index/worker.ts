@@ -91,6 +91,12 @@ const STATIC_PROXY_ROUTES = [
 	{
 		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
 		method: "GET",
+		path: "/api/operator/runtime/health",
+		targetPath: "/api/operator/runtime/health",
+	},
+	{
+		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
+		method: "GET",
 		path: "/api/operator/quality/summary",
 		targetPath: "/api/operator/quality/summary",
 	},

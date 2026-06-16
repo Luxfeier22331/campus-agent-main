@@ -40,11 +40,8 @@ sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
-`browser -> operator-console-web -> app-api -> request projection / operator read
-model`
-
-`browser -> operator-console-web -> app-api /api/ops/dining/* -> dining operations
-draft / release candidate / release / audit model`
+`browser -> operator-console-web explicit allowlist proxy -> app-api -> request
+projection / operator read model / operator-safe operations domains`
 
 这意味着：
 
@@ -119,11 +116,15 @@ draft / release candidate / release / audit model`
   - 长期是唯一受控 operator product concept，承接 read-only observability domains 与受控
     operations domains
   - 当前唯一 implementation surface 是 `operator-console-web`
-  - 当前已承接 `Requests`、`Official Web`、`Authenticated Notice Processing` 与 dining
-    operations workspace
-  - dining operations 仍只通过 allowlisted `/api/ops/dining/*` routes 消费
-    `apps/app-api`
-  - 更完整 `Audit`、其他 operations domains 与 runtime settings 仍属于后续 rollout，不应被写成当前
+  - 当前已承接 read-only observability、runtime health、`Requests`、`Official Web`、
+    `Authenticated Notice Processing`、dining operations workspace 与 provider
+    configuration
+  - 当前只通过 explicitly allowlisted `/api/operator/*`、`/api/requests*`、
+    `/api/official-web/*`、`/api/authenticated-notices/*` 与 `/api/ops/dining/*`
+    routes 消费 `apps/app-api`
+  - `apps/app-api` 已有 `campus-services` operator routes，但当前
+    `operator-console-web` 不承载 campus-services operations UI 或 proxy allowlist
+  - `Jobs` 与其他未接入 operations domains 仍属于后续 rollout，不应被写成当前
     merged truth
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend

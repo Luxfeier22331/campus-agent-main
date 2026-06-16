@@ -38,10 +38,11 @@ implementation surface 是 `apps/operator-console-web`。
 operator browser -> operator console operations surface -> app-api /api/ops/*
 ```
 
-当前 `operator-console-web` Worker 只允许显式 proxy 已实现的 `/api/ops/dining/*` route。它不开放
-generic `/api/*`，也不 proxy `/api/auth/*` 或 `/api/federation/*`。
+当前 `operator-console-web` Worker 只允许显式 proxy 已实现的 operations routes：
+`/api/ops/dining/*` 与 `/api/operator/provider-config/*`。它不开放 generic `/api/*`，
+也不 proxy `/api/auth/*` 或 `/api/federation/*`。
 
-同一个 Operator Console surface 还允许显式 proxy provider configuration routes：
+Provider configuration routes：
 
 - `GET /api/operator/provider-config/profiles`
 - `POST /api/operator/provider-config/profiles`

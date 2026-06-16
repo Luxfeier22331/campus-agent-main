@@ -19,10 +19,24 @@ Current shell scope:
 
 - `GET /healthz`
 - `GET /readyz`
-- `GET /` and protected SPA routes such as `/requests`
-- `GET /api/overview`
-- `GET /api/requests`
-- `GET /api/requests/:requestId`
+- `GET /` and protected SPA routes such as `/observability/overview`,
+  `/requests`, `/officialWebSites`, `/authenticatedNoticeProcessing`,
+  `/operations/dining`, and `/operations/provider-config`
+- Worker-local `GET /api/overview` for protected admission / operator-context
+  smoke only
+- explicit proxied operator observability routes such as
+  `GET /api/operator/overview`, `GET /api/operator/runtime/health`,
+  `GET /api/operator/quality/*`, `GET /api/operator/intent/*`,
+  `GET /api/operator/safety/*`, `GET /api/operator/cost/*`,
+  `GET /api/operator/evals/coverage`, and `GET /api/operator/audit*`
+- explicit proxied request projection routes under `/api/requests*`
+- explicit proxied official-web operator projection routes under
+  `/api/official-web/*`
+- explicit proxied authenticated-notice processing routes under
+  `/api/authenticated-notices/*`
+- explicit proxied dining operations routes under `/api/ops/dining/*`
+- explicit proxied provider configuration routes under
+  `/api/operator/provider-config/*`
 
 The root route and protected SPA routes now serve the `react-admin` shell once
 upstream operator admission, frontend assets, and the trusted panel-to-`app-api`
@@ -57,22 +71,31 @@ Long-term operator access assumptions:
   password reset, or profile management
 - dynamic HTML/API responses remain fail-closed and non-public-cache by default
 
-Long-term functional domains:
+Current functional domains:
 
-- `Overview`
-- `Requests`
-- `Jobs`
-- `Operations`
-- `Audit`
+- `Observability`: overview, runtime health, quality, eval coverage, intent,
+  safety, cost, and audit
+- `Requests`: request projection list/detail and request-level observability
+- `Official Web`: operator-safe official-web projections
+- `Authenticated Notice Processing`: operator-safe notice processing projections
+- `Operations`: dining operations and provider configuration
+- `Jobs`: delayed route shell
 
 Current rollout default:
 
-- `Overview` is implemented as the runtime and operator-context landing page
+- `Overview` is implemented as the operator observability landing page and
+  includes runtime health from `app-api /api/operator/runtime/health`
 - `Requests` is implemented as a request projection list/detail surface through
   `react-admin`
-- `Jobs` and `Operations` are delayed pending re-discussion
-- `Audit` currently remains a delayed route skeleton rather than a raw-log
+- `Official Web` is implemented as operator projection list/detail surfaces
+- `Authenticated Notice Processing` is implemented as operator-safe processing
+  projection list/detail surfaces
+- `Operations` currently includes dining operations and provider configuration
+- `Audit` is implemented as an operator-safe projection surface, not a raw-log
   viewer
+- `Jobs` remains a delayed route shell
+- `Campus Services Ops` routes exist in `apps/app-api`, but this Worker does
+  not currently expose a campus-services operations UI or proxy allowlist
 
 `Requests` is defined against `apps/app-api` owned request projection APIs. This
 app must not treat consumer chat persistence, raw audit logs, or telemetry sinks
@@ -113,7 +136,7 @@ Hostname mapping:
 
 Runtime bindings:
 
-- `APP_API` service binding for request projection list/detail queries
+- `APP_API` service binding for explicit operator domain proxy routes
 - `ASSETS` binding generated from the Vite client build
 
 Readiness expectations:
@@ -125,11 +148,13 @@ Readiness expectations:
   `panel-audience` are treated as not configured
 - `GET /readyz` also probes shared `app-api /readyz`; panel readiness is not
   green until shared runtime dependencies are actually ready
-- shell routes and `/api/overview` stay fail-closed until upstream admission,
-  the trusted `APP_API` bridge, and frontend assets are all configured
+- shell routes and Worker-local `/api/overview` stay fail-closed until upstream
+  admission, the trusted `APP_API` bridge, and frontend assets are all
+  configured
 - when admission config is missing or `OPERATOR_CONSOLE_PROTECTION_ENVELOPE` is
-  not `cloudflare-access`, the Worker fails closed for the shell and `/api/overview`
-  instead of exposing a partially Operator Console surface
+  not `cloudflare-access`, the Worker fails closed for the shell and
+  Worker-local `/api/overview` instead of exposing a partially Operator Console
+  surface
 - `pnpm deploy` now fails before publish if the generated Worker deploy config
   loses the required `APP_API` service binding
 - `pnpm deploy:staging` also fails before publish unless

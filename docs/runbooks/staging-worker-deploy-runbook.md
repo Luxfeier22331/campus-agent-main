@@ -731,10 +731,28 @@ pnpm --dir apps/operator-console-web access:smoke:staging
 
 - 不带 service token 的 `/readyz` 返回 Cloudflare Access redirect
 - 带 service token 的 `/healthz` 与 `/readyz` 返回 `200`
-- 带 service token 的 `/api/overview` 仍返回 `401 Invalid Access JWT.`
+- 带 service token 的 Worker-local `/api/overview` 仍返回 `401 Invalid Access
+  JWT.`
 
 最后一条是当前边界：Access service token 只证明 Operator Console envelope
-可由 automation 到达，不被投射为 human operator identity。
+可由 automation 到达，不被投射为 human operator identity，也不证明当前
+Operator Console domains 可用。
+
+使用 admitted human operator 登录后，至少检查当前 domain matrix：
+
+- Shell：panel shell loads after Cloudflare Access login
+- Overview：`/observability/overview` loads and calls `/api/operator/overview`
+- Runtime Health：overview runtime card calls `/api/operator/runtime/health`
+- Requests：`/requests` loads and calls `/api/requests`
+- Provider Config：`/operations/provider-config` loads and calls
+  `/api/operator/provider-config/profiles`
+- Official Web：`/officialWebSites` loads and calls `/api/official-web/sites`
+- Authenticated Notices：`/authenticatedNoticeProcessing` loads and calls
+  `/api/authenticated-notices/processing`
+- Dining Operations：`/operations/dining` loads and calls `/api/ops/dining/halls`
+
+这些检查可以由浏览器自动化或人工 operator session 完成；证据必须包含页面可见性与
+对应 API status。service-token smoke 不能替代 human operator domain smoke。
 
 ## Post-Deploy Verification
 
