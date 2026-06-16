@@ -165,17 +165,17 @@ func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
 
 func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any {
 	status := map[string]any{
-		"configured":              s.personalMemoryExecutor != nil,
-		"context_char_budget":     s.config.ZepRecallMaxChars,
-		"data_plane":              "zep_user_graph",
-		"healthy":                 false,
-		"last_error":              "",
-		"online_recall_owner":     "execution-control",
-		"project_salt_configured": zepProjectSaltConfigured(s.config),
-		"thread_owner":            "execution-control",
-		"raw_transcript_gate":     "sanitized_turn_append_only",
-		"zep_base_url_configured": strings.TrimSpace(s.config.ZepBaseURL) != "",
-		"zep_secret_configured":   strings.TrimSpace(s.config.ZepAPIKey) != "",
+		"configured":                 s.personalMemoryExecutor != nil,
+		"context_char_budget":        s.config.PersonalMemoryRecallMaxChars,
+		"data_plane":                 "zep_ce_self_host",
+		"healthy":                    false,
+		"last_error":                 "",
+		"online_recall_owner":        "execution-control",
+		"owner_salt_configured":      personalMemoryOwnerSaltConfigured(s.config),
+		"thread_owner":               "execution-control",
+		"raw_transcript_gate":        "sanitized_turn_append_only",
+		"zep_ce_base_url_configured": strings.TrimSpace(s.config.PersonalMemoryBaseURL) != "",
+		"zep_ce_secret_configured":   strings.TrimSpace(s.config.PersonalMemoryAPISecret) != "",
 	}
 	if s.personalMemoryErr != nil {
 		status["last_error"] = "personal memory executor could not be initialized"

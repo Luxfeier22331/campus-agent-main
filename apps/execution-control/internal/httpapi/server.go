@@ -313,13 +313,6 @@ func newRAGLookupExecutor(
 	return newQdrantRAGLookupExecutor(cfg, configResolver)
 }
 
-func newPersonalMemoryExecutor(
-	cfg config.Config,
-	_ providerConfigResolver,
-) (personalMemoryExecutor, error) {
-	return newZepMemoryExecutor(cfg)
-}
-
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
 	if strings.TrimSpace(cfg.TemporalAddress) == "" && strings.TrimSpace(cfg.TemporalNamespace) == "" {
 		return nil, temporalruntime.ErrTemporalStarterNotConfigured

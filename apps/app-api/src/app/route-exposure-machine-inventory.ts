@@ -32,6 +32,13 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "x-app-internal-auth; returns active provider runtime snapshot",
 	},
 	{
+		method: "ALL",
+		path: "/api/internal/provider-config/openai-compatible/:role/v1/*",
+		callerClass: "machine-internal",
+		admission:
+			"Authorization bearer APP_API_INTERNAL_SHARED_SECRET; proxies active provider profile",
+	},
+	{
 		method: "POST",
 		path: "/api/internal/operator/authenticated-notices/processing-snapshots",
 		callerClass: "machine-internal",

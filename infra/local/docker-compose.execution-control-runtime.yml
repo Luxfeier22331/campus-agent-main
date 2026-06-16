@@ -102,6 +102,129 @@ services:
     networks:
       - supervisor-runtime
 
+  zep-ce-postgres:
+    image: ankane/pgvector:v0.5.1
+    restart: unless-stopped
+    shm_size: "128mb"
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${ZEP_CE_POSTGRES_PASSWORD}
+    volumes:
+      - zep-ce-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - -q
+        - -d
+        - postgres
+        - -U
+        - postgres
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - supervisor-runtime
+
+  zep-ce-neo4j:
+    image: neo4j:5.22.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      NEO4J_AUTH: neo4j/${ZEP_CE_NEO4J_PASSWORD}
+    volumes:
+      - zep-ce-neo4j-data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - cypher-shell -u neo4j -p "$${NEO4J_AUTH#neo4j/}" "RETURN 1" >/dev/null
+      interval: 5s
+      timeout: 10s
+      retries: 24
+      start_period: 20s
+    networks:
+      - supervisor-runtime
+
+  zep-ce-graphiti:
+    image: zepai/graphiti:0.3
+    restart: unless-stopped
+    depends_on:
+      zep-ce-neo4j:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      OPENAI_API_KEY: ${ZEP_CE_OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${ZEP_CE_OPENAI_BASE_URL}
+      MODEL_NAME: ${ZEP_CE_MODEL_NAME:-gpt-4o-mini}
+      NEO4J_URI: bolt://zep-ce-neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${ZEP_CE_NEO4J_PASSWORD}
+      PORT: 8003
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8003/healthcheck')
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - supervisor-runtime
+
+  zep-ce-api:
+    image: ${ZEP_CE_API_IMAGE:-ghcr.io/getzep/zep:latest}
+    restart: unless-stopped
+    depends_on:
+      zep-ce-postgres:
+        condition: service_healthy
+      zep-ce-graphiti:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      ZEP_CONFIG_FILE: /app/zep.yaml
+      ZEP_CE_POSTGRES_PASSWORD: ${ZEP_CE_POSTGRES_PASSWORD}
+      PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
+    volumes:
+      - ./zep-ce/zep.yaml:/app/zep.yaml:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:8000/healthz || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - supervisor-runtime
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.127.0
     restart: unless-stopped
@@ -226,6 +349,9 @@ services:
       EXECUTION_CONTROL_EXECUTION_AUDIT_URL: ${EXECUTION_CONTROL_EXECUTION_AUDIT_URL:-}
       EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET: ${EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET:-}
       EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS: ${EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS:-500}
+      EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL: ${EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL}
+      EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET: ${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-1000}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
       EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: ${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL:-http://agent-runtime:27062}
       EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET: ${EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:?set EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET}
@@ -323,6 +449,8 @@ services:
     depends_on:
       temporal-namespace-setup:
         condition: service_completed_successfully
+      zep-ce-api:
+        condition: service_healthy
     security_opt:
       - no-new-privileges:true
     logging:
@@ -379,6 +507,9 @@ services:
       EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY}
       EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT: ${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?set EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT}
       EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}
+      EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL: ${EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL}
+      EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET: ${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-1000}
     networks:
       - supervisor-runtime
       - data-plane
@@ -414,13 +545,13 @@ services:
       EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY}
       EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT: ${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?set EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT}
       EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}
-      ZEP_BASE_URL: ${ZEP_BASE_URL:?set ZEP_BASE_URL}
-      ZEP_API_KEY: ${ZEP_API_KEY:?set ZEP_API_KEY}
-      ZEP_PROJECT_SALT: ${ZEP_PROJECT_SALT:?set ZEP_PROJECT_SALT}
-      ZEP_TIMEOUT_SECONDS: ${ZEP_TIMEOUT_SECONDS:-10}
-      ZEP_RECALL_MAX_CHARS: ${ZEP_RECALL_MAX_CHARS:-2500}
-      ZEP_ASSISTANT_NAME: ${ZEP_ASSISTANT_NAME:-校园助理}
-      ZEP_USER_NAME: ${ZEP_USER_NAME:-学生}
+      PERSONAL_MEMORY_RUNTIME: ${PERSONAL_MEMORY_RUNTIME:-zep_ce}
+      PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://zep-ce-api:8000}
+      PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
+      PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}
+      PERSONAL_MEMORY_TIMEOUT_SECONDS: ${PERSONAL_MEMORY_TIMEOUT_SECONDS:-10}
+      PERSONAL_MEMORY_RECALL_LIMIT: ${PERSONAL_MEMORY_RECALL_LIMIT:-8}
+      PERSONAL_MEMORY_RECALL_MAX_CHARS: ${PERSONAL_MEMORY_RECALL_MAX_CHARS:-2500}
     networks:
       - supervisor-runtime
 
@@ -455,6 +586,9 @@ services:
       EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY}
       EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT: ${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?set EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT}
       EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}
+      EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL: ${EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL}
+      EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET: ${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET}
+      EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-1000}
       PROMPT_RUNTIME_PROVIDER: ${PROMPT_RUNTIME_PROVIDER:-}
       PROMPT_RUNTIME_TRANSPORT: ${PROMPT_RUNTIME_TRANSPORT:-responses}
       PROMPT_RUNTIME_MODEL: ${PROMPT_RUNTIME_MODEL:-}
@@ -663,3 +797,5 @@ networks:
 
 volumes:
   temporal-postgres-data:
+  zep-ce-postgres-data:
+  zep-ce-neo4j-data:

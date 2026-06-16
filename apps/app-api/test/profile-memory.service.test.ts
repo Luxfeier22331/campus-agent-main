@@ -223,7 +223,7 @@ describe("profile memory service", () => {
 		expect(store.deleteItem).not.toHaveBeenCalled();
 	});
 
-	it("deletes Zep user graph before disabling PG memory setting", async () => {
+	it("deletes Zep CE runtime owner before disabling PG memory setting", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({

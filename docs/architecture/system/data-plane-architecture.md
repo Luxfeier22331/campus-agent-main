@@ -61,16 +61,19 @@ production posture 固定为 `self-hosted authenticated private data-plane over 
 
 ## Personal Memory Data Plane
 
-Personal memory 不再使用 self-hosted Qdrant collection。个人记忆 data plane 是 Zep user
-graph；Qdrant 只承载 institutional RAG / retrieval data plane。
+Personal memory 不再使用 self-hosted Qdrant collection。个人记忆 data plane 是 Zep CE
+self-host runtime；Qdrant 只承载 institutional RAG / retrieval data plane。
 
 固定边界：
 
 - personal memory graph 与 institutional RAG collection 隔离
-- online recall 使用 `ZEP_BASE_URL` / `ZEP_API_KEY`
+- online recall 使用 `PERSONAL_MEMORY_BASE_URL` / `PERSONAL_MEMORY_API_SECRET`
 - explicit profile memory upsert / disable / owner delete 通过 execution-control internal
-  Zep command 完成
-- staging / production 必须使用 HTTPS Zep endpoint
+  Zep CE command 完成
+- staging / production 必须使用 HTTPS Zep CE endpoint；local dev 可使用 compose 内网
+  `http://zep-ce-api:8000`
+- Graphiti、Neo4j、Postgres / pgvector 是 Zep CE runtime bundle 内部组件，不是
+  `campus-agent` data-plane contract
 - payload contract 由 `docs/architecture/system/memory-plane-architecture.md` 维护，不由
   institutional RAG release manifest 维护
 

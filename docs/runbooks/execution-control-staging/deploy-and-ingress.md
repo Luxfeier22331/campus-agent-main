@@ -156,12 +156,19 @@ staging 不应依赖 repo-root `.env.staging.local`。
   `QDRANT_QUERY_API_KEY`
 - `STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`；
   Qdrant certificate SAN 必须覆盖 `qdrant`、`localhost`、`127.0.0.1`
-- personal memory 使用 Zep。`start-execution-control-staging.sh` 会在启动
+- personal memory 使用 self-hosted Zep CE。`start-execution-control-staging.sh` 会在启动
   execution-control 前执行 Zep runtime check，并写出
   `personal-memory-runtime-install.json` / `personal-memory-runtime-check.json`
   evidence；`status-execution-control-staging.sh --check` 会要求
-  `/readyz.personal_memory_runtime.healthy=true`。必须配置 `ZEP_BASE_URL`、
-  `ZEP_API_KEY` 与 `ZEP_PROJECT_SALT`。
+  `/readyz.personal_memory_runtime.healthy=true`。必须配置
+  `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
+  `PERSONAL_MEMORY_OWNER_SALT`。
+- staging 不消费 `infra/local/.generated/zep-ce.env`。Zep CE bundle 内部的 Postgres /
+  Neo4j / Graphiti secret 必须来自 staging secret store；Graphiti 模型面必须与
+  app-api provider-config `memory_graph_llm` active profile 对齐。Graphiti
+  `OPENAI_BASE_URL` 应指向 app-api internal OpenAI-compatible proxy
+  `/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`，
+  `OPENAI_API_KEY` 使用 `APP_API_INTERNAL_SHARED_SECRET`。
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
   query-serving index release metadata 匹配。当前 staging baseline 固定为：
   - `STAGING_INGESTION_EMBEDDING_PROVIDER=gitee`

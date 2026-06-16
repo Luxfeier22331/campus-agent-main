@@ -111,12 +111,12 @@ func runRuntimeCommand(ctx context.Context, options runtimeOptions) (runtimeRepo
 	}
 
 	report := runtimeReport{
-		BaseURLConfigured: cfg.ZepBaseURL != "",
+		BaseURLConfigured: cfg.PersonalMemoryBaseURL != "",
 		GeneratedAt:       now.Format(time.RFC3339Nano),
 		Mode:              options.Mode,
 		Passed:            true,
 		RuntimeReady:      true,
-		Store:             "zep",
+		Store:             "zep_ce",
 	}
 	if err := writeRuntimeReport(options.EvidencePath, report); err != nil {
 		return runtimeReport{}, err

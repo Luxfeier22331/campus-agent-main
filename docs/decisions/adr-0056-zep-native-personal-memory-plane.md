@@ -9,7 +9,7 @@ updated: 2026-06-16
 supersedes:
   - adr-0053-qdrant-native-personal-memory-index
 ---
-# ADR-0056: Zep-Native Personal Memory Plane
+# ADR-0056: Zep CE Self-Hosted Personal Memory Plane
 
 ## Context
 
@@ -24,13 +24,14 @@ institutional RAG, but personal memory needs a user graph memory system.
 
 ## Decision
 
-Adopt Zep as the only personal memory substrate.
+Adopt self-hosted Zep CE as the only personal memory substrate.
 
-- `apps/execution-control` owns Zep runtime integration.
+- `apps/execution-control` owns Zep CE `/api/v2` HTTP integration.
 - Temporal keeps `MemoryRecallActivity` and adds completed-turn
   `AppendConversationMemoryActivity`.
 - app-api manual profile-memory product APIs call execution-control internal Zep
-  commands; app-api does not call Zep SDK or Qdrant directly.
+  commands; app-api does not call Zep CE API, Graphiti, Neo4j or Qdrant
+  directly.
 - PG `profile.memory_items` stores user-facing projection plus internal
   `runtime_episode_uuid`; browser responses do not expose the runtime ref.
 - Zep user id and thread id are execution-control-owned derived runtime ids:
@@ -47,6 +48,13 @@ Retired:
 - `PERSONAL_MEMORY_TOP_K`
 - `PERSONAL_MEMORY_MAX_CHARS`
 - `PERSONAL_MEMORY_SCORE_THRESHOLD`
+- `ZEP_BASE_URL`
+- `ZEP_API_KEY`
+- `ZEP_PROJECT_SALT`
+- `ZEP_TIMEOUT_SECONDS`
+- `ZEP_RECALL_MAX_CHARS`
+- `ZEP_ASSISTANT_NAME`
+- `ZEP_USER_NAME`
 - `UpdateInferredMemoryActivity`
 - provider-backed personal memory extraction eval/profile
 
@@ -55,17 +63,33 @@ Retired:
 `execution-control` and `activity-context` require:
 
 ```text
-ZEP_BASE_URL
-ZEP_API_KEY
-ZEP_PROJECT_SALT
-ZEP_TIMEOUT_SECONDS
-ZEP_RECALL_MAX_CHARS
-ZEP_ASSISTANT_NAME
-ZEP_USER_NAME
+PERSONAL_MEMORY_RUNTIME=zep_ce
+PERSONAL_MEMORY_BASE_URL
+PERSONAL_MEMORY_API_SECRET
+PERSONAL_MEMORY_OWNER_SALT
+PERSONAL_MEMORY_TIMEOUT_SECONDS
+PERSONAL_MEMORY_RECALL_LIMIT
+PERSONAL_MEMORY_RECALL_MAX_CHARS
 ```
 
 `activity-knowledge` does not require Zep config; it consumes bounded memory
 context after recall.
+
+Graphiti, Neo4j and Postgres / pgvector are Zep CE runtime bundle internals. They
+are deployed by local / staging infrastructure as part of Zep CE, but
+`campus-agent` code and contracts do not integrate with them directly.
+
+Graphiti's LLM model surface is still governed through app-api provider-config:
+the accepted prompt role is `memory_graph_llm`. Graphiti calls the app-api
+internal OpenAI-compatible proxy with `APP_API_INTERNAL_SHARED_SECRET`; the proxy
+reads the active profile and forwards to the real provider with the stored
+provider key. Zep-specific provider env is not product truth.
+
+Local development generates Zep CE bundle secrets in
+`infra/local/.generated/zep-ce.env`. This file is ignored by git and may contain
+Postgres / Neo4j local secrets. It must not contain provider API keys. Staging /
+production must use their ops-owned secret store; repo-local generated files are
+not valid deployment inputs.
 
 The repo-owned memory eval profile is `zep-memory-product-path`, which validates
 append, recall, explicit profile upsert/disable, owner disable and user

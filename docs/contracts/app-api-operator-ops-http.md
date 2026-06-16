@@ -229,7 +229,7 @@ Summary shape:
 
 Accepted roles:
 
-- prompt: `primary_agent`, `rag_synthesis`
+- prompt: `primary_agent`, `rag_synthesis`, `memory_graph_llm`
 - embedding: `rag_query_embedding`, `index_embedding`
 
 Rules:
@@ -252,6 +252,20 @@ GET /api/internal/provider-config/active?role=primary_agent
 Requires `x-app-internal-auth`. Response includes raw `api_key` and is only for
 machine-internal consumers such as `execution-control`; it is not browser-facing.
 
+Internal OpenAI-compatible proxy:
+
+```text
+POST /api/internal/provider-config/openai-compatible/:role/v1/responses
+POST /api/internal/provider-config/openai-compatible/:role/v1/chat/completions
+```
+
+Requires `Authorization: Bearer <APP_API_INTERNAL_SHARED_SECRET>`. The route reads
+the active provider-config profile for `:role`, overwrites the request body
+`model` with the active profile model, forwards to the profile `base_url`, and
+uses the active profile API key upstream. It exists for internal runtimes such as
+Zep CE / Graphiti that require an OpenAI-compatible endpoint while provider truth
+remains in app-api provider-config. Browser clients must not call this proxy.
+
 Embedding compatibility request:
 
 ```text
@@ -268,6 +282,8 @@ Rules:
 - `rag_query_embedding` / `index_embedding` compatibility is checked against
   active query-serving RAG release metadata
 - personal memory has no embedding provider-config role; it is served by Zep
-  user graph runtime
+  user graph runtime. Zep CE / Graphiti LLM consumption uses the prompt role
+  `memory_graph_llm`; retired `personal_memory_extraction` profiles remain
+  invalid.
 - incompatible or unsupported roles return `{ "ok": false, "reason": "..." }`
   and app-api activation fails closed

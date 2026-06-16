@@ -23,6 +23,7 @@ owns this section group; the original path remains the stable index.
 - 各 online prompt role 对应的可用模型名：
   - `primary_agent`
   - `rag_synthesis`
+  - `memory_graph_llm`
 
 online serving owner：
 
@@ -31,6 +32,9 @@ online serving owner：
 - `execution-control` 通过
   `/api/internal/provider-config/active?role=primary_agent` 和
   `/api/internal/provider-config/active?role=rag_synthesis` 读取 active runtime snapshot
+- Zep CE / Graphiti model consumption 使用 `memory_graph_llm` active profile；Graphiti
+  指向 app-api internal OpenAI-compatible proxy，proxy 再读取 active profile 并转发到真实
+  provider
 
 默认 env 放置位置：
 
@@ -170,12 +174,43 @@ online serving owner：
 - 当前不采用 Qdrant Cloud 作为 staging / early-production 默认方案；Cloud 相关旧方案已由
   ADR-0045 supersede
 
-## 4. Zep
+## 4. Zep CE
 
-Zep 是 personal memory 的唯一 runtime substrate，负责 per-user graph、memory extraction、
-dedupe / merge 与 graph search。Qdrant 不再承载 personal memory。
+Zep CE 是 personal memory 的唯一 runtime substrate，负责 per-user graph、memory
+extraction、dedupe / merge 与 graph search。Qdrant 不再承载 personal memory。
+`campus-agent` 只消费 Zep CE `/api/v2`；Graphiti、Neo4j、Postgres / pgvector 是 Zep CE
+runtime bundle 内部组件。
 
-相关键：
+当前键：
+
+- `PERSONAL_MEMORY_RUNTIME=zep_ce`
+- `PERSONAL_MEMORY_BASE_URL`
+- `PERSONAL_MEMORY_API_SECRET`
+- `PERSONAL_MEMORY_OWNER_SALT`
+- `PERSONAL_MEMORY_TIMEOUT_SECONDS`
+- `PERSONAL_MEMORY_RECALL_LIMIT`
+- `PERSONAL_MEMORY_RECALL_MAX_CHARS`
+
+local generated Zep CE runtime bundle keys：
+
+- `infra/local/.generated/zep-ce.env`
+- `ZEP_CE_POSTGRES_PASSWORD`
+- `ZEP_CE_NEO4J_PASSWORD`
+
+这些键只服务 local compose 内部 bundle。它们不是 repo top-level `.env` contract；staging /
+production 应由部署 secret store 注入等价值。
+
+Graphiti OpenAI-compatible projection：
+
+- `ZEP_CE_OPENAI_BASE_URL`：派生为 app-api internal proxy
+  `/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`
+- `ZEP_CE_OPENAI_API_KEY`：派生自 `APP_API_INTERNAL_SHARED_SECRET`
+
+这两个键是 compose projection，不是 provider secret truth。真实 provider base URL、model
+与 API key 必须来自 `memory_graph_llm` provider-config active profile，不能恢复 repo-owned
+`personal_memory_extraction` prompt。
+
+退休键，存在时必须 fail closed：
 
 - `ZEP_BASE_URL`
 - `ZEP_API_KEY`
@@ -192,10 +227,14 @@ dedupe / merge 与 graph search。Qdrant 不再承载 personal memory。
 
 获取方式：
 
-1. 在 Zep 控制台或自托管 Zep 管理面创建项目与 API key。
-1. staging / production 配置 HTTPS `ZEP_BASE_URL`。
-1. 为每个环境配置稳定 `ZEP_PROJECT_SALT`，用于派生 scoped user id。
-1. 不把 Zep API key 写入 repo-tracked env、fixture、eval artifact 或 docs。
+1. 部署 self-hosted Zep CE API 及其 runtime bundle。
+1. local dev 运行 `infra/local/start-execution-control-runtime.sh`，脚本会生成
+   `infra/local/.generated/zep-ce.env` 并注入 Zep CE 内部 bundle secret。
+1. staging / production 为 Zep CE 配置稳定 `PERSONAL_MEMORY_API_SECRET`。
+1. staging / production 配置 HTTPS `PERSONAL_MEMORY_BASE_URL`；local dev 可以使用
+   compose 内网 `http://zep-ce-api:8000`。
+1. 为每个环境配置稳定 `PERSONAL_MEMORY_OWNER_SALT`，用于派生 scoped user id。
+1. 不把 Zep CE API secret 写入 repo-tracked env、fixture、eval artifact 或 docs。
 
 说明：
 

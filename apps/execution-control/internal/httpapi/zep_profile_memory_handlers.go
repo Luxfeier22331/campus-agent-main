@@ -34,7 +34,7 @@ func (s *Server) handleProfileMemoryUpsert(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
-	ctx, cancel := contextWithZepTimeout(s, request)
+	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.UpsertProfileMemoryItem(ctx, input)
 	if err != nil {
@@ -71,7 +71,7 @@ func (s *Server) handleProfileMemoryAppend(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
-	ctx, cancel := contextWithZepTimeout(s, request)
+	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.AppendConversationTurn(ctx, input)
 	if err != nil {
@@ -108,7 +108,7 @@ func (s *Server) handleProfileMemoryRecall(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
-	ctx, cancel := contextWithZepTimeout(s, request)
+	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.Recall(ctx, input)
 	if err != nil {
@@ -155,7 +155,7 @@ func (s *Server) handleProfileMemoryItemDisable(response http.ResponseWriter, re
 	if !ok {
 		return
 	}
-	ctx, cancel := contextWithZepTimeout(s, request)
+	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.DeleteProfileMemoryItem(ctx, input)
 	if err != nil {
@@ -192,7 +192,7 @@ func (s *Server) handleProfileMemoryOwnerDisable(response http.ResponseWriter, r
 	if !ok {
 		return
 	}
-	ctx, cancel := contextWithZepTimeout(s, request)
+	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.DeleteProfileMemoryOwner(ctx, input)
 	if err != nil {
@@ -220,8 +220,8 @@ func (s *Server) profileMemoryExecutorForCommand(
 	return s.personalMemoryExecutor, true
 }
 
-func contextWithZepTimeout(s *Server, request *http.Request) (context.Context, context.CancelFunc) {
-	timeout := time.Duration(s.config.ZepTimeoutSeconds * float64(time.Second))
+func contextWithPersonalMemoryTimeout(s *Server, request *http.Request) (context.Context, context.CancelFunc) {
+	timeout := time.Duration(s.config.PersonalMemoryTimeoutSeconds * float64(time.Second))
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}

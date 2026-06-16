@@ -8,6 +8,7 @@ compose_project_name="${EXECUTION_CONTROL_RUNTIME_COMPOSE_PROJECT_NAME:-campus-e
 compose_parallel_limit="${EXECUTION_CONTROL_RUNTIME_COMPOSE_PARALLEL_LIMIT:-1}"
 api_host_port="${EXECUTION_CONTROL_HOST_PORT:-27051}"
 data_plane_network="${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}"
+generated_zep_ce_env="${repo_root}/infra/local/.generated/zep-ce.env"
 
 require_command() {
   local command_name="$1"
@@ -30,6 +31,13 @@ ensure_data_plane_network() {
   fi
 }
 
+ensure_local_zep_ce_secrets() {
+  local node_bin
+
+  node_bin="$(require_command node)"
+  "${node_bin}" "${repo_root}/infra/local/scripts/ensure-zep-ce-secrets.mjs" >/dev/null
+}
+
 load_runtime_env() {
   local env_key
   local env_value
@@ -39,10 +47,10 @@ load_runtime_env() {
   while IFS= read -r -d '' env_key && IFS= read -r -d '' env_value; do
     export "${env_key}=${env_value}"
   done < <(
-    "${node_bin}" - "${repo_root}/.env" "${repo_root}/apps/app-api/.dev.vars" <<'NODE'
-const [repoEnvPath, appApiDevVarsPath] = process.argv.slice(2);
+    "${node_bin}" - "${repo_root}/.env" "${repo_root}/apps/app-api/.dev.vars" "${generated_zep_ce_env}" <<'NODE'
+const [repoEnvPath, appApiDevVarsPath, generatedZepCeEnvPath] = process.argv.slice(2);
 
-for (const filePath of [repoEnvPath, appApiDevVarsPath]) {
+for (const filePath of [repoEnvPath, appApiDevVarsPath, generatedZepCeEnvPath]) {
   try {
     process.loadEnvFile(filePath);
   } catch (error) {
@@ -93,7 +101,9 @@ const keys = [
   "TEMPORAL_UI_HOST_PORT",
   "AUDIT_LOG_PATH",
   "AUDIT_QUEUE_CAPACITY",
+  "APP_API_INTERNAL_BASE_URL",
   "APP_API_INTERNAL_SHARED_SECRET",
+  "APP_API_BASE_URL",
   "EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS",
   "EXECUTION_CONTROL_QUEUE_CAPACITY",
   "EXECUTION_CONTROL_QUEUE_TIMEOUT_MS",
@@ -104,6 +114,9 @@ const keys = [
   "EXECUTION_CONTROL_EXECUTION_AUDIT_URL",
   "EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET",
   "EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS",
+  "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL",
+  "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
+  "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
   "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
   "EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE",
   "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",
@@ -153,6 +166,19 @@ const keys = [
   "SPARSE_MODEL",
   "SPARSE_TOKENIZER",
   "SPARSE_LANGUAGE",
+  "PERSONAL_MEMORY_RUNTIME",
+  "PERSONAL_MEMORY_BASE_URL",
+  "PERSONAL_MEMORY_API_SECRET",
+  "PERSONAL_MEMORY_OWNER_SALT",
+  "PERSONAL_MEMORY_TIMEOUT_SECONDS",
+  "PERSONAL_MEMORY_RECALL_LIMIT",
+  "PERSONAL_MEMORY_RECALL_MAX_CHARS",
+  "ZEP_CE_POSTGRES_PASSWORD",
+  "ZEP_CE_NEO4J_PASSWORD",
+  "ZEP_CE_OPENAI_API_KEY",
+  "ZEP_CE_OPENAI_BASE_URL",
+  "ZEP_CE_MODEL_NAME",
+  "ZEP_CE_API_IMAGE",
 ];
 
 function projectLocalServiceDns(value, serviceName) {
@@ -198,12 +224,28 @@ const agentRuntimeSharedSecret =
   process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET?.trim() ||
   process.env.AGENT_RUNTIME_SHARED_SECRET?.trim() ||
   "agent-runtime-local-placeholder";
+const appApiInternalBaseUrl =
+  process.env.EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL?.trim() ||
+  process.env.APP_API_INTERNAL_BASE_URL?.trim() ||
+  process.env.APP_API_BASE_URL?.trim() ||
+  "http://host.docker.internal:27031";
+const appApiInternalSharedSecret =
+  process.env.EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET?.trim() ||
+  process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() ||
+  "";
 
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
 resolved.set("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", internalQuerySharedSecret);
 resolved.set("AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET", agentRuntimeExecutionControlSharedSecret);
 resolved.set("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
 resolved.set("AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
+resolved.set("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL", appApiInternalBaseUrl.replace(/\/+$/, ""));
+if (appApiInternalSharedSecret) {
+  resolved.set("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET", appApiInternalSharedSecret);
+}
+if (!resolved.get("EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS")) {
+  resolved.set("EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "1000");
+}
 if (!resolved.get("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL")) {
   resolved.set("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062");
 }
@@ -252,6 +294,36 @@ if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY")) {
     "local:activity-finalization:001",
   );
 }
+if (!resolved.get("PERSONAL_MEMORY_RUNTIME")) {
+  resolved.set("PERSONAL_MEMORY_RUNTIME", "zep_ce");
+}
+if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
+  resolved.set("PERSONAL_MEMORY_BASE_URL", "http://zep-ce-api:8000");
+}
+if (!resolved.get("PERSONAL_MEMORY_TIMEOUT_SECONDS")) {
+  resolved.set("PERSONAL_MEMORY_TIMEOUT_SECONDS", "10");
+}
+if (!resolved.get("PERSONAL_MEMORY_RECALL_LIMIT")) {
+  resolved.set("PERSONAL_MEMORY_RECALL_LIMIT", "8");
+}
+if (!resolved.get("PERSONAL_MEMORY_RECALL_MAX_CHARS")) {
+  resolved.set("PERSONAL_MEMORY_RECALL_MAX_CHARS", "2500");
+}
+if (!resolved.get("ZEP_CE_OPENAI_BASE_URL")) {
+  resolved.set(
+    "ZEP_CE_OPENAI_BASE_URL",
+    `${resolved.get("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL")}/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`,
+  );
+}
+if (!resolved.get("ZEP_CE_OPENAI_API_KEY") && resolved.get("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET")) {
+  resolved.set("ZEP_CE_OPENAI_API_KEY", resolved.get("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"));
+}
+if (!resolved.get("ZEP_CE_MODEL_NAME")) {
+  resolved.set("ZEP_CE_MODEL_NAME", "gpt-4o-mini");
+}
+if (!resolved.get("ZEP_CE_API_IMAGE")) {
+  resolved.set("ZEP_CE_API_IMAGE", "ghcr.io/getzep/zep:latest");
+}
 
 for (const [key, value] of resolved.entries()) {
   let outputValue = value;
@@ -263,6 +335,10 @@ for (const [key, value] of resolved.entries()) {
     outputValue = projectLocalServiceDns(value, "minio");
   } else if (key === "QDRANT_URL") {
     outputValue = projectLocalServiceDns(value, "qdrant");
+  } else if (key === "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL") {
+    outputValue = projectLocalServiceDns(value, "host.docker.internal");
+  } else if (key === "ZEP_CE_OPENAI_BASE_URL") {
+    outputValue = projectLocalServiceDns(value, "host.docker.internal");
   }
   process.stdout.write(`${key}\0${outputValue}\0`);
 }
@@ -295,12 +371,21 @@ execution_control_runtime_require_runtime_env() {
     echo "QDRANT_TLS_DIR is required for mounting Qdrant TLS trust material." >&2
     return 1
   fi
+  if [[ -z "${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
+    echo "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET or APP_API_INTERNAL_SHARED_SECRET is required for provider-config runtime access." >&2
+    return 1
+  fi
+  if [[ -z "${ZEP_CE_OPENAI_API_KEY:-}" ]]; then
+    echo "ZEP_CE_OPENAI_API_KEY could not be derived from APP_API_INTERNAL_SHARED_SECRET." >&2
+    return 1
+  fi
 }
 
 main() {
   local docker_bin
 
   docker_bin="$(require_command docker)"
+  ensure_local_zep_ce_secrets
   load_runtime_env
   execution_control_runtime_require_runtime_env
   ensure_data_plane_network

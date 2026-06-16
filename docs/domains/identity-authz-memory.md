@@ -72,7 +72,7 @@ memory boundaries are owned by the architecture documents listed above.
 后续 memory / personalization productization 的落地顺序固定为：
 
 1. `execution-control` / Temporal 拥有 online `memory.recall` step。
-2. Zep user graph 承接 personal memory retrieval / extraction / graph storage；PG profile
+2. Zep CE runtime 承接 personal memory retrieval / extraction / graph storage；PG profile
    memory 只保留为 manual product projection / migration source。
 3. `app-api` chat hot path 不读取 PG profile memory 并全量注入
    `context.profile_memory`。

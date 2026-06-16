@@ -51,6 +51,28 @@ function hasMatchingStagingSmokeAuthSecret(
 	return timingSafeEqual(expectedBytes, providedBytes);
 }
 
+function hasMatchingInternalBearerSecret(
+	request: Request,
+	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
+): boolean {
+	const expected = normalizeHeaderValue(env.APP_API_INTERNAL_SHARED_SECRET);
+	const authorization = normalizeHeaderValue(request.headers.get("authorization"));
+	const provided = authorization?.toLowerCase().startsWith("bearer ")
+		? authorization.slice("bearer ".length).trim()
+		: null;
+	if (!(expected && provided)) {
+		return false;
+	}
+
+	const expectedBytes = Buffer.from(expected);
+	const providedBytes = Buffer.from(provided);
+	if (expectedBytes.length !== providedBytes.length) {
+		return false;
+	}
+
+	return timingSafeEqual(expectedBytes, providedBytes);
+}
+
 function readStringField(payload: Record<string, unknown>, fieldName: string): string | null {
 	const value = payload[fieldName];
 	return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -131,6 +153,61 @@ function collectExecutionAuditRequestIds(payload: Record<string, unknown>): stri
 	return [...requestIds];
 }
 
+function providerConfigProxyError(input: {
+	code: string;
+	message: string;
+	status: number;
+}): Response {
+	return routeErrorResponse(
+		new AppApiRouteError({
+			code: input.code,
+			message: input.message,
+			retryable: false,
+			status: input.status,
+		}),
+	);
+}
+
+async function readProviderProxyJsonBody(request: Request): Promise<Record<string, unknown>> {
+	const payload = await readJsonRequestBody(request);
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		throw new AppApiRouteError({
+			code: "invalid_provider_proxy_request",
+			message: "Provider proxy request body must be a JSON object.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	return payload as Record<string, unknown>;
+}
+
+function openAiCompatibleTargetUrl(input: {
+	baseUrl: string;
+	requestUrl: string;
+	role: string;
+}): string | null {
+	const requestUrl = new URL(input.requestUrl);
+	const prefix = `/api/internal/provider-config/openai-compatible/${input.role}/v1/`;
+	if (!requestUrl.pathname.startsWith(prefix)) {
+		return null;
+	}
+	const upstreamPath = requestUrl.pathname.slice(prefix.length);
+	if (!upstreamPath) {
+		return null;
+	}
+	const baseUrl = input.baseUrl.replace(/\/+$/, "");
+	return `${baseUrl}/${upstreamPath}${requestUrl.search}`;
+}
+
+function responseHeadersFromProvider(providerResponse: Response): Headers {
+	const headers = new Headers();
+	const contentType = providerResponse.headers.get("content-type");
+	if (contentType) {
+		headers.set("content-type", contentType);
+	}
+	return headers;
+}
+
 export function registerInternalRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
@@ -141,6 +218,60 @@ export function registerInternalRoutes(input: {
 		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 	}) => void;
 }) {
+	input.app.all("/api/internal/provider-config/openai-compatible/:role/v1/*", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalBearerSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		try {
+			const role = c.req.param("role");
+			const { profile } = await scope.resolveProviderConfigService().getActiveRuntimeSnapshot({
+				role,
+			});
+			if (profile.transport === "embeddings") {
+				return providerConfigProxyError({
+					code: "provider_proxy_role_not_prompt",
+					message: "Provider proxy role must be a prompt provider role.",
+					status: 422,
+				});
+			}
+			const targetUrl = openAiCompatibleTargetUrl({
+				baseUrl: profile.base_url,
+				requestUrl: c.req.url,
+				role,
+			});
+			if (!targetUrl) {
+				return providerConfigProxyError({
+					code: "invalid_provider_proxy_path",
+					message: "Provider proxy path is invalid.",
+					status: 404,
+				});
+			}
+			const payload = await readProviderProxyJsonBody(c.req.raw);
+			const providerResponse = await fetch(targetUrl, {
+				body: JSON.stringify({
+					...payload,
+					model: profile.model,
+				}),
+				headers: {
+					authorization: `Bearer ${profile.api_key}`,
+					"content-type": "application/json",
+				},
+				method: c.req.method,
+			});
+			return new Response(providerResponse.body, {
+				headers: responseHeadersFromProvider(providerResponse),
+				status: providerResponse.status,
+			});
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
+	});
+
 	input.app.get("/api/internal/provider-config/active", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {

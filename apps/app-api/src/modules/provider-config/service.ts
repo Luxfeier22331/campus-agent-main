@@ -30,7 +30,11 @@ export interface ProviderConfigServiceDependencies {
 	validators?: Partial<ProviderConfigValidators>;
 }
 
-const PROMPT_ROLES = new Set<PromptProviderRole>(["primary_agent", "rag_synthesis"]);
+const PROMPT_ROLES = new Set<PromptProviderRole>([
+	"memory_graph_llm",
+	"primary_agent",
+	"rag_synthesis",
+]);
 const EMBEDDING_ROLES = new Set<EmbeddingProviderRole>(["index_embedding", "rag_query_embedding"]);
 const DEFAULT_TIMEOUT_MS = 30_000;
 

@@ -384,7 +384,7 @@ payload 或 provider raw response。
 - online personal memory 不再由 `app-api` 读取 PG `profile.memory_items` 后全量注入
   `context.profile_memory.items`。`app-api` 只提供 actor/session/request context；
   `execution-control` 在 `CapabilityExecutionWorkflow` 的 `context.memory_recall`
-  step 中调用 Zep user graph，生成 bounded `MemoryContextPacket` /
+  step 中调用 Zep CE runtime，生成 bounded `MemoryContextPacket` /
   memory projection refs。legacy `profile_memory` 字段如仍出现在 generated DTO 或历史
   fixture 中，只能解释为 ignored / legacy compatibility residue，不得作为 active
   online recall truth 或目标 contract 扩展点。
