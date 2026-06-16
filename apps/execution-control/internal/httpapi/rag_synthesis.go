@@ -31,7 +31,7 @@ type ragSynthesisExecutor interface {
 }
 
 type providerBackedRAGSynthesisExecutor struct {
-	clientFactory func(providerConfigSnapshot) *provider.ResponsesClient
+	clientFactory  func(providerConfigSnapshot) *provider.ResponsesClient
 	configResolver providerConfigResolver
 	pricing        provider.PricingCatalog
 }

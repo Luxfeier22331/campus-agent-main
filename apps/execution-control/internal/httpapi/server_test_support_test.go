@@ -90,6 +90,13 @@ func (readyPersonalMemoryExecutor) Upsert(
 	return memoryruntime.NormalizeUpsertResult(request), nil
 }
 
+func (readyPersonalMemoryExecutor) ResolveCandidate(
+	context.Context,
+	memoryruntime.ResolveCandidateRequest,
+) (memoryruntime.ResolveCandidateResult, error) {
+	return memoryruntime.ResolveCandidateResult{Action: "create"}, nil
+}
+
 func (readyPersonalMemoryExecutor) Disable(
 	_ context.Context,
 	request memoryruntime.DisableRequest,

@@ -100,6 +100,7 @@ describe("profile memory service", () => {
 		});
 
 		expect(indexer.upsertExplicitMemory).toHaveBeenCalledWith({
+			canonicalSubject: "answer_style",
 			compactText: "answer_style: 先给 结论",
 			memoryId: "mem_01HQ",
 			updatedAt: "2026-04-27T08:00:00.000Z",
@@ -160,6 +161,7 @@ describe("profile memory service", () => {
 		});
 
 		expect(indexer.upsertExplicitMemory).toHaveBeenCalledWith({
+			canonicalSubject: "answer_style",
 			compactText: "answer_style: 先给结论",
 			memoryId: "mem_existing",
 			updatedAt: "2026-04-27T08:00:00.000Z",

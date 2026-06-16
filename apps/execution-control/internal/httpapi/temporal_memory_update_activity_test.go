@@ -11,6 +11,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -61,11 +62,12 @@ func TestExtractMemoryCandidatesActivityExtractsExplicitUserGoal(t *testing.T) {
 		}
 		encoded, err := json.Marshal(map[string]any{
 			"memory_candidates": []map[string]any{{
-				"capability":   "any",
-				"compact_text": "近期目标: 关注保研材料",
-				"confidence":   0.95,
-				"memory_type":  "goal",
-				"reason_code":  "explicit_long_term_goal",
+				"capability":        "any",
+				"canonical_subject": "保研材料",
+				"compact_text":      "近期目标: 关注保研材料",
+				"confidence":        0.95,
+				"memory_type":       "goal",
+				"reason_code":       "explicit_long_term_goal",
 			}},
 		})
 		if err != nil {
@@ -125,6 +127,8 @@ func TestExtractMemoryCandidatesActivityExtractsExplicitUserGoal(t *testing.T) {
 	candidate := output.Candidates[0]
 	if candidate.MemoryType != "goal" ||
 		candidate.Capability != "any" ||
+		candidate.CanonicalSubject != "保研材料" ||
+		candidate.CanonicalKey != "goal:any:保研材料" ||
 		candidate.CompactText != "近期目标: 关注保研材料" ||
 		candidate.Confidence < 0.9 ||
 		candidate.ReasonCode != "explicit_long_term_goal" ||
@@ -137,11 +141,12 @@ func TestExtractMemoryCandidatesActivitySkipsInstitutionalFact(t *testing.T) {
 	extractor := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		encoded, err := json.Marshal(map[string]any{
 			"memory_candidates": []map[string]any{{
-				"capability":   "knowledge",
-				"compact_text": "制度事实: 国家奖学金每年评审一次",
-				"confidence":   0.98,
-				"memory_type":  "profile",
-				"reason_code":  "institutional_fact",
+				"capability":        "knowledge",
+				"canonical_subject": "国家奖学金",
+				"compact_text":      "制度事实: 国家奖学金每年评审一次",
+				"confidence":        0.98,
+				"memory_type":       "profile",
+				"reason_code":       "institutional_fact",
 			}},
 		})
 		if err != nil {
@@ -253,13 +258,14 @@ func TestUpsertInferredMemoryActivityWritesActiveInferredProjectionWithoutText(t
 		context.Background(),
 		temporalruntime.UpsertInferredMemoryActivityInput{
 			Candidates: []temporalruntime.MemoryCandidate{{
-				Capability:  "any",
-				CompactText: "近期目标: 关注保研材料",
-				Confidence:  0.95,
-				MemoryID:    "inf_goal_materials",
-				MemoryType:  "goal",
-				ReasonCode:  "explicit_long_term_goal",
-				SourceHash:  strings.Repeat("a", 64),
+				Capability:       "any",
+				CanonicalKey:     "goal:any:保研材料",
+				CanonicalSubject: "保研材料",
+				CompactText:      "近期目标: 关注保研材料",
+				Confidence:       0.95,
+				MemoryType:       "goal",
+				ReasonCode:       "explicit_long_term_goal",
+				SourceHash:       strings.Repeat("a", 64),
 			}},
 			RequestID: "req-memory-upsert-enabled",
 			RunID:     "run-memory-upsert-enabled",
@@ -269,14 +275,25 @@ func TestUpsertInferredMemoryActivityWritesActiveInferredProjectionWithoutText(t
 	if err != nil {
 		t.Fatalf("upsert inferred memory: %v", err)
 	}
-	if output.Status != "completed" || output.UpsertedCount != 1 {
+	if output.Status != "completed" ||
+		output.UpsertedCount != 1 ||
+		output.CreatedCount != 1 ||
+		output.RefreshedCount != 0 ||
+		output.MergedCount != 0 {
 		t.Fatalf("upsert output = %#v, want completed", output)
 	}
 	if executor.seenUpsert.Source != "inferred" ||
 		executor.seenUpsert.Status != "active" ||
+		executor.seenUpsert.CanonicalKey != "goal:any:保研材料" ||
+		executor.seenUpsert.CanonicalSubject != "保研材料" ||
+		executor.seenUpsert.ReasonCode != "explicit_long_term_goal" ||
+		len(executor.seenUpsert.SourceHashes) != 1 ||
 		executor.seenUpsert.MemoryType != "goal" ||
 		executor.seenUpsert.CompactText != "近期目标: 关注保研材料" {
 		t.Fatalf("upsert request = %#v", executor.seenUpsert)
+	}
+	if executor.seenUpsert.MemoryID == "" || strings.Contains(executor.seenUpsert.MemoryID, strings.Repeat("a", 16)) {
+		t.Fatalf("memory id must be stable canonical identity, got %#v", executor.seenUpsert.MemoryID)
 	}
 	results, err := store.ListStepResults(context.Background(), "run-memory-upsert-enabled")
 	if err != nil {
@@ -291,6 +308,151 @@ func TestUpsertInferredMemoryActivityWritesActiveInferredProjectionWithoutText(t
 	}
 	if payload["upserted_count"] != 1.0 && payload["upserted_count"] != 1 {
 		t.Fatalf("projection payload = %#v", payload)
+	}
+	if payload["created_count"] != 1.0 && payload["created_count"] != 1 {
+		t.Fatalf("projection payload = %#v, want created_count", payload)
+	}
+}
+
+func TestUpsertInferredMemoryActivityRefreshesExistingCanonicalMemory(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 15, 12, 11, 0, 0, time.UTC)
+	createMemoryUpdateRunForTest(
+		t,
+		store,
+		"run-memory-upsert-refresh",
+		"我之后主要关注推免材料",
+		ptrBool(true),
+		now,
+	)
+	executor := &fakePersonalMemoryExecutor{
+		resolveResult: memoryruntime.ResolveCandidateResult{
+			Action: "refresh",
+			Existing: &memoryruntime.MemoryRecord{
+				Capability:       "any",
+				CanonicalKey:     "goal:any:保研材料",
+				CanonicalSubject: "保研材料",
+				CompactText:      "近期目标: 关注保研材料",
+				MemoryID:         "mem_existing_goal",
+				MemoryType:       "goal",
+				SourceHashes:     []string{strings.Repeat("a", 64)},
+				Status:           "active",
+			},
+		},
+	}
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-update"})
+	server.personalMemoryExecutor = executor
+	server.personalMemoryErr = nil
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	output, err := server.UpsertInferredMemoryActivity(
+		context.Background(),
+		temporalruntime.UpsertInferredMemoryActivityInput{
+			Candidates: []temporalruntime.MemoryCandidate{{
+				Capability:       "any",
+				CanonicalKey:     "goal:any:保研材料",
+				CanonicalSubject: "保研材料",
+				CompactText:      "近期目标: 关注推免材料",
+				Confidence:       0.96,
+				MemoryType:       "goal",
+				ReasonCode:       "explicit_long_term_goal",
+				SourceHash:       strings.Repeat("b", 64),
+			}},
+			RequestID: "req-memory-upsert-refresh",
+			RunID:     "run-memory-upsert-refresh",
+			TraceID:   memoryUpdateTraceID("run-memory-upsert-refresh"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("upsert inferred memory: %v", err)
+	}
+	if output.Status != "completed" ||
+		output.UpsertedCount != 1 ||
+		output.CreatedCount != 0 ||
+		output.RefreshedCount != 1 {
+		t.Fatalf("upsert output = %#v, want refreshed existing memory", output)
+	}
+	if executor.seenUpsert.MemoryID != "mem_existing_goal" {
+		t.Fatalf("upsert memory id = %q, want existing memory id", executor.seenUpsert.MemoryID)
+	}
+	if len(executor.seenUpsert.SourceHashes) != 2 {
+		t.Fatalf("source hashes = %#v, want accumulated hashes", executor.seenUpsert.SourceHashes)
+	}
+	if executor.seenUpsert.MergeCount != 1 {
+		t.Fatalf("merge count = %d, want incremented refresh count", executor.seenUpsert.MergeCount)
+	}
+}
+
+func TestUpsertInferredMemoryActivityMergesSemanticDuplicateWithProviderOutput(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 15, 12, 11, 0, 0, time.UTC)
+	createMemoryUpdateRunForTest(
+		t,
+		store,
+		"run-memory-upsert-merge",
+		"我之后主要关注推免材料",
+		ptrBool(true),
+		now,
+	)
+	executor := &fakePersonalMemoryExecutor{
+		resolveResult: memoryruntime.ResolveCandidateResult{
+			Action: "merge",
+			Existing: &memoryruntime.MemoryRecord{
+				Capability:       "any",
+				CanonicalKey:     "goal:any:保研材料",
+				CanonicalSubject: "保研材料",
+				CompactText:      "近期目标: 关注保研材料",
+				MemoryID:         "mem_existing_goal",
+				MemoryType:       "goal",
+				SourceHashes:     []string{strings.Repeat("a", 64)},
+				Status:           "active",
+			},
+		},
+	}
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-update"})
+	server.personalMemoryExecutor = executor
+	server.personalMemoryErr = nil
+	server.memoryExtraction = fakeMemoryExtractionExecutor{
+		mergeResult: memoryMergeResult{
+			CompactText: "近期目标: 关注保研/推免材料",
+			Confidence:  0.97,
+			ReasonCode:  "explicit_long_term_goal",
+		},
+	}
+	server.memoryExtractionErr = nil
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	output, err := server.UpsertInferredMemoryActivity(
+		context.Background(),
+		temporalruntime.UpsertInferredMemoryActivityInput{
+			Candidates: []temporalruntime.MemoryCandidate{{
+				Capability:       "any",
+				CanonicalKey:     "goal:any:推免材料",
+				CanonicalSubject: "推免材料",
+				CompactText:      "近期目标: 关注推免材料",
+				Confidence:       0.96,
+				MemoryType:       "goal",
+				ReasonCode:       "explicit_long_term_goal",
+				SourceHash:       strings.Repeat("b", 64),
+			}},
+			RequestID: "req-memory-upsert-merge",
+			RunID:     "run-memory-upsert-merge",
+			TraceID:   memoryUpdateTraceID("run-memory-upsert-merge"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("upsert inferred memory: %v", err)
+	}
+	if output.Status != "completed" ||
+		output.UpsertedCount != 1 ||
+		output.MergedCount != 1 {
+		t.Fatalf("upsert output = %#v, want merged existing memory", output)
+	}
+	if executor.seenUpsert.CompactText != "近期目标: 关注保研/推免材料" {
+		t.Fatalf("merged compact_text = %q", executor.seenUpsert.CompactText)
+	}
+	if executor.seenUpsert.Confidence != 0.97 {
+		t.Fatalf("merged confidence = %v", executor.seenUpsert.Confidence)
 	}
 }
 
@@ -454,4 +616,28 @@ func memoryExtractionPricingCatalogForTest(t *testing.T) string {
 			"output_microusd_per_1k_tokens":200
 		}]
 	}`)
+}
+
+type fakeMemoryExtractionExecutor struct {
+	mergeResult memoryMergeResult
+}
+
+func (f fakeMemoryExtractionExecutor) ExtractMemoryCandidates(
+	context.Context,
+	execution.DurableRun,
+	map[string]any,
+) (memoryExtractionResult, error) {
+	return memoryExtractionResult{}, nil
+}
+
+func (f fakeMemoryExtractionExecutor) MergeMemoryCandidate(
+	context.Context,
+	memoryruntime.MemoryRecord,
+	memoryruntime.ResolveCandidateRequest,
+) (memoryMergeResult, error) {
+	return f.mergeResult, nil
+}
+
+func (fakeMemoryExtractionExecutor) HealthCheck(context.Context) error {
+	return nil
 }

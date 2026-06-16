@@ -46,13 +46,15 @@ type ExtractMemoryCandidatesActivityInput struct {
 }
 
 type MemoryCandidate struct {
-	Capability  string  `json:"capability"`
-	CompactText string  `json:"compact_text"`
-	Confidence  float64 `json:"confidence"`
-	MemoryID    string  `json:"memory_id"`
-	MemoryType  string  `json:"memory_type"`
-	ReasonCode  string  `json:"reason_code"`
-	SourceHash  string  `json:"source_hash"`
+	Capability       string  `json:"capability"`
+	CanonicalKey     string  `json:"canonical_key"`
+	CanonicalSubject string  `json:"canonical_subject"`
+	CompactText      string  `json:"compact_text"`
+	Confidence       float64 `json:"confidence"`
+	MemoryID         string  `json:"memory_id"`
+	MemoryType       string  `json:"memory_type"`
+	ReasonCode       string  `json:"reason_code"`
+	SourceHash       string  `json:"source_hash"`
 }
 
 type ExtractMemoryCandidatesActivityOutput struct {
@@ -74,13 +76,17 @@ type UpsertInferredMemoryActivityInput struct {
 }
 
 type UpsertInferredMemoryActivityOutput struct {
-	PayloadSHA256 string   `json:"payload_sha256"`
-	RunID         string   `json:"run_id"`
-	SchemaVersion string   `json:"schema_version"`
-	SkipReasons   []string `json:"skip_reasons"`
-	SkippedCount  int      `json:"skipped_count"`
-	Status        string   `json:"status"`
-	UpsertedCount int      `json:"upserted_count"`
+	CreatedCount    int      `json:"created_count"`
+	MergedCount     int      `json:"merged_count"`
+	PayloadSHA256   string   `json:"payload_sha256"`
+	RefreshedCount  int      `json:"refreshed_count"`
+	RunID           string   `json:"run_id"`
+	SchemaVersion   string   `json:"schema_version"`
+	SkipReasons     []string `json:"skip_reasons"`
+	SkippedCount    int      `json:"skipped_count"`
+	Status          string   `json:"status"`
+	SupersededCount int      `json:"superseded_count"`
+	UpsertedCount   int      `json:"upserted_count"`
 }
 
 type ExecutePrimaryAgentActivityInput struct {

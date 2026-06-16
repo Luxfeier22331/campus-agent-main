@@ -89,6 +89,10 @@ func (s *Server) UpsertInferredMemoryActivity(
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	upserted := 0
+	created := 0
+	refreshed := 0
+	merged := 0
+	superseded := 0
 	skipped := 0
 	reasons := []string{}
 	for _, candidate := range input.Candidates {
@@ -97,21 +101,54 @@ func (s *Server) UpsertInferredMemoryActivity(
 			reasons = appendUniqueMemoryUpdateReason(reasons, reason)
 			continue
 		}
-		request := memoryruntime.UpsertRequest{
-			Capability:  strings.TrimSpace(candidate.Capability),
-			CompactText: strings.TrimSpace(candidate.CompactText),
-			MemoryID:    strings.TrimSpace(candidate.MemoryID),
-			MemoryType:  strings.TrimSpace(candidate.MemoryType),
-			Source:      "inferred",
-			Status:      "active",
-			TenantID:    firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id")),
-			UpdatedAt:   now,
-			UserID: firstNonEmptyText(
-				nestedAny(payload, "actor", "user_id"),
-				nestedAny(payload, "context", "actor", "user_id"),
-				run.OwnerUserID,
-			),
+		tenantID := firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id"))
+		userID := firstNonEmptyText(
+			nestedAny(payload, "actor", "user_id"),
+			nestedAny(payload, "context", "actor", "user_id"),
+			run.OwnerUserID,
+		)
+		candidate = normalizeMemoryCandidateIdentity(candidate, userID, tenantID)
+		resolveRequest := memoryruntime.ResolveCandidateRequest{
+			Capability:       strings.TrimSpace(candidate.Capability),
+			CanonicalKey:     strings.TrimSpace(candidate.CanonicalKey),
+			CanonicalSubject: strings.TrimSpace(candidate.CanonicalSubject),
+			CompactText:      strings.TrimSpace(candidate.CompactText),
+			Confidence:       candidate.Confidence,
+			MemoryType:       strings.TrimSpace(candidate.MemoryType),
+			ReasonCode:       strings.TrimSpace(candidate.ReasonCode),
+			SourceHash:       strings.TrimSpace(candidate.SourceHash),
+			TenantID:         tenantID,
+			UpdatedAt:        now,
+			UserID:           userID,
 		}
+		if err := memoryruntime.ValidateResolveCandidateRequest(resolveRequest); err != nil {
+			skipped++
+			reasons = appendUniqueMemoryUpdateReason(reasons, "invalid_candidate")
+			continue
+		}
+		resolution, err := s.resolvePersonalMemoryCandidate(ctx, resolveRequest)
+		if err != nil {
+			skipped++
+			reasons = appendUniqueMemoryUpdateReason(reasons, "dedupe_failed")
+			continue
+		}
+		if resolution.Action == "skip" {
+			skipped++
+			reasons = appendUniqueMemoryUpdateReason(reasons, firstNonEmptyText(resolution.Reason, "dedupe_review_required"))
+			continue
+		}
+		if resolution.Action == "merge" {
+			mergedCandidate, err := s.mergePersonalMemoryCandidate(ctx, resolution, resolveRequest)
+			if err != nil {
+				skipped++
+				reasons = appendUniqueMemoryUpdateReason(reasons, "merge_failed")
+				continue
+			}
+			resolveRequest.CompactText = mergedCandidate.CompactText
+			resolveRequest.Confidence = mergedCandidate.Confidence
+			resolveRequest.ReasonCode = mergedCandidate.ReasonCode
+		}
+		request := buildResolvedMemoryUpsertRequest(resolveRequest, resolution)
 		if err := memoryruntime.ValidateUpsertRequest(request); err != nil {
 			skipped++
 			reasons = appendUniqueMemoryUpdateReason(reasons, "invalid_candidate")
@@ -123,25 +160,43 @@ func (s *Server) UpsertInferredMemoryActivity(
 			continue
 		}
 		upserted++
+		switch resolution.Action {
+		case "refresh":
+			refreshed++
+		case "merge":
+			merged++
+		case "supersede":
+			superseded++
+		default:
+			created++
+		}
 	}
 	output := temporalruntime.UpsertInferredMemoryActivityOutput{
-		RunID:         run.RunID,
-		SchemaVersion: "memory_update_result_v1",
-		SkipReasons:   reasons,
-		SkippedCount:  skipped,
-		Status:        "completed",
-		UpsertedCount: upserted,
+		CreatedCount:    created,
+		MergedCount:     merged,
+		RefreshedCount:  refreshed,
+		RunID:           run.RunID,
+		SchemaVersion:   "memory_update_result_v1",
+		SkipReasons:     reasons,
+		SkippedCount:    skipped,
+		Status:          "completed",
+		SupersededCount: superseded,
+		UpsertedCount:   upserted,
 	}
 	if upserted == 0 {
 		output.Status = "skipped"
 	}
 	hash, err := memoryruntime.HashProjection(map[string]any{
-		"run_id":         output.RunID,
-		"schema_version": output.SchemaVersion,
-		"skip_reasons":   output.SkipReasons,
-		"skipped_count":  output.SkippedCount,
-		"status":         output.Status,
-		"upserted_count": output.UpsertedCount,
+		"created_count":    output.CreatedCount,
+		"merged_count":     output.MergedCount,
+		"refreshed_count":  output.RefreshedCount,
+		"run_id":           output.RunID,
+		"schema_version":   output.SchemaVersion,
+		"skip_reasons":     output.SkipReasons,
+		"skipped_count":    output.SkippedCount,
+		"status":           output.Status,
+		"superseded_count": output.SupersededCount,
+		"upserted_count":   output.UpsertedCount,
 	})
 	if err == nil {
 		output.PayloadSHA256 = hash
@@ -220,12 +275,16 @@ func (s *Server) projectMemoryUpdateResult(
 ) (temporalruntime.UpsertInferredMemoryActivityOutput, error) {
 	now := time.Now().UTC()
 	payload := map[string]any{
-		"payload_sha256": output.PayloadSHA256,
-		"schema_version": output.SchemaVersion,
-		"skip_reasons":   output.SkipReasons,
-		"skipped_count":  output.SkippedCount,
-		"status":         output.Status,
-		"upserted_count": output.UpsertedCount,
+		"created_count":    output.CreatedCount,
+		"merged_count":     output.MergedCount,
+		"payload_sha256":   output.PayloadSHA256,
+		"refreshed_count":  output.RefreshedCount,
+		"schema_version":   output.SchemaVersion,
+		"skip_reasons":     output.SkipReasons,
+		"skipped_count":    output.SkippedCount,
+		"status":           output.Status,
+		"superseded_count": output.SupersededCount,
+		"upserted_count":   output.UpsertedCount,
 	}
 	err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,

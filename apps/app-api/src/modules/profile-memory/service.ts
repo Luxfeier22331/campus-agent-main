@@ -36,6 +36,7 @@ export interface ProfileMemoryIndexer {
 		userId: string;
 	}): Promise<{ memoryId: string; status: string }>;
 	upsertExplicitMemory(input: {
+		canonicalSubject: string;
 		compactText: string;
 		memoryId: string;
 		tenantId?: string;
@@ -163,6 +164,7 @@ export function buildProfileMemoryService(
 			});
 			const itemId = existingItemId ?? generateId("mem");
 			await dependencies.memoryIndexer.upsertExplicitMemory({
+				canonicalSubject: key,
 				compactText: `${key}: ${value}`,
 				memoryId: itemId,
 				updatedAt,

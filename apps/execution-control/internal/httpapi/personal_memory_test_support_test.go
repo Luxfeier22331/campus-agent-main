@@ -9,8 +9,10 @@ import (
 type fakePersonalMemoryExecutor struct {
 	seenDisable      memoryruntime.DisableRequest
 	seenDisableOwner memoryruntime.DisableOwnerRequest
+	seenResolve      memoryruntime.ResolveCandidateRequest
 	seenRequest      memoryruntime.RecallRequest
 	seenUpsert       memoryruntime.UpsertRequest
+	resolveResult    memoryruntime.ResolveCandidateResult
 }
 
 func (f *fakePersonalMemoryExecutor) HealthCheck(context.Context) error {
@@ -49,6 +51,17 @@ func (f *fakePersonalMemoryExecutor) Upsert(
 ) (memoryruntime.UpsertResult, error) {
 	f.seenUpsert = request
 	return memoryruntime.NormalizeUpsertResult(request), nil
+}
+
+func (f *fakePersonalMemoryExecutor) ResolveCandidate(
+	_ context.Context,
+	request memoryruntime.ResolveCandidateRequest,
+) (memoryruntime.ResolveCandidateResult, error) {
+	f.seenResolve = request
+	if f.resolveResult.Action != "" {
+		return f.resolveResult, nil
+	}
+	return memoryruntime.ResolveCandidateResult{Action: "create"}, nil
 }
 
 func (f *fakePersonalMemoryExecutor) Disable(

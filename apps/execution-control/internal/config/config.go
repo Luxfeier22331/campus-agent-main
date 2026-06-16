@@ -64,9 +64,9 @@ type Config struct {
 	AgentRuntimeBaseURL                 string
 	AgentRuntimeSharedSecret            string
 	AgentRuntimeTimeoutMS               int
-	AppAPIInternalBaseURL                string
-	AppAPIInternalSharedSecret           string
-	AppAPIInternalTimeoutMS              int
+	AppAPIInternalBaseURL               string
+	AppAPIInternalSharedSecret          string
+	AppAPIInternalTimeoutMS             int
 	QueryServingScopesPath              string
 	InternalQuerySharedSecret           string
 	StructuredQueryTrustedTimeRFC3339   string
@@ -149,9 +149,9 @@ type envValues struct {
 	AgentRuntimeBaseURL                 string  `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
 	AgentRuntimeSharedSecret            string  `env:"EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"`
 	AgentRuntimeTimeoutMS               int     `env:"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS" envDefault:"30000"`
-	AppAPIInternalBaseURL                string  `env:"EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL"`
-	AppAPIInternalSharedSecret           string  `env:"EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"`
-	AppAPIInternalTimeoutMS              int     `env:"EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS" envDefault:"1000"`
+	AppAPIInternalBaseURL               string  `env:"EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL"`
+	AppAPIInternalSharedSecret          string  `env:"EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"`
+	AppAPIInternalTimeoutMS             int     `env:"EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS" envDefault:"1000"`
 	QueryServingScopesPath              string  `env:"EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH"`
 	InternalQuerySharedSecret           string  `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
 	StructuredQueryTrustedTimeRFC3339   string  `env:"EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
@@ -331,9 +331,9 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		AgentRuntimeBaseURL:                 strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
 		AgentRuntimeSharedSecret:            strings.TrimSpace(values.AgentRuntimeSharedSecret),
 		AgentRuntimeTimeoutMS:               values.AgentRuntimeTimeoutMS,
-		AppAPIInternalBaseURL:                strings.TrimRight(strings.TrimSpace(values.AppAPIInternalBaseURL), "/"),
-		AppAPIInternalSharedSecret:           strings.TrimSpace(values.AppAPIInternalSharedSecret),
-		AppAPIInternalTimeoutMS:              values.AppAPIInternalTimeoutMS,
+		AppAPIInternalBaseURL:               strings.TrimRight(strings.TrimSpace(values.AppAPIInternalBaseURL), "/"),
+		AppAPIInternalSharedSecret:          strings.TrimSpace(values.AppAPIInternalSharedSecret),
+		AppAPIInternalTimeoutMS:             values.AppAPIInternalTimeoutMS,
 		QueryServingScopesPath:              strings.TrimSpace(values.QueryServingScopesPath),
 		InternalQuerySharedSecret:           strings.TrimSpace(values.InternalQuerySharedSecret),
 		StructuredQueryTrustedTimeRFC3339:   strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),

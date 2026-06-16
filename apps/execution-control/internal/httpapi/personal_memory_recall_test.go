@@ -305,15 +305,22 @@ func TestQdrantPersonalMemoryUpsertUsesWriteKeyAndNamedDenseVector(t *testing.T)
 	}
 
 	result, err := executor.Upsert(context.Background(), memoryruntime.UpsertRequest{
-		Capability:  "any",
-		CompactText: "answer_style: 先给结论",
-		MemoryID:    "mem_01HQ",
-		MemoryType:  "profile",
-		Source:      "explicit",
-		Status:      "active",
-		TenantID:    "",
-		UpdatedAt:   "2026-06-10T08:00:00.000Z",
-		UserID:      "user_01HQ",
+		Capability:       "any",
+		CanonicalKey:     "profile:any:回答风格",
+		CanonicalSubject: "回答风格",
+		CompactText:      "answer_style: 先给结论",
+		Confidence:       1,
+		FirstSeenAt:      "2026-06-10T08:00:00.000Z",
+		LastSeenAt:       "2026-06-10T08:00:00.000Z",
+		MemoryID:         "mem_01HQ",
+		MemoryType:       "profile",
+		ReasonCode:       "explicit_preference",
+		Source:           "explicit",
+		SourceHashes:     []string{"manual-profile-memory"},
+		Status:           "active",
+		TenantID:         "",
+		UpdatedAt:        "2026-06-10T08:00:00.000Z",
+		UserID:           "user_01HQ",
 	})
 	if err != nil {
 		t.Fatalf("upsert memory: %v", err)
@@ -343,18 +350,163 @@ func TestQdrantPersonalMemoryUpsertUsesWriteKeyAndNamedDenseVector(t *testing.T)
 		t.Fatalf("payload = %#v, want object", point["payload"])
 	}
 	for key, want := range map[string]string{
-		"memory_id":    "mem_01HQ",
-		"user_id":      "user_01HQ",
-		"memory_type":  "profile",
-		"capability":   "any",
-		"status":       "active",
-		"source":       "explicit",
-		"compact_text": "answer_style: 先给结论",
-		"updated_at":   "2026-06-10T08:00:00.000Z",
+		"memory_id":     "mem_01HQ",
+		"user_id":       "user_01HQ",
+		"memory_type":   "profile",
+		"capability":    "any",
+		"status":        "active",
+		"source":        "explicit",
+		"compact_text":  "answer_style: 先给结论",
+		"updated_at":    "2026-06-10T08:00:00.000Z",
+		"canonical_key": "profile:any:回答风格",
+		"reason_code":   "explicit_preference",
+		"first_seen_at": "2026-06-10T08:00:00.000Z",
+		"last_seen_at":  "2026-06-10T08:00:00.000Z",
 	} {
 		if got := optionalStringFromAny(payload[key]); got != want {
 			t.Fatalf("payload[%s] = %q, want %q", key, got, want)
 		}
+	}
+	if payload["canonical_subject"] != "回答风格" ||
+		payload["confidence"] != float64(1) ||
+		payload["merge_count"] != float64(0) {
+		t.Fatalf("payload governance fields = %#v", payload)
+	}
+	sourceHashes, ok := payload["source_hashes"].([]any)
+	if !ok || len(sourceHashes) != 1 || sourceHashes[0] != "manual-profile-memory" {
+		t.Fatalf("payload source_hashes = %#v", payload["source_hashes"])
+	}
+}
+
+func TestQdrantPersonalMemoryResolveCandidateRefreshesCanonicalMatch(t *testing.T) {
+	var captured map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/collections/personal_memory_v1/points/scroll" {
+			t.Fatalf("qdrant path = %q, want personal memory scroll", request.URL.Path)
+		}
+		if request.Header.Get("api-key") != "readonly-key" {
+			t.Fatalf("api-key = %q, want read-only query key", request.Header.Get("api-key"))
+		}
+		if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
+			t.Fatalf("decode scroll body: %v", err)
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"result": map[string]any{
+				"points": []map[string]any{{
+					"id": "point-existing",
+					"payload": map[string]any{
+						"memory_id":         "mem_existing_goal",
+						"user_id":           "user_01",
+						"tenant_id":         "tenant-muc",
+						"memory_type":       "goal",
+						"capability":        "any",
+						"canonical_key":     "goal:any:保研材料",
+						"canonical_subject": "保研材料",
+						"status":            "active",
+						"compact_text":      "近期目标: 关注保研材料",
+						"source_hashes":     []string{strings.Repeat("a", 64)},
+					},
+				}},
+			},
+		})
+	}))
+	defer server.Close()
+	executor := qdrantPersonalMemoryExecutor{
+		collection:        "personal_memory_v1",
+		httpClient:        server.Client(),
+		qdrantQueryAPIKey: "readonly-key",
+		qdrantURL:         server.URL,
+	}
+
+	result, err := executor.ResolveCandidate(context.Background(), memoryruntime.ResolveCandidateRequest{
+		Capability:       "any",
+		CanonicalKey:     "goal:any:保研材料",
+		CanonicalSubject: "保研材料",
+		CompactText:      "近期目标: 关注推免材料",
+		Confidence:       0.96,
+		MemoryType:       "goal",
+		ReasonCode:       "explicit_long_term_goal",
+		SourceHash:       strings.Repeat("b", 64),
+		TenantID:         "tenant-muc",
+		UpdatedAt:        "2026-06-10T08:00:00Z",
+		UserID:           "user_01",
+	})
+	if err != nil {
+		t.Fatalf("resolve candidate: %v", err)
+	}
+	if result.Action != "refresh" || result.Existing == nil || result.Existing.MemoryID != "mem_existing_goal" {
+		t.Fatalf("result = %#v, want refresh existing memory", result)
+	}
+	must := qdrantMustConditionsForTest(t, captured)
+	assertQdrantMatchConditionForTest(t, must, "user_id", "user_01")
+	assertQdrantMatchConditionForTest(t, must, "tenant_id", "tenant-muc")
+	assertQdrantMatchConditionForTest(t, must, "canonical_key", "goal:any:保研材料")
+	rawMust := qdrantMustConditionPayloadsForTest(t, captured)
+	assertQdrantMatchAnyConditionForTest(t, rawMust, "status", []string{"active", "stale"})
+}
+
+func TestQdrantPersonalMemoryResolveCandidateSkipsMediumSimilarity(t *testing.T) {
+	requests := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		requests = append(requests, request.URL.Path)
+		switch request.URL.Path {
+		case "/collections/personal_memory_v1/points/scroll":
+			writeJSON(response, http.StatusOK, map[string]any{
+				"result": map[string]any{"points": []map[string]any{}},
+			})
+		case "/collections/personal_memory_v1/points/query":
+			writeJSON(response, http.StatusOK, map[string]any{
+				"result": map[string]any{
+					"points": []map[string]any{{
+						"id":    "point-similar",
+						"score": 0.88,
+						"payload": map[string]any{
+							"memory_id":         "mem_similar_goal",
+							"memory_type":       "goal",
+							"capability":        "any",
+							"canonical_key":     "goal:any:保研材料",
+							"canonical_subject": "保研材料",
+							"compact_text":      "近期目标: 关注保研材料",
+							"status":            "active",
+						},
+					}},
+				},
+			})
+		default:
+			t.Fatalf("unexpected path = %q", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+	embedding := newStaticEmbeddingServer(t)
+	executor := qdrantPersonalMemoryExecutor{
+		collection:          "personal_memory_v1",
+		configResolver:      memoryEmbeddingResolverForTest(embedding.URL, "embedding-model", 3),
+		embeddingHTTPClient: embedding.Client(),
+		httpClient:          server.Client(),
+		qdrantQueryAPIKey:   "readonly-key",
+		qdrantURL:           server.URL,
+	}
+
+	result, err := executor.ResolveCandidate(context.Background(), memoryruntime.ResolveCandidateRequest{
+		Capability:       "any",
+		CanonicalKey:     "goal:any:推免材料",
+		CanonicalSubject: "推免材料",
+		CompactText:      "近期目标: 关注推免材料",
+		Confidence:       0.96,
+		MemoryType:       "goal",
+		ReasonCode:       "explicit_long_term_goal",
+		SourceHash:       strings.Repeat("c", 64),
+		UpdatedAt:        "2026-06-10T08:00:00Z",
+		UserID:           "user_01",
+	})
+	if err != nil {
+		t.Fatalf("resolve candidate: %v", err)
+	}
+	if result.Action != "skip" || result.Reason != "dedupe_review_required" {
+		t.Fatalf("result = %#v, want medium similarity skip", result)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("qdrant requests = %#v, want scroll then query", requests)
 	}
 }
 
@@ -474,7 +626,7 @@ func TestPersonalMemoryUpsertEndpointRequiresInternalAuth(t *testing.T) {
 		context.Background(),
 		http.MethodPost,
 		"/internal/memory/personal/items:upsert",
-		bytes.NewReader([]byte(`{"memory_id":"mem_01HQ","user_id":"user_01HQ","memory_type":"profile","capability":"any","status":"active","source":"explicit","compact_text":"answer_style: 先给结论","updated_at":"2026-06-10T08:00:00Z"}`)),
+		bytes.NewReader([]byte(`{"memory_id":"mem_01HQ","user_id":"user_01HQ","memory_type":"profile","capability":"any","canonical_key":"profile:any:回答风格","canonical_subject":"回答风格","status":"active","source":"explicit","compact_text":"answer_style: 先给结论","first_seen_at":"2026-06-10T08:00:00Z","last_seen_at":"2026-06-10T08:00:00Z","reason_code":"explicit_preference","source_hashes":["manual-profile-memory"],"updated_at":"2026-06-10T08:00:00Z"}`)),
 	)
 	response := httptest.NewRecorder()
 
@@ -495,7 +647,7 @@ func TestPersonalMemoryUpsertEndpointIndexesViaExecutor(t *testing.T) {
 		context.Background(),
 		http.MethodPost,
 		"/internal/memory/personal/items:upsert",
-		bytes.NewReader([]byte(`{"memory_id":"mem_01HQ","user_id":"user_01HQ","memory_type":"profile","capability":"any","status":"active","source":"explicit","compact_text":"answer_style: 先给结论","updated_at":"2026-06-10T08:00:00Z"}`)),
+		bytes.NewReader([]byte(`{"memory_id":"mem_01HQ","user_id":"user_01HQ","memory_type":"profile","capability":"any","canonical_key":"profile:any:回答风格","canonical_subject":"回答风格","status":"active","source":"explicit","compact_text":"answer_style: 先给结论","first_seen_at":"2026-06-10T08:00:00Z","last_seen_at":"2026-06-10T08:00:00Z","reason_code":"explicit_preference","source_hashes":["manual-profile-memory"],"updated_at":"2026-06-10T08:00:00Z"}`)),
 	)
 	request.Header.Set("x-worker-origin-auth", "shared-secret")
 	response := httptest.NewRecorder()
@@ -507,6 +659,7 @@ func TestPersonalMemoryUpsertEndpointIndexesViaExecutor(t *testing.T) {
 	}
 	if executor.seenUpsert.MemoryID != "mem_01HQ" ||
 		executor.seenUpsert.UserID != "user_01HQ" ||
+		executor.seenUpsert.CanonicalKey != "profile:any:回答风格" ||
 		executor.seenUpsert.CompactText != "answer_style: 先给结论" {
 		t.Fatalf("seen upsert = %#v", executor.seenUpsert)
 	}
@@ -606,5 +759,33 @@ func memoryEmbeddingResolverForTest(
 			model,
 			dimensions,
 		),
+	}
+}
+
+func assertQdrantMatchAnyConditionForTest(
+	t *testing.T,
+	must map[string]map[string]any,
+	key string,
+	expected []string,
+) {
+	t.Helper()
+	condition, ok := must[key]
+	if !ok {
+		t.Fatalf("filter missing %s match.any condition: %#v", key, must)
+	}
+	match, ok := condition["match"].(map[string]any)
+	if !ok {
+		t.Fatalf("filter %s = %#v, want match object", key, condition)
+	}
+	rawAny, ok := match["any"].([]any)
+	if !ok {
+		t.Fatalf("filter %s match = %#v, want any", key, match)
+	}
+	got := make([]string, 0, len(rawAny))
+	for _, value := range rawAny {
+		got = append(got, optionalStringFromAny(value))
+	}
+	if strings.Join(got, "|") != strings.Join(expected, "|") {
+		t.Fatalf("filter %s any = %#v, want %#v", key, got, expected)
 	}
 }

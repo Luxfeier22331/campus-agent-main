@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0053
 status: accepted
 created: 2026-06-10
-updated: 2026-06-10
+updated: 2026-06-16
 supersedes:
   - ADR-0015 memory ownership / confirmation / non-authz clauses
 ---
@@ -58,11 +58,38 @@ user_id
 tenant_id
 memory_type
 capability
+canonical_key
+canonical_subject
 status
 source
 compact_text
+confidence
+reason_code
+source_hashes
+first_seen_at
+last_seen_at
+merge_count
+supersedes_memory_ids
 updated_at
 ```
+
+`memory_id` 必须表达 user / tenant / canonical memory identity，而不是 run-local
+`source_hash` identity。`source_hashes` 只承担来源追踪，不能决定长期 memory 是否重复。
+
+默认 inferred write contract：
+
+```text
+provider candidate
+-> deterministic admission
+-> canonical_key exact lookup
+-> same-user same-tenant semantic duplicate query
+-> create | refresh | merge | skip
+-> Qdrant upsert
+```
+
+exact `canonical_key` match 刷新同一条 memory；semantic score `>= 0.92`
+合并；`0.84 <= score < 0.92` 跳过并投影 `dedupe_review_required`。不得跨 user /
+tenant 去重，也不得把 uncertain duplicate 作为新 memory 写入。
 
 ## Superseded ADR-0015 条款
 
@@ -93,7 +120,8 @@ ADR-0015 仍保留 identity / authorization / raw-state minimization 决策。
   `QDRANT_WRITE_API_KEY` 写入 personal memory index。
 - inferred memory update 作为 finalization 后置 activity / workflow 执行；首版自动生效为
   `status=active`、`source=inferred`，但必须受 `context.memory.enabled` gate、
-  high-confidence extraction 与 compact payload validation 约束。
+  high-confidence extraction、canonical dedupe / merge 与 compact payload validation
+  约束。
 - 外部 memory SDK 只作为参考，不作为 default runtime。
 - Strong user governance、panel/eval influence tracing、full audit graph 与
   graph memory 不属于 v1 acceptance。

@@ -23,6 +23,11 @@ type memoryExtractionExecutor interface {
 		execution.DurableRun,
 		map[string]any,
 	) (memoryExtractionResult, error)
+	MergeMemoryCandidate(
+		context.Context,
+		memoryruntime.MemoryRecord,
+		memoryruntime.ResolveCandidateRequest,
+	) (memoryMergeResult, error)
 	HealthCheck(context.Context) error
 }
 
@@ -32,6 +37,14 @@ type memoryExtractionResult struct {
 	SkippedCount    int
 	ProviderBody    []byte
 	ProviderSummary provider.ExecutionSummary
+}
+
+type memoryMergeResult struct {
+	CompactText     string
+	Confidence      float64
+	ProviderBody    []byte
+	ProviderSummary provider.ExecutionSummary
+	ReasonCode      string
 }
 
 type providerBackedMemoryExtractionExecutor struct {
@@ -101,6 +114,32 @@ func (e providerBackedMemoryExtractionExecutor) HealthCheck(context.Context) err
 		return errors.New("memory extraction provider config resolver is not configured")
 	}
 	return nil
+}
+
+func (e providerBackedMemoryExtractionExecutor) MergeMemoryCandidate(
+	ctx context.Context,
+	existing memoryruntime.MemoryRecord,
+	request memoryruntime.ResolveCandidateRequest,
+) (memoryMergeResult, error) {
+	client, err := e.resolveClient(ctx)
+	if err != nil {
+		return memoryMergeResult{}, err
+	}
+	result := client.Execute(ctx, provider.ResponsesRequest{
+		Input:              memoryMergeProviderInput(existing, request),
+		ProviderRequestRef: "provider://requests/" + strings.TrimSpace(request.UserID) + "/memory/merge/" + strings.TrimSpace(request.CanonicalKey),
+		Text:               memoryMergeTextSchema(),
+	})
+	if result.Err != nil {
+		return memoryMergeResult{ProviderSummary: result.Summary, ProviderBody: result.Body}, result.Err
+	}
+	merged, err := parseMemoryMergeProviderBody(result.Body)
+	if err != nil {
+		return memoryMergeResult{ProviderSummary: result.Summary, ProviderBody: result.Body}, err
+	}
+	merged.ProviderBody = result.Body
+	merged.ProviderSummary = result.Summary
+	return merged, nil
 }
 
 func (e providerBackedMemoryExtractionExecutor) resolveClient(
@@ -216,6 +255,7 @@ func memoryExtractionTextSchema() map[string]any {
 							"additionalProperties": false,
 							"required": []string{
 								"capability",
+								"canonical_subject",
 								"compact_text",
 								"confidence",
 								"memory_type",
@@ -225,6 +265,10 @@ func memoryExtractionTextSchema() map[string]any {
 								"capability": map[string]any{
 									"type": "string",
 									"enum": []string{"knowledge", "campus_services", "notice", "navigation", "any"},
+								},
+								"canonical_subject": map[string]any{
+									"type":      "string",
+									"maxLength": 64,
 								},
 								"compact_text": map[string]any{"type": "string"},
 								"confidence":   map[string]any{"type": "number"},
@@ -242,16 +286,82 @@ func memoryExtractionTextSchema() map[string]any {
 	}
 }
 
+func memoryMergeProviderInput(
+	existing memoryruntime.MemoryRecord,
+	request memoryruntime.ResolveCandidateRequest,
+) []map[string]any {
+	return []map[string]any{
+		{
+			"role": "developer",
+			"type": "message",
+			"content": strings.Join([]string{
+				"You merge two compact personal memories for campus-agent.",
+				"Return one durable user-specific memory only.",
+				"Do not concatenate, do not add institutional facts, and do not include raw transcript or credentials.",
+				"Return JSON matching the requested schema.",
+			}, " "),
+		},
+		{
+			"role": "user",
+			"type": "message",
+			"content": mustMarshalRAGSynthesisPayload(map[string]any{
+				"schema_version": "personal_memory_merge_input_v1",
+				"existing_memory": map[string]any{
+					"canonical_key":     existing.CanonicalKey,
+					"canonical_subject": existing.CanonicalSubject,
+					"compact_text":      existing.CompactText,
+					"memory_type":       existing.MemoryType,
+					"reason_code":       existing.ReasonCode,
+				},
+				"candidate_memory": map[string]any{
+					"canonical_key":     request.CanonicalKey,
+					"canonical_subject": request.CanonicalSubject,
+					"compact_text":      request.CompactText,
+					"memory_type":       request.MemoryType,
+					"reason_code":       request.ReasonCode,
+				},
+			}),
+		},
+	}
+}
+
+func memoryMergeTextSchema() map[string]any {
+	return map[string]any{
+		"format": map[string]any{
+			"type":   "json_schema",
+			"name":   "personal_memory_merge_v1",
+			"strict": true,
+			"schema": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"compact_text", "confidence", "reason_code"},
+				"properties": map[string]any{
+					"compact_text": map[string]any{"type": "string"},
+					"confidence":   map[string]any{"type": "number"},
+					"reason_code":  map[string]any{"type": "string"},
+				},
+			},
+		},
+	}
+}
+
+type memoryMergePayload struct {
+	CompactText string  `json:"compact_text"`
+	Confidence  float64 `json:"confidence"`
+	ReasonCode  string  `json:"reason_code"`
+}
+
 type memoryExtractionPayload struct {
 	MemoryCandidates []memoryExtractionCandidate `json:"memory_candidates"`
 }
 
 type memoryExtractionCandidate struct {
-	Capability  string  `json:"capability"`
-	CompactText string  `json:"compact_text"`
-	Confidence  float64 `json:"confidence"`
-	MemoryType  string  `json:"memory_type"`
-	ReasonCode  string  `json:"reason_code"`
+	Capability       string  `json:"capability"`
+	CanonicalSubject string  `json:"canonical_subject"`
+	CompactText      string  `json:"compact_text"`
+	Confidence       float64 `json:"confidence"`
+	MemoryType       string  `json:"memory_type"`
+	ReasonCode       string  `json:"reason_code"`
 }
 
 func extractMemoryCandidatesFromProviderBody(
@@ -329,6 +439,57 @@ func decodeMemoryExtractionPayload(payload map[string]any) (memoryExtractionPayl
 	return decoded, nil
 }
 
+func parseMemoryMergeProviderBody(body []byte) (memoryMergeResult, error) {
+	var root map[string]any
+	if err := json.Unmarshal(body, &root); err != nil {
+		return memoryMergeResult{}, fmt.Errorf("parse memory merge provider response: %w", err)
+	}
+	if parsed, ok := root["output_parsed"].(map[string]any); ok {
+		return decodeMemoryMergePayload(parsed)
+	}
+	for _, outputItem := range ragAnySlice(root["output"]) {
+		item, ok := outputItem.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, contentItem := range ragAnySlice(item["content"]) {
+			content, ok := contentItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			if parsed, ok := content["parsed"].(map[string]any); ok {
+				return decodeMemoryMergePayload(parsed)
+			}
+			text, ok := content["text"].(string)
+			if !ok || strings.TrimSpace(text) == "" {
+				continue
+			}
+			var decoded map[string]any
+			if err := json.Unmarshal([]byte(text), &decoded); err != nil {
+				continue
+			}
+			return decodeMemoryMergePayload(decoded)
+		}
+	}
+	return memoryMergeResult{}, errors.New("provider response did not contain memory merge payload")
+}
+
+func decodeMemoryMergePayload(payload map[string]any) (memoryMergeResult, error) {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return memoryMergeResult{}, err
+	}
+	var decoded memoryMergePayload
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		return memoryMergeResult{}, fmt.Errorf("decode memory merge payload: %w", err)
+	}
+	return memoryMergeResult{
+		CompactText: strings.TrimSpace(decoded.CompactText),
+		Confidence:  decoded.Confidence,
+		ReasonCode:  strings.TrimSpace(decoded.ReasonCode),
+	}, nil
+}
+
 func normalizeMemoryExtractionCandidate(
 	run execution.DurableRun,
 	sourceHash string,
@@ -336,10 +497,14 @@ func normalizeMemoryExtractionCandidate(
 ) (temporalruntime.MemoryCandidate, string) {
 	reasonCode := strings.TrimSpace(raw.ReasonCode)
 	compactText := strings.TrimSpace(raw.CompactText)
+	canonicalSubject := memoryruntime.NormalizeCanonicalSubject(raw.CanonicalSubject)
+	if canonicalSubject == "" {
+		canonicalSubject = fallbackCanonicalSubject(compactText)
+	}
 	if raw.Confidence < inferredMemoryConfidenceThreshold {
 		return temporalruntime.MemoryCandidate{}, "low_confidence"
 	}
-	if compactText == "" {
+	if compactText == "" || canonicalSubject == "" {
 		return temporalruntime.MemoryCandidate{}, "invalid_candidate"
 	}
 	if memoryruntime.ContainsForbiddenMemoryPayload(compactText) {
@@ -353,31 +518,41 @@ func normalizeMemoryExtractionCandidate(
 		return temporalruntime.MemoryCandidate{}, "missing_source_hash"
 	}
 	probe := memoryruntime.UpsertRequest{
-		Capability:  strings.TrimSpace(raw.Capability),
-		CompactText: compactText,
-		MemoryID:    "probe",
-		MemoryType:  strings.TrimSpace(raw.MemoryType),
-		Source:      "inferred",
-		Status:      "active",
-		UpdatedAt:   "1970-01-01T00:00:00Z",
-		UserID:      firstNonEmptyText(run.OwnerUserID, "probe-user"),
+		Capability:       strings.TrimSpace(raw.Capability),
+		CanonicalKey:     memoryruntime.CanonicalKey(raw.MemoryType, raw.Capability, canonicalSubject),
+		CanonicalSubject: canonicalSubject,
+		CompactText:      compactText,
+		MemoryID:         "probe",
+		MemoryType:       strings.TrimSpace(raw.MemoryType),
+		Source:           "inferred",
+		Status:           "active",
+		UpdatedAt:        "1970-01-01T00:00:00Z",
+		UserID:           firstNonEmptyText(run.OwnerUserID, "probe-user"),
 	}
 	if err := memoryruntime.ValidateUpsertRequest(probe); err != nil {
 		return temporalruntime.MemoryCandidate{}, "invalid_candidate"
 	}
-	memoryID := "inf_" + memoryruntime.PointID(
-		run.OwnerUserID,
-		normalizedSourceHash+":"+reasonCode+":"+compactText,
-	)[:16]
+	memoryID := memoryruntime.StableMemoryID(run.OwnerUserID, "", probe.CanonicalKey)
 	return temporalruntime.MemoryCandidate{
-		Capability:  probe.Capability,
-		CompactText: compactText,
-		Confidence:  raw.Confidence,
-		MemoryID:    memoryID,
-		MemoryType:  probe.MemoryType,
-		ReasonCode:  reasonCode,
-		SourceHash:  normalizedSourceHash,
+		Capability:       probe.Capability,
+		CanonicalKey:     probe.CanonicalKey,
+		CanonicalSubject: canonicalSubject,
+		CompactText:      compactText,
+		Confidence:       raw.Confidence,
+		MemoryID:         memoryID,
+		MemoryType:       probe.MemoryType,
+		ReasonCode:       reasonCode,
+		SourceHash:       normalizedSourceHash,
 	}, ""
+}
+
+func fallbackCanonicalSubject(compactText string) string {
+	normalized := memoryruntime.NormalizeCanonicalSubject(compactText)
+	if len([]rune(normalized)) <= 64 {
+		return normalized
+	}
+	runes := []rune(normalized)
+	return string(runes[:64])
 }
 
 func memoryCandidateReasonSkipReason(reasonCode string) string {

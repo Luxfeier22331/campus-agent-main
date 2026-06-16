@@ -117,9 +117,16 @@ func normalizePersonalMemoryUpsertCommand(command memoryruntime.UpsertRequest) m
 	command.TenantID = strings.TrimSpace(command.TenantID)
 	command.MemoryType = strings.TrimSpace(command.MemoryType)
 	command.Capability = strings.TrimSpace(command.Capability)
+	command.CanonicalKey = strings.TrimSpace(command.CanonicalKey)
+	command.CanonicalSubject = strings.TrimSpace(command.CanonicalSubject)
 	command.Status = strings.TrimSpace(command.Status)
 	command.Source = strings.TrimSpace(command.Source)
 	command.CompactText = strings.TrimSpace(command.CompactText)
+	command.FirstSeenAt = strings.TrimSpace(command.FirstSeenAt)
+	command.LastSeenAt = strings.TrimSpace(command.LastSeenAt)
+	command.ReasonCode = strings.TrimSpace(command.ReasonCode)
+	command.SourceHashes = normalizedStringSlice(command.SourceHashes)
+	command.SupersedesMemoryIDs = normalizedStringSlice(command.SupersedesMemoryIDs)
 	command.UpdatedAt = strings.TrimSpace(command.UpdatedAt)
 	return command
 }

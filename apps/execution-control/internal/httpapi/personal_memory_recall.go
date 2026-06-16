@@ -20,6 +20,7 @@ type personalMemoryExecutor interface {
 	HealthCheck(context.Context) error
 	EnsureSchema(context.Context) error
 	Recall(context.Context, memoryruntime.RecallRequest) (memoryruntime.RecallResult, error)
+	ResolveCandidate(context.Context, memoryruntime.ResolveCandidateRequest) (memoryruntime.ResolveCandidateResult, error)
 	Upsert(context.Context, memoryruntime.UpsertRequest) (memoryruntime.UpsertResult, error)
 	Disable(context.Context, memoryruntime.DisableRequest) (memoryruntime.UpsertResult, error)
 	DisableOwner(context.Context, memoryruntime.DisableOwnerRequest) (memoryruntime.DisableOwnerResult, error)
@@ -301,15 +302,24 @@ func (e qdrantPersonalMemoryExecutor) Upsert(
 	}
 	pointID := memoryruntime.PointID(request.UserID, request.MemoryID)
 	payload := map[string]any{
-		"memory_id":    strings.TrimSpace(request.MemoryID),
-		"user_id":      strings.TrimSpace(request.UserID),
-		"tenant_id":    strings.TrimSpace(request.TenantID),
-		"memory_type":  strings.TrimSpace(request.MemoryType),
-		"capability":   strings.TrimSpace(request.Capability),
-		"status":       strings.TrimSpace(request.Status),
-		"source":       strings.TrimSpace(request.Source),
-		"compact_text": strings.TrimSpace(request.CompactText),
-		"updated_at":   strings.TrimSpace(request.UpdatedAt),
+		"memory_id":             strings.TrimSpace(request.MemoryID),
+		"user_id":               strings.TrimSpace(request.UserID),
+		"tenant_id":             strings.TrimSpace(request.TenantID),
+		"memory_type":           strings.TrimSpace(request.MemoryType),
+		"capability":            strings.TrimSpace(request.Capability),
+		"canonical_key":         strings.TrimSpace(request.CanonicalKey),
+		"canonical_subject":     strings.TrimSpace(request.CanonicalSubject),
+		"status":                strings.TrimSpace(request.Status),
+		"source":                strings.TrimSpace(request.Source),
+		"compact_text":          strings.TrimSpace(request.CompactText),
+		"confidence":            request.Confidence,
+		"first_seen_at":         strings.TrimSpace(request.FirstSeenAt),
+		"last_seen_at":          strings.TrimSpace(request.LastSeenAt),
+		"merge_count":           request.MergeCount,
+		"reason_code":           strings.TrimSpace(request.ReasonCode),
+		"source_hashes":         normalizedStringSlice(request.SourceHashes),
+		"supersedes_memory_ids": normalizedStringSlice(request.SupersedesMemoryIDs),
+		"updated_at":            strings.TrimSpace(request.UpdatedAt),
 	}
 	body := map[string]any{
 		"points": []map[string]any{{

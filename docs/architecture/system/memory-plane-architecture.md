@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-09
-updated: 2026-06-13
+updated: 2026-06-16
 ---
 # Memory Plane Architecture
 
@@ -58,9 +58,18 @@ user_id
 tenant_id
 memory_type: profile | goal | preference | session_summary | task_state
 capability: knowledge | campus_services | notice | navigation | any
+canonical_key
+canonical_subject
 status: active | stale | disabled
 source: explicit | inferred | imported
 compact_text
+confidence
+reason_code
+source_hashes
+first_seen_at
+last_seen_at
+merge_count
+supersedes_memory_ids
 updated_at
 ```
 
@@ -149,6 +158,7 @@ run completed
 -> Temporal MemoryUpdateWorkflow
 -> provider-backed structured extraction from sanitized execution packet
 -> deterministic admission / classify / budget
+-> canonical key resolution / dedupe / merge decision
 -> embedding
 -> Qdrant personal_memory_v1 upsert
 ```
@@ -167,15 +177,35 @@ run completed
   response contract 不完整时 fail closed，并留下可诊断 activity failure。
 - provider 只产出候选；写入准入仍由 execution-control deterministic gate
   决定。gate 要求 `confidence >= 0.9`、合法 `memory_type` /
-  `capability`、合法 `reason_code`、非空 `source_hash` 与 compact payload 校验通过。
+  `capability`、合法 `reason_code`、非空 `source_hash`、非空
+  `canonical_subject` 与 compact payload 校验通过。
+- `canonical_subject` 由 provider 输出，execution-control 本地派生
+  `canonical_key = memory_type + ":" + capability + ":" + normalized(canonical_subject)`。
+  `source_hash` 只用于来源追踪和审计，不参与长期 memory identity。
+- 写入前必须先做 per-user / per-tenant dedupe：
+  - exact `canonical_key` 命中 active / stale memory 时，刷新同一条 memory，不创建新
+    point。
+  - 无 exact 命中时，在同用户 / 同租户、同 `memory_type` 且 capability compatible 的
+    active / stale memory 中做 dense similarity 查询。
+  - similarity `>= 0.92` 时合并到既有 memory；`0.84 <= score < 0.92`
+    时跳过并记录 `dedupe_review_required`；低于该阈值时创建新 memory。
+  - dedupe 不得跨 user / tenant，不得查询或写入 institutional RAG collection。
+- merge 不拼接 `compact_text`。确定包含关系时保留更完整文本；需要语义融合时必须走结构化
+  provider merge，并重新通过 deterministic gate。merge 输出无效时跳过写入并投影
+  `merge_failed`。
+- `source_hashes` 累积去重，`first_seen_at` 保留首次写入时间，
+  `last_seen_at` / `updated_at` 记录最近刷新时间，`merge_count` 记录同一长期 memory 被刷新 /
+  合并的次数。
 - memory update 是 finalization 后的后置 workflow / activity；失败只写可诊断 step projection，不回滚已经完成的主回答。
 - `context.memory.enabled` 是自动写入 gate。gate 缺失或为 false 时必须跳过自动写入；不得通过
   PG profile memory item 全量注入来推断 gate。
 - memory update projection 只记录 count、hash、skip reason 与 memory id 摘要，不记录
   `compact_text` 原文。
 
-用户 accept / reject / edit 不是当前自动生效策略的前置条件。若未来产品需要强治理，可以在 app-api product
-surface 上增加候选确认或用户可见 inferred item projection，但不得把它重新变成 online recall 的前置硬条件。
+用户 accept / reject / edit 不是当前自动生效策略的前置条件。本阶段不提供人工 review
+queue；不能自动判定的相似候选必须 fail closed 并跳过写入。若未来产品需要强治理，可以在
+app-api product surface 上增加候选确认或用户可见 inferred item projection，但不得把它重新变成 online recall
+的前置硬条件。
 
 ## Data-Plane Boundary
 
