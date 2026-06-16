@@ -773,13 +773,13 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 
 - `apps/app-api` 拥有 account / session、operator access、rate / quota 与 user-scoped
   memory binding 的 product truth；online memory recall 由 execution-control /
-  Temporal / Qdrant-native Personal Memory Index 承接
+  Temporal / Zep CE self-host Personal Memory Plane 承接
 - execution path 只消费最小 typed projection
 - memory 可以影响 follow-up、preference、query framing、disambiguation、planning /
   wording，但不能决定 capability opening、tool admission、source trust、fail-close、
   operator access 或 account/session truth
 
-Memory Plane 的 Qdrant collection、online recall、写入链路与 Temporal 参与点，统一看
+Memory Plane 的 Zep CE runtime、online recall、写入链路与 Temporal 参与点，统一看
 `system/memory-plane-architecture.md`。本文只保留目标 repo 级 owner 与 advisory-context
 约束。
 
