@@ -526,6 +526,7 @@ describe("execution control runtime adapter", () => {
 		);
 
 		const upsert = await client.upsertExplicitMemory({
+			canonicalSubject: "answer_style",
 			compactText: "answer_style: 先给结论",
 			memoryId: "mem_01HQ",
 			traceId: "trace_memory_001",
@@ -557,10 +558,16 @@ describe("execution control runtime adapter", () => {
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
 			capability: "any",
+			canonical_key: "profile:any:answer_style",
+			canonical_subject: "answer_style",
 			compact_text: "answer_style: 先给结论",
+			first_seen_at: "2026-06-10T08:00:00.000Z",
+			last_seen_at: "2026-06-10T08:00:00.000Z",
 			memory_id: "mem_01HQ",
 			memory_type: "profile",
+			reason_code: "explicit_preference",
 			source: "explicit",
+			source_hashes: ["manual:mem_01HQ"],
 			status: "active",
 			tenant_id: "",
 			updated_at: "2026-06-10T08:00:00.000Z",

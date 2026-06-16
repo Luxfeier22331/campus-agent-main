@@ -49,6 +49,7 @@ import {
 	getOperatorOverview,
 	getOperatorQualitySummary,
 	getOperatorQualityTimeseries,
+	getOperatorRuntimeHealth,
 	getOperatorSafetySummary,
 	listOperatorAudit,
 	listOperatorQualityBadcases,
@@ -259,6 +260,9 @@ export const operatorConsoleDataProvider: OperatorConsoleDataProvider = {
 	},
 	async getOperatorQualityTimeseries(input) {
 		return getOperatorQualityTimeseries(input);
+	},
+	async getOperatorRuntimeHealth(input) {
+		return getOperatorRuntimeHealth(input);
 	},
 	async getOperatorIntentSummary(input) {
 		return getOperatorIntentSummary(input);

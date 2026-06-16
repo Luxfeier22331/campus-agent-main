@@ -147,6 +147,9 @@ list endpoints 额外支持：
 ### Overview
 
 - `GET /api/operator/overview`
+- `GET /api/operator/runtime/health`
+  - execution runtime health projection; response body lives in
+    `app-api-operator-observability-http/eval-and-overview.md`
 
 ### Requests
 

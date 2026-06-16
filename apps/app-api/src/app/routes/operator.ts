@@ -37,6 +37,25 @@ export function registerOperatorRoutes(input: {
 		);
 	});
 
+	input.app.get("/api/operator/runtime/health", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().getRuntimeHealth({
+				principal: resolved.principal,
+			}),
+		);
+	});
+
 	input.app.get("/api/operator/quality/summary", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

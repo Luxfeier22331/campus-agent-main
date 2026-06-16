@@ -35,85 +35,97 @@ export function OverviewPage() {
 		filters.surface !== deferredSurface ||
 		filters.selectedCapability !== deferredSelectedCapability;
 
-	const [overviewQuery, qualityTimeseriesQuery, costTimeseriesQuery, runtimeDiagnosticsQuery] =
-		useQueries({
-			queries: [
-				{
-					queryFn: ({ signal }) =>
-						dataProvider.getOperatorOverview({
-							selectedCapability: deferredSelectedCapability,
-							signal,
-							surface: deferredSurface,
-							window: deferredWindow,
-						}),
-					queryKey: [
-						"operator-console-overview",
-						deferredWindow,
-						deferredSurface,
-						deferredSelectedCapability,
-					] as const,
-					staleTime: 30_000,
-				},
-				{
-					queryFn: ({ signal }) =>
-						dataProvider.getOperatorQualityTimeseries({
-							granularity: resolveOverviewGranularity(deferredWindow),
-							selectedCapability: deferredSelectedCapability,
-							signal,
-							surface: deferredSurface,
-							window: deferredWindow,
-						}),
-					queryKey: [
-						"operator-console-quality-timeseries",
-						deferredWindow,
-						resolveOverviewGranularity(deferredWindow),
-						deferredSurface,
-						deferredSelectedCapability,
-					] as const,
-					staleTime: 30_000,
-				},
-				{
-					queryFn: ({ signal }) =>
-						dataProvider.getOperatorCostTimeseries({
-							granularity: resolveOverviewGranularity(deferredWindow),
-							selectedCapability: deferredSelectedCapability,
-							signal,
-							surface: deferredSurface,
-							window: deferredWindow,
-						}),
-					queryKey: [
-						"operator-console-cost-timeseries",
-						deferredWindow,
-						resolveOverviewGranularity(deferredWindow),
-						deferredSurface,
-						deferredSelectedCapability,
-					] as const,
-					staleTime: 30_000,
-				},
-				{
-					queryFn: ({ signal }) => dataProvider.getOverview({ signal }),
-					queryKey: ["operator-console-runtime-diagnostics"] as const,
-					staleTime: 60_000,
-				},
-			] as const,
-		});
+	const [
+		overviewQuery,
+		qualityTimeseriesQuery,
+		costTimeseriesQuery,
+		runtimeHealthQuery,
+		runtimeDiagnosticsQuery,
+	] = useQueries({
+		queries: [
+			{
+				queryFn: ({ signal }) =>
+					dataProvider.getOperatorOverview({
+						selectedCapability: deferredSelectedCapability,
+						signal,
+						surface: deferredSurface,
+						window: deferredWindow,
+					}),
+				queryKey: [
+					"operator-console-overview",
+					deferredWindow,
+					deferredSurface,
+					deferredSelectedCapability,
+				] as const,
+				staleTime: 30_000,
+			},
+			{
+				queryFn: ({ signal }) =>
+					dataProvider.getOperatorQualityTimeseries({
+						granularity: resolveOverviewGranularity(deferredWindow),
+						selectedCapability: deferredSelectedCapability,
+						signal,
+						surface: deferredSurface,
+						window: deferredWindow,
+					}),
+				queryKey: [
+					"operator-console-quality-timeseries",
+					deferredWindow,
+					resolveOverviewGranularity(deferredWindow),
+					deferredSurface,
+					deferredSelectedCapability,
+				] as const,
+				staleTime: 30_000,
+			},
+			{
+				queryFn: ({ signal }) =>
+					dataProvider.getOperatorCostTimeseries({
+						granularity: resolveOverviewGranularity(deferredWindow),
+						selectedCapability: deferredSelectedCapability,
+						signal,
+						surface: deferredSurface,
+						window: deferredWindow,
+					}),
+				queryKey: [
+					"operator-console-cost-timeseries",
+					deferredWindow,
+					resolveOverviewGranularity(deferredWindow),
+					deferredSurface,
+					deferredSelectedCapability,
+				] as const,
+				staleTime: 30_000,
+			},
+			{
+				queryFn: ({ signal }) => dataProvider.getOperatorRuntimeHealth({ signal }),
+				queryKey: ["operator-console-runtime-health"] as const,
+				staleTime: 60_000,
+			},
+			{
+				queryFn: ({ signal }) => dataProvider.getOverview({ signal }),
+				queryKey: ["operator-console-runtime-diagnostics"] as const,
+				staleTime: 60_000,
+			},
+		] as const,
+	});
 
 	const primaryQueries = [overviewQuery, qualityTimeseriesQuery, costTimeseriesQuery];
 	const primaryError = primaryQueries.find((query) => query.error)?.error;
 	const primaryErrorMessage = primaryError
 		? toQueryErrorMessage(primaryError, PANEL_COPY.overviewPage.states.loadFailed)
 		: null;
-	const runtimeErrorMessage = runtimeDiagnosticsQuery.error
-		? toQueryErrorMessage(
-				runtimeDiagnosticsQuery.error,
-				PANEL_COPY.overviewPage.states.runtimeLoadFailed,
-			)
-		: null;
+	const runtimeErrorMessage =
+		(runtimeHealthQuery.error ?? runtimeDiagnosticsQuery.error)
+			? toQueryErrorMessage(
+					runtimeHealthQuery.error ?? runtimeDiagnosticsQuery.error,
+					PANEL_COPY.overviewPage.states.runtimeLoadFailed,
+				)
+			: null;
 
 	const isPending = primaryQueries.some((query) => query.isPending);
 	const overviewRecord = overviewQuery.data?.data ?? null;
 	const qualityTimeseries = qualityTimeseriesQuery.data?.data ?? null;
 	const costTimeseries = costTimeseriesQuery.data?.data ?? null;
+	const runtimeHealth = runtimeHealthQuery.data?.data ?? null;
 	const runtimeDiagnostics = runtimeDiagnosticsQuery.data?.data ?? null;
 
 	const qualitySeries = qualityTimeseries ? buildQualityTrendSeries(qualityTimeseries.series) : [];
@@ -174,7 +186,8 @@ export function OverviewPage() {
 							qualitySeries={qualitySeries}
 							runtimeDiagnostics={runtimeDiagnostics}
 							runtimeErrorMessage={runtimeErrorMessage}
-							runtimeIsPending={runtimeDiagnosticsQuery.isPending}
+							runtimeHealth={runtimeHealth}
+							runtimeIsPending={runtimeHealthQuery.isPending || runtimeDiagnosticsQuery.isPending}
 						/>
 					) : null}
 				</Stack>

@@ -558,6 +558,19 @@ export function buildOperatorQueryService(
 			return dependencies.store.getOverview(normalizeOverviewFilters(input.filters));
 		},
 
+		async getRuntimeHealth(input) {
+			ensureOperatorPrincipal(input.principal);
+			if (!dependencies.runtimeHealthProbe) {
+				throw new AppApiRouteError({
+					code: "execution_runtime_health_not_configured",
+					message: "Execution runtime health probe is required for operator runtime health.",
+					retryable: true,
+					status: 503,
+				});
+			}
+			return dependencies.runtimeHealthProbe();
+		},
+
 		async getQualitySummary(input) {
 			ensureOperatorPrincipal(input.principal);
 			return dependencies.store.getQualitySummary(normalizeOverviewFilters(input.filters));

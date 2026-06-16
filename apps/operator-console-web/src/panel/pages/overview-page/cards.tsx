@@ -22,6 +22,7 @@ import {
 import type {
 	OperatorOverviewAlert,
 	OperatorOverviewRecord,
+	OperatorRuntimeHealthRecord,
 	PanelOverviewRecord,
 } from "../../types";
 import type { OverviewFilterState } from "./constants";
@@ -140,6 +141,7 @@ export function OverviewAlertCard(props: { alert: OperatorOverviewAlert }) {
 export function OverviewDiagnosticsCard(props: {
 	errorMessage: string | null;
 	isPending: boolean;
+	runtimeHealth: OperatorRuntimeHealthRecord | null;
 	runtimeDiagnostics: PanelOverviewRecord | null;
 }) {
 	return (
@@ -159,88 +161,206 @@ export function OverviewDiagnosticsCard(props: {
 				<Alert severity="warning">{props.errorMessage}</Alert>
 			) : null}
 
-			{!(props.isPending || props.errorMessage) && props.runtimeDiagnostics ? (
+			{props.isPending || props.errorMessage ? null : (
 				<Stack spacing={2}>
-					<Box
-						sx={{
-							display: "grid",
-							gap: 1,
-							gridTemplateColumns: {
-								md: "repeat(2, minmax(0, 1fr))",
-								xs: "1fr",
-							},
-						}}
-					>
-						<Typography variant="body2">
-							<strong>{PANEL_COPY.overviewPage.runtime.runtime}</strong>:{" "}
-							{props.runtimeDiagnostics.runtime}
-						</Typography>
-						<Typography variant="body2">
-							<strong>{PANEL_COPY.overviewPage.runtime.protectedHostname}</strong>:{" "}
-							{props.runtimeDiagnostics.protectedHostname || PANEL_COPY.notSet}
-						</Typography>
-						<Typography variant="body2">
-							<strong>{PANEL_COPY.overviewPage.runtime.protectionEnvelope}</strong>:{" "}
-							{props.runtimeDiagnostics.protectionEnvelope}
-						</Typography>
-						<Typography variant="body2">
-							<strong>{PANEL_COPY.overviewPage.runtime.apiBase}</strong>:{" "}
-							{props.runtimeDiagnostics.runtimeApiBaseUrl || PANEL_COPY.workerServiceBinding}
-						</Typography>
-					</Box>
-
-					{props.runtimeDiagnostics.operatorContext ? (
+					{props.runtimeHealth ? (
 						<>
-							<Divider />
-							<Stack spacing={0.5}>
-								<Typography sx={{ fontWeight: 600 }} variant="body2">
-									{PANEL_COPY.overviewPage.runtime.operatorIdentity}
-								</Typography>
-								<Typography color="text.secondary" variant="body2">
-									{props.runtimeDiagnostics.operatorContext.displayName ||
-										props.runtimeDiagnostics.operatorContext.email ||
-										props.runtimeDiagnostics.operatorContext.operatorId}{" "}
-									· {formatPrincipalClass(props.runtimeDiagnostics.operatorContext.principalClass)}
-								</Typography>
+							<Stack
+								direction={{ sm: "row", xs: "column" }}
+								justifyContent="space-between"
+								spacing={1}
+								sx={{ alignItems: { sm: "center", xs: "flex-start" } }}
+							>
+								<Stack spacing={0.5}>
+									<Typography sx={{ fontWeight: 600 }} variant="body2">
+										Execution Runtime Health
+									</Typography>
+									<Typography color="text.secondary" variant="body2">
+										{props.runtimeHealth.temporalRuntime?.namespace || PANEL_COPY.unknown}
+									</Typography>
+								</Stack>
+								<Chip
+									color={props.runtimeHealth.status === "ready" ? "success" : "warning"}
+									label={props.runtimeHealth.status}
+									size="small"
+									variant={props.runtimeHealth.status === "ready" ? "filled" : "outlined"}
+								/>
 							</Stack>
+
+							<Box
+								sx={{
+									display: "grid",
+									gap: 1,
+									gridTemplateColumns: {
+										md: "repeat(2, minmax(0, 1fr))",
+										xs: "1fr",
+									},
+								}}
+							>
+								<Typography variant="body2">
+									<strong>Temporal</strong>:{" "}
+									{props.runtimeHealth.executionRuntime.checks.temporalRuntime}
+								</Typography>
+								<Typography variant="body2">
+									<strong>Run projection</strong>:{" "}
+									{props.runtimeHealth.executionRuntime.checks.runProjectionStore}
+								</Typography>
+								<Typography variant="body2">
+									<strong>Workflow queue</strong>:{" "}
+									{props.runtimeHealth.temporalRuntime?.workflowTaskQueue || PANEL_COPY.notSet}
+								</Typography>
+								<Typography variant="body2">
+									<strong>Worker</strong>:{" "}
+									{props.runtimeHealth.temporalRuntime?.workerId || PANEL_COPY.notSet}
+								</Typography>
+							</Box>
+
+							{Object.keys(props.runtimeHealth.executionRuntime.blockers).length > 0 ? (
+								<Alert severity="warning">
+									{Object.values(props.runtimeHealth.executionRuntime.blockers).join("; ")}
+								</Alert>
+							) : null}
+
+							{props.runtimeHealth.temporalRuntime ? (
+								<Stack spacing={1}>
+									<Typography sx={{ fontWeight: 600 }} variant="body2">
+										Temporal task queue pollers
+									</Typography>
+									<Box
+										sx={{
+											display: "grid",
+											gap: 1,
+											gridTemplateColumns: {
+												md: "1.6fr 0.8fr 0.6fr 0.8fr",
+												xs: "1fr",
+											},
+										}}
+									>
+										{props.runtimeHealth.temporalRuntime.taskQueuePollers.map((poller) => (
+											<Stack
+												direction={{ md: "row", xs: "column" }}
+												key={`${poller.name}:${poller.type}`}
+												spacing={1}
+												sx={{
+													alignItems: { md: "center", xs: "flex-start" },
+													border: "1px solid",
+													borderColor: "divider",
+													borderRadius: 1,
+													gridColumn: "1 / -1",
+													justifyContent: "space-between",
+													p: 1,
+												}}
+											>
+												<Typography sx={{ fontFamily: "monospace" }} variant="body2">
+													{poller.name}
+												</Typography>
+												<Typography color="text.secondary" variant="body2">
+													{poller.type}
+												</Typography>
+												<Typography variant="body2">pollers={poller.pollers}</Typography>
+												<Chip
+													color={poller.healthy ? "success" : "warning"}
+													label={poller.healthy ? "ready" : "missing"}
+													size="small"
+													variant={poller.healthy ? "filled" : "outlined"}
+												/>
+											</Stack>
+										))}
+									</Box>
+								</Stack>
+							) : null}
 						</>
 					) : null}
 
-					<Divider />
-					<Stack spacing={1}>
-						<Typography sx={{ fontWeight: 600 }} variant="body2">
-							{PANEL_COPY.overviewPage.runtime.domainRollout}
-						</Typography>
-						<Box
-							sx={{
-								display: "grid",
-								gap: 1,
-								gridTemplateColumns: {
-									md: "repeat(2, minmax(0, 1fr))",
-									xs: "1fr",
-								},
-							}}
-						>
-							{Object.entries(props.runtimeDiagnostics.panelDomains).map(([domain, status]) => (
-								<Stack
-									direction="row"
-									justifyContent="space-between"
-									key={domain}
-									spacing={2}
-									sx={{ alignItems: "center" }}
+					{props.runtimeHealth && props.runtimeDiagnostics ? <Divider /> : null}
+
+					{props.runtimeDiagnostics ? (
+						<>
+							<Box
+								sx={{
+									display: "grid",
+									gap: 1,
+									gridTemplateColumns: {
+										md: "repeat(2, minmax(0, 1fr))",
+										xs: "1fr",
+									},
+								}}
+							>
+								<Typography variant="body2">
+									<strong>{PANEL_COPY.overviewPage.runtime.runtime}</strong>:{" "}
+									{props.runtimeDiagnostics.runtime}
+								</Typography>
+								<Typography variant="body2">
+									<strong>{PANEL_COPY.overviewPage.runtime.protectedHostname}</strong>:{" "}
+									{props.runtimeDiagnostics.protectedHostname || PANEL_COPY.notSet}
+								</Typography>
+								<Typography variant="body2">
+									<strong>{PANEL_COPY.overviewPage.runtime.protectionEnvelope}</strong>:{" "}
+									{props.runtimeDiagnostics.protectionEnvelope}
+								</Typography>
+								<Typography variant="body2">
+									<strong>{PANEL_COPY.overviewPage.runtime.apiBase}</strong>:{" "}
+									{props.runtimeDiagnostics.runtimeApiBaseUrl || PANEL_COPY.workerServiceBinding}
+								</Typography>
+							</Box>
+
+							{props.runtimeDiagnostics.operatorContext ? (
+								<>
+									<Divider />
+									<Stack spacing={0.5}>
+										<Typography sx={{ fontWeight: 600 }} variant="body2">
+											{PANEL_COPY.overviewPage.runtime.operatorIdentity}
+										</Typography>
+										<Typography color="text.secondary" variant="body2">
+											{props.runtimeDiagnostics.operatorContext.displayName ||
+												props.runtimeDiagnostics.operatorContext.email ||
+												props.runtimeDiagnostics.operatorContext.operatorId}{" "}
+											·{" "}
+											{formatPrincipalClass(
+												props.runtimeDiagnostics.operatorContext.principalClass,
+											)}
+										</Typography>
+									</Stack>
+								</>
+							) : null}
+
+							<Divider />
+							<Stack spacing={1}>
+								<Typography sx={{ fontWeight: 600 }} variant="body2">
+									{PANEL_COPY.overviewPage.runtime.domainRollout}
+								</Typography>
+								<Box
+									sx={{
+										display: "grid",
+										gap: 1,
+										gridTemplateColumns: {
+											md: "repeat(2, minmax(0, 1fr))",
+											xs: "1fr",
+										},
+									}}
 								>
-									<Typography variant="body2">
-										{PANEL_COPY.overviewDomains[
-											domain as keyof typeof PANEL_COPY.overviewDomains
-										] ?? domain}
-									</Typography>
-									{renderDomainStatus(status)}
-								</Stack>
-							))}
-						</Box>
-					</Stack>
+									{Object.entries(props.runtimeDiagnostics.panelDomains).map(([domain, status]) => (
+										<Stack
+											direction="row"
+											justifyContent="space-between"
+											key={domain}
+											spacing={2}
+											sx={{ alignItems: "center" }}
+										>
+											<Typography variant="body2">
+												{PANEL_COPY.overviewDomains[
+													domain as keyof typeof PANEL_COPY.overviewDomains
+												] ?? domain}
+											</Typography>
+											{renderDomainStatus(status)}
+										</Stack>
+									))}
+								</Box>
+							</Stack>
+						</>
+					) : null}
 				</Stack>
-			) : null}
+			)}
 		</OverviewChartCard>
 	);
 }
@@ -421,6 +541,7 @@ export function OverviewPrimaryContent(props: {
 	}>;
 	runtimeDiagnostics: PanelOverviewRecord | null;
 	runtimeErrorMessage: string | null;
+	runtimeHealth: OperatorRuntimeHealthRecord | null;
 	runtimeIsPending: boolean;
 }) {
 	const kpiCards = buildOverviewCards(props.overviewRecord);
@@ -590,6 +711,7 @@ export function OverviewPrimaryContent(props: {
 				<OverviewDiagnosticsCard
 					errorMessage={props.runtimeErrorMessage}
 					isPending={props.runtimeIsPending}
+					runtimeHealth={props.runtimeHealth}
 					runtimeDiagnostics={props.runtimeDiagnostics}
 				/>
 			</Box>

@@ -57,6 +57,11 @@ debugging / analysis / grading`
 
 - `Overview`
   - 全局 SLO、告警摘要、最近异常、sink health
+- `Runtime Health`
+  - execution-control readyz 的 operator-safe projection、Temporal required task queue
+    poller health、run projection store readiness；它只能由 `app-api`
+    operator endpoint 暴露，不是 Temporal Dashboard、raw history viewer 或 metrics
+    explorer
 - `Requests`
   - request list/detail、step timeline、trace correlation、projection-friendly diagnostics
 - `Quality`
@@ -72,6 +77,21 @@ debugging / analysis / grading`
   - `official_web` control plane；它仍是独立 operator domain，不退化成通用 infra console
 
 这些域都属于 operator-facing read model，不等于 raw sink explorer。
+
+`Runtime Health` 的固定路径是：
+
+`operator browser -> operator console surface -> app-api /api/operator/runtime/health
+-> execution-control /readyz projection`
+
+规则：
+
+- Operator Console 不直接访问 `apps/execution-control`、Temporal service、
+  Prometheus、Sentry、Axiom 或 PG。
+- `app-api` 可以把 `execution-control /readyz` 的 200/503 structured payload 转成
+  operator-safe runtime health projection；503 只表示执行平面明确报告 degraded，不表示前端可以绕过
+  app-api 直接查基础设施。
+- 缺配置、网络错误、鉴权错误、非 JSON 或非 readyz projection 错误仍 fail closed；不得在 Operator Console
+  消费层猜测 runtime 状态。
 
 ## Execution Projection Spine
 

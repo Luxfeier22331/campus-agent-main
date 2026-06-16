@@ -1,5 +1,8 @@
 import type { ResolvedAppPrincipal } from "../auth";
-import type { ExecutionControlRuntimeClient } from "../integration";
+import type {
+	ExecutionControlOperatorRuntimeHealth,
+	ExecutionControlRuntimeClient,
+} from "../integration";
 import type {
 	NormalizedOperatorAuditListFilters,
 	NormalizedOperatorOverviewFilters,
@@ -89,6 +92,9 @@ export interface OperatorQueryService {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;
 	}): Promise<OperatorOverviewResult>;
+	getRuntimeHealth(input: {
+		principal: ResolvedAppPrincipal;
+	}): Promise<ExecutionControlOperatorRuntimeHealth>;
 	getQualitySummary(input: {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;
@@ -142,4 +148,5 @@ export interface OperatorQueryService {
 export interface OperatorQueryServiceDependencies {
 	executionRuntime?: ExecutionControlRuntimeClient | null;
 	store: OperatorQueryStore;
+	runtimeHealthProbe?: (() => Promise<ExecutionControlOperatorRuntimeHealth>) | null;
 }

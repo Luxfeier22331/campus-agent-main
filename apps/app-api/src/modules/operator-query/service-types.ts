@@ -1,3 +1,4 @@
+import type { ExecutionControlOperatorRuntimeHealth } from "../integration";
 import type { CapabilityExecutionWorkflowTraceSummary } from "../integration/capability-execution-types";
 import type { EvalCoverageSnapshot } from "../operator-eval-coverage";
 import type {
@@ -121,6 +122,7 @@ export interface OperatorQueryListResult {
 }
 
 export type OperatorEvalCoverageResult = EvalCoverageSnapshot;
+export type OperatorRuntimeHealthResult = ExecutionControlOperatorRuntimeHealth;
 
 export interface OperatorIntentObservabilitySummary {
 	capability: string | null;

@@ -12,6 +12,7 @@ export type {
 	CapabilityExecutionSessionSummary,
 	CapabilityExecutionWorkflowTraceSummary,
 	ExecutionControlCampusServicesProductPathPreflight,
+	ExecutionControlOperatorRuntimeHealth,
 	ExecutionControlPersonalMemoryClient,
 	ExecutionControlPersonalMemoryDisableInput,
 	ExecutionControlPersonalMemoryResult,
@@ -23,6 +24,7 @@ export type {
 	ExecutionControlRunCreateInput,
 	ExecutionControlRunEvent,
 	ExecutionControlRunEventQuery,
+	ExecutionControlRunProjectionStoreHealth,
 	ExecutionControlRunQuery,
 	ExecutionControlRunStep,
 	ExecutionControlRunStepTrajectory,
@@ -30,6 +32,8 @@ export type {
 	ExecutionControlRuntimePreflight,
 	ExecutionControlStepAttempt,
 	ExecutionControlStepResult,
+	ExecutionControlTemporalRuntimeHealth,
+	ExecutionControlTemporalTaskQueuePollerHealth,
 	RequestedScope,
 } from "./execution-control";
 export {
@@ -39,6 +43,7 @@ export {
 	ExecutionControlTransportError,
 	isExecutionControlRuntimeConfigured,
 	parseExecutionFinalizationResponsePayload,
+	probeExecutionControlOperatorRuntimeHealth,
 	probeExecutionControlReady,
 } from "./execution-control";
 export {

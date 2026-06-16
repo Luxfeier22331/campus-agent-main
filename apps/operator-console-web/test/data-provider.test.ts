@@ -4,6 +4,7 @@ import { registerDataProviderAuthenticatedNoticeRunProcessingSuite } from "./dat
 import { registerDataProviderObservabilityAndOperatorSuite } from "./data-provider.observability-and-operator.suite";
 import { registerDataProviderOfficialWebSuite } from "./data-provider.official-web.suite";
 import { registerDataProviderRequestsSuite } from "./data-provider.requests.suite";
+import { registerDataProviderRuntimeHealthSuite } from "./data-provider.runtime-health.suite";
 import { registerDataProviderSafetyAuditSuite } from "./data-provider.safety-audit.suite";
 
 describe("Operator Console data provider", () => {
@@ -19,6 +20,7 @@ describe("Operator Console data provider", () => {
 	registerDataProviderAuthenticatedNoticeProcessingSuite();
 	registerDataProviderAuthenticatedNoticeRunProcessingSuite();
 	registerDataProviderObservabilityAndOperatorSuite();
+	registerDataProviderRuntimeHealthSuite();
 	registerDataProviderSafetyAuditSuite();
 	registerDataProviderOfficialWebSuite();
 });

@@ -16,6 +16,7 @@ import type {
 	OperatorQualityEvalCandidateRecord,
 	OperatorQualitySummaryRecord,
 	OperatorQualityTimeseriesRecord,
+	OperatorRuntimeHealthRecord,
 	OperatorSafetyAnomalyListFilterInput,
 	OperatorSafetyAnomalyRecord,
 	OperatorSafetySummaryRecord,
@@ -35,6 +36,9 @@ export interface OperatorConsoleDataProvider extends DataProvider {
 	getOperatorQualityTimeseries(
 		input?: OperatorTimeseriesFilterInput & { signal?: AbortSignal },
 	): Promise<{ data: OperatorQualityTimeseriesRecord }>;
+	getOperatorRuntimeHealth(input?: { signal?: AbortSignal }): Promise<{
+		data: OperatorRuntimeHealthRecord;
+	}>;
 	getOperatorIntentSummary(
 		input?: OperatorAggregateFilterInput & { signal?: AbortSignal },
 	): Promise<{ data: OperatorIntentSummaryRecord }>;

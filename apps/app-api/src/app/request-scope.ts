@@ -33,6 +33,7 @@ import {
 	createExecutionControlRuntimeClient,
 	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
+	probeExecutionControlOperatorRuntimeHealth,
 } from "../modules/integration";
 import {
 	buildOfficialWebCommandService,
@@ -410,6 +411,7 @@ export function createRequestScopeFactory(input: {
 
 				operatorQueryService = buildOperatorQueryService({
 					executionRuntime: createExecutionControlRuntimeClient(input.env),
+					runtimeHealthProbe: () => probeExecutionControlOperatorRuntimeHealth(input.env),
 					store: createPgOperatorQueryStore(input.env, { getDb: runtime.getDb }),
 				});
 				return operatorQueryService;

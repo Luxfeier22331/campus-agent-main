@@ -121,6 +121,50 @@ export interface OperatorOverviewRecord extends Omit<RawOperatorOverviewRecord, 
 	alerts: OperatorOverviewAlert[];
 }
 
+export type OperatorRuntimeReadinessCheckStatus = "ready" | "not_ready" | "not_reported";
+
+export interface RawOperatorRuntimeHealthRecord {
+	asOf: string;
+	executionRuntime: {
+		blockers: Record<string, string>;
+		checks: {
+			runProjectionStore: OperatorRuntimeReadinessCheckStatus;
+			temporalRuntime: OperatorRuntimeReadinessCheckStatus;
+		};
+		status: "ready" | "blocked" | "not_reported";
+	};
+	runProjectionStore: {
+		configured: boolean;
+		healthy: boolean;
+		lastError: string | null;
+	} | null;
+	status: "ready" | "degraded";
+	temporalRuntime: {
+		configured: boolean;
+		healthy: boolean;
+		lastError: string | null;
+		namespace: string;
+		requiredTaskQueues: string[];
+		taskQueueGate: "pollers_required";
+		taskQueuePollers: Array<{
+			healthy: boolean;
+			name: string;
+			pollers: number;
+			type: string;
+		}>;
+		workerId: string;
+		workflowTaskQueue: string;
+	} | null;
+}
+
+export type OperatorRuntimeHealthRecord = RawOperatorRuntimeHealthRecord;
+
+export function normalizeOperatorRuntimeHealthRecord(
+	input: RawOperatorRuntimeHealthRecord,
+): OperatorRuntimeHealthRecord {
+	return input;
+}
+
 export interface RawOperatorQualitySummaryRecord {
 	asOf: string;
 	runtime: {

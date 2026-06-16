@@ -19,6 +19,7 @@ export function registerOperatorQueryRequestsListSuite(): void {
 				getEvalCoverage: vi.fn(),
 				getObservabilityById: vi.fn(),
 				getOverview: vi.fn(),
+				getRuntimeHealth: vi.fn(),
 				getIntentSummary: vi.fn(),
 				getIntentTimeseries: vi.fn(),
 				getQualitySummary: vi.fn(),

@@ -14,6 +14,7 @@ import {
 	normalizeOperatorQualityEvalCandidateRecord,
 	normalizeOperatorQualitySummaryRecord,
 	normalizeOperatorQualityTimeseriesRecord,
+	normalizeOperatorRuntimeHealthRecord,
 	normalizeOperatorSafetyAnomalyRecord,
 	normalizeOperatorSafetySummaryRecord,
 	type OperatorAggregateFilterInput,
@@ -31,6 +32,7 @@ import {
 	type OperatorQualityEvalCandidateRecord,
 	type OperatorQualitySummaryRecord,
 	type OperatorQualityTimeseriesRecord,
+	type OperatorRuntimeHealthRecord,
 	type OperatorSafetyAnomalyListFilterInput,
 	type OperatorSafetyAnomalyRecord,
 	type OperatorSafetySummaryRecord,
@@ -47,6 +49,7 @@ import {
 	type RawOperatorQualityEvalCandidateListResponse,
 	type RawOperatorQualitySummaryRecord,
 	type RawOperatorQualityTimeseriesRecord,
+	type RawOperatorRuntimeHealthRecord,
 	type RawOperatorSafetyAnomalyListResponse,
 	type RawOperatorSafetySummaryRecord,
 } from "../types";
@@ -73,6 +76,18 @@ export async function getOperatorOverview(
 
 	return {
 		data: normalizeOperatorOverviewRecord(payload),
+	};
+}
+
+export async function getOperatorRuntimeHealth(input?: {
+	signal?: AbortSignal;
+}): Promise<{ data: OperatorRuntimeHealthRecord }> {
+	const payload = await fetchJson<RawOperatorRuntimeHealthRecord>("/api/operator/runtime/health", {
+		signal: input?.signal,
+	});
+
+	return {
+		data: normalizeOperatorRuntimeHealthRecord(payload),
 	};
 }
 
