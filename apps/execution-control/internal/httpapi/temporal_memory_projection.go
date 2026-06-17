@@ -50,6 +50,18 @@ func memoryRecallRequestForRun(
 	return request, nil
 }
 
+func memoryRecallCapabilityForRun(run execution.DurableRun, requestedCapability string) string {
+	payload, _ := run.Metadata["execution_payload"].(map[string]any)
+	capability := strings.TrimSpace(requestedCapability)
+	if capability == "" {
+		capability = firstNonEmptyText(payload["requested_capability"], run.RequestedCapability)
+	}
+	if capability == "" {
+		capability = "any"
+	}
+	return capability
+}
+
 func memorySessionSlotsFromPayload(payload map[string]any) map[string]string {
 	rawSlots := nestedAny(payload, "context", "session", "confirmed_slots")
 	items, ok := rawSlots.([]any)

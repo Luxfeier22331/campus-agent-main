@@ -68,6 +68,7 @@ describe("chat command service memory gate projection", () => {
 						enabled: false,
 					},
 				}),
+				tenantId: "tenant-main",
 			}),
 		);
 		expect(supervisor.execute).toHaveBeenCalledWith(

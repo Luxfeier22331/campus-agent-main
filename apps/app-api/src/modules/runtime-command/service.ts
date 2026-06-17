@@ -4,6 +4,7 @@ import {
 	type CapabilityExecutionResponse,
 	ExecutionControlTransportError,
 } from "../integration";
+import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
 import { type RuntimeRunPhase, runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 
 import {
@@ -344,6 +345,7 @@ export function buildChatCommandService(
 			versionQuery: context.validatedPayload.versionQuery,
 			safetyIdentifier: context.safetyIdentifier,
 			surface: context.surface,
+			tenantId: DEFAULT_PERSONAL_MEMORY_TENANT_ID,
 			traceHeaders: telemetry?.getTraceHeaders(),
 			traceId: context.traceId,
 			userGoal: context.validatedPayload.prompt,

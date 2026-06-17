@@ -7,6 +7,9 @@ import (
 )
 
 type fakePersonalMemoryExecutor struct {
+	appendErr          error
+	appendCount        int
+	recallCount        int
 	seenAppend         memoryruntime.AppendConversationTurnRequest
 	seenOwnerDisable   memoryruntime.DisableProfileMemoryOwnerRequest
 	seenProfileDisable memoryruntime.DisableProfileMemoryItemRequest
@@ -22,6 +25,7 @@ func (f *fakePersonalMemoryExecutor) Recall(
 	_ context.Context,
 	request memoryruntime.RecallRequest,
 ) (memoryruntime.RecallResult, error) {
+	f.recallCount++
 	f.seenRequest = request
 	return memoryruntime.RecallResult{
 		ContextBlock: "用户记忆:\n相关事实:\n- 用户关注保研和培养方案。",
@@ -46,12 +50,16 @@ func (f *fakePersonalMemoryExecutor) AppendConversationTurn(
 	_ context.Context,
 	request memoryruntime.AppendConversationTurnRequest,
 ) (memoryruntime.AppendConversationTurnResult, error) {
+	f.appendCount++
 	f.seenAppend = request
+	if f.appendErr != nil {
+		return memoryruntime.AppendConversationTurnResult{}, f.appendErr
+	}
 	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
 		AppendedMessageCount: 2,
 		RunID:                request.RunID,
 		SchemaVersion:        "memory_conversation_append_result_v1",
-		Status:               "completed",
+		Status:               "accepted",
 		ThreadID:             request.ThreadID,
 		UserID:               request.UserID,
 	})

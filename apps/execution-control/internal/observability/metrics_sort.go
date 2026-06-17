@@ -67,6 +67,25 @@ func sortedCapabilityGateKeys(items map[capabilityGateKey]uint64) []capabilityGa
 	return keys
 }
 
+func sortedPersonalMemoryOperationKeys(
+	items map[personalMemoryOperationKey]uint64,
+) []personalMemoryOperationKey {
+	keys := make([]personalMemoryOperationKey, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(left int, right int) bool {
+		if keys[left].Operation != keys[right].Operation {
+			return keys[left].Operation < keys[right].Operation
+		}
+		if keys[left].Outcome != keys[right].Outcome {
+			return keys[left].Outcome < keys[right].Outcome
+		}
+		return keys[left].FailureKind < keys[right].FailureKind
+	})
+	return keys
+}
+
 func sortedRuntimeDecisionKeys(items map[runtimeDecisionKey]uint64) []runtimeDecisionKey {
 	keys := make([]runtimeDecisionKey, 0, len(items))
 	for key := range items {

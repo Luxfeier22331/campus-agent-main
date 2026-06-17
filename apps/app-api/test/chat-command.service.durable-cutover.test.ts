@@ -266,6 +266,7 @@ describe("chat command durable runtime cutover", () => {
 			"requested_scope",
 			"response_contract",
 			"safety_identifier",
+			"tenant_id",
 			"trace",
 			"user_goal",
 			"version_query",
@@ -276,6 +277,7 @@ describe("chat command durable runtime cutover", () => {
 			effective_capability: "knowledge",
 			lane: "rag",
 			requested_capability: "knowledge",
+			tenant_id: "tenant-main",
 			trace: {
 				trace_id: "trace_0001",
 			},
@@ -304,6 +306,7 @@ describe("chat command durable runtime cutover", () => {
 						corpus: "regulations",
 					},
 					safety_identifier: expect.any(String),
+					tenant_id: "tenant-main",
 					trace: {
 						trace_id: "trace_0001",
 					},

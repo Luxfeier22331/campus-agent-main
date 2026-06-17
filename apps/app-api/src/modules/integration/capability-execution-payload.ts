@@ -67,6 +67,7 @@ export function toCapabilityExecutionRequestBody(
 		...(payload.requestedCapability ? { requested_capability: payload.requestedCapability } : {}),
 		...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
 		...(payload.safetyIdentifier ? { safety_identifier: payload.safetyIdentifier } : {}),
+		...(payload.tenantId ? { tenant_id: payload.tenantId } : {}),
 		...(payload.versionQuery
 			? { version_query: toCapabilityExecutionVersionQuery(payload.versionQuery) }
 			: {}),

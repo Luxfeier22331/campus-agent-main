@@ -20,29 +20,59 @@ func (s *Server) AppendConversationMemoryActivity(
 	if err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
 	}
+	startedAt := time.Now().UTC()
 	payload, _ := run.Metadata["execution_payload"].(map[string]any)
 	enabled, known := memoryEnabledFromExecutionPayload(payload)
 	if !known {
-		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_enabled_unknown"))
+		output, err := s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_enabled_unknown"))
+		if err == nil {
+			s.recordPersonalMemoryOperation("append", "skipped", "memory_enabled_unknown", startedAt, 0, 0)
+		}
+		return output, err
 	}
 	if !enabled {
-		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_disabled"))
+		output, err := s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_disabled"))
+		if err == nil {
+			s.recordPersonalMemoryOperation("append", "skipped", "memory_disabled", startedAt, 0, 0)
+		}
+		return output, err
 	}
 	if s.personalMemoryErr != nil {
-		return temporalruntime.AppendConversationMemoryActivityOutput{}, s.personalMemoryErr
+		output, err := s.projectMemoryAppendFailure(ctx, run, "personal_memory_not_configured", s.personalMemoryErr)
+		if err == nil {
+			s.recordPersonalMemoryOperation("append", "failed", "personal_memory_not_configured", startedAt, 0, 0)
+		}
+		return output, err
 	}
 	if s.personalMemoryExecutor == nil {
-		return temporalruntime.AppendConversationMemoryActivityOutput{}, errors.New("personal memory executor is not configured")
+		output, err := s.projectMemoryAppendFailure(
+			ctx,
+			run,
+			"personal_memory_not_configured",
+			errors.New("personal memory executor is not configured"),
+		)
+		if err == nil {
+			s.recordPersonalMemoryOperation("append", "failed", "personal_memory_not_configured", startedAt, 0, 0)
+		}
+		return output, err
 	}
 	request, err := memoryAppendRequestForRun(ctx, s.runProjectionStore, run, payload)
 	if err != nil {
-		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
+		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "memory_append_request_invalid", err)
+		if projectErr == nil {
+			s.recordPersonalMemoryOperation("append", "failed", "memory_append_request_invalid", startedAt, 0, 0)
+		}
+		return output, projectErr
 	}
 	result, err := s.personalMemoryExecutor.AppendConversationTurn(ctx, request)
 	if err != nil {
-		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
+		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "hindsight_append_failed", err)
+		if projectErr == nil {
+			s.recordPersonalMemoryOperation("append", "failed", "hindsight_append_failed", startedAt, 0, 0)
+		}
+		return output, projectErr
 	}
-	return s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
+	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: result.AppendedMessageCount,
 		PayloadSHA256:        result.PayloadSHA256,
 		RunID:                run.RunID,
@@ -50,6 +80,55 @@ func (s *Server) AppendConversationMemoryActivity(
 		Status:               result.Status,
 		ThreadID:             result.ThreadID,
 	})
+	if err == nil {
+		s.recordPersonalMemoryOperation("append", output.Status, "none", startedAt, output.AppendedMessageCount, 0)
+	}
+	return output, err
+}
+
+func (s *Server) projectMemoryAppendFailure(
+	ctx context.Context,
+	run execution.DurableRun,
+	failureKind string,
+	cause error,
+) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+	output := temporalruntime.AppendConversationMemoryActivityOutput{
+		RunID:         run.RunID,
+		SchemaVersion: "memory_conversation_append_result_v1",
+		SkipReasons:   []string{failureKind},
+		Status:        "failed",
+	}
+	now := time.Now().UTC()
+	payload := map[string]any{
+		"appended_message_count": output.AppendedMessageCount,
+		"failure_kind":           failureKind,
+		"message":                cause.Error(),
+		"payload_sha256":         output.PayloadSHA256,
+		"schema_version":         output.SchemaVersion,
+		"skip_reasons":           output.SkipReasons,
+		"skipped_count":          output.SkippedCount,
+		"status":                 output.Status,
+		"thread_id":              output.ThreadID,
+	}
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Capability:    "memory",
+		Run:           run,
+		Status:        "failed",
+		StepID:        "memory.append",
+		StepKind:      "memory",
+		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     now,
+		CompletedAt:   now,
+		UpdatedAt:     now,
+		ResultKind:    "memory_conversation_append_result",
+		ProjectionRef: temporalProjectionRef(run.RunID, "memory/append"),
+		Payload:       payload,
+	}); err != nil {
+		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
+	}
+	return output, nil
 }
 
 func memoryAppendRequestForRun(
@@ -144,7 +223,7 @@ func (s *Server) projectMemoryAppendResult(
 		output.SchemaVersion = "memory_conversation_append_result_v1"
 	}
 	if strings.TrimSpace(output.Status) == "" {
-		output.Status = "completed"
+		output.Status = "accepted"
 	}
 	payload := map[string]any{
 		"appended_message_count": output.AppendedMessageCount,

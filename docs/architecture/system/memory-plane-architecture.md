@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-09
-updated: 2026-06-17
+updated: 2026-06-18
 ---
 # Memory Plane Architecture
 
@@ -82,6 +82,11 @@ local / staging / production 都必须持有稳定 salt。产品侧 user id / co
 不得直接作为 Hindsight runtime id；sanitized projection 只保留产品侧 `thread_id` /
 `conversation_id`，不暴露 internal Hindsight bank id。
 
+当前单校区产品 profile 的默认 product tenant 固定为 `tenant-main`，由 app-api
+代码内约定写入 durable execution payload 与 internal personal-memory command；开发者不
+需要为该 tenant 手工配置 env。后续若引入多租户，必须先提升为明确 product identity
+contract，而不是让各调用点自行传空字符串或猜默认值。
+
 retired env 必须 fail closed：
 
 ```text
@@ -123,6 +128,11 @@ user request
 
 `memory.recall` 是 capability-neutral execution step，不属于 RAG worker 的私有前置逻辑；
 目标态也不要求每个 product identity / no-tool direct answer 都先做 memory recall。
+
+`context.memory.enabled` 是 recall gate。gate 缺失或为 false 时
+`context.memory_recall` 必须投影为 skipped，不调用 Hindsight，也不向 primary agent /
+RAG graph 传入 `memory_context` 或 `memory_ref`。gate 为 true 时才构造 Hindsight recall
+request。recall query 由 `user_goal` 加确定性排序后的 confirmed `session_slots` 组成。
 
 recall request 必须包含：
 
@@ -180,6 +190,10 @@ finalization.write completed
 `context.memory.enabled` 是自动写入 gate。gate 缺失或为 false 时必须跳过 append；不得通过
 PG profile memory item 全量注入来推断 gate。
 
+completed-turn append 对 Hindsight 使用 async retain，因此成功语义是 `accepted`，不是
+`completed`。append 属于 final answer 后置 side-effect；Hindsight/config/request 失败不反向
+失败最终回答，但必须写入 `memory.append` failed step projection 并进入 metrics。
+
 append projection 只记录：
 
 ```text
@@ -189,10 +203,22 @@ thread_id
 appended_message_count
 payload_sha256
 skip_reasons
+failure_kind
 ```
 
 不得在 projection、Temporal activity result 或 eval artifact 中保存 raw transcript、
 provider raw response、tool raw payload、Hindsight raw payload 或 unrestricted notes。
+
+execution-control `/metrics` 暴露 personal memory 的 bounded-label 指标：
+
+```text
+campus_execution_control_personal_memory_operations_total{operation,outcome,failure_kind}
+campus_execution_control_personal_memory_operation_duration_ms{operation}
+campus_execution_control_personal_memory_selected_items_count{operation}
+campus_execution_control_personal_memory_selected_chars_count{operation}
+```
+
+这些指标不得包含 user id、tenant id、run id、conversation id、memory id 或 raw text。
 
 `/internal/memory/personal/turns:append` 与 `/internal/memory/personal/graph:recall`
 只服务 internal worker / runtime smoke。它们用于 Hindsight live gate 直接验证 append、recall

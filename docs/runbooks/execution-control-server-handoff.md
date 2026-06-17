@@ -144,6 +144,16 @@ curl -sS -i http://127.0.0.1:27051/readyz
 curl -sS -i http://127.0.0.1:27051/metrics
 ```
 
+Personal memory runtime smoke 后，`/metrics` 至少应能观察到 bounded-label memory
+operation 指标族，不得出现 user / tenant / run / conversation id label：
+
+```text
+campus_execution_control_personal_memory_operations_total
+campus_execution_control_personal_memory_operation_duration_ms
+campus_execution_control_personal_memory_selected_items_count
+campus_execution_control_personal_memory_selected_chars_count
+```
+
 1. smoke
 
 ```bash

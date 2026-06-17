@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -185,7 +186,7 @@ func (e hindsightExecutor) Recall(
 	response, err := e.client.RecallMemories(ctx, bankID, hindsightRecallRequest{
 		Budget:    "mid",
 		MaxTokens: e.recallMaxLen,
-		Query:     strings.TrimSpace(request.UserGoal),
+		Query:     hindsightRecallQuery(request),
 		Tags:      []string{"scope:private"},
 		TagsMatch: "all_strict",
 		Trace:     false,
@@ -244,10 +245,37 @@ func (e hindsightExecutor) AppendConversationTurn(
 		AppendedMessageCount: 2,
 		RunID:                request.RunID,
 		SchemaVersion:        "memory_conversation_append_result_v1",
-		Status:               "completed",
+		Status:               "accepted",
 		ThreadID:             request.ThreadID,
 		UserID:               bankID,
 	})
+}
+
+func hindsightRecallQuery(request memoryruntime.RecallRequest) string {
+	query := strings.TrimSpace(request.UserGoal)
+	if len(request.SessionSlots) == 0 {
+		return query
+	}
+	keys := make([]string, 0, len(request.SessionSlots))
+	for key, value := range request.SessionSlots {
+		if strings.TrimSpace(key) != "" && strings.TrimSpace(value) != "" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	if len(keys) == 0 {
+		return query
+	}
+	var builder strings.Builder
+	builder.WriteString(query)
+	builder.WriteString("\n\n已确认上下文:")
+	for _, key := range keys {
+		builder.WriteString("\n- ")
+		builder.WriteString(strings.TrimSpace(key))
+		builder.WriteString(": ")
+		builder.WriteString(strings.TrimSpace(request.SessionSlots[key]))
+	}
+	return builder.String()
 }
 
 func (e hindsightExecutor) UpsertProfileMemoryItem(

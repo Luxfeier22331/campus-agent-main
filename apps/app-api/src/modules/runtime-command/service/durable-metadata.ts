@@ -4,6 +4,7 @@ import {
 	toCapabilityExecutionContext,
 } from "../../integration/capability-execution-payload";
 import { CAPABILITY_EXECUTION_CONTRACT } from "../../integration/generated/capability-execution-contract";
+import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../../personalization/tenant";
 import { toCapabilityExecutionVersionQuery } from "../../version-query";
 
 type JsonRecord = Record<string, unknown>;
@@ -52,6 +53,7 @@ export function buildCapabilityExecutionRunMetadata(
 		requested_scope: requestedScope,
 		response_contract: CAPABILITY_EXECUTION_CONTRACT.responseContract,
 		safety_identifier: executionInput.safetyIdentifier ?? null,
+		tenant_id: executionInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
 		trace: {
 			trace_id: executionInput.traceId,
 		},

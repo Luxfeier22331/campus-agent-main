@@ -15,6 +15,8 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	metrics.RecordAdmissionDecision("admitted_queued", 12*time.Millisecond)
 	metrics.RecordAdmissionDecisionForLane("rag", "admitted_queued", 8*time.Millisecond)
 	metrics.RecordCapabilityGate("campus_services", "structured_runtime", "closed")
+	metrics.RecordPersonalMemoryOperation("recall", "completed", "none", 34*time.Millisecond, 2, 128)
+	metrics.RecordPersonalMemoryOperation("append", "failed", "hindsight_append_failed", 42*time.Millisecond, 0, 0)
 	metrics.RecordRuntimeDecision(RuntimeDecisionLabels{
 		Capability:            "knowledge",
 		Lane:                  "rag",
@@ -61,6 +63,11 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_execution_control_admission_queue_wait_ms_count 2`,
 		`campus_execution_control_admission_lane_queue_wait_ms_count{lane="rag"} 1`,
 		`campus_execution_control_capability_gate_decisions_total{capability="campus_services",gate="structured_runtime",decision="closed"} 1`,
+		`campus_execution_control_personal_memory_operations_total{operation="append",outcome="failed",failure_kind="hindsight_append_failed"} 1`,
+		`campus_execution_control_personal_memory_operations_total{operation="recall",outcome="completed",failure_kind="none"} 1`,
+		`campus_execution_control_personal_memory_operation_duration_ms_count{operation="recall"} 1`,
+		`campus_execution_control_personal_memory_selected_items_count_bucket{operation="recall",le="5.000"} 1`,
+		`campus_execution_control_personal_memory_selected_chars_count_bucket{operation="recall",le="250.000"} 1`,
 		`campus_execution_control_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned",selected_capability="none",selected_tool="none",terminal_outcome="no_answer",fail_close_reason="product_scope_boundary"} 1`,
 		`campus_execution_control_lifecycle_completed_total{state="completed"} 1`,
 		`campus_execution_control_lifecycle_completed_total{state="failed"} 1`,

@@ -58,6 +58,7 @@ export interface CapabilityExecutionInput {
 	requestedScope?: RequestedScope | null;
 	safetyIdentifier?: string | null;
 	surface?: string;
+	tenantId?: string | null;
 	traceHeaders?: TracePropagationHeaders;
 	traceId: string;
 	userGoal: string;

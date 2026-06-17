@@ -184,6 +184,48 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			m.capabilityGateTotals[key],
 		)
 	}
+	builder.WriteString("# HELP campus_execution_control_personal_memory_operations_total Total personal memory operations by operation and outcome.\n")
+	builder.WriteString("# TYPE campus_execution_control_personal_memory_operations_total counter\n")
+	for _, key := range sortedPersonalMemoryOperationKeys(m.personalMemoryTotals) {
+		fmt.Fprintf(
+			&builder,
+			"campus_execution_control_personal_memory_operations_total{operation=%q,outcome=%q,failure_kind=%q} %d\n",
+			key.Operation,
+			key.Outcome,
+			key.FailureKind,
+			m.personalMemoryTotals[key],
+		)
+	}
+	for _, operation := range sortedRoutes(m.personalMemoryDurations) {
+		writeHistogramWithLabel(
+			&builder,
+			"campus_execution_control_personal_memory_operation_duration_ms",
+			"Personal memory operation duration in milliseconds.",
+			"operation",
+			operation,
+			m.personalMemoryDurations[operation],
+		)
+	}
+	for _, operation := range sortedRoutes(m.personalMemoryItems) {
+		writeValueHistogramWithLabel(
+			&builder,
+			"campus_execution_control_personal_memory_selected_items_count",
+			"Selected personal memory item count per operation.",
+			"operation",
+			operation,
+			m.personalMemoryItems[operation],
+		)
+	}
+	for _, operation := range sortedRoutes(m.personalMemoryChars) {
+		writeValueHistogramWithLabel(
+			&builder,
+			"campus_execution_control_personal_memory_selected_chars_count",
+			"Selected personal memory character count per operation.",
+			"operation",
+			operation,
+			m.personalMemoryChars[operation],
+		)
+	}
 	builder.WriteString("# HELP campus_execution_control_runtime_policy_decisions_total Total Go runtime policy decisions by bounded decision labels.\n")
 	builder.WriteString("# TYPE campus_execution_control_runtime_policy_decisions_total counter\n")
 	for _, key := range sortedRuntimeDecisionKeys(m.runtimeDecisionTotals) {

@@ -97,10 +97,41 @@ func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 		}
 	}
 	if result.AppendedMessageCount != 2 ||
+		result.Status != "accepted" ||
 		result.ThreadID != "conv-hindsight-append" ||
 		result.UserID != wantBankID ||
 		result.PayloadSHA256 == "" {
 		t.Fatalf("append result = %#v", result)
+	}
+}
+
+func TestHindsightRecallQueryIncludesConfirmedSessionSlots(t *testing.T) {
+	client := &fakeHindsightClient{}
+	executor := hindsightExecutor{
+		client:       client,
+		ownerSalt:    "test-salt",
+		recallLimit:  5,
+		recallMaxLen: 2500,
+	}
+
+	_, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
+		RequestedCapability: "knowledge",
+		RunID:               "run-hindsight-recall-slots",
+		SessionSlots: map[string]string{
+			"target_year": "2026",
+			"topic":       "保研材料",
+		},
+		TenantID: "tenant-main",
+		ThreadID: "conv-hindsight-recall-slots",
+		UserGoal: "我应该怎么准备？",
+		UserID:   "user-executor",
+	})
+	if err != nil {
+		t.Fatalf("recall: %v", err)
+	}
+	wantQuery := "我应该怎么准备？\n\n已确认上下文:\n- target_year: 2026\n- topic: 保研材料"
+	if client.recallRequest.Query != wantQuery {
+		t.Fatalf("query = %q, want %q", client.recallRequest.Query, wantQuery)
 	}
 }
 

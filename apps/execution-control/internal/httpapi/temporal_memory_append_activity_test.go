@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func TestAppendConversationMemoryActivityRequiresMemoryEnabledGate(t *testing.T)
 	}
 }
 
-func TestAppendConversationMemoryActivityAddsCompletedTurnToPersonalMemory(t *testing.T) {
+func TestAppendConversationMemoryActivityAcceptsCompletedTurnForAsyncPersonalMemory(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 15, 12, 5, 0, 0, time.UTC)
 	createMemoryAppendRunForTest(t, store, "run-memory-append-enabled", "我之后主要关注保研材料", ptrBool(true), now)
@@ -57,8 +58,8 @@ func TestAppendConversationMemoryActivityAddsCompletedTurnToPersonalMemory(t *te
 	if err != nil {
 		t.Fatalf("append conversation memory: %v", err)
 	}
-	if output.Status != "completed" || output.AppendedMessageCount != 2 {
-		t.Fatalf("append output = %#v, want completed append of user+assistant", output)
+	if output.Status != "accepted" || output.AppendedMessageCount != 2 {
+		t.Fatalf("append output = %#v, want accepted append of user+assistant", output)
 	}
 	if executor.seenAppend.UserID != "user-executor" {
 		t.Fatalf("user id = %q, want user-executor", executor.seenAppend.UserID)
@@ -101,14 +102,62 @@ func TestAppendConversationMemoryActivityPreservesTenantForScopedHindsightBank(t
 	if err != nil {
 		t.Fatalf("append conversation memory: %v", err)
 	}
-	if output.Status != "completed" {
-		t.Fatalf("append output = %#v, want completed", output)
+	if output.Status != "accepted" {
+		t.Fatalf("append output = %#v, want accepted", output)
 	}
 	if executor.seenAppend.TenantID != "tenant-main" {
 		t.Fatalf("tenant id = %q, want tenant-main", executor.seenAppend.TenantID)
 	}
 	if executor.seenAppend.UserID != "user-executor" {
 		t.Fatalf("user id = %q, want raw actor user id", executor.seenAppend.UserID)
+	}
+}
+
+func TestAppendConversationMemoryActivityProjectsFailureWhenHindsightAppendFails(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 15, 12, 8, 0, 0, time.UTC)
+	createMemoryAppendRunForTest(t, store, "run-memory-append-failed", "我之后主要关注保研材料", ptrBool(true), now)
+	executor := &fakePersonalMemoryExecutor{appendErr: errors.New("hindsight retain failed")}
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-append"})
+	server.personalMemoryExecutor = executor
+	server.personalMemoryErr = nil
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	output, err := server.AppendConversationMemoryActivity(
+		context.Background(),
+		temporalruntime.AppendConversationMemoryActivityInput{
+			RequestID: "req-memory-append-failed",
+			RunID:     "run-memory-append-failed",
+			TraceID:   memoryAppendTraceID("run-memory-append-failed"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("append conversation memory should project failure without failing final answer side-effect: %v", err)
+	}
+	if output.Status != "failed" || output.AppendedMessageCount != 0 {
+		t.Fatalf("append output = %#v, want failed status with no appended messages", output)
+	}
+	if len(output.SkipReasons) != 1 || output.SkipReasons[0] != "hindsight_append_failed" {
+		t.Fatalf("failure reasons = %#v", output.SkipReasons)
+	}
+	results, err := store.ListStepResults(context.Background(), "run-memory-append-failed")
+	if err != nil {
+		t.Fatalf("list step results: %v", err)
+	}
+	var payload map[string]any
+	for _, result := range results {
+		if result.StepID == "memory.append" {
+			payload = result.SanitizedPayload
+		}
+	}
+	if payload == nil {
+		t.Fatal("memory.append failure projection missing")
+	}
+	if payload["status"] != "failed" || payload["failure_kind"] != "hindsight_append_failed" {
+		t.Fatalf("payload = %#v, want failed hindsight append projection", payload)
+	}
+	if payload["user_message"] != nil || payload["assistant_message"] != nil {
+		t.Fatalf("failure projection leaked conversation text: %#v", payload)
 	}
 }
 

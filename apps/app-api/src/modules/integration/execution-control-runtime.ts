@@ -1,4 +1,5 @@
 import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
+import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import {
 	createExecutionControlRequestHeaders,
@@ -321,7 +322,7 @@ export function createExecutionControlPersonalMemoryClient(
 		): Promise<{ status: string; updatedAt: string; userId: string }> {
 			const parsed = await requestExecutionControl("/internal/memory/personal/owner:disable", {
 				body: {
-					tenant_id: memoryInput.tenantId ?? "",
+					tenant_id: memoryInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
 					updated_at: memoryInput.updatedAt,
 					user_id: memoryInput.userId,
 				},
@@ -339,7 +340,7 @@ export function createExecutionControlPersonalMemoryClient(
 				body: {
 					episode_uuid: memoryInput.episodeUUID,
 					memory_id: memoryInput.memoryId,
-					tenant_id: memoryInput.tenantId ?? "",
+					tenant_id: memoryInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
 					updated_at: memoryInput.updatedAt,
 					user_id: memoryInput.userId,
 				},
@@ -358,7 +359,7 @@ export function createExecutionControlPersonalMemoryClient(
 					canonical_subject: memoryInput.canonicalSubject.trim(),
 					compact_text: memoryInput.compactText,
 					memory_id: memoryInput.memoryId,
-					tenant_id: memoryInput.tenantId ?? "",
+					tenant_id: memoryInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
 					updated_at: memoryInput.updatedAt,
 					user_id: memoryInput.userId,
 				},

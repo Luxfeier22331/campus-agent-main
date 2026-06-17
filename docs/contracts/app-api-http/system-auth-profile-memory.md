@@ -226,3 +226,5 @@ Upsert 一个用户声明的 profile memory item。
 - 删除 item 后，该 item 必须被同步 delete from Hindsight document / recall path；不得再被
   `context.memory_recall` 返回
 - profile memory 不进入 authorization filter、serving surface、approval 或 tool permission
+- 当前单校区默认 product tenant 为 `tenant-main`；app-api 调用 execution-control
+  personal-memory internal command 时必须显式传该 tenant，不得传空字符串让下游猜默认值

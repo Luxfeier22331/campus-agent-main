@@ -34,14 +34,17 @@ func (s *Server) handleProfileMemoryUpsert(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
+	startedAt := time.Now().UTC()
 	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.UpsertProfileMemoryItem(ctx, input)
 	if err != nil {
+		s.recordPersonalMemoryOperation("profile_upsert", "failed", "profile_memory_upsert_failed", startedAt, 0, 0)
 		setOutcome(response, "profile_memory_upsert_failed")
 		writeError(response, http.StatusBadGateway, "profile_memory_upsert_failed", err.Error(), true)
 		return
 	}
+	s.recordPersonalMemoryOperation("profile_upsert", result.Status, "none", startedAt, 1, len([]rune(input.CompactText)))
 	setOutcome(response, "profile_memory_upserted")
 	writeJSON(response, http.StatusAccepted, result)
 }
@@ -71,14 +74,17 @@ func (s *Server) handleProfileMemoryAppend(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
+	startedAt := time.Now().UTC()
 	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.AppendConversationTurn(ctx, input)
 	if err != nil {
+		s.recordPersonalMemoryOperation("append", "failed", "profile_memory_append_failed", startedAt, 0, 0)
 		setOutcome(response, "profile_memory_append_failed")
 		writeError(response, http.StatusBadGateway, "profile_memory_append_failed", err.Error(), true)
 		return
 	}
+	s.recordPersonalMemoryOperation("append", result.Status, "none", startedAt, result.AppendedMessageCount, 0)
 	setOutcome(response, "profile_memory_appended")
 	writeJSON(response, http.StatusAccepted, result)
 }
@@ -108,14 +114,24 @@ func (s *Server) handleProfileMemoryRecall(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
+	startedAt := time.Now().UTC()
 	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.Recall(ctx, input)
 	if err != nil {
+		s.recordPersonalMemoryOperation("recall", "failed", "profile_memory_recall_failed", startedAt, 0, 0)
 		setOutcome(response, "profile_memory_recall_failed")
 		writeError(response, http.StatusBadGateway, "profile_memory_recall_failed", err.Error(), true)
 		return
 	}
+	s.recordPersonalMemoryOperation(
+		"recall",
+		"completed",
+		"none",
+		startedAt,
+		result.SelectedMemoryCount,
+		result.SelectedMemoryChars,
+	)
 	bodyOut := map[string]any{
 		"context_block":         result.ContextBlock,
 		"memory_context_items":  result.Items,
@@ -159,14 +175,17 @@ func (s *Server) handleProfileMemoryItemDisable(response http.ResponseWriter, re
 	if !ok {
 		return
 	}
+	startedAt := time.Now().UTC()
 	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.DeleteProfileMemoryItem(ctx, input)
 	if err != nil {
+		s.recordPersonalMemoryOperation("profile_disable", "failed", "profile_memory_disable_failed", startedAt, 0, 0)
 		setOutcome(response, "profile_memory_disable_failed")
 		writeError(response, http.StatusBadGateway, "profile_memory_disable_failed", err.Error(), true)
 		return
 	}
+	s.recordPersonalMemoryOperation("profile_disable", result.Status, "none", startedAt, 1, 0)
 	setOutcome(response, "profile_memory_disabled")
 	writeJSON(response, http.StatusAccepted, result)
 }
@@ -196,14 +215,17 @@ func (s *Server) handleProfileMemoryOwnerDisable(response http.ResponseWriter, r
 	if !ok {
 		return
 	}
+	startedAt := time.Now().UTC()
 	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.DeleteProfileMemoryOwner(ctx, input)
 	if err != nil {
+		s.recordPersonalMemoryOperation("profile_owner_disable", "failed", "profile_memory_owner_disable_failed", startedAt, 0, 0)
 		setOutcome(response, "profile_memory_owner_disable_failed")
 		writeError(response, http.StatusBadGateway, "profile_memory_owner_disable_failed", err.Error(), true)
 		return
 	}
+	s.recordPersonalMemoryOperation("profile_owner_disable", result.Status, "none", startedAt, 0, 0)
 	setOutcome(response, "profile_memory_owner_disabled")
 	writeJSON(response, http.StatusAccepted, result)
 }

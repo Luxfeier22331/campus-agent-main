@@ -57,6 +57,7 @@ describe("durable run metadata", () => {
 		expect(payload.requested_capability).toBe("campus_services");
 		expect(payload.effective_capability).toBe("campus_services");
 		expect(payload.lane).toBe("campus_services");
+		expect(payload.tenant_id).toBe("tenant-main");
 		expect(payload.runtime_decisions).toBeUndefined();
 		expect(metadata.handoff).toBeUndefined();
 		expect(JSON.stringify(metadata)).not.toContain("retrieval.query");

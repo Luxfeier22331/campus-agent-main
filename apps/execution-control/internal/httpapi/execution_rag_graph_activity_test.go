@@ -50,6 +50,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 		now,
 		ragHandoffForDurableWorkerTest("学生请假手续"),
 	)
+	setRunMemoryEnabledForTest(t, store, "run-rag-graph", true)
 	addRequestedScopeForRunTest(t, store, "run-rag-graph", "regulations", "student_rules")
 
 	memoryRecall, err := server.MemoryRecallActivity(

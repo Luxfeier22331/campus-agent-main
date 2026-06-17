@@ -142,7 +142,7 @@ func TestProfileMemoryAppendEndpointAddsCompletedTurn(t *testing.T) {
 	}
 	body := decodeBody(t, response)
 	if body["schema_version"] != "memory_conversation_append_result_v1" ||
-		body["status"] != "completed" ||
+		body["status"] != "accepted" ||
 		body["thread_id"] != "conv-hindsight-live-smoke" {
 		t.Fatalf("body = %#v", body)
 	}

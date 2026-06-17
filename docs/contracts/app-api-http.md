@@ -356,6 +356,8 @@ assistant message 可以包含 `feedback`：
 - 开启 profile memory 后，manual write path 必须同步到 execution-control internal
   Hindsight memory command，后续 online recall 由 `context.memory_recall` activity 通过
   Hindsight recall 选择 bounded memory context
+- app-api 发送 internal Hindsight memory command 时必须显式传当前单校区默认
+  `tenant_id=tenant-main`；空 tenant 不再是合法隐式默认
 - 关闭 memory projection 后，后续 `memory.recall` 不得返回该用户的 active personal
   memory item；legacy `ContextProjection.profile_memory.items` 如仍存在于 DTO，只能为空或被
   execution side 忽略

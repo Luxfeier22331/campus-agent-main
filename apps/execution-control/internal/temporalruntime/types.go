@@ -31,15 +31,17 @@ type MemoryRecallActivityInput struct {
 }
 
 type MemoryRecallActivityOutput struct {
-	ContextBlock        string `json:"context_block,omitempty"`
-	MemoryRef           string `json:"memory_ref"`
-	Provider            string `json:"provider,omitempty"`
-	RetrievalMode       string `json:"retrieval_mode,omitempty"`
-	RunID               string `json:"run_id"`
-	SchemaVersion       string `json:"schema_version,omitempty"`
-	SelectedMemoryChars int    `json:"selected_memory_chars"`
-	SelectedMemoryCount int    `json:"selected_memory_count"`
-	Status              string `json:"status"`
+	ContextBlock        string   `json:"context_block,omitempty"`
+	MemoryRef           string   `json:"memory_ref"`
+	Provider            string   `json:"provider,omitempty"`
+	RetrievalMode       string   `json:"retrieval_mode,omitempty"`
+	RunID               string   `json:"run_id"`
+	SchemaVersion       string   `json:"schema_version,omitempty"`
+	SelectedMemoryChars int      `json:"selected_memory_chars"`
+	SelectedMemoryCount int      `json:"selected_memory_count"`
+	SkipReasons         []string `json:"skip_reasons"`
+	SkippedCount        int      `json:"skipped_count"`
+	Status              string   `json:"status"`
 }
 
 type AppendConversationMemoryActivityInput struct {

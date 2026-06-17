@@ -323,6 +323,7 @@ function capabilityExecutionInputFromRunCreate(
 		) as CapabilityExecutionInput["requestedScope"],
 		safetyIdentifier: getString(payload.safety_identifier),
 		surface: input.surface,
+		tenantId: getString(payload.tenant_id),
 		traceHeaders: input.traceHeaders,
 		traceId: getTraceId(payload) ?? input.traceId ?? "",
 		userGoal: getString(payload.user_goal) ?? "",

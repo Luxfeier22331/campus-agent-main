@@ -565,7 +565,7 @@ describe("execution control runtime adapter", () => {
 			canonical_subject: "answer_style",
 			compact_text: "answer_style: 先给结论",
 			memory_id: "mem_01HQ",
-			tenant_id: "",
+			tenant_id: "tenant-main",
 			updated_at: "2026-06-10T08:00:00.000Z",
 			user_id: "user_01HQ",
 		});
@@ -583,7 +583,7 @@ describe("execution control runtime adapter", () => {
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 1))).toEqual({
 			episode_uuid: "episode_01HQ",
 			memory_id: "mem_01HQ",
-			tenant_id: "",
+			tenant_id: "tenant-main",
 			updated_at: "2026-06-10T09:00:00.000Z",
 			user_id: "user_01HQ",
 		});
@@ -599,7 +599,7 @@ describe("execution control runtime adapter", () => {
 			}),
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 2))).toEqual({
-			tenant_id: "",
+			tenant_id: "tenant-main",
 			updated_at: "2026-06-10T10:00:00.000Z",
 			user_id: "user_01HQ",
 		});

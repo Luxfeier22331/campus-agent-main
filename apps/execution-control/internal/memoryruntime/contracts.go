@@ -238,7 +238,7 @@ func FinalizeAppendConversationTurnResult(
 		result.SchemaVersion = "memory_conversation_append_result_v1"
 	}
 	if strings.TrimSpace(result.Status) == "" {
-		result.Status = "completed"
+		result.Status = "accepted"
 	}
 	if strings.TrimSpace(result.RunID) == "" {
 		return AppendConversationTurnResult{}, fmt.Errorf("%w: run_id is required", ErrInvalidMemoryProjection)

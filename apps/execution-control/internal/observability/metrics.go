@@ -92,6 +92,19 @@ type capabilityGateKey struct {
 	Decision   string
 }
 
+type personalMemoryOperationKey struct {
+	Operation   string
+	Outcome     string
+	FailureKind string
+}
+
+type valueHistogram struct {
+	Bounds  []float64
+	Buckets []uint64
+	Count   uint64
+	Sum     float64
+}
+
 type RuntimeDecisionLabels struct {
 	Capability            string
 	Lane                  string
@@ -132,6 +145,10 @@ type Metrics struct {
 	laneWaitDurations       map[string]*routeHistogram
 	structuredQueryTotals   map[structuredQueryKey]uint64
 	capabilityGateTotals    map[capabilityGateKey]uint64
+	personalMemoryTotals    map[personalMemoryOperationKey]uint64
+	personalMemoryDurations map[string]*routeHistogram
+	personalMemoryItems     map[string]*valueHistogram
+	personalMemoryChars     map[string]*valueHistogram
 	runtimeDecisionTotals   map[runtimeDecisionKey]uint64
 }
 
@@ -150,12 +167,16 @@ func NewMetrics() *Metrics {
 			"client_canceled":    0,
 			"draining":           0,
 		},
-		laneDecisionTotals:     make(map[laneDecisionKey]uint64),
-		admissionWaitDurations: newHistogram(),
-		laneWaitDurations:      make(map[string]*routeHistogram),
-		structuredQueryTotals:  make(map[structuredQueryKey]uint64),
-		capabilityGateTotals:   make(map[capabilityGateKey]uint64),
-		runtimeDecisionTotals:  make(map[runtimeDecisionKey]uint64),
+		laneDecisionTotals:      make(map[laneDecisionKey]uint64),
+		admissionWaitDurations:  newHistogram(),
+		laneWaitDurations:       make(map[string]*routeHistogram),
+		structuredQueryTotals:   make(map[structuredQueryKey]uint64),
+		capabilityGateTotals:    make(map[capabilityGateKey]uint64),
+		personalMemoryTotals:    make(map[personalMemoryOperationKey]uint64),
+		personalMemoryDurations: make(map[string]*routeHistogram),
+		personalMemoryItems:     make(map[string]*valueHistogram),
+		personalMemoryChars:     make(map[string]*valueHistogram),
+		runtimeDecisionTotals:   make(map[runtimeDecisionKey]uint64),
 	}
 }
 
@@ -246,6 +267,45 @@ func (m *Metrics) RecordCapabilityGate(capability string, gate string, decision 
 		Gate:       gate,
 		Decision:   decision,
 	}]++
+}
+
+func (m *Metrics) RecordPersonalMemoryOperation(
+	operation string,
+	outcome string,
+	failureKind string,
+	duration time.Duration,
+	selectedItems int,
+	selectedChars int,
+) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	operation = defaultMetricLabel(operation, "unknown")
+	outcome = defaultMetricLabel(outcome, "unknown")
+	failureKind = defaultMetricLabel(failureKind, "none")
+	m.personalMemoryTotals[personalMemoryOperationKey{
+		Operation:   operation,
+		Outcome:     outcome,
+		FailureKind: failureKind,
+	}]++
+	durationHistogram := m.personalMemoryDurations[operation]
+	if durationHistogram == nil {
+		durationHistogram = newHistogram()
+		m.personalMemoryDurations[operation] = durationHistogram
+	}
+	recordHistogramDuration(durationHistogram, duration)
+	itemHistogram := m.personalMemoryItems[operation]
+	if itemHistogram == nil {
+		itemHistogram = newValueHistogram([]float64{0, 1, 2, 5, 10, 25, 50})
+		m.personalMemoryItems[operation] = itemHistogram
+	}
+	recordValueHistogram(itemHistogram, float64(selectedItems))
+	charHistogram := m.personalMemoryChars[operation]
+	if charHistogram == nil {
+		charHistogram = newValueHistogram([]float64{0, 100, 250, 500, 1_000, 2_500, 5_000, 10_000})
+		m.personalMemoryChars[operation] = charHistogram
+	}
+	recordValueHistogram(charHistogram, float64(selectedChars))
 }
 
 func (m *Metrics) RecordRuntimeDecision(labels RuntimeDecisionLabels) {

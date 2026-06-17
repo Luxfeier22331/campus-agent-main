@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0058
 status: accepted
 created: 2026-06-16
-updated: 2026-06-17
+updated: 2026-06-18
 supersedes:
   - ADR-0057 Zep CE Self-Hosted Personal Memory Plane
   - ADR-0053 Qdrant-Native Personal Memory Index
@@ -39,6 +39,9 @@ Adopt self-hosted Hindsight as the only personal memory substrate.
 - Hindsight bank id and document id are execution-control-owned derived runtime
   ids: product `tenant_id`, `user_id` and `conversation_id` are inputs, not
   Hindsight object identifiers.
+- The single-campus default product tenant is `tenant-main`. app-api writes this
+  tenant into durable execution payload and internal personal-memory commands;
+  empty tenant strings are not accepted as an implicit default.
 - Hindsight bank id is derived as `hindsight_bank_` plus a SHA-256 digest of
   `PERSONAL_MEMORY_OWNER_SALT`, `tenant_id` and `user_id`.
 - Completed-turn conversation document id is derived as `conversation:` plus a
@@ -49,6 +52,15 @@ Adopt self-hosted Hindsight as the only personal memory substrate.
   projection can be rebuilt through app-api explicit profile-memory commands;
   online recall truth starts from Hindsight.
 - Qdrant is no longer used for personal memory.
+- `context.memory.enabled` gates both recall and append. Missing or false gates
+  skip Hindsight calls and project skipped `memory.recall` / `memory.append`
+  steps.
+- Completed-turn append uses Hindsight async retain and returns `accepted` after
+  Hindsight accepts the write request. It must not claim `completed` graph
+  materialization.
+- Append failures are post-answer side-effect failures: finalization is not
+  failed, but `memory.append` must be projected as failed and counted by
+  bounded-label personal-memory metrics.
 
 Retired:
 
